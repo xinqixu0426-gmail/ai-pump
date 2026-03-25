@@ -156,6 +156,11 @@ export default function RecipeDetailModal({
   const stockChecks = showProduce ? checkStock() : [];
   const allSufficient = stockChecks.every(c => c.sufficient);
 
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleString('zh-CN', { hour12: false });
+  };
+
   return (
     <Dialog open maxWidth="lg" fullWidth onClose={onClose}>
       <DialogTitle>
@@ -171,10 +176,19 @@ export default function RecipeDetailModal({
 
       <DialogContent>
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body1" gutterBottom>
-            <strong>规格：</strong>
-            {recipe.规格 || recipe.spec || '-'}
-          </Typography>
+          <Box sx={{ display: 'flex', gap: 4, mb: 1, flexWrap: 'wrap' }}>
+            <Typography variant="body1">
+              <strong>规格：</strong> {recipe.规格 || recipe.spec || '-'}
+            </Typography>
+            <Typography variant="body1">
+              <strong>创建时间：</strong> {formatDate(recipe.CreatedAt)}
+            </Typography>
+            {recipe.UpdatedAt && recipe.UpdatedAt !== recipe.CreatedAt && (
+              <Typography variant="body1">
+                <strong>最后更新：</strong> {formatDate(recipe.UpdatedAt)}
+              </Typography>
+            )}
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
             <Typography variant="body1">
               <strong>当前成本：</strong>

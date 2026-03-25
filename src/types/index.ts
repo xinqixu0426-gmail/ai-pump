@@ -46,6 +46,8 @@ export interface Recipe {
   spec?: string;
   配件JSON?: string;
   parts_json?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
 }
 
 // 成本计算结果项
