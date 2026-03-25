@@ -240,7 +240,9 @@ export default function RecipesPage() {
         <RecipeDetailModal
           recipe={selectedRecipe.recipe}
           costResult={selectedRecipe.costResult}
+          parts={parts}
           onClose={handleCloseDetail}
+          onStockUpdated={loadData}
         />
       )}
     </Paper>

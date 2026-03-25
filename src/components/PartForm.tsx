@@ -36,6 +36,7 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [supplier, setSupplier] = useState('');
+  const [stock, setStock] = useState('');
   const [customCategory, setCustomCategory] = useState('');
 
   // 当编辑的零件变化时，更新表单
@@ -52,12 +53,14 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
       }
       setPrice(String(part.单价 || part.price || ''));
       setSupplier(part.供应商 || part.supplier || '');
+      setStock(String(part.库存 ?? part.stock ?? ''));
     } else {
       // 清空表单
       setModel('');
       setCategory('');
       setPrice('');
       setSupplier('');
+      setStock('');
       setCustomCategory('');
     }
   }, [part]);
@@ -71,7 +74,8 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
       型号: model,
       类别: finalCategory,
       单价: parseFloat(price) || 0,
-      供应商: supplier
+      供应商: supplier,
+      库存: parseInt(stock) || 0
     });
 
     if (!part) {
@@ -80,6 +84,7 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
       setCategory('');
       setPrice('');
       setSupplier('');
+      setStock('');
       setCustomCategory('');
     }
   };
@@ -145,6 +150,17 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
           onChange={(e) => setSupplier(e.target.value)}
           placeholder="如：张记配件"
           required
+          fullWidth
+          size="small"
+        />
+
+        <TextField
+          label="库存数量"
+          type="number"
+          inputProps={{ min: 0, step: 1 }}
+          value={stock}
+          onChange={(e) => setStock(e.target.value)}
+          placeholder="0"
           fullWidth
           size="small"
         />

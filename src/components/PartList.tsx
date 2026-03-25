@@ -213,6 +213,7 @@ export default function PartList({ parts, onEdit, onDelete }: PartListProps) {
                         <TableCell>型号</TableCell>
                         <TableCell>单价</TableCell>
                         <TableCell>供应商</TableCell>
+                        <TableCell align="center">库存</TableCell>
                         <TableCell align="center" sx={{ width: '120px' }}>
                           操作
                         </TableCell>
@@ -227,6 +228,15 @@ export default function PartList({ parts, onEdit, onDelete }: PartListProps) {
                           </TableCell>
                           <TableCell>
                             {part.供应商 || part.supplier || '-'}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={part.库存 ?? part.stock ?? 0}
+                              size="small"
+                              color={(part.库存 ?? part.stock ?? 0) === 0 ? 'error' : (part.库存 ?? part.stock ?? 0) <= 5 ? 'warning' : 'success'}
+                              variant="outlined"
+                              sx={{ fontWeight: 600, minWidth: 40 }}
+                            />
                           </TableCell>
                           <TableCell align="center">
                             <IconButton

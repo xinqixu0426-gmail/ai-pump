@@ -56,12 +56,16 @@ export async function getAllParts(): Promise<Part[]> {
  * 创建零件
  */
 export async function createPart(part: Omit<Part, 'Id'>): Promise<Part> {
-  const record = {
+  const record: Record<string, unknown> = {
     型号: part.型号 || part.model,
     类别: part.类别 || part.category,
     单价: part.单价 || part.price,
     供应商: part.供应商 || part.supplier
   };
+  
+  if (part.库存 !== undefined || part.stock !== undefined) {
+    record.库存 = part.库存 ?? part.stock ?? 0;
+  }
 
   return apiRequest<Part>(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
     method: 'POST',
@@ -88,6 +92,9 @@ export async function updatePart(id: number, part: Partial<Part>): Promise<Part>
   if (part.供应商 !== undefined || part.supplier !== undefined) {
     record.供应商 = part.供应商 || part.supplier;
   }
+  if (part.库存 !== undefined || part.stock !== undefined) {
+    record.库存 = part.库存 ?? part.stock;
+  }
 
   return apiRequest<Part>(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
     method: 'PATCH',
@@ -103,6 +110,24 @@ export async function deletePart(id: number): Promise<void> {
     method: 'DELETE',
     body: JSON.stringify([{ Id: id }])
   });
+}
+
+/**
+ * 批量扣减库存（生产用）
+ * deductions: [{ partId, deductQty }]
+ * 返回扣减后更新过的零件列表
+ */
+export async function batchDeductStock(
+  deductions: Array<{ partId: number; currentStock: number; deductQty: number }>
+): Promise<void> {
+  // 逐条更新库存（NocoDB PATCH 支持单条更新）
+  for (const d of deductions) {
+    const newStock = Math.max(0, d.currentStock - d.deductQty);
+    await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+      method: 'PATCH',
+      body: JSON.stringify({ Id: d.partId, 库存: newStock })
+    });
+  }
 }
 
 /**

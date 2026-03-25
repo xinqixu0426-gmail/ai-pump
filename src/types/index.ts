@@ -17,6 +17,8 @@ export interface Part {
   price?: number;
   供应商?: string;
   supplier?: string;
+  库存?: number;
+  stock?: number;
 }
 
 // 配方配件项
