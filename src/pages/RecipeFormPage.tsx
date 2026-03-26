@@ -14,7 +14,13 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Divider
+  Divider,
+  Checkbox,
+  FormControlLabel,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -85,6 +91,16 @@ export default function RecipeFormPage() {
     itemCount: number;
   } | null>(null);
 
+  // === 动态配置区（浮球、电缆、包材） ===
+  const [hasFloat, setHasFloat] = useState(false);
+  const [floatWire, setFloatWire] = useState('0.55');
+
+  const [hasCable, setHasCable] = useState(false);
+  const [cableLength, setCableLength] = useState<string>('');
+  const [cableWire, setCableWire] = useState('0.55');
+
+  const [boxType, setBoxType] = useState<string>('');
+
   // 加载零件数据
   const loadParts = useCallback(async () => {
     try {
@@ -137,6 +153,63 @@ export default function RecipeFormPage() {
     }
   }, [cloneFrom, parts]);
 
+  // 获取某型号某供应商的价格（增加回退取最低价逻辑）
+  const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
+    const m1 = (model || '').trim();
+    const s1 = (supplier || '').trim();
+
+    // 1. 尝试精确匹配 (model + supplier)
+    const exactPart = parts.find((p) => ((p.型号 || p.model) || '').trim() === m1 && ((p.供应商 || p.supplier) || '').trim() === s1);
+    if (exactPart && s1) {
+      return exactPart.单价 || exactPart.price || 0;
+    }
+
+    // 2. 回退到型号匹配（取所有同型号中单价最低的）
+    const modelParts = parts.filter((p) => ((p.型号 || p.model) || '').trim() === m1);
+    if (modelParts.length > 0) {
+      const fallbackPart = modelParts.reduce((min, curr) => {
+        const currPrice = curr.单价 || curr.price || 0;
+        const minPrice = min.单价 || min.price || 0;
+        return currPrice < minPrice ? curr : min;
+      }, modelParts[0]);
+      return fallbackPart.单价 || fallbackPart.price || 0;
+    }
+    
+    return 0;
+  }, [parts]);
+
+  // 解析动态配置生成配方列表
+  const buildConfigParts = useCallback((): RecipePart[] => {
+    const configParts: RecipePart[] = [];
+    
+    // 浮球
+    if (hasFloat) {
+      const model = `浮球-线径${floatWire}`;
+      const snapshotPrice = getPriceByModelAndSupplier(model, '');
+      configParts.push({ model, name: '浮球', supplier: '', qty: 1, snapshotPrice });
+    }
+    
+    // 电缆
+    if (hasCable && cableLength && Number(cableLength) > 0) {
+      const cableModel = `电缆-线径${cableWire}`;
+      const snapshotPrice = getPriceByModelAndSupplier(cableModel, '');
+      configParts.push({ model: cableModel, name: '电缆线', supplier: '', qty: Number(cableLength), snapshotPrice });
+      
+      const accModel = '电缆配件费';
+      const accPrice = getPriceByModelAndSupplier(accModel, '');
+      configParts.push({ model: accModel, name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: accPrice });
+    }
+    
+    // 包材
+    if (boxType) {
+      const snapshotPrice = getPriceByModelAndSupplier(boxType, '');
+      const name = boxType.includes('木') ? '木箱' : '纸箱';
+      configParts.push({ model: boxType, name, supplier: '', qty: 1, snapshotPrice });
+    }
+    
+    return configParts;
+  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, boxType, getPriceByModelAndSupplier]);
+
   // 计算实时成本
   useEffect(() => {
     const allParts: RecipePart[] = [];
@@ -154,6 +227,9 @@ export default function RecipeFormPage() {
       }
     });
 
+    // 压入动态配置项
+    allParts.push(...buildConfigParts());
+
     if (allParts.length > 0) {
       const { partsCache, partsByModel } = buildPartsIndex(parts);
       const result = calculateRecipeCost(allParts, partsCache, partsByModel);
@@ -161,7 +237,7 @@ export default function RecipeFormPage() {
     } else {
       setCostPreview(null);
     }
-  }, [requiredSelections, optionalParts, parts]);
+  }, [requiredSelections, optionalParts, parts, buildConfigParts]);
 
   // 获取某类别的零件型号列表
   const getModelsByCategory = (category: string): string[] => {
@@ -187,30 +263,6 @@ export default function RecipeFormPage() {
     return Array.from(suppliers).filter(Boolean).sort();
   };
 
-  // 获取某型号某供应商的价格（增加回退取最低价逻辑）
-  const getPriceByModelAndSupplier = (model: string, supplier: string): number => {
-    const m1 = (model || '').trim();
-    const s1 = (supplier || '').trim();
-
-    // 1. 尝试精确匹配 (model + supplier)
-    const exactPart = parts.find((p) => ((p.型号 || p.model) || '').trim() === m1 && ((p.供应商 || p.supplier) || '').trim() === s1);
-    if (exactPart && s1) {
-      return exactPart.单价 || exactPart.price || 0;
-    }
-
-    // 2. 回退到型号匹配（取所有同型号中单价最低的）
-    const modelParts = parts.filter((p) => ((p.型号 || p.model) || '').trim() === m1);
-    if (modelParts.length > 0) {
-      const fallbackPart = modelParts.reduce((min, curr) => {
-        const currPrice = curr.单价 || curr.price || 0;
-        const minPrice = min.单价 || min.price || 0;
-        return currPrice < minPrice ? curr : min;
-      }, modelParts[0]);
-      return fallbackPart.单价 || fallbackPart.price || 0;
-    }
-    
-    return 0;
-  };
 
   // 更新必备配件选择
   const handleRequiredChange = (key: string, field: keyof PartSelection, value: string | number) => {
@@ -458,6 +510,76 @@ export default function RecipeFormPage() {
             </TableBody>
           </Table>
         </Paper>
+
+        {/* 动态配置区（浮球、电缆、包材） */}
+        <Typography variant="h6" sx={{ mt: 4, mb: 2, pb: 1, borderBottom: '1px solid', borderColor: 'primary.light', color: 'primary.main' }}>
+          水泵动态配置区
+        </Typography>
+        
+        <Box sx={{ p: 3, mb: 4, bgcolor: 'grey.50', borderRadius: 2, border: '1px solid', borderColor: 'grey.200', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* 浮球配置 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <FormControlLabel 
+              control={<Checkbox checked={hasFloat} onChange={(e) => setHasFloat(e.target.checked)} color="primary" />}
+              label={<Typography fontWeight={500}>带浮球 (基础计算)</Typography>} 
+              sx={{ minWidth: 200 }}
+            />
+            {hasFloat && (
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>浮球线径</InputLabel>
+                <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
+                  <MenuItem value="0.55">0.55 mm</MenuItem>
+                  <MenuItem value="0.75">0.75 mm</MenuItem>
+                </Select>
+              </FormControl>
+            )}
+          </Box>
+
+          <Divider sx={{ my: 0.5 }} />
+
+          {/* 电缆配置 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <FormControlLabel 
+              control={<Checkbox checked={hasCable} onChange={(e) => setHasCable(e.target.checked)} color="primary" />}
+              label={<Typography fontWeight={500}>带电缆线 (动态单价计米数 + 配件费)</Typography>} 
+              sx={{ minWidth: 320 }}
+            />
+            {hasCable && (
+              <>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>电缆线径</InputLabel>
+                  <Select value={cableWire} label="电缆线径" onChange={(e) => setCableWire(e.target.value as string)}>
+                    <MenuItem value="0.55">0.55 mm</MenuItem>
+                    <MenuItem value="0.75">0.75 mm</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField 
+                  label="电缆长度 (米)" 
+                  size="small" 
+                  type="number"
+                  inputProps={{ step: "0.1", min: "0" }}
+                  value={cableLength}
+                  onChange={(e) => setCableLength(e.target.value)}
+                  sx={{ width: 150 }}
+                />
+              </>
+            )}
+          </Box>
+
+          <Divider sx={{ my: 0.5 }} />
+
+          {/* 包装材料 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+             <Typography fontWeight={500} sx={{ minWidth: 120, ml: 4 }}>包装及辅材：</Typography>
+             <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>纸箱或木箱型号</InputLabel>
+                <Select value={boxType} label="纸箱或木箱型号" onChange={(e) => setBoxType(e.target.value as string)}>
+                  <MenuItem value="">不需要包装</MenuItem>
+                  {getModelsByCategory('包材').map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                </Select>
+             </FormControl>
+          </Box>
+        </Box>
 
         {/* 成本预览 */}
         {costPreview && (
