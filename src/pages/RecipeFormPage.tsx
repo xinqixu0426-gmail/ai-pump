@@ -525,13 +525,18 @@ export default function RecipeFormPage() {
               sx={{ minWidth: 200 }}
             />
             {hasFloat && (
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>浮球线径</InputLabel>
-                <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
-                  <MenuItem value="0.55">0.55 mm</MenuItem>
-                  <MenuItem value="0.75">0.75 mm</MenuItem>
-                </Select>
-              </FormControl>
+              <>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>浮球线径</InputLabel>
+                  <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
+                    <MenuItem value="0.55">0.55 mm</MenuItem>
+                    <MenuItem value="0.75">0.75 mm</MenuItem>
+                  </Select>
+                </FormControl>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                  小计: <strong>¥{getPriceByModelAndSupplier(`浮球-线径${floatWire}`, '').toFixed(2)}</strong>
+                </Typography>
+              </>
             )}
           </Box>
 
@@ -562,6 +567,12 @@ export default function RecipeFormPage() {
                   onChange={(e) => setCableLength(e.target.value)}
                   sx={{ width: 150 }}
                 />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                  小计: <strong>¥{((getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '') * (Number(cableLength) || 0)) + getPriceByModelAndSupplier('电缆配件费', '')).toFixed(2)}</strong>
+                  <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.disabled' }}>
+                    ({getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '')}/米 × {cableLength || 0} + 配件 ¥{getPriceByModelAndSupplier('电缆配件费', '')})
+                  </Typography>
+                </Typography>
               </>
             )}
           </Box>
@@ -579,6 +590,16 @@ export default function RecipeFormPage() {
                 sx={{ width: 250 }}
                 placeholder="例如: 纸箱-A款 或 木箱"
              />
+             {boxType && (
+               <Typography variant="body2" color={getPriceByModelAndSupplier(boxType, '') > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
+                 小计: <strong>¥{getPriceByModelAndSupplier(boxType, '').toFixed(2)}</strong>
+                 {getPriceByModelAndSupplier(boxType, '') === 0 && (
+                   <Typography component="span" variant="caption" sx={{ display: 'block', color: 'error.main' }}>
+                     (未找到该型号价格，将按 0 元计算)
+                   </Typography>
+                 )}
+               </Typography>
+             )}
           </Box>
         </Box>
 
