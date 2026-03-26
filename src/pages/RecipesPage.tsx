@@ -86,7 +86,7 @@ export default function RecipesPage() {
     }
 
     const { partsCache, partsByModel } = buildPartsIndex(parts);
-    const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel);
+    const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel, recipe.saved_total_cost);
 
     setSelectedRecipe({ recipe, costResult });
   };
@@ -131,7 +131,7 @@ export default function RecipesPage() {
     }
 
     const { partsCache, partsByModel } = buildPartsIndex(parts);
-    const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel);
+    const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel, recipe.saved_total_cost);
     return `¥${costResult.totalCost}`;
   };
 

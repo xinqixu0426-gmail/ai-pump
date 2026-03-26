@@ -267,11 +267,18 @@ export default function RecipeFormPage() {
       return;
     }
 
+    const savedTotalCost = recipeParts.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
+    const savedCostDetails = recipeParts.map(p => 
+      `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`
+    ).join('\n');
+
     try {
       await createRecipe({
         配方名称: recipeName,
         规格: recipeSpec,
-        配件JSON: JSON.stringify(recipeParts)
+        配件JSON: JSON.stringify(recipeParts),
+        saved_total_cost: savedTotalCost,
+        saved_cost_details: savedCostDetails
       });
 
       setSuccess('配方录入成功！');

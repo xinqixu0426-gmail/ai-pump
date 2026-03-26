@@ -34,11 +34,12 @@ export function buildPartsIndex(parts: Part[]): {
 export function calculateRecipeCost(
   recipeParts: RecipePart[],
   partsCache: Map<string, Part>,
-  partsByModel: Map<string, Part[]>
+  partsByModel: Map<string, Part[]>,
+  savedTotalCost?: number
 ): CostResult {
   let totalCost = 0;
-  let snapshotTotalCost = 0;
-  let hasSnapshot = false;
+  let snapshotTotalCost = savedTotalCost || 0;
+  let hasSnapshot = savedTotalCost !== undefined;
   const details: CostDetail[] = [];
   const missingParts: string[] = [];
 
@@ -77,9 +78,12 @@ export function calculateRecipeCost(
     const snapshotPrice = item.snapshotPrice;
     let snapshotSubtotal: number | undefined;
     if (snapshotPrice !== undefined && snapshotPrice !== null) {
-      hasSnapshot = true;
       snapshotSubtotal = snapshotPrice * qty;
-      snapshotTotalCost += snapshotSubtotal;
+      // 只有在没传专门总成本字段时才去累加 JSON 里的内容
+      if (savedTotalCost === undefined) {
+        hasSnapshot = true;
+        snapshotTotalCost += snapshotSubtotal;
+      }
     }
 
     details.push({

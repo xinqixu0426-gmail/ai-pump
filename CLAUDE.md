@@ -88,7 +88,11 @@
 | name | 文本 | 配方名称，如：人民款370w-90机筒 |
 | power | 文本 | 功率（已弃用） |
 | spec | 文本 | 规格，如：90-100 |
-| parts_json | 长文本 | 配件清单JSON，含型号、名称、供应商、数量 |
+| parts_json | 长文本 | 配件清单JSON，含型号、名称、供应商、数量、快照单价 |
+| saved_total_cost | 数字 | 保存时总成本快照（用于快速展示对比） |
+| saved_cost_details | 长文本 | 保存时的每个配件的成本明细（可读文本） |
+| CreatedAt | 日期 | 创建时间 |
+| UpdatedAt | 日期 | 更新时间 |
 
 ## parts_json 格式
 

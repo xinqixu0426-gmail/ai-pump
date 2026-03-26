@@ -158,7 +158,9 @@ export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> 
   const record = {
     配方名称: recipe.配方名称 || recipe.name,
     规格: recipe.规格 || recipe.spec,
-    配件JSON: recipe.配件JSON || recipe.parts_json || '[]'
+    配件JSON: recipe.配件JSON || recipe.parts_json || '[]',
+    saved_total_cost: recipe.saved_total_cost,
+    saved_cost_details: recipe.saved_cost_details
   };
 
   return apiRequest<Recipe>(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {

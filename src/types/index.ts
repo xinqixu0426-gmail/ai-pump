@@ -46,6 +46,8 @@ export interface Recipe {
   spec?: string;
   配件JSON?: string;
   parts_json?: string;
+  saved_total_cost?: number;
+  saved_cost_details?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
