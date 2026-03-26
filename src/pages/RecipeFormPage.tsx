@@ -582,14 +582,19 @@ export default function RecipeFormPage() {
           {/* 包装材料 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
              <Typography fontWeight={500} sx={{ minWidth: 120, ml: 4 }}>包装及辅材：</Typography>
-             <TextField 
-                label="纸箱或木箱型号 (手动输入)" 
-                size="small" 
-                value={boxType}
-                onChange={(e) => setBoxType(e.target.value)}
-                sx={{ width: 250 }}
-                placeholder="例如: 纸箱-A款 或 木箱"
-             />
+             <FormControl size="small" sx={{ width: 250 }}>
+                <InputLabel>包装箱型号选择</InputLabel>
+                <Select 
+                  value={boxType} 
+                  label="包装箱型号选择" 
+                  onChange={(e) => setBoxType(e.target.value as string)}
+                >
+                  <MenuItem value=""><em>不需要包装</em></MenuItem>
+                  {getModelsByCategory('包装').map(m => (
+                    <MenuItem key={m} value={m}>{m}</MenuItem>
+                  ))}
+                </Select>
+             </FormControl>
              {boxType && (
                <Typography variant="body2" color={getPriceByModelAndSupplier(boxType, '') > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
                  小计: <strong>¥{getPriceByModelAndSupplier(boxType, '').toFixed(2)}</strong>
