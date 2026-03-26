@@ -571,13 +571,14 @@ export default function RecipeFormPage() {
           {/* 包装材料 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
              <Typography fontWeight={500} sx={{ minWidth: 120, ml: 4 }}>包装及辅材：</Typography>
-             <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>纸箱或木箱型号</InputLabel>
-                <Select value={boxType} label="纸箱或木箱型号" onChange={(e) => setBoxType(e.target.value as string)}>
-                  <MenuItem value="">不需要包装</MenuItem>
-                  {getModelsByCategory('包材').map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                </Select>
-             </FormControl>
+             <TextField 
+                label="纸箱或木箱型号 (手动输入)" 
+                size="small" 
+                value={boxType}
+                onChange={(e) => setBoxType(e.target.value)}
+                sx={{ width: 250 }}
+                placeholder="例如: 纸箱-A款 或 木箱"
+             />
           </Box>
         </Box>
 
