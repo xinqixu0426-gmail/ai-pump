@@ -101,22 +101,21 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
 
     parts.forEach(p => {
         const suppliers = partsByModel[p.model] || [];
-        const match = suppliers.find(s => s.supplier === p.supplier);
+        const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
         let price = 0;
         let source = '';
 
-        if (match) {
+        if (match && p.supplier) {
             price = match.price;
             source = '精确匹配';
+        } else if (suppliers.length > 0) {
+            // 如果没指定供应商或没匹配到，同一型号存在多家供应商时，自动选取单价最低的作为基准
+            const fallback = suppliers.reduce((min, curr) => curr.price < min.price ? curr : min, suppliers[0]);
+            price = fallback.price;
+            source = '型号回退(取最低价)';
         } else {
-            const fallback = partsCache[p.model];
-            if (fallback) {
-                price = fallback.price;
-                source = '型号回退';
-            } else {
-                missingParts.push(p.model);
-                source = '未找到';
-            }
+            missingParts.push(p.model);
+            source = '未找到';
         }
 
         const subtotal = price * p.qty;

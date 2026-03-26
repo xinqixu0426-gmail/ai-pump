@@ -50,21 +50,25 @@ export function calculateRecipeCost(
     let matchedPart = partsCache.get(`${model}|${supplier}`);
     let price = 0;
     let matchedSupplier = supplier;
-    let source = '精确匹配';
+    let source = '';
 
-    if (matchedPart) {
+    if (matchedPart && supplier) {
       price = matchedPart.单价 || matchedPart.price || 0;
+      source = '精确匹配';
     } else {
-      // 2. 回退到仅匹配型号
+      // 2. 回退到仅匹配型号 (如果有多个供应商，保守地取单价最低的作为基准)
       const partsWithModel = partsByModel.get(model);
       if (partsWithModel && partsWithModel.length > 0) {
-        // 使用第一个找到的零件价格
-        matchedPart = partsWithModel[0];
-        price = matchedPart.单价 || matchedPart.price || 0;
-        matchedSupplier = matchedPart.供应商 || matchedPart.supplier || '-';
-        source = '型号回退';
+        const fallbackPart = partsWithModel.reduce((min, curr) => {
+          const currPrice = curr.单价 || curr.price || 0;
+          const minPrice = min.单价 || min.price || 0;
+          return currPrice < minPrice ? curr : min;
+        }, partsWithModel[0]);
+        
+        price = fallbackPart.单价 || fallbackPart.price || 0;
+        matchedSupplier = fallbackPart.供应商 || fallbackPart.supplier || '-';
+        source = '型号回退(取最低价)';
       } else {
-        // 未找到零件
         missingParts.push(model);
         matchedSupplier = supplier || '-';
         source = '未找到';

@@ -187,15 +187,29 @@ export default function RecipeFormPage() {
     return Array.from(suppliers).filter(Boolean).sort();
   };
 
-  // 获取某型号某供应商的价格（增加回退逻辑）
+  // 获取某型号某供应商的价格（增加回退取最低价逻辑）
   const getPriceByModelAndSupplier = (model: string, supplier: string): number => {
-    // 1. 尝试精确匹配 (model + supplier)
-    const exactPart = parts.find((p) => (p.型号 || p.model) === model && (p.供应商 || p.supplier) === supplier);
-    if (exactPart) return exactPart.单价 || exactPart.price || 0;
+    const m1 = (model || '').trim();
+    const s1 = (supplier || '').trim();
 
-    // 2. 回退到型号匹配
-    const modelPart = parts.find((p) => (p.型号 || p.model) === model);
-    return modelPart?.单价 || modelPart?.price || 0;
+    // 1. 尝试精确匹配 (model + supplier)
+    const exactPart = parts.find((p) => ((p.型号 || p.model) || '').trim() === m1 && ((p.供应商 || p.supplier) || '').trim() === s1);
+    if (exactPart && s1) {
+      return exactPart.单价 || exactPart.price || 0;
+    }
+
+    // 2. 回退到型号匹配（取所有同型号中单价最低的）
+    const modelParts = parts.filter((p) => ((p.型号 || p.model) || '').trim() === m1);
+    if (modelParts.length > 0) {
+      const fallbackPart = modelParts.reduce((min, curr) => {
+        const currPrice = curr.单价 || curr.price || 0;
+        const minPrice = min.单价 || min.price || 0;
+        return currPrice < minPrice ? curr : min;
+      }, modelParts[0]);
+      return fallbackPart.单价 || fallbackPart.price || 0;
+    }
+    
+    return 0;
   };
 
   // 更新必备配件选择
