@@ -190,14 +190,14 @@ export default function RecipeDetailModal({
             )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-            <Typography variant="body1">
+            <Typography variant="body1" component="div" sx={{ display: 'flex', alignItems: 'center' }}>
               <strong>当前成本：</strong>
               <Typography component="span" variant="h6" color="error" sx={{ ml: 1 }}>
                 ¥{costResult.totalCost}
               </Typography>
             </Typography>
             {hasSnapshot && (
-              <Typography variant="body1">
+              <Typography variant="body1" component="div" sx={{ display: 'flex', alignItems: 'center' }}>
                 <strong>保存时成本：</strong>
                 <Typography component="span" variant="h6" color="text.secondary" sx={{ ml: 1 }}>
                   ¥{costResult.snapshotTotalCost}
