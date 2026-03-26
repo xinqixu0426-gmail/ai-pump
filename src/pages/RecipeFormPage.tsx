@@ -20,7 +20,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Autocomplete
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -582,19 +583,23 @@ export default function RecipeFormPage() {
           {/* 包装材料 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
              <Typography fontWeight={500} sx={{ minWidth: 120, ml: 4 }}>包装及辅材：</Typography>
-             <FormControl size="small" sx={{ width: 250 }}>
-                <InputLabel>包装箱型号选择</InputLabel>
-                <Select 
-                  value={boxType} 
-                  label="包装箱型号选择" 
-                  onChange={(e) => setBoxType(e.target.value as string)}
-                >
-                  <MenuItem value=""><em>不需要包装</em></MenuItem>
-                  {getModelsByCategory('包装').map(m => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
-                </Select>
-             </FormControl>
+             <Autocomplete
+                freeSolo
+                disableClearable
+                options={getModelsByCategory('包装')}
+                value={boxType}
+                onInputChange={(_, newInputValue) => setBoxType(newInputValue)}
+                sx={{ width: 250 }}
+                renderInput={(params) => (
+                  <TextField 
+                    {...params} 
+                    label="包装箱型号" 
+                    size="small" 
+                    placeholder="可下拉选择或手动输入" 
+                    InputProps={{ ...params.InputProps, type: 'search' }}
+                  />
+                )}
+             />
              {boxType && (
                <Typography variant="body2" color={getPriceByModelAndSupplier(boxType, '') > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
                  小计: <strong>¥{getPriceByModelAndSupplier(boxType, '').toFixed(2)}</strong>
