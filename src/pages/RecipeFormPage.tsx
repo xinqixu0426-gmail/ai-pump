@@ -272,6 +272,19 @@ export default function RecipeFormPage() {
     return Array.from(models).filter(Boolean).sort();
   };
 
+  // 从 Parts 表动态提取可用线径列表（解析"浮球-线径X"或"电缆-线径X"的型号名）
+  const getWireOptions = (prefix: string): string[] => {
+    const wires = new Set<string>();
+    parts.forEach((part) => {
+      const model = (part.型号 || part.model || '').trim();
+      if (model.startsWith(prefix)) {
+        const wire = model.replace(prefix, '');
+        if (wire) wires.add(wire);
+      }
+    });
+    return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
+  };
+
   // 获取某型号的所有供应商
   const getSuppliersByModel = (model: string): string[] => {
     const suppliers = new Set<string>();
@@ -553,8 +566,9 @@ export default function RecipeFormPage() {
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>浮球线径</InputLabel>
                   <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
-                    <MenuItem value="0.55">0.55 mm</MenuItem>
-                    <MenuItem value="0.75">0.75 mm</MenuItem>
+                    {getWireOptions('浮球-线径').map(w => (
+                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
@@ -578,8 +592,9 @@ export default function RecipeFormPage() {
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <InputLabel>电缆线径</InputLabel>
                   <Select value={cableWire} label="电缆线径" onChange={(e) => setCableWire(e.target.value as string)}>
-                    <MenuItem value="0.55">0.55 mm</MenuItem>
-                    <MenuItem value="0.75">0.75 mm</MenuItem>
+                    {getWireOptions('电缆-线径').map(w => (
+                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
                 <TextField 
