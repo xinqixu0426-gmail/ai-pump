@@ -275,14 +275,18 @@ GET http://localhost:3002/api/cost/recipe/by-name?name={配方名称}
 - Body:
 ```json
 {
+  "stator": "12-120",
   "hasFloat": true,
-  "floatWire": "0.55",
-  "hasCable": true,
-  "cableWire": "0.55",
   "cableLength": 8,
-  "boxType": "纸箱-示例型号"
+  "boxType": "纸箱"
 }
 ```
+- 参数说明：
+  - `stator`: 定子规格-片数（如 "12-120"），API 自动拆分并查线圈成本表推导线径
+  - `hasFloat`: 带浮球（可选，默认 false）
+  - `floatWire`/`cableWire`: 显式指定线径，不传则由 stator 自动推导
+  - `cableLength`: 电缆长度（米），传了就自动算电缆成本
+  - `boxType`: 包材型号，支持模糊匹配（传 "纸箱" 自动查找包装类别下含“纸箱”的最低价型号）
 - 返回示例:
 ```json
 {
@@ -290,16 +294,17 @@ GET http://localhost:3002/api/cost/recipe/by-name?name={配方名称}
   "data": {
     "totalCost": "25.40",
     "itemCount": 4,
+    "resolvedWire": "0.55",
     "details": [
       { "name": "浮球", "model": "浮球-线径0.55", "price": "8.00", "qty": 1, "subtotal": "8.00" },
       { "name": "电缆线", "model": "电缆-线径0.55", "price": "1.45", "qty": 8, "subtotal": "11.60" },
       { "name": "电缆接头配件", "model": "电缆配件费", "price": "3.30", "qty": 1, "subtotal": "3.30" },
-      { "name": "纸箱", "model": "纸箱-示例型号", "price": "2.50", "qty": 1, "subtotal": "2.50" }
+      { "name": "纸箱", "model": "纸箱-A款", "price": "2.50", "qty": 1, "subtotal": "2.50" }
     ]
   }
 }
 ```
-- **所有参数均可选**：不传则不计算对应项。N8N 中可将此接口的 totalCost 与 by-name 的 totalCost 相加得到最终成本。
+- **所有参数均可选**，不传则不计算。N8N 中可将此接口的 totalCost 与 by-name 的 totalCost 相加得到最终成本。
 
 ## 运行方式
 
@@ -334,6 +339,14 @@ npm run preview
 
 ## 更新记录
 
+### 2026-03-28
+- **动态配置 API** (`POST /api/cost/dynamic-config`)：新增独立端点，供 N8N 计算浮球/电缆/包材动态成本。
+- **线径智能推导**：支持传入 `stator: "12-120"` 自动查线圈成本表 (`m1pbr8kwo3e8un8`) 的默认线径字段，无需手动指定。
+- **包材模糊匹配**：`boxType` 传 "纸箱" 或 "木箱" 自动在包装类别中查找最低价型号（前端+API 同步）。
+- **线径选项动态化**：前端浮球/电缆线径下拉菜单改为从 Parts 表动态读取，新增线径无需改代码。
+- **UI 主题升级**：渐变导航栏 + Inter 字体 + 精致圆角系统 + 无阴影 Paper。
+- **BUG 修复**：handleSubmit 遗漏动态配置器数据、PartForm 类别列表缺失、来源标签颜色误匹配。
+
 ### 2026-03-25
 - **NocoDB 分页修复**：封装递归抓取函数彻底解决25条分页限制。
 - **成本快照功能**：在配方保存时锁定配件单价，详情页支持实时价格与历史快照的比对（突出涨跌幅）。
@@ -341,7 +354,7 @@ npm run preview
 - **库存联动与生产扣减**：支持在 UI 展示、编辑库存，详情页支持输入生产数量进行即时查料，确保充足后批量扣除配件表库存。
 - 配方详情页支持展示 NocoDB 创建时间和最后更新时间。
 
-### 2024-03-24
+### 2026-03-24
 - 零件列表添加搜索、折叠、分页功能
 - 录入配方可选配件支持型号搜索
 - 录入配方按钮整合到配方管理页面
