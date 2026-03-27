@@ -434,12 +434,32 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
             details.push({ name: '电缆接头配件', model: accModel, price: accPrice.toFixed(2), qty: 1, subtotal: accPrice.toFixed(2) });
         }
 
-        // 包材
+        // 包材（支持模糊匹配：传"木箱"或"纸箱"时自动在包装类别中查找）
         if (boxType) {
-            const price = getPrice(boxType);
+            let matchedModel = boxType;
+            let price = getPrice(boxType);
+
+            // 如果精确匹配查不到价格，尝试在包装类别中模糊匹配
+            if (price === 0) {
+                const keyword = boxType.trim();
+                // 遍历 partsCache 找所有包装类别中型号包含关键词的零件
+                const candidates = [];
+                for (const [model, info] of Object.entries(partsCache)) {
+                    if (info.category === '包装' && model.includes(keyword)) {
+                        candidates.push({ model, price: info.price });
+                    }
+                }
+                if (candidates.length > 0) {
+                    // 取最低价的那个
+                    const best = candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
+                    matchedModel = best.model;
+                    price = best.price;
+                }
+            }
+
             totalCost += price;
-            const name = boxType.includes('木') ? '木箱' : '纸箱';
-            details.push({ name, model: boxType, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+            const name = matchedModel.includes('木') ? '木箱' : '纸箱';
+            details.push({ name, model: matchedModel, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
         }
 
         res.json({
