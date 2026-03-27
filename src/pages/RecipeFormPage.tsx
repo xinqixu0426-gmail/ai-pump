@@ -179,6 +179,26 @@ export default function RecipeFormPage() {
     return 0;
   }, [parts]);
 
+  // 包材模糊匹配：输入"木箱"或"纸箱"时自动在包装类别中查找最低价型号
+  const resolveBoxType = useCallback((keyword: string): { model: string; price: number } => {
+    const k = (keyword || '').trim();
+    if (!k) return { model: '', price: 0 };
+
+    // 1. 先精确匹配
+    const exactPrice = getPriceByModelAndSupplier(k, '');
+    if (exactPrice > 0) return { model: k, price: exactPrice };
+
+    // 2. 模糊匹配：在包装类别下找型号包含关键词的，取最低价
+    const candidates = parts
+      .filter(p => (p.类别 || p.category) === '包装' && ((p.型号 || p.model) || '').includes(k))
+      .map(p => ({ model: (p.型号 || p.model) || '', price: p.单价 || p.price || 0 }));
+    
+    if (candidates.length > 0) {
+      return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
+    }
+    return { model: k, price: 0 };
+  }, [parts, getPriceByModelAndSupplier]);
+
   // 解析动态配置生成配方列表
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
@@ -201,15 +221,15 @@ export default function RecipeFormPage() {
       configParts.push({ model: accModel, name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: accPrice });
     }
     
-    // 包材
+    // 包材（支持模糊匹配）
     if (boxType) {
-      const snapshotPrice = getPriceByModelAndSupplier(boxType, '');
-      const name = boxType.includes('木') ? '木箱' : '纸箱';
-      configParts.push({ model: boxType, name, supplier: '', qty: 1, snapshotPrice });
+      const resolved = resolveBoxType(boxType);
+      const name = resolved.model.includes('木') ? '木箱' : '纸箱';
+      configParts.push({ model: resolved.model, name, supplier: '', qty: 1, snapshotPrice: resolved.price });
     }
     
     return configParts;
-  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, boxType, getPriceByModelAndSupplier]);
+  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, boxType, getPriceByModelAndSupplier, resolveBoxType]);
 
   // 计算实时成本
   useEffect(() => {
@@ -603,16 +623,24 @@ export default function RecipeFormPage() {
                   />
                 )}
              />
-             {boxType && (
-               <Typography variant="body2" color={getPriceByModelAndSupplier(boxType, '') > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
-                 小计: <strong>¥{getPriceByModelAndSupplier(boxType, '').toFixed(2)}</strong>
-                 {getPriceByModelAndSupplier(boxType, '') === 0 && (
-                   <Typography component="span" variant="caption" sx={{ display: 'block', color: 'error.main' }}>
-                     (未找到该型号价格，将按 0 元计算)
-                   </Typography>
-                 )}
-               </Typography>
-             )}
+             {boxType && (() => {
+                const resolved = resolveBoxType(boxType);
+                return (
+                  <Typography variant="body2" color={resolved.price > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
+                    小计: <strong>¥{resolved.price.toFixed(2)}</strong>
+                    {resolved.model !== boxType && resolved.price > 0 && (
+                      <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.disabled' }}>
+                        (匹配到: {resolved.model})
+                      </Typography>
+                    )}
+                    {resolved.price === 0 && (
+                      <Typography component="span" variant="caption" sx={{ display: 'block', color: 'error.main' }}>
+                        (未找到该型号价格，将按 0 元计算)
+                      </Typography>
+                    )}
+                  </Typography>
+                );
+              })()}
           </Box>
         </Box>
 
