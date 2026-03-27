@@ -377,8 +377,7 @@ function resolveWire(dbWire, explicitWire) {
  * 
  * 请求体:
  * {
- *   "statorSpec": "12",       // 线圈定子规格（用于查线圈表推导线径）
- *   "statorSheets": "160",    // 定子片数（配合规格查询线径）
+ *   "stator": "12-120",       // 定子规格-片数（简写，如"12-120"，自动拆分推导线径）
  *   "hasFloat": true,         // 是否带浮球（可选，默认 false）
  *   "floatWire": "0.55",      // 浮球线径，不传则由定子规格推导
  *   "hasCable": true,         // 是否带电缆（可选，传了 cableLength>0 也视为 true）
@@ -389,7 +388,16 @@ function resolveWire(dbWire, explicitWire) {
  */
 app.post('/api/cost/dynamic-config', async (req, res) => {
     try {
-        const { statorSpec, statorSheets, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
+        const { stator, statorSpec: rawSpec, statorSheets: rawSheets, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
+
+        // 支持 "12-120" 简写格式
+        let statorSpec = rawSpec;
+        let statorSheets = rawSheets;
+        if (stator && typeof stator === 'string' && stator.includes('-')) {
+            const [s, sh] = stator.split('-');
+            statorSpec = statorSpec || s.trim();
+            statorSheets = statorSheets || sh.trim();
+        }
 
         const { partsCache, partsByModel } = await loadPartsData();
 
