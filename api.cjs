@@ -346,22 +346,47 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
 });
 
 /**
+ * 功率 → 线径 映射表
+ * 低于此表阈值的功率统一归到最小线径
+ * 如果以后新增更多线径，只需在此处追加
+ */
+const POWER_WIRE_MAP = [
+    { maxPower: 550,  wire: '0.55' },  // ≤550W → 0.55mm
+    { maxPower: Infinity, wire: '0.75' } // >550W → 0.75mm
+];
+
+function resolveWire(power, explicitWire) {
+    // 显式指定线径优先
+    if (explicitWire) return explicitWire;
+    // 按功率推导
+    if (power) {
+        const p = Number(power);
+        for (const rule of POWER_WIRE_MAP) {
+            if (p <= rule.maxPower) return rule.wire;
+        }
+    }
+    // 兜底默认
+    return '0.55';
+}
+
+/**
  * 动态配置成本计算（浮球/电缆/包材）
  * POST /api/cost/dynamic-config
  * 
  * 请求体:
  * {
- *   "hasFloat": true,        // 是否带浮球
- *   "floatWire": "0.55",     // 浮球线径 (0.55 / 0.75)
- *   "hasCable": true,        // 是否带电缆
- *   "cableWire": "0.55",     // 电缆线径 (0.55 / 0.75)
- *   "cableLength": 8,        // 电缆长度（米）
- *   "boxType": "纸箱-A"      // 包装箱型号（可选）
+ *   "power": 750,             // 水泵功率（W），用于自动推导线径（可选）
+ *   "hasFloat": true,         // 是否带浮球（可选，默认 false）
+ *   "floatWire": "0.55",      // 浮球线径，不传则由 power 推导
+ *   "hasCable": true,         // 是否带电缆（可选，传了 cableLength>0 也视为 true）
+ *   "cableWire": "0.55",      // 电缆线径，不传则由 power 推导
+ *   "cableLength": 8,         // 电缆长度（米）
+ *   "boxType": "纸箱-A"       // 包装箱型号（可选）
  * }
  */
 app.post('/api/cost/dynamic-config', async (req, res) => {
     try {
-        const { hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
+        const { power, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
 
         const { partsByModel } = await loadPartsData();
 
@@ -372,12 +397,15 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
             return suppliers.reduce((min, curr) => curr.price < min.price ? curr : min, suppliers[0]).price;
         };
 
+        // 智能推导线径
+        const resolvedWire = resolveWire(power, cableWire || floatWire);
+
         let totalCost = 0;
         const details = [];
 
         // 浮球
         if (hasFloat) {
-            const wire = floatWire || '0.55';
+            const wire = floatWire || resolvedWire;
             const model = `浮球-线径${wire}`;
             const price = getPrice(model);
             const subtotal = price * 1;
@@ -385,9 +413,10 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
             details.push({ name: '浮球', model, price: price.toFixed(2), qty: 1, subtotal: subtotal.toFixed(2) });
         }
 
-        // 电缆
-        if (hasCable && cableLength && Number(cableLength) > 0) {
-            const wire = cableWire || '0.55';
+        // 电缆（智能判断：显式 hasCable=true 或 cableLength>0 都算有电缆）
+        const needCable = hasCable || (cableLength && Number(cableLength) > 0);
+        if (needCable && cableLength && Number(cableLength) > 0) {
+            const wire = cableWire || resolvedWire;
             const cableModel = `电缆-线径${wire}`;
             const cablePrice = getPrice(cableModel);
             const len = Number(cableLength);
@@ -414,6 +443,7 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
             data: {
                 totalCost: totalCost.toFixed(2),
                 itemCount: details.length,
+                resolvedWire,
                 details
             }
         });
