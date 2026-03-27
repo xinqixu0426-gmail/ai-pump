@@ -346,26 +346,28 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
 });
 
 /**
- * 功率 → 线径 映射表
- * 低于此表阈值的功率统一归到最小线径
- * 如果以后新增更多线径，只需在此处追加
+ * 从线圈成本表查询默认线径
+ * 按 (规格, 片数) 精确匹配
  */
-const POWER_WIRE_MAP = [
-    { maxPower: 550,  wire: '0.55' },  // ≤550W → 0.55mm
-    { maxPower: Infinity, wire: '0.75' } // >550W → 0.75mm
-];
-
-function resolveWire(power, explicitWire) {
-    // 显式指定线径优先
-    if (explicitWire) return explicitWire;
-    // 按功率推导
-    if (power) {
-        const p = Number(power);
-        for (const rule of POWER_WIRE_MAP) {
-            if (p <= rule.maxPower) return rule.wire;
-        }
+async function resolveWireFromStator(statorSpec, statorSheets) {
+    if (!statorSpec || !statorSheets) return null;
+    try {
+        const data = await apiRequest(
+            `/api/v2/tables/m1pbr8kwo3e8un8/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
+        );
+        const record = data.list?.[0];
+        return record?.默认线径 || null;
+    } catch {
+        return null;
     }
-    // 兜底默认
+}
+
+function resolveWire(dbWire, explicitWire) {
+    // 1. 显式指定优先
+    if (explicitWire) return explicitWire;
+    // 2. 数据库查到的线径
+    if (dbWire) return dbWire;
+    // 3. 兜底
     return '0.55';
 }
 
@@ -375,18 +377,19 @@ function resolveWire(power, explicitWire) {
  * 
  * 请求体:
  * {
- *   "power": 750,             // 水泵功率（W），用于自动推导线径（可选）
+ *   "statorSpec": "12",       // 线圈定子规格（用于查线圈表推导线径）
+ *   "statorSheets": "160",    // 定子片数（配合规格查询线径）
  *   "hasFloat": true,         // 是否带浮球（可选，默认 false）
- *   "floatWire": "0.55",      // 浮球线径，不传则由 power 推导
+ *   "floatWire": "0.55",      // 浮球线径，不传则由定子规格推导
  *   "hasCable": true,         // 是否带电缆（可选，传了 cableLength>0 也视为 true）
- *   "cableWire": "0.55",      // 电缆线径，不传则由 power 推导
+ *   "cableWire": "0.55",      // 电缆线径，不传则由定子规格推导
  *   "cableLength": 8,         // 电缆长度（米）
  *   "boxType": "纸箱-A"       // 包装箱型号（可选）
  * }
  */
 app.post('/api/cost/dynamic-config', async (req, res) => {
     try {
-        const { power, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
+        const { statorSpec, statorSheets, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
 
         const { partsByModel } = await loadPartsData();
 
@@ -397,8 +400,9 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
             return suppliers.reduce((min, curr) => curr.price < min.price ? curr : min, suppliers[0]).price;
         };
 
-        // 智能推导线径
-        const resolvedWire = resolveWire(power, cableWire || floatWire);
+        // 智能推导线径：先从线圈成本表按(规格,片数)查默认线径，查不到则兜底
+        const dbWire = await resolveWireFromStator(statorSpec, statorSheets);
+        const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
 
         let totalCost = 0;
         const details = [];
