@@ -45,10 +45,21 @@ function App() {
   return (
     <Box sx={{ flexGrow: 1 }}>
       {/* 顶部导航栏 */}
-      <AppBar position="static" elevation={2}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            水泵BOM管理系统
+      <AppBar position="static" elevation={0} sx={{
+        background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        <Toolbar sx={{ gap: 2 }}>
+          <Typography variant="h6" component="div" sx={{ 
+            flexGrow: 1, 
+            letterSpacing: 1,
+            fontWeight: 800,
+            textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+          }}>
+            💧 水泵BOM管理系统
+          </Typography>
+          <Typography variant="caption" sx={{ opacity: 0.6 }}>
+            v1.2
           </Typography>
         </Toolbar>
         <Tabs
@@ -56,7 +67,14 @@ function App() {
           onChange={handleTabChange}
           textColor="inherit"
           indicatorColor="secondary"
-          sx={{ px: 2 }}
+          sx={{ 
+            px: 3,
+            '& .MuiTab-root': { 
+              fontWeight: 600,
+              letterSpacing: 0.5,
+              minHeight: 48,
+            } 
+          }}
         >
           <Tab icon={<BuildIcon />} iconPosition="start" label="零件管理" />
           <Tab icon={<ReceiptIcon />} iconPosition="start" label="配方管理" />

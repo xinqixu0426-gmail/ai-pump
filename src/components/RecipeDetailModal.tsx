@@ -58,14 +58,9 @@ export default function RecipeDetailModal({
   const [produceSuccess, setProduceSuccess] = useState('');
 
   const getSourceColor = (source: string) => {
-    switch (source) {
-      case '精确匹配':
-        return 'success';
-      case '型号回退':
-        return 'warning';
-      default:
-        return 'error';
-    }
+    if (source === '精确匹配') return 'success';
+    if (source.includes('型号回退')) return 'warning';
+    return 'error';
   };
 
   const hasSnapshot = costResult.snapshotTotalCost !== undefined;

@@ -9,17 +9,30 @@ import App from './App';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#1976d2',
+      main: '#2563eb',
+      light: '#60a5fa',
+      dark: '#1e40af',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#7c3aed',
+    },
+    success: {
+      main: '#059669',
+    },
+    error: {
+      main: '#dc2626',
     },
     background: {
-      default: '#f5f5f5',
+      default: '#f1f5f9',
+      paper: '#ffffff',
     },
+  },
+  shape: {
+    borderRadius: 10,
   },
   typography: {
     fontFamily: [
+      'Inter',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',
@@ -28,6 +41,59 @@ const theme = createTheme({
       'Arial',
       'sans-serif',
     ].join(','),
+    h6: {
+      fontWeight: 700,
+    },
+  },
+  components: {
+    MuiPaper: {
+      defaultProps: {
+        elevation: 0,
+      },
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          border: '1px solid #e2e8f0',
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+          borderRadius: 8,
+        },
+        contained: {
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+          },
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        head: {
+          fontWeight: 700,
+          fontSize: '0.8rem',
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 600,
+        },
+      },
+    },
   },
 });
 

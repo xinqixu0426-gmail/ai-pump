@@ -329,6 +329,9 @@ export default function RecipeFormPage() {
       }
     });
 
+    // 动态配置区 (浮球/电缆/包材)
+    recipeParts.push(...buildConfigParts());
+
     if (recipeParts.length === 0) {
       setError('请至少选择一个配件');
       return;
