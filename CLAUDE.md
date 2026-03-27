@@ -268,6 +268,39 @@ GET http://localhost:3002/api/cost/recipe/by-name?name={配方名称}
 - Headers: `Content-Type: application/json`
 - Body: 选择 `JSON` 类型，填入配件数组
 
+**方式四：动态配置成本（浮球/电缆/包材）**
+- Method: `POST`
+- URL: `http://192.168.31.60:3002/api/cost/dynamic-config`
+- Headers: `Content-Type: application/json`
+- Body:
+```json
+{
+  "hasFloat": true,
+  "floatWire": "0.55",
+  "hasCable": true,
+  "cableWire": "0.55",
+  "cableLength": 8,
+  "boxType": "纸箱-示例型号"
+}
+```
+- 返回示例:
+```json
+{
+  "success": true,
+  "data": {
+    "totalCost": "25.40",
+    "itemCount": 4,
+    "details": [
+      { "name": "浮球", "model": "浮球-线径0.55", "price": "8.00", "qty": 1, "subtotal": "8.00" },
+      { "name": "电缆线", "model": "电缆-线径0.55", "price": "1.45", "qty": 8, "subtotal": "11.60" },
+      { "name": "电缆接头配件", "model": "电缆配件费", "price": "3.30", "qty": 1, "subtotal": "3.30" },
+      { "name": "纸箱", "model": "纸箱-示例型号", "price": "2.50", "qty": 1, "subtotal": "2.50" }
+    ]
+  }
+}
+```
+- **所有参数均可选**：不传则不计算对应项。N8N 中可将此接口的 totalCost 与 by-name 的 totalCost 相加得到最终成本。
+
 ## 运行方式
 
 ```bash

@@ -345,6 +345,85 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
     }
 });
 
+/**
+ * 动态配置成本计算（浮球/电缆/包材）
+ * POST /api/cost/dynamic-config
+ * 
+ * 请求体:
+ * {
+ *   "hasFloat": true,        // 是否带浮球
+ *   "floatWire": "0.55",     // 浮球线径 (0.55 / 0.75)
+ *   "hasCable": true,        // 是否带电缆
+ *   "cableWire": "0.55",     // 电缆线径 (0.55 / 0.75)
+ *   "cableLength": 8,        // 电缆长度（米）
+ *   "boxType": "纸箱-A"      // 包装箱型号（可选）
+ * }
+ */
+app.post('/api/cost/dynamic-config', async (req, res) => {
+    try {
+        const { hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
+
+        const { partsByModel } = await loadPartsData();
+
+        // 从数据库查价的辅助函数（取同型号最低价）
+        const getPrice = (model) => {
+            const suppliers = partsByModel[model] || [];
+            if (suppliers.length === 0) return 0;
+            return suppliers.reduce((min, curr) => curr.price < min.price ? curr : min, suppliers[0]).price;
+        };
+
+        let totalCost = 0;
+        const details = [];
+
+        // 浮球
+        if (hasFloat) {
+            const wire = floatWire || '0.55';
+            const model = `浮球-线径${wire}`;
+            const price = getPrice(model);
+            const subtotal = price * 1;
+            totalCost += subtotal;
+            details.push({ name: '浮球', model, price: price.toFixed(2), qty: 1, subtotal: subtotal.toFixed(2) });
+        }
+
+        // 电缆
+        if (hasCable && cableLength && Number(cableLength) > 0) {
+            const wire = cableWire || '0.55';
+            const cableModel = `电缆-线径${wire}`;
+            const cablePrice = getPrice(cableModel);
+            const len = Number(cableLength);
+            const cableSubtotal = cablePrice * len;
+            totalCost += cableSubtotal;
+            details.push({ name: '电缆线', model: cableModel, price: cablePrice.toFixed(2), qty: len, subtotal: cableSubtotal.toFixed(2) });
+
+            const accModel = '电缆配件费';
+            const accPrice = getPrice(accModel);
+            totalCost += accPrice;
+            details.push({ name: '电缆接头配件', model: accModel, price: accPrice.toFixed(2), qty: 1, subtotal: accPrice.toFixed(2) });
+        }
+
+        // 包材
+        if (boxType) {
+            const price = getPrice(boxType);
+            totalCost += price;
+            const name = boxType.includes('木') ? '木箱' : '纸箱';
+            details.push({ name, model: boxType, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                totalCost: totalCost.toFixed(2),
+                itemCount: details.length,
+                details
+            }
+        });
+
+    } catch (error) {
+        console.error('Dynamic config API Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 启动服务器（监听所有网络接口，允许外部访问）
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
@@ -352,9 +431,11 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`访问地址: http://localhost:${PORT}`);
     console.log(`========================================`);
     console.log(`可用端点:`);
-    console.log(`  GET  /api/health                    - 健康检查`);
-    console.log(`  POST /api/cost/calculate            - 计算成本（传parts数组）`);
-    console.log(`  GET  /api/cost/recipe/:id           - 按配方ID查询成本`);
-    console.log(`  GET  /api/cost/recipe/by-name?name=xxx - 按配方名称查询成本`);
+    console.log(`  GET  /api/health                        - 健康检查`);
+    console.log(`  POST /api/cost/calculate                - 计算成本（传parts数组）`);
+    console.log(`  GET  /api/cost/recipe/:id               - 按配方ID查询成本`);
+    console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
+    console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);
     console.log(`========================================`);
 });
+
