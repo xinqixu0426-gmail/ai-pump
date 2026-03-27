@@ -391,7 +391,7 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
     try {
         const { statorSpec, statorSheets, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
 
-        const { partsByModel } = await loadPartsData();
+        const { partsCache, partsByModel } = await loadPartsData();
 
         // 从数据库查价的辅助函数（取同型号最低价）
         const getPrice = (model) => {
