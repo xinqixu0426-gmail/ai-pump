@@ -306,6 +306,31 @@ GET http://localhost:3002/api/cost/recipe/by-name?name={配方名称}
 ```
 - **所有参数均可选**，不传则不计算。N8N 中可将此接口的 totalCost 与 by-name 的 totalCost 相加得到最终成本。
 
+**方式五：一站式成本计算（推荐）**
+- Method: `POST`
+- URL: `http://192.168.31.60:3002/api/cost/full-calculate`
+- Headers: `Content-Type: application/json`
+- Body:
+```json
+{
+  "pumphousing_model": "V750",
+  "stator": "12-120",
+  "cableLength": 10,
+  "boxType": "木箱",
+  "hasFloat": true
+}
+```
+- 一次调用完成三步计算：配方成本 + 线圈转子成本 + 动态配置成本（浮球/电缆/包材）
+- 参数说明：
+  - `pumphousing_model`: 泵壳型号（用于查配方），支持部分匹配
+  - `stator`: 定子规格-片数（用于查线圈成本+推导线径）
+  - `cableLength`: 电缆长度（米），可选
+  - `boxType`: 包材型号，可选，支持模糊匹配
+  - `hasFloat`: 是否带浮球，可选
+  - `floatWire`/`cableWire`: 显式指定线径，可选
+- 返回结果包含 `totalCost`（总成本）和 `breakdown`（配方/线圈/动态分项明细）
+- **推荐 N8N 使用此端点**，可将工作流从 11 节点简化为 4 节点（Chat Trigger → LLM 解析 → HTTP 一站式计算 → 格式化输出）
+
 ## 运行方式
 
 ```bash
@@ -339,7 +364,11 @@ npm run preview
 
 ## 更新记录
 
-### 2026-03-28
+### 2026-03-28 (晚间更新)
+- **一站式成本API** (`POST /api/cost/full-calculate`)：新增一站式端点，一次调用完成配方+线圈+动态配置三步成本计算，推荐 N8N 使用。
+- **N8N 工作流优化**：修复 prompt/schema 字段名不一致、AI Agent 硬编码片数、动态配置 JSON 空值保护、Merge 后添加成本汇总 Code 节点。
+
+### 2026-03-28 (日间)
 - **动态配置 API** (`POST /api/cost/dynamic-config`)：新增独立端点，供 N8N 计算浮球/电缆/包材动态成本。
 - **线径智能推导**：支持传入 `stator: "12-120"` 自动查线圈成本表 (`m1pbr8kwo3e8un8`) 的默认线径字段，无需手动指定。
 - **包材模糊匹配**：`boxType` 传 "纸箱" 或 "木箱" 自动在包装类别中查找最低价型号（前端+API 同步）。

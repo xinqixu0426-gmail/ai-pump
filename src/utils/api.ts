@@ -131,6 +131,22 @@ export async function batchDeductStock(
 }
 
 /**
+ * 批量增加库存（采购入库用）
+ * additions: [{ partId, addQty, currentStock }]
+ */
+export async function batchAddStock(
+  additions: Array<{ partId: number; addQty: number; currentStock: number }>
+): Promise<void> {
+  for (const a of additions) {
+    const newStock = a.currentStock + a.addQty;
+    await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+      method: 'PATCH',
+      body: JSON.stringify({ Id: a.partId, 库存: newStock })
+    });
+  }
+}
+
+/**
  * 获取所有配方
  */
 export async function getAllRecipes(): Promise<Recipe[]> {

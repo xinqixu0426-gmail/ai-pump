@@ -486,6 +486,231 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
     }
 });
 
+/**
+ * 一站式成本计算（供N8N简化调用）
+ * POST /api/cost/full-calculate
+ *
+ * 一次调用完成三步：
+ *   1. 按泵壳型号查配方成本 (等同 GET /api/cost/recipe/by-name)
+ *   2. 按定子规格-片数查线圈转子成本 (查 NocoDB 线圈成本表)
+ *   3. 计算动态配置成本 (浮球/电缆/包材，等同 POST /api/cost/dynamic-config)
+ *
+ * 请求体：
+ * {
+ *   "pumphousing_model": "V750",   // 泵壳型号（用于查配方）
+ *   "stator": "12-120",            // 定子规格-片数（用于查线圈成本+推导线径）
+ *   "cableLength": 10,             // 电缆长度（米），可选
+ *   "boxType": "木箱",              // 包材型号，可选，支持模糊匹配
+ *   "hasFloat": true,              // 是否带浮球，可选
+ *   "floatWire": "",               // 浮球线径，可选（不传则自动推导）
+ *   "cableWire": ""                // 电缆线径，可选（不传则自动推导）
+ * }
+ */
+app.post('/api/cost/full-calculate', async (req, res) => {
+    try {
+        const {
+            pumphousing_model,
+            stator,
+            cableLength = 0,
+            boxType = '',
+            hasFloat = false,
+            floatWire,
+            cableWire
+        } = req.body;
+
+        const { partsCache, partsByModel } = await loadPartsData();
+
+        // 取同型号最低价
+        const getPrice = (model) => {
+            const suppliers = partsByModel[model] || [];
+            if (suppliers.length === 0) return 0;
+            return suppliers.reduce((min, curr) => curr.price < min.price ? curr : min, suppliers[0]).price;
+        };
+
+        const result = {
+            recipeCost: null,
+            statorCost: null,
+            dynamicCost: null,
+            totalCost: '0',
+            breakdown: {}
+        };
+
+        let grandTotal = 0;
+
+        // ── 步骤1: 配方成本 ──
+        if (pumphousing_model) {
+            try {
+                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const recipe = allRecipes.find(r => {
+                    const name = r.配方名称 || r.name || '';
+                    return name.includes(pumphousing_model);
+                });
+
+                if (recipe) {
+                    const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
+                    let parts = [];
+                    try { parts = JSON.parse(partsJson); } catch (e) { /* ignore */ }
+
+                    const recipeCostResult = calculateRecipeCost(parts, partsCache, partsByModel);
+                    result.recipeCost = {
+                        recipeName: recipe.配方名称 || recipe.name,
+                        recipeSpec: recipe.规格 || recipe.spec,
+                        ...recipeCostResult
+                    };
+                    grandTotal += parseFloat(recipeCostResult.totalCost);
+                } else {
+                    result.recipeCost = { error: `未找到名称包含 "${pumphousing_model}" 的配方` };
+                }
+            } catch (e) {
+                result.recipeCost = { error: '查询配方失败: ' + e.message };
+            }
+        }
+
+        // ── 步骤2: 线圈转子成本 ──
+        let statorSpec, statorSheets;
+        if (stator && typeof stator === 'string' && stator.includes('-')) {
+            const [s, sh] = stator.split('-');
+            statorSpec = s.trim();
+            statorSheets = sh.trim();
+        }
+
+        if (statorSpec && statorSheets) {
+            try {
+                // 查线圈成本表 (m1pbr8kwo3e8un8)
+                const statorData = await apiRequest(
+                    `/api/v2/tables/m1pbr8kwo3e8un8/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
+                );
+                const statorRecord = statorData.list?.[0];
+
+                if (statorRecord) {
+                    const cost = parseFloat(statorRecord.成本 || statorRecord.cost || 0);
+                    result.statorCost = {
+                        spec: statorSpec,
+                        sheets: statorSheets,
+                        cost: cost.toFixed(2),
+                        wireGauge: statorRecord.默认线径 || null,
+                        source: '精确匹配'
+                    };
+                    grandTotal += cost;
+                } else {
+                    // 没精确匹配到——查同规格的基础数据以便参考
+                    const baseData = await apiRequest(
+                        `/api/v2/tables/m1pbr8kwo3e8un8/records?where=(规格,eq,${encodeURIComponent(statorSpec)})&limit=10`
+                    );
+                    const baseRecords = baseData.list || [];
+
+                    if (baseRecords.length > 0) {
+                        // 取第一条作为基准获取单价等字段
+                        const base = baseRecords[0];
+                        const unitPrice = parseFloat(base.单价 || 0);
+                        const wireWeight = parseFloat(base.线重 || 0);
+                        const copperBase = parseFloat(base.铜价基数 || 0);
+                        const coilFee = parseFloat(base.线圈加工费用 || 0);
+                        const rotorFee = parseFloat(base.转子加工费用 || 0);
+                        const sheets = parseInt(statorSheets);
+
+                        const calculatedCost = unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee;
+
+                        result.statorCost = {
+                            spec: statorSpec,
+                            sheets: statorSheets,
+                            cost: calculatedCost.toFixed(2),
+                            wireGauge: base.默认线径 || null,
+                            source: '公式推算',
+                            formula: `${unitPrice}×${sheets} + ${wireWeight}×${copperBase} + ${coilFee} + ${rotorFee}`
+                        };
+                        grandTotal += calculatedCost;
+                    } else {
+                        result.statorCost = { error: `未找到规格 ${statorSpec} 的线圈数据` };
+                    }
+                }
+            } catch (e) {
+                result.statorCost = { error: '查询线圈成本失败: ' + e.message };
+            }
+        }
+
+        // ── 步骤3: 动态配置成本 (浮球/电缆/包材) ──
+        const dbWire = statorSpec && statorSheets
+            ? await resolveWireFromStator(statorSpec, statorSheets)
+            : null;
+        const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
+
+        let dynamicTotal = 0;
+        const dynamicDetails = [];
+
+        // 浮球
+        if (hasFloat) {
+            const wire = floatWire || resolvedWire;
+            const model = `浮球-线径${wire}`;
+            const price = getPrice(model);
+            dynamicTotal += price;
+            dynamicDetails.push({ name: '浮球', model, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+        }
+
+        // 电缆
+        if (cableLength && Number(cableLength) > 0) {
+            const wire = cableWire || resolvedWire;
+            const cableModel = `电缆-线径${wire}`;
+            const cablePrice = getPrice(cableModel);
+            const len = Number(cableLength);
+            const cableSubtotal = cablePrice * len;
+            dynamicTotal += cableSubtotal;
+            dynamicDetails.push({ name: '电缆线', model: cableModel, price: cablePrice.toFixed(2), qty: len, subtotal: cableSubtotal.toFixed(2) });
+
+            const accModel = '电缆配件费';
+            const accPrice = getPrice(accModel);
+            dynamicTotal += accPrice;
+            dynamicDetails.push({ name: '电缆接头配件', model: accModel, price: accPrice.toFixed(2), qty: 1, subtotal: accPrice.toFixed(2) });
+        }
+
+        // 包材
+        if (boxType) {
+            let matchedModel = boxType;
+            let price = getPrice(boxType);
+
+            if (price === 0) {
+                const keyword = boxType.trim();
+                const candidates = [];
+                for (const [model, info] of Object.entries(partsCache)) {
+                    if (info.category === '包装' && model.includes(keyword)) {
+                        candidates.push({ model, price: info.price });
+                    }
+                }
+                if (candidates.length > 0) {
+                    const best = candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
+                    matchedModel = best.model;
+                    price = best.price;
+                }
+            }
+
+            dynamicTotal += price;
+            const name = matchedModel.includes('木') ? '木箱' : '纸箱';
+            dynamicDetails.push({ name, model: matchedModel, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+        }
+
+        result.dynamicCost = {
+            totalCost: dynamicTotal.toFixed(2),
+            resolvedWire,
+            details: dynamicDetails
+        };
+        grandTotal += dynamicTotal;
+
+        // ── 汇总 ──
+        result.totalCost = grandTotal.toFixed(2);
+        result.breakdown = {
+            recipeCost: result.recipeCost?.totalCost || '0',
+            statorCost: result.statorCost?.cost || '0',
+            dynamicCost: dynamicTotal.toFixed(2)
+        };
+
+        res.json({ success: true, data: result });
+
+    } catch (error) {
+        console.error('Full Calculate API Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 启动服务器（监听所有网络接口，允许外部访问）
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
@@ -498,6 +723,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  GET  /api/cost/recipe/:id               - 按配方ID查询成本`);
     console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
     console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);
+    console.log(`  POST /api/cost/full-calculate           - 一站式成本计算（推荐N8N用）`);
     console.log(`========================================`);
 });
 

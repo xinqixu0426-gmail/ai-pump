@@ -11,11 +11,14 @@ import {
 } from '@mui/material';
 import {
   Build as BuildIcon,
-  Receipt as ReceiptIcon
+  Receipt as ReceiptIcon,
+  ShoppingCart as OrderIcon
 } from '@mui/icons-material';
 import PartsPage from './pages/PartsPage';
 import RecipesPage from './pages/RecipesPage';
 import RecipeFormPage from './pages/RecipeFormPage';
+import OrdersPage from './pages/OrdersPage';
+import OrderFormPage from './pages/OrderFormPage';
 
 function App() {
   const navigate = useNavigate();
@@ -25,6 +28,7 @@ function App() {
   const getTabValue = (path: string) => {
     if (path === '/') return 0;
     if (path === '/recipes' || path === '/recipe-form') return 1;
+    if (path === '/orders' || path === '/order-form') return 2;
     return 0;
   };
 
@@ -38,6 +42,9 @@ function App() {
         break;
       case 1:
         navigate('/recipes');
+        break;
+      case 2:
+        navigate('/orders');
         break;
     }
   };
@@ -78,6 +85,7 @@ function App() {
         >
           <Tab icon={<BuildIcon />} iconPosition="start" label="零件管理" />
           <Tab icon={<ReceiptIcon />} iconPosition="start" label="配方管理" />
+          <Tab icon={<OrderIcon />} iconPosition="start" label="订单管理" />
         </Tabs>
       </AppBar>
 
@@ -87,6 +95,8 @@ function App() {
           <Route path="/" element={<PartsPage />} />
           <Route path="/recipes" element={<RecipesPage />} />
           <Route path="/recipe-form" element={<RecipeFormPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/order-form" element={<OrderFormPage />} />
         </Routes>
       </Container>
     </Box>

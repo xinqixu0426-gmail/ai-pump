@@ -1,0 +1,366 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+            "typeVersion": 1.4,
+            "position": [
+                -896,
+                -288
+            ],
+            "id": "2421ed23-0df1-43c4-be01-0c4155eddb9b",
+            "name": "When chat message received",
+            "webhookId": "b26cfd0e-158f-43ca-817b-01a1b68215bf"
+        },
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+            "typeVersion": 1,
+            "position": [
+                -800,
+                -112
+            ],
+            "id": "d4deaae4-90af-4066-93b7-97382efe3108",
+            "name": "DeepSeek Chat Model",
+            "credentials": {
+                "deepSeekApi": {
+                    "id": "PWzcrrmBkEKJpy0m",
+                    "name": "DeepSeek account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=拆分用户输入的自然语言:'{{ $json.chatInput }}'并提取关键数据。\n\n遵循以下规则：\n1. 当用户输入\"V750，12-120，10米线，木箱，带浮球\" - V750代表泵壳型号;12-120代表线圈型号,其中12为定子规格，120为定子片数;10米线代表电缆线长度(单位：米);木箱代表包装材质(中文原样输出，如木箱、纸箱);浮球分两种：带(true)与不带(false)，默认带浮球。\n2. 如果用户没有提到电缆/线长，cableLength 设为 0。\n3. 如果用户没有提到包装，boxType 设为空字符串。\n\n返回示例：\n{\n\"pumphousing_model\": \"V750\",\n\"coli_rotor\": \"12-120\",\n\"cableLength\": 10,\n\"boxType\": \"木箱\",\n\"hasFloat\": true\n}\n",
+                "hasOutputParser": true,
+                "batching": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.chainLlm",
+            "typeVersion": 1.9,
+            "position": [
+                -688,
+                -288
+            ],
+            "id": "57c21e26-d04a-4795-8396-be198813f634",
+            "name": "Basic LLM Chain"
+        },
+        {
+            "parameters": {
+                "jsonSchemaExample": "{\n\"pumphousing_model\": \"V750\",\n\"coli_rotor\": \"12-120\",\n\"cableLength\": 10,\n\"boxType\": \"木箱\",\n\"hasFloat\": true\n}\n"
+            },
+            "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+            "typeVersion": 1.3,
+            "position": [
+                -576,
+                -32
+            ],
+            "id": "8ac06302-48de-482d-be58-816b6afc950d",
+            "name": "Structured Output Parser"
+        },
+        {
+            "parameters": {
+                "url": "http://192.168.31.60:3002/api/cost/recipe/by-name",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "value": "={{ $json.output.pumphousing_model }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.4,
+            "position": [
+                -240,
+                -528
+            ],
+            "id": "bcdecd14-5345-4a9c-98ae-6a73314c9917",
+            "name": "获取水泵配方成本"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=# 角色\n  你是一名水泵工厂的成本核算人员，你需要帮助用户核算水泵线圈转子的成本。\n\n# 规则\n  - 获取上个节点的线圈查询参数\"{{ $json.output.coli_rotor }}\"，格式为\"规格-片数\"，如\"12-120\"表示规格为12、片数为120。\n  - 得到规格和片数之后，你要执行你的\"线圈查询tool\"，里面记录了线圈相关的成本数据。你要先筛选出字段\"规格\"匹配的数据，然后再确认字段\"片数\"匹配用户实际查询的片数的数据行，其中的\"成本\"字段为该线圈的成本。\n  - 线圈转子成本的计算公式=单价*片数+线重*铜价基数+线圈加工费用+转子加工费用。如果客户查询的规格参数在数据库中没有精确匹配，那么需要将客户的数据代入公式并计算。如\"12-130，线重0.6\"，你需要先查询规格为12的单价，再将片数130和线重0.6代入公式得到答案后返回给用户。计算过程需要使用Calculator的tool。\n  - 将计算好的成本格式化输出:\n\n{\n  \"result\": \"agent原本的输出\",\n  \"stator_cost\": 线圈转子的成本(数字)\n\n}",
+                "hasOutputParser": true,
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                -288,
+                -272
+            ],
+            "id": "092d499e-84f3-470d-988c-0acfaf2a4074",
+            "name": "AI Agent1"
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+            "typeVersion": 1.3,
+            "position": [
+                -336,
+                -80
+            ],
+            "id": "fb6b3172-ebb2-4534-9caa-15614a4be66d",
+            "name": "Simple Memory"
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+            "typeVersion": 1,
+            "position": [
+                -208,
+                -80
+            ],
+            "id": "82a37eec-0f94-4f0a-a6e1-dd986a2949d9",
+            "name": "Calculator"
+        },
+        {
+            "parameters": {
+                "authentication": "nocoDbApiToken",
+                "operation": "getAll",
+                "projectId": "pg2c8wapyhw1zuq",
+                "table": "m1pbr8kwo3e8un8",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.nocoDbTool",
+            "typeVersion": 3,
+            "position": [
+                -96,
+                -80
+            ],
+            "id": "f6d4f727-b658-4443-b2b9-84067b9ce6db",
+            "name": "Get many rows in NocoDB1",
+            "credentials": {
+                "nocoDbApiToken": {
+                    "id": "oQAk3wCab4aZercI",
+                    "name": "NocoDB Token account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://192.168.31.60:3002/api/cost/dynamic-config",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"stator\": \"{{ $json.output.coli_rotor }}\",\n  \"cableLength\": {{ $json.output.cableLength || 0 }},\n  \"boxType\": \"{{ $json.output.boxType || '' }}\",\n  \"hasFloat\": {{ $json.output.hasFloat ?? false }}\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.4,
+            "position": [
+                -224,
+                96
+            ],
+            "id": "378a8644-5d04-4741-82f4-315176aefe30",
+            "name": "动态配置"
+        },
+        {
+            "parameters": {
+                "jsonSchemaExample": "{\n    \"result\": \"原输出\",\n\t\"stator_cost\": \"91.6\"\n}"
+            },
+            "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+            "typeVersion": 1.3,
+            "position": [
+                -32,
+                -160
+            ],
+            "id": "0f72d070-10cc-4bb6-a18b-3ba33e1ad433",
+            "name": "Structured Output Parser1"
+        },
+        {
+            "parameters": {
+                "numberInputs": 3
+            },
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3.2,
+            "position": [
+                208,
+                -256
+            ],
+            "id": "57b82906-44a5-4025-9d84-c7040f02cbab",
+            "name": "成本汇总"
+        },
+        {
+            "parameters": {
+                "jsCode": "// 汇总三路成本数据\nconst items = $input.all();\n\n// 分支1: 配方成本 (from 获取水泵配方成本)\nconst recipeCost = items[0]?.json?.data?.totalCost || '0';\n\n// 分支2: 线圈转子成本 (from AI Agent1)\nlet statorCost = '0';\ntry {\n    const agentOutput = items[1]?.json?.output || items[1]?.json?.text || '{}';\n    const parsed = typeof agentOutput === 'string' ? JSON.parse(agentOutput) : agentOutput;\n    statorCost = parsed.stator_cost || '0';\n} catch(e) {\n    const match = String(items[1]?.json?.output || '').match(/stator_cost[\"\\s:]+([\\d.]+)/);\n    if (match) statorCost = match[1];\n}\n\n// 分支3: 动态配置成本 (from 动态配置)\nconst dynamicCost = items[2]?.json?.data?.totalCost || '0';\nconst dynamicDetails = items[2]?.json?.data?.details || [];\nconst resolvedWire = items[2]?.json?.data?.resolvedWire || '-';\n\n// 汇总\nconst total = (parseFloat(recipeCost) + parseFloat(statorCost) + parseFloat(dynamicCost)).toFixed(2);\n\n// 配方明细\nconst recipeDetails = items[0]?.json?.data?.details || [];\nconst recipeName = items[0]?.json?.data?.recipeName || '-';\n\n// 格式化输出\nlet summary = '📦 ' + recipeName + ' 成本核算报告\\n';\nsummary += '════════════════════════\\n';\nsummary += '\\n🔧 配方固定配件成本: ¥' + recipeCost + '\\n';\nrecipeDetails.forEach(d => {\n    summary += '   ' + d.name + '(' + d.model + '): ¥' + d.price + ' × ' + d.qty + ' = ¥' + d.subtotal + '\\n';\n});\nsummary += '\\n⚡ 线圈转子成本: ¥' + statorCost + '\\n';\nsummary += '\\n📋 动态配置成本: ¥' + dynamicCost + '\\n';\ndynamicDetails.forEach(d => {\n    summary += '   ' + d.name + '(' + d.model + '): ¥' + d.price + ' × ' + d.qty + ' = ¥' + d.subtotal + '\\n';\n});\nsummary += '\\n════════════════════════';\nsummary += '\\n💰 总成本: ¥' + total;\n\nreturn [{\n    json: {\n        summary,\n        totalCost: total,\n        breakdown: { recipeCost, statorCost, dynamicCost },\n        recipeName, recipeDetails, dynamicDetails, resolvedWire\n    }\n}];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                448,
+                -256
+            ],
+            "id": "a1b2c3d4-e5f6-7890-abcd-costcalcnode01",
+            "name": "成本汇总计算"
+        }
+    ],
+    "connections": {
+        "When chat message received": {
+            "main": [
+                [
+                    {
+                        "node": "Basic LLM Chain",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "DeepSeek Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Basic LLM Chain",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    },
+                    {
+                        "node": "AI Agent1",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Basic LLM Chain": {
+            "main": [
+                [
+                    {
+                        "node": "获取水泵配方成本",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "AI Agent1",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "动态配置",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Structured Output Parser": {
+            "ai_outputParser": [
+                [
+                    {
+                        "node": "Basic LLM Chain",
+                        "type": "ai_outputParser",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "获取水泵配方成本": {
+            "main": [
+                [
+                    {
+                        "node": "成本汇总",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Agent1": {
+            "main": [
+                [
+                    {
+                        "node": "成本汇总",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Simple Memory": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "AI Agent1",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculator": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent1",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get many rows in NocoDB1": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent1",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "动态配置": {
+            "main": [
+                [
+                    {
+                        "node": "成本汇总",
+                        "type": "main",
+                        "index": 2
+                    }
+                ]
+            ]
+        },
+        "Structured Output Parser1": {
+            "ai_outputParser": [
+                [
+                    {
+                        "node": "AI Agent1",
+                        "type": "ai_outputParser",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "成本汇总": {
+            "main": [
+                [
+                    {
+                        "node": "成本汇总计算",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "成本汇总计算": {
+            "main": [
+                []
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "11f2d30b3dfc7c8406d5ae7c188ac4bdac7cb36a506442d4e75275f3302b2930"
+    }
+}

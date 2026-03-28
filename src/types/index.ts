@@ -80,3 +80,52 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+// ====== 订单相关类型 ======
+
+// 订单中的单个型号条目
+export interface OrderItem {
+  id: string;            // 本地唯一ID（uuid-like）
+  recipeId?: number;     // 关联配方ID，临时型号则无
+  recipeName: string;    // 型号/配方名称
+  spec?: string;         // 规格
+  qty: number;           // 生产数量
+  partsJson: string;     // JSON字符串，RecipePart[]
+}
+
+// 采购清单中的单条零件汇总
+export interface PurchaseItem {
+  model: string;
+  name: string;
+  supplier: string;
+  totalQty: number;      // 所有型号需求总量
+  currentStock: number;  // 当前库存
+  needToBuy: number;     // max(0, totalQty - currentStock)
+  purchased: boolean;    // 是否已采购（逐条勾选）
+  partId?: number;       // NocoDB Parts表Id，用于更新库存
+}
+
+// 采购 to-do 条目
+export interface TodoItem {
+  id: string;
+  supplier: string;
+  description: string;   // 如："联系张记配件采购：201×4, 12双面×2"
+  done: boolean;
+}
+
+// 订单状态
+export type OrderStatus = '待采购' | '采购中' | '已完成';
+
+// 订单
+export interface Order {
+  id: string;            // localStorage key
+  customerName: string;
+  contractNo?: string;   // 合同号
+  remark?: string;
+  status: OrderStatus;
+  items: OrderItem[];            // 型号列表
+  purchaseList: PurchaseItem[];  // 采购汇总清单
+  todos: TodoItem[];             // 采购 to-do
+  createdAt: string;             // ISO字符串
+  updatedAt: string;
+}
