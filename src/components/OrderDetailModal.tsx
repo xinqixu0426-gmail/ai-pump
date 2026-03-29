@@ -55,7 +55,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
   const [successMsg, setSuccessMsg] = useState('');
 
   // 切换单条采购项的已采购状态
-  const togglePurchased = (model: string, supplier: string) => {
+  const togglePurchased = async (model: string, supplier: string) => {
     const updated: Order = {
       ...localOrder,
       purchaseList: localOrder.purchaseList.map((p) =>
@@ -66,11 +66,11 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
       updatedAt: new Date().toISOString(),
     };
     setLocalOrder(updated);
-    saveOrder(updated);
+    await saveOrder(updated);
   };
 
   // 切换 to-do 完成状态
-  const toggleTodo = (id: string) => {
+  const toggleTodo = async (id: string) => {
     const updated: Order = {
       ...localOrder,
       todos: localOrder.todos.map((t) =>
@@ -79,14 +79,14 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
       updatedAt: new Date().toISOString(),
     };
     setLocalOrder(updated);
-    saveOrder(updated);
+    await saveOrder(updated);
   };
 
   // 更新订单状态
-  const setStatus = (status: OrderStatus) => {
+  const setStatus = async (status: OrderStatus) => {
     const updated: Order = { ...localOrder, status, updatedAt: new Date().toISOString() };
     setLocalOrder(updated);
-    saveOrder(updated);
+    await saveOrder(updated);
     onUpdated();
   };
 
@@ -108,7 +108,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
         updatedAt: new Date().toISOString(),
       };
       setLocalOrder(updated);
-      saveOrder(updated);
+      await saveOrder(updated);
       setSuccessMsg(`入库完成！共更新 ${additions.length} 种零件库存。`);
       onUpdated();
     } catch (e) {

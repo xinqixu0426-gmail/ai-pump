@@ -3,7 +3,8 @@ export const NOCO_CONFIG = {
   baseUrl: 'http://localhost:8080',
   apiToken: '***REMOVED***',
   partsTable: 'mzsysnoaq7g36h9',
-  recipesTable: 'm9pygo8pmn86kbk'
+  recipesTable: 'm9pygo8pmn86kbk',
+  ordersTable: 'md70160vnmyjs4w'
 };
 
 // 零件类型

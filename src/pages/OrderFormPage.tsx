@@ -122,7 +122,7 @@ export default function OrderFormPage() {
       order.items = draftItems;
       order.purchaseList = purchaseList;
       order.todos = todos;
-      saveOrder(order);
+      await saveOrder(order);
       navigate('/orders');
     } catch {
       setError('保存订单失败');
@@ -409,7 +409,7 @@ export default function OrderFormPage() {
             {contractNo && <Typography variant="body2" mb={1}><b>合同号：</b>{contractNo}</Typography>}
             {remark && <Typography variant="body2" mb={1}><b>备注：</b>{remark}</Typography>}
             <Typography variant="body2" mb={1}><b>型号数：</b>{draftItems.length} 个</Typography>
-            <Typography variant="body2" mb={1}>
+            <Typography variant="body2" component="div" mb={1} display="flex" alignItems="center">
               <b>需采购零件：</b>
               {needCount > 0 ? (
                 <Chip label={`${needCount} 种`} size="small" color="warning" sx={{ ml: 0.5 }} />

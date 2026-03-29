@@ -35,17 +35,18 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selected, setSelected] = useState<Order | null>(null);
 
-  const load = useCallback(() => {
-    setOrders(getAllOrders().sort(
+  const load = useCallback(async () => {
+    const data = await getAllOrders();
+    setOrders(data.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     ));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!window.confirm('确定删除这个订单？')) return;
-    deleteOrder(id);
+    await deleteOrder(id);
     load();
   };
 
