@@ -95,7 +95,7 @@ export default function OrdersPage() {
                 const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
                 const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
                 return (
-                  <TableRow key={order.id} hover>
+                  <TableRow key={order.id} hover sx={{ cursor: 'pointer' }} onDoubleClick={() => handleDetail(order)}>
                     <TableCell sx={{ fontWeight: 600 }}>{order.customerName}</TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{order.contractNo || '-'}</TableCell>
                     <TableCell>{order.items.length} 个型号</TableCell>
