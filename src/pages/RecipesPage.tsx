@@ -184,7 +184,7 @@ export default function RecipesPage() {
             </TableHead>
             <TableBody>
               {recipes.map((recipe) => (
-                <TableRow key={recipe.Id} hover>
+                <TableRow key={recipe.Id} hover sx={{ cursor: 'pointer' }} onDoubleClick={() => handleViewDetail(recipe)}>
                   <TableCell>{recipe.配方名称 || recipe.name}</TableCell>
                   <TableCell>{recipe.规格 || recipe.spec || '-'}</TableCell>
                   <TableCell

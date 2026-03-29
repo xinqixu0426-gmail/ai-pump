@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Paper,
   Typography,
@@ -8,7 +8,6 @@ import {
   CircularProgress,
   TextField,
   Button,
-  Grid,
   Table,
   TableHead,
   TableBody,
@@ -21,16 +20,25 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Autocomplete
+  Autocomplete,
+  Stepper,
+  Step,
+  StepLabel,
+  Chip,
+  IconButton,
 } from '@mui/material';
 import {
   Save as SaveIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  ArrowBack as BackIcon,
+  ArrowForward as NextIcon,
 } from '@mui/icons-material';
 import { Part, RecipePart } from '../types';
 import { getAllParts, createRecipe } from '../utils/api';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipePartRow from '../components/RecipePartRow';
+
+const STEPS = ['基本信息', '必备配件', '选配 & 动态配置', '预览 & 保存'];
 
 // 必备配件配置
 const REQUIRED_PARTS = [
@@ -39,7 +47,7 @@ const REQUIRED_PARTS = [
   { key: 'cylinderBearing', name: '油缸轴承' },
   { key: 'mechanicalSeal', name: '机械油封' },
   { key: 'skeletonSeal', name: '骨架油封' },
-  { key: 'rotor', name: '线圈转子' }
+  { key: 'rotor', name: '线圈转子' },
 ];
 
 interface PartSelection {
@@ -48,97 +56,76 @@ interface PartSelection {
   qty: number;
 }
 
-// 必备配件名称 -> key 的映射
 const REQUIRED_NAME_TO_KEY: Record<string, string> = {};
 REQUIRED_PARTS.forEach(({ key, name }) => {
   REQUIRED_NAME_TO_KEY[name] = key;
 });
 
+const EMPTY_REQUIRED: Record<string, PartSelection> = {
+  pumpShell: { model: '', supplier: '', qty: 1 },
+  plateBearing: { model: '', supplier: '', qty: 1 },
+  cylinderBearing: { model: '', supplier: '', qty: 1 },
+  mechanicalSeal: { model: '', supplier: '', qty: 1 },
+  skeletonSeal: { model: '', supplier: '', qty: 1 },
+  rotor: { model: '', supplier: '', qty: 1 },
+};
+
 export default function RecipeFormPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const cloneFrom = (location.state as { cloneFrom?: { name: string; spec: string; partsJson: string } })?.cloneFrom;
   const cloneApplied = useRef(false);
 
+  const [activeStep, setActiveStep] = useState(0);
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
-  // 配方基本信息
+  // ── Step 0 ──────────────────────────────────────────────
   const [recipeName, setRecipeName] = useState(cloneFrom?.name || '');
   const [recipeSpec, setRecipeSpec] = useState(cloneFrom?.spec || '');
 
-  // 必备配件选择
-  const [requiredSelections, setRequiredSelections] = useState<
-    Record<string, PartSelection>
-  >({
-    pumpShell: { model: '', supplier: '', qty: 1 },
-    plateBearing: { model: '', supplier: '', qty: 1 },
-    cylinderBearing: { model: '', supplier: '', qty: 1 },
-    mechanicalSeal: { model: '', supplier: '', qty: 1 },
-    skeletonSeal: { model: '', supplier: '', qty: 1 },
-    rotor: { model: '', supplier: '', qty: 1 }
-  });
+  // ── Step 1: 必备配件 ─────────────────────────────────────
+  const [requiredSelections, setRequiredSelections] = useState<Record<string, PartSelection>>(
+    JSON.parse(JSON.stringify(EMPTY_REQUIRED))
+  );
 
-  // 选配配件
-  const [optionalParts, setOptionalParts] = useState<
-    Array<PartSelection & { id: number }>
-  >([]);
+  // ── Step 2: 选配 + 动态配置 ──────────────────────────────
+  const [optionalParts, setOptionalParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextOptionalId = useRef(1);
 
-  // 实时成本预览
-  const [costPreview, setCostPreview] = useState<{
-    totalCost: string;
-    itemCount: number;
-  } | null>(null);
-
-  // === 动态配置区（浮球、电缆、包材） ===
   const [hasFloat, setHasFloat] = useState(false);
   const [floatWire, setFloatWire] = useState('0.55');
-
   const [hasCable, setHasCable] = useState(false);
-  const [cableLength, setCableLength] = useState<string>('');
+  const [cableLength, setCableLength] = useState('');
   const [cableWire, setCableWire] = useState('0.55');
+  const [boxType, setBoxType] = useState('');
 
-  const [boxType, setBoxType] = useState<string>('');
-
-  // 加载零件数据
+  // ── 数据加载 ─────────────────────────────────────────────
   const loadParts = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getAllParts();
       setParts(data);
-      setError('');
-    } catch (err) {
+    } catch {
       setError('加载零件数据失败');
-      console.error(err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadParts();
-  }, [loadParts]);
+  useEffect(() => { loadParts(); }, [loadParts]);
 
-  // 复制配方时预填配件数据（等 parts 加载完再填，这样供应商联动才能正常工作）
+  // 复制配方时预填
   useEffect(() => {
     if (!cloneFrom || cloneApplied.current || parts.length === 0) return;
     cloneApplied.current = true;
-
     try {
       const cloneParts: RecipePart[] = JSON.parse(cloneFrom.partsJson);
-      const newRequired: Record<string, PartSelection> = {
-        pumpShell: { model: '', supplier: '', qty: 1 },
-        plateBearing: { model: '', supplier: '', qty: 1 },
-        cylinderBearing: { model: '', supplier: '', qty: 1 },
-        mechanicalSeal: { model: '', supplier: '', qty: 1 },
-        skeletonSeal: { model: '', supplier: '', qty: 1 },
-        rotor: { model: '', supplier: '', qty: 1 }
-      };
+      const newRequired = JSON.parse(JSON.stringify(EMPTY_REQUIRED));
       const newOptional: Array<PartSelection & { id: number }> = [];
-
-      cloneParts.forEach(cp => {
+      cloneParts.forEach((cp) => {
         const key = REQUIRED_NAME_TO_KEY[cp.name];
         if (key) {
           newRequired[key] = { model: cp.model, supplier: cp.supplier, qty: cp.qty };
@@ -146,7 +133,6 @@ export default function RecipeFormPage() {
           newOptional.push({ id: nextOptionalId.current++, model: cp.model, supplier: cp.supplier, qty: cp.qty });
         }
       });
-
       setRequiredSelections(newRequired);
       setOptionalParts(newOptional);
     } catch (e) {
@@ -154,256 +140,169 @@ export default function RecipeFormPage() {
     }
   }, [cloneFrom, parts]);
 
-  // 获取某型号某供应商的价格（增加回退取最低价逻辑）
+  // ── 辅助函数 ─────────────────────────────────────────────
   const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
     const m1 = (model || '').trim();
     const s1 = (supplier || '').trim();
-
-    // 1. 尝试精确匹配 (model + supplier)
-    const exactPart = parts.find((p) => ((p.型号 || p.model) || '').trim() === m1 && ((p.供应商 || p.supplier) || '').trim() === s1);
-    if (exactPart && s1) {
-      return exactPart.单价 || exactPart.price || 0;
-    }
-
-    // 2. 回退到型号匹配（取所有同型号中单价最低的）
+    const exactPart = parts.find(
+      (p) => ((p.型号 || p.model) || '').trim() === m1 && ((p.供应商 || p.supplier) || '').trim() === s1
+    );
+    if (exactPart && s1) return exactPart.单价 || exactPart.price || 0;
     const modelParts = parts.filter((p) => ((p.型号 || p.model) || '').trim() === m1);
     if (modelParts.length > 0) {
-      const fallbackPart = modelParts.reduce((min, curr) => {
-        const currPrice = curr.单价 || curr.price || 0;
-        const minPrice = min.单价 || min.price || 0;
-        return currPrice < minPrice ? curr : min;
-      }, modelParts[0]);
-      return fallbackPart.单价 || fallbackPart.price || 0;
+      return modelParts.reduce((min, curr) => {
+        const cp = curr.单价 || curr.price || 0;
+        const mp = min.单价 || min.price || 0;
+        return cp < mp ? curr : min;
+      }, modelParts[0]).单价 || modelParts[0].price || 0;
     }
-    
     return 0;
   }, [parts]);
 
-  // 包材模糊匹配：输入"木箱"或"纸箱"时自动在包装类别中查找最低价型号
   const resolveBoxType = useCallback((keyword: string): { model: string; price: number } => {
     const k = (keyword || '').trim();
     if (!k) return { model: '', price: 0 };
-
-    // 1. 先精确匹配
     const exactPrice = getPriceByModelAndSupplier(k, '');
     if (exactPrice > 0) return { model: k, price: exactPrice };
-
-    // 2. 模糊匹配：在包装类别下找型号包含关键词的，取最低价
     const candidates = parts
-      .filter(p => (p.类别 || p.category) === '包装' && ((p.型号 || p.model) || '').includes(k))
-      .map(p => ({ model: (p.型号 || p.model) || '', price: p.单价 || p.price || 0 }));
-    
-    if (candidates.length > 0) {
-      return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
-    }
+      .filter((p) => (p.类别 || p.category) === '包装' && ((p.型号 || p.model) || '').includes(k))
+      .map((p) => ({ model: (p.型号 || p.model) || '', price: p.单价 || p.price || 0 }));
+    if (candidates.length > 0) return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
     return { model: k, price: 0 };
   }, [parts, getPriceByModelAndSupplier]);
 
-  // 解析动态配置生成配方列表
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
-    
-    // 浮球
     if (hasFloat) {
       const model = `浮球-线径${floatWire}`;
-      const snapshotPrice = getPriceByModelAndSupplier(model, '');
-      configParts.push({ model, name: '浮球', supplier: '', qty: 1, snapshotPrice });
+      configParts.push({ model, name: '浮球', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier(model, '') });
     }
-    
-    // 电缆
     if (hasCable && cableLength && Number(cableLength) > 0) {
       const cableModel = `电缆-线径${cableWire}`;
-      const snapshotPrice = getPriceByModelAndSupplier(cableModel, '');
-      configParts.push({ model: cableModel, name: '电缆线', supplier: '', qty: Number(cableLength), snapshotPrice });
-      
-      const accModel = '电缆配件费';
-      const accPrice = getPriceByModelAndSupplier(accModel, '');
-      configParts.push({ model: accModel, name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: accPrice });
+      configParts.push({ model: cableModel, name: '电缆线', supplier: '', qty: Number(cableLength), snapshotPrice: getPriceByModelAndSupplier(cableModel, '') });
+      configParts.push({ model: '电缆配件费', name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier('电缆配件费', '') });
     }
-    
-    // 包材（支持模糊匹配）
     if (boxType) {
       const resolved = resolveBoxType(boxType);
       const name = resolved.model.includes('木') ? '木箱' : '纸箱';
       configParts.push({ model: resolved.model, name, supplier: '', qty: 1, snapshotPrice: resolved.price });
     }
-    
     return configParts;
   }, [hasFloat, floatWire, hasCable, cableLength, cableWire, boxType, getPriceByModelAndSupplier, resolveBoxType]);
 
-  // 计算实时成本
-  useEffect(() => {
-    const allParts: RecipePart[] = [];
-
-    REQUIRED_PARTS.forEach(({ key, name }) => {
-      const selection = requiredSelections[key];
-      if (selection.model) {
-        allParts.push({ model: selection.model, name, supplier: selection.supplier, qty: selection.qty });
-      }
-    });
-
-    optionalParts.forEach((part) => {
-      if (part.model) {
-        allParts.push({ model: part.model, name: part.model, supplier: part.supplier, qty: part.qty });
-      }
-    });
-
-    // 压入动态配置项
-    allParts.push(...buildConfigParts());
-
-    if (allParts.length > 0) {
-      const { partsCache, partsByModel } = buildPartsIndex(parts);
-      const result = calculateRecipeCost(allParts, partsCache, partsByModel);
-      setCostPreview({ totalCost: result.totalCost, itemCount: result.itemCount });
-    } else {
-      setCostPreview(null);
-    }
-  }, [requiredSelections, optionalParts, parts, buildConfigParts]);
-
-  // 获取某类别的零件型号列表
   const getModelsByCategory = (category: string): string[] => {
     const models = new Set<string>();
-    parts.forEach((part) => {
-      const partCategory = part.类别 || part.category || '';
-      if (partCategory === category) {
-        models.add(part.型号 || part.model || '');
-      }
+    parts.forEach((p) => {
+      if ((p.类别 || p.category || '') === category) models.add(p.型号 || p.model || '');
     });
     return Array.from(models).filter(Boolean).sort();
   };
 
-  // 从 Parts 表动态提取可用线径列表（解析"浮球-线径X"或"电缆-线径X"的型号名）
   const getWireOptions = (prefix: string): string[] => {
     const wires = new Set<string>();
-    parts.forEach((part) => {
-      const model = (part.型号 || part.model || '').trim();
-      if (model.startsWith(prefix)) {
-        const wire = model.replace(prefix, '');
-        if (wire) wires.add(wire);
-      }
+    parts.forEach((p) => {
+      const m = (p.型号 || p.model || '').trim();
+      if (m.startsWith(prefix)) { const w = m.replace(prefix, ''); if (w) wires.add(w); }
     });
     return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
   };
 
-  // 获取某型号的所有供应商
   const getSuppliersByModel = (model: string): string[] => {
     const suppliers = new Set<string>();
-    parts.forEach((part) => {
-      const partModel = part.型号 || part.model || '';
-      if (partModel === model) {
-        suppliers.add(part.供应商 || part.supplier || '');
-      }
+    parts.forEach((p) => {
+      if ((p.型号 || p.model || '') === model) suppliers.add(p.供应商 || p.supplier || '');
     });
     return Array.from(suppliers).filter(Boolean).sort();
   };
 
+  // ── 汇总所有配件 ─────────────────────────────────────────
+  const buildAllParts = useCallback((): RecipePart[] => {
+    const all: RecipePart[] = [];
+    REQUIRED_PARTS.forEach(({ key, name }) => {
+      const s = requiredSelections[key];
+      if (s.model) {
+        all.push({ model: s.model, name, supplier: s.supplier, qty: s.qty, snapshotPrice: getPriceByModelAndSupplier(s.model, s.supplier) });
+      }
+    });
+    optionalParts.forEach((p) => {
+      if (p.model) all.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty, snapshotPrice: getPriceByModelAndSupplier(p.model, p.supplier) });
+    });
+    all.push(...buildConfigParts());
+    return all;
+  }, [requiredSelections, optionalParts, buildConfigParts, getPriceByModelAndSupplier]);
 
-  // 更新必备配件选择
+  // Step 3 成本预览
+  const allPartsPreview = buildAllParts();
+  const costPreview = (() => {
+    if (allPartsPreview.length === 0) return null;
+    const { partsCache, partsByModel } = buildPartsIndex(parts);
+    return calculateRecipeCost(allPartsPreview, partsCache, partsByModel);
+  })();
+
+  // ── 步骤验证 ─────────────────────────────────────────────
+  const canNext = () => {
+    if (activeStep === 0) return recipeName.trim().length > 0;
+    if (activeStep === 1) {
+      // 至少填一个必备配件
+      return REQUIRED_PARTS.some(({ key }) => requiredSelections[key].model.trim().length > 0);
+    }
+    return true;
+  };
+
+  // ── handlers ─────────────────────────────────────────────
   const handleRequiredChange = (key: string, field: keyof PartSelection, value: string | number) => {
     setRequiredSelections((prev) => {
       const updated = { ...prev, [key]: { ...prev[key], [field]: value } };
-      if (field === 'model') {
-        updated[key].supplier = '';
-      }
+      if (field === 'model') updated[key].supplier = '';
       return updated;
     });
   };
 
-  // 添加选配配件
   const handleAddOptional = () => {
-    setOptionalParts((prev) => [
-      ...prev,
-      { id: nextOptionalId.current++, model: '', supplier: '', qty: 1 }
-    ]);
+    setOptionalParts((prev) => [...prev, { id: nextOptionalId.current++, model: '', supplier: '', qty: 1 }]);
   };
 
-  // 更新选配配件
   const handleOptionalChange = (id: number, field: keyof PartSelection, value: string | number) => {
     setOptionalParts((prev) =>
-      prev.map((part) => {
-        if (part.id === id) {
-          const updated = { ...part, [field]: value };
-          if (field === 'model') updated.supplier = '';
-          return updated;
-        }
-        return part;
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated = { ...p, [field]: value };
+        if (field === 'model') updated.supplier = '';
+        return updated;
       })
     );
   };
 
-  // 删除选配配件
   const handleRemoveOptional = (id: number) => {
-    setOptionalParts((prev) => prev.filter((part) => part.id !== id));
+    setOptionalParts((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // 提交配方
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!recipeName.trim()) {
-      setError('请输入配方名称');
-      return;
-    }
-
-    const recipeParts: RecipePart[] = [];
-
-    REQUIRED_PARTS.forEach(({ key, name }) => {
-      const selection = requiredSelections[key];
-      if (selection.model) {
-        const snapshotPrice = getPriceByModelAndSupplier(selection.model, selection.supplier);
-        recipeParts.push({ model: selection.model, name, supplier: selection.supplier, qty: selection.qty, snapshotPrice });
-      }
-    });
-
-    optionalParts.forEach((part) => {
-      if (part.model) {
-        const snapshotPrice = getPriceByModelAndSupplier(part.model, part.supplier);
-        recipeParts.push({ model: part.model, name: part.model, supplier: part.supplier, qty: part.qty, snapshotPrice });
-      }
-    });
-
-    // 动态配置区 (浮球/电缆/包材)
-    recipeParts.push(...buildConfigParts());
-
-    if (recipeParts.length === 0) {
-      setError('请至少选择一个配件');
-      return;
-    }
+  const handleSubmit = async () => {
+    const recipeParts = buildAllParts();
+    if (recipeParts.length === 0) { setError('请至少选择一个配件'); return; }
 
     const savedTotalCost = recipeParts.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
-    const savedCostDetails = recipeParts.map(p => 
-      `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`
-    ).join('\n');
+    const savedCostDetails = recipeParts
+      .map((p) => `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`)
+      .join('\n');
 
+    setSaving(true);
     try {
       await createRecipe({
         配方名称: recipeName,
         规格: recipeSpec,
         配件JSON: JSON.stringify(recipeParts),
         saved_total_cost: savedTotalCost,
-        saved_cost_details: savedCostDetails
+        saved_cost_details: savedCostDetails,
       });
-
-      setSuccess('配方录入成功！');
-      setRecipeName('');
-      setRecipeSpec('');
-      setRequiredSelections({
-        pumpShell: { model: '', supplier: '', qty: 1 },
-        plateBearing: { model: '', supplier: '', qty: 1 },
-        cylinderBearing: { model: '', supplier: '', qty: 1 },
-        mechanicalSeal: { model: '', supplier: '', qty: 1 },
-        skeletonSeal: { model: '', supplier: '', qty: 1 },
-        rotor: { model: '', supplier: '', qty: 1 }
-      });
-      setOptionalParts([]);
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
+      navigate('/recipes');
+    } catch {
       setError('保存配方失败');
-      console.error(err);
+      setSaving(false);
     }
   };
 
-  // 表头
+  // ── 表头组件 ─────────────────────────────────────────────
   const TableHeader = () => (
     <TableHead>
       <TableRow sx={{ bgcolor: 'grey.50' }}>
@@ -419,226 +318,216 @@ export default function RecipeFormPage() {
   );
 
   return (
-    <Paper elevation={2} sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" color="primary" sx={{ flexGrow: 1 }}>
-          录入配方
+    <Paper elevation={2} sx={{ p: 3, maxWidth: 960, mx: 'auto' }}>
+      {/* 标题 */}
+      <Box display="flex" alignItems="center" mb={3} gap={1}>
+        <IconButton onClick={() => navigate('/recipes')} size="small">
+          <BackIcon />
+        </IconButton>
+        <Typography variant="h6">
+          {cloneFrom ? '复制配方' : '录入配方'}
         </Typography>
-        {loading && <CircularProgress size={20} />}
+        {loading && <CircularProgress size={18} sx={{ ml: 1 }} />}
       </Box>
+
+      {/* 步骤条 */}
+      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+        {STEPS.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
+
+      {/* ── Step 0: 基本信息 ── */}
+      {!loading && activeStep === 0 && (
+        <Box sx={{ maxWidth: 560 }}>
+          <TextField
+            label="配方名称"
+            value={recipeName}
+            onChange={(e) => setRecipeName(e.target.value)}
+            placeholder="如：人民款370w-90机筒"
+            required
+            fullWidth
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label="规格（可选）"
+            value={recipeSpec}
+            onChange={(e) => setRecipeSpec(e.target.value)}
+            placeholder="如：90-100"
+            fullWidth
+          />
+        </Box>
       )}
 
-      <Box component="form" onSubmit={handleSubmit}>
-        {/* 基本信息 */}
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} md={6}>
-            <TextField
-              label="配方名称"
-              value={recipeName}
-              onChange={(e) => setRecipeName(e.target.value)}
-              placeholder="如：人民款370w-90机筒"
-              required
-              fullWidth
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField
-              label="规格"
-              value={recipeSpec}
-              onChange={(e) => setRecipeSpec(e.target.value)}
-              placeholder="如：90-100"
-              fullWidth
-              size="small"
-            />
-          </Grid>
-        </Grid>
-
-        {/* 统一配件表格 */}
-        <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
-          <Table size="small" sx={{ tableLayout: 'auto' }}>
-            <TableHeader />
-            <TableBody>
-              {/* 必备配件 */}
-              <TableRow>
-                <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'primary.50', borderBottom: 'none' }}>
-                  <Typography variant="caption" fontWeight={700} color="primary.main" sx={{ letterSpacing: 1 }}>
-                    ▸ 必备配件
-                  </Typography>
-                </TableCell>
-              </TableRow>
-              {REQUIRED_PARTS.map(({ key, name }) => (
-                <RecipePartRow
-                  key={key}
-                  label={name}
-                  selection={requiredSelections[key]}
-                  models={getModelsByCategory(
-                    name === '泵壳' ? '泵壳'
-                      : name === '线圈转子' ? '线圈转子'
-                      : name.includes('轴承') ? '轴承'
-                      : name.includes('油封') ? '油封'
-                      : '其他'
-                  )}
-                  getSuppliers={getSuppliersByModel}
-                  getPrice={getPriceByModelAndSupplier}
-                  onChange={(field, value) => handleRequiredChange(key, field, value)}
-                  isRequired
-                />
-              ))}
-
-              {/* 分隔 */}
-              <TableRow>
-                <TableCell colSpan={7} sx={{ p: 0 }}>
-                  <Divider />
-                </TableCell>
-              </TableRow>
-
-              {/* 选配配件标题行 */}
-              <TableRow>
-                <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
-                      ▸ 选配配件（{optionalParts.length} 项）
-                    </Typography>
-                    <Button
-                      variant="text"
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={handleAddOptional}
-                      sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
-                    >
-                      添加配件
-                    </Button>
-                  </Box>
-                </TableCell>
-              </TableRow>
-
-              {/* 选配配件行 */}
-              {optionalParts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 2, color: 'text.disabled', fontSize: '0.8rem' }}>
-                    暂无选配配件，点击「添加配件」
-                  </TableCell>
-                </TableRow>
-              ) : (
-                optionalParts.map((part) => (
+      {/* ── Step 1: 必备配件 ── */}
+      {!loading && activeStep === 1 && (
+        <Box>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            填写 6 项必备配件，至少需要填一项才能继续。
+          </Alert>
+          <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+            <Table size="small" sx={{ tableLayout: 'auto' }}>
+              <TableHeader />
+              <TableBody>
+                {REQUIRED_PARTS.map(({ key, name }) => (
                   <RecipePartRow
-                    key={part.id}
-                    label="配件"
-                    selection={part}
-                    models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                    key={key}
+                    label={name}
+                    selection={requiredSelections[key]}
+                    models={getModelsByCategory(
+                      name === '泵壳' ? '泵壳'
+                        : name === '线圈转子' ? '线圈转子'
+                        : name.includes('轴承') ? '轴承'
+                        : name.includes('油封') ? '油封'
+                        : '其他'
+                    )}
                     getSuppliers={getSuppliersByModel}
                     getPrice={getPriceByModelAndSupplier}
-                    onChange={(field, value) => handleOptionalChange(part.id, field, value)}
-                    onDelete={() => handleRemoveOptional(part.id)}
+                    onChange={(field, value) => handleRequiredChange(key, field, value)}
+                    isRequired
                   />
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </Paper>
+                ))}
+              </TableBody>
+            </Table>
+          </Paper>
+        </Box>
+      )}
 
-        {/* 动态配置区（浮球、电缆、包材） */}
-        <Typography variant="h6" sx={{ mt: 4, mb: 2, pb: 1, borderBottom: '1px solid', borderColor: 'primary.light', color: 'primary.main' }}>
-          水泵动态配置区
-        </Typography>
-        
-        <Box sx={{ p: 3, mb: 4, bgcolor: 'grey.50', borderRadius: 2, border: '1px solid', borderColor: 'grey.200', display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* 浮球配置 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <FormControlLabel 
-              control={<Checkbox checked={hasFloat} onChange={(e) => setHasFloat(e.target.checked)} color="primary" />}
-              label={<Typography fontWeight={500}>带浮球 (基础计算)</Typography>} 
-              sx={{ minWidth: 200 }}
-            />
-            {hasFloat && (
-              <>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>浮球线径</InputLabel>
-                  <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
-                    {getWireOptions('浮球-线径').map(w => (
-                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                  小计: <strong>¥{getPriceByModelAndSupplier(`浮球-线径${floatWire}`, '').toFixed(2)}</strong>
-                </Typography>
-              </>
-            )}
-          </Box>
+      {/* ── Step 2: 选配 + 动态配置 ── */}
+      {!loading && activeStep === 2 && (
+        <Box>
+          {/* 选配配件 */}
+          <Paper variant="outlined" sx={{ mb: 3, overflow: 'hidden' }}>
+            <Table size="small" sx={{ tableLayout: 'auto' }}>
+              <TableHeader />
+              <TableBody>
+                <TableRow>
+                  <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
+                        ▸ 选配配件（{optionalParts.length} 项）
+                      </Typography>
+                      <Button
+                        variant="text"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={handleAddOptional}
+                        sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
+                      >
+                        添加配件
+                      </Button>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+                {optionalParts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} sx={{ textAlign: 'center', py: 2, color: 'text.disabled', fontSize: '0.8rem' }}>
+                      暂无选配配件，点击「添加配件」
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  optionalParts.map((part) => (
+                    <RecipePartRow
+                      key={part.id}
+                      label="配件"
+                      selection={part}
+                      models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                      getSuppliers={getSuppliersByModel}
+                      getPrice={getPriceByModelAndSupplier}
+                      onChange={(field, value) => handleOptionalChange(part.id, field, value)}
+                      onDelete={() => handleRemoveOptional(part.id)}
+                    />
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Paper>
 
-          <Divider sx={{ my: 0.5 }} />
-
-          {/* 电缆配置 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <FormControlLabel 
-              control={<Checkbox checked={hasCable} onChange={(e) => setHasCable(e.target.checked)} color="primary" />}
-              label={<Typography fontWeight={500}>带电缆线 (动态单价计米数 + 配件费)</Typography>} 
-              sx={{ minWidth: 320 }}
-            />
-            {hasCable && (
-              <>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>电缆线径</InputLabel>
-                  <Select value={cableWire} label="电缆线径" onChange={(e) => setCableWire(e.target.value as string)}>
-                    {getWireOptions('电缆-线径').map(w => (
-                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <TextField 
-                  label="电缆长度 (米)" 
-                  size="small" 
-                  type="number"
-                  inputProps={{ step: "0.1", min: "0" }}
-                  value={cableLength}
-                  onChange={(e) => setCableLength(e.target.value)}
-                  sx={{ width: 150 }}
-                />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                  小计: <strong>¥{((getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '') * (Number(cableLength) || 0)) + getPriceByModelAndSupplier('电缆配件费', '')).toFixed(2)}</strong>
-                  <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.disabled' }}>
-                    ({getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '')}/米 × {cableLength || 0} + 配件 ¥{getPriceByModelAndSupplier('电缆配件费', '')})
+          {/* 动态配置区 */}
+          <Typography variant="subtitle1" fontWeight={700} color="primary" sx={{ mb: 1.5 }}>
+            水泵动态配置区
+          </Typography>
+          <Box sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, border: '1px solid', borderColor: 'grey.200', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {/* 浮球 */}
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <FormControlLabel
+                control={<Checkbox checked={hasFloat} onChange={(e) => setHasFloat(e.target.checked)} color="primary" />}
+                label={<Typography fontWeight={500}>带浮球</Typography>}
+                sx={{ minWidth: 160 }}
+              />
+              {hasFloat && (
+                <>
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>浮球线径</InputLabel>
+                    <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
+                      {getWireOptions('浮球-线径').map((w) => (
+                        <MenuItem key={w} value={w}>{w} mm</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                    小计: <strong>¥{getPriceByModelAndSupplier(`浮球-线径${floatWire}`, '').toFixed(2)}</strong>
                   </Typography>
-                </Typography>
-              </>
-            )}
-          </Box>
-
-          <Divider sx={{ my: 0.5 }} />
-
-          {/* 包装材料 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-             <Typography fontWeight={500} sx={{ minWidth: 120, ml: 4 }}>包装及辅材：</Typography>
-             <Autocomplete
+                </>
+              )}
+            </Box>
+            <Divider />
+            {/* 电缆 */}
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <FormControlLabel
+                control={<Checkbox checked={hasCable} onChange={(e) => setHasCable(e.target.checked)} color="primary" />}
+                label={<Typography fontWeight={500}>带电缆线（按米计价）</Typography>}
+                sx={{ minWidth: 220 }}
+              />
+              {hasCable && (
+                <>
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>电缆线径</InputLabel>
+                    <Select value={cableWire} label="电缆线径" onChange={(e) => setCableWire(e.target.value as string)}>
+                      {getWireOptions('电缆-线径').map((w) => (
+                        <MenuItem key={w} value={w}>{w} mm</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="电缆长度 (米)"
+                    size="small"
+                    type="number"
+                    inputProps={{ step: '0.1', min: '0' }}
+                    value={cableLength}
+                    onChange={(e) => setCableLength(e.target.value)}
+                    sx={{ width: 150 }}
+                  />
+                  <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                    小计: <strong>¥{((getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '') * (Number(cableLength) || 0)) + getPriceByModelAndSupplier('电缆配件费', '')).toFixed(2)}</strong>
+                  </Typography>
+                </>
+              )}
+            </Box>
+            <Divider />
+            {/* 包材 */}
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <Typography fontWeight={500} sx={{ minWidth: 120 }}>包装及辅材：</Typography>
+              <Autocomplete
                 freeSolo
                 disableClearable
                 options={getModelsByCategory('包装')}
                 value={boxType}
-                onInputChange={(_, newInputValue) => setBoxType(newInputValue)}
+                onInputChange={(_, v) => setBoxType(v)}
                 sx={{ width: 250 }}
                 renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    label="包装箱型号" 
-                    size="small" 
-                    placeholder="可下拉选择或手动输入" 
-                    InputProps={{ ...params.InputProps, type: 'search' }}
-                  />
+                  <TextField {...params} label="包装箱型号" size="small" placeholder="可下拉选择或手动输入" InputProps={{ ...params.InputProps, type: 'search' }} />
                 )}
-             />
-             {boxType && (() => {
+              />
+              {boxType && (() => {
                 const resolved = resolveBoxType(boxType);
                 return (
                   <Typography variant="body2" color={resolved.price > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
@@ -648,42 +537,108 @@ export default function RecipeFormPage() {
                         (匹配到: {resolved.model})
                       </Typography>
                     )}
-                    {resolved.price === 0 && (
-                      <Typography component="span" variant="caption" sx={{ display: 'block', color: 'error.main' }}>
-                        (未找到该型号价格，将按 0 元计算)
-                      </Typography>
-                    )}
                   </Typography>
                 );
               })()}
+            </Box>
           </Box>
         </Box>
+      )}
 
-        {/* 成本预览 */}
-        {costPreview && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>
-                <strong>成本预览：</strong>{costPreview.itemCount} 项配件
-              </span>
-              <Typography variant="h6" color="error">
-                预估成本：¥{costPreview.totalCost}
-              </Typography>
-            </Box>
-          </Alert>
-        )}
+      {/* ── Step 3: 预览 & 保存 ── */}
+      {!loading && activeStep === 3 && (
+        <Box>
+          <Box display="flex" alignItems="center" gap={2} mb={2}>
+            <Typography variant="subtitle1" fontWeight={700}>配方汇总</Typography>
+            {costPreview && (
+              <Chip
+                label={`预估总成本 ¥${costPreview.totalCost}`}
+                color="primary"
+                sx={{ fontWeight: 700, fontSize: '0.95rem' }}
+              />
+            )}
+          </Box>
 
-        {/* 提交 */}
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          startIcon={<SaveIcon />}
-          fullWidth
-        >
-          保存配方
-        </Button>
-      </Box>
+          {allPartsPreview.length === 0 ? (
+            <Alert severity="warning">还没有任何配件，请返回上一步添加。</Alert>
+          ) : (
+            <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>名称</TableCell>
+                    <TableCell>型号</TableCell>
+                    <TableCell>供应商</TableCell>
+                    <TableCell align="right">单价</TableCell>
+                    <TableCell align="right">数量</TableCell>
+                    <TableCell align="right">小计</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {allPartsPreview.map((p, i) => (
+                    <TableRow key={i} hover>
+                      <TableCell>{p.name}</TableCell>
+                      <TableCell>{p.model}</TableCell>
+                      <TableCell>{p.supplier || '-'}</TableCell>
+                      <TableCell align="right">¥{(p.snapshotPrice || 0).toFixed(2)}</TableCell>
+                      <TableCell align="right">{p.qty}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        ¥{((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow sx={{ bgcolor: 'primary.50' }}>
+                    <TableCell colSpan={5} sx={{ fontWeight: 700 }}>合计</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main', fontSize: '1rem' }}>
+                      ¥{costPreview?.totalCost ?? '0.00'}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Paper>
+          )}
+
+          <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+            <Typography variant="body2"><b>配方名称：</b>{recipeName}</Typography>
+            {recipeSpec && <Typography variant="body2" mt={0.5}><b>规格：</b>{recipeSpec}</Typography>}
+          </Box>
+        </Box>
+      )}
+
+      {/* ── 导航按钮 ── */}
+      {!loading && (
+        <Box display="flex" justifyContent="space-between" mt={4}>
+          <Button
+            variant="outlined"
+            startIcon={<BackIcon />}
+            onClick={() => setActiveStep((s) => s - 1)}
+            disabled={activeStep === 0}
+          >
+            上一步
+          </Button>
+          {activeStep < STEPS.length - 1 ? (
+            <Button
+              variant="contained"
+              endIcon={<NextIcon />}
+              onClick={() => setActiveStep((s) => s + 1)}
+              disabled={!canNext()}
+            >
+              下一步
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="success"
+              size="large"
+              startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+              onClick={handleSubmit}
+              disabled={saving || allPartsPreview.length === 0}
+            >
+              保存配方
+            </Button>
+          )}
+        </Box>
+      )}
     </Paper>
   );
 }
