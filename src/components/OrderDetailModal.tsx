@@ -172,12 +172,29 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
             {localOrder.items.map((item) => {
               let parts: { model: string; name: string; qty: number; supplier: string }[] = [];
               try { parts = JSON.parse(item.partsJson); } catch { /* noop */ }
+              const marginPct = Math.round(((item.profitMargin || 1) - 1) * 100);
+              const itemSubtotal = (item.unitPrice || 0) * item.qty;
+              const costSubtotal = (item.unitCost || 0) * item.qty;
               return (
                 <Box key={item.id} sx={{ mb: 3 }}>
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.5} flexWrap="wrap">
                     <Typography fontWeight={700}>{item.recipeName}</Typography>
                     {item.spec && <Chip label={item.spec} size="small" variant="outlined" />}
                     <Chip label={`×${item.qty} 台`} color="primary" size="small" />
+                  </Box>
+                  <Box display="flex" gap={2} mb={1} flexWrap="wrap">
+                    <Typography variant="caption" color="text.secondary">
+                      成本 ¥{(item.unitCost || 0).toFixed(2)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      利润率 {marginPct}%
+                    </Typography>
+                    <Typography variant="caption" color="primary.main" fontWeight={600}>
+                      出厂价 ¥{(item.unitPrice || 0).toFixed(2)}
+                    </Typography>
+                    <Typography variant="caption" fontWeight={600}>
+                      小计 ¥{costSubtotal.toFixed(2)} → ¥{itemSubtotal.toFixed(2)}
+                    </Typography>
                   </Box>
                   <TableContainer>
                     <Table size="small">
@@ -209,8 +226,25 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
                 </Box>
               );
             })}
+
+            {/* 订单汇总 */}
+            <Box sx={{ mt: 1, p: 2, bgcolor: 'primary.50', borderRadius: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Typography variant="body2">
+                总成本: <b>¥{(localOrder.totalCost || 0).toFixed(2)}</b>
+              </Typography>
+              <Typography variant="body2" color="primary.main">
+                总出厂价: <b>¥{(localOrder.totalPrice || 0).toFixed(2)}</b>
+              </Typography>
+              <Typography variant="body2" color={(localOrder.totalProfit || 0) >= 0 ? 'success.main' : 'error.main'}>
+                总利润: <b>¥{(localOrder.totalProfit || 0).toFixed(2)}</b>
+                {(localOrder.totalCost || 0) > 0 && (
+                  <span> ({Math.round((localOrder.totalProfit || 0) / localOrder.totalCost * 100)}%)</span>
+                )}
+              </Typography>
+            </Box>
           </Box>
         )}
+
 
         {/* ── Tab 1: 采购清单 ── */}
         {tab === 1 && (

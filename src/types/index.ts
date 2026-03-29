@@ -48,7 +48,9 @@ export interface Recipe {
   配件JSON?: string;
   parts_json?: string;
   saved_total_cost?: number;
+  保存时总成本?: number;  // NocoDB 中文字段名
   saved_cost_details?: string;
+  保存时成本明细?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -92,6 +94,9 @@ export interface OrderItem {
   spec?: string;         // 规格
   qty: number;           // 生产数量
   partsJson: string;     // JSON字符串，RecipePart[]
+  unitCost: number;      // 单台成本（从配方 saved_total_cost）
+  profitMargin: number;  // 利润率倍数，如 1.15 = 15% 利润
+  unitPrice: number;     // 不含税出厂价 = unitCost × profitMargin（可手动覆盖）
 }
 
 // 采购清单中的单条零件汇总
@@ -119,7 +124,7 @@ export type OrderStatus = '待采购' | '采购中' | '已完成';
 
 // 订单
 export interface Order {
-  id: string;            // localStorage key
+  id: string;
   customerName: string;
   contractNo?: string;   // 合同号
   remark?: string;
@@ -127,6 +132,9 @@ export interface Order {
   items: OrderItem[];            // 型号列表
   purchaseList: PurchaseItem[];  // 采购汇总清单
   todos: TodoItem[];             // 采购 to-do
+  totalCost: number;             // 所有型号 unitCost × qty 之和
+  totalPrice: number;            // 所有型号 unitPrice × qty 之和
+  totalProfit: number;           // totalPrice - totalCost
   createdAt: string;             // ISO字符串
   updatedAt: string;
 }

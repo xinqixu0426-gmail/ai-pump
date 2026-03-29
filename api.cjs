@@ -711,6 +711,146 @@ app.post('/api/cost/full-calculate', async (req, res) => {
     }
 });
 
+// ============================================
+// AI Agent 接口 (DeepSeek + Function Calling)
+// ============================================
+
+const fs = require('fs/promises');
+const path = require('path');
+const CONFIG_FILE = path.join(__dirname, 'ai_config.json');
+
+// 获取 AI 配置
+app.get('/api/agent-config', async (req, res) => {
+    try {
+        let config = {
+            systemPrompt: '你是专业水泵BOM成本分析AI。请使用提供给你的工具精准计算并解答用户的报价需求。',
+            apiKey: '',
+            temperature: 0.1
+        };
+        try {
+            const data = await fs.readFile(CONFIG_FILE, 'utf8');
+            config = { ...config, ...JSON.parse(data) };
+        } catch (e) {
+            // 如果文件不存在则使用默认配置
+        }
+        res.json({ success: true, config });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 保存 AI 配置
+app.post('/api/agent-config', async (req, res) => {
+    try {
+        const newConfig = req.body;
+        await fs.writeFile(CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf8');
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { userMessage } = req.body;
+        
+        // 读取配置
+        let config = {
+            systemPrompt: '你是专业水泵BOM成本分析AI。请使用提供给你的工具精准计算并解答用户的报价需求。',
+            apiKey: '',
+            temperature: 0.1
+        };
+        try {
+            const data = await fs.readFile(CONFIG_FILE, 'utf8');
+            config = { ...config, ...JSON.parse(data) };
+        } catch (e) {}
+
+        // 前端配置优先，如果没有填写则读取环境变量或写死的 key
+        const envKey = process.env.DEEPSEEK_API_KEY || '***REMOVED***';
+        const apiKey = config.apiKey ? config.apiKey : envKey;
+
+        if (!apiKey) {
+            return res.json({ success: false, error: "系统提示：未配置 DEEPSEEK_API_KEY。" });
+        }
+
+        // 定义供 AI 调用的工具
+        const tools = [{
+            type: "function",
+            function: {
+                name: "calculate_pump_cost",
+                description: "计算水泵总制造成本。必须传入泵系统参数。可以获取到总成本、动态配件成本和线圈成本。",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        pumphousing_model: { type: "string", description: "泵机型号,如: v750, 370w" },
+                        stator: { type: "string", description: "定子规格和片数,如: 12-120" },
+                        cableLength: { type: "number", description: "电缆长度米数" },
+                        hasFloat: { type: "boolean", description: "带不带浮球逻辑" },
+                        boxType: { type: "string", description: "包材类型,如纸箱,木箱" }
+                    },
+                    required: ["pumphousing_model"]
+                }
+            }
+        }];
+
+        const messages = [
+            { role: "system", content: config.systemPrompt },
+            { role: "user", content: userMessage }
+        ];
+
+        const chatReq = async (msgs) => {
+            const r = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({ 
+                    model: 'deepseek-chat', 
+                    messages: msgs, 
+                    tools, 
+                    temperature: Number(config.temperature) || 0.1 
+                })
+            });
+            if (!r.ok) throw new Error(`DeepSeek API Error: ${r.statusText}`);
+            return r.json();
+        };
+
+        let responseData = await chatReq(messages);
+        let responseMsg = responseData.choices[0].message;
+
+        // 检查是否需要调用工具查数据库
+        if (responseMsg.tool_calls && responseMsg.tool_calls.length > 0) {
+            messages.push(responseMsg);
+
+            for (const toolCall of responseMsg.tool_calls) {
+                if (toolCall.function.name === 'calculate_pump_cost') {
+                    const params = JSON.parse(toolCall.function.arguments);
+
+                    // 调用本地已有的一站式服务
+                    const localRes = await fetch(`http://localhost:${PORT}/api/cost/full-calculate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(params)
+                    });
+                    const funcResult = await localRes.json();
+
+                    messages.push({
+                        role: "tool",
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify(funcResult.data || funcResult)
+                    });
+                }
+            }
+            // 第二轮请求，AI 返回最终语言结果
+            responseData = await chatReq(messages);
+            responseMsg = responseData.choices[0].message;
+        }
+
+        res.json({ success: true, reply: responseMsg.content });
+    } catch (error) {
+        console.error('Chat API Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 启动服务器（监听所有网络接口，允许外部访问）
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
@@ -724,6 +864,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
     console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);
     console.log(`  POST /api/cost/full-calculate           - 一站式成本计算（推荐N8N用）`);
+    console.log(`  POST /api/chat                          - DeepSeek AI Agent 连结端点`);
     console.log(`========================================`);
 });
 

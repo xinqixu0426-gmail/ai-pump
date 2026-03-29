@@ -14,11 +14,15 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  TextField,
+  InputAdornment,
+  Autocomplete,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Info as InfoIcon,
   Delete as DeleteIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { Order, OrderStatus } from '../types';
 import { getAllOrders, deleteOrder } from '../utils/orderStore';
@@ -34,6 +38,7 @@ export default function OrdersPage() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selected, setSelected] = useState<Order | null>(null);
+  const [filterCustomer, setFilterCustomer] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const data = await getAllOrders();
@@ -70,7 +75,35 @@ export default function OrdersPage() {
         </Button>
       </Box>
 
-
+      {/* 客户筛选 */}
+      {orders.length > 0 && (
+        <Box mb={2}>
+          <Autocomplete
+            options={[...new Set(orders.map((o) => o.customerName))].sort()}
+            value={filterCustomer}
+            onChange={(_, v) => setFilterCustomer(v)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder="按客户名称筛选"
+                InputProps={{
+                  ...params.InputProps,
+                  startAdornment: (
+                    <>
+                      <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
+                      {params.InputProps.startAdornment}
+                    </>
+                  ),
+                }}
+              />
+            )}
+            sx={{ maxWidth: 300 }}
+            clearText="清除"
+            noOptionsText="无匹配客户"
+          />
+        </Box>
+      )}
 
       {orders.length === 0 ? (
         <Box textAlign="center" py={6} color="text.secondary">
@@ -85,6 +118,8 @@ export default function OrdersPage() {
                 <TableCell>客户名称</TableCell>
                 <TableCell>合同号</TableCell>
                 <TableCell>型号数</TableCell>
+                <TableCell align="right">总成本</TableCell>
+                <TableCell align="right">总出厂价</TableCell>
                 <TableCell>需采购零件</TableCell>
                 <TableCell>状态</TableCell>
                 <TableCell>创建时间</TableCell>
@@ -92,7 +127,9 @@ export default function OrdersPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {orders.map((order) => {
+              {orders
+                .filter((o) => !filterCustomer || o.customerName === filterCustomer)
+                .map((order) => {
                 const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
                 const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
                 return (
@@ -100,6 +137,8 @@ export default function OrdersPage() {
                     <TableCell sx={{ fontWeight: 600 }}>{order.customerName}</TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{order.contractNo || '-'}</TableCell>
                     <TableCell>{order.items.length} 个型号</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>¥{(order.totalCost || 0).toFixed(2)}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: 'primary.main', fontWeight: 600 }}>¥{(order.totalPrice || 0).toFixed(2)}</TableCell>
                     <TableCell>
                       {needCount > 0 ? (
                         <Chip

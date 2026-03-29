@@ -22,15 +22,26 @@ interface OrderRow {
 }
 
 function rowToOrder(row: OrderRow): Order {
+  const items = safeJsonParse<OrderItem[]>(row.型号列表JSON, []);
+  // 兼容旧数据：如果 item 没有 unitCost 则补 0
+  for (const it of items) {
+    if (it.unitCost === undefined) it.unitCost = 0;
+    if (it.profitMargin === undefined) it.profitMargin = 1.10;
+    if (it.unitPrice === undefined) it.unitPrice = 0;
+  }
+  const totals = calcOrderTotals(items);
   return {
     id: String(row.Id),
     customerName: row.客户名称 || '',
     contractNo: row.合同号 || undefined,
     remark: row.备注 || undefined,
     status: (row.订单状态 as Order['status']) || '待采购',
-    items: safeJsonParse<OrderItem[]>(row.型号列表JSON, []),
+    items,
     purchaseList: safeJsonParse<PurchaseItem[]>(row.采购清单JSON, []),
     todos: safeJsonParse<TodoItem[]>(row.采购TodoJSON, []),
+    totalCost: totals.totalCost,
+    totalPrice: totals.totalPrice,
+    totalProfit: totals.totalProfit,
     createdAt: row.CreatedAt || new Date().toISOString(),
     updatedAt: row.UpdatedAt || new Date().toISOString(),
   };
@@ -124,7 +135,7 @@ export async function deleteOrder(id: string): Promise<void> {
 export function createEmptyOrder(customerName: string, remark?: string, contractNo?: string): Order {
   const now = new Date().toISOString();
   return {
-    id: genId(), // 临时 id，saveOrder 时会被真 Id 替换
+    id: genId(),
     customerName,
     contractNo,
     remark,
@@ -132,19 +143,70 @@ export function createEmptyOrder(customerName: string, remark?: string, contract
     items: [],
     purchaseList: [],
     todos: [],
+    totalCost: 0,
+    totalPrice: 0,
+    totalProfit: 0,
     createdAt: now,
     updatedAt: now,
   };
 }
 
+const DEFAULT_MARGIN = 1.10; // 10% 利润
+
 export function createOrderItem(
   recipeName: string,
   partsJson: string,
   qty: number,
+  unitCost: number,
   recipeId?: number,
-  spec?: string
+  spec?: string,
+  profitMargin: number = DEFAULT_MARGIN,
+  unitPrice?: number
 ): OrderItem {
-  return { id: genId(), recipeId, recipeName, spec, qty, partsJson };
+  const price = unitPrice ?? Math.round(unitCost * profitMargin * 100) / 100;
+  return { id: genId(), recipeId, recipeName, spec, qty, partsJson, unitCost, profitMargin, unitPrice: price };
+}
+
+/** 计算订单汇总数据 */
+export function calcOrderTotals(items: OrderItem[]): { totalCost: number; totalPrice: number; totalProfit: number } {
+  let totalCost = 0;
+  let totalPrice = 0;
+  for (const it of items) {
+    totalCost += it.unitCost * it.qty;
+    totalPrice += it.unitPrice * it.qty;
+  }
+  return { totalCost: Math.round(totalCost * 100) / 100, totalPrice: Math.round(totalPrice * 100) / 100, totalProfit: Math.round((totalPrice - totalCost) * 100) / 100 };
+}
+
+// ── 历史价格查询 ─────────────────────────────
+
+export interface HistoryPrice {
+  unitPrice: number;
+  unitCost: number;
+  profitMargin: number;
+  customerName: string;
+  date: string;
+}
+
+/** 从历史订单中查找相同配方名称的最近一次出厂价 */
+export async function findHistoryPrice(recipeName: string): Promise<HistoryPrice | null> {
+  const orders = await getAllOrders();
+  // 按时间降序
+  orders.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  for (const order of orders) {
+    for (const item of order.items) {
+      if (item.recipeName === recipeName && item.unitPrice > 0) {
+        return {
+          unitPrice: item.unitPrice,
+          unitCost: item.unitCost,
+          profitMargin: item.profitMargin,
+          customerName: order.customerName,
+          date: order.updatedAt,
+        };
+      }
+    }
+  }
+  return null;
 }
 
 // ── 汇总算法（纯计算，无副作用） ─────────────────────
