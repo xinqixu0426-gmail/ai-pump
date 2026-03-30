@@ -1,10 +1,10 @@
 // NocoDB API 配置
 export const NOCO_CONFIG = {
-  baseUrl: 'http://localhost:8080',
-  apiToken: '***REMOVED***',
-  partsTable: 'mzsysnoaq7g36h9',
-  recipesTable: 'm9pygo8pmn86kbk',
-  ordersTable: 'md70160vnmyjs4w'
+  baseUrl: import.meta.env.VITE_NOCO_BASE_URL || 'http://localhost:8080',
+  apiToken: import.meta.env.VITE_NOCO_API_TOKEN || '',
+  partsTable: import.meta.env.VITE_NOCO_PARTS_TABLE || '',
+  recipesTable: import.meta.env.VITE_NOCO_RECIPES_TABLE || '',
+  ordersTable: import.meta.env.VITE_NOCO_ORDERS_TABLE || ''
 };
 
 // 零件类型

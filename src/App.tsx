@@ -14,7 +14,7 @@ import {
   Build as BuildIcon,
   Receipt as ReceiptIcon,
   ShoppingCart as OrderIcon,
-  SmartToy as SmartToyIcon
+  Cable as CableIcon
 } from '@mui/icons-material';
 import DashboardPage from './pages/DashboardPage';
 import PartsPage from './pages/PartsPage';
@@ -22,8 +22,7 @@ import RecipesPage from './pages/RecipesPage';
 import RecipeFormPage from './pages/RecipeFormPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderFormPage from './pages/OrderFormPage';
-import AgentConfigPage from './pages/AgentConfigPage';
-import AIChat from './components/AIChat';
+import CoilRotorPage from './pages/CoilRotorPage';
 
 function App() {
   const navigate = useNavigate();
@@ -35,7 +34,7 @@ function App() {
     if (path === '/parts') return 1;
     if (path === '/recipes' || path === '/recipe-form') return 2;
     if (path === '/orders' || path === '/order-form') return 3;
-    if (path === '/agent-config') return 4;
+    if (path === '/coils') return 4;
     return 0;
   };
 
@@ -57,7 +56,7 @@ function App() {
         navigate('/orders');
         break;
       case 4:
-        navigate('/agent-config');
+        navigate('/coils');
         break;
     }
   };
@@ -100,7 +99,7 @@ function App() {
           <Tab icon={<BuildIcon />} iconPosition="start" label="零件管理" />
           <Tab icon={<ReceiptIcon />} iconPosition="start" label="配方管理" />
           <Tab icon={<OrderIcon />} iconPosition="start" label="订单管理" />
-          <Tab icon={<SmartToyIcon />} iconPosition="start" label="AI 配置" />
+          <Tab icon={<CableIcon />} iconPosition="start" label="线圈转子" />
         </Tabs>
       </AppBar>
 
@@ -113,12 +112,9 @@ function App() {
           <Route path="/recipe-form" element={<RecipeFormPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/order-form" element={<OrderFormPage />} />
-          <Route path="/agent-config" element={<AgentConfigPage />} />
+          <Route path="/coils" element={<CoilRotorPage />} />
         </Routes>
       </Container>
-      
-      {/* 全局 AI 助手悬浮窗 */}
-      <AIChat />
     </Box>
   );
 }

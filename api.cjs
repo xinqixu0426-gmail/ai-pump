@@ -3,6 +3,11 @@
  * 供N8N等外部系统调用
  */
 
+try {
+    process.loadEnvFile();
+} catch (e) {
+    // ignore if .env does not exist
+}
 const express = require('express');
 const cors = require('cors');
 
@@ -11,10 +16,11 @@ const PORT = 3002;  // API服务器端口
 
 // NocoDB 配置
 const NOCO_CONFIG = {
-    baseUrl: 'http://localhost:8080',
-    apiToken: '***REMOVED***',
-    partsTable: 'mzsysnoaq7g36h9',
-    recipesTable: 'm9pygo8pmn86kbk'
+    baseUrl: process.env.VITE_NOCO_BASE_URL || 'http://localhost:8080',
+    apiToken: process.env.VITE_NOCO_API_TOKEN || '',
+    partsTable: process.env.VITE_NOCO_PARTS_TABLE || '',
+    recipesTable: process.env.VITE_NOCO_RECIPES_TABLE || '',
+    coilsTable: process.env.VITE_NOCO_COILS_TABLE || ''
 };
 
 // 中间件
@@ -353,7 +359,7 @@ async function resolveWireFromStator(statorSpec, statorSheets) {
     if (!statorSpec || !statorSheets) return null;
     try {
         const data = await apiRequest(
-            `/api/v2/tables/m1pbr8kwo3e8un8/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
+            `/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
         );
         const record = data.list?.[0];
         return record?.默认线径 || null;
@@ -576,9 +582,9 @@ app.post('/api/cost/full-calculate', async (req, res) => {
 
         if (statorSpec && statorSheets) {
             try {
-                // 查线圈成本表 (m1pbr8kwo3e8un8)
+                // 查线圈成本表
                 const statorData = await apiRequest(
-                    `/api/v2/tables/m1pbr8kwo3e8un8/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
+                    `/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
                 );
                 const statorRecord = statorData.list?.[0];
 
@@ -595,7 +601,7 @@ app.post('/api/cost/full-calculate', async (req, res) => {
                 } else {
                     // 没精确匹配到——查同规格的基础数据以便参考
                     const baseData = await apiRequest(
-                        `/api/v2/tables/m1pbr8kwo3e8un8/records?where=(规格,eq,${encodeURIComponent(statorSpec)})&limit=10`
+                        `/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(规格,eq,${encodeURIComponent(statorSpec)})&limit=10`
                     );
                     const baseRecords = baseData.list || [];
 
@@ -712,144 +718,397 @@ app.post('/api/cost/full-calculate', async (req, res) => {
 });
 
 // ============================================
-// AI Agent 接口 (DeepSeek + Function Calling)
+// 铜价抓取 & 定时更新
 // ============================================
 
-const fs = require('fs/promises');
-const path = require('path');
-const CONFIG_FILE = path.join(__dirname, 'ai_config.json');
-
-// 获取 AI 配置
-app.get('/api/agent-config', async (req, res) => {
-    try {
-        let config = {
-            systemPrompt: '你是专业水泵BOM成本分析AI。请使用提供给你的工具精准计算并解答用户的报价需求。',
-            apiKey: '',
-            temperature: 0.1
-        };
-        try {
-            const data = await fs.readFile(CONFIG_FILE, 'utf8');
-            config = { ...config, ...JSON.parse(data) };
-        } catch (e) {
-            // 如果文件不存在则使用默认配置
+/**
+ * 从曲合期货网AJAX接口获取最新铜价
+ * 返回 元/吨 的价格
+ */
+async function fetchCopperPrice() {
+    const url = 'https://m.quheqihuo.com/dz/ajax/js_data_history.html?id=746&size=1';
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://m.quheqihuo.com/dz/js-d746.html'
         }
-        res.json({ success: true, config });
+    });
+    const json = await response.json();
+    if (json.code !== 0 || !json.data || json.data.length === 0) {
+        throw new Error('铜价数据获取失败: ' + JSON.stringify(json));
+    }
+    return json.data[0].price; // 元/吨
+}
+
+/**
+ * 更新所有线圈记录的铜价基数，并重新计算成本
+ * copperPricePerTon: 元/吨，需要转换成 元/千克 (÷1000)
+ */
+async function updateAllCoilsCopperPrice(copperPricePerTon) {
+    const copperPricePerKg = (copperPricePerTon / 1000).toFixed(2);
+    console.log(`[铜价更新] 获取铜价: ${copperPricePerTon} 元/吨 → ${copperPricePerKg} 元/千克`);
+
+    // 获取所有线圈记录
+    const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+
+    for (const coil of allCoils) {
+        const unitPrice = parseFloat(coil.单价 || 0);
+        const sheets = parseInt(coil.片数 || 0);
+        const wireWeight = parseFloat(coil.默认线重 || 0);
+        const coilFee = parseFloat(coil.线圈加工费 || 0);
+        const rotorFee = parseFloat(coil.转子加工费 || 0);
+
+        // 重新计算成本
+        const newCost = unitPrice * sheets + wireWeight * parseFloat(copperPricePerKg) + coilFee + rotorFee;
+
+        // 更新记录
+        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                Id: coil.Id,
+                铜价基数: copperPricePerKg,
+                成本: newCost.toFixed(5)
+            })
+        });
+    }
+
+    console.log(`[铜价更新] 已更新 ${allCoils.length} 条线圈记录的铜价基数为 ${copperPricePerKg}`);
+    return { copperPricePerTon, copperPricePerKg, updatedCount: allCoils.length };
+}
+
+/**
+ * 执行铜价更新任务
+ */
+async function runCopperPriceUpdate() {
+    try {
+        const price = await fetchCopperPrice();
+        const result = await updateAllCoilsCopperPrice(price);
+        console.log('[铜价更新] 完成:', result);
+        return result;
+    } catch (err) {
+        console.error('[铜价更新] 失败:', err.message);
+        return null;
+    }
+}
+
+/**
+ * 定时任务：每天北京时间 15:00 更新铜价
+ * 使用 setInterval 每分钟检查一次
+ */
+let lastCopperUpdateDate = '';
+setInterval(() => {
+    const now = new Date();
+    // 转北京时间 (UTC+8)
+    const bjHour = (now.getUTCHours() + 8) % 24;
+    const bjMinute = now.getUTCMinutes();
+    const dateKey = now.toISOString().slice(0, 10);
+
+    // 每天15:00 (±1分钟窗口) 且今天没更新过
+    if (bjHour === 15 && bjMinute === 0 && lastCopperUpdateDate !== dateKey) {
+        lastCopperUpdateDate = dateKey;
+        console.log('[定时任务] 触发每日铜价更新...');
+        runCopperPriceUpdate();
+    }
+}, 60 * 1000); // 每分钟检查
+
+
+// ── 手动触发铜价更新 ──
+app.post('/api/copper-price/update', async (req, res) => {
+    try {
+        const result = await runCopperPriceUpdate();
+        if (result) {
+            res.json({ success: true, data: result });
+        } else {
+            res.status(500).json({ success: false, error: '铜价更新失败' });
+        }
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// 保存 AI 配置
-app.post('/api/agent-config', async (req, res) => {
+// ── 获取当前铜价 ──
+app.get('/api/copper-price', async (req, res) => {
     try {
-        const newConfig = req.body;
-        await fs.writeFile(CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf8');
+        const price = await fetchCopperPrice();
+        // 同时获取数据库中的铜价基数
+        const coils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const dbCopperPrice = coils.length > 0 ? coils[0].铜价基数 : null;
+        res.json({
+            success: true,
+            data: {
+                livePrice: price,                        // 元/吨 (实时)
+                livePricePerKg: (price / 1000).toFixed(2), // 元/千克
+                dbPrice: dbCopperPrice,                   // 数据库中的铜价基数
+                lastUpdate: coils[0]?.UpdatedAt || null
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+// ============================================
+// 线圈转子 CRUD API
+// ============================================
+
+/**
+ * GET /api/coils - 获取所有线圈记录
+ */
+app.get('/api/coils', async (req, res) => {
+    try {
+        const coils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        res.json({ success: true, data: coils });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/coils - 创建线圈记录
+ */
+app.post('/api/coils', async (req, res) => {
+    try {
+        const { 规格, 单价, 片数, 默认线重, 铜价基数, 线圈加工费, 转子加工费, 默认电容_uf, 默认线径 } = req.body;
+
+        if (!规格 || !片数) {
+            return res.status(400).json({ success: false, error: '规格和片数为必填项' });
+        }
+
+        const unitPrice = parseFloat(单价 || 0);
+        const sheets = parseInt(片数);
+        const wireWeight = parseFloat(默认线重 || 0);
+        const copperBase = parseFloat(铜价基数 || 0);
+        const coilFee = parseFloat(线圈加工费 || 0);
+        const rotorFee = parseFloat(转子加工费 || 0);
+        const cost = unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee;
+
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
+            method: 'POST',
+            body: JSON.stringify({
+                规格, 单价, 片数, 默认线重, 铜价基数, 线圈加工费, 转子加工费,
+                默认电容_uf: 默认电容_uf || null,
+                默认线径: 默认线径 || null,
+                成本: cost.toFixed(5)
+            })
+        });
+
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * PATCH /api/coils/:id - 更新线圈记录
+ */
+app.patch('/api/coils/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const updates = { ...req.body, Id: id };
+
+        // 如果更新了影响成本的字段，重新计算
+        if (updates.单价 !== undefined || updates.片数 !== undefined ||
+            updates.默认线重 !== undefined || updates.铜价基数 !== undefined ||
+            updates.线圈加工费 !== undefined || updates.转子加工费 !== undefined) {
+
+            // 获取当前记录以合并
+            const data = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(Id,eq,${id})&limit=1`);
+            const current = data.list?.[0];
+            if (current) {
+                const merged = { ...current, ...updates };
+                const unitPrice = parseFloat(merged.单价 || 0);
+                const sheets = parseInt(merged.片数 || 0);
+                const wireWeight = parseFloat(merged.默认线重 || 0);
+                const copperBase = parseFloat(merged.铜价基数 || 0);
+                const coilFee = parseFloat(merged.线圈加工费 || 0);
+                const rotorFee = parseFloat(merged.转子加工费 || 0);
+                updates.成本 = (unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee).toFixed(5);
+            }
+        }
+
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+        });
+
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/coils/:id - 删除线圈记录
+ */
+app.delete('/api/coils/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
+            method: 'DELETE',
+            body: JSON.stringify([{ Id: id }])
+        });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-app.post('/api/chat', async (req, res) => {
+
+// ============================================
+// 线圈转子成本计算（支持插值）
+// ============================================
+
+/**
+ * POST /api/coils/calculate
+ * 
+ * 请求体:
+ * {
+ *   "spec": "12",           // 定子规格
+ *   "sheets": 130,          // 片数（可能不在数据库中）
+ *   "wireWeight": null,     // 客户指定线重（可选，不传则用默认/插值）
+ *   "copperPrice": null     // 铜价基数覆盖（可选，不传则用数据库中的）
+ * }
+ */
+app.post('/api/coils/calculate', async (req, res) => {
     try {
-        const { userMessage } = req.body;
-        
-        // 读取配置
-        let config = {
-            systemPrompt: '你是专业水泵BOM成本分析AI。请使用提供给你的工具精准计算并解答用户的报价需求。',
-            apiKey: '',
-            temperature: 0.1
-        };
-        try {
-            const data = await fs.readFile(CONFIG_FILE, 'utf8');
-            config = { ...config, ...JSON.parse(data) };
-        } catch (e) {}
+        const { spec, sheets, wireWeight: customerWireWeight, copperPrice: customCopperPrice } = req.body;
 
-        // 前端配置优先，如果没有填写则读取环境变量或写死的 key
-        const envKey = process.env.DEEPSEEK_API_KEY || '***REMOVED***';
-        const apiKey = config.apiKey ? config.apiKey : envKey;
-
-        if (!apiKey) {
-            return res.json({ success: false, error: "系统提示：未配置 DEEPSEEK_API_KEY。" });
+        if (!spec || !sheets) {
+            return res.status(400).json({ success: false, error: '规格和片数为必填项' });
         }
 
-        // 定义供 AI 调用的工具
-        const tools = [{
-            type: "function",
-            function: {
-                name: "calculate_pump_cost",
-                description: "计算水泵总制造成本。必须传入泵系统参数。可以获取到总成本、动态配件成本和线圈成本。",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        pumphousing_model: { type: "string", description: "泵机型号,如: v750, 370w" },
-                        stator: { type: "string", description: "定子规格和片数,如: 12-120" },
-                        cableLength: { type: "number", description: "电缆长度米数" },
-                        hasFloat: { type: "boolean", description: "带不带浮球逻辑" },
-                        boxType: { type: "string", description: "包材类型,如纸箱,木箱" }
-                    },
-                    required: ["pumphousing_model"]
-                }
-            }
-        }];
+        const targetSheets = parseInt(sheets);
 
-        const messages = [
-            { role: "system", content: config.systemPrompt },
-            { role: "user", content: userMessage }
-        ];
+        // 获取同规格的所有记录，按片数排序
+        const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const specCoils = allCoils
+            .filter(c => String(c.规格).trim() === String(spec).trim())
+            .sort((a, b) => parseInt(a.片数) - parseInt(b.片数));
 
-        const chatReq = async (msgs) => {
-            const r = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                body: JSON.stringify({ 
-                    model: 'deepseek-chat', 
-                    messages: msgs, 
-                    tools, 
-                    temperature: Number(config.temperature) || 0.1 
-                })
-            });
-            if (!r.ok) throw new Error(`DeepSeek API Error: ${r.statusText}`);
-            return r.json();
-        };
-
-        let responseData = await chatReq(messages);
-        let responseMsg = responseData.choices[0].message;
-
-        // 检查是否需要调用工具查数据库
-        if (responseMsg.tool_calls && responseMsg.tool_calls.length > 0) {
-            messages.push(responseMsg);
-
-            for (const toolCall of responseMsg.tool_calls) {
-                if (toolCall.function.name === 'calculate_pump_cost') {
-                    const params = JSON.parse(toolCall.function.arguments);
-
-                    // 调用本地已有的一站式服务
-                    const localRes = await fetch(`http://localhost:${PORT}/api/cost/full-calculate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(params)
-                    });
-                    const funcResult = await localRes.json();
-
-                    messages.push({
-                        role: "tool",
-                        tool_call_id: toolCall.id,
-                        content: JSON.stringify(funcResult.data || funcResult)
-                    });
-                }
-            }
-            // 第二轮请求，AI 返回最终语言结果
-            responseData = await chatReq(messages);
-            responseMsg = responseData.choices[0].message;
+        if (specCoils.length === 0) {
+            return res.status(404).json({ success: false, error: `未找到规格 "${spec}" 的线圈数据` });
         }
 
-        res.json({ success: true, reply: responseMsg.content });
+        // 尝试精确匹配
+        const exactMatch = specCoils.find(c => parseInt(c.片数) === targetSheets);
+
+        let unitPrice, wireWeight, copperBase, coilFee, rotorFee, wireGauge, capacitor, source;
+
+        if (exactMatch) {
+            // 精确匹配
+            unitPrice = parseFloat(exactMatch.单价 || 0);
+            wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(exactMatch.默认线重 || 0);
+            copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(exactMatch.铜价基数 || 0);
+            coilFee = parseFloat(exactMatch.线圈加工费 || 0);
+            rotorFee = parseFloat(exactMatch.转子加工费 || 0);
+            wireGauge = exactMatch.默认线径 || null;
+            capacitor = exactMatch.默认电容_uf || null;
+            source = '精确匹配';
+        } else {
+            // 插值计算
+            // 找到相邻的两个片数记录
+            let lower = null, upper = null;
+
+            for (let i = 0; i < specCoils.length; i++) {
+                const s = parseInt(specCoils[i].片数);
+                if (s < targetSheets) lower = specCoils[i];
+                if (s > targetSheets && !upper) upper = specCoils[i];
+            }
+
+            if (lower && upper) {
+                // 两端都有，线性插值
+                const lowerSheets = parseInt(lower.片数);
+                const upperSheets = parseInt(upper.片数);
+                const ratio = (targetSheets - lowerSheets) / (upperSheets - lowerSheets);
+
+                unitPrice = parseFloat(lower.单价 || 0); // 同规格单价一样
+                const interpolatedWireWeight = parseFloat(lower.默认线重 || 0) +
+                    (parseFloat(upper.默认线重 || 0) - parseFloat(lower.默认线重 || 0)) * ratio;
+                wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(interpolatedWireWeight.toFixed(4));
+                copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.铜价基数 || 0);
+                // 线圈加工费和转子加工费也插值
+                coilFee = parseFloat(lower.线圈加工费 || 0) +
+                    (parseFloat(upper.线圈加工费 || 0) - parseFloat(lower.线圈加工费 || 0)) * ratio;
+                rotorFee = parseFloat(lower.转子加工费 || 0) +
+                    (parseFloat(upper.转子加工费 || 0) - parseFloat(lower.转子加工费 || 0)) * ratio;
+                wireGauge = lower.默认线径 || upper.默认线径 || null;
+                capacitor = null;
+                source = `插值(${lowerSheets}片↔${upperSheets}片, ratio=${ratio.toFixed(3)})`;
+            } else if (lower) {
+                // 超出上限，用最大片数的参数
+                unitPrice = parseFloat(lower.单价 || 0);
+                wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(lower.默认线重 || 0);
+                copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.铜价基数 || 0);
+                coilFee = parseFloat(lower.线圈加工费 || 0);
+                rotorFee = parseFloat(lower.转子加工费 || 0);
+                wireGauge = lower.默认线径 || null;
+                capacitor = null;
+                source = `外推(基于${parseInt(lower.片数)}片)`;
+            } else if (upper) {
+                // 低于下限，用最小片数的参数
+                unitPrice = parseFloat(upper.单价 || 0);
+                wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(upper.默认线重 || 0);
+                copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(upper.铜价基数 || 0);
+                coilFee = parseFloat(upper.线圈加工费 || 0);
+                rotorFee = parseFloat(upper.转子加工费 || 0);
+                wireGauge = upper.默认线径 || null;
+                capacitor = null;
+                source = `外推(基于${parseInt(upper.片数)}片)`;
+            }
+        }
+
+        const totalCost = unitPrice * targetSheets + wireWeight * copperBase + coilFee + rotorFee;
+
+        res.json({
+            success: true,
+            data: {
+                spec,
+                sheets: targetSheets,
+                unitPrice,
+                wireWeight,
+                copperBase,
+                coilFee: parseFloat(coilFee.toFixed(2)),
+                rotorFee: parseFloat(rotorFee.toFixed(2)),
+                wireGauge,
+                capacitor,
+                totalCost: parseFloat(totalCost.toFixed(2)),
+                formula: `${unitPrice}×${targetSheets} + ${wireWeight}×${copperBase} + ${coilFee.toFixed(2)} + ${rotorFee.toFixed(2)}`,
+                source,
+                isCustomWireWeight: customerWireWeight != null
+            }
+        });
+
     } catch (error) {
-        console.error('Chat API Error:', error);
+        console.error('Coil Calculate API Error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+/**
+ * GET /api/coils/specs - 获取所有可用规格列表
+ */
+app.get('/api/coils/specs', async (req, res) => {
+    try {
+        const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const specsMap = {};
+        allCoils.forEach(c => {
+            const spec = c.规格;
+            if (!specsMap[spec]) {
+                specsMap[spec] = { spec, unitPrice: c.单价, sheets: [], count: 0 };
+            }
+            specsMap[spec].sheets.push(parseInt(c.片数));
+            specsMap[spec].count++;
+        });
+        // 排序 sheets
+        Object.values(specsMap).forEach(s => s.sheets.sort((a, b) => a - b));
+
+        res.json({ success: true, data: Object.values(specsMap) });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 
 // 启动服务器（监听所有网络接口，允许外部访问）
 app.listen(PORT, '0.0.0.0', () => {
@@ -864,7 +1123,18 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
     console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);
     console.log(`  POST /api/cost/full-calculate           - 一站式成本计算（推荐N8N用）`);
-    console.log(`  POST /api/chat                          - DeepSeek AI Agent 连结端点`);
+    console.log(`  GET  /api/copper-price                  - 获取实时铜价`);
+    console.log(`  POST /api/copper-price/update           - 手动触发铜价更新`);
+    console.log(`  GET  /api/coils                         - 获取所有线圈数据`);
+    console.log(`  POST /api/coils                         - 新增线圈记录`);
+    console.log(`  PATCH /api/coils/:id                    - 更新线圈记录`);
+    console.log(`  DELETE /api/coils/:id                   - 删除线圈记录`);
+    console.log(`  POST /api/coils/calculate               - 线圈成本计算（支持插值）`);
+    console.log(`  GET  /api/coils/specs                   - 获取可用规格列表`);
     console.log(`========================================`);
+
+    // 启动时自动更新铜价
+    console.log('[启动] 正在获取最新铜价...');
+    runCopperPriceUpdate();
 });
 

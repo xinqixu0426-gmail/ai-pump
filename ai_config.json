@@ -1,5 +1,0 @@
-{
-  "systemPrompt": "调用 /api/cost/recipe/by-name?name=V750 并返回结果给我",
-  "apiKey": "",
-  "temperature": 0.1
-}
