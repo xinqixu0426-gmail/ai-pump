@@ -511,9 +511,9 @@ export default function RecipeFormPage() {
             value={coilSheets}
             onChange={(e) => setCoilSheets(e.target.value)}
             sx={{ width: 120 }}
-            helperText={coilSpec && coilSpecs.find(s => s.spec === coilSpec)
-              ? `已有: ${coilSpecs.find(s => s.spec === coilSpec)!.sheets.join(', ')}`
-              : undefined}
+            placeholder={coilSpec && coilSpecs.find(s => s.spec === coilSpec)
+              ? coilSpecs.find(s => s.spec === coilSpec)!.sheets.join(',')
+              : ''}
           />
           <FormControlLabel
             control={<Checkbox checked={useCoilCustomWeight} onChange={(e) => setUseCoilCustomWeight(e.target.checked)} size="small" />}
