@@ -21,9 +21,6 @@ import {
   Select,
   MenuItem,
   Autocomplete,
-  Stepper,
-  Step,
-  StepLabel,
   Chip,
   IconButton,
 } from '@mui/material';
@@ -31,23 +28,22 @@ import {
   Save as SaveIcon,
   Add as AddIcon,
   ArrowBack as BackIcon,
-  ArrowForward as NextIcon,
+  Cable as CableIcon,
 } from '@mui/icons-material';
 import { Part, RecipePart } from '../types';
 import { getAllParts, createRecipe } from '../utils/api';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipePartRow from '../components/RecipePartRow';
 
-const STEPS = ['基本信息', '必备配件', '选配 & 动态配置', '预览 & 保存'];
+const COIL_API_BASE = 'http://localhost:3002';
 
-// 必备配件配置
+// 必备配件（线圈转子单独处理）
 const REQUIRED_PARTS = [
   { key: 'pumpShell', name: '泵壳' },
   { key: 'plateBearing', name: '花板轴承' },
   { key: 'cylinderBearing', name: '油缸轴承' },
   { key: 'mechanicalSeal', name: '机械油封' },
   { key: 'skeletonSeal', name: '骨架油封' },
-  { key: 'rotor', name: '线圈转子' },
 ];
 
 interface PartSelection {
@@ -67,8 +63,28 @@ const EMPTY_REQUIRED: Record<string, PartSelection> = {
   cylinderBearing: { model: '', supplier: '', qty: 1 },
   mechanicalSeal: { model: '', supplier: '', qty: 1 },
   skeletonSeal: { model: '', supplier: '', qty: 1 },
-  rotor: { model: '', supplier: '', qty: 1 },
 };
+
+interface CoilCalcResult {
+  spec: string;
+  sheets: number;
+  unitPrice: number;
+  wireWeight: number;
+  copperBase: number;
+  coilFee: number;
+  rotorFee: number;
+  totalCost: number;
+  formula: string;
+  source: string;
+  isCustomWireWeight: boolean;
+}
+
+interface CoilSpecInfo {
+  spec: string;
+  unitPrice: string;
+  sheets: number[];
+  count: number;
+}
 
 export default function RecipeFormPage() {
   const location = useLocation();
@@ -76,22 +92,30 @@ export default function RecipeFormPage() {
   const cloneFrom = (location.state as { cloneFrom?: { name: string; spec: string; partsJson: string } })?.cloneFrom;
   const cloneApplied = useRef(false);
 
-  const [activeStep, setActiveStep] = useState(0);
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // ── Step 0 ──────────────────────────────────────────────
+  // 基本信息
   const [recipeName, setRecipeName] = useState(cloneFrom?.name || '');
   const [recipeSpec, setRecipeSpec] = useState(cloneFrom?.spec || '');
 
-  // ── Step 1: 必备配件 ─────────────────────────────────────
+  // 必备配件
   const [requiredSelections, setRequiredSelections] = useState<Record<string, PartSelection>>(
     JSON.parse(JSON.stringify(EMPTY_REQUIRED))
   );
 
-  // ── Step 2: 选配 + 动态配置 ──────────────────────────────
+  // 线圈转子
+  const [coilSpecs, setCoilSpecs] = useState<CoilSpecInfo[]>([]);
+  const [coilSpec, setCoilSpec] = useState('');
+  const [coilSheets, setCoilSheets] = useState('');
+  const [coilCustomWireWeight, setCoilCustomWireWeight] = useState('');
+  const [useCoilCustomWeight, setUseCoilCustomWeight] = useState(false);
+  const [coilResult, setCoilResult] = useState<CoilCalcResult | null>(null);
+  const [coilLoading, setCoilLoading] = useState(false);
+
+  // 选配 + 动态配置
   const [optionalParts, setOptionalParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextOptionalId = useRef(1);
 
@@ -102,7 +126,7 @@ export default function RecipeFormPage() {
   const [cableWire, setCableWire] = useState('0.55');
   const [boxType, setBoxType] = useState('');
 
-  // ── 数据加载 ─────────────────────────────────────────────
+  // ── 数据加载 ──
   const loadParts = useCallback(async () => {
     try {
       setLoading(true);
@@ -117,7 +141,47 @@ export default function RecipeFormPage() {
 
   useEffect(() => { loadParts(); }, [loadParts]);
 
-  // 复制配方时预填
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${COIL_API_BASE}/api/coils/specs`);
+        const json = await res.json();
+        if (json.success) setCoilSpecs(json.data);
+      } catch (err) {
+        console.error('加载线圈规格失败:', err);
+      }
+    })();
+  }, []);
+
+  const calculateCoilCost = useCallback(async (spec: string, sheets: string, customWeight?: string) => {
+    if (!spec || !sheets) { setCoilResult(null); return; }
+    try {
+      setCoilLoading(true);
+      const body: Record<string, unknown> = { spec, sheets: parseInt(sheets) };
+      if (customWeight) body.wireWeight = parseFloat(customWeight);
+      const res = await fetch(`${COIL_API_BASE}/api/coils/calculate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const json = await res.json();
+      if (json.success) setCoilResult(json.data);
+      else setCoilResult(null);
+    } catch {
+      setCoilResult(null);
+    } finally {
+      setCoilLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      calculateCoilCost(coilSpec, coilSheets, useCoilCustomWeight ? coilCustomWireWeight : undefined);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [coilSpec, coilSheets, coilCustomWireWeight, useCoilCustomWeight, calculateCoilCost]);
+
+  // 复制配方预填
   useEffect(() => {
     if (!cloneFrom || cloneApplied.current || parts.length === 0) return;
     cloneApplied.current = true;
@@ -126,6 +190,14 @@ export default function RecipeFormPage() {
       const newRequired = JSON.parse(JSON.stringify(EMPTY_REQUIRED));
       const newOptional: Array<PartSelection & { id: number }> = [];
       cloneParts.forEach((cp) => {
+        if (cp.name === '线圈转子') {
+          if (cp.model && cp.model.includes('-')) {
+            const [s, sh] = cp.model.split('-');
+            setCoilSpec(s.trim());
+            setCoilSheets(sh.trim());
+          }
+          return;
+        }
         const key = REQUIRED_NAME_TO_KEY[cp.name];
         if (key) {
           newRequired[key] = { model: cp.model, supplier: cp.supplier, qty: cp.qty };
@@ -140,7 +212,7 @@ export default function RecipeFormPage() {
     }
   }, [cloneFrom, parts]);
 
-  // ── 辅助函数 ─────────────────────────────────────────────
+  // ── 辅助函数 ──
   const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
     const m1 = (model || '').trim();
     const s1 = (supplier || '').trim();
@@ -215,7 +287,7 @@ export default function RecipeFormPage() {
     return Array.from(suppliers).filter(Boolean).sort();
   };
 
-  // ── 汇总所有配件 ─────────────────────────────────────────
+  // ── 汇总 ──
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
     REQUIRED_PARTS.forEach(({ key, name }) => {
@@ -224,32 +296,21 @@ export default function RecipeFormPage() {
         all.push({ model: s.model, name, supplier: s.supplier, qty: s.qty, snapshotPrice: getPriceByModelAndSupplier(s.model, s.supplier) });
       }
     });
+    if (coilResult && coilSpec && coilSheets) {
+      all.push({ model: `${coilSpec}-${coilSheets}`, name: '线圈转子', supplier: '', qty: 1, snapshotPrice: coilResult.totalCost });
+    }
     optionalParts.forEach((p) => {
       if (p.model) all.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty, snapshotPrice: getPriceByModelAndSupplier(p.model, p.supplier) });
     });
     all.push(...buildConfigParts());
     return all;
-  }, [requiredSelections, optionalParts, buildConfigParts, getPriceByModelAndSupplier]);
+  }, [requiredSelections, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
 
-  // Step 3 成本预览
+  // 成本预览
   const allPartsPreview = buildAllParts();
-  const costPreview = (() => {
-    if (allPartsPreview.length === 0) return null;
-    const { partsCache, partsByModel } = buildPartsIndex(parts);
-    return calculateRecipeCost(allPartsPreview, partsCache, partsByModel);
-  })();
+  const totalCost = allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
 
-  // ── 步骤验证 ─────────────────────────────────────────────
-  const canNext = () => {
-    if (activeStep === 0) return recipeName.trim().length > 0;
-    if (activeStep === 1) {
-      // 至少填一个必备配件
-      return REQUIRED_PARTS.some(({ key }) => requiredSelections[key].model.trim().length > 0);
-    }
-    return true;
-  };
-
-  // ── handlers ─────────────────────────────────────────────
+  // ── handlers ──
   const handleRequiredChange = (key: string, field: keyof PartSelection, value: string | number) => {
     setRequiredSelections((prev) => {
       const updated = { ...prev, [key]: { ...prev[key], [field]: value } };
@@ -278,6 +339,7 @@ export default function RecipeFormPage() {
   };
 
   const handleSubmit = async () => {
+    if (!recipeName.trim()) { setError('请输入配方名称'); return; }
     const recipeParts = buildAllParts();
     if (recipeParts.length === 0) { setError('请至少选择一个配件'); return; }
 
@@ -302,7 +364,7 @@ export default function RecipeFormPage() {
     }
   };
 
-  // ── 表头组件 ─────────────────────────────────────────────
+  // ── 表头 ──
   const TableHeader = () => (
     <TableHead>
       <TableRow sx={{ bgcolor: 'grey.50' }}>
@@ -317,27 +379,34 @@ export default function RecipeFormPage() {
     </TableHead>
   );
 
-  return (
-    <Paper elevation={2} sx={{ p: 3, maxWidth: 960, mx: 'auto' }}>
-      {/* 标题 */}
-      <Box display="flex" alignItems="center" mb={3} gap={1}>
-        <IconButton onClick={() => navigate('/recipes')} size="small">
-          <BackIcon />
-        </IconButton>
-        <Typography variant="h6">
-          {cloneFrom ? '复制配方' : '录入配方'}
-        </Typography>
-        {loading && <CircularProgress size={18} sx={{ ml: 1 }} />}
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" py={8}>
+        <CircularProgress />
       </Box>
+    );
+  }
 
-      {/* 步骤条 */}
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {STEPS.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, maxWidth: 960, mx: 'auto' }}>
+      {/* 标题 + 成本速览 */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <IconButton onClick={() => navigate('/recipes')} size="small">
+            <BackIcon />
+          </IconButton>
+          <Typography variant="h6">
+            {cloneFrom ? '复制配方' : '录入配方'}
+          </Typography>
+        </Box>
+        {totalCost > 0 && (
+          <Chip
+            label={`预估成本 ¥${totalCost.toFixed(2)}`}
+            color="primary"
+            sx={{ fontWeight: 700, fontSize: '0.9rem' }}
+          />
+        )}
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
@@ -345,300 +414,276 @@ export default function RecipeFormPage() {
         </Alert>
       )}
 
-      {/* ── Step 0: 基本信息 ── */}
-      {!loading && activeStep === 0 && (
-        <Box sx={{ maxWidth: 560 }}>
-          <TextField
-            label="配方名称"
-            value={recipeName}
-            onChange={(e) => setRecipeName(e.target.value)}
-            placeholder="如：人民款370w-90机筒"
-            required
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="规格（可选）"
-            value={recipeSpec}
-            onChange={(e) => setRecipeSpec(e.target.value)}
-            placeholder="如：90-100"
-            fullWidth
-          />
-        </Box>
-      )}
+      {/* ━━ 基本信息 ━━ */}
+      <Box display="flex" gap={2} mb={2}>
+        <TextField
+          label="配方名称"
+          value={recipeName}
+          onChange={(e) => setRecipeName(e.target.value)}
+          placeholder="如：人民款370w-90机筒"
+          required
+          size="small"
+          sx={{ flex: 2 }}
+        />
+        <TextField
+          label="规格"
+          value={recipeSpec}
+          onChange={(e) => setRecipeSpec(e.target.value)}
+          placeholder="如：90-100"
+          size="small"
+          sx={{ flex: 1 }}
+        />
+      </Box>
 
-      {/* ── Step 1: 必备配件 ── */}
-      {!loading && activeStep === 1 && (
-        <Box>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            填写 6 项必备配件，至少需要填一项才能继续。
-          </Alert>
-          <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-            <Table size="small" sx={{ tableLayout: 'auto' }}>
-              <TableHeader />
-              <TableBody>
-                {REQUIRED_PARTS.map(({ key, name }) => (
-                  <RecipePartRow
-                    key={key}
-                    label={name}
-                    selection={requiredSelections[key]}
-                    models={getModelsByCategory(
-                      name === '泵壳' ? '泵壳'
-                        : name === '线圈转子' ? '线圈转子'
-                        : name.includes('轴承') ? '轴承'
-                        : name.includes('油封') ? '油封'
-                        : '其他'
-                    )}
-                    getSuppliers={getSuppliersByModel}
-                    getPrice={getPriceByModelAndSupplier}
-                    onChange={(field, value) => handleRequiredChange(key, field, value)}
-                    isRequired
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        </Box>
-      )}
-
-      {/* ── Step 2: 选配 + 动态配置 ── */}
-      {!loading && activeStep === 2 && (
-        <Box>
-          {/* 选配配件 */}
-          <Paper variant="outlined" sx={{ mb: 3, overflow: 'hidden' }}>
-            <Table size="small" sx={{ tableLayout: 'auto' }}>
-              <TableHeader />
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between">
-                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
-                        ▸ 选配配件（{optionalParts.length} 项）
-                      </Typography>
-                      <Button
-                        variant="text"
-                        size="small"
-                        startIcon={<AddIcon />}
-                        onClick={handleAddOptional}
-                        sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
-                      >
-                        添加配件
-                      </Button>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-                {optionalParts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} sx={{ textAlign: 'center', py: 2, color: 'text.disabled', fontSize: '0.8rem' }}>
-                      暂无选配配件，点击「添加配件」
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  optionalParts.map((part) => (
-                    <RecipePartRow
-                      key={part.id}
-                      label="配件"
-                      selection={part}
-                      models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
-                      getSuppliers={getSuppliersByModel}
-                      getPrice={getPriceByModelAndSupplier}
-                      onChange={(field, value) => handleOptionalChange(part.id, field, value)}
-                      onDelete={() => handleRemoveOptional(part.id)}
-                    />
-                  ))
+      {/* ━━ 配件表格 ━━ */}
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Table size="small" sx={{ tableLayout: 'auto' }}>
+          <TableHeader />
+          <TableBody>
+            {/* 必备配件 */}
+            <TableRow>
+              <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'primary.50', borderBottom: 'none' }}>
+                <Typography variant="caption" fontWeight={700} color="primary.main" sx={{ letterSpacing: 1 }}>
+                  ▸ 必备配件
+                </Typography>
+              </TableCell>
+            </TableRow>
+            {REQUIRED_PARTS.map(({ key, name }) => (
+              <RecipePartRow
+                key={key}
+                label={name}
+                selection={requiredSelections[key]}
+                models={getModelsByCategory(
+                  name === '泵壳' ? '泵壳'
+                    : name.includes('轴承') ? '轴承'
+                    : name.includes('油封') ? '油封'
+                    : '其他'
                 )}
-              </TableBody>
-            </Table>
-          </Paper>
+                getSuppliers={getSuppliersByModel}
+                getPrice={getPriceByModelAndSupplier}
+                onChange={(field, value) => handleRequiredChange(key, field, value)}
+                isRequired
+              />
+            ))}
 
-          {/* 动态配置区 */}
-          <Typography variant="subtitle1" fontWeight={700} color="primary" sx={{ mb: 1.5 }}>
-            水泵动态配置区
-          </Typography>
-          <Box sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, border: '1px solid', borderColor: 'grey.200', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-            {/* 浮球 */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              <FormControlLabel
-                control={<Checkbox checked={hasFloat} onChange={(e) => setHasFloat(e.target.checked)} color="primary" />}
-                label={<Typography fontWeight={500}>带浮球</Typography>}
-                sx={{ minWidth: 160 }}
-              />
-              {hasFloat && (
-                <>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>浮球线径</InputLabel>
-                    <Select value={floatWire} label="浮球线径" onChange={(e) => setFloatWire(e.target.value as string)}>
-                      {getWireOptions('浮球-线径').map((w) => (
-                        <MenuItem key={w} value={w}>{w} mm</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                    小计: <strong>¥{getPriceByModelAndSupplier(`浮球-线径${floatWire}`, '').toFixed(2)}</strong>
+            <TableRow>
+              <TableCell colSpan={7} sx={{ p: 0 }}><Divider /></TableCell>
+            </TableRow>
+
+            {/* 选配配件 */}
+            <TableRow>
+              <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
+                <Box display="flex" alignItems="center" justifyContent="space-between">
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
+                    ▸ 选配配件（{optionalParts.length} 项）
                   </Typography>
-                </>
-              )}
-            </Box>
-            <Divider />
-            {/* 电缆 */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              <FormControlLabel
-                control={<Checkbox checked={hasCable} onChange={(e) => setHasCable(e.target.checked)} color="primary" />}
-                label={<Typography fontWeight={500}>带电缆线（按米计价）</Typography>}
-                sx={{ minWidth: 220 }}
-              />
-              {hasCable && (
-                <>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>电缆线径</InputLabel>
-                    <Select value={cableWire} label="电缆线径" onChange={(e) => setCableWire(e.target.value as string)}>
-                      {getWireOptions('电缆-线径').map((w) => (
-                        <MenuItem key={w} value={w}>{w} mm</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <TextField
-                    label="电缆长度 (米)"
+                  <Button
+                    variant="text"
                     size="small"
-                    type="number"
-                    inputProps={{ step: '0.1', min: '0' }}
-                    value={cableLength}
-                    onChange={(e) => setCableLength(e.target.value)}
-                    sx={{ width: 150 }}
-                  />
-                  <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                    小计: <strong>¥{((getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '') * (Number(cableLength) || 0)) + getPriceByModelAndSupplier('电缆配件费', '')).toFixed(2)}</strong>
-                  </Typography>
-                </>
-              )}
-            </Box>
-            <Divider />
-            {/* 包材 */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              <Typography fontWeight={500} sx={{ minWidth: 120 }}>包装及辅材：</Typography>
-              <Autocomplete
-                freeSolo
-                disableClearable
-                options={getModelsByCategory('包装')}
-                value={boxType}
-                onInputChange={(_, v) => setBoxType(v)}
-                sx={{ width: 250 }}
-                renderInput={(params) => (
-                  <TextField {...params} label="包装箱型号" size="small" placeholder="可下拉选择或手动输入" InputProps={{ ...params.InputProps, type: 'search' }} />
-                )}
-              />
-              {boxType && (() => {
-                const resolved = resolveBoxType(boxType);
-                return (
-                  <Typography variant="body2" color={resolved.price > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
-                    小计: <strong>¥{resolved.price.toFixed(2)}</strong>
-                    {resolved.model !== boxType && resolved.price > 0 && (
-                      <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.disabled' }}>
-                        (匹配到: {resolved.model})
-                      </Typography>
-                    )}
-                  </Typography>
-                );
-              })()}
-            </Box>
-          </Box>
-        </Box>
-      )}
+                    startIcon={<AddIcon />}
+                    onClick={handleAddOptional}
+                    sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
+                  >
+                    添加配件
+                  </Button>
+                </Box>
+              </TableCell>
+            </TableRow>
+            {optionalParts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 1.5, color: 'text.disabled', fontSize: '0.8rem' }}>
+                  暂无选配配件
+                </TableCell>
+              </TableRow>
+            ) : (
+              optionalParts.map((part) => (
+                <RecipePartRow
+                  key={part.id}
+                  label="配件"
+                  selection={part}
+                  models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                  getSuppliers={getSuppliersByModel}
+                  getPrice={getPriceByModelAndSupplier}
+                  onChange={(field, value) => handleOptionalChange(part.id, field, value)}
+                  onDelete={() => handleRemoveOptional(part.id)}
+                />
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Paper>
 
-      {/* ── Step 3: 预览 & 保存 ── */}
-      {!loading && activeStep === 3 && (
-        <Box>
-          <Box display="flex" alignItems="center" gap={2} mb={2}>
-            <Typography variant="subtitle1" fontWeight={700}>配方汇总</Typography>
-            {costPreview && (
-              <Chip
-                label={`预估总成本 ¥${costPreview.totalCost}`}
-                color="primary"
-                sx={{ fontWeight: 700, fontSize: '0.95rem' }}
-              />
+      {/* ━━ 线圈转子 ━━ */}
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CableIcon sx={{ fontSize: 16, color: '#7c3aed' }} />
+          <Typography variant="caption" fontWeight={700} color="#7c3aed" sx={{ letterSpacing: 1 }}>
+            ▸ 线圈转子
+          </Typography>
+          {coilLoading && <CircularProgress size={12} sx={{ ml: 1 }} />}
+          {coilResult && (
+            <Chip
+              label={`¥${coilResult.totalCost.toFixed(2)}`}
+              size="small"
+              color="success"
+              sx={{ ml: 'auto', fontWeight: 700 }}
+            />
+          )}
+        </Box>
+        <Box sx={{ px: 2, py: 1.5, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>定子规格</InputLabel>
+            <Select
+              value={coilSpec}
+              label="定子规格"
+              onChange={(e) => { setCoilSpec(e.target.value); setCoilSheets(''); setCoilResult(null); }}
+            >
+              {coilSpecs.map(s => (
+                <MenuItem key={s.spec} value={s.spec}>
+                  规格 {s.spec} ({s.count}种)
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            size="small"
+            label="片数"
+            type="number"
+            value={coilSheets}
+            onChange={(e) => setCoilSheets(e.target.value)}
+            sx={{ width: 120 }}
+            helperText={coilSpec && coilSpecs.find(s => s.spec === coilSpec)
+              ? `已有: ${coilSpecs.find(s => s.spec === coilSpec)!.sheets.join(', ')}`
+              : undefined}
+          />
+          <FormControlLabel
+            control={<Checkbox checked={useCoilCustomWeight} onChange={(e) => setUseCoilCustomWeight(e.target.checked)} size="small" />}
+            label={<Typography variant="body2">指定线重</Typography>}
+          />
+          {useCoilCustomWeight && (
+            <TextField
+              size="small" label="线重(kg)" type="number"
+              value={coilCustomWireWeight}
+              onChange={(e) => setCoilCustomWireWeight(e.target.value)}
+              sx={{ width: 100 }}
+              inputProps={{ step: '0.001' }}
+            />
+          )}
+          {coilResult && (
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+              {coilResult.formula}
+            </Typography>
+          )}
+        </Box>
+      </Paper>
+
+      {/* ━━ 动态配置区 ━━ */}
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
+            ▸ 动态配置（浮球 / 电缆 / 包材）
+          </Typography>
+        </Box>
+        <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {/* 浮球 */}
+          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <FormControlLabel
+              control={<Checkbox checked={hasFloat} onChange={(e) => setHasFloat(e.target.checked)} size="small" />}
+              label={<Typography variant="body2" fontWeight={500}>浮球</Typography>}
+              sx={{ minWidth: 100 }}
+            />
+            {hasFloat && (
+              <>
+                <FormControl size="small" sx={{ minWidth: 110 }}>
+                  <InputLabel>线径</InputLabel>
+                  <Select value={floatWire} label="线径" onChange={(e) => setFloatWire(e.target.value as string)}>
+                    {getWireOptions('浮球-线径').map((w) => (
+                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                  ¥{getPriceByModelAndSupplier(`浮球-线径${floatWire}`, '').toFixed(2)}
+                </Typography>
+              </>
             )}
           </Box>
-
-          {allPartsPreview.length === 0 ? (
-            <Alert severity="warning">还没有任何配件，请返回上一步添加。</Alert>
-          ) : (
-            <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
-                    <TableCell>名称</TableCell>
-                    <TableCell>型号</TableCell>
-                    <TableCell>供应商</TableCell>
-                    <TableCell align="right">单价</TableCell>
-                    <TableCell align="right">数量</TableCell>
-                    <TableCell align="right">小计</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {allPartsPreview.map((p, i) => (
-                    <TableRow key={i} hover>
-                      <TableCell>{p.name}</TableCell>
-                      <TableCell>{p.model}</TableCell>
-                      <TableCell>{p.supplier || '-'}</TableCell>
-                      <TableCell align="right">¥{(p.snapshotPrice || 0).toFixed(2)}</TableCell>
-                      <TableCell align="right">{p.qty}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
-                        ¥{((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow sx={{ bgcolor: 'primary.50' }}>
-                    <TableCell colSpan={5} sx={{ fontWeight: 700 }}>合计</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main', fontSize: '1rem' }}>
-                      ¥{costPreview?.totalCost ?? '0.00'}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </Paper>
-          )}
-
-          <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-            <Typography variant="body2"><b>配方名称：</b>{recipeName}</Typography>
-            {recipeSpec && <Typography variant="body2" mt={0.5}><b>规格：</b>{recipeSpec}</Typography>}
+          <Divider />
+          {/* 电缆 */}
+          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <FormControlLabel
+              control={<Checkbox checked={hasCable} onChange={(e) => setHasCable(e.target.checked)} size="small" />}
+              label={<Typography variant="body2" fontWeight={500}>电缆线</Typography>}
+              sx={{ minWidth: 100 }}
+            />
+            {hasCable && (
+              <>
+                <FormControl size="small" sx={{ minWidth: 110 }}>
+                  <InputLabel>线径</InputLabel>
+                  <Select value={cableWire} label="线径" onChange={(e) => setCableWire(e.target.value as string)}>
+                    {getWireOptions('电缆-线径').map((w) => (
+                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="长度(米)" size="small" type="number"
+                  inputProps={{ step: '0.1', min: '0' }}
+                  value={cableLength}
+                  onChange={(e) => setCableLength(e.target.value)}
+                  sx={{ width: 110 }}
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                  ¥{((getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '') * (Number(cableLength) || 0)) + getPriceByModelAndSupplier('电缆配件费', '')).toFixed(2)}
+                </Typography>
+              </>
+            )}
+          </Box>
+          <Divider />
+          {/* 包材 */}
+          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Typography variant="body2" fontWeight={500} sx={{ minWidth: 100 }}>包装</Typography>
+            <Autocomplete
+              freeSolo
+              disableClearable
+              options={getModelsByCategory('包装')}
+              value={boxType}
+              onInputChange={(_, v) => setBoxType(v)}
+              sx={{ width: 220 }}
+              renderInput={(params) => (
+                <TextField {...params} label="包装箱型号" size="small" placeholder="选择或输入" InputProps={{ ...params.InputProps, type: 'search' }} />
+              )}
+            />
+            {boxType && (() => {
+              const resolved = resolveBoxType(boxType);
+              return (
+                <Typography variant="body2" color={resolved.price > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
+                  ¥{resolved.price.toFixed(2)}
+                  {resolved.model !== boxType && resolved.price > 0 && (
+                    <Typography component="span" variant="caption" sx={{ ml: 0.5, color: 'text.disabled' }}>
+                      ({resolved.model})
+                    </Typography>
+                  )}
+                </Typography>
+              );
+            })()}
           </Box>
         </Box>
-      )}
+      </Paper>
 
-      {/* ── 导航按钮 ── */}
-      {!loading && (
-        <Box display="flex" justifyContent="space-between" mt={4}>
-          <Button
-            variant="outlined"
-            startIcon={<BackIcon />}
-            onClick={() => setActiveStep((s) => s - 1)}
-            disabled={activeStep === 0}
-          >
-            上一步
-          </Button>
-          {activeStep < STEPS.length - 1 ? (
-            <Button
-              variant="contained"
-              endIcon={<NextIcon />}
-              onClick={() => setActiveStep((s) => s + 1)}
-              disabled={!canNext()}
-            >
-              下一步
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              color="success"
-              size="large"
-              startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-              onClick={handleSubmit}
-              disabled={saving || allPartsPreview.length === 0}
-            >
-              保存配方
-            </Button>
-          )}
-        </Box>
-      )}
+      {/* ━━ 保存按钮 ━━ */}
+      <Button
+        variant="contained"
+        color="success"
+        size="large"
+        fullWidth
+        startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+        onClick={handleSubmit}
+        disabled={saving || !recipeName.trim() || allPartsPreview.length === 0}
+        sx={{ mt: 1 }}
+      >
+        保存配方
+      </Button>
     </Paper>
   );
 }
