@@ -76,6 +76,8 @@ interface CoilCalcResult {
   formula: string;
   source: string;
   isCustomWireWeight: boolean;
+  wireGauge: string | null;
+  capacitor: string | null;
 }
 
 interface CoilSpecInfo {
@@ -179,6 +181,35 @@ export default function RecipeFormPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [coilSpec, coilSheets, coilCustomWireWeight, useCoilCustomWeight, calculateCoilCost]);
+
+  // 线圈结果联动：自动设置浮球/电缆线径 + 电容
+  useEffect(() => {
+    if (!coilResult) return;
+    // 自动填充线径
+    if (coilResult.wireGauge) {
+      setFloatWire(coilResult.wireGauge);
+      setCableWire(coilResult.wireGauge);
+    }
+    // 自动填充电容（查找匹配的电容型号）
+    if (coilResult.capacitor) {
+      const uf = String(coilResult.capacitor);
+      // 在 parts 中找 类别=电容 且型号包含该 uf 值的
+      const capPart = parts.find(p =>
+        (p.类别 || p.category) === '电容' &&
+        ((p.型号 || p.model) || '').includes(uf)
+      );
+      if (capPart) {
+        const capModel = (capPart.型号 || capPart.model) || '';
+        // 检查是否已在选配配件中
+        const exists = optionalParts.some(op => op.model === capModel);
+        if (!exists) {
+          // 自动添加到选配配件
+          setOptionalParts(prev => [...prev, { id: nextOptionalId.current++, model: capModel, supplier: '', qty: 1 }]);
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coilResult]);
 
   // 复制配方预填
   useEffect(() => {
