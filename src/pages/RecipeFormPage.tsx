@@ -32,7 +32,6 @@ import {
 } from '@mui/icons-material';
 import { Part, RecipePart } from '../types';
 import { getAllParts, createRecipe } from '../utils/api';
-import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipePartRow from '../components/RecipePartRow';
 
 const COIL_API_BASE = 'http://localhost:3002';
@@ -469,46 +468,6 @@ export default function RecipeFormPage() {
             <TableRow>
               <TableCell colSpan={7} sx={{ p: 0 }}><Divider /></TableCell>
             </TableRow>
-
-            {/* 选配配件 */}
-            <TableRow>
-              <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
-                <Box display="flex" alignItems="center" justifyContent="space-between">
-                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
-                    ▸ 选配配件（{optionalParts.length} 项）
-                  </Typography>
-                  <Button
-                    variant="text"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddOptional}
-                    sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
-                  >
-                    添加配件
-                  </Button>
-                </Box>
-              </TableCell>
-            </TableRow>
-            {optionalParts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 1.5, color: 'text.disabled', fontSize: '0.8rem' }}>
-                  暂无选配配件
-                </TableCell>
-              </TableRow>
-            ) : (
-              optionalParts.map((part) => (
-                <RecipePartRow
-                  key={part.id}
-                  label="配件"
-                  selection={part}
-                  models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
-                  getSuppliers={getSuppliersByModel}
-                  getPrice={getPriceByModelAndSupplier}
-                  onChange={(field, value) => handleOptionalChange(part.id, field, value)}
-                  onDelete={() => handleRemoveOptional(part.id)}
-                />
-              ))
-            )}
           </TableBody>
         </Table>
       </Paper>
@@ -575,6 +534,53 @@ export default function RecipeFormPage() {
             </Typography>
           )}
         </Box>
+      </Paper>
+
+      {/* ━━ 选配配件 ━━ */}
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Table size="small" sx={{ tableLayout: 'auto' }}>
+          <TableHeader />
+          <TableBody>
+            <TableRow>
+              <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
+                <Box display="flex" alignItems="center" justifyContent="space-between">
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
+                    ▸ 选配配件（{optionalParts.length} 项）
+                  </Typography>
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddOptional}
+                    sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
+                  >
+                    添加配件
+                  </Button>
+                </Box>
+              </TableCell>
+            </TableRow>
+            {optionalParts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 1.5, color: 'text.disabled', fontSize: '0.8rem' }}>
+                  暂无选配配件
+                </TableCell>
+              </TableRow>
+            ) : (
+              optionalParts.map((part) => (
+                <RecipePartRow
+                  key={part.id}
+                  label="配件"
+                  selection={part}
+                  models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                  getSuppliers={getSuppliersByModel}
+                  getPrice={getPriceByModelAndSupplier}
+                  onChange={(field, value) => handleOptionalChange(part.id, field, value)}
+                  onDelete={() => handleRemoveOptional(part.id)}
+                />
+              ))
+            )}
+          </TableBody>
+        </Table>
       </Paper>
 
       {/* ━━ 动态配置区 ━━ */}
