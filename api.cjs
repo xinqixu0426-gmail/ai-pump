@@ -10,6 +10,11 @@ try {
 }
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const https = require('https');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3002;  // API服务器端口
@@ -2495,6 +2500,127 @@ app.put('/api/ai/system-prompt', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ── 阿里云 ASR 语音识别 ──────────────────────────────
+
+const ALIYUN_CONFIG = {
+    accessKeyId: process.env.ALIYUN_AK_ID || '',
+    accessKeySecret: process.env.ALIYUN_AK_SECRET || '',
+    appKey: process.env.ALIYUN_APP_KEY || '',
+    gateway: 'nls-gateway-cn-shanghai.aliyuncs.com',
+};
+
+let aliyunTokenCache = { token: null, expireTime: 0 };
+
+async function getAliyunToken() {
+    if (aliyunTokenCache.token && Date.now() < aliyunTokenCache.expireTime - 60000) {
+        return aliyunTokenCache.token;
+    }
+    console.log('[ASR] 正在获取阿里云 Token...');
+    return new Promise((resolve, reject) => {
+        const params = new URLSearchParams({
+            AccessKeyId: ALIYUN_CONFIG.accessKeyId,
+            Action: 'CreateToken',
+            Version: '2019-02-28',
+            Format: 'JSON',
+            RegionId: 'cn-shanghai',
+            Timestamp: new Date().toISOString().replace(/\.\d{3}/, ''),
+            SignatureMethod: 'HMAC-SHA1',
+            SignatureVersion: '1.0',
+            SignatureNonce: Math.random().toString(36).slice(2),
+        });
+        const sortedParams = new URLSearchParams([...params.entries()].sort());
+        const stringToSign = `POST&${encodeURIComponent('/')}&${encodeURIComponent(sortedParams.toString())}`;
+        const signature = crypto.createHmac('sha1', ALIYUN_CONFIG.accessKeySecret + '&').update(stringToSign).digest('base64');
+        params.append('Signature', signature);
+        const postData = params.toString();
+        const req = https.request({
+            hostname: 'nls-meta.cn-shanghai.aliyuncs.com',
+            path: '/',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
+        }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    if (json.Token?.Id) {
+                        aliyunTokenCache = { token: json.Token.Id, expireTime: json.Token.ExpireTime * 1000 };
+                        console.log('[ASR] Token 获取成功');
+                        resolve(json.Token.Id);
+                    } else {
+                        reject(new Error(`获取Token失败: ${json.Message || data}`));
+                    }
+                } catch (e) { reject(new Error(`解析Token失败: ${data}`)); }
+            });
+        });
+        req.on('error', (e) => reject(new Error(`Token请求失败: ${e.message}`)));
+        req.write(postData);
+        req.end();
+    });
+}
+
+async function aliyunASR(audioBuffer, format, sampleRate) {
+    const token = await getAliyunToken();
+    const queryParams = new URLSearchParams({
+        appkey: ALIYUN_CONFIG.appKey,
+        format,
+        sample_rate: sampleRate.toString(),
+        enable_punctuation_prediction: 'true',
+        enable_inverse_text_normalization: 'true',
+    });
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            hostname: ALIYUN_CONFIG.gateway,
+            path: `/stream/v1/asr?${queryParams.toString()}`,
+            method: 'POST',
+            headers: { 'X-NLS-Token': token, 'Content-Type': 'application/octet-stream', 'Content-Length': audioBuffer.length },
+        }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    console.log('[ASR] 识别结果:', json.result || '(空)');
+                    if (json.status === 20000000 && json.result) resolve(json.result);
+                    else resolve(json.result || '');
+                } catch (e) { reject(new Error(`解析ASR响应失败`)); }
+            });
+        });
+        req.on('error', (e) => reject(new Error(`ASR请求失败: ${e.message}`)));
+        req.write(audioBuffer);
+        req.end();
+    });
+}
+
+// 文件上传配置
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const asrUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, uploadsDir),
+        filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(file.originalname) || '.webm'}`)
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+app.post('/api/ai/asr', asrUpload.single('audio'), async (req, res) => {
+    try {
+        if (!req.file) return res.json({ success: false, error: '未收到音频文件' });
+        console.log(`[ASR] 收到音频: ${req.file.filename}, 大小: ${req.file.size} bytes`);
+        const audioData = fs.readFileSync(req.file.path);
+        const format = req.body.format || 'mp3';
+        const sampleRate = parseInt(req.body.sampleRate) || 16000;
+        const text = await aliyunASR(audioData, format, sampleRate);
+        fs.unlink(req.file.path, () => {});
+        res.json({ success: true, text: text || '' });
+    } catch (err) {
+        console.error('[ASR] 处理失败:', err.message);
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
+        res.json({ success: false, error: err.message });
     }
 });
 
