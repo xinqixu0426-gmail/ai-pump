@@ -308,6 +308,235 @@ function StructuredResult({ toolName, result }: { toolName: string; result: any 
     );
   }
 
+  // 订单详情
+  if (toolName === 'get_order_detail' && result.order) {
+    const o = result.order;
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+        <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>📊 订单详情 (ID: {o.id})</Typography>
+        <Typography variant="body2" component="div" color="text.secondary">
+          <strong>客户:</strong> {o.customerName} | <strong>状态:</strong> {o.status} | <strong>备注:</strong> {o.remark || '-'}
+        </Typography>
+        {o.items && o.items.length > 0 && (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>📦 配方列表 ({o.items.length}项):</Typography>
+            {o.items.map((it: any, i: number) => (
+              <Typography key={i} variant="body2" sx={{ pl: 1, color: '#1d4ed8' }}>
+                • {it.recipeName} ×{it.qty} ｜成本:¥{it.unitCost} ｜出厂价:¥{it.unitPrice}
+              </Typography>
+            ))}
+            <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+              💰 总成本: ¥{o.totalCost} | 总加价: ¥{o.totalPrice} | 利润: ¥{o.totalProfit}
+            </Typography>
+          </Box>
+        )}
+        {o.todos && o.todos.length > 0 && (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>📝 采购TODO:</Typography>
+            {o.todos.map((t: any, i: number) => (
+              <Typography key={i} variant="body2" sx={{ pl: 1, color: t.done ? '#10b981' : '#f59e0b' }}>
+                {t.done ? '✅' : '⬜'} {t.description}
+              </Typography>
+            ))}
+          </Box>
+        )}
+      </Box>
+    );
+  }
+
+  // 订单状态更新
+  if (toolName === 'update_order_status' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+        <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700 }}>✅ 订单状态已更新</Typography>
+        <Typography variant="body2" color="text.secondary">
+          订单 {result.orderId}({result.customerName}): {result.oldStatus} → {result.newStatus}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 移除配方
+  if (toolName === 'remove_recipe_from_order' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+        <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 已从订单移除配方</Typography>
+        <Typography variant="body2" color="text.secondary">
+          订单 {result.orderId}: 移除了 {result.removed} 个配方，剩余 {result.remaining} 个
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 修改订单条目
+  if (toolName === 'update_order_item' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+        <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700 }}>✅ 订单条目已更新</Typography>
+        <Typography variant="body2" color="text.secondary">
+          订单 {result.orderId} · {result.recipeName}
+        </Typography>
+        {result.changes?.map((c: string, i: number) => (
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {c}</Typography>
+        ))}
+      </Box>
+    );
+  }
+
+  // 采购清单
+  if (toolName === 'generate_purchase_list' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+        <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>✅ 采购清单已生成</Typography>
+        <Typography variant="body2" color="text.secondary">
+          共 {result.summary?.totalParts} 种零件，其中 {result.summary?.needToBuy} 种需采购，涉及 {result.summary?.suppliers?.length} 个供应商
+        </Typography>
+        {result.todos?.map((t: any, i: number) => (
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#1d4ed8', mt: 0.3 }}>📞 {t.description}</Typography>
+        ))}
+      </Box>
+    );
+  }
+
+  // 删除订单
+  if (toolName === 'delete_order' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+        <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 订单已删除</Typography>
+        <Typography variant="body2" color="text.secondary">订单 {result.orderId}({result.customerName}) 已彻底删除</Typography>
+      </Box>
+    );
+  }
+
+  // 新建配方
+  if (toolName === 'create_recipe' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+        <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700 }}>✅ 配方创建成功</Typography>
+        <Typography variant="body2" color="text.secondary">
+          ID: {result.recipe?.id} | 名称: {result.recipe?.name} | 规格: {result.recipe?.spec} | 零件数: {result.recipe?.partsCount} | 成本: ¥{result.recipe?.totalCost}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 删除配方
+  if (toolName === 'delete_recipe' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+        <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 配方已删除</Typography>
+        <Typography variant="body2" color="text.secondary">配方"{result.recipeName}"已删除</Typography>
+      </Box>
+    );
+  }
+
+  // 修改配方
+  if (toolName === 'update_recipe' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+        <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700 }}>✅ 配方已修改</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {result.recipeName} | 零件数: {result.partsCount} | 新成本: ¥{result.newCost}
+        </Typography>
+        {result.changes?.map((c: string, i: number) => (
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {c}</Typography>
+        ))}
+      </Box>
+    );
+  }
+
+  // 配方对比
+  if (toolName === 'compare_recipes' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#faf5ff', borderRadius: 2, border: '1px solid #d8b4fe' }}>
+        <Typography variant="subtitle2" color="secondary.dark" sx={{ fontWeight: 700, mb: 1 }}>🔍 配方对比结果</Typography>
+        <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
+          <Box sx={{ flex: 1, p: 1, bgcolor: '#f5f3ff', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{result.recipe1?.name}</Typography>
+            <Typography variant="caption" color="text.secondary">规格: {result.recipe1?.spec} | 成本: ¥{result.recipe1?.cost} | {result.recipe1?.partsCount}个零件</Typography>
+          </Box>
+          <Box sx={{ flex: 1, p: 1, bgcolor: '#f5f3ff', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{result.recipe2?.name}</Typography>
+            <Typography variant="caption" color="text.secondary">规格: {result.recipe2?.spec} | 成本: ¥{result.recipe2?.cost} | {result.recipe2?.partsCount}个零件</Typography>
+          </Box>
+        </Box>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: Number(result.costDiff) > 0 ? '#dc2626' : '#059669' }}>
+          成本差异: ¥{result.costDiff} ({result.recipe1?.name}比{result.recipe2?.name}{Number(result.costDiff) > 0 ? '贵' : '便宜'})
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 搜索零件
+  if (toolName === 'search_parts' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>🔍 找到 {result.count} 个零件</Typography>
+        {result.parts?.slice(0, 15).map((p: any, i: number) => (
+          <Typography key={i} variant="body2" sx={{ color: '#475569' }}>
+            • {p.model} | {p.category} | ¥{p.price} | {p.supplier} | 库存:{p.stock}
+          </Typography>
+        ))}
+        {result.count > 15 && <Typography variant="caption" color="text.secondary">...还有 {result.count - 15} 个未显示</Typography>}
+      </Box>
+    );
+  }
+
+  // 删除零件
+  if (toolName === 'delete_part' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+        <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 零件已删除</Typography>
+        <Typography variant="body2" color="text.secondary">零件"{result.model}"已删除</Typography>
+      </Box>
+    );
+  }
+
+  // 批量调价
+  if (toolName === 'batch_update_prices' && result.success) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fffbeb', borderRadius: 2, border: '1px solid #fde68a' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#92400e', mb: 1 }}>✅ 批量调价完成</Typography>
+        <Typography variant="body2" color="text.secondary">
+          类别"{result.category}" · {result.count}个零件 · {result.changeType}
+        </Typography>
+        {result.details?.slice(0, 10).map((d: any, i: number) => (
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {d.model}: ¥{d.oldPrice} → ¥{d.newPrice}</Typography>
+        ))}
+        {(result.details?.length || 0) > 10 && <Typography variant="caption" color="text.secondary">...还有 {result.details.length - 10} 个未显示</Typography>}
+      </Box>
+    );
+  }
+
+  // 运营汇总
+  if (toolName === 'get_dashboard_summary' && result.summary) {
+    const s = result.summary;
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+        <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>📊 运营数据汇总</Typography>
+        <Typography variant="body2" component="div" color="text.secondary">
+          <strong>订单:</strong> 共{s.orders?.total}个 (待采购:{s.orders?.['待采购']} / 采购中:{s.orders?.['采购中']} / 已完成:{s.orders?.['已完成']})<br/>
+          <strong>配方:</strong> {s.recipes?.total}个 | <strong>零件:</strong> {s.parts?.total}个<br/>
+          <strong>统计:</strong> 总成本 ¥{s.financials?.totalCost} | 总营收 ¥{s.financials?.totalRevenue} | 总利润 ¥{s.financials?.totalProfit}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 通用成功/失败卡片（兼容未单独处理的工具）
+  if (result.success !== undefined && !result.data) {
+    return (
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: result.success ? '#f0fdf4' : '#fef2f2', borderRadius: 2, border: `1px solid ${result.success ? '#86efac' : '#fecaca'}` }}>
+        <Typography variant="subtitle2" color={result.success ? 'success.dark' : 'error.dark'} sx={{ fontWeight: 700 }}>
+          {result.success ? '✅' : '❌'} {result.message || result.error}
+        </Typography>
+        {result.changes && result.changes.map((c: string, i: number) => (
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {c}</Typography>
+        ))}
+      </Box>
+    );
+  }
+
   if (!result.data) return null;
   const data = result.data;
 
@@ -521,11 +750,11 @@ const EXAMPLE_QUESTIONS = [
   { text: 'V750的成本是多少？', icon: '💰' },
   { text: '当前铜价是多少？', icon: '🔴' },
   { text: '12规格200片线圈成本', icon: '⚡' },
-  { text: '帮我完整报价：V750水泵，定子12-120，10米电缆，木箱包装，带浮球', icon: '🧮' },
-  { text: '有哪些线圈规格？', icon: '📋' },
-  { text: '帮我新建一个台州李总的订单，备注加急', icon: '📝' },
-  { text: '帮我新建零件：15μF电容，单价3.5元', icon: '➕' },
-  { text: '把15μF电容的库存加50', icon: '🔄' },
+  { text: '系统运营数据汇总', icon: '📊' },
+  { text: '帮我新建一个台州李总的订单，加2台V750(1.5寸)', icon: '📝' },
+  { text: '看看订单5的详情', icon: '🔍' },
+  { text: '生成订单5的采购清单', icon: '🛠' },
+  { text: '对比一下V750和V550的成本差异', icon: '🧩' },
 ];
 
 // ─── 主页面组件 ───────────────────────────────────────

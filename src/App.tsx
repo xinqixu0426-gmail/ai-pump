@@ -35,7 +35,7 @@ function App() {
     if (path === '/') return 0;
     if (path === '/parts') return 1;
     if (path === '/recipes' || path === '/recipe-form') return 2;
-    if (path === '/orders' || path === '/order-form') return 3;
+    if (path === '/orders' || path.startsWith('/order-form')) return 3;
     if (path === '/coils') return 4;
     if (path === '/ai') return 5;
     return 0;
@@ -119,6 +119,7 @@ function App() {
           <Route path="/recipe-form" element={<RecipeFormPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/order-form" element={<OrderFormPage />} />
+          <Route path="/order-form/:id" element={<OrderFormPage />} />
           <Route path="/coils" element={<CoilRotorPage />} />
           <Route path="/ai" element={<AIChatPage />} />
         </Routes>

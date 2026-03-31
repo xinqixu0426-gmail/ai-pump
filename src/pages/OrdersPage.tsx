@@ -23,6 +23,7 @@ import {
   Info as InfoIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { Order, OrderStatus } from '../types';
 import { getAllOrders, deleteOrder } from '../utils/orderStore';
@@ -123,7 +124,7 @@ export default function OrdersPage() {
                 <TableCell>需采购零件</TableCell>
                 <TableCell>状态</TableCell>
                 <TableCell>创建时间</TableCell>
-                <TableCell align="center" sx={{ width: 100 }}>操作</TableCell>
+                <TableCell align="center" sx={{ width: 130 }}>操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -165,6 +166,11 @@ export default function OrdersPage() {
                       <Tooltip title="查看详情">
                         <IconButton size="small" color="info" onClick={() => handleDetail(order)}>
                           <InfoIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="编辑订单">
+                        <IconButton size="small" color="primary" onClick={() => navigate(`/order-form/${order.id}`)}>
+                          <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="删除订单">

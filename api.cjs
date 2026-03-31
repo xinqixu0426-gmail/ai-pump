@@ -1325,6 +1325,246 @@ const AI_TOOLS = [
                 required: ['model']
             }
         }
+    },
+    // ── 第一组：订单全生命周期 ──
+    {
+        type: 'function',
+        function: {
+            name: 'get_order_detail',
+            description: '查看某个订单的完整详情（含配方列表、采购清单、TODO）。当用户说"看看订单5""订单5的详情"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID' }
+                },
+                required: ['orderId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'update_order_status',
+            description: '修改订单状态。当用户说"把订单5改成采购中""订单5完成了"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID' },
+                    status: { type: 'string', description: '新状态：待采购/采购中/已完成' }
+                },
+                required: ['orderId', 'status']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'remove_recipe_from_order',
+            description: '从订单中移除某个配方/产品。当用户说"把订单5里的V750删掉"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID' },
+                    recipeName: { type: 'string', description: '要移除的配方名称' }
+                },
+                required: ['orderId', 'recipeName']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'update_order_item',
+            description: '修改订单中某个配方的数量或出厂价。当用户说"把订单5里V750改成3台"或"V750出厂价改成120"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID' },
+                    recipeName: { type: 'string', description: '要修改的配方名称' },
+                    qty: { type: 'number', description: '新数量（可选）' },
+                    unitPrice: { type: 'number', description: '新出厂价（可选）' },
+                    profitMargin: { type: 'number', description: '新利润率倍数如1.15（可选）' }
+                },
+                required: ['orderId', 'recipeName']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'generate_purchase_list',
+            description: '为订单生成采购清单和采购TODO。自动汇总所有配方零件需求、扣减库存、按供应商分组。当用户说"生成订单5的采购清单"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID' }
+                },
+                required: ['orderId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'delete_order',
+            description: '彻底删除一个订单。当用户说"删掉订单5"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '要删除的订单ID' }
+                },
+                required: ['orderId']
+            }
+        }
+    },
+    // ── 第二组：配方管理 ──
+    {
+        type: 'function',
+        function: {
+            name: 'create_recipe',
+            description: '新建配方。当用户说"新建配方XX"时使用。零件可用简化格式如 [{model:"201轴承",qty:2}]，后端会自动匹配完整信息',
+            parameters: {
+                type: 'object',
+                properties: {
+                    name: { type: 'string', description: '配方名称' },
+                    spec: { type: 'string', description: '规格（如1寸、1.5寸）' },
+                    parts: {
+                        type: 'array',
+                        description: '零件列表',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                model: { type: 'string', description: '零件型号' },
+                                qty: { type: 'number', description: '数量' }
+                            },
+                            required: ['model', 'qty']
+                        }
+                    }
+                },
+                required: ['name']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'delete_recipe',
+            description: '删除配方。当用户说"删掉配方XX"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeName: { type: 'string', description: '要删除的配方名称' }
+                },
+                required: ['recipeName']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'update_recipe',
+            description: '修改配方信息（名称、规格、增减零件）。当用户说"把V750配方里的XX换成YY"或"给V750配方加个零件"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeName: { type: 'string', description: '要修改的配方名称（用于查找）' },
+                    newName: { type: 'string', description: '新名称（可选）' },
+                    newSpec: { type: 'string', description: '新规格（可选）' },
+                    addParts: {
+                        type: 'array',
+                        description: '要添加的零件（可选）',
+                        items: {
+                            type: 'object',
+                            properties: { model: { type: 'string' }, qty: { type: 'number' } },
+                            required: ['model', 'qty']
+                        }
+                    },
+                    removeParts: {
+                        type: 'array',
+                        description: '要移除的零件型号列表（可选）',
+                        items: { type: 'string' }
+                    },
+                    updateParts: {
+                        type: 'array',
+                        description: '要修改数量的零件（可选）',
+                        items: {
+                            type: 'object',
+                            properties: { model: { type: 'string' }, qty: { type: 'number' } },
+                            required: ['model', 'qty']
+                        }
+                    }
+                },
+                required: ['recipeName']
+            }
+        }
+    },
+    // ── 第三组：数据分析与辅助 ──
+    {
+        type: 'function',
+        function: {
+            name: 'compare_recipes',
+            description: '对比两个配方的BOM和成本差异。当用户说"对比V750和V550"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipe1: { type: 'string', description: '配方1名称' },
+                    recipe2: { type: 'string', description: '配方2名称' }
+                },
+                required: ['recipe1', 'recipe2']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'search_parts',
+            description: '按关键词或类别搜索零件。当用户说"找所有密封件""有没有叫XX的零件"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    keyword: { type: 'string', description: '搜索关键词（模糊匹配型号/名称）' },
+                    category: { type: 'string', description: '按类别筛选（可选）' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'delete_part',
+            description: '删除一个零件。当用户说"删掉零件XX"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    model: { type: 'string', description: '要删除的零件型号' }
+                },
+                required: ['model']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'batch_update_prices',
+            description: '按类别批量调整零件价格。当用户说"把所有轴承涨价10%""密封件统一降2元"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    category: { type: 'string', description: '零件类别' },
+                    percentChange: { type: 'number', description: '百分比变化（如10表示涨10%，-5表示降5%）' },
+                    absoluteChange: { type: 'number', description: '绝对值变化（如2表示涨2元，-1表示降1元），与percentChange二选一' }
+                },
+                required: ['category']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_dashboard_summary',
+            description: '获取运营数据汇总（订单统计、配方数量、零件数量、成本/利润等）。当用户说"最近的运营数据""系统概况"时使用',
+            parameters: { type: 'object', properties: {} }
+        }
     }
 ];
 
@@ -1734,6 +1974,392 @@ async function executeToolCall(toolName, args) {
                 } catch (verifyErr) {
                     return { success: false, error: `修改请求已发送，但回读验证异常: ${verifyErr.message}` };
                 }
+            }
+
+            // ── 第一组：订单全生命周期 ──
+
+            case 'get_order_detail': {
+                const { orderId } = args;
+                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const row = orderData.list?.[0];
+                if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                let purchaseList = []; try { purchaseList = JSON.parse(row.采购清单JSON || '[]'); } catch(e){}
+                let todos = []; try { todos = JSON.parse(row.采购TodoJSON || '[]'); } catch(e){}
+                // 计算汇总
+                let totalCost = 0, totalPrice = 0;
+                for (const it of items) { totalCost += (it.unitCost || 0) * (it.qty || 0); totalPrice += (it.unitPrice || 0) * (it.qty || 0); }
+                return {
+                    success: true,
+                    order: {
+                        id: row.Id,
+                        customerName: row.客户名称,
+                        contractNo: row.合同号 || '',
+                        remark: row.备注 || '',
+                        status: row.订单状态 || '待采购',
+                        items,
+                        purchaseList,
+                        todos,
+                        totalCost: Math.round(totalCost * 100) / 100,
+                        totalPrice: Math.round(totalPrice * 100) / 100,
+                        totalProfit: Math.round((totalPrice - totalCost) * 100) / 100,
+                        createdAt: row.CreatedAt,
+                        updatedAt: row.UpdatedAt
+                    }
+                };
+            }
+
+            case 'update_order_status': {
+                const { orderId, status } = args;
+                const validStatuses = ['待采购', '采购中', '已完成'];
+                if (!validStatuses.includes(status)) return { success: false, error: `无效状态: ${status}，可选: ${validStatuses.join('/')}` };
+                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const row = orderData.list?.[0];
+                if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+                const oldStatus = row.订单状态 || '待采购';
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ Id: row.Id, 订单状态: status })
+                });
+                return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.客户名称 };
+            }
+
+            case 'remove_recipe_from_order': {
+                const { orderId, recipeName } = args;
+                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const row = orderData.list?.[0];
+                if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                const before = items.length;
+                items = items.filter(it => !(it.recipeName || '').includes(recipeName));
+                if (items.length === before) return { success: false, error: `订单${orderId}中未找到包含\"${recipeName}\"的配方` };
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ Id: row.Id, 型号列表JSON: JSON.stringify(items) })
+                });
+                return { success: true, message: `已从订单${orderId}中移除\"${recipeName}\"`, orderId, removed: before - items.length, remaining: items.length };
+            }
+
+            case 'update_order_item': {
+                const { orderId, recipeName, qty, unitPrice, profitMargin } = args;
+                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const row = orderData.list?.[0];
+                if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                const item = items.find(it => (it.recipeName || '').includes(recipeName));
+                if (!item) return { success: false, error: `订单${orderId}中未找到\"${recipeName}\"` };
+                const changes = [];
+                if (qty !== undefined) { changes.push(`数量: ${item.qty} → ${qty}`); item.qty = qty; }
+                if (unitPrice !== undefined) { changes.push(`出厂价: ${item.unitPrice} → ${unitPrice}`); item.unitPrice = unitPrice; }
+                if (profitMargin !== undefined) {
+                    changes.push(`利润率: ${item.profitMargin} → ${profitMargin}`);
+                    item.profitMargin = profitMargin;
+                    if (unitPrice === undefined) { item.unitPrice = Math.round(item.unitCost * profitMargin * 100) / 100; changes.push(`出厂价自动调整为: ${item.unitPrice}`); }
+                }
+                if (changes.length === 0) return { success: false, error: '没有指定要修改的字段' };
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ Id: row.Id, 型号列表JSON: JSON.stringify(items) })
+                });
+                return { success: true, message: `订单${orderId}中\"${item.recipeName}\"已更新`, orderId, recipeName: item.recipeName, changes };
+            }
+
+            case 'generate_purchase_list': {
+                const { orderId } = args;
+                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const row = orderData.list?.[0];
+                if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                if (items.length === 0) return { success: false, error: '订单中没有任何配方，无法生成采购清单' };
+
+                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const partIndex = {};
+                const partByModel = {};
+                allParts.forEach(p => {
+                    const m = (p.型号 || p.model || '').trim();
+                    const s = (p.供应商 || p.supplier || '').trim();
+                    if (m) { partIndex[`${m}|${s}`] = p; if (!partByModel[m]) partByModel[m] = p; }
+                });
+
+                // 汇总零件需求
+                const merged = {};
+                for (const item of items) {
+                    let parts = []; try { parts = JSON.parse(item.partsJson || '[]'); } catch(e){ continue; }
+                    for (const rp of parts) {
+                        const key = rp.model;
+                        if (merged[key]) { merged[key].totalQty += rp.qty * item.qty; }
+                        else { merged[key] = { model: rp.model, name: rp.name || rp.model, supplier: rp.supplier || '', totalQty: rp.qty * item.qty }; }
+                    }
+                }
+
+                const purchaseList = [];
+                for (const [, m] of Object.entries(merged)) {
+                    const dbPart = partIndex[`${m.model}|${m.supplier}`] || partByModel[m.model] || null;
+                    const currentStock = Number(dbPart?.库存 ?? dbPart?.stock ?? 0);
+                    const needToBuy = Math.max(0, m.totalQty - currentStock);
+                    purchaseList.push({ model: m.model, name: m.name, supplier: m.supplier, totalQty: m.totalQty, currentStock, needToBuy, purchased: false, partId: dbPart?.Id });
+                }
+                purchaseList.sort((a, b) => a.supplier.localeCompare(b.supplier));
+
+                // 生成 TODO
+                const bySupplier = {};
+                for (const p of purchaseList) {
+                    if (p.needToBuy <= 0) continue;
+                    if (!bySupplier[p.supplier]) bySupplier[p.supplier] = [];
+                    bySupplier[p.supplier].push(p);
+                }
+                const todos = [];
+                for (const [supplier, parts] of Object.entries(bySupplier)) {
+                    const detail = parts.map(p => `${p.model}×${p.needToBuy}`).join(', ');
+                    todos.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), supplier, description: `联系【${supplier}】采购：${detail}`, done: false });
+                }
+
+                // 写入订单
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ Id: row.Id, 采购清单JSON: JSON.stringify(purchaseList), 采购TodoJSON: JSON.stringify(todos) })
+                });
+
+                return {
+                    success: true,
+                    message: `订单${orderId}采购清单已生成`,
+                    orderId,
+                    purchaseList,
+                    todos,
+                    summary: { totalParts: purchaseList.length, needToBuy: purchaseList.filter(p => p.needToBuy > 0).length, suppliers: [...new Set(purchaseList.filter(p => p.needToBuy > 0).map(p => p.supplier))] }
+                };
+            }
+
+            case 'delete_order': {
+                const { orderId } = args;
+                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const row = orderData.list?.[0];
+                if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+                    method: 'DELETE',
+                    body: JSON.stringify([{ Id: row.Id }])
+                });
+                return { success: true, message: `订单${orderId}已删除`, orderId, customerName: row.客户名称 };
+            }
+
+            // ── 第二组：配方管理 ──
+
+            case 'create_recipe': {
+                const { name, spec = '', parts = [] } = args;
+                if (!name) return { success: false, error: '缺少配方名称' };
+
+                // 解析零件：自动匹配零件库
+                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const recipeParts = [];
+                for (const p of parts) {
+                    const dbPart = allParts.find(dp => (dp.型号 || dp.model || '') === p.model || (dp.型号 || '').includes(p.model));
+                    recipeParts.push({
+                        model: p.model,
+                        name: dbPart ? (dbPart.型号 || dbPart.model || p.model) : p.model,
+                        supplier: dbPart ? (dbPart.供应商 || dbPart.supplier || '-') : '-',
+                        qty: p.qty,
+                        snapshotPrice: dbPart ? Number(dbPart.单价 || dbPart.price || 0) : 0
+                    });
+                }
+
+                const { partsCache, partsByModel } = await loadPartsData();
+                const costRes = calculateRecipeCost(recipeParts, partsCache, partsByModel);
+
+                const body = {
+                    配方名称: name,
+                    规格: spec,
+                    配件JSON: JSON.stringify(recipeParts),
+                    saved_total_cost: parseFloat(costRes.totalCost || 0),
+                    saved_cost_details: JSON.stringify(costRes.details || [])
+                };
+                const createRes = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, { method: 'POST', body: JSON.stringify(body) });
+                const newId = createRes?.Id || createRes?.id;
+                if (!newId) return { success: false, error: '配方创建失败' };
+                return { success: true, message: `配方\"${name}\"创建成功`, recipe: { id: newId, name, spec, partsCount: recipeParts.length, totalCost: costRes.totalCost } };
+            }
+
+            case 'delete_recipe': {
+                const { recipeName } = args;
+                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || (r.配方名称 || '').includes(recipeName));
+                if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
+                    method: 'DELETE',
+                    body: JSON.stringify([{ Id: recipe.Id }])
+                });
+                return { success: true, message: `配方\"${recipe.配方名称 || recipeName}\"已删除`, recipeName: recipe.配方名称 || recipeName };
+            }
+
+            case 'update_recipe': {
+                const { recipeName, newName, newSpec, addParts = [], removeParts = [], updateParts = [] } = args;
+                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || (r.配方名称 || '').includes(recipeName));
+                if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
+
+                let parts = []; try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch(e){}
+                const changes = [];
+
+                // 移除零件
+                if (removeParts.length > 0) {
+                    const before = parts.length;
+                    parts = parts.filter(p => !removeParts.some(rm => p.model === rm || (p.model || '').includes(rm)));
+                    changes.push(`移除了${before - parts.length}个零件`);
+                }
+                // 修改零件数量
+                for (const up of updateParts) {
+                    const found = parts.find(p => p.model === up.model || (p.model || '').includes(up.model));
+                    if (found) { changes.push(`${found.model}: 数量 ${found.qty} → ${up.qty}`); found.qty = up.qty; }
+                }
+                // 添加零件
+                if (addParts.length > 0) {
+                    const allPartsDb = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                    for (const ap of addParts) {
+                        const dbPart = allPartsDb.find(dp => (dp.型号 || dp.model || '') === ap.model || (dp.型号 || '').includes(ap.model));
+                        parts.push({
+                            model: ap.model,
+                            name: dbPart ? (dbPart.型号 || dbPart.model || ap.model) : ap.model,
+                            supplier: dbPart ? (dbPart.供应商 || dbPart.supplier || '-') : '-',
+                            qty: ap.qty,
+                            snapshotPrice: dbPart ? Number(dbPart.单价 || dbPart.price || 0) : 0
+                        });
+                        changes.push(`添加了 ${ap.model} × ${ap.qty}`);
+                    }
+                }
+
+                const patchBody = { Id: recipe.Id, 配件JSON: JSON.stringify(parts) };
+                if (newName) { patchBody.配方名称 = newName; changes.push(`名称: ${recipe.配方名称} → ${newName}`); }
+                if (newSpec) { patchBody.规格 = newSpec; changes.push(`规格: ${recipe.规格} → ${newSpec}`); }
+
+                // 重新计算成本
+                const { partsCache: pc, partsByModel: pbm } = await loadPartsData();
+                const costRes = calculateRecipeCost(parts, pc, pbm);
+                patchBody.saved_total_cost = parseFloat(costRes.totalCost || 0);
+                patchBody.saved_cost_details = JSON.stringify(costRes.details || []);
+
+                if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, { method: 'PATCH', body: JSON.stringify(patchBody) });
+                return { success: true, message: `配方\"${recipe.配方名称}\"修改成功`, recipeName: newName || recipe.配方名称, partsCount: parts.length, newCost: costRes.totalCost, changes };
+            }
+
+            // ── 第三组：数据分析与辅助 ──
+
+            case 'compare_recipes': {
+                const { recipe1, recipe2 } = args;
+                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const r1 = allRecipes.find(r => (r.配方名称 || r.name) === recipe1 || (r.配方名称 || '').includes(recipe1));
+                const r2 = allRecipes.find(r => (r.配方名称 || r.name) === recipe2 || (r.配方名称 || '').includes(recipe2));
+                if (!r1) return { success: false, error: '找不到配方: ' + recipe1 };
+                if (!r2) return { success: false, error: '找不到配方: ' + recipe2 };
+
+                const { partsCache: pc, partsByModel: pbm } = await loadPartsData();
+                let p1 = []; try { p1 = JSON.parse(r1.配件JSON || r1.parts_json || '[]'); } catch(e){}
+                let p2 = []; try { p2 = JSON.parse(r2.配件JSON || r2.parts_json || '[]'); } catch(e){}
+                const cost1 = calculateRecipeCost(p1, pc, pbm);
+                const cost2 = calculateRecipeCost(p2, pc, pbm);
+
+                // BOM对比
+                const allModels = [...new Set([...p1.map(p => p.model), ...p2.map(p => p.model)])];
+                const comparison = allModels.map(model => {
+                    const in1 = p1.find(p => p.model === model);
+                    const in2 = p2.find(p => p.model === model);
+                    return { model, qty1: in1?.qty || 0, qty2: in2?.qty || 0, onlyIn: in1 && !in2 ? recipe1 : (!in1 && in2 ? recipe2 : '两者共有') };
+                });
+
+                return {
+                    success: true,
+                    recipe1: { name: r1.配方名称, spec: r1.规格, cost: cost1.totalCost, partsCount: p1.length },
+                    recipe2: { name: r2.配方名称, spec: r2.规格, cost: cost2.totalCost, partsCount: p2.length },
+                    costDiff: (parseFloat(cost1.totalCost) - parseFloat(cost2.totalCost)).toFixed(2),
+                    comparison
+                };
+            }
+
+            case 'search_parts': {
+                const { keyword, category } = args;
+                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                let results = allParts;
+                if (keyword) { results = results.filter(p => (p.型号 || p.model || '').includes(keyword) || (p.类别 || p.category || '').includes(keyword) || (p.供应商 || p.supplier || '').includes(keyword)); }
+                if (category) { results = results.filter(p => (p.类别 || p.category || '') === category || (p.类别 || p.category || '').includes(category)); }
+                return {
+                    success: true,
+                    count: results.length,
+                    parts: results.slice(0, 30).map(p => ({ id: p.Id, model: p.型号 || p.model, category: p.类别 || p.category, price: p.单价 || p.price, supplier: p.供应商 || p.supplier, stock: p.库存 || p.stock || 0 }))
+                };
+            }
+
+            case 'delete_part': {
+                const { model } = args;
+                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const target = allParts.find(p => (p.型号 || p.model || '') === model);
+                if (!target) return { success: false, error: '找不到零件: ' + model };
+                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+                    method: 'DELETE',
+                    body: JSON.stringify([{ Id: target.Id }])
+                });
+                return { success: true, message: `零件\"${model}\"已删除`, model };
+            }
+
+            case 'batch_update_prices': {
+                const { category, percentChange, absoluteChange } = args;
+                if (percentChange === undefined && absoluteChange === undefined) return { success: false, error: '需要指定percentChange或absoluteChange' };
+                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const targets = allParts.filter(p => (p.类别 || p.category || '') === category || (p.类别 || p.category || '').includes(category));
+                if (targets.length === 0) return { success: false, error: `没有找到类别包含\"${category}\"的零件` };
+
+                const updates = [];
+                const details = [];
+                for (const p of targets) {
+                    const oldPrice = Number(p.单价 || p.price || 0);
+                    let newPrice;
+                    if (percentChange !== undefined) { newPrice = Math.round(oldPrice * (1 + percentChange / 100) * 100) / 100; }
+                    else { newPrice = Math.round((oldPrice + absoluteChange) * 100) / 100; }
+                    if (newPrice < 0) newPrice = 0;
+                    updates.push({ Id: p.Id, 单价: newPrice });
+                    details.push({ model: p.型号 || p.model, oldPrice, newPrice });
+                }
+
+                // NocoDB PATCH 支持批量
+                for (const u of updates) {
+                    await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, { method: 'PATCH', body: JSON.stringify(u) });
+                }
+
+                return {
+                    success: true,
+                    message: `已批量更新${targets.length}个\"${category}\"类零件的价格`,
+                    category,
+                    count: targets.length,
+                    changeType: percentChange !== undefined ? `${percentChange > 0 ? '+' : ''}${percentChange}%` : `${absoluteChange > 0 ? '+' : ''}${absoluteChange}元`,
+                    details
+                };
+            }
+
+            case 'get_dashboard_summary': {
+                const allOrders = await fetchAllRecords(NOCO_CONFIG.ordersTable);
+                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+
+                const statusCount = { 待采购: 0, 采购中: 0, 已完成: 0 };
+                let totalOrderCost = 0, totalOrderPrice = 0;
+                for (const o of allOrders) {
+                    const s = o.订单状态 || '待采购';
+                    if (statusCount[s] !== undefined) statusCount[s]++;
+                    let items = []; try { items = JSON.parse(o.型号列表JSON || '[]'); } catch(e){}
+                    for (const it of items) { totalOrderCost += (it.unitCost || 0) * (it.qty || 0); totalOrderPrice += (it.unitPrice || 0) * (it.qty || 0); }
+                }
+
+                return {
+                    success: true,
+                    summary: {
+                        orders: { total: allOrders.length, ...statusCount },
+                        recipes: { total: allRecipes.length },
+                        parts: { total: allParts.length },
+                        financials: {
+                            totalCost: Math.round(totalOrderCost * 100) / 100,
+                            totalRevenue: Math.round(totalOrderPrice * 100) / 100,
+                            totalProfit: Math.round((totalOrderPrice - totalOrderCost) * 100) / 100
+                        }
+                    }
+                };
             }
 
             default:

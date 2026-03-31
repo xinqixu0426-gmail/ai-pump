@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Paper,
   Typography,
@@ -45,6 +45,7 @@ import {
   saveOrder,
   calcOrderTotals,
   findHistoryPrice,
+  getOrder,
   HistoryPrice,
 } from '../utils/orderStore';
 
@@ -65,6 +66,8 @@ interface DraftItem {
 
 export default function OrderFormPage() {
   const navigate = useNavigate();
+  const { id: editId } = useParams<{ id?: string }>();
+  const isEdit = !!editId;
   const [activeStep, setActiveStep] = useState(0);
 
   // ── 数据加载 ──────────────────────────
@@ -87,6 +90,26 @@ export default function OrderFormPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // ── 编辑模式：加载已有订单数据 ───────
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editId || loading) return;
+    (async () => {
+      try {
+        const order = await getOrder(editId);
+        if (!order) { setError('订单不存在'); return; }
+        setEditOrderId(order.id);
+        setCustomerName(order.customerName);
+        setContractNo(order.contractNo || '');
+        setRemark(order.remark || '');
+        setDraftItems(order.items.map(it => ({ ...it, history: null })));
+      } catch {
+        setError('加载订单失败');
+      }
+    })();
+  }, [editId, loading]);
 
   // ── Step 1 状态 ──────────────────────
   const [customerName, setCustomerName] = useState('');
@@ -173,7 +196,14 @@ export default function OrderFormPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const order = createEmptyOrder(customerName, remark || undefined, contractNo || undefined);
+      let order;
+      if (isEdit && editOrderId) {
+        // 编辑模式：复用原 order id 触发 PATCH
+        order = createEmptyOrder(customerName, remark || undefined, contractNo || undefined);
+        order.id = editOrderId;
+      } else {
+        order = createEmptyOrder(customerName, remark || undefined, contractNo || undefined);
+      }
       order.items = draftItems;
       order.purchaseList = purchaseList;
       order.todos = todos;
@@ -209,7 +239,7 @@ export default function OrderFormPage() {
         <IconButton onClick={() => navigate('/orders')} size="small">
           <BackIcon />
         </IconButton>
-        <Typography variant="h6">新建订单</Typography>
+        <Typography variant="h6">{isEdit ? '编辑订单' : '新建订单'}</Typography>
       </Box>
 
       {/* 步骤条 */}
@@ -535,7 +565,7 @@ export default function OrderFormPage() {
       {!loading && activeStep === 3 && (
         <Box sx={{ maxWidth: 560 }}>
           <Alert severity="info" sx={{ mb: 2 }}>
-            请确认订单信息，提交后保存到数据库。
+            {isEdit ? '请确认修改后的订单信息。' : '请确认订单信息，提交后保存到数据库。'}
           </Alert>
           <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
             <Typography variant="body2" mb={1}><b>客户：</b>{customerName}</Typography>
@@ -595,7 +625,7 @@ export default function OrderFormPage() {
               onClick={handleSubmit}
               disabled={submitting}
             >
-              提交订单
+              {isEdit ? '保存修改' : '提交订单'}
             </Button>
           )}
         </Box>
