@@ -259,4 +259,68 @@
 
 ---
 
+## AI 智能助手 API
+
+### POST `/api/ai/chat` — AI 对话（SSE 流式响应）
+
+**请求体:**
+```json
+{
+  "messages": [
+    { "role": "user", "content": "V750的成本是多少？" }
+  ]
+}
+```
+
+**响应:** SSE 流式事件，每行格式 `data: {...}\n\n`
+
+| 事件类型 | 说明 | 示例 |
+|---|---|---|
+| `status` | AI 状态更新 | `{"type":"status","status":"thinking","message":"正在理解您的问题..."}` |
+| `tool_call` | 正在调用的工具 | `{"type":"tool_call","name":"query_recipe_cost_by_name","args":{"name":"V750"}}` |
+| `tool_result` | 工具返回结果 | `{"type":"tool_result","name":"query_recipe_cost_by_name","result":{...}}` |
+| `content` | AI 最终文字回答 | `{"type":"content","content":"V750的总成本为..."}` |
+| `done` | 完成 | `{"type":"done"}` |
+| `error` | 错误 | `{"type":"error","message":"..."}` |
+
+**支持的 AI Tools（12个）:**
+| Tool 名称 | 内部调用 | 用途 |
+|---|---|---|
+| `query_recipe_cost_by_name` | `/api/cost/recipe/by-name` | 按名称查配方成本 |
+| `query_recipe_cost_by_id` | `/api/cost/recipe/:id` | 按 ID 查配方成本 |
+| `full_calculate` | `/api/cost/full-calculate` | 一站式 BOM 计算 |
+| `get_copper_price` | `/api/copper-price` | 实时铜价 |
+| `calculate_coil_cost` | `/api/coils/calculate` | 线圈成本（支持插值，支持"12-140"简写） |
+| `get_coil_specs` | `/api/coils/specs` | 可用规格列表 |
+| `get_all_recipes` | NocoDB recipes 表 | 配方列表 |
+| `get_all_parts` | NocoDB parts 表 | 零件列表 |
+| `dynamic_config_cost` | `/api/cost/dynamic-config` | 浮球/电缆/包材成本 |
+| `get_recent_orders` | NocoDB orders 表 | 订单列表查询 |
+| `create_part` | NocoDB parts 表 (POST) | **新建/录入零件（写操作）** |
+
+---
+
+### GET `/api/ai/system-prompt` — 获取 System Prompt
+
+**响应:**
+```json
+{
+  "success": true,
+  "data": "你是水泵BOM管理系统的智能助手..."
+}
+```
+
+### PUT `/api/ai/system-prompt` — 修改 System Prompt
+
+修改后持久化到 NocoDB `system-config` 表（`mjw12hikysa9wlz`），重启服务自动加载。
+
+**请求体:**
+```json
+{
+  "prompt": "新的 system prompt 内容..."
+}
+```
+
+---
+
 *这份文档能够作为日后联调测试、工作流配置及应用维护的单点真实信息源（SSOT）。如果对 API 结构进行修改，请务必同步更新本文件。*

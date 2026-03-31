@@ -14,7 +14,8 @@ import {
   Build as BuildIcon,
   Receipt as ReceiptIcon,
   ShoppingCart as OrderIcon,
-  Cable as CableIcon
+  Cable as CableIcon,
+  SmartToy as AIIcon
 } from '@mui/icons-material';
 import DashboardPage from './pages/DashboardPage';
 import PartsPage from './pages/PartsPage';
@@ -23,6 +24,7 @@ import RecipeFormPage from './pages/RecipeFormPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderFormPage from './pages/OrderFormPage';
 import CoilRotorPage from './pages/CoilRotorPage';
+import AIChatPage from './pages/AIChatPage';
 
 function App() {
   const navigate = useNavigate();
@@ -35,6 +37,7 @@ function App() {
     if (path === '/recipes' || path === '/recipe-form') return 2;
     if (path === '/orders' || path === '/order-form') return 3;
     if (path === '/coils') return 4;
+    if (path === '/ai') return 5;
     return 0;
   };
 
@@ -57,6 +60,9 @@ function App() {
         break;
       case 4:
         navigate('/coils');
+        break;
+      case 5:
+        navigate('/ai');
         break;
     }
   };
@@ -100,6 +106,7 @@ function App() {
           <Tab icon={<ReceiptIcon />} iconPosition="start" label="配方管理" />
           <Tab icon={<OrderIcon />} iconPosition="start" label="订单管理" />
           <Tab icon={<CableIcon />} iconPosition="start" label="线圈转子" />
+          <Tab icon={<AIIcon />} iconPosition="start" label="AI助手" />
         </Tabs>
       </AppBar>
 
@@ -113,6 +120,7 @@ function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/order-form" element={<OrderFormPage />} />
           <Route path="/coils" element={<CoilRotorPage />} />
+          <Route path="/ai" element={<AIChatPage />} />
         </Routes>
       </Container>
     </Box>
