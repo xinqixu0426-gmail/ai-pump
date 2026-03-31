@@ -43,6 +43,7 @@ const REQUIRED_PARTS = [
   { key: 'cylinderBearing', name: '油缸轴承' },
   { key: 'mechanicalSeal', name: '机械油封' },
   { key: 'skeletonSeal', name: '骨架油封' },
+  { key: 'capacitor', name: '电容' },
 ];
 
 interface PartSelection {
@@ -62,6 +63,7 @@ const EMPTY_REQUIRED: Record<string, PartSelection> = {
   cylinderBearing: { model: '', supplier: '', qty: 1 },
   mechanicalSeal: { model: '', supplier: '', qty: 1 },
   skeletonSeal: { model: '', supplier: '', qty: 1 },
+  capacitor: { model: '', supplier: '', qty: 1 },
 };
 
 interface CoilCalcResult {
@@ -190,22 +192,19 @@ export default function RecipeFormPage() {
       setFloatWire(coilResult.wireGauge);
       setCableWire(coilResult.wireGauge);
     }
-    // 自动填充电容（查找匹配的电容型号）
+    // 自动填充电容到必备配件
     if (coilResult.capacitor) {
       const uf = String(coilResult.capacitor);
-      // 在 parts 中找 类别=电容 且型号包含该 uf 值的
       const capPart = parts.find(p =>
         (p.类别 || p.category) === '电容' &&
         ((p.型号 || p.model) || '').includes(uf)
       );
       if (capPart) {
         const capModel = (capPart.型号 || capPart.model) || '';
-        // 检查是否已在选配配件中
-        const exists = optionalParts.some(op => op.model === capModel);
-        if (!exists) {
-          // 自动添加到选配配件
-          setOptionalParts(prev => [...prev, { id: nextOptionalId.current++, model: capModel, supplier: '', qty: 1 }]);
-        }
+        setRequiredSelections(prev => ({
+          ...prev,
+          capacitor: { ...prev.capacitor, model: capModel }
+        }));
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -487,6 +486,7 @@ export default function RecipeFormPage() {
                   name === '泵壳' ? '泵壳'
                     : name.includes('轴承') ? '轴承'
                     : name.includes('油封') ? '油封'
+                    : name === '电容' ? '电容'
                     : '其他'
                 )}
                 getSuppliers={getSuppliersByModel}
