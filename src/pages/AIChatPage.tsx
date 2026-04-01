@@ -772,11 +772,9 @@ export default function AIChatPage() {
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptSaved, setPromptSaved] = useState(false);
 
-  // 语音录制状态
+  // 语音识别状态
   const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaRecorderRef = useRef<any>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -951,49 +949,60 @@ export default function AIChatPage() {
     setIsLoading(false);
   };
 
-  // ── 语音录制 ──
-  const handleStartRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-      audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (audioBlob.size < 500) return; // 太短，忽略
-        setIsTranscribing(true);
-        try {
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          formData.append('format', 'opus');
-          formData.append('sampleRate', '16000');
-          const res = await fetch('/api/ai/asr', { method: 'POST', body: formData });
-          const json = await res.json();
-          if (json.success && json.text) {
-            setInput(json.text);
-            // 自动发送
-            setTimeout(() => handleSend(json.text), 100);
-          } else {
-            setInput('[语音识别失败] ' + (json.error || ''));
-          }
-        } catch (e) {
-          setInput('[语音识别出错]');
-        } finally {
-          setIsTranscribing(false);
-        }
-      };
-      mediaRecorder.start();
-      mediaRecorderRef.current = mediaRecorder;
-      setIsRecording(true);
-    } catch {
-      alert('无法访问麦克风，请检查浏览器权限设置');
+  // ── 语音识别（Web Speech API）──
+  const voiceTextRef = useRef('');
+
+  const handleStartRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('当前浏览器不支持语音识别，请使用 Chrome 或 Edge');
+      return;
     }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    mediaRecorderRef.current = recognition as any;
+    voiceTextRef.current = '';
+
+    recognition.onresult = (event: any) => {
+      let finalText = '';
+      let interimText = '';
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalText += event.results[i][0].transcript;
+        } else {
+          interimText += event.results[i][0].transcript;
+        }
+      }
+      const text = finalText || interimText;
+      voiceTextRef.current = text;
+      setInput(text);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      const text = voiceTextRef.current.trim();
+      if (text) {
+        handleSend(text);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('[语音识别错误]', event.error);
+      setIsRecording(false);
+      if (event.error === 'not-allowed') {
+        alert('麦克风权限被拒绝，请在浏览器设置中允许');
+      }
+    };
+
+    recognition.start();
+    setIsRecording(true);
   };
 
   const handleStopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current) {
+      (mediaRecorderRef.current as any).stop();
     }
     setIsRecording(false);
   };
@@ -1184,10 +1193,10 @@ export default function AIChatPage() {
         />
         <IconButton
           onClick={isRecording ? handleStopRecording : handleStartRecording}
-          disabled={isLoading || isTranscribing}
+          disabled={isLoading}
           sx={{
-            bgcolor: isRecording ? '#ef4444' : isTranscribing ? alpha('#000', 0.05) : alpha('#10b981', 0.1),
-            color: isRecording ? 'white' : isTranscribing ? 'text.disabled' : '#10b981',
+            bgcolor: isRecording ? '#ef4444' : alpha('#10b981', 0.1),
+            color: isRecording ? 'white' : '#10b981',
             width: 40, height: 40,
             transition: 'all 0.2s',
             ...(isRecording ? {
@@ -1200,7 +1209,7 @@ export default function AIChatPage() {
             '&:hover': { bgcolor: isRecording ? '#dc2626' : alpha('#10b981', 0.2) },
           }}
         >
-          {isTranscribing ? <CircularProgress size={20} sx={{ color: '#10b981' }} /> : isRecording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
+          {isRecording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
         </IconButton>
         <IconButton
           onClick={() => handleSend()}
