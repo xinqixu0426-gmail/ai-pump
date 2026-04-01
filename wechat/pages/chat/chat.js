@@ -191,11 +191,19 @@ Page({
           case 'tool_result': {
             // 工具结果 → 渲染数据卡片
             const viewType = event.view_type || 'action_result';
-            const cardData = event.result || {};
+            let cardData = event.result || {};
+            if (viewType === 'order_detail_card' && cardData.order) {
+              cardData = cardData.order;
+              // 中文状态 → CSS class 映射
+              const statusMap = { '待采购': 'pending', '采购中': 'purchasing', '已完成': 'completed' };
+              cardData.statusClass = statusMap[cardData.status] || 'pending';
+            } else {
+              cardData = cardData.data || cardData.summary || cardData;
+            }
             this._addMsg({
               type: 'card',
               view_type: viewType,
-              data: viewType === 'order_detail_card' ? cardData.order : (cardData.data || cardData.summary || cardData),
+              data: cardData,
               expanded: false,
             });
             break;

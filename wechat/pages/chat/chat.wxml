@@ -92,7 +92,7 @@
         <view class="card order-card" wx:elif="{{item.view_type === 'order_detail_card'}}">
           <view class="card-header">
             <text class="card-title">📋 订单 #{{item.data.id}}</text>
-            <text class="card-status status-{{item.data.status}}">{{item.data.status}}</text>
+            <text class="card-status status-{{item.data.statusClass}}">{{item.data.status}}</text>
           </view>
           <view class="order-customer">客户: {{item.data.customerName}}</view>
           <view class="order-items" wx:if="{{item.data.items.length > 0}}">

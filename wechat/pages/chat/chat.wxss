@@ -88,9 +88,9 @@
 .card-status {
   font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 12rpx; font-weight: 600;
 }
-.status-待采购 { background: var(--warning-light); color: var(--warning); }
-.status-采购中 { background: var(--primary-light); color: var(--primary); }
-.status-已完成 { background: var(--success-light); color: var(--success); }
+.status-pending { background: var(--warning-light); color: var(--warning); }
+.status-purchasing { background: var(--primary-light); color: var(--primary); }
+.status-completed { background: var(--success-light); color: var(--success); }
 .order-items { margin: 8rpx 0; }
 .order-item { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 24rpx; }
 .order-item-cost { color: var(--text-secondary); }
