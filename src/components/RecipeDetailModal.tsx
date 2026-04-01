@@ -76,7 +76,7 @@ export default function RecipeDetailModal({
 
   // 检查库存是否足够
   const checkStock = (): StockCheck[] => {
-    const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
+    const partsJson = recipe.parts_json;
     let recipeParts: RecipePart[] = [];
     try {
       recipeParts = JSON.parse(partsJson);
@@ -89,13 +89,13 @@ export default function RecipeDetailModal({
 
       // 查找匹配的零件（精确匹配 model+supplier，回退到 model）
       let matchedPart = parts.find(
-        p => (p.型号 || p.model) === rp.model && (p.供应商 || p.supplier) === rp.supplier
+        p => p.model === rp.model && p.supplier === rp.supplier
       );
       if (!matchedPart) {
-        matchedPart = parts.find(p => (p.型号 || p.model) === rp.model);
+        matchedPart = parts.find(p => p.model === rp.model);
       }
 
-      const currentStock = matchedPart ? (matchedPart.库存 ?? matchedPart.stock ?? 0) : 0;
+      const currentStock = matchedPart ? matchedPart.stock : 0;
 
       return {
         name: rp.name || rp.model,
@@ -161,7 +161,7 @@ export default function RecipeDetailModal({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6">
-            配方详情 - {recipe.配方名称 || recipe.name}
+            配方详情 - {recipe.name}
           </Typography>
           <IconButton onClick={onClose} size="small">
             <CloseIcon />
@@ -173,7 +173,7 @@ export default function RecipeDetailModal({
         <Box sx={{ mb: 2 }}>
           <Box sx={{ display: 'flex', gap: 4, mb: 1, flexWrap: 'wrap' }}>
             <Typography variant="body1">
-              <strong>规格：</strong> {recipe.规格 || recipe.spec || '-'}
+              <strong>规格：</strong> {recipe.spec || '-'}
             </Typography>
             <Typography variant="body1">
               <strong>创建时间：</strong> {formatDate(recipe.CreatedAt)}

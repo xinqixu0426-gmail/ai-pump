@@ -961,6 +961,180 @@ app.delete('/api/coils/:id', async (req, res) => {
     }
 });
 
+// ============================================
+// 零件 CRUD 代理（供前端调用，不暴露 NocoDB Token）
+// ============================================
+
+/** GET /api/parts - 获取所有零件 */
+app.get('/api/parts', async (req, res) => {
+    try {
+        const records = await fetchAllRecords(NOCO_CONFIG.partsTable);
+        res.json({ success: true, data: records });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** POST /api/parts - 创建零件 */
+app.post('/api/parts', async (req, res) => {
+    try {
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+            method: 'POST',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** PATCH /api/parts - 更新零件 */
+app.patch('/api/parts', async (req, res) => {
+    try {
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+            method: 'PATCH',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** DELETE /api/parts - 删除零件 */
+app.delete('/api/parts', async (req, res) => {
+    try {
+        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+            method: 'DELETE',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// 配方 CRUD 代理
+// ============================================
+
+/** GET /api/recipes - 获取所有配方 */
+app.get('/api/recipes', async (req, res) => {
+    try {
+        const records = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+        res.json({ success: true, data: records });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** GET /api/recipes/:id - 获取单个配方 */
+app.get('/api/recipes/:id', async (req, res) => {
+    try {
+        const data = await apiRequest(
+            `/api/v2/tables/${NOCO_CONFIG.recipesTable}/records?where=(Id,eq,${req.params.id})`
+        );
+        const record = data.list?.[0];
+        if (!record) return res.status(404).json({ success: false, error: '配方不存在' });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** POST /api/recipes - 创建配方 */
+app.post('/api/recipes', async (req, res) => {
+    try {
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
+            method: 'POST',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** DELETE /api/recipes - 删除配方 */
+app.delete('/api/recipes', async (req, res) => {
+    try {
+        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
+            method: 'DELETE',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// 订单 CRUD 代理
+// ============================================
+
+/** GET /api/orders - 获取所有订单 */
+app.get('/api/orders', async (req, res) => {
+    try {
+        const records = await fetchAllRecords(NOCO_CONFIG.ordersTable);
+        res.json({ success: true, data: records });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** GET /api/orders/:id - 获取单个订单 */
+app.get('/api/orders/:id', async (req, res) => {
+    try {
+        const data = await apiRequest(
+            `/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${req.params.id})`
+        );
+        const record = data.list?.[0];
+        if (!record) return res.status(404).json({ success: false, error: '订单不存在' });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** POST /api/orders - 创建订单 */
+app.post('/api/orders', async (req, res) => {
+    try {
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+            method: 'POST',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** PATCH /api/orders - 更新订单 */
+app.patch('/api/orders', async (req, res) => {
+    try {
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+            method: 'PATCH',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** DELETE /api/orders - 删除订单 */
+app.delete('/api/orders', async (req, res) => {
+    try {
+        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
+            method: 'DELETE',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 
 // ============================================
 // 线圈转子成本计算（支持插值）

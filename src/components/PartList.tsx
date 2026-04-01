@@ -43,16 +43,16 @@ export default function PartList({ parts, onEdit, onDelete }: PartListProps) {
     const query = searchQuery.toLowerCase();
     return parts.filter(
       (part) =>
-        (part.型号 || part.model || '').toLowerCase().includes(query) ||
-        (part.供应商 || part.supplier || '').toLowerCase().includes(query) ||
-        (part.类别 || part.category || '').toLowerCase().includes(query)
+        part.model.toLowerCase().includes(query) ||
+        part.supplier.toLowerCase().includes(query) ||
+        part.category.toLowerCase().includes(query)
     );
   }, [parts, searchQuery]);
 
   // 按类别分组
   const groupedParts = useMemo(() => {
     const groups = filteredParts.reduce((acc, part) => {
-      const category = part.类别 || part.category || '未分类';
+      const category = part.category || '未分类';
       if (!acc[category]) {
         acc[category] = [];
       }
@@ -222,18 +222,18 @@ export default function PartList({ parts, onEdit, onDelete }: PartListProps) {
                     <TableBody>
                       {paginatedParts.map((part) => (
                         <TableRow key={part.Id} hover>
-                          <TableCell>{part.型号 || part.model}</TableCell>
+                          <TableCell>{part.model}</TableCell>
                           <TableCell>
-                            ¥{(part.单价 || part.price || 0).toFixed(2)}
+                            ¥{part.price.toFixed(2)}
                           </TableCell>
                           <TableCell>
-                            {part.供应商 || part.supplier || '-'}
+                            {part.supplier || '-'}
                           </TableCell>
                           <TableCell align="center">
                             <Chip
-                              label={part.库存 ?? part.stock ?? 0}
+                              label={part.stock}
                               size="small"
-                              color={(part.库存 ?? part.stock ?? 0) === 0 ? 'error' : (part.库存 ?? part.stock ?? 0) <= 5 ? 'warning' : 'success'}
+                              color={part.stock === 0 ? 'error' : part.stock <= 5 ? 'warning' : 'success'}
                               variant="outlined"
                               sx={{ fontWeight: 600, minWidth: 40 }}
                             />

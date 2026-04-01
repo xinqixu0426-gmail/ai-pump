@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Paper,
@@ -62,6 +62,25 @@ export default function RecipesPage() {
     loadData();
   }, [loadData]);
 
+  // 预计算所有配方的概览和成本（避免每帧重算）
+  const recipeData = useMemo(() => {
+    if (parts.length === 0) return new Map<number, { overview: string; cost: string; costResult: CostResult }>();
+    const { partsCache, partsByModel } = buildPartsIndex(parts);
+    const map = new Map<number, { overview: string; cost: string; costResult: CostResult }>();
+
+    for (const recipe of recipes) {
+      const partsJson = recipe.parts_json;
+      let recipeParts: RecipePart[] = [];
+      try { recipeParts = JSON.parse(partsJson); } catch { /* noop */ }
+
+      const overview = recipeParts.map((p) => `${p.model}×${p.qty}`).join(', ') || '-';
+      const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel, recipe.saved_total_cost);
+
+      map.set(recipe.Id, { overview, cost: `¥${costResult.totalCost}`, costResult });
+    }
+    return map;
+  }, [recipes, parts]);
+
   // 删除配方
   const handleDelete = async (id: number) => {
     if (!window.confirm('确定要删除这个配方吗？')) return;
@@ -77,18 +96,10 @@ export default function RecipesPage() {
 
   // 查看配方详情
   const handleViewDetail = (recipe: Recipe) => {
-    const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
-    let recipeParts: RecipePart[] = [];
-    try {
-      recipeParts = JSON.parse(partsJson);
-    } catch {
-      recipeParts = [];
+    const data = recipeData.get(recipe.Id);
+    if (data) {
+      setSelectedRecipe({ recipe, costResult: data.costResult });
     }
-
-    const { partsCache, partsByModel } = buildPartsIndex(parts);
-    const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel, recipe.saved_total_cost);
-
-    setSelectedRecipe({ recipe, costResult });
   };
 
   // 关闭详情弹窗
@@ -101,38 +112,12 @@ export default function RecipesPage() {
     navigate('/recipe-form', {
       state: {
         cloneFrom: {
-          name: (recipe.配方名称 || recipe.name || '') + '-副本',
-          spec: recipe.规格 || recipe.spec || '',
-          partsJson: recipe.配件JSON || recipe.parts_json || '[]'
+          name: recipe.name + '-副本',
+          spec: recipe.spec,
+          partsJson: recipe.parts_json
         }
       }
     });
-  };
-
-  // 解析配件概览
-  const getPartsOverview = (recipe: Recipe): string => {
-    const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
-    try {
-      const parts: RecipePart[] = JSON.parse(partsJson);
-      return parts.map((p) => `${p.model}×${p.qty}`).join(', ');
-    } catch {
-      return '-';
-    }
-  };
-
-  // 计算单个配方成本
-  const getRecipeCost = (recipe: Recipe): string => {
-    const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
-    let recipeParts: RecipePart[] = [];
-    try {
-      recipeParts = JSON.parse(partsJson);
-    } catch {
-      return '-';
-    }
-
-    const { partsCache, partsByModel } = buildPartsIndex(parts);
-    const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel, recipe.saved_total_cost);
-    return `¥${costResult.totalCost}`;
   };
 
   return (
@@ -183,53 +168,56 @@ export default function RecipesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {recipes.map((recipe) => (
-                <TableRow key={recipe.Id} hover sx={{ cursor: 'pointer' }} onDoubleClick={() => handleViewDetail(recipe)}>
-                  <TableCell>{recipe.配方名称 || recipe.name}</TableCell>
-                  <TableCell>{recipe.规格 || recipe.spec || '-'}</TableCell>
-                  <TableCell
-                    sx={{
-                      maxWidth: '300px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                    title={getPartsOverview(recipe)}
-                  >
-                    {getPartsOverview(recipe)}
-                  </TableCell>
-                  <TableCell>{getRecipeCost(recipe)}</TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="详情">
-                      <IconButton
-                        size="small"
-                        color="info"
-                        onClick={() => handleViewDetail(recipe)}
-                      >
-                        <InfoIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="复制配方">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleClone(recipe)}
-                      >
-                        <CopyIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="删除">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDelete(recipe.Id)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {recipes.map((recipe) => {
+                const data = recipeData.get(recipe.Id);
+                return (
+                  <TableRow key={recipe.Id} hover sx={{ cursor: 'pointer' }} onDoubleClick={() => handleViewDetail(recipe)}>
+                    <TableCell>{recipe.name}</TableCell>
+                    <TableCell>{recipe.spec || '-'}</TableCell>
+                    <TableCell
+                      sx={{
+                        maxWidth: '300px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={data?.overview || '-'}
+                    >
+                      {data?.overview || '-'}
+                    </TableCell>
+                    <TableCell>{data?.cost || '-'}</TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="详情">
+                        <IconButton
+                          size="small"
+                          color="info"
+                          onClick={() => handleViewDetail(recipe)}
+                        >
+                          <InfoIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="复制配方">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleClone(recipe)}
+                        >
+                          <CopyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="删除">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDelete(recipe.Id)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

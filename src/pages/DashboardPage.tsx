@@ -31,6 +31,7 @@ import { Order, OrderStatus, Recipe, Part } from '../types';
 import { getAllOrders } from '../utils/orderStore';
 import { getAllRecipes, getAllParts } from '../utils/api';
 import OrderDetailModal from '../components/OrderDetailModal';
+import { formatDate } from '../utils/format';
 
 // ─── 状态配置 ─────────────────────────────────────────
 const STATUS_CONFIG: Record<OrderStatus, { color: string; bg: string; icon: React.ReactNode; gradient: string }> = {
@@ -138,8 +139,7 @@ function OrderCard({ order, onDetail, index }: OrderCardProps) {
   const progress = needCount > 0 ? (purchasedCount / needCount) * 100 : 100;
   const config = STATUS_CONFIG[order.status];
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
 
   return (
     <Fade in timeout={300 + index * 80}>
@@ -405,7 +405,7 @@ export default function DashboardPage() {
     const totalProfit = orders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
     const pendingCount = ordersByStatus['待采购'].length + ordersByStatus['采购中'].length;
     const lowStockParts = parts.filter((p) => {
-      const stock = Number(p.库存 ?? p.stock ?? 0);
+      const stock = p.stock;
       return stock <= 5 && stock >= 0;
     }).length;
     return { totalRevenue, totalProfit, pendingCount, lowStockParts };

@@ -1,14 +1,8 @@
-// NocoDB API 配置
-export const NOCO_CONFIG = {
-  baseUrl: import.meta.env.VITE_NOCO_BASE_URL || 'http://localhost:8080',
-  apiToken: import.meta.env.VITE_NOCO_API_TOKEN || '',
-  partsTable: import.meta.env.VITE_NOCO_PARTS_TABLE || '',
-  recipesTable: import.meta.env.VITE_NOCO_RECIPES_TABLE || '',
-  ordersTable: import.meta.env.VITE_NOCO_ORDERS_TABLE || ''
-};
+// NocoDB Token 和 Table ID 已收口到后端 api.cjs，前端不再暴露
 
-// 零件类型
-export interface Part {
+// ─── NocoDB 原始数据（含中文字段）─────────────────────
+/** NocoDB 返回的 Part 原始格式 */
+export interface RawPart {
   Id: number;
   型号?: string;
   model?: string;
@@ -22,13 +16,78 @@ export interface Part {
   stock?: number;
 }
 
-// 配方配件项
+/** NocoDB 返回的 Recipe 原始格式 */
+export interface RawRecipe {
+  Id: number;
+  配方名称?: string;
+  name?: string;
+  规格?: string;
+  spec?: string;
+  配件JSON?: string;
+  parts_json?: string;
+  saved_total_cost?: number;
+  保存时总成本?: number;
+  saved_cost_details?: string;
+  保存时成本明细?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+// ─── Normalize 后的统一类型（前端全部使用这些）───────
+/** 标准化后的零件 */
+export interface Part {
+  Id: number;
+  model: string;
+  category: string;
+  price: number;
+  supplier: string;
+  stock: number;
+}
+
+/** 标准化后的配方 */
+export interface Recipe {
+  Id: number;
+  name: string;
+  spec: string;
+  parts_json: string;
+  saved_total_cost?: number;
+  saved_cost_details?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+// ─── Normalize 函数 ──────────────────────────────────
+export function normalizePart(raw: RawPart): Part {
+  return {
+    Id: raw.Id,
+    model: (raw.型号 || raw.model || '').trim(),
+    category: (raw.类别 || raw.category || '').trim(),
+    price: Number(raw.单价 ?? raw.price ?? 0),
+    supplier: (raw.供应商 || raw.supplier || '').trim(),
+    stock: Number(raw.库存 ?? raw.stock ?? 0),
+  };
+}
+
+export function normalizeRecipe(raw: RawRecipe): Recipe {
+  return {
+    Id: raw.Id,
+    name: (raw.配方名称 || raw.name || '').trim(),
+    spec: (raw.规格 || raw.spec || '').trim(),
+    parts_json: raw.配件JSON || raw.parts_json || '[]',
+    saved_total_cost: raw.saved_total_cost ?? raw.保存时总成本,
+    saved_cost_details: raw.saved_cost_details ?? raw.保存时成本明细,
+    CreatedAt: raw.CreatedAt,
+    UpdatedAt: raw.UpdatedAt,
+  };
+}
+
+// ─── 配方配件项 ──────────────────────────────────────
 export interface RecipePart {
   model: string;
   name: string;
   supplier: string;
   qty: number;
-  snapshotPrice?: number; // 保存配方时的单价快照
+  snapshotPrice?: number;
 }
 
 // 配件选择（表单用）
@@ -38,24 +97,7 @@ export interface PartSelection {
   qty: number;
 }
 
-// 配方类型
-export interface Recipe {
-  Id: number;
-  配方名称?: string;
-  name?: string;
-  规格?: string;
-  spec?: string;
-  配件JSON?: string;
-  parts_json?: string;
-  saved_total_cost?: number;
-  保存时总成本?: number;  // NocoDB 中文字段名
-  saved_cost_details?: string;
-  保存时成本明细?: string;
-  CreatedAt?: string;
-  UpdatedAt?: string;
-}
-
-// 成本计算结果项
+// ─── 成本相关 ────────────────────────────────────────
 export interface CostDetail {
   name: string;
   model: string;
@@ -64,14 +106,13 @@ export interface CostDetail {
   qty: number;
   subtotal: string;
   source: string;
-  snapshotPrice?: string;    // 保存时的快照单价
-  snapshotSubtotal?: string; // 保存时的快照小计
+  snapshotPrice?: string;
+  snapshotSubtotal?: string;
 }
 
-// 成本计算结果
 export interface CostResult {
   totalCost: string;
-  snapshotTotalCost?: string; // 保存时的总成本快照
+  snapshotTotalCost?: string;
   itemCount: number;
   details: CostDetail[];
   missingParts: string[];
@@ -86,55 +127,50 @@ export interface ApiResponse<T> {
 
 // ====== 订单相关类型 ======
 
-// 订单中的单个型号条目
 export interface OrderItem {
-  id: string;            // 本地唯一ID（uuid-like）
-  recipeId?: number;     // 关联配方ID，临时型号则无
-  recipeName: string;    // 型号/配方名称
-  spec?: string;         // 规格
-  qty: number;           // 生产数量
-  partsJson: string;     // JSON字符串，RecipePart[]
-  unitCost: number;      // 单台成本（从配方 saved_total_cost）
-  profitMargin: number;  // 利润率倍数，如 1.15 = 15% 利润
-  unitPrice: number;     // 不含税出厂价 = unitCost × profitMargin（可手动覆盖）
+  id: string;
+  recipeId?: number;
+  recipeName: string;
+  spec?: string;
+  qty: number;
+  partsJson: string;
+  unitCost: number;
+  profitMargin: number;
+  unitPrice: number;
 }
 
-// 采购清单中的单条零件汇总
 export interface PurchaseItem {
   model: string;
   name: string;
   supplier: string;
-  totalQty: number;      // 所有型号需求总量
-  currentStock: number;  // 当前库存
-  needToBuy: number;     // max(0, totalQty - currentStock)
-  purchased: boolean;    // 是否已采购（逐条勾选）
-  partId?: number;       // NocoDB Parts表Id，用于更新库存
+  totalQty: number;
+  currentStock: number;
+  needToBuy: number;
+  purchased: boolean;
+  partId?: number;
 }
 
-// 采购 to-do 条目
 export interface TodoItem {
   id: string;
   supplier: string;
-  description: string;   // 如："联系张记配件采购：201×4, 12双面×2"
+  description: string;
   done: boolean;
 }
 
-// 订单状态
 export type OrderStatus = '待采购' | '采购中' | '已完成';
 
-// 订单
 export interface Order {
   id: string;
   customerName: string;
-  contractNo?: string;   // 合同号
+  contractNo?: string;
   remark?: string;
   status: OrderStatus;
-  items: OrderItem[];            // 型号列表
-  purchaseList: PurchaseItem[];  // 采购汇总清单
-  todos: TodoItem[];             // 采购 to-do
-  totalCost: number;             // 所有型号 unitCost × qty 之和
-  totalPrice: number;            // 所有型号 unitPrice × qty 之和
-  totalProfit: number;           // totalPrice - totalCost
-  createdAt: string;             // ISO字符串
+  items: OrderItem[];
+  purchaseList: PurchaseItem[];
+  todos: TodoItem[];
+  totalCost: number;
+  totalPrice: number;
+  totalProfit: number;
+  createdAt: string;
   updatedAt: string;
 }

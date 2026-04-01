@@ -28,6 +28,7 @@ import {
 import { Order, OrderStatus } from '../types';
 import { getAllOrders, deleteOrder } from '../utils/orderStore';
 import OrderDetailModal from '../components/OrderDetailModal';
+import { formatDate } from '../utils/format';
 
 const STATUS_COLOR: Record<OrderStatus, 'warning' | 'info' | 'success'> = {
   待采购: 'warning',
@@ -58,8 +59,7 @@ export default function OrdersPage() {
 
   const handleDetail = (order: Order) => setSelected(order);
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
 
   return (
     <Paper elevation={2} sx={{ p: 3 }}>

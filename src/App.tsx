@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -41,10 +41,9 @@ function App() {
     return 0;
   };
 
-  const [tabValue, setTabValue] = useState(getTabValue(location.pathname));
+  const tabValue = useMemo(() => getTabValue(location.pathname), [location.pathname]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
     switch (newValue) {
       case 0:
         navigate('/');

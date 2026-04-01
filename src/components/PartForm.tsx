@@ -44,8 +44,8 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
   // 当编辑的零件变化时，更新表单
   useEffect(() => {
     if (part) {
-      setModel(part.型号 || part.model || '');
-      const cat = part.类别 || part.category || '';
+      setModel(part.model);
+      const cat = part.category;
       if (CATEGORIES.includes(cat)) {
         setCategory(cat);
         setCustomCategory('');
@@ -53,9 +53,9 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
         setCategory('其他');
         setCustomCategory(cat);
       }
-      setPrice(String(part.单价 || part.price || ''));
-      setSupplier(part.供应商 || part.supplier || '');
-      setStock(String(part.库存 ?? part.stock ?? ''));
+      setPrice(String(part.price || ''));
+      setSupplier(part.supplier);
+      setStock(String(part.stock ?? ''));
     } else {
       // 清空表单
       setModel('');
@@ -73,11 +73,11 @@ export default function PartForm({ part, onSave, onCancel }: PartFormProps) {
     const finalCategory = category === '其他' ? customCategory : category;
 
     onSave({
-      型号: model,
-      类别: finalCategory,
-      单价: parseFloat(price) || 0,
-      供应商: supplier,
-      库存: parseInt(stock) || 0
+      model,
+      category: finalCategory,
+      price: parseFloat(price) || 0,
+      supplier,
+      stock: parseInt(stock) || 0
     });
 
     if (!part) {

@@ -1,5 +1,4 @@
-import { NOCO_CONFIG, Order, OrderItem, PurchaseItem, TodoItem, RecipePart, Part } from '../types';
-import { apiRequest } from './api';
+import { Order, OrderItem, PurchaseItem, TodoItem, RecipePart, Part } from '../types';
 
 // ── 生成 ID ──────────────────────────────────────────
 function genId(): string {
@@ -52,40 +51,30 @@ function safeJsonParse<T>(str: string | undefined, fallback: T): T {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
-// ── NocoDB CRUD ──────────────────────────────────────
-
-const TABLE = NOCO_CONFIG.ordersTable;
-
-/** 递归分页抓取 */
-async function fetchAllRows(): Promise<OrderRow[]> {
-  const PAGE_SIZE = 100;
-  let offset = 0;
-  const all: OrderRow[] = [];
-  while (true) {
-    const data = await apiRequest<{ list: OrderRow[] }>(
-      `/api/v2/tables/${TABLE}/records?limit=${PAGE_SIZE}&offset=${offset}`
-    );
-    const list = data.list || [];
-    if (list.length === 0) break;
-    all.push(...list);
-    if (list.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
-  }
-  return all;
+// ── 后端代理请求封装 ────────────────────────────────
+async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return response.json();
 }
 
+// ── 订单 CRUD（走后端 /api/orders 代理）──────────────
+
 export async function getAllOrders(): Promise<Order[]> {
-  const rows = await fetchAllRows();
-  return rows.map(rowToOrder);
+  const res = await proxyRequest<{ success: boolean; data: OrderRow[] }>('/api/orders');
+  return (res.data || []).map(rowToOrder);
 }
 
 export async function getOrder(id: string): Promise<Order | null> {
   try {
-    const data = await apiRequest<{ list: OrderRow[] }>(
-      `/api/v2/tables/${TABLE}/records?where=(Id,eq,${id})`
-    );
-    const row = data.list?.[0];
-    return row ? rowToOrder(row) : null;
+    const res = await proxyRequest<{ success: boolean; data: OrderRow }>(`/api/orders/${id}`);
+    return res.data ? rowToOrder(res.data) : null;
   } catch {
     return null;
   }
@@ -106,7 +95,7 @@ export async function saveOrder(order: Order): Promise<Order> {
   const numId = Number(order.id);
   if (!isNaN(numId) && numId > 0) {
     record.Id = numId;
-    await apiRequest(`/api/v2/tables/${TABLE}/records`, {
+    await proxyRequest('/api/orders', {
       method: 'PATCH',
       body: JSON.stringify(record),
     });
@@ -114,17 +103,17 @@ export async function saveOrder(order: Order): Promise<Order> {
   }
 
   // 新建行
-  const created = await apiRequest<OrderRow>(`/api/v2/tables/${TABLE}/records`, {
+  const res = await proxyRequest<{ success: boolean; data: OrderRow }>('/api/orders', {
     method: 'POST',
     body: JSON.stringify(record),
   });
-  return { ...order, id: String(created.Id), createdAt: created.CreatedAt || order.createdAt };
+  return { ...order, id: String(res.data.Id), createdAt: res.data.CreatedAt || order.createdAt };
 }
 
 export async function deleteOrder(id: string): Promise<void> {
   const numId = Number(id);
   if (isNaN(numId)) return;
-  await apiRequest(`/api/v2/tables/${TABLE}/records`, {
+  await proxyRequest('/api/orders', {
     method: 'DELETE',
     body: JSON.stringify([{ Id: numId }]),
   });
@@ -215,8 +204,8 @@ export function buildPurchaseList(items: OrderItem[], allParts: Part[]): Purchas
   const partIndex: Map<string, Part> = new Map();
   const partByModel: Map<string, Part> = new Map();
   for (const p of allParts) {
-    const m = (p.型号 || p.model || '').trim();
-    const s = (p.供应商 || p.supplier || '').trim();
+    const m = p.model;
+    const s = p.supplier;
     if (m) {
       partIndex.set(`${m}|${s}`, p);
       if (!partByModel.has(m)) partByModel.set(m, p);
@@ -242,7 +231,7 @@ export function buildPurchaseList(items: OrderItem[], allParts: Part[]): Purchas
   const result: PurchaseItem[] = [];
   for (const [, { part, totalQty, supplier }] of merged) {
     const dbPart = partIndex.get(`${part.model}|${supplier}`) ?? partByModel.get(part.model) ?? null;
-    const currentStock = Number(dbPart?.库存 ?? dbPart?.stock ?? 0);
+    const currentStock = dbPart?.stock ?? 0;
     const needToBuy = Math.max(0, totalQty - currentStock);
     result.push({
       model: part.model, name: part.name, supplier, totalQty, currentStock, needToBuy, purchased: false, partId: dbPart?.Id,

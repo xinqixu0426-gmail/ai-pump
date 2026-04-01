@@ -1,7 +1,9 @@
-import { Part, RecipePart, CostDetail, CostResult } from '../types';
+import { Part } from '../types';
 
 /**
- * 加载零件数据并构建索引
+ * 构建零件索引
+ * @returns partsCache: model+supplier → Part (精确匹配)
+ * @returns partsByModel: model → Part[] (型号回退)
  */
 export function buildPartsIndex(parts: Part[]): {
   partsCache: Map<string, Part>;
@@ -10,20 +12,17 @@ export function buildPartsIndex(parts: Part[]): {
   const partsCache = new Map<string, Part>();
   const partsByModel = new Map<string, Part[]>();
 
-  parts.forEach(part => {
-    const model = part.型号 || part.model || '';
-    const supplier = part.供应商 || part.supplier || '';
+  for (const part of parts) {
+    const model = part.model;
+    const supplier = part.supplier;
+    const key = `${model}||${supplier}`;
+    partsCache.set(key, part);
 
-    // 构建精确匹配缓存 (model + supplier)
-    const cacheKey = `${model}|${supplier}`;
-    partsCache.set(cacheKey, part);
-
-    // 构建型号索引
     if (!partsByModel.has(model)) {
       partsByModel.set(model, []);
     }
     partsByModel.get(model)!.push(part);
-  });
+  }
 
   return { partsCache, partsByModel };
 }
@@ -31,83 +30,84 @@ export function buildPartsIndex(parts: Part[]): {
 /**
  * 计算配方成本
  */
+export interface RecipePartForCalc {
+  model: string;
+  name: string;
+  supplier: string;
+  qty: number;
+  snapshotPrice?: number;
+}
+
 export function calculateRecipeCost(
-  recipeParts: RecipePart[],
+  recipeParts: RecipePartForCalc[],
   partsCache: Map<string, Part>,
   partsByModel: Map<string, Part[]>,
   savedTotalCost?: number
-): CostResult {
+): { totalCost: string; snapshotTotalCost?: string; itemCount: number; details: Array<{
+  name: string; model: string; supplier: string; price: string; qty: number; subtotal: string; source: string; snapshotPrice?: string; snapshotSubtotal?: string;
+}>; missingParts: string[] } {
   let totalCost = 0;
-  let snapshotTotalCost = savedTotalCost || 0;
-  let hasSnapshot = savedTotalCost !== undefined;
-  const details: CostDetail[] = [];
+  let snapshotTotal = 0;
+  const details: Array<{
+    name: string; model: string; supplier: string; price: string; qty: number; subtotal: string; source: string; snapshotPrice?: string; snapshotSubtotal?: string;
+  }> = [];
   const missingParts: string[] = [];
 
-  recipeParts.forEach(item => {
-    const { model, name, supplier, qty } = item;
-
-    // 1. 尝试精确匹配 (model + supplier)
-    let matchedPart = partsCache.get(`${model}|${supplier}`);
+  for (const rp of recipeParts) {
     let price = 0;
-    let matchedSupplier = supplier;
-    let source = '';
+    let source = '未找到';
+    let matchedSupplier = rp.supplier || '-';
 
-    if (matchedPart && supplier) {
-      price = matchedPart.单价 || matchedPart.price || 0;
+    // 1) 精确匹配: model + supplier
+    const exactKey = `${rp.model}||${rp.supplier}`;
+    const matchedPart = partsCache.get(exactKey);
+    if (matchedPart) {
+      price = matchedPart.price;
       source = '精确匹配';
+      matchedSupplier = matchedPart.supplier;
     } else {
-      // 2. 回退到仅匹配型号 (如果有多个供应商，保守地取单价最低的作为基准)
-      const partsWithModel = partsByModel.get(model);
-      if (partsWithModel && partsWithModel.length > 0) {
-        const fallbackPart = partsWithModel.reduce((min, curr) => {
-          const currPrice = curr.单价 || curr.price || 0;
-          const minPrice = min.单价 || min.price || 0;
-          return currPrice < minPrice ? curr : min;
-        }, partsWithModel[0]);
-        
-        price = fallbackPart.单价 || fallbackPart.price || 0;
-        matchedSupplier = fallbackPart.供应商 || fallbackPart.supplier || '-';
-        source = '型号回退(取最低价)';
+      // 2) 型号回退: 找同型号最便宜的
+      const candidates = partsByModel.get(rp.model);
+      if (candidates && candidates.length > 0) {
+        const fallbackPart = candidates.reduce((min, curr) => {
+          return curr.price < min.price ? curr : min;
+        }, candidates[0]);
+        price = fallbackPart.price;
+        matchedSupplier = fallbackPart.supplier;
+        source = `型号回退(${matchedSupplier})`;
       } else {
-        missingParts.push(model);
-        matchedSupplier = supplier || '-';
-        source = '未找到';
+        missingParts.push(rp.model);
       }
     }
 
-    const subtotal = price * qty;
+    const subtotal = price * rp.qty;
     totalCost += subtotal;
 
-    // 处理快照价格
-    const snapshotPrice = item.snapshotPrice;
-    let snapshotSubtotal: number | undefined;
-    if (snapshotPrice !== undefined && snapshotPrice !== null) {
-      snapshotSubtotal = snapshotPrice * qty;
-      // 只有在没传专门总成本字段时才去累加 JSON 里的内容
-      if (savedTotalCost === undefined) {
-        hasSnapshot = true;
-        snapshotTotalCost += snapshotSubtotal;
-      }
-    }
-
-    details.push({
-      name: name || model,
-      model,
+    const detail: typeof details[0] = {
+      name: rp.name,
+      model: rp.model,
       supplier: matchedSupplier,
       price: price.toFixed(2),
-      qty,
+      qty: rp.qty,
       subtotal: subtotal.toFixed(2),
       source,
-      snapshotPrice: snapshotPrice !== undefined && snapshotPrice !== null ? snapshotPrice.toFixed(2) : undefined,
-      snapshotSubtotal: snapshotSubtotal !== undefined ? snapshotSubtotal.toFixed(2) : undefined
-    });
-  });
+    };
+
+    // 快照价格
+    if (rp.snapshotPrice !== undefined) {
+      detail.snapshotPrice = rp.snapshotPrice.toFixed(2);
+      detail.snapshotSubtotal = (rp.snapshotPrice * rp.qty).toFixed(2);
+      snapshotTotal += rp.snapshotPrice * rp.qty;
+    }
+
+    details.push(detail);
+  }
 
   return {
     totalCost: totalCost.toFixed(2),
-    snapshotTotalCost: hasSnapshot ? snapshotTotalCost.toFixed(2) : undefined,
+    snapshotTotalCost: savedTotalCost !== undefined ? String(savedTotalCost) : (snapshotTotal > 0 ? snapshotTotal.toFixed(2) : undefined),
     itemCount: recipeParts.length,
     details,
-    missingParts
+    missingParts,
   };
 }

@@ -1,19 +1,24 @@
-import { NOCO_CONFIG, Part, Recipe, RecipePart, CostResult, ApiResponse } from '../types';
+import {
+  Part,
+  Recipe,
+  RecipePart,
+  CostResult,
+  ApiResponse,
+  RawPart,
+  RawRecipe,
+  normalizePart,
+  normalizeRecipe,
+} from '../types';
 
-/**
- * NocoDB API 请求封装
- */
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${NOCO_CONFIG.baseUrl}${path}`;
-  const headers: Record<string, string> = {
-    'xc-token': NOCO_CONFIG.apiToken,
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {})
-  };
+// ─── 通用请求封装（走后端代理，不暴露 NocoDB Token）──
 
-  const response = await fetch(url, {
+async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, {
     ...options,
-    headers
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    },
   });
 
   if (!response.ok) {
@@ -23,134 +28,101 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return response.json();
 }
 
-/**
- * 递归分页抓取所有记录
- */
-async function fetchAllRecords<T>(tableId: string): Promise<T[]> {
-  const PAGE_SIZE = 100;
-  let offset = 0;
-  const all: T[] = [];
-
-  while (true) {
-    const data = await apiRequest<{ list: T[] }>(
-      `/api/v2/tables/${tableId}/records?limit=${PAGE_SIZE}&offset=${offset}`
-    );
-    const list = data.list || [];
-    if (list.length === 0) break;
-    all.push(...list);
-    if (list.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
-  }
-
-  return all;
-}
+// ─── 零件 CRUD ──────────────────────────────
 
 /**
- * 获取所有零件
+ * 获取所有零件（已 normalize）
  */
 export async function getAllParts(): Promise<Part[]> {
-  return fetchAllRecords<Part>(NOCO_CONFIG.partsTable);
+  const res = await proxyRequest<{ success: boolean; data: RawPart[] }>('/api/parts');
+  return (res.data || []).map(normalizePart);
 }
 
 /**
  * 创建零件
  */
 export async function createPart(part: Omit<Part, 'Id'>): Promise<Part> {
-  const record: Record<string, unknown> = {
-    型号: part.型号 || part.model,
-    类别: part.类别 || part.category,
-    单价: part.单价 || part.price,
-    供应商: part.供应商 || part.supplier
+  const record = {
+    型号: part.model,
+    类别: part.category,
+    单价: part.price,
+    供应商: part.supplier,
+    库存: part.stock ?? 0,
   };
-  
-  if (part.库存 !== undefined || part.stock !== undefined) {
-    record.库存 = part.库存 ?? part.stock ?? 0;
-  }
 
-  return apiRequest<Part>(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+  const res = await proxyRequest<{ success: boolean; data: RawPart }>('/api/parts', {
     method: 'POST',
-    body: JSON.stringify(record)
+    body: JSON.stringify(record),
   });
+  return normalizePart(res.data);
 }
 
 /**
  * 更新零件
  */
 export async function updatePart(id: number, part: Partial<Part>): Promise<Part> {
-  const record: Record<string, unknown> = {
-    Id: id
-  };
-  if (part.型号 !== undefined || part.model !== undefined) {
-    record.型号 = part.型号 || part.model;
-  }
-  if (part.类别 !== undefined || part.category !== undefined) {
-    record.类别 = part.类别 || part.category;
-  }
-  if (part.单价 !== undefined || part.price !== undefined) {
-    record.单价 = part.单价 || part.price;
-  }
-  if (part.供应商 !== undefined || part.supplier !== undefined) {
-    record.供应商 = part.供应商 || part.supplier;
-  }
-  if (part.库存 !== undefined || part.stock !== undefined) {
-    record.库存 = part.库存 ?? part.stock;
-  }
+  const record: Record<string, unknown> = { Id: id };
+  if (part.model !== undefined) record.型号 = part.model;
+  if (part.category !== undefined) record.类别 = part.category;
+  if (part.price !== undefined) record.单价 = part.price;
+  if (part.supplier !== undefined) record.供应商 = part.supplier;
+  if (part.stock !== undefined) record.库存 = part.stock;
 
-  return apiRequest<Part>(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+  const res = await proxyRequest<{ success: boolean; data: RawPart }>('/api/parts', {
     method: 'PATCH',
-    body: JSON.stringify(record)
+    body: JSON.stringify(record),
   });
+  return normalizePart(res.data);
 }
 
 /**
  * 删除零件
  */
 export async function deletePart(id: number): Promise<void> {
-  await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+  await proxyRequest('/api/parts', {
     method: 'DELETE',
-    body: JSON.stringify([{ Id: id }])
+    body: JSON.stringify([{ Id: id }]),
   });
 }
 
 /**
- * 批量扣减库存（生产用）
- * deductions: [{ partId, deductQty }]
- * 返回扣减后更新过的零件列表
+ * 批量扣减库存（生产用）— 并行
  */
 export async function batchDeductStock(
   deductions: Array<{ partId: number; currentStock: number; deductQty: number }>
 ): Promise<void> {
-  // 逐条更新库存（NocoDB PATCH 支持单条更新）
-  for (const d of deductions) {
+  await Promise.all(deductions.map((d) => {
     const newStock = Math.max(0, d.currentStock - d.deductQty);
-    await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+    return proxyRequest('/api/parts', {
       method: 'PATCH',
-      body: JSON.stringify({ Id: d.partId, 库存: newStock })
+      body: JSON.stringify({ Id: d.partId, 库存: newStock }),
     });
-  }
+  }));
 }
 
 /**
- * 批量增加库存（采购入库用）
- * additions: [{ partId, addQty, currentStock }]
+ * 批量增加库存（采购入库用）— 并行
  */
 export async function batchAddStock(
   additions: Array<{ partId: number; addQty: number; currentStock: number }>
 ): Promise<void> {
-  for (const a of additions) {
+  await Promise.all(additions.map((a) => {
     const newStock = a.currentStock + a.addQty;
-    await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
+    return proxyRequest('/api/parts', {
       method: 'PATCH',
-      body: JSON.stringify({ Id: a.partId, 库存: newStock })
+      body: JSON.stringify({ Id: a.partId, 库存: newStock }),
     });
-  }
+  }));
 }
 
+// ─── 配方 CRUD ──────────────────────────────
+
 /**
- * 获取所有配方
+ * 获取所有配方（已 normalize）
  */
 export async function getAllRecipes(): Promise<Recipe[]> {
-  return fetchAllRecords<Recipe>(NOCO_CONFIG.recipesTable);
+  const res = await proxyRequest<{ success: boolean; data: RawRecipe[] }>('/api/recipes');
+  return (res.data || []).map(normalizeRecipe);
 }
 
 /**
@@ -158,10 +130,8 @@ export async function getAllRecipes(): Promise<Recipe[]> {
  */
 export async function getRecipe(id: number): Promise<Recipe | null> {
   try {
-    const data = await apiRequest<{ list: Recipe[] }>(
-      `/api/v2/tables/${NOCO_CONFIG.recipesTable}/records?where=(Id,eq,${id})`
-    );
-    return data.list?.[0] || null;
+    const res = await proxyRequest<{ success: boolean; data: RawRecipe }>(`/api/recipes/${id}`);
+    return res.data ? normalizeRecipe(res.data) : null;
   } catch {
     return null;
   }
@@ -172,28 +142,31 @@ export async function getRecipe(id: number): Promise<Recipe | null> {
  */
 export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> {
   const record = {
-    配方名称: recipe.配方名称 || recipe.name,
-    规格: recipe.规格 || recipe.spec,
-    配件JSON: recipe.配件JSON || recipe.parts_json || '[]',
+    配方名称: recipe.name,
+    规格: recipe.spec,
+    配件JSON: recipe.parts_json || '[]',
     saved_total_cost: recipe.saved_total_cost,
-    saved_cost_details: recipe.saved_cost_details
+    saved_cost_details: recipe.saved_cost_details,
   };
 
-  return apiRequest<Recipe>(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
+  const res = await proxyRequest<{ success: boolean; data: RawRecipe }>('/api/recipes', {
     method: 'POST',
-    body: JSON.stringify(record)
+    body: JSON.stringify(record),
   });
+  return normalizeRecipe(res.data);
 }
 
 /**
  * 删除配方
  */
 export async function deleteRecipe(id: number): Promise<void> {
-  await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
+  await proxyRequest('/api/recipes', {
     method: 'DELETE',
-    body: JSON.stringify([{ Id: id }])
+    body: JSON.stringify([{ Id: id }]),
   });
 }
+
+// ─── 成本计算（已走后端代理）──────────────────
 
 /**
  * 计算配方成本
@@ -202,7 +175,7 @@ export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
   const response = await fetch('/api/cost/calculate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ parts })
+    body: JSON.stringify({ parts }),
   });
 
   const result: ApiResponse<CostResult> = await response.json();

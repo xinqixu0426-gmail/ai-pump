@@ -48,7 +48,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 
-const API_BASE = 'http://localhost:3002';
+const API_BASE = '';
 
 interface CoilRecord {
   Id: number;

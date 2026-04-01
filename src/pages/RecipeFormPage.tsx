@@ -34,7 +34,7 @@ import { Part, RecipePart } from '../types';
 import { getAllParts, createRecipe } from '../utils/api';
 import RecipePartRow from '../components/RecipePartRow';
 
-const COIL_API_BASE = 'http://localhost:3002';
+const COIL_API_BASE = '';
 
 // 必备配件（线圈转子单独处理）
 const REQUIRED_PARTS = [
@@ -196,11 +196,11 @@ export default function RecipeFormPage() {
     if (coilResult.capacitor) {
       const uf = String(coilResult.capacitor);
       const capPart = parts.find(p =>
-        (p.类别 || p.category) === '电容' &&
-        ((p.型号 || p.model) || '').includes(uf)
+        p.category === '电容' &&
+        (p.model).includes(uf)
       );
       if (capPart) {
-        const capModel = (capPart.型号 || capPart.model) || '';
+        const capModel = capPart.model;
         setRequiredSelections(prev => ({
           ...prev,
           capacitor: { ...prev.capacitor, model: capModel }
@@ -246,16 +246,16 @@ export default function RecipeFormPage() {
     const m1 = (model || '').trim();
     const s1 = (supplier || '').trim();
     const exactPart = parts.find(
-      (p) => ((p.型号 || p.model) || '').trim() === m1 && ((p.供应商 || p.supplier) || '').trim() === s1
+      (p) => p.model.trim() === m1 && p.supplier.trim() === s1
     );
-    if (exactPart && s1) return exactPart.单价 || exactPart.price || 0;
-    const modelParts = parts.filter((p) => ((p.型号 || p.model) || '').trim() === m1);
+    if (exactPart && s1) return exactPart.price;
+    const modelParts = parts.filter((p) => p.model.trim() === m1);
     if (modelParts.length > 0) {
       return modelParts.reduce((min, curr) => {
-        const cp = curr.单价 || curr.price || 0;
-        const mp = min.单价 || min.price || 0;
+        const cp = curr.price;
+        const mp = min.price;
         return cp < mp ? curr : min;
-      }, modelParts[0]).单价 || modelParts[0].price || 0;
+      }, modelParts[0]).price;
     }
     return 0;
   }, [parts]);
@@ -266,8 +266,8 @@ export default function RecipeFormPage() {
     const exactPrice = getPriceByModelAndSupplier(k, '');
     if (exactPrice > 0) return { model: k, price: exactPrice };
     const candidates = parts
-      .filter((p) => (p.类别 || p.category) === '包装' && ((p.型号 || p.model) || '').includes(k))
-      .map((p) => ({ model: (p.型号 || p.model) || '', price: p.单价 || p.price || 0 }));
+      .filter((p) => p.category === '包装' && p.model.includes(k))
+      .map((p) => ({ model: p.model, price: p.price }));
     if (candidates.length > 0) return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
     return { model: k, price: 0 };
   }, [parts, getPriceByModelAndSupplier]);
@@ -294,7 +294,7 @@ export default function RecipeFormPage() {
   const getModelsByCategory = (category: string): string[] => {
     const models = new Set<string>();
     parts.forEach((p) => {
-      if ((p.类别 || p.category || '') === category) models.add(p.型号 || p.model || '');
+      if (p.category === category) models.add(p.model);
     });
     return Array.from(models).filter(Boolean).sort();
   };
@@ -302,7 +302,7 @@ export default function RecipeFormPage() {
   const getWireOptions = (prefix: string): string[] => {
     const wires = new Set<string>();
     parts.forEach((p) => {
-      const m = (p.型号 || p.model || '').trim();
+      const m = p.model;
       if (m.startsWith(prefix)) { const w = m.replace(prefix, ''); if (w) wires.add(w); }
     });
     return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
@@ -311,7 +311,7 @@ export default function RecipeFormPage() {
   const getSuppliersByModel = (model: string): string[] => {
     const suppliers = new Set<string>();
     parts.forEach((p) => {
-      if ((p.型号 || p.model || '') === model) suppliers.add(p.供应商 || p.supplier || '');
+      if (p.model === model) suppliers.add(p.supplier);
     });
     return Array.from(suppliers).filter(Boolean).sort();
   };
@@ -380,9 +380,9 @@ export default function RecipeFormPage() {
     setSaving(true);
     try {
       await createRecipe({
-        配方名称: recipeName,
-        规格: recipeSpec,
-        配件JSON: JSON.stringify(recipeParts),
+        name: recipeName,
+        spec: recipeSpec,
+        parts_json: JSON.stringify(recipeParts),
         saved_total_cost: savedTotalCost,
         saved_cost_details: savedCostDetails,
       });
@@ -602,7 +602,7 @@ export default function RecipeFormPage() {
                   key={part.id}
                   label="配件"
                   selection={part}
-                  models={parts.map((p) => p.型号 || p.model || '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                  models={parts.map((p) => p.model).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
                   getSuppliers={getSuppliersByModel}
                   getPrice={getPriceByModelAndSupplier}
                   onChange={(field, value) => handleOptionalChange(part.id, field, value)}

@@ -48,6 +48,7 @@ import {
   getOrder,
   HistoryPrice,
 } from '../utils/orderStore';
+import { formatMoney as fmt } from '../utils/format';
 
 const STEPS = ['基本信息', '添加型号 & 定价', '预览采购清单', '确认提交'];
 
@@ -124,9 +125,9 @@ export default function OrderFormPage() {
 
   const addRecipeToOrder = async () => {
     if (!selectedRecipe) return;
-    const partsJson = selectedRecipe.配件JSON || selectedRecipe.parts_json || '[]';
+    const partsJson = selectedRecipe.parts_json;
     // 尝试从配方快照读取成本，如果为0则实时计算
-    let unitCost = selectedRecipe.saved_total_cost || selectedRecipe.保存时总成本 || 0;
+    let unitCost = selectedRecipe.saved_total_cost || 0;
     if (!unitCost) {
       try {
         const parts: RecipePart[] = JSON.parse(partsJson);
@@ -135,14 +136,14 @@ export default function OrderFormPage() {
         unitCost = parseFloat(result.totalCost) || 0;
       } catch { /* ignore */ }
     }
-    const recipeName = selectedRecipe.配方名称 || selectedRecipe.name || '';
+    const recipeName = selectedRecipe.name;
     const item = createOrderItem(
       recipeName,
       partsJson,
       addQty,
       unitCost,
       selectedRecipe.Id,
-      selectedRecipe.规格 || selectedRecipe.spec
+      selectedRecipe.spec
     );
     // 查历史价格（缓存）
     let history: HistoryPrice | null;
@@ -226,11 +227,11 @@ export default function OrderFormPage() {
   };
 
   const recipeOptions = recipes.map((r) => ({
-    label: `${r.配方名称 || r.name || ''} ${r.规格 || r.spec ? `[${r.规格 || r.spec}]` : ''}`,
+    label: `${r.name} ${r.spec ? `[${r.spec}]` : ''}`,
     recipe: r,
   }));
 
-  const fmt = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 
   return (
     <Paper elevation={2} sx={{ p: 3, maxWidth: 1100, mx: 'auto' }}>
