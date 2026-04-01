@@ -1,0 +1,216 @@
+<!-- 聊天页面 -->
+<view class="page">
+  <!-- 消息列表 -->
+  <scroll-view
+    class="message-list"
+    scroll-y
+    scroll-into-view="{{scrollToId}}"
+    scroll-with-animation
+    enhanced
+    show-scrollbar="{{false}}"
+  >
+    <!-- 欢迎界面 -->
+    <view class="welcome" wx:if="{{messages.length === 0}}">
+      <view class="welcome-icon">🤖</view>
+      <view class="welcome-title">BOM 智能助手</view>
+      <view class="welcome-desc">语音或文字查询成本、配方、订单</view>
+      <view class="quick-actions">
+        <view class="quick-btn" wx:for="{{quickActions}}" wx:key="text" bindtap="onQuickAction" data-text="{{item.text}}">
+          <text class="quick-icon">{{item.icon}}</text>
+          <text class="quick-text">{{item.text}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 消息列表 -->
+    <view class="msg-container" wx:for="{{messages}}" wx:key="id" id="msg-{{item.id}}">
+      <!-- 状态消息 -->
+      <view class="status-msg" wx:if="{{item.type === 'status'}}">
+        <view class="status-dot {{item.done ? 'done' : 'pulse'}}"></view>
+        <text>{{item.text}}</text>
+      </view>
+
+      <!-- 用户消息 -->
+      <view class="msg-row user" wx:elif="{{item.role === 'user'}}">
+        <view class="bubble user-bubble">{{item.content}}</view>
+      </view>
+
+      <!-- 助手消息 -->
+      <view class="msg-row assistant" wx:elif="{{item.role === 'assistant'}}">
+        <view class="bubble assistant-bubble">
+          <text>{{item.content}}</text>
+        </view>
+      </view>
+
+      <!-- 数据卡片 -->
+      <view class="card-container" wx:elif="{{item.type === 'card'}}">
+        <!-- BOM 成本卡片 -->
+        <view class="card bom-card" wx:if="{{item.view_type === 'bom_cost_card'}}">
+          <view class="card-header">
+            <text class="card-title">💰 {{item.data.recipeName || item.data.pumpModel || 'BOM成本'}}</text>
+            <text class="card-badge">¥{{item.data.totalCost}}</text>
+          </view>
+          <view class="card-spec" wx:if="{{item.data.recipeSpec}}">规格: {{item.data.recipeSpec}}</view>
+          <view class="card-toggle" bindtap="toggleCardExpand" data-idx="{{index}}">
+            <text>{{item.expanded ? '收起明细 ▲' : '查看明细 ▼'}}</text>
+          </view>
+          <view class="card-details" wx:if="{{item.expanded}}">
+            <view class="detail-row header-row">
+              <text class="col-name">零件</text>
+              <text class="col-price">单价</text>
+              <text class="col-qty">数量</text>
+              <text class="col-sub">小计</text>
+            </view>
+            <view class="detail-row" wx:for="{{item.data.details}}" wx:for-item="d" wx:key="model">
+              <text class="col-name">{{d.name || d.model}}</text>
+              <text class="col-price">¥{{d.price}}</text>
+              <text class="col-qty">×{{d.qty}}</text>
+              <text class="col-sub">¥{{d.subtotal}}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 零件搜索/库存表格 -->
+        <view class="card inventory-card" wx:elif="{{item.view_type === 'inventory_table'}}">
+          <view class="card-header">
+            <text class="card-title">🔍 零件列表 ({{item.data.count}}个)</text>
+          </view>
+          <view class="part-item" wx:for="{{item.data.parts}}" wx:for-item="p" wx:key="id">
+            <view class="part-main">
+              <text class="part-model">{{p.model}}</text>
+              <text class="part-category">{{p.category}}</text>
+            </view>
+            <view class="part-info">
+              <text class="part-price">¥{{p.price}}</text>
+              <text class="part-supplier">{{p.supplier}}</text>
+              <text class="part-stock {{p.stock < 10 ? 'stock-low' : ''}}">库存:{{p.stock}}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 订单详情卡片 -->
+        <view class="card order-card" wx:elif="{{item.view_type === 'order_detail_card'}}">
+          <view class="card-header">
+            <text class="card-title">📋 订单 #{{item.data.id}}</text>
+            <text class="card-status status-{{item.data.statusClass}}">{{item.data.status}}</text>
+          </view>
+          <view class="order-customer">客户: {{item.data.customerName}}</view>
+          <view class="order-items" wx:if="{{item.data.items.length > 0}}">
+            <view class="order-item" wx:for="{{item.data.items}}" wx:for-item="it" wx:key="recipeName">
+              <text>{{it.recipeName}} ×{{it.qty}}</text>
+              <text class="order-item-cost">成本¥{{it.unitCost}} → 售¥{{it.unitPrice}}</text>
+            </view>
+          </view>
+          <view class="order-summary">
+            <text>成本¥{{item.data.totalCost}}</text>
+            <text>售价¥{{item.data.totalPrice}}</text>
+            <text class="profit">利润¥{{item.data.totalProfit}}</text>
+          </view>
+        </view>
+
+        <!-- 运营看板 -->
+        <view class="card dashboard-card" wx:elif="{{item.view_type === 'dashboard_card'}}">
+          <view class="card-header">
+            <text class="card-title">📊 运营汇总</text>
+          </view>
+          <view class="dash-grid">
+            <view class="dash-item"><text class="dash-num">{{item.data.orders.total}}</text><text class="dash-label">订单数</text></view>
+            <view class="dash-item"><text class="dash-num">{{item.data.recipes.total}}</text><text class="dash-label">配方数</text></view>
+            <view class="dash-item"><text class="dash-num">{{item.data.parts.total}}</text><text class="dash-label">零件数</text></view>
+          </view>
+          <view class="dash-finance">
+            <text>总成本 ¥{{item.data.financials.totalCost}}</text>
+            <text>总营收 ¥{{item.data.financials.totalRevenue}}</text>
+            <text class="profit">总利润 ¥{{item.data.financials.totalProfit}}</text>
+          </view>
+        </view>
+
+        <!-- 通用操作结果 -->
+        <view class="card action-card {{item.data.success ? 'success' : 'error'}}" wx:elif="{{item.view_type === 'action_result'}}">
+          <text class="action-icon">{{item.data.success ? '✅' : '❌'}}</text>
+          <text class="action-text">{{item.data.message || item.data.error}}</text>
+        </view>
+
+        <!-- 对比卡片 -->
+        <view class="card compare-card" wx:elif="{{item.view_type === 'compare_card'}}">
+          <view class="card-header">
+            <text class="card-title">🔍 配方对比</text>
+          </view>
+          <view class="compare-row">
+            <view class="compare-item">
+              <text class="compare-name">{{item.data.recipe1.name}}</text>
+              <text class="compare-cost">¥{{item.data.recipe1.cost}}</text>
+              <text class="compare-parts">{{item.data.recipe1.partsCount}}个零件</text>
+            </view>
+            <view class="compare-vs">VS</view>
+            <view class="compare-item">
+              <text class="compare-name">{{item.data.recipe2.name}}</text>
+              <text class="compare-cost">¥{{item.data.recipe2.cost}}</text>
+              <text class="compare-parts">{{item.data.recipe2.partsCount}}个零件</text>
+            </view>
+          </view>
+          <view class="compare-diff">差异: ¥{{item.data.costDiff}}</view>
+        </view>
+
+        <!-- 采购清单 -->
+        <view class="card purchase-card" wx:elif="{{item.view_type === 'purchase_list'}}">
+          <view class="card-header">
+            <text class="card-title">🛒 采购清单</text>
+            <text class="card-badge">{{item.data.summary.needToBuy}}项待采购</text>
+          </view>
+          <view class="purchase-todo" wx:for="{{item.data.todos}}" wx:for-item="t" wx:key="id">
+            <text class="todo-icon">📞</text>
+            <text class="todo-text">{{t.description}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view style="height: 200rpx;"></view>
+    <view id="msg-bottom"></view>
+  </scroll-view>
+
+  <!-- 底部输入区 -->
+  <view class="input-bar">
+    <!-- 语音/键盘切换 -->
+    <view class="mode-btn" bindtap="toggleInputMode">
+      <text>{{isVoiceMode ? '⌨️' : '🎤'}}</text>
+    </view>
+
+    <!-- 文字输入 -->
+    <view class="input-wrap" wx:if="{{!isVoiceMode}}">
+      <input
+        class="text-input"
+        placeholder="输入问题..."
+        value="{{inputText}}"
+        bindinput="onInputChange"
+        bindconfirm="onSendText"
+        confirm-type="send"
+        disabled="{{isBusy}}"
+      />
+      <view class="send-btn {{inputText ? 'active' : ''}}" bindtap="onSendText">
+        <text>→</text>
+      </view>
+    </view>
+
+    <!-- 语音按钮 -->
+    <view class="voice-wrap" wx:else>
+      <view
+        class="voice-btn {{isRecording ? 'recording' : ''}} {{isBusy ? 'disabled' : ''}}"
+        catchtouchstart="onVoiceStart"
+        catchtouchend="onVoiceEnd"
+        catchtouchcancel="onVoiceEnd"
+      >
+        <text>{{isRecording ? '🔴 松开发送' : (isBusy ? '处理中...' : '按住说话')}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 录音波纹动画 -->
+  <view class="recording-overlay" wx:if="{{isRecording}}">
+    <view class="ripple r1"></view>
+    <view class="ripple r2"></view>
+    <view class="ripple r3"></view>
+    <view class="recording-timer">{{formatDuration}}</view>
+  </view>
+</view>

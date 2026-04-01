@@ -2624,8 +2624,148 @@ app.post('/api/ai/asr', asrUpload.single('audio'), async (req, res) => {
     }
 });
 
+// ── 微信小程序专用端点 ──────────────────────────────
 
-// 启动服务器（监听所有网络接口，允许外部访问）
+// view_type 映射表
+const VIEW_TYPE_MAP = {
+    'query_recipe_cost_by_name': 'bom_cost_card',
+    'query_recipe_cost_by_id': 'bom_cost_card',
+    'full_calculate': 'bom_cost_card',
+    'search_parts': 'inventory_table',
+    'get_all_parts': 'inventory_table',
+    'get_order_detail': 'order_detail_card',
+    'get_order_list': 'order_detail_card',
+    'get_dashboard_summary': 'dashboard_card',
+    'compare_recipes': 'compare_card',
+    'generate_purchase_list': 'purchase_list',
+    'get_copper_price': 'action_result',
+    'calculate_coil_cost': 'bom_cost_card',
+    'get_coil_specs': 'inventory_table',
+    'get_all_recipes': 'inventory_table',
+};
+
+// 1. 微信 ASR（纯语音转文字）
+app.post('/api/wechat/asr', asrUpload.single('audio'), async (req, res) => {
+    try {
+        if (!req.file) return res.json({ success: false, error: '未收到音频文件' });
+        console.log(`[微信ASR] 收到音频: ${req.file.filename}, 大小: ${req.file.size} bytes`);
+        const audioData = fs.readFileSync(req.file.path);
+        const sampleRate = parseInt(req.body.sampleRate) || 16000;
+
+        // 自动检测格式：微信开发工具录 .wav，真机录 .pcm
+        let format = req.body.format || 'pcm';
+        const ext = path.extname(req.file.filename || '').toLowerCase();
+        if (ext === '.wav' || (audioData.length > 4 && audioData.toString('ascii', 0, 4) === 'RIFF')) {
+            format = 'wav';
+            console.log('[微信ASR] 检测到 WAV 格式');
+        } else if (ext === '.mp3') {
+            format = 'mp3';
+        }
+
+        const text = await aliyunASR(audioData, format, sampleRate);
+        fs.unlink(req.file.path, () => {});
+        console.log(`[微信ASR] 识别结果: "${text}"`);
+        res.json({ success: true, text: text || '' });
+    } catch (err) {
+        console.error('[微信ASR] 失败:', err.message);
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// 2. 微信对话（普通 JSON 请求，一次性返回全部结果）
+app.post('/api/wechat/chat', async (req, res) => {
+    try {
+        const { messages } = req.body;
+        if (!messages || messages.length === 0) {
+            return res.json({ success: false, error: '消息不能为空' });
+        }
+
+        console.log('[微信Chat] 收到请求, 消息数:', messages.length);
+        const toolResults = []; // 收集所有工具调用结果
+
+        let currentMessages = [
+            { role: 'system', content: AI_SYSTEM_PROMPT },
+            ...messages
+        ];
+
+        const apiKey = process.env.DEEPSEEK_API_KEY;
+        const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+        let maxRounds = 5;
+        let done = false;
+        let finalContent = '';
+
+        while (!done && maxRounds-- > 0) {
+            const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: currentMessages,
+                    tools: AI_TOOLS,
+                    stream: false
+                })
+            });
+
+            if (!aiRes.ok) {
+                const text = await aiRes.text();
+                return res.json({ success: false, error: `LLM API 错误: ${aiRes.status}` });
+            }
+
+            const data = await aiRes.json();
+            if (data.error) {
+                return res.json({ success: false, error: data.error.message || 'API 错误' });
+            }
+
+            const msg = data.choices[0].message;
+            currentMessages.push({
+                role: 'assistant',
+                content: msg.content || "",
+                tool_calls: msg.tool_calls
+            });
+
+            if (msg.tool_calls && msg.tool_calls.length > 0) {
+                for (const tc of msg.tool_calls) {
+                    const funcName = tc.function.name;
+                    console.log(`[微信Chat] 调用工具: ${funcName}`);
+
+                    let args = {};
+                    try { args = JSON.parse(tc.function.arguments); } catch (e) {}
+
+                    const result = await executeToolCall(funcName, args);
+                    const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
+
+                    toolResults.push({ name: funcName, view_type: viewType, result });
+
+                    currentMessages.push({
+                        role: 'tool',
+                        tool_call_id: tc.id,
+                        name: funcName,
+                        content: JSON.stringify(result)
+                    });
+                }
+            } else {
+                finalContent = msg.content || '';
+                done = true;
+            }
+        }
+
+        console.log('[微信Chat] 完成, 工具调用:', toolResults.length, '次');
+        res.json({
+            success: true,
+            content: finalContent,
+            toolResults,
+        });
+    } catch (err) {
+        console.error('[微信Chat] 错误:', err.message);
+        res.json({ success: false, error: err.message });
+    }
+});
+
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
     console.log(`水泵BOM成本查询API已启动`);
@@ -2649,6 +2789,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  POST /api/ai/chat                       - AI智能助手（SSE）`);
     console.log(`  GET  /api/ai/system-prompt              - 获取System Prompt`);
     console.log(`  PUT  /api/ai/system-prompt              - 修改System Prompt`);
+    console.log(`  POST /api/wechat/asr                    - 微信语音识别(ASR)`);
+    console.log(`  POST /api/wechat/chat                   - 微信对话(SSE流式)`);
     console.log(`========================================`);
 
     // 启动时自动更新铜价
