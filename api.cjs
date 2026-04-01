@@ -2663,26 +2663,16 @@ app.post('/api/wechat/asr', asrUpload.single('audio'), async (req, res) => {
     }
 });
 
-// 2. 微信对话（SSE 流式，带 view_type）
+// 2. 微信对话（普通 JSON 请求，一次性返回全部结果）
 app.post('/api/wechat/chat', async (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.flushHeaders();
-
-    const send = (type, payload) => {
-        res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
-    };
-
     try {
         const { messages } = req.body;
         if (!messages || messages.length === 0) {
-            send('error', { message: '消息不能为空' });
-            return res.end();
+            return res.json({ success: false, error: '消息不能为空' });
         }
 
-        send('status', { status: 'thinking', message: '正在理解您的问题...' });
+        console.log('[微信Chat] 收到请求, 消息数:', messages.length);
+        const toolResults = []; // 收集所有工具调用结果
 
         let currentMessages = [
             { role: 'system', content: AI_SYSTEM_PROMPT },
@@ -2693,6 +2683,7 @@ app.post('/api/wechat/chat', async (req, res) => {
         const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
         let maxRounds = 5;
         let done = false;
+        let finalContent = '';
 
         while (!done && maxRounds-- > 0) {
             const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
@@ -2711,14 +2702,12 @@ app.post('/api/wechat/chat', async (req, res) => {
 
             if (!aiRes.ok) {
                 const text = await aiRes.text();
-                send('error', { message: `LLM API 错误: ${aiRes.status}` });
-                return res.end();
+                return res.json({ success: false, error: `LLM API 错误: ${aiRes.status}` });
             }
 
             const data = await aiRes.json();
             if (data.error) {
-                send('error', { message: data.error.message || 'API 错误' });
-                return res.end();
+                return res.json({ success: false, error: data.error.message || 'API 错误' });
             }
 
             const msg = data.choices[0].message;
@@ -2731,7 +2720,7 @@ app.post('/api/wechat/chat', async (req, res) => {
             if (msg.tool_calls && msg.tool_calls.length > 0) {
                 for (const tc of msg.tool_calls) {
                     const funcName = tc.function.name;
-                    send('status', { status: 'calling', message: `正在调用: ${funcName}...` });
+                    console.log(`[微信Chat] 调用工具: ${funcName}`);
 
                     let args = {};
                     try { args = JSON.parse(tc.function.arguments); } catch (e) {}
@@ -2739,8 +2728,7 @@ app.post('/api/wechat/chat', async (req, res) => {
                     const result = await executeToolCall(funcName, args);
                     const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
 
-                    // 发送带 view_type 的工具结果
-                    send('tool_result', { name: funcName, view_type: viewType, result });
+                    toolResults.push({ name: funcName, view_type: viewType, result });
 
                     currentMessages.push({
                         role: 'tool',
@@ -2750,20 +2738,20 @@ app.post('/api/wechat/chat', async (req, res) => {
                     });
                 }
             } else {
-                send('content', { content: msg.content || '' });
-                send('done', {});
+                finalContent = msg.content || '';
                 done = true;
             }
         }
 
-        if (!done) {
-            send('error', { message: '工具调用轮次超限' });
-        }
-        res.end();
+        console.log('[微信Chat] 完成, 工具调用:', toolResults.length, '次');
+        res.json({
+            success: true,
+            content: finalContent,
+            toolResults,
+        });
     } catch (err) {
         console.error('[微信Chat] 错误:', err.message);
-        send('error', { message: err.message });
-        res.end();
+        res.json({ success: false, error: err.message });
     }
 });
 

@@ -8,7 +8,6 @@
  * 4. 结构化数据卡片渲染
  */
 
-const { createSSERequest } = require('../../utils/sse');
 const app = getApp();
 const recorderManager = wx.getRecorderManager();
 
@@ -33,7 +32,6 @@ Page({
   // 内部状态
   _msgIdCounter: 0,
   _durationTimer: null,
-  _sseTask: null,
   _chatHistory: [],  // 给 LLM 的对话历史
 
   onLoad() {
@@ -42,7 +40,6 @@ Page({
 
   onUnload() {
     this._clearTimer();
-    if (this._sseTask) this._sseTask.abort();
   },
 
   // ==================== 录音管理器 ====================
@@ -175,68 +172,65 @@ Page({
 
     this.setData({ isBusy: true });
     const statusId = this._addMsg({ type: 'status', text: '正在思考...' });
-    let assistantContent = '';
 
-    this._sseTask = createSSERequest({
+    // 模拟进度状态
+    const statusSteps = ['正在理解您的问题...', '正在查询数据...', '正在整理结果...'];
+    let stepIdx = 0;
+    const statusTimer = setInterval(() => {
+      if (stepIdx < statusSteps.length) {
+        this._updateMsg(statusId, { text: statusSteps[stepIdx++] });
+      }
+    }, 2500);
+
+    wx.request({
       url: `${app.globalData.baseUrl}/api/wechat/chat`,
-      data: {
-        messages: this._chatHistory,
-      },
-      onEvent: (event) => {
-        switch (event.type) {
-          case 'status':
-            this._updateMsg(statusId, { text: event.message || event.status });
-            break;
+      method: 'POST',
+      header: { 'Content-Type': 'application/json' },
+      data: { messages: this._chatHistory },
+      timeout: 120000,
+      success: (res) => {
+        clearInterval(statusTimer);
+        const data = res.data;
 
-          case 'tool_result': {
-            // 工具结果 → 渲染数据卡片
-            const viewType = event.view_type || 'action_result';
-            let cardData = event.result || {};
+        if (!data.success) {
+          this._updateMsg(statusId, { text: '❌ ' + (data.error || '出错了'), done: true });
+          return;
+        }
+
+        // 渲染工具结果卡片
+        if (data.toolResults && data.toolResults.length > 0) {
+          for (const tr of data.toolResults) {
+            const viewType = tr.view_type || 'action_result';
+            let cardData = tr.result || {};
+
             if (viewType === 'order_detail_card' && cardData.order) {
               cardData = cardData.order;
-              // 中文状态 → CSS class 映射
               const statusMap = { '待采购': 'pending', '采购中': 'purchasing', '已完成': 'completed' };
               cardData.statusClass = statusMap[cardData.status] || 'pending';
             } else {
               cardData = cardData.data || cardData.summary || cardData;
             }
-            this._addMsg({
-              type: 'card',
-              view_type: viewType,
-              data: cardData,
-              expanded: false,
-            });
-            break;
+
+            this._addMsg({ type: 'card', view_type: viewType, data: cardData, expanded: false });
           }
-
-          case 'content':
-            assistantContent = event.content || '';
-            break;
-
-          case 'error':
-            this._updateMsg(statusId, { text: '❌ ' + (event.message || '出错了'), done: true });
-            break;
-
-          case 'done':
-            // 标记状态完成
-            this._updateMsg(statusId, { text: '✅ 完成', done: true });
-            // 添加助手文本回复
-            if (assistantContent) {
-              this._addMsg({ role: 'assistant', content: assistantContent });
-              this._chatHistory.push({ role: 'assistant', content: assistantContent });
-            }
-            break;
         }
+
+        // 添加助手文本回复
+        if (data.content) {
+          this._addMsg({ role: 'assistant', content: data.content });
+          this._chatHistory.push({ role: 'assistant', content: data.content });
+        }
+
+        this._updateMsg(statusId, { text: '✅ 完成', done: true });
       },
-      onDone: () => {
+      fail: (err) => {
+        clearInterval(statusTimer);
+        console.error('[Chat] 请求失败:', err);
+        this._updateMsg(statusId, { text: '❌ 网络连接失败', done: true });
+      },
+      complete: () => {
         this.setData({ isBusy: false });
-        this._sseTask = null;
-      },
-      onError: () => {
-        this._updateMsg(statusId, { text: '网络连接失败', done: true });
-        this.setData({ isBusy: false });
-        this._sseTask = null;
-      },
+      }
     });
   },
 
