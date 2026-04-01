@@ -2650,8 +2650,18 @@ app.post('/api/wechat/asr', asrUpload.single('audio'), async (req, res) => {
         if (!req.file) return res.json({ success: false, error: '未收到音频文件' });
         console.log(`[微信ASR] 收到音频: ${req.file.filename}, 大小: ${req.file.size} bytes`);
         const audioData = fs.readFileSync(req.file.path);
-        const format = req.body.format || 'pcm';
         const sampleRate = parseInt(req.body.sampleRate) || 16000;
+
+        // 自动检测格式：微信开发工具录 .wav，真机录 .pcm
+        let format = req.body.format || 'pcm';
+        const ext = path.extname(req.file.filename || '').toLowerCase();
+        if (ext === '.wav' || (audioData.length > 4 && audioData.toString('ascii', 0, 4) === 'RIFF')) {
+            format = 'wav';
+            console.log('[微信ASR] 检测到 WAV 格式');
+        } else if (ext === '.mp3') {
+            format = 'mp3';
+        }
+
         const text = await aliyunASR(audioData, format, sampleRate);
         fs.unlink(req.file.path, () => {});
         console.log(`[微信ASR] 识别结果: "${text}"`);

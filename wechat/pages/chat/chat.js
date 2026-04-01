@@ -201,17 +201,10 @@ Page({
         if (data.toolResults && data.toolResults.length > 0) {
           for (const tr of data.toolResults) {
             const viewType = tr.view_type || 'action_result';
-            let cardData = tr.result || {};
-
-            if (viewType === 'order_detail_card' && cardData.order) {
-              cardData = cardData.order;
-              const statusMap = { '待采购': 'pending', '采购中': 'purchasing', '已完成': 'completed' };
-              cardData.statusClass = statusMap[cardData.status] || 'pending';
-            } else {
-              cardData = cardData.data || cardData.summary || cardData;
+            const cardData = this._normalizeCardData(viewType, tr.result || {});
+            if (cardData) {
+              this._addMsg({ type: 'card', view_type: viewType, data: cardData, expanded: false });
             }
-
-            this._addMsg({ type: 'card', view_type: viewType, data: cardData, expanded: false });
           }
         }
 
@@ -269,6 +262,118 @@ Page({
     if (this._durationTimer) {
       clearInterval(this._durationTimer);
       this._durationTimer = null;
+    }
+  },
+
+  // ==================== 数据标准化 ====================
+
+  /**
+   * 将工具返回的原始 result 标准化为 WXML 模板期望的数据格式
+   * 
+   * API 返回结构各不相同，需要逐个适配：
+   * - query_recipe_cost: { success, data: { recipeName, totalCost, details } }
+   * - search_parts:      { success, count, parts: [...] }
+   * - get_all_parts:     { success, data: [...] }
+   * - get_order_detail:  { success, order: {...} }
+   * - compare_recipes:   { success, recipe1, recipe2, costDiff }
+   * - 等等
+   */
+  _normalizeCardData(viewType, result) {
+    if (!result || !result.success) {
+      // 工具调用失败 → 降级为 action_result
+      return { success: false, message: result?.error || result?.message || '操作失败' };
+    }
+
+    switch (viewType) {
+      case 'bom_cost_card': {
+        // result.data 有数据时用 data，否则直接用 result（如 full_calculate）
+        const d = result.data || result;
+        return {
+          recipeName: d.recipeName || d.pumpModel || d.name || 'BOM成本',
+          recipeSpec: d.recipeSpec || d.spec || '',
+          totalCost: d.totalCost || d.total_cost || d.cost || '0',
+          details: (d.details || d.parts || d.breakdown || []).map(item => ({
+            name: item.name || item.partName || '',
+            model: item.model || item.partModel || '',
+            price: item.price || item.unitPrice || '0',
+            qty: item.qty || item.quantity || 1,
+            subtotal: item.subtotal || item.cost || '0',
+          })),
+        };
+      }
+
+      case 'inventory_table': {
+        // search_parts: { count, parts }
+        // get_all_parts/recipes: { data: [...] }
+        // get_coil_specs: { data: [...] }
+        let parts = result.parts || result.data || [];
+        if (!Array.isArray(parts)) parts = [];
+        return {
+          count: result.count || parts.length,
+          parts: parts.slice(0, 30).map(p => ({
+            id: p.id || p.Id || 0,
+            model: p.model || p.name || p.spec || '未知',
+            category: p.category || p.type || '',
+            price: p.price || p.unitPrice || p.savedCost || '0',
+            supplier: p.supplier || '-',
+            stock: p.stock ?? '-',
+          })),
+        };
+      }
+
+      case 'order_detail_card': {
+        const o = result.order || result.data || result;
+        const statusMap = { '待采购': 'pending', '采购中': 'purchasing', '已完成': 'completed' };
+        return {
+          id: o.id || o.Id,
+          customerName: o.customerName || o.customer || '未知',
+          status: o.status || '未知',
+          statusClass: statusMap[o.status] || 'pending',
+          items: (o.items || []).map(it => ({
+            recipeName: it.recipeName || it.name || '',
+            qty: it.qty || 1,
+            unitCost: it.unitCost || '0',
+            unitPrice: it.unitPrice || '0',
+          })),
+          totalCost: o.totalCost || '0',
+          totalPrice: o.totalPrice || '0',
+          totalProfit: o.totalProfit || '0',
+        };
+      }
+
+      case 'dashboard_card': {
+        const d = result.data || result;
+        return {
+          orders: d.orders || { total: 0 },
+          recipes: d.recipes || { total: 0 },
+          parts: d.parts || { total: 0 },
+          financials: d.financials || { totalCost: '0', totalRevenue: '0', totalProfit: '0' },
+        };
+      }
+
+      case 'compare_card': {
+        const d = result.data || result;
+        return {
+          recipe1: d.recipe1 || { name: '?', cost: '0', partsCount: 0 },
+          recipe2: d.recipe2 || { name: '?', cost: '0', partsCount: 0 },
+          costDiff: d.costDiff || d.diff || '0',
+        };
+      }
+
+      case 'purchase_list': {
+        const d = result.data || result;
+        return {
+          summary: d.summary || { needToBuy: 0 },
+          todos: d.todos || d.items || [],
+        };
+      }
+
+      case 'action_result':
+      default:
+        return {
+          success: result.success,
+          message: result.message || (result.success ? '操作成功' : (result.error || '操作失败')),
+        };
     }
   },
 });
