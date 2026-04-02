@@ -20,6 +20,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   FormControl,
   InputLabel,
@@ -271,8 +272,16 @@ export default function CoilRotorPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('确定要删除这条线圈记录吗？')) return;
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+
+  const handleDelete = (id: number) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget === null) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     try {
       const res = await fetch(`${API_BASE}/api/coils/${id}`, { method: 'DELETE' });
       const json = await res.json();
@@ -744,6 +753,18 @@ export default function CoilRotorPage() {
           <Button variant="contained" onClick={handleSave} startIcon={<SaveIcon />} sx={{ fontWeight: 600 }}>
             保存
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>删除线圈记录</DialogTitle>
+        <DialogContent>
+          <DialogContentText>确定要删除这条线圈记录吗？此操作不可撤销。</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>取消</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">删除</Button>
         </DialogActions>
       </Dialog>
     </Grid>

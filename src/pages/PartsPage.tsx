@@ -5,7 +5,13 @@ import {
   Typography,
   Alert,
   Box,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button
 } from '@mui/material';
 import { Part } from '../types';
 import { createPart, updatePart, deletePart } from '../utils/api';
@@ -54,9 +60,16 @@ export default function PartsPage() {
   };
 
   // 删除零件
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('确定要删除这个零件吗？')) return;
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
+  const handleDelete = (id: number) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget === null) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     try {
       await deletePart(id);
       await fetchParts(true);
@@ -117,6 +130,17 @@ export default function PartsPage() {
           />
         </Paper>
       </Grid>
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>删除零件</DialogTitle>
+        <DialogContent>
+          <DialogContentText>确定要删除这个零件吗？此操作不可撤销。</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>取消</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">删除</Button>
+        </DialogActions>
+      </Dialog>
     </Grid>
   );
 }

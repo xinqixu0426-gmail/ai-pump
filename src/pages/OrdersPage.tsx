@@ -17,6 +17,11 @@ import {
   TextField,
   InputAdornment,
   Autocomplete,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -50,8 +55,16 @@ export default function OrdersPage() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('确定删除这个订单？')) return;
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const handleDelete = (id: string) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     await deleteOrder(id);
     fetchOrders(true);
   };
@@ -193,6 +206,18 @@ export default function OrdersPage() {
           onUpdated={() => { fetchOrders(true); setSelected(null); }}
         />
       )}
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>删除订单</DialogTitle>
+        <DialogContent>
+          <DialogContentText>确定要删除这个订单吗？此操作不可撤销。</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>取消</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">删除</Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
