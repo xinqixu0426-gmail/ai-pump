@@ -30,8 +30,9 @@ import {
   ArrowBack as BackIcon,
   Cable as CableIcon,
 } from '@mui/icons-material';
-import { Part, RecipePart } from '../types';
-import { getAllParts, createRecipe } from '../utils/api';
+import { RecipePart } from '../types';
+import { createRecipe } from '../utils/api';
+import { useAppStore } from '../utils/store';
 import RecipePartRow from '../components/RecipePartRow';
 
 const COIL_API_BASE = '';
@@ -95,7 +96,7 @@ export default function RecipeFormPage() {
   const cloneFrom = (location.state as { cloneFrom?: { name: string; spec: string; partsJson: string } })?.cloneFrom;
   const cloneApplied = useRef(false);
 
-  const [parts, setParts] = useState<Part[]>([]);
+  const { parts, fetchParts } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -133,14 +134,13 @@ export default function RecipeFormPage() {
   const loadParts = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getAllParts();
-      setParts(data);
+      await fetchParts();
     } catch {
       setError('加载零件数据失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchParts]);
 
   useEffect(() => { loadParts(); }, [loadParts]);
 

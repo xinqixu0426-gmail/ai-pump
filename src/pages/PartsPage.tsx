@@ -8,12 +8,13 @@ import {
   CircularProgress
 } from '@mui/material';
 import { Part } from '../types';
-import { getAllParts, createPart, updatePart, deletePart } from '../utils/api';
+import { createPart, updatePart, deletePart } from '../utils/api';
+import { useAppStore } from '../utils/store';
 import PartForm from '../components/PartForm';
 import PartList from '../components/PartList';
 
 export default function PartsPage() {
-  const [parts, setParts] = useState<Part[]>([]);
+  const { parts, fetchParts } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingPart, setEditingPart] = useState<Part | null>(null);
@@ -22,8 +23,7 @@ export default function PartsPage() {
   const loadParts = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getAllParts();
-      setParts(data);
+      await fetchParts();
       setError('');
     } catch (err) {
       setError('加载零件数据失败');
@@ -31,7 +31,7 @@ export default function PartsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchParts]);
 
   useEffect(() => {
     loadParts();
@@ -45,7 +45,7 @@ export default function PartsPage() {
       } else {
         await createPart(partData);
       }
-      await loadParts();
+      await fetchParts(true);
       setEditingPart(null);
     } catch (err) {
       setError('保存失败');
@@ -59,7 +59,7 @@ export default function PartsPage() {
 
     try {
       await deletePart(id);
-      await loadParts();
+      await fetchParts(true);
     } catch (err) {
       setError('删除失败');
       console.error(err);

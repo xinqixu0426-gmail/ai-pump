@@ -27,31 +27,31 @@ import {
   LocalShipping as ShippingIcon,
   Inventory as InventoryIcon,
 } from '@mui/icons-material';
-import { Order, OrderStatus, Recipe, Part } from '../types';
-import { getAllOrders } from '../utils/orderStore';
-import { getAllRecipes, getAllParts } from '../utils/api';
+import { Order, OrderStatus } from '../types';
+import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
 import { formatDate } from '../utils/format';
+import { colors, gradients } from '../utils/theme';
 
 // ─── 状态配置 ─────────────────────────────────────────
 const STATUS_CONFIG: Record<OrderStatus, { color: string; bg: string; icon: React.ReactNode; gradient: string }> = {
   待采购: {
-    color: '#f59e0b',
+    color: colors.amber.main,
     bg: 'rgba(245, 158, 11, 0.08)',
     icon: <PendingIcon />,
-    gradient: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+    gradient: gradients.pending,
   },
   采购中: {
-    color: '#3b82f6',
+    color: colors.blue.main,
     bg: 'rgba(59, 130, 246, 0.08)',
     icon: <ShippingIcon />,
-    gradient: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+    gradient: gradients.processing,
   },
   已完成: {
-    color: '#10b981',
+    color: colors.green.main,
     bg: 'rgba(16, 185, 129, 0.08)',
     icon: <CheckIcon />,
-    gradient: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
+    gradient: gradients.completed,
   },
 };
 
@@ -361,29 +361,25 @@ function KanbanColumn({ status, orders, onDetail }: KanbanColumnProps) {
 // ─── 主页面 ───────────────────────────────────────────
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [parts, setParts] = useState<Part[]>([]);
+  const { orders: rawOrders, recipes, parts, fetchAll } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  const orders = useMemo(() =>
+    [...rawOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [rawOrders]
+  );
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [ordersData, recipesData, partsData] = await Promise.all([
-        getAllOrders(),
-        getAllRecipes(),
-        getAllParts(),
-      ]);
-      setOrders(ordersData.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      setRecipes(recipesData);
-      setParts(partsData);
+      await fetchAll();
     } catch (err) {
       console.error('看板加载失败:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchAll]);
 
   useEffect(() => {
     load();
@@ -461,7 +457,7 @@ export default function DashboardPage() {
           value={orders.length}
           subtitle={`进行中 ${kpis.pendingCount} 单`}
           icon={<OrderIcon sx={{ fontSize: 22 }} />}
-          gradient="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
+          gradient={gradients.orders}
           delay={0}
         />
         <KpiCard
@@ -469,7 +465,7 @@ export default function DashboardPage() {
           value={recipes.length}
           subtitle="已录入配方"
           icon={<RecipeIcon sx={{ fontSize: 22 }} />}
-          gradient="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)"
+          gradient={gradients.recipes}
           delay={1}
         />
         <KpiCard
@@ -477,7 +473,7 @@ export default function DashboardPage() {
           value={parts.length}
           subtitle={`低库存 ${kpis.lowStockParts} 项`}
           icon={<PartIcon sx={{ fontSize: 22 }} />}
-          gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
+          gradient={gradients.parts}
           delay={2}
         />
         <KpiCard
@@ -485,7 +481,7 @@ export default function DashboardPage() {
           value={`¥${(kpis.totalRevenue / 10000).toFixed(1)}w`}
           subtitle="订单出厂价合计"
           icon={<MoneyIcon sx={{ fontSize: 22 }} />}
-          gradient="linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)"
+          gradient={gradients.revenue}
           delay={3}
         />
         <KpiCard
@@ -493,7 +489,7 @@ export default function DashboardPage() {
           value={`¥${(kpis.totalProfit / 10000).toFixed(1)}w`}
           subtitle={kpis.totalRevenue > 0 ? `利润率 ${((kpis.totalProfit / kpis.totalRevenue) * 100).toFixed(1)}%` : '-'}
           icon={<TrendingUpIcon sx={{ fontSize: 22 }} />}
-          gradient="linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)"
+          gradient={gradients.profit}
           delay={4}
         />
       </Box>

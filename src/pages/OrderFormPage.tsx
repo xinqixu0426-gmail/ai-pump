@@ -34,8 +34,8 @@ import {
   Search as SearchIcon,
   History as HistoryIcon,
 } from '@mui/icons-material';
-import { Recipe, Part, RecipePart } from '../types';
-import { getAllRecipes, getAllParts } from '../utils/api';
+import { Recipe, RecipePart } from '../types';
+import { useAppStore } from '../utils/store';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import {
   createEmptyOrder,
@@ -72,23 +72,20 @@ export default function OrderFormPage() {
   const [activeStep, setActiveStep] = useState(0);
 
   // ── 数据加载 ──────────────────────────
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [allParts, setAllParts] = useState<Part[]>([]);
+  const { recipes, parts: allParts, fetchRecipes, fetchParts } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [r, p] = await Promise.all([getAllRecipes(), getAllParts()]);
-      setRecipes(r);
-      setAllParts(p);
+      await Promise.all([fetchRecipes(), fetchParts()]);
     } catch {
       setError('加载配方/零件数据失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchRecipes, fetchParts]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

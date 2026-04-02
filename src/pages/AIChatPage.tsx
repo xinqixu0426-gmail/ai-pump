@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import StructuredResult from '../components/ai/StructuredResult';
 import StatusIndicator from '../components/ai/StatusIndicator';
+import { colors, gradients } from '../utils/theme';
 
 // ─── Types ────────────────────────────────────────────
 interface ChatMessage {
@@ -316,7 +317,7 @@ export default function AIChatPage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 3 }}>
             <Box sx={{
               width: 80, height: 80, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 50%, #06b6d4 100%)',
+              background: gradients.brand,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 32px rgba(124, 58, 237, 0.3)',
               animation: 'float 3s ease-in-out infinite',
@@ -328,7 +329,7 @@ export default function AIChatPage() {
               <SparkleIcon sx={{ fontSize: 40, color: 'white' }} />
             </Box>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, background: 'linear-gradient(135deg, #7c3aed, #2563eb)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, background: gradients.brandText, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                 BOM 智能助手
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -373,7 +374,7 @@ export default function AIChatPage() {
                 {msg.role === 'assistant' && (
                   <Box sx={{
                     width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                    background: 'linear-gradient(135deg, #7c3aed, #2563eb)',
+                    background: gradients.brandText,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     mt: 0.5,
                   }}>
@@ -495,8 +496,8 @@ export default function AIChatPage() {
           onClick={isRecording ? handleStopRecording : handleStartRecording}
           disabled={isLoading}
           sx={{
-            bgcolor: isRecording ? '#ef4444' : alpha('#10b981', 0.1),
-            color: isRecording ? 'white' : '#10b981',
+            bgcolor: isRecording ? '#ef4444' : alpha(colors.green.main, 0.1),
+            color: isRecording ? 'white' : colors.green.main,
             width: 40, height: 40,
             transition: 'all 0.2s',
             ...(isRecording ? {
@@ -506,7 +507,7 @@ export default function AIChatPage() {
                 '50%': { boxShadow: '0 0 0 10px rgba(239,68,68,0)' },
               }
             } : {}),
-            '&:hover': { bgcolor: isRecording ? '#dc2626' : alpha('#10b981', 0.2) },
+            '&:hover': { bgcolor: isRecording ? '#dc2626' : alpha(colors.green.main, 0.2) },
           }}
         >
           {isRecording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}

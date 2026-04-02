@@ -14,6 +14,7 @@ import {
   Alert,
   alpha,
 } from '@mui/material';
+import { colors, gradients, sxInfoPanel, sxSuccessPanel, sxErrorPanel, sxPurplePanel, sxWarningPanel, costDiffColor } from '../../utils/theme';
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
@@ -89,15 +90,15 @@ function CostDetailsTable({ data }: { data: CostDetailsData }) {
 function CopperPriceCard({ data }: { data: { livePrice: number; livePricePerKg: string; dbPrice: string; lastUpdate: string } }) {
   return (
     <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
-      <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 160, borderRadius: 3, background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', border: 'none' }}>
-        <Typography variant="caption" sx={{ color: '#92400e', fontWeight: 600 }}>🔴 实时铜价</Typography>
-        <Typography variant="h5" sx={{ fontWeight: 800, color: '#78350f', mt: 0.5 }}>¥{data.livePricePerKg}/kg</Typography>
-        <Typography variant="caption" sx={{ color: '#92400e' }}>({data.livePrice?.toLocaleString()} 元/吨)</Typography>
+      <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 160, borderRadius: 3, background: gradients.copperCard, border: 'none' }}>
+        <Typography variant="caption" sx={{ color: colors.amber.text, fontWeight: 600 }}>🔴 实时铜价</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 800, color: colors.amber.deepText, mt: 0.5 }}>¥{data.livePricePerKg}/kg</Typography>
+        <Typography variant="caption" sx={{ color: colors.amber.text }}>({data.livePrice?.toLocaleString()} 元/吨)</Typography>
       </Paper>
-      <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 160, borderRadius: 3, background: 'linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%)', border: 'none' }}>
-        <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>📊 数据库铜价</Typography>
-        <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e3a8a', mt: 0.5 }}>¥{data.dbPrice}/kg</Typography>
-        {data.lastUpdate && <Typography variant="caption" sx={{ color: '#1e40af' }}>更新: {new Date(data.lastUpdate).toLocaleString('zh-CN')}</Typography>}
+      <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 160, borderRadius: 3, background: gradients.dbCard, border: 'none' }}>
+        <Typography variant="caption" sx={{ color: colors.blue.dark, fontWeight: 600 }}>📊 数据库铜价</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 800, color: colors.blue.deepText, mt: 0.5 }}>¥{data.dbPrice}/kg</Typography>
+        {data.lastUpdate && <Typography variant="caption" sx={{ color: colors.blue.dark }}>更新: {new Date(data.lastUpdate).toLocaleString('zh-CN')}</Typography>}
       </Paper>
     </Box>
   );
@@ -107,11 +108,11 @@ function CopperPriceCard({ data }: { data: { livePrice: number; livePricePerKg: 
 function CoilCostCard({ data }: { data: { spec: string; sheets: number; totalCost: number; formula: string; source: string; wireWeight: number; copperBase: number; coilFee: number; rotorFee: number; wireGauge?: string; isCustomWireWeight?: boolean } }) {
   return (
     <Box sx={{ mt: 1.5 }}>
-      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, background: 'linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%)', border: 'none' }}>
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, background: gradients.coilCost, border: 'none' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Box>
-            <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600 }}>⚡ 线圈转子成本</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#14532d' }}>¥{data.totalCost?.toFixed(2)}</Typography>
+            <Typography variant="caption" sx={{ color: colors.green.text, fontWeight: 600 }}>⚡ 线圈转子成本</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: colors.green.deepText }}>¥{data.totalCost?.toFixed(2)}</Typography>
           </Box>
           <Chip label={data.source} size="small" color="success" variant="outlined" />
         </Box>
@@ -126,13 +127,13 @@ function CoilCostCard({ data }: { data: { spec: string; sheets: number; totalCos
             ...(data.wireGauge ? [{ label: '线径', value: data.wireGauge }] : []),
           ].map((item, idx) => (
             <Box key={idx} sx={{ bgcolor: 'rgba(255,255,255,0.7)', p: 1, borderRadius: 1.5 }}>
-              <Typography variant="caption" sx={{ color: '#166534', opacity: 0.8 }}>{item.label}</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#14532d' }}>{item.value}</Typography>
+              <Typography variant="caption" sx={{ color: colors.green.text, opacity: 0.8 }}>{item.label}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: colors.green.deepText }}>{item.value}</Typography>
             </Box>
           ))}
         </Box>
         {data.formula && (
-          <Paper sx={{ mt: 1.5, p: 1.5, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: 2, fontFamily: 'monospace', fontSize: '0.85rem', color: '#166534', border: 'none' }}>
+          <Paper sx={{ mt: 1.5, p: 1.5, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: 2, fontFamily: 'monospace', fontSize: '0.85rem', color: colors.green.text, border: 'none' }}>
             📐 {data.formula} = ¥{data.totalCost?.toFixed(2)}
           </Paper>
         )}
@@ -149,9 +150,9 @@ function FullCalculateCard({ data }: { data: { totalCost: string; recipeCost?: R
 
   return (
     <Box sx={{ mt: 1.5 }}>
-      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, background: 'linear-gradient(135deg, #ede9fe 0%, #c4b5fd 100%)', border: 'none', mb: 2 }}>
-        <Typography variant="caption" sx={{ color: '#5b21b6', fontWeight: 600 }}>🧮 一站式BOM综合成本</Typography>
-        <Typography variant="h3" sx={{ fontWeight: 800, color: '#3b0764' }}>¥{data.totalCost}</Typography>
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, background: gradients.fullCalc, border: 'none', mb: 2 }}>
+        <Typography variant="caption" sx={{ color: colors.purple.text, fontWeight: 600 }}>🧮 一站式BOM综合成本</Typography>
+        <Typography variant="h3" sx={{ fontWeight: 800, color: colors.purple.deepText }}>¥{data.totalCost}</Typography>
         {data.breakdown && (
           <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
             <Chip label={`配方: ¥${data.breakdown.recipeCost}`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.6)' }} />
@@ -218,7 +219,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 新建零件
   if (toolName === 'create_part') {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxSuccessPanel }}>
         <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>✅ 零件录入成功 (ID: {result.id})</Typography>
         <Typography variant="body2" color="text.secondary">
           <strong>型号:</strong> {result.part['型号']} <br/>
@@ -234,14 +235,14 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 修改零件
   if (toolName === 'update_part') {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxSuccessPanel }}>
         <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>✅ 零件修改成功 (ID: {result.part.id})</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           <strong>型号:</strong> {result.part['型号']}
         </Typography>
-        <Box sx={{ pl: 2, borderLeft: '2px solid #4ade80' }}>
+        <Box sx={{ pl: 2, borderLeft: `2px solid ${colors.green.accent}` }}>
           {result.changes.map((c: string, i: number) => (
-            <Typography key={i} variant="body2" sx={{ fontFamily: 'monospace', color: '#166534' }}>
+            <Typography key={i} variant="body2" sx={{ fontFamily: 'monospace', color: colors.green.text }}>
               • {c}
             </Typography>
           ))}
@@ -253,7 +254,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 新建订单
   if (toolName === 'create_order') {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxInfoPanel }}>
         <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700, mb: 1 }}>✅ 订单新建成功 (ID: {result.order.id})</Typography>
         <Typography variant="body2" color="text.secondary" component="div">
           <strong>客户名称:</strong> {result.order.customerName} <br/>
@@ -262,10 +263,10 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
           {result.order.remark && <><br/><strong>备注:</strong> {result.order.remark}</>}
         </Typography>
         {result.order.items && result.order.items.length > 0 && (
-          <Box sx={{ mt: 1, pl: 2, borderLeft: '2px solid #60a5fa' }}>
+          <Box sx={{ mt: 1, pl: 2, borderLeft: `2px solid ${colors.blue.light}` }}>
             <Typography variant="body2" color="primary.dark" sx={{ fontWeight: 600 }}>包含产品：</Typography>
             {result.order.items.map((it: any, i: number) => (
-              <Typography key={i} variant="body2" sx={{ color: '#1d4ed8' }}>
+              <Typography key={i} variant="body2" sx={{ color: colors.blue.text }}>
                 • {it.recipeName} × {it.qty} （预估出厂价: ¥{it.unitPrice}）
               </Typography>
             ))}
@@ -278,7 +279,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 追加配方到订单
   if (toolName === 'add_recipe_to_order') {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxInfoPanel }}>
         <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700, mb: 1 }}>✅ 已将产品入列追加至订单</Typography>
         <Typography variant="body2" color="text.secondary">
           <strong>订单 ID:</strong> {result.orderId} <br/>
@@ -295,7 +296,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   if (toolName === 'get_order_detail' && result.order) {
     const o = result.order;
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxSuccessPanel }}>
         <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>📊 订单详情 (ID: {o.id})</Typography>
         <Typography variant="body2" component="div" color="text.secondary">
           <strong>客户:</strong> {o.customerName} | <strong>状态:</strong> {o.status} | <strong>备注:</strong> {o.remark || '-'}
@@ -304,7 +305,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
           <Box sx={{ mt: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>📦 配方列表 ({o.items.length}项):</Typography>
             {o.items.map((it: any, i: number) => (
-              <Typography key={i} variant="body2" sx={{ pl: 1, color: '#1d4ed8' }}>
+              <Typography key={i} variant="body2" sx={{ pl: 1, color: colors.blue.text }}>
                 • {it.recipeName} ×{it.qty} ｜成本:¥{it.unitCost} ｜出厂价:¥{it.unitPrice}
               </Typography>
             ))}
@@ -317,7 +318,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
           <Box sx={{ mt: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>📝 采购TODO:</Typography>
             {o.todos.map((t: any, i: number) => (
-              <Typography key={i} variant="body2" sx={{ pl: 1, color: t.done ? '#10b981' : '#f59e0b' }}>
+              <Typography key={i} variant="body2" sx={{ pl: 1, color: t.done ? colors.green.main : colors.amber.main }}>
                 {t.done ? '✅' : '⬜'} {t.description}
               </Typography>
             ))}
@@ -330,7 +331,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 订单状态更新
   if (toolName === 'update_order_status' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxInfoPanel }}>
         <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700 }}>✅ 订单状态已更新</Typography>
         <Typography variant="body2" color="text.secondary">
           订单 {result.orderId}({result.customerName}): {result.oldStatus} → {result.newStatus}
@@ -342,7 +343,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 移除配方
   if (toolName === 'remove_recipe_from_order' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxErrorPanel }}>
         <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 已从订单移除配方</Typography>
         <Typography variant="body2" color="text.secondary">
           订单 {result.orderId}: 移除了 {result.removed} 个配方，剩余 {result.remaining} 个
@@ -354,13 +355,13 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 修改订单条目
   if (toolName === 'update_order_item' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxInfoPanel }}>
         <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700 }}>✅ 订单条目已更新</Typography>
         <Typography variant="body2" color="text.secondary">
           订单 {result.orderId} · {result.recipeName}
         </Typography>
         {result.changes?.map((c: string, i: number) => (
-          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {c}</Typography>
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: colors.green.dark }}>• {c}</Typography>
         ))}
       </Box>
     );
@@ -369,13 +370,13 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 采购清单
   if (toolName === 'generate_purchase_list' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxSuccessPanel }}>
         <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>✅ 采购清单已生成</Typography>
         <Typography variant="body2" color="text.secondary">
           共 {result.summary?.totalParts} 种零件，其中 {result.summary?.needToBuy} 种需采购，涉及 {result.summary?.suppliers?.length} 个供应商
         </Typography>
         {result.todos?.map((t: any, i: number) => (
-          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#1d4ed8', mt: 0.3 }}>📞 {t.description}</Typography>
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: colors.blue.text, mt: 0.3 }}>📞 {t.description}</Typography>
         ))}
       </Box>
     );
@@ -384,7 +385,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 删除订单
   if (toolName === 'delete_order' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxErrorPanel }}>
         <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 订单已删除</Typography>
         <Typography variant="body2" color="text.secondary">订单 {result.orderId}({result.customerName}) 已彻底删除</Typography>
       </Box>
@@ -394,7 +395,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 新建配方
   if (toolName === 'create_recipe' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxSuccessPanel }}>
         <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700 }}>✅ 配方创建成功</Typography>
         <Typography variant="body2" color="text.secondary">
           ID: {result.recipe?.id} | 名称: {result.recipe?.name} | 规格: {result.recipe?.spec} | 零件数: {result.recipe?.partsCount} | 成本: ¥{result.recipe?.totalCost}
@@ -406,7 +407,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 删除配方
   if (toolName === 'delete_recipe' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxErrorPanel }}>
         <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 配方已删除</Typography>
         <Typography variant="body2" color="text.secondary">配方"{result.recipeName}"已删除</Typography>
       </Box>
@@ -416,13 +417,13 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 修改配方
   if (toolName === 'update_recipe' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxInfoPanel }}>
         <Typography variant="subtitle2" color="primary.dark" sx={{ fontWeight: 700 }}>✅ 配方已修改</Typography>
         <Typography variant="body2" color="text.secondary">
           {result.recipeName} | 零件数: {result.partsCount} | 新成本: ¥{result.newCost}
         </Typography>
         {result.changes?.map((c: string, i: number) => (
-          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {c}</Typography>
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: colors.green.dark }}>• {c}</Typography>
         ))}
       </Box>
     );
@@ -431,19 +432,19 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 配方对比
   if (toolName === 'compare_recipes' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#faf5ff', borderRadius: 2, border: '1px solid #d8b4fe' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxPurplePanel }}>
         <Typography variant="subtitle2" color="secondary.dark" sx={{ fontWeight: 700, mb: 1 }}>🔍 配方对比结果</Typography>
         <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
-          <Box sx={{ flex: 1, p: 1, bgcolor: '#f5f3ff', borderRadius: 1 }}>
+          <Box sx={{ flex: 1, p: 1, bgcolor: colors.purple.bg, borderRadius: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{result.recipe1?.name}</Typography>
             <Typography variant="caption" color="text.secondary">规格: {result.recipe1?.spec} | 成本: ¥{result.recipe1?.cost} | {result.recipe1?.partsCount}个零件</Typography>
           </Box>
-          <Box sx={{ flex: 1, p: 1, bgcolor: '#f5f3ff', borderRadius: 1 }}>
+          <Box sx={{ flex: 1, p: 1, bgcolor: colors.purple.bg, borderRadius: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{result.recipe2?.name}</Typography>
             <Typography variant="caption" color="text.secondary">规格: {result.recipe2?.spec} | 成本: ¥{result.recipe2?.cost} | {result.recipe2?.partsCount}个零件</Typography>
           </Box>
         </Box>
-        <Typography variant="body2" sx={{ fontWeight: 600, color: Number(result.costDiff) > 0 ? '#dc2626' : '#059669' }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: costDiffColor(Number(result.costDiff)) }}>
           成本差异: ¥{result.costDiff} ({result.recipe1?.name}比{result.recipe2?.name}{Number(result.costDiff) > 0 ? '贵' : '便宜'})
         </Typography>
       </Box>
@@ -453,10 +454,10 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 搜索零件
   if (toolName === 'search_parts' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+      <Box sx={{ mt: 1.5, p: 2, bgcolor: colors.slate.bg, borderRadius: 2, border: `1px solid ${colors.slate.border}` }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>🔍 找到 {result.count} 个零件</Typography>
         {result.parts?.slice(0, 15).map((p: any, i: number) => (
-          <Typography key={i} variant="body2" sx={{ color: '#475569' }}>
+          <Typography key={i} variant="body2" sx={{ color: colors.slate.text }}>
             • {p.model} | {p.category} | ¥{p.price} | {p.supplier} | 库存:{p.stock}
           </Typography>
         ))}
@@ -468,7 +469,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 删除零件
   if (toolName === 'delete_part' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxErrorPanel }}>
         <Typography variant="subtitle2" color="error.dark" sx={{ fontWeight: 700 }}>✅ 零件已删除</Typography>
         <Typography variant="body2" color="text.secondary">零件"{result.model}"已删除</Typography>
       </Box>
@@ -478,13 +479,13 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 批量调价
   if (toolName === 'batch_update_prices' && result.success) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#fffbeb', borderRadius: 2, border: '1px solid #fde68a' }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#92400e', mb: 1 }}>✅ 批量调价完成</Typography>
+      <Box sx={{ mt: 1.5, p: 2, ...sxWarningPanel }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: colors.amber.text, mb: 1 }}>✅ 批量调价完成</Typography>
         <Typography variant="body2" color="text.secondary">
           类别"{result.category}" · {result.count}个零件 · {result.changeType}
         </Typography>
         {result.details?.slice(0, 10).map((d: any, i: number) => (
-          <Typography key={i} variant="body2" sx={{ pl: 1, color: '#059669' }}>• {d.model}: ¥{d.oldPrice} → ¥{d.newPrice}</Typography>
+          <Typography key={i} variant="body2" sx={{ pl: 1, color: colors.green.dark }}>• {d.model}: ¥{d.oldPrice} → ¥{d.newPrice}</Typography>
         ))}
         {(result.details?.length || 0) > 10 && <Typography variant="caption" color="text.secondary">...还有 {result.details.length - 10} 个未显示</Typography>}
       </Box>
@@ -495,7 +496,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   if (toolName === 'get_dashboard_summary' && result.summary) {
     const s = result.summary;
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #86efac' }}>
+      <Box sx={{ mt: 1.5, p: 2, ...sxSuccessPanel }}>
         <Typography variant="subtitle2" color="success.dark" sx={{ fontWeight: 700, mb: 1 }}>📊 运营数据汇总</Typography>
         <Typography variant="body2" component="div" color="text.secondary">
           <strong>订单:</strong> 共{s.orders?.total}个 (待采购:{s.orders?.['待采购']} / 采购中:{s.orders?.['采购中']} / 已完成:{s.orders?.['已完成']})<br/>
@@ -509,7 +510,7 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
   // 通用成功/失败卡片
   if (result.success !== undefined && !result.data) {
     return (
-      <Box sx={{ mt: 1.5, p: 2, bgcolor: result.success ? '#f0fdf4' : '#fef2f2', borderRadius: 2, border: `1px solid ${result.success ? '#86efac' : '#fecaca'}` }}>
+      <Box sx={{ mt: 1.5, p: 2, ...(result.success ? sxSuccessPanel : sxErrorPanel) }}>
         <Typography variant="subtitle2" color={result.success ? 'success.dark' : 'error.dark'} sx={{ fontWeight: 700 }}>
           {result.success ? '✅' : '❌'} {result.message || result.error}
         </Typography>
@@ -649,11 +650,11 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }}>型号</TableCell>
-                <TableCell sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }}>类别</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }}>单价</TableCell>
-                <TableCell sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }}>供应商</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }}>库存</TableCell>
+                <TableCell sx={{ fontWeight: 700, bgcolor: colors.slate.light }}>型号</TableCell>
+                <TableCell sx={{ fontWeight: 700, bgcolor: colors.slate.light }}>类别</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: colors.slate.light }}>单价</TableCell>
+                <TableCell sx={{ fontWeight: 700, bgcolor: colors.slate.light }}>供应商</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: colors.slate.light }}>库存</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>

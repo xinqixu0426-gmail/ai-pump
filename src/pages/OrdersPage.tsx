@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Paper,
@@ -26,7 +26,8 @@ import {
   Edit as EditIcon,
 } from '@mui/icons-material';
 import { Order, OrderStatus } from '../types';
-import { getAllOrders, deleteOrder } from '../utils/orderStore';
+import { deleteOrder } from '../utils/orderStore';
+import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
 import { formatDate } from '../utils/format';
 
@@ -38,23 +39,21 @@ const STATUS_COLOR: Record<OrderStatus, 'warning' | 'info' | 'success'> = {
 
 export default function OrdersPage() {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { orders: rawOrders, fetchOrders } = useAppStore();
   const [selected, setSelected] = useState<Order | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const data = await getAllOrders();
-    setOrders(data.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ));
-  }, []);
+  const orders = useMemo(() =>
+    [...rawOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [rawOrders]
+  );
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('确定删除这个订单？')) return;
     await deleteOrder(id);
-    load();
+    fetchOrders(true);
   };
 
   const handleDetail = (order: Order) => setSelected(order);
@@ -191,7 +190,7 @@ export default function OrdersPage() {
         <OrderDetailModal
           order={selected}
           onClose={() => setSelected(null)}
-          onUpdated={() => { load(); setSelected(null); }}
+          onUpdated={() => { fetchOrders(true); setSelected(null); }}
         />
       )}
     </Paper>

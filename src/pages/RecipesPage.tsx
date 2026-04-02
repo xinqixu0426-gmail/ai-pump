@@ -23,15 +23,15 @@ import {
   Add as AddIcon,
   ContentCopy as CopyIcon
 } from '@mui/icons-material';
-import { Recipe, Part, RecipePart, CostResult } from '../types';
-import { getAllRecipes, getAllParts, deleteRecipe } from '../utils/api';
+import { Recipe, RecipePart, CostResult } from '../types';
+import { deleteRecipe } from '../utils/api';
+import { useAppStore } from '../utils/store';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 
 export default function RecipesPage() {
   const navigate = useNavigate();
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [parts, setParts] = useState<Part[]>([]);
+  const { recipes, parts, fetchParts, fetchRecipes } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<{
@@ -43,12 +43,7 @@ export default function RecipesPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [recipesData, partsData] = await Promise.all([
-        getAllRecipes(),
-        getAllParts()
-      ]);
-      setRecipes(recipesData);
-      setParts(partsData);
+      await Promise.all([fetchRecipes(), fetchParts()]);
       setError('');
     } catch (err) {
       setError('加载数据失败');
@@ -56,7 +51,7 @@ export default function RecipesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchRecipes, fetchParts]);
 
   useEffect(() => {
     loadData();
@@ -87,7 +82,7 @@ export default function RecipesPage() {
 
     try {
       await deleteRecipe(id);
-      await loadData();
+      await fetchRecipes(true);
     } catch (err) {
       setError('删除失败');
       console.error(err);
