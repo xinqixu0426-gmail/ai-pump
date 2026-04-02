@@ -14,7 +14,12 @@ import {
   TableRow,
   IconButton,
   Tooltip,
-  Button
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import {
   Info as InfoIcon,
@@ -78,9 +83,16 @@ export default function RecipesPage() {
   }, [recipes, parts]);
 
   // 删除配方
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('确定要删除这个配方吗？')) return;
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
+  const handleDelete = (id: number) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget === null) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     try {
       await deleteRecipe(id);
       await fetchRecipes(true);
@@ -252,6 +264,18 @@ export default function RecipesPage() {
           onStockUpdated={loadData}
         />
       )}
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>删除配方</DialogTitle>
+        <DialogContent>
+          <DialogContentText>确定要删除这个配方吗？此操作不可撤销。</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>取消</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">删除</Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
