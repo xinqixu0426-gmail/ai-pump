@@ -1068,6 +1068,19 @@ app.delete('/api/recipes', async (req, res) => {
     }
 });
 
+/** PATCH /api/recipes - 更新配方 */
+app.patch('/api/recipes', async (req, res) => {
+    try {
+        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
+            method: 'PATCH',
+            body: JSON.stringify(req.body)
+        });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ============================================
 // 订单 CRUD 代理
 // ============================================

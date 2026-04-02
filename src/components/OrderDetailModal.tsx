@@ -51,6 +51,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
   const [tab, setTab] = useState(0);
   const [localOrder, setLocalOrder] = useState<Order>(order);
   const [confirming, setConfirming] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -92,19 +93,20 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
 
   // 确认采购完成，入库
   const handleConfirmPurchase = async () => {
-    if (!window.confirm('确认所有采购已完成？将把 needToBuy 数量加入库存。')) return;
+    setConfirmOpen(false);
     setConfirming(true);
     setError('');
     try {
-      const additions = calcStockAdditions(localOrder.purchaseList);
+      // 使用最新的 localOrder 快照
+      const currentOrder = localOrder;
+      const additions = calcStockAdditions(currentOrder.purchaseList);
       if (additions.length > 0) {
         await batchAddStock(additions);
       }
       const updated: Order = {
-        ...localOrder,
+        ...currentOrder,
         status: '已完成',
-        // 标记全部已采购
-        purchaseList: localOrder.purchaseList.map((p) => ({ ...p, purchased: true })),
+        purchaseList: currentOrder.purchaseList.map((p) => ({ ...p, purchased: true })),
         updatedAt: new Date().toISOString(),
       };
       setLocalOrder(updated);
@@ -381,12 +383,24 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
             variant="contained"
             color="success"
             startIcon={confirming ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
-            onClick={handleConfirmPurchase}
+            onClick={() => setConfirmOpen(true)}
             disabled={confirming}
           >
             确认采购完成并入库
           </Button>
         )}
+
+        {/* 入库确认对话框 */}
+        <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs">
+          <DialogTitle>确认入库</DialogTitle>
+          <DialogContent>
+            <Typography>确认所有采购已完成？将把需采购数量加入库存。</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConfirmOpen(false)}>取消</Button>
+            <Button variant="contained" color="success" onClick={handleConfirmPurchase}>确认入库</Button>
+          </DialogActions>
+        </Dialog>
         {localOrder.status === '已完成' && (
           <Chip label="✅ 已入库完成" color="success" />
         )}

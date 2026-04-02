@@ -31,7 +31,7 @@ import {
   Cable as CableIcon,
 } from '@mui/icons-material';
 import { RecipePart } from '../types';
-import { createRecipe } from '../utils/api';
+import { createRecipe, updateRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import RecipePartRow from '../components/RecipePartRow';
 
@@ -93,8 +93,14 @@ interface CoilSpecInfo {
 export default function RecipeFormPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const cloneFrom = (location.state as { cloneFrom?: { name: string; spec: string; partsJson: string } })?.cloneFrom;
-  const cloneApplied = useRef(false);
+  const locState = location.state as {
+    cloneFrom?: { name: string; spec: string; partsJson: string };
+    editFrom?: { id: number; name: string; spec: string; partsJson: string };
+  } | null;
+  const cloneFrom = locState?.cloneFrom;
+  const editFrom = locState?.editFrom;
+  const isEditing = !!editFrom;
+  const initApplied = useRef(false);
 
   const { parts, fetchParts } = useAppStore();
   const [loading, setLoading] = useState(true);
@@ -102,8 +108,8 @@ export default function RecipeFormPage() {
   const [error, setError] = useState('');
 
   // 基本信息
-  const [recipeName, setRecipeName] = useState(cloneFrom?.name || '');
-  const [recipeSpec, setRecipeSpec] = useState(cloneFrom?.spec || '');
+  const [recipeName, setRecipeName] = useState(editFrom?.name || cloneFrom?.name || '');
+  const [recipeSpec, setRecipeSpec] = useState(editFrom?.spec || cloneFrom?.spec || '');
 
   // 必备配件
   const [requiredSelections, setRequiredSelections] = useState<Record<string, PartSelection>>(
@@ -210,15 +216,17 @@ export default function RecipeFormPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coilResult]);
 
-  // 复制配方预填
+  // 复制/编辑配方预填
   useEffect(() => {
-    if (!cloneFrom || cloneApplied.current || parts.length === 0) return;
-    cloneApplied.current = true;
+    const source = editFrom || cloneFrom;
+    if (!source || initApplied.current || parts.length === 0) return;
+    initApplied.current = true;
     try {
-      const cloneParts: RecipePart[] = JSON.parse(cloneFrom.partsJson);
+      const srcParts: RecipePart[] = JSON.parse(source.partsJson);
       const newRequired = JSON.parse(JSON.stringify(EMPTY_REQUIRED));
       const newOptional: Array<PartSelection & { id: number }> = [];
-      cloneParts.forEach((cp) => {
+      srcParts.forEach((cp) => {
+        // 线圈转子
         if (cp.name === '线圈转子') {
           if (cp.model && cp.model.includes('-')) {
             const [s, sh] = cp.model.split('-');
@@ -227,6 +235,26 @@ export default function RecipeFormPage() {
           }
           return;
         }
+        // 动态配置项（浮球、电缆、包材）
+        if (cp.name === '浮球') {
+          setHasFloat(true);
+          const w = cp.model.replace('浮球-线径', '');
+          if (w) setFloatWire(w);
+          return;
+        }
+        if (cp.name === '电缆线') {
+          setHasCable(true);
+          const w = cp.model.replace('电缆-线径', '');
+          if (w) setCableWire(w);
+          setCableLength(String(cp.qty || ''));
+          return;
+        }
+        if (cp.name === '电缆接头配件') return;
+        if (cp.name === '纸箱' || cp.name === '木箱') {
+          setBoxType(cp.model);
+          return;
+        }
+        // 必备配件
         const key = REQUIRED_NAME_TO_KEY[cp.name];
         if (key) {
           newRequired[key] = { model: cp.model, supplier: cp.supplier, qty: cp.qty };
@@ -237,9 +265,9 @@ export default function RecipeFormPage() {
       setRequiredSelections(newRequired);
       setOptionalParts(newOptional);
     } catch (e) {
-      console.error('复制配方解析失败', e);
+      console.error('解析配方失败', e);
     }
-  }, [cloneFrom, parts]);
+  }, [editFrom, cloneFrom, parts]);
 
   // ── 辅助函数 ──
   const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
@@ -379,13 +407,23 @@ export default function RecipeFormPage() {
 
     setSaving(true);
     try {
-      await createRecipe({
-        name: recipeName,
-        spec: recipeSpec,
-        parts_json: JSON.stringify(recipeParts),
-        saved_total_cost: savedTotalCost,
-        saved_cost_details: savedCostDetails,
-      });
+      if (isEditing && editFrom) {
+        await updateRecipe(editFrom.id, {
+          name: recipeName,
+          spec: recipeSpec,
+          parts_json: JSON.stringify(recipeParts),
+          saved_total_cost: savedTotalCost,
+          saved_cost_details: savedCostDetails,
+        });
+      } else {
+        await createRecipe({
+          name: recipeName,
+          spec: recipeSpec,
+          parts_json: JSON.stringify(recipeParts),
+          saved_total_cost: savedTotalCost,
+          saved_cost_details: savedCostDetails,
+        });
+      }
       navigate('/recipes');
     } catch {
       setError('保存配方失败');
@@ -425,7 +463,7 @@ export default function RecipeFormPage() {
             <BackIcon />
           </IconButton>
           <Typography variant="h6">
-            {cloneFrom ? '复制配方' : '录入配方'}
+            {isEditing ? '编辑配方' : cloneFrom ? '复制配方' : '录入配方'}
           </Typography>
         </Box>
         {totalCost > 0 && (
@@ -719,7 +757,7 @@ export default function RecipeFormPage() {
         disabled={saving || !recipeName.trim() || allPartsPreview.length === 0}
         sx={{ mt: 1 }}
       >
-        保存配方
+        {isEditing ? '更新配方' : '保存配方'}
       </Button>
     </Paper>
   );

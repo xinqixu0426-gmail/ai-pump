@@ -166,6 +166,24 @@ export async function deleteRecipe(id: number): Promise<void> {
   });
 }
 
+/**
+ * 更新配方
+ */
+export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'>>): Promise<Recipe> {
+  const record: Record<string, unknown> = { Id: id };
+  if (recipe.name !== undefined) record['配方名称'] = recipe.name;
+  if (recipe.spec !== undefined) record['规格'] = recipe.spec;
+  if (recipe.parts_json !== undefined) record['配件JSON'] = recipe.parts_json;
+  if (recipe.saved_total_cost !== undefined) record['saved_total_cost'] = recipe.saved_total_cost;
+  if (recipe.saved_cost_details !== undefined) record['saved_cost_details'] = recipe.saved_cost_details;
+
+  const res = await proxyRequest<{ success: boolean; data: RawRecipe }>('/api/recipes', {
+    method: 'PATCH',
+    body: JSON.stringify(record),
+  });
+  return normalizeRecipe(res.data);
+}
+
 // ─── 成本计算（已走后端代理）──────────────────
 
 /**

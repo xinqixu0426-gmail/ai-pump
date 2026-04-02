@@ -21,7 +21,8 @@ import {
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
   Add as AddIcon,
-  ContentCopy as CopyIcon
+  ContentCopy as CopyIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import { Recipe, RecipePart, CostResult } from '../types';
 import { deleteRecipe } from '../utils/api';
@@ -115,6 +116,20 @@ export default function RecipesPage() {
     });
   };
 
+  // 编辑配方
+  const handleEdit = (recipe: Recipe) => {
+    navigate('/recipe-form', {
+      state: {
+        editFrom: {
+          id: recipe.Id,
+          name: recipe.name,
+          spec: recipe.spec,
+          partsJson: recipe.parts_json
+        }
+      }
+    });
+  };
+
   return (
     <Paper elevation={2} sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -157,7 +172,7 @@ export default function RecipesPage() {
                 <TableCell>规格</TableCell>
                 <TableCell>配件概览</TableCell>
                 <TableCell>总成本</TableCell>
-                <TableCell align="center" sx={{ width: '160px' }}>
+                <TableCell align="center" sx={{ width: '200px' }}>
                   操作
                 </TableCell>
               </TableRow>
@@ -189,6 +204,15 @@ export default function RecipesPage() {
                           onClick={() => handleViewDetail(recipe)}
                         >
                           <InfoIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="编辑">
+                        <IconButton
+                          size="small"
+                          color="warning"
+                          onClick={() => handleEdit(recipe)}
+                        >
+                          <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="复制配方">
