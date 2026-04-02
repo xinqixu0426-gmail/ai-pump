@@ -201,15 +201,34 @@
 
 ---
 
-## 六、NocoDB 数据操作 (前端直连)
+## 六、数据代理 API（前端 → 后端 → NocoDB）
 
-前端通过 `src/utils/api.ts` 直接访问 NocoDB 进行 CRUD。
+前端通过 `/api/*` 后端代理操作数据，**不直连 NocoDB**。Token 仅存在 `api.cjs`。
 
-- **通用分页**: `GET /api/v2/tables/{tableId}/records?limit=100&offset={n}`
-- **零件**: POST 创建 / PATCH 更新 / DELETE 删除 / `batchAddStock` 批量入库
-- **配方**: POST 创建(含 parts_json 快照) / DELETE 删除
-- **订单**: POST 创建 / PATCH 更新状态与采购清单
+### 零件
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/parts` | 获取全部零件（自动分页） |
+| POST | `/api/parts` | 新建零件 |
+| PATCH | `/api/parts/:id` | 更新零件 |
+| DELETE | `/api/parts/:id` | 删除零件 |
+
+### 配方
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/recipes` | 获取全部配方（自动分页） |
+| POST | `/api/recipes` | 新建配方（含 parts_json 快照） |
+| DELETE | `/api/recipes/:id` | 删除配方 |
+
+### 订单
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/orders` | 获取全部订单（自动分页） |
+| POST | `/api/orders` | 新建订单 |
+| PATCH | `/api/orders/:id` | 更新订单（状态/采购清单/定价等） |
+| DELETE | `/api/orders/:id` | 删除订单 |
 
 ---
 
 *本文档为单点信息源(SSOT)，API 变更请同步更新。*
+
