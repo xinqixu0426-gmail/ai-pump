@@ -1,6 +1,6 @@
 /**
  * 水泵BOM成本查询API
- * 供N8N等外部系统调用
+ * SQLite 版本 (迁移自 NocoDB)
  */
 
 try {
@@ -15,89 +15,100 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const crypto = require('crypto');
+const Database = require('better-sqlite3');
 
 const app = express();
-const PORT = 3002;  // API服务器端口
+const PORT = 3002;
 
-// NocoDB 配置
-const NOCO_CONFIG = {
-    baseUrl: process.env.VITE_NOCO_BASE_URL || 'http://localhost:8080',
-    apiToken: process.env.VITE_NOCO_API_TOKEN || '',
-    partsTable: process.env.VITE_NOCO_PARTS_TABLE || '',
-    recipesTable: process.env.VITE_NOCO_RECIPES_TABLE || '',
-    ordersTable: process.env.VITE_NOCO_ORDERS_TABLE || '',
-    coilsTable: process.env.VITE_NOCO_COILS_TABLE || '',
-    configTable: process.env.VITE_NOCO_CONFIG_TABLE || ''
-};
+// ── SQLite 初始化 ──
+const DB_PATH = path.join(__dirname, 'pump.db');
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 // 中间件
-app.use(cors());  // 允许跨域请求（N8N调用需要）
+app.use(cors());
 app.use(express.json());
 
-/**
- * API请求封装
- */
-async function apiRequest(path, options = {}) {
-    const url = `${NOCO_CONFIG.baseUrl}${path}`;
-    const headers = {
-        'xc-token': NOCO_CONFIG.apiToken,
-        'Content-Type': 'application/json',
-        ...options.headers
+// ── 通用 SQLite 辅助 ──
+
+/** Row adapters: SQLite英文列 → 前端期望的大写Id + 中文字段(兼容) */
+function partRow(r) {
+    if (!r) return r;
+    return { Id: r.id, model: r.model, category: r.category, price: r.price, supplier: r.supplier, stock: r.stock,
+             '型号': r.model, '类别': r.category, '单价': r.price, '供应商': r.supplier, '库存': r.stock, '备注': r.remark || '',
+             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+}
+function recipeRow(r) {
+    if (!r) return r;
+    return { Id: r.id, name: r.name, spec: r.spec, parts_json: r.parts_json,
+             '配方名称': r.name, '规格': r.spec, '配件JSON': r.parts_json,
+             saved_total_cost: r.saved_total_cost, '保存时总成本': r.saved_total_cost,
+             saved_cost_details: r.saved_cost_details, '保存时成本明细': r.saved_cost_details,
+             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+}
+function orderRow(r) {
+    if (!r) return r;
+    return { Id: r.id, '客户名称': r.customer_name, '合同号': r.contract_no, '备注': r.remark,
+             '订单状态': r.status, '型号列表JSON': r.items_json,
+             '采购清单JSON': r.purchase_list_json, '采购TodoJSON': r.todos_json,
+             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+}
+function coilRow(r) {
+    if (!r) return r;
+    return { Id: r.id, '规格': r.spec, '单价': r.unit_price, '片数': r.sheets,
+             '默认线重': r.wire_weight, '铜价基数': r.copper_base,
+             '线圈加工费': r.coil_fee, '转子加工费': r.rotor_fee,
+             '成本': r.cost, '默认电容_uf': r.default_capacitor, '默认线径': r.default_wire_gauge,
+             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+}
+
+// ── 数据访问层 ──
+function dbGetAllParts() { return db.prepare('SELECT * FROM parts').all().map(partRow); }
+function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes').all().map(recipeRow); }
+function dbGetAllOrders() { return db.prepare('SELECT * FROM orders').all().map(orderRow); }
+function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
+
+
+/** 将 SQLite row 的 id 映射为前端期望的 Id (大写) */
+function withId(row) {
+    if (!row) return row;
+    return { Id: row.id, ...row };
+}
+
+/** 兼容前端发送的中英文字段名, 提取零件字段 */
+function extractPartFields(body) {
+    return {
+        model: body.model || body.型号 || '',
+        category: body.category || body.类别 || '其他',
+        price: body.price ?? body.单价 ?? 0,
+        supplier: body.supplier || body.供应商 || '-',
+        stock: body.stock ?? body.库存 ?? 0,
+        remark: body.remark || body.备注 || '',
     };
-
-    const response = await fetch(url, {
-        ...options,
-        headers
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return await response.json();
 }
 
 /**
- * 递归分页抓取所有记录
+ * 加载所有零件数据（用于成本计算）— 同步
  */
-async function fetchAllRecords(tableId) {
-    const PAGE_SIZE = 100;
-    let offset = 0;
-    const all = [];
-
-    while (true) {
-        const data = await apiRequest(`/api/v2/tables/${tableId}/records?limit=${PAGE_SIZE}&offset=${offset}`);
-        const list = data.list || [];
-        if (list.length === 0) break;
-        all.push(...list);
-        if (list.length < PAGE_SIZE) break;
-        offset += PAGE_SIZE;
-    }
-
-    return all;
-}
-
-/**
- * 加载所有零件数据（用于成本计算）
- */
-async function loadPartsData() {
-    const records = await fetchAllRecords(NOCO_CONFIG.partsTable);
+function loadPartsData() {
+    const records = db.prepare('SELECT * FROM parts').all();
 
     const partsCache = {};
     const partsByModel = {};
 
     records.forEach(record => {
-        const model = record.型号 || record.model;
-        const category = record.类别 || record.category || '其他';
-        const price = record.单价 || record.price || 0;
-        const supplier = record.供应商 || record.supplier || '-';
+        const model = record.model;
+        const category = record.category || '其他';
+        const price = record.price || 0;
+        const supplier = record.supplier || '-';
 
         partsCache[model] = { price, supplier, category };
 
         if (!partsByModel[model]) {
             partsByModel[model] = [];
         }
-        partsByModel[model].push({ id: record.Id, supplier, price });
+        partsByModel[model].push({ id: record.id, supplier, price });
     });
 
     return { partsCache, partsByModel };
@@ -193,7 +204,7 @@ app.post('/api/cost/calculate', async (req, res) => {
         }
 
         // 加载零件数据
-        const { partsCache, partsByModel } = await loadPartsData();
+        const { partsCache, partsByModel } = loadPartsData();
 
         // 计算成本
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
@@ -234,7 +245,7 @@ app.get('/api/cost/recipe/by-name', async (req, res) => {
         // 从NocoDB获取所有配方，然后在内存中匹配（避免URL编码问题）
         let allRecipes;
         try {
-            allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+            allRecipes = dbGetAllRecipes();
         } catch (error) {
             console.error('NocoDB Error:', error);
             return res.status(500).json({
@@ -278,7 +289,7 @@ app.get('/api/cost/recipe/by-name', async (req, res) => {
         }
 
         // 加载零件数据并计算成本
-        const { partsCache, partsByModel } = await loadPartsData();
+        const { partsCache, partsByModel } = loadPartsData();
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
 
         res.json({
@@ -311,7 +322,7 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
         const recipeId = req.params.id;
 
         // 从NocoDB获取配方
-        const data = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records?where=(Id,eq,${recipeId})`);
+        const data = { list: [recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(parseInt(recipeId)))].filter(Boolean) };
 
         if (!data.list || data.list.length === 0) {
             return res.status(404).json({
@@ -336,7 +347,7 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
         }
 
         // 加载零件数据并计算成本
-        const { partsCache, partsByModel } = await loadPartsData();
+        const { partsCache, partsByModel } = loadPartsData();
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
 
         res.json({
@@ -362,14 +373,11 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
  * 从线圈成本表查询默认线径
  * 按 (规格, 片数) 精确匹配
  */
-async function resolveWireFromStator(statorSpec, statorSheets) {
+function resolveWireFromStator(statorSpec, statorSheets) {
     if (!statorSpec || !statorSheets) return null;
     try {
-        const data = await apiRequest(
-            `/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
-        );
-        const record = data.list?.[0];
-        return record?.默认线径 || null;
+        const record = db.prepare('SELECT default_wire_gauge FROM coils WHERE spec = ? AND sheets = ? LIMIT 1').get(String(statorSpec), parseInt(statorSheets));
+        return record?.default_wire_gauge || null;
     } catch {
         return null;
     }
@@ -412,7 +420,7 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
             statorSheets = statorSheets || sh.trim();
         }
 
-        const { partsCache, partsByModel } = await loadPartsData();
+        const { partsCache, partsByModel } = loadPartsData();
 
         // 从数据库查价的辅助函数（取同型号最低价）
         const getPrice = (model) => {
@@ -422,7 +430,7 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
         };
 
         // 智能推导线径：先从线圈成本表按(规格,片数)查默认线径，查不到则兜底
-        const dbWire = await resolveWireFromStator(statorSpec, statorSheets);
+        const dbWire = resolveWireFromStator(statorSpec, statorSheets);
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
 
         let totalCost = 0;
@@ -531,7 +539,7 @@ app.post('/api/cost/full-calculate', async (req, res) => {
             cableWire
         } = req.body;
 
-        const { partsCache, partsByModel } = await loadPartsData();
+        const { partsCache, partsByModel } = loadPartsData();
 
         // 取同型号最低价
         const getPrice = (model) => {
@@ -553,7 +561,7 @@ app.post('/api/cost/full-calculate', async (req, res) => {
         // ── 步骤1: 配方成本 ──
         if (pumphousing_model) {
             try {
-                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => {
                     const name = r.配方名称 || r.name || '';
                     return name.includes(pumphousing_model);
@@ -590,10 +598,7 @@ app.post('/api/cost/full-calculate', async (req, res) => {
         if (statorSpec && statorSheets) {
             try {
                 // 查线圈成本表
-                const statorData = await apiRequest(
-                    `/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(规格,eq,${encodeURIComponent(statorSpec)})~and(片数,eq,${encodeURIComponent(statorSheets)})&limit=1`
-                );
-                const statorRecord = statorData.list?.[0];
+                const statorRecord = coilRow(db.prepare('SELECT * FROM coils WHERE spec = ? AND sheets = ? LIMIT 1').get(statorSpec, parseInt(statorSheets)));
 
                 if (statorRecord) {
                     const cost = parseFloat(statorRecord.成本 || statorRecord.cost || 0);
@@ -607,10 +612,7 @@ app.post('/api/cost/full-calculate', async (req, res) => {
                     grandTotal += cost;
                 } else {
                     // 没精确匹配到——查同规格的基础数据以便参考
-                    const baseData = await apiRequest(
-                        `/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(规格,eq,${encodeURIComponent(statorSpec)})&limit=10`
-                    );
-                    const baseRecords = baseData.list || [];
+                    const baseRecords = db.prepare('SELECT * FROM coils WHERE spec = ? LIMIT 10').all(statorSpec).map(coilRow);
 
                     if (baseRecords.length > 0) {
                         // 取第一条作为基准获取单价等字段
@@ -644,7 +646,7 @@ app.post('/api/cost/full-calculate', async (req, res) => {
 
         // ── 步骤3: 动态配置成本 (浮球/电缆/包材) ──
         const dbWire = statorSpec && statorSheets
-            ? await resolveWireFromStator(statorSpec, statorSheets)
+            ? resolveWireFromStator(statorSpec, statorSheets)
             : null;
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
 
@@ -754,31 +756,16 @@ async function fetchCopperPrice() {
 async function updateAllCoilsCopperPrice(copperPricePerTon) {
     const copperPricePerKg = (copperPricePerTon / 1000).toFixed(2);
     console.log(`[铜价更新] 获取铜价: ${copperPricePerTon} 元/吨 → ${copperPricePerKg} 元/千克`);
-
-    // 获取所有线圈记录
-    const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
-
-    for (const coil of allCoils) {
-        const unitPrice = parseFloat(coil.单价 || 0);
-        const sheets = parseInt(coil.片数 || 0);
-        const wireWeight = parseFloat(coil.默认线重 || 0);
-        const coilFee = parseFloat(coil.线圈加工费 || 0);
-        const rotorFee = parseFloat(coil.转子加工费 || 0);
-
-        // 重新计算成本
-        const newCost = unitPrice * sheets + wireWeight * parseFloat(copperPricePerKg) + coilFee + rotorFee;
-
-        // 更新记录
-        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-                Id: coil.Id,
-                铜价基数: copperPricePerKg,
-                成本: newCost.toFixed(5)
-            })
-        });
-    }
-
+    const allCoils = db.prepare('SELECT * FROM coils').all();
+    const updateCoil = db.prepare('UPDATE coils SET copper_base = ?, cost = ?, updated_at = ? WHERE id = ?');
+    const now = new Date().toISOString();
+    const batchUpdate = db.transaction((coils) => {
+        for (const coil of coils) {
+            const newCost = coil.unit_price * coil.sheets + coil.wire_weight * parseFloat(copperPricePerKg) + coil.coil_fee + coil.rotor_fee;
+            updateCoil.run(copperPricePerKg, newCost.toFixed(5), now, coil.id);
+        }
+    });
+    batchUpdate(allCoils);
     console.log(`[铜价更新] 已更新 ${allCoils.length} 条线圈记录的铜价基数为 ${copperPricePerKg}`);
     return { copperPricePerTon, copperPricePerKg, updatedCount: allCoils.length };
 }
@@ -838,7 +825,7 @@ app.get('/api/copper-price', async (req, res) => {
     try {
         const price = await fetchCopperPrice();
         // 同时获取数据库中的铜价基数
-        const coils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const coils = dbGetAllCoils();
         const dbCopperPrice = coils.length > 0 ? coils[0].铜价基数 : null;
         res.json({
             success: true,
@@ -864,7 +851,7 @@ app.get('/api/copper-price', async (req, res) => {
  */
 app.get('/api/coils', async (req, res) => {
     try {
-        const coils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const coils = dbGetAllCoils();
         res.json({ success: true, data: coils });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -890,15 +877,11 @@ app.post('/api/coils', async (req, res) => {
         const rotorFee = parseFloat(转子加工费 || 0);
         const cost = unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee;
 
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
-            method: 'POST',
-            body: JSON.stringify({
-                规格, 单价, 片数, 默认线重, 铜价基数, 线圈加工费, 转子加工费,
-                默认电容_uf: 默认电容_uf || null,
-                默认线径: 默认线径 || null,
-                成本: cost.toFixed(5)
-            })
-        });
+        const now = new Date().toISOString();
+        const info = db.prepare('INSERT INTO coils (spec, sheets, unit_price, wire_weight, copper_base, coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            规格, sheets, unitPrice, wireWeight, copperBase, coilFee, rotorFee, cost.toFixed(5), 默认线径 || null, 默认电容_uf || null, now, now
+        );
+        const record = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(info.lastInsertRowid));
 
         res.json({ success: true, data: record });
     } catch (error) {
@@ -920,8 +903,7 @@ app.patch('/api/coils/:id', async (req, res) => {
             updates.线圈加工费 !== undefined || updates.转子加工费 !== undefined) {
 
             // 获取当前记录以合并
-            const data = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records?where=(Id,eq,${id})&limit=1`);
-            const current = data.list?.[0];
+            const current = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id));
             if (current) {
                 const merged = { ...current, ...updates };
                 const unitPrice = parseFloat(merged.单价 || 0);
@@ -934,10 +916,21 @@ app.patch('/api/coils/:id', async (req, res) => {
             }
         }
 
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
-            method: 'PATCH',
-            body: JSON.stringify(updates)
-        });
+        const uId = updates.Id || updates.id;
+        const now2 = new Date().toISOString();
+        const uSets = []; const uVals = [];
+        if (updates.单价 !== undefined) { uSets.push('unit_price = ?'); uVals.push(updates.单价); }
+        if (updates.片数 !== undefined) { uSets.push('sheets = ?'); uVals.push(updates.片数); }
+        if (updates.默认线重 !== undefined) { uSets.push('wire_weight = ?'); uVals.push(updates.默认线重); }
+        if (updates.铜价基数 !== undefined) { uSets.push('copper_base = ?'); uVals.push(updates.铜价基数); }
+        if (updates.线圈加工费 !== undefined) { uSets.push('coil_fee = ?'); uVals.push(updates.线圈加工费); }
+        if (updates.转子加工费 !== undefined) { uSets.push('rotor_fee = ?'); uVals.push(updates.转子加工费); }
+        if (updates.成本 !== undefined) { uSets.push('cost = ?'); uVals.push(updates.成本); }
+        if (updates.默认线径 !== undefined) { uSets.push('default_wire_gauge = ?'); uVals.push(updates.默认线径); }
+        if (updates.默认电容_uf !== undefined) { uSets.push('default_capacitor = ?'); uVals.push(updates.默认电容_uf); }
+        uSets.push('updated_at = ?'); uVals.push(now2); uVals.push(uId);
+        db.prepare(`UPDATE coils SET ${uSets.join(', ')} WHERE id = ?`).run(...uVals);
+        const record = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(uId));
 
         res.json({ success: true, data: record });
     } catch (error) {
@@ -951,10 +944,7 @@ app.patch('/api/coils/:id', async (req, res) => {
 app.delete('/api/coils/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.coilsTable}/records`, {
-            method: 'DELETE',
-            body: JSON.stringify([{ Id: id }])
-        });
+        db.prepare('DELETE FROM coils WHERE id = ?').run(id);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -968,7 +958,7 @@ app.delete('/api/coils/:id', async (req, res) => {
 /** GET /api/parts - 获取所有零件 */
 app.get('/api/parts', async (req, res) => {
     try {
-        const records = await fetchAllRecords(NOCO_CONFIG.partsTable);
+        const records = dbGetAllParts();
         res.json({ success: true, data: records });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -978,10 +968,10 @@ app.get('/api/parts', async (req, res) => {
 /** POST /api/parts - 创建零件 */
 app.post('/api/parts', async (req, res) => {
     try {
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
-            method: 'POST',
-            body: JSON.stringify(req.body)
-        });
+        const f = extractPartFields(req.body);
+        const now = new Date().toISOString();
+        const info = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(f.model, f.category, f.price, f.supplier, f.stock, now, now);
+        const record = partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid));
         res.json({ success: true, data: record });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -991,10 +981,19 @@ app.post('/api/parts', async (req, res) => {
 /** PATCH /api/parts - 更新零件 */
 app.patch('/api/parts', async (req, res) => {
     try {
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
-            method: 'PATCH',
-            body: JSON.stringify(req.body)
-        });
+        const id = req.body.Id || req.body.id;
+        const f = extractPartFields(req.body);
+        const now = new Date().toISOString();
+        const sets = [];
+        const vals = [];
+        if (req.body.model !== undefined || req.body.型号 !== undefined) { sets.push('model = ?'); vals.push(f.model); }
+        if (req.body.category !== undefined || req.body.类别 !== undefined) { sets.push('category = ?'); vals.push(f.category); }
+        if (req.body.price !== undefined || req.body.单价 !== undefined) { sets.push('price = ?'); vals.push(f.price); }
+        if (req.body.supplier !== undefined || req.body.供应商 !== undefined) { sets.push('supplier = ?'); vals.push(f.supplier); }
+        if (req.body.stock !== undefined || req.body.库存 !== undefined) { sets.push('stock = ?'); vals.push(f.stock); }
+        sets.push('updated_at = ?'); vals.push(now); vals.push(id);
+        db.prepare(`UPDATE parts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+        const record = partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id));
         res.json({ success: true, data: record });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1004,10 +1003,8 @@ app.patch('/api/parts', async (req, res) => {
 /** DELETE /api/parts - 删除零件 */
 app.delete('/api/parts', async (req, res) => {
     try {
-        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
-            method: 'DELETE',
-            body: JSON.stringify(req.body)
-        });
+        const items = Array.isArray(req.body) ? req.body : [req.body];
+        for (const item of items) { db.prepare('DELETE FROM parts WHERE id = ?').run(item.Id || item.id); }
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1021,7 +1018,7 @@ app.delete('/api/parts', async (req, res) => {
 /** GET /api/recipes - 获取所有配方 */
 app.get('/api/recipes', async (req, res) => {
     try {
-        const records = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+        const records = dbGetAllRecipes();
         res.json({ success: true, data: records });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1031,10 +1028,7 @@ app.get('/api/recipes', async (req, res) => {
 /** GET /api/recipes/:id - 获取单个配方 */
 app.get('/api/recipes/:id', async (req, res) => {
     try {
-        const data = await apiRequest(
-            `/api/v2/tables/${NOCO_CONFIG.recipesTable}/records?where=(Id,eq,${req.params.id})`
-        );
-        const record = data.list?.[0];
+        const record = recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(parseInt(req.params.id)));
         if (!record) return res.status(404).json({ success: false, error: '配方不存在' });
         res.json({ success: true, data: record });
     } catch (error) {
@@ -1045,10 +1039,13 @@ app.get('/api/recipes/:id', async (req, res) => {
 /** POST /api/recipes - 创建配方 */
 app.post('/api/recipes', async (req, res) => {
     try {
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
-            method: 'POST',
-            body: JSON.stringify(req.body)
-        });
+        const b = req.body;
+        const now = new Date().toISOString();
+        const info = db.prepare('INSERT INTO recipes (name, spec, parts_json, saved_total_cost, saved_cost_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+            b.配方名称 || b.name || '', b.规格 || b.spec || '', b.配件JSON || b.parts_json || '[]',
+            b.saved_total_cost ?? b.保存时总成本 ?? 0, b.saved_cost_details || b.保存时成本明细 || '[]', now, now
+        );
+        const record = recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid));
         res.json({ success: true, data: record });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1058,10 +1055,8 @@ app.post('/api/recipes', async (req, res) => {
 /** DELETE /api/recipes - 删除配方 */
 app.delete('/api/recipes', async (req, res) => {
     try {
-        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
-            method: 'DELETE',
-            body: JSON.stringify(req.body)
-        });
+        const items = Array.isArray(req.body) ? req.body : [req.body];
+        for (const item of items) { db.prepare('DELETE FROM recipes WHERE id = ?').run(item.Id || item.id); }
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1071,10 +1066,18 @@ app.delete('/api/recipes', async (req, res) => {
 /** PATCH /api/recipes - 更新配方 */
 app.patch('/api/recipes', async (req, res) => {
     try {
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
-            method: 'PATCH',
-            body: JSON.stringify(req.body)
-        });
+        const b = req.body;
+        const id = b.Id || b.id;
+        const now = new Date().toISOString();
+        const sets = []; const vals = [];
+        if (b.配方名称 !== undefined || b.name !== undefined) { sets.push('name = ?'); vals.push(b.配方名称 || b.name); }
+        if (b.规格 !== undefined || b.spec !== undefined) { sets.push('spec = ?'); vals.push(b.规格 || b.spec); }
+        if (b.配件JSON !== undefined || b.parts_json !== undefined) { sets.push('parts_json = ?'); vals.push(b.配件JSON || b.parts_json); }
+        if (b.saved_total_cost !== undefined || b.保存时总成本 !== undefined) { sets.push('saved_total_cost = ?'); vals.push(b.saved_total_cost ?? b.保存时总成本); }
+        if (b.saved_cost_details !== undefined || b.保存时成本明细 !== undefined) { sets.push('saved_cost_details = ?'); vals.push(b.saved_cost_details || b.保存时成本明细); }
+        sets.push('updated_at = ?'); vals.push(now); vals.push(id);
+        if (sets.length > 1) db.prepare(`UPDATE recipes SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+        const record = recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id));
         res.json({ success: true, data: record });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1088,7 +1091,7 @@ app.patch('/api/recipes', async (req, res) => {
 /** GET /api/orders - 获取所有订单 */
 app.get('/api/orders', async (req, res) => {
     try {
-        const records = await fetchAllRecords(NOCO_CONFIG.ordersTable);
+        const records = dbGetAllOrders();
         res.json({ success: true, data: records });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1098,10 +1101,7 @@ app.get('/api/orders', async (req, res) => {
 /** GET /api/orders/:id - 获取单个订单 */
 app.get('/api/orders/:id', async (req, res) => {
     try {
-        const data = await apiRequest(
-            `/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${req.params.id})`
-        );
-        const record = data.list?.[0];
+        const record = orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(req.params.id)));
         if (!record) return res.status(404).json({ success: false, error: '订单不存在' });
         res.json({ success: true, data: record });
     } catch (error) {
@@ -1112,10 +1112,14 @@ app.get('/api/orders/:id', async (req, res) => {
 /** POST /api/orders - 创建订单 */
 app.post('/api/orders', async (req, res) => {
     try {
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-            method: 'POST',
-            body: JSON.stringify(req.body)
-        });
+        const b = req.body;
+        const now = new Date().toISOString();
+        const info = db.prepare('INSERT INTO orders (customer_name, contract_no, remark, status, items_json, purchase_list_json, todos_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            b.客户名称 || b.customer_name || '', b.合同号 || b.contract_no || '', b.备注 || b.remark || '',
+            b.订单状态 || b.status || '待采购', b.型号列表JSON || b.items_json || '[]',
+            b.采购清单JSON || b.purchase_list_json || '[]', b.采购TodoJSON || b.todos_json || '[]', now, now
+        );
+        const record = orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(info.lastInsertRowid));
         res.json({ success: true, data: record });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1125,10 +1129,20 @@ app.post('/api/orders', async (req, res) => {
 /** PATCH /api/orders - 更新订单 */
 app.patch('/api/orders', async (req, res) => {
     try {
-        const record = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-            method: 'PATCH',
-            body: JSON.stringify(req.body)
-        });
+        const b = req.body;
+        const id = b.Id || b.id;
+        const now = new Date().toISOString();
+        const sets = []; const vals = [];
+        if (b.客户名称 !== undefined || b.customer_name !== undefined) { sets.push('customer_name = ?'); vals.push(b.客户名称 || b.customer_name); }
+        if (b.合同号 !== undefined || b.contract_no !== undefined) { sets.push('contract_no = ?'); vals.push(b.合同号 || b.contract_no); }
+        if (b.备注 !== undefined || b.remark !== undefined) { sets.push('remark = ?'); vals.push(b.备注 || b.remark); }
+        if (b.订单状态 !== undefined || b.status !== undefined) { sets.push('status = ?'); vals.push(b.订单状态 || b.status); }
+        if (b.型号列表JSON !== undefined || b.items_json !== undefined) { sets.push('items_json = ?'); vals.push(b.型号列表JSON || b.items_json); }
+        if (b.采购清单JSON !== undefined || b.purchase_list_json !== undefined) { sets.push('purchase_list_json = ?'); vals.push(b.采购清单JSON || b.purchase_list_json); }
+        if (b.采购TodoJSON !== undefined || b.todos_json !== undefined) { sets.push('todos_json = ?'); vals.push(b.采购TodoJSON || b.todos_json); }
+        sets.push('updated_at = ?'); vals.push(now); vals.push(id);
+        db.prepare(`UPDATE orders SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+        const record = orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
         res.json({ success: true, data: record });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1138,10 +1152,8 @@ app.patch('/api/orders', async (req, res) => {
 /** DELETE /api/orders - 删除订单 */
 app.delete('/api/orders', async (req, res) => {
     try {
-        await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-            method: 'DELETE',
-            body: JSON.stringify(req.body)
-        });
+        const items = Array.isArray(req.body) ? req.body : [req.body];
+        for (const item of items) { db.prepare('DELETE FROM orders WHERE id = ?').run(item.Id || item.id); }
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -1175,7 +1187,7 @@ app.post('/api/coils/calculate', async (req, res) => {
         const targetSheets = parseInt(sheets);
 
         // 获取同规格的所有记录，按片数排序
-        const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const allCoils = dbGetAllCoils();
         const specCoils = allCoils
             .filter(c => String(c.规格).trim() === String(spec).trim())
             .sort((a, b) => parseInt(a.片数) - parseInt(b.片数));
@@ -1284,7 +1296,7 @@ app.post('/api/coils/calculate', async (req, res) => {
  */
 app.get('/api/coils/specs', async (req, res) => {
     try {
-        const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+        const allCoils = dbGetAllCoils();
         const specsMap = {};
         allCoils.forEach(c => {
             const spec = c.规格;
@@ -1799,13 +1811,11 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
  */
 async function loadSystemPromptFromDB() {
     try {
-        if (!NOCO_CONFIG.configTable) return null;
-        const data = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.configTable}/records?limit=1`);
-        const record = data.list?.[0];
-        if (record && record['ai-system-prompt']) {
-            AI_SYSTEM_PROMPT = record['ai-system-prompt'];
+        const record = db.prepare("SELECT value FROM config WHERE key = 'ai-system-prompt'").get();
+        if (record && record.value) {
+            AI_SYSTEM_PROMPT = record.value;
             console.log('[AI] System prompt 已从数据库加载, 长度:', AI_SYSTEM_PROMPT.length);
-            return record.Id;
+            return 1;
         }
     } catch (err) {
         console.error('[AI] 加载 system prompt 失败:', err.message);
@@ -1853,7 +1863,7 @@ async function executeToolCall(toolName, args) {
             }
 
             case 'get_coil_specs': {
-                const allCoils = await fetchAllRecords(NOCO_CONFIG.coilsTable);
+                const allCoils = dbGetAllCoils();
                 const specsMap = {};
                 allCoils.forEach(c => {
                     const spec = c.规格;
@@ -1866,7 +1876,7 @@ async function executeToolCall(toolName, args) {
             }
 
             case 'get_all_recipes': {
-                const recipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const recipes = dbGetAllRecipes();
                 const summary = recipes.map(r => ({
                     id: r.Id,
                     name: r.配方名称 || r.name,
@@ -1877,7 +1887,7 @@ async function executeToolCall(toolName, args) {
             }
 
             case 'get_all_parts': {
-                const parts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const parts = dbGetAllParts();
                 const summary = parts.map(p => ({
                     id: p.Id,
                     model: p.型号 || p.model,
@@ -1900,7 +1910,7 @@ async function executeToolCall(toolName, args) {
 
             case 'get_recent_orders': {
                 const limit = args.limit || 10;
-                const allOrders = await fetchAllRecords(NOCO_CONFIG.ordersTable);
+                const allOrders = dbGetAllOrders();
                 const recentOrders = allOrders.sort((a, b) => b.Id - a.Id).slice(0, limit);
                 const formattedOrders = recentOrders.map(o => ({
                     id: o.Id,
@@ -1926,10 +1936,9 @@ async function executeToolCall(toolName, args) {
                 };
 
                 // 1. 发起创建请求
-                const createRes = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
-                    method: 'POST',
-                    body: JSON.stringify(body)
-                });
+                const now = new Date().toISOString();
+                const createRes = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(model, category, price, supplier, stock, now, now);
+                createRes.Id = createRes.lastInsertRowid;
 
                 const newId = createRes?.Id || createRes?.id;
                 if (!newId) {
@@ -1938,7 +1947,7 @@ async function executeToolCall(toolName, args) {
 
                 // 2. 回读验证：确认记录真的写入了数据库
                 try {
-                    const verify = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records?where=(Id,eq,${newId})&limit=1`);
+                    const verify = { list: [partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(newId))].filter(Boolean) };
                     if (!verify.list || verify.list.length === 0) {
                         return { success: false, error: `数据库返回了ID=${newId}，但回读验证失败，记录不存在` };
                     }
@@ -1968,8 +1977,8 @@ async function executeToolCall(toolName, args) {
 
                 let orderItems = [];
                 if (items && items.length > 0) {
-                    const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
-                    const { partsCache, partsByModel } = await loadPartsData();
+                    const allRecipes = dbGetAllRecipes();
+                    const { partsCache, partsByModel } = loadPartsData();
                     
                     for (const reqItem of items) {
                         const recipe = allRecipes.find(r => (r.配方名称 || r.name) === reqItem.recipeName || r.Id === Number(reqItem.recipeName) || (r.配方名称 || '').includes(reqItem.recipeName));
@@ -2005,17 +2014,20 @@ async function executeToolCall(toolName, args) {
                     '采购清单JSON': '[]',
                     '采购TodoJSON': '[]'
                 };
-                const createRes = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'POST',
-                    body: JSON.stringify(body)
-                });
+                const now_o = new Date().toISOString();
+                const createRes = db.prepare('INSERT INTO orders (customer_name, contract_no, remark, status, items_json, purchase_list_json, todos_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+                    body['客户名称'] || body.customer_name || '', body['合同号'] || body.contract_no || '', body['备注'] || body.remark || '',
+                    body['订单状态'] || body.status || '待采购', body['型号列表JSON'] || body.items_json || '[]',
+                    body['采购清单JSON'] || body.purchase_list_json || '[]', body['采购TodoJSON'] || body.todos_json || '[]', now_o, now_o
+                );
+                createRes.Id = createRes.lastInsertRowid;
                 const newId = createRes?.Id || createRes?.id;
                 if (!newId) {
                     return { success: false, error: '数据库未返回有效ID，订单创建可能失败' };
                 }
                 // 回读验证
                 try {
-                    const verify = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${newId})&limit=1`);
+                    const verify = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(newId))].filter(Boolean) };
                     if (!verify.list || verify.list.length === 0) {
                         return { success: false, error: `数据库返回了ID=${newId}，但回读验证失败` };
                     }
@@ -2040,14 +2052,14 @@ async function executeToolCall(toolName, args) {
                 const { orderId, recipeName, qty = 1 } = args;
                 
                 // 1. 获取配方
-                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || r.Id === Number(recipeName) || (r.配方名称 || '').includes(recipeName));
                 if (!recipe) return { success: false, error: '找不到匹配的配方: ' + recipeName };
                 
                 // 2. 获取订单
                 let orderRow;
                 try {
-                    const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                    const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                     orderRow = orderData.list?.[0];
                 } catch(e) {}
                 if (!orderRow) return { success: false, error: '找不到订单ID: ' + orderId };
@@ -2059,7 +2071,7 @@ async function executeToolCall(toolName, args) {
                 const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
                 let parts = [];
                 try { parts = JSON.parse(partsJson); } catch(e){}
-                const { partsCache, partsByModel } = await loadPartsData();
+                const { partsCache, partsByModel } = loadPartsData();
                 const recipeCostResult = calculateRecipeCost(parts, partsCache, partsByModel);
                 const unitCost = parseFloat(recipeCostResult.totalCost || 0);
                 
@@ -2079,13 +2091,20 @@ async function executeToolCall(toolName, args) {
                 });
                 
                 // 4. 更新到 NocoDB
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
+                {
+                    const _ob = {
                         Id: orderRow.Id,
                         型号列表JSON: JSON.stringify(itemsList)
-                    })
-                });
+                    };
+                    const _oId = _ob.Id || _ob.id;
+                    const _oSets = []; const _oVals = [];
+                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
+                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
+                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
+                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
+                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
+                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
+                }
                 
                 return {
                     success: true, 
@@ -2104,7 +2123,7 @@ async function executeToolCall(toolName, args) {
                     return { success: false, error: '缺少必要参数：零件型号' };
                 }
                 // 先查找该零件
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allParts = dbGetAllParts();
                 const target = allParts.find(p => (p.型号 || p.model || '') === model);
                 if (!target) {
                     return { success: false, error: `未找到型号为"${model}"的零件` };
@@ -2138,14 +2157,19 @@ async function executeToolCall(toolName, args) {
                     return { success: false, error: '没有指定任何要修改的字段' };
                 }
 
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify(updates)
-                });
+                {
+                    const uSets2 = []; const uVals2 = [];
+                    if (updates['单价'] !== undefined) { uSets2.push('price = ?'); uVals2.push(updates['单价']); }
+                    if (updates['库存'] !== undefined) { uSets2.push('stock = ?'); uVals2.push(updates['库存']); }
+                    if (updates['供应商'] !== undefined) { uSets2.push('supplier = ?'); uVals2.push(updates['供应商']); }
+                    if (updates['类别'] !== undefined) { uSets2.push('category = ?'); uVals2.push(updates['类别']); }
+                    uSets2.push('updated_at = ?'); uVals2.push(new Date().toISOString()); uVals2.push(target.Id);
+                    db.prepare(`UPDATE parts SET ${uSets2.join(', ')} WHERE id = ?`).run(...uVals2);
+                }
 
                 // 回读验证
                 try {
-                    const verify = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records?where=(Id,eq,${target.Id})&limit=1`);
+                    const verify = { list: [partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(target.Id))].filter(Boolean) };
                     if (!verify.list || verify.list.length === 0) {
                         return { success: false, error: '回读验证失败，记录不存在' };
                     }
@@ -2172,7 +2196,7 @@ async function executeToolCall(toolName, args) {
 
             case 'get_order_detail': {
                 const { orderId } = args;
-                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
                 let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
@@ -2205,36 +2229,50 @@ async function executeToolCall(toolName, args) {
                 const { orderId, status } = args;
                 const validStatuses = ['待采购', '采购中', '已完成'];
                 if (!validStatuses.includes(status)) return { success: false, error: `无效状态: ${status}，可选: ${validStatuses.join('/')}` };
-                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
                 const oldStatus = row.订单状态 || '待采购';
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ Id: row.Id, 订单状态: status })
-                });
+                {
+                    const _ob = { Id: row.Id, 订单状态: status };
+                    const _oId = _ob.Id || _ob.id;
+                    const _oSets = []; const _oVals = [];
+                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
+                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
+                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
+                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
+                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
+                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
+                }
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.客户名称 };
             }
 
             case 'remove_recipe_from_order': {
                 const { orderId, recipeName } = args;
-                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
                 let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
                 const before = items.length;
                 items = items.filter(it => !(it.recipeName || '').includes(recipeName));
                 if (items.length === before) return { success: false, error: `订单${orderId}中未找到包含\"${recipeName}\"的配方` };
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ Id: row.Id, 型号列表JSON: JSON.stringify(items) })
-                });
+                {
+                    const _ob = { Id: row.Id, 型号列表JSON: JSON.stringify(items) };
+                    const _oId = _ob.Id || _ob.id;
+                    const _oSets = []; const _oVals = [];
+                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
+                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
+                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
+                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
+                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
+                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
+                }
                 return { success: true, message: `已从订单${orderId}中移除\"${recipeName}\"`, orderId, removed: before - items.length, remaining: items.length };
             }
 
             case 'update_order_item': {
                 const { orderId, recipeName, qty, unitPrice, profitMargin } = args;
-                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
                 let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
@@ -2249,22 +2287,29 @@ async function executeToolCall(toolName, args) {
                     if (unitPrice === undefined) { item.unitPrice = Math.round(item.unitCost * profitMargin * 100) / 100; changes.push(`出厂价自动调整为: ${item.unitPrice}`); }
                 }
                 if (changes.length === 0) return { success: false, error: '没有指定要修改的字段' };
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ Id: row.Id, 型号列表JSON: JSON.stringify(items) })
-                });
+                {
+                    const _ob = { Id: row.Id, 型号列表JSON: JSON.stringify(items) };
+                    const _oId = _ob.Id || _ob.id;
+                    const _oSets = []; const _oVals = [];
+                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
+                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
+                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
+                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
+                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
+                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
+                }
                 return { success: true, message: `订单${orderId}中\"${item.recipeName}\"已更新`, orderId, recipeName: item.recipeName, changes };
             }
 
             case 'generate_purchase_list': {
                 const { orderId } = args;
-                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
                 let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
                 if (items.length === 0) return { success: false, error: '订单中没有任何配方，无法生成采购清单' };
 
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allParts = dbGetAllParts();
                 const partIndex = {};
                 const partByModel = {};
                 allParts.forEach(p => {
@@ -2307,10 +2352,17 @@ async function executeToolCall(toolName, args) {
                 }
 
                 // 写入订单
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ Id: row.Id, 采购清单JSON: JSON.stringify(purchaseList), 采购TodoJSON: JSON.stringify(todos) })
-                });
+                {
+                    const _ob = { Id: row.Id, 采购清单JSON: JSON.stringify(purchaseList), 采购TodoJSON: JSON.stringify(todos) };
+                    const _oId = _ob.Id || _ob.id;
+                    const _oSets = []; const _oVals = [];
+                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
+                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
+                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
+                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
+                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
+                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
+                }
 
                 return {
                     success: true,
@@ -2324,13 +2376,10 @@ async function executeToolCall(toolName, args) {
 
             case 'delete_order': {
                 const { orderId } = args;
-                const orderData = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records?where=(Id,eq,${orderId})&limit=1`);
+                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.ordersTable}/records`, {
-                    method: 'DELETE',
-                    body: JSON.stringify([{ Id: row.Id }])
-                });
+                db.prepare('DELETE FROM orders WHERE id = ?').run(row.Id);
                 return { success: true, message: `订单${orderId}已删除`, orderId, customerName: row.客户名称 };
             }
 
@@ -2341,7 +2390,7 @@ async function executeToolCall(toolName, args) {
                 if (!name) return { success: false, error: '缺少配方名称' };
 
                 // 解析零件：自动匹配零件库
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allParts = dbGetAllParts();
                 const recipeParts = [];
                 for (const p of parts) {
                     const dbPart = allParts.find(dp => (dp.型号 || dp.model || '') === p.model || (dp.型号 || '').includes(p.model));
@@ -2354,7 +2403,7 @@ async function executeToolCall(toolName, args) {
                     });
                 }
 
-                const { partsCache, partsByModel } = await loadPartsData();
+                const { partsCache, partsByModel } = loadPartsData();
                 const costRes = calculateRecipeCost(recipeParts, partsCache, partsByModel);
 
                 const body = {
@@ -2364,7 +2413,12 @@ async function executeToolCall(toolName, args) {
                     saved_total_cost: parseFloat(costRes.totalCost || 0),
                     saved_cost_details: JSON.stringify(costRes.details || [])
                 };
-                const createRes = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, { method: 'POST', body: JSON.stringify(body) });
+                const now_r = new Date().toISOString();
+                const createRes = db.prepare('INSERT INTO recipes (name, spec, parts_json, saved_total_cost, saved_cost_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+                    body.配方名称 || body.name, body.规格 || body.spec || '', body.配件JSON || body.parts_json || '[]',
+                    body.saved_total_cost ?? 0, body.saved_cost_details || '[]', now_r, now_r
+                );
+                createRes.Id = createRes.lastInsertRowid;
                 const newId = createRes?.Id || createRes?.id;
                 if (!newId) return { success: false, error: '配方创建失败' };
                 return { success: true, message: `配方\"${name}\"创建成功`, recipe: { id: newId, name, spec, partsCount: recipeParts.length, totalCost: costRes.totalCost } };
@@ -2372,19 +2426,16 @@ async function executeToolCall(toolName, args) {
 
             case 'delete_recipe': {
                 const { recipeName } = args;
-                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || (r.配方名称 || '').includes(recipeName));
                 if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, {
-                    method: 'DELETE',
-                    body: JSON.stringify([{ Id: recipe.Id }])
-                });
+                db.prepare('DELETE FROM recipes WHERE id = ?').run(recipe.Id);
                 return { success: true, message: `配方\"${recipe.配方名称 || recipeName}\"已删除`, recipeName: recipe.配方名称 || recipeName };
             }
 
             case 'update_recipe': {
                 const { recipeName, newName, newSpec, addParts = [], removeParts = [], updateParts = [] } = args;
-                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || (r.配方名称 || '').includes(recipeName));
                 if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
 
@@ -2404,7 +2455,7 @@ async function executeToolCall(toolName, args) {
                 }
                 // 添加零件
                 if (addParts.length > 0) {
-                    const allPartsDb = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                    const allPartsDb = dbGetAllParts();
                     for (const ap of addParts) {
                         const dbPart = allPartsDb.find(dp => (dp.型号 || dp.model || '') === ap.model || (dp.型号 || '').includes(ap.model));
                         parts.push({
@@ -2423,13 +2474,22 @@ async function executeToolCall(toolName, args) {
                 if (newSpec) { patchBody.规格 = newSpec; changes.push(`规格: ${recipe.规格} → ${newSpec}`); }
 
                 // 重新计算成本
-                const { partsCache: pc, partsByModel: pbm } = await loadPartsData();
+                const { partsCache: pc, partsByModel: pbm } = loadPartsData();
                 const costRes = calculateRecipeCost(parts, pc, pbm);
                 patchBody.saved_total_cost = parseFloat(costRes.totalCost || 0);
                 patchBody.saved_cost_details = JSON.stringify(costRes.details || []);
 
                 if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.recipesTable}/records`, { method: 'PATCH', body: JSON.stringify(patchBody) });
+                {
+                    const _rSets = []; const _rVals = [];
+                    if (patchBody.配方名称) { _rSets.push('name = ?'); _rVals.push(patchBody.配方名称); }
+                    if (patchBody.规格) { _rSets.push('spec = ?'); _rVals.push(patchBody.规格); }
+                    if (patchBody.配件JSON) { _rSets.push('parts_json = ?'); _rVals.push(patchBody.配件JSON); }
+                    if (patchBody.saved_total_cost !== undefined) { _rSets.push('saved_total_cost = ?'); _rVals.push(patchBody.saved_total_cost); }
+                    if (patchBody.saved_cost_details) { _rSets.push('saved_cost_details = ?'); _rVals.push(patchBody.saved_cost_details); }
+                    _rSets.push('updated_at = ?'); _rVals.push(new Date().toISOString()); _rVals.push(patchBody.Id);
+                    db.prepare(`UPDATE recipes SET ${_rSets.join(', ')} WHERE id = ?`).run(..._rVals);
+                }
                 return { success: true, message: `配方\"${recipe.配方名称}\"修改成功`, recipeName: newName || recipe.配方名称, partsCount: parts.length, newCost: costRes.totalCost, changes };
             }
 
@@ -2437,13 +2497,13 @@ async function executeToolCall(toolName, args) {
 
             case 'compare_recipes': {
                 const { recipe1, recipe2 } = args;
-                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
+                const allRecipes = dbGetAllRecipes();
                 const r1 = allRecipes.find(r => (r.配方名称 || r.name) === recipe1 || (r.配方名称 || '').includes(recipe1));
                 const r2 = allRecipes.find(r => (r.配方名称 || r.name) === recipe2 || (r.配方名称 || '').includes(recipe2));
                 if (!r1) return { success: false, error: '找不到配方: ' + recipe1 };
                 if (!r2) return { success: false, error: '找不到配方: ' + recipe2 };
 
-                const { partsCache: pc, partsByModel: pbm } = await loadPartsData();
+                const { partsCache: pc, partsByModel: pbm } = loadPartsData();
                 let p1 = []; try { p1 = JSON.parse(r1.配件JSON || r1.parts_json || '[]'); } catch(e){}
                 let p2 = []; try { p2 = JSON.parse(r2.配件JSON || r2.parts_json || '[]'); } catch(e){}
                 const cost1 = calculateRecipeCost(p1, pc, pbm);
@@ -2468,7 +2528,7 @@ async function executeToolCall(toolName, args) {
 
             case 'search_parts': {
                 const { keyword, category } = args;
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allParts = dbGetAllParts();
                 let results = allParts;
                 if (keyword) { results = results.filter(p => (p.型号 || p.model || '').includes(keyword) || (p.类别 || p.category || '').includes(keyword) || (p.供应商 || p.supplier || '').includes(keyword)); }
                 if (category) { results = results.filter(p => (p.类别 || p.category || '') === category || (p.类别 || p.category || '').includes(category)); }
@@ -2481,20 +2541,17 @@ async function executeToolCall(toolName, args) {
 
             case 'delete_part': {
                 const { model } = args;
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allParts = dbGetAllParts();
                 const target = allParts.find(p => (p.型号 || p.model || '') === model);
                 if (!target) return { success: false, error: '找不到零件: ' + model };
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, {
-                    method: 'DELETE',
-                    body: JSON.stringify([{ Id: target.Id }])
-                });
+                db.prepare('DELETE FROM parts WHERE id = ?').run(target.Id);
                 return { success: true, message: `零件\"${model}\"已删除`, model };
             }
 
             case 'batch_update_prices': {
                 const { category, percentChange, absoluteChange } = args;
                 if (percentChange === undefined && absoluteChange === undefined) return { success: false, error: '需要指定percentChange或absoluteChange' };
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allParts = dbGetAllParts();
                 const targets = allParts.filter(p => (p.类别 || p.category || '') === category || (p.类别 || p.category || '').includes(category));
                 if (targets.length === 0) return { success: false, error: `没有找到类别包含\"${category}\"的零件` };
 
@@ -2512,7 +2569,7 @@ async function executeToolCall(toolName, args) {
 
                 // NocoDB PATCH 支持批量
                 for (const u of updates) {
-                    await apiRequest(`/api/v2/tables/${NOCO_CONFIG.partsTable}/records`, { method: 'PATCH', body: JSON.stringify(u) });
+                    db.prepare('UPDATE parts SET price = ?, updated_at = ? WHERE id = ?').run(u.单价, new Date().toISOString(), u.Id);
                 }
 
                 return {
@@ -2526,9 +2583,9 @@ async function executeToolCall(toolName, args) {
             }
 
             case 'get_dashboard_summary': {
-                const allOrders = await fetchAllRecords(NOCO_CONFIG.ordersTable);
-                const allRecipes = await fetchAllRecords(NOCO_CONFIG.recipesTable);
-                const allParts = await fetchAllRecords(NOCO_CONFIG.partsTable);
+                const allOrders = dbGetAllOrders();
+                const allRecipes = dbGetAllRecipes();
+                const allParts = dbGetAllParts();
 
                 const statusCount = { 待采购: 0, 采购中: 0, 已完成: 0 };
                 let totalOrderCost = 0, totalOrderPrice = 0;
@@ -2667,22 +2724,8 @@ app.put('/api/ai/system-prompt', async (req, res) => {
         const { prompt } = req.body;
         AI_SYSTEM_PROMPT = prompt;
 
-        // 持久化到 NocoDB
-        if (NOCO_CONFIG.configTable) {
-            const data = await apiRequest(`/api/v2/tables/${NOCO_CONFIG.configTable}/records?limit=1`);
-            const record = data.list?.[0];
-            if (record) {
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.configTable}/records`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ Id: record.Id, 'ai-system-prompt': prompt })
-                });
-            } else {
-                await apiRequest(`/api/v2/tables/${NOCO_CONFIG.configTable}/records`, {
-                    method: 'POST',
-                    body: JSON.stringify({ 'ai-system-prompt': prompt })
-                });
-            }
-        }
+        // 持久化到 SQLite
+        db.prepare("INSERT OR REPLACE INTO config (key, value) VALUES ('ai-system-prompt', ?)").run(prompt);
 
         res.json({ success: true });
     } catch (err) {

@@ -5,10 +5,18 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-// ── NocoDB 行 → Order 对象转换 ────────────────────────
+// ── 后端行 → Order 对象转换 ──────────────────────────
 
 interface OrderRow {
   Id: number;
+  customer_name?: string;
+  contract_no?: string;
+  remark?: string;
+  status?: string;
+  items_json?: string;
+  purchase_list_json?: string;
+  todos_json?: string;
+  // 兼容后端 row adapter 返回的中文字段
   客户名称?: string;
   合同号?: string;
   备注?: string;
@@ -21,7 +29,7 @@ interface OrderRow {
 }
 
 function rowToOrder(row: OrderRow): Order {
-  const items = safeJsonParse<OrderItem[]>(row.型号列表JSON, []);
+  const items = safeJsonParse<OrderItem[]>(row.items_json || row.型号列表JSON, []);
   // 兼容旧数据：如果 item 没有 unitCost 则补 0
   for (const it of items) {
     if (it.unitCost === undefined) it.unitCost = 0;
@@ -31,13 +39,13 @@ function rowToOrder(row: OrderRow): Order {
   const totals = calcOrderTotals(items);
   return {
     id: String(row.Id),
-    customerName: row.客户名称 || '',
-    contractNo: row.合同号 || undefined,
-    remark: row.备注 || undefined,
-    status: (row.订单状态 as Order['status']) || '待采购',
+    customerName: row.customer_name || row.客户名称 || '',
+    contractNo: row.contract_no || row.合同号 || undefined,
+    remark: row.remark || row.备注 || undefined,
+    status: ((row.status || row.订单状态) as Order['status']) || '待采购',
     items,
-    purchaseList: safeJsonParse<PurchaseItem[]>(row.采购清单JSON, []),
-    todos: safeJsonParse<TodoItem[]>(row.采购TodoJSON, []),
+    purchaseList: safeJsonParse<PurchaseItem[]>(row.purchase_list_json || row.采购清单JSON, []),
+    todos: safeJsonParse<TodoItem[]>(row.todos_json || row.采购TodoJSON, []),
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,
@@ -82,13 +90,13 @@ export async function getOrder(id: string): Promise<Order | null> {
 
 export async function saveOrder(order: Order): Promise<Order> {
   const record: Record<string, unknown> = {
-    客户名称: order.customerName,
-    合同号: order.contractNo || '',
-    备注: order.remark || '',
-    订单状态: order.status,
-    型号列表JSON: JSON.stringify(order.items),
-    采购清单JSON: JSON.stringify(order.purchaseList),
-    采购TodoJSON: JSON.stringify(order.todos),
+    customer_name: order.customerName,
+    contract_no: order.contractNo || '',
+    remark: order.remark || '',
+    status: order.status,
+    items_json: JSON.stringify(order.items),
+    purchase_list_json: JSON.stringify(order.purchaseList),
+    todos_json: JSON.stringify(order.todos),
   };
 
   // 如果 id 是纯数字 → 已存在行，PATCH 更新

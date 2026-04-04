@@ -4,15 +4,9 @@
 
 ## 基础配置
 
-- **NocoDB URL**: `http://localhost:8080`
+- **数据库**: SQLite (`pump.db`，使用 `better-sqlite3`)
 - **Node.js 后端**: `http://localhost:3002`
 - **前端**: `http://localhost:3000` (Vite dev, 通过 proxy 转发 `/api/*` → 3002)
-- **数据表 ID**:
-  - 零件表: `mzsysnoaq7g36h9`
-  - 配方表: `m9pygo8pmn86kbk`
-  - 订单表: `md70160vnmyjs4w`
-  - 线圈成本表: `m1pbr8kwo3e8un8`
-  - system-config: `mjw12hikysa9wlz`
 
 ---
 
@@ -123,7 +117,7 @@
 
 ### 13. System Prompt 管理
 - `GET /api/ai/system-prompt` → 获取当前 prompt
-- `PUT /api/ai/system-prompt` → 修改 prompt (持久化到 NocoDB)
+- `PUT /api/ai/system-prompt` → 修改 prompt (持久化到 SQLite config 表)
 - 请求体: `{ "prompt": "新内容..." }`
 
 ### 14. 语音识别 (Web 端)
@@ -201,14 +195,14 @@
 
 ---
 
-## 六、数据代理 API（前端 → 后端 → NocoDB）
+## 六、数据 CRUD API（前端 → 后端 → SQLite）
 
-前端通过 `/api/*` 后端代理操作数据，**不直连 NocoDB**。Token 仅存在 `api.cjs`。
+前端通过 `/api/*` 后端代理操作数据，不直连数据库文件。
 
 ### 零件
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/parts` | 获取全部零件（自动分页） |
+| GET | `/api/parts` | 获取全部零件 |
 | POST | `/api/parts` | 新建零件 |
 | PATCH | `/api/parts/:id` | 更新零件 |
 | DELETE | `/api/parts/:id` | 删除零件 |
@@ -216,14 +210,14 @@
 ### 配方
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/recipes` | 获取全部配方（自动分页） |
+| GET | `/api/recipes` | 获取全部配方 |
 | POST | `/api/recipes` | 新建配方（含 parts_json 快照） |
 | DELETE | `/api/recipes/:id` | 删除配方 |
 
 ### 订单
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/orders` | 获取全部订单（自动分页） |
+| GET | `/api/orders` | 获取全部订单 |
 | POST | `/api/orders` | 新建订单 |
 | PATCH | `/api/orders/:id` | 更新订单（状态/采购清单/定价等） |
 | DELETE | `/api/orders/:id` | 删除订单 |

@@ -1,36 +1,39 @@
 # 水泵BOM管理系统
 
 ## 项目简介
-水泵BOM数据库 + 订单管理 + 成本计算API + AI智能助手。支持零件录入、配方组装、订单采购流转、库存联动，提供 N8N / AI Agent 可调用的成本计算后端，以及微信小程序语音交互入口。
+水泵BOM数据库 + 订单管理 + 成本计算API + AI智能助手。支持零件录入、配方组装、订单采购流转、库存联动，提供 AI Agent 可调用的成本计算后端，以及微信小程序语音交互入口。
 
 ## 技术栈
 - **Web 前端**：React 18 + TypeScript + Vite + Material UI 5 (端口 3000)
 - **状态管理**：Zustand (全局 store + stale-while-revalidate 30s 缓存)
 - **后端API**：Express.js `api.cjs` (端口 3002)
-- **数据库**：NocoDB REST API (端口 8080)，**前端不直连**，全部走后端代理
+- **数据库**：SQLite (`pump.db`)，使用 `better-sqlite3` 同步驱动，前端通过后端 API 访问
 - **AI**：DeepSeek Chat API + Function Calling (12+ 工具)
 - **语音**：阿里云 ASR (REST API) + Web Speech API (Chrome)
 - **微信小程序**：原生开发，`wechat/` 目录独立工程
-- **NocoDB 配置**：`.env` 文件注入（Token 仅存在后端）
 - **启动**：`npm start`（并行启动前端 + API）
 
 ## 项目结构
 ```
-├── api.cjs                    # Express API 单文件后端
-├── .env                       # NocoDB + DeepSeek + 阿里云 连接配置
+├── api.cjs                    # Express API 单文件后端 (SQLite 直连)
+├── pump.db                    # SQLite 数据库文件 (gitignore)
+├── .env                       # DeepSeek + 阿里云连接配置
 ├── index.html                 # Vite 入口 HTML
 ├── package.json               # 依赖与脚本
+│
+├── scripts/
+│   └── migrate-to-sqlite.cjs  # 数据迁移脚本 (JSON → SQLite)
 │
 ├── src/                       # React Web 前端
 │   ├── main.tsx               # React 入口 + MUI 主题配置
 │   ├── App.tsx                # Tab 路由: / /parts /recipes /recipe-form /orders /order-form /coils /ai-chat
 │   │
 │   ├── types/
-│   │   └── index.ts           # 统一类型定义 (Part/Recipe/Order/OrderItem/PurchaseItem/RawPart/RawRecipe)
+│   │   └── index.ts           # 统一类型定义 (Part/Recipe/Order/OrderItem/PurchaseItem)
 │   │
 │   ├── utils/
-│   │   ├── api.ts             # 后端代理 API 封装 (/api/parts, /api/recipes, /api/orders)
-│   │   ├── orderStore.ts      # 订单 CRUD + 采购汇总算法 (走 /api/orders 代理)
+│   │   ├── api.ts             # 后端 API 封装 (/api/parts, /api/recipes, /api/orders)
+│   │   ├── orderStore.ts      # 订单 CRUD + 采购汇总算法
 │   │   ├── costCalculator.ts  # 前端成本计算引擎
 │   │   ├── store.ts           # Zustand 全局状态 (Parts/Recipes/Orders + SWR 缓存)
 │   │   ├── theme.ts           # 设计 Token 系统 (语义色板/渐变/sx预设/工具函数)
@@ -64,7 +67,7 @@
 │
 └── wechat/                    # 微信小程序 (独立工程)
     ├── app.js / app.json / app.wxss    # 小程序入口与全局配置
-    ├── project.config.json             # 微信开发者工具配置 (AppID: wx2eb01189c87a322e)
+    ├── project.config.json             # 微信开发者工具配置
     └── pages/chat/
         ├── chat.js            # 核心逻辑: 录音→ASR→对话→卡片渲染
         ├── chat.wxml          # 7种数据卡片模板 + 语音/文字双模式输入
@@ -75,8 +78,8 @@
 
 ### 数据流
 ```
-NocoDB (8080)
-    ↕ (NocoDB REST API, Token 仅后端持有)
+SQLite (pump.db)
+    ↕ (better-sqlite3 同步查询)
 api.cjs (3002)
     ↕ (/api/* 代理 + 成本计算 + AI + 微信)
 React 前端 (3000)
@@ -100,9 +103,9 @@ React 前端 (3000)
 - **工具函数** `profitColor(value)` / `costDiffColor(diff)`
 
 ### 安全架构
-- NocoDB Token（`NOCO_API_TOKEN`）**仅存在 `.env` 和 `api.cjs`**，前端零暴露
+- 数据库文件 `pump.db` 仅后端访问，前端零暴露
 - 前端所有数据操作走 `/api/parts`、`/api/recipes`、`/api/orders` 后端代理
-- 类型系统：`RawPart/RawRecipe`（NocoDB 中文字段）→ `normalize` → `Part/Recipe`（英文字段）
+- 后端 row adapter 函数统一转换 SQLite 列名，确保前端接口一致
 
 ## 核心业务逻辑
 
@@ -140,25 +143,25 @@ React 前端 (3000)
 - **Function Calling**: 12+ 工具覆盖配方查询、零件管理、订单操作、成本计算等
 - **view_type 映射**: 后端根据工具名返回 `view_type` 字段，前端动态匹配渲染组件
 
-## 数据库表结构 (NocoDB)
+## 数据库表结构 (SQLite)
 
 | 表 | 关键字段 |
 |---|---|
-| **Parts** (零件) | `Id`, `型号`, `类别`, `单价`(电缆=每米), `供应商`, `库存` |
-| **Recipes** (配方) | `Id`, `配方名称`, `规格`, `配件JSON`, `保存时总成本`, `保存时成本明细` |
-| **Orders** (订单) | `Id`, `客户名称`, `合同号`, `备注`, `订单状态`, `型号列表JSON`, `采购清单JSON`, `采购TodoJSON` |
-| **线圈成本表** | `规格`, `片数`, `成本`, `默认线径`, `单价`, `线重`, `铜价基数`, `线圈加工费用`, `转子加工费用` |
-| **system-config** | AI System Prompt 持久化存储 |
+| **parts** (零件) | `id`, `model`, `category`, `price`(电缆=每米), `supplier`, `stock`, `remark` |
+| **recipes** (配方) | `id`, `name`, `spec`, `parts_json`, `saved_total_cost`, `saved_cost_details` |
+| **orders** (订单) | `id`, `customer_name`, `contract_no`, `remark`, `status`, `items_json`, `purchase_list_json`, `todos_json` |
+| **coils** (线圈) | `id`, `spec`, `sheets`, `cost`, `default_wire_gauge`, `unit_price`, `wire_weight`, `copper_base`, `coil_fee`, `rotor_fee` |
+| **config** (系统配置) | `id`, `key`, `value` — AI System Prompt 等键值对存储 |
 
-> **类型规范化**：NocoDB 原始字段为中文 → `api.ts` 中 `normalizePart()`/`normalizeRecipe()` 转为英文字段 → 全局统一使用 `Part`/`Recipe` 接口。
+> 所有表统一使用英文列名。后端 row adapter 函数同时返回中文别名以兼容旧代码。
 
 ## API 端点概览 (api.cjs, 端口 3002)
 
 | 分类 | 方法 | 路径 | 用途 |
 |---|---|---|---|
-| **数据代理** | GET/POST/PATCH/DELETE | `/api/parts[/:id]` | 零件 CRUD 代理 |
-| | GET/POST/PATCH/DELETE | `/api/recipes[/:id]` | 配方 CRUD 代理 |
-| | GET/POST/PATCH/DELETE | `/api/orders[/:id]` | 订单 CRUD 代理 |
+| **数据** | GET/POST/PATCH/DELETE | `/api/parts[/:id]` | 零件 CRUD |
+| | GET/POST/PATCH/DELETE | `/api/recipes[/:id]` | 配方 CRUD |
+| | GET/POST/PATCH/DELETE | `/api/orders[/:id]` | 订单 CRUD |
 | **成本** | POST | `/api/cost/calculate` | 按零件数组计算成本 |
 | | GET | `/api/cost/recipe/:id` | 按配方ID查成本 |
 | | GET | `/api/cost/recipe/by-name?name=xxx` | 按名称查配方成本 |
@@ -171,7 +174,7 @@ React 前端 (3000)
 | | GET | `/api/coils/specs` | 可用规格列表 |
 | **AI** | POST | `/api/ai/chat` | AI对话(SSE流式, Web端) |
 | | GET/PUT | `/api/ai/system-prompt` | System Prompt 读写 |
-| **微信** | POST | `/api/wechat/asr` | 微信语音识别(自动检测wav/pcm格式) |
+| **微信** | POST | `/api/wechat/asr` | 微信语音识别 |
 | | POST | `/api/wechat/chat` | 微信对话(标准JSON, 带view_type) |
 
 > 详细接口文档见 `API_DOCUMENTATION.md`
@@ -202,13 +205,11 @@ React 前端 (3000)
 
 ## 开发避坑
 
-1. **前端不可直连 NocoDB**：所有数据通过 `/api/*` 后端代理，Token 仅存后端。
+1. **前端不可直连数据库**：所有数据通过 `/api/*` 后端代理，`pump.db` 仅后端访问。
 2. **Zustand 缓存刷新**：CRUD 操作后必须调 `fetchParts(true)` / `fetchRecipes(true)` 强制刷新 store 缓存。
-3. **PowerShell + NocoDB 中文 = 灾难**：`Invoke-RestMethod` 会把中文字段名变乱码，永远用 Node.js 或 `curl.exe`。
-4. **MUI DOM 嵌套**：`<Chip>`/`<div>` 不能放在 `<Typography>`(p标签) 内，加 `component="div"` 解决。
-5. **类型规范化**：前端统一使用 `Part`/`Recipe` 英文接口，不要直接访问 NocoDB 中文字段。
-6. **旧配方无成本快照**：`保存时总成本=0` 的旧配方，订单添加型号时会实时调 `calculateRecipeCost()` 补算。
-7. **NocoDB 分页限制**：默认返回25条，已封装递归分页函数 `fetchAllRecords()` 解决。
-8. **微信 SSE 不可靠**：`enableChunkedTransfer` 在开发者工具上频繁 timeout，小程序端已改用标准 JSON 请求。
-9. **微信录音格式**：开发者工具录 `.wav`，真机录 `.pcm`，后端需自动检测格式。
-10. **设计 Token**：新增颜色/渐变优先添加到 `theme.ts`，避免在组件中硬编码 hex 值。
+3. **MUI DOM 嵌套**：`<Chip>`/`<div>` 不能放在 `<Typography>`(p标签) 内，加 `component="div"` 解决。
+4. **旧配方无成本快照**：`saved_total_cost=0` 的旧配方，订单添加型号时会实时调 `calculateRecipeCost()` 补算。
+5. **微信 SSE 不可靠**：小程序端已改用标准 JSON 请求。
+6. **微信录音格式**：开发者工具录 `.wav`，真机录 `.pcm`，后端需自动检测格式。
+7. **设计 Token**：新增颜色/渐变优先添加到 `theme.ts`，避免在组件中硬编码 hex 值。
+8. **SQLite WAL 模式**：`pump.db` 启用了 WAL 模式以提升并发性能，会生成 `-wal` 和 `-shm` 辅助文件。
