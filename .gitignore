@@ -4,3 +4,9 @@ dist/
 *.log
 uploads/
 wechat/project.private.config.json
+pump.db
+pump.db-wal
+pump.db-shm
+pump.db.bak.*
+api.cjs.nocodb-backup
+scripts/db-backup/
