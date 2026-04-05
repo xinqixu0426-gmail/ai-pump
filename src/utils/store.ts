@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { Part, Recipe } from '../types';
+import { Part, Recipe, PumpShellTemplate } from '../types';
 import { Order } from '../types';
-import { getAllParts, getAllRecipes } from './api';
+import { getAllParts, getAllRecipes, getAllTemplates } from './api';
 import { getAllOrders } from './orderStore';
 
 // ─── Store 状态定义 ──────────────────────────
@@ -11,35 +11,42 @@ interface AppState {
   parts: Part[];
   recipes: Recipe[];
   orders: Order[];
+  templates: PumpShellTemplate[];
 
   // 加载状态
   partsLoading: boolean;
   recipesLoading: boolean;
   ordersLoading: boolean;
+  templatesLoading: boolean;
 
   // 错误
   partsError: string | null;
   recipesError: string | null;
   ordersError: string | null;
+  templatesError: string | null;
 
   // 上次加载时间（用于 stale-while-revalidate）
   partsLoadedAt: number;
   recipesLoadedAt: number;
   ordersLoadedAt: number;
+  templatesLoadedAt: number;
 
   // Actions
   fetchParts: (force?: boolean) => Promise<Part[]>;
   fetchRecipes: (force?: boolean) => Promise<Recipe[]>;
   fetchOrders: (force?: boolean) => Promise<Order[]>;
+  fetchTemplates: (force?: boolean) => Promise<PumpShellTemplate[]>;
   fetchAll: (force?: boolean) => Promise<void>;
 
   // 局部更新（避免全量 refetch）
   setParts: (parts: Part[]) => void;
   setRecipes: (recipes: Recipe[]) => void;
   setOrders: (orders: Order[]) => void;
+  setTemplates: (templates: PumpShellTemplate[]) => void;
   invalidateParts: () => void;
   invalidateRecipes: () => void;
   invalidateOrders: () => void;
+  invalidateTemplates: () => void;
 }
 
 // 缓存过期时间：30秒内不重复请求
@@ -56,24 +63,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   parts: [],
   recipes: [],
   orders: [],
+  templates: [],
   partsLoading: false,
   recipesLoading: false,
   ordersLoading: false,
+  templatesLoading: false,
   partsError: null,
   recipesError: null,
   ordersError: null,
+  templatesError: null,
   partsLoadedAt: 0,
   recipesLoadedAt: 0,
   ordersLoadedAt: 0,
+  templatesLoadedAt: 0,
 
   // ── 零件 ────────
   fetchParts: async (force = false) => {
     const state = get();
-    // 如果数据新鲜且不强制，直接返回缓存
     if (!force && !isStale(state.partsLoadedAt) && state.parts.length > 0) {
       return state.parts;
     }
-    // 避免并发重复请求
     if (state.partsLoading) return state.parts;
 
     set({ partsLoading: true, partsError: null });
@@ -128,19 +137,41 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // ── 泵壳模板 ────────
+  fetchTemplates: async (force = false) => {
+    const state = get();
+    if (!force && !isStale(state.templatesLoadedAt) && state.templates.length > 0) {
+      return state.templates;
+    }
+    if (state.templatesLoading) return state.templates;
+
+    set({ templatesLoading: true, templatesError: null });
+    try {
+      const data = await getAllTemplates();
+      set({ templates: data, templatesLoading: false, templatesLoadedAt: Date.now() });
+      return data;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '加载模板失败';
+      set({ templatesError: msg, templatesLoading: false });
+      return state.templates;
+    }
+  },
+
   // ── 批量加载 ────
   fetchAll: async (force = false) => {
-    const { fetchParts, fetchRecipes, fetchOrders } = get();
-    await Promise.all([fetchParts(force), fetchRecipes(force), fetchOrders(force)]);
+    const { fetchParts, fetchRecipes, fetchOrders, fetchTemplates } = get();
+    await Promise.all([fetchParts(force), fetchRecipes(force), fetchOrders(force), fetchTemplates(force)]);
   },
 
   // ── 局部更新 ────
   setParts: (parts) => set({ parts, partsLoadedAt: Date.now() }),
   setRecipes: (recipes) => set({ recipes, recipesLoadedAt: Date.now() }),
   setOrders: (orders) => set({ orders, ordersLoadedAt: Date.now() }),
+  setTemplates: (templates) => set({ templates, templatesLoadedAt: Date.now() }),
 
   // ── 失效标记（下次访问时会重新请求）────
   invalidateParts: () => set({ partsLoadedAt: 0 }),
   invalidateRecipes: () => set({ recipesLoadedAt: 0 }),
   invalidateOrders: () => set({ ordersLoadedAt: 0 }),
+  invalidateTemplates: () => set({ templatesLoadedAt: 0 }),
 }));

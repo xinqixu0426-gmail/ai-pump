@@ -1,7 +1,7 @@
 # 水泵BOM管理系统
 
 ## 项目简介
-水泵BOM数据库 + 订单管理 + 成本计算API + AI智能助手。支持零件录入、配方组装、订单采购流转、库存联动，提供 AI Agent 可调用的成本计算后端，以及微信小程序语音交互入口。
+水泵BOM数据库 + 订单管理 + 成本计算API + AI智能助手。支持零件录入、配方组装、订单采购流转、库存联动，提供 AI Agent 可调用的成本计算后端。语音入口支持 Siri + iOS 快捷指令（推荐）和微信小程序（旧版）。
 
 ## 技术栈
 - **Web 前端**：React 18 + TypeScript + Vite + Material UI 5 (端口 3000)
@@ -9,8 +9,8 @@
 - **后端API**：Express.js `api.cjs` (端口 3002)
 - **数据库**：SQLite (`pump.db`)，使用 `better-sqlite3` 同步驱动，前端通过后端 API 访问
 - **AI**：DeepSeek Chat API + Function Calling (12+ 工具)
-- **语音**：阿里云 ASR (REST API) + Web Speech API (Chrome)
-- **微信小程序**：原生开发，`wechat/` 目录独立工程
+- **语音**：Siri + iOS 快捷指令（Apple STT, 推荐） / 阿里云 ASR (REST API) + Web Speech API (Chrome)
+- **微信小程序**（旧版，逐步弃用）：原生开发，`wechat/` 目录独立工程
 - **启动与数据初始化**：
   1. (可选) 生成/重置演示数据：`node scripts/seed-demo-data.cjs`
   2. 启动服务：`npm start`（并行启动前端 + API）
@@ -141,8 +141,9 @@ React 前端 (3000)
 - **管理页面**：`/coils` 路由，含铜价实时监控、按规格分组列表、成本试算计算器
 
 ### 6. AI 智能助手
+- **Siri + 快捷指令**（推荐）: Apple STT 免费转写 → `POST /api/siri/chat` → DeepSeek Function Calling → Siri 朗读结果
 - **Web 端** (`/ai-chat`): SSE 流式输出，支持 Chrome Web Speech API 语音输入
-- **微信小程序**: 标准 JSON 请求模式，阿里云 ASR 语音识别，7种结构化数据卡片渲染
+- **微信小程序**（旧版）: 标准 JSON 请求模式，阿里云 ASR 语音识别，7种结构化数据卡片渲染
 - **Function Calling**: 12+ 工具覆盖配方查询、零件管理、订单操作、成本计算等
 - **view_type 映射**: 后端根据工具名返回 `view_type` 字段，前端动态匹配渲染组件
 
@@ -177,23 +178,46 @@ React 前端 (3000)
 | | GET | `/api/coils/specs` | 可用规格列表 |
 | **AI** | POST | `/api/ai/chat` | AI对话(SSE流式, Web端) |
 | | GET/PUT | `/api/ai/system-prompt` | System Prompt 读写 |
+| **Siri** | POST | `/api/siri/chat` | Siri快捷指令对话(含 speech 字段) |
 | **微信** | POST | `/api/wechat/asr` | 微信语音识别 |
 | | POST | `/api/wechat/chat` | 微信对话(标准JSON, 带view_type) |
 
 > 详细接口文档见 `API_DOCUMENTATION.md`
 
-## 微信小程序开发指南
+## Siri + 快捷指令集成（推荐语音入口）
+
+### 架构
+```
+🎙 Siri (Apple STT) → 快捷指令 POST 文字 → /api/siri/chat → DeepSeek + Function Calling → speech 朗读
+```
+
+### iOS 快捷指令配置
+1. 新建快捷指令，命名为「查水泵」
+2. 添加「听写文本」动作 → 存入变量 `userInput`
+3. 添加「获取 URL 内容」动作:
+   - URL: `https://你的域名/api/siri/chat`
+   - 方法: POST
+   - Headers: `Content-Type: application/json`（如配置了 token 则加 `X-Siri-Token: <token>`）
+   - Body: `{ "text": userInput, "project": "pump" }`
+4. 获取词典值-从URL的内容-speech
+5. 添加「朗读文本」动作 → 朗读响应中的 `speech` 字段
+6. 唤醒: “嘿 Siri，查水泵”
+
+### 鉴权
+- `.env` 中 `SIRI_API_TOKEN` 留空则跳过鉴权（开发模式）
+- 设置 token 后，请求头需携带 `X-Siri-Token`
+
+### 多项目路由
+- `project=pump` → 本地 PumpDB 处理
+- `project=cad` → 转发到 FreeCAD Python API (`CAD_API_URL`)
+
+## 微信小程序开发指南（旧版，逐步弃用）
 
 ### 环境配置
 1. 微信开发者工具打开 `wechat/` 目录
 2. 勾选「不校验合法域名」
 3. 修改 `app.js` 中 `baseUrl` 为你的局域网 IP + 端口 3002
 4. 基础库版本 ≥ 2.20.2
-
-### 语音识别注意事项
-- **开发者工具录音**：输出 `.wav` 格式，后端自动检测 RIFF 头并用 `wav` 格式调阿里云 ASR
-- **真机录音**：输出 raw `pcm`，直接传 pcm 格式
-- 录音参数：`sampleRate: 16000`, `numberOfChannels: 1`
 
 ### 数据卡片 (view_type)
 | view_type | 对应工具 | UI 组件 |

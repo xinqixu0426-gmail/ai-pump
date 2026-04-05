@@ -154,16 +154,51 @@
 
 ---
 
-## 五、微信小程序专用 API
+## 五、Siri + 快捷指令 API（推荐语音入口）
 
-### 15. 微信语音识别
+### 15. Siri 对话
+- `POST /api/siri/chat`
+- 请求体:
+  ```json
+  {
+    "text": "V750的成本是多少",
+    "project": "pump",
+    "context": []
+  }
+  ```
+- 鉴权: 如 `.env` 中配置了 `SIRI_API_TOKEN`，需要 Header `X-Siri-Token: <token>`
+- 路由: `project=pump` 本地处理，`project=cad` 转发到 `CAD_API_URL`
+- 返回:
+  ```json
+  {
+    "success": true,
+    "speech": "V750总成本853.50元",
+    "content": "AI 的完整文字回复",
+    "toolResults": [
+      {
+        "name": "query_recipe_cost_by_name",
+        "view_type": "bom_cost_card",
+        "result": { "success": true, "data": { ... } }
+      }
+    ]
+  }
+  ```
+- `speech` 字段: AI 回复首句的口语化摘要，用于 Siri 朗读
+- `content` 字段: AI 完整回复
+- `toolResults` 字段: 与微信端格式一致（含 view_type）
+
+---
+
+## 六、微信小程序专用 API（旧版，逐步弃用）
+
+### 16. 微信语音识别
 - `POST /api/wechat/asr`
 - Content-Type: `multipart/form-data`
 - 字段: `audio` (文件), `format` (pcm/wav, 可不传会自动检测), `sampleRate`
 - **自动格式检测**: 文件名 `.wav` 或 RIFF 文件头 → 用 `wav` 格式调阿里云
 - 返回: `{ success, text: "识别的文字" }`
 
-### 16. 微信对话 (标准 JSON)
+### 17. 微信对话 (标准 JSON)
 - `POST /api/wechat/chat`
 - **注意**: 不是 SSE，是标准 JSON 请求-响应模式 (微信开发工具不支持 chunked transfer)
 - 请求体: `{ messages: [{ role: "user", content: "..." }] }`
@@ -195,7 +230,7 @@
 
 ---
 
-## 六、数据 CRUD API（前端 → 后端 → SQLite）
+## 七、数据 CRUD API（前端 → 后端 → SQLite）
 
 前端通过 `/api/*` 后端代理操作数据，不直连数据库文件。
 
@@ -225,4 +260,3 @@
 ---
 
 *本文档为单点信息源(SSOT)，API 变更请同步更新。*
-

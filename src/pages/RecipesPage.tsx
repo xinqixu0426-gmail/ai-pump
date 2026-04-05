@@ -122,7 +122,17 @@ export default function RecipesPage() {
         cloneFrom: {
           name: recipe.name + '-副本',
           spec: recipe.spec,
-          partsJson: recipe.parts_json
+          partsJson: recipe.parts_json,
+          template_id: recipe.template_id,
+          coil_spec: recipe.coil_spec,
+          coil_sheets: recipe.coil_sheets,
+          has_float: recipe.has_float,
+          float_wire: recipe.float_wire,
+          has_cable: recipe.has_cable,
+          cable_length: recipe.cable_length,
+          cable_wire: recipe.cable_wire,
+          box_type: recipe.box_type,
+          extra_parts_json: recipe.extra_parts_json,
         }
       }
     });
@@ -136,7 +146,17 @@ export default function RecipesPage() {
           id: recipe.Id,
           name: recipe.name,
           spec: recipe.spec,
-          partsJson: recipe.parts_json
+          partsJson: recipe.parts_json,
+          template_id: recipe.template_id,
+          coil_spec: recipe.coil_spec,
+          coil_sheets: recipe.coil_sheets,
+          has_float: recipe.has_float,
+          float_wire: recipe.float_wire,
+          has_cable: recipe.has_cable,
+          cable_length: recipe.cable_length,
+          cable_wire: recipe.cable_wire,
+          box_type: recipe.box_type,
+          extra_parts_json: recipe.extra_parts_json,
         }
       }
     });

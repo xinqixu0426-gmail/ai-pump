@@ -10,6 +10,23 @@ export interface Part {
   stock: number;
 }
 
+/** 泵壳模板配件项 */
+export interface TemplatePart {
+  name: string;
+  model: string;
+  qty: number;
+}
+
+/** 泵壳模板 */
+export interface PumpShellTemplate {
+  Id: number;
+  shell_model: string;
+  description: string;
+  parts_json: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
 /** 配方 */
 export interface Recipe {
   Id: number;
@@ -18,6 +35,17 @@ export interface Recipe {
   parts_json: string;
   saved_total_cost?: number;
   saved_cost_details?: string;
+  // 新增结构化字段
+  template_id?: number | null;
+  coil_spec?: string;
+  coil_sheets?: number;
+  has_float?: number;
+  float_wire?: string;
+  has_cable?: number;
+  cable_length?: number;
+  cable_wire?: string;
+  box_type?: string;
+  extra_parts_json?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }

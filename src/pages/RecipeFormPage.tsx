@@ -29,43 +29,20 @@ import {
   Add as AddIcon,
   ArrowBack as BackIcon,
   Cable as CableIcon,
+  Inventory as TemplateIcon,
 } from '@mui/icons-material';
-import { RecipePart } from '../types';
+import { RecipePart, TemplatePart } from '../types';
 import { createRecipe, updateRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import RecipePartRow from '../components/RecipePartRow';
 
 const COIL_API_BASE = '';
 
-// 必备配件（线圈转子单独处理）
-const REQUIRED_PARTS = [
-  { key: 'pumpShell', name: '泵壳' },
-  { key: 'plateBearing', name: '花板轴承' },
-  { key: 'cylinderBearing', name: '油缸轴承' },
-  { key: 'mechanicalSeal', name: '机械油封' },
-  { key: 'skeletonSeal', name: '骨架油封' },
-  { key: 'capacitor', name: '电容' },
-];
-
 interface PartSelection {
   model: string;
   supplier: string;
   qty: number;
 }
-
-const REQUIRED_NAME_TO_KEY: Record<string, string> = {};
-REQUIRED_PARTS.forEach(({ key, name }) => {
-  REQUIRED_NAME_TO_KEY[name] = key;
-});
-
-const EMPTY_REQUIRED: Record<string, PartSelection> = {
-  pumpShell: { model: '', supplier: '', qty: 1 },
-  plateBearing: { model: '', supplier: '', qty: 1 },
-  cylinderBearing: { model: '', supplier: '', qty: 1 },
-  mechanicalSeal: { model: '', supplier: '', qty: 1 },
-  skeletonSeal: { model: '', supplier: '', qty: 1 },
-  capacitor: { model: '', supplier: '', qty: 1 },
-};
 
 interface CoilCalcResult {
   spec: string;
@@ -94,15 +71,15 @@ export default function RecipeFormPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const locState = location.state as {
-    cloneFrom?: { name: string; spec: string; partsJson: string };
-    editFrom?: { id: number; name: string; spec: string; partsJson: string };
+    cloneFrom?: { name: string; spec: string; partsJson: string; template_id?: number; coil_spec?: string; coil_sheets?: number; has_float?: number; float_wire?: string; has_cable?: number; cable_length?: number; cable_wire?: string; box_type?: string; extra_parts_json?: string };
+    editFrom?: { id: number; name: string; spec: string; partsJson: string; template_id?: number; coil_spec?: string; coil_sheets?: number; has_float?: number; float_wire?: string; has_cable?: number; cable_length?: number; cable_wire?: string; box_type?: string; extra_parts_json?: string };
   } | null;
   const cloneFrom = locState?.cloneFrom;
   const editFrom = locState?.editFrom;
   const isEditing = !!editFrom;
   const initApplied = useRef(false);
 
-  const { parts, fetchParts } = useAppStore();
+  const { parts, fetchParts, templates, fetchTemplates } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -111,44 +88,48 @@ export default function RecipeFormPage() {
   const [recipeName, setRecipeName] = useState(editFrom?.name || cloneFrom?.name || '');
   const [recipeSpec, setRecipeSpec] = useState(editFrom?.spec || cloneFrom?.spec || '');
 
-  // 必备配件
-  const [requiredSelections, setRequiredSelections] = useState<Record<string, PartSelection>>(
-    JSON.parse(JSON.stringify(EMPTY_REQUIRED))
+  // 泵壳模板选择
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
+    editFrom?.template_id || cloneFrom?.template_id || null
   );
 
   // 线圈转子
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecInfo[]>([]);
-  const [coilSpec, setCoilSpec] = useState('');
-  const [coilSheets, setCoilSheets] = useState('');
+  const [coilSpec, setCoilSpec] = useState(editFrom?.coil_spec || cloneFrom?.coil_spec || '');
+  const [coilSheets, setCoilSheets] = useState(editFrom?.coil_sheets ? String(editFrom.coil_sheets) : (cloneFrom?.coil_sheets ? String(cloneFrom.coil_sheets) : ''));
   const [coilCustomWireWeight, setCoilCustomWireWeight] = useState('');
   const [useCoilCustomWeight, setUseCoilCustomWeight] = useState(false);
   const [coilResult, setCoilResult] = useState<CoilCalcResult | null>(null);
   const [coilLoading, setCoilLoading] = useState(false);
 
-  // 选配 + 动态配置
+  // 选配配件
   const [optionalParts, setOptionalParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextOptionalId = useRef(1);
 
-  const [hasFloat, setHasFloat] = useState(false);
-  const [floatWire, setFloatWire] = useState('0.55');
-  const [hasCable, setHasCable] = useState(false);
-  const [cableLength, setCableLength] = useState('');
-  const [cableWire, setCableWire] = useState('0.55');
-  const [boxType, setBoxType] = useState('');
+  // 动态配置
+  const [hasFloat, setHasFloat] = useState(!!editFrom?.has_float || !!cloneFrom?.has_float);
+  const [floatWire, setFloatWire] = useState(editFrom?.float_wire || cloneFrom?.float_wire || '0.55');
+  const [hasCable, setHasCable] = useState(!!editFrom?.has_cable || !!cloneFrom?.has_cable);
+  const [cableLength, setCableLength] = useState(editFrom?.cable_length ? String(editFrom.cable_length) : (cloneFrom?.cable_length ? String(cloneFrom.cable_length) : ''));
+  const [cableWire, setCableWire] = useState(editFrom?.cable_wire || cloneFrom?.cable_wire || '0.55');
+  const [boxType, setBoxType] = useState(editFrom?.box_type || cloneFrom?.box_type || '');
+
+  // 电容（从线圈联动）
+  const [capacitorModel, setCapacitorModel] = useState('');
 
   // ── 数据加载 ──
-  const loadParts = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      await fetchParts();
+      await Promise.all([fetchParts(), fetchTemplates()]);
     } catch {
-      setError('加载零件数据失败');
+      setError('加载数据失败');
     } finally {
       setLoading(false);
     }
-  }, [fetchParts]);
+  }, [fetchParts, fetchTemplates]);
 
-  useEffect(() => { loadParts(); }, [loadParts]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
     (async () => {
@@ -193,40 +174,49 @@ export default function RecipeFormPage() {
   // 线圈结果联动：自动设置浮球/电缆线径 + 电容
   useEffect(() => {
     if (!coilResult) return;
-    // 自动填充线径
     if (coilResult.wireGauge) {
       setFloatWire(coilResult.wireGauge);
       setCableWire(coilResult.wireGauge);
     }
-    // 自动填充电容到必备配件
     if (coilResult.capacitor) {
       const uf = String(coilResult.capacitor);
-      const capPart = parts.find(p =>
-        p.category === '电容' &&
-        (p.model).includes(uf)
-      );
-      if (capPart) {
-        const capModel = capPart.model;
-        setRequiredSelections(prev => ({
-          ...prev,
-          capacitor: { ...prev.capacitor, model: capModel }
-        }));
-      }
+      const capPart = parts.find(p => p.category === '电容' && p.model.includes(uf));
+      if (capPart) setCapacitorModel(capPart.model);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coilResult]);
 
-  // 复制/编辑配方预填
+  // 编辑/复制配方预填 — 新逻辑：从结构化字段还原
   useEffect(() => {
     const source = editFrom || cloneFrom;
     if (!source || initApplied.current || parts.length === 0) return;
     initApplied.current = true;
+
+    // 如果有 template_id，直接用结构化字段
+    if (source.template_id) {
+      setSelectedTemplateId(source.template_id);
+      if (source.coil_spec) setCoilSpec(source.coil_spec);
+      if (source.coil_sheets) setCoilSheets(String(source.coil_sheets));
+      setHasFloat(!!source.has_float);
+      if (source.float_wire) setFloatWire(source.float_wire);
+      setHasCable(!!source.has_cable);
+      if (source.cable_length) setCableLength(String(source.cable_length));
+      if (source.cable_wire) setCableWire(source.cable_wire);
+      if (source.box_type) setBoxType(source.box_type);
+
+      // 额外选配
+      try {
+        const extras = JSON.parse(source.extra_parts_json || '[]');
+        setOptionalParts(extras.map((p: PartSelection) => ({ id: nextOptionalId.current++, ...p })));
+      } catch { /* */ }
+      return;
+    }
+
+    // 兼容旧配方：从 parts_json 解析
     try {
       const srcParts: RecipePart[] = JSON.parse(source.partsJson);
-      const newRequired = JSON.parse(JSON.stringify(EMPTY_REQUIRED));
       const newOptional: Array<PartSelection & { id: number }> = [];
       srcParts.forEach((cp) => {
-        // 线圈转子
         if (cp.name === '线圈转子') {
           if (cp.model && cp.model.includes('-')) {
             const [s, sh] = cp.model.split('-');
@@ -235,34 +225,13 @@ export default function RecipeFormPage() {
           }
           return;
         }
-        // 动态配置项（浮球、电缆、包材）
-        if (cp.name === '浮球') {
-          setHasFloat(true);
-          const w = cp.model.replace('浮球-线径', '');
-          if (w) setFloatWire(w);
-          return;
-        }
-        if (cp.name === '电缆线') {
-          setHasCable(true);
-          const w = cp.model.replace('电缆-线径', '');
-          if (w) setCableWire(w);
-          setCableLength(String(cp.qty || ''));
-          return;
-        }
+        if (cp.name === '浮球') { setHasFloat(true); const w = cp.model.replace('浮球-线径', ''); if (w) setFloatWire(w); return; }
+        if (cp.name === '电缆线') { setHasCable(true); const w = cp.model.replace('电缆-线径', ''); if (w) setCableWire(w); setCableLength(String(cp.qty || '')); return; }
         if (cp.name === '电缆接头配件') return;
-        if (cp.name === '纸箱' || cp.name === '木箱') {
-          setBoxType(cp.model);
-          return;
-        }
-        // 必备配件
-        const key = REQUIRED_NAME_TO_KEY[cp.name];
-        if (key) {
-          newRequired[key] = { model: cp.model, supplier: cp.supplier, qty: cp.qty };
-        } else {
-          newOptional.push({ id: nextOptionalId.current++, model: cp.model, supplier: cp.supplier, qty: cp.qty });
-        }
+        if (cp.name === '纸箱' || cp.name === '木箱') { setBoxType(cp.model); return; }
+        // 跳过泵壳/轴承/油封等固定配件（旧配方没模板，加到选配）
+        newOptional.push({ id: nextOptionalId.current++, model: cp.model, supplier: cp.supplier, qty: cp.qty });
       });
-      setRequiredSelections(newRequired);
       setOptionalParts(newOptional);
     } catch (e) {
       console.error('解析配方失败', e);
@@ -273,17 +242,11 @@ export default function RecipeFormPage() {
   const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
     const m1 = (model || '').trim();
     const s1 = (supplier || '').trim();
-    const exactPart = parts.find(
-      (p) => p.model.trim() === m1 && p.supplier.trim() === s1
-    );
+    const exactPart = parts.find((p) => p.model.trim() === m1 && p.supplier.trim() === s1);
     if (exactPart && s1) return exactPart.price;
     const modelParts = parts.filter((p) => p.model.trim() === m1);
     if (modelParts.length > 0) {
-      return modelParts.reduce((min, curr) => {
-        const cp = curr.price;
-        const mp = min.price;
-        return cp < mp ? curr : min;
-      }, modelParts[0]).price;
+      return modelParts.reduce((min, curr) => curr.price < min.price ? curr : min, modelParts[0]).price;
     }
     return 0;
   }, [parts]);
@@ -299,6 +262,16 @@ export default function RecipeFormPage() {
     if (candidates.length > 0) return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
     return { model: k, price: 0 };
   }, [parts, getPriceByModelAndSupplier]);
+
+  // 获取选中模板的配件列表
+  const selectedTemplate = templates.find(t => t.Id === selectedTemplateId) || null;
+  const templateParts: TemplatePart[] = (() => {
+    if (!selectedTemplate) return [];
+    try { return JSON.parse(selectedTemplate.parts_json || '[]'); } catch { return []; }
+  })();
+
+  // 模板配件成本
+  const templateCost = templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, '') * p.qty, 0);
 
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
@@ -344,38 +317,41 @@ export default function RecipeFormPage() {
     return Array.from(suppliers).filter(Boolean).sort();
   };
 
-  // ── 汇总 ──
+  // ── 汇总所有配件（用于 parts_json 冗余快照）──
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
-    REQUIRED_PARTS.forEach(({ key, name }) => {
-      const s = requiredSelections[key];
-      if (s.model) {
-        all.push({ model: s.model, name, supplier: s.supplier, qty: s.qty, snapshotPrice: getPriceByModelAndSupplier(s.model, s.supplier) });
-      }
+
+    // 模板固定配件
+    templateParts.forEach(p => {
+      const price = getPriceByModelAndSupplier(p.model, '');
+      all.push({ model: p.model, name: p.name, supplier: '', qty: p.qty, snapshotPrice: price });
     });
+
+    // 电容（从线圈联动）
+    if (capacitorModel) {
+      all.push({ model: capacitorModel, name: '电容', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier(capacitorModel, '') });
+    }
+
+    // 线圈转子
     if (coilResult && coilSpec && coilSheets) {
       all.push({ model: `${coilSpec}-${coilSheets}`, name: '线圈转子', supplier: '', qty: 1, snapshotPrice: coilResult.totalCost });
     }
+
+    // 选配
     optionalParts.forEach((p) => {
       if (p.model) all.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty, snapshotPrice: getPriceByModelAndSupplier(p.model, p.supplier) });
     });
+
+    // 动态配置
     all.push(...buildConfigParts());
     return all;
-  }, [requiredSelections, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
+  }, [templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
 
-  // 成本预览
+  // 总成本预览
   const allPartsPreview = buildAllParts();
   const totalCost = allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
 
   // ── handlers ──
-  const handleRequiredChange = (key: string, field: keyof PartSelection, value: string | number) => {
-    setRequiredSelections((prev) => {
-      const updated = { ...prev, [key]: { ...prev[key], [field]: value } };
-      if (field === 'model') updated[key].supplier = '';
-      return updated;
-    });
-  };
-
   const handleAddOptional = () => {
     setOptionalParts((prev) => [...prev, { id: nextOptionalId.current++, model: '', supplier: '', qty: 1 }]);
   };
@@ -398,31 +374,37 @@ export default function RecipeFormPage() {
   const handleSubmit = async () => {
     if (!recipeName.trim()) { setError('请输入配方名称'); return; }
     const recipeParts = buildAllParts();
-    if (recipeParts.length === 0) { setError('请至少选择一个配件'); return; }
+    if (recipeParts.length === 0 && !selectedTemplateId) { setError('请选择泵壳模板或至少添加一个配件'); return; }
 
     const savedTotalCost = recipeParts.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
     const savedCostDetails = recipeParts
       .map((p) => `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`)
       .join('\n');
 
+    const recipeData = {
+      name: recipeName,
+      spec: recipeSpec,
+      parts_json: JSON.stringify(recipeParts),
+      saved_total_cost: savedTotalCost,
+      saved_cost_details: savedCostDetails,
+      template_id: selectedTemplateId,
+      coil_spec: coilSpec,
+      coil_sheets: coilSheets ? parseInt(coilSheets) : 0,
+      has_float: hasFloat ? 1 : 0,
+      float_wire: floatWire,
+      has_cable: hasCable ? 1 : 0,
+      cable_length: cableLength ? parseFloat(cableLength) : 0,
+      cable_wire: cableWire,
+      box_type: boxType,
+      extra_parts_json: JSON.stringify(optionalParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))),
+    };
+
     setSaving(true);
     try {
       if (isEditing && editFrom) {
-        await updateRecipe(editFrom.id, {
-          name: recipeName,
-          spec: recipeSpec,
-          parts_json: JSON.stringify(recipeParts),
-          saved_total_cost: savedTotalCost,
-          saved_cost_details: savedCostDetails,
-        });
+        await updateRecipe(editFrom.id, recipeData);
       } else {
-        await createRecipe({
-          name: recipeName,
-          spec: recipeSpec,
-          parts_json: JSON.stringify(recipeParts),
-          saved_total_cost: savedTotalCost,
-          saved_cost_details: savedCostDetails,
-        });
+        await createRecipe(recipeData);
       }
       navigate('/recipes');
     } catch {
@@ -502,43 +484,78 @@ export default function RecipeFormPage() {
         />
       </Box>
 
-      {/* ━━ 配件表格 ━━ */}
+      {/* ━━ 泵壳模板选择 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
-        <Table size="small" sx={{ tableLayout: 'auto' }}>
-          <TableHeader />
-          <TableBody>
-            {/* 必备配件 */}
-            <TableRow>
-              <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'primary.50', borderBottom: 'none' }}>
-                <Typography variant="caption" fontWeight={700} color="primary.main" sx={{ letterSpacing: 1 }}>
-                  ▸ 必备配件
-                </Typography>
-              </TableCell>
-            </TableRow>
-            {REQUIRED_PARTS.map(({ key, name }) => (
-              <RecipePartRow
-                key={key}
-                label={name}
-                selection={requiredSelections[key]}
-                models={getModelsByCategory(
-                  name === '泵壳' ? '泵壳'
-                    : name.includes('轴承') ? '轴承'
-                    : name.includes('油封') ? '油封'
-                    : name === '电容' ? '电容'
-                    : '其他'
-                )}
-                getSuppliers={getSuppliersByModel}
-                getPrice={getPriceByModelAndSupplier}
-                onChange={(field, value) => handleRequiredChange(key, field, value)}
-                isRequired
-              />
-            ))}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TemplateIcon sx={{ fontSize: 16, color: '#7c3aed' }} />
+          <Typography variant="caption" fontWeight={700} color="#7c3aed" sx={{ letterSpacing: 1 }}>
+            ▸ 泵壳模板（固定配件）
+          </Typography>
+          {selectedTemplate && (
+            <Chip
+              label={`¥${templateCost.toFixed(2)}`}
+              size="small"
+              color="success"
+              sx={{ ml: 'auto', fontWeight: 700 }}
+            />
+          )}
+        </Box>
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <FormControl size="small" sx={{ minWidth: 240, mb: selectedTemplate ? 1.5 : 0 }}>
+            <InputLabel>选择泵壳模板</InputLabel>
+            <Select
+              value={selectedTemplateId || ''}
+              label="选择泵壳模板"
+              onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <MenuItem value="">
+                <em>不使用模板</em>
+              </MenuItem>
+              {templates.map(t => (
+                <MenuItem key={t.Id} value={t.Id}>
+                  {t.shell_model}{t.description ? ` — ${t.description}` : ''}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-            <TableRow>
-              <TableCell colSpan={7} sx={{ p: 0 }}><Divider /></TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+          {/* 模板配件预览（只读） */}
+          {selectedTemplate && templateParts.length > 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 1 }}>
+              {templateParts.map((p, i) => {
+                const price = getPriceByModelAndSupplier(p.model, '');
+                return (
+                  <Box key={i} display="flex" justifyContent="space-between" alignItems="center"
+                    sx={{ py: 0.25, fontSize: '0.8rem' }}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70 }}>
+                        {p.name}
+                      </Typography>
+                      <Chip label={p.model} size="small" variant="outlined"
+                        sx={{ height: 20, fontSize: '0.7rem' }} />
+                      {p.qty > 1 && (
+                        <Typography variant="caption" color="text.disabled">×{p.qty}</Typography>
+                      )}
+                    </Box>
+                    <Typography variant="body2" sx={{
+                      fontFamily: 'monospace',
+                      color: price > 0 ? 'success.main' : 'error.main',
+                      fontSize: '0.8rem'
+                    }}>
+                      ¥{(price * p.qty).toFixed(2)}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+
+          {!selectedTemplate && (
+            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
+              选择泵壳模板后，固定配件(轴承/油封/螺丝等)将自动填入
+            </Typography>
+          )}
+        </Box>
       </Paper>
 
       {/* ━━ 线圈转子 ━━ */}
@@ -754,7 +771,7 @@ export default function RecipeFormPage() {
         fullWidth
         startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
         onClick={handleSubmit}
-        disabled={saving || !recipeName.trim() || allPartsPreview.length === 0}
+        disabled={saving || !recipeName.trim() || (allPartsPreview.length === 0 && !selectedTemplateId)}
         sx={{ mt: 1 }}
       >
         {isEditing ? '更新配方' : '保存配方'}

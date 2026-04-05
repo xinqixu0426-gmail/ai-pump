@@ -4,6 +4,7 @@ import {
   RecipePart,
   CostResult,
   ApiResponse,
+  PumpShellTemplate,
 } from '../types';
 
 // ─── 通用请求封装 ─────────────────────────────
@@ -122,6 +123,16 @@ export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> 
       parts_json: recipe.parts_json || '[]',
       saved_total_cost: recipe.saved_total_cost,
       saved_cost_details: recipe.saved_cost_details,
+      template_id: recipe.template_id || null,
+      coil_spec: recipe.coil_spec || '',
+      coil_sheets: recipe.coil_sheets || 0,
+      has_float: recipe.has_float || 0,
+      float_wire: recipe.float_wire || '',
+      has_cable: recipe.has_cable || 0,
+      cable_length: recipe.cable_length || 0,
+      cable_wire: recipe.cable_wire || '',
+      box_type: recipe.box_type || '',
+      extra_parts_json: recipe.extra_parts_json || '[]',
     }),
   });
   return res.data;
@@ -141,6 +152,16 @@ export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'
   if (recipe.parts_json !== undefined) record.parts_json = recipe.parts_json;
   if (recipe.saved_total_cost !== undefined) record.saved_total_cost = recipe.saved_total_cost;
   if (recipe.saved_cost_details !== undefined) record.saved_cost_details = recipe.saved_cost_details;
+  if (recipe.template_id !== undefined) record.template_id = recipe.template_id;
+  if (recipe.coil_spec !== undefined) record.coil_spec = recipe.coil_spec;
+  if (recipe.coil_sheets !== undefined) record.coil_sheets = recipe.coil_sheets;
+  if (recipe.has_float !== undefined) record.has_float = recipe.has_float;
+  if (recipe.float_wire !== undefined) record.float_wire = recipe.float_wire;
+  if (recipe.has_cable !== undefined) record.has_cable = recipe.has_cable;
+  if (recipe.cable_length !== undefined) record.cable_length = recipe.cable_length;
+  if (recipe.cable_wire !== undefined) record.cable_wire = recipe.cable_wire;
+  if (recipe.box_type !== undefined) record.box_type = recipe.box_type;
+  if (recipe.extra_parts_json !== undefined) record.extra_parts_json = recipe.extra_parts_json;
 
   const res = await proxyRequest<{ success: boolean; data: Recipe }>('/api/recipes', {
     method: 'PATCH',
@@ -176,4 +197,44 @@ export async function searchRecipeByName(name: string): Promise<Recipe | null> {
   } catch {
     return null;
   }
+}
+
+// ─── 泵壳模板 CRUD ──────────────────────────
+
+export async function getAllTemplates(): Promise<PumpShellTemplate[]> {
+  const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate[] }>('/api/templates');
+  return res.data || [];
+}
+
+export async function getTemplate(id: number): Promise<PumpShellTemplate | null> {
+  try {
+    const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate }>(`/api/templates/${id}`);
+    return res.data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promise<PumpShellTemplate> {
+  const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate }>('/api/templates', {
+    method: 'POST',
+    body: JSON.stringify({
+      shell_model: tpl.shell_model,
+      description: tpl.description || '',
+      parts_json: tpl.parts_json || '[]',
+    }),
+  });
+  return res.data;
+}
+
+export async function updateTemplate(id: number, tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Promise<PumpShellTemplate> {
+  const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate }>(`/api/templates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(tpl),
+  });
+  return res.data;
+}
+
+export async function deleteTemplate(id: number): Promise<void> {
+  await proxyRequest(`/api/templates/${id}`, { method: 'DELETE' });
 }

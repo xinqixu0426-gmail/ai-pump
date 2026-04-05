@@ -26,6 +26,36 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// ── 自动建表 & 迁移 ──
+db.exec(`
+    CREATE TABLE IF NOT EXISTS pump_shell_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shell_model TEXT NOT NULL UNIQUE,
+        description TEXT DEFAULT '',
+        parts_json TEXT DEFAULT '[]',
+        created_at TEXT,
+        updated_at TEXT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pst_model ON pump_shell_templates(shell_model);
+`);
+
+// recipes 表新增结构化列（幂等 ALTER）
+const recipeAlterColumns = [
+    ['template_id', 'INTEGER'],
+    ['coil_spec', 'TEXT DEFAULT \'\''],
+    ['coil_sheets', 'INTEGER DEFAULT 0'],
+    ['has_float', 'INTEGER DEFAULT 0'],
+    ['float_wire', 'TEXT DEFAULT \'\''],
+    ['has_cable', 'INTEGER DEFAULT 0'],
+    ['cable_length', 'REAL DEFAULT 0'],
+    ['cable_wire', 'TEXT DEFAULT \'\''],
+    ['box_type', 'TEXT DEFAULT \'\''],
+    ['extra_parts_json', 'TEXT DEFAULT \'[]\''],
+];
+for (const [col, type] of recipeAlterColumns) {
+    try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* column already exists */ }
+}
+
 // 中间件
 app.use(cors());
 app.use(express.json());
@@ -45,6 +75,23 @@ function recipeRow(r) {
              '配方名称': r.name, '规格': r.spec, '配件JSON': r.parts_json,
              saved_total_cost: r.saved_total_cost, '保存时总成本': r.saved_total_cost,
              saved_cost_details: r.saved_cost_details, '保存时成本明细': r.saved_cost_details,
+             // 新增结构化字段
+             template_id: r.template_id || null,
+             coil_spec: r.coil_spec || '',
+             coil_sheets: r.coil_sheets || 0,
+             has_float: r.has_float || 0,
+             float_wire: r.float_wire || '',
+             has_cable: r.has_cable || 0,
+             cable_length: r.cable_length || 0,
+             cable_wire: r.cable_wire || '',
+             box_type: r.box_type || '',
+             extra_parts_json: r.extra_parts_json || '[]',
+             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+}
+function templateRow(r) {
+    if (!r) return r;
+    return { Id: r.id, shell_model: r.shell_model, description: r.description || '',
+             parts_json: r.parts_json || '[]',
              CreatedAt: r.created_at, UpdatedAt: r.updated_at };
 }
 function orderRow(r) {
@@ -68,6 +115,7 @@ function dbGetAllParts() { return db.prepare('SELECT * FROM parts').all().map(pa
 function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes').all().map(recipeRow); }
 function dbGetAllOrders() { return db.prepare('SELECT * FROM orders').all().map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
+function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all().map(templateRow); }
 
 
 /** 将 SQLite row 的 id 映射为前端期望的 Id (大写) */
@@ -1041,9 +1089,28 @@ app.post('/api/recipes', async (req, res) => {
     try {
         const b = req.body;
         const now = new Date().toISOString();
-        const info = db.prepare('INSERT INTO recipes (name, spec, parts_json, saved_total_cost, saved_cost_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
-            b.配方名称 || b.name || '', b.规格 || b.spec || '', b.配件JSON || b.parts_json || '[]',
-            b.saved_total_cost ?? b.保存时总成本 ?? 0, b.saved_cost_details || b.保存时成本明细 || '[]', now, now
+        const info = db.prepare(`INSERT INTO recipes (
+            name, spec, parts_json, saved_total_cost, saved_cost_details,
+            template_id, coil_spec, coil_sheets,
+            has_float, float_wire, has_cable, cable_length, cable_wire,
+            box_type, extra_parts_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            b.name || b.配方名称 || '',
+            b.spec || b.规格 || '',
+            b.parts_json || b.配件JSON || '[]',
+            b.saved_total_cost ?? b.保存时总成本 ?? 0,
+            b.saved_cost_details || b.保存时成本明细 || '[]',
+            b.template_id || null,
+            b.coil_spec || '',
+            b.coil_sheets || 0,
+            b.has_float || 0,
+            b.float_wire || '',
+            b.has_cable || 0,
+            b.cable_length || 0,
+            b.cable_wire || '',
+            b.box_type || '',
+            b.extra_parts_json || '[]',
+            now, now
         );
         const record = recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid));
         res.json({ success: true, data: record });
@@ -1075,10 +1142,144 @@ app.patch('/api/recipes', async (req, res) => {
         if (b.配件JSON !== undefined || b.parts_json !== undefined) { sets.push('parts_json = ?'); vals.push(b.配件JSON || b.parts_json); }
         if (b.saved_total_cost !== undefined || b.保存时总成本 !== undefined) { sets.push('saved_total_cost = ?'); vals.push(b.saved_total_cost ?? b.保存时总成本); }
         if (b.saved_cost_details !== undefined || b.保存时成本明细 !== undefined) { sets.push('saved_cost_details = ?'); vals.push(b.saved_cost_details || b.保存时成本明细); }
+        // 新增结构化字段
+        if (b.template_id !== undefined) { sets.push('template_id = ?'); vals.push(b.template_id); }
+        if (b.coil_spec !== undefined) { sets.push('coil_spec = ?'); vals.push(b.coil_spec); }
+        if (b.coil_sheets !== undefined) { sets.push('coil_sheets = ?'); vals.push(b.coil_sheets); }
+        if (b.has_float !== undefined) { sets.push('has_float = ?'); vals.push(b.has_float); }
+        if (b.float_wire !== undefined) { sets.push('float_wire = ?'); vals.push(b.float_wire); }
+        if (b.has_cable !== undefined) { sets.push('has_cable = ?'); vals.push(b.has_cable); }
+        if (b.cable_length !== undefined) { sets.push('cable_length = ?'); vals.push(b.cable_length); }
+        if (b.cable_wire !== undefined) { sets.push('cable_wire = ?'); vals.push(b.cable_wire); }
+        if (b.box_type !== undefined) { sets.push('box_type = ?'); vals.push(b.box_type); }
+        if (b.extra_parts_json !== undefined) { sets.push('extra_parts_json = ?'); vals.push(b.extra_parts_json); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         if (sets.length > 1) db.prepare(`UPDATE recipes SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
         const record = recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id));
         res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// 泵壳模板 CRUD
+// ============================================
+
+/** GET /api/templates - 获取所有泵壳模板 */
+app.get('/api/templates', async (req, res) => {
+    try {
+        const records = dbGetAllTemplates();
+        res.json({ success: true, data: records });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** GET /api/templates/:id - 获取单个模板 */
+app.get('/api/templates/:id', async (req, res) => {
+    try {
+        const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(parseInt(req.params.id)));
+        if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** GET /api/templates/:id/cost - 模板实时成本预览 */
+app.get('/api/templates/:id/cost', async (req, res) => {
+    try {
+        const tpl = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(parseInt(req.params.id));
+        if (!tpl) return res.status(404).json({ success: false, error: '模板不存在' });
+
+        let tplParts = [];
+        try { tplParts = JSON.parse(tpl.parts_json || '[]'); } catch { /* ignore */ }
+
+        const { partsCache, partsByModel } = loadPartsData();
+        const result = calculateRecipeCost(tplParts.map(p => ({ ...p, supplier: '' })), partsCache, partsByModel);
+
+        res.json({
+            success: true,
+            data: {
+                templateId: tpl.id,
+                shellModel: tpl.shell_model,
+                ...result
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** GET /api/templates/:id/recipes - 引用此模板的所有配方 */
+app.get('/api/templates/:id/recipes', async (req, res) => {
+    try {
+        const records = db.prepare('SELECT * FROM recipes WHERE template_id = ?').all(parseInt(req.params.id)).map(recipeRow);
+        res.json({ success: true, data: records });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** POST /api/templates - 创建泵壳模板 */
+app.post('/api/templates', async (req, res) => {
+    try {
+        const { shell_model, description, parts_json } = req.body;
+        if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
+
+        const now = new Date().toISOString();
+        const pJson = typeof parts_json === 'string' ? parts_json : JSON.stringify(parts_json || []);
+        const info = db.prepare('INSERT INTO pump_shell_templates (shell_model, description, parts_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(
+            shell_model, description || '', pJson, now, now
+        );
+        const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(info.lastInsertRowid));
+        res.json({ success: true, data: record });
+    } catch (error) {
+        if (error.message.includes('UNIQUE constraint')) {
+            return res.status(409).json({ success: false, error: `泵壳型号 "${req.body.shell_model}" 已存在` });
+        }
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** PATCH /api/templates/:id - 更新模板 */
+app.patch('/api/templates/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const b = req.body;
+        const now = new Date().toISOString();
+        const sets = []; const vals = [];
+        if (b.shell_model !== undefined) { sets.push('shell_model = ?'); vals.push(b.shell_model); }
+        if (b.description !== undefined) { sets.push('description = ?'); vals.push(b.description); }
+        if (b.parts_json !== undefined) {
+            const pJson = typeof b.parts_json === 'string' ? b.parts_json : JSON.stringify(b.parts_json);
+            sets.push('parts_json = ?'); vals.push(pJson);
+        }
+        sets.push('updated_at = ?'); vals.push(now); vals.push(id);
+        if (sets.length > 1) db.prepare(`UPDATE pump_shell_templates SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+        const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
+        if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
+        res.json({ success: true, data: record });
+    } catch (error) {
+        if (error.message.includes('UNIQUE constraint')) {
+            return res.status(409).json({ success: false, error: `泵壳型号已存在` });
+        }
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/** DELETE /api/templates/:id - 删除模板 */
+app.delete('/api/templates/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        // 检查是否有配方引用此模板
+        const refs = db.prepare('SELECT COUNT(*) as cnt FROM recipes WHERE template_id = ?').get(id);
+        if (refs.cnt > 0) {
+            return res.status(409).json({ success: false, error: `有 ${refs.cnt} 个配方引用此模板，无法删除` });
+        }
+        db.prepare('DELETE FROM pump_shell_templates WHERE id = ?').run(id);
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -2995,6 +3196,210 @@ app.post('/api/wechat/chat', async (req, res) => {
     }
 });
 
+// ── Siri + 快捷指令专用端点 ──────────────────────────────
+
+const SIRI_TOKEN = process.env.SIRI_API_TOKEN || '';
+
+// ── Siri 结果存储（内存，5分钟 TTL） ──
+const siriResults = new Map();
+const SIRI_RESULT_TTL = 5 * 60 * 1000; // 5 minutes
+
+// 每分钟清理过期结果
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of siriResults) {
+        if (now - entry.createdAt > SIRI_RESULT_TTL) siriResults.delete(id);
+    }
+}, 60000);
+
+/**
+ * Siri 鉴权中间件
+ * 如果 .env 中设置了 SIRI_API_TOKEN，则要求请求头携带 X-Siri-Token
+ * 未设置时跳过鉴权（开发模式）
+ */
+function siriAuth(req, res, next) {
+    if (!SIRI_TOKEN) return next(); // 未配置 token 则跳过
+    const token = req.headers['x-siri-token'];
+    if (token !== SIRI_TOKEN) {
+        return res.status(401).json({ success: false, error: '鉴权失败' });
+    }
+    next();
+}
+
+// ── Siri 结果页面静态文件 + API ──
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+// 重定向: /siri-result?id=xxx → /public/siri-result.html?id=xxx
+app.get('/siri-result', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'siri-result.html'));
+});
+
+// 获取存储的 Siri 结果
+app.get('/api/siri/result/:id', (req, res) => {
+    const entry = siriResults.get(req.params.id);
+    if (!entry) {
+        return res.json({ success: false, error: '结果不存在或已过期（5分钟）' });
+    }
+    res.json({ success: true, data: entry.data });
+});
+
+/**
+ * POST /api/siri/chat
+ * Siri + 快捷指令语音对话端点
+ *
+ * Siri 自带 Apple STT，快捷指令直接发文字过来，不需要 ASR。
+ *
+ * 请求体：
+ * {
+ *   "text": "V750的成本是多少",
+ *   "project": "pump",             // pump | cad（路由到不同后端）
+ *   "context": []                  // 可选: 多轮对话历史
+ * }
+ *
+ * 响应：
+ * {
+ *   "success": true,
+ *   "speech": "V750总成本853.50元",  // 朗读文字（简短、口语化）
+ *   "content": "...",               // AI 完整回复
+ *   "toolResults": [...]            // 结构化数据
+ * }
+ */
+app.post('/api/siri/chat', siriAuth, async (req, res) => {
+    try {
+        const { text, project, context } = req.body;
+        if (!text || !text.trim()) {
+            return res.json({ success: false, speech: '没有收到你说的话', error: '文字内容为空' });
+        }
+
+        const targetProject = (project || 'pump').toLowerCase();
+        console.log(`[Siri] 收到请求: project=${targetProject}, text="${text}"`);
+
+        // ── CAD 项目：转发到 Python API ──
+        if (targetProject === 'cad') {
+            try {
+                const cadApiUrl = process.env.CAD_API_URL || 'http://localhost:5000';
+                const cadRes = await fetch(`${cadApiUrl}/api/siri/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, context: context || [] }),
+                });
+                const cadData = await cadRes.json();
+                console.log('[Siri] CAD API 返回:', cadData.success);
+                return res.json(cadData);
+            } catch (err) {
+                console.error('[Siri] CAD API 转发失败:', err.message);
+                return res.json({ success: false, speech: 'CAD服务暂时不可用', error: err.message });
+            }
+        }
+
+        // ── PumpDB 项目：本地处理 ──
+        const toolResults = [];
+
+        // 为 Siri 场景增加 system prompt 后缀：要求首句输出口语化摘要
+        const siriPromptSuffix = `\n\n【当前为 Siri 语音模式】\n回复规则调整：\n- 你的回复会被 Siri 朗读给用户听，所以必须口语化、简洁\n- 回复的第一句话必须是对结果的一句话总结（会被提取为 speech 字段）\n- 不要使用 markdown 格式、表格、列表符号\n- 金额直接说"xxx元"，不要用特殊符号\n- 如果有多个数据，只说最关键的2-3个数字`;
+
+        const messages = context && context.length > 0
+            ? [...context, { role: 'user', content: text }]
+            : [{ role: 'user', content: text }];
+
+        let currentMessages = [
+            { role: 'system', content: AI_SYSTEM_PROMPT + siriPromptSuffix },
+            ...messages
+        ];
+
+        const apiKey = process.env.DEEPSEEK_API_KEY;
+        const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+        let maxRounds = 5;
+        let done = false;
+        let finalContent = '';
+
+        while (!done && maxRounds-- > 0) {
+            const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: currentMessages,
+                    tools: AI_TOOLS,
+                    stream: false
+                })
+            });
+
+            if (!aiRes.ok) {
+                const errText = await aiRes.text();
+                console.error('[Siri] DeepSeek API 错误:', aiRes.status);
+                return res.json({ success: false, speech: 'AI服务暂时不可用，请稍后再试', error: `LLM API 错误: ${aiRes.status}` });
+            }
+
+            const data = await aiRes.json();
+            if (data.error) {
+                return res.json({ success: false, speech: 'AI服务出错了', error: data.error.message || 'API 错误' });
+            }
+
+            const msg = data.choices[0].message;
+            currentMessages.push({
+                role: 'assistant',
+                content: msg.content || "",
+                tool_calls: msg.tool_calls
+            });
+
+            if (msg.tool_calls && msg.tool_calls.length > 0) {
+                for (const tc of msg.tool_calls) {
+                    const funcName = tc.function.name;
+                    console.log(`[Siri] 调用工具: ${funcName}`);
+
+                    let args = {};
+                    try { args = JSON.parse(tc.function.arguments); } catch (e) {}
+
+                    const result = await executeToolCall(funcName, args);
+                    const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
+
+                    toolResults.push({ name: funcName, view_type: viewType, result });
+
+                    currentMessages.push({
+                        role: 'tool',
+                        tool_call_id: tc.id,
+                        name: funcName,
+                        content: JSON.stringify(result)
+                    });
+                }
+            } else {
+                finalContent = msg.content || '';
+                done = true;
+            }
+        }
+
+        // 提取 speech：取 AI 回复的第一句话（句号或换行前）
+        const speech = finalContent
+            .split(/[。\n]/)[0]
+            .replace(/[*#`\-]/g, '')
+            .trim() || finalContent.slice(0, 100);
+
+        // 保存结果并生成 URL
+        const resultId = crypto.randomUUID();
+        siriResults.set(resultId, {
+            createdAt: Date.now(),
+            data: { speech, content: finalContent, toolResults, query: text, timestamp: new Date().toISOString() }
+        });
+        const resultUrl = `${req.protocol}://${req.get('host')}/siri-result?id=${resultId}`;
+
+        console.log(`[Siri] 完成, speech="${speech}", 工具调用: ${toolResults.length} 次, resultUrl=${resultUrl}`);
+        res.json({
+            success: true,
+            speech,
+            content: finalContent,
+            toolResults,
+            resultUrl,
+        });
+    } catch (err) {
+        console.error('[Siri] 错误:', err.message);
+        res.json({ success: false, speech: '处理出错了，请再试一次', error: err.message });
+    }
+});
+
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
@@ -3020,7 +3425,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  GET  /api/ai/system-prompt              - 获取System Prompt`);
     console.log(`  PUT  /api/ai/system-prompt              - 修改System Prompt`);
     console.log(`  POST /api/wechat/asr                    - 微信语音识别(ASR)`);
-    console.log(`  POST /api/wechat/chat                   - 微信对话(SSE流式)`);
+    console.log(`  POST /api/wechat/chat                   - 微信对话(标准JSON)`);
+    console.log(`  POST /api/siri/chat                     - Siri快捷指令对话`);
     console.log(`========================================`);
 
     // 启动时自动更新铜价

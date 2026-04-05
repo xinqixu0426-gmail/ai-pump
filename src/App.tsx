@@ -15,7 +15,8 @@ import {
   Receipt as ReceiptIcon,
   ShoppingCart as OrderIcon,
   Cable as CableIcon,
-  SmartToy as AIIcon
+  SmartToy as AIIcon,
+  Inventory as TemplateIcon,
 } from '@mui/icons-material';
 import DashboardPage from './pages/DashboardPage';
 import PartsPage from './pages/PartsPage';
@@ -25,6 +26,7 @@ import OrdersPage from './pages/OrdersPage';
 import OrderFormPage from './pages/OrderFormPage';
 import CoilRotorPage from './pages/CoilRotorPage';
 import AIChatPage from './pages/AIChatPage';
+import TemplatesPage from './pages/TemplatesPage';
 
 function App() {
   const navigate = useNavigate();
@@ -34,10 +36,11 @@ function App() {
   const getTabValue = (path: string) => {
     if (path === '/') return 0;
     if (path === '/parts') return 1;
-    if (path === '/recipes' || path === '/recipe-form') return 2;
-    if (path === '/orders' || path.startsWith('/order-form')) return 3;
-    if (path === '/coils') return 4;
-    if (path === '/ai') return 5;
+    if (path === '/templates') return 2;
+    if (path === '/recipes' || path === '/recipe-form') return 3;
+    if (path === '/orders' || path.startsWith('/order-form')) return 4;
+    if (path === '/coils') return 5;
+    if (path === '/ai') return 6;
     return 0;
   };
 
@@ -45,24 +48,13 @@ function App() {
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     switch (newValue) {
-      case 0:
-        navigate('/');
-        break;
-      case 1:
-        navigate('/parts');
-        break;
-      case 2:
-        navigate('/recipes');
-        break;
-      case 3:
-        navigate('/orders');
-        break;
-      case 4:
-        navigate('/coils');
-        break;
-      case 5:
-        navigate('/ai');
-        break;
+      case 0: navigate('/'); break;
+      case 1: navigate('/parts'); break;
+      case 2: navigate('/templates'); break;
+      case 3: navigate('/recipes'); break;
+      case 4: navigate('/orders'); break;
+      case 5: navigate('/coils'); break;
+      case 6: navigate('/ai'); break;
     }
   };
 
@@ -102,6 +94,7 @@ function App() {
         >
           <Tab icon={<DashboardIcon />} iconPosition="start" label="运营看板" />
           <Tab icon={<BuildIcon />} iconPosition="start" label="零件管理" />
+          <Tab icon={<TemplateIcon />} iconPosition="start" label="泵壳模板" />
           <Tab icon={<ReceiptIcon />} iconPosition="start" label="配方管理" />
           <Tab icon={<OrderIcon />} iconPosition="start" label="订单管理" />
           <Tab icon={<CableIcon />} iconPosition="start" label="线圈转子" />
@@ -114,6 +107,7 @@ function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/parts" element={<PartsPage />} />
+          <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/recipes" element={<RecipesPage />} />
           <Route path="/recipe-form" element={<RecipeFormPage />} />
           <Route path="/orders" element={<OrdersPage />} />
