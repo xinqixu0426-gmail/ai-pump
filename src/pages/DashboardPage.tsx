@@ -55,6 +55,13 @@ const STATUS_CONFIG: Record<OrderStatus, { color: string; bg: string; icon: Reac
   },
 };
 
+const DEFAULT_STATUS_CONFIG = {
+  color: colors.slate.text,
+  bg: 'rgba(0,0,0,0.04)',
+  icon: <PendingIcon />,
+  gradient: gradients.pending,
+};
+
 const STATUSES: OrderStatus[] = ['待采购', '采购中', '已完成'];
 
 // ─── KPI 卡片组件 ──────────────────────────────────────
@@ -137,7 +144,7 @@ function OrderCard({ order, onDetail, index }: OrderCardProps) {
   const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
   const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
   const progress = needCount > 0 ? (purchasedCount / needCount) * 100 : 100;
-  const config = STATUS_CONFIG[order.status];
+  const config = STATUS_CONFIG[order.status] ?? DEFAULT_STATUS_CONFIG;
 
 
 
@@ -551,7 +558,7 @@ export default function DashboardPage() {
         </Box>
 
         {orders.slice(0, 8).map((order, idx) => {
-          const config = STATUS_CONFIG[order.status];
+          const config = STATUS_CONFIG[order.status] ?? DEFAULT_STATUS_CONFIG;
           return (
             <Fade key={order.id} in timeout={300 + idx * 100}>
               <Box>

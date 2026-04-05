@@ -11,7 +11,9 @@
 - **AI**：DeepSeek Chat API + Function Calling (12+ 工具)
 - **语音**：阿里云 ASR (REST API) + Web Speech API (Chrome)
 - **微信小程序**：原生开发，`wechat/` 目录独立工程
-- **启动**：`npm start`（并行启动前端 + API）
+- **启动与数据初始化**：
+  1. (可选) 生成/重置演示数据：`node scripts/seed-demo-data.cjs`
+  2. 启动服务：`npm start`（并行启动前端 + API）
 
 ## 项目结构
 ```
@@ -22,7 +24,8 @@
 ├── package.json               # 依赖与脚本
 │
 ├── scripts/
-│   └── migrate-to-sqlite.cjs  # 数据迁移脚本 (JSON → SQLite)
+│   ├── migrate-to-sqlite.cjs  # 数据迁移脚本 (JSON → SQLite)
+│   └── seed-demo-data.cjs     # 演示数据填充脚本 (执行 node scripts/seed-demo-data.cjs)
 │
 ├── src/                       # React Web 前端
 │   ├── main.tsx               # React 入口 + MUI 主题配置
