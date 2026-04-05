@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Paper, Typography, Box, Button, TextField, Table, TableHead,
   TableBody, TableRow, TableCell, IconButton, Chip, Dialog,
   DialogTitle, DialogContent, DialogActions, Alert, CircularProgress,
-  Tooltip, Divider,
+  Tooltip, Divider, Autocomplete,
 } from '@mui/material';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
@@ -48,6 +48,13 @@ export default function TemplatesPage() {
   }, [fetchTemplates, fetchParts]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // 去重的零件型号列表（供 Autocomplete）
+  const uniqueModels = useMemo(() => {
+    const set = new Set<string>();
+    parts.forEach(p => { if (p.model) set.add(p.model); });
+    return Array.from(set).sort();
+  }, [parts]);
 
   // 查零件实时价格
   const getPrice = useCallback((model: string): number => {
@@ -288,10 +295,20 @@ export default function TemplatesPage() {
                         inputProps={{ style: { fontSize: '0.85rem' } }} />
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
-                      <TextField size="small" fullWidth value={row.model}
-                        onChange={e => handleRowChange(row.id, 'model', e.target.value)}
-                        placeholder="如 202" variant="standard"
-                        inputProps={{ style: { fontSize: '0.85rem' } }} />
+                      <Autocomplete
+                        freeSolo
+                        disableClearable
+                        options={uniqueModels}
+                        value={row.model}
+                        onChange={(_e, v) => handleRowChange(row.id, 'model', v || '')}
+                        onInputChange={(_e, v) => handleRowChange(row.id, 'model', v || '')}
+                        renderInput={(params) => (
+                          <TextField {...params} size="small" fullWidth
+                            placeholder="搜索或输入型号" variant="standard"
+                            inputProps={{ ...params.inputProps, style: { fontSize: '0.85rem' } }} />
+                        )}
+                        sx={{ minWidth: 120 }}
+                      />
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
                       <TextField size="small" type="number" value={row.qty}
