@@ -4,7 +4,7 @@ import {
   Paper, Typography, Alert, Box, CircularProgress, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip, Button, Dialog,
   DialogTitle, DialogContent, DialogContentText, DialogActions, Chip, TextField,
-  Autocomplete, Collapse,
+  Autocomplete, Collapse, FormControl, Select, MenuItem, Fade,
 } from '@mui/material';
 import {
   Info as InfoIcon, Delete as DeleteIcon, Refresh as RefreshIcon,
@@ -17,9 +17,11 @@ import { deleteRecipe, createTemplate, updateTemplate, deleteTemplate } from '..
 import { useAppStore } from '../utils/store';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipeDetailModal from '../components/RecipeDetailModal';
+import PageHeader from '../components/PageHeader';
+import { gradients } from '../utils/theme';
 
 // ── 模板编辑行 ──
-interface PartFormRow { id: number; name: string; model: string; qty: number; }
+interface PartFormRow { id: number; name: string; model: string; qty: number; supplier: string; }
 let nextRowId = 1;
 
 export default function RecipesPage() {
@@ -39,6 +41,7 @@ export default function RecipesPage() {
   const [tplSaving, setTplSaving] = useState(false);
   const [tplDeleteId, setTplDeleteId] = useState<number | null>(null);
   const [shellModel, setShellModel] = useState('');
+  const [shellSupplier, setShellSupplier] = useState('');
   const [tplDescription, setTplDescription] = useState('');
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
 
@@ -61,10 +64,57 @@ export default function RecipesPage() {
     return Array.from(set).sort();
   }, [parts]);
 
-  const getPrice = useCallback((model: string): number => {
-    const candidates = parts.filter(p => p.model.trim() === model.trim());
-    if (candidates.length === 0) return 0;
-    return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]).price;
+
+  const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
+    const m1 = (model || '').trim();
+    const s1 = (supplier || '').trim();
+    const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);
+    if (exactPart && s1) return exactPart.price;
+    const modelParts = parts.filter(p => p.model.trim() === m1);
+    if (modelParts.length > 0) return modelParts.reduce((min, c) => c.price < min.price ? c : min, modelParts[0]).price;
+    return 0;
+  }, [parts]);
+
+  // ── 配件名称→类别映射(用于过滤型号下拉) ──
+  const NAME_TO_CATEGORY: Record<string, string> = {
+    '花板轴承': '轴承', '油缸轴承': '轴承', '轴承': '轴承',
+    '机械油封': '机封', '骨架油封': '密封件', '油封': '密封件',
+    '皮垫': '密封件', 'O型圈': '密封件',
+    '螺丝': '紧固件', '螺栓': '紧固件', '螺母': '紧固件',
+    '叶轮': '叶轮', '电容': '电子件',
+  };
+
+  const getCategoryFromName = useCallback((name: string): string | null => {
+    if (!name) return null;
+    const n = name.trim();
+    if (NAME_TO_CATEGORY[n]) return NAME_TO_CATEGORY[n];
+    // 模糊匹配：名称包含关键词
+    for (const [key, cat] of Object.entries(NAME_TO_CATEGORY)) {
+      if (n.includes(key)) return cat;
+    }
+    return null;
+  }, []);
+
+  const getModelsByCategory = useCallback((category: string | null): string[] => {
+    if (!category) return uniqueModels;
+    const set = new Set<string>();
+    parts.forEach(p => { if (p.category === category && p.model) set.add(p.model); });
+    return Array.from(set).sort();
+  }, [parts, uniqueModels]);
+
+  const getSuppliersByModel = useCallback((model: string): string[] => {
+    const suppliers = new Set<string>();
+    parts.forEach(p => { if (p.model.trim() === model.trim() && p.supplier) suppliers.add(p.supplier); });
+    return Array.from(suppliers).filter(Boolean).sort();
+  }, [parts]);
+
+  // ── 泵壳型号列表（从泵体/壳体/泵壳类别获取） ──
+  const shellModels = useMemo(() => {
+    const set = new Set<string>();
+    parts.forEach(p => {
+      if (['泵体', '壳体', '泵壳'].includes(p.category) && p.model) set.add(p.model);
+    });
+    return Array.from(set).sort();
   }, [parts]);
 
   // ── 模板 → 名称映射 ──
@@ -130,35 +180,40 @@ export default function RecipesPage() {
   // ══════════════════════════════════════
   const openCreateTpl = () => {
     setEditingTpl(null);
-    setShellModel(''); setTplDescription('');
+    setShellModel(''); setShellSupplier(''); setTplDescription('');
     setPartRows([
-      { id: nextRowId++, name: '泵壳', model: '', qty: 1 },
-      { id: nextRowId++, name: '花板轴承', model: '', qty: 1 },
-      { id: nextRowId++, name: '油缸轴承', model: '', qty: 1 },
-      { id: nextRowId++, name: '机械油封', model: '', qty: 1 },
-      { id: nextRowId++, name: '骨架油封', model: '', qty: 1 },
+      { id: nextRowId++, name: '花板轴承', model: '', qty: 1, supplier: '' },
+      { id: nextRowId++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
+      { id: nextRowId++, name: '机械油封', model: '', qty: 1, supplier: '' },
+      { id: nextRowId++, name: '骨架油封', model: '', qty: 1, supplier: '' },
     ]);
     setTplDialogOpen(true);
   };
 
   const openEditTpl = (tpl: PumpShellTemplate) => {
-    setEditingTpl(tpl); setShellModel(tpl.shell_model); setTplDescription(tpl.description || '');
+    setEditingTpl(tpl); setShellModel(tpl.shell_model); setShellSupplier(''); setTplDescription(tpl.description || '');
     try {
       const parsed: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
-      setPartRows(parsed.map(p => ({ id: nextRowId++, name: p.name, model: p.model, qty: p.qty })));
+      setPartRows(parsed.map(p => ({ id: nextRowId++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
     } catch { setPartRows([]); }
     setTplDialogOpen(true);
   };
 
   const handleRowChange = (id: number, field: keyof Omit<PartFormRow, 'id'>, value: string | number) => {
-    setPartRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    setPartRows(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const updated = { ...r, [field]: value };
+      // 切换型号时清空供应商
+      if (field === 'model') updated.supplier = '';
+      return updated;
+    }));
   };
 
   const handleSaveTpl = async () => {
     if (!shellModel.trim()) { setError('泵壳型号不能为空'); return; }
     const validRows = partRows.filter(r => r.model.trim());
     if (validRows.length === 0) { setError('至少需要一个配件'); return; }
-    const pJson: TemplatePart[] = validRows.map(r => ({ name: r.name, model: r.model.trim(), qty: r.qty }));
+    const pJson: TemplatePart[] = validRows.map(r => ({ name: r.name, model: r.model.trim(), qty: r.qty, supplier: r.supplier || '' }));
     setTplSaving(true);
     try {
       if (editingTpl) {
@@ -181,7 +236,7 @@ export default function RecipesPage() {
   const calcTplCost = (tpl: PumpShellTemplate): number => {
     try {
       const p: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
-      return p.reduce((sum, x) => sum + getPrice(x.model) * x.qty, 0);
+      return p.reduce((sum, x) => sum + getPriceByModelAndSupplier(x.model, x.supplier || '') * x.qty, 0);
     } catch { return 0; }
   };
 
@@ -194,10 +249,56 @@ export default function RecipesPage() {
 
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      <PageHeader
+        title="📝 配方管理"
+        subtitle="管理泵壳模板与配方BOM"
+        actions={
+          <>
+            <Tooltip title="刷新数据">
+              <IconButton onClick={loadData} disabled={loading}>
+                {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+              </IconButton>
+            </Tooltip>
+            <Button variant="contained" size="small" startIcon={<AddIcon />}
+              onClick={() => navigate('/recipe-form')}
+              sx={{ fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}>
+              录入配方
+            </Button>
+          </>
+        }
+      />
+
+      {/* KPI 统计 */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+        {[
+          { label: '模板数量', value: templates.length, sub: '泵壳配置模板', gradient: gradients.orders },
+          { label: '配方数量', value: recipes.length, sub: '已录入配方', gradient: gradients.recipes },
+          { label: '零件种类', value: parts.length, sub: '可选配件库', gradient: gradients.parts },
+        ].map((item, idx) => (
+          <Fade key={item.label} in timeout={400 + idx * 100}>
+            <Paper elevation={0} sx={{
+              p: 2, borderRadius: 3, flex: 1, position: 'relative', overflow: 'hidden',
+              transition: 'all 0.25s',
+              '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 8px 24px rgba(0,0,0,0.07)' },
+              '&::before': { content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: item.gradient },
+            }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}
+                sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.68rem' }}>
+                {item.label}
+              </Typography>
+              <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: -0.5, mt: 0.3 }}>{item.value}</Typography>
+              <Typography variant="caption" color="text.secondary">{item.sub}</Typography>
+            </Paper>
+          </Fade>
+        ))}
+      </Box>
+
+      <Collapse in={!!error}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>{error}</Alert>
+      </Collapse>
 
       {/* ━━━━━━━━━━━━━━━━━━ 泵壳模板区 ━━━━━━━━━━━━━━━━━━ */}
-      <Paper elevation={2} sx={{ mb: 3, overflow: 'hidden' }}>
+      <Paper elevation={0} sx={{ mb: 3, overflow: 'hidden', borderRadius: 3 }}>
         <Box
           onClick={() => setTplExpanded(!tplExpanded)}
           sx={{
@@ -251,12 +352,13 @@ export default function RecipesPage() {
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                         {tplParts.map((p, i) => {
-                          const price = getPrice(p.model);
+                          const price = getPriceByModelAndSupplier(p.model, p.supplier || '');
                           return (
                             <Box key={i} display="flex" justifyContent="space-between" sx={{ fontSize: '0.75rem' }}>
                               <Box display="flex" gap={0.5} alignItems="center">
                                 <Typography variant="caption" color="text.secondary" sx={{ minWidth: 50 }}>{p.name}</Typography>
                                 <Chip label={p.model} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                {p.supplier && <Typography variant="caption" color="text.disabled">{p.supplier}</Typography>}
                                 {p.qty > 1 && <Typography variant="caption" color="text.disabled">×{p.qty}</Typography>}
                               </Box>
                               <Typography variant="caption" sx={{ fontFamily: 'monospace', color: price > 0 ? 'success.main' : 'error.main' }}>
@@ -280,23 +382,22 @@ export default function RecipesPage() {
       </Paper>
 
       {/* ━━━━━━━━━━━━━━━━━━ 配方列表区 ━━━━━━━━━━━━━━━━━━ */}
-      <Paper elevation={2} sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" color="success.main" sx={{ flexGrow: 1 }}>配方列表</Typography>
-          {loading && <CircularProgress size={20} sx={{ mr: 1 }} />}
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => navigate('/recipe-form')} sx={{ mr: 1 }}>
-            录入配方
-          </Button>
-          <Tooltip title="刷新"><IconButton onClick={loadData}><RefreshIcon /></IconButton></Tooltip>
+      <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <TemplateIcon sx={{ mr: 1, color: 'success.main' }} />
+          <Typography variant="h6" fontWeight={700} color="success.main" sx={{ flexGrow: 1 }}>配方列表</Typography>
+          <Chip label={`共 ${recipes.length} 个`} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
         </Box>
 
         {recipes.length === 0 ? (
-          <Box textAlign="center" py={4} color="text.secondary">暂无配方数据</Box>
+          <Box textAlign="center" py={6} color="text.secondary">
+            <Typography variant="body2">暂无配方数据，点击右上角录入</Typography>
+          </Box>
         ) : (
           <TableContainer>
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ backgroundColor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
                   <TableCell>配方名称</TableCell>
                   <TableCell>规格</TableCell>
                   <TableCell>泵壳模板</TableCell>
@@ -363,29 +464,66 @@ export default function RecipesPage() {
         </DialogTitle>
         <DialogContent>
           <Box display="flex" gap={2} mb={2} mt={1}>
-            <TextField label="泵壳型号" value={shellModel} onChange={e => setShellModel(e.target.value)}
-              placeholder="如 V750" required size="small" sx={{ flex: 1 }} />
+            <Autocomplete
+              freeSolo
+              disableClearable
+              options={shellModels}
+              value={shellModel}
+              onChange={(_e, v) => { setShellModel(v || ''); setShellSupplier(''); }}
+              onInputChange={(_e, v) => { setShellModel(v || ''); }}
+              sx={{ flex: 1 }}
+              renderInput={(params) => (
+                <TextField {...params} label="泵壳型号" placeholder="搜索或输入泵壳型号"
+                  required size="small" />
+              )}
+            />
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <Select
+                value={shellSupplier}
+                onChange={e => setShellSupplier(e.target.value)}
+                displayEmpty
+                sx={{ fontSize: '0.85rem' }}
+              >
+                <MenuItem value="">
+                  <em style={{ fontSize: '0.8rem', color: '#aaa' }}>泵壳供应商</em>
+                </MenuItem>
+                {(shellModel ? getSuppliersByModel(shellModel) : (() => {
+                  const s = new Set<string>();
+                  parts.forEach(p => {
+                    if (['泵体', '壳体', '泵壳'].includes(p.category) && p.supplier) s.add(p.supplier);
+                  });
+                  if (s.size === 0) parts.forEach(p => { if (p.supplier) s.add(p.supplier); });
+                  return Array.from(s).sort();
+                })()).map(s => (
+                  <MenuItem key={s} value={s} sx={{ fontSize: '0.85rem' }}>{s}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField label="描述(可选)" value={tplDescription} onChange={e => setTplDescription(e.target.value)}
               placeholder="如 V750标准配件包" size="small" sx={{ flex: 2 }} />
           </Box>
 
           <Typography variant="subtitle2" fontWeight={700} mb={1} color="text.secondary">
-            固定配件清单（只需填型号和数量，价格从零件表自动拉取）
+            固定配件清单（填写型号、供应商和数量，价格从零件表自动拉取）
           </Typography>
 
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 120 }}>配件名称</TableCell>
+                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 100 }}>配件名称</TableCell>
                 <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>型号</TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 70 }}>数量</TableCell>
+                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', minWidth: 120 }}>供应商</TableCell>
+                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 60 }}>数量</TableCell>
                 <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 80, textAlign: 'right' }}>实时单价</TableCell>
                 <TableCell sx={{ width: 40 }} />
               </TableRow>
             </TableHead>
             <TableBody>
               {partRows.map(row => {
-                const price = getPrice(row.model);
+                const rowCat = getCategoryFromName(row.name);
+                const filteredModels = getModelsByCategory(rowCat);
+                const rowSuppliers = row.model ? getSuppliersByModel(row.model) : [];
+                const price = row.model ? getPriceByModelAndSupplier(row.model, row.supplier) : 0;
                 return (
                   <TableRow key={row.id}>
                     <TableCell sx={{ py: 0.5 }}>
@@ -395,15 +533,35 @@ export default function RecipesPage() {
                         inputProps={{ style: { fontSize: '0.85rem' } }} />
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
-                      <Autocomplete freeSolo disableClearable options={uniqueModels} value={row.model}
+                      <Autocomplete freeSolo disableClearable options={filteredModels} value={row.model}
                         onChange={(_e, v) => handleRowChange(row.id, 'model', v || '')}
                         onInputChange={(_e, v) => handleRowChange(row.id, 'model', v || '')}
                         renderInput={(params) => (
-                          <TextField {...params} size="small" fullWidth placeholder="搜索或输入型号" variant="standard"
+                          <TextField {...params} size="small" fullWidth
+                            placeholder={rowCat ? `搜索${rowCat}型号` : '搜索或输入型号'}
+                            variant="standard"
                             inputProps={{ ...params.inputProps, style: { fontSize: '0.85rem' } }} />
                         )}
                         sx={{ minWidth: 120 }}
                       />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <FormControl fullWidth size="small" disabled={!row.model || rowSuppliers.length === 0}>
+                        <Select
+                          value={row.supplier}
+                          onChange={e => handleRowChange(row.id, 'supplier', e.target.value)}
+                          displayEmpty
+                          variant="standard"
+                          sx={{ fontSize: '0.85rem' }}
+                        >
+                          <MenuItem value="">
+                            <em style={{ fontSize: '0.75rem', color: '#aaa' }}>{rowSuppliers.length === 0 ? '—' : '选择供应商'}</em>
+                          </MenuItem>
+                          {rowSuppliers.map(s => (
+                            <MenuItem key={s} value={s} sx={{ fontSize: '0.85rem' }}>{s}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
                       <TextField size="small" type="number" value={row.qty}
@@ -431,7 +589,7 @@ export default function RecipesPage() {
           </Table>
 
           <Button size="small" startIcon={<AddIcon />}
-            onClick={() => setPartRows(prev => [...prev, { id: nextRowId++, name: '', model: '', qty: 1 }])}
+            onClick={() => setPartRows(prev => [...prev, { id: nextRowId++, name: '', model: '', qty: 1, supplier: '' }])}
             sx={{ mt: 1 }}>
             添加配件行
           </Button>

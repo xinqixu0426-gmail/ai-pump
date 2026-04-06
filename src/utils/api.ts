@@ -186,19 +186,6 @@ export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
   return result.data;
 }
 
-export async function searchRecipeByName(name: string): Promise<Recipe | null> {
-  try {
-    const response = await fetch(`/api/cost/recipe/by-name?name=${encodeURIComponent(name)}`);
-    const result: ApiResponse<{ recipeId: number; recipeName: string; recipeSpec: string }> = await response.json();
-    if (!result.success || !result.data) {
-      return null;
-    }
-    return getRecipe(result.data.recipeId);
-  } catch {
-    return null;
-  }
-}
-
 // ─── 泵壳模板 CRUD ──────────────────────────
 
 export async function getAllTemplates(): Promise<PumpShellTemplate[]> {

@@ -15,6 +15,7 @@ export interface TemplatePart {
   name: string;
   model: string;
   qty: number;
+  supplier?: string;
 }
 
 /** 泵壳模板 */

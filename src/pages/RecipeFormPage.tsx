@@ -271,7 +271,7 @@ export default function RecipeFormPage() {
   })();
 
   // 模板配件成本
-  const templateCost = templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, '') * p.qty, 0);
+  const templateCost = templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
 
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
@@ -323,8 +323,9 @@ export default function RecipeFormPage() {
 
     // 模板固定配件
     templateParts.forEach(p => {
-      const price = getPriceByModelAndSupplier(p.model, '');
-      all.push({ model: p.model, name: p.name, supplier: '', qty: p.qty, snapshotPrice: price });
+      const supplier = p.supplier || '';
+      const price = getPriceByModelAndSupplier(p.model, supplier);
+      all.push({ model: p.model, name: p.name, supplier, qty: p.qty, snapshotPrice: price });
     });
 
     // 电容（从线圈联动）
@@ -523,7 +524,8 @@ export default function RecipeFormPage() {
           {selectedTemplate && templateParts.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 1 }}>
               {templateParts.map((p, i) => {
-                const price = getPriceByModelAndSupplier(p.model, '');
+                const supplier = p.supplier || '';
+                const price = getPriceByModelAndSupplier(p.model, supplier);
                 return (
                   <Box key={i} display="flex" justifyContent="space-between" alignItems="center"
                     sx={{ py: 0.25, fontSize: '0.8rem' }}>
@@ -533,6 +535,9 @@ export default function RecipeFormPage() {
                       </Typography>
                       <Chip label={p.model} size="small" variant="outlined"
                         sx={{ height: 20, fontSize: '0.7rem' }} />
+                      {supplier && (
+                        <Typography variant="caption" color="text.disabled">{supplier}</Typography>
+                      )}
                       {p.qty > 1 && (
                         <Typography variant="caption" color="text.disabled">×{p.qty}</Typography>
                       )}

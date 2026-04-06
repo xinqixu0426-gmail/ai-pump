@@ -32,7 +32,8 @@ import {
   Switch,
   FormControlLabel,
   Collapse,
-  InputAdornment
+  InputAdornment,
+  Fade,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -48,6 +49,8 @@ import {
   Save as SaveIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
+import PageHeader from '../components/PageHeader';
+import { gradients } from '../utils/theme';
 
 const API_BASE = '';
 
@@ -330,24 +333,34 @@ export default function CoilRotorPage() {
   };
 
   return (
-    <Grid container spacing={3}>
+    <Box>
+      <PageHeader
+        title="⚡ 线圈转子"
+        subtitle="定子线圈成本试算与数据管理"
+        actions={
+          <Tooltip title="刷新数据">
+            <IconButton onClick={loadCoils} disabled={loading}>
+              {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+            </IconButton>
+          </Tooltip>
+        }
+      />
+
       {/* 通知 */}
-      {error && (
-        <Grid item xs={12}>
-          <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
-        </Grid>
-      )}
-      {success && (
-        <Grid item xs={12}>
-          <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>
-        </Grid>
-      )}
+      <Collapse in={!!error}>
+        <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>
+      </Collapse>
+      <Collapse in={!!success}>
+        <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2, borderRadius: 2 }}>{success}</Alert>
+      </Collapse>
+
+      <Grid container spacing={3}>
 
       {/* 铜价监控卡片 */}
       <Grid item xs={12}>
         <Paper sx={{
-          p: 3,
-          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 30%, #fbbf24 100%)',
+          p: 3, borderRadius: 3,
+          background: gradients.copper,
           border: '1px solid #f59e0b',
           position: 'relative',
           overflow: 'hidden'
@@ -422,7 +435,7 @@ export default function CoilRotorPage() {
 
       {/* 左侧：成本计算器 */}
       <Grid item xs={12} md={4}>
-        <Paper sx={{ p: 3, position: 'sticky', top: 20 }}>
+        <Paper elevation={0} sx={{ p: 3, borderRadius: 3, position: 'sticky', top: 20 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <CalculateIcon color="primary" />
             <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
@@ -539,18 +552,12 @@ export default function CoilRotorPage() {
 
       {/* 右侧：线圈数据管理 */}
       <Grid item xs={12} md={8}>
-        <Paper sx={{ p: 3 }}>
+        <Paper elevation={0} sx={{ p: 3, borderRadius: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <CableIcon sx={{ mr: 1, color: '#7c3aed' }} />
             <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, color: '#7c3aed' }}>
               线圈转子数据管理
             </Typography>
-            {loading && <CircularProgress size={20} sx={{ mr: 1 }} />}
-            <Tooltip title="刷新">
-              <IconButton onClick={loadCoils} size="small">
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -563,8 +570,9 @@ export default function CoilRotorPage() {
           </Box>
 
           {/* 按规格分组显示 */}
-          {Object.entries(groupedCoils).sort(([a], [b]) => a.localeCompare(b)).map(([spec, records]) => (
-            <Box key={spec} sx={{ mb: 2 }}>
+          {Object.entries(groupedCoils).sort(([a], [b]) => a.localeCompare(b)).map(([spec, records], idx) => (
+            <Fade key={spec} in timeout={300 + idx * 100}>
+              <Box sx={{ mb: 2 }}>
               <Box
                 onClick={() => toggleSpec(spec)}
                 sx={{
@@ -638,6 +646,7 @@ export default function CoilRotorPage() {
                 </TableContainer>
               </Collapse>
             </Box>
+            </Fade>
           ))}
 
           {coils.length === 0 && !loading && (
@@ -767,6 +776,7 @@ export default function CoilRotorPage() {
           <Button onClick={confirmDelete} color="error" variant="contained">删除</Button>
         </DialogActions>
       </Dialog>
-    </Grid>
+      </Grid>
+    </Box>
   );
 }
