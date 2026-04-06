@@ -3196,6 +3196,66 @@ app.post('/api/wechat/chat', async (req, res) => {
     }
 });
 
+// ── 语音识别 (ASR) ─────────────────────────────────────
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+/**
+ * POST /api/voice/asr
+ * 语音识别端点 — 接收音频文件，调阿里云一句话识别 REST API
+ * 支持 pcm, wav, mp3, opus, ogg 等格式
+ */
+app.post('/api/voice/asr', upload.single('audio'), async (req, res) => {
+    try {
+        const appKey = process.env.ALI_ASR_APPKEY;
+        const token = process.env.ALI_ASR_TOKEN;
+        if (!appKey || !token) {
+            return res.json({ success: false, error: '未配置阿里云 ASR (ALI_ASR_APPKEY / ALI_ASR_TOKEN)' });
+        }
+
+        if (!req.file) {
+            return res.json({ success: false, error: '未收到音频文件' });
+        }
+
+        const audioBuffer = req.file.buffer;
+        const format = req.body.format || 'pcm';
+        const sampleRate = parseInt(req.body.sampleRate) || 16000;
+
+        console.log(`[ASR] 收到音频: ${req.file.originalname}, 大小: ${audioBuffer.length} bytes, 格式: ${format}`);
+
+        // 阿里云一句话识别 REST API
+        const url = `https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/FlashRecognizer?appkey=${appKey}&format=${format}&sample_rate=${sampleRate}&enable_punctuation_prediction=true&enable_inverse_text_normalization=true`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-NLS-Token': token,
+                'Content-Type': 'application/octet-stream',
+            },
+            body: audioBuffer,
+        });
+
+        const result = await response.json();
+
+        if (result.status === 20000000 || result.status === 200) {
+            // Flash recognizer 返回格式
+            let text = '';
+            if (result.flash_result && result.flash_result.sentences) {
+                text = result.flash_result.sentences.map(s => s.text).join('');
+            } else if (result.result) {
+                text = result.result;
+            }
+            console.log(`[ASR] 识别结果: "${text}"`);
+            res.json({ success: true, text });
+        } else {
+            console.error('[ASR] 阿里云返回错误:', result);
+            res.json({ success: false, error: result.message || '识别失败', detail: result });
+        }
+    } catch (err) {
+        console.error('[ASR] 错误:', err.message);
+        res.json({ success: false, error: err.message });
+    }
+});
+
 // ── Siri + 快捷指令专用端点 ──────────────────────────────
 
 const SIRI_TOKEN = process.env.SIRI_API_TOKEN || '';

@@ -84,13 +84,5 @@
 
 ---
 
-## 五、微信小程序 API (旧版, 维护模式)
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/wechat/asr` | 语音识别 (multipart/form-data) |
-| POST | `/api/wechat/chat` | 对话 (标准JSON, 非SSE) |
-
----
-
 *本文档为单点信息源(SSOT)，API 变更请同步更新。*
+

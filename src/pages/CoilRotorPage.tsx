@@ -339,9 +339,11 @@ export default function CoilRotorPage() {
         subtitle="定子线圈成本试算与数据管理"
         actions={
           <Tooltip title="刷新数据">
-            <IconButton onClick={loadCoils} disabled={loading}>
-              {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
-            </IconButton>
+            <span>
+              <IconButton onClick={loadCoils} disabled={loading}>
+                {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+              </IconButton>
+            </span>
           </Tooltip>
         }
       />
