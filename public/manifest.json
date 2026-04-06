@@ -1,0 +1,22 @@
+{
+  "name": "水泵助手",
+  "short_name": "水泵助手",
+  "description": "水泵BOM管理 — 语音查询成本、配方、订单",
+  "start_url": "/voice",
+  "display": "standalone",
+  "background_color": "#0b0f1a",
+  "theme_color": "#0b0f1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

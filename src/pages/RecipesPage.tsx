@@ -255,9 +255,11 @@ export default function RecipesPage() {
         actions={
           <>
             <Tooltip title="刷新数据">
-              <IconButton onClick={loadData} disabled={loading}>
-                {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
-              </IconButton>
+              <span>
+                <IconButton onClick={loadData} disabled={loading}>
+                  {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+                </IconButton>
+              </span>
             </Tooltip>
             <Button variant="contained" size="small" startIcon={<AddIcon />}
               onClick={() => navigate('/recipe-form')}

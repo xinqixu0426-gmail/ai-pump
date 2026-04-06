@@ -377,10 +377,10 @@ export default function DashboardPage() {
     [rawOrders]
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      await fetchAll();
+      await fetchAll(force);
     } catch (err) {
       console.error('看板加载失败:', err);
     } finally {
@@ -443,9 +443,11 @@ export default function DashboardPage() {
             </IconButton>
           </Tooltip>
           <Tooltip title="刷新数据">
-            <IconButton onClick={load} disabled={loading}>
-              {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
-            </IconButton>
+            <span>
+              <IconButton onClick={() => load(true)} disabled={loading}>
+                {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+              </IconButton>
+            </span>
           </Tooltip>
         </Box>
       </Box>
@@ -637,7 +639,7 @@ export default function DashboardPage() {
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onUpdated={() => {
-            load();
+            load(true);
             setSelectedOrder(null);
           }}
         />

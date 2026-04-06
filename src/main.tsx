@@ -1,9 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import App from './App';
+import VoiceAssistantPage from './pages/VoiceAssistantPage';
 
 // 创建主题
 const theme = createTheme({
@@ -101,8 +102,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter>
-        <App />
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Routes>
+          {/* /voice 全屏沉浸式语音助手页面，不走 App 的 AppBar 布局 */}
+          <Route path="/voice" element={<VoiceAssistantPage />} />
+          {/* 其余所有路由走原 App 布局 */}
+          <Route path="/*" element={<App />} />
+        </Routes>
       </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>

@@ -4,7 +4,7 @@ dist/
 .DS_Store
 *.log
 uploads/
-wechat/project.private.config.json
+.cert/
 pump.db
 pump.db-wal
 pump.db-shm

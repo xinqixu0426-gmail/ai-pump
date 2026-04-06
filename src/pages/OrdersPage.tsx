@@ -101,9 +101,11 @@ export default function OrdersPage() {
         actions={
           <>
             <Tooltip title="刷新数据">
-              <IconButton onClick={handleRefresh} disabled={loading}>
-                <RefreshIcon />
-              </IconButton>
+              <span>
+                <IconButton onClick={handleRefresh} disabled={loading}>
+                  <RefreshIcon />
+                </IconButton>
+              </span>
             </Tooltip>
             <Button variant="contained" startIcon={<AddIcon />}
               onClick={() => navigate('/order-form')}

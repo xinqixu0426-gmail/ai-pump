@@ -65,49 +65,59 @@ app.use(express.json());
 /** Row adapters: SQLite英文列 → 前端期望的大写Id + 中文字段(兼容) */
 function partRow(r) {
     if (!r) return r;
-    return { Id: r.id, model: r.model, category: r.category, price: r.price, supplier: r.supplier, stock: r.stock,
-             '型号': r.model, '类别': r.category, '单价': r.price, '供应商': r.supplier, '库存': r.stock, '备注': r.remark || '',
-             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return {
+        Id: r.id, model: r.model, category: r.category, price: r.price, supplier: r.supplier, stock: r.stock,
+        '型号': r.model, '类别': r.category, '单价': r.price, '供应商': r.supplier, '库存': r.stock, '备注': r.remark || '',
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
 }
 function recipeRow(r) {
     if (!r) return r;
-    return { Id: r.id, name: r.name, spec: r.spec, parts_json: r.parts_json,
-             '配方名称': r.name, '规格': r.spec, '配件JSON': r.parts_json,
-             saved_total_cost: r.saved_total_cost, '保存时总成本': r.saved_total_cost,
-             saved_cost_details: r.saved_cost_details, '保存时成本明细': r.saved_cost_details,
-             // 新增结构化字段
-             template_id: r.template_id || null,
-             coil_spec: r.coil_spec || '',
-             coil_sheets: r.coil_sheets || 0,
-             has_float: r.has_float || 0,
-             float_wire: r.float_wire || '',
-             has_cable: r.has_cable || 0,
-             cable_length: r.cable_length || 0,
-             cable_wire: r.cable_wire || '',
-             box_type: r.box_type || '',
-             extra_parts_json: r.extra_parts_json || '[]',
-             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return {
+        Id: r.id, name: r.name, spec: r.spec, parts_json: r.parts_json,
+        '配方名称': r.name, '规格': r.spec, '配件JSON': r.parts_json,
+        saved_total_cost: r.saved_total_cost, '保存时总成本': r.saved_total_cost,
+        saved_cost_details: r.saved_cost_details, '保存时成本明细': r.saved_cost_details,
+        // 新增结构化字段
+        template_id: r.template_id || null,
+        coil_spec: r.coil_spec || '',
+        coil_sheets: r.coil_sheets || 0,
+        has_float: r.has_float || 0,
+        float_wire: r.float_wire || '',
+        has_cable: r.has_cable || 0,
+        cable_length: r.cable_length || 0,
+        cable_wire: r.cable_wire || '',
+        box_type: r.box_type || '',
+        extra_parts_json: r.extra_parts_json || '[]',
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
 }
 function templateRow(r) {
     if (!r) return r;
-    return { Id: r.id, shell_model: r.shell_model, description: r.description || '',
-             parts_json: r.parts_json || '[]',
-             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return {
+        Id: r.id, shell_model: r.shell_model, description: r.description || '',
+        parts_json: r.parts_json || '[]',
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
 }
 function orderRow(r) {
     if (!r) return r;
-    return { Id: r.id, '客户名称': r.customer_name, '合同号': r.contract_no, '备注': r.remark,
-             '订单状态': r.status, '型号列表JSON': r.items_json,
-             '采购清单JSON': r.purchase_list_json, '采购TodoJSON': r.todos_json,
-             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return {
+        Id: r.id, '客户名称': r.customer_name, '合同号': r.contract_no, '备注': r.remark,
+        '订单状态': r.status, '型号列表JSON': r.items_json,
+        '采购清单JSON': r.purchase_list_json, '采购TodoJSON': r.todos_json,
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
 }
 function coilRow(r) {
     if (!r) return r;
-    return { Id: r.id, '规格': r.spec, '单价': r.unit_price, '片数': r.sheets,
-             '默认线重': r.wire_weight, '铜价基数': r.copper_base,
-             '线圈加工费': r.coil_fee, '转子加工费': r.rotor_fee,
-             '成本': r.cost, '默认电容_uf': r.default_capacitor, '默认线径': r.default_wire_gauge,
-             CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return {
+        Id: r.id, '规格': r.spec, '单价': r.unit_price, '片数': r.sheets,
+        '默认线重': r.wire_weight, '铜价基数': r.copper_base,
+        '线圈加工费': r.coil_fee, '转子加工费': r.rotor_fee,
+        '成本': r.cost, '默认电容_uf': r.default_capacitor, '默认线径': r.default_wire_gauge,
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
 }
 
 // ── 数据访问层 ──
@@ -2180,13 +2190,13 @@ async function executeToolCall(toolName, args) {
                 if (items && items.length > 0) {
                     const allRecipes = dbGetAllRecipes();
                     const { partsCache, partsByModel } = loadPartsData();
-                    
+
                     for (const reqItem of items) {
                         const recipe = allRecipes.find(r => (r.配方名称 || r.name) === reqItem.recipeName || r.Id === Number(reqItem.recipeName) || (r.配方名称 || '').includes(reqItem.recipeName));
                         if (recipe) {
                             const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
                             let parts = [];
-                            try { parts = JSON.parse(partsJson); } catch(e){}
+                            try { parts = JSON.parse(partsJson); } catch (e) { }
                             const costRes = calculateRecipeCost(parts, partsCache, partsByModel);
                             const unitCost = parseFloat(costRes.totalCost || 0);
                             const profitMargin = 1.10;
@@ -2251,34 +2261,34 @@ async function executeToolCall(toolName, args) {
 
             case 'add_recipe_to_order': {
                 const { orderId, recipeName, qty = 1 } = args;
-                
+
                 // 1. 获取配方
                 const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || r.Id === Number(recipeName) || (r.配方名称 || '').includes(recipeName));
                 if (!recipe) return { success: false, error: '找不到匹配的配方: ' + recipeName };
-                
+
                 // 2. 获取订单
                 let orderRow;
                 try {
                     const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                     orderRow = orderData.list?.[0];
-                } catch(e) {}
+                } catch (e) { }
                 if (!orderRow) return { success: false, error: '找不到订单ID: ' + orderId };
-                
+
                 // 3. 更新型号列表
                 let itemsList = [];
-                try { itemsList = JSON.parse(orderRow.型号列表JSON || '[]'); } catch(e){}
-                
+                try { itemsList = JSON.parse(orderRow.型号列表JSON || '[]'); } catch (e) { }
+
                 const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
                 let parts = [];
-                try { parts = JSON.parse(partsJson); } catch(e){}
+                try { parts = JSON.parse(partsJson); } catch (e) { }
                 const { partsCache, partsByModel } = loadPartsData();
                 const recipeCostResult = calculateRecipeCost(parts, partsCache, partsByModel);
                 const unitCost = parseFloat(recipeCostResult.totalCost || 0);
-                
+
                 const profitMargin = 1.10;
                 const finalUnitPrice = Math.round(unitCost * profitMargin * 100) / 100;
-                
+
                 itemsList.push({
                     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
                     recipeId: recipe.Id,
@@ -2290,7 +2300,7 @@ async function executeToolCall(toolName, args) {
                     profitMargin: profitMargin,
                     unitPrice: finalUnitPrice
                 });
-                
+
                 // 4. 更新到 NocoDB
                 {
                     const _ob = {
@@ -2306,12 +2316,12 @@ async function executeToolCall(toolName, args) {
                     _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
                     db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
                 }
-                
+
                 return {
-                    success: true, 
+                    success: true,
                     message: `成功向订单${orderId}追加配方：${recipe.配方名称 || recipe.name}(数量: ${qty})`,
-                    orderId, 
-                    itemName: recipe.配方名称 || recipe.name, 
+                    orderId,
+                    itemName: recipe.配方名称 || recipe.name,
                     qty,
                     itemCost: unitCost,
                     itemPrice: finalUnitPrice
@@ -2400,9 +2410,9 @@ async function executeToolCall(toolName, args) {
                 const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
-                let purchaseList = []; try { purchaseList = JSON.parse(row.采购清单JSON || '[]'); } catch(e){}
-                let todos = []; try { todos = JSON.parse(row.采购TodoJSON || '[]'); } catch(e){}
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch (e) { }
+                let purchaseList = []; try { purchaseList = JSON.parse(row.采购清单JSON || '[]'); } catch (e) { }
+                let todos = []; try { todos = JSON.parse(row.采购TodoJSON || '[]'); } catch (e) { }
                 // 计算汇总
                 let totalCost = 0, totalPrice = 0;
                 for (const it of items) { totalCost += (it.unitCost || 0) * (it.qty || 0); totalPrice += (it.unitPrice || 0) * (it.qty || 0); }
@@ -2453,7 +2463,7 @@ async function executeToolCall(toolName, args) {
                 const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch (e) { }
                 const before = items.length;
                 items = items.filter(it => !(it.recipeName || '').includes(recipeName));
                 if (items.length === before) return { success: false, error: `订单${orderId}中未找到包含\"${recipeName}\"的配方` };
@@ -2476,7 +2486,7 @@ async function executeToolCall(toolName, args) {
                 const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch (e) { }
                 const item = items.find(it => (it.recipeName || '').includes(recipeName));
                 if (!item) return { success: false, error: `订单${orderId}中未找到\"${recipeName}\"` };
                 const changes = [];
@@ -2507,7 +2517,7 @@ async function executeToolCall(toolName, args) {
                 const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch(e){}
+                let items = []; try { items = JSON.parse(row.型号列表JSON || '[]'); } catch (e) { }
                 if (items.length === 0) return { success: false, error: '订单中没有任何配方，无法生成采购清单' };
 
                 const allParts = dbGetAllParts();
@@ -2522,7 +2532,7 @@ async function executeToolCall(toolName, args) {
                 // 汇总零件需求
                 const merged = {};
                 for (const item of items) {
-                    let parts = []; try { parts = JSON.parse(item.partsJson || '[]'); } catch(e){ continue; }
+                    let parts = []; try { parts = JSON.parse(item.partsJson || '[]'); } catch (e) { continue; }
                     for (const rp of parts) {
                         const key = rp.model;
                         if (merged[key]) { merged[key].totalQty += rp.qty * item.qty; }
@@ -2640,7 +2650,7 @@ async function executeToolCall(toolName, args) {
                 const recipe = allRecipes.find(r => (r.配方名称 || r.name) === recipeName || (r.配方名称 || '').includes(recipeName));
                 if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
 
-                let parts = []; try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch(e){}
+                let parts = []; try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch (e) { }
                 const changes = [];
 
                 // 移除零件
@@ -2705,8 +2715,8 @@ async function executeToolCall(toolName, args) {
                 if (!r2) return { success: false, error: '找不到配方: ' + recipe2 };
 
                 const { partsCache: pc, partsByModel: pbm } = loadPartsData();
-                let p1 = []; try { p1 = JSON.parse(r1.配件JSON || r1.parts_json || '[]'); } catch(e){}
-                let p2 = []; try { p2 = JSON.parse(r2.配件JSON || r2.parts_json || '[]'); } catch(e){}
+                let p1 = []; try { p1 = JSON.parse(r1.配件JSON || r1.parts_json || '[]'); } catch (e) { }
+                let p2 = []; try { p2 = JSON.parse(r2.配件JSON || r2.parts_json || '[]'); } catch (e) { }
                 const cost1 = calculateRecipeCost(p1, pc, pbm);
                 const cost2 = calculateRecipeCost(p2, pc, pbm);
 
@@ -2793,7 +2803,7 @@ async function executeToolCall(toolName, args) {
                 for (const o of allOrders) {
                     const s = o.订单状态 || '待采购';
                     if (statusCount[s] !== undefined) statusCount[s]++;
-                    let items = []; try { items = JSON.parse(o.型号列表JSON || '[]'); } catch(e){}
+                    let items = []; try { items = JSON.parse(o.型号列表JSON || '[]'); } catch (e) { }
                     for (const it of items) { totalOrderCost += (it.unitCost || 0) * (it.qty || 0); totalOrderPrice += (it.unitPrice || 0) * (it.qty || 0); }
                 }
 
@@ -2934,264 +2944,124 @@ app.put('/api/ai/system-prompt', async (req, res) => {
     }
 });
 
-// ── 阿里云 ASR 语音识别 ──────────────────────────────
 
-const ALIYUN_CONFIG = {
-    accessKeyId: process.env.ALIYUN_AK_ID || '',
-    accessKeySecret: process.env.ALIYUN_AK_SECRET || '',
-    appKey: process.env.ALIYUN_APP_KEY || '',
-    gateway: 'nls-gateway-cn-shanghai.aliyuncs.com',
-};
 
-let aliyunTokenCache = { token: null, expireTime: 0 };
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-async function getAliyunToken() {
-    if (aliyunTokenCache.token && Date.now() < aliyunTokenCache.expireTime - 60000) {
-        return aliyunTokenCache.token;
+// ── 阿里云 NLS Token 自动获取与缓存 ──
+let nlsTokenCache = { token: '', expireTime: 0 };
+
+/**
+ * 使用 AccessKey 签名调用阿里云 CreateToken API
+ * 自动缓存，过期前 1 小时自动刷新
+ */
+async function getNlsToken() {
+    const now = Date.now();
+    // 未过期且距过期还有 1 小时以上，直接用缓存
+    if (nlsTokenCache.token && nlsTokenCache.expireTime - now > 3600000) {
+        return nlsTokenCache.token;
     }
-    console.log('[ASR] 正在获取阿里云 Token...');
-    return new Promise((resolve, reject) => {
-        const params = new URLSearchParams({
-            AccessKeyId: ALIYUN_CONFIG.accessKeyId,
-            Action: 'CreateToken',
-            Version: '2019-02-28',
-            Format: 'JSON',
-            RegionId: 'cn-shanghai',
-            Timestamp: new Date().toISOString().replace(/\.\d{3}/, ''),
-            SignatureMethod: 'HMAC-SHA1',
-            SignatureVersion: '1.0',
-            SignatureNonce: Math.random().toString(36).slice(2),
-        });
-        const sortedParams = new URLSearchParams([...params.entries()].sort());
-        const stringToSign = `POST&${encodeURIComponent('/')}&${encodeURIComponent(sortedParams.toString())}`;
-        const signature = crypto.createHmac('sha1', ALIYUN_CONFIG.accessKeySecret + '&').update(stringToSign).digest('base64');
-        params.append('Signature', signature);
-        const postData = params.toString();
-        const req = https.request({
-            hostname: 'nls-meta.cn-shanghai.aliyuncs.com',
-            path: '/',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
-        }, (res) => {
-            let data = '';
-            res.on('data', (chunk) => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(data);
-                    if (json.Token?.Id) {
-                        aliyunTokenCache = { token: json.Token.Id, expireTime: json.Token.ExpireTime * 1000 };
-                        console.log('[ASR] Token 获取成功');
-                        resolve(json.Token.Id);
-                    } else {
-                        reject(new Error(`获取Token失败: ${json.Message || data}`));
-                    }
-                } catch (e) { reject(new Error(`解析Token失败: ${data}`)); }
-            });
-        });
-        req.on('error', (e) => reject(new Error(`Token请求失败: ${e.message}`)));
-        req.write(postData);
-        req.end();
-    });
+
+    const accessKeyId = process.env.ALI_ACCESS_KEY_ID;
+    const accessKeySecret = process.env.ALI_ACCESS_KEY_SECRET;
+    if (!accessKeyId || !accessKeySecret) {
+        throw new Error('未配置 ALI_ACCESS_KEY_ID / ALI_ACCESS_KEY_SECRET');
+    }
+
+    // 构造签名参数
+    const params = {
+        Action: 'CreateToken',
+        Version: '2019-02-28',
+        Format: 'JSON',
+        AccessKeyId: accessKeyId,
+        SignatureMethod: 'HMAC-SHA1',
+        Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        SignatureVersion: '1.0',
+        SignatureNonce: crypto.randomUUID(),
+    };
+
+    // 按 key 排序
+    const sortedKeys = Object.keys(params).sort();
+    const canonicalized = sortedKeys
+        .map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`)
+        .join('&');
+
+    // 待签名字符串: GET&%2F&<url-encoded canonicalized>
+    const stringToSign = `GET&${encodeURIComponent('/')}&${encodeURIComponent(canonicalized)}`;
+
+    // HMAC-SHA1 签名
+    const signature = crypto
+        .createHmac('sha1', accessKeySecret + '&')
+        .update(stringToSign)
+        .digest('base64');
+
+    const url = `https://nls-meta.cn-shanghai.aliyuncs.com/?${canonicalized}&Signature=${encodeURIComponent(signature)}`;
+
+    console.log('[ASR] 正在获取 NLS Token...');
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (result.Token) {
+        nlsTokenCache = {
+            token: result.Token.Id,
+            expireTime: result.Token.ExpireTime * 1000, // 秒转毫秒
+        };
+        const expiresIn = Math.round((nlsTokenCache.expireTime - Date.now()) / 3600000);
+        console.log(`[ASR] NLS Token 获取成功, 有效期约 ${expiresIn} 小时`);
+        return nlsTokenCache.token;
+    } else {
+        console.error('[ASR] Token 获取失败:', result);
+        throw new Error(result.Message || 'NLS Token 获取失败');
+    }
 }
 
-async function aliyunASR(audioBuffer, format, sampleRate) {
-    const token = await getAliyunToken();
-    const queryParams = new URLSearchParams({
-        appkey: ALIYUN_CONFIG.appKey,
-        format,
-        sample_rate: sampleRate.toString(),
-        enable_punctuation_prediction: 'true',
-        enable_inverse_text_normalization: 'true',
-    });
-    return new Promise((resolve, reject) => {
-        const req = https.request({
-            hostname: ALIYUN_CONFIG.gateway,
-            path: `/stream/v1/asr?${queryParams.toString()}`,
+/**
+ * POST /api/voice/asr
+ * 语音识别端点 — 接收音频文件，调阿里云一句话识别 REST API
+ * 自动获取和刷新 NLS Token
+ */
+app.post('/api/voice/asr', upload.single('audio'), async (req, res) => {
+    try {
+        const appKey = process.env.ALI_ASR_APPKEY;
+        if (!appKey) {
+            return res.json({ success: false, error: '未配置 ALI_ASR_APPKEY' });
+        }
+
+        if (!req.file) {
+            return res.json({ success: false, error: '未收到音频文件' });
+        }
+
+        const token = await getNlsToken();
+        const audioBuffer = req.file.buffer;
+        const format = req.body.format || 'pcm';
+        const sampleRate = parseInt(req.body.sampleRate) || 16000;
+
+        console.log(`[ASR] 收到音频: ${req.file.originalname}, 大小: ${audioBuffer.length} bytes, 格式: ${format}`);
+
+        // 阿里云一句话识别 REST API (非 Flash 版本)
+        const url = `https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/asr?appkey=${appKey}&format=${format}&sample_rate=${sampleRate}&enable_punctuation_prediction=true&enable_inverse_text_normalization=true`;
+
+        const response = await fetch(url, {
             method: 'POST',
-            headers: { 'X-NLS-Token': token, 'Content-Type': 'application/octet-stream', 'Content-Length': audioBuffer.length },
-        }, (res) => {
-            let data = '';
-            res.on('data', (chunk) => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(data);
-                    console.log('[ASR] 识别结果:', json.result || '(空)');
-                    if (json.status === 20000000 && json.result) resolve(json.result);
-                    else resolve(json.result || '');
-                } catch (e) { reject(new Error(`解析ASR响应失败`)); }
-            });
+            headers: {
+                'X-NLS-Token': token,
+                'Content-Type': 'application/octet-stream',
+            },
+            body: audioBuffer,
         });
-        req.on('error', (e) => reject(new Error(`ASR请求失败: ${e.message}`)));
-        req.write(audioBuffer);
-        req.end();
-    });
-}
 
-// 文件上传配置
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-const asrUpload = multer({
-    storage: multer.diskStorage({
-        destination: (req, file, cb) => cb(null, uploadsDir),
-        filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(file.originalname) || '.webm'}`)
-    }),
-    limits: { fileSize: 10 * 1024 * 1024 },
-});
+        const result = await response.json();
 
-app.post('/api/ai/asr', asrUpload.single('audio'), async (req, res) => {
-    try {
-        if (!req.file) return res.json({ success: false, error: '未收到音频文件' });
-        console.log(`[ASR] 收到音频: ${req.file.filename}, 大小: ${req.file.size} bytes`);
-        const audioData = fs.readFileSync(req.file.path);
-        const format = req.body.format || 'mp3';
-        const sampleRate = parseInt(req.body.sampleRate) || 16000;
-        const text = await aliyunASR(audioData, format, sampleRate);
-        fs.unlink(req.file.path, () => {});
-        res.json({ success: true, text: text || '' });
-    } catch (err) {
-        console.error('[ASR] 处理失败:', err.message);
-        if (req.file?.path) fs.unlink(req.file.path, () => {});
-        res.json({ success: false, error: err.message });
-    }
-});
-
-// ── 微信小程序专用端点 ──────────────────────────────
-
-// view_type 映射表
-const VIEW_TYPE_MAP = {
-    'query_recipe_cost_by_name': 'bom_cost_card',
-    'query_recipe_cost_by_id': 'bom_cost_card',
-    'full_calculate': 'bom_cost_card',
-    'search_parts': 'inventory_table',
-    'get_all_parts': 'inventory_table',
-    'get_order_detail': 'order_detail_card',
-    'get_order_list': 'order_detail_card',
-    'get_dashboard_summary': 'dashboard_card',
-    'compare_recipes': 'compare_card',
-    'generate_purchase_list': 'purchase_list',
-    'get_copper_price': 'action_result',
-    'calculate_coil_cost': 'bom_cost_card',
-    'get_coil_specs': 'inventory_table',
-    'get_all_recipes': 'inventory_table',
-};
-
-// 1. 微信 ASR（纯语音转文字）
-app.post('/api/wechat/asr', asrUpload.single('audio'), async (req, res) => {
-    try {
-        if (!req.file) return res.json({ success: false, error: '未收到音频文件' });
-        console.log(`[微信ASR] 收到音频: ${req.file.filename}, 大小: ${req.file.size} bytes`);
-        const audioData = fs.readFileSync(req.file.path);
-        const sampleRate = parseInt(req.body.sampleRate) || 16000;
-
-        // 自动检测格式：微信开发工具录 .wav，真机录 .pcm
-        let format = req.body.format || 'pcm';
-        const ext = path.extname(req.file.filename || '').toLowerCase();
-        if (ext === '.wav' || (audioData.length > 4 && audioData.toString('ascii', 0, 4) === 'RIFF')) {
-            format = 'wav';
-            console.log('[微信ASR] 检测到 WAV 格式');
-        } else if (ext === '.mp3') {
-            format = 'mp3';
+        if (result.status === 20000000) {
+            const text = result.result || '';
+            console.log(`[ASR] 识别结果: "${text}"`);
+            res.json({ success: true, text });
+        } else {
+            console.error('[ASR] 阿里云返回错误:', result);
+            res.json({ success: false, error: result.message || '识别失败', detail: result });
         }
-
-        const text = await aliyunASR(audioData, format, sampleRate);
-        fs.unlink(req.file.path, () => {});
-        console.log(`[微信ASR] 识别结果: "${text}"`);
-        res.json({ success: true, text: text || '' });
     } catch (err) {
-        console.error('[微信ASR] 失败:', err.message);
-        if (req.file?.path) fs.unlink(req.file.path, () => {});
-        res.json({ success: false, error: err.message });
-    }
-});
-
-// 2. 微信对话（普通 JSON 请求，一次性返回全部结果）
-app.post('/api/wechat/chat', async (req, res) => {
-    try {
-        const { messages } = req.body;
-        if (!messages || messages.length === 0) {
-            return res.json({ success: false, error: '消息不能为空' });
-        }
-
-        console.log('[微信Chat] 收到请求, 消息数:', messages.length);
-        const toolResults = []; // 收集所有工具调用结果
-
-        let currentMessages = [
-            { role: 'system', content: AI_SYSTEM_PROMPT },
-            ...messages
-        ];
-
-        const apiKey = process.env.DEEPSEEK_API_KEY;
-        const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
-        let maxRounds = 5;
-        let done = false;
-        let finalContent = '';
-
-        while (!done && maxRounds-- > 0) {
-            const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model,
-                    messages: currentMessages,
-                    tools: AI_TOOLS,
-                    stream: false
-                })
-            });
-
-            if (!aiRes.ok) {
-                const text = await aiRes.text();
-                return res.json({ success: false, error: `LLM API 错误: ${aiRes.status}` });
-            }
-
-            const data = await aiRes.json();
-            if (data.error) {
-                return res.json({ success: false, error: data.error.message || 'API 错误' });
-            }
-
-            const msg = data.choices[0].message;
-            currentMessages.push({
-                role: 'assistant',
-                content: msg.content || "",
-                tool_calls: msg.tool_calls
-            });
-
-            if (msg.tool_calls && msg.tool_calls.length > 0) {
-                for (const tc of msg.tool_calls) {
-                    const funcName = tc.function.name;
-                    console.log(`[微信Chat] 调用工具: ${funcName}`);
-
-                    let args = {};
-                    try { args = JSON.parse(tc.function.arguments); } catch (e) {}
-
-                    const result = await executeToolCall(funcName, args);
-                    const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
-
-                    toolResults.push({ name: funcName, view_type: viewType, result });
-
-                    currentMessages.push({
-                        role: 'tool',
-                        tool_call_id: tc.id,
-                        name: funcName,
-                        content: JSON.stringify(result)
-                    });
-                }
-            } else {
-                finalContent = msg.content || '';
-                done = true;
-            }
-        }
-
-        console.log('[微信Chat] 完成, 工具调用:', toolResults.length, '次');
-        res.json({
-            success: true,
-            content: finalContent,
-            toolResults,
-        });
-    } catch (err) {
-        console.error('[微信Chat] 错误:', err.message);
+        console.error('[ASR] 错误:', err.message);
         res.json({ success: false, error: err.message });
     }
 });
@@ -3352,7 +3222,7 @@ app.post('/api/siri/chat', siriAuth, async (req, res) => {
                     console.log(`[Siri] 调用工具: ${funcName}`);
 
                     let args = {};
-                    try { args = JSON.parse(tc.function.arguments); } catch (e) {}
+                    try { args = JSON.parse(tc.function.arguments); } catch (e) { }
 
                     const result = await executeToolCall(funcName, args);
                     const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
@@ -3424,8 +3294,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  POST /api/ai/chat                       - AI智能助手（SSE）`);
     console.log(`  GET  /api/ai/system-prompt              - 获取System Prompt`);
     console.log(`  PUT  /api/ai/system-prompt              - 修改System Prompt`);
-    console.log(`  POST /api/wechat/asr                    - 微信语音识别(ASR)`);
-    console.log(`  POST /api/wechat/chat                   - 微信对话(标准JSON)`);
+    console.log(`  POST /api/voice/asr                     - 语音识别(阿里云ASR)`);
     console.log(`  POST /api/siri/chat                     - Siri快捷指令对话`);
     console.log(`========================================`);
 

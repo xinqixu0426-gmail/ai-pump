@@ -691,9 +691,11 @@ export default function PartsPage() {
             </Badge>
           </Tooltip>
           <Tooltip title="刷新数据">
-            <IconButton id="parts-refresh-btn" onClick={() => loadParts()} disabled={loading}>
-              {loading ? <LinearProgress sx={{ width: 20 }} /> : <RefreshIcon />}
-            </IconButton>
+            <span>
+              <IconButton id="parts-refresh-btn" onClick={() => loadParts()} disabled={loading}>
+                {loading ? <LinearProgress sx={{ width: 20 }} /> : <RefreshIcon />}
+              </IconButton>
+            </span>
           </Tooltip>
         </Box>
       </Box>
