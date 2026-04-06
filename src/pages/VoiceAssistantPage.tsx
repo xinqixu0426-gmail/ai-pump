@@ -8,8 +8,10 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   toolResults?: Array<{ name: string; result: unknown }>;
+  toolCalls?: Array<{ name: string }>;
   isLoading?: boolean;
   error?: string;
+  statusMessage?: string;
 }
 
 const EXAMPLES = [
@@ -28,10 +30,11 @@ export default function VoiceAssistantPage() {
   const [interimText, setInterimText] = useState('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const pcmChunksRef = useRef<Float32Array[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -41,14 +44,8 @@ export default function VoiceAssistantPage() {
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
   // ── Audio level monitoring ──
-  const startAudioMonitor = useCallback((stream: MediaStream) => {
-    const ctx = new AudioContext();
-    const source = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    source.connect(analyser);
+  const startAudioMonitor = useCallback((analyser: AnalyserNode) => {
     analyserRef.current = analyser;
-
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     const tick = () => {
       analyser.getByteFrequencyData(dataArray);
@@ -64,49 +61,117 @@ export default function VoiceAssistantPage() {
     setAudioLevel(0);
   }, []);
 
-  // ── Recording ──
+  // ── Float32 → 16bit PCM WAV ──
+  const float32ToWav = useCallback((samples: Float32Array, sampleRate: number): Blob => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+    const writeStr = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeStr(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }, []);
+
+  // ── 下采样到 16kHz ──
+  const downsample = useCallback((buffer: Float32Array, fromRate: number, toRate: number): Float32Array => {
+    if (fromRate === toRate) return buffer;
+    const ratio = fromRate / toRate;
+    const newLength = Math.round(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      result[i] = buffer[Math.round(i * ratio)];
+    }
+    return result;
+  }, []);
+
+  // ── Recording via AudioContext (raw PCM) ──
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { sampleRate: 16000, channelCount: 1 },
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
       });
       streamRef.current = stream;
-      audioChunksRef.current = [];
+      pcmChunksRef.current = [];
       setInterimText('');
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
-      });
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      // ScriptProcessorNode to capture raw PCM
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        pcmChunksRef.current.push(new Float32Array(input));
       };
+      source.connect(processor);
+      processor.connect(ctx.destination);
 
-      recorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(t => t.stop());
-        stopAudioMonitor();
-        processAudio(audioBlob);
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start(100);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mediaRecorderRef as any).current = { processor, source, ctx };
       setIsRecording(true);
-      startAudioMonitor(stream);
+      startAudioMonitor(analyser);
     } catch (err) {
       console.error('Mic error:', err);
       alert('无法访问麦克风，请检查权限设置');
     }
-  }, [startAudioMonitor, stopAudioMonitor]);
+  }, [startAudioMonitor]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
     setIsRecording(false);
-  }, []);
+    stopAudioMonitor();
+
+    // Capture sampleRate before closing
+    const ctx = audioCtxRef.current;
+    const originalRate = ctx?.sampleRate || 48000;
+
+    // Stop audio processing
+    if (ctx) {
+      ctx.close();
+      audioCtxRef.current = null;
+    }
+
+    // Stop mic stream
+    streamRef.current?.getTracks().forEach(t => t.stop());
+
+    // Combine PCM chunks
+    const chunks = pcmChunksRef.current;
+    if (chunks.length === 0) return;
+
+    const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+    const combined = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    // Downsample to 16kHz and create WAV
+    const targetRate = 16000;
+    const downsampled = downsample(combined, originalRate, targetRate);
+    const wavBlob = float32ToWav(downsampled, targetRate);
+
+    processAudio(wavBlob);
+  }, [stopAudioMonitor, downsample, float32ToWav]);
 
   // ── ASR + AI pipeline ──
   const processAudio = async (audioBlob: Blob) => {
@@ -114,17 +179,17 @@ export default function VoiceAssistantPage() {
     setInterimText('语音识别中...');
 
     try {
-      // Step 1: ASR
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-      formData.append('format', 'mp3');
+      formData.append('audio', audioBlob, 'recording.wav');
+      formData.append('format', 'wav');
       formData.append('sampleRate', '16000');
 
       const asrRes = await fetch('/api/voice/asr', { method: 'POST', body: formData });
       const asrJson = await asrRes.json();
 
       if (!asrJson.success || !asrJson.text?.trim()) {
-        setInterimText('');
+        setInterimText(asrJson.error ? `识别失败: ${asrJson.error}` : '');
+        setTimeout(() => setInterimText(''), 2000);
         setIsProcessing(false);
         return;
       }
@@ -139,7 +204,19 @@ export default function VoiceAssistantPage() {
     }
   };
 
-  // ── Send message to AI ──
+  // 只有这些 tool 的结果才渲染卡片（精确查询），批量列表类隐藏防止信息泄露
+  const SAFE_CARD_TOOLS = new Set([
+    'query_recipe_cost_by_name', 'query_recipe_cost_by_id',
+    'get_copper_price', 'calculate_coil_cost', 'full_calculate',
+    'get_order_detail', 'create_order', 'create_part', 'update_part',
+    'delete_part', 'create_recipe', 'update_recipe', 'delete_recipe',
+    'compare_recipes', 'add_recipe_to_order', 'remove_recipe_from_order',
+    'update_order_item', 'update_order_status', 'delete_order',
+    'generate_purchase_list', 'batch_update_prices',
+    'dynamic_config_cost', 'get_dashboard_summary',
+  ]);
+
+  // ── Send message to AI (SSE) ──
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
     setIsProcessing(true);
@@ -158,39 +235,86 @@ export default function VoiceAssistantPage() {
       content: '',
       timestamp: new Date(),
       isLoading: true,
+      statusMessage: '正在理解问题...',
     };
 
     setMessages(prev => [...prev, userMsg, assistantMsg]);
 
     try {
-      // Build message history for context
       const history = [...messages, userMsg]
         .filter(m => m.role === 'user' || (m.role === 'assistant' && m.content))
-        .slice(-10) // Keep last 10 messages for context
+        .slice(-10)
         .map(m => ({ role: m.role, content: m.content }));
 
-      const res = await fetch('/api/wechat/chat', {
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history }),
       });
 
-      const json = await res.json();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error('无法读取响应流');
 
-      setMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last.role === 'assistant') {
-          last.content = json.content || '';
-          last.toolResults = json.toolResults?.map((tr: { name: string; view_type: string; result: unknown }) => ({
-            name: tr.name,
-            result: tr.result,
-          })) || [];
-          last.isLoading = false;
-          last.error = json.success ? undefined : (json.error || '请求失败');
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (!last || last.role !== 'assistant') return prev;
+              const a = { ...last };
+              updated[updated.length - 1] = a;
+
+              switch (event.type) {
+                case 'status':
+                  a.statusMessage = event.message;
+                  a.isLoading = true;
+                  break;
+                case 'tool_call':
+                  a.statusMessage = `调用 ${event.name}...`;
+                  a.toolCalls = [...(a.toolCalls || []), { name: event.name }];
+                  break;
+                case 'tool_result':
+                  // 只保留安全卡片的 tool result
+                  if (SAFE_CARD_TOOLS.has(event.name)) {
+                    a.toolResults = [...(a.toolResults || []), { name: event.name, result: event.result }];
+                  }
+                  a.statusMessage = '正在整理结果...';
+                  break;
+                case 'content':
+                  a.content = event.content;
+                  a.isLoading = false;
+                  a.statusMessage = '';
+                  break;
+                case 'done':
+                  a.isLoading = false;
+                  a.statusMessage = '';
+                  break;
+                case 'error':
+                  a.isLoading = false;
+                  a.error = event.message;
+                  a.content = `❌ ${event.message}`;
+                  break;
+              }
+              return updated;
+            });
+          } catch { /* ignore parse errors */ }
         }
-        return updated;
-      });
+      }
     } catch (err) {
       setMessages(prev => {
         const updated = [...prev];
@@ -251,9 +375,22 @@ export default function VoiceAssistantPage() {
             )}
             {msg.role === 'assistant' && (
               <div className="va-bubble va-bubble-assistant">
-                {msg.isLoading && (
+                {msg.isLoading && msg.statusMessage && (
+                  <div className="va-status">
+                    <div className="va-status-dot" />
+                    <span>{msg.statusMessage}</span>
+                  </div>
+                )}
+                {msg.isLoading && !msg.statusMessage && (
                   <div className="va-typing">
                     <span></span><span></span><span></span>
+                  </div>
+                )}
+                {msg.toolCalls && msg.toolCalls.length > 0 && !msg.isLoading && (
+                  <div className="va-tool-badges">
+                    {msg.toolCalls.map((tc, idx) => (
+                      <span key={idx} className="va-tool-badge">⚡ {tc.name}</span>
+                    ))}
                   </div>
                 )}
                 {msg.error && <div className="va-error">❌ {msg.error}</div>}
@@ -522,6 +659,52 @@ export default function VoiceAssistantPage() {
         @keyframes typing {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
           30% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* ── Status indicator ── */
+        .va-status {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: #6c8aff;
+          padding: 4px 0;
+          animation: fadeIn 0.3s ease;
+        }
+        .va-status-dot {
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: #6c8aff;
+          animation: statusPulse 1.2s ease infinite;
+          flex-shrink: 0;
+        }
+        @keyframes statusPulse {
+          0%, 100% { opacity: 0.4; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        /* ── Tool badges ── */
+        .va-tool-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 8px;
+        }
+        .va-tool-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          font-weight: 500;
+          color: #a78bfa;
+          background: rgba(167,139,250,0.1);
+          border: 1px solid rgba(167,139,250,0.2);
+          padding: 3px 10px;
+          border-radius: 12px;
         }
 
         /* ── Footer ── */
