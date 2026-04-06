@@ -1,7 +1,7 @@
 # 水泵BOM管理系统
 
 ## 项目简介
-水泵BOM数据库 + 订单管理 + 成本计算API + AI智能助手。支持零件录入、配方组装、订单采购流转、库存联动，提供 AI Agent 可调用的成本计算后端。语音入口支持 Siri + iOS 快捷指令。
+水泵BOM数据库 + 订单管理 + 成本计算API + AI智能助手。支持零件录入、配方组装、订单采购流转、库存联动，提供 AI Agent 可调用的成本计算后端。PWA 语音助手支持麦克风录音+阿里云 ASR+DeepSeek Function Calling。
 
 ## 技术栈
 - **Web 前端**：React 18 + TypeScript + Vite + Material UI 5 (端口 3000)
@@ -9,7 +9,8 @@
 - **后端API**：Express.js `api.cjs` (端口 3002)
 - **数据库**：SQLite (`pump.db`)，使用 `better-sqlite3` 同步驱动
 - **AI**：DeepSeek Chat API + Function Calling (12+ 工具)
-- **语音**：Siri + iOS 快捷指令（Apple STT）
+- **语音**：PWA 语音助手（浏览器麦克风 + 阿里云 ASR 一句话识别）+ Siri 快捷指令
+- **PWA**：`manifest.json` + HTTPS 自签名证书，支持 iOS/Android 添加到主屏幕
 - **启动**：`npm start`（并行启动前端 + API）
 - **演示数据**：`node scripts/seed-demo-data.cjs`
 
@@ -26,7 +27,7 @@
 │   └── seed-demo-data.cjs     # 演示数据填充脚本
 │
 ├── src/                       # React Web 前端
-│   ├── main.tsx               # React 入口 + MUI 主题配置
+│   ├── main.tsx               # React 入口 + 路由分发 (/voice 独立渲染, /* 走 App 布局)
 │   ├── App.tsx                # Tab 路由: / /parts /recipes /recipe-form /orders /order-form /coils /ai-chat
 │   │
 │   ├── types/
@@ -59,12 +60,13 @@
 │       ├── OrdersPage.tsx       # 订单列表
 │       ├── OrderFormPage.tsx    # 4步向导新建订单
 │       ├── CoilRotorPage.tsx    # 线圈转子管理
-│       └── AIChatPage.tsx       # AI智能助手 (SSE流式 + 语音输入)
+│       ├── AIChatPage.tsx       # AI智能助手 (SSE流式 + 语音输入)
+│       └── VoiceAssistantPage.tsx # PWA 语音助手 (全屏暗色, 麦克风+ASR+AI)
 │
 ├── public/
+│   ├── manifest.json          # PWA manifest (start_url: /voice)
+│   ├── icons/                 # PWA 图标
 │   └── siri-result.html       # Siri 查询结果展示页
-│
-└── wechat/                    # 微信小程序 (旧版, 维护模式)
 ```
 
 ## 数据流架构
@@ -96,9 +98,13 @@ SQLite (pump.db) ↕ better-sqlite3 → api.cjs (3002) ↕ /api/* → React (300
 - 支持线性插值
 
 ### AI 智能助手
-- **Siri 快捷指令**: Apple STT → `POST /api/siri/chat` → DeepSeek Function Calling → 朗读
-- **Web 端**: SSE 流式输出 + Chrome Web Speech API
-- **Function Calling**: 12+ 工具覆盖配方/零件/订单/成本查询与操作
+- **PWA 语音助手** (`/voice`): 浏览器麦克风 → PCM WAV → 阿里云 ASR → DeepSeek Function Calling → 结构化卡片
+  - 全屏暗色沉浸式 UI，支持 iOS/Android 添加到主屏幕
+  - SSE 流式显示 DeepSeek 状态（思考/调用API/整理结果）
+  - 卡片白名单过滤：仅精确查询渲染卡片，批量数据只输出文字总结
+- **Siri 快捷指令**: Apple STT → `POST /api/siri/chat` → DeepSeek → 朗读
+- **Web 端 AI Chat**: SSE 流式输出 + 语音输入
+- **Function Calling**: 20+ 工具覆盖配方/零件/订单/成本查询与操作
 
 ## 数据库表结构 (SQLite)
 
@@ -123,6 +129,7 @@ SQLite (pump.db) ↕ better-sqlite3 → api.cjs (3002) ↕ /api/* → React (300
 | **铜价** | `/api/copper-price` | 实时铜价 |
 | **线圈** | `/api/coils[/:id]`, `/api/coils/calculate` | 线圈 CRUD + 插值计算 |
 | **AI** | `/api/ai/chat`, `/api/siri/chat` | AI 对话 (SSE/JSON) |
+| **语音** | `/api/voice/asr` | 阿里云 ASR 语音识别 (自动获取 NLS Token) |
 
 > 详细接口文档见 `API_DOCUMENTATION.md`
 

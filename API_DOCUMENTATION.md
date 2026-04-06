@@ -1,6 +1,6 @@
 # 水泵 BOM 管理系统 API 文档
 
-**后端**: `http://localhost:3002` | **前端**: `http://localhost:3000` (Vite proxy `/api/*` → 3002)
+**后端**: `http://localhost:3002` | **前端**: `https://localhost:3000` (Vite HTTPS + proxy `/api/*` → 3002)
 
 ---
 
@@ -67,6 +67,38 @@
 
 ### System Prompt
 - `GET /PUT /api/ai/system-prompt`
+
+---
+
+## 五、语音识别 (ASR)
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/voice/asr` | 阿里云一句话识别（自动获取/缓存 NLS Token）|
+
+### 请求
+- `Content-Type: multipart/form-data`
+- `audio`: WAV 文件 (16kHz, 16bit, mono)
+- `format`: `wav` (default)
+- `sampleRate`: `16000` (default)
+
+### 响应
+```json
+{ "success": true, "text": "识别的文字" }
+```
+
+### 环境变量
+- `ALI_ASR_APPKEY`: NLS 项目 AppKey
+- `ALI_ACCESS_KEY_ID` / `ALI_ACCESS_KEY_SECRET`: AK/SK，用于自动获取 NLS Token
+
+---
+
+## 六、PWA 语音助手
+
+- **前端路由**: `/voice` （独立全屏渲染，不走 App 布局）
+- **录音**: AudioContext + ScriptProcessorNode 采集原始 PCM，下采样到 16kHz，编码为 WAV
+- **流程**: 麦克风 → WAV → `/api/voice/asr` → 文字 → `/api/ai/chat` (SSE) → 结构化卡片
+- **卡片白名单**: 仅精确查询工具渲染卡片，批量列表工具只显示 AI 文字总结（防止信息泄露）
 
 ### Function Calling 工具 (20+)
 
