@@ -45,10 +45,10 @@ npm run build      # 生成 dist/ 目录
 ```nginx
 server {
     listen 80;
-    server_name yourdomain.com;
+    server_name 118.31.32.227;
 
     location / {
-        root /path/to/project/dist;
+        root /var/www/pump-cost-accounting-system/dist; # 这里改为你在服务器上实际的路径
         index index.html;
         try_files $uri $uri/ /index.html;
     }
@@ -57,6 +57,8 @@ server {
         proxy_pass http://localhost:3002;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         # SSE 支持
         proxy_buffering off;
         proxy_cache off;
