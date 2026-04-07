@@ -8,6 +8,7 @@ export interface Part {
   price: number;
   supplier: string;
   stock: number;
+  remark?: string;
   notes?: string; // JSON 字符串，泵壳类扩展属性（如不锈钢机筒参数）
 }
 

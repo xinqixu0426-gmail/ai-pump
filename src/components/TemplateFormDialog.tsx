@@ -14,10 +14,10 @@ export interface PartFormRow { id: number; name: string; model: string; qty: num
 
 const NAME_TO_CATEGORY: Record<string, string> = {
   '花板轴承': '轴承', '油缸轴承': '轴承', '轴承': '轴承',
-  '机械油封': '机封', '骨架油封': '密封件', '油封': '密封件',
+  '机械油封': '油封', '骨架油封': '油封', '油封': '油封',
   '皮垫': '密封件', 'O型圈': '密封件',
-  '螺丝': '紧固件', '螺栓': '紧固件', '螺母': '紧固件',
-  '叶轮': '叶轮', '电容': '电子件',
+  '螺丝': '螺丝', '螺栓': '螺丝', '螺母': '螺丝', '不锈钢长螺丝': '螺丝',
+  '叶轮': '叶轮', '电容': '电容',
 };
 
 interface Props {
@@ -95,6 +95,30 @@ export default function TemplateFormDialog({
     }));
   };
 
+  // 检查泵壳 notes (也就是 db 的 remark 字段) 是否含有 isStainless 属性，自动增/删「不锈钢长螺丝」行
+  const checkStainlessScrewRow = useCallback((currentShellModel: string) => {
+    const shellPart = parts.find(p => ['泵壳', '泵体', '壳体'].includes(p.category) && p.model === currentShellModel);
+    let isStainless = false;
+    if (shellPart && shellPart.notes) {
+      try {
+        isStainless = JSON.parse(shellPart.notes).isStainless === true;
+      } catch {
+        isStainless = shellPart.notes.includes('不锈钢机筒');
+      }
+    }
+
+    setPartRows(prev => {
+      const hasRow = prev.some(r => r.name === '不锈钢长螺丝');
+      if (isStainless && !hasRow) {
+        return [...prev, { id: nextRowId.current++, name: '不锈钢长螺丝', model: '', qty: 1, supplier: '' }];
+      }
+      if (!isStainless && hasRow) {
+        return prev.filter(r => r.name !== '不锈钢长螺丝');
+      }
+      return prev;
+    });
+  }, [parts, nextRowId, setPartRows]);
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -105,7 +129,7 @@ export default function TemplateFormDialog({
         <Box display="flex" gap={2} mb={2} mt={1}>
           <Autocomplete
             freeSolo disableClearable options={shellModels} value={shellModel}
-            onChange={(_e, v) => { setShellModel(v || ''); setShellSupplier(''); }}
+            onChange={(_e, v) => { setShellModel(v || ''); setShellSupplier(''); checkStainlessScrewRow(v || ''); }}
             onInputChange={(_e, v) => { setShellModel(v || ''); }}
             sx={{ flex: 1 }}
             renderInput={(params) => (

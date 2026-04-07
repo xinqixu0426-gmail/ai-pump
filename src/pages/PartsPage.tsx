@@ -340,7 +340,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
   const [stock, setStock] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ── 泵壳不锈鑂机筒扩展属性 ──
+  // ── 泵壳不锈钢机筒扩展属性 ──
   const [isStainless, setIsStainless] = useState(false);
   const [barrelLength, setBarrelLength] = useState('');
   const [openFactor, setOpenFactor] = useState('');
@@ -360,7 +360,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
       setPrice(String(editingPart.price || ''));
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
-      // 解析不锈鑂元数据
+      // 解析不锈钢元数据
       const meta = parseMeta(editingPart.notes);
       setIsStainless(meta.isStainless ?? false);
       setBarrelLength(meta.barrelLength != null ? String(meta.barrelLength) : '');
@@ -503,7 +503,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
             )}
           />
 
-          {/* 泵壳不锈鑂机筒扩展区块 */}
+          {/* 泵壳不锈钢机筒扩展区块 */}
           {isPumpShell && (
             <Box
               sx={{
@@ -526,7 +526,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
                 label={
                   <Box display="flex" alignItems="center" gap={0.5}>
                     <Typography variant="body2" fontWeight={700} color={isStainless ? '#0369a1' : 'text.secondary'}>
-                      ✨ 不锈鑂机筒
+                      ✨ 不锈钢机筒
                     </Typography>
                     {isStainless && (
                       <Chip label="SS" size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: '#0284c7', color: 'white' }} />
@@ -708,7 +708,10 @@ export default function PartsPage() {
   // ── 类别管理 ─────────────────────────────────────
   const [customCategories, setCustomCategories] = useState<string[]>(() => loadCustomCategories());
   const [catManagerOpen, setCatManagerOpen] = useState(false);
-  const allCategories = useMemo(() => [...BUILTIN_CATEGORIES, ...customCategories], [customCategories]);
+  const allCategories = useMemo(() => {
+    const dbCats = parts.map(p => p.category).filter(Boolean);
+    return Array.from(new Set([...BUILTIN_CATEGORIES, ...customCategories, ...dbCats]));
+  }, [customCategories, parts]);
 
   const loadParts = useCallback(async () => {
     try {
@@ -1174,7 +1177,7 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
       id: 'TC-13',
       name: 'DOM 检查：关键 UI 元素应存在于文档中',
       fn: () => {
-        const ids = ['part-model-input', 'part-category-select', 'part-price-input', 'part-supplier-input', 'part-stock-input', 'part-save-btn', 'parts-search-input'];
+        const ids = ['part-model-input', 'part-category-select', 'part-price-input', 'part-supplier-autocomplete', 'part-stock-input', 'part-save-btn', 'parts-search-input'];
         const missing = ids.filter((id) => !document.getElementById(id));
         if (missing.length > 0) return `以下元素 ID 未在 DOM 中找到: ${missing.join(', ')}`;
         return true;
