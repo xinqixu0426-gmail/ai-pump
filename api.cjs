@@ -37,6 +37,58 @@ db.exec(`
         updated_at TEXT
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pst_model ON pump_shell_templates(shell_model);
+
+    CREATE TABLE IF NOT EXISTS parts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        model TEXT NOT NULL,
+        category TEXT DEFAULT '其他',
+        price REAL DEFAULT 0,
+        supplier TEXT DEFAULT '-',
+        stock INTEGER DEFAULT 0,
+        remark TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS recipes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        spec TEXT,
+        parts_json TEXT DEFAULT '[]',
+        saved_total_cost REAL DEFAULT 0,
+        saved_cost_details TEXT DEFAULT '[]',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_name TEXT NOT NULL,
+        contract_no TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        status TEXT DEFAULT '待采购',
+        items_json TEXT DEFAULT '[]',
+        purchase_list_json TEXT DEFAULT '[]',
+        todos_json TEXT DEFAULT '[]',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS coils (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        spec TEXT NOT NULL,
+        sheets INTEGER NOT NULL,
+        unit_price REAL DEFAULT 0,
+        wire_weight REAL DEFAULT 0,
+        copper_base REAL DEFAULT 0,
+        coil_fee REAL DEFAULT 0,
+        rotor_fee REAL DEFAULT 0,
+        cost REAL DEFAULT 0,
+        default_wire_gauge TEXT,
+        default_capacitor TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    );
 `);
 
 // recipes 表新增结构化列（幂等 ALTER）
