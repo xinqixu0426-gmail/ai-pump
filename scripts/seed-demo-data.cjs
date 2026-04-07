@@ -10,6 +10,71 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// --- 创建必须的表结构，防止服务器上缺少数据库表 ---
+db.exec(`
+    CREATE TABLE IF NOT EXISTS parts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        model TEXT NOT NULL,
+        category TEXT DEFAULT '其他',
+        price REAL DEFAULT 0,
+        supplier TEXT DEFAULT '-',
+        stock INTEGER DEFAULT 0,
+        remark TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS recipes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        spec TEXT,
+        parts_json TEXT DEFAULT '[]',
+        saved_total_cost REAL DEFAULT 0,
+        saved_cost_details TEXT DEFAULT '[]',
+        template_id INTEGER,
+        coil_spec TEXT DEFAULT '',
+        coil_sheets INTEGER DEFAULT 0,
+        has_float INTEGER DEFAULT 0,
+        float_wire TEXT DEFAULT '',
+        has_cable INTEGER DEFAULT 0,
+        cable_length REAL DEFAULT 0,
+        cable_wire TEXT DEFAULT '',
+        box_type TEXT DEFAULT '',
+        extra_parts_json TEXT DEFAULT '[]',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_name TEXT NOT NULL,
+        contract_no TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        status TEXT DEFAULT '待采购',
+        items_json TEXT DEFAULT '[]',
+        purchase_list_json TEXT DEFAULT '[]',
+        todos_json TEXT DEFAULT '[]',
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS coils (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        spec TEXT NOT NULL,
+        sheets INTEGER NOT NULL,
+        unit_price REAL DEFAULT 0,
+        wire_weight REAL DEFAULT 0,
+        copper_base REAL DEFAULT 0,
+        coil_fee REAL DEFAULT 0,
+        rotor_fee REAL DEFAULT 0,
+        cost REAL DEFAULT 0,
+        default_wire_gauge TEXT,
+        default_capacitor TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    );
+`);
+
 // --- 清空现有数据 (可选，这里先清空以便可以重复运行) ---
 db.exec(`
     DELETE FROM parts;
