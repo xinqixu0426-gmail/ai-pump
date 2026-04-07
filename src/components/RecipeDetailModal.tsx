@@ -131,7 +131,6 @@ export default function RecipeDetailModal({
         .filter(c => c.partId)
         .map(c => ({
           partId: c.partId!,
-          currentStock: c.currentStock,
           deductQty: c.qtyNeeded
         }));
 

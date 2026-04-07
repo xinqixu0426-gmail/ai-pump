@@ -71,33 +71,31 @@ export async function deletePart(id: number): Promise<void> {
 }
 
 /**
- * 批量扣减库存（生产用）— 并行
+ * 批量扣减库存（生产用）— 原子操作
  */
 export async function batchDeductStock(
-  deductions: Array<{ partId: number; currentStock: number; deductQty: number }>
+  deductions: Array<{ partId: number; deductQty: number }>
 ): Promise<void> {
-  await Promise.all(deductions.map((d) => {
-    const newStock = Math.max(0, d.currentStock - d.deductQty);
-    return proxyRequest('/api/parts', {
-      method: 'PATCH',
-      body: JSON.stringify({ Id: d.partId, stock: newStock }),
-    });
-  }));
+  await proxyRequest('/api/parts/batch-stock', {
+    method: 'POST',
+    body: JSON.stringify({
+      operations: deductions.map(d => ({ partId: d.partId, delta: -d.deductQty })),
+    }),
+  });
 }
 
 /**
- * 批量增加库存（采购入库用）— 并行
+ * 批量增加库存（采购入库用）— 原子操作
  */
 export async function batchAddStock(
-  additions: Array<{ partId: number; addQty: number; currentStock: number }>
+  additions: Array<{ partId: number; addQty: number }>
 ): Promise<void> {
-  await Promise.all(additions.map((a) => {
-    const newStock = a.currentStock + a.addQty;
-    return proxyRequest('/api/parts', {
-      method: 'PATCH',
-      body: JSON.stringify({ Id: a.partId, stock: newStock }),
-    });
-  }));
+  await proxyRequest('/api/parts/batch-stock', {
+    method: 'POST',
+    body: JSON.stringify({
+      operations: additions.map(a => ({ partId: a.partId, delta: a.addQty })),
+    }),
+  });
 }
 
 // ─── 配方 CRUD ──────────────────────────────

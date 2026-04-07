@@ -1122,6 +1122,30 @@ app.delete('/api/parts', async (req, res) => {
     }
 });
 
+/** POST /api/parts/batch-stock - 原子库存变更（扣减/增加）
+ *  body: { operations: [{ partId: number, delta: number }] }
+ *  delta > 0 增加库存, delta < 0 扣减库存, 最终 stock 不低于 0
+ */
+app.post('/api/parts/batch-stock', (req, res) => {
+    try {
+        const { operations } = req.body;
+        if (!Array.isArray(operations) || operations.length === 0) {
+            return res.status(400).json({ success: false, error: 'operations 数组不能为空' });
+        }
+        const now = new Date().toISOString();
+        const stmt = db.prepare('UPDATE parts SET stock = MAX(0, stock + ?), updated_at = ? WHERE id = ?');
+        const batch = db.transaction((ops) => {
+            for (const op of ops) {
+                stmt.run(op.delta, now, op.partId);
+            }
+        });
+        batch(operations);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ============================================
 // 配方 CRUD 代理
 // ============================================

@@ -16,6 +16,7 @@ import { Recipe, RecipePart, CostResult, PumpShellTemplate, TemplatePart } from 
 import { deleteRecipe, createTemplate, updateTemplate, deleteTemplate } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
+import { getPriceByModelAndSupplier as _getPrice, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 import PageHeader from '../components/PageHeader';
 import { gradients } from '../utils/theme';
@@ -74,22 +75,16 @@ export default function RecipesPage() {
   }, [parts]);
 
 
-  const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
-    const m1 = (model || '').trim();
-    const s1 = (supplier || '').trim();
-    const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);
-    if (exactPart && s1) return exactPart.price;
-    const modelParts = parts.filter(p => p.model.trim() === m1);
-    if (modelParts.length > 0) return modelParts.reduce((min, c) => c.price < min.price ? c : min, modelParts[0]).price;
-    return 0;
-  }, [parts]);
+  const getPriceByModelAndSupplier = useCallback(
+    (model: string, supplier: string) => _getPrice(parts, model, supplier),
+    [parts]
+  );
 
 
   const getCategoryFromName = useCallback((name: string): string | null => {
     if (!name) return null;
     const n = name.trim();
     if (NAME_TO_CATEGORY[n]) return NAME_TO_CATEGORY[n];
-    // 模糊匹配：名称包含关键词
     for (const [key, cat] of Object.entries(NAME_TO_CATEGORY)) {
       if (n.includes(key)) return cat;
     }
@@ -103,11 +98,10 @@ export default function RecipesPage() {
     return Array.from(set).sort();
   }, [parts, uniqueModels]);
 
-  const getSuppliersByModel = useCallback((model: string): string[] => {
-    const suppliers = new Set<string>();
-    parts.forEach(p => { if (p.model.trim() === model.trim() && p.supplier) suppliers.add(p.supplier); });
-    return Array.from(suppliers).filter(Boolean).sort();
-  }, [parts]);
+  const getSuppliersByModel = useCallback(
+    (model: string) => _getSuppliersByModel(parts, model),
+    [parts]
+  );
 
   // ── 泵壳型号列表（从泵体/壳体/泵壳类别获取） ──
   const shellModels = useMemo(() => {

@@ -268,8 +268,8 @@ export function buildTodos(purchaseList: PurchaseItem[]): TodoItem[] {
 
 // ── 入库辅助 ─────────────────────────────────────────
 
-export function calcStockAdditions(purchaseList: PurchaseItem[]): Array<{ partId: number; addQty: number; currentStock: number }> {
+export function calcStockAdditions(purchaseList: PurchaseItem[]): Array<{ partId: number; addQty: number }> {
   return purchaseList
     .filter((p) => p.needToBuy > 0 && p.partId != null)
-    .map((p) => ({ partId: p.partId!, addQty: p.needToBuy, currentStock: p.currentStock }));
+    .map((p) => ({ partId: p.partId!, addQty: p.needToBuy }));
 }
