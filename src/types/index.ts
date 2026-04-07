@@ -8,6 +8,14 @@ export interface Part {
   price: number;
   supplier: string;
   stock: number;
+  notes?: string; // JSON 字符串，泵壳类扩展属性（如不锈钢机筒参数）
+}
+
+/** 泵壳不锈钢机筒元数据（存于 Part.notes 字段） */
+export interface PumpShellMeta {
+  isStainless: boolean;
+  barrelLength?: number;   // 机筒长度（mm）
+  openFactor?: number;     // 开档系数
 }
 
 /** 泵壳模板配件项 */

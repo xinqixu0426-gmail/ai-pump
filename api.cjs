@@ -56,6 +56,9 @@ for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* column already exists */ }
 }
 
+// parts 表新增 remark 列（幂等 ALTER）
+try { db.exec(`ALTER TABLE parts ADD COLUMN remark TEXT DEFAULT ''`); } catch { /* column already exists */ }
+
 // 中间件
 app.use(cors());
 app.use(express.json());
@@ -67,6 +70,7 @@ function partRow(r) {
     if (!r) return r;
     return {
         Id: r.id, model: r.model, category: r.category, price: r.price, supplier: r.supplier, stock: r.stock,
+        notes: r.remark || '',
         '型号': r.model, '类别': r.category, '单价': r.price, '供应商': r.supplier, '库存': r.stock, '备注': r.remark || '',
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
@@ -142,7 +146,7 @@ function extractPartFields(body) {
         price: body.price ?? body.单价 ?? 0,
         supplier: body.supplier || body.供应商 || '-',
         stock: body.stock ?? body.库存 ?? 0,
-        remark: body.remark || body.备注 || '',
+        remark: body.notes || body.remark || body.备注 || '',
     };
 }
 
@@ -1028,7 +1032,7 @@ app.post('/api/parts', async (req, res) => {
     try {
         const f = extractPartFields(req.body);
         const now = new Date().toISOString();
-        const info = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(f.model, f.category, f.price, f.supplier, f.stock, now, now);
+        const info = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(f.model, f.category, f.price, f.supplier, f.stock, f.remark, now, now);
         const record = partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid));
         res.json({ success: true, data: record });
     } catch (error) {
@@ -1049,6 +1053,7 @@ app.patch('/api/parts', async (req, res) => {
         if (req.body.price !== undefined || req.body.单价 !== undefined) { sets.push('price = ?'); vals.push(f.price); }
         if (req.body.supplier !== undefined || req.body.供应商 !== undefined) { sets.push('supplier = ?'); vals.push(f.supplier); }
         if (req.body.stock !== undefined || req.body.库存 !== undefined) { sets.push('stock = ?'); vals.push(f.stock); }
+        if (req.body.notes !== undefined || req.body.remark !== undefined || req.body.备注 !== undefined) { sets.push('remark = ?'); vals.push(f.remark); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         db.prepare(`UPDATE parts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
         const record = partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id));

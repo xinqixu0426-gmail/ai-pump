@@ -26,6 +26,9 @@ import {
   Collapse,
   InputAdornment,
   Badge,
+  Autocomplete,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,7 +50,7 @@ import {
   Settings as SettingsIcon,
   Lock as LockIcon,
 } from '@mui/icons-material';
-import { Part } from '../types';
+import { Part, PumpShellMeta } from '../types';
 import { createPart, updatePart, deletePart } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { colors, gradients } from '../utils/theme';
@@ -326,15 +329,29 @@ interface PartFormPanelProps {
   allCategories: string[];
   customCategories: string[];
   onManageCategories: () => void;
+  supplierOptions: string[];
 }
 
-function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories }: PartFormPanelProps) {
+function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions }: PartFormPanelProps) {
   const [model, setModel] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [supplier, setSupplier] = useState('');
   const [stock, setStock] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ── 泵壳不锈鑂机筒扩展属性 ──
+  const [isStainless, setIsStainless] = useState(false);
+  const [barrelLength, setBarrelLength] = useState('');
+  const [openFactor, setOpenFactor] = useState('');
+
+  const isPumpShell = category === '泵壳';
+
+  /** 解析 notes JSON */
+  function parseMeta(notes?: string): PumpShellMeta {
+    if (!notes) return { isStainless: false };
+    try { return JSON.parse(notes) as PumpShellMeta; } catch { return { isStainless: false }; }
+  }
 
   useEffect(() => {
     if (editingPart) {
@@ -343,9 +360,15 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
       setPrice(String(editingPart.price || ''));
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
+      // 解析不锈鑂元数据
+      const meta = parseMeta(editingPart.notes);
+      setIsStainless(meta.isStainless ?? false);
+      setBarrelLength(meta.barrelLength != null ? String(meta.barrelLength) : '');
+      setOpenFactor(meta.openFactor != null ? String(meta.openFactor) : '');
     } else {
       setModel(''); setCategory('');
       setPrice(''); setSupplier(''); setStock('');
+      setIsStainless(false); setBarrelLength(''); setOpenFactor('');
     }
     setErrors({});
   }, [editingPart]);
@@ -363,8 +386,19 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    await onSave({ model: model.trim(), category, price: parseFloat(price) || 0, supplier: supplier.trim(), stock: parseInt(stock) || 0 });
-    if (!editingPart) { setModel(''); setCategory(''); setPrice(''); setSupplier(''); setStock(''); }
+    // 构建 notes JSON
+    const notes: PumpShellMeta | null = category === '泵壳'
+      ? { isStainless, barrelLength: barrelLength ? parseFloat(barrelLength) : undefined, openFactor: openFactor ? parseFloat(openFactor) : undefined }
+      : null;
+    await onSave({
+      model: model.trim(), category, price: parseFloat(price) || 0,
+      supplier: supplier.trim(), stock: parseInt(stock) || 0,
+      notes: notes ? JSON.stringify(notes) : '',
+    });
+    if (!editingPart) {
+      setModel(''); setCategory(''); setPrice(''); setSupplier(''); setStock('');
+      setIsStainless(false); setBarrelLength(''); setOpenFactor('');
+    }
   };
 
   const isEditing = !!editingPart;
@@ -446,11 +480,90 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
             InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
             error={!!errors.price} helperText={errors.price}
           />
-          <TextField
-            id="part-supplier-input" label="供应商" value={supplier}
-            onChange={(e) => setSupplier(e.target.value)} placeholder="如：张记配件"
-            required fullWidth size="small" error={!!errors.supplier} helperText={errors.supplier}
+          <Autocomplete
+            id="part-supplier-autocomplete"
+            freeSolo
+            options={supplierOptions}
+            value={supplier}
+            onInputChange={(_e, newValue) => {
+              setSupplier(newValue ?? '');
+              if (newValue) setErrors((prev) => ({ ...prev, supplier: '' }));
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                id="part-supplier-input"
+                label="供应商"
+                placeholder="搜索或输入新供应商"
+                required
+                size="small"
+                error={!!errors.supplier}
+                helperText={errors.supplier}
+              />
+            )}
           />
+
+          {/* 泵壳不锈鑂机筒扩展区块 */}
+          {isPumpShell && (
+            <Box
+              sx={{
+                p: 1.5, borderRadius: 2, border: '1px solid',
+                borderColor: isStainless ? '#bae6fd' : 'divider',
+                bgcolor: isStainless ? '#f0f9ff' : 'action.hover',
+                transition: 'all 0.2s',
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Switch
+                    id="part-stainless-switch"
+                    checked={isStainless}
+                    onChange={(e) => setIsStainless(e.target.checked)}
+                    size="small"
+                    color="info"
+                  />
+                }
+                label={
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    <Typography variant="body2" fontWeight={700} color={isStainless ? '#0369a1' : 'text.secondary'}>
+                      ✨ 不锈鑂机筒
+                    </Typography>
+                    {isStainless && (
+                      <Chip label="SS" size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: '#0284c7', color: 'white' }} />
+                    )}
+                  </Box>
+                }
+                sx={{ m: 0 }}
+              />
+              <Collapse in={isStainless}>
+                <Stack spacing={1.5} mt={1.5}>
+                  <TextField
+                    id="part-barrel-length-input"
+                    label="机筒长度"
+                    type="number"
+                    size="small"
+                    fullWidth
+                    value={barrelLength}
+                    onChange={(e) => setBarrelLength(e.target.value)}
+                    placeholder="可选"
+                    InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
+                    inputProps={{ min: 0, step: 1 }}
+                  />
+                  <TextField
+                    id="part-open-factor-input"
+                    label="开档系数"
+                    type="number"
+                    size="small"
+                    fullWidth
+                    value={openFactor}
+                    onChange={(e) => setOpenFactor(e.target.value)}
+                    placeholder="可选，如 0.85"
+                    inputProps={{ min: 0, max: 10, step: 0.01 }}
+                  />
+                </Stack>
+              </Collapse>
+            </Box>
+          )}
           <TextField
             id="part-stock-input" label="库存数量" type="number" value={stock}
             onChange={(e) => setStock(e.target.value)} placeholder="0"
@@ -506,6 +619,13 @@ function PartRow({ part, onEdit, onDelete, index }: PartRowProps) {
   const ss = stockStatus(part.stock);
   const customCats = loadCustomCategories();
   const cc = getCatColor(part.category, customCats);
+
+  // 解析泵壳元数据
+  const pumpMeta: { isStainless: boolean; barrelLength?: number; openFactor?: number } | null =
+    part.category === '泵壳' && part.notes
+      ? (() => { try { return JSON.parse(part.notes); } catch { return null; } })()
+      : null;
+
   return (
     <Fade in timeout={200 + index * 40}>
       <Box
@@ -523,7 +643,18 @@ function PartRow({ part, onEdit, onDelete, index }: PartRowProps) {
       >
         <Box>
           <Typography variant="body2" fontWeight={600} sx={{ wordBreak: 'break-word' }}>{part.model}</Typography>
-          <Chip label={part.category} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, mt: 0.3, bgcolor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }} />
+          <Box display="flex" gap={0.5} flexWrap="wrap" mt={0.3}>
+            <Chip label={part.category} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, bgcolor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }} />
+            {pumpMeta?.isStainless && (
+              <Tooltip title={`不锈钢机筒${pumpMeta.barrelLength ? `  机筒长度: ${pumpMeta.barrelLength}mm` : ''}${pumpMeta.openFactor ? `  开档系数: ${pumpMeta.openFactor}` : ''}`}>
+                <Chip
+                  label={`✨ SS${pumpMeta.barrelLength ? ` ${pumpMeta.barrelLength}mm` : ''}`}
+                  size="small"
+                  sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#0284c7', color: 'white', cursor: 'default' }}
+                />
+              </Tooltip>
+            )}
+          </Box>
         </Box>
         <Typography variant="body2" fontWeight={700} color="text.primary">¥{part.price.toFixed(2)}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -614,6 +745,7 @@ export default function PartsPage() {
   }, [filteredParts]);
 
   const categories = useMemo(() => [...new Set(parts.map((p) => p.category))].sort(), [parts]);
+  const supplierOptions = useMemo(() => [...new Set(parts.map((p) => p.supplier).filter(Boolean))].sort(), [parts]);
 
   // ── KPI ──────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -728,6 +860,7 @@ export default function PartsPage() {
             allCategories={allCategories}
             customCategories={customCategories}
             onManageCategories={() => setCatManagerOpen(true)}
+            supplierOptions={supplierOptions}
           />
         </Box>
 

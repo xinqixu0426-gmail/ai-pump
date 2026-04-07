@@ -41,6 +41,7 @@ export async function createPart(part: Omit<Part, 'Id'>): Promise<Part> {
       price: part.price,
       supplier: part.supplier,
       stock: part.stock ?? 0,
+      notes: part.notes ?? '',
     }),
   });
   return res.data;
@@ -53,6 +54,7 @@ export async function updatePart(id: number, part: Partial<Part>): Promise<Part>
   if (part.price !== undefined) record.price = part.price;
   if (part.supplier !== undefined) record.supplier = part.supplier;
   if (part.stock !== undefined) record.stock = part.stock;
+  if (part.notes !== undefined) record.notes = part.notes;
 
   const res = await proxyRequest<{ success: boolean; data: Part }>('/api/parts', {
     method: 'PATCH',
