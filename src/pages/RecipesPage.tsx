@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Paper, Typography, Alert, Box, CircularProgress, Table, TableBody, TableCell,
@@ -22,10 +22,19 @@ import { gradients } from '../utils/theme';
 
 // ── 模板编辑行 ──
 interface PartFormRow { id: number; name: string; model: string; qty: number; supplier: string; }
-let nextRowId = 1;
+
+// 配件名称→类别映射(用于过滤型号下拉) ── 常量，提到组件外避免重建
+const NAME_TO_CATEGORY: Record<string, string> = {
+  '花板轴承': '轴承', '油缸轴承': '轴承', '轴承': '轴承',
+  '机械油封': '机封', '骨架油封': '密封件', '油封': '密封件',
+  '皮垫': '密封件', 'O型圈': '密封件',
+  '螺丝': '紧固件', '螺栓': '紧固件', '螺母': '紧固件',
+  '叶轮': '叶轮', '电容': '电子件',
+};
 
 export default function RecipesPage() {
   const navigate = useNavigate();
+  const nextRowId = useRef(1);
   const { recipes, parts, templates, fetchParts, fetchRecipes, fetchTemplates } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -75,14 +84,6 @@ export default function RecipesPage() {
     return 0;
   }, [parts]);
 
-  // ── 配件名称→类别映射(用于过滤型号下拉) ──
-  const NAME_TO_CATEGORY: Record<string, string> = {
-    '花板轴承': '轴承', '油缸轴承': '轴承', '轴承': '轴承',
-    '机械油封': '机封', '骨架油封': '密封件', '油封': '密封件',
-    '皮垫': '密封件', 'O型圈': '密封件',
-    '螺丝': '紧固件', '螺栓': '紧固件', '螺母': '紧固件',
-    '叶轮': '叶轮', '电容': '电子件',
-  };
 
   const getCategoryFromName = useCallback((name: string): string | null => {
     if (!name) return null;
@@ -182,10 +183,10 @@ export default function RecipesPage() {
     setEditingTpl(null);
     setShellModel(''); setShellSupplier(''); setTplDescription('');
     setPartRows([
-      { id: nextRowId++, name: '花板轴承', model: '', qty: 1, supplier: '' },
-      { id: nextRowId++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
-      { id: nextRowId++, name: '机械油封', model: '', qty: 1, supplier: '' },
-      { id: nextRowId++, name: '骨架油封', model: '', qty: 1, supplier: '' },
+      { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
+      { id: nextRowId.current++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
+      { id: nextRowId.current++, name: '机械油封', model: '', qty: 1, supplier: '' },
+      { id: nextRowId.current++, name: '骨架油封', model: '', qty: 1, supplier: '' },
     ]);
     setTplDialogOpen(true);
   };
@@ -194,7 +195,7 @@ export default function RecipesPage() {
     setEditingTpl(tpl); setShellModel(tpl.shell_model); setShellSupplier(''); setTplDescription(tpl.description || '');
     try {
       const parsed: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
-      setPartRows(parsed.map(p => ({ id: nextRowId++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
+      setPartRows(parsed.map(p => ({ id: nextRowId.current++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
     } catch { setPartRows([]); }
     setTplDialogOpen(true);
   };
@@ -591,7 +592,7 @@ export default function RecipesPage() {
           </Table>
 
           <Button size="small" startIcon={<AddIcon />}
-            onClick={() => setPartRows(prev => [...prev, { id: nextRowId++, name: '', model: '', qty: 1, supplier: '' }])}
+            onClick={() => setPartRows(prev => [...prev, { id: nextRowId.current++, name: '', model: '', qty: 1, supplier: '' }])}
             sx={{ mt: 1 }}>
             添加配件行
           </Button>

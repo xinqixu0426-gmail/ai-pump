@@ -352,15 +352,15 @@ app.get('/api/cost/recipe/by-name', async (req, res) => {
             });
         }
 
-        // 从NocoDB获取所有配方，然后在内存中匹配（避免URL编码问题）
+        // 获取所有配方，然后在内存中匹配（避免URL编码问题）
         let allRecipes;
         try {
             allRecipes = dbGetAllRecipes();
         } catch (error) {
-            console.error('NocoDB Error:', error);
+            console.error('DB Error:', error);
             return res.status(500).json({
                 success: false,
-                error: '从NocoDB获取配方失败: ' + error.message
+                error: '获取配方失败: ' + error.message
             });
         }
 
@@ -431,7 +431,7 @@ app.get('/api/cost/recipe/:id', async (req, res) => {
     try {
         const recipeId = req.params.id;
 
-        // 从NocoDB获取配方
+        // 获取配方
         const data = { list: [recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(parseInt(recipeId)))].filter(Boolean) };
 
         if (!data.list || data.list.length === 0) {
@@ -623,7 +623,7 @@ app.post('/api/cost/dynamic-config', async (req, res) => {
  *
  * 一次调用完成三步：
  *   1. 按泵壳型号查配方成本 (等同 GET /api/cost/recipe/by-name)
- *   2. 按定子规格-片数查线圈转子成本 (查 NocoDB 线圈成本表)
+ *   2. 按定子规格-片数查线圈转子成本 (查线圈成本表)
  *   3. 计算动态配置成本 (浮球/电缆/包材，等同 POST /api/cost/dynamic-config)
  *
  * 请求体：
@@ -1062,7 +1062,7 @@ app.delete('/api/coils/:id', async (req, res) => {
 });
 
 // ============================================
-// 零件 CRUD 代理（供前端调用，不暴露 NocoDB Token）
+// 零件 CRUD
 // ============================================
 
 /** GET /api/parts - 获取所有零件 */
@@ -2071,7 +2071,7 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 - 不要编造数据，所有数据必须来自 function calling 的实际返回`;
 
 /**
- * 从 NocoDB config 表加载 system prompt
+ * 从数据库加载 system prompt
  */
 async function loadSystemPromptFromDB() {
     try {
@@ -2354,7 +2354,7 @@ async function executeToolCall(toolName, args) {
                     unitPrice: finalUnitPrice
                 });
 
-                // 4. 更新到 NocoDB
+                // 4. 更新到数据库
                 {
                     const _ob = {
                         Id: orderRow.Id,
@@ -2831,7 +2831,7 @@ async function executeToolCall(toolName, args) {
                     details.push({ model: p.型号 || p.model, oldPrice, newPrice });
                 }
 
-                // NocoDB PATCH 支持批量
+                // PATCH 支持批量
                 for (const u of updates) {
                     db.prepare('UPDATE parts SET price = ?, updated_at = ? WHERE id = ?').run(u.单价, new Date().toISOString(), u.Id);
                 }

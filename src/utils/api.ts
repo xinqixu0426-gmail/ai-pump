@@ -148,26 +148,9 @@ export async function deleteRecipe(id: number): Promise<void> {
 }
 
 export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'>>): Promise<Recipe> {
-  const record: Record<string, unknown> = { Id: id };
-  if (recipe.name !== undefined) record.name = recipe.name;
-  if (recipe.spec !== undefined) record.spec = recipe.spec;
-  if (recipe.parts_json !== undefined) record.parts_json = recipe.parts_json;
-  if (recipe.saved_total_cost !== undefined) record.saved_total_cost = recipe.saved_total_cost;
-  if (recipe.saved_cost_details !== undefined) record.saved_cost_details = recipe.saved_cost_details;
-  if (recipe.template_id !== undefined) record.template_id = recipe.template_id;
-  if (recipe.coil_spec !== undefined) record.coil_spec = recipe.coil_spec;
-  if (recipe.coil_sheets !== undefined) record.coil_sheets = recipe.coil_sheets;
-  if (recipe.has_float !== undefined) record.has_float = recipe.has_float;
-  if (recipe.float_wire !== undefined) record.float_wire = recipe.float_wire;
-  if (recipe.has_cable !== undefined) record.has_cable = recipe.has_cable;
-  if (recipe.cable_length !== undefined) record.cable_length = recipe.cable_length;
-  if (recipe.cable_wire !== undefined) record.cable_wire = recipe.cable_wire;
-  if (recipe.box_type !== undefined) record.box_type = recipe.box_type;
-  if (recipe.extra_parts_json !== undefined) record.extra_parts_json = recipe.extra_parts_json;
-
   const res = await proxyRequest<{ success: boolean; data: Recipe }>('/api/recipes', {
     method: 'PATCH',
-    body: JSON.stringify(record),
+    body: JSON.stringify({ Id: id, ...recipe }),
   });
   return res.data;
 }

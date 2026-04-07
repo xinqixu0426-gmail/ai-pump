@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Paper,
@@ -34,6 +34,7 @@ import {
 import { RecipePart, TemplatePart } from '../types';
 import { createRecipe, updateRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
+import { getPriceByModelAndSupplier as _getPrice, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import RecipePartRow from '../components/RecipePartRow';
 
 const COIL_API_BASE = '';
@@ -238,18 +239,21 @@ export default function RecipeFormPage() {
     }
   }, [editFrom, cloneFrom, parts]);
 
-  // ── 辅助函数 ──
-  const getPriceByModelAndSupplier = useCallback((model: string, supplier: string): number => {
-    const m1 = (model || '').trim();
-    const s1 = (supplier || '').trim();
-    const exactPart = parts.find((p) => p.model.trim() === m1 && p.supplier.trim() === s1);
-    if (exactPart && s1) return exactPart.price;
-    const modelParts = parts.filter((p) => p.model.trim() === m1);
-    if (modelParts.length > 0) {
-      return modelParts.reduce((min, curr) => curr.price < min.price ? curr : min, modelParts[0]).price;
-    }
-    return 0;
-  }, [parts]);
+  // ── 辅助函数（委托到公共工具）──
+  const getPriceByModelAndSupplier = useCallback(
+    (model: string, supplier: string) => _getPrice(parts, model, supplier),
+    [parts]
+  );
+
+  const getModelsByCategory = useCallback(
+    (category: string) => _getModelsByCategory(parts, category),
+    [parts]
+  );
+
+  const getSuppliersByModel = useCallback(
+    (model: string) => _getSuppliersByModel(parts, model),
+    [parts]
+  );
 
   const resolveBoxType = useCallback((keyword: string): { model: string; price: number } => {
     const k = (keyword || '').trim();
@@ -271,7 +275,7 @@ export default function RecipeFormPage() {
   })();
 
   // 模板配件成本
-  const templateCost = templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
+  const templateCost = templateParts.reduce((sum, p: TemplatePart) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
 
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
@@ -292,14 +296,6 @@ export default function RecipeFormPage() {
     return configParts;
   }, [hasFloat, floatWire, hasCable, cableLength, cableWire, boxType, getPriceByModelAndSupplier, resolveBoxType]);
 
-  const getModelsByCategory = (category: string): string[] => {
-    const models = new Set<string>();
-    parts.forEach((p) => {
-      if (p.category === category) models.add(p.model);
-    });
-    return Array.from(models).filter(Boolean).sort();
-  };
-
   const getWireOptions = (prefix: string): string[] => {
     const wires = new Set<string>();
     parts.forEach((p) => {
@@ -307,14 +303,6 @@ export default function RecipeFormPage() {
       if (m.startsWith(prefix)) { const w = m.replace(prefix, ''); if (w) wires.add(w); }
     });
     return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
-  };
-
-  const getSuppliersByModel = (model: string): string[] => {
-    const suppliers = new Set<string>();
-    parts.forEach((p) => {
-      if (p.model === model) suppliers.add(p.supplier);
-    });
-    return Array.from(suppliers).filter(Boolean).sort();
   };
 
   // ── 汇总所有配件（用于 parts_json 冗余快照）──
@@ -348,9 +336,9 @@ export default function RecipeFormPage() {
     return all;
   }, [templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
 
-  // 总成本预览
-  const allPartsPreview = buildAllParts();
-  const totalCost = allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
+  // 总成本预览（缓存，避免每次渲染重算）
+  const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
+  const totalCost = useMemo(() => allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0), [allPartsPreview]);
 
   // ── handlers ──
   const handleAddOptional = () => {
