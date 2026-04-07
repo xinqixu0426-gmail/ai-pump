@@ -16,9 +16,12 @@
 
 ## 项目结构
 ```
-├── api.cjs                    # Express API 单文件后端 (SQLite 直连)
+├── api.cjs                    # Express API 入口及路由挂载
+├── api/                       # 后端拆分模块组
+│   ├── db.cjs                 # SQLite 初始化、表结构预检及 Row 适配器
+│   └── routes/                # 业务路由集合 (ai, coils, cost, orders, parts, recipes, templates)
 ├── pump.db                    # SQLite 数据库文件 (gitignore)
-├── .env                       # DeepSeek + 阿里云配置 (gitignore, 勿提交)
+├── .env                       # API 密钥配置 (gitignore, 勿提交)
 ├── index.html                 # Vite 入口 HTML
 ├── package.json               # 依赖与脚本
 │
@@ -28,7 +31,7 @@
 │
 ├── src/                       # React Web 前端
 │   ├── main.tsx               # React 入口 + 路由分发 (/voice 独立渲染, /* 走 App 布局)
-│   ├── App.tsx                # Tab 路由: / /parts /recipes /recipe-form /orders /order-form /coils /ai-chat
+│   ├── App.tsx                # Tab 主路由: / /parts /recipes /recipe-form /orders /order-form /coils /ai-chat
 │   │
 │   ├── types/
 │   │   └── index.ts           # 统一类型定义 (Part/Recipe/Order/PumpShellTemplate)
@@ -110,7 +113,7 @@ SQLite (pump.db) ↕ better-sqlite3 → api.cjs (3002) ↕ /api/* → React (300
 
 | 表 | 关键字段 |
 |---|---|
-| **parts** | `id, model, category, price, supplier, stock` |
+| **parts** | `id, model, category, price, supplier, stock, remark` <br>*(注：前端扩展属性存入 remark 作为 JSON)* |
 | **recipes** | `id, name, spec, parts_json, saved_total_cost, template_id, coil_spec, coil_sheets, ...` |
 | **orders** | `id, customer_name, contract_no, status, items_json, purchase_list_json, todos_json` |
 | **coils** | `id, spec, sheets, cost, unit_price, wire_weight, copper_base, coil_fee, rotor_fee` |

@@ -15,9 +15,12 @@ DEEPSEEK_API_KEY=你的DeepSeek_API密钥
 DEEPSEEK_MODEL=deepseek-chat
 
 # 阿里云 ASR (语音识别) 配置
-ALIYUN_AK_ID=你的阿里云AccessKeyId
-ALIYUN_AK_SECRET=你的阿里云AccessKeySecret
-ALIYUN_APP_KEY=你的阿里云AppKey
+ALI_ASR_APPKEY=你的阿里云AppKey
+ALI_ACCESS_KEY_ID=你的阿里云AccessKeyId
+ALI_ACCESS_KEY_SECRET=你的阿里云AccessKeySecret
+
+# Siri 声音配置
+# SIRI_API_TOKEN=（可选验证Token，若设置则 Siri 需带此请求头）
 ```
 
 ## 3. 本地运行
