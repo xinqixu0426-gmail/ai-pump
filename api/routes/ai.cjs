@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, partRow, recipeRow, coilRow, loadPartsData, calculateRecipeCost } = require('../db.cjs');
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const PORT = process.env.PORT || 3002;
 // ============================================
 // AI 智能助手
 // ============================================
