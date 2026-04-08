@@ -339,6 +339,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
   const [supplier, setSupplier] = useState('');
   const [stock, setStock] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const modelInputRef = useRef<HTMLInputElement>(null);
 
   // ── 泵壳不锈钢机筒扩展属性 ──
   const [isStainless, setIsStainless] = useState(false);
@@ -369,6 +370,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
       setModel(''); setCategory('');
       setPrice(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenFactor('');
+      setTimeout(() => modelInputRef.current?.focus(), 100);
     }
     setErrors({});
   }, [editingPart]);
@@ -398,6 +400,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
     if (!editingPart) {
       setModel(''); setCategory(''); setPrice(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenFactor('');
+      setTimeout(() => modelInputRef.current?.focus(), 100);
     }
   };
 
@@ -430,6 +433,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
       <Box component="form" id="part-form" onSubmit={handleSubmit}>
         <Stack spacing={2}>
           <TextField
+            inputRef={modelInputRef}
             id="part-model-input" label="型号" value={model} onChange={(e) => setModel(e.target.value)}
             placeholder="如：6202-2RS" required fullWidth size="small"
             error={!!errors.model} helperText={errors.model}
@@ -472,14 +476,26 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
               </IconButton>
             </Tooltip>
           </Box>
-          <TextField
-            id="part-price-input" label="单价（元）" type="number" value={price}
-            onChange={(e) => setPrice(e.target.value)} placeholder="0.00"
-            required fullWidth size="small"
-            inputProps={{ step: 0.01, min: 0 }}
-            InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
-            error={!!errors.price} helperText={errors.price}
-          />
+          <Box display="flex" gap={1.5} alignItems="flex-start">
+            <TextField
+              id="part-price-input" label="单价（元）" type="number" value={price}
+              onChange={(e) => setPrice(e.target.value)} placeholder="0.00"
+              required fullWidth size="small"
+              inputProps={{ step: 0.01, min: 0 }}
+              InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+              error={!!errors.price} helperText={errors.price || ' '}
+              sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+            />
+            <TextField
+              id="part-stock-input" label="库存数量" type="number" value={stock}
+              onChange={(e) => setStock(e.target.value)} placeholder="0"
+              fullWidth size="small" inputProps={{ min: 0, step: 1 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><InventoryIcon sx={{ fontSize: 16, opacity: 0.6 }} /></InputAdornment>
+              }}
+              sx={{ flex: 1 }}
+            />
+          </Box>
           <Autocomplete
             id="part-supplier-autocomplete"
             freeSolo
@@ -558,17 +574,13 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
                     value={openFactor}
                     onChange={(e) => setOpenFactor(e.target.value)}
                     placeholder="可选，如 0.85"
-                    inputProps={{ min: 0, max: 10, step: 0.01 }}
+                    inputProps={{ min: 0, max: 100, step: 0.01 }}
                   />
                 </Stack>
               </Collapse>
             </Box>
           )}
-          <TextField
-            id="part-stock-input" label="库存数量" type="number" value={stock}
-            onChange={(e) => setStock(e.target.value)} placeholder="0"
-            fullWidth size="small" inputProps={{ min: 0, step: 1 }}
-          />
+          {/* 库存已经移到上方与单价同行 */}
           <Stack direction="row" spacing={1} pt={0.5}>
             <Button
               id="part-save-btn" type="submit" variant="contained" startIcon={<SaveIcon />}
