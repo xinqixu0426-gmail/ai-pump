@@ -70,21 +70,26 @@ async function sendWecomMessage(touser, finalContent, speech, toolResults) {
  */
 router.get('/webhook', (req, res) => {
     const { msg_signature, timestamp, nonce, echostr } = req.query;
-    const token = process.env.WECOM_TOKEN;
-    const encodingAESKey = process.env.WECOM_ENCODING_AES_KEY;
+    const token = (process.env.WECOM_TOKEN || '').trim();
+    const encodingAESKey = (process.env.WECOM_ENCODING_AES_KEY || '').trim();
+
+    console.log('[WECOM] 收到 GET 验证请求:', { msg_signature, timestamp, nonce, echostr: echostr?.substring(0, 20) + '...' });
 
     if (!token || !encodingAESKey) {
+        console.error('[WECOM] 失败: Token 或 AESKey 未配置');
         return res.status(500).send('WeCom config missing');
     }
 
     try {
         const signature = getSignature(token, timestamp, nonce, echostr);
         if (signature !== msg_signature) {
+            console.error('[WECOM] 验证失败: 签名不匹配', { expect: signature, actual: msg_signature });
             return res.status(401).send('Signature mismatch');
         }
 
         const decrypted = decrypt(encodingAESKey, echostr);
-        res.send(decrypted.message);
+        console.log('[WECOM] 验证成功，解密后的消息:', decrypted.message);
+        res.type('text/plain').send(decrypted.message);
     } catch (err) {
         console.error('[WECOM] GET Validation Error:', err);
         res.status(500).send('Error');
@@ -97,8 +102,8 @@ router.get('/webhook', (req, res) => {
 router.post('/webhook', async (req, res) => {
     const { msg_signature, timestamp, nonce } = req.query;
     const bodyStr = req.body;
-    const token = process.env.WECOM_TOKEN;
-    const encodingAESKey = process.env.WECOM_ENCODING_AES_KEY;
+    const token = (process.env.WECOM_TOKEN || '').trim();
+    const encodingAESKey = (process.env.WECOM_ENCODING_AES_KEY || '').trim();
 
     if (!token || !encodingAESKey) {
         return res.status(500).send('WeCom config missing');
