@@ -55,6 +55,10 @@ app.get('/api/health', (req, res, next) => {
 const aiRouter = require('./api/routes/ai.cjs');
 app.use('/', aiRouter);
 
+// 企业微信 Webhook 路由 — 保持公开（使用独立的配置验证）
+const wecomRouter = require('./api/routes/wecom.cjs');
+app.use('/api/wecom', wecomRouter);
+
 // ══════════════════════════════════════════════
 // 🔒 保护路由（需要认证）
 // ══════════════════════════════════════════════
@@ -108,6 +112,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  PUT  /api/ai/system-prompt              - 修改System Prompt`);
     console.log(`  POST /api/voice/asr                     - 语音识别(阿里云ASR)`);
     console.log(`  POST /api/siri/chat                     - Siri快捷指令对话`);
+    console.log(`  GET/POST /api/wecom/webhook             - 企微回调与消息接收（公开）`);
     console.log(`========================================`);
 
     // 启动时自动更新铜价

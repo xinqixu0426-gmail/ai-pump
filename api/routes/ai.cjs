@@ -1597,6 +1597,102 @@ router.get('/api/siri/result/:id', (req, res) => {
  *
  * Siri 自带 Apple STT，快捷指令直接发文字过来，不需要 ASR。
  *
+/**
+ * 通用 AI 对话处理函数
+ */
+async function processAiChat(text, options = {}) {
+    const { context = [], promptSuffix = '' } = options;
+    const toolResults = [];
+
+    const messages = context && context.length > 0
+        ? [...context, { role: 'user', content: text }]
+        : [{ role: 'user', content: text }];
+
+    let currentMessages = [
+        { role: 'system', content: AI_SYSTEM_PROMPT + promptSuffix },
+        ...messages
+    ];
+
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    let maxRounds = 5;
+    let done = false;
+    let finalContent = '';
+
+    // 这里由于不同工具可能需要的 view 类型不同，提供一个简单的 mapping，如果有未考虑到的暂时标为 action_result
+    const VIEW_TYPE_MAP = {
+        get_order_detail: 'order_detail',
+        generate_purchase_list: 'purchase_list'
+    };
+
+    while (!done && maxRounds-- > 0) {
+        const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model,
+                messages: currentMessages,
+                tools: AI_TOOLS,
+                stream: false
+            })
+        });
+
+        if (!aiRes.ok) {
+            const errText = await aiRes.text();
+            throw new Error(`LLM API 错误: ${aiRes.status}`);
+        }
+
+        const data = await aiRes.json();
+        if (data.error) {
+            throw new Error(data.error.message || 'API 错误');
+        }
+
+        const msg = data.choices[0].message;
+        currentMessages.push({
+            role: 'assistant',
+            content: msg.content || "",
+            tool_calls: msg.tool_calls
+        });
+
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+            for (const tc of msg.tool_calls) {
+                const funcName = tc.function.name;
+                console.log(`[AI] 调用工具: ${funcName}`);
+
+                let args = {};
+                try { args = JSON.parse(tc.function.arguments); } catch (e) { }
+
+                const result = await executeToolCall(funcName, args);
+                const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
+
+                toolResults.push({ name: funcName, view_type: viewType, result });
+
+                currentMessages.push({
+                    role: 'tool',
+                    tool_call_id: tc.id,
+                    name: funcName,
+                    content: JSON.stringify(result)
+                });
+            }
+        } else {
+            finalContent = msg.content || '';
+            done = true;
+        }
+    }
+
+    // 提取 speech：取 AI 回复的第一句话（句号或换行前）
+    const speech = finalContent
+        .split(/[。\n]/)[0]
+        .replace(/[*#`\-]/g, '')
+        .trim() || finalContent.slice(0, 100);
+
+    return { finalContent, toolResults, speech };
+}
+
+/**
  * 请求体：
  * {
  *   "text": "V750的成本是多少",
@@ -1641,90 +1737,22 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
         }
 
         // ── PumpDB 项目：本地处理 ──
-        const toolResults = [];
-
         // 为 Siri 场景增加 system prompt 后缀：要求首句输出口语化摘要
         const siriPromptSuffix = `\n\n【当前为 Siri 语音模式】\n回复规则调整：\n- 你的回复会被 Siri 朗读给用户听，所以必须口语化、简洁\n- 回复的第一句话必须是对结果的一句话总结（会被提取为 speech 字段）\n- 不要使用 markdown 格式、表格、列表符号\n- 金额直接说"xxx元"，不要用特殊符号\n- 如果有多个数据，只说最关键的2-3个数字`;
 
-        const messages = context && context.length > 0
-            ? [...context, { role: 'user', content: text }]
-            : [{ role: 'user', content: text }];
-
-        let currentMessages = [
-            { role: 'system', content: AI_SYSTEM_PROMPT + siriPromptSuffix },
-            ...messages
-        ];
-
-        const apiKey = process.env.DEEPSEEK_API_KEY;
-        const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
-        let maxRounds = 5;
-        let done = false;
         let finalContent = '';
+        let toolResults = [];
+        let speech = '';
 
-        while (!done && maxRounds-- > 0) {
-            const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model,
-                    messages: currentMessages,
-                    tools: AI_TOOLS,
-                    stream: false
-                })
-            });
-
-            if (!aiRes.ok) {
-                const errText = await aiRes.text();
-                console.error('[Siri] DeepSeek API 错误:', aiRes.status);
-                return res.json({ success: false, speech: 'AI服务暂时不可用，请稍后再试', error: `LLM API 错误: ${aiRes.status}` });
-            }
-
-            const data = await aiRes.json();
-            if (data.error) {
-                return res.json({ success: false, speech: 'AI服务出错了', error: data.error.message || 'API 错误' });
-            }
-
-            const msg = data.choices[0].message;
-            currentMessages.push({
-                role: 'assistant',
-                content: msg.content || "",
-                tool_calls: msg.tool_calls
-            });
-
-            if (msg.tool_calls && msg.tool_calls.length > 0) {
-                for (const tc of msg.tool_calls) {
-                    const funcName = tc.function.name;
-                    console.log(`[Siri] 调用工具: ${funcName}`);
-
-                    let args = {};
-                    try { args = JSON.parse(tc.function.arguments); } catch (e) { }
-
-                    const result = await executeToolCall(funcName, args);
-                    const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
-
-                    toolResults.push({ name: funcName, view_type: viewType, result });
-
-                    currentMessages.push({
-                        role: 'tool',
-                        tool_call_id: tc.id,
-                        name: funcName,
-                        content: JSON.stringify(result)
-                    });
-                }
-            } else {
-                finalContent = msg.content || '';
-                done = true;
-            }
+        try {
+            const aiData = await processAiChat(text, { context, promptSuffix: siriPromptSuffix });
+            finalContent = aiData.finalContent;
+            toolResults = aiData.toolResults;
+            speech = aiData.speech;
+        } catch (err) {
+            console.error('[Siri] DeepSeek API 错误:', err);
+            return res.json({ success: false, speech: 'AI服务暂时不可用，请稍后再试', error: err.message });
         }
-
-        // 提取 speech：取 AI 回复的第一句话（句号或换行前）
-        const speech = finalContent
-            .split(/[。\n]/)[0]
-            .replace(/[*#`\-]/g, '')
-            .trim() || finalContent.slice(0, 100);
 
         // 保存结果并生成 URL
         const resultId = crypto.randomUUID();
@@ -1751,3 +1779,4 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.loadSystemPromptFromDB = typeof loadSystemPromptFromDB === 'function' ? loadSystemPromptFromDB : () => {};
+module.exports.processAiChat = processAiChat;
