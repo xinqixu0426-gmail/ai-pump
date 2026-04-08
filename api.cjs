@@ -13,6 +13,9 @@ const authMiddleware = require('./api/authMiddleware.cjs');
 const app = express();
 const PORT = 3002;
 
+// 解决 Nginx 反向代理下 express-rate-limit 报错 (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
+
 // ── 中间件 ──
 app.use(cors({
   origin: true,           // 允许所有来源（开发环境）
