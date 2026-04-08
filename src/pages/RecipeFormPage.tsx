@@ -31,19 +31,13 @@ import {
   Cable as CableIcon,
   Inventory as TemplateIcon,
 } from '@mui/icons-material';
-import { RecipePart, TemplatePart } from '../types';
+import { RecipePart, TemplatePart, PartSelection } from '../types';
 import { createRecipe, updateRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import RecipePartRow from '../components/RecipePartRow';
 
 const COIL_API_BASE = '';
-
-interface PartSelection {
-  model: string;
-  supplier: string;
-  qty: number;
-}
 
 interface CoilCalcResult {
   spec: string;

@@ -88,8 +88,8 @@
 ```
 
 ### 环境变量
-- `ALI_ASR_APPKEY`: NLS 项目 AppKey
-- `ALI_ACCESS_KEY_ID` / `ALI_ACCESS_KEY_SECRET`: AK/SK，用于自动获取 NLS Token
+- `ALIYUN_APP_KEY`: NLS 项目 AppKey
+- `ALIYUN_AK_ID` / `ALIYUN_AK_SECRET`: AK/SK，用于自动获取 NLS Token
 
 ---
 
@@ -116,5 +116,28 @@
 
 ---
 
-*本文档为单点信息源(SSOT)，API 变更请同步更新。*
+## 七、认证系统
 
+所有业务接口（零件/配方/订单/模板/线圈/成本/AI）均受 JWT 认证保护。
+Siri/语音接口（`/api/siri/*`、`/api/voice/*`）及健康检查（`/api/health`）为公开接口。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/auth/login` | 密码验证登录，成功设置 HttpOnly Cookie |
+| POST | `/api/auth/logout` | 清除身份 Cookie |
+| GET | `/api/auth/check` | 检查当前登录状态 |
+
+### 登录请求
+```json
+{ "password": "你的访问密码" }
+```
+
+### 安全机制
+- 登录接口限流：每 IP 每分钟最多 5 次（`express-rate-limit`）
+- JWT 有效期：15 天
+- Token 存储：HttpOnly Cookie（前端 JS 无法读取）
+- 环境变量：`ACCESS_PASSWORD`（访问密码）、`JWT_SECRET`（JWT签名密钥）
+
+---
+
+*本文档为单点信息源(SSOT)，API 变更请同步更新。*

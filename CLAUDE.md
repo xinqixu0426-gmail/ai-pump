@@ -19,25 +19,26 @@
 ├── api.cjs                    # Express API 入口及路由挂载
 ├── api/                       # 后端拆分模块组
 │   ├── db.cjs                 # SQLite 初始化、表结构预检及 Row 适配器
-│   └── routes/                # 业务路由集合 (ai, coils, cost, orders, parts, recipes, templates)
+│   ├── authMiddleware.cjs     # JWT 认证中间件 (HttpOnly Cookie)
+│   └── routes/                # 业务路由集合 (auth, ai, coils, cost, orders, parts, recipes, templates)
 ├── pump.db                    # SQLite 数据库文件 (gitignore)
-├── .env                       # API 密钥配置 (gitignore, 勿提交)
+├── .env                       # API 密钥 + 认证密码配置 (gitignore, 勿提交)
 ├── index.html                 # Vite 入口 HTML
 ├── package.json               # 依赖与脚本
 │
 ├── scripts/
-│   ├── migrate-to-sqlite.cjs  # 数据迁移脚本 (JSON → SQLite)
 │   └── seed-demo-data.cjs     # 演示数据填充脚本
 │
 ├── src/                       # React Web 前端
-│   ├── main.tsx               # React 入口 + 路由分发 (/voice 独立渲染, /* 走 App 布局)
+│   ├── main.tsx               # React 入口 + AuthGuard 认证守卫 + 路由分发
 │   ├── App.tsx                # Tab 主路由: / /parts /recipes /recipe-form /orders /order-form /coils /ai-chat
 │   │
 │   ├── types/
 │   │   └── index.ts           # 统一类型定义 (Part/Recipe/Order/PumpShellTemplate)
 │   │
 │   ├── utils/
-│   │   ├── api.ts             # 后端 API 封装 (/api/parts, /api/recipes, /api/orders, /api/templates)
+│   │   ├── api.ts             # 后端 API 封装 (自动携带Cookie + 401拦截)
+│   │   ├── authUtils.ts       # 认证工具 (login/logout/checkAuth)
 │   │   ├── orderStore.ts      # 订单 CRUD + 采购汇总算法
 │   │   ├── costCalculator.ts  # 前端成本计算引擎
 │   │   ├── store.ts           # Zustand 全局状态 (Parts/Recipes/Orders/Templates + SWR 缓存)
@@ -51,11 +52,12 @@
 │   │   ├── PageHeader.tsx         # 通用页面标题组件
 │   │   ├── OrderDetailModal.tsx   # 订单详情弹窗
 │   │   ├── RecipeDetailModal.tsx  # 配方详情弹窗
-│   │   ├── PartForm.tsx           # 零件录入表单
-│   │   ├── PartList.tsx           # 零件分类列表
+│   │   ├── TemplateSection.tsx    # 泵壳模板管理区块
+│   │   ├── TemplateFormDialog.tsx  # 泵壳模板新增/编辑弹窗
 │   │   └── RecipePartRow.tsx      # 配方零件行组件
 │   │
 │   └── pages/
+│       ├── LoginPage.tsx        # 登录页 (全局暗号认证)
 │       ├── DashboardPage.tsx    # 运营看板 (KPI + Kanban + 最近动态)
 │       ├── PartsPage.tsx        # 零件管理
 │       ├── RecipesPage.tsx      # 配方列表 (含泵壳模板管理)
@@ -136,10 +138,20 @@ SQLite (pump.db) ↕ better-sqlite3 → api.cjs (3002) ↕ /api/* → React (300
 
 > 详细接口文档见 `API_DOCUMENTATION.md`
 
+### 认证系统
+- **全局暗号模式**：`.env` 中配置 `ACCESS_PASSWORD`，前端登录页输入密码即可
+- **三道安全防线**：
+  1. 密码存储在 `.env` 环境变量（不入库）
+  2. 登录接口 `express-rate-limit` 限流（1分钟最多5次）
+  3. JWT Token 存储在 HttpOnly Cookie 中（前端JS无法读取）
+- **JWT 有效期**：15天免重新登录
+- **公开接口**：`/api/auth/*`、`/api/health`、Siri/语音接口不受认证保护
+
 ## 开发避坑
 
 1. **前端不可直连数据库**：所有数据通过 `/api/*` 后端代理。
 2. **Zustand 缓存刷新**：CRUD 后必须 `fetchXxx(true)` 强制刷新。
 3. **MUI DOM 嵌套**：`<Chip>` 不能放在 `<Typography>`(p标签) 内，加 `component="div"`。
 4. **设计 Token**：新增颜色/渐变优先添加到 `theme.ts`，避免硬编码 hex。
-5. **`.env` 不提交**：含 API 密钥，已在 `.gitignore` 中。
+5. **`.env` 不提交**：含 API 密钥和访问密码，已在 `.gitignore` 中。
+6. **API 请求必须携带 Cookie**：`proxyRequest` 已全局设置 `credentials: 'include'`，新增 fetch 调用时注意保持一致。

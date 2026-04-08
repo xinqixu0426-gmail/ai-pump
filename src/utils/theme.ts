@@ -129,11 +129,6 @@ export const sxWarningPanel = {
 
 // ─── 工具函数 ────────────────────────────────────────
 
-/** 根据收益正负返回绿/红 */
-export function profitColor(value: number): string {
-  return value >= 0 ? colors.green.text : colors.red.text;
-}
-
 /** 根据成本变动返回颜色 */
 export function costDiffColor(diff: number): string {
   return diff > 0 ? colors.red.dark : colors.green.dark;
