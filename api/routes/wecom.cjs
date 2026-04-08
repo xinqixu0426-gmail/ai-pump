@@ -82,9 +82,9 @@ async function sendWecomMessage(touser, finalContent, speech, toolResults) {
                 sub_title_text: finalContent ? finalContent.substring(0, 500) : "已完成操作",
                 horizontal_content_list: horizontalList,
                 jump_list: [
-                    { type: 1, title: "查看系统", url: "http://pump.test.com" } // 此URL后续可配置
+                    { type: 1, title: "查看系统", url: "http://118.31.32.227" } 
                 ],
-                card_action: { type: 1, url: "http://pump.test.com" }
+                card_action: { type: 1, url: "http://118.31.32.227" }
             }
         };
 
