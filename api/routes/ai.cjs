@@ -522,7 +522,7 @@ async function executeToolCall(toolName, args) {
     // 内部网络获取助手，注入系统秘钥绕过鉴权锁
     const internalFetch = (url, options = {}) => {
         const headers = options.headers || {};
-        headers['x-internal-secret'] = process.env.JWT_SECRET;
+        headers['x-internal-secret'] = 'pump-internal-bypass-very-secret';
         return fetch(`http://localhost:${PORT}${url}`, { ...options, headers });
     };
 
