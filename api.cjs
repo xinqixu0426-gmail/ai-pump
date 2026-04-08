@@ -6,18 +6,70 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+const authMiddleware = require('./api/authMiddleware.cjs');
 
 const app = express();
 const PORT = 3002;
 
 // ── 中间件 ──
-app.use(cors());
+app.use(cors({
+  origin: true,           // 允许所有来源（开发环境）
+  credentials: true,      // 允许携带 Cookie
+}));
 app.use(express.json());
+app.use(cookieParser());
 
-// ── 挂载路由模块 ──
+// ── 登录接口限流（防暴力破解） ──
+const loginLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,   // 1 分钟窗口
+  max: 5,                     // 每个 IP 最多 5 次
+  message: { success: false, error: '登录尝试过于频繁，请 1 分钟后再试' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ══════════════════════════════════════════════
+// ✅ 公开路由（不需要认证）
+// ══════════════════════════════════════════════
+
+// 认证相关路由（login 接口附加限流中间件）
+const authRouter = require('./api/routes/auth.cjs');
+app.use('/api/auth', (req, res, next) => {
+  if (req.path === '/login' && req.method === 'POST') {
+    return loginLimiter(req, res, next);
+  }
+  next();
+}, authRouter);
+
+// 健康检查保持公开（方便监控）
+const costRouter = require('./api/routes/cost.cjs');
+app.get('/api/health', (req, res, next) => {
+  // 直接转发到 cost 路由中的 health handler
+  // 由于 cost 路由挂在 /api 上，先检查是否有 health 处理
+  next();
+});
+
+// AI/Siri/Voice 路由 — 保持公开（使用独立的 SIRI_API_TOKEN 验证）
+const aiRouter = require('./api/routes/ai.cjs');
+app.use('/', aiRouter);
+
+// ══════════════════════════════════════════════
+// 🔒 保护路由（需要认证）
+// ══════════════════════════════════════════════
+
+// 在此之后的所有 /api 路由都需要通过 JWT 验证
+app.use('/api', (req, res, next) => {
+  // 放行已经处理过的公开路径
+  if (req.path.startsWith('/auth')) return next();
+  if (req.path === '/health') return next();
+  // 其余所有接口需要认证
+  authMiddleware(req, res, next);
+});
+
 // 注意：cost 路由包含 /api/health, /api/cost/*, /api/copper-price/*
 // 所有路由自带 /api/ 前缀，故挂到根路径
-const costRouter = require('./api/routes/cost.cjs');
 app.use('/api', costRouter);
 app.use('/api/parts', require('./api/routes/parts.cjs'));
 app.use('/api/recipes', require('./api/routes/recipes.cjs'));
@@ -25,18 +77,19 @@ app.use('/api/templates', require('./api/routes/templates.cjs'));
 app.use('/api/orders', require('./api/routes/orders.cjs'));
 app.use('/api/coils', require('./api/routes/coils.cjs'));
 
-// AI/Siri 路由自带完整路径（/api/ai/*, /api/voice/*, /api/siri/*, /siri-result）
-const aiRouter = require('./api/routes/ai.cjs');
-app.use('/', aiRouter);
-
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
     console.log(`水泵BOM成本查询API已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
     console.log(`========================================`);
-    console.log(`可用端点:`);
-    console.log(`  GET  /api/health                        - 健康检查`);
+    console.log(`🔒 认证系统已启用`);
+    console.log(`   登录接口: POST /api/auth/login`);
+    console.log(`   登出接口: POST /api/auth/logout`);
+    console.log(`   状态检查: GET  /api/auth/check`);
+    console.log(`========================================`);
+    console.log(`可用端点:（需认证）`);
+    console.log(`  GET  /api/health                        - 健康检查（公开）`);
     console.log(`  POST /api/cost/calculate                - 计算成本（传parts数组）`);
     console.log(`  GET  /api/cost/recipe/:id               - 按配方ID查询成本`);
     console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);

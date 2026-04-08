@@ -12,11 +12,18 @@ import {
 async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...options,
+    credentials: 'include', // 自动携带 HttpOnly Cookie
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     },
   });
+
+  // 全局 401 拦截：未授权时跳转登录页
+  if (response.status === 401) {
+    window.location.href = '/login';
+    throw new Error('未授权，跳转登录页');
+  }
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
