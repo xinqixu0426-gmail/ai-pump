@@ -519,20 +519,27 @@ async function loadSystemPromptFromDB() {
  * AI 工具执行器
  */
 async function executeToolCall(toolName, args) {
+    // 内部网络获取助手，注入系统秘钥绕过鉴权锁
+    const internalFetch = (url, options = {}) => {
+        const headers = options.headers || {};
+        headers['x-internal-secret'] = process.env.JWT_SECRET;
+        return fetch(`http://localhost:${PORT}${url}`, { ...options, headers });
+    };
+
     try {
         switch (toolName) {
             case 'query_recipe_cost_by_name': {
-                const response = await fetch(`http://localhost:${PORT}/api/cost/recipe/by-name?name=${encodeURIComponent(args.name)}`);
+                const response = await internalFetch(`/api/cost/recipe/by-name?name=${encodeURIComponent(args.name)}`);
                 return await response.json();
             }
 
             case 'query_recipe_cost_by_id': {
-                const response = await fetch(`http://localhost:${PORT}/api/cost/recipe/${args.id}`);
+                const response = await internalFetch(`/api/cost/recipe/${args.id}`);
                 return await response.json();
             }
 
             case 'full_calculate': {
-                const response = await fetch(`http://localhost:${PORT}/api/cost/full-calculate`, {
+                const response = await internalFetch(`/api/cost/full-calculate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(args)
@@ -541,12 +548,12 @@ async function executeToolCall(toolName, args) {
             }
 
             case 'get_copper_price': {
-                const response = await fetch(`http://localhost:${PORT}/api/copper-price`);
+                const response = await internalFetch(`/api/copper-price`);
                 return await response.json();
             }
 
             case 'calculate_coil_cost': {
-                const response = await fetch(`http://localhost:${PORT}/api/coils/calculate`, {
+                const response = await internalFetch(`/api/coils/calculate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ spec: args.spec, sheets: args.sheets, wireWeight: args.wireWeight || null })
@@ -592,7 +599,7 @@ async function executeToolCall(toolName, args) {
             }
 
             case 'dynamic_config_cost': {
-                const response = await fetch(`http://localhost:${PORT}/api/cost/dynamic-config`, {
+                const response = await internalFetch(`/api/cost/dynamic-config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(args)

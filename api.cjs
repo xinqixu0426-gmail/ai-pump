@@ -71,6 +71,10 @@ app.use('/api', (req, res, next) => {
   // 放行已经处理过的公开路径
   if (req.path.startsWith('/auth')) return next();
   if (req.path === '/health') return next();
+  // 放行内部自己调用的网络请求
+  if (req.headers['x-internal-secret'] && req.headers['x-internal-secret'] === process.env.JWT_SECRET) {
+      return next();
+  }
   // 其余所有接口需要认证
   authMiddleware(req, res, next);
 });
