@@ -33,7 +33,7 @@ async function sendWecomMessage(touser, finalContent, speech, toolResults) {
         
         let horizontalList = [];
         if (toolResults && toolResults.length > 0) {
-            horizontalList.push({ type: 1, keyname: "调用工具", value: toolResults.map(t => t.name).join(', ') });
+            horizontalList.push({ keyname: "调用工具", value: toolResults.map(t => t.name).join(', ') });
         }
 
         const payload = {
