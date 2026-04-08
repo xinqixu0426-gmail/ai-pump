@@ -1601,7 +1601,7 @@ router.get('/api/siri/result/:id', (req, res) => {
  * 通用 AI 对话处理函数
  */
 async function processAiChat(text, options = {}) {
-    const { context = [], promptSuffix = '' } = options;
+    const { context = [], promptSuffix = '', onToolCall } = options;
     const toolResults = [];
 
     const messages = context && context.length > 0
@@ -1661,6 +1661,11 @@ async function processAiChat(text, options = {}) {
             for (const tc of msg.tool_calls) {
                 const funcName = tc.function.name;
                 console.log(`[AI] 调用工具: ${funcName}`);
+
+                if (typeof onToolCall === 'function') {
+                    // 异步触发回调，不阻塞主流程
+                    onToolCall(funcName).catch(e => console.error('[AI] onToolCall 回调异常:', e.message));
+                }
 
                 let args = {};
                 try { args = JSON.parse(tc.function.arguments); } catch (e) { }

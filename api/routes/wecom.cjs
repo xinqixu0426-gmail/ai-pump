@@ -25,6 +25,41 @@ async function getWecomToken() {
     }
 }
 
+// 工具调用的友好中文名称映射
+const TOOL_NAMES_CN = {
+    'query_recipe_cost_by_name': '精准计算配方成本...',
+    'query_recipe_cost_by_id': '按标号测算成本...',
+    'full_calculate': '启动一站式BOM综合计算...',
+    'get_recent_orders': '调阅最新订单记录...',
+    'generate_purchase_list': '汇总并生成采购清单...',
+    'create_order': '正在创建新订单...',
+    'get_copper_price': '获取实时铜价...',
+    'compare_recipes': '对比配方成本模型...',
+    'calculate_coil_cost': '计算线圈转子成本...',
+    'dynamic_config_cost': '动态核算电缆浮球...'
+};
+
+// 异步发送纯文本中间状态
+async function sendWecomTextMessage(touser, text) {
+    try {
+        const token = await getWecomToken();
+        const url = `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}`;
+        const payload = {
+            touser: touser,
+            agentid: process.env.WECOM_AGENT_ID,
+            msgtype: "text",
+            text: { content: text }
+        };
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch(err) {
+        console.error('[WECOM] 发送过程文本失败:', err);
+    }
+}
+
 // 异步发送企微消息
 async function sendWecomMessage(touser, finalContent, speech, toolResults) {
     try {
@@ -131,8 +166,16 @@ router.post('/webhook', async (req, res) => {
         if (content) {
             // 异步处理 AI
             (async () => {
+                // 先告诉用户已经收到了
+                await sendWecomTextMessage(fromUser, '✨ AI 已收到，正在分析意图...');
                 try {
-                    const aiData = await processAiChat(content, { promptSuffix: '\n\n【企微环境】回答直接给最核心部分，不要包含寒暄，结果会在卡片展示。' });
+                    const aiData = await processAiChat(content, { 
+                        promptSuffix: '\n\n【企微环境】回答直接给最核心部分，不要包含寒暄，结果会在卡片展示。',
+                        onToolCall: async (funcName) => {
+                            const cnName = TOOL_NAMES_CN[funcName] || `执行底层动作: ${funcName}...`;
+                            await sendWecomTextMessage(fromUser, `🤖 ${cnName}`);
+                        }
+                    });
                     await sendWecomMessage(fromUser, aiData.finalContent, aiData.speech, aiData.toolResults);
                 } catch (e) {
                     console.error('[WECOM] AI Chat failed:', e);
