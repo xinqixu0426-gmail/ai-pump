@@ -11,3 +11,8 @@ pump.db-shm
 pump.db.bak.*
 api.cjs.nocodb-backup
 scripts/db-backup/
+
+__pycache__/
+public/drawings/output_*.pdf
+freecad/work_*.FCStd
+freecad/temp_*.svg
