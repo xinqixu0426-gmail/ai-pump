@@ -24,6 +24,10 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// 静态文件服务 — 转子出图 PDF 下载
+const path = require('path');
+app.use('/drawings', express.static(path.join(__dirname, 'public/drawings')));
+
 // ── 登录接口限流（防暴力破解） ──
 const loginLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,   // 1 分钟窗口
@@ -87,6 +91,7 @@ app.use('/api/recipes', require('./api/routes/recipes.cjs'));
 app.use('/api/templates', require('./api/routes/templates.cjs'));
 app.use('/api/orders', require('./api/routes/orders.cjs'));
 app.use('/api/coils', require('./api/routes/coils.cjs'));
+app.use('/api/rotor', require('./api/routes/rotor.cjs'));
 
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {

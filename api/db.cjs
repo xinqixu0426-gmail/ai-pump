@@ -73,6 +73,19 @@ db.exec(`
         created_at TEXT,
         updated_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS rotor_drawings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id TEXT NOT NULL UNIQUE,
+        nl_input TEXT DEFAULT '',
+        params_json TEXT DEFAULT '{}',
+        fc_params_json TEXT DEFAULT '{}',
+        status TEXT DEFAULT 'processing',
+        file_url TEXT DEFAULT '',
+        error TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT
+    );
 `);
 
 // recipes 表新增结构化列（幂等 ALTER）

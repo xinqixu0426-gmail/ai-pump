@@ -16,6 +16,7 @@ import {
   ShoppingCart as OrderIcon,
   Cable as CableIcon,
   SmartToy as AIIcon,
+  Engineering as RotorIcon,
 } from '@mui/icons-material';
 import DashboardPage from './pages/DashboardPage';
 import PartsPage from './pages/PartsPage';
@@ -25,6 +26,7 @@ import OrdersPage from './pages/OrdersPage';
 import OrderFormPage from './pages/OrderFormPage';
 import CoilRotorPage from './pages/CoilRotorPage';
 import AIChatPage from './pages/AIChatPage';
+import RotorDrawingPage from './pages/RotorDrawingPage';
 
 
 function App() {
@@ -39,6 +41,7 @@ function App() {
     if (path === '/orders' || path.startsWith('/order-form')) return 3;
     if (path === '/coils') return 4;
     if (path === '/ai') return 5;
+    if (path === '/rotor') return 6;
     return 0;
   };
 
@@ -52,6 +55,7 @@ function App() {
       case 3: navigate('/orders'); break;
       case 4: navigate('/coils'); break;
       case 5: navigate('/ai'); break;
+      case 6: navigate('/rotor'); break;
     }
   };
 
@@ -95,6 +99,7 @@ function App() {
           <Tab icon={<OrderIcon />} iconPosition="start" label="订单管理" />
           <Tab icon={<CableIcon />} iconPosition="start" label="线圈转子" />
           <Tab icon={<AIIcon />} iconPosition="start" label="AI助手" />
+          <Tab icon={<RotorIcon />} iconPosition="start" label="转子出图" />
         </Tabs>
       </AppBar>
 
@@ -110,6 +115,7 @@ function App() {
           <Route path="/order-form/:id" element={<OrderFormPage />} />
           <Route path="/coils" element={<CoilRotorPage />} />
           <Route path="/ai" element={<AIChatPage />} />
+          <Route path="/rotor" element={<RotorDrawingPage />} />
         </Routes>
       </Container>
     </Box>
