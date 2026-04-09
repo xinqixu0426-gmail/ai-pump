@@ -39,8 +39,8 @@ const SYSTEM_PROMPT = '你是一个专业的工业图纸参数提取 AI。请仔
     + 'AI的JSON返回：\n'
     + '{"upper_bearing":"6202","lower_bearing":"6203","piece_count":160,"rotor_dia":null,"bearing_span":150,"stack_offset":30,"oil_seal_dia":null,"impeller_dia":null,"impeller_span":null,"impeller_depth":null,"thread_length":null,"thread_dia":null,"reply":"好的，正在为您生成转子图纸。"}';
 
-// ── DeepSeek 调用 ──
-function callDeepSeek(messages) {
+// ── DeepSeek 调用（带超时+重试） ──
+function callDeepSeek(messages, retries = 2) {
     return new Promise((resolve, reject) => {
         const payload = JSON.stringify({
             model: 'deepseek-chat',
@@ -54,6 +54,7 @@ function callDeepSeek(messages) {
             port: 443,
             path: '/v1/chat/completions',
             method: 'POST',
+            timeout: 15000,
             headers: {
                 'Authorization': 'Bearer ' + DEEPSEEK_API_KEY,
                 'Content-Type': 'application/json',
@@ -65,12 +66,23 @@ function callDeepSeek(messages) {
             res.on('end', () => {
                 if (res.statusCode >= 200 && res.statusCode < 300) {
                     try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+                } else if (res.statusCode >= 500 && retries > 0) {
+                    console.warn('[Rotor] DeepSeek 5xx, retrying... remaining=' + retries);
+                    setTimeout(() => callDeepSeek(messages, retries - 1).then(resolve, reject), 1000);
                 } else {
                     reject(new Error('DeepSeek API Error: ' + res.statusCode + ' ' + data));
                 }
             });
         });
-        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('DeepSeek request timeout (15s)')); });
+        req.on('error', (e) => {
+            if (retries > 0) {
+                console.warn('[Rotor] DeepSeek network error, retrying... remaining=' + retries);
+                setTimeout(() => callDeepSeek(messages, retries - 1).then(resolve, reject), 1000);
+            } else {
+                reject(e);
+            }
+        });
         req.write(payload);
         req.end();
     });
@@ -78,6 +90,8 @@ function callDeepSeek(messages) {
 
 // ── 异步任务管理 ──
 const activeJobs = new Map();
+let runningJobs = 0;
+const MAX_CONCURRENT_FREECAD = 2;
 
 // 2分钟后自动清理已完成任务
 setInterval(() => {
@@ -119,24 +133,24 @@ router.post('/chat', async (req, res) => {
 
         const aiReply = parsed.reply || '好的，正在为您处理';
 
-        // 2. 正则兜底
-        const mtStack = message.match(/定位\s*(\d+)/);
+        // 2. 正则兜底（支持小数）
+        const mtStack = message.match(/定位\s*(\d+\.?\d*)/);
         if (mtStack) {
-            parsed.stack_offset = parseInt(mtStack[1]);
-            if (parsed.rotor_dia === parsed.stack_offset) parsed.rotor_dia = null;
+            parsed.stack_offset = parseFloat(mtStack[1]);
+            if (parsed.rotor_dia === parsed.stack_offset && !message.match(/直径/)) parsed.rotor_dia = null;
         }
-        const mtImpSpan = message.match(/叶轮开档\s*(\d+)/);
+        const mtImpSpan = message.match(/叶轮开档\s*(\d+\.?\d*)/);
         if (mtImpSpan) {
-            parsed.impeller_span = parseInt(mtImpSpan[1]);
-            if (parsed.impeller_dia === parsed.impeller_span) parsed.impeller_dia = null;
+            parsed.impeller_span = parseFloat(mtImpSpan[1]);
+            if (parsed.impeller_dia === parsed.impeller_span && !message.match(/叶轮孔径|叶轮直径/)) parsed.impeller_dia = null;
         }
-        const mtImpDepth = message.match(/叶轮厚度\s*(\d+)/);
+        const mtImpDepth = message.match(/叶轮厚度\s*(\d+\.?\d*)/);
         if (mtImpDepth) {
-            parsed.impeller_depth = parseInt(mtImpDepth[1]);
-            if (parsed.impeller_dia === parsed.impeller_depth) parsed.impeller_dia = null;
+            parsed.impeller_depth = parseFloat(mtImpDepth[1]);
+            if (parsed.impeller_dia === parsed.impeller_depth && !message.match(/叶轮孔径|叶轮直径/)) parsed.impeller_dia = null;
         }
-        const mtRotorDia = message.match(/转子直径\s*(\d+)/);
-        if (mtRotorDia) parsed.rotor_dia = parseInt(mtRotorDia[1]);
+        const mtRotorDia = message.match(/转子直径\s*(\d+\.?\d*)/);
+        if (mtRotorDia) parsed.rotor_dia = parseFloat(mtRotorDia[1]);
 
         // 3. 轴承查表 + 组装 FreeCAD 参数
         const fcParams = {};
@@ -164,6 +178,18 @@ router.post('/chat', async (req, res) => {
         // impeller_span 在模板里的 alias 叫 bearing_to_impeller
         if (parsed.impeller_span != null) fcParams.bearing_to_impeller = parsed.impeller_span;
 
+        // 派生参数：_core_length / _total_length（worker.py 的 dim_map 覆盖用）
+        if (fcParams.piece_count) {
+            fcParams._core_length = fcParams.piece_count * 0.5;
+        }
+        // _total_length = 上轴承深度 + 开档 + 叶轮开档 + 叶轮厚度 + 螺纹长度
+        const totalLen = (fcParams.upper_bearing_depth || 0)
+            + (fcParams.bearing_span || 0)
+            + (fcParams.bearing_to_impeller || 0)
+            + (fcParams.impeller_depth || 0)
+            + (fcParams.thread_length || 0);
+        if (totalLen > 0) fcParams._total_length = totalLen;
+
         if (Object.keys(fcParams).length === 0) {
             return res.json({ status: 'need_params', message: aiReply, extracted: parsed });
         }
@@ -187,10 +213,15 @@ router.post('/chat', async (req, res) => {
             }
         }
 
-        // 5. 后台出图
+        // 5. 后台出图（并发限制）
+        if (runningJobs >= MAX_CONCURRENT_FREECAD) {
+            return res.status(429).json({ status: 'error', message: '出图队列已满（最多 ' + MAX_CONCURRENT_FREECAD + ' 个并发），请稍后再试' });
+        }
+
         const jobId = crypto.randomUUID();
         const outputFile = 'output_' + jobId + '.pdf';
         activeJobs.set(jobId, { status: 'processing' });
+        runningJobs++;
 
         // 保存出图记录到数据库
         const now = new Date().toISOString();
@@ -207,13 +238,14 @@ router.post('/chat', async (req, res) => {
         fcParams._jobId = jobId;
         const args = [WORKER_SCRIPT, '--pass', JSON.stringify(fcParams)];
         execFile(FREECAD_BIN, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180000 }, (error, stdout, stderr) => {
+            runningJobs = Math.max(0, runningJobs - 1);
             console.log('[Rotor] FreeCAD stdout:\n' + stdout);
             if (stderr) console.error('[Rotor] FreeCAD stderr:\n' + stderr);
 
             if (error) {
                 console.error('[Rotor] 💥 渲染异常:', error.message);
                 activeJobs.set(jobId, { status: 'failed', error: error.message, doneAt: Date.now() });
-                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(error.message, new Date().toISOString(), jobId); } catch(_){}
+                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(error.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
                 return;
             }
 
@@ -234,14 +266,14 @@ router.post('/chat', async (req, res) => {
                     const fileUrl = '/drawings/' + outputFile;
                     console.log('[Rotor] ✅ PDF 已移至: ' + destPdf);
                     activeJobs.set(jobId, { status: 'success', fileUrl, doneAt: Date.now() });
-                    try { db.prepare(`UPDATE rotor_drawings SET status='success', file_url=?, updated_at=? WHERE job_id=?`).run(fileUrl, new Date().toISOString(), jobId); } catch(_){}
+                    try { db.prepare(`UPDATE rotor_drawings SET status='success', file_url=?, updated_at=? WHERE job_id=?`).run(fileUrl, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
                 } else {
-                    activeJobs.set(jobId, { status: 'failed', error: '未找到 output_drawing.pdf', doneAt: Date.now() });
-                    try { db.prepare(`UPDATE rotor_drawings SET status='failed', error='未找到 output_drawing.pdf', updated_at=? WHERE job_id=?`).run(new Date().toISOString(), jobId); } catch(_){}
+                    activeJobs.set(jobId, { status: 'failed', error: '未找到 output PDF', doneAt: Date.now() });
+                    try { db.prepare(`UPDATE rotor_drawings SET status='failed', error='未找到 output PDF', updated_at=? WHERE job_id=?`).run(new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
                 }
             } catch (mvErr) {
                 activeJobs.set(jobId, { status: 'failed', error: '移动PDF失败: ' + mvErr.message, doneAt: Date.now() });
-                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(mvErr.message, new Date().toISOString(), jobId); } catch(_){}
+                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(mvErr.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             }
         });
 

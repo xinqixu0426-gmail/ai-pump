@@ -85,7 +85,10 @@ try:
     if not sheet:
         raise ValueError("文档中找不到名为 'Spreadsheet' 的对象！")
 
+    # 注入用户参数到 Spreadsheet（跳过 _ 前缀的派生参数）
     for key, val in params.items():
+        if key.startswith("_"):
+            continue
         try:
             if key == "piece_count":
                 sheet.set(key, str(val))
@@ -116,12 +119,25 @@ try:
         "Dimension013": "_total_length",
     }
     
-    # Pre-calculate derived variables if piece_count exists
+    # Pre-calculate derived variables
     if "piece_count" in params:
         try:
             params["_core_length"] = float(params["piece_count"]) * 0.5
-        except:
+        except (ValueError, TypeError):
             pass
+
+    # _total_length = 上轴承深度 + 开档 + 叶轮开档 + 叶轮厚度 + 螺纹长度
+    try:
+        upper_d = float(params.get("upper_bearing_depth", 0) or 0)
+        b_span  = float(params.get("bearing_span", 0) or 0)
+        imp_sp  = float(params.get("bearing_to_impeller", 0) or 0)
+        imp_d   = float(params.get("impeller_depth", 0) or 0)
+        thr_l   = float(params.get("thread_length", 0) or 0)
+        total   = upper_d + b_span + imp_sp + imp_d + thr_l
+        if total > 0:
+            params["_total_length"] = total
+    except (ValueError, TypeError):
+        pass
 
     print(f"[Worker] [{elapsed()}] 开始替换图纸维度数字...")
     for obj in doc.Objects:
@@ -179,6 +195,7 @@ try:
     doc.recompute()
     for _ in range(5):
         FreeCADGui.updateGui()
+        time.sleep(0.1)
     print(f"[Worker] [{elapsed()}] TechDraw 刷新完毕")
 
     # ============================================================
@@ -236,13 +253,7 @@ except Exception as e:
 finally:
     print(f"[Worker] [{elapsed()}] 最终退出码: {exit_code}")
     try:
-        from PySide2.QtWidgets import QApplication
-        from PySide2.QtCore import QTimer
-        app = QApplication.instance()
-        if app:
-            QTimer.singleShot(200, lambda: os._exit(exit_code))
-            FreeCADGui.updateGui()
-            time.sleep(0.5)
+        FreeCADGui.updateGui()
     except Exception:
         pass
     print(f"[Worker] [{elapsed()}] 💥 os._exit({exit_code})")

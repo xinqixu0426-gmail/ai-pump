@@ -72,12 +72,14 @@ export default function RotorDrawingPage() {
   // ── 轮询出图状态 ──
   useEffect(() => {
     if (!jobId) return;
+    let cancelled = false;
     setJobStatus({ status: 'processing' });
 
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/api/rotor/status/${jobId}`, { credentials: 'include' });
         const data: JobStatus = await res.json();
+        if (cancelled) return;
         setJobStatus(data);
         if (data.status === 'success' || data.status === 'failed') {
           if (pollRef.current) clearInterval(pollRef.current);
@@ -88,8 +90,8 @@ export default function RotorDrawingPage() {
       }
     }, 2000);
 
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [jobId]);
+    return () => { cancelled = true; if (pollRef.current) clearInterval(pollRef.current); };
+  }, [jobId, loadHistory]);
 
   const submitChat = useCallback(async (message: string, force = false) => {
     setError('');
@@ -126,7 +128,7 @@ export default function RotorDrawingPage() {
     } finally {
       setNlLoading(false);
     }
-  }, []);
+  }, [loadHistory]);
 
   const handleNlSubmit = () => {
     if (!nlInput.trim()) return;
