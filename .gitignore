@@ -19,4 +19,5 @@ freecad/temp_*.svg
 freecad/output_*.svg
 freecad/output_*.pdf
 *.bak
+*.FCBak
 Document.xml

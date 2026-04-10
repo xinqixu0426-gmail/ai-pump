@@ -107,20 +107,21 @@ try:
     # 参数映射顺序 — 与 FreeCAD rotor_template.FCStd 中 Dimension 的创建顺序一致
     # ⚠️ 如果更换模板或重新标注，需重新校准此顺序（参考 freecad/DIM_MAPPING.md）
     dim_param_order = [
-        "_core_length",           # Dim014 — 铁芯长度 (片数×0.5)
-        "stack_offset",           # Dim015 — 定位/叠片定位
-        "lower_bearing_depth",    # Dim016 — 下轴承深度
-        "upper_bearing_depth",    # Dim017 — 上轴承深度
-        "upper_bearing_dia",      # Dim018 — 上轴承直径
-        "bearing_span",           # Dim019 — 开档/轴承间距
-        "bearing_to_impeller",    # Dim020 — 叶轮开档
-        "impeller_depth",         # Dim021 — 叶轮厚度
-        "thread_length",          # Dim022 — 螺纹长度
-        "lower_bearing_dia",      # Dim023 — 下轴承直径
-        "oil_seal_dia",           # Dim024 — 油封直径
-        "impeller_dia",           # Dim025 — 叶轮直径
-        "thread_dia",             # Dim026 — 螺纹直径
-        "_total_length",          # Dim027 — 总长度 (派生)
+        "rotor_dia",              # Dimension  — 转子直径 (新增)
+        "_core_length",           # Dimension014 — 铁芯长度 (片数×0.5)
+        "stack_offset",           # Dimension015 — 定位/叠片定位
+        "lower_bearing_depth",    # Dimension016 — 下轴承深度
+        "upper_bearing_depth",    # Dimension017 — 上轴承深度
+        "upper_bearing_dia",      # Dimension018 — 上轴承直径
+        "bearing_span",           # Dimension019 — 开档/轴承间距
+        "bearing_to_impeller",    # Dimension020 — 叶轮开档
+        "impeller_depth",         # Dimension021 — 叶轮厚度
+        "thread_length",          # Dimension022 — 螺纹长度
+        "lower_bearing_dia",      # Dimension023 — 下轴承直径
+        "oil_seal_dia",           # Dimension024 — 油封直径
+        "impeller_dia",           # Dimension025 — 叶轮直径
+        "thread_dia",             # Dimension026 — 螺纹直径
+        "_total_length",          # Dimension027 — 总长度 (派生)
     ]
 
     # 自动检测所有 Dimension 对象，按名字排序后顺序绑定

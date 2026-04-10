@@ -1,6 +1,6 @@
 # FreeCAD TechDraw 尺寸标注映射文档
 
-> 最后更新: 2026-04-10  
+> 最后更新: 2026-04-11  
 > 模板文件: `freecad/rotor_template.FCStd`  
 > 使用脚本: `freecad/worker.py`
 
@@ -16,20 +16,41 @@
 
 | 序号 | FreeCAD 对象名 | 参数 Key                | 中文含义       | 标注类型   |
 |------|---------------|------------------------|---------------|-----------|
-| 0    | Dimension014  | `_core_length`         | 铁芯长度（片数×0.5） | DistanceX |
-| 1    | Dimension015  | `stack_offset`         | 定位/叠片定位   | DistanceX |
-| 2    | Dimension016  | `lower_bearing_depth`  | 下轴承深度     | DistanceX |
-| 3    | Dimension017  | `upper_bearing_depth`  | 上轴承深度     | DistanceX |
-| 4    | Dimension018  | `upper_bearing_dia`    | 上轴承直径     | DistanceY |
-| 5    | Dimension019  | `bearing_span`         | 开档/轴承间距   | Distance  |
-| 6    | Dimension020  | `bearing_to_impeller`  | 叶轮开档       | Distance  |
-| 7    | Dimension021  | `impeller_depth`       | 叶轮厚度       | DistanceX |
-| 8    | Dimension022  | `thread_length`        | 螺纹长度       | DistanceX |
-| 9    | Dimension023  | `lower_bearing_dia`    | 下轴承直径     | Distance  |
-| 10   | Dimension024  | `oil_seal_dia`         | 油封直径       | Distance  |
-| 11   | Dimension025  | `impeller_dia`         | 叶轮直径       | Distance  |
-| 12   | Dimension026  | `thread_dia`           | 螺纹直径       | Distance  |
-| 13   | Dimension027  | `_total_length`        | 总长度（派生）   | Distance  |
+| 0    | Dimension     | `rotor_dia`            | 转子直径       | Distance  |
+| 1    | Dimension014  | `_core_length`         | 铁芯长度（片数×0.5） | DistanceX |
+| 2    | Dimension015  | `stack_offset`         | 定位/叠片定位   | DistanceX |
+| 3    | Dimension016  | `lower_bearing_depth`  | 下轴承深度     | DistanceX |
+| 4    | Dimension017  | `upper_bearing_depth`  | 上轴承深度     | DistanceX |
+| 5    | Dimension018  | `upper_bearing_dia`    | 上轴承直径     | DistanceY |
+| 6    | Dimension019  | `bearing_span`         | 开档/轴承间距   | Distance  |
+| 7    | Dimension020  | `bearing_to_impeller`  | 叶轮开档       | Distance  |
+| 8    | Dimension021  | `impeller_depth`       | 叶轮厚度       | DistanceX |
+| 9    | Dimension022  | `thread_length`        | 螺纹长度       | DistanceX |
+| 10   | Dimension023  | `lower_bearing_dia`    | 下轴承直径     | Distance  |
+| 11   | Dimension024  | `oil_seal_dia`         | 油封直径       | Distance  |
+| 12   | Dimension025  | `impeller_dia`         | 叶轮直径       | Distance  |
+| 13   | Dimension026  | `thread_dia`           | 螺纹直径       | Distance  |
+| 14   | Dimension027  | `_total_length`        | 总长度（派生）   | Distance  |
+
+## 定子规格 → 转子直径映射
+
+前端 `RotorDrawingPage.tsx` 中 `STATOR_TO_ROTOR` 表（输入 `12-160` 自动展开为 `转子直径61，转子片数160片`）：
+
+| 定子规格 | 转子直径 (mm) |
+|---------|-------------|
+| 12      | 61          |
+| 13.5    | 67          |
+
+## 泵壳模板联动
+
+选择泵壳模板后，前端自动提取以下参数填入转子出图表单：
+
+| 模板零件名 | 提取规则 | 映射目标 |
+|-----------|---------|---------|
+| 花板轴承   | model 补 `6` 前缀 | 上轴承 |
+| 油缸轴承   | model 补 `6` 前缀 | 下轴承 |
+| 机械油封   | model 按 `*` 分隔取第一段 | 油封孔径 |
+| 泵壳（不锈钢） | `barrelLength - openFactor` | 开档 |
 
 ## 派生参数
 
@@ -64,7 +85,8 @@
 1. 用已知参数发起一次出图请求
 2. 查看终端日志中的映射表输出：
    ```
-   [Worker] 自动检测到 14 个 Dimension 对象, 映射表:
+   [Worker] 自动检测到 15 个 Dimension 对象, 映射表:
+     Dimension -> rotor_dia
      Dimension014 -> _core_length
      Dimension015 -> stack_offset
      ...

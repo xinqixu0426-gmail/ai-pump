@@ -1,22 +1,25 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Box, Paper, Typography, TextField, Button, Grid,
   Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   CircularProgress, Chip, IconButton, Tooltip,
-  Table, TableHead, TableBody, TableRow, TableCell, TableContainer
+  Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
+  LinearProgress, MenuItem, Autocomplete
 } from '@mui/material';
 import {
   Build as BuildIcon,
   Send as SendIcon,
-  Mic as MicIcon,
   PictureAsPdf as PdfIcon,
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
   Refresh as RefreshIcon,
   History as HistoryIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Link as LinkIcon
 } from '@mui/icons-material';
+import { getAllTemplates, getAllParts } from '../utils/api';
+import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -28,6 +31,13 @@ const BEARING_OPTIONS = [
   { value: '6204', label: '6204 (孔径20mm)' },
   { value: '6205', label: '6205 (孔径25mm)' },
 ];
+
+// 定子规格 → 转子直径映射（格式："12-160" 中 12 是定子规格，160 是片数）
+// 后续新增规格只需在这里加一行
+const STATOR_TO_ROTOR: Record<string, number> = {
+  '12': 61,     // 12号定子 → 转子直径61mm
+  '13.5': 67,   // 13.5号定子 → 转子直径67mm
+};
 
 interface JobStatus {
   status: 'processing' | 'success' | 'failed';
@@ -48,6 +58,12 @@ export default function RotorDrawingPage() {
     oil_seal_dia: '', impeller_dia: '', impeller_span: '', impeller_depth: '',
     thread_length: '', thread_dia: ''
   });
+
+  // ── 泵壳模板联动 ──
+  const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
+  const [allParts, setAllParts] = useState<Part[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<PumpShellTemplate | null>(null);
+  const [templateHint, setTemplateHint] = useState('');
 
   // ── 状态 ──
   const [warning, setWarning] = useState<{ 
@@ -70,6 +86,79 @@ export default function RotorDrawingPage() {
   const [supplements, setSupplements] = useState<Record<string, string>>({});
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── 加载泵壳模板和配件数据 ──
+  useEffect(() => {
+    getAllTemplates().then(setTemplates).catch(() => {});
+    getAllParts().then(setAllParts).catch(() => {});
+  }, []);
+
+  // ── 模板选择联动 ──
+  const handleTemplateSelect = useCallback((tpl: PumpShellTemplate | null) => {
+    setSelectedTemplate(tpl);
+    if (!tpl) {
+      setTemplateHint('');
+      return;
+    }
+
+    const newForm = {
+      upper_bearing: '', lower_bearing: '',
+      piece_count: '', rotor_dia: '', bearing_span: '', stack_offset: '',
+      oil_seal_dia: '', impeller_dia: '', impeller_span: '', impeller_depth: '',
+      thread_length: '', thread_dia: ''
+    };
+    const hints: string[] = [];
+
+    try {
+      const parts: Array<{ name: string; model: string }> = JSON.parse(tpl.parts_json || '[]');
+
+      for (const p of parts) {
+        const name = (p.name || '').trim();
+        const model = (p.model || '').trim();
+        if (!name || !model) continue;
+
+        // 花板轴承 → 上轴承
+        if (name.includes('花板') && name.includes('轴承')) {
+          const bearing = model.startsWith('6') ? model : '6' + model;
+          newForm.upper_bearing = bearing;
+          hints.push(`上轴承${bearing}`);
+        }
+        // 油缸轴承 → 下轴承
+        if (name.includes('油缸') && name.includes('轴承')) {
+          const bearing = model.startsWith('6') ? model : '6' + model;
+          newForm.lower_bearing = bearing;
+          hints.push(`下轴承${bearing}`);
+        }
+        // 机械油封 → 油封孔径
+        if (name.includes('机械油封') || (name.includes('机封') && !name.includes('骨架'))) {
+          const firstNum = model.split('*')[0].trim();
+          const dia = parseFloat(firstNum);
+          if (!isNaN(dia)) {
+            newForm.oil_seal_dia = String(dia);
+            hints.push(`油封孔径${dia}mm`);
+          }
+        }
+      }
+
+      // 不锈钢机筒开档计算：从 parts 表找泵壳零件的 remark
+      const shellModel = tpl.shell_model;
+      const shellPart = allParts.find(p => p.model === shellModel && p.category === '泵壳');
+      if (shellPart && shellPart.notes) {
+        try {
+          const meta: PumpShellMeta = JSON.parse(shellPart.notes);
+          if (meta.isStainless && meta.barrelLength && meta.openFactor != null) {
+            const span = meta.barrelLength - meta.openFactor;
+            newForm.bearing_span = String(span);
+            hints.push(`开档${span}mm (${meta.barrelLength}-${meta.openFactor})`);
+          }
+        } catch { /* remark 不是 JSON，忽略 */ }
+      }
+    } catch { /* parts_json 解析失败 */ }
+
+    setForm(prev => ({ ...prev, ...newForm }));
+    setFormMode(true); // 自动切换到表单模式
+    setTemplateHint(hints.length > 0 ? `已从 ${tpl.shell_model} 模板自动带入：${hints.join('、')}` : '');
+  }, [allParts]);
 
   // ── 加载出图历史 ──
   const loadHistory = useCallback(async () => {
@@ -150,7 +239,29 @@ export default function RotorDrawingPage() {
 
   const handleNlSubmit = () => {
     if (!nlInput.trim()) return;
-    submitChat(nlInput);
+    let fullMessage = nlInput;
+
+    // 定子规格简写展开："12-160" → "转子直径61，转子片数160片"
+    fullMessage = fullMessage.replace(/(\d+\.?\d*)-(\d+)/g, (_match, spec, pieces) => {
+      const rotorDia = STATOR_TO_ROTOR[spec];
+      if (rotorDia) {
+        return `转子直径${rotorDia}，转子片数${pieces}片`;
+      }
+      return _match; // 未知规格，保留原文
+    });
+
+    // 如果选了模板，把模板带入的参数拼到消息前面
+    if (selectedTemplate) {
+      const prefixParts: string[] = [];
+      if (form.upper_bearing) prefixParts.push(`上轴承${form.upper_bearing.replace('6', '')}`);
+      if (form.lower_bearing) prefixParts.push(`下轴承${form.lower_bearing.replace('6', '')}`);
+      if (form.oil_seal_dia) prefixParts.push(`油封孔径${form.oil_seal_dia}`);
+      if (form.bearing_span) prefixParts.push(`开档${form.bearing_span}`);
+      if (prefixParts.length > 0) {
+        fullMessage = prefixParts.join('，') + '，' + fullMessage;
+      }
+    }
+    submitChat(fullMessage);
   };
 
   const handleWarningConfirm = () => {
@@ -206,6 +317,30 @@ export default function RotorDrawingPage() {
         <BuildIcon fontSize="large" color="primary" />
         转子出图系统
       </Typography>
+
+      {/* ── 泵壳模板关联 ── */}
+      <Paper sx={{ p: 2, mb: 2, bgcolor: 'background.default' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <LinkIcon fontSize="small" color="primary" />
+          <Typography variant="subtitle2">关联泵壳模板（可选）</Typography>
+        </Box>
+        <Autocomplete
+          size="small"
+          options={templates}
+          getOptionLabel={(o) => o.shell_model + (o.description ? ` - ${o.description}` : '')}
+          value={selectedTemplate}
+          onChange={(_, v) => handleTemplateSelect(v)}
+          renderInput={(params) => <TextField {...params} placeholder="选择泵壳模板，自动带入轴承/油封/开档参数" />}
+          isOptionEqualToValue={(o, v) => o.Id === v.Id}
+        />
+      </Paper>
+
+      {/* ── 模板联动提示 ── */}
+      {templateHint && (
+        <Alert severity="info" sx={{ mb: 2 }} onClose={() => setTemplateHint('')}>
+          {templateHint}
+        </Alert>
+      )}
 
       {/* ── 模式切换 ── */}
       <Box sx={{ mb: 3, display: 'flex', gap: 1 }}>
