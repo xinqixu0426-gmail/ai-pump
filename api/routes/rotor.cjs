@@ -106,7 +106,7 @@ setInterval(() => {
 // ═══════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
     try {
-        const { message, force } = req.body;
+        const { message, force, supplements } = req.body;
         if (!message) return res.status(400).json({ status: 'error', message: '缺少 message 字段' });
 
         if (!DEEPSEEK_API_KEY) {
@@ -182,36 +182,88 @@ router.post('/chat', async (req, res) => {
         if (fcParams.piece_count) {
             fcParams._core_length = fcParams.piece_count * 0.5;
         }
-        // _total_length = 上轴承深度 + 开档 + 叶轮开档 + 叶轮厚度 + 螺纹长度
+
+        if (Object.keys(fcParams).length === 0) {
+            return res.json({ status: 'need_params', message: aiReply, extracted: parsed });
+        }
+
+        // 4. 安全与完整性校验 (未 force 时触发)
+        if (!force) {
+            let hasWarning = false;
+            let warningPayload = {
+                status: 'warning',
+                extracted: parsed
+            };
+
+            // 4.1 总长度参数完整性校验
+            // _total_length = 上轴承深度 + 开档 + 叶轮开档 + 叶轮厚度 + 螺纹长度
+            const requiredLengthParams = [
+                { key: 'upper_bearing_depth', name: '上轴承深度', value: fcParams.upper_bearing_depth },
+                { key: 'bearing_span', name: '开档', value: fcParams.bearing_span },
+                { key: 'bearing_to_impeller', name: '叶轮开档', value: fcParams.bearing_to_impeller },
+                { key: 'impeller_depth', name: '叶轮厚度', value: fcParams.impeller_depth },
+                { key: 'thread_length', name: '螺纹长度', value: fcParams.thread_length }
+            ];
+
+            const missingLengthParams = requiredLengthParams.filter(p => p.value == null);
+            const providedLengthParams = requiredLengthParams.filter(p => p.value != null);
+            
+            // 如果试图提供部分导致总长可以计算，但又有缺失项，给予提醒
+            if (providedLengthParams.length > 0 && missingLengthParams.length > 0) {
+                const totalLenCalc = requiredLengthParams.reduce((sum, p) => sum + (p.value || 0), 0);
+                console.log('[Rotor] ⚠️ 总长参数不完整，缺失:', missingLengthParams.map(p => p.name).join(', '));
+                
+                hasWarning = true;
+                warningPayload.missing_length = {
+                    missing_params: missingLengthParams.map(p => ({ key: p.key, name: p.name })),
+                    components: requiredLengthParams.map(p => ({
+                        name: p.name,
+                        value: p.value != null ? p.value : 0,
+                        missing: p.value == null
+                    })),
+                    calculated_total: totalLenCalc
+                };
+            }
+
+            // 4.2 定子距花板距离安全校验
+            const bSpan = fcParams.bearing_span;
+            const pCount = fcParams.piece_count;
+            const sOffset = fcParams.stack_offset;
+
+            if (bSpan != null && pCount != null && sOffset != null) {
+                const clearance = bSpan - (pCount / 2) - sOffset;
+                if (clearance < 35) {
+                    console.log('[Rotor] ⚠️ 定子距花板距离=' + clearance.toFixed(1) + 'mm < 35mm');
+                    hasWarning = true;
+                    warningPayload.stator_clearance = {
+                        message: '线圈与上轴承端盖距离过短（' + clearance.toFixed(1) + 'mm < 35mm），可能会导致漏电或干涉，是否继续生成？',
+                        clearance: Math.round(clearance * 10) / 10
+                    };
+                }
+            }
+
+            if (hasWarning) {
+                return res.json(warningPayload);
+            }
+        }
+
+        // 最终组装参数（若用户选择了 force，也接受用 0 兜底缺失参数并计算总长）
+        // 合并弹窗中用户补充的参数
+        if (force && supplements && typeof supplements === 'object') {
+            // supplements 的 key 可能是 bearing_to_impeller / impeller_depth / thread_length 等
+            for (const [k, v] of Object.entries(supplements)) {
+                if (typeof v === 'number' && v > 0) {
+                    fcParams[k] = v;
+                    console.log('[Rotor] 合并补充参数:', k, '=', v);
+                }
+            }
+        }
         const totalLen = (fcParams.upper_bearing_depth || 0)
             + (fcParams.bearing_span || 0)
             + (fcParams.bearing_to_impeller || 0)
             + (fcParams.impeller_depth || 0)
             + (fcParams.thread_length || 0);
         if (totalLen > 0) fcParams._total_length = totalLen;
-
-        if (Object.keys(fcParams).length === 0) {
-            return res.json({ status: 'need_params', message: aiReply, extracted: parsed });
-        }
-
-        // 4. 定子距花板距离安全校验
-        const bSpan = fcParams.bearing_span;
-        const pCount = fcParams.piece_count;
-        const sOffset = fcParams.stack_offset;
-
-        if (!force && bSpan != null && pCount != null && sOffset != null) {
-            const clearance = bSpan - (pCount / 2) - sOffset;
-            if (clearance < 35) {
-                console.log('[Rotor] ⚠️ 定子距花板距离=' + clearance.toFixed(1) + 'mm < 35mm');
-                return res.json({
-                    status: 'warning',
-                    warning_type: 'stator_clearance',
-                    message: '定子距离花板距离为 ' + clearance.toFixed(1) + 'mm，小于 35mm，过小的距离可能导致漆包线与花板接触导致漏电，是否继续？',
-                    clearance: Math.round(clearance * 10) / 10,
-                    extracted: parsed
-                });
-            }
-        }
 
         // 5. 后台出图（并发限制）
         if (runningJobs >= MAX_CONCURRENT_FREECAD) {

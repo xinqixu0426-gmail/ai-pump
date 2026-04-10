@@ -79,11 +79,13 @@ try:
     print(f"[Worker] [{elapsed()}] 文档已打开")
 
     # ============================================================
-    # 4. 参数注入到 Spreadsheet
+    # 4. 参数注入到 Spreadsheet（自动检测最后一个 Spreadsheet 对象）
     # ============================================================
-    sheet = doc.getObject("Spreadsheet")
-    if not sheet:
-        raise ValueError("文档中找不到名为 'Spreadsheet' 的对象！")
+    sheets = [obj for obj in doc.Objects if obj.TypeId == "Spreadsheet::Sheet"]
+    if not sheets:
+        raise ValueError("文档中找不到 Spreadsheet 对象！")
+    sheet = sheets[-1]  # 取最后一个（新模板追加的）
+    print(f"[Worker] [{elapsed()}] 使用 Spreadsheet: {sheet.Name}")
 
     # 注入用户参数到 Spreadsheet（跳过 _ 前缀的派生参数）
     for key, val in params.items():
@@ -102,23 +104,39 @@ try:
     # ============================================================
     # 4.5. Fake Parametric / DIM Dimension Text Overrides
     # ============================================================
-    dim_map = {
-        "Dimension": "upper_bearing_depth",
-        "Dimension001": "_core_length",
-        "Dimension002": "stack_offset",
-        "Dimension003": "lower_bearing_depth",
-        "Dimension004": "impeller_depth",
-        "Dimension005": "thread_length",
-        "Dimension006": "upper_bearing_dia",
-        "Dimension007": "lower_bearing_dia",
-        "Dimension008": "oil_seal_dia",
-        "Dimension009": "impeller_dia",
-        "Dimension010": "thread_dia",
-        "Dimension011": "bearing_span",
-        "Dimension012": "bearing_to_impeller",
-        "Dimension013": "_total_length",
-    }
-    
+    # 参数映射顺序 — 与 FreeCAD rotor_template.FCStd 中 Dimension 的创建顺序一致
+    # ⚠️ 如果更换模板或重新标注，需重新校准此顺序（参考 freecad/DIM_MAPPING.md）
+    dim_param_order = [
+        "_core_length",           # Dim014 — 铁芯长度 (片数×0.5)
+        "stack_offset",           # Dim015 — 定位/叠片定位
+        "lower_bearing_depth",    # Dim016 — 下轴承深度
+        "upper_bearing_depth",    # Dim017 — 上轴承深度
+        "upper_bearing_dia",      # Dim018 — 上轴承直径
+        "bearing_span",           # Dim019 — 开档/轴承间距
+        "bearing_to_impeller",    # Dim020 — 叶轮开档
+        "impeller_depth",         # Dim021 — 叶轮厚度
+        "thread_length",          # Dim022 — 螺纹长度
+        "lower_bearing_dia",      # Dim023 — 下轴承直径
+        "oil_seal_dia",           # Dim024 — 油封直径
+        "impeller_dia",           # Dim025 — 叶轮直径
+        "thread_dia",             # Dim026 — 螺纹直径
+        "_total_length",          # Dim027 — 总长度 (派生)
+    ]
+
+    # 自动检测所有 Dimension 对象，按名字排序后顺序绑定
+    dim_objects = sorted(
+        [obj for obj in doc.Objects if obj.TypeId == "TechDraw::DrawViewDimension"],
+        key=lambda o: o.Name
+    )
+    dim_map = {}
+    for i, obj in enumerate(dim_objects):
+        if i < len(dim_param_order):
+            dim_map[obj.Name] = dim_param_order[i]
+
+    print(f"[Worker] [{elapsed()}] 自动检测到 {len(dim_objects)} 个 Dimension 对象, 映射表:")
+    for name, param in dim_map.items():
+        print(f"[Worker]   {name} -> {param}")
+
     # Pre-calculate derived variables
     if "piece_count" in params:
         try:
@@ -126,19 +144,8 @@ try:
         except (ValueError, TypeError):
             pass
 
-    # _total_length = 上轴承深度 + 开档 + 叶轮开档 + 叶轮厚度 + 螺纹长度
-    try:
-        upper_d = float(params.get("upper_bearing_depth", 0) or 0)
-        b_span  = float(params.get("bearing_span", 0) or 0)
-        imp_sp  = float(params.get("bearing_to_impeller", 0) or 0)
-        imp_d   = float(params.get("impeller_depth", 0) or 0)
-        thr_l   = float(params.get("thread_length", 0) or 0)
-        total   = upper_d + b_span + imp_sp + imp_d + thr_l
-        if total > 0:
-            params["_total_length"] = total
-    except (ValueError, TypeError):
-        pass
-
+    # _total_length 已在 api/routes/rotor.cjs 层进行完整性校验并计算
+    # worker 层不再使用 0 兜底计算，直接使用 params 里传过来的 _total_length (如果不全则不覆盖图纸初始值)
     print(f"[Worker] [{elapsed()}] 开始替换图纸维度数字...")
     for obj in doc.Objects:
         if obj.Name in dim_map:
@@ -201,17 +208,29 @@ try:
     # ============================================================
     # 9. TechDraw 导出 SVG
     # ============================================================
+    import TechDrawGui
+
     if os.path.exists(output_svg):
         os.remove(output_svg)
 
     print(f"[Worker] [{elapsed()}] 导出 SVG...")
-    import TechDrawGui
     TechDrawGui.exportPageAsSvg(page, output_svg)
 
     if not os.path.exists(output_svg) or os.path.getsize(output_svg) < 100:
-        raise RuntimeError(f"SVG 导出失败或文件为空")
+        raise RuntimeError("SVG 导出失败或文件为空")
 
     print(f"[Worker] [{elapsed()}] SVG 导出成功 ({os.path.getsize(output_svg)} bytes)")
+
+    # 替换 osifont 为 Helvetica（中文会显示方块，但数字标注正常）
+    try:
+        with open(output_svg, 'r', encoding='utf-8') as f:
+            svg_content = f.read()
+        svg_content = svg_content.replace('font-family="osifont"', 'font-family="Helvetica"')
+        svg_content = svg_content.replace('font-family:osifont', 'font-family:Helvetica')
+        with open(output_svg, 'w', encoding='utf-8') as f:
+            f.write(svg_content)
+    except Exception:
+        pass
 
     # ============================================================
     # 10. 关闭文档
@@ -220,21 +239,52 @@ try:
     print(f"[Worker] [{elapsed()}] 文档已关闭")
 
     # ============================================================
-    # 11. SVG 转 PDF
+    # 11. SVG → PDF（含中文字体修补）
     # ============================================================
     print(f"[Worker] [{elapsed()}] SVG → PDF 转换中...")
+    import re
     from svglib.svglib import svg2rlg
     from reportlab.graphics import renderPDF
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    # 注册中文字体
+    CHINESE_FONT_REGISTERED = False
+    CHINESE_FONT_NAME = 'MSYH'
+    for font_path in [r'C:\Windows\Fonts\msyh.ttc', r'C:\Windows\Fonts\simsun.ttc']:
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont(CHINESE_FONT_NAME, font_path, subfontIndex=0))
+                CHINESE_FONT_REGISTERED = True
+                print(f"[Worker] [{elapsed()}] 已注册中文字体: {font_path}")
+                break
+            except Exception as e:
+                print(f"[Worker] [{elapsed()}] ⚠️ 注册字体失败 {font_path}: {e}")
 
     drawing = svg2rlg(output_svg)
     if drawing is None:
         raise RuntimeError("svg2rlg 返回 None")
 
+    # 遍历 Drawing 树，将含中文的文本节点字体替换为已注册的中文字体
+    if CHINESE_FONT_REGISTERED:
+        chinese_re = re.compile(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]')
+        counter = [0]
+        def patch_chinese_fonts(node):
+            if hasattr(node, 'contents'):
+                for child in node.contents:
+                    patch_chinese_fonts(child)
+            if hasattr(node, 'text') and isinstance(getattr(node, 'text', None), str):
+                if chinese_re.search(node.text):
+                    node.fontName = CHINESE_FONT_NAME
+                    counter[0] += 1
+        patch_chinese_fonts(drawing)
+        print(f"[Worker] [{elapsed()}] 已修补 {counter[0]} 个中文文本节点")
+
     renderPDF.drawToFile(drawing, output_pdf)
     print(f"[Worker] [{elapsed()}] 📄 PDF 生成完毕: {os.path.getsize(output_pdf)} bytes")
 
     # ============================================================
-    # 12. 清理临时文件
+    # 11. 清理临时文件
     # ============================================================
     for tmp_file in [work_path, output_svg]:
         if os.path.exists(tmp_file):

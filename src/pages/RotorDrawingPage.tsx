@@ -50,12 +50,24 @@ export default function RotorDrawingPage() {
   });
 
   // ── 状态 ──
-  const [warning, setWarning] = useState<{ message: string; extracted: any } | null>(null);
+  const [warning, setWarning] = useState<{ 
+    missing_length?: {
+      missing_params: Array<{key: string, name: string}>;
+      components: Array<{name: string, value: number, missing: boolean}>;
+      calculated_total: number;
+    };
+    stator_clearance?: {
+      clearance: number;
+      message: string;
+    };
+    extracted: any;
+  } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState('');
   const [extracted, setExtracted] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [supplements, setSupplements] = useState<Record<string, string>>({});
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -93,23 +105,29 @@ export default function RotorDrawingPage() {
     return () => { cancelled = true; if (pollRef.current) clearInterval(pollRef.current); };
   }, [jobId, loadHistory]);
 
-  const submitChat = useCallback(async (message: string, force = false) => {
+  const submitChat = useCallback(async (message: string, force = false, sups?: Record<string, number>) => {
     setError('');
     setNlLoading(true);
     setJobId(null);
     setJobStatus(null);
 
     try {
+      const body: any = { message, force };
+      if (sups && Object.keys(sups).length > 0) body.supplements = sups;
       const res = await fetch(`${API_BASE}/api/rotor/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message, force })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
 
       if (data.status === 'warning') {
-        setWarning({ message: data.message, extracted: data.extracted });
+        setWarning({ 
+          missing_length: data.missing_length,
+          stator_clearance: data.stator_clearance,
+          extracted: data.extracted
+        });
         setExtracted(data.extracted);
       } else if (data.status === 'success') {
         setJobId(data.jobId);
@@ -136,8 +154,17 @@ export default function RotorDrawingPage() {
   };
 
   const handleWarningConfirm = () => {
+    // 将弹窗中用户填入的补充参数转为数字传给后端
+    const sups: Record<string, number> = {};
+    if (warning?.missing_length) {
+      for (const [k, v] of Object.entries(supplements)) {
+        const num = parseFloat(v);
+        if (!isNaN(num) && num > 0) sups[k] = num;
+      }
+    }
     setWarning(null);
-    submitChat(nlInput, true);
+    setSupplements({});
+    submitChat(nlInput, true, sups);
   };
 
   const handleWarningCancel = () => {
@@ -389,17 +416,79 @@ export default function RotorDrawingPage() {
         </Paper>
       )}
 
-      {/* ── 定子距花板警告弹窗 ── */}
-      <Dialog open={!!warning} onClose={handleWarningCancel}>
+      {/* ── 警告/确认弹窗 ── */}
+      <Dialog open={!!warning} onClose={handleWarningCancel} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color="warning" /> 安全警告
+          <WarningIcon color="warning" /> 
+          安全与参数校验警告
         </DialogTitle>
         <DialogContent>
-          <DialogContentText>{warning?.message}</DialogContentText>
+          {warning?.missing_length && (
+            <Box sx={{ mb: warning?.stator_clearance ? 3 : 0 }}>
+              <Typography variant="body1" sx={{ mb: 2, fontWeight: 'bold' }}>
+                1. 总长度参数不完整
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                以下参数未提供，可在下方直接补全（否则按 0 计算，导致总长标注错误）：
+              </Typography>
+              
+              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                {warning.missing_length.missing_params.map(p => (
+                  <Grid item xs={6} key={p.key}>
+                    <TextField
+                      fullWidth size="small" type="number"
+                      label={p.name}
+                      placeholder="未提供"
+                      value={supplements[p.key] || ''}
+                      onChange={e => setSupplements(prev => ({ ...prev, [p.key]: e.target.value }))}
+                      InputProps={{ endAdornment: <Typography variant="caption" color="text.secondary">mm</Typography> }}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>总长预览：</Typography>
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'action.hover' }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                  {warning.missing_length.components.map(c => {
+                    const supVal = c.missing ? parseFloat(supplements[warning.missing_length?.missing_params.find(m => m.name === c.name)?.key || ''] || '0') : c.value;
+                    return c.name + '(' + (c.missing && !supplements[warning.missing_length?.missing_params.find(m => m.name === c.name)?.key || ''] ? '?' : supVal) + ')';
+                  }).join(' + ')}
+                  {' = '}
+                  {(() => {
+                    const t = warning.missing_length!.components.reduce((sum, c) => {
+                      if (c.missing) {
+                        const k = warning.missing_length!.missing_params.find(m => m.name === c.name)?.key || '';
+                        return sum + (parseFloat(supplements[k] || '0') || 0);
+                      }
+                      return sum + c.value;
+                    }, 0);
+                    const allFilled = warning.missing_length!.missing_params.every(p => parseFloat(supplements[p.key] || '0') > 0);
+                    return <span style={{ fontWeight: 'bold', color: allFilled ? 'green' : 'red' }}>{t}mm</span>;
+                  })()}
+                </Typography>
+              </Paper>
+            </Box>
+          )}
+
+          {warning?.stator_clearance && (
+            <Box>
+              <Typography variant="body1" sx={{ mb: 1, fontWeight: 'bold', mt: warning?.missing_length ? 2 : 0, pt: warning?.missing_length ? 2 : 0, borderTop: warning?.missing_length ? '1px dashed #ccc' : 'none' }}>
+                {warning?.missing_length ? '2. ' : ''}定子距花板安全风险
+              </Typography>
+              <Alert severity="error" icon={false}>
+                {warning.stator_clearance.message}
+              </Alert>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleWarningCancel} color="inherit">取消，重新设置定位</Button>
-          <Button onClick={handleWarningConfirm} color="warning" variant="contained">我知道风险，继续出图</Button>
+          <Button onClick={() => { setWarning(null); setSupplements({}); }} color="inherit">
+            取消
+          </Button>
+          <Button onClick={handleWarningConfirm} color="warning" variant="contained">
+            我知道风险，继续出图
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
