@@ -16,3 +16,7 @@ __pycache__/
 public/drawings/output_*.pdf
 freecad/work_*.FCStd
 freecad/temp_*.svg
+freecad/output_*.svg
+freecad/output_*.pdf
+*.bak
+Document.xml
