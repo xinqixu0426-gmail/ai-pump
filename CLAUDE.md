@@ -7,6 +7,7 @@
 - **前端状态管理**：使用 `Zustand`，强制 `stale-while-revalidate` 缓存。在增删改查后续必须调用相关 `fetch` 执行硬刷新（例如 `fetchRecipes(true)`）。
 - **组件规范**：全局样式优先在 `theme.ts` 中固化为 Token。在 MUI 中，永远不要将 `<Chip>` / `<div>` 等块级元素嵌套在 `<Typography>` 内，如需搭配，请务必指定 `component="div"`。
 - **服务隔离**：所有 SQLite 数据操作仅限 Express (`api.cjs`) 中进行。前端不可引入后端模块或暴露密文配置。API 鉴权必须携带 `credentials: 'include'`。
+- **成本架构**：人工工资（安装/打包/喷漆）绑定在 `pump_shell_templates` 表，选模板自动带入配方可覆盖。管理费全局默认值存于 `system_settings` 表，新建配方自动读取。成本公式：`配件 + 线圈 + 动态配置 + 人工工资 + 管理费`。
 
 ## 2. 核心模块与微服务端点提示
 - 根路由：前端工作端口由于 Vite 配置默认为 `3000`；所有与内网 SQLite 的交互由端口 `3002` 下辖的 `/api/*` 处理。
