@@ -461,6 +461,59 @@ const AI_TOOLS = [
             description: '获取运营数据汇总（订单统计、配方数量、零件数量、成本/利润等）。当用户说"最近的运营数据""系统概况"时使用',
             parameters: { type: 'object', properties: {} }
         }
+    },
+    // ── 第四组：转子出图与打印 ──
+    {
+        type: 'function',
+        function: {
+            name: 'generate_rotor_drawing',
+            description: '生成转子图纸PDF。当用户提到"出图""转子图""画一张图"时使用。可以传泵壳型号(shell_model)自动获取所有默认参数（轴承、油封、开档、定位等），只需补充片数和用户明确提供的尺寸即可。没有提供的参数由模板补全，不要反复追问用户。出图大约15-30秒。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    shell_model: { type: 'string', description: '泵壳型号（如V750）。传此字段后系统会自动提取模板中的所有默认参数：上下轴承、油封孔径、开档、定位等，用户不需要再提供这些参数' },
+                    upper_bearing: { type: 'string', description: '上轴承型号。如传了shell_model则自动从模板获取，不需要手动填' },
+                    lower_bearing: { type: 'string', description: '下轴承型号。如传了shell_model则自动从模板获取' },
+                    piece_count: { type: 'number', description: '转子片数（如160）' },
+                    bearing_span: { type: 'number', description: '开档/轴承间距（mm）。如传了shell_model则自动从模板获取' },
+                    stack_offset: { type: 'number', description: '定位/叠片偏移（mm）。如传了shell_model则自动从模板获取' },
+                    oil_seal_dia: { type: 'number', description: '油封直径（mm）。如传了shell_model则自动从模板获取' },
+                    impeller_dia: { type: 'number', description: '叶轮直径（mm）' },
+                    impeller_depth: { type: 'number', description: '叶轮厚度（mm）' },
+                    bearing_to_impeller: { type: 'number', description: '叶轮开档（mm）' },
+                    thread_dia: { type: 'number', description: '螺纹直径（mm）' },
+                    thread_length: { type: 'number', description: '螺纹长度（mm）' }
+                },
+                required: ['piece_count']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'print_rotor_drawing',
+            description: '打印已生成的转子图纸。当用户说"帮我打印图纸""打印上一张图"时使用。需要提供jobId（可从出图历史获取）',
+            parameters: {
+                type: 'object',
+                properties: {
+                    jobId: { type: 'string', description: '出图任务的jobId' }
+                },
+                required: ['jobId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_rotor_drawing_history',
+            description: '获取转子出图历史记录。当用户说"看看出图记录""最近出的图""上一张图的jobId"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    limit: { type: 'number', description: '返回的记录数量，默认10' }
+                }
+            }
+        }
     }
 ];
 
@@ -479,6 +532,9 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 10. 新建订单（客户名称必填，可选直接带上需要生产的配方和数量）
 11. 修改零件信息（改价格、调库存、换供应商等）
 12. 向已有订单中追加新配方（需订单ID、配方名称、数量）
+13. 生成转子图纸（提供轴承型号、片数、开档等参数，系统自动生成PDF工程图）
+14. 打印转子图纸（将已生成的PDF发送到默认打印机）
+15. 查询转子出图历史
 
 数据库写操作规则：
 - 所有写操作（新建、修改）都会回读验证，确认数据真正入库后才报告成功
@@ -488,6 +544,14 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 线圈转子简写格式：
 - 用户习惯用"规格-片数"的简写，如"12-140"表示规格12、片数140
 - 收到这类格式时，自动拆分为 spec 和 sheets 参数调用 calculate_coil_cost
+
+转子出图规则：
+- 出图是异步操作，调用 generate_rotor_drawing 后会返回 jobId，出图大约需要15-30秒
+- 告诉用户"图纸正在生成中，大约需要15-30秒"，并提供 jobId 供后续查询或打印
+- 如果用户说"打印上一张图"，先调用 get_rotor_drawing_history 获取最近一条成功记录的 jobId，再调用 print_rotor_drawing
+- 【重要】当用户提到泵壳型号（如V750）时，必须传 shell_model 参数。系统会自动从泵壳模板中提取所有默认参数（轴承、油封、开档、定位等），不需要再反复向用户确认这些参数
+- 用户明确提供的参数会覆盖模板默认值，未提供的参数由模板自动补全
+- 例如用户说"用V750模板出160片的图，定位24"，应该传 shell_model="V750", piece_count=160, stack_offset=24，其余参数由模板提供
 
 回答规则：
 - 用简体中文回答
@@ -1308,6 +1372,117 @@ async function executeToolCall(toolName, args) {
                         }
                     }
                 };
+            }
+
+            // ── 第四组：转子出图与打印 ──
+
+            case 'generate_rotor_drawing': {
+                const drawParams = { ...args };
+                let templateInfo = null;
+
+                // 如果提供了泵壳型号，从模板中提取轴承和油封参数
+                if (args.shell_model) {
+                    const allTemplates = dbGetAllTemplates();
+                    const tpl = allTemplates.find(t => 
+                        (t.泵壳型号 || t.shell_model || '') === args.shell_model ||
+                        (t.泵壳型号 || t.shell_model || '').includes(args.shell_model)
+                    );
+                    if (!tpl) {
+                        return { success: false, error: `未找到泵壳模板: ${args.shell_model}` };
+                    }
+
+                    let parts = [];
+                    try { parts = JSON.parse(tpl.配件JSON || tpl.parts_json || '[]'); } catch (e) {}
+
+                    templateInfo = { model: tpl.泵壳型号 || tpl.shell_model, extracted: {} };
+
+                    // 花板轴承 → 上轴承
+                    const upperBPart = parts.find(p => (p.name || '').includes('花板轴承'));
+                    if (upperBPart && !drawParams.upper_bearing) {
+                        // 从 model 中提取轴承型号 (如 '6202-2RS 轴承' → '6202-2RS', '202' → '202')
+                        const bearingModel = (upperBPart.model || '').replace(/\s*轴承.*$/, '').trim();
+                        drawParams.upper_bearing = bearingModel;
+                        templateInfo.extracted.upper_bearing = bearingModel;
+                    }
+                    // 油缸轴承 → 下轴承
+                    const lowerBPart = parts.find(p => (p.name || '').includes('油缸轴承'));
+                    if (lowerBPart && !drawParams.lower_bearing) {
+                        const bearingModel = (lowerBPart.model || '').replace(/\s*轴承.*$/, '').trim();
+                        drawParams.lower_bearing = bearingModel;
+                        templateInfo.extracted.lower_bearing = bearingModel;
+                    }
+                    // 机械油封 → 油封孔径 (model格式: '14*28*38', 取第一段)
+                    const sealPart = parts.find(p => (p.name || '').includes('机械油封'));
+                    if (sealPart && drawParams.oil_seal_dia == null) {
+                        const sealDia = parseFloat((sealPart.model || '').split('*')[0]);
+                        if (!isNaN(sealDia)) {
+                            drawParams.oil_seal_dia = sealDia;
+                            templateInfo.extracted.oil_seal_dia = sealDia;
+                        }
+                    }
+
+                    // 从 rotor_params_json 提取出图尺寸参数（开档、定位等）
+                    let rotorParams = {};
+                    try { rotorParams = JSON.parse(tpl.rotor_params_json || '{}'); } catch (e) {}
+                    const rotorKeys = ['bearing_span', 'stack_offset', 'bearing_to_impeller',
+                        'impeller_depth', 'impeller_dia', 'thread_dia', 'thread_length', 'rotor_dia'];
+                    for (const k of rotorKeys) {
+                        if (rotorParams[k] != null && drawParams[k] == null) {
+                            drawParams[k] = rotorParams[k];
+                            templateInfo.extracted[k] = rotorParams[k];
+                        }
+                    }
+
+                    // 清理 shell_model 字段，不传给 /api/rotor/draw
+                    delete drawParams.shell_model;
+                }
+
+                const response = await internalFetch('/api/rotor/draw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(drawParams)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    const ret = {
+                        success: true,
+                        message: '出图任务已启动，大约需要15-30秒',
+                        jobId: result.jobId,
+                        params: result.params,
+                        statusUrl: `/api/rotor/status/${result.jobId}`,
+                        printUrl: `/api/rotor/print/${result.jobId}`
+                    };
+                    if (templateInfo) ret.templateInfo = templateInfo;
+                    return ret;
+                }
+                return { success: false, error: result.message || '出图失败' };
+            }
+
+            case 'print_rotor_drawing': {
+                const { jobId } = args;
+                if (!jobId) return { success: false, error: '缺少 jobId 参数' };
+                const response = await internalFetch(`/api/rotor/print/${jobId}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.ok) {
+                    return { success: true, message: '打印指令已发送到默认打印机', jobId };
+                }
+                return { success: false, error: result.error || '打印失败' };
+            }
+
+            case 'get_rotor_drawing_history': {
+                const limit = args.limit || 10;
+                const response = await internalFetch('/api/rotor/history');
+                const rows = await response.json();
+                const recent = (Array.isArray(rows) ? rows : []).slice(0, limit).map(r => ({
+                    jobId: r.job_id,
+                    status: r.status,
+                    input: (r.nl_input || '').slice(0, 80),
+                    fileUrl: r.file_url,
+                    createdAt: r.created_at
+                }));
+                return { success: true, count: recent.length, history: recent };
             }
 
             default:

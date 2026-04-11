@@ -4,7 +4,7 @@ import {
   Alert, Dialog, DialogTitle, DialogContent, DialogActions,
   CircularProgress, Chip, IconButton, Tooltip,
   Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
-  LinearProgress, MenuItem, Autocomplete
+  LinearProgress, MenuItem, Autocomplete, Snackbar
 } from '@mui/material';
 import {
   Build as BuildIcon,
@@ -16,7 +16,8 @@ import {
   Refresh as RefreshIcon,
   History as HistoryIcon,
   Delete as DeleteIcon,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { getAllTemplates, getAllParts } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
@@ -94,6 +95,8 @@ export default function RotorDrawingPage() {
   const [extracted, setExtracted] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [supplements, setSupplements] = useState<Record<string, string>>({});
+  const [printing, setPrinting] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSubmittedMessage = useRef<string>('');
@@ -339,6 +342,26 @@ export default function RotorDrawingPage() {
 
   const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
+  const handlePrint = useCallback(async (targetJobId: string) => {
+    setPrinting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/rotor/print/${targetJobId}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setSnackbar({ open: true, message: '🖨️ 打印指令已发送到默认打印机', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: '打印失败: ' + (data.error || '未知错误'), severity: 'error' });
+      }
+    } catch (e: any) {
+      setSnackbar({ open: true, message: '打印请求失败: ' + e.message, severity: 'error' });
+    } finally {
+      setPrinting(false);
+    }
+  }, []);
+
   return (
     <Box sx={{ p: 3, maxWidth: 1000, mx: 'auto' }}>
       <Typography variant="h4" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -499,10 +522,17 @@ export default function RotorDrawingPage() {
               <Alert severity="success" icon={<CheckIcon />} sx={{ mb: 2 }}>
                 转子图纸生成完成！
               </Alert>
-              <Button variant="contained" color="success" startIcon={<PdfIcon />}
-                href={`${API_BASE}${jobStatus.fileUrl}`} target="_blank">
-                下载 PDF 图纸
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="contained" color="success" startIcon={<PdfIcon />}
+                  href={`${API_BASE}${jobStatus.fileUrl}`} target="_blank">
+                  下载 PDF 图纸
+                </Button>
+                <Button variant="contained" color="primary" startIcon={printing ? <CircularProgress size={20} color="inherit" /> : <PrintIcon />}
+                  disabled={printing || !jobId}
+                  onClick={() => jobId && handlePrint(jobId)}>
+                  {printing ? '发送中...' : '打印图纸'}
+                </Button>
+              </Box>
             </Box>
           )}
           {jobStatus.status === 'failed' && (
@@ -557,10 +587,20 @@ export default function RotorDrawingPage() {
                       </TableCell>
                       <TableCell align="right">
                         {row.status === 'success' && row.file_url && (
-                          <IconButton size="small" color="primary" component="a"
-                            href={`${API_BASE}${row.file_url}`} target="_blank">
-                            <PdfIcon fontSize="small" />
-                          </IconButton>
+                          <>
+                            <Tooltip title="下载 PDF">
+                              <IconButton size="small" color="primary" component="a"
+                                href={`${API_BASE}${row.file_url}`} target="_blank">
+                                <PdfIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="打印">
+                              <IconButton size="small" color="primary" disabled={printing}
+                                onClick={() => handlePrint(row.job_id)}>
+                                <PrintIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
                         )}
                         <IconButton size="small" color="error" onClick={async () => {
                           if (!confirm('确定删除此记录？')) return;
@@ -654,6 +694,18 @@ export default function RotorDrawingPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── 打印状态提示 ── */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

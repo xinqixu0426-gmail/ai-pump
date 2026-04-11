@@ -134,7 +134,7 @@ function recipeRow(r) {
 }
 function templateRow(r) {
     if (!r) return r;
-    return { Id: r.id, shell_model: r.shell_model, description: r.description || '', parts_json: r.parts_json || '[]', CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return { Id: r.id, shell_model: r.shell_model, description: r.description || '', parts_json: r.parts_json || '[]', rotor_params_json: r.rotor_params_json || '{}', CreatedAt: r.created_at, UpdatedAt: r.updated_at };
 }
 function orderRow(r) {
     if (!r) return r;
