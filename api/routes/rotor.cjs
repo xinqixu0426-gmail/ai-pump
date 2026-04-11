@@ -463,14 +463,49 @@ router.post('/print/:jobId', (req, res) => {
             return res.status(404).json({ error: 'PDF 文件不存在: ' + fileUrl });
         }
 
-        // 使用 PowerShell 发送到默认打印机
+        // 使用多种方式尝试打印
         const { execSync } = require('child_process');
-        const cmd = `Start-Process -FilePath "${pdfPath}" -Verb Print -WindowStyle Hidden`;
-        console.log('[Rotor] 🖨️ 打印命令:', cmd);
-        execSync(`powershell -Command "${cmd}"`, { timeout: 15000 });
+        let printed = false;
+        let lastErr = '';
 
-        console.log('[Rotor] ✅ 打印指令已发送: ' + pdfPath);
-        res.json({ ok: true, message: '打印指令已发送到默认打印机' });
+        // 方案1: 用 SumatraPDF（如已安装）
+        try {
+            execSync(`where SumatraPDF`, { timeout: 3000 });
+            const cmd = `SumatraPDF -print-to-default -silent "${pdfPath}"`;
+            console.log('[Rotor] 🖨️ 尝试 SumatraPDF:', cmd);
+            execSync(cmd, { timeout: 30000 });
+            printed = true;
+        } catch (e) { lastErr = e.message; }
+
+        // 方案2: 用 msedge 打印（大多数 Windows 都有）
+        if (!printed) {
+            try {
+                const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+                if (fs.existsSync(edgePath)) {
+                    const cmd = `Start-Process -FilePath '${edgePath}' -ArgumentList '--headless','--disable-gpu','--print-to-pdf-no-header','--no-pdf-header-footer','--print-to-default-printer','${pdfPath}' -WindowStyle Hidden`;
+                    console.log('[Rotor] 🖨️ 尝试 Edge 打印');
+                    execSync(`powershell -Command "${cmd}"`, { timeout: 30000 });
+                    printed = true;
+                }
+            } catch (e) { lastErr = e.message; }
+        }
+
+        // 方案3: Windows 内置 ShellExecute print（兜底）
+        if (!printed) {
+            try {
+                const cmd = `rundll32.exe mshtml.dll,PrintHTML "${pdfPath}"`;
+                console.log('[Rotor] 🖨️ 尝试 rundll32 打印');
+                execSync(cmd, { timeout: 15000 });
+                printed = true;
+            } catch (e) { lastErr = e.message; }
+        }
+
+        if (printed) {
+            console.log('[Rotor] ✅ 打印指令已发送: ' + pdfPath);
+            res.json({ ok: true, message: '打印指令已发送到默认打印机' });
+        } else {
+            throw new Error('所有打印方式均失败: ' + lastErr);
+        }
     } catch (e) {
         console.error('[Rotor] 🖨️ 打印失败:', e.message);
         res.status(500).json({ error: '打印失败: ' + e.message });
