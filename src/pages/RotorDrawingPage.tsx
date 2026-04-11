@@ -39,6 +39,16 @@ const STATOR_TO_ROTOR: Record<string, number> = {
   '13.5': 67,   // 13.5号定子 → 转子直径67mm
 };
 
+/** 轴承型号标准化："6202-2RS" → "6202"、"202" → "6202" */
+function normalizeBearing(raw: string): string {
+  if (!raw) return raw;
+  let s = raw.trim();
+  s = s.replace(/[-/]?(2RS|2RZ|2Z|ZZ|RS|RZ|DDU|LLU|LLB|CM|C3|P6|P5|NR)\b/gi, '');
+  s = s.replace(/[-/]+$/, '').trim();
+  if (/^\d{3}$/.test(s)) s = '6' + s;
+  return s;
+}
+
 interface JobStatus {
   status: 'processing' | 'success' | 'failed';
   fileUrl?: string;
@@ -86,6 +96,7 @@ export default function RotorDrawingPage() {
   const [supplements, setSupplements] = useState<Record<string, string>>({});
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSubmittedMessage = useRef<string>('');
 
   // ── 加载泵壳模板和配件数据 ──
   useEffect(() => {
@@ -119,13 +130,13 @@ export default function RotorDrawingPage() {
 
         // 花板轴承 → 上轴承
         if (name.includes('花板') && name.includes('轴承')) {
-          const bearing = model.startsWith('6') ? model : '6' + model;
+          const bearing = normalizeBearing(model);
           newForm.upper_bearing = bearing;
           hints.push(`上轴承${bearing}`);
         }
         // 油缸轴承 → 下轴承
         if (name.includes('油缸') && name.includes('轴承')) {
-          const bearing = model.startsWith('6') ? model : '6' + model;
+          const bearing = normalizeBearing(model);
           newForm.lower_bearing = bearing;
           hints.push(`下轴承${bearing}`);
         }
@@ -179,6 +190,22 @@ export default function RotorDrawingPage() {
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/api/rotor/status/${jobId}`, { credentials: 'include' });
+        if (res.status === 404) {
+          // activeJobs 已清理，回退查数据库历史
+          if (pollRef.current) clearInterval(pollRef.current);
+          const histRes = await fetch(`${API_BASE}/api/rotor/history`, { credentials: 'include' });
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            const found = histData.find((r: any) => r.job_id === jobId);
+            if (found) {
+              setJobStatus({ status: found.status, fileUrl: found.file_url, error: found.error });
+            } else {
+              setJobStatus({ status: 'failed', error: '任务已过期，未找到记录' });
+            }
+          }
+          loadHistory();
+          return;
+        }
         const data: JobStatus = await res.json();
         if (cancelled) return;
         setJobStatus(data);
@@ -199,6 +226,7 @@ export default function RotorDrawingPage() {
     setNlLoading(true);
     setJobId(null);
     setJobStatus(null);
+    lastSubmittedMessage.current = message;
 
     try {
       const body: any = { message, force };
@@ -253,8 +281,8 @@ export default function RotorDrawingPage() {
     // 如果选了模板，把模板带入的参数拼到消息前面
     if (selectedTemplate) {
       const prefixParts: string[] = [];
-      if (form.upper_bearing) prefixParts.push(`上轴承${form.upper_bearing.replace('6', '')}`);
-      if (form.lower_bearing) prefixParts.push(`下轴承${form.lower_bearing.replace('6', '')}`);
+      if (form.upper_bearing) prefixParts.push(`上轴承${form.upper_bearing.replace(/^6/, '')}`);
+      if (form.lower_bearing) prefixParts.push(`下轴承${form.lower_bearing.replace(/^6/, '')}`);
       if (form.oil_seal_dia) prefixParts.push(`油封孔径${form.oil_seal_dia}`);
       if (form.bearing_span) prefixParts.push(`开档${form.bearing_span}`);
       if (prefixParts.length > 0) {
@@ -275,7 +303,7 @@ export default function RotorDrawingPage() {
     }
     setWarning(null);
     setSupplements({});
-    submitChat(nlInput, true, sups);
+    submitChat(lastSubmittedMessage.current || nlInput, true, sups);
   };
 
   const handleWarningCancel = () => {
@@ -286,8 +314,8 @@ export default function RotorDrawingPage() {
   const handleFormSubmit = () => {
     // 拼成自然语言让后端走同一条路
     const parts: string[] = [];
-    if (form.upper_bearing) parts.push(`上轴承${form.upper_bearing.replace('6', '')}`);
-    if (form.lower_bearing) parts.push(`下轴承${form.lower_bearing.replace('6', '')}`);
+    if (form.upper_bearing) parts.push(`上轴承${form.upper_bearing.replace(/^6/, '')}`);
+    if (form.lower_bearing) parts.push(`下轴承${form.lower_bearing.replace(/^6/, '')}`);
     if (form.piece_count) parts.push(`转子片数${form.piece_count}片`);
     if (form.rotor_dia) parts.push(`转子直径${form.rotor_dia}`);
     if (form.bearing_span) parts.push(`开档${form.bearing_span}`);

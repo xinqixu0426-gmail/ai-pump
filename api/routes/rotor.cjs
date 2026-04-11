@@ -20,10 +20,30 @@ const BEARING_DB = {
     "6205": { dia: 25.0, depth: 15.0 },
 };
 
+/**
+ * 轴承型号标准化：
+ *   "6202-2RS" → "6202"
+ *   "6202-ZZ"  → "6202"
+ *   "6202RS"   → "6202"
+ *   "202"      → "6202"  （简写，自动补前缀6）
+ *   "6202"     → "6202"  （已标准，不变）
+ */
+function normalizeBearing(raw) {
+    if (!raw) return raw;
+    let s = String(raw).trim();
+    // 去掉常见后缀：-2RS, -2Z, -ZZ, -RS, -C3, /P6 等（含或不含连字符）
+    s = s.replace(/[-\/]?(2RS|2RZ|2Z|ZZ|RS|RZ|DDU|LLU|LLB|CM|C3|P6|P5|NR)\b/gi, '');
+    // 去掉末尾可能残留的连字符
+    s = s.replace(/[-\/]+$/, '').trim();
+    // 如果是纯 3 位数字（如 "202"），自动补前缀 "6"
+    if (/^\d{3}$/.test(s)) s = '6' + s;
+    return s;
+}
+
 const SYSTEM_PROMPT = '你是一个专业的工业图纸参数提取 AI。请仔细阅读用户的自然语言指令，并将提取的数值严格填入以下预定义的 JSON 字段中。\n\n'
     + '**必须且只能使用以下字段**（如果用户未提及该项的专属代名词，该字段必须填 null，绝对禁止跨行指派）：\n'
-    + '- "upper_bearing" (上轴承型号，例如提取为 "6202")\n'
-    + '- "lower_bearing" (下轴承型号，例如提取为 "6204")\n'
+    + '- "upper_bearing" (上轴承型号，原样保留用户输入即可，如 "6202-2RS"、"202"、"6202" 都可以)\n'
+    + '- "lower_bearing" (下轴承型号，原样保留用户输入即可，如 "6204-ZZ"、"204"、"6204" 都可以)\n'
     + '- "piece_count" (专属代名词：转子片数/片数。例如说转子片数160片 -> 160)\n'
     + '- "rotor_dia" (专属代名词：转子直径/转子外径)。【警告：如果用户没提直径，只说了"定位"或"螺丝长度"，你绝对不能把它们当作直径！必须填 null】\n'
     + '- "bearing_span" (专属代名词：开档/轴承间距。例如说开档150 -> 150)\n'
@@ -152,22 +172,24 @@ router.post('/chat', async (req, res) => {
         const mtRotorDia = message.match(/转子直径\s*(\d+\.?\d*)/);
         if (mtRotorDia) parsed.rotor_dia = parseFloat(mtRotorDia[1]);
 
-        // 3. 轴承查表 + 组装 FreeCAD 参数
+        // 3. 轴承查表 + 组装 FreeCAD 参数（先标准化型号再查表）
         const fcParams = {};
-        const upperB = parsed.upper_bearing;
-        const lowerB = parsed.lower_bearing;
+        const upperBRaw = parsed.upper_bearing;
+        const lowerBRaw = parsed.lower_bearing;
+        const upperB = normalizeBearing(upperBRaw);
+        const lowerB = normalizeBearing(lowerBRaw);
 
         if (upperB && BEARING_DB[upperB]) {
             fcParams.upper_bearing_dia = BEARING_DB[upperB].dia;
             fcParams.upper_bearing_depth = BEARING_DB[upperB].depth;
         } else if (upperB) {
-            return res.status(400).json({ status: 'error', message: '未知的上轴承型号: ' + upperB });
+            return res.status(400).json({ status: 'error', message: '未知的上轴承型号: ' + upperBRaw + (upperBRaw !== upperB ? ' (标准化后: ' + upperB + ')' : '') });
         }
         if (lowerB && BEARING_DB[lowerB]) {
             fcParams.lower_bearing_dia = BEARING_DB[lowerB].dia;
             fcParams.lower_bearing_depth = BEARING_DB[lowerB].depth;
         } else if (lowerB) {
-            return res.status(400).json({ status: 'error', message: '未知的下轴承型号: ' + lowerB });
+            return res.status(400).json({ status: 'error', message: '未知的下轴承型号: ' + lowerBRaw + (lowerBRaw !== lowerB ? ' (标准化后: ' + lowerB + ')' : '') });
         }
 
         ['piece_count', 'rotor_dia', 'bearing_span', 'stack_offset',
