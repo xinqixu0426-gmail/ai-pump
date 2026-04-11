@@ -467,17 +467,17 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'generate_rotor_drawing',
-            description: '生成转子图纸PDF。当用户说"出一张转子图""用V750出一张160片的图""帮我生成转子图纸"时使用。可以直接传泵壳型号(shell_model)自动获取轴承和油封参数，也可以手动指定。出图大约需要15-30秒。',
+            description: '生成转子图纸PDF。当用户提到"出图""转子图""画一张图"时使用。可以传泵壳型号(shell_model)自动获取所有默认参数（轴承、油封、开档、定位等），只需补充片数和用户明确提供的尺寸即可。没有提供的参数由模板补全，不要反复追问用户。出图大约15-30秒。',
             parameters: {
                 type: 'object',
                 properties: {
-                    shell_model: { type: 'string', description: '泵壳型号（如V750），传此字段会自动从泵壳模板中提取上下轴承和油封参数' },
-                    upper_bearing: { type: 'string', description: '上轴承型号（如6202、202）。如填了shell_model则可省略' },
-                    lower_bearing: { type: 'string', description: '下轴承型号。如填了shell_model则可省略' },
+                    shell_model: { type: 'string', description: '泵壳型号（如V750）。传此字段后系统会自动提取模板中的所有默认参数：上下轴承、油封孔径、开档、定位等，用户不需要再提供这些参数' },
+                    upper_bearing: { type: 'string', description: '上轴承型号。如传了shell_model则自动从模板获取，不需要手动填' },
+                    lower_bearing: { type: 'string', description: '下轴承型号。如传了shell_model则自动从模板获取' },
                     piece_count: { type: 'number', description: '转子片数（如160）' },
-                    bearing_span: { type: 'number', description: '开档/轴承间距（mm）' },
-                    stack_offset: { type: 'number', description: '定位/叠片偏移（mm）' },
-                    oil_seal_dia: { type: 'number', description: '油封直径（mm）' },
+                    bearing_span: { type: 'number', description: '开档/轴承间距（mm）。如传了shell_model则自动从模板获取' },
+                    stack_offset: { type: 'number', description: '定位/叠片偏移（mm）。如传了shell_model则自动从模板获取' },
+                    oil_seal_dia: { type: 'number', description: '油封直径（mm）。如传了shell_model则自动从模板获取' },
                     impeller_dia: { type: 'number', description: '叶轮直径（mm）' },
                     impeller_depth: { type: 'number', description: '叶轮厚度（mm）' },
                     bearing_to_impeller: { type: 'number', description: '叶轮开档（mm）' },
@@ -549,8 +549,9 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 - 出图是异步操作，调用 generate_rotor_drawing 后会返回 jobId，出图大约需要15-30秒
 - 告诉用户"图纸正在生成中，大约需要15-30秒"，并提供 jobId 供后续查询或打印
 - 如果用户说"打印上一张图"，先调用 get_rotor_drawing_history 获取最近一条成功记录的 jobId，再调用 print_rotor_drawing
-- 当用户说"用V750出图"时，传 shell_model="V750"，系统会自动从泵壳模板中提取轴承和油封参数
-- shell_model 提取的参数优先级低于用户手动指定的参数，即用户可以覆盖模板值
+- 【重要】当用户提到泵壳型号（如V750）时，必须传 shell_model 参数。系统会自动从泵壳模板中提取所有默认参数（轴承、油封、开档、定位等），不需要再反复向用户确认这些参数
+- 用户明确提供的参数会覆盖模板默认值，未提供的参数由模板自动补全
+- 例如用户说"用V750模板出160片的图，定位24"，应该传 shell_model="V750", piece_count=160, stack_offset=24，其余参数由模板提供
 
 回答规则：
 - 用简体中文回答
