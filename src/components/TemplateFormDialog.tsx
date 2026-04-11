@@ -1,8 +1,8 @@
 import { useCallback, useMemo, MutableRefObject } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Box, TextField,
-  Button, Table, TableBody, TableCell, TableHead, TableRow,
-  IconButton, CircularProgress, Autocomplete, FormControl, Select, MenuItem, Typography,
+  Button, Table, TableBody, TableCell, TableHead, TableRow, Divider,
+  IconButton, CircularProgress, Autocomplete, FormControl, Select, MenuItem, Typography, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
   Delete as DeleteIcon, Add as AddIcon, Save as SaveIcon, Close as CloseIcon,
@@ -38,6 +38,12 @@ interface Props {
   tplSaving: boolean;
   onSave: () => void;
   nextRowId: MutableRefObject<number>;
+  assemblyWage: number;
+  setAssemblyWage: (v: number) => void;
+  packingWage: number;
+  setPackingWage: (v: number) => void;
+  paintingWage: number | null;
+  setPaintingWage: (v: number | null) => void;
 }
 
 export default function TemplateFormDialog({
@@ -46,6 +52,7 @@ export default function TemplateFormDialog({
   tplDescription, setTplDescription,
   partRows, setPartRows, parts, shellModels, uniqueModels,
   tplSaving, onSave, nextRowId,
+  assemblyWage, setAssemblyWage, packingWage, setPackingWage, paintingWage, setPaintingWage,
 }: Props) {
 
   const getPriceByModelAndSupplier = useCallback(
@@ -233,6 +240,34 @@ export default function TemplateFormDialog({
           sx={{ mt: 1 }}>
           添加配件行
         </Button>
+
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="subtitle2" fontWeight={700} mb={1} color="text.secondary">
+          👷 人工计件工资（元/台）
+        </Typography>
+        <Box display="flex" gap={2} flexWrap="wrap">
+          <TextField label="安装工资" type="number" size="small" required
+            value={assemblyWage || ''} onChange={e => setAssemblyWage(parseFloat(e.target.value) || 0)}
+            inputProps={{ min: 0, step: 0.5 }} sx={{ width: 130 }}
+            helperText="必填" />
+          <TextField label="打包工资" type="number" size="small" required
+            value={packingWage || ''} onChange={e => setPackingWage(parseFloat(e.target.value) || 0)}
+            inputProps={{ min: 0, step: 0.5 }} sx={{ width: 130 }}
+            helperText="必填" />
+          <Box display="flex" alignItems="flex-start" gap={1}>
+            <FormControlLabel
+              control={<Checkbox size="small" checked={paintingWage != null}
+                onChange={e => setPaintingWage(e.target.checked ? 0 : null)} />}
+              label={<Typography variant="body2" sx={{ fontSize: '0.8rem' }}>需要喷漆</Typography>}
+              sx={{ mr: 0, mt: 0.5 }}
+            />
+            {paintingWage != null && (
+              <TextField label="喷漆工资" type="number" size="small"
+                value={paintingWage || ''} onChange={e => setPaintingWage(parseFloat(e.target.value) || 0)}
+                inputProps={{ min: 0, step: 0.5 }} sx={{ width: 130 }} />
+            )}
+          </Box>
+        </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose}>取消</Button>

@@ -31,6 +31,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [shellSupplier, setShellSupplier] = useState('');
   const [tplDescription, setTplDescription] = useState('');
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
+  const [assemblyWage, setAssemblyWage] = useState(0);
+  const [packingWage, setPackingWage] = useState(0);
+  const [paintingWage, setPaintingWage] = useState<number | null>(null);
 
   const getPriceByModelAndSupplier = useCallback(
     (model: string, supplier: string) => _getPrice(parts, model, supplier),
@@ -54,6 +57,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const openCreateTpl = () => {
     setEditingTpl(null);
     setShellModel(''); setShellSupplier(''); setTplDescription('');
+    setAssemblyWage(0); setPackingWage(0); setPaintingWage(null);
     setPartRows([
       { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
       { id: nextRowId.current++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
@@ -65,6 +69,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
   const openEditTpl = (tpl: PumpShellTemplate) => {
     setEditingTpl(tpl); setShellModel(tpl.shell_model); setShellSupplier(''); setTplDescription(tpl.description || '');
+    setAssemblyWage(tpl.assembly_wage || 0); setPackingWage(tpl.packing_wage || 0); setPaintingWage(tpl.painting_wage);
     try {
       const parsed: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
       setPartRows(parsed.map(p => ({ id: nextRowId.current++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
@@ -80,9 +85,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     setTplSaving(true);
     try {
       if (editingTpl) {
-        await updateTemplate(editingTpl.Id, { shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson) });
+        await updateTemplate(editingTpl.Id, { shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: paintingWage });
       } else {
-        await createTemplate({ shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson) });
+        await createTemplate({ shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: paintingWage });
       }
       setTplDialogOpen(false);
       await fetchTemplates(true);
@@ -99,7 +104,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const calcTplCost = (tpl: PumpShellTemplate): number => {
     try {
       const p: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
-      return p.reduce((sum, x) => sum + getPriceByModelAndSupplier(x.model, x.supplier || '') * x.qty, 0);
+      const partsCost = p.reduce((sum, x) => sum + getPriceByModelAndSupplier(x.model, x.supplier || '') * x.qty, 0);
+      const laborCost = (tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0);
+      return partsCost + laborCost;
     } catch { return 0; }
   };
 
@@ -175,7 +182,12 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                           );
                         })}
                       </Box>
-                      <Box display="flex" justifyContent="flex-end" mt={0.5}>
+                      <Box display="flex" justifyContent="flex-end" mt={0.5} gap={0.5} flexWrap="wrap">
+                        {(tpl.assembly_wage > 0 || tpl.packing_wage > 0 || (tpl.painting_wage != null && tpl.painting_wage > 0)) && (
+                          <Chip label={`工资 ¥${((tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0)).toFixed(2)}`}
+                            size="small" variant="outlined" color="warning"
+                            sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.65rem' }} />
+                        )}
                         <Chip label={`¥${cost.toFixed(2)}`} size="small" color={cost > 0 ? 'success' : 'default'}
                           sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.7rem' }} />
                       </Box>
@@ -207,6 +219,12 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         tplSaving={tplSaving}
         onSave={handleSaveTpl}
         nextRowId={nextRowId}
+        assemblyWage={assemblyWage}
+        setAssemblyWage={setAssemblyWage}
+        packingWage={packingWage}
+        setPackingWage={setPackingWage}
+        paintingWage={paintingWage}
+        setPaintingWage={setPaintingWage}
       />
 
       {/* 模板删除确认 */}

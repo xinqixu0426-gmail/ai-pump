@@ -100,11 +100,18 @@ const recipeAlterColumns = [
     ['cable_wire', "TEXT DEFAULT ''"],
     ['box_type', "TEXT DEFAULT ''"],
     ['extra_parts_json', "TEXT DEFAULT '[]'"],
+    ['assembly_wage', 'REAL DEFAULT 0'],
+    ['packing_wage', 'REAL DEFAULT 0'],
+    ['painting_wage', 'REAL'],
 ];
 for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
 }
 try { db.exec(`ALTER TABLE parts ADD COLUMN remark TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN rotor_params_json TEXT DEFAULT '{}'`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN assembly_wage REAL DEFAULT 0`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN packing_wage REAL DEFAULT 0`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`); } catch { /* already exists */ }
 
 // ── Row Adapters ──
 
@@ -129,12 +136,20 @@ function recipeRow(r) {
         has_float: r.has_float || 0, float_wire: r.float_wire || '',
         has_cable: r.has_cable || 0, cable_length: r.cable_length || 0, cable_wire: r.cable_wire || '',
         box_type: r.box_type || '', extra_parts_json: r.extra_parts_json || '[]',
+        assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
+        painting_wage: r.painting_wage != null ? r.painting_wage : null,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function templateRow(r) {
     if (!r) return r;
-    return { Id: r.id, shell_model: r.shell_model, description: r.description || '', parts_json: r.parts_json || '[]', rotor_params_json: r.rotor_params_json || '{}', CreatedAt: r.created_at, UpdatedAt: r.updated_at };
+    return {
+        Id: r.id, shell_model: r.shell_model, description: r.description || '',
+        parts_json: r.parts_json || '[]', rotor_params_json: r.rotor_params_json || '{}',
+        assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
+        painting_wage: r.painting_wage != null ? r.painting_wage : null,
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
 }
 function orderRow(r) {
     if (!r) return r;

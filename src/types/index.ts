@@ -33,6 +33,9 @@ export interface PumpShellTemplate {
   shell_model: string;
   description: string;
   parts_json: string;
+  assembly_wage: number;
+  packing_wage: number;
+  painting_wage: number | null;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -56,6 +59,10 @@ export interface Recipe {
   cable_wire?: string;
   box_type?: string;
   extra_parts_json?: string;
+  // 人工工资（从模板带入，可覆盖）
+  assembly_wage?: number;
+  packing_wage?: number;
+  painting_wage?: number | null;
   CreatedAt?: string;
   UpdatedAt?: string;
 }

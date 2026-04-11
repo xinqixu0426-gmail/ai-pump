@@ -199,6 +199,9 @@ export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promis
       shell_model: tpl.shell_model,
       description: tpl.description || '',
       parts_json: tpl.parts_json || '[]',
+      assembly_wage: tpl.assembly_wage ?? 0,
+      packing_wage: tpl.packing_wage ?? 0,
+      painting_wage: tpl.painting_wage ?? null,
     }),
   });
   return res.data;
