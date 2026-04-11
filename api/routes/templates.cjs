@@ -36,12 +36,18 @@ router.get('/:id/recipes', async (req, res) => {
 
 router.post('/', async (req, res) => {
     try {
-        const { shell_model, description, parts_json, rotor_params_json } = req.body;
+        const { shell_model, description, parts_json, rotor_params_json, assembly_wage, packing_wage, painting_wage } = req.body;
         if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
         const now = new Date().toISOString();
         const pJson = typeof parts_json === 'string' ? parts_json : JSON.stringify(parts_json || []);
         const rJson = typeof rotor_params_json === 'string' ? rotor_params_json : JSON.stringify(rotor_params_json || {});
-        const info = db.prepare('INSERT INTO pump_shell_templates (shell_model, description, parts_json, rotor_params_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(shell_model, description || '', pJson, rJson, now, now);
+        const info = db.prepare('INSERT INTO pump_shell_templates (shell_model, description, parts_json, rotor_params_json, assembly_wage, packing_wage, painting_wage, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            shell_model, description || '', pJson, rJson,
+            assembly_wage != null ? parseFloat(assembly_wage) : 0,
+            packing_wage != null ? parseFloat(packing_wage) : 0,
+            painting_wage != null ? parseFloat(painting_wage) : null,
+            now, now
+        );
         res.json({ success: true, data: templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) {
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: `泵壳型号 "${req.body.shell_model}" 已存在` });
@@ -65,6 +71,9 @@ router.patch('/:id', async (req, res) => {
             const rJson = typeof b.rotor_params_json === 'string' ? b.rotor_params_json : JSON.stringify(b.rotor_params_json);
             sets.push('rotor_params_json = ?'); vals.push(rJson);
         }
+        if (b.assembly_wage !== undefined) { sets.push('assembly_wage = ?'); vals.push(parseFloat(b.assembly_wage)); }
+        if (b.packing_wage !== undefined) { sets.push('packing_wage = ?'); vals.push(parseFloat(b.packing_wage)); }
+        if (b.painting_wage !== undefined) { sets.push('painting_wage = ?'); vals.push(b.painting_wage != null ? parseFloat(b.painting_wage) : null); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         if (sets.length > 1) db.prepare(`UPDATE pump_shell_templates SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
         const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
