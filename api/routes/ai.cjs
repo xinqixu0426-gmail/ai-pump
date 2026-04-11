@@ -461,6 +461,58 @@ const AI_TOOLS = [
             description: '获取运营数据汇总（订单统计、配方数量、零件数量、成本/利润等）。当用户说"最近的运营数据""系统概况"时使用',
             parameters: { type: 'object', properties: {} }
         }
+    },
+    // ── 第四组：转子出图与打印 ──
+    {
+        type: 'function',
+        function: {
+            name: 'generate_rotor_drawing',
+            description: '生成转子图纸PDF。当用户说"出一张转子图""画一张202轴承160片的转子图""帮我生成转子图纸"时使用。需要提供轴承型号、片数、开档等参数。出图大约需要15-30秒。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    upper_bearing: { type: 'string', description: '上轴承型号（如6202、202、6202-2RS）' },
+                    lower_bearing: { type: 'string', description: '下轴承型号' },
+                    piece_count: { type: 'number', description: '转子片数（如160）' },
+                    bearing_span: { type: 'number', description: '开档/轴承间距（mm）' },
+                    stack_offset: { type: 'number', description: '定位/叠片偏移（mm）' },
+                    oil_seal_dia: { type: 'number', description: '油封直径（mm）' },
+                    impeller_dia: { type: 'number', description: '叶轮直径（mm）' },
+                    impeller_depth: { type: 'number', description: '叶轮厚度（mm）' },
+                    bearing_to_impeller: { type: 'number', description: '叶轮开档（mm）' },
+                    thread_dia: { type: 'number', description: '螺纹直径（mm）' },
+                    thread_length: { type: 'number', description: '螺纹长度（mm）' }
+                },
+                required: ['upper_bearing', 'piece_count']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'print_rotor_drawing',
+            description: '打印已生成的转子图纸。当用户说"帮我打印图纸""打印上一张图"时使用。需要提供jobId（可从出图历史获取）',
+            parameters: {
+                type: 'object',
+                properties: {
+                    jobId: { type: 'string', description: '出图任务的jobId' }
+                },
+                required: ['jobId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_rotor_drawing_history',
+            description: '获取转子出图历史记录。当用户说"看看出图记录""最近出的图""上一张图的jobId"时使用',
+            parameters: {
+                type: 'object',
+                properties: {
+                    limit: { type: 'number', description: '返回的记录数量，默认10' }
+                }
+            }
+        }
     }
 ];
 
@@ -479,6 +531,9 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 10. 新建订单（客户名称必填，可选直接带上需要生产的配方和数量）
 11. 修改零件信息（改价格、调库存、换供应商等）
 12. 向已有订单中追加新配方（需订单ID、配方名称、数量）
+13. 生成转子图纸（提供轴承型号、片数、开档等参数，系统自动生成PDF工程图）
+14. 打印转子图纸（将已生成的PDF发送到默认打印机）
+15. 查询转子出图历史
 
 数据库写操作规则：
 - 所有写操作（新建、修改）都会回读验证，确认数据真正入库后才报告成功
@@ -488,6 +543,11 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 线圈转子简写格式：
 - 用户习惯用"规格-片数"的简写，如"12-140"表示规格12、片数140
 - 收到这类格式时，自动拆分为 spec 和 sheets 参数调用 calculate_coil_cost
+
+转子出图规则：
+- 出图是异步操作，调用 generate_rotor_drawing 后会返回 jobId，出图大约需要15-30秒
+- 告诉用户"图纸正在生成中，大约需要15-30秒"，并提供 jobId 供后续查询或打印
+- 如果用户说"打印上一张图"，先调用 get_rotor_drawing_history 获取最近一条成功记录的 jobId，再调用 print_rotor_drawing
 
 回答规则：
 - 用简体中文回答
@@ -1308,6 +1368,55 @@ async function executeToolCall(toolName, args) {
                         }
                     }
                 };
+            }
+
+            // ── 第四组：转子出图与打印 ──
+
+            case 'generate_rotor_drawing': {
+                const response = await internalFetch('/api/rotor/draw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(args)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    return {
+                        success: true,
+                        message: '出图任务已启动，大约需要15-30秒',
+                        jobId: result.jobId,
+                        params: result.params,
+                        statusUrl: `/api/rotor/status/${result.jobId}`,
+                        printUrl: `/api/rotor/print/${result.jobId}`
+                    };
+                }
+                return { success: false, error: result.message || '出图失败' };
+            }
+
+            case 'print_rotor_drawing': {
+                const { jobId } = args;
+                if (!jobId) return { success: false, error: '缺少 jobId 参数' };
+                const response = await internalFetch(`/api/rotor/print/${jobId}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.ok) {
+                    return { success: true, message: '打印指令已发送到默认打印机', jobId };
+                }
+                return { success: false, error: result.error || '打印失败' };
+            }
+
+            case 'get_rotor_drawing_history': {
+                const limit = args.limit || 10;
+                const response = await internalFetch('/api/rotor/history');
+                const rows = await response.json();
+                const recent = (Array.isArray(rows) ? rows : []).slice(0, limit).map(r => ({
+                    jobId: r.job_id,
+                    status: r.status,
+                    input: (r.nl_input || '').slice(0, 80),
+                    fileUrl: r.file_url,
+                    createdAt: r.created_at
+                }));
+                return { success: true, count: recent.length, history: recent };
             }
 
             default:
