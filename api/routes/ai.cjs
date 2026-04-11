@@ -1420,6 +1420,18 @@ async function executeToolCall(toolName, args) {
                         }
                     }
 
+                    // 从 rotor_params_json 提取出图尺寸参数（开档、定位等）
+                    let rotorParams = {};
+                    try { rotorParams = JSON.parse(tpl.rotor_params_json || '{}'); } catch (e) {}
+                    const rotorKeys = ['bearing_span', 'stack_offset', 'bearing_to_impeller',
+                        'impeller_depth', 'impeller_dia', 'thread_dia', 'thread_length', 'rotor_dia'];
+                    for (const k of rotorKeys) {
+                        if (rotorParams[k] != null && drawParams[k] == null) {
+                            drawParams[k] = rotorParams[k];
+                            templateInfo.extracted[k] = rotorParams[k];
+                        }
+                    }
+
                     // 清理 shell_model 字段，不传给 /api/rotor/draw
                     delete drawParams.shell_model;
                 }

@@ -36,11 +36,12 @@ router.get('/:id/recipes', async (req, res) => {
 
 router.post('/', async (req, res) => {
     try {
-        const { shell_model, description, parts_json } = req.body;
+        const { shell_model, description, parts_json, rotor_params_json } = req.body;
         if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
         const now = new Date().toISOString();
         const pJson = typeof parts_json === 'string' ? parts_json : JSON.stringify(parts_json || []);
-        const info = db.prepare('INSERT INTO pump_shell_templates (shell_model, description, parts_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(shell_model, description || '', pJson, now, now);
+        const rJson = typeof rotor_params_json === 'string' ? rotor_params_json : JSON.stringify(rotor_params_json || {});
+        const info = db.prepare('INSERT INTO pump_shell_templates (shell_model, description, parts_json, rotor_params_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(shell_model, description || '', pJson, rJson, now, now);
         res.json({ success: true, data: templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) {
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: `泵壳型号 "${req.body.shell_model}" 已存在` });
@@ -59,6 +60,10 @@ router.patch('/:id', async (req, res) => {
         if (b.parts_json !== undefined) {
             const pJson = typeof b.parts_json === 'string' ? b.parts_json : JSON.stringify(b.parts_json);
             sets.push('parts_json = ?'); vals.push(pJson);
+        }
+        if (b.rotor_params_json !== undefined) {
+            const rJson = typeof b.rotor_params_json === 'string' ? b.rotor_params_json : JSON.stringify(b.rotor_params_json);
+            sets.push('rotor_params_json = ?'); vals.push(rJson);
         }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         if (sets.length > 1) db.prepare(`UPDATE pump_shell_templates SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
