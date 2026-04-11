@@ -67,8 +67,8 @@ export default function RecipeFormPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const locState = location.state as {
-    cloneFrom?: { name: string; spec: string; partsJson: string; template_id?: number; coil_spec?: string; coil_sheets?: number; has_float?: number; float_wire?: string; has_cable?: number; cable_length?: number; cable_wire?: string; box_type?: string; extra_parts_json?: string; assembly_wage?: number; packing_wage?: number; painting_wage?: number | null };
-    editFrom?: { id: number; name: string; spec: string; partsJson: string; template_id?: number; coil_spec?: string; coil_sheets?: number; has_float?: number; float_wire?: string; has_cable?: number; cable_length?: number; cable_wire?: string; box_type?: string; extra_parts_json?: string; assembly_wage?: number; packing_wage?: number; painting_wage?: number | null };
+    cloneFrom?: { name: string; spec: string; partsJson: string; template_id?: number; coil_spec?: string; coil_sheets?: number; has_float?: number; float_wire?: string; has_cable?: number; cable_length?: number; cable_wire?: string; box_type?: string; extra_parts_json?: string; assembly_wage?: number; packing_wage?: number; painting_wage?: number | null; management_fee?: number };
+    editFrom?: { id: number; name: string; spec: string; partsJson: string; template_id?: number; coil_spec?: string; coil_sheets?: number; has_float?: number; float_wire?: string; has_cable?: number; cable_length?: number; cable_wire?: string; box_type?: string; extra_parts_json?: string; assembly_wage?: number; packing_wage?: number; painting_wage?: number | null; management_fee?: number };
   } | null;
   const cloneFrom = locState?.cloneFrom;
   const editFrom = locState?.editFrom;
@@ -118,6 +118,9 @@ export default function RecipeFormPage() {
   const [packingWage, setPackingWage] = useState(editFrom?.packing_wage ?? cloneFrom?.packing_wage ?? 0);
   const [paintingWage, setPaintingWage] = useState<number | null>(editFrom?.painting_wage ?? cloneFrom?.painting_wage ?? null);
 
+  // 管理费用
+  const [managementFee, setManagementFee] = useState(editFrom?.management_fee ?? cloneFrom?.management_fee ?? 0);
+
   // ── 数据加载 ──
   const loadData = useCallback(async () => {
     try {
@@ -131,6 +134,18 @@ export default function RecipeFormPage() {
   }, [fetchParts, fetchTemplates]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // 读取管理费默认值（仅新建时）
+  useEffect(() => {
+    if (editFrom || cloneFrom) return; // 编辑/复制时用配方已存的值
+    (async () => {
+      try {
+        const res = await fetch('/api/settings/management_fee', { credentials: 'include' });
+        const json = await res.json();
+        if (json.success) setManagementFee(parseFloat(json.data.value) || 0);
+      } catch { /* ignore */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     (async () => {
@@ -347,7 +362,7 @@ export default function RecipeFormPage() {
 
   // 总成本预览（配件 + 工资）
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
-  const laborCost = useMemo(() => (assemblyWage || 0) + (packingWage || 0) + (paintingWage || 0), [assemblyWage, packingWage, paintingWage]);
+  const laborCost = useMemo(() => (assemblyWage || 0) + (packingWage || 0) + (paintingWage || 0) + (managementFee || 0), [assemblyWage, packingWage, paintingWage, managementFee]);
   const partsCost = useMemo(() => allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0), [allPartsPreview]);
   const totalCost = partsCost + laborCost;
 
@@ -379,6 +394,7 @@ export default function RecipeFormPage() {
     const savedTotalCost = recipeParts.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0) + laborCost;
     const wageLines = [`安装工资: ¥${(assemblyWage || 0).toFixed(2)}`, `打包工资: ¥${(packingWage || 0).toFixed(2)}`];
     if (paintingWage != null) wageLines.push(`喷漆工资: ¥${(paintingWage || 0).toFixed(2)}`);
+    wageLines.push(`管理费用: ¥${(managementFee || 0).toFixed(2)}`);
     const savedCostDetails = recipeParts
       .map((p) => `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`)
       .concat(wageLines)
@@ -403,6 +419,7 @@ export default function RecipeFormPage() {
       assembly_wage: assemblyWage,
       packing_wage: packingWage,
       painting_wage: paintingWage,
+      management_fee: managementFee,
     };
 
     setSaving(true);
@@ -574,7 +591,7 @@ export default function RecipeFormPage() {
           <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(245, 158, 11, 0.06)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography sx={{ fontSize: 16 }}>👷</Typography>
             <Typography variant="caption" fontWeight={700} color="warning.main" sx={{ letterSpacing: 1 }}>
-              ▸ 人工计件工资（元/台）
+              ▸ 人工工资 & 管理费（元/台）
             </Typography>
             {laborCost > 0 && (
               <Chip label={`¥${laborCost.toFixed(2)}`} size="small" color="warning" sx={{ ml: 'auto', fontWeight: 700 }} />
@@ -600,9 +617,13 @@ export default function RecipeFormPage() {
                   inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
               )}
             </Box>
-            <Tooltip title="工资从泵壳模板自动带入，可针对本配方单独调整">
+            <TextField label="管理费用" type="number" size="small"
+              value={managementFee || ''} onChange={e => setManagementFee(parseFloat(e.target.value) || 0)}
+              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }}
+              helperText="系统默认值" />
+            <Tooltip title="工资从泵壳模板自动带入，管理费从系统设置读取，均可针对本配方调整">
               <Typography variant="caption" color="text.disabled" sx={{ alignSelf: 'center', cursor: 'help' }}>
-                ⓘ 自动从模板同步
+                ⓘ 自动同步
               </Typography>
             </Tooltip>
           </Box>

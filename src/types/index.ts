@@ -63,6 +63,7 @@ export interface Recipe {
   assembly_wage?: number;
   packing_wage?: number;
   painting_wage?: number | null;
+  management_fee?: number;
   CreatedAt?: string;
   UpdatedAt?: string;
 }

@@ -25,14 +25,16 @@ router.post('/', async (req, res) => {
             has_float, float_wire, has_cable, cable_length, cable_wire,
             box_type, extra_parts_json,
             assembly_wage, packing_wage, painting_wage,
+            management_fee,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
             b.name || b.配方名称 || '', b.spec || b.规格 || '', b.parts_json || b.配件JSON || '[]',
             b.saved_total_cost ?? b.保存时总成本 ?? 0, b.saved_cost_details || b.保存时成本明细 || '[]',
             b.template_id || null, b.coil_spec || '', b.coil_sheets || 0,
             b.has_float || 0, b.float_wire || '', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '',
             b.box_type || '', b.extra_parts_json || '[]',
             b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,
+            b.management_fee || 0,
             now, now
         );
         res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)) });
@@ -71,6 +73,7 @@ router.patch('/', async (req, res) => {
         if (b.assembly_wage !== undefined) { sets.push('assembly_wage = ?'); vals.push(b.assembly_wage); }
         if (b.packing_wage !== undefined) { sets.push('packing_wage = ?'); vals.push(b.packing_wage); }
         if (b.painting_wage !== undefined) { sets.push('painting_wage = ?'); vals.push(b.painting_wage); }
+        if (b.management_fee !== undefined) { sets.push('management_fee = ?'); vals.push(b.management_fee); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         if (sets.length > 1) db.prepare(`UPDATE recipes SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
         res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)) });

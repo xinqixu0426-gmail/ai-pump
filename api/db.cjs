@@ -86,7 +86,19 @@ db.exec(`
         created_at TEXT,
         updated_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
+    );
 `);
+
+// seed 默认管理费
+const existing = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('management_fee');
+if (!existing) {
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('management_fee', '5', new Date().toISOString());
+}
 
 // recipes 表新增结构化列（幂等 ALTER）
 const recipeAlterColumns = [
@@ -103,6 +115,7 @@ const recipeAlterColumns = [
     ['assembly_wage', 'REAL DEFAULT 0'],
     ['packing_wage', 'REAL DEFAULT 0'],
     ['painting_wage', 'REAL'],
+    ['management_fee', 'REAL DEFAULT 0'],
 ];
 for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
@@ -138,6 +151,7 @@ function recipeRow(r) {
         box_type: r.box_type || '', extra_parts_json: r.extra_parts_json || '[]',
         assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
         painting_wage: r.painting_wage != null ? r.painting_wage : null,
+        management_fee: r.management_fee || 0,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -222,9 +236,19 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
     return { totalCost: totalCost.toFixed(2), itemCount: parts.length, details, missingParts };
 }
 
+function getSetting(key) {
+    const row = db.prepare('SELECT value FROM system_settings WHERE key = ?').get(key);
+    return row ? row.value : null;
+}
+function setSetting(key, value) {
+    const now = new Date().toISOString();
+    db.prepare('INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run(key, String(value), now);
+}
+
 module.exports = {
     db,
     partRow, recipeRow, templateRow, orderRow, coilRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates,
     extractPartFields, loadPartsData, calculateRecipeCost,
+    getSetting, setSetting,
 };

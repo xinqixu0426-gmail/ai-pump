@@ -92,6 +92,7 @@ app.use('/api/templates', require('./api/routes/templates.cjs'));
 app.use('/api/orders', require('./api/routes/orders.cjs'));
 app.use('/api/coils', require('./api/routes/coils.cjs'));
 app.use('/api/rotor', require('./api/routes/rotor.cjs'));
+app.use('/api/settings', require('./api/routes/settings.cjs'));
 
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {
