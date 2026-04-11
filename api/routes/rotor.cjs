@@ -214,19 +214,19 @@ function buildFcParams(params) {
     ['piece_count', 'rotor_dia', 'bearing_span', 'stack_offset',
      'oil_seal_dia', 'impeller_dia', 'impeller_depth',
      'thread_dia', 'thread_length'].forEach(k => {
-        if (params[k] != null) fcParams[k] = params[k];
+        if (params[k] != null) fcParams[k] = parseFloat(params[k]) || 0;
     });
-    if (params.impeller_span != null) fcParams.bearing_to_impeller = params.impeller_span;
-    if (params.bearing_to_impeller != null) fcParams.bearing_to_impeller = params.bearing_to_impeller;
+    if (params.impeller_span != null) fcParams.bearing_to_impeller = parseFloat(params.impeller_span) || 0;
+    if (params.bearing_to_impeller != null) fcParams.bearing_to_impeller = parseFloat(params.bearing_to_impeller) || 0;
 
     if (fcParams.piece_count) {
         fcParams._core_length = fcParams.piece_count * 0.5;
     }
-    const totalLen = (fcParams.upper_bearing_depth || 0)
-        + (fcParams.bearing_span || 0)
-        + (fcParams.bearing_to_impeller || 0)
-        + (fcParams.impeller_depth || 0)
-        + (fcParams.thread_length || 0);
+    const totalLen = Number(fcParams.upper_bearing_depth || 0)
+        + Number(fcParams.bearing_span || 0)
+        + Number(fcParams.bearing_to_impeller || 0)
+        + Number(fcParams.impeller_depth || 0)
+        + Number(fcParams.thread_length || 0);
     if (totalLen > 0) fcParams._total_length = totalLen;
 
     return { fcParams, errors: [] };
@@ -375,8 +375,8 @@ router.post('/chat', async (req, res) => {
                     fcParams[k] = v;
                 }
             }
-            const tl = (fcParams.upper_bearing_depth || 0) + (fcParams.bearing_span || 0)
-                + (fcParams.bearing_to_impeller || 0) + (fcParams.impeller_depth || 0) + (fcParams.thread_length || 0);
+            const tl = Number(fcParams.upper_bearing_depth || 0) + Number(fcParams.bearing_span || 0)
+                + Number(fcParams.bearing_to_impeller || 0) + Number(fcParams.impeller_depth || 0) + Number(fcParams.thread_length || 0);
             if (tl > 0) fcParams._total_length = tl;
         }
 
