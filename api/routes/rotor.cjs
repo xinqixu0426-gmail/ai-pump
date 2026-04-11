@@ -405,5 +405,43 @@ router.delete('/history/:id', (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+// ═══════════════════════════════════════════════
+// POST /print/:jobId — 打印图纸
+// ═══════════════════════════════════════════════
+router.post('/print/:jobId', (req, res) => {
+    try {
+        // 先查内存缓存
+        let fileUrl = null;
+        const job = activeJobs.get(req.params.jobId);
+        if (job && job.status === 'success' && job.fileUrl) {
+            fileUrl = job.fileUrl;
+        }
+        // 内存没有则查数据库
+        if (!fileUrl) {
+            const row = db.prepare('SELECT file_url, status FROM rotor_drawings WHERE job_id = ?').get(req.params.jobId);
+            if (!row) return res.status(404).json({ error: '找不到此任务' });
+            if (row.status !== 'success') return res.status(400).json({ error: '该任务尚未成功完成，无法打印' });
+            fileUrl = row.file_url;
+        }
+        if (!fileUrl) return res.status(400).json({ error: '找不到 PDF 文件路径' });
+
+        const pdfPath = path.join(__dirname, '../../public', fileUrl);
+        if (!fs.existsSync(pdfPath)) {
+            return res.status(404).json({ error: 'PDF 文件不存在: ' + fileUrl });
+        }
+
+        // 使用 PowerShell 发送到默认打印机
+        const { execSync } = require('child_process');
+        const cmd = `Start-Process -FilePath "${pdfPath}" -Verb Print -WindowStyle Hidden`;
+        console.log('[Rotor] 🖨️ 打印命令:', cmd);
+        execSync(`powershell -Command "${cmd}"`, { timeout: 15000 });
+
+        console.log('[Rotor] ✅ 打印指令已发送: ' + pdfPath);
+        res.json({ ok: true, message: '打印指令已发送到默认打印机' });
+    } catch (e) {
+        console.error('[Rotor] 🖨️ 打印失败:', e.message);
+        res.status(500).json({ error: '打印失败: ' + e.message });
+    }
+});
 
 module.exports = router;
