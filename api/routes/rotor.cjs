@@ -121,8 +121,154 @@ setInterval(() => {
     }
 }, 30000);
 
+// ── 共享：启动 FreeCAD 出图任务 ──
+function launchDrawJob(fcParams, source, res) {
+    if (runningJobs >= MAX_CONCURRENT_FREECAD) {
+        res.status(429).json({ status: 'error', message: '出图队列已满（最多 ' + MAX_CONCURRENT_FREECAD + ' 个并发），请稍后再试' });
+        return null;
+    }
+
+    const jobId = crypto.randomUUID();
+    const outputFile = 'output_' + jobId + '.pdf';
+    activeJobs.set(jobId, { status: 'processing' });
+    runningJobs++;
+
+    const now = new Date().toISOString();
+    try {
+        db.prepare(`INSERT INTO rotor_drawings (job_id, nl_input, params_json, fc_params_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'processing', ?, ?)`)
+            .run(jobId, source, JSON.stringify(fcParams), JSON.stringify(fcParams), now, now);
+    } catch (dbErr) {
+        console.error('[Rotor] DB insert error:', dbErr.message);
+    }
+
+    console.log('[Rotor] 启动后台出图 jobId=' + jobId, fcParams);
+
+    fcParams._jobId = jobId;
+    const args = [WORKER_SCRIPT, '--pass', JSON.stringify(fcParams)];
+    execFile(FREECAD_BIN, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180000 }, (error, stdout, stderr) => {
+        runningJobs = Math.max(0, runningJobs - 1);
+        console.log('[Rotor] FreeCAD stdout:\n' + stdout);
+        if (stderr) console.error('[Rotor] FreeCAD stderr:\n' + stderr);
+
+        if (error) {
+            console.error('[Rotor] 💥 渲染异常:', error.message);
+            activeJobs.set(jobId, { status: 'failed', error: error.message, doneAt: Date.now() });
+            try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(error.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+            return;
+        }
+
+        const srcPdf = path.join(path.dirname(WORKER_SCRIPT), `output_${jobId}.pdf`);
+        const destDir = path.join(__dirname, '../../public/drawings');
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        const destPdf = path.join(destDir, outputFile);
+
+        try {
+            if (fs.existsSync(srcPdf)) {
+                fs.copyFileSync(srcPdf, destPdf);
+                fs.unlinkSync(srcPdf);
+                const srcWork = path.join(path.dirname(WORKER_SCRIPT), `work_${jobId}.FCStd`);
+                if (fs.existsSync(srcWork)) try { fs.unlinkSync(srcWork); } catch(_){}
+                const fileUrl = '/drawings/' + outputFile;
+                console.log('[Rotor] ✅ PDF 已移至: ' + destPdf);
+                activeJobs.set(jobId, { status: 'success', fileUrl, doneAt: Date.now() });
+                try { db.prepare(`UPDATE rotor_drawings SET status='success', file_url=?, updated_at=? WHERE job_id=?`).run(fileUrl, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+            } else {
+                activeJobs.set(jobId, { status: 'failed', error: '未找到 output PDF', doneAt: Date.now() });
+                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error='未找到 output PDF', updated_at=? WHERE job_id=?`).run(new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+            }
+        } catch (mvErr) {
+            activeJobs.set(jobId, { status: 'failed', error: '移动PDF失败: ' + mvErr.message, doneAt: Date.now() });
+            try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(mvErr.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+        }
+    });
+
+    return jobId;
+}
+
+// ── 共享：轴承查表 + 组装 FreeCAD 参数 ──
+function buildFcParams(params) {
+    const fcParams = {};
+    const errors = [];
+
+    const upperBRaw = params.upper_bearing;
+    const lowerBRaw = params.lower_bearing;
+    const upperB = normalizeBearing(upperBRaw);
+    const lowerB = normalizeBearing(lowerBRaw);
+
+    if (upperB && BEARING_DB[upperB]) {
+        fcParams.upper_bearing_dia = BEARING_DB[upperB].dia;
+        fcParams.upper_bearing_depth = BEARING_DB[upperB].depth;
+    } else if (upperB) {
+        errors.push('未知的上轴承型号: ' + upperBRaw + (upperBRaw !== upperB ? ' (标准化后: ' + upperB + ')' : ''));
+    }
+    if (lowerB && BEARING_DB[lowerB]) {
+        fcParams.lower_bearing_dia = BEARING_DB[lowerB].dia;
+        fcParams.lower_bearing_depth = BEARING_DB[lowerB].depth;
+    } else if (lowerB) {
+        errors.push('未知的下轴承型号: ' + lowerBRaw + (lowerBRaw !== lowerB ? ' (标准化后: ' + lowerB + ')' : ''));
+    }
+
+    if (errors.length > 0) return { fcParams: null, errors };
+
+    ['piece_count', 'rotor_dia', 'bearing_span', 'stack_offset',
+     'oil_seal_dia', 'impeller_dia', 'impeller_depth',
+     'thread_dia', 'thread_length'].forEach(k => {
+        if (params[k] != null) fcParams[k] = params[k];
+    });
+    if (params.impeller_span != null) fcParams.bearing_to_impeller = params.impeller_span;
+    if (params.bearing_to_impeller != null) fcParams.bearing_to_impeller = params.bearing_to_impeller;
+
+    if (fcParams.piece_count) {
+        fcParams._core_length = fcParams.piece_count * 0.5;
+    }
+    const totalLen = (fcParams.upper_bearing_depth || 0)
+        + (fcParams.bearing_span || 0)
+        + (fcParams.bearing_to_impeller || 0)
+        + (fcParams.impeller_depth || 0)
+        + (fcParams.thread_length || 0);
+    if (totalLen > 0) fcParams._total_length = totalLen;
+
+    return { fcParams, errors: [] };
+}
+
 // ═══════════════════════════════════════════════
-// POST /chat — 自然语言出图
+// POST /draw — 结构化参数出图（供 AI 助手 / 外部系统调用）
+// ═══════════════════════════════════════════════
+router.post('/draw', (req, res) => {
+    try {
+        const params = req.body;
+        if (!params || Object.keys(params).length === 0) {
+            return res.status(400).json({ status: 'error', message: '缺少参数，请至少提供一项出图参数' });
+        }
+
+        console.log('[Rotor] /draw 收到结构化出图请求:', params);
+
+        const { fcParams, errors } = buildFcParams(params);
+        if (errors.length > 0) {
+            return res.status(400).json({ status: 'error', message: errors.join('; ') });
+        }
+        if (Object.keys(fcParams).filter(k => !k.startsWith('_')).length === 0) {
+            return res.status(400).json({ status: 'error', message: '未提取到有效参数' });
+        }
+
+        const jobId = launchDrawJob(fcParams, '[API] ' + JSON.stringify(params), res);
+        if (!jobId) return;
+
+        return res.json({
+            status: 'success',
+            message: '出图任务已启动',
+            jobId,
+            params: fcParams
+        });
+    } catch (e) {
+        console.error('[Rotor] /draw 错误:', e);
+        return res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════
+// POST /chat — 自然语言出图（前端页面使用）
 // ═══════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
     try {
@@ -153,7 +299,7 @@ router.post('/chat', async (req, res) => {
 
         const aiReply = parsed.reply || '好的，正在为您处理';
 
-        // 2. 正则兜底（支持小数）
+        // 2. 正则兜底
         const mtStack = message.match(/定位\s*(\d+\.?\d*)/);
         if (mtStack) {
             parsed.stack_offset = parseFloat(mtStack[1]);
@@ -172,53 +318,21 @@ router.post('/chat', async (req, res) => {
         const mtRotorDia = message.match(/转子直径\s*(\d+\.?\d*)/);
         if (mtRotorDia) parsed.rotor_dia = parseFloat(mtRotorDia[1]);
 
-        // 3. 轴承查表 + 组装 FreeCAD 参数（先标准化型号再查表）
-        const fcParams = {};
-        const upperBRaw = parsed.upper_bearing;
-        const lowerBRaw = parsed.lower_bearing;
-        const upperB = normalizeBearing(upperBRaw);
-        const lowerB = normalizeBearing(lowerBRaw);
-
-        if (upperB && BEARING_DB[upperB]) {
-            fcParams.upper_bearing_dia = BEARING_DB[upperB].dia;
-            fcParams.upper_bearing_depth = BEARING_DB[upperB].depth;
-        } else if (upperB) {
-            return res.status(400).json({ status: 'error', message: '未知的上轴承型号: ' + upperBRaw + (upperBRaw !== upperB ? ' (标准化后: ' + upperB + ')' : '') });
-        }
-        if (lowerB && BEARING_DB[lowerB]) {
-            fcParams.lower_bearing_dia = BEARING_DB[lowerB].dia;
-            fcParams.lower_bearing_depth = BEARING_DB[lowerB].depth;
-        } else if (lowerB) {
-            return res.status(400).json({ status: 'error', message: '未知的下轴承型号: ' + lowerBRaw + (lowerBRaw !== lowerB ? ' (标准化后: ' + lowerB + ')' : '') });
+        // 3. 组装参数
+        const { fcParams, errors } = buildFcParams(parsed);
+        if (errors.length > 0) {
+            return res.status(400).json({ status: 'error', message: errors.join('; ') });
         }
 
-        ['piece_count', 'rotor_dia', 'bearing_span', 'stack_offset',
-         'oil_seal_dia', 'impeller_dia', 'impeller_depth',
-         'thread_dia', 'thread_length'].forEach(k => {
-            if (parsed[k] != null) fcParams[k] = parsed[k];
-        });
-        // impeller_span 在模板里的 alias 叫 bearing_to_impeller
-        if (parsed.impeller_span != null) fcParams.bearing_to_impeller = parsed.impeller_span;
-
-        // 派生参数：_core_length / _total_length（worker.py 的 dim_map 覆盖用）
-        if (fcParams.piece_count) {
-            fcParams._core_length = fcParams.piece_count * 0.5;
-        }
-
-        if (Object.keys(fcParams).length === 0) {
+        if (Object.keys(fcParams).filter(k => !k.startsWith('_')).length === 0) {
             return res.json({ status: 'need_params', message: aiReply, extracted: parsed });
         }
 
-        // 4. 安全与完整性校验 (未 force 时触发)
+        // 4. 安全校验 (未 force 时触发)
         if (!force) {
             let hasWarning = false;
-            let warningPayload = {
-                status: 'warning',
-                extracted: parsed
-            };
+            let warningPayload = { status: 'warning', extracted: parsed };
 
-            // 4.1 总长度参数完整性校验
-            // _total_length = 上轴承深度 + 开档 + 叶轮开档 + 叶轮厚度 + 螺纹长度
             const requiredLengthParams = [
                 { key: 'upper_bearing_depth', name: '上轴承深度', value: fcParams.upper_bearing_depth },
                 { key: 'bearing_span', name: '开档', value: fcParams.bearing_span },
@@ -226,130 +340,49 @@ router.post('/chat', async (req, res) => {
                 { key: 'impeller_depth', name: '叶轮厚度', value: fcParams.impeller_depth },
                 { key: 'thread_length', name: '螺纹长度', value: fcParams.thread_length }
             ];
-
             const missingLengthParams = requiredLengthParams.filter(p => p.value == null);
             const providedLengthParams = requiredLengthParams.filter(p => p.value != null);
-            
-            // 如果试图提供部分导致总长可以计算，但又有缺失项，给予提醒
+
             if (providedLengthParams.length > 0 && missingLengthParams.length > 0) {
                 const totalLenCalc = requiredLengthParams.reduce((sum, p) => sum + (p.value || 0), 0);
-                console.log('[Rotor] ⚠️ 总长参数不完整，缺失:', missingLengthParams.map(p => p.name).join(', '));
-                
                 hasWarning = true;
                 warningPayload.missing_length = {
                     missing_params: missingLengthParams.map(p => ({ key: p.key, name: p.name })),
-                    components: requiredLengthParams.map(p => ({
-                        name: p.name,
-                        value: p.value != null ? p.value : 0,
-                        missing: p.value == null
-                    })),
+                    components: requiredLengthParams.map(p => ({ name: p.name, value: p.value != null ? p.value : 0, missing: p.value == null })),
                     calculated_total: totalLenCalc
                 };
             }
 
-            // 4.2 定子距花板距离安全校验
-            const bSpan = fcParams.bearing_span;
-            const pCount = fcParams.piece_count;
-            const sOffset = fcParams.stack_offset;
-
+            const bSpan = fcParams.bearing_span, pCount = fcParams.piece_count, sOffset = fcParams.stack_offset;
             if (bSpan != null && pCount != null && sOffset != null) {
                 const clearance = bSpan - (pCount / 2) - sOffset;
                 if (clearance < 35) {
-                    console.log('[Rotor] ⚠️ 定子距花板距离=' + clearance.toFixed(1) + 'mm < 35mm');
                     hasWarning = true;
                     warningPayload.stator_clearance = {
-                        message: '线圈与上轴承端盖距离过短（' + clearance.toFixed(1) + 'mm < 35mm），可能会导致漏电或干涉，是否继续生成？',
+                        message: '线圈与上轴承端盖距离过短（' + clearance.toFixed(1) + 'mm < 35mm），可能会导致漏电或干涉',
                         clearance: Math.round(clearance * 10) / 10
                     };
                 }
             }
 
-            if (hasWarning) {
-                return res.json(warningPayload);
-            }
+            if (hasWarning) return res.json(warningPayload);
         }
 
-        // 最终组装参数（若用户选择了 force，也接受用 0 兜底缺失参数并计算总长）
-        // 合并弹窗中用户补充的参数
+        // 合并补充参数
         if (force && supplements && typeof supplements === 'object') {
-            // supplements 的 key 可能是 bearing_to_impeller / impeller_depth / thread_length 等
             for (const [k, v] of Object.entries(supplements)) {
                 if (typeof v === 'number' && v > 0) {
                     fcParams[k] = v;
-                    console.log('[Rotor] 合并补充参数:', k, '=', v);
                 }
             }
-        }
-        const totalLen = (fcParams.upper_bearing_depth || 0)
-            + (fcParams.bearing_span || 0)
-            + (fcParams.bearing_to_impeller || 0)
-            + (fcParams.impeller_depth || 0)
-            + (fcParams.thread_length || 0);
-        if (totalLen > 0) fcParams._total_length = totalLen;
-
-        // 5. 后台出图（并发限制）
-        if (runningJobs >= MAX_CONCURRENT_FREECAD) {
-            return res.status(429).json({ status: 'error', message: '出图队列已满（最多 ' + MAX_CONCURRENT_FREECAD + ' 个并发），请稍后再试' });
+            const tl = (fcParams.upper_bearing_depth || 0) + (fcParams.bearing_span || 0)
+                + (fcParams.bearing_to_impeller || 0) + (fcParams.impeller_depth || 0) + (fcParams.thread_length || 0);
+            if (tl > 0) fcParams._total_length = tl;
         }
 
-        const jobId = crypto.randomUUID();
-        const outputFile = 'output_' + jobId + '.pdf';
-        activeJobs.set(jobId, { status: 'processing' });
-        runningJobs++;
-
-        // 保存出图记录到数据库
-        const now = new Date().toISOString();
-        try {
-            db.prepare(`INSERT INTO rotor_drawings (job_id, nl_input, params_json, fc_params_json, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'processing', ?, ?)`)
-                .run(jobId, message, JSON.stringify(parsed), JSON.stringify(fcParams), now, now);
-        } catch (dbErr) {
-            console.error('[Rotor] DB insert error:', dbErr.message);
-        }
-
-        console.log('[Rotor] 提取参数完成，启动后台出图 jobId=' + jobId, fcParams);
-
-        fcParams._jobId = jobId;
-        const args = [WORKER_SCRIPT, '--pass', JSON.stringify(fcParams)];
-        execFile(FREECAD_BIN, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180000 }, (error, stdout, stderr) => {
-            runningJobs = Math.max(0, runningJobs - 1);
-            console.log('[Rotor] FreeCAD stdout:\n' + stdout);
-            if (stderr) console.error('[Rotor] FreeCAD stderr:\n' + stderr);
-
-            if (error) {
-                console.error('[Rotor] 💥 渲染异常:', error.message);
-                activeJobs.set(jobId, { status: 'failed', error: error.message, doneAt: Date.now() });
-                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(error.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
-                return;
-            }
-
-            // worker.py 输出以 jobId 命名的 PDF
-            const srcPdf = path.join(path.dirname(WORKER_SCRIPT), `output_${jobId}.pdf`);
-            const destDir = path.join(__dirname, '../../public/drawings');
-            if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-            const destPdf = path.join(destDir, outputFile);
-
-            try {
-                if (fs.existsSync(srcPdf)) {
-                    fs.copyFileSync(srcPdf, destPdf);
-                    fs.unlinkSync(srcPdf);
-                    // 清理工作副本（可选）
-                    const srcWork = path.join(path.dirname(WORKER_SCRIPT), `work_${jobId}.FCStd`);
-                    if (fs.existsSync(srcWork)) try { fs.unlinkSync(srcWork); } catch(_){}
-
-                    const fileUrl = '/drawings/' + outputFile;
-                    console.log('[Rotor] ✅ PDF 已移至: ' + destPdf);
-                    activeJobs.set(jobId, { status: 'success', fileUrl, doneAt: Date.now() });
-                    try { db.prepare(`UPDATE rotor_drawings SET status='success', file_url=?, updated_at=? WHERE job_id=?`).run(fileUrl, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
-                } else {
-                    activeJobs.set(jobId, { status: 'failed', error: '未找到 output PDF', doneAt: Date.now() });
-                    try { db.prepare(`UPDATE rotor_drawings SET status='failed', error='未找到 output PDF', updated_at=? WHERE job_id=?`).run(new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
-                }
-            } catch (mvErr) {
-                activeJobs.set(jobId, { status: 'failed', error: '移动PDF失败: ' + mvErr.message, doneAt: Date.now() });
-                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(mvErr.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
-            }
-        });
+        // 5. 启动出图
+        const jobId = launchDrawJob(fcParams, message, res);
+        if (!jobId) return;
 
         return res.json({
             status: 'success',
