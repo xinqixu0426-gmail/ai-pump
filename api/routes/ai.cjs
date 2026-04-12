@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const crypto = require('crypto');
-const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, partRow, recipeRow, orderRow, coilRow, loadPartsData, calculateRecipeCost } = require('../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, partRow, recipeRow, orderRow, coilRow, loadPartsData, calculateRecipeCost, updateOrderFields, invalidatePartsCache } = require('../db.cjs');
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const PORT = process.env.PORT || 3002;
@@ -517,6 +517,15 @@ const AI_TOOLS = [
     }
 ];
 
+// ── 写操作工具白名单（需要 allowWrite=true 才能执行） ──
+const WRITE_TOOLS = new Set([
+    'create_part', 'update_part', 'delete_part', 'batch_update_prices',
+    'create_order', 'delete_order', 'update_order_status',
+    'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
+    'generate_purchase_list',
+    'create_recipe', 'delete_recipe', 'update_recipe',
+]);
+
 let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮助用户查询成本、配方、零件、铜价、线圈数据，以及执行数据库写操作。
 
 你的能力：
@@ -581,12 +590,21 @@ async function loadSystemPromptFromDB() {
 
 /**
  * AI 工具执行器
+ * @param {string} toolName
+ * @param {object} args
+ * @param {object} options
+ * @param {boolean} options.allowWrite - 是否允许执行写操作（默认 false）
  */
-async function executeToolCall(toolName, args) {
+async function executeToolCall(toolName, args, options = {}) {
+    const { allowWrite = false } = options;
+    // 权限拦截：写操作需要 allowWrite=true
+    if (WRITE_TOOLS.has(toolName) && !allowWrite) {
+        return { success: false, error: `操作被拒绝："${toolName}" 是写操作，当前调用方没有写入权限。请通过系统管理界面执行此操作。` };
+    }
     // 内部网络获取助手，注入系统秘钥绕过鉴权锁
     const internalFetch = (url, options = {}) => {
         const headers = options.headers || {};
-        headers['x-internal-secret'] = 'pump-internal-bypass-very-secret';
+        headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
         return fetch(`http://localhost:${PORT}${url}`, { ...options, headers });
     };
 
@@ -701,6 +719,7 @@ async function executeToolCall(toolName, args) {
                 // 1. 发起创建请求
                 const now = new Date().toISOString();
                 const createRes = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(model, category, price, supplier, stock, now, now);
+                invalidatePartsCache();
                 createRes.Id = createRes.lastInsertRowid;
 
                 const newId = createRes?.Id || createRes?.id;
@@ -854,20 +873,7 @@ async function executeToolCall(toolName, args) {
                 });
 
                 // 4. 更新到数据库
-                {
-                    const _ob = {
-                        Id: orderRow.Id,
-                        型号列表JSON: JSON.stringify(itemsList)
-                    };
-                    const _oId = _ob.Id || _ob.id;
-                    const _oSets = []; const _oVals = [];
-                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
-                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
-                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
-                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
-                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
-                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
-                }
+                updateOrderFields(orderRow.Id, { items_json: JSON.stringify(itemsList) });
 
                 return {
                     success: true,
@@ -928,6 +934,7 @@ async function executeToolCall(toolName, args) {
                     if (updates['类别'] !== undefined) { uSets2.push('category = ?'); uVals2.push(updates['类别']); }
                     uSets2.push('updated_at = ?'); uVals2.push(new Date().toISOString()); uVals2.push(target.Id);
                     db.prepare(`UPDATE parts SET ${uSets2.join(', ')} WHERE id = ?`).run(...uVals2);
+                    invalidatePartsCache();
                 }
 
                 // 回读验证
@@ -996,17 +1003,7 @@ async function executeToolCall(toolName, args) {
                 const row = orderData.list?.[0];
                 if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
                 const oldStatus = row.订单状态 || '待采购';
-                {
-                    const _ob = { Id: row.Id, 订单状态: status };
-                    const _oId = _ob.Id || _ob.id;
-                    const _oSets = []; const _oVals = [];
-                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
-                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
-                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
-                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
-                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
-                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
-                }
+                updateOrderFields(row.Id, { status });
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.客户名称 };
             }
 
@@ -1019,17 +1016,7 @@ async function executeToolCall(toolName, args) {
                 const before = items.length;
                 items = items.filter(it => !(it.recipeName || '').includes(recipeName));
                 if (items.length === before) return { success: false, error: `订单${orderId}中未找到包含\"${recipeName}\"的配方` };
-                {
-                    const _ob = { Id: row.Id, 型号列表JSON: JSON.stringify(items) };
-                    const _oId = _ob.Id || _ob.id;
-                    const _oSets = []; const _oVals = [];
-                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
-                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
-                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
-                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
-                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
-                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
-                }
+                updateOrderFields(row.Id, { items_json: JSON.stringify(items) });
                 return { success: true, message: `已从订单${orderId}中移除\"${recipeName}\"`, orderId, removed: before - items.length, remaining: items.length };
             }
 
@@ -1050,17 +1037,7 @@ async function executeToolCall(toolName, args) {
                     if (unitPrice === undefined) { item.unitPrice = Math.round(item.unitCost * profitMargin * 100) / 100; changes.push(`出厂价自动调整为: ${item.unitPrice}`); }
                 }
                 if (changes.length === 0) return { success: false, error: '没有指定要修改的字段' };
-                {
-                    const _ob = { Id: row.Id, 型号列表JSON: JSON.stringify(items) };
-                    const _oId = _ob.Id || _ob.id;
-                    const _oSets = []; const _oVals = [];
-                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
-                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
-                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
-                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
-                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
-                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
-                }
+                updateOrderFields(row.Id, { items_json: JSON.stringify(items) });
                 return { success: true, message: `订单${orderId}中\"${item.recipeName}\"已更新`, orderId, recipeName: item.recipeName, changes };
             }
 
@@ -1115,17 +1092,7 @@ async function executeToolCall(toolName, args) {
                 }
 
                 // 写入订单
-                {
-                    const _ob = { Id: row.Id, 采购清单JSON: JSON.stringify(purchaseList), 采购TodoJSON: JSON.stringify(todos) };
-                    const _oId = _ob.Id || _ob.id;
-                    const _oSets = []; const _oVals = [];
-                    if (_ob.订单状态) { _oSets.push('status = ?'); _oVals.push(_ob.订单状态); }
-                    if (_ob.型号列表JSON) { _oSets.push('items_json = ?'); _oVals.push(_ob.型号列表JSON); }
-                    if (_ob.采购清单JSON) { _oSets.push('purchase_list_json = ?'); _oVals.push(_ob.采购清单JSON); }
-                    if (_ob.采购TodoJSON) { _oSets.push('todos_json = ?'); _oVals.push(_ob.采购TodoJSON); }
-                    _oSets.push('updated_at = ?'); _oVals.push(new Date().toISOString()); _oVals.push(_oId);
-                    db.prepare(`UPDATE orders SET ${_oSets.join(', ')} WHERE id = ?`).run(..._oVals);
-                }
+                updateOrderFields(row.Id, { purchase_list_json: JSON.stringify(purchaseList), todos_json: JSON.stringify(todos) });
 
                 return {
                     success: true,
@@ -1308,6 +1275,7 @@ async function executeToolCall(toolName, args) {
                 const target = allParts.find(p => (p.型号 || p.model || '') === model);
                 if (!target) return { success: false, error: '找不到零件: ' + model };
                 db.prepare('DELETE FROM parts WHERE id = ?').run(target.Id);
+                invalidatePartsCache();
                 return { success: true, message: `零件\"${model}\"已删除`, model };
             }
 
@@ -1334,6 +1302,7 @@ async function executeToolCall(toolName, args) {
                 for (const u of updates) {
                     db.prepare('UPDATE parts SET price = ?, updated_at = ? WHERE id = ?').run(u.单价, new Date().toISOString(), u.Id);
                 }
+                invalidatePartsCache();
 
                 return {
                     success: true,
@@ -1561,7 +1530,7 @@ router.post('/api/ai/chat', async (req, res) => {
                     try { args = JSON.parse(tc.function.arguments); } catch (e) { /* ignore */ }
 
                     send('tool_call', { name: funcName, args });
-                    const result = await executeToolCall(funcName, args);
+                    const result = await executeToolCall(funcName, args, { allowWrite: true });
                     send('tool_result', { name: funcName, result });
 
                     currentMessages.push({
@@ -1784,7 +1753,7 @@ router.get('/api/siri/result/:id', (req, res) => {
  * 通用 AI 对话处理函数
  */
 async function processAiChat(text, options = {}) {
-    const { context = [], promptSuffix = '', onToolCall } = options;
+    const { context = [], promptSuffix = '', onToolCall, allowWrite = false } = options;
     const toolResults = [];
 
     const messages = context && context.length > 0
@@ -1853,7 +1822,7 @@ async function processAiChat(text, options = {}) {
                 let args = {};
                 try { args = JSON.parse(tc.function.arguments); } catch (e) { }
 
-                const result = await executeToolCall(funcName, args);
+                const result = await executeToolCall(funcName, args, { allowWrite });
                 const viewType = VIEW_TYPE_MAP[funcName] || 'action_result';
 
                 toolResults.push({ name: funcName, view_type: viewType, result });
@@ -1964,7 +1933,7 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
     }
 });
 
-
 module.exports = router;
 module.exports.loadSystemPromptFromDB = typeof loadSystemPromptFromDB === 'function' ? loadSystemPromptFromDB : () => {};
 module.exports.processAiChat = processAiChat;
+

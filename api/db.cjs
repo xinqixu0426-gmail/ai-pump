@@ -92,6 +92,11 @@ db.exec(`
         value TEXT,
         updated_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS config (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
 `);
 
 // seed 默认管理费
@@ -203,20 +208,7 @@ function extractPartFields(body) {
     };
 }
 
-function loadPartsData() {
-    const records = db.prepare('SELECT * FROM parts').all();
-    const partsCache = {};
-    const partsByModel = {};
-    records.forEach(record => {
-        const model = record.model;
-        const price = record.price || 0;
-        const supplier = record.supplier || '-';
-        partsCache[model] = { price, supplier, category: record.category || '其他' };
-        if (!partsByModel[model]) partsByModel[model] = [];
-        partsByModel[model].push({ id: record.id, supplier, price });
-    });
-    return { partsCache, partsByModel };
-}
+
 
 function calculateRecipeCost(parts, partsCache, partsByModel) {
     let totalCost = 0;
@@ -245,10 +237,62 @@ function setSetting(key, value) {
     db.prepare('INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run(key, String(value), now);
 }
 
+/**
+ * 订单字段更新助手 — 替代 ai.cjs 中 5 处 copy-paste 的订单更新样板
+ * @param {number} orderId
+ * @param {object} fields - { status?, items_json?, purchase_list_json?, todos_json? }
+ */
+function updateOrderFields(orderId, fields) {
+    const sets = [];
+    const vals = [];
+    if (fields.status !== undefined) { sets.push('status = ?'); vals.push(fields.status); }
+    if (fields.items_json !== undefined) { sets.push('items_json = ?'); vals.push(fields.items_json); }
+    if (fields.purchase_list_json !== undefined) { sets.push('purchase_list_json = ?'); vals.push(fields.purchase_list_json); }
+    if (fields.todos_json !== undefined) { sets.push('todos_json = ?'); vals.push(fields.todos_json); }
+    if (sets.length === 0) return;
+    sets.push('updated_at = ?');
+    vals.push(new Date().toISOString());
+    vals.push(orderId);
+    db.prepare(`UPDATE orders SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+}
+
+// ── P1.7: loadPartsData 缓存 ──
+let _partsDataCache = null;
+let _partsDataCacheTime = 0;
+const PARTS_CACHE_TTL = 10_000; // 10秒缓存
+
+function loadPartsData() {
+    const now = Date.now();
+    if (_partsDataCache && (now - _partsDataCacheTime) < PARTS_CACHE_TTL) {
+        return _partsDataCache;
+    }
+    const records = db.prepare('SELECT * FROM parts').all();
+    const partsCache = {};
+    const partsByModel = {};
+    records.forEach(record => {
+        const model = record.model;
+        const price = record.price || 0;
+        const supplier = record.supplier || '-';
+        partsCache[model] = { price, supplier, category: record.category || '其他' };
+        if (!partsByModel[model]) partsByModel[model] = [];
+        partsByModel[model].push({ id: record.id, supplier, price });
+    });
+    _partsDataCache = { partsCache, partsByModel };
+    _partsDataCacheTime = now;
+    return _partsDataCache;
+}
+
+/** 使 loadPartsData 缓存失效（写入零件后调用） */
+function invalidatePartsCache() {
+    _partsDataCache = null;
+    _partsDataCacheTime = 0;
+}
+
 module.exports = {
     db,
     partRow, recipeRow, templateRow, orderRow, coilRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
+    updateOrderFields, invalidatePartsCache,
 };
