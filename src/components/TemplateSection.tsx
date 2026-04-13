@@ -40,12 +40,19 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     [parts]
   );
 
-  // ── 泵壳型号列表 ──
+  // ── 泵壳型号列表 (过滤掉已建模板的) ──
   const shellModels = useMemo(() => {
+    const templateModels = new Set(templates.map(t => t.shell_model));
     const set = new Set<string>();
-    parts.forEach(p => { if (['泵体', '壳体', '泵壳'].includes(p.category) && p.model) set.add(p.model); });
+    parts.forEach(p => { 
+      if (['泵体', '壳体', '泵壳'].includes(p.category) && p.model) {
+        if (!templateModels.has(p.model) || (editingTpl && editingTpl.shell_model === p.model)) {
+          set.add(p.model);
+        }
+      }
+    });
     return Array.from(set).sort();
-  }, [parts]);
+  }, [parts, templates, editingTpl]);
 
   // ── 零件型号去重列表 ──
   const uniqueModels = useMemo(() => {
@@ -78,7 +85,19 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   };
 
   const handleSaveTpl = async () => {
-    if (!shellModel.trim()) { setError('泵壳型号不能为空'); return; }
+    const modelStr = shellModel.trim();
+    if (!modelStr) { setError('泵壳型号不能为空'); return; }
+
+    // 防止重复创建模板（客户端校验）
+    if (!editingTpl && templates.some(t => t.shell_model === modelStr)) {
+      setError(`泵壳型号 "${modelStr}" 已经配置过模板，请直接修改已有模板`);
+      return;
+    }
+    if (editingTpl && templates.some(t => t.Id !== editingTpl.Id && t.shell_model === modelStr)) {
+      setError(`泵壳型号 "${modelStr}" 已存在其他模板关联`);
+      return;
+    }
+
     const validRows = partRows.filter(r => r.model.trim());
     if (validRows.length === 0) { setError('至少需要一个配件'); return; }
     const pJson: TemplatePart[] = validRows.map(r => ({ name: r.name, model: r.model.trim(), qty: r.qty, supplier: r.supplier || '' }));
