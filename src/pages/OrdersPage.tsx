@@ -1,17 +1,18 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Paper, Typography, Box, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton, Tooltip,
   TextField, InputAdornment, Autocomplete, Dialog, DialogTitle,
   DialogContent, DialogContentText, DialogActions, Fade,
+  Select, MenuItem, CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon, Info as InfoIcon, Delete as DeleteIcon,
   Search as SearchIcon, Edit as EditIcon, Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { Order, OrderStatus } from '../types';
-import { deleteOrder } from '../utils/orderStore';
+import { deleteOrder, saveOrder } from '../utils/orderStore';
 import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
 import PageHeader from '../components/PageHeader';
@@ -50,7 +51,9 @@ export default function OrdersPage() {
   const { orders: rawOrders, fetchOrders } = useAppStore();
   const [selected, setSelected] = useState<Order | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
   const orders = useMemo(() =>
     [...rawOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -79,6 +82,17 @@ export default function OrdersPage() {
 
   const handleDetail = (order: Order) => setSelected(order);
 
+  // 行内状态切换
+  const handleStatusChange = useCallback(async (order: Order, newStatus: OrderStatus) => {
+    if (order.status === newStatus) return;
+    setStatusUpdating(order.id);
+    try {
+      await saveOrder({ ...order, status: newStatus });
+      await fetchOrders(true);
+    } catch { /* ignore */ }
+    finally { setStatusUpdating(null); }
+  }, [fetchOrders]);
+
   // KPI 统计
   const kpis = useMemo(() => {
     const pending = orders.filter(o => o.status === '待采购' || o.status === '采购中').length;
@@ -88,10 +102,17 @@ export default function OrdersPage() {
     return { pending, completed, totalRevenue, totalProfit };
   }, [orders]);
 
-  const filteredOrders = useMemo(() =>
-    orders.filter(o => !filterCustomer || o.customerName === filterCustomer),
-    [orders, filterCustomer]
-  );
+  const filteredOrders = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return orders.filter(o => {
+      const matchCustomer = !filterCustomer || o.customerName === filterCustomer;
+      const matchSearch = !q || 
+        o.customerName.toLowerCase().includes(q) ||
+        (o.contractNo || '').toLowerCase().includes(q) ||
+        o.items.some(it => it.recipeName.toLowerCase().includes(q));
+      return matchCustomer && matchSearch;
+    });
+  }, [orders, filterCustomer, searchQuery]);
 
   return (
     <Box>
@@ -130,26 +151,22 @@ export default function OrdersPage() {
       <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden' }}>
         {/* 筛选栏 */}
         {orders.length > 0 && (
-          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TextField
+              size="small" placeholder="搜索客户、合同号、配方..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment> }}
+              sx={{ minWidth: 220, flex: 1 }}
+            />
             <Autocomplete
               options={[...new Set(orders.map((o) => o.customerName))].sort()}
               value={filterCustomer}
               onChange={(_, v) => setFilterCustomer(v)}
               renderInput={(params) => (
-                <TextField
-                  {...params} size="small" placeholder="按客户名称筛选"
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
-                    ),
-                  }}
-                />
+                <TextField {...params} size="small" placeholder="客户筛选" />
               )}
-              sx={{ minWidth: 280 }}
+              sx={{ minWidth: 180 }}
               clearText="清除"
               noOptionsText="无匹配客户"
             />
@@ -184,7 +201,7 @@ export default function OrdersPage() {
                   const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
                   return (
                     <Fade key={order.id} in timeout={200 + idx * 60}>
-                      <TableRow hover sx={{ cursor: 'pointer' }} onDoubleClick={() => handleDetail(order)}>
+                      <TableRow hover sx={{ cursor: 'pointer' }} onClick={() => handleDetail(order)}>
                         <TableCell sx={{ fontWeight: 600 }}>{order.customerName}</TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{order.contractNo || '-'}</TableCell>
                         <TableCell>{order.items.length} 个型号</TableCell>
@@ -198,8 +215,28 @@ export default function OrdersPage() {
                             <Chip label="库存充足" size="small" color="success" variant="outlined" />
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Chip label={order.status} size="small" color={STATUS_COLOR[order.status]} />
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {statusUpdating === order.id ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            <Select
+                              value={order.status}
+                              onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
+                              size="small"
+                              variant="standard"
+                              disableUnderline
+                              sx={{
+                                fontWeight: 600,
+                                fontSize: '0.8rem',
+                                color: `${STATUS_COLOR[order.status]}.main`,
+                                '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${STATUS_COLOR[order.status]}.50` || 'action.hover' },
+                              }}
+                            >
+                              <MenuItem value="待采购">⏳ 待采购</MenuItem>
+                              <MenuItem value="采购中">🔄 采购中</MenuItem>
+                              <MenuItem value="已完成">✅ 已完成</MenuItem>
+                            </Select>
+                          )}
                         </TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                           {formatDate(order.createdAt)}

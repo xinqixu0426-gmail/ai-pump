@@ -29,6 +29,7 @@ import {
   Autocomplete,
   Switch,
   FormControlLabel,
+  Drawer,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -712,6 +713,7 @@ export default function PartsPage() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [successMsg, setSuccessMsg] = useState('');
   const formRef = useRef<HTMLDivElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [harnessOpen, setHarnessOpen] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
@@ -794,7 +796,17 @@ export default function PartsPage() {
 
   const handleEdit = (part: Part) => {
     setEditingPart(part);
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setDrawerOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingPart(null);
+    setDrawerOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setDrawerOpen(false);
+    setTimeout(() => setEditingPart(null), 200);
   };
 
   const handleDelete = (id: number) => setDeleteTarget(id);
@@ -844,6 +856,14 @@ export default function PartsPage() {
               </IconButton>
             </span>
           </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddNew}
+            sx={{ fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}
+          >
+            新增零件
+          </Button>
         </Box>
       </Box>
 
@@ -863,24 +883,8 @@ export default function PartsPage() {
         <StatCard label="缺货零件" value={kpis.outOfStock} sub="库存为 0" gradient={gradients.profit} delay={3} />
       </Box>
 
-      {/* 主体：表单 + 列表 */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px 1fr' }, gap: 3, alignItems: 'start' }}>
-        {/* 左侧表单 */}
-        <Box ref={formRef}>
-          <PartFormPanel
-            editingPart={editingPart}
-            onSave={handleSave}
-            onCancel={() => setEditingPart(null)}
-            saving={saving}
-            allCategories={allCategories}
-            customCategories={customCategories}
-            onManageCategories={() => setCatManagerOpen(true)}
-            supplierOptions={supplierOptions}
-          />
-        </Box>
-
-        {/* 右侧列表 */}
-        <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+      {/* 主体：全宽列表 */}
+      <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           {/* 搜索 & 筛选栏 */}
           <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
@@ -920,7 +924,7 @@ export default function PartsPage() {
           {!loading && filteredParts.length === 0 && (
             <Box textAlign="center" py={8} color="text.secondary">
               <InventoryIcon sx={{ fontSize: 48, opacity: 0.2, mb: 1, display: 'block', mx: 'auto' }} />
-              <Typography variant="body2">{parts.length === 0 ? '暂无零件，请先录入' : '未找到匹配的零件'}</Typography>
+              <Typography variant="body2">{parts.length === 0 ? '暂无零件，点击右上角录入' : '未找到匹配的零件'}</Typography>
             </Box>
           )}
 
@@ -969,8 +973,31 @@ export default function PartsPage() {
               </Box>
             );
           })}
-        </Paper>
-      </Box>
+      </Paper>
+
+      {/* 零件表单 Drawer */}
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        onClose={handleDrawerClose}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 400 }, p: 0, border: 'none' } }}
+      >
+        <Box ref={formRef} sx={{ height: '100%' }}>
+          <PartFormPanel
+            editingPart={editingPart}
+            onSave={async (partData) => {
+              await handleSave(partData);
+              handleDrawerClose();
+            }}
+            onCancel={handleDrawerClose}
+            saving={saving}
+            allCategories={allCategories}
+            customCategories={customCategories}
+            onManageCategories={() => setCatManagerOpen(true)}
+            supplierOptions={supplierOptions}
+          />
+        </Box>
+      </Drawer>
 
       {/* 删除确认弹窗 */}
       <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { borderRadius: 3 } }}>

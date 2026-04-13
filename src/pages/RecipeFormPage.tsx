@@ -24,6 +24,9 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  Stepper,
+  Step,
+  StepLabel,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -31,6 +34,8 @@ import {
   ArrowBack as BackIcon,
   Cable as CableIcon,
   Inventory as TemplateIcon,
+  NavigateNext as NextIcon,
+  NavigateBefore as PrevIcon,
 } from '@mui/icons-material';
 import { RecipePart, TemplatePart, PartSelection } from '../types';
 import { createRecipe, updateRecipe } from '../utils/api';
@@ -79,6 +84,10 @@ export default function RecipeFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Stepper
+  const STEPS = ['基本信息 + 模板', '配件配置', '工资 + 确认'];
+  const [activeStep, setActiveStep] = useState(0);
 
   // 基本信息
   const [recipeName, setRecipeName] = useState(editFrom?.name || cloneFrom?.name || '');
@@ -459,9 +468,19 @@ export default function RecipeFormPage() {
     );
   }
 
+  // ── 各区块小计（用于浮动面板）──
+  const coilCost = coilResult?.totalCost || 0;
+  const optionalCost = optionalParts.reduce((sum, p) => {
+    if (!p.model) return sum;
+    return sum + getPriceByModelAndSupplier(p.model, p.supplier) * (p.qty || 1);
+  }, 0);
+  const configCost = buildConfigParts().reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0);
+  const capCost = capacitorModel ? getPriceByModelAndSupplier(capacitorModel, '') : 0;
+
   return (
-    <Paper sx={{ p: { xs: 2, md: 3 }, maxWidth: 960, mx: 'auto' }}>
-      {/* 标题 + 成本速览 */}
+    <Box sx={{ maxWidth: 960, mx: 'auto', pb: 10 }}>
+    <Paper sx={{ p: { xs: 2, md: 3 } }}>
+      {/* 标题 */}
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
         <Box display="flex" alignItems="center" gap={1}>
           <IconButton onClick={() => navigate('/recipes')} size="small">
@@ -471,20 +490,25 @@ export default function RecipeFormPage() {
             {isEditing ? '编辑配方' : cloneFrom ? '复制配方' : '录入配方'}
           </Typography>
         </Box>
-        {totalCost > 0 && (
-          <Chip
-            label={`预估成本 ¥${totalCost.toFixed(2)}`}
-            color="primary"
-            sx={{ fontWeight: 700, fontSize: '0.9rem' }}
-          />
-        )}
       </Box>
+
+      {/* ━━ Stepper ━━ */}
+      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+        {STEPS.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
+
+      {/* ━━ Step 0: 基本信息 + 泵壳模板 ━━ */}
+      {activeStep === 0 && (<>
 
       {/* ━━ 基本信息 ━━ */}
       <Box display="flex" gap={2} mb={2}>
@@ -585,50 +609,23 @@ export default function RecipeFormPage() {
         </Box>
       </Paper>
 
-      {/* ━━ 人工计件工资 ━━ */}
-      {selectedTemplate && (
-        <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
-          <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(245, 158, 11, 0.06)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 16 }}>👷</Typography>
-            <Typography variant="caption" fontWeight={700} color="warning.main" sx={{ letterSpacing: 1 }}>
-              ▸ 人工工资 & 管理费（元/台）
-            </Typography>
-            {laborCost > 0 && (
-              <Chip label={`¥${laborCost.toFixed(2)}`} size="small" color="warning" sx={{ ml: 'auto', fontWeight: 700 }} />
-            )}
-          </Box>
-          <Box sx={{ px: 2, py: 1.5, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            <TextField label="安装工资" type="number" size="small"
-              value={assemblyWage || ''} onChange={e => setAssemblyWage(parseFloat(e.target.value) || 0)}
-              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
-            <TextField label="打包工资" type="number" size="small"
-              value={packingWage || ''} onChange={e => setPackingWage(parseFloat(e.target.value) || 0)}
-              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
-            <Box display="flex" alignItems="center" gap={1}>
-              <FormControlLabel
-                control={<Checkbox size="small" checked={paintingWage != null}
-                  onChange={e => setPaintingWage(e.target.checked ? 0 : null)} />}
-                label={<Typography variant="body2" sx={{ fontSize: '0.8rem' }}>需要喷漆</Typography>}
-                sx={{ mr: 0 }}
-              />
-              {paintingWage != null && (
-                <TextField label="喷漆工资" type="number" size="small"
-                  value={paintingWage || ''} onChange={e => setPaintingWage(parseFloat(e.target.value) || 0)}
-                  inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
-              )}
-            </Box>
-            <TextField label="管理费用" type="number" size="small"
-              value={managementFee || ''} onChange={e => setManagementFee(parseFloat(e.target.value) || 0)}
-              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }}
-              helperText="系统默认值" />
-            <Tooltip title="工资从泵壳模板自动带入，管理费从系统设置读取，均可针对本配方调整">
-              <Typography variant="caption" color="text.disabled" sx={{ alignSelf: 'center', cursor: 'help' }}>
-                ⓘ 自动同步
-              </Typography>
-            </Tooltip>
-          </Box>
-        </Paper>
-      )}
+
+      {/* Step navigation */}
+      <Box display="flex" justifyContent="flex-end" mt={2}>
+        <Button
+          variant="contained"
+          endIcon={<NextIcon />}
+          onClick={() => setActiveStep(1)}
+          disabled={!recipeName.trim()}
+        >
+          下一步：配件配置
+        </Button>
+      </Box>
+
+      </>)}
+
+      {/* ━━ Step 1: 配件配置 ━━ */}
+      {activeStep === 1 && (<>
 
       {/* ━━ 线圈转子 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
@@ -835,7 +832,75 @@ export default function RecipeFormPage() {
         </Box>
       </Paper>
 
-      {/* ━━ 保存按钮 ━━ */}
+      {/* Step navigation */}
+      <Box display="flex" justifyContent="space-between" mt={2}>
+        <Button variant="outlined" startIcon={<PrevIcon />} onClick={() => setActiveStep(0)}>
+          上一步
+        </Button>
+        <Button variant="contained" endIcon={<NextIcon />} onClick={() => setActiveStep(2)}>
+          下一步：确认
+        </Button>
+      </Box>
+
+      </>)}
+
+      {/* ━━ Step 2: 工资 + 确认 + 保存 ━━ */}
+      {activeStep === 2 && (<>
+
+      {/* 人工工资（如果有模板则显示） */}
+      {selectedTemplate && (
+        <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+          <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(245, 158, 11, 0.06)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontSize: 16 }}>👷</Typography>
+            <Typography variant="caption" fontWeight={700} color="warning.main" sx={{ letterSpacing: 1 }}>
+              ▸ 人工工资 & 管理费（元/台）
+            </Typography>
+            {laborCost > 0 && (
+              <Chip label={`¥${laborCost.toFixed(2)}`} size="small" color="warning" sx={{ ml: 'auto', fontWeight: 700 }} />
+            )}
+          </Box>
+          <Box sx={{ px: 2, py: 1.5, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <TextField label="安装工资" type="number" size="small"
+              value={assemblyWage || ''} onChange={e => setAssemblyWage(parseFloat(e.target.value) || 0)}
+              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
+            <TextField label="打包工资" type="number" size="small"
+              value={packingWage || ''} onChange={e => setPackingWage(parseFloat(e.target.value) || 0)}
+              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
+            <Box display="flex" alignItems="center" gap={1}>
+              <FormControlLabel
+                control={<Checkbox size="small" checked={paintingWage != null}
+                  onChange={e => setPaintingWage(e.target.checked ? 0 : null)} />}
+                label={<Typography variant="body2" sx={{ fontSize: '0.8rem' }}>需要喷漆</Typography>}
+                sx={{ mr: 0 }}
+              />
+              {paintingWage != null && (
+                <TextField label="喷漆工资" type="number" size="small"
+                  value={paintingWage || ''} onChange={e => setPaintingWage(parseFloat(e.target.value) || 0)}
+                  inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }} />
+              )}
+            </Box>
+            <TextField label="管理费用" type="number" size="small"
+              value={managementFee || ''} onChange={e => setManagementFee(parseFloat(e.target.value) || 0)}
+              inputProps={{ min: 0, step: 0.5 }} sx={{ width: 120 }}
+              helperText="系统默认值" />
+          </Box>
+        </Paper>
+      )}
+
+      {/* 配方概览 */}
+      <Paper variant="outlined" sx={{ mb: 2, p: 2 }}>
+        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>📋 配方概览</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+          <Typography variant="body2" color="text.secondary">配方名称：<strong>{recipeName || '-'}</strong></Typography>
+          <Typography variant="body2" color="text.secondary">规格：<strong>{recipeSpec || '-'}</strong></Typography>
+          <Typography variant="body2" color="text.secondary">泵壳模板：<strong>{selectedTemplate?.shell_model || '未选择'}</strong></Typography>
+          <Typography variant="body2" color="text.secondary">线圈规格：<strong>{coilSpec ? `${coilSpec} / ${coilSheets}片` : '未配置'}</strong></Typography>
+          <Typography variant="body2" color="text.secondary">选配件数：<strong>{optionalParts.filter(p => p.model).length} 项</strong></Typography>
+          <Typography variant="body2" color="text.secondary">人工合计：<strong>¥{laborCost.toFixed(2)}</strong></Typography>
+        </Box>
+      </Paper>
+
+      {/* 保存按钮 */}
       <Button
         variant="contained"
         color="success"
@@ -848,6 +913,84 @@ export default function RecipeFormPage() {
       >
         {isEditing ? '更新配方' : '保存配方'}
       </Button>
+
+      {/* Step navigation */}
+      <Box display="flex" justifyContent="flex-start" mt={2}>
+        <Button variant="outlined" startIcon={<PrevIcon />} onClick={() => setActiveStep(1)}>
+          上一步
+        </Button>
+      </Box>
+
+      </>)}
     </Paper>
+
+    {/* ━━━ 浮动成本速览面板 ━━━ */}
+    <Paper
+      elevation={8}
+      sx={{
+        position: 'fixed',
+        bottom: 0,
+        left: { xs: 0, md: 240 },
+        right: 0,
+        zIndex: 1100,
+        borderRadius: 0,
+        borderTop: '2px solid',
+        borderColor: 'primary.main',
+        bgcolor: 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(8px)',
+        px: { xs: 2, md: 3 },
+        py: 1.5,
+      }}
+    >
+      <Box sx={{
+        maxWidth: 960,
+        mx: 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        gap: { xs: 1.5, md: 3 },
+        flexWrap: 'wrap',
+      }}>
+        {/* Section breakdowns */}
+        {selectedTemplate && (
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>模板配件</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#7c3aed' }}>¥{templateCost.toFixed(0)}</Typography>
+          </Box>
+        )}
+        {coilCost > 0 && (
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>线圈转子</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#7c3aed' }}>¥{coilCost.toFixed(0)}</Typography>
+          </Box>
+        )}
+        {(optionalCost + capCost) > 0 && (
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>选配+电容</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#2563eb' }}>¥{(optionalCost + capCost).toFixed(0)}</Typography>
+          </Box>
+        )}
+        {configCost > 0 && (
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>动态配置</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#2563eb' }}>¥{configCost.toFixed(0)}</Typography>
+          </Box>
+        )}
+        {laborCost > 0 && (
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>人工+管理</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#d97706' }}>¥{laborCost.toFixed(0)}</Typography>
+          </Box>
+        )}
+
+        {/* Total */}
+        <Box sx={{ ml: 'auto', textAlign: 'right' }}>
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>预估总成本</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: totalCost > 0 ? 'success.main' : 'text.disabled', fontSize: '1.25rem', lineHeight: 1.2 }}>
+            ¥{totalCost.toFixed(2)}
+          </Typography>
+        </Box>
+      </Box>
+    </Paper>
+    </Box>
   );
 }
