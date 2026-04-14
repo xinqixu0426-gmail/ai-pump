@@ -49,7 +49,7 @@ import {
   HistoryPrice,
 } from '../utils/orderStore';
 import { formatMoney as fmt } from '../utils/format';
-
+import PageHeader from '../components/PageHeader';
 const STEPS = ['基本信息', '添加型号 & 定价', '预览采购清单', '确认提交'];
 
 interface DraftItem {
@@ -72,7 +72,7 @@ export default function OrderFormPage() {
   const [activeStep, setActiveStep] = useState(0);
 
   // ── 数据加载 ──────────────────────────
-  const { recipes, parts: allParts, fetchRecipes, fetchParts } = useAppStore();
+  const { recipes, parts: allParts, fetchRecipes, fetchParts, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -209,9 +209,10 @@ export default function OrderFormPage() {
       order.totalPrice = orderTotals.totalPrice;
       order.totalProfit = orderTotals.totalProfit;
       await saveOrder(order);
+      showSnackbar(isEdit ? '订单已成功更新' : '新订单已创建', 'success');
       navigate('/orders');
     } catch {
-      setError('保存订单失败');
+      showSnackbar('保存订单失败', 'error');
       setSubmitting(false);
     }
   };
@@ -231,14 +232,14 @@ export default function OrderFormPage() {
 
 
   return (
-    <Paper elevation={2} sx={{ p: 3, maxWidth: 1100, mx: 'auto' }}>
-      {/* 标题 */}
-      <Box display="flex" alignItems="center" mb={3} gap={1}>
-        <IconButton onClick={() => navigate('/orders')} size="small">
-          <BackIcon />
-        </IconButton>
-        <Typography variant="h6">{isEdit ? '编辑订单' : '新建订单'}</Typography>
-      </Box>
+    <Box sx={{ maxWidth: 1100, mx: 'auto', pb: 8 }}>
+      <PageHeader
+        title={isEdit ? '编辑订单' : '新建订单'}
+        subtitle={isEdit ? '修改和管理已有订单的信息及配方列表' : '跟随向导将需求型号快速录入生产系统'}
+        onBack={() => navigate('/orders')}
+      />
+
+      <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3 }}>
 
       {/* 步骤条 */}
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
@@ -628,6 +629,7 @@ export default function OrderFormPage() {
           )}
         </Box>
       )}
-    </Paper>
+      </Paper>
+    </Box>
   );
 }

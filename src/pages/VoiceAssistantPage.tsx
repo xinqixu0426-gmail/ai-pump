@@ -1,5 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Box, Paper, Button } from '@mui/material';
+import { Delete as DeleteIcon } from '@mui/icons-material';
 import StructuredResult from '../components/ai/StructuredResult';
+import PageHeader from '../components/PageHeader';
 
 // ── Types ──
 interface ChatMessage {
@@ -339,17 +342,25 @@ export default function VoiceAssistantPage() {
   const canInteract = !isRecording && !isProcessing;
 
   return (
-    <div className="va-root">
+    <Box sx={{ maxWidth: 1100, mx: 'auto', pb: 4 }} className="va-root-override">
       {/* ── Header ── */}
-      <header className="va-header">
-        <div className="va-header-left">
-          <span className="va-logo">💧</span>
-          <span className="va-title">水泵助手</span>
-        </div>
-        {messages.length > 0 && (
-          <button className="va-clear-btn" onClick={handleClear}>清空</button>
-        )}
-      </header>
+      <PageHeader
+        title="🎙 语音助手"
+        subtitle="点击麦克风直接对话，解锁极客流模式"
+        actions={
+          messages.length > 0 && (
+            <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleClear} size="small">清空对话</Button>
+          )
+        }
+      />
+      <Paper elevation={0} sx={{ 
+        display: 'flex', flexDirection: 'column', 
+        height: 'calc(100vh - 210px)', 
+        borderRadius: 3, 
+        overflow: 'hidden',
+        border: '1px solid', borderColor: 'divider',
+        bgcolor: 'background.paper'
+      }}>
 
       {/* ── Messages ── */}
       <main className="va-messages">
@@ -360,9 +371,9 @@ export default function VoiceAssistantPage() {
             <p>点击下方麦克风按钮开始说话</p>
             <div className="va-examples">
               {EXAMPLES.map((q, i) => (
-                <button key={i} className="va-example-btn" onClick={() => sendMessage(q.text)}>
-                  <span>{q.icon}</span> {q.text}
-                </button>
+                <Button key={i} variant="outlined" color="primary" sx={{ borderRadius: 6, textTransform: 'none', bgcolor: 'primary.50' }} onClick={() => sendMessage(q.text)}>
+                  <span style={{ marginRight: 6 }}>{q.icon}</span> {q.text}
+                </Button>
               ))}
             </div>
           </div>
@@ -556,7 +567,7 @@ export default function VoiceAssistantPage() {
         }
         .va-welcome p {
           font-size: 14px;
-          color: #5a6378;
+          color: #64748b;
           margin: 0 0 16px;
         }
         .va-examples {
@@ -618,7 +629,7 @@ export default function VoiceAssistantPage() {
 
         .va-text {
           white-space: pre-wrap;
-          color: #c0c8d8;
+          color: #334155;
         }
         .va-error {
           color: #f87171;
@@ -630,16 +641,17 @@ export default function VoiceAssistantPage() {
           margin: -4px -4px 8px;
         }
         .va-tools .MuiPaper-root {
-          background: rgba(255,255,255,0.03) !important;
-          border-color: rgba(255,255,255,0.08) !important;
-          color: #e4e8f1 !important;
+          background: #ffffff !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+          border-color: #f1f5f9 !important;
+          color: #1e293b !important;
         }
         .va-tools .MuiTableCell-root {
           color: #c0c8d8 !important;
-          border-color: rgba(255,255,255,0.06) !important;
+          border-color: #f1f5f9 !important;
         }
         .va-tools .MuiTableCell-head {
-          color: white !important;
+          color: #1e293b !important;
         }
 
         /* ── Typing indicator ── */
@@ -747,7 +759,7 @@ export default function VoiceAssistantPage() {
           border-color: rgba(108,138,255,0.4);
           background: rgba(255,255,255,0.08);
         }
-        .va-text-input::placeholder { color: #4a5368; }
+        .va-text-input::placeholder { color: #94a3b8; }
         .va-text-input:disabled { opacity: 0.5; }
 
         /* ── Send button ── */
@@ -810,12 +822,13 @@ export default function VoiceAssistantPage() {
         .va-spinner {
           width: 22px; height: 22px;
           border: 2.5px solid rgba(255,255,255,0.3);
-          border-top-color: white;
+          border-top-color: #3b82f6;
           border-radius: 50%;
           animation: spin 0.7s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
-    </div>
+      </Paper>
+    </Box>
   );
 }

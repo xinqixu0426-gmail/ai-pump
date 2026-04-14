@@ -21,6 +21,7 @@ import {
 } from '@mui/icons-material';
 import { getAllTemplates, getAllParts } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
+import PageHeader from '../components/PageHeader';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -364,13 +365,13 @@ export default function RotorDrawingPage() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 1000, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <BuildIcon fontSize="large" color="primary" />
-        转子出图系统
-      </Typography>
+      <PageHeader
+        title="🔧 转子出图系统"
+        subtitle="自然语言或表单填参，自动生成转子工程图纸"
+      />
 
       {/* ── 泵壳模板关联 ── */}
-      <Paper sx={{ p: 2, mb: 2, bgcolor: 'background.default' }}>
+      <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, bgcolor: 'background.default' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <LinkIcon fontSize="small" color="primary" />
           <Typography variant="subtitle2">关联泵壳模板（可选）</Typography>
@@ -401,7 +402,7 @@ export default function RotorDrawingPage() {
 
       {/* ── 自然语言输入 ── */}
       {!formMode && (
-        <Paper sx={{ p: 3, mb: 3 }}>
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
           <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
             用自然语言描述转子参数，例如："上轴承202，下轴承203，转子片数160片，定位30，开档150"
           </Typography>
@@ -424,7 +425,7 @@ export default function RotorDrawingPage() {
 
       {/* ── 表单模式 ── */}
       {formMode && (
-        <Paper sx={{ p: 3, mb: 3 }}>
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
           <Grid container spacing={2}>
             <Grid item xs={6} sm={3}>
               <TextField select fullWidth label="上轴承" value={form.upper_bearing}
@@ -492,7 +493,7 @@ export default function RotorDrawingPage() {
 
       {/* ── 提取结果预览 ── */}
       {extracted && (
-        <Paper sx={{ p: 2, mb: 2, bgcolor: 'action.hover' }}>
+        <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, bgcolor: 'action.hover' }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>AI 提取参数:</Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
             {Object.entries(extracted).filter(([k, v]) => v != null && k !== 'reply').map(([k, v]) => (
@@ -504,7 +505,7 @@ export default function RotorDrawingPage() {
 
       {/* ── 出图进度 ── */}
       {jobStatus && (
-        <Paper sx={{ p: 3, mb: 2 }}>
+        <Paper elevation={0} sx={{ p: 3, mb: 2, borderRadius: 3 }}>
           {jobStatus.status === 'processing' && (
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -545,7 +546,7 @@ export default function RotorDrawingPage() {
 
       {/* ── 出图历史 ── */}
       {history.length > 0 && (
-        <Paper sx={{ p: 2, mt: 3 }}>
+        <Paper elevation={0} sx={{ p: 2, mt: 3, borderRadius: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <HistoryIcon color="primary" />
             <Typography variant="h6">出图历史</Typography>
@@ -565,20 +566,33 @@ export default function RotorDrawingPage() {
               <TableBody>
                 {history.map((row: any) => {
                   const params = (() => { try { return JSON.parse(row.fc_params_json || '{}'); } catch { return {}; } })();
-                  const paramChips = Object.entries(params)
-                    .filter(([, v]) => v != null)
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(', ');
+                  const paramEntries = Object.entries(params).filter(([, v]) => v != null);
+                  const displayParams = paramEntries.slice(0, 4);
+                  const hasMore = paramEntries.length > 4;
                   return (
                     <TableRow key={row.id} hover>
                       <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
-                        {row.created_at ? new Date(row.created_at).toLocaleString('zh-CN') : '-'}
+                        {row.created_at ? new Date(row.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                       </TableCell>
-                      <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {row.nl_input || '-'}
+                      <TableCell>
+                        <Tooltip title={row.nl_input || ''}>
+                          <Typography variant="body2" sx={{ maxWidth: 300, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.8rem' }}>
+                            {row.nl_input || '-'}
+                          </Typography>
+                        </Tooltip>
                       </TableCell>
-                      <TableCell sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.75rem', color: 'text.secondary' }}>
-                        {paramChips || '-'}
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: 350 }}>
+                          {displayParams.map(([k, v]) => (
+                            <Chip color="primary" key={k} label={`${k}:${v}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          ))}
+                          {hasMore && (
+                            <Tooltip title={paramEntries.map(([k, v]) => `${k}:${v}`).join(', ')}>
+                              <Chip label={`+${paramEntries.length - 4}`} size="small" variant="filled" sx={{ height: 20, fontSize: '0.7rem' }} />
+                            </Tooltip>
+                          )}
+                          {paramEntries.length === 0 && <span style={{ color: '#aaa', fontSize: '0.75rem' }}>-</span>}
+                        </Box>
                       </TableCell>
                       <TableCell>
                         {row.status === 'success' && <Chip label="成功" color="success" size="small" />}

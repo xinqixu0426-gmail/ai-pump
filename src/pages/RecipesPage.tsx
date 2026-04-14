@@ -4,6 +4,7 @@ import {
   Paper, Typography, Alert, Box, CircularProgress, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip, Button, Dialog,
   DialogTitle, DialogContent, DialogContentText, DialogActions, Chip, Collapse, Fade,
+  useMediaQuery, useTheme
 } from '@mui/material';
 import {
   Info as InfoIcon, Delete as DeleteIcon, Refresh as RefreshIcon,
@@ -17,11 +18,14 @@ import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 import TemplateSection from '../components/TemplateSection';
 import PageHeader from '../components/PageHeader';
-import { gradients } from '../utils/theme';
+import StatCard from '../components/StatCard';
+import { colors, gradients } from '../utils/theme';
 
 export default function RecipesPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
-  const { recipes, parts, templates, fetchParts, fetchRecipes, fetchTemplates } = useAppStore();
+  const { recipes, parts, templates, fetchParts, fetchRecipes, fetchTemplates, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<{ recipe: Recipe; costResult: CostResult } | null>(null);
@@ -103,7 +107,7 @@ export default function RecipesPage() {
     if (deleteTarget === null) return;
     const id = deleteTarget;
     setDeleteTarget(null);
-    try { await deleteRecipe(id); await fetchRecipes(true); }
+    try { await deleteRecipe(id); await fetchRecipes(true); showSnackbar('配方已删除', 'info'); }
     catch { setError('删除失败'); }
   };
 
@@ -135,28 +139,10 @@ export default function RecipesPage() {
       />
 
       {/* KPI 统计 */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        {[
-          { label: '模板数量', value: templates.length, sub: '泵壳配置模板', gradient: gradients.orders },
-          { label: '配方数量', value: recipes.length, sub: '已录入配方', gradient: gradients.recipes },
-          { label: '零件种类', value: parts.length, sub: '可选配件库', gradient: gradients.parts },
-        ].map((item, idx) => (
-          <Fade key={item.label} in timeout={400 + idx * 100}>
-            <Paper elevation={0} sx={{
-              p: 2, borderRadius: 3, flex: 1, position: 'relative', overflow: 'hidden',
-              transition: 'all 0.25s',
-              '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 8px 24px rgba(0,0,0,0.07)' },
-              '&::before': { content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: item.gradient },
-            }}>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}
-                sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.68rem' }}>
-                {item.label}
-              </Typography>
-              <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: -0.5, mt: 0.3 }}>{item.value}</Typography>
-              <Typography variant="caption" color="text.secondary">{item.sub}</Typography>
-            </Paper>
-          </Fade>
-        ))}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+        <StatCard label="模板数量" value={templates.length} subtitle="泵壳配置模板" gradient={gradients.orders} delay={0} />
+        <StatCard label="配方数量" value={recipes.length} subtitle="已录入配方" gradient={gradients.recipes} delay={1} />
+        <StatCard label="零件种类" value={parts.length} subtitle="可选配件库" gradient={gradients.parts} delay={2} />
       </Box>
 
       <Collapse in={!!error}>
@@ -177,6 +163,41 @@ export default function RecipesPage() {
         {recipes.length === 0 ? (
           <Box textAlign="center" py={6} color="text.secondary">
             <Typography variant="body2">暂无配方数据，点击右上角录入</Typography>
+          </Box>
+        ) : isMobile ? (
+          <Box p={2}>
+            {recipes.map((recipe) => {
+              const data = recipeData.get(recipe.Id);
+              const tplName = recipe.template_id ? tplNameMap.get(recipe.template_id) || '-' : '-';
+              return (
+                <Paper
+                  key={recipe.Id}
+                  onClick={() => handleViewDetail(recipe)}
+                  elevation={0}
+                  sx={{ p: 2, mb: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', cursor: 'pointer' }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography fontWeight={700}>{recipe.name}</Typography>
+                    {tplName !== '-' && (
+                      <Chip label={tplName} size="small" variant="outlined"
+                        sx={{ height: 22, fontSize: '0.7rem', borderColor: colors.purple.border, color: colors.purple.main }} />
+                    )}
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+                    {recipe.spec || '无规格'}
+                  </Typography>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography variant="body2" color="text.secondary">总成本</Typography>
+                    <Typography variant="body2" fontWeight={700} color="primary.main">{data?.cost || '-'}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="flex-end" gap={0.5}>
+                    <IconButton size="small" color="warning" onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }}><EditIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); handleClone(recipe); }}><CopyIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); setDeleteTarget(recipe.Id); }}><DeleteIcon fontSize="small" /></IconButton>
+                  </Box>
+                </Paper>
+              );
+            })}
           </Box>
         ) : (
           <TableContainer>
@@ -202,7 +223,7 @@ export default function RecipesPage() {
                       <TableCell>
                         {tplName !== '-' ? (
                           <Chip label={tplName} size="small" variant="outlined"
-                            sx={{ height: 22, fontSize: '0.7rem', borderColor: '#a855f7', color: '#7c3aed' }} />
+                            sx={{ height: 22, fontSize: '0.7rem', borderColor: colors.purple.border, color: colors.purple.main }} />
                         ) : '-'}
                       </TableCell>
                       <TableCell sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

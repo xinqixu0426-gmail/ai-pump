@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import StructuredResult from '../components/ai/StructuredResult';
 import StatusIndicator from '../components/ai/StatusIndicator';
+import PageHeader from '../components/PageHeader';
 import { colors, gradients } from '../utils/theme';
 
 // ─── Types ────────────────────────────────────────────
@@ -309,9 +310,34 @@ export default function AIChatPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', maxWidth: 900, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 1100, mx: 'auto', pb: 4 }}>
+      <PageHeader
+        title="✨ BOM 智能助手"
+        subtitle="用自然语言查询成本、基本配方和供应链数据"
+        actions={
+          <>
+            {messages.length > 0 && (
+              <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleClear} size="small">
+                清空对话
+              </Button>
+            )}
+            <Tooltip title="设置 System Prompt">
+              <IconButton onClick={handleOpenSettings} sx={{ bgcolor: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <SettingsIcon />
+              </IconButton>
+            </Tooltip>
+          </>
+        }
+      />
+      <Paper elevation={0} sx={{ 
+        display: 'flex', flexDirection: 'column', 
+        height: 'calc(100vh - 210px)', 
+        borderRadius: 3, 
+        overflow: 'hidden',
+        border: '1px solid', borderColor: 'divider'
+      }}>
       {/* 消息区域 */}
-      <Box sx={{ flex: 1, overflow: 'auto', pb: 2, px: 1 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', pb: 2, px: { xs: 2, md: 3 }, pt: 3 }}>
         {messages.length === 0 ? (
           // 欢迎界面
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 3 }}>
@@ -532,6 +558,7 @@ export default function AIChatPage() {
         >
           {isLoading ? <CircularProgress size={20} sx={{ color: 'text.secondary' }} /> : <SendIcon fontSize="small" />}
         </IconButton>
+      </Paper>
       </Paper>
 
       {/* System Prompt 编辑弹窗 */}

@@ -47,6 +47,11 @@ interface AppState {
   invalidateRecipes: () => void;
   invalidateOrders: () => void;
   invalidateTemplates: () => void;
+
+  // Snackbar 全局通知
+  snackbar: { open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' };
+  showSnackbar: (message: string, severity?: 'success' | 'error' | 'info' | 'warning') => void;
+  hideSnackbar: () => void;
 }
 
 // 缓存过期时间：30秒内不重复请求
@@ -76,6 +81,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   recipesLoadedAt: 0,
   ordersLoadedAt: 0,
   templatesLoadedAt: 0,
+  
+  snackbar: { open: false, message: '', severity: 'success' },
+  showSnackbar: (message, severity = 'success') => 
+    set({ snackbar: { open: true, message, severity } }),
+  hideSnackbar: () => 
+    set((state) => ({ snackbar: { ...state.snackbar, open: false } })),
 
   // ── 零件 ────────
   fetchParts: async (force = false) => {

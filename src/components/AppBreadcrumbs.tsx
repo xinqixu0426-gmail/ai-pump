@@ -71,7 +71,7 @@ export default function AppBreadcrumbs() {
   if (crumbs.length === 0) return null;
 
   return (
-    <Box sx={{ mb: 1 }}>
+    <Box sx={{ display: { xs: 'none', sm: 'block' }, mb: 1 }}>
       <Breadcrumbs
         separator={<SepIcon sx={{ fontSize: 16 }} />}
         sx={{

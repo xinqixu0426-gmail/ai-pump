@@ -19,6 +19,7 @@ import OrderFormPage from './pages/OrderFormPage';
 import CoilRotorPage from './pages/CoilRotorPage';
 import AIChatPage from './pages/AIChatPage';
 import RotorDrawingPage from './pages/RotorDrawingPage';
+import GlobalSnackbar from './components/GlobalSnackbar';
 
 function App() {
   const theme = useTheme();
@@ -128,6 +129,9 @@ function App() {
           </Box>
         </Box>
       </Box>
+
+      {/* 全局组件 */}
+      <GlobalSnackbar />
     </Box>
   );
 }

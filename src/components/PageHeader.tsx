@@ -17,9 +17,15 @@ interface PageHeaderProps {
 export default function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
     <Fade in timeout={300}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
+      <Box 
+        display="flex" 
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'flex-start', sm: 'center' }} 
+        justifyContent="space-between" 
+        mb={3}
+      >
+        <Box mb={{ xs: actions ? 1 : 0, sm: 0 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -0.5, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
             {title}
           </Typography>
           {subtitle && (
@@ -29,7 +35,7 @@ export default function PageHeader({ title, subtitle, actions }: PageHeaderProps
           )}
         </Box>
         {actions && (
-          <Box display="flex" gap={1} alignItems="center">
+          <Box display="flex" gap={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' }, overflowX: 'auto', pb: { xs: 0.5, sm: 0 } }}>
             {actions}
           </Box>
         )}

@@ -42,6 +42,7 @@ import { createRecipe, updateRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import RecipePartRow from '../components/RecipePartRow';
+import { colors } from '../utils/theme';
 
 const COIL_API_BASE = '';
 
@@ -80,7 +81,7 @@ export default function RecipeFormPage() {
   const isEditing = !!editFrom;
   const initApplied = useRef(false);
 
-  const { parts, fetchParts, templates, fetchTemplates } = useAppStore();
+  const { parts, fetchParts, templates, fetchTemplates, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -439,6 +440,7 @@ export default function RecipeFormPage() {
       } else {
         await createRecipe(recipeData);
       }
+      showSnackbar('配方已保存', 'success');
       navigate('/recipes');
     } catch {
       setError('保存配方失败');
@@ -535,8 +537,8 @@ export default function RecipeFormPage() {
       {/* ━━ 泵壳模板选择 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <TemplateIcon sx={{ fontSize: 16, color: '#7c3aed' }} />
-          <Typography variant="caption" fontWeight={700} color="#7c3aed" sx={{ letterSpacing: 1 }}>
+          <TemplateIcon sx={{ fontSize: 16, color: colors.purple.main }} />
+          <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
             ▸ 泵壳模板（固定配件）
           </Typography>
           {selectedTemplate && (
@@ -631,8 +633,8 @@ export default function RecipeFormPage() {
       {/* ━━ 线圈转子 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CableIcon sx={{ fontSize: 16, color: '#7c3aed' }} />
-          <Typography variant="caption" fontWeight={700} color="#7c3aed" sx={{ letterSpacing: 1 }}>
+          <CableIcon sx={{ fontSize: 16, color: colors.purple.main }} />
+          <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
             ▸ 线圈转子
           </Typography>
           {coilLoading && <CircularProgress size={12} sx={{ ml: 1 }} />}
@@ -955,31 +957,31 @@ export default function RecipeFormPage() {
         {selectedTemplate && (
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>模板配件</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#7c3aed' }}>¥{templateCost.toFixed(0)}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.purple.main }}>¥{templateCost.toFixed(0)}</Typography>
           </Box>
         )}
         {coilCost > 0 && (
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>线圈转子</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#7c3aed' }}>¥{coilCost.toFixed(0)}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.purple.main }}>¥{coilCost.toFixed(0)}</Typography>
           </Box>
         )}
         {(optionalCost + capCost) > 0 && (
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>选配+电容</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#2563eb' }}>¥{(optionalCost + capCost).toFixed(0)}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.blue.text }}>¥{(optionalCost + capCost).toFixed(0)}</Typography>
           </Box>
         )}
         {configCost > 0 && (
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>动态配置</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#2563eb' }}>¥{configCost.toFixed(0)}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.blue.text }}>¥{configCost.toFixed(0)}</Typography>
           </Box>
         )}
         {laborCost > 0 && (
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>人工+管理</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#d97706' }}>¥{laborCost.toFixed(0)}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.amber.dark }}>¥{laborCost.toFixed(0)}</Typography>
           </Box>
         )}
 

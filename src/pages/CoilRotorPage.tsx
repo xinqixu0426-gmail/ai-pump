@@ -50,7 +50,8 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import PageHeader from '../components/PageHeader';
-import { gradients } from '../utils/theme';
+import { colors, gradients } from '../utils/theme';
+import { useAppStore } from '../utils/store';
 
 const API_BASE = '';
 
@@ -111,10 +112,10 @@ const emptyForm: CoilFormData = {
 };
 
 export default function CoilRotorPage() {
+  const { showSnackbar } = useAppStore();
   const [coils, setCoils] = useState<CoilRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // 铜价
   const [copperPrice, setCopperPrice] = useState<CopperPriceInfo | null>(null);
@@ -210,7 +211,7 @@ export default function CoilRotorPage() {
       const res = await fetch(`${API_BASE}/api/copper-price/update`, { method: 'POST' });
       const json = await res.json();
       if (json.success) {
-        setSuccess(`铜价更新成功: ${json.data.copperPricePerTon} 元/吨 → ${json.data.copperPricePerKg} 元/千克，已更新 ${json.data.updatedCount} 条记录`);
+        showSnackbar(`铜价更新成功`, 'success');
         await loadCoils();
         await loadCopperPrice();
       } else {
@@ -264,7 +265,7 @@ export default function CoilRotorPage() {
       });
       const json = await res.json();
       if (json.success) {
-        setSuccess(editingId ? '更新成功' : '添加成功');
+        showSnackbar(editingId ? '记录已保存' : '添加成功', 'success');
         setDialogOpen(false);
         await loadCoils();
       } else {
@@ -289,7 +290,7 @@ export default function CoilRotorPage() {
       const res = await fetch(`${API_BASE}/api/coils/${id}`, { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
-        setSuccess('删除成功');
+        showSnackbar('记录已删除', 'info');
         await loadCoils();
       } else {
         setError('删除失败');
@@ -322,6 +323,7 @@ export default function CoilRotorPage() {
       const json = await res.json();
       if (json.success) {
         setCalcResult(json.data);
+        showSnackbar(`成本计算完成: ¥${json.data.totalCost.toFixed(2)}`, 'success');
       } else {
         setError(json.error || '计算失败');
       }
@@ -352,9 +354,6 @@ export default function CoilRotorPage() {
       <Collapse in={!!error}>
         <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>
       </Collapse>
-      <Collapse in={!!success}>
-        <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2, borderRadius: 2 }}>{success}</Alert>
-      </Collapse>
 
       <Grid container spacing={3}>
 
@@ -362,38 +361,33 @@ export default function CoilRotorPage() {
       <Grid item xs={12}>
         <Paper sx={{
           p: 3, borderRadius: 3,
-          background: gradients.copper,
-          border: '1px solid #f59e0b',
+          bgcolor: colors.amber.bg,
+          border: `1px solid ${colors.amber.border}`,
+          borderLeft: `3px solid ${colors.amber.main}`,
           position: 'relative',
           overflow: 'hidden'
         }}>
-          <Box sx={{
-            position: 'absolute', right: -20, top: -20, opacity: 0.1,
-            fontSize: 120, lineHeight: 1
-          }}>
-            💰
-          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <CurrencyIcon sx={{ fontSize: 36, color: '#92400e' }} />
+            <CurrencyIcon sx={{ fontSize: 36, color: colors.amber.text }} />
             <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="subtitle2" sx={{ color: '#92400e', fontWeight: 600 }}>
+              <Typography variant="subtitle2" sx={{ color: colors.amber.text, fontWeight: 600 }}>
                 实时铜价监控
               </Typography>
               {copperLoading ? (
                 <CircularProgress size={20} />
               ) : copperPrice ? (
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 800, color: '#78350f' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary' }}>
                     ¥{Number(copperPrice.livePrice).toLocaleString()}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#92400e' }}>元/吨</Typography>
+                  <Typography variant="body2" sx={{ color: colors.amber.text }}>元/吨</Typography>
                   <Chip
                     label={`${copperPrice.livePricePerKg} 元/千克`}
                     size="small"
-                    sx={{ bgcolor: '#92400e', color: 'white', fontWeight: 700 }}
+                    sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }}
                   />
-                  <Divider orientation="vertical" flexItem sx={{ borderColor: '#d97706' }} />
-                  <Typography variant="body2" sx={{ color: '#92400e' }}>
+                  <Divider orientation="vertical" flexItem sx={{ borderColor: colors.amber.border }} />
+                  <Typography variant="body2" sx={{ color: colors.amber.text }}>
                     数据库铜价基数: <strong>{copperPrice.dbPrice}</strong> 元/千克
                   </Typography>
                   {copperPrice.dbPrice !== copperPrice.livePricePerKg && (
@@ -412,7 +406,7 @@ export default function CoilRotorPage() {
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Tooltip title="刷新铜价">
-                <IconButton onClick={loadCopperPrice} sx={{ color: '#92400e' }}>
+                <IconButton onClick={loadCopperPrice} sx={{ color: colors.amber.text }}>
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
@@ -422,8 +416,8 @@ export default function CoilRotorPage() {
                 onClick={handleCopperUpdate}
                 disabled={copperUpdating}
                 sx={{
-                  bgcolor: '#92400e',
-                  '&:hover': { bgcolor: '#78350f' },
+                  bgcolor: 'primary.main',
+                  '&:hover': { bgcolor: 'primary.dark' },
                   fontWeight: 700,
                   whiteSpace: 'nowrap'
                 }}
@@ -508,7 +502,7 @@ export default function CoilRotorPage() {
           {/* 计算结果 */}
           {calcResult && (
             <Card variant="outlined" sx={{
-              bgcolor: '#f0fdf4',
+              bgcolor: colors.green.bg,
               border: '1px solid #86efac',
               animation: 'fadeIn 0.3s ease'
             }}>
@@ -522,23 +516,23 @@ export default function CoilRotorPage() {
                     variant="outlined"
                   />
                 </Box>
-                <Typography variant="h4" sx={{ fontWeight: 800, color: '#166534', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: colors.green.text, mb: 1 }}>
                   ¥{calcResult.totalCost.toFixed(2)}
                 </Typography>
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="caption" component="div" sx={{
                   fontFamily: 'monospace',
-                  bgcolor: '#f8fafc',
+                  bgcolor: colors.slate.bg,
                   p: 1,
                   borderRadius: 1,
                   lineHeight: 1.8,
                   fontSize: '0.75rem'
                 }}>
-                  <Box component="span" sx={{ color: '#6366f1' }}>单价</Box> {calcResult.unitPrice} × <Box component="span" sx={{ color: '#6366f1' }}>片数</Box> {calcResult.sheets} = {(calcResult.unitPrice * calcResult.sheets).toFixed(2)}<br />
-                  <Box component="span" sx={{ color: '#ea580c' }}>线重</Box> {calcResult.wireWeight} × <Box component="span" sx={{ color: '#ea580c' }}>铜价</Box> {calcResult.copperBase} = {(calcResult.wireWeight * calcResult.copperBase).toFixed(2)}
+                  <Box component="span" sx={{ color: 'primary.main' }}>单价</Box> {calcResult.unitPrice} × <Box component="span" sx={{ color: 'primary.main' }}>片数</Box> {calcResult.sheets} = {(calcResult.unitPrice * calcResult.sheets).toFixed(2)}<br />
+                  <Box component="span" sx={{ color: 'primary.main' }}>线重</Box> {calcResult.wireWeight} × <Box component="span" sx={{ color: 'primary.main' }}>铜价</Box> {calcResult.copperBase} = {(calcResult.wireWeight * calcResult.copperBase).toFixed(2)}
                   {calcResult.isCustomWireWeight && <Chip label="客户指定" size="small" sx={{ ml: 0.5, height: 16, fontSize: '0.65rem' }} color="warning" />}<br />
-                  <Box component="span" sx={{ color: '#0891b2' }}>线圈加工费</Box>: {calcResult.coilFee}<br />
-                  <Box component="span" sx={{ color: '#0891b2' }}>转子加工费</Box>: {calcResult.rotorFee}
+                  <Box component="span" sx={{ color: 'text.secondary' }}>线圈加工费</Box>: {calcResult.coilFee}<br />
+                  <Box component="span" sx={{ color: 'text.secondary' }}>转子加工费</Box>: {calcResult.rotorFee}
                 </Typography>
                 {calcResult.wireGauge && (
                   <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'text.secondary' }}>
@@ -556,8 +550,8 @@ export default function CoilRotorPage() {
       <Grid item xs={12} md={8}>
         <Paper elevation={0} sx={{ p: 3, borderRadius: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <CableIcon sx={{ mr: 1, color: '#7c3aed' }} />
-            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, color: '#7c3aed' }}>
+            <CableIcon sx={{ mr: 1, color: colors.purple.main }} />
+            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, color: colors.purple.main }}>
               线圈转子数据管理
             </Typography>
             <Button
@@ -583,8 +577,8 @@ export default function CoilRotorPage() {
                   cursor: 'pointer',
                   p: 1.5,
                   borderRadius: 1,
-                  bgcolor: '#f1f5f9',
-                  '&:hover': { bgcolor: '#e2e8f0' },
+                  bgcolor: colors.slate.light,
+                  '&:hover': { bgcolor: colors.slate.hover },
                   transition: 'background 0.2s'
                 }}
               >
@@ -615,7 +609,7 @@ export default function CoilRotorPage() {
                     <TableBody>
                       {records.map(coil => (
                         <TableRow key={coil.Id} hover sx={{
-                          '&:hover': { bgcolor: '#faf5ff' }
+                          '&:hover': { bgcolor: colors.purple.bg }
                         }}>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -627,7 +621,7 @@ export default function CoilRotorPage() {
                           <TableCell>¥{coil.线圈加工费}</TableCell>
                           <TableCell>¥{coil.转子加工费}</TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#059669' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: colors.green.dark }}>
                               ¥{parseFloat(coil.成本).toFixed(2)}
                             </Typography>
                           </TableCell>
@@ -747,7 +741,7 @@ export default function CoilRotorPage() {
 
           {/* 实时成本预览 */}
           {formData.单价 && formData.片数 && (
-            <Box sx={{ mt: 2, p: 1.5, bgcolor: '#f0fdf4', borderRadius: 1, border: '1px solid #bbf7d0' }}>
+            <Box sx={{ mt: 2, p: 1.5, bgcolor: colors.green.bg, borderRadius: 1, border: `1px solid ${colors.green.border}` }}>
               <Typography variant="caption" color="success.dark">
                 预估成本: ¥{(
                   parseFloat(formData.单价 || '0') * parseInt(formData.片数 || '0') +

@@ -76,7 +76,7 @@ const BUILTIN_COLORS: Record<string, { bg: string; text: string; border: string 
   轴承:   { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
   油封:   { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' },
   螺丝:   { bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
-  泵壳:   { bg: '#faf5ff', text: '#5b21b6', border: '#d8b4fe' },
+  泵壳:   { bg: colors.purple.bg, text: colors.purple.dark, border: colors.purple.border },
   线圈转子:{ bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
   电容:   { bg: '#f0f9ff', text: '#075985', border: '#bae6fd' },
   电缆线: { bg: '#fdf4ff', text: '#701a75', border: '#f0abfc' },
@@ -604,25 +604,7 @@ function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, o
 
 // ─── 统计卡片 ─────────────────────────────────────────
 
-function StatCard({ label, value, sub, gradient, delay }: { label: string; value: string | number; sub?: string; gradient: string; delay: number }) {
-  return (
-    <Fade in timeout={400 + delay * 100}>
-      <Paper elevation={0} sx={{
-        p: 2, borderRadius: 2.5, flex: 1, position: 'relative', overflow: 'hidden',
-        border: '1px solid', borderColor: 'divider',
-        transition: 'all 0.25s',
-        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 8px 24px rgba(0,0,0,0.07)' },
-        '&::before': { content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: gradient },
-      }}>
-        <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.68rem' }}>
-          {label}
-        </Typography>
-        <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: -0.5, mt: 0.3 }}>{value}</Typography>
-        {sub && <Typography variant="caption" color="text.secondary">{sub}</Typography>}
-      </Paper>
-    </Fade>
-  );
-}
+import StatCard from '../components/StatCard';
 
 // ─── 零件行 ───────────────────────────────────────────
 
@@ -645,7 +627,7 @@ function PartRow({ part, onEdit, onDelete, index }: PartRowProps) {
         id={`part-row-${part.Id}`}
         sx={{
           display: 'grid',
-          gridTemplateColumns: '2fr 1fr 1fr 90px 90px',
+          gridTemplateColumns: { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 90px' },
           alignItems: 'center',
           gap: 1.5, px: 2, py: 1.5,
           borderBottom: '1px solid', borderColor: 'divider',
@@ -670,7 +652,7 @@ function PartRow({ part, onEdit, onDelete, index }: PartRowProps) {
           </Box>
         </Box>
         <Typography variant="body2" fontWeight={700} color="text.primary">¥{part.price.toFixed(2)}</Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {part.supplier || '-'}
         </Typography>
         <Box>
@@ -702,7 +684,7 @@ function PartRow({ part, onEdit, onDelete, index }: PartRowProps) {
 // ─── 主页面 ───────────────────────────────────────────
 
 export default function PartsPage() {
-  const { parts, fetchParts } = useAppStore();
+  const { parts, fetchParts, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -711,7 +693,6 @@ export default function PartsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
-  const [successMsg, setSuccessMsg] = useState('');
   const formRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -778,10 +759,10 @@ export default function PartsPage() {
       setSaving(true);
       if (editingPart) {
         await updatePart(editingPart.Id, partData);
-        setSuccessMsg(`零件「${partData.model}」已更新`);
+        showSnackbar(`零件「${partData.model}」已更新`);
       } else {
         await createPart(partData);
-        setSuccessMsg(`零件「${partData.model}」已新增`);
+        showSnackbar(`零件「${partData.model}」已新增`);
       }
       await fetchParts(true);
       setEditingPart(null);
@@ -790,7 +771,6 @@ export default function PartsPage() {
       setError('保存失败，请重试');
     } finally {
       setSaving(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
 
@@ -818,8 +798,7 @@ export default function PartsPage() {
     try {
       await deletePart(id);
       await fetchParts(true);
-      setSuccessMsg('零件已删除');
-      setTimeout(() => setSuccessMsg(''), 2500);
+      showSnackbar('零件已删除', 'info');
     } catch {
       setError('删除失败');
     }
@@ -868,25 +847,22 @@ export default function PartsPage() {
       </Box>
 
       {/* 通知条 */}
-      <Collapse in={!!successMsg}>
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} icon={<CheckCircleIcon />} onClose={() => setSuccessMsg('')}>{successMsg}</Alert>
-      </Collapse>
       <Collapse in={!!error}>
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>{error}</Alert>
       </Collapse>
 
       {/* KPI 统计 */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <StatCard label="零件种类" value={parts.length} sub={`${categories.length} 个类别`} gradient={gradients.parts} delay={0} />
-        <StatCard label="库存总价值" value={`¥${(kpis.totalValue / 10000).toFixed(1)}w`} sub="按当前价格估算" gradient={gradients.revenue} delay={1} />
-        <StatCard label="低库存预警" value={kpis.lowStock} sub="库存 ≤ 5 的零件" gradient={gradients.recipes} delay={2} />
-        <StatCard label="缺货零件" value={kpis.outOfStock} sub="库存为 0" gradient={gradients.profit} delay={3} />
+        <StatCard label="零件种类" value={parts.length} subtitle={`${categories.length} 个类别`} gradient={gradients.parts} delay={0} />
+        <StatCard label="库存总价值" value={`¥${(kpis.totalValue / 10000).toFixed(1)}w`} subtitle="按当前价格估算" gradient={gradients.revenue} delay={1} />
+        <StatCard label="低库存预警" value={kpis.lowStock} subtitle="库存 ≤ 5 的零件" gradient={gradients.recipes} delay={2} />
+        <StatCard label="缺货零件" value={kpis.outOfStock} subtitle="库存为 0" gradient={gradients.profit} delay={3} />
       </Box>
 
       {/* 主体：全宽列表 */}
       <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           {/* 搜索 & 筛选栏 */}
-          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, flexWrap: { xs: 'wrap', sm: 'wrap' }, overflowX: 'auto', alignItems: 'center' }}>
             <TextField
               id="parts-search-input"
               size="small" placeholder="搜索型号、供应商..." value={searchQuery}
@@ -961,9 +937,9 @@ export default function PartsPage() {
 
                 {/* 表头 */}
                 <Collapse in={!isCollapsed}>
-                  <Box sx={{ px: 2, py: 1, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 90px 90px', gap: 1.5, bgcolor: 'rgba(0,0,0,0.012)', borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Box sx={{ px: 2, py: 1, display: 'grid', gridTemplateColumns: { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 90px' }, gap: 1.5, bgcolor: 'rgba(0,0,0,0.012)', borderBottom: '1px solid', borderColor: 'divider' }}>
                     {['型号 / 类别', '单价', '供应商', '库存', '操作'].map((h) => (
-                      <Typography key={h} variant="caption" color="text.disabled" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{h}</Typography>
+                      <Typography key={h} variant="caption" color="text.disabled" fontWeight={700} sx={{ display: h === '供应商' ? { xs: 'none', sm: 'block' } : 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{h}</Typography>
                     ))}
                   </Box>
                   {catParts.map((p, idx) => (

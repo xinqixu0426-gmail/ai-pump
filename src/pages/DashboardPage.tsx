@@ -12,6 +12,7 @@ import {
   LinearProgress,
   Fade,
   Divider,
+  Skeleton,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -30,6 +31,7 @@ import {
 import { Order, OrderStatus } from '../types';
 import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
+import PageHeader from '../components/PageHeader';
 import { formatDate } from '../utils/format';
 import { colors, gradients } from '../utils/theme';
 
@@ -64,74 +66,7 @@ const DEFAULT_STATUS_CONFIG = {
 
 const STATUSES: OrderStatus[] = ['待采购', '采购中', '已完成'];
 
-// ─── KPI 卡片组件 ──────────────────────────────────────
-interface KpiCardProps {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  gradient: string;
-  delay: number;
-}
-
-function KpiCard({ title, value, subtitle, icon, gradient, delay }: KpiCardProps) {
-  return (
-    <Fade in timeout={400 + delay * 150}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          borderRadius: 3,
-          position: 'relative',
-          overflow: 'hidden',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          '&:hover': {
-            transform: 'translateY(-4px)',
-            boxShadow: '0 12px 40px rgba(0,0,0,0.08)',
-          },
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: gradient,
-          },
-        }}
-      >
-        <Box display="flex" alignItems="flex-start" justifyContent="space-between">
-          <Box>
-            <Typography
-              variant="caption"
-              sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.7rem' }}
-            >
-              {title}
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, letterSpacing: -0.5 }}>
-              {value}
-            </Typography>
-            {subtitle && (
-              <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
-          <Avatar
-            sx={{
-              background: gradient,
-              width: 44,
-              height: 44,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            }}
-          >
-            {icon}
-          </Avatar>
-        </Box>
-      </Paper>
-    </Fade>
-  );
-}
+import StatCard from '../components/StatCard';
 
 // ─── 订单卡片组件 ──────────────────────────────────────
 interface OrderCardProps {
@@ -282,8 +217,8 @@ function KanbanColumn({ status, orders, onDetail }: KanbanColumnProps) {
     <Box
       sx={{
         flex: 1,
-        minWidth: 280,
-        maxWidth: 420,
+        minWidth: { xs: '100%', md: 280 },
+        maxWidth: { xs: '100%', md: 420 },
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -352,8 +287,11 @@ function KanbanColumn({ status, orders, onDetail }: KanbanColumnProps) {
               color: 'text.disabled',
             }}
           >
-            <InventoryIcon sx={{ fontSize: 36, mb: 1, opacity: 0.3 }} />
-            <Typography variant="caption">暂无订单</Typography>
+            <InventoryIcon sx={{ fontSize: 40, mb: 1, opacity: 0.2 }} />
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>暂无订单</Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+              点击右上角 + 新建
+            </Typography>
           </Box>
         ) : (
           orders.map((order, idx) => (
@@ -419,82 +357,82 @@ export default function DashboardPage() {
   return (
     <Box>
       {/* 页面标题 */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
-            📊 运营看板
-          </Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            实时掌握订单与库存动态
-          </Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="新建订单">
-            <IconButton
-              onClick={() => navigate('/order-form')}
-              sx={{
-                bgcolor: 'primary.main',
-                color: 'white',
-                '&:hover': { bgcolor: 'primary.dark' },
-                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
-              }}
-            >
-              <AddIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="刷新数据">
-            <span>
-              <IconButton onClick={() => load(true)} disabled={loading}>
-                {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+      <PageHeader
+        title="📊 运营看板"
+        subtitle="实时掌握订单与库存动态"
+        actions={
+          <>
+            <Tooltip title="新建订单">
+              <IconButton onClick={() => navigate('/order-form')} sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' }, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}>
+                <AddIcon />
               </IconButton>
-            </span>
-          </Tooltip>
+            </Tooltip>
+            <Tooltip title="刷新数据">
+              <span>
+                <IconButton onClick={() => load(true)} disabled={loading}>
+                  {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </>
+        }
+      />
+
+      {loading ? (
+        <Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, mb: 4 }}>
+            {[...Array(5)].map((_, i) => <Skeleton key={i} variant="rounded" height={100} sx={{ borderRadius: 3 }} />)}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', md: 'row' } }}>
+            {[...Array(3)].map((_, i) => <Skeleton key={i} variant="rounded" height={300} sx={{ flex: 1, borderRadius: 3 }} />)}
+          </Box>
         </Box>
-      </Box>
+      ) : (
+        <>
 
       {/* KPI 统计面板 */}
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' },
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(5, 1fr)' },
           gap: 2,
           mb: 4,
         }}
       >
-        <KpiCard
-          title="订单总数"
+        <StatCard
+          label="订单总数"
           value={orders.length}
           subtitle={`进行中 ${kpis.pendingCount} 单`}
           icon={<OrderIcon sx={{ fontSize: 22 }} />}
           gradient={gradients.orders}
           delay={0}
         />
-        <KpiCard
-          title="配方数量"
+        <StatCard
+          label="配方数量"
           value={recipes.length}
           subtitle="已录入配方"
           icon={<RecipeIcon sx={{ fontSize: 22 }} />}
           gradient={gradients.recipes}
           delay={1}
         />
-        <KpiCard
-          title="零件种类"
+        <StatCard
+          label="零件种类"
           value={parts.length}
           subtitle={`低库存 ${kpis.lowStockParts} 项`}
           icon={<PartIcon sx={{ fontSize: 22 }} />}
           gradient={gradients.parts}
           delay={2}
         />
-        <KpiCard
-          title="总营收"
+        <StatCard
+          label="总营收"
           value={`¥${(kpis.totalRevenue / 10000).toFixed(1)}w`}
           subtitle="订单出厂价合计"
           icon={<MoneyIcon sx={{ fontSize: 22 }} />}
           gradient={gradients.revenue}
           delay={3}
         />
-        <KpiCard
-          title="总利润"
+        <StatCard
+          label="总利润"
           value={`¥${(kpis.totalProfit / 10000).toFixed(1)}w`}
           subtitle={kpis.totalRevenue > 0 ? `利润率 ${((kpis.totalProfit / kpis.totalRevenue) * 100).toFixed(1)}%` : '-'}
           icon={<TrendingUpIcon sx={{ fontSize: 22 }} />}
@@ -528,7 +466,7 @@ export default function DashboardPage() {
           sx={{
             display: 'flex',
             gap: 2.5,
-            overflowX: 'auto',
+            flexDirection: { xs: 'column', md: 'row' },
             pb: 1,
           }}
         >
@@ -569,6 +507,7 @@ export default function DashboardPage() {
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
+                    flexWrap: 'wrap',
                     gap: 2,
                     py: 1.5,
                     px: 1,
@@ -591,7 +530,7 @@ export default function DashboardPage() {
                   >
                     {order.customerName.charAt(0)}
                   </Avatar>
-                  <Box flex={1} minWidth={0}>
+                  <Box flex={1} minWidth={0} sx={{ flexBasis: { xs: '100%', sm: 'auto' } }}>
                     <Box display="flex" alignItems="center" gap={1}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {order.customerName}
@@ -613,7 +552,7 @@ export default function DashboardPage() {
                       {order.items.length}个型号 · ¥{(order.totalPrice || 0).toFixed(0)}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', whiteSpace: 'nowrap' }}>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' }, textAlign: { xs: 'left', sm: 'right' }, pl: { xs: 6, sm: 0 }, mt: { xs: -1, sm: 0 } }}>
                     {new Date(order.createdAt).toLocaleString('zh-CN', {
                       month: '2-digit',
                       day: '2-digit',
@@ -632,6 +571,8 @@ export default function DashboardPage() {
           </Box>
         )}
       </Paper>
+      </>
+      )}
 
       {/* 订单详情弹窗 */}
       {selectedOrder && (

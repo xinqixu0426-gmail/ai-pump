@@ -86,7 +86,7 @@ export const gradients = {
   brandText: 'linear-gradient(135deg, #7c3aed, #2563eb)',
 
   // 铜价面板
-  copper: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 30%, #fbbf24 100%)',
+  copper: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
 
   // 线圈成本
   coilCost: 'linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%)',

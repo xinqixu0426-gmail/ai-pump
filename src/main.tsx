@@ -90,8 +90,24 @@ const theme = createTheme({
         },
       },
     },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          '@media (max-width: 600px)': {
+            margin: 16,
+            width: 'calc(100% - 32px)',
+          },
+        },
+      },
+    },
     MuiTableCell: {
       styleOverrides: {
+        root: {
+          '@media (max-width: 600px)': {
+            padding: '8px 8px',
+            fontSize: '0.8rem',
+          },
+        },
         head: {
           fontWeight: 700,
           fontSize: '0.8rem',

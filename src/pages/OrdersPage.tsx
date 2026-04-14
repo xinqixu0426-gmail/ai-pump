@@ -5,7 +5,7 @@ import {
   TableContainer, TableHead, TableRow, Chip, IconButton, Tooltip,
   TextField, InputAdornment, Autocomplete, Dialog, DialogTitle,
   DialogContent, DialogContentText, DialogActions, Fade,
-  Select, MenuItem, CircularProgress,
+  Select, MenuItem, CircularProgress, Skeleton, useMediaQuery, useTheme
 } from '@mui/material';
 import {
   Add as AddIcon, Info as InfoIcon, Delete as DeleteIcon,
@@ -26,29 +26,13 @@ const STATUS_COLOR: Record<OrderStatus, 'warning' | 'info' | 'success'> = {
 };
 
 // ── KPI 统计卡片 ──
-function StatCard({ label, value, sub, gradient, delay }: { label: string; value: string | number; sub?: string; gradient: string; delay: number }) {
-  return (
-    <Fade in timeout={400 + delay * 100}>
-      <Paper elevation={0} sx={{
-        p: 2, borderRadius: 3, flex: 1, position: 'relative', overflow: 'hidden',
-        transition: 'all 0.25s',
-        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 8px 24px rgba(0,0,0,0.07)' },
-        '&::before': { content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: gradient },
-      }}>
-        <Typography variant="caption" color="text.secondary" fontWeight={700}
-          sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.68rem' }}>
-          {label}
-        </Typography>
-        <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: -0.5, mt: 0.3 }}>{value}</Typography>
-        {sub && <Typography variant="caption" color="text.secondary">{sub}</Typography>}
-      </Paper>
-    </Fade>
-  );
-}
+import StatCard from '../components/StatCard';
 
 export default function OrdersPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
-  const { orders: rawOrders, fetchOrders } = useAppStore();
+  const { orders: rawOrders, fetchOrders, showSnackbar } = useAppStore();
   const [selected, setSelected] = useState<Order | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,7 +61,8 @@ export default function OrdersPage() {
     const id = deleteTarget;
     setDeleteTarget(null);
     await deleteOrder(id);
-    fetchOrders(true);
+    await fetchOrders(true);
+    showSnackbar('订单已删除', 'info');
   };
 
   const handleDetail = (order: Order) => setSelected(order);
@@ -89,6 +74,7 @@ export default function OrdersPage() {
     try {
       await saveOrder({ ...order, status: newStatus });
       await fetchOrders(true);
+      showSnackbar(`订单状态已更新为「${newStatus}」`, 'success');
     } catch { /* ignore */ }
     finally { setStatusUpdating(null); }
   }, [fetchOrders]);
@@ -138,12 +124,21 @@ export default function OrdersPage() {
       />
 
       {/* KPI 统计 */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <StatCard label="订单总数" value={orders.length} sub={`进行中 ${kpis.pending} 单`} gradient={gradients.orders} delay={0} />
-        <StatCard label="已完成" value={kpis.completed} sub="已交付订单" gradient={gradients.completed} delay={1} />
-        <StatCard label="总营收" value={`¥${(kpis.totalRevenue / 10000).toFixed(1)}w`} sub="订单出厂价合计" gradient={gradients.revenue} delay={2} />
+      {loading ? (
+        <Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+            {[...Array(4)].map((_, i) => <Skeleton key={i} variant="rounded" height={100} sx={{ borderRadius: 3 }} />)}
+          </Box>
+          <Skeleton variant="rounded" height={400} sx={{ borderRadius: 3, width: '100%' }} />
+        </Box>
+      ) : (
+        <>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+        <StatCard label="订单总数" value={orders.length} subtitle={`进行中 ${kpis.pending} 单`} gradient={gradients.orders} delay={0} />
+        <StatCard label="已完成" value={kpis.completed} subtitle="已交付订单" gradient={gradients.completed} delay={1} />
+        <StatCard label="总营收" value={`¥${(kpis.totalRevenue / 10000).toFixed(1)}w`} subtitle="订单出厂价合计" gradient={gradients.revenue} delay={2} />
         <StatCard label="总利润" value={`¥${(kpis.totalProfit / 10000).toFixed(1)}w`}
-          sub={kpis.totalRevenue > 0 ? `利润率 ${((kpis.totalProfit / kpis.totalRevenue) * 100).toFixed(1)}%` : '-'}
+          subtitle={kpis.totalRevenue > 0 ? `利润率 ${((kpis.totalProfit / kpis.totalRevenue) * 100).toFixed(1)}%` : '-'}
           gradient={gradients.profit} delay={3} />
       </Box>
 
@@ -166,7 +161,7 @@ export default function OrdersPage() {
               renderInput={(params) => (
                 <TextField {...params} size="small" placeholder="客户筛选" />
               )}
-              sx={{ minWidth: 180 }}
+              sx={{ minWidth: 180, flex: { xs: '1 1 100%', sm: 'none' } }}
               clearText="清除"
               noOptionsText="无匹配客户"
             />
@@ -176,8 +171,75 @@ export default function OrdersPage() {
 
         {orders.length === 0 ? (
           <Box textAlign="center" py={8} color="text.secondary">
-            <Typography variant="h4" sx={{ mb: 1 }}>📦</Typography>
-            <Typography variant="body2">暂无订单，点击右上角新建</Typography>
+            <Typography variant="h4" sx={{ mb: 1, opacity: 0.5 }}>📦</Typography>
+            <Typography variant="body2" sx={{ mb: 1.5 }}>暂无订单，点击右上角新建</Typography>
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => navigate('/order-form')}>
+              新建第一个订单
+            </Button>
+          </Box>
+        ) : isMobile ? (
+          <Box p={2}>
+            {filteredOrders.map((order, idx) => {
+              const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
+              const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
+              return (
+                <Fade key={order.id} in timeout={200 + idx * 60}>
+                  <Paper
+                    elevation={0}
+                    onClick={() => handleDetail(order)}
+                    sx={{ p: 2, mb: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', cursor: 'pointer' }}
+                  >
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography fontWeight={700}>{order.customerName}</Typography>
+                      {statusUpdating === order.id ? (
+                        <CircularProgress size={16} />
+                      ) : (
+                        <Select
+                          value={order.status}
+                          onChange={(e) => { e.stopPropagation(); handleStatusChange(order, e.target.value as OrderStatus); }}
+                          size="small"
+                          variant="standard"
+                          disableUnderline
+                          sx={{
+                            fontWeight: 600, fontSize: '0.8rem', color: `${STATUS_COLOR[order.status]}.main`,
+                            '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${STATUS_COLOR[order.status]}.50` },
+                            '& .MuiSelect-icon': { display: 'none' },
+                            pr: 0,
+                          }}
+                        >
+                          <MenuItem value="待采购">⏳ 待采购</MenuItem>
+                          <MenuItem value="采购中">🔄 采购中</MenuItem>
+                          <MenuItem value="已完成">✅ 已完成</MenuItem>
+                        </Select>
+                      )}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                      {order.contractNo || '无合同号'} · {order.items.length} 个型号
+                    </Typography>
+                    
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" display="block">总结</Typography>
+                        <Box display="flex" gap={1.5}>
+                          <Typography variant="body2">¥{(order.totalCost || 0).toFixed(0)}</Typography>
+                          <Typography variant="body2" color="primary.main" fontWeight={600}>¥{(order.totalPrice || 0).toFixed(0)}</Typography>
+                        </Box>
+                      </Box>
+                      <Box textAlign="right">
+                        <Typography variant="caption" color="text.secondary" display="block">进度</Typography>
+                        {needCount > 0 ? (
+                          <Typography variant="body2" fontWeight={600} color={purchasedCount === needCount ? 'success.main' : 'warning.main'}>
+                            {purchasedCount}/{needCount}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="success.main">库存足</Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </Paper>
+                </Fade>
+              );
+            })}
           </Box>
         ) : (
           <TableContainer>
@@ -267,6 +329,8 @@ export default function OrdersPage() {
           </TableContainer>
         )}
       </Paper>
+      </>
+      )}
 
       {selected && (
         <OrderDetailModal
