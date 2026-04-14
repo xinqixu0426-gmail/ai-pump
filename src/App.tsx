@@ -1,23 +1,15 @@
-import { useMemo } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useCallback } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Tabs,
-  Tab,
   Box,
-  Container
+  IconButton,
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
-import {
-  Dashboard as DashboardIcon,
-  Build as BuildIcon,
-  Receipt as ReceiptIcon,
-  ShoppingCart as OrderIcon,
-  Cable as CableIcon,
-  SmartToy as AIIcon,
-  Engineering as RotorIcon,
-} from '@mui/icons-material';
+import { Menu as MenuIcon } from '@mui/icons-material';
+import Sidebar, { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/Sidebar';
+import AppBreadcrumbs from './components/AppBreadcrumbs';
 import DashboardPage from './pages/DashboardPage';
 import PartsPage from './pages/PartsPage';
 import RecipesPage from './pages/RecipesPage';
@@ -28,96 +20,114 @@ import CoilRotorPage from './pages/CoilRotorPage';
 import AIChatPage from './pages/AIChatPage';
 import RotorDrawingPage from './pages/RotorDrawingPage';
 
-
 function App() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // 根据当前路径确定选中的 tab
-  const getTabValue = (path: string) => {
-    if (path === '/') return 0;
-    if (path === '/parts') return 1;
-    if (path === '/recipes' || path === '/recipe-form') return 2;
-    if (path === '/orders' || path.startsWith('/order-form')) return 3;
-    if (path === '/coils') return 4;
-    if (path === '/ai') return 5;
-    if (path === '/rotor') return 6;
-    return 0;
-  };
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const tabValue = useMemo(() => getTabValue(location.pathname), [location.pathname]);
+  const handleToggleCollapse = useCallback(() => {
+    setSidebarCollapsed(prev => !prev);
+  }, []);
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    switch (newValue) {
-      case 0: navigate('/'); break;
-      case 1: navigate('/parts'); break;
-      case 2: navigate('/recipes'); break;
-      case 3: navigate('/orders'); break;
-      case 4: navigate('/coils'); break;
-      case 5: navigate('/ai'); break;
-      case 6: navigate('/rotor'); break;
-    }
-  };
+  const handleMobileOpen = useCallback(() => {
+    setSidebarOpen(true);
+  }, []);
+
+  const handleMobileClose = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
+
+  const sidebarWidth = isMobile
+    ? 0
+    : sidebarCollapsed
+      ? SIDEBAR_COLLAPSED_WIDTH
+      : SIDEBAR_WIDTH;
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      {/* 顶部导航栏 */}
-      <AppBar position="static" elevation={0} sx={{
-        background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
-        borderBottom: '1px solid rgba(255,255,255,0.1)'
-      }}>
-        <Toolbar sx={{ gap: 2 }}>
-          <Typography variant="h6" component="div" sx={{ 
-            flexGrow: 1, 
-            letterSpacing: 1,
-            fontWeight: 800,
-            textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-          }}>
-            💧 水泵BOM管理系统
-          </Typography>
-          <Typography variant="caption" sx={{ opacity: 0.6 }}>
-            v1.2
-          </Typography>
-        </Toolbar>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          textColor="inherit"
-          indicatorColor="secondary"
-          sx={{ 
-            px: 3,
-            '& .MuiTab-root': { 
-              fontWeight: 600,
-              letterSpacing: 0.5,
-              minHeight: 48,
-            } 
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      {/* Sidebar */}
+      <Sidebar
+        open={sidebarOpen}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleCollapse}
+        onClose={handleMobileClose}
+      />
+
+      {/* Main content area */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          width: `calc(100% - ${sidebarWidth}px)`,
+          transition: 'width 0.2s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
+        }}
+      >
+        {/* Top bar — minimal */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            px: { xs: 2, md: 3 },
+            py: 1,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            minHeight: 52,
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
           }}
         >
-          <Tab icon={<DashboardIcon />} iconPosition="start" label="运营看板" />
-          <Tab icon={<BuildIcon />} iconPosition="start" label="零件管理" />
-          <Tab icon={<ReceiptIcon />} iconPosition="start" label="配方管理" />
-          <Tab icon={<OrderIcon />} iconPosition="start" label="订单管理" />
-          <Tab icon={<CableIcon />} iconPosition="start" label="线圈转子" />
-          <Tab icon={<AIIcon />} iconPosition="start" label="AI助手" />
-          <Tab icon={<RotorIcon />} iconPosition="start" label="转子出图" />
-        </Tabs>
-      </AppBar>
+          {isMobile && (
+            <IconButton
+              onClick={handleMobileOpen}
+              edge="start"
+              sx={{ mr: 1 }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
+          <AppBreadcrumbs />
+          <Box sx={{ flex: 1 }} />
+          <Typography
+            variant="caption"
+            sx={{ color: 'text.disabled', fontSize: '0.7rem' }}
+          >
+            v1.2
+          </Typography>
+        </Box>
 
-      {/* 页面内容 */}
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/parts" element={<PartsPage />} />
-          <Route path="/recipes" element={<RecipesPage />} />
-          <Route path="/recipe-form" element={<RecipeFormPage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/order-form" element={<OrderFormPage />} />
-          <Route path="/order-form/:id" element={<OrderFormPage />} />
-          <Route path="/coils" element={<CoilRotorPage />} />
-          <Route path="/ai" element={<AIChatPage />} />
-          <Route path="/rotor" element={<RotorDrawingPage />} />
-        </Routes>
-      </Container>
+        {/* Page content */}
+        <Box
+          sx={{
+            flex: 1,
+            px: { xs: 2, md: 3 },
+            py: 3,
+            overflow: 'auto',
+            bgcolor: 'background.default',
+          }}
+        >
+          <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/parts" element={<PartsPage />} />
+              <Route path="/recipes" element={<RecipesPage />} />
+              <Route path="/recipe-form" element={<RecipeFormPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/order-form" element={<OrderFormPage />} />
+              <Route path="/order-form/:id" element={<OrderFormPage />} />
+              <Route path="/coils" element={<CoilRotorPage />} />
+              <Route path="/ai" element={<AIChatPage />} />
+              <Route path="/rotor" element={<RotorDrawingPage />} />
+            </Routes>
+          </Box>
+        </Box>
+      </Box>
     </Box>
   );
 }

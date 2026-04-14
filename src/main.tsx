@@ -83,6 +83,13 @@ const theme = createTheme({
         },
       },
     },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          border: 'none',
+        },
+      },
+    },
     MuiTableCell: {
       styleOverrides: {
         head: {

@@ -54,9 +54,17 @@ export default function RecipesPage() {
     for (const recipe of recipes) {
       let recipeParts: RecipePart[] = [];
       try { recipeParts = JSON.parse(recipe.parts_json); } catch { /* */ }
-      const overview = recipeParts.map(p => `${p.model}×${p.qty}`).join(', ') || '-';
-      const costResult = calculateRecipeCost(recipeParts, partsCache, partsByModel, recipe.saved_total_cost);
-      map.set(recipe.Id, { overview, cost: `¥${costResult.totalCost}`, costResult });
+      const validParts = recipeParts.filter(p => p && p.model);
+      const overview = validParts.length > 0
+        ? validParts.map(p => `${p.model}×${p.qty ?? 1}`).join(', ')
+        : '-';
+      const costResult = calculateRecipeCost(validParts, partsCache, partsByModel, recipe.saved_total_cost);
+      const costNum = parseFloat(costResult.totalCost);
+      map.set(recipe.Id, {
+        overview,
+        cost: isNaN(costNum) ? '¥0.00' : `¥${costResult.totalCost}`,
+        costResult,
+      });
     }
     return map;
   }, [recipes, parts]);
