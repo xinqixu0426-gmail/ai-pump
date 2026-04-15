@@ -43,22 +43,42 @@ npm install
 npm run start    # 一键启动 Vite 前端 (3000) 与 Express API (3002)
 ```
 
-**生产服务器部署 (Alibaba Cloud 等)**：
+**生产环境部署 (Linux / Alibaba Cloud 等)**：
 ```bash
 npm run build                    # 1. 前端构建出 /dist 静态产物
 npm install --production         # 2. 安装后端生产依赖
 pm2 start api.cjs --name "pump"  # 3. 守护后台 Node.js 进程 (3002端口)
 ```
 
-Nginx 核心反向代理演示：
+**苹果本地服务器部署 (Mac Mini 作为生产服务器)**：
+```bash
+# 1. 全局安装项目守护工具 PM2
+npm install -g pm2
+
+# 2. 修改 .env 配置文件中的 FreeCAD 路径 (举例)
+# FREECAD_BIN=/Applications/FreeCAD.app/Contents/MacOS/FreeCAD
+
+# 3. 构建前端产物并安装生产依赖
+npm run build
+npm install --production
+
+# 4. 启动后端进程
+pm2 start api.cjs --name "pump"
+
+# 5. 设置 Mac 随开机自动启动后台进程
+pm2 startup
+pm2 save
+```
+
+Nginx 核心反向代理演示 (Mac 可使用 `brew install nginx` 安装，配置文件一般在 `/opt/homebrew/etc/nginx/nginx.conf`)：
 ```nginx
 server {
     listen 80;
-    server_name 你的公网IP或域名;
+    server_name 你的公网IP或域名(局域网IP);
 
     # 1. 代理前端静态打包资产
     location / {
-        root /var/www/pump/dist;
+        root /绝对路径/你的项目目录/dist;
         try_files $uri $uri/ /index.html;
     }
 

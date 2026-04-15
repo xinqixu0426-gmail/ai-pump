@@ -23,7 +23,6 @@ import {
   Autocomplete,
   Chip,
   IconButton,
-  Tooltip,
   Stepper,
   Step,
   StepLabel,

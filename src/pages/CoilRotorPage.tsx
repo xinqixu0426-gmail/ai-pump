@@ -50,7 +50,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import PageHeader from '../components/PageHeader';
-import { colors, gradients } from '../utils/theme';
+import { colors } from '../utils/theme';
 import { useAppStore } from '../utils/store';
 
 const API_BASE = '';

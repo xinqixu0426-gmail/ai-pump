@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Paper, Typography, Alert, Box, CircularProgress, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip, Button, Dialog,
-  DialogTitle, DialogContent, DialogContentText, DialogActions, Chip, Collapse, Fade,
+  DialogTitle, DialogContent, DialogContentText, DialogActions, Chip, Collapse,
   useMediaQuery, useTheme
 } from '@mui/material';
 import {

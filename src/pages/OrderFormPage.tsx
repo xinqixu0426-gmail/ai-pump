@@ -236,7 +236,6 @@ export default function OrderFormPage() {
       <PageHeader
         title={isEdit ? '编辑订单' : '新建订单'}
         subtitle={isEdit ? '修改和管理已有订单的信息及配方列表' : '跟随向导将需求型号快速录入生产系统'}
-        onBack={() => navigate('/orders')}
       />
 
       <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3 }}>
