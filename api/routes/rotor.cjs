@@ -8,7 +8,8 @@ const { db } = require('../db.cjs');
 
 const router = Router();
 
-const FREECAD_BIN = process.env.FREECAD_BIN || 'C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe';
+const os = require('os');
+const FREECAD_BIN = process.env.FREECAD_BIN || (os.platform() === 'darwin' ? '/Applications/FreeCAD.app/Contents/MacOS/FreeCAD' : 'C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe');
 const WORKER_SCRIPT = path.join(__dirname, '../../freecad/worker.py');
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
