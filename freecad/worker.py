@@ -252,7 +252,12 @@ try:
     # 注册中文字体
     CHINESE_FONT_REGISTERED = False
     CHINESE_FONT_NAME = 'MSYH'
-    for font_path in [r'C:\Windows\Fonts\msyh.ttc', r'C:\Windows\Fonts\simsun.ttc']:
+    for font_path in [
+        r'C:\Windows\Fonts\msyh.ttc', 
+        r'C:\Windows\Fonts\simsun.ttc',
+        r'/System/Library/Fonts/PingFang.ttc',
+        r'/System/Library/Fonts/STHeiti Light.ttc'
+    ]:
         if os.path.exists(font_path):
             try:
                 pdfmetrics.registerFont(TTFont(CHINESE_FONT_NAME, font_path, subfontIndex=0))
