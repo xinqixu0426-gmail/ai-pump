@@ -249,23 +249,15 @@ try:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
-    # 注册中文字体
-    CHINESE_FONT_REGISTERED = False
-    CHINESE_FONT_NAME = 'MSYH'
-    for font_path in [
-        r'C:\Windows\Fonts\msyh.ttc', 
-        r'C:\Windows\Fonts\simsun.ttc',
-        r'/System/Library/Fonts/PingFang.ttc',
-        r'/System/Library/Fonts/STHeiti Light.ttc'
-    ]:
-        if os.path.exists(font_path):
-            try:
-                pdfmetrics.registerFont(TTFont(CHINESE_FONT_NAME, font_path, subfontIndex=0))
-                CHINESE_FONT_REGISTERED = True
-                print(f"[Worker] [{elapsed()}] 已注册中文字体: {font_path}")
-                break
-            except Exception as e:
-                print(f"[Worker] [{elapsed()}] ⚠️ 注册字体失败 {font_path}: {e}")
+    # 无论 Windows 还是 Mac，直接使用 PDF 标准内置 CID 字体库（极度稳定，不依赖系统实体文件）
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+        CHINESE_FONT_NAME = 'STSong-Light'
+        CHINESE_FONT_REGISTERED = True
+        print(f"[Worker] [{elapsed()}] 已成功注册内建标准中文字体 STSong-Light")
+    except Exception as e:
+        print(f"[Worker] [{elapsed()}] ⚠️ CID 字体注册失败: {e}")
 
     drawing = svg2rlg(output_svg)
     if drawing is None:
