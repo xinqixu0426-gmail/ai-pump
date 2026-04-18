@@ -1,3 +1,6 @@
+// ⚠️ SYNC REQUIRED: 本组成本计算逻辑（包括 buildIndices 和 calculateRecipeCost）必须与 api/db.cjs 中的逻辑保持高度一致！
+// 若修改了以下任一匹配降级逻辑，请务必同步修改 api/db.cjs。
+
 import { Part } from '../types';
 
 /**

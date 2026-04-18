@@ -11,6 +11,18 @@ const router = express.Router();
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 const JWT_EXPIRES_IN = '15d'; // 15 天免重新登录
+const IS_BEHIND_PROXY = process.env.BEHIND_PROXY === 'true'; // Cloudflare Tunnel 等反向代理
+
+// Cookie 配置：经过代理时需要 secure + sameSite=none
+function getCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: IS_BEHIND_PROXY,
+    sameSite: IS_BEHIND_PROXY ? 'none' : 'lax',
+    maxAge: 15 * 24 * 60 * 60 * 1000,
+    path: '/',
+  };
+}
 
 /**
  * POST /api/auth/login
@@ -39,13 +51,7 @@ router.post('/login', (req, res) => {
   );
 
   // 设置 HttpOnly Cookie
-  res.cookie('token', token, {
-    httpOnly: true,       // 前端 JS 无法读取
-    secure: false,        // 开发环境允许 HTTP；生产环境建议设为 true
-    sameSite: 'lax',      // 防 CSRF
-    maxAge: 15 * 24 * 60 * 60 * 1000, // 15 天（毫秒）
-    path: '/',
-  });
+  res.cookie('token', token, getCookieOptions());
 
   return res.json({ success: true, message: '登录成功' });
 });

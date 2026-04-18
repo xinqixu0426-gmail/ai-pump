@@ -121,6 +121,7 @@ const recipeAlterColumns = [
     ['packing_wage', 'REAL DEFAULT 0'],
     ['painting_wage', 'REAL'],
     ['management_fee', 'REAL DEFAULT 0'],
+    ['custom_barrel_length', 'REAL'],
 ];
 for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
@@ -136,9 +137,8 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`);
 function partRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, model: r.model, category: r.category, price: r.price, supplier: r.supplier, stock: r.stock,
-        notes: r.remark || '',
-        '型号': r.model, '类别': r.category, '单价': r.price, '供应商': r.supplier, '库存': r.stock, '备注': r.remark || '',
+        Id: r.id, model: r.model, category: r.category, price: r.price,
+        supplier: r.supplier, stock: r.stock, notes: r.remark || '',
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -146,17 +146,14 @@ function recipeRow(r) {
     if (!r) return r;
     return {
         Id: r.id, name: r.name, spec: r.spec, parts_json: r.parts_json,
-        '配方名称': r.name, '规格': r.spec, '配件JSON': r.parts_json,
-        saved_total_cost: r.saved_total_cost, '保存时总成本': r.saved_total_cost,
-        saved_cost_details: r.saved_cost_details, '保存时成本明细': r.saved_cost_details,
-        template_id: r.template_id || null,
-        coil_spec: r.coil_spec || '', coil_sheets: r.coil_sheets || 0,
-        has_float: r.has_float || 0, float_wire: r.float_wire || '',
-        has_cable: r.has_cable || 0, cable_length: r.cable_length || 0, cable_wire: r.cable_wire || '',
-        box_type: r.box_type || '', extra_parts_json: r.extra_parts_json || '[]',
-        assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
-        painting_wage: r.painting_wage != null ? r.painting_wage : null,
-        management_fee: r.management_fee || 0,
+        saved_total_cost: r.saved_total_cost,
+        saved_cost_details: r.saved_cost_details,
+        template_id: r.template_id, coil_spec: r.coil_spec, coil_sheets: r.coil_sheets,
+        has_float: r.has_float, float_wire: r.float_wire, has_cable: r.has_cable,
+        cable_length: r.cable_length, cable_wire: r.cable_wire, box_type: r.box_type,
+        custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
+        assembly_wage: r.assembly_wage, packing_wage: r.packing_wage, painting_wage: r.painting_wage,
+        management_fee: r.management_fee,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -173,19 +170,19 @@ function templateRow(r) {
 function orderRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, '客户名称': r.customer_name, '合同号': r.contract_no, '备注': r.remark,
-        '订单状态': r.status, '型号列表JSON': r.items_json,
-        '采购清单JSON': r.purchase_list_json, '采购TodoJSON': r.todos_json,
+        Id: r.id, customerName: r.customer_name, contractNo: r.contract_no,
+        remark: r.remark, status: r.status, itemsJson: r.items_json,
+        purchaseListJson: r.purchase_list_json, todosJson: r.todos_json,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function coilRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, '规格': r.spec, '单价': r.unit_price, '片数': r.sheets,
-        '默认线重': r.wire_weight, '铜价基数': r.copper_base,
-        '线圈加工费': r.coil_fee, '转子加工费': r.rotor_fee,
-        '成本': r.cost, '默认电容_uf': r.default_capacitor, '默认线径': r.default_wire_gauge,
+        Id: r.id, spec: r.spec, unitPrice: r.unit_price, sheets: r.sheets,
+        wireWeight: r.wire_weight, copperBase: r.copper_base,
+        coilFee: r.coil_fee, rotorFee: r.rotor_fee,
+        cost: r.cost, defaultCapacitor: r.default_capacitor, defaultWireGauge: r.default_wire_gauge,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -199,17 +196,19 @@ function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templ
 
 function extractPartFields(body) {
     return {
-        model: body.model || body.型号 || '',
-        category: body.category || body.类别 || '其他',
-        price: body.price ?? body.单价 ?? 0,
-        supplier: body.supplier || body.供应商 || '-',
-        stock: body.stock ?? body.库存 ?? 0,
+        model: body.model || body.model || '',
+        category: body.category || body.category || '其他',
+        price: body.price ?? body.price ?? 0,
+        supplier: body.supplier || body.supplier || '-',
+        stock: body.stock ?? body.stock ?? 0,
         remark: body.notes || body.remark || body.备注 || '',
     };
 }
 
 
 
+// ⚠️ SYNC REQUIRED: 本组成本计算逻辑必须与 src/utils/costCalculator.ts 中的主逻辑保持高度一致！
+// 若修改了精确匹配/回退机制，请务必同步修改前端代码。
 function calculateRecipeCost(parts, partsCache, partsByModel) {
     let totalCost = 0;
     const details = [];

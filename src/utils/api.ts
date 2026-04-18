@@ -8,8 +8,8 @@ import {
 } from '../types';
 
 // ─── 通用请求封装 ─────────────────────────────
-
-async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+// 统一代理请求入口，在此集中处理 401 和重定向
+export async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...options,
     credentials: 'include', // 自动携带 HttpOnly Cookie

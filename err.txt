@@ -1,0 +1,14 @@
+src/components/parts/PartFormPanel.tsx(157,10): error TS2304: Cannot find name 'Avatar'.
+src/components/parts/PartFormPanel.tsx(159,11): error TS2304: Cannot find name 'Avatar'.
+src/pages/PartsPage.tsx(11,3): error TS6133: 'Avatar' is declared but its value is never read.
+src/pages/PartsPage.tsx(22,3): error TS6133: 'Stack' is declared but its value is never read.
+src/pages/PartsPage.tsx(29,3): error TS6133: 'Autocomplete' is declared but its value is never read.
+src/pages/PartsPage.tsx(30,3): error TS6133: 'Switch' is declared but its value is never read.
+src/pages/PartsPage.tsx(31,3): error TS6133: 'FormControlLabel' is declared but its value is never read.
+src/pages/PartsPage.tsx(36,11): error TS6133: 'EditIcon' is declared but its value is never read.
+src/pages/PartsPage.tsx(37,13): error TS6133: 'DeleteIcon' is declared but its value is never read.
+src/pages/PartsPage.tsx(40,11): error TS6133: 'SaveIcon' is declared but its value is never read.
+src/pages/PartsPage.tsx(41,13): error TS6133: 'CancelIcon' is declared but its value is never read.
+src/pages/PartsPage.tsx(51,15): error TS6133: 'SettingsIcon' is declared but its value is never read.
+src/pages/PartsPage.tsx(52,11): error TS6133: 'LockIcon' is declared but its value is never read.
+src/pages/PartsPage.tsx(54,16): error TS6133: 'PumpShellMeta' is declared but its value is never read.

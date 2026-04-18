@@ -1,0 +1,159 @@
+import { useState, useCallback, useMemo } from 'react';
+import { useAppStore } from '../utils/store';
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+export interface CoilRecord {
+  Id: number;
+  spec: string;
+  unitPrice: string;
+  sheets: string;
+  wireWeight: string;
+  copperBase: string;
+  coilFee: string;
+  rotorFee: string;
+  cost: string;
+  defaultCapacitor: string | null;
+  defaultWireGauge: string | null;
+}
+
+export interface CopperPriceInfo {
+  livePrice: number;
+  livePricePerKg: string;
+  dbPrice: string;
+  lastUpdate: string | null;
+}
+
+export interface CoilFormData {
+  spec: string;
+  unitPrice: string;
+  sheets: string;
+  wireWeight: string;
+  copperBase: string;
+  coilFee: string;
+  rotorFee: string;
+  defaultCapacitor: string;
+  defaultWireGauge: string;
+}
+
+const emptyForm: CoilFormData = {
+  spec: '', unitPrice: '', sheets: '', wireWeight: '', copperBase: '',
+  coilFee: '', rotorFee: '', defaultCapacitor: '', defaultWireGauge: ''
+};
+
+export function useCoilForm() {
+  const { showSnackbar } = useAppStore();
+  const [coils, setCoils] = useState<CoilRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [copperPrice, setCopperPrice] = useState<CopperPriceInfo | null>(null);
+  const [copperLoading, setCopperLoading] = useState(false);
+  const [copperUpdating, setCopperUpdating] = useState(false);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<CoilFormData>(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+
+  const [expandedSpecs, setExpandedSpecs] = useState<Set<string>>(new Set());
+
+  const loadCoils = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/api/coils`);
+      const json = await res.json();
+      if (json.success) {
+        setCoils(json.data);
+        const specs = new Set(json.data.map((c: CoilRecord) => c.spec));
+        setExpandedSpecs(specs as Set<string>);
+      } else setError('加载线圈数据失败');
+    } catch (err) { setError('加载线圈数据失败: ' + (err as Error).message); }
+    finally { setLoading(false); }
+  }, []);
+
+  const loadCopperPrice = useCallback(async () => {
+    try {
+      setCopperLoading(true);
+      const res = await fetch(`${API_BASE}/api/copper-price`);
+      const json = await res.json();
+      if (json.success) setCopperPrice(json.data);
+    } catch { /* ignore */ }
+    finally { setCopperLoading(false); }
+  }, []);
+
+  const groupedCoils = useMemo(() => {
+    const groups: Record<string, CoilRecord[]> = {};
+    coils.forEach(c => {
+      if (!groups[c.spec]) groups[c.spec] = [];
+      groups[c.spec].push(c);
+    });
+    Object.values(groups).forEach(g => g.sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets)));
+    return groups;
+  }, [coils]);
+
+  const handleCopperUpdate = async () => {
+    try {
+      setCopperUpdating(true);
+      const res = await fetch(`${API_BASE}/api/copper-price/update`, { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        showSnackbar(`铜价更新成功`, 'success');
+        await loadCoils(); await loadCopperPrice();
+      } else setError('铜价更新失败: ' + json.error);
+    } catch (err) { setError('铜价更新失败: ' + (err as Error).message); }
+    finally { setCopperUpdating(false); }
+  };
+
+  const handleAdd = () => {
+    setEditingId(null);
+    setFormData({ ...emptyForm, copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
+    setDialogOpen(true);
+  };
+
+  const handleEdit = (coil: CoilRecord) => {
+    setEditingId(coil.Id);
+    setFormData({
+      spec: coil.spec || '', unitPrice: coil.unitPrice || '', sheets: coil.sheets || '',
+      wireWeight: coil.wireWeight || '', copperBase: coil.copperBase || '', coilFee: coil.coilFee || '',
+      rotorFee: coil.rotorFee || '', defaultCapacitor: coil.defaultCapacitor || '', defaultWireGauge: coil.defaultWireGauge || ''
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      const url = editingId ? `${API_BASE}/api/coils/${editingId}` : `${API_BASE}/api/coils`;
+      const res = await fetch(url, {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      const json = await res.json();
+      if (json.success) {
+        showSnackbar(editingId ? '记录已保存' : '添加成功', 'success');
+        setDialogOpen(false); await loadCoils();
+      } else setError(json.error || '保存失败');
+    } catch (err) { setError('保存失败: ' + (err as Error).message); }
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget === null) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/coils/${deleteTarget}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        showSnackbar('记录已删除', 'info'); await loadCoils();
+      } else setError('删除失败');
+    } catch (err) { setError('删除失败: ' + (err as Error).message); }
+    finally { setDeleteTarget(null); }
+  };
+
+  return {
+    coils, loading, error, setError,
+    copperPrice, copperLoading, copperUpdating, handleCopperUpdate,
+    groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
+    dialogOpen, setDialogOpen, editingId, formData, setFormData,
+    deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete
+  };
+}

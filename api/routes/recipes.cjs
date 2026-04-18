@@ -25,16 +25,16 @@ router.post('/', async (req, res) => {
             has_float, float_wire, has_cable, cable_length, cable_wire,
             box_type, extra_parts_json,
             assembly_wage, packing_wage, painting_wage,
-            management_fee,
+            management_fee, custom_barrel_length,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-            b.name || b.配方名称 || '', b.spec || b.规格 || '', b.parts_json || b.配件JSON || '[]',
-            b.saved_total_cost ?? b.保存时总成本 ?? 0, b.saved_cost_details || b.保存时成本明细 || '[]',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            b.name || '', b.spec || '', b.parts_json || '[]',
+            b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
             b.template_id || null, b.coil_spec || '', b.coil_sheets || 0,
             b.has_float || 0, b.float_wire || '', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '',
             b.box_type || '', b.extra_parts_json || '[]',
             b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,
-            b.management_fee || 0,
+            b.management_fee || 0, b.custom_barrel_length != null ? b.custom_barrel_length : null,
             now, now
         );
         res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)) });
@@ -55,11 +55,11 @@ router.patch('/', async (req, res) => {
         const id = b.Id || b.id;
         const now = new Date().toISOString();
         const sets = [], vals = [];
-        if (b.配方名称 !== undefined || b.name !== undefined) { sets.push('name = ?'); vals.push(b.配方名称 || b.name); }
+        if (b.name !== undefined) { sets.push('name = ?'); vals.push(b.name); }
         if (b.规格 !== undefined || b.spec !== undefined) { sets.push('spec = ?'); vals.push(b.规格 || b.spec); }
         if (b.配件JSON !== undefined || b.parts_json !== undefined) { sets.push('parts_json = ?'); vals.push(b.配件JSON || b.parts_json); }
-        if (b.saved_total_cost !== undefined || b.保存时总成本 !== undefined) { sets.push('saved_total_cost = ?'); vals.push(b.saved_total_cost ?? b.保存时总成本); }
-        if (b.saved_cost_details !== undefined || b.保存时成本明细 !== undefined) { sets.push('saved_cost_details = ?'); vals.push(b.saved_cost_details || b.保存时成本明细); }
+        if (b.saved_total_cost !== undefined) { sets.push('saved_total_cost = ?'); vals.push(b.saved_total_cost); }
+        if (b.saved_cost_details !== undefined || b.保存时成本明细 !== undefined) { sets.push('saved_cost_details = ?'); vals.push(b.saved_cost_details); }
         if (b.template_id !== undefined) { sets.push('template_id = ?'); vals.push(b.template_id); }
         if (b.coil_spec !== undefined) { sets.push('coil_spec = ?'); vals.push(b.coil_spec); }
         if (b.coil_sheets !== undefined) { sets.push('coil_sheets = ?'); vals.push(b.coil_sheets); }
@@ -74,6 +74,7 @@ router.patch('/', async (req, res) => {
         if (b.packing_wage !== undefined) { sets.push('packing_wage = ?'); vals.push(b.packing_wage); }
         if (b.painting_wage !== undefined) { sets.push('painting_wage = ?'); vals.push(b.painting_wage); }
         if (b.management_fee !== undefined) { sets.push('management_fee = ?'); vals.push(b.management_fee); }
+        if (b.custom_barrel_length !== undefined) { sets.push('custom_barrel_length = ?'); vals.push(b.custom_barrel_length); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         if (sets.length > 1) db.prepare(`UPDATE recipes SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
         res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)) });

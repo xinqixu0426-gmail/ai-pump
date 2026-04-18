@@ -28,9 +28,9 @@ router.get('/cost/recipe/by-name', async (req, res) => {
         try { allRecipes = dbGetAllRecipes(); }
         catch (error) { return res.status(500).json({ success: false, error: '获取配方失败: ' + error.message }); }
         if (!allRecipes || allRecipes.length === 0) return res.status(404).json({ success: false, error: '数据库中没有配方' });
-        const recipe = allRecipes.find(r => { const name = r.配方名称 || r.name || ''; return name.includes(recipeName); });
+        const recipe = allRecipes.find(r => { const name = r.name || ''; return name.includes(recipeName); });
         if (!recipe) return res.status(404).json({ success: false, error: `未找到名称包含 "${recipeName}" 的配方` });
-        const name = recipe.配方名称 || recipe.name;
+        const name = recipe.name;
         const spec = recipe.规格 || recipe.spec;
         const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
         let parts = [];
@@ -48,7 +48,7 @@ router.get('/cost/recipe/:id', async (req, res) => {
         const data = { list: [recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(parseInt(recipeId)))].filter(Boolean) };
         if (!data.list || data.list.length === 0) return res.status(404).json({ success: false, error: `配方ID ${recipeId} 不存在` });
         const recipe = data.list[0];
-        const name = recipe.配方名称 || recipe.name;
+        const name = recipe.name;
         const spec = recipe.规格 || recipe.spec;
         let parts = [];
         try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
@@ -124,11 +124,11 @@ router.post('/cost/full-calculate', async (req, res) => {
         if (pumphousing_model) {
             try {
                 const allRecipes = dbGetAllRecipes();
-                const recipe = allRecipes.find(r => (r.配方名称 || r.name || '').includes(pumphousing_model));
+                const recipe = allRecipes.find(r => (r.name || '').includes(pumphousing_model));
                 if (recipe) {
                     let parts = []; try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch { /* */ }
                     const rc = calculateRecipeCost(parts, partsCache, partsByModel);
-                    result.recipeCost = { recipeName: recipe.配方名称 || recipe.name, recipeSpec: recipe.规格 || recipe.spec, ...rc };
+                    result.recipeCost = { recipeName: recipe.name, recipeSpec: recipe.规格 || recipe.spec, ...rc };
                     grandTotal += parseFloat(rc.totalCost);
                 } else { result.recipeCost = { error: `未找到名称包含 "${pumphousing_model}" 的配方` }; }
             } catch (e) { result.recipeCost = { error: '查询配方失败: ' + e.message }; }
@@ -147,7 +147,7 @@ router.post('/cost/full-calculate', async (req, res) => {
                 } else {
                     const bases = db.prepare('SELECT * FROM coils WHERE spec = ? LIMIT 10').all(statorSpec).map(coilRow);
                     if (bases.length > 0) {
-                        const b = bases[0]; const up = parseFloat(b.单价 || 0); const ww = parseFloat(b.线重 || 0);
+                        const b = bases[0]; const up = parseFloat(b.price || 0); const ww = parseFloat(b.wireWeight || 0);
                         const cb = parseFloat(b.铜价基数 || 0); const cf = parseFloat(b.线圈加工费用 || 0); const rf = parseFloat(b.转子加工费用 || 0);
                         const sh = parseInt(statorSheets); const cc = up * sh + ww * cb + cf + rf;
                         result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cc.toFixed(2), wireGauge: b.默认线径 || null, source: '公式推算', formula: `${up}×${sh} + ${ww}×${cb} + ${cf} + ${rf}` };

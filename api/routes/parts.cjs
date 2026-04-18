@@ -22,11 +22,11 @@ router.patch('/', async (req, res) => {
         const f = extractPartFields(req.body);
         const now = new Date().toISOString();
         const sets = [], vals = [];
-        if (req.body.model !== undefined || req.body.型号 !== undefined) { sets.push('model = ?'); vals.push(f.model); }
-        if (req.body.category !== undefined || req.body.类别 !== undefined) { sets.push('category = ?'); vals.push(f.category); }
-        if (req.body.price !== undefined || req.body.单价 !== undefined) { sets.push('price = ?'); vals.push(f.price); }
-        if (req.body.supplier !== undefined || req.body.供应商 !== undefined) { sets.push('supplier = ?'); vals.push(f.supplier); }
-        if (req.body.stock !== undefined || req.body.库存 !== undefined) { sets.push('stock = ?'); vals.push(f.stock); }
+        if (req.body.model !== undefined) { sets.push('model = ?'); vals.push(f.model); }
+        if (req.body.category !== undefined) { sets.push('category = ?'); vals.push(f.category); }
+        if (req.body.price !== undefined) { sets.push('price = ?'); vals.push(f.price); }
+        if (req.body.supplier !== undefined) { sets.push('supplier = ?'); vals.push(f.supplier); }
+        if (req.body.stock !== undefined) { sets.push('stock = ?'); vals.push(f.stock); }
         if (req.body.notes !== undefined || req.body.remark !== undefined || req.body.备注 !== undefined) { sets.push('remark = ?'); vals.push(f.remark); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
         db.prepare(`UPDATE parts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);

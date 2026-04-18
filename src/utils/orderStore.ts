@@ -1,4 +1,5 @@
 import { Order, OrderItem, PurchaseItem, TodoItem, RecipePart, Part } from '../types';
+import { proxyRequest } from './api';
 
 // ── 生成 ID ──────────────────────────────────────────
 function genId(): string {
@@ -39,7 +40,7 @@ function rowToOrder(row: OrderRow): Order {
   const totals = calcOrderTotals(items);
   return {
     id: String(row.Id),
-    customerName: row.customer_name || row.客户名称 || '',
+    customerName: row.customer_name || '',
     contractNo: row.contract_no || row.合同号 || undefined,
     remark: row.remark || row.备注 || undefined,
     status: ((row.status || row.订单状态) as Order['status']) || '待采购',
@@ -57,19 +58,6 @@ function rowToOrder(row: OrderRow): Order {
 function safeJsonParse<T>(str: string | undefined, fallback: T): T {
   if (!str) return fallback;
   try { return JSON.parse(str); } catch { return fallback; }
-}
-
-// ── 后端代理请求封装 ────────────────────────────────
-async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
-    },
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  return response.json();
 }
 
 // ── 订单 CRUD（走后端 /api/orders 代理）──────────────

@@ -17,6 +17,17 @@ export interface PumpShellMeta {
   isStainless: boolean;
   barrelLength?: number;   // 机筒长度（mm）
   openFactor?: number;     // 开档系数
+  // 转子出图备用参数（可选预设）
+  defaultUpperBearing?: string;   // 默认上轴承型号 e.g. "6202"
+  defaultLowerBearing?: string;   // 默认下轴承型号
+  defaultOilSealDia?: number;     // 默认油封孔径（mm）
+  defaultBearingSpan?: number;    // 默认开档（mm）
+  defaultImpellerDia?: number;    // 默认叶轮孔径（mm）
+  defaultImpellerSpan?: number;   // 默认叶轮开档（mm）
+  defaultImpellerDepth?: number;  // 默认叶轮厚度（mm）
+  defaultThreadLength?: number;   // 默认螺丝长度（mm）
+  defaultThreadDia?: number;      // 默认螺纹直径（mm）
+  defaultStackOffset?: number;    // 默认定位（mm）
 }
 
 /** 泵壳模板配件项 */
@@ -59,6 +70,8 @@ export interface Recipe {
   cable_wire?: string;
   box_type?: string;
   extra_parts_json?: string;
+  // 不锈钢机筒长度覆盖（配方级）
+  custom_barrel_length?: number | null;
   // 人工工资（从模板带入，可覆盖）
   assembly_wage?: number;
   packing_wage?: number;

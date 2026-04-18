@@ -29,22 +29,22 @@ router.patch('/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
         const updates = { ...req.body, Id: id };
-        if (updates.单价 !== undefined || updates.片数 !== undefined || updates.默认线重 !== undefined || updates.铜价基数 !== undefined || updates.线圈加工费 !== undefined || updates.转子加工费 !== undefined) {
+        if (updates.unitPrice !== undefined || updates.sheets !== undefined || updates.wireWeight !== undefined || updates.copperBase !== undefined || updates.coilFee !== undefined || updates.rotorFee !== undefined) {
             const current = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id));
             if (current) {
                 const m = { ...current, ...updates };
-                updates.成本 = (parseFloat(m.单价 || 0) * parseInt(m.片数 || 0) + parseFloat(m.默认线重 || 0) * parseFloat(m.铜价基数 || 0) + parseFloat(m.线圈加工费 || 0) + parseFloat(m.转子加工费 || 0)).toFixed(5);
+                updates.cost = (parseFloat(m.unitPrice || 0) * parseInt(m.sheets || 0) + parseFloat(m.wireWeight || 0) * parseFloat(m.copperBase || 0) + parseFloat(m.coilFee || 0) + parseFloat(m.rotorFee || 0)).toFixed(5);
             }
         }
         const now = new Date().toISOString();
         const sets = [], vals = [];
-        if (updates.单价 !== undefined) { sets.push('unit_price = ?'); vals.push(updates.单价); }
-        if (updates.片数 !== undefined) { sets.push('sheets = ?'); vals.push(updates.片数); }
-        if (updates.默认线重 !== undefined) { sets.push('wire_weight = ?'); vals.push(updates.默认线重); }
-        if (updates.铜价基数 !== undefined) { sets.push('copper_base = ?'); vals.push(updates.铜价基数); }
-        if (updates.线圈加工费 !== undefined) { sets.push('coil_fee = ?'); vals.push(updates.线圈加工费); }
-        if (updates.转子加工费 !== undefined) { sets.push('rotor_fee = ?'); vals.push(updates.转子加工费); }
-        if (updates.成本 !== undefined) { sets.push('cost = ?'); vals.push(updates.成本); }
+        if (updates.unitPrice !== undefined) { sets.push('unit_price = ?'); vals.push(updates.unitPrice); }
+        if (updates.sheets !== undefined) { sets.push('sheets = ?'); vals.push(updates.sheets); }
+        if (updates.wireWeight !== undefined) { sets.push('wire_weight = ?'); vals.push(updates.wireWeight); }
+        if (updates.copperBase !== undefined) { sets.push('copper_base = ?'); vals.push(updates.copperBase); }
+        if (updates.coilFee !== undefined) { sets.push('coil_fee = ?'); vals.push(updates.coilFee); }
+        if (updates.rotorFee !== undefined) { sets.push('rotor_fee = ?'); vals.push(updates.rotorFee); }
+        if (updates.cost !== undefined) { sets.push('cost = ?'); vals.push(updates.cost); }
         if (updates.默认线径 !== undefined) { sets.push('default_wire_gauge = ?'); vals.push(updates.默认线径); }
         if (updates.默认电容_uf !== undefined) { sets.push('default_capacitor = ?'); vals.push(updates.默认电容_uf); }
         sets.push('updated_at = ?'); vals.push(now); vals.push(id);
@@ -76,7 +76,7 @@ router.post('/calculate', async (req, res) => {
         let unitPrice, wireWeight, copperBase, coilFee, rotorFee, wireGauge, capacitor, source;
 
         if (exactMatch) {
-            unitPrice = parseFloat(exactMatch.单价 || 0);
+            unitPrice = parseFloat(exactMatch.unitPrice || 0);
             wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(exactMatch.默认线重 || 0);
             copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(exactMatch.铜价基数 || 0);
             coilFee = parseFloat(exactMatch.线圈加工费 || 0);
@@ -94,7 +94,7 @@ router.post('/calculate', async (req, res) => {
             if (lower && upper) {
                 const lS = parseInt(lower.片数), uS = parseInt(upper.片数);
                 const ratio = (targetSheets - lS) / (uS - lS);
-                unitPrice = parseFloat(lower.单价 || 0);
+                unitPrice = parseFloat(lower.unitPrice || 0);
                 const iWW = parseFloat(lower.默认线重 || 0) + (parseFloat(upper.默认线重 || 0) - parseFloat(lower.默认线重 || 0)) * ratio;
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(iWW.toFixed(4));
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.铜价基数 || 0);
@@ -104,14 +104,14 @@ router.post('/calculate', async (req, res) => {
                 capacitor = null;
                 source = `插值(${lS}片↔${uS}片, ratio=${ratio.toFixed(3)})`;
             } else if (lower) {
-                unitPrice = parseFloat(lower.单价 || 0);
+                unitPrice = parseFloat(lower.unitPrice || 0);
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(lower.默认线重 || 0);
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.铜价基数 || 0);
                 coilFee = parseFloat(lower.线圈加工费 || 0); rotorFee = parseFloat(lower.转子加工费 || 0);
                 wireGauge = lower.默认线径 || null; capacitor = null;
                 source = `外推(基于${parseInt(lower.片数)}片)`;
             } else if (upper) {
-                unitPrice = parseFloat(upper.单价 || 0);
+                unitPrice = parseFloat(upper.unitPrice || 0);
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(upper.默认线重 || 0);
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(upper.铜价基数 || 0);
                 coilFee = parseFloat(upper.线圈加工费 || 0); rotorFee = parseFloat(upper.转子加工费 || 0);
@@ -142,7 +142,7 @@ router.get('/specs', async (req, res) => {
         const specsMap = {};
         allCoils.forEach(c => {
             const spec = c.规格;
-            if (!specsMap[spec]) specsMap[spec] = { spec, unitPrice: c.单价, sheets: [], count: 0 };
+            if (!specsMap[spec]) specsMap[spec] = { spec, unitPrice: c.unitPrice, sheets: [], count: 0 };
             specsMap[spec].sheets.push(parseInt(c.片数));
             specsMap[spec].count++;
         });

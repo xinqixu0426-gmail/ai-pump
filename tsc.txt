@@ -1,0 +1,5 @@
+﻿src/components/rotor/RotorFormPanel.tsx(1,10): error TS6133: 'Box' is declared but its value is never read.
+src/pages/RotorDrawingPage.tsx(3,46): error TS6133: 'Grid' is declared but its value is never read.
+src/pages/RotorDrawingPage.tsx(4,34): error TS6133: 'IconButton' is declared but its value is never read.
+src/pages/RotorDrawingPage.tsx(4,46): error TS6133: 'Tooltip' is declared but its value is never read.
+src/pages/RotorDrawingPage.tsx(5,19): error TS6133: 'MenuItem' is declared but its value is never read.

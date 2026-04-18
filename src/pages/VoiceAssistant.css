@@ -1,0 +1,351 @@
+.va-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: #0b0f1a;
+  color: #e4e8f1;
+  font-family: 'Inter', -apple-system, 'SF Pro Display', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.va-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: rgba(11,15,26,0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  z-index: 10;
+  flex-shrink: 0;
+}
+.va-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-logo { font-size: 22px; }
+.va-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.va-clear-btn {
+  background: rgba(255,255,255,0.08);
+  border: none;
+  color: #8891a5;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.va-clear-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.12); }
+
+/* ── Messages ── */
+.va-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* ── Welcome ── */
+.va-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  gap: 8px;
+}
+.va-welcome-icon {
+  width: 72px; height: 72px;
+  background: linear-gradient(135deg, #6c8aff, #a78bfa);
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 32px rgba(108,138,255,0.3);
+}
+.va-welcome h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, #6c8aff, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.va-welcome p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 16px;
+}
+.va-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 400px;
+}
+.va-example-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #b0b8cc;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.va-example-btn:active {
+  transform: scale(0.96);
+  background: rgba(108,138,255,0.15);
+  border-color: rgba(108,138,255,0.3);
+}
+
+/* ── Message Bubbles ── */
+.va-msg { margin-bottom: 12px; display: flex; }
+.va-msg-user { justify-content: flex-end; }
+.va-msg-assistant { justify-content: flex-start; }
+
+.va-bubble {
+  max-width: 88%;
+  border-radius: 18px;
+  padding: 12px 16px;
+  font-size: 15px;
+  line-height: 1.6;
+  word-break: break-word;
+  animation: msgIn 0.3s ease;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.va-bubble-user {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: white;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 2px 12px rgba(37,99,235,0.3);
+}
+.va-bubble-assistant {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px 18px 18px 18px;
+  max-width: 95%;
+}
+
+.va-text {
+  white-space: pre-wrap;
+  color: #334155;
+}
+.va-error {
+  color: #f87171;
+  font-size: 14px;
+}
+
+/* ── Card overrides for dark mode ── */
+.va-tools {
+  margin: -4px -4px 8px;
+}
+.va-tools .MuiPaper-root {
+  background: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+  border-color: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+.va-tools .MuiTableCell-root {
+  color: #c0c8d8 !important;
+  border-color: #f1f5f9 !important;
+}
+.va-tools .MuiTableCell-head {
+  color: #1e293b !important;
+}
+
+/* ── Typing indicator ── */
+.va-typing {
+  display: flex;
+  gap: 5px;
+  padding: 4px 0;
+}
+.va-typing span {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #6c8aff;
+  animation: typing 1.4s ease-in-out infinite;
+}
+.va-typing span:nth-child(2) { animation-delay: 0.2s; }
+.va-typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ── Status indicator ── */
+.va-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6c8aff;
+  padding: 4px 0;
+  animation: fadeIn 0.3s ease;
+}
+.va-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #6c8aff;
+  animation: statusPulse 1.2s ease infinite;
+  flex-shrink: 0;
+}
+@keyframes statusPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Tool badges ── */
+.va-tool-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.va-tool-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #a78bfa;
+  background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.2);
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* ── Footer ── */
+.va-footer {
+  padding: 8px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: rgba(11,15,26,0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.va-interim {
+  font-size: 13px;
+  color: #6c8aff;
+  text-align: center;
+  padding: 4px 0 8px;
+  animation: pulse 1.5s ease infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.va-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.va-text-input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  padding: 12px 18px;
+  font-size: 15px;
+  color: #e4e8f1;
+  outline: none;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.va-text-input:focus {
+  border-color: rgba(108,138,255,0.4);
+  background: rgba(255,255,255,0.08);
+}
+.va-text-input::placeholder { color: #94a3b8; }
+.va-text-input:disabled { opacity: 0.5; }
+
+/* ── Send button ── */
+.va-send-btn {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.va-send-btn:active { transform: scale(0.92); }
+.va-send-btn:disabled { opacity: 0.4; }
+
+/* ── Mic button ── */
+.va-mic-btn {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #6c8aff, #a78bfa);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  position: relative;
+}
+.va-mic-btn:active { transform: scale(0.92); }
+.va-mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.va-mic-btn.recording {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 0 24px rgba(239,68,68,0.4);
+}
+
+/* ── Mic rings ── */
+.va-mic-rings {
+  position: absolute;
+  inset: -20px;
+  pointer-events: none;
+}
+.va-mic-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #ef4444;
+  transition: transform 0.1s ease, opacity 0.2s ease;
+}
+.va-mic-ring.r2 {
+  border-color: #f87171;
+}
+
+/* ── Spinner ── */
+.va-spinner {
+  width: 22px; height: 22px;
+  border: 2.5px solid rgba(255,255,255,0.3);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
