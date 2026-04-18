@@ -94,6 +94,20 @@ app.use('/api/coils', require('./api/routes/coils.cjs'));
 app.use('/api/rotor', require('./api/routes/rotor.cjs'));
 app.use('/api/settings', require('./api/routes/settings.cjs'));
 
+// ── 生产模式：托管前端构建产物 ──
+const distPath = path.join(__dirname, 'dist');
+const fs = require('fs');
+if (fs.existsSync(distPath)) {
+  console.log('[启动] 检测到 dist/ 目录，启用静态文件托管');
+  app.use(express.static(distPath));
+  // SPA fallback: 所有非 API 路由返回 index.html
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(distPath, 'index.html'));
+    }
+  });
+}
+
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
