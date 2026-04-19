@@ -4,6 +4,8 @@ dist/
 *.log
 uploads/
 .cert/
+.env
+
 pump.db
 pump.db-wal
 pump.db-shm

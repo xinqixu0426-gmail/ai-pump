@@ -1,127 +1,236 @@
 # 水泵 BOM 管理与出图系统
 
-基于智能化与微服务架构的现代化水泵生产物料管理系统。集成订单结算、部件组装、库存核算，并深入融合 DeepSeek AI Agent 引擎、企业微信智能助手与 FreeCAD 参数化自动出图工作流。
+集成订单/配方/库存/成本核算、DeepSeek AI Agent、企业微信助手和 FreeCAD 参数化出图的水泵生产管理系统。
 
-## 🛠 技术栈
-- **前端 Web**：React 18 + TS + Vite + MUI 5 (Zustand 缓存治理)
-- **后端 API**：Node.js Express + `better-sqlite3` 轻量级嵌入式数据库
-- **云端服务**：DeepSeek Chat (Function Calling) + 阿里云 ASR 语音语义
-- **工程引擎**：独立线程调度 FreeCAD (TechDraw 2D 投影自动化)
-- **多端触达**：HTTPS PWA (支持多平台麦克风唤醒) + 企业微信内网互通
+## 技术栈
+
+| 层     | 技术                                                         |
+| ------ | ------------------------------------------------------------ |
+| 前端   | React 18 + TypeScript + Vite + MUI 5 + Zustand               |
+| 后端   | Node.js Express 5 + better-sqlite3                            |
+| AI     | DeepSeek Chat (Function Calling) + 阿里云 ASR 语音识别        |
+| 出图   | FreeCAD TechDraw 2D 投影自动化（独立子进程调度）               |
+| 部署   | PM2 守护进程 + Cloudflare Tunnel 外网暴露                     |
 
 ---
 
-## 🚀 部署与开发指南
+## 项目结构
 
-### 1. 环境变量 (.env)
-在项目根目录自行创建 `.env`（*出于安全，该文件已被加入 .gitignore，切勿提交至代码仓库*）：
+```
+├── api.cjs                 # Express 入口（挂载路由 + 静态托管）
+├── api/
+│   ├── db.cjs              # SQLite 数据层
+│   ├── authMiddleware.cjs  # JWT 认证中间件
+│   ├── routes/
+│   │   ├── ai.cjs          # AI 路由入口（拆分到 ai/ 子目录）
+│   │   ├── ai/             # AI 子模块（chat/prompt/voice/siri/tools/executor）
+│   │   ├── auth.cjs        # 登录/登出/状态检查
+│   │   ├── parts.cjs       # 零件 CRUD
+│   │   ├── recipes.cjs     # 配方 CRUD
+│   │   ├── orders.cjs      # 订单 CRUD
+│   │   ├── templates.cjs   # 泵壳模板 CRUD
+│   │   ├── coils.cjs       # 线圈记录 + 成本计算
+│   │   ├── cost.cjs        # 成本精算（含铜价更新）
+│   │   ├── rotor.cjs       # 转子出图（NL + 结构化参数）
+│   │   ├── settings.cjs    # 系统全局配置
+│   │   └── wecom.cjs       # 企业微信 Webhook
+│   └── __tests__/          # 后端测试
+├── src/                    # React 前端源码
+│   ├── pages/              # 页面组件
+│   ├── components/         # UI 组件
+│   ├── utils/              # API 封装、Store、主题
+│   └── types/              # TypeScript 类型定义
+├── freecad/                # FreeCAD worker.py 脚本
+├── scripts/                # 种子数据 / 数据库备份脚本
+├── docs/                   # 补充文档
+└── public/                 # 静态资源
+```
+
+---
+
+## 开发环境（Windows / Mac）
+
+### 1. 前置条件
+
+- Node.js ≥ 18
+- npm
+
+### 2. 环境变量
+
+在项目根目录创建 `.env`（已 gitignore）：
+
 ```env
-ACCESS_PASSWORD=你的登录访问密码
-JWT_SECRET=随便填一串无规律长字符_用于签发加密身份
+ACCESS_PASSWORD=你的登录密码
+JWT_SECRET=随机长字符串
 
-# AI 与听觉引擎
+# AI 引擎
 DEEPSEEK_API_KEY=sk-...
-ALIYUN_APP_KEY=阿里云的ASR应用AppKey
+ALIYUN_APP_KEY=阿里云ASR的AppKey
 ALIYUN_AK_ID=阿里云AccessKey
 ALIYUN_AK_SECRET=阿里云Secret
 
-# 企业微信 (WeCom) Webhook 接收配置
+# 企业微信（可选）
 WECOM_CORP_ID=ww...
 WECOM_AGENT_ID=1000xxx
 WECOM_SECRET=...
 WECOM_TOKEN=...
-WECOM_ENCODING_AES_KEY=填入你在企微后台生成的AES长密钥
+WECOM_ENCODING_AES_KEY=...
 
-# 工业引擎配置 (仅在需要口述出图的服务器或开发机配置)
+# FreeCAD 路径（可选，仅出图功能需要）
+# Windows:
 FREECAD_BIN=C:\Program Files\FreeCAD 1.1\bin\freecad.exe
+# macOS:
+# FREECAD_BIN=/Applications/FreeCAD.app/Contents/MacOS/FreeCAD
 ```
 
-### 2. 运行脚本
-**调试环境（全栈共启）**：
+### 3. 启动
+
 ```bash
 npm install
-npm run start    # 一键启动 Vite 前端 (3000) 与 Express API (3002)
+npm start          # 同时启动 Vite (https://localhost:3000) + Express API (:3002)
 ```
 
-**生产环境部署 (Linux / Alibaba Cloud 等)**：
-```bash
-npm run build                    # 1. 前端构建出 /dist 静态产物
-npm install --production         # 2. 安装后端生产依赖
-pm2 start api.cjs --name "pump"  # 3. 守护后台 Node.js 进程 (3002端口)
-```
+前端通过 Vite proxy 将 `/api/*` 转发到 `localhost:3002`，无需额外配置。
 
-**苹果本地服务器部署 (Mac Mini 作为生产服务器)**：
+---
+
+## 生产环境（Mac Mini + Cloudflare Tunnel）
+
+### 1. 首次部署
+
 ```bash
-# 1. 全局安装项目守护工具 PM2
+# 安装依赖
+npm install
+
+# 构建前端静态文件
+npm run build
+
+# 全局安装 PM2
 npm install -g pm2
 
-# 2. 修改 .env 配置文件中的 FreeCAD 路径 (举例)
-# FREECAD_BIN=/Applications/FreeCAD.app/Contents/MacOS/FreeCAD
+# 启动 API（Express 自动托管 dist/ 静态文件）
+pm2 start api.cjs --name pump-api
 
-# 3. 构建前端产物并安装生产依赖
-npm run build
-npm install --production
-
-# 4. 启动后端进程
-pm2 start api.cjs --name "pump"
-
-# 5. 设置 Mac 随开机自动启动后台进程
+# 设置开机自启
 pm2 startup
 pm2 save
 ```
 
-Nginx 核心反向代理演示 (Mac 可使用 `brew install nginx` 安装，配置文件一般在 `/opt/homebrew/etc/nginx/nginx.conf`)：
-```nginx
-server {
-    listen 80;
-    server_name 你的公网IP或域名(局域网IP);
+### 2. .env 补充配置
 
-    # 1. 代理前端静态打包资产
-    location / {
-        root /绝对路径/你的项目目录/dist;
-        try_files $uri $uri/ /index.html;
-    }
+生产环境 `.env` 中额外添加：
 
-    # 2. API 中转与 SSE 实时流联通
-    location /api/ {
-        proxy_pass http://localhost:3002;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_buffering off; # 重要：DeepSeek 数据流响应必需
-    }
-}
+```env
+BEHIND_PROXY=true
 ```
+
+> `BEHIND_PROXY=true` 会让 Cookie 设置为 `secure: true` + `sameSite: none`，
+> 确保通过 Cloudflare Tunnel (HTTPS) 访问时认证正常。
+
+### 3. Cloudflare Tunnel 配置
+
+```bash
+# Mac Mini 上安装 cloudflared
+brew install cloudflare/cloudflare/cloudflared
+
+# 使用 Dashboard 生成的 token 注册为系统服务
+sudo cloudflared service install <TOKEN>
+```
+
+Dashboard 设置：
+- **Public Hostname**: 你的域名
+- **Service**: `HTTP` → `localhost:3002`
+
+### 4. 防休眠
+
+Mac Mini 必须关闭自动休眠，否则 tunnel 会断连：
+
+```bash
+sudo pmset -a sleep 0 disksleep 0
+```
+
+### 5. 日常更新部署
+
+```bash
 ssh dan@192.168.31.216
 cd ~/Documents/pump-cost-accounting-system
 git pull && npm run build && pm2 restart pump-api
+```
+
 ---
 
-## 📦 API 与微服务架构层
+## API 端点一览
 
-前端已严禁直连内网数据文件。所有核心通信由拦截器统一发送给 `api.cjs`：
-* **`/api/auth`**：携带并发防爆破器 (`express-rate-limit`) 的下发签发模块。
-* **`/api/ai` 与 `/api/wecom`**：大模型对话枢纽与企微加密通讯通道，已开放特殊免鉴权放行组。
-* **`/api/cost/*`**：成本中央精算机（可拉取实时铜价动态浮动）。
-* **`/api/settings`**：系统全局配置（管理费默认值等），key-value 存储于 `system_settings` 表。
-* **`/api/rotor`**：并发安全的转子图纸下发平台。接收自然语言后调用 FreeCAD 无头子进程导出 SVG 并在沙盒中将其转换为可打印的高清 PDF。
+所有业务接口（除标注外）均需 JWT 认证（HttpOnly Cookie）。
+
+### 认证
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/login` | 密码登录，设置 Cookie |
+| POST | `/api/auth/logout` | 清除 Cookie |
+| GET  | `/api/auth/check` | 检查登录状态 |
+
+### 数据 CRUD
+
+| 资源 | GET | POST | PATCH | DELETE |
+|------|-----|------|-------|--------|
+| `/api/parts[/:id]` | 全部零件 | 新增 | 更新 | 删除 |
+| `/api/recipes[/:id]` | 全部配方 | 新增(含快照) | 更新 | 删除 |
+| `/api/orders[/:id]` | 全部订单 | 新增 | 更新 | 删除 |
+| `/api/templates[/:id]` | 泵壳模板 | 新增 | 更新 | 删除 |
+| `/api/coils[/:id]` | 线圈记录 | 新增(自动算) | 更新(自动重算) | 删除 |
+
+### 成本计算
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/cost/calculate` | 按零件数组算成本 |
+| GET  | `/api/cost/recipe/:id` | 按配方 ID 查成本 |
+| GET  | `/api/cost/recipe/by-name?name=xxx` | 按名称查成本 |
+| POST | `/api/cost/dynamic-config` | 动态配置成本(浮球/电缆/包材) |
+| POST | `/api/cost/full-calculate` | **一站式 BOM 计算(推荐)** |
+| GET  | `/api/copper-price` | 实时铜价 |
+| POST | `/api/copper-price/update` | 手动触发铜价更新 |
+
+### AI 智能助手
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/ai/chat` | AI 对话 (SSE 流式) |
+| GET/PUT | `/api/ai/system-prompt` | 管理 System Prompt |
+| POST | `/api/voice/asr` | 语音识别 (阿里云 ASR) |
+| POST | `/api/siri/chat` | Siri 快捷指令对话 (公开) |
+
+### 转子出图
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/rotor/chat` | 自然语言出图 |
+| POST | `/api/rotor/draw` | 结构化参数出图 |
+| GET  | `/api/rotor/status/:jobId` | 查询出图任务状态 |
+| GET  | `/api/rotor/history` | 出图历史记录 |
+
+### 其他
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET  | `/api/health` | 健康检查 (公开) |
+| GET/POST | `/api/wecom/webhook` | 企微回调 (公开) |
+| GET/PUT | `/api/settings/:key` | 系统全局配置 |
 
 ### 成本计算公式
+
 ```
 总成本 = 配件成本 + 线圈成本 + 动态配置(浮球/电缆/包材) + 人工工资(安装+打包+喷漆) + 管理费
 ```
-- **人工工资**：绑定在泵壳模板上，选模板时自动带入配方，可逐单覆盖
-- **管理费**：全局默认值存于 `system_settings`，新建配方自动填入，可覆盖
 
 ---
 
-## 💣 生产维护踩坑实录 (Troubleshooting)
+## 踩坑记录
 
-1. **企业微信收发信 60020 与 42028 失败**
-   - 解决方案：必须去应用**企业可信 IP**处绑定服务器公网地址。在推流卡片矩阵时，请确保参数 `type: 1` 已摘除，以免被深信服底层错误吞没认定为恶意短链接。同时 `.env` 在粘贴企微 AES Key 时极其容易混入 Windows 回车符，请注意排查清洗。
-2. **500 Err 限流器引发的前后台瘫痪**
-   - 症状：日志报 `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`。
-   - 解法：当 Node.js 被置于 Nginx 反向代理下时，IP 防爆破插件由于查无实名导致崩溃，需在代码顶层配置 `app.set('trust proxy', 1);`（代码已包含此补丁）。
-3. **401 Unauthorized 页面空白无响应**
-   - 症状：旧网页发送了 API 新版结构体却遭遇加密锁。
-   - 解法：服务器通过 `git pull` 后**仅重启后端是不够的**，必须执行 `npm run build` 从源头刷新网页客户端打包（Nginx 加载机制）。
-4. **口述出图的图纸生成一直是空白尺寸或未变形**
-   - 排查点：脚本采用的技术是基于 Fake Parametric 标签覆盖而非 3D 重建几何运算。核心脚本在 `worker.py` 内。必须等待 UI 事件循环泵出 SVG，切忌屏蔽 GUI 调用。
+1. **Express 5 通配符路由** — `'*'` 和 `'{*path}'` 在不同版本 path-to-regexp 下都可能报 `PathError`，SPA fallback 请直接用正则 `/(.*)/`。
+2. **Cloudflare Tunnel 502/1033** — 99% 是 Mac Mini 自动休眠断网导致，用 `pmset -a sleep 0` 关闭。
+3. **HTTPS 认证失败 (401)** — 当 Express 跑在反向代理后面，Cookie 需要 `secure: true` + `sameSite: 'none'`，通过 `BEHIND_PROXY=true` 环境变量启用，同时 `app.set('trust proxy', 1)` 已内置。
+4. **企微 60020/42028 错误** — 需在企微后台绑定可信 IP；`.env` 粘贴 AES Key 时注意清除 Windows 回车符。
+5. **前端更新不生效** — `git pull` 后必须 `npm run build` 重新构建前端产物，仅重启后端不够。
