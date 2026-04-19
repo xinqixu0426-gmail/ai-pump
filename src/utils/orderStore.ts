@@ -17,6 +17,14 @@ interface OrderRow {
   items_json?: string;
   purchase_list_json?: string;
   todos_json?: string;
+  
+  // Backend often returns these as camelCase
+  customerName?: string;
+  contractNo?: string;
+  itemsJson?: string;
+  purchaseListJson?: string;
+  todosJson?: string;
+
   // 兼容后端 row adapter 返回的中文字段
   客户名称?: string;
   合同号?: string;
@@ -30,7 +38,7 @@ interface OrderRow {
 }
 
 function rowToOrder(row: OrderRow): Order {
-  const items = safeJsonParse<OrderItem[]>(row.items_json || row.型号列表JSON, []);
+  const items = safeJsonParse<OrderItem[]>(row.items_json || row.itemsJson || row.型号列表JSON, []);
   // 兼容旧数据：如果 item 没有 unitCost 则补 0
   for (const it of items) {
     if (it.unitCost === undefined) it.unitCost = 0;
@@ -40,13 +48,13 @@ function rowToOrder(row: OrderRow): Order {
   const totals = calcOrderTotals(items);
   return {
     id: String(row.Id),
-    customerName: row.customer_name || '',
-    contractNo: row.contract_no || row.合同号 || undefined,
-    remark: row.remark || row.备注 || undefined,
+    customerName: row.customer_name || row.customerName || '',
+    contractNo: row.contract_no || row.contractNo || row.合同号 || undefined,
+    remark: row.remark || row.remark || row.备注 || undefined,
     status: ((row.status || row.订单状态) as Order['status']) || '待采购',
     items,
-    purchaseList: safeJsonParse<PurchaseItem[]>(row.purchase_list_json || row.采购清单JSON, []),
-    todos: safeJsonParse<TodoItem[]>(row.todos_json || row.采购TodoJSON, []),
+    purchaseList: safeJsonParse<PurchaseItem[]>(row.purchase_list_json || row.purchaseListJson || row.采购清单JSON, []),
+    todos: safeJsonParse<TodoItem[]>(row.todos_json || row.todosJson || row.采购TodoJSON, []),
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,

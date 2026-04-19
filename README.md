@@ -90,7 +90,9 @@ server {
     }
 }
 ```
-
+ssh dan@192.168.31.216
+cd ~/Documents/pump-cost-accounting-system
+git pull && npm run build && pm2 restart pump-api
 ---
 
 ## 📦 API 与微服务架构层

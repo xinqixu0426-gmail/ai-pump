@@ -424,7 +424,7 @@ export default function RecipeDetailModal({
             确认生产
           </Button>
         )}
-        <Button onClick={onClose} variant="outlined">
+        <Button autoFocus onClick={onClose} variant="outlined">
           关闭
         </Button>
       </DialogActions>

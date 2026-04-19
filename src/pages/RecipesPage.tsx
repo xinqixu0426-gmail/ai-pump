@@ -257,7 +257,7 @@ export default function RecipesPage() {
         <DialogTitle>删除配方</DialogTitle>
         <DialogContent><DialogContentText>确定要删除这个配方吗？此操作不可撤销。</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>取消</Button>
+          <Button autoFocus onClick={() => setDeleteTarget(null)}>取消</Button>
           <Button onClick={confirmDeleteRecipe} color="error" variant="contained">删除</Button>
         </DialogActions>
       </Dialog>

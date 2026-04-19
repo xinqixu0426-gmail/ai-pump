@@ -190,7 +190,7 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button onClick={onClose} variant="contained" sx={{ background: gradients.brand, boxShadow: 'none', fontWeight: 700 }}>完成</Button>
+        <Button autoFocus onClick={onClose} variant="contained" sx={{ background: gradients.brand, boxShadow: 'none', fontWeight: 700 }}>完成</Button>
       </DialogActions>
     </Dialog>
   );

@@ -342,6 +342,7 @@ export default function PartsPage() {
             customCategories={customCategories}
             onManageCategories={() => setCatManagerOpen(true)}
             supplierOptions={supplierOptions}
+            open={drawerOpen}
           />
         </Box>
       </Drawer>
@@ -353,7 +354,7 @@ export default function PartsPage() {
           <DialogContentText>确定要删除该零件吗？此操作不可撤销，且可能影响引用此零件的配方成本计算。</DialogContentText>
         </DialogContent>
         <DialogActions sx={{ pb: 2, px: 3 }}>
-          <Button onClick={() => setDeleteTarget(null)} variant="outlined">取消</Button>
+          <Button autoFocus onClick={() => setDeleteTarget(null)} variant="outlined">取消</Button>
           <Button id="confirm-delete-btn" onClick={confirmDelete} color="error" variant="contained" sx={{ boxShadow: 'none' }}>确认删除</Button>
         </DialogActions>
       </Dialog>

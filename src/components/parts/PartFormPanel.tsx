@@ -23,9 +23,10 @@ interface PartFormPanelProps {
   customCategories: string[];
   onManageCategories: () => void;
   supplierOptions: string[];
+  open?: boolean;
 }
 
-export default function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions }: PartFormPanelProps) {
+export default function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions, open }: PartFormPanelProps) {
   const [model, setModel] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
@@ -87,10 +88,12 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setIsStainless(false); setBarrelLength(''); setOpenFactor('');
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
-      setTimeout(() => modelInputRef.current?.focus(), 100);
+      if (open) {
+        setTimeout(() => modelInputRef.current?.focus(), 100);
+      }
     }
     setErrors({});
-  }, [editingPart]);
+  }, [editingPart, open]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -133,7 +136,9 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setIsStainless(false); setBarrelLength(''); setOpenFactor('');
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
-      setTimeout(() => modelInputRef.current?.focus(), 100);
+      if (open) {
+        setTimeout(() => modelInputRef.current?.focus(), 100);
+      }
     }
   };
 
