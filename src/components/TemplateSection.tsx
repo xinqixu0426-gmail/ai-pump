@@ -40,19 +40,16 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     [parts]
   );
 
-  // ── 泵壳型号列表 (过滤掉已建模板的) ──
+  // ── 泵壳型号列表（显示所有泵壳型号，重复校验在保存时处理） ──
   const shellModels = useMemo(() => {
-    const templateModels = new Set(templates.map(t => t.shell_model));
     const set = new Set<string>();
     parts.forEach(p => { 
       if (['泵体', '壳体', '泵壳'].includes(p.category) && p.model) {
-        if (!templateModels.has(p.model) || (editingTpl && editingTpl.shell_model === p.model)) {
-          set.add(p.model);
-        }
+        set.add(p.model);
       }
     });
     return Array.from(set).sort();
-  }, [parts, templates, editingTpl]);
+  }, [parts]);
 
   // ── 零件型号去重列表 ──
   const uniqueModels = useMemo(() => {
