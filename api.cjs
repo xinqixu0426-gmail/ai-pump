@@ -111,9 +111,11 @@ if (fs.existsSync(distPath)) {
 
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {
+    const isProd = process.env.NODE_ENV === 'production' || process.env.BEHIND_PROXY === 'true' || (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
     console.log(`========================================`);
     console.log(`水泵BOM成本查询API已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
+    console.log(`运行平台: ${process.platform} | 环境模式: ${isProd ? '🚀 生产模式 (Secure Cookie)' : '🛠  开发模式 (Lax Cookie)'}`);
     console.log(`========================================`);
     console.log(`🔒 认证系统已启用`);
     console.log(`   登录接口: POST /api/auth/login`);

@@ -11,14 +11,22 @@ const router = express.Router();
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 const JWT_EXPIRES_IN = '15d'; // 15 天免重新登录
-const IS_BEHIND_PROXY = process.env.BEHIND_PROXY === 'true'; // Cloudflare Tunnel 等反向代理
 
-// Cookie 配置：经过代理时需要 secure + sameSite=none
+// 自动适配环境：
+//   Windows (win32) → 本地开发 → Lax Cookie
+//   macOS/Linux      → Mac Mini 部署 (Cloudflare Tunnel) → Secure Cookie
+// 也可通过 NODE_ENV=production 或 BEHIND_PROXY=true 强制覆盖
+const IS_PRODUCTION =
+  process.env.NODE_ENV === 'production' ||
+  process.env.BEHIND_PROXY === 'true' ||
+  (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+
+// Cookie 配置：生产环境（经过代理）需要 secure + sameSite=none
 function getCookieOptions() {
   return {
     httpOnly: true,
-    secure: IS_BEHIND_PROXY,
-    sameSite: IS_BEHIND_PROXY ? 'none' : 'lax',
+    secure: IS_PRODUCTION,
+    sameSite: IS_PRODUCTION ? 'none' : 'lax',
     maxAge: 15 * 24 * 60 * 60 * 1000,
     path: '/',
   };
