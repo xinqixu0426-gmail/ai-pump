@@ -101,7 +101,7 @@ if (fs.existsSync(distPath)) {
   console.log('[启动] 检测到 dist/ 目录，启用静态文件托管');
   app.use(express.static(distPath));
   // SPA fallback: 所有非 API 路由返回 index.html
-  app.get('{*path}', (req, res, next) => {
+  app.get(/(.*)/, (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/drawings')) {
       return next();
     }
