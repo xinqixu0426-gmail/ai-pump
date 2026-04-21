@@ -28,6 +28,7 @@ router.post('/api/ai/chat', async (req, res) => {
         const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
         let maxRounds = 5;
         let done = false;
+        let allToolResults = []; // 新增：收集本轮会话的所有工具执行结果
 
         while (!done && maxRounds-- > 0) {
             const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
@@ -74,6 +75,9 @@ router.post('/api/ai/chat', async (req, res) => {
                     send('tool_call', { name: funcName, args });
                     const result = await executeToolCall(funcName, args, { allowWrite: true });
                     send('tool_result', { name: funcName, result });
+                    
+                    // 新增：记录到集合中供最后发送
+                    allToolResults.push({ name: funcName, result });
 
                     currentMessages.push({
                         role: 'tool',
@@ -84,6 +88,15 @@ router.post('/api/ai/chat', async (req, res) => {
                 }
             } else {
                 send('content', { content: msg.content || '' });
+                
+                // 新增：如果本次会话产生过工具调用，则发送详情事件
+                if (allToolResults.length > 0) {
+                    send('detail', {
+                        detailType: allToolResults.length === 1 ? allToolResults[0].name : 'multi_tool',
+                        toolResults: allToolResults
+                    });
+                }
+
                 send('done', {});
                 done = true;
             }
