@@ -342,6 +342,7 @@ export default function PartsPage() {
             customCategories={customCategories}
             onManageCategories={() => setCatManagerOpen(true)}
             supplierOptions={supplierOptions}
+            parts={parts}
             open={drawerOpen}
           />
         </Box>

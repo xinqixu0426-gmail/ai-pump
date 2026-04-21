@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box, Typography, Paper, Chip, TextField, Button, IconButton,
   FormControl, InputLabel, Select, MenuItem, Stack, Tooltip,
@@ -23,10 +23,20 @@ interface PartFormPanelProps {
   customCategories: string[];
   onManageCategories: () => void;
   supplierOptions: string[];
+  parts: Part[];
   open?: boolean;
 }
 
-export default function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions, open }: PartFormPanelProps) {
+/** 线径模式配置：类别 → 固定前缀 */
+const WIRE_MODE_CONFIG: Record<string, string> = {
+  '浮球': '浮球-线径',
+  '电缆线': '电缆-线径',
+};
+
+/** 预置常用线径 */
+const DEFAULT_WIRE_GAUGES = ['0.35', '0.40', '0.45', '0.50', '0.55', '0.60', '0.65', '0.70', '0.75', '0.80', '0.85', '0.90', '0.95', '1.00', '1.18', '1.50', '2.50', '4.00'];
+
+export default function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions, parts, open }: PartFormPanelProps) {
   const [model, setModel] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
@@ -34,6 +44,26 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   const [stock, setStock] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const modelInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 线径结构化输入 ──
+  const [wireGauge, setWireGauge] = useState('');
+
+  /** 当前类别是否为线径模式 */
+  const wirePrefix = WIRE_MODE_CONFIG[category] || '';
+  const isWireMode = !!wirePrefix;
+
+  /** 线径下拉选项（预置 + 已有数据库中的线径） */
+  const wireGaugeOptions = useMemo(() => {
+    if (!wirePrefix) return [];
+    const set = new Set<string>(DEFAULT_WIRE_GAUGES);
+    parts.forEach(p => {
+      if (p.model.startsWith(wirePrefix)) {
+        const w = p.model.replace(wirePrefix, '');
+        if (w) set.add(w);
+      }
+    });
+    return Array.from(set).sort((a, b) => parseFloat(a) - parseFloat(b));
+  }, [wirePrefix, parts]);
 
   // ── 泵壳不锈钢机筒扩展属性 ──
   const [isStainless, setIsStainless] = useState(false);
@@ -62,8 +92,16 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
   useEffect(() => {
     if (editingPart) {
-      setModel(editingPart.model);
       setCategory(editingPart.category);
+      // 线径模式：拆分 model 为 prefix + wireGauge
+      const editPrefix = WIRE_MODE_CONFIG[editingPart.category] || '';
+      if (editPrefix && editingPart.model.startsWith(editPrefix)) {
+        setModel(editingPart.model);
+        setWireGauge(editingPart.model.replace(editPrefix, ''));
+      } else {
+        setModel(editingPart.model);
+        setWireGauge('');
+      }
       setPrice(String(editingPart.price || ''));
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
@@ -83,7 +121,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setDefaultThreadDia(meta.defaultThreadDia != null ? String(meta.defaultThreadDia) : '');
       setDefaultStackOffset(meta.defaultStackOffset != null ? String(meta.defaultStackOffset) : '');
     } else {
-      setModel(''); setCategory('');
+      setModel(''); setCategory(''); setWireGauge('');
       setPrice(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenFactor('');
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
@@ -97,7 +135,11 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!model.trim()) e.model = '型号不能为空';
+    if (isWireMode) {
+      if (!wireGauge.trim()) e.model = '请选择线径';
+    } else {
+      if (!model.trim()) e.model = '型号不能为空';
+    }
     if (!category) e.category = '请选择类别';
     if (!price || isNaN(Number(price)) || Number(price) < 0) e.price = '请输入有效价格';
     if (!supplier.trim()) e.supplier = '供应商不能为空';
@@ -108,6 +150,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    // 线径模式下自动拼接 model
+    const finalModel = isWireMode ? `${wirePrefix}${wireGauge.trim()}` : model.trim();
     // 构建 notes JSON
     const notes: PumpShellMeta | null = category === '泵壳'
       ? { 
@@ -127,12 +171,12 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
         }
       : null;
     await onSave({
-      model: model.trim(), category, price: parseFloat(price) || 0,
+      model: finalModel, category, price: parseFloat(price) || 0,
       supplier: supplier.trim(), stock: parseInt(stock) || 0,
       notes: notes ? JSON.stringify(notes) : '',
     });
     if (!editingPart) {
-      setModel(''); setCategory(''); setPrice(''); setSupplier(''); setStock('');
+      setModel(''); setCategory(''); setWireGauge(''); setPrice(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenFactor('');
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
@@ -170,12 +214,49 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
       <Box component="form" id="part-form" onSubmit={handleSubmit}>
         <Stack spacing={2}>
-          <TextField
-            inputRef={modelInputRef}
-            id="part-model-input" label="型号" value={model} onChange={(e) => setModel(e.target.value)}
-            placeholder="如：6202-2RS" required fullWidth size="small"
-            error={!!errors.model} helperText={errors.model}
-          />
+          {isWireMode ? (
+            /* 线径结构化输入模式 */
+            <Box display="flex" gap={1} alignItems="flex-start">
+              <Chip
+                label={wirePrefix}
+                size="small"
+                sx={{
+                  mt: 0.8, fontWeight: 700, fontSize: '0.85rem',
+                  bgcolor: category === '浮球' ? '#fff1f2' : '#fdf4ff',
+                  color: category === '浮球' ? '#be123c' : '#701a75',
+                  border: '1px solid',
+                  borderColor: category === '浮球' ? '#fecdd3' : '#f0abfc',
+                }}
+              />
+              <Autocomplete
+                freeSolo
+                disableClearable
+                options={wireGaugeOptions}
+                value={wireGauge}
+                onInputChange={(_e, v) => setWireGauge(v || '')}
+                sx={{ flex: 1 }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="线径"
+                    placeholder="选择或输入线径"
+                    required
+                    size="small"
+                    error={!!errors.model}
+                    helperText={errors.model || (`最终型号：${wirePrefix}${wireGauge || '?'}`)}
+                  />
+                )}
+              />
+            </Box>
+          ) : (
+            /* 普通型号输入 */
+            <TextField
+              inputRef={modelInputRef}
+              id="part-model-input" label="型号" value={model} onChange={(e) => setModel(e.target.value)}
+              placeholder="如：6202-2RS" required fullWidth size="small"
+              error={!!errors.model} helperText={errors.model}
+            />
+          )}
           <Box display="flex" gap={1} alignItems="flex-start">
             <FormControl fullWidth size="small" required error={!!errors.category}>
               <InputLabel>类别</InputLabel>

@@ -5,13 +5,13 @@ import { colors } from '../../utils/theme';
 /** 内置类别（不可删除） */
 export const BUILTIN_CATEGORIES: string[] = [
   '轴承', '油封', '螺丝', '泵壳', '线圈转子',
-  '电容', '电缆线', '皮垫', '配件', '包装',
+  '电容', '电缆线', '浮球', '皮垫', '配件', '包装',
 ];
 
 /** 内置图标 */
 export const BUILTIN_ICONS: Record<string, string> = {
   轴承: '⚙️', 油封: '🔧', 螺丝: '🔩', 泵壳: '🏠',
-  线圈转子: '⚡', 电容: '🔋', 电缆线: '📡', 皮垫: '🟤',
+  线圈转子: '⚡', 电容: '🔋', 电缆线: '📡', 浮球: '🔴', 皮垫: '🟤',
   配件: '🛠️', 包装: '📦',
 };
 
@@ -24,6 +24,7 @@ export const BUILTIN_COLORS: Record<string, { bg: string; text: string; border: 
   线圈转子:{ bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
   电容:   { bg: '#f0f9ff', text: '#075985', border: '#bae6fd' },
   电缆线: { bg: '#fdf4ff', text: '#701a75', border: '#f0abfc' },
+  浮球:   { bg: '#fff1f2', text: '#be123c', border: '#fecdd3' },
   皮垫:   { bg: '#fef3c7', text: '#78350f', border: '#fcd34d' },
   配件:   { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0' },
   包装:   { bg: '#f8fafc', text: '#334155', border: '#cbd5e1' },
