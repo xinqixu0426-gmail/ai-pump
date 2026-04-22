@@ -112,8 +112,7 @@ export default function VoiceAssistantPage() {
                   a.statusMessage = '正在整理结果...';
                   break;
                 case 'content':
-                  a.content = event.content;
-                  a.isLoading = false;
+                  a.content += event.content;
                   a.statusMessage = '';
                   break;
                 case 'done':

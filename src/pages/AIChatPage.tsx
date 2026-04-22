@@ -201,8 +201,8 @@ export default function AIChatPage() {
                   ];
                   break;
                 case 'content':
-                  newAssistant.content = event.content;
-                  newAssistant.status = 'done';
+                  newAssistant.content += event.content;
+                  newAssistant.status = 'formatting';
                   newAssistant.statusMessage = '';
                   break;
                 case 'done':
