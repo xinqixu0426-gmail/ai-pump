@@ -13,6 +13,7 @@ router.post('/api/ai/chat', async (req, res) => {
 
     const send = (type, payload) => {
         res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
+        if (typeof res.flush === 'function') res.flush(); // 强制刷新，防止 compression 中间件缓冲
     };
 
     try {
@@ -41,7 +42,7 @@ router.post('/api/ai/chat', async (req, res) => {
                     model,
                     messages: currentMessages,
                     tools: AI_TOOLS,
-                    stream: false
+                    stream: true
                 })
             });
 
@@ -51,21 +52,68 @@ router.post('/api/ai/chat', async (req, res) => {
                 return res.end();
             }
 
-            const data = await aiRes.json();
-            if (data.error) {
-                send('error', { message: data.error.message || 'API 调用失败' });
-                return res.end();
-            }
+            let msgContent = '';
+            let toolCallsMap = {};
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
 
-            const msg = data.choices[0].message;
+            for await (const chunk of aiRes.body) {
+                buffer += decoder.decode(chunk, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (!line || !line.startsWith('data: ')) continue;
+                    
+                    const jsonStr = line.substring(6).trim();
+                    if (jsonStr === '[DONE]') continue;
+                    
+                    try {
+                        const data = JSON.parse(jsonStr);
+                        const delta = data.choices[0].delta;
+                        
+                        if (delta.content) {
+                            msgContent += delta.content;
+                            send('content', { content: delta.content });
+                        }
+                        
+                        if (delta.tool_calls) {
+                            for (const tc of delta.tool_calls) {
+                                if (!toolCallsMap[tc.index]) {
+                                    toolCallsMap[tc.index] = {
+                                        id: tc.id || '',
+                                        type: tc.type || 'function',
+                                        function: {
+                                            name: tc.function?.name || '',
+                                            arguments: tc.function?.arguments || ''
+                                        }
+                                    };
+                                } else {
+                                    if (tc.id) toolCallsMap[tc.index].id += tc.id;
+                                    if (tc.function?.name) toolCallsMap[tc.index].function.name += tc.function.name;
+                                    if (tc.function?.arguments) toolCallsMap[tc.index].function.arguments += tc.function.arguments;
+                                }
+                            }
+                        }
+                    } catch(e) {
+                        // ignore parse errors for partial chunks
+                    }
+                }
+            }
+            
+            // 冲刷 decoder
+            buffer += decoder.decode();
+
+            const toolCallsArr = Object.values(toolCallsMap);
             currentMessages.push({
                 role: 'assistant',
-                content: msg.content || "",
-                tool_calls: msg.tool_calls
+                content: msgContent || "",
+                tool_calls: toolCallsArr.length > 0 ? toolCallsArr : undefined
             });
 
-            if (msg.tool_calls && msg.tool_calls.length > 0) {
-                for (const tc of msg.tool_calls) {
+            if (toolCallsArr.length > 0) {
+                for (const tc of toolCallsArr) {
                     const funcName = tc.function.name;
                     send('status', { status: 'calling', message: `正在调用: ${funcName}...` });
 
@@ -76,7 +124,6 @@ router.post('/api/ai/chat', async (req, res) => {
                     const result = await executeToolCall(funcName, args, { allowWrite: true });
                     send('tool_result', { name: funcName, result });
                     
-                    // 新增：记录到集合中供最后发送
                     allToolResults.push({ name: funcName, result });
 
                     currentMessages.push({
@@ -87,9 +134,6 @@ router.post('/api/ai/chat', async (req, res) => {
                     });
                 }
             } else {
-                send('content', { content: msg.content || '' });
-                
-                // 新增：如果本次会话产生过工具调用，则发送详情事件
                 if (allToolResults.length > 0) {
                     send('detail', {
                         detailType: allToolResults.length === 1 ? allToolResults[0].name : 'multi_tool',
