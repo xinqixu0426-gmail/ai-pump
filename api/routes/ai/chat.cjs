@@ -4,6 +4,31 @@ const { AI_TOOLS } = require('./tools.cjs');
 const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
 
+// ── 工具函数: 调用 DeepSeek API ──
+async function fetchDeepSeek(messages, stream = false) {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            tools: AI_TOOLS,
+            stream
+        })
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`DeepSeek API 错误: ${res.status} ${text.slice(0, 200)}`);
+    }
+    return res;
+}
+
 // ── AI Chat SSE 端点 ──
 router.post('/api/ai/chat', async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -26,29 +51,16 @@ router.post('/api/ai/chat', async (req, res) => {
         ];
 
         const apiKey = process.env.DEEPSEEK_API_KEY;
-        const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
         let maxRounds = 5;
         let done = false;
-        let allToolResults = []; // 新增：收集本轮会话的所有工具执行结果
+        let allToolResults = [];
 
         while (!done && maxRounds-- > 0) {
-            const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model,
-                    messages: currentMessages,
-                    tools: AI_TOOLS,
-                    stream: true
-                })
-            });
-
-            if (!aiRes.ok) {
-                const text = await aiRes.text();
-                send('error', { message: `DeepSeek API 错误: ${aiRes.status} ${text.slice(0, 200)}` });
+            let aiRes;
+            try {
+                aiRes = await fetchDeepSeek(currentMessages, true);
+            } catch (err) {
+                send('error', { message: err.message });
                 return res.end();
             }
 
@@ -57,8 +69,12 @@ router.post('/api/ai/chat', async (req, res) => {
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
 
-            for await (const chunk of aiRes.body) {
-                buffer += decoder.decode(chunk, { stream: true });
+            const reader = aiRes.body.getReader();
+            while (true) {
+                const { done: streamDone, value } = await reader.read();
+                if (streamDone) break;
+
+                buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || '';
                 
@@ -174,36 +190,21 @@ async function processAiChat(text, options = {}) {
         ...messages
     ];
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     let maxRounds = 5;
     let done = false;
     let finalContent = '';
 
-    // 这里由于不同工具可能需要的 view 类型不同，提供一个简单的 mapping，如果有未考虑到的暂时标为 action_result
     const VIEW_TYPE_MAP = {
         get_order_detail: 'order_detail',
         generate_purchase_list: 'purchase_list'
     };
 
     while (!done && maxRounds-- > 0) {
-        const aiRes = await fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model,
-                messages: currentMessages,
-                tools: AI_TOOLS,
-                stream: false
-            })
-        });
-
-        if (!aiRes.ok) {
-            const errText = await aiRes.text();
-            throw new Error(`LLM API 错误: ${aiRes.status}`);
+        let aiRes;
+        try {
+            aiRes = await fetchDeepSeek(currentMessages, false);
+        } catch (err) {
+            throw err;
         }
 
         const data = await aiRes.json();
