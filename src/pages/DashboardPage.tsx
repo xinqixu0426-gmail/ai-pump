@@ -27,6 +27,8 @@ import {
   HourglassEmpty as PendingIcon,
   LocalShipping as ShippingIcon,
   Inventory as InventoryIcon,
+  Bolt as BoltIcon,
+  Architecture as ArchitectureIcon,
 } from '@mui/icons-material';
 import { Order, OrderStatus } from '../types';
 import { useAppStore } from '../utils/store';
@@ -440,6 +442,72 @@ export default function DashboardPage() {
           delay={4}
         />
       </Box>
+
+      {/* 快捷操作栏 */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2.5,
+          borderRadius: 3,
+          mb: 3,
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+          ⚡ 快捷操作
+        </Typography>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
+            gap: 2,
+          }}
+        >
+          {[
+            { label: '新建订单', icon: <AddIcon />, gradient: gradients.orders, path: '/order-form' },
+            { label: '新建配方', icon: <RecipeIcon />, gradient: gradients.recipes, path: '/recipe-form' },
+            { label: '新增零件', icon: <PartIcon />, gradient: gradients.parts, path: '/parts' },
+            { label: '线圈管理', icon: <BoltIcon />, gradient: gradients.revenue, path: '/coils' },
+            { label: '转子绘图', icon: <ArchitectureIcon />, gradient: gradients.profit, path: '/rotor' },
+            { label: '泵壳模板', icon: <InventoryIcon />, gradient: gradients.processing, path: '/recipes' },
+          ].map((item) => (
+            <Box
+              key={item.label}
+              onClick={() => navigate(item.path)}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 1,
+                py: 1.5,
+                borderRadius: 2.5,
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  transform: 'translateY(-3px)',
+                  bgcolor: 'rgba(0,0,0,0.02)',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
+                },
+                '&:active': { transform: 'scale(0.96)' },
+              }}
+            >
+              <Avatar
+                sx={{
+                  width: 48,
+                  height: 48,
+                  background: item.gradient,
+                  '& .MuiSvgIcon-root': { fontSize: 22, color: '#fff' },
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                {item.icon}
+              </Avatar>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem' }}>
+                {item.label}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </Paper>
 
       {/* 看板主体 */}
       <Paper
