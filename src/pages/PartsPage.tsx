@@ -24,7 +24,6 @@ import {
   Collapse,
   InputAdornment,
   Badge,
-  Drawer,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -322,14 +321,22 @@ export default function PartsPage() {
           })}
       </Paper>
 
-      {/* 零件表单 Drawer */}
-      <Drawer
-        anchor="right"
+      {/* 零件表单 Dialog */}
+      <Dialog
         open={drawerOpen}
         onClose={handleDrawerClose}
-        PaperProps={{ sx: { width: { xs: '100%', sm: 400 }, p: 0, border: 'none' } }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            p: 0,
+            overflow: 'visible',
+            maxHeight: '90vh',
+          },
+        }}
       >
-        <Box ref={formRef} sx={{ height: '100%' }}>
+        <Box ref={formRef} sx={{ overflow: 'auto', maxHeight: '90vh' }}>
           <PartFormPanel
             editingPart={editingPart}
             onSave={async (partData) => {
@@ -346,7 +353,7 @@ export default function PartsPage() {
             open={drawerOpen}
           />
         </Box>
-      </Drawer>
+      </Dialog>
 
       {/* 删除确认弹窗 */}
       <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { borderRadius: 3 } }}>
