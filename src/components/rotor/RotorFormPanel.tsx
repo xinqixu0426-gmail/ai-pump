@@ -1,5 +1,5 @@
 import { TextField, Paper, Grid, MenuItem, Button, CircularProgress } from '@mui/material';
-import { Build as BuildIcon } from '@mui/icons-material';
+import { Wrench as BuildIcon } from 'lucide-react';
 import { BEARING_OPTIONS } from './rotorConstants';
 
 export interface RotorFormData {
@@ -86,7 +86,7 @@ export default function RotorFormPanel({
         </Grid>
       </Grid>
       <Button variant="contained" sx={{ mt: 2 }} onClick={onSubmit}
-        disabled={loading} startIcon={loading ? <CircularProgress size={20} /> : <BuildIcon />}>
+        disabled={loading} startIcon={loading ? <CircularProgress size={20} /> : <BuildIcon size={18} />}>
         生成图纸
       </Button>
     </Paper>

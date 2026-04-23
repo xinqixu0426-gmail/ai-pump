@@ -8,11 +8,11 @@ import {
   Switch, FormControlLabel, Collapse, InputAdornment, Fade
 } from '@mui/material';
 import {
-  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Refresh as RefreshIcon,
-  Calculate as CalculateIcon, TrendingUp as TrendingUpIcon,
-  ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon,
-  CurrencyExchange as CurrencyIcon, Cable as CableIcon, Save as SaveIcon, Close as CloseIcon
-} from '@mui/icons-material';
+  Plus as AddIcon, Edit3 as EditIcon, Trash2 as DeleteIcon, RefreshCw as RefreshIcon,
+  Calculator as CalculateIcon, TrendingUp as TrendingUpIcon,
+  ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon,
+  CircleDollarSign as CurrencyIcon, Cable as CableIcon, Save as SaveIcon, X as CloseIcon
+} from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { colors } from '../utils/theme';
 import { useAppStore } from '../utils/store';
@@ -85,8 +85,8 @@ export default function CoilRotorPage() {
   return (
     <Box>
       <PageHeader
-        title="⚡ 线圈转子" subtitle="定子线圈成本试算与数据管理"
-        actions={<Tooltip title="刷新数据"><span><IconButton onClick={loadCoils} disabled={loading}>{loading ? <CircularProgress size={20} /> : <RefreshIcon />}</IconButton></span></Tooltip>}
+        title="线圈转子" subtitle="定子线圈成本试算与数据管理"
+        actions={<Tooltip title="刷新数据"><span><IconButton onClick={loadCoils} disabled={loading}>{loading ? <CircularProgress size={20} /> : <RefreshIcon size={20} />}</IconButton></span></Tooltip>}
       />
 
       <Collapse in={!!error}><Alert severity="error" onClose={() => setError('')} sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert></Collapse>
@@ -95,7 +95,7 @@ export default function CoilRotorPage() {
       <Grid item xs={12}>
         <Paper sx={{ p: 3, borderRadius: 3, bgcolor: colors.amber.bg, border: `1px solid ${colors.amber.border}`, borderLeft: `3px solid ${colors.amber.main}`, position: 'relative', overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <CurrencyIcon sx={{ fontSize: 36, color: colors.amber.text }} />
+            <CurrencyIcon size={36} color={colors.amber.text} />
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="subtitle2" sx={{ color: colors.amber.text, fontWeight: 600 }}>实时铜价监控</Typography>
               {copperLoading ? <CircularProgress size={20} /> : copperPrice ? (
@@ -105,13 +105,13 @@ export default function CoilRotorPage() {
                   <Chip label={`${copperPrice.livePricePerKg} 元/千克`} size="small" sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }} />
                   <Divider orientation="vertical" flexItem sx={{ borderColor: colors.amber.border }} />
                   <Typography variant="body2" sx={{ color: colors.amber.text }}>数据库铜价基数: <strong>{copperPrice.dbPrice}</strong> 元/千克</Typography>
-                  {copperPrice.dbPrice !== copperPrice.livePricePerKg && <Chip icon={<TrendingUpIcon />} label="需要同步" size="small" color="warning" variant="outlined" />}
+                  {copperPrice.dbPrice !== copperPrice.livePricePerKg && <Chip icon={<TrendingUpIcon size={16} />} label="需要同步" size="small" color="warning" variant="outlined" />}
                 </Box>
               ) : <Typography color="text.secondary">加载中...</Typography>}
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="刷新铜价"><IconButton onClick={loadCopperPrice} sx={{ color: colors.amber.text }}><RefreshIcon /></IconButton></Tooltip>
-              <Button variant="contained" startIcon={copperUpdating ? <CircularProgress size={16} color="inherit" /> : <CurrencyIcon />} onClick={handleCopperUpdate} disabled={copperUpdating} sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' }, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              <Tooltip title="刷新铜价"><IconButton onClick={loadCopperPrice} sx={{ color: colors.amber.text }}><RefreshIcon size={20} /></IconButton></Tooltip>
+              <Button variant="contained" startIcon={copperUpdating ? <CircularProgress size={16} color="inherit" /> : <CurrencyIcon size={20} />} onClick={handleCopperUpdate} disabled={copperUpdating} sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' }, fontWeight: 700, whiteSpace: 'nowrap' }}>
                 {copperUpdating ? '更新中...' : '同步铜价到数据库'}
               </Button>
             </Box>
@@ -122,7 +122,7 @@ export default function CoilRotorPage() {
       <Grid item xs={12} md={4}>
         <Paper elevation={0} sx={{ p: 3, borderRadius: 3, position: 'sticky', top: 20 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <CalculateIcon color="primary" />
+            <CalculateIcon size={24} color="#2563eb" />
             <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>成本试算</Typography>
           </Box>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
@@ -135,7 +135,8 @@ export default function CoilRotorPage() {
           </FormControl>
 
           <TextField
-            fullWidth size="small" label="片数" type="number" value={calcSheets} onChange={e => setCalcSheets(e.target.value)} sx={{ mb: 2 }}
+            fullWidth size="small" label="片数" type="number" value={calcSheets} onChange={e => setCalcSheets(e.target.value)} 
+            sx={{ mb: 2, '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#7c3aed', borderWidth: 2 } }}
             helperText={calcSpec && groupedCoils[calcSpec] ? `可选: ${groupedCoils[calcSpec].map(c => c.sheets).join(', ')} (其他片数自动插值)` : ''}
           />
           <FormControlLabel
@@ -143,9 +144,13 @@ export default function CoilRotorPage() {
             label={<Typography variant="body2">客户指定线重</Typography>} sx={{ mb: 1 }}
           />
           <Collapse in={useCustomWireWeight}>
-            <TextField fullWidth size="small" label="客户线重" type="number" value={calcWireWeight} onChange={e => setCalcWireWeight(e.target.value)} sx={{ mb: 2 }} InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }} />
+            <TextField fullWidth size="small" label="客户线重" type="number" value={calcWireWeight} onChange={e => setCalcWireWeight(e.target.value)} sx={{ mb: 2, '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#7c3aed', borderWidth: 2 } }} InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }} />
           </Collapse>
-          <Button fullWidth variant="contained" startIcon={calcLoading ? <CircularProgress size={16} color="inherit" /> : <CalculateIcon />} onClick={handleCalculate} disabled={calcLoading || !calcSpec || !calcSheets} sx={{ mb: 2, fontWeight: 700 }}>计算成本</Button>
+          <Tooltip title={!calcSpec ? "请先选择定子规格" : !calcSheets ? "请输入片数" : ""}>
+            <span>
+              <Button fullWidth variant="contained" startIcon={calcLoading ? <CircularProgress size={16} color="inherit" /> : <CalculateIcon size={20} />} onClick={handleCalculate} disabled={calcLoading || !calcSpec || !calcSheets} sx={{ mb: 2, fontWeight: 700 }}>计算成本</Button>
+            </span>
+          </Tooltip>
 
           {calcResult && (
             <Card variant="outlined" sx={{ bgcolor: colors.green.bg, border: '1px solid #86efac', animation: 'fadeIn 0.3s ease' }}>
@@ -175,15 +180,15 @@ export default function CoilRotorPage() {
       <Grid item xs={12} md={8}>
         <Paper elevation={0} sx={{ p: 3, borderRadius: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <CableIcon sx={{ mr: 1, color: colors.purple.main }} />
+            <CableIcon size={24} color={colors.purple.main} style={{ marginRight: 8 }} />
             <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, color: colors.purple.main }}>线圈转子数据管理</Typography>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd} size="small" sx={{ ml: 1, fontWeight: 600 }}>新增记录</Button>
+            <Button variant="contained" startIcon={<AddIcon size={18} />} onClick={handleAdd} size="small" sx={{ ml: 1, fontWeight: 600 }}>新增记录</Button>
           </Box>
           {Object.entries(groupedCoils).sort(([a], [b]) => a.localeCompare(b)).map(([spec, records], idx) => (
             <Fade key={spec} in timeout={300 + idx * 100}>
               <Box sx={{ mb: 2 }}>
               <Box onClick={() => toggleSpec(spec)} sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', p: 1.5, borderRadius: 1, bgcolor: colors.slate.light, '&:hover': { bgcolor: colors.slate.hover }, transition: 'background 0.2s' }}>
-                {expandedSpecs.has(spec) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                {expandedSpecs.has(spec) ? <ExpandLessIcon size={20} /> : <ExpandMoreIcon size={20} />}
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, ml: 1, flexGrow: 1 }}>规格 {spec}</Typography>
                 <Chip label={`单价 ¥${records[0].unitPrice}`} size="small" variant="outlined" sx={{ mr: 1 }} />
                 <Chip label={`${records.length} 种片数`} size="small" color="primary" variant="outlined" />
@@ -207,8 +212,8 @@ export default function CoilRotorPage() {
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: colors.green.dark }}>¥{parseFloat(coil.cost).toFixed(2)}</Typography></TableCell>
                           <TableCell>{coil.defaultWireGauge || '-'}</TableCell><TableCell>{coil.defaultCapacitor ? `${coil.defaultCapacitor}μF` : '-'}</TableCell>
                           <TableCell align="right">
-                            <IconButton size="small" onClick={() => handleEdit(coil)} color="primary"><EditIcon fontSize="small" /></IconButton>
-                            <IconButton size="small" onClick={() => setDeleteTarget(coil.Id)} color="error"><DeleteIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={() => handleEdit(coil)} color="primary"><EditIcon size={18} /></IconButton>
+                            <IconButton size="small" onClick={() => setDeleteTarget(coil.Id)} color="error"><DeleteIcon size={18} /></IconButton>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -221,7 +226,7 @@ export default function CoilRotorPage() {
           ))}
           {coils.length === 0 && !loading && (
             <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled' }}>
-              <CableIcon sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+              <CableIcon size={48} style={{ marginBottom: 8, opacity: 0.3 }} />
               <Typography>暂无线圈数据</Typography>
             </Box>
           )}
@@ -251,8 +256,8 @@ export default function CoilRotorPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} startIcon={<CloseIcon />}>取消</Button>
-          <Button variant="contained" onClick={handleSave} startIcon={<SaveIcon />} sx={{ fontWeight: 600 }}>保存</Button>
+          <Button onClick={() => setDialogOpen(false)} startIcon={<CloseIcon size={20} />}>取消</Button>
+          <Button variant="contained" onClick={handleSave} startIcon={<SaveIcon size={20} />} sx={{ fontWeight: 600 }}>保存</Button>
         </DialogActions>
       </Dialog>
 

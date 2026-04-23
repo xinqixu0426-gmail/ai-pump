@@ -4,10 +4,10 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import {
-  Delete as DeleteIcon, Add as AddIcon, Edit as EditIcon,
-  Inventory as TemplateIcon, ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-} from '@mui/icons-material';
+  Trash2 as DeleteIcon, Plus as AddIcon, Edit3 as EditIcon,
+  Package as TemplateIcon, ChevronDown as ExpandMoreIcon,
+  ChevronUp as ExpandLessIcon,
+} from 'lucide-react';
 import { PumpShellTemplate, TemplatePart, Part } from '../types';
 import { createTemplate, updateTemplate, deleteTemplate } from '../utils/api';
 import { getPriceByModelAndSupplier as _getPrice, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
@@ -138,19 +138,19 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
             '&:hover': { bgcolor: 'rgba(124,58,237,0.08)' }, transition: 'all 0.2s',
           }}
         >
-          <TemplateIcon sx={{ fontSize: 22, color: '#7c3aed', mr: 1 }} />
+          <TemplateIcon size={22} color="#7c3aed" style={{ marginRight: 8 }} />
           <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1, color: '#7c3aed' }}>
             泵壳模板
           </Typography>
           <Chip label={`${templates.length} 套`} size="small" sx={{ mr: 1, fontWeight: 600, fontSize: '0.7rem' }} />
           <Button
-            variant="text" size="small" startIcon={<AddIcon />}
+            variant="text" size="small" startIcon={<AddIcon size={18} />}
             onClick={(e) => { e.stopPropagation(); openCreateTpl(); }}
             sx={{ mr: 1, fontSize: '0.75rem', color: '#7c3aed' }}
           >
             新建
           </Button>
-          {tplExpanded ? <ExpandLessIcon sx={{ color: 'text.disabled' }} /> : <ExpandMoreIcon sx={{ color: 'text.disabled' }} />}
+          {tplExpanded ? <ExpandLessIcon size={20} color="#9ca3af" /> : <ExpandMoreIcon size={20} color="#9ca3af" />}
         </Box>
 
         <Collapse in={tplExpanded}>
@@ -167,45 +167,52 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                   const cost = calcTplCost(tpl);
                   return (
                     <Paper key={tpl.Id} variant="outlined" sx={{
-                      p: 2, borderRadius: 2, transition: 'all 0.2s',
-                      '&:hover': { borderColor: '#a855f7', boxShadow: '0 2px 12px rgba(124,58,237,0.08)' }
+                      p: 2, pb: 2.5, borderRadius: 2, transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
+                      '&:hover': { borderColor: '#a855f7', boxShadow: '0 4px 20px rgba(124,58,237,0.1)', transform: 'translateY(-2px)' }
                     }}>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                      <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #7c3aed, #ec4899)' }} />
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} pb={1} sx={{ borderBottom: '1px dashed', borderColor: 'divider' }}>
                         <Box>
-                          <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#7c3aed' }}>{tpl.shell_model}</Typography>
-                          {tpl.description && <Typography variant="caption" color="text.disabled">{tpl.description}</Typography>}
+                          <Typography variant="subtitle2" fontWeight={800} sx={{ color: '#7c3aed', fontSize: '1rem', mb: 0.5 }}>{tpl.shell_model}</Typography>
+                          {tpl.description && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tpl.description}</Typography>}
                         </Box>
-                        <Box display="flex" gap={0.25}>
-                          <IconButton size="small" onClick={() => openEditTpl(tpl)}><EditIcon sx={{ fontSize: 16 }} /></IconButton>
-                          <IconButton size="small" color="error" onClick={() => setTplDeleteId(tpl.Id)}><DeleteIcon sx={{ fontSize: 16 }} /></IconButton>
+                        <Box display="flex" gap={0.5}>
+                          <IconButton size="small" sx={{ bgcolor: 'action.hover' }} onClick={() => openEditTpl(tpl)}><EditIcon size={16} /></IconButton>
+                          <IconButton size="small" sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }} onClick={() => setTplDeleteId(tpl.Id)}><DeleteIcon size={16} /></IconButton>
                         </Box>
                       </Box>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
                         {tplParts.map((p, i) => {
                           const price = getPriceByModelAndSupplier(p.model, p.supplier || '');
                           return (
-                            <Box key={i} display="flex" justifyContent="space-between" sx={{ fontSize: '0.75rem' }}>
-                              <Box display="flex" gap={0.5} alignItems="center">
-                                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 50 }}>{p.name}</Typography>
-                                <Chip label={p.model} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
-                                {p.supplier && <Typography variant="caption" color="text.disabled">{p.supplier}</Typography>}
-                                {p.qty > 1 && <Typography variant="caption" color="text.disabled">×{p.qty}</Typography>}
+                            <Box key={i} display="flex" justifyContent="space-between" alignItems="center">
+                              <Box display="flex" gap={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', width: 60, flexShrink: 0 }}>{p.name}</Typography>
+                                <Typography variant="body2" fontWeight={600}>{p.model}</Typography>
+                                {p.supplier && <Chip label={p.supplier} size="small" sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'action.hover' }} />}
+                                {p.qty > 1 && <Typography variant="caption" fontWeight={600} color="primary.main">×{p.qty}</Typography>}
                               </Box>
-                              <Typography variant="caption" sx={{ fontFamily: 'monospace', color: price > 0 ? 'success.main' : 'error.main' }}>
+                              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600, color: price > 0 ? 'text.primary' : 'error.main' }}>
                                 ¥{(price * p.qty).toFixed(2)}
                               </Typography>
                             </Box>
                           );
                         })}
                       </Box>
-                      <Box display="flex" justifyContent="flex-end" mt={0.5} gap={0.5} flexWrap="wrap">
-                        {(tpl.assembly_wage > 0 || tpl.packing_wage > 0 || (tpl.painting_wage != null && tpl.painting_wage > 0)) && (
-                          <Chip label={`工资 ¥${((tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0)).toFixed(2)}`}
-                            size="small" variant="outlined" color="warning"
-                            sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.65rem' }} />
-                        )}
-                        <Chip label={`¥${cost.toFixed(2)}`} size="small" color={cost > 0 ? 'success' : 'default'}
-                          sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.7rem' }} />
+
+                      <Box sx={{ bgcolor: 'rgba(124,58,237,0.04)', borderRadius: 2, p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>预估总件费及工资</Typography>
+                          {(tpl.assembly_wage > 0 || tpl.packing_wage > 0 || (tpl.painting_wage != null && tpl.painting_wage > 0)) && (
+                            <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, display: 'block' }}>
+                              其中工时: ¥{((tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0)).toFixed(2)}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Typography variant="h6" sx={{ color: '#7c3aed', fontWeight: 900, fontFamily: 'monospace' }}>
+                          ¥{cost.toFixed(2)}
+                        </Typography>
                       </Box>
                     </Paper>
                   );

@@ -1,12 +1,12 @@
 import React from 'react';
 import { Box, Typography, CircularProgress, Fade, alpha } from '@mui/material';
 import {
-  Psychology as ThinkIcon,
-  Api as ApiIcon,
-  DataObject as DataIcon,
+  Brain as ThinkIcon,
+  Plug as ApiIcon,
+  Braces as DataIcon,
   CheckCircle as DoneIcon,
-  Error as ErrorIcon,
-} from '@mui/icons-material';
+  AlertCircle as ErrorIcon,
+} from 'lucide-react';
 
 interface StatusIndicatorProps {
   status: string;
@@ -14,11 +14,11 @@ interface StatusIndicatorProps {
 }
 
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string; animate: boolean }> = {
-  thinking: { icon: <ThinkIcon fontSize="small" />, color: '#7c3aed', animate: true },
-  calling_api: { icon: <ApiIcon fontSize="small" />, color: '#2563eb', animate: true },
-  formatting: { icon: <DataIcon fontSize="small" />, color: '#059669', animate: true },
-  done: { icon: <DoneIcon fontSize="small" />, color: '#059669', animate: false },
-  error: { icon: <ErrorIcon fontSize="small" />, color: '#dc2626', animate: false },
+  thinking: { icon: <ThinkIcon size={18} />, color: '#7c3aed', animate: true },
+  calling_api: { icon: <ApiIcon size={18} />, color: '#2563eb', animate: true },
+  formatting: { icon: <DataIcon size={18} />, color: '#059669', animate: true },
+  done: { icon: <DoneIcon size={18} />, color: '#059669', animate: false },
+  error: { icon: <ErrorIcon size={18} />, color: '#dc2626', animate: false },
 };
 
 export default function StatusIndicator({ status, message }: StatusIndicatorProps) {

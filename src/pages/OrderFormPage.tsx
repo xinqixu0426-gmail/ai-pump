@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Paper, Box, Button, Stepper, Step, StepLabel, Alert, CircularProgress
 } from '@mui/material';
-import { ArrowBack as BackIcon, ArrowForward as NextIcon } from '@mui/icons-material';
+import { ArrowLeft as BackIcon, ArrowRight as NextIcon } from 'lucide-react';
 import { Recipe, RecipePart } from '../types';
 import { useAppStore } from '../utils/store';
 import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
@@ -224,7 +224,7 @@ export default function OrderFormPage() {
           <Box display="flex" justifyContent="space-between" mt={4}>
             <Button
               variant="outlined"
-              startIcon={<BackIcon />}
+              startIcon={<BackIcon size={20} />}
               onClick={() => (activeStep === 0 ? navigate('/orders') : setActiveStep((s) => s - 1))}
               disabled={submitting}
             >
@@ -233,7 +233,7 @@ export default function OrderFormPage() {
 
             <Button
               variant="contained"
-              endIcon={activeStep < STEPS.length - 1 ? <NextIcon /> : undefined}
+              endIcon={activeStep < STEPS.length - 1 ? <NextIcon size={20} /> : undefined}
               onClick={() => (activeStep < STEPS.length - 1 ? setActiveStep((s) => s + 1) : handleSubmit())}
               disabled={!canNext() || submitting}
             >

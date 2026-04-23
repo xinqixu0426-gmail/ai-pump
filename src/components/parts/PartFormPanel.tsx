@@ -5,9 +5,9 @@ import {
   Collapse, InputAdornment, Autocomplete, Switch, FormControlLabel, Avatar
 } from '@mui/material';
 import {
-  Add as AddIcon, Edit as EditIcon, Save as SaveIcon,
-  Cancel as CancelIcon, Inventory as InventoryIcon, Settings as SettingsIcon
-} from '@mui/icons-material';
+  Plus as AddIcon, Edit3 as EditIcon, Save as SaveIcon,
+  X as CancelIcon, Package as InventoryIcon, Settings as SettingsIcon
+} from 'lucide-react';
 import { Part, PumpShellMeta } from '../../types';
 import { colors, gradients } from '../../utils/theme';
 import { BUILTIN_CATEGORIES, getCatIcon } from './partsConstants';
@@ -203,8 +203,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       }}
     >
       <Box display="flex" alignItems="center" gap={1.5} mb={2.5}>
-        <Avatar sx={{ width: 36, height: 36, background: isEditing ? gradients.revenue : gradients.parts, '& svg': { fontSize: 18 } }}>
-          {isEditing ? <EditIcon /> : <AddIcon />}
+        <Avatar sx={{ width: 36, height: 36, background: isEditing ? gradients.revenue : gradients.parts }}>
+          {isEditing ? <EditIcon size={18} /> : <AddIcon size={18} />}
         </Avatar>
         <Box>
           <Typography variant="subtitle1" fontWeight={800}>{isEditing ? '修改零件' : '录入零件'}</Typography>
@@ -291,7 +291,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
                 onClick={onManageCategories}
                 sx={{ mt: 0.5, flexShrink: 0, color: colors.purple.main, bgcolor: colors.purple.bg, border: `1px solid ${colors.purple.border}`, '&:hover': { bgcolor: colors.purple.light } }}
               >
-                <SettingsIcon fontSize="small" />
+                <SettingsIcon size={18} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -310,7 +310,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               onChange={(e) => setStock(e.target.value)} placeholder="0"
               fullWidth size="small" inputProps={{ min: 0, step: 1 }}
               InputProps={{
-                startAdornment: <InputAdornment position="start"><InventoryIcon sx={{ fontSize: 16, opacity: 0.6 }} /></InputAdornment>
+                startAdornment: <InputAdornment position="start"><InventoryIcon size={16} opacity={0.6} /></InputAdornment>
               }}
               sx={{ flex: 1 }}
             />
@@ -445,14 +445,14 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
           {/* 库存已经移到上方与单价同行 */}
           <Stack direction="row" spacing={1} pt={0.5}>
             <Button
-              id="part-save-btn" type="submit" variant="contained" startIcon={<SaveIcon />}
+              id="part-save-btn" type="submit" variant="contained" startIcon={<SaveIcon size={18} />}
               fullWidth disabled={saving}
               sx={{ background: isEditing ? gradients.revenue : gradients.parts, boxShadow: 'none', fontWeight: 700 }}
             >
               {saving ? '保存中...' : isEditing ? '保存修改' : '新增零件'}
             </Button>
             {isEditing && (
-              <Button id="part-cancel-btn" variant="outlined" startIcon={<CancelIcon />} onClick={onCancel} sx={{ flexShrink: 0 }}>
+              <Button id="part-cancel-btn" variant="outlined" startIcon={<CancelIcon size={18} />} onClick={onCancel} sx={{ flexShrink: 0 }}>
                 取消
               </Button>
             )}

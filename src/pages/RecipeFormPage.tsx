@@ -11,7 +11,7 @@ import {
   Step,
   StepLabel,
 } from '@mui/material';
-import { ArrowBack as BackIcon } from '@mui/icons-material';
+import { ArrowLeft as BackIcon } from 'lucide-react';
 import { RecipePart, TemplatePart, PartSelection } from '../types';
 import { createRecipe, updateRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
@@ -376,7 +376,7 @@ export default function RecipeFormPage() {
     <Paper sx={{ p: { xs: 2, md: 3 } }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
         <Box display="flex" alignItems="center" gap={1}>
-          <IconButton onClick={() => navigate('/recipes')} size="small"><BackIcon /></IconButton>
+          <IconButton onClick={() => navigate('/recipes')} size="small"><BackIcon size={20} /></IconButton>
           <Typography variant="h6">{isEditing ? '编辑配方' : cloneFrom ? '复制配方' : '录入配方'}</Typography>
         </Box>
       </Box>

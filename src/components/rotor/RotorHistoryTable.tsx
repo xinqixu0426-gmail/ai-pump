@@ -3,12 +3,12 @@ import {
   Table, TableHead, TableBody, TableRow, TableCell, TableContainer
 } from '@mui/material';
 import {
-  History as HistoryIcon,
-  Refresh as RefreshIcon,
-  Delete as DeleteIcon,
-  PictureAsPdf as PdfIcon,
-  Print as PrintIcon
-} from '@mui/icons-material';
+  Clock as HistoryIcon,
+  RefreshCw as RefreshIcon,
+  Trash2 as DeleteIcon,
+  FileDown as PdfIcon,
+  Printer as PrintIcon
+} from 'lucide-react';
 
 interface RotorHistoryTableProps {
   history: any[];
@@ -26,9 +26,9 @@ export default function RotorHistoryTable({
   return (
     <Paper elevation={0} sx={{ p: 2, mt: 3, borderRadius: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <HistoryIcon color="primary" />
+        <HistoryIcon size={24} style={{ color: '#2563eb' }} />
         <Typography variant="h6">出图历史</Typography>
-        <IconButton size="small" onClick={loadHistory}><RefreshIcon fontSize="small" /></IconButton>
+        <IconButton size="small" onClick={loadHistory}><RefreshIcon size={18} /></IconButton>
       </Box>
       <TableContainer>
         <Table size="small">
@@ -83,13 +83,13 @@ export default function RotorHistoryTable({
                         <Tooltip title="下载 PDF">
                           <IconButton size="small" color="primary" component="a"
                             href={`${API_BASE}${row.file_url}`} target="_blank">
-                            <PdfIcon fontSize="small" />
+                            <PdfIcon size={18} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="打印">
                           <IconButton size="small" color="primary" disabled={printing}
                             onClick={() => handlePrint(row.job_id)}>
-                            <PrintIcon fontSize="small" />
+                            <PrintIcon size={18} />
                           </IconButton>
                         </Tooltip>
                       </>
@@ -99,7 +99,7 @@ export default function RotorHistoryTable({
                       await fetch(`${API_BASE}/api/rotor/history/${row.id}`, { method: 'DELETE', credentials: 'include' });
                       loadHistory();
                     }}>
-                      <DeleteIcon fontSize="small" />
+                      <DeleteIcon size={18} />
                     </IconButton>
                   </TableCell>
                 </TableRow>

@@ -9,7 +9,7 @@ import {
   Checkbox,
   CircularProgress
 } from '@mui/material';
-import { Save as SaveIcon, NavigateBefore as PrevIcon } from '@mui/icons-material';
+import { Save as SaveIcon, ChevronLeft as PrevIcon } from 'lucide-react';
 import { PumpShellTemplate, PartSelection, RecipePart } from '../../types';
 
 interface StepWageConfirmProps {
@@ -104,7 +104,7 @@ export default function StepWageConfirm({
         color="success"
         size="large"
         fullWidth
-        startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+        startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon size={18} />}
         onClick={handleSubmit}
         disabled={saving || !recipeName.trim() || (allPartsPreview.length === 0 && !selectedTemplate)}
         sx={{ mt: 1 }}
@@ -114,7 +114,7 @@ export default function StepWageConfirm({
 
       {/* Step navigation */}
       <Box display="flex" justifyContent="flex-start" mt={2}>
-        <Button variant="outlined" startIcon={<PrevIcon />} onClick={onPrev}>
+        <Button variant="outlined" startIcon={<PrevIcon size={18} />} onClick={onPrev}>
           上一步
         </Button>
       </Box>

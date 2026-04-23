@@ -22,7 +22,6 @@
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "@mui/icons-material": "^5.15.0",
     "@mui/material": "^5.15.0",
     "@wecom/crypto": "^1.0.1",
     "better-sqlite3": "^12.8.0",
@@ -33,10 +32,12 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
     "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^1.8.0",
     "multer": "^2.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.0",
+    "recharts": "^3.8.1",
     "xml2js": "^0.6.2",
     "zustand": "^5.0.12"
   },

@@ -1,5 +1,5 @@
 import { Box, Typography, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Chip, Divider, Alert } from '@mui/material';
-import { Warning as WarningIcon, CheckCircle as CheckIcon } from '@mui/icons-material';
+import { AlertTriangle as WarningIcon, CheckCircle as CheckIcon } from 'lucide-react';
 import { PurchaseItem, TodoItem } from '../../types';
 import { DraftItem } from './OrderItemsManager';
 import { formatMoney as fmt } from '../../utils/format';
@@ -30,13 +30,13 @@ export default function OrderReviewSubmit(props: OrderReviewSubmitProps) {
           <Typography variant="subtitle1" fontWeight={700}>采购汇总清单</Typography>
           {needCount > 0 ? (
             <Chip
-              icon={<WarningIcon />}
+              icon={<WarningIcon size={16} />}
               label={`${needCount} 种零件需采购`}
               color="warning"
               size="small"
             />
           ) : (
-            <Chip icon={<CheckIcon />} label="库存全部充足" color="success" size="small" />
+            <Chip icon={<CheckIcon size={16} />} label="库存全部充足" color="success" size="small" />
           )}
         </Box>
 

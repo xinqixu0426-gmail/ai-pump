@@ -5,8 +5,8 @@ import {
   IconButton, CircularProgress, Autocomplete, FormControl, Select, MenuItem, Typography, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
-  Delete as DeleteIcon, Add as AddIcon, Save as SaveIcon, Close as CloseIcon,
-} from '@mui/icons-material';
+  Trash2 as DeleteIcon, Plus as AddIcon, Save as SaveIcon, X as CloseIcon,
+} from 'lucide-react';
 import { PumpShellTemplate, Part } from '../types';
 import { getPriceByModelAndSupplier as _getPrice, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 
@@ -130,7 +130,7 @@ export default function TemplateFormDialog({
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         {editingTpl ? `编辑模板 — ${editingTpl.shell_model}` : '新建泵壳模板'}
-        <IconButton onClick={onClose}><CloseIcon /></IconButton>
+        <IconButton onClick={onClose}><CloseIcon size={20} /></IconButton>
       </DialogTitle>
       <DialogContent>
         <Box display="flex" gap={2} mb={2} mt={1}>
@@ -226,7 +226,7 @@ export default function TemplateFormDialog({
                   </TableCell>
                   <TableCell sx={{ py: 0.5 }}>
                     <IconButton size="small" color="error" onClick={() => setPartRows(prev => prev.filter(r => r.id !== row.id))}>
-                      <DeleteIcon fontSize="small" />
+                      <DeleteIcon size={18} />
                     </IconButton>
                   </TableCell>
                 </TableRow>
@@ -235,7 +235,7 @@ export default function TemplateFormDialog({
           </TableBody>
         </Table>
 
-        <Button size="small" startIcon={<AddIcon />}
+        <Button size="small" startIcon={<AddIcon size={18} />}
           onClick={() => setPartRows(prev => [...prev, { id: nextRowId.current++, name: '', model: '', qty: 1, supplier: '' }])}
           sx={{ mt: 1 }}>
           添加配件行
@@ -271,7 +271,7 @@ export default function TemplateFormDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose}>取消</Button>
-        <Button variant="contained" startIcon={tplSaving ? <CircularProgress size={16} /> : <SaveIcon />}
+        <Button variant="contained" startIcon={tplSaving ? <CircularProgress size={16} /> : <SaveIcon size={20} />}
           onClick={onSave} disabled={tplSaving || !shellModel.trim()}>
           {editingTpl ? '更新' : '创建'}
         </Button>

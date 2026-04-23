@@ -16,9 +16,9 @@ import {
 } from '@mui/material';
 import { colors, gradients, sxInfoPanel, sxSuccessPanel, sxErrorPanel, sxPurplePanel, sxWarningPanel, costDiffColor } from '../../utils/theme';
 import {
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-} from '@mui/icons-material';
+  ChevronDown as ExpandMoreIcon,
+  ChevronUp as ExpandLessIcon,
+} from 'lucide-react';
 
 // ─── 成本明细表格 ──────────────────────────────────────
 interface CostDetail {
@@ -165,7 +165,7 @@ function FullCalculateCard({ data }: { data: { totalCost: string; recipeCost?: R
       {data.recipeCost && !('error' in data.recipeCost) ? (
         <Box sx={{ mb: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', mb: 0.5 }} onClick={() => toggle('recipe')}>
-            {expanded.recipe ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            {expanded.recipe ? <ExpandLessIcon size={18} /> : <ExpandMoreIcon size={18} />}
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>📋 配方成本明细</Typography>
           </Box>
           <Collapse in={expanded.recipe}>
@@ -177,7 +177,7 @@ function FullCalculateCard({ data }: { data: { totalCost: string; recipeCost?: R
       {data.statorCost && !('error' in data.statorCost) ? (
         <Box sx={{ mb: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', mb: 0.5 }} onClick={() => toggle('stator')}>
-            {expanded.stator ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            {expanded.stator ? <ExpandLessIcon size={18} /> : <ExpandMoreIcon size={18} />}
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>⚡ 线圈转子成本: ¥{String(data.statorCost.cost)}</Typography>
           </Box>
           <Collapse in={expanded.stator}>
@@ -196,7 +196,7 @@ function FullCalculateCard({ data }: { data: { totalCost: string; recipeCost?: R
       {data.dynamicCost && Array.isArray(data.dynamicCost.details) && data.dynamicCost.details.length > 0 ? (
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', mb: 0.5 }} onClick={() => toggle('dynamic')}>
-            {expanded.dynamic ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            {expanded.dynamic ? <ExpandLessIcon size={18} /> : <ExpandMoreIcon size={18} />}
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>📦 动态配置成本: ¥{String(data.dynamicCost.totalCost)}</Typography>
           </Box>
           <Collapse in={expanded.dynamic}>

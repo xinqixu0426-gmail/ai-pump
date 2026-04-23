@@ -24,13 +24,13 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  Close as CloseIcon,
+  X as CloseIcon,
   CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon,
+  AlertTriangle as WarningIcon,
   ShoppingCart as CartIcon,
-  Assignment as AssignmentIcon,
-  Inventory as InventoryIcon,
-} from '@mui/icons-material';
+  ClipboardList as AssignmentIcon,
+  Package as InventoryIcon,
+} from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { saveOrder, calcStockAdditions } from '../utils/orderStore';
 import { batchAddStock } from '../utils/api';
@@ -137,7 +137,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
             size="small"
           />
           <IconButton size="small" onClick={onClose}>
-            <CloseIcon />
+            <CloseIcon size={20} />
           </IconButton>
         </Box>
         {localOrder.contractNo && (
@@ -154,13 +154,13 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab icon={<InventoryIcon fontSize="small" />} iconPosition="start" label={`型号列表 (${localOrder.items.length})`} />
+          <Tab icon={<InventoryIcon size={18} />} iconPosition="start" label={`型号列表 (${localOrder.items.length})`} />
           <Tab
-            icon={<CartIcon fontSize="small" />}
+            icon={<CartIcon size={18} />}
             iconPosition="start"
             label={`采购清单 (${purchasedCount}/${needToBuyCount})`}
           />
-          <Tab icon={<AssignmentIcon fontSize="small" />} iconPosition="start" label="采购 To-Do" />
+          <Tab icon={<AssignmentIcon size={18} />} iconPosition="start" label="采购 To-Do" />
         </Tabs>
       </Box>
 
@@ -281,7 +281,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
                     <TableCell align="right">
                       {p.needToBuy > 0 ? (
                         <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                          <WarningIcon sx={{ fontSize: 14, color: p.purchased ? 'success.main' : 'error.main' }} />
+                          <WarningIcon size={14} color={p.purchased ? 'var(--success)' : 'var(--error)'} />
                           <Typography
                             variant="body2"
                             fontWeight={700}
@@ -292,7 +292,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
                         </Box>
                       ) : (
                         <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                          <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                          <CheckCircleIcon size={14} color="var(--success)" />
                           <Typography variant="body2" color="success.main">库存充足</Typography>
                         </Box>
                       )}
@@ -308,7 +308,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
                           />
                         </Tooltip>
                       ) : (
-                        <CheckCircleIcon sx={{ fontSize: 18, color: 'success.light' }} />
+                        <CheckCircleIcon size={18} color="rgba(34,197,94,0.6)" />
                       )}
                     </TableCell>
                   </TableRow>
@@ -323,7 +323,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
           <Box>
             {localOrder.todos.length === 0 ? (
               <Box textAlign="center" py={4} color="text.secondary">
-                <CheckCircleIcon sx={{ fontSize: 48, color: 'success.light', mb: 1, display: 'block', mx: 'auto' }} />
+                <CheckCircleIcon size={48} color="rgba(34,197,94,0.6)" style={{ marginBottom: 8, display: 'block', marginInline: 'auto' }} />
                 库存全部充足，无需采购
               </Box>
             ) : (
@@ -382,7 +382,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
           <Button
             variant="contained"
             color="success"
-            startIcon={confirming ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
+            startIcon={confirming ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon size={20} />}
             onClick={() => setConfirmOpen(true)}
             disabled={confirming}
           >

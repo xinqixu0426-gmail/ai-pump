@@ -20,7 +20,7 @@ import {
   Divider,
   Autocomplete
 } from '@mui/material';
-import { Cable as CableIcon, Add as AddIcon, NavigateNext as NextIcon, NavigateBefore as PrevIcon } from '@mui/icons-material';
+import { Cable as CableIcon, Plus as AddIcon, ChevronRight as NextIcon, ChevronLeft as PrevIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
@@ -120,7 +120,7 @@ export default function StepPartsConfig({
       {/* ━━ 线圈转子 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CableIcon sx={{ fontSize: 16, color: colors.purple.main }} />
+          <CableIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
             ▸ 线圈转子
           </Typography>
@@ -195,7 +195,7 @@ export default function StepPartsConfig({
                   <Button
                     variant="text"
                     size="small"
-                    startIcon={<AddIcon />}
+                    startIcon={<AddIcon size={18} />}
                     onClick={handleAddOptional}
                     sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
                   >
@@ -324,10 +324,10 @@ export default function StepPartsConfig({
 
       {/* Step navigation */}
       <Box display="flex" justifyContent="space-between" mt={2}>
-        <Button variant="outlined" startIcon={<PrevIcon />} onClick={onPrev}>
+        <Button variant="outlined" startIcon={<PrevIcon size={18} />} onClick={onPrev}>
           上一步
         </Button>
-        <Button variant="contained" endIcon={<NextIcon />} onClick={onNext}>
+        <Button variant="contained" endIcon={<NextIcon size={18} />} onClick={onNext}>
           下一步：确认
         </Button>
       </Box>

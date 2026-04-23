@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, CircularProgress, Typography } from '@mui/material';
+import './index.css';
 import App from './App';
 import VoiceAssistantPage from './pages/VoiceAssistantPage';
 import LoginPage from './pages/LoginPage';
@@ -32,7 +33,7 @@ const theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 10,
+    borderRadius: 14,
   },
   typography: {
     fontFamily: [
@@ -45,7 +46,16 @@ const theme = createTheme({
       'Arial',
       'sans-serif',
     ].join(','),
+    h4: {
+      letterSpacing: '-0.03em',
+      fontWeight: 800,
+    },
+    h5: {
+      letterSpacing: '-0.02em',
+      fontWeight: 800,
+    },
     h6: {
+      letterSpacing: '-0.02em',
       fontWeight: 700,
     },
   },
@@ -57,7 +67,12 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--border)',
+          backgroundColor: 'var(--panel)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRadius: 26,
+          boxShadow: 'var(--shadow)',
         },
       },
     },
@@ -65,13 +80,13 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          fontWeight: 600,
-          borderRadius: 8,
+          fontWeight: 700,
+          borderRadius: 14,
         },
         contained: {
-          boxShadow: 'none',
+          boxShadow: 'var(--shadow)',
           '&:hover': {
-            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            boxShadow: 'var(--shadow-heavy)',
           },
         },
       },
@@ -93,6 +108,10 @@ const theme = createTheme({
     MuiDialog: {
       styleOverrides: {
         paper: {
+          borderRadius: 28,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          backgroundColor: 'var(--panel-strong)',
           '@media (max-width: 600px)': {
             margin: 16,
             width: 'calc(100% - 32px)',
@@ -117,7 +136,9 @@ const theme = createTheme({
     MuiChip: {
       styleOverrides: {
         root: {
-          fontWeight: 600,
+          fontWeight: 800,
+          borderRadius: 999,
+          letterSpacing: '0.08em',
         },
       },
     },

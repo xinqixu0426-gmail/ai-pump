@@ -4,9 +4,9 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Stack, Tooltip, Divider,
 } from '@mui/material';
 import {
-  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
-  Cancel as CancelIcon, Settings as SettingsIcon, Lock as LockIcon, CheckCircle as CheckCircleIcon,
-} from '@mui/icons-material';
+  Plus as AddIcon, Edit3 as EditIcon, Trash2 as DeleteIcon,
+  X as CancelIcon, Settings as SettingsIcon, Lock as LockIcon, CheckCircle as CheckCircleIcon,
+} from 'lucide-react';
 import { gradients } from '../../utils/theme';
 import { BUILTIN_CATEGORIES, BUILTIN_COLORS, BUILTIN_ICONS, CUSTOM_COLOR_POOL, saveCustomCategories } from './partsConstants';
 
@@ -74,7 +74,7 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
       PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
     >
       <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1.5, background: gradients.brand, color: 'white' }}>
-        <SettingsIcon />
+        <SettingsIcon size={24} />
         <Box>
           <Typography fontWeight={800}>管理零件类别</Typography>
           <Typography variant="caption" sx={{ opacity: 0.75 }}>内置类别受保护，自定义类别可随意增删改</Typography>
@@ -95,7 +95,7 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
           />
           <Button
             id="add-category-btn"
-            variant="contained" startIcon={<AddIcon />}
+            variant="contained" startIcon={<AddIcon size={18} />}
             onClick={handleAdd}
             sx={{ flexShrink: 0, alignSelf: 'flex-start', mt: '2px', height: 40, background: gradients.parts, boxShadow: 'none' }}
           >
@@ -117,7 +117,7 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
               key={cat}
               label={`${BUILTIN_ICONS[cat] ?? '📦'} ${cat}`}
               size="small"
-              icon={<LockIcon sx={{ fontSize: '11px !important' }} />}
+              icon={<LockIcon size={11} />}
               sx={{
                 fontWeight: 600, fontSize: '0.8rem',
                 bgcolor: BUILTIN_COLORS[cat]?.bg ?? '#f8fafc',
@@ -136,7 +136,7 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
 
         {customCategories.length === 0 ? (
           <Box textAlign="center" py={3} color="text.disabled">
-            <SettingsIcon sx={{ fontSize: 32, opacity: 0.2, display: 'block', mx: 'auto', mb: 0.5 }} />
+            <SettingsIcon size={32} style={{ opacity: 0.2, display: 'block', margin: '0 auto 4px auto' }} />
             <Typography variant="caption">暂无自定义类别，在上方输入框添加</Typography>
           </Box>
         ) : (
@@ -166,19 +166,19 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
                   {isEditingRow ? (
                     <>
                       <Tooltip title="保存">
-                        <IconButton size="small" color="success" onClick={() => handleSaveEdit(idx)}><CheckCircleIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="success" onClick={() => handleSaveEdit(idx)}><CheckCircleIcon size={18} /></IconButton>
                       </Tooltip>
                       <Tooltip title="取消">
-                        <IconButton size="small" onClick={() => { setEditingIdx(null); setCatError(''); }}><CancelIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" onClick={() => { setEditingIdx(null); setCatError(''); }}><CancelIcon size={18} /></IconButton>
                       </Tooltip>
                     </>
                   ) : (
                     <>
                       <Tooltip title="重命名">
-                        <IconButton size="small" color="primary" onClick={() => handleStartEdit(idx)}><EditIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="primary" onClick={() => handleStartEdit(idx)}><EditIcon size={18} /></IconButton>
                       </Tooltip>
                       <Tooltip title="删除">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(idx)}><DeleteIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="error" onClick={() => handleDelete(idx)}><DeleteIcon size={18} /></IconButton>
                       </Tooltip>
                     </>
                   )}

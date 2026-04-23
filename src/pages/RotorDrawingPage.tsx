@@ -6,12 +6,12 @@ import {
 } from '@mui/material';
 import {
   Send as SendIcon,
-  PictureAsPdf as PdfIcon,
+  FileText as PdfIcon,
   CheckCircle as CheckIcon,
-  Error as ErrorIcon,
+  AlertCircle as ErrorIcon,
   Link as LinkIcon,
-  Print as PrintIcon
-} from '@mui/icons-material';
+  Printer as PrintIcon
+} from 'lucide-react';
 import { getAllTemplates, getAllParts } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
 import PageHeader from '../components/PageHeader';
@@ -261,13 +261,13 @@ export default function RotorDrawingPage() {
   }, []);
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1000, mx: 'auto' }}>
-      <PageHeader title="🔧 转子出图系统" subtitle="自然语言或表单填参，自动生成转子工程图纸" />
+    <Box sx={{ maxWidth: { xs: '100%', lg: 1100 }, margin: '0 auto', pb: 6 }}>
+      <PageHeader title="转子出图系统" subtitle="自然语言或表单填参，自动生成转子工程图纸" />
 
       {/* ── 泵壳模板关联 ── */}
       <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, bgcolor: 'background.default' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <LinkIcon fontSize="small" color="primary" />
+          <LinkIcon size={18} color="#2563eb" />
           <Typography variant="subtitle2">关联泵壳模板（可选）</Typography>
         </Box>
         <Autocomplete
@@ -295,7 +295,7 @@ export default function RotorDrawingPage() {
             <TextField fullWidth value={nlInput} onChange={e => setNlInput(e.target.value)} placeholder="请输入转子参数..."
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleNlSubmit(); } }} disabled={nlLoading} />
             <Button variant="contained" onClick={handleNlSubmit} disabled={nlLoading || !nlInput.trim()}
-              startIcon={nlLoading ? <CircularProgress size={20} /> : <SendIcon />}>出图</Button>
+              startIcon={nlLoading ? <CircularProgress size={20} /> : <SendIcon size={20} />}>出图</Button>
           </Box>
         </Paper>
       )}
@@ -332,16 +332,16 @@ export default function RotorDrawingPage() {
           )}
           {jobStatus.status === 'success' && (
             <Box>
-              <Alert severity="success" icon={<CheckIcon />} sx={{ mb: 2 }}>转子图纸生成完成！</Alert>
+              <Alert severity="success" icon={<CheckIcon size={24} />} sx={{ mb: 2 }}>转子图纸生成完成！</Alert>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button variant="contained" color="success" startIcon={<PdfIcon />}
+                <Button variant="contained" color="success" startIcon={<PdfIcon size={20} />}
                   href={`${API_BASE}${jobStatus.fileUrl}`} target="_blank">下载 PDF 图纸</Button>
-                <Button variant="contained" color="primary" startIcon={printing ? <CircularProgress size={20} color="inherit" /> : <PrintIcon />}
+                <Button variant="contained" color="primary" startIcon={printing ? <CircularProgress size={20} color="inherit" /> : <PrintIcon size={20} />}
                   disabled={printing || !jobId} onClick={() => jobId && handlePrint(jobId)}>{printing ? '发送中...' : '打印图纸'}</Button>
               </Box>
             </Box>
           )}
-          {jobStatus.status === 'failed' && <Alert severity="error" icon={<ErrorIcon />}>出图失败: {jobStatus.error}</Alert>}
+          {jobStatus.status === 'failed' && <Alert severity="error" icon={<ErrorIcon size={24} />}>出图失败: {jobStatus.error}</Alert>}
         </Paper>
       )}
 

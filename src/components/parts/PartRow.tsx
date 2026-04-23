@@ -1,13 +1,20 @@
-import { Box, Typography, Chip, IconButton, Tooltip, Fade } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Box, Typography, Chip, IconButton, Tooltip, Fade, Checkbox } from '@mui/material';
+import { Edit3 as EditIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { Part } from '../../types';
 import { stockStatus, getCatColor, loadCustomCategories } from './partsConstants';
 
 // ─── 零件行 ───────────────────────────────────────────
 
-interface PartRowProps { part: Part; onEdit: (p: Part) => void; onDelete: (id: number) => void; index: number; }
+interface PartRowProps { 
+  part: Part; 
+  onEdit: (p: Part) => void; 
+  onDelete: (id: number) => void; 
+  index: number; 
+  selected?: boolean;
+  onSelect?: (id: number, checked: boolean) => void;
+}
 
-export default function PartRow({ part, onEdit, onDelete, index }: PartRowProps) {
+export default function PartRow({ part, onEdit, onDelete, index, selected, onSelect }: PartRowProps) {
   const ss = stockStatus(part.stock);
   const customCats = loadCustomCategories();
   const cc = getCatColor(part.category, customCats);
@@ -24,7 +31,9 @@ export default function PartRow({ part, onEdit, onDelete, index }: PartRowProps)
         id={`part-row-${part.Id}`}
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 90px' },
+          gridTemplateColumns: onSelect 
+            ? { xs: '30px 2fr 1fr 70px 80px', sm: '40px 2fr 1fr 1fr 90px 90px' }
+            : { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 90px' },
           alignItems: 'center',
           gap: 1.5, px: 2, py: 1.5,
           borderBottom: '1px solid', borderColor: 'divider',
@@ -33,6 +42,14 @@ export default function PartRow({ part, onEdit, onDelete, index }: PartRowProps)
           '&:hover': { bgcolor: 'rgba(0,0,0,0.018)' },
         }}
       >
+        {onSelect && (
+          <Checkbox 
+            checked={!!selected} 
+            onChange={(e) => onSelect(part.Id, e.target.checked)} 
+            size="small" 
+            sx={{ p: 0 }}
+          />
+        )}
         <Box>
           <Typography variant="body2" fontWeight={600} sx={{ wordBreak: 'break-word' }}>{part.model}</Typography>
           <Box display="flex" gap={0.5} flexWrap="wrap" mt={0.3}>
@@ -64,12 +81,12 @@ export default function PartRow({ part, onEdit, onDelete, index }: PartRowProps)
         <Box display="flex" gap={0.5} justifyContent="flex-end">
           <Tooltip title="编辑">
             <IconButton id={`edit-part-${part.Id}`} size="small" color="primary" onClick={() => onEdit(part)}>
-              <EditIcon fontSize="small" />
+              <EditIcon size={18} />
             </IconButton>
           </Tooltip>
           <Tooltip title="删除">
             <IconButton id={`delete-part-${part.Id}`} size="small" color="error" onClick={() => onDelete(part.Id)}>
-              <DeleteIcon fontSize="small" />
+              <DeleteIcon size={18} />
             </IconButton>
           </Tooltip>
         </Box>

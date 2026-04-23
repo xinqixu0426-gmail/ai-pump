@@ -19,9 +19,9 @@ import {
   TextField
 } from '@mui/material';
 import {
-  Close as CloseIcon,
-  PlayArrow as ProduceIcon
-} from '@mui/icons-material';
+  X as CloseIcon,
+  Play as ProduceIcon
+} from 'lucide-react';
 import { Recipe, CostResult, Part, RecipePart } from '../types';
 import { batchDeductStock } from '../utils/api';
 
@@ -163,7 +163,7 @@ export default function RecipeDetailModal({
             配方详情 - {recipe.name}
           </Typography>
           <IconButton onClick={onClose} size="small">
-            <CloseIcon />
+            <CloseIcon size={20} />
           </IconButton>
         </Box>
       </DialogTitle>
@@ -395,7 +395,7 @@ export default function RecipeDetailModal({
                 color="primary"
                 disabled={!allSufficient || producing}
                 onClick={handleProduce}
-                startIcon={<ProduceIcon />}
+                startIcon={<ProduceIcon size={20} />}
               >
                 {producing ? '扣减中...' : `确认生产 ${produceQty} 台`}
               </Button>
@@ -418,7 +418,7 @@ export default function RecipeDetailModal({
           <Button
             variant="contained"
             color="primary"
-            startIcon={<ProduceIcon />}
+            startIcon={<ProduceIcon size={20} />}
             onClick={() => setShowProduce(true)}
           >
             确认生产

@@ -17,15 +17,15 @@ import {
   Button,
 } from '@mui/material';
 import {
-  Send as SendIcon,
-  SmartToy as BotIcon,
-  Person as PersonIcon,
-  AutoAwesome as SparkleIcon,
-  Delete as DeleteIcon,
+  SendHorizontal as SendIcon,
+  Bot as BotIcon,
+  User as PersonIcon,
+  Sparkles as SparkleIcon,
+  Trash2 as DeleteIcon,
   Settings as SettingsIcon,
   Mic as MicIcon,
-  Stop as StopIcon,
-} from '@mui/icons-material';
+  Square as StopIcon,
+} from 'lucide-react';
 import StructuredResult from '../components/ai/StructuredResult';
 import StatusIndicator from '../components/ai/StatusIndicator';
 import PageHeader from '../components/PageHeader';
@@ -310,20 +310,20 @@ export default function AIChatPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: 'auto', pb: 4 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, maxWidth: 1100, mx: 'auto', width: '100%' }}>
       <PageHeader
-        title="✨ BOM 智能助手"
+        title="BOM 智能助手"
         subtitle="用自然语言查询成本、基本配方和供应链数据"
         actions={
           <>
             {messages.length > 0 && (
-              <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleClear} size="small">
+              <Button variant="outlined" color="error" startIcon={<DeleteIcon size={18} />} onClick={handleClear} size="small">
                 清空对话
               </Button>
             )}
             <Tooltip title="设置 System Prompt">
               <IconButton onClick={handleOpenSettings} sx={{ bgcolor: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                <SettingsIcon />
+                <SettingsIcon size={20} />
               </IconButton>
             </Tooltip>
           </>
@@ -331,7 +331,7 @@ export default function AIChatPage() {
       />
       <Paper elevation={0} sx={{ 
         display: 'flex', flexDirection: 'column', 
-        height: 'calc(100vh - 210px)', 
+        flex: 1, minHeight: 400, 
         borderRadius: 3, 
         overflow: 'hidden',
         border: '1px solid', borderColor: 'divider'
@@ -352,7 +352,7 @@ export default function AIChatPage() {
                 '50%': { transform: 'translateY(-10px)' },
               }
             }}>
-              <SparkleIcon sx={{ fontSize: 40, color: 'white' }} />
+              <SparkleIcon size={40} color="white" />
             </Box>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, background: gradients.brandText, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -404,7 +404,7 @@ export default function AIChatPage() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     mt: 0.5,
                   }}>
-                    <BotIcon sx={{ fontSize: 20, color: 'white' }} />
+                    <BotIcon size={20} color="white" />
                   </Box>
                 )}
 
@@ -462,7 +462,7 @@ export default function AIChatPage() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     mt: 0.5,
                   }}>
-                    <PersonIcon sx={{ fontSize: 20, color: 'white' }} />
+                    <PersonIcon size={20} color="white" />
                   </Box>
                 )}
               </Box>
@@ -490,12 +490,12 @@ export default function AIChatPage() {
       >
         <Tooltip title="清空对话">
           <IconButton size="small" onClick={handleClear} sx={{ color: 'text.secondary' }}>
-            <DeleteIcon fontSize="small" />
+            <DeleteIcon size={18} />
           </IconButton>
         </Tooltip>
         <Tooltip title="编辑 System Prompt">
           <IconButton size="small" onClick={handleOpenSettings} sx={{ color: 'text.secondary' }}>
-            <SettingsIcon fontSize="small" />
+            <SettingsIcon size={18} />
           </IconButton>
         </Tooltip>
         <TextField
@@ -536,7 +536,7 @@ export default function AIChatPage() {
             '&:hover': { bgcolor: isRecording ? '#dc2626' : alpha(colors.green.main, 0.2) },
           }}
         >
-          {isRecording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
+          {isRecording ? <StopIcon size={18} /> : <MicIcon size={18} />}
         </IconButton>
         <IconButton
           onClick={() => handleSend()}
@@ -556,7 +556,7 @@ export default function AIChatPage() {
             }
           }}
         >
-          {isLoading ? <CircularProgress size={20} sx={{ color: 'text.secondary' }} /> : <SendIcon fontSize="small" />}
+          {isLoading ? <CircularProgress size={20} sx={{ color: 'text.secondary' }} /> : <SendIcon size={18} />}
         </IconButton>
       </Paper>
       </Paper>
@@ -579,7 +579,7 @@ export default function AIChatPage() {
           borderBottom: '1px solid',
           borderColor: 'divider',
         }}>
-          <SettingsIcon color="primary" />
+          <SettingsIcon size={24} color="#2563eb" style={{ marginRight: 8 }} />
           编辑 System Prompt
           {promptSaved && (
             <Chip label="✓ 已保存" size="small" color="success" sx={{ ml: 'auto', fontWeight: 600 }} />

@@ -5,12 +5,13 @@ import {
   TableContainer, TableHead, TableRow, Chip, IconButton, Tooltip,
   TextField, InputAdornment, Autocomplete, Dialog, DialogTitle,
   DialogContent, DialogContentText, DialogActions, Fade,
-  Select, MenuItem, CircularProgress, Skeleton, useMediaQuery, useTheme
+  Select, MenuItem, CircularProgress, Skeleton, useMediaQuery, useTheme,
+  TablePagination, TableSortLabel
 } from '@mui/material';
 import {
-  Add as AddIcon, Info as InfoIcon, Delete as DeleteIcon,
-  Search as SearchIcon, Edit as EditIcon, Refresh as RefreshIcon,
-} from '@mui/icons-material';
+  Plus as AddIcon, Info as InfoIcon, Trash2 as DeleteIcon,
+  Search as SearchIcon, Edit3 as EditIcon, RefreshCw as RefreshIcon,
+} from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { deleteOrder, saveOrder } from '../utils/orderStore';
 import { useAppStore } from '../utils/store';
@@ -38,6 +39,11 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [orderBy, setOrderBy] = useState<string>('createdAt');
 
   const orders = useMemo(() =>
     [...rawOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -100,10 +106,33 @@ export default function OrdersPage() {
     });
   }, [orders, filterCustomer, searchQuery]);
 
+  // 排序
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      let aVal: any = a[orderBy as keyof Order];
+      let bVal: any = b[orderBy as keyof Order];
+
+      if (aVal < bVal) return order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredOrders, order, orderBy]);
+
+  // 分页
+  const paginatedOrders = useMemo(() => {
+    return sortedOrders.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedOrders, page, rowsPerPage]);
+
+  const handleRequestSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
   return (
     <Box>
       <PageHeader
-        title="📋 订单管理"
+        title="订单管理"
         subtitle="管理所有客户订单的状态与进度"
         actions={
           <>
@@ -150,14 +179,14 @@ export default function OrdersPage() {
             <TextField
               size="small" placeholder="搜索客户、合同号、配方..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment> }}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon size={18} color="rgba(148,163,184,0.6)" /></InputAdornment> }}
               sx={{ minWidth: 220, flex: 1 }}
             />
             <Autocomplete
               options={[...new Set(orders.map((o) => o.customerName))].sort()}
               value={filterCustomer}
-              onChange={(_, v) => setFilterCustomer(v)}
+              onChange={(_, v) => { setFilterCustomer(v); setPage(0); }}
               renderInput={(params) => (
                 <TextField {...params} size="small" placeholder="客户筛选" />
               )}
@@ -179,7 +208,7 @@ export default function OrdersPage() {
           </Box>
         ) : isMobile ? (
           <Box p={2}>
-            {filteredOrders.map((order, idx) => {
+            {paginatedOrders.map((order, idx) => {
               const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
               const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
               return (
@@ -246,19 +275,29 @@ export default function OrdersPage() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
-                  <TableCell>客户名称</TableCell>
+                  <TableCell>
+                    <TableSortLabel active={orderBy === 'customerName'} direction={orderBy === 'customerName' ? order : 'asc'} onClick={() => handleRequestSort('customerName')}>客户名称</TableSortLabel>
+                  </TableCell>
                   <TableCell>合同号</TableCell>
                   <TableCell>型号数</TableCell>
-                  <TableCell align="right">总成本</TableCell>
-                  <TableCell align="right">总出厂价</TableCell>
+                  <TableCell align="right">
+                    <TableSortLabel active={orderBy === 'totalCost'} direction={orderBy === 'totalCost' ? order : 'asc'} onClick={() => handleRequestSort('totalCost')}>总成本</TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TableSortLabel active={orderBy === 'totalPrice'} direction={orderBy === 'totalPrice' ? order : 'asc'} onClick={() => handleRequestSort('totalPrice')}>总出厂价</TableSortLabel>
+                  </TableCell>
                   <TableCell>需采购零件</TableCell>
-                  <TableCell>状态</TableCell>
-                  <TableCell>创建时间</TableCell>
+                  <TableCell>
+                    <TableSortLabel active={orderBy === 'status'} direction={orderBy === 'status' ? order : 'asc'} onClick={() => handleRequestSort('status')}>状态</TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel active={orderBy === 'createdAt'} direction={orderBy === 'createdAt' ? order : 'asc'} onClick={() => handleRequestSort('createdAt')}>创建时间</TableSortLabel>
+                  </TableCell>
                   <TableCell align="center" sx={{ width: 130 }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredOrders.map((order, idx) => {
+                {paginatedOrders.map((order, idx) => {
                   const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
                   const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
                   return (
@@ -327,6 +366,24 @@ export default function OrdersPage() {
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+
+        {/* Pagination */}
+        {orders.length > 0 && (
+          <TablePagination
+            component="div"
+            count={filteredOrders.length}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[15, 30, 50, 100]}
+            labelRowsPerPage="每页行数:"
+            sx={{ borderTop: '1px solid', borderColor: 'divider' }}
+          />
         )}
       </Paper>
       </>

@@ -10,7 +10,7 @@ import {
   MenuItem,
   Button
 } from '@mui/material';
-import { Inventory as TemplateIcon, NavigateNext as NextIcon } from '@mui/icons-material';
+import { Package as TemplateIcon, ChevronRight as NextIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { TemplatePart, PumpShellTemplate, PumpShellMeta } from '../../types';
 
@@ -75,7 +75,7 @@ export default function StepTemplateSelect({
       {/* ━━ 泵壳模板选择 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <TemplateIcon sx={{ fontSize: 16, color: colors.purple.main }} />
+          <TemplateIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
             ▸ 泵壳模板（固定配件）
           </Typography>
@@ -181,7 +181,7 @@ export default function StepTemplateSelect({
       <Box display="flex" justifyContent="flex-end" mt={2}>
         <Button
           variant="contained"
-          endIcon={<NextIcon />}
+          endIcon={<NextIcon size={18} />}
           onClick={onNext}
           disabled={!recipeName.trim()}
         >

@@ -10,7 +10,7 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { Trash2 as DeleteIcon } from 'lucide-react';
 import { PartSelection } from '../types';
 
 interface RecipePartRowProps {
@@ -130,7 +130,7 @@ export default function RecipePartRow({
         {onDelete ? (
           <Tooltip title="删除">
             <IconButton size="small" color="error" onClick={onDelete} sx={{ p: 0.5 }}>
-              <DeleteIcon fontSize="small" />
+              <DeleteIcon size={18} />
             </IconButton>
           </Tooltip>
         ) : (

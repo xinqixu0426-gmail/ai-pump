@@ -11,11 +11,11 @@ import {
   IconButton,
 } from '@mui/material';
 import {
-  Visibility,
-  VisibilityOff,
-  LockOutlined,
-  Login as LoginIcon,
-} from '@mui/icons-material';
+  Eye as Visibility,
+  EyeOff as VisibilityOff,
+  Lock as LockOutlined,
+  LogIn as LoginIcon,
+} from 'lucide-react';
 import { login } from '../utils/authUtils';
 
 interface LoginPageProps {
@@ -113,7 +113,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               boxShadow: '0 8px 24px rgba(37,99,235,0.3)',
             }}
           >
-            <LockOutlined sx={{ fontSize: 32, color: '#fff' }} />
+            <LockOutlined size={32} color="#fff" />
           </Box>
           <Typography
             variant="h5"
@@ -169,7 +169,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   size="small"
                   sx={{ color: 'rgba(148,163,184,0.6)' }}
                 >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                  {showPassword ? <VisibilityOff size={20} /> : <Visibility size={20} />}
                 </IconButton>
               </InputAdornment>
             ),
@@ -197,7 +197,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           fullWidth
           variant="contained"
           disabled={!password.trim() || loading}
-          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
+          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon size={18} />}
           sx={{
             py: 1.5,
             borderRadius: 2.5,

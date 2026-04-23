@@ -1,5 +1,5 @@
 import { Box, Typography, Autocomplete, TextField, InputAdornment, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, Chip, IconButton } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon, History as HistoryIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Search as SearchIcon, Plus as AddIcon, Clock as HistoryIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { Recipe } from '../../types';
 import { HistoryPrice } from '../../utils/orderStore';
 import { formatMoney as fmt } from '../../utils/format';
@@ -68,7 +68,7 @@ export default function OrderItemsManager(props: OrderItemsManagerProps) {
                   ...params.InputProps,
                   startAdornment: (
                     <>
-                      <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
+                      <InputAdornment position="start"><SearchIcon size={18} /></InputAdornment>
                       {params.InputProps.startAdornment}
                     </>
                   ),
@@ -90,7 +90,7 @@ export default function OrderItemsManager(props: OrderItemsManagerProps) {
           />
           <Button
             variant="contained"
-            startIcon={<AddIcon />}
+            startIcon={<AddIcon size={18} />}
             onClick={addRecipeToOrder}
             disabled={!selectedRecipe}
           >
@@ -175,7 +175,7 @@ export default function OrderItemsManager(props: OrderItemsManagerProps) {
                             }
                           >
                             <Chip
-                              icon={<HistoryIcon />}
+                              icon={<HistoryIcon size={16} />}
                               label={`¥${fmt(item.history.unitPrice)}`}
                               size="small"
                               color={item.unitPrice > item.history.unitPrice ? 'error' : item.unitPrice < item.history.unitPrice ? 'success' : 'default'}
@@ -190,7 +190,7 @@ export default function OrderItemsManager(props: OrderItemsManagerProps) {
                       <TableCell align="center">
                         <Tooltip title="移除">
                           <IconButton size="small" color="error" onClick={() => removeItem(item.id)}>
-                            <DeleteIcon fontSize="small" />
+                            <DeleteIcon size={18} />
                           </IconButton>
                         </Tooltip>
                       </TableCell>

@@ -25,11 +25,11 @@ export default function PageHeader({ title, subtitle, actions }: PageHeaderProps
         mb={3}
       >
         <Box mb={{ xs: actions ? 1 : 0, sm: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -0.5, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
+          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.04em', fontSize: { xs: '1.5rem', sm: '2.25rem' } }}>
             {title}
           </Typography>
           {subtitle && (
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, mt: 0.5 }}>
               {subtitle}
             </Typography>
           )}

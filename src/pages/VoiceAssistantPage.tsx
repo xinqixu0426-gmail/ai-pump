@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Box, Paper, Button } from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
+import { Trash2 as DeleteIcon } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import VoiceChatMessages, { ChatMessage } from '../components/voice/VoiceChatMessages';
@@ -167,19 +167,19 @@ export default function VoiceAssistantPage() {
   const canInteract = !isRecording && !isProcessing;
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: 'auto', pb: 4 }} className="va-root-override">
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, maxWidth: 1100, mx: 'auto', width: '100%' }} className="va-root-override">
       <PageHeader
-        title="🎙 语音助手"
+        title="语音助手"
         subtitle="点击麦克风直接对话，解锁极客流模式"
         actions={
           messages.length > 0 && (
-            <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={handleClear} size="small">清空对话</Button>
+            <Button variant="outlined" color="error" startIcon={<DeleteIcon size={18} />} onClick={handleClear} size="small">清空对话</Button>
           )
         }
       />
       <Paper elevation={0} sx={{ 
         display: 'flex', flexDirection: 'column', 
-        height: 'calc(100vh - 210px)', 
+        flex: 1, minHeight: 400, 
         borderRadius: 3, 
         overflow: 'hidden',
         border: '1px solid', borderColor: 'divider',

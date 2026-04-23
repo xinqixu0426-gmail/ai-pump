@@ -7,10 +7,10 @@ import {
   useMediaQuery, useTheme
 } from '@mui/material';
 import {
-  Info as InfoIcon, Delete as DeleteIcon, Refresh as RefreshIcon,
-  Add as AddIcon, ContentCopy as CopyIcon, Edit as EditIcon,
-  Inventory as TemplateIcon,
-} from '@mui/icons-material';
+  Info as InfoIcon, Trash2 as DeleteIcon, RefreshCw as RefreshIcon,
+  Plus as AddIcon, Copy as CopyIcon, Edit3 as EditIcon,
+  Package as TemplateIcon, FileText as FileIcon, ScrollText as RecipeIcon, Wrench as PartIcon,
+} from 'lucide-react';
 import { Recipe, RecipePart, CostResult } from '../types';
 import { deleteRecipe } from '../utils/api';
 import { useAppStore } from '../utils/store';
@@ -118,18 +118,18 @@ export default function RecipesPage() {
   return (
     <Box>
       <PageHeader
-        title="📝 配方管理"
+        title="配方管理"
         subtitle="管理泵壳模板与配方BOM"
         actions={
           <>
             <Tooltip title="刷新数据">
               <span>
                 <IconButton onClick={loadData} disabled={loading}>
-                  {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+                  {loading ? <CircularProgress size={20} /> : <RefreshIcon size={20} />}
                 </IconButton>
               </span>
             </Tooltip>
-            <Button variant="contained" size="small" startIcon={<AddIcon />}
+            <Button variant="contained" size="small" startIcon={<AddIcon size={18} />}
               onClick={() => navigate('/recipe-form')}
               sx={{ fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}>
               录入配方
@@ -140,9 +140,9 @@ export default function RecipesPage() {
 
       {/* KPI 统计 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
-        <StatCard label="模板数量" value={templates.length} subtitle="泵壳配置模板" gradient={gradients.orders} delay={0} />
-        <StatCard label="配方数量" value={recipes.length} subtitle="已录入配方" gradient={gradients.recipes} delay={1} />
-        <StatCard label="零件种类" value={parts.length} subtitle="可选配件库" gradient={gradients.parts} delay={2} />
+        <StatCard label="模板数量" value={templates.length} subtitle="泵壳配置模板" icon={<FileIcon size={22} />} gradient={gradients.orders} delay={0} />
+        <StatCard label="配方数量" value={recipes.length} subtitle="已录入配方" icon={<RecipeIcon size={22} />} gradient={gradients.recipes} delay={1} />
+        <StatCard label="零件种类" value={parts.length} subtitle="可选配件库" icon={<PartIcon size={22} />} gradient={gradients.parts} delay={2} />
       </Box>
 
       <Collapse in={!!error}>
@@ -155,7 +155,7 @@ export default function RecipesPage() {
       {/* ━━━ 配方列表区 ━━━ */}
       <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden' }}>
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <TemplateIcon sx={{ mr: 1, color: 'success.main' }} />
+          <TemplateIcon size={24} style={{ marginRight: 8 }} color="rgba(34,197,94,1)" />
           <Typography variant="h6" fontWeight={700} color="success.main" sx={{ flexGrow: 1 }}>配方列表</Typography>
           <Chip label={`共 ${recipes.length} 个`} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
         </Box>
@@ -191,9 +191,9 @@ export default function RecipesPage() {
                     <Typography variant="body2" fontWeight={700} color="primary.main">{data?.cost || '-'}</Typography>
                   </Box>
                   <Box display="flex" justifyContent="flex-end" gap={0.5}>
-                    <IconButton size="small" color="warning" onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }}><EditIcon fontSize="small" /></IconButton>
-                    <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); handleClone(recipe); }}><CopyIcon fontSize="small" /></IconButton>
-                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); setDeleteTarget(recipe.Id); }}><DeleteIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" color="warning" onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }}><EditIcon size={18} /></IconButton>
+                    <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); handleClone(recipe); }}><CopyIcon size={18} /></IconButton>
+                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); setDeleteTarget(recipe.Id); }}><DeleteIcon size={18} /></IconButton>
                   </Box>
                 </Paper>
               );
@@ -232,10 +232,10 @@ export default function RecipesPage() {
                       </TableCell>
                       <TableCell>{data?.cost || '-'}</TableCell>
                       <TableCell align="center">
-                        <Tooltip title="详情"><IconButton size="small" color="info" onClick={() => handleViewDetail(recipe)}><InfoIcon fontSize="small" /></IconButton></Tooltip>
-                        <Tooltip title="编辑"><IconButton size="small" color="warning" onClick={() => handleEdit(recipe)}><EditIcon fontSize="small" /></IconButton></Tooltip>
-                        <Tooltip title="复制"><IconButton size="small" color="primary" onClick={() => handleClone(recipe)}><CopyIcon fontSize="small" /></IconButton></Tooltip>
-                        <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => setDeleteTarget(recipe.Id)}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
+                        <Tooltip title="详情"><IconButton size="small" color="info" onClick={() => handleViewDetail(recipe)}><InfoIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="编辑"><IconButton size="small" color="warning" onClick={() => handleEdit(recipe)}><EditIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="复制"><IconButton size="small" color="primary" onClick={() => handleClone(recipe)}><CopyIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => setDeleteTarget(recipe.Id)}><DeleteIcon size={18} /></IconButton></Tooltip>
                       </TableCell>
                     </TableRow>
                   );

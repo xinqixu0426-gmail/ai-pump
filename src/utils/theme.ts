@@ -97,6 +97,16 @@ export const gradients = {
 
 // ─── 通用 sx 预设（高频复用模式）─────────────────────
 
+/** Glassmorphism 默认卡片 */
+export const sxGlassPanel = {
+  bgcolor: 'var(--panel)',
+  borderRadius: '26px',
+  border: '1px solid var(--border)',
+  boxShadow: 'var(--shadow)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+} as const;
+
 /** 信息面板 - 蓝色 */
 export const sxInfoPanel = {
   bgcolor: colors.blue.bg,

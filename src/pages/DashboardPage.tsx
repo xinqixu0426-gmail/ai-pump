@@ -17,19 +17,19 @@ import {
 import {
   TrendingUp as TrendingUpIcon,
   ShoppingCart as OrderIcon,
-  Receipt as RecipeIcon,
-  Build as PartIcon,
-  AttachMoney as MoneyIcon,
-  Refresh as RefreshIcon,
-  Add as AddIcon,
-  ArrowForward as ArrowForwardIcon,
-  CheckCircleOutline as CheckIcon,
-  HourglassEmpty as PendingIcon,
-  LocalShipping as ShippingIcon,
-  Inventory as InventoryIcon,
-  Bolt as BoltIcon,
-  Architecture as ArchitectureIcon,
-} from '@mui/icons-material';
+  FileText as RecipeIcon,
+  Wrench as PartIcon,
+  BadgeDollarSign as MoneyIcon,
+  RefreshCw as RefreshIcon,
+  Plus as AddIcon,
+  ArrowRight as ArrowForwardIcon,
+  CheckCircle as CheckIcon,
+  Hourglass as PendingIcon,
+  Truck as ShippingIcon,
+  Package as InventoryIcon,
+  Zap as BoltIcon,
+  Compass as ArchitectureIcon,
+} from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
@@ -100,8 +100,8 @@ function OrderCard({ order, onDetail, index }: OrderCardProps) {
           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             borderColor: config.color,
-            transform: 'translateY(-2px)',
-            boxShadow: `0 8px 24px ${config.bg}`,
+            transform: 'translateY(-4px)',
+            boxShadow: `0 12px 32px ${config.bg}, 0 4px 14px rgba(0,0,0,0.06)`,
           },
         }}
       >
@@ -198,7 +198,7 @@ function OrderCard({ order, onDetail, index }: OrderCardProps) {
           <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
             {formatDate(order.createdAt)}
           </Typography>
-          <ArrowForwardIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+          <ArrowForwardIcon size={14} color="var(--border)" />
         </Box>
       </Paper>
     </Fade>
@@ -239,7 +239,7 @@ function KanbanColumn({ status, orders, onDetail }: KanbanColumnProps) {
             width: 32,
             height: 32,
             background: config.gradient,
-            '& .MuiSvgIcon-root': { fontSize: 16 },
+            '& > svg': { width: 16, height: 16, color: '#fff' },
           }}
         >
           {config.icon}
@@ -289,7 +289,7 @@ function KanbanColumn({ status, orders, onDetail }: KanbanColumnProps) {
               color: 'text.disabled',
             }}
           >
-            <InventoryIcon sx={{ fontSize: 40, mb: 1, opacity: 0.2 }} />
+            <InventoryIcon size={40} style={{ marginBottom: 8, opacity: 0.2 }} />
             <Typography variant="caption" sx={{ fontWeight: 600 }}>暂无订单</Typography>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
               点击右上角 + 新建
@@ -354,25 +354,32 @@ export default function DashboardPage() {
     return { totalRevenue, totalProfit, pendingCount, lowStockParts };
   }, [orders, ordersByStatus, parts]);
 
+  const trends = useMemo(() => {
+    const chronological = [...orders].reverse();
+    const revTrend = chronological.map((o, i) => ({ name: String(i), value: o.totalPrice || 0 })).slice(-15);
+    const profTrend = chronological.map((o, i) => ({ name: String(i), value: o.totalProfit || 0 })).slice(-15);
+    return { revTrend, profTrend };
+  }, [orders]);
+
   const handleDetail = (order: Order) => setSelectedOrder(order);
 
   return (
     <Box>
       {/* 页面标题 */}
       <PageHeader
-        title="📊 运营看板"
+        title="运营看板"
         subtitle="实时掌握订单与库存动态"
         actions={
           <>
             <Tooltip title="新建订单">
               <IconButton onClick={() => navigate('/order-form')} sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' }, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}>
-                <AddIcon />
+                <AddIcon size={24} />
               </IconButton>
             </Tooltip>
             <Tooltip title="刷新数据">
               <span>
                 <IconButton onClick={() => load(true)} disabled={loading}>
-                  {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+                  {loading ? <CircularProgress size={20} /> : <RefreshIcon size={24} />}
                 </IconButton>
               </span>
             </Tooltip>
@@ -405,7 +412,7 @@ export default function DashboardPage() {
           label="订单总数"
           value={orders.length}
           subtitle={`进行中 ${kpis.pendingCount} 单`}
-          icon={<OrderIcon sx={{ fontSize: 22 }} />}
+          icon={<OrderIcon size={22} />}
           gradient={gradients.orders}
           delay={0}
         />
@@ -413,7 +420,7 @@ export default function DashboardPage() {
           label="配方数量"
           value={recipes.length}
           subtitle="已录入配方"
-          icon={<RecipeIcon sx={{ fontSize: 22 }} />}
+          icon={<RecipeIcon size={22} />}
           gradient={gradients.recipes}
           delay={1}
         />
@@ -421,7 +428,7 @@ export default function DashboardPage() {
           label="零件种类"
           value={parts.length}
           subtitle={`低库存 ${kpis.lowStockParts} 项`}
-          icon={<PartIcon sx={{ fontSize: 22 }} />}
+          icon={<PartIcon size={22} />}
           gradient={gradients.parts}
           delay={2}
         />
@@ -429,17 +436,21 @@ export default function DashboardPage() {
           label="总营收"
           value={`¥${(kpis.totalRevenue / 10000).toFixed(1)}w`}
           subtitle="订单出厂价合计"
-          icon={<MoneyIcon sx={{ fontSize: 22 }} />}
+          icon={<MoneyIcon size={22} />}
           gradient={gradients.revenue}
           delay={3}
+          chartData={trends.revTrend}
+          chartColor={colors.blue.main}
         />
         <StatCard
           label="总利润"
           value={`¥${(kpis.totalProfit / 10000).toFixed(1)}w`}
           subtitle={kpis.totalRevenue > 0 ? `利润率 ${((kpis.totalProfit / kpis.totalRevenue) * 100).toFixed(1)}%` : '-'}
-          icon={<TrendingUpIcon sx={{ fontSize: 22 }} />}
+          icon={<TrendingUpIcon size={22} />}
           gradient={gradients.profit}
           delay={4}
+          chartData={trends.profTrend}
+          chartColor={colors.green.main}
         />
       </Box>
 
@@ -463,12 +474,12 @@ export default function DashboardPage() {
           }}
         >
           {[
-            { label: '新建订单', icon: <AddIcon />, gradient: gradients.orders, path: '/order-form' },
-            { label: '新建配方', icon: <RecipeIcon />, gradient: gradients.recipes, path: '/recipe-form' },
-            { label: '新增零件', icon: <PartIcon />, gradient: gradients.parts, path: '/parts' },
-            { label: '线圈管理', icon: <BoltIcon />, gradient: gradients.revenue, path: '/coils' },
-            { label: '转子绘图', icon: <ArchitectureIcon />, gradient: gradients.profit, path: '/rotor' },
-            { label: '泵壳模板', icon: <InventoryIcon />, gradient: gradients.processing, path: '/recipes' },
+            { label: '新建订单', icon: <AddIcon size={22} />, gradient: gradients.orders, path: '/order-form' },
+            { label: '新建配方', icon: <RecipeIcon size={22} />, gradient: gradients.recipes, path: '/recipe-form' },
+            { label: '新增零件', icon: <PartIcon size={22} />, gradient: gradients.parts, path: '/parts' },
+            { label: '线圈管理', icon: <BoltIcon size={22} />, gradient: gradients.revenue, path: '/coils' },
+            { label: '转子绘图', icon: <ArchitectureIcon size={22} />, gradient: gradients.profit, path: '/rotor' },
+            { label: '泵壳模板', icon: <InventoryIcon size={22} />, gradient: gradients.processing, path: '/recipes' },
           ].map((item) => (
             <Box
               key={item.label}
@@ -495,7 +506,7 @@ export default function DashboardPage() {
                   width: 48,
                   height: 48,
                   background: item.gradient,
-                  '& .MuiSvgIcon-root': { fontSize: 22, color: '#fff' },
+                  '& > svg': { width: 22, height: 22, color: '#fff' },
                   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                 }}
               >
@@ -561,7 +572,7 @@ export default function DashboardPage() {
             clickable
             onClick={() => navigate('/orders')}
             sx={{ fontWeight: 600 }}
-            icon={<ArrowForwardIcon sx={{ fontSize: '14px !important' }} />}
+            icon={<ArrowForwardIcon size={14} />}
           />
         </Box>
 

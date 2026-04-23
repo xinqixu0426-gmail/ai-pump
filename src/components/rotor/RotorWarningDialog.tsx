@@ -2,7 +2,7 @@ import {
   Box, Typography, TextField, Button, Grid, Paper,
   Alert, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { Warning as WarningIcon } from '@mui/icons-material';
+import { AlertTriangle as WarningIcon } from 'lucide-react';
 
 export interface RotorWarningData {
   missing_length?: {
@@ -33,7 +33,7 @@ export default function RotorWarningDialog({
   return (
     <Dialog open={!!warning} onClose={onCancel} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <WarningIcon color="warning" /> 
+        <WarningIcon size={24} style={{ color: '#f59e0b' }} /> 
         安全与参数校验警告
       </DialogTitle>
       <DialogContent>

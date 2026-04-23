@@ -24,21 +24,32 @@ import {
   Collapse,
   InputAdornment,
   Badge,
+  Checkbox,
+  Slide
 } from '@mui/material';
 import {
-  Add as AddIcon,
+  Plus as AddIcon,
   Search as SearchIcon,
-  Refresh as RefreshIcon,
-  Inventory as InventoryIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-  Warning as WarningIcon,
+  RefreshCw as RefreshIcon,
+  Package as InventoryIcon,
+  ChevronDown as ExpandMoreIcon,
+  ChevronUp as ExpandLessIcon,
+  AlertTriangle as WarningIcon,
   CheckCircle as CheckCircleIcon,
-  ErrorOutline as ErrorOutlineIcon,
-  BugReport as BugReportIcon,
-  PlayArrow as PlayIcon,
-  FilterList as FilterIcon,
-} from '@mui/icons-material';
+  AlertCircle as ErrorOutlineIcon,
+  Bug as BugReportIcon,
+  Play as PlayIcon,
+  Filter as FilterIcon,
+  Wrench as PartIcon,
+  CircleDollarSign as MoneyIcon,
+  AlertTriangle as AlertIcon,
+  PackageMinus as OutIcon,
+  Tag as LocalOfferIcon,
+  Download as DownloadIcon,
+  Trash2 as DeleteIcon,
+  X as CloseIcon
+} from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import { Part } from '../types';
 import { createPart, updatePart, deletePart } from '../utils/api';
 import { useAppStore } from '../utils/store';
@@ -77,6 +88,10 @@ export default function PartsPage() {
     const dbCats = parts.map(p => p.category).filter(Boolean);
     return Array.from(new Set([...BUILTIN_CATEGORIES, ...customCategories, ...dbCats]));
   }, [customCategories, parts]);
+
+  // 重置选择
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  useEffect(() => { setSelectedIds([]); }, [searchQuery, filterCategory]);
 
   const loadParts = useCallback(async () => {
     try {
@@ -168,6 +183,7 @@ export default function PartsPage() {
     try {
       await deletePart(id);
       await fetchParts(true);
+      setSelectedIds(prev => prev.filter(x => x !== id));
       showSnackbar('零件已删除', 'info');
     } catch {
       setError('删除失败');
@@ -177,44 +193,58 @@ export default function PartsPage() {
   const toggleCategory = (cat: string) =>
     setCollapsedCategories((prev) => { const next = new Set(prev); next.has(cat) ? next.delete(cat) : next.add(cat); return next; });
 
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id));
+  };
+  
+  const handleSelectGroup = (catParts: Part[]) => {
+    const ids = catParts.map(p => p.Id);
+    const allSelected = ids.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(x => !ids.includes(x)));
+    } else {
+      setSelectedIds(prev => [...new Set([...prev, ...ids])]);
+    }
+  };
+
   // ── Render ────────────────────────────────────────
   return (
     <Box>
       {/* 页面标题 */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Box>
-          <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: -0.5 }}>🔩 零件管理</Typography>
-          <Typography variant="caption" color="text.secondary">管理所有配件的型号、价格与库存</Typography>
-        </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="运行自动化测试">
-            <Badge badgeContent={testResults.filter((r) => !r.passed).length || null} color="error">
-              <IconButton
-                id="harness-toggle-btn"
-                onClick={() => setHarnessOpen((v) => !v)}
-                sx={{ bgcolor: harnessOpen ? '#fdf4ff' : 'action.hover', color: harnessOpen ? colors.purple.main : 'inherit', border: harnessOpen ? `1px solid ${colors.purple.border}` : '1px solid transparent' }}
-              >
-                <BugReportIcon />
-              </IconButton>
-            </Badge>
-          </Tooltip>
-          <Tooltip title="刷新数据">
-            <span>
-              <IconButton id="parts-refresh-btn" onClick={() => loadParts()} disabled={loading}>
-                {loading ? <LinearProgress sx={{ width: 20 }} /> : <RefreshIcon />}
-              </IconButton>
-            </span>
-          </Tooltip>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddNew}
-            sx={{ fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}
-          >
-            新增零件
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="零件管理"
+        subtitle="管理所有配件的型号、价格与库存"
+        actions={
+          <Box display="flex" gap={1}>
+            <Tooltip title="运行自动化测试">
+              <Badge badgeContent={testResults.filter((r) => !r.passed).length || null} color="error">
+                <IconButton
+                  id="harness-toggle-btn"
+                  onClick={() => setHarnessOpen((v) => !v)}
+                  sx={{ bgcolor: harnessOpen ? '#fdf4ff' : 'action.hover', color: harnessOpen ? colors.purple.main : 'inherit', border: harnessOpen ? `1px solid ${colors.purple.border}` : '1px solid transparent' }}
+                >
+                  <BugReportIcon size={24} />
+                </IconButton>
+              </Badge>
+            </Tooltip>
+            <Tooltip title="刷新数据">
+              <span>
+                <IconButton id="parts-refresh-btn" onClick={() => loadParts()} disabled={loading}>
+                  {loading ? <LinearProgress sx={{ width: 20 }} /> : <RefreshIcon size={24} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon size={20} />}
+              onClick={handleAddNew}
+              sx={{ fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}
+            >
+              新增零件
+            </Button>
+          </Box>
+        }
+      />
 
       {/* 通知条 */}
       <Collapse in={!!error}>
@@ -223,10 +253,10 @@ export default function PartsPage() {
 
       {/* KPI 统计 */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <StatCard label="零件种类" value={parts.length} subtitle={`${categories.length} 个类别`} gradient={gradients.parts} delay={0} />
-        <StatCard label="库存总价值" value={`¥${(kpis.totalValue / 10000).toFixed(1)}w`} subtitle="按当前价格估算" gradient={gradients.revenue} delay={1} />
-        <StatCard label="低库存预警" value={kpis.lowStock} subtitle="库存 ≤ 5 的零件" gradient={gradients.recipes} delay={2} />
-        <StatCard label="缺货零件" value={kpis.outOfStock} subtitle="库存为 0" gradient={gradients.profit} delay={3} />
+        <StatCard label="零件种类" value={parts.length} subtitle={`${categories.length} 个类别`} icon={<PartIcon size={22} />} gradient={gradients.parts} delay={0} />
+        <StatCard label="库存总价值" value={`¥${(kpis.totalValue / 10000).toFixed(1)}w`} subtitle="按当前价格估算" icon={<MoneyIcon size={22} />} gradient={gradients.revenue} delay={1} />
+        <StatCard label="低库存预警" value={kpis.lowStock} subtitle="库存 ≤ 5 的零件" icon={<AlertIcon size={22} />} gradient={gradients.recipes} delay={2} />
+        <StatCard label="缺货零件" value={kpis.outOfStock} subtitle="库存为 0" icon={<OutIcon size={22} />} gradient={gradients.profit} delay={3} />
       </Box>
 
       {/* 主体：全宽列表 */}
@@ -237,11 +267,11 @@ export default function PartsPage() {
               id="parts-search-input"
               size="small" placeholder="搜索型号、供应商..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment> }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon size={18} color="rgba(148,163,184,0.6)" /></InputAdornment> }}
               sx={{ flex: 1, minWidth: 180 }}
             />
             <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel><FilterIcon sx={{ fontSize: 14, mr: 0.3 }} />分类筛选</InputLabel>
+              <InputLabel><FilterIcon size={14} style={{ marginRight: 4 }} />分类筛选</InputLabel>
               <Select
                 id="parts-category-filter"
                 value={filterCategory} label="分类筛选"
@@ -251,8 +281,8 @@ export default function PartsPage() {
                 {categories.map((cat) => <MenuItem key={cat} value={cat}>{getCatIcon(cat)} {cat}</MenuItem>)}
               </Select>
             </FormControl>
-            <Button size="small" variant="text" onClick={() => setCollapsedCategories(new Set())} startIcon={<ExpandMoreIcon />}>展开全部</Button>
-            <Button size="small" variant="text" onClick={() => setCollapsedCategories(new Set(Object.keys(groupedParts)))} startIcon={<ExpandLessIcon />}>折叠全部</Button>
+            <Button size="small" variant="text" onClick={() => setCollapsedCategories(new Set())} startIcon={<ExpandMoreIcon size={18} />}>展开全部</Button>
+            <Button size="small" variant="text" onClick={() => setCollapsedCategories(new Set(Object.keys(groupedParts)))} startIcon={<ExpandLessIcon size={18} />}>折叠全部</Button>
           </Box>
 
           {/* 结果统计 */}
@@ -269,7 +299,7 @@ export default function PartsPage() {
 
           {!loading && filteredParts.length === 0 && (
             <Box textAlign="center" py={8} color="text.secondary">
-              <InventoryIcon sx={{ fontSize: 48, opacity: 0.2, mb: 1, display: 'block', mx: 'auto' }} />
+              <InventoryIcon size={48} style={{ opacity: 0.2, marginBottom: 8, display: 'block', marginInline: 'auto' }} />
               <Typography variant="body2">{parts.length === 0 ? '暂无零件，点击右上角录入' : '未找到匹配的零件'}</Typography>
             </Box>
           )}
@@ -295,25 +325,33 @@ export default function PartsPage() {
                   }}
                 >
                   <Typography sx={{ fontSize: '1rem' }}>{getCatIcon(cat)}</Typography>
+                  <Checkbox 
+                    size="small" 
+                    checked={catParts.length > 0 && catParts.every(p => selectedIds.includes(p.Id))}
+                    indeterminate={catParts.some(p => selectedIds.includes(p.Id)) && !catParts.every(p => selectedIds.includes(p.Id))}
+                    onChange={() => handleSelectGroup(catParts)}
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ p: 0.5, color: cc.text, '&.Mui-checked, &.MuiCheckbox-indeterminate': { color: cc.text } }}
+                  />
                   <Typography variant="subtitle2" fontWeight={800} color={cc.text}>{cat}</Typography>
                   <Chip label={`${catParts.length} 项`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: 'white', color: cc.text, border: `1px solid ${cc.border}` }} />
-                  {zeroCount > 0 && <Chip icon={<ErrorOutlineIcon sx={{ fontSize: '12px !important' }} />} label={`缺货 ${zeroCount}`} size="small" color="error" sx={{ height: 20, fontSize: '0.68rem' }} />}
-                  {lowCount > 0 && <Chip icon={<WarningIcon sx={{ fontSize: '12px !important' }} />} label={`低库存 ${lowCount}`} size="small" color="warning" sx={{ height: 20, fontSize: '0.68rem' }} />}
+                  {zeroCount > 0 && <Chip icon={<ErrorOutlineIcon size={14} />} label={`缺货 ${zeroCount}`} size="small" color="error" sx={{ height: 20, fontSize: '0.68rem', '& .MuiChip-icon': { ml: 0.5 } }} />}
+                  {lowCount > 0 && <Chip icon={<WarningIcon size={14} />} label={`低库存 ${lowCount}`} size="small" color="warning" sx={{ height: 20, fontSize: '0.68rem', '& .MuiChip-icon': { ml: 0.5 } }} />}
                   <Box flex={1} />
                   <IconButton size="small" sx={{ color: cc.text, opacity: 0.6 }}>
-                    {isCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                    {isCollapsed ? <ExpandMoreIcon size={20} /> : <ExpandLessIcon size={20} />}
                   </IconButton>
                 </Box>
 
                 {/* 表头 */}
                 <Collapse in={!isCollapsed}>
-                  <Box sx={{ px: 2, py: 1, display: 'grid', gridTemplateColumns: { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 90px' }, gap: 1.5, bgcolor: 'rgba(0,0,0,0.012)', borderBottom: '1px solid', borderColor: 'divider' }}>
-                    {['型号 / 类别', '单价', '供应商', '库存', '操作'].map((h) => (
-                      <Typography key={h} variant="caption" color="text.disabled" fontWeight={700} sx={{ display: h === '供应商' ? { xs: 'none', sm: 'block' } : 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{h}</Typography>
+                  <Box sx={{ px: 2, py: 1, display: 'grid', gridTemplateColumns: { xs: '30px 2fr 1fr 70px 80px', sm: '40px 2fr 1fr 1fr 90px 90px' }, gap: 1.5, bgcolor: 'rgba(0,0,0,0.012)', borderBottom: '1px solid', borderColor: 'divider' }}>
+                    {[{label:'', hSm:!1}, {label:'型号 / 类别', hSm:!1}, {label:'单价', hSm:!1}, {label:'供应商', hSm:!0}, {label:'库存', hSm:!1}, {label:'操作', hSm:!1}].map((h, i) => (
+                      <Typography key={i} variant="caption" color="text.disabled" fontWeight={700} sx={{ display: h.hSm ? { xs: 'none', sm: 'block' } : 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{h.label}</Typography>
                     ))}
                   </Box>
                   {catParts.map((p, idx) => (
-                    <PartRow key={p.Id} part={p} onEdit={handleEdit} onDelete={handleDelete} index={idx} />
+                    <PartRow key={p.Id} part={p} onEdit={handleEdit} onDelete={handleDelete} index={idx} selected={selectedIds.includes(p.Id)} onSelect={toggleSelect} />
                   ))}
                 </Collapse>
               </Box>
@@ -374,6 +412,26 @@ export default function PartsPage() {
         customCategories={customCategories}
         onChange={setCustomCategories}
       />
+
+      {/* 批量操作浮动栏 */}
+      <Slide direction="up" in={selectedIds.length > 0} mountOnEnter unmountOnExit>
+        <Paper
+          elevation={12}
+          sx={{
+            position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 1.5, borderRadius: 999,
+            background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)',
+            zIndex: 1300, color: 'white', whiteSpace: 'nowrap'
+          }}
+        >
+          <Typography variant="body2" fontWeight={700}>已选择 {selectedIds.length} 项</Typography>
+          <Box sx={{ width: 1, height: 24, bgcolor: 'rgba(255,255,255,0.2)' }} />
+          <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<LocalOfferIcon />} onClick={() => { /* TODO: Batch Price */ }}>批量调价</Button>
+          <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<DownloadIcon />} onClick={() => { /* TODO: CSV export */ }}>导出 CSV</Button>
+          <Button variant="text" size="small" sx={{ color: '#ef4444', fontWeight: 600, '&:hover': { bgcolor: 'rgba(239,68,68,0.1)' } }} startIcon={<DeleteIcon />} onClick={() => { /* TODO: Batch Delete */ }}>删除</Button>
+          <IconButton size="small" onClick={() => setSelectedIds([])} sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, p: 0.5 }}><CloseIcon fontSize="small" /></IconButton>
+        </Paper>
+      </Slide>
 
       {/* ══════════════════════════════════════════════════════════
           Harness 自动化测试面板（仅开发/演示用）
@@ -639,7 +697,7 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
     <Paper elevation={0} sx={{ mt: 3, border: `2px solid ${colors.purple.border}`, borderRadius: 3, overflow: 'hidden' }}>
       {/* 顶部工具栏 */}
       <Box sx={{ px: 3, py: 2, background: gradients.brand, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <BugReportIcon sx={{ color: 'white', fontSize: 22 }} />
+        <BugReportIcon size={22} color="white" />
         <Box flex={1}>
           <Typography variant="subtitle1" fontWeight={800} color="white">Harness 自动化测试面板</Typography>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
@@ -655,7 +713,7 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
         <Button
           id="run-all-tests-btn"
           variant="contained"
-          startIcon={<PlayIcon />}
+          startIcon={<PlayIcon size={20} />}
           onClick={runAllTests}
           disabled={testRunning}
           sx={{ bgcolor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)', '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }, fontWeight: 700, boxShadow: 'none' }}
@@ -670,7 +728,7 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
       <Box sx={{ maxHeight: 420, overflowY: 'auto', '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.1)', borderRadius: 2 } }}>
         {testResults.length === 0 ? (
           <Box textAlign="center" py={5} color="text.secondary">
-            <BugReportIcon sx={{ fontSize: 40, opacity: 0.15, display: 'block', mx: 'auto', mb: 1 }} />
+            <BugReportIcon size={40} style={{ opacity: 0.15, display: 'block', marginInline: 'auto', marginBottom: 8 }} />
             <Typography variant="body2">点击「运行全部测试」以开始校验</Typography>
           </Box>
         ) : (
@@ -688,8 +746,8 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
                 >
                   <Box sx={{ mt: 0.15 }}>
                     {r.passed
-                      ? <CheckCircleIcon sx={{ fontSize: 18, color: colors.green.main }} />
-                      : <ErrorOutlineIcon sx={{ fontSize: 18, color: colors.red.main }} />}
+                      ? <CheckCircleIcon size={20} color={colors.green.main} />
+                      : <ErrorOutlineIcon size={20} color={colors.red.main} />}
                   </Box>
                   <Box flex={1}>
                     <Box display="flex" alignItems="center" gap={1}>
@@ -715,8 +773,8 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
       {testResults.length > 0 && (
         <Box sx={{ px: 3, py: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, bgcolor: failed === 0 ? colors.green.bg : colors.red.bg }}>
           {failed === 0
-            ? <><CheckCircleIcon sx={{ color: colors.green.main, fontSize: 18 }} /><Typography variant="caption" fontWeight={700} color={colors.green.text}>🎉 所有 {passed} 个测试用例全部通过！</Typography></>
-            : <><ErrorOutlineIcon sx={{ color: colors.red.main, fontSize: 18 }} /><Typography variant="caption" fontWeight={700} color={colors.red.text}>⚠ {failed} 个测试失败，请查看上方详情</Typography></>
+            ? <><CheckCircleIcon color={colors.green.main} size={20} /><Typography variant="caption" fontWeight={700} color={colors.green.text}>🎉 所有 {passed} 个测试用例全部通过！</Typography></>
+            : <><ErrorOutlineIcon color={colors.red.main} size={20} /><Typography variant="caption" fontWeight={700} color={colors.red.text}>⚠ {failed} 个测试失败，请查看上方详情</Typography></>
           }
           <Box flex={1} />
           <Typography variant="caption" color="text.disabled">

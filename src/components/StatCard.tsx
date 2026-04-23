@@ -1,5 +1,5 @@
-import React from 'react';
-import { Paper, Box, Typography, Avatar, Fade } from '@mui/material';
+import { Paper, Box, Typography, Fade } from '@mui/material';
+import { LineChart, Line } from 'recharts';
 
 interface StatCardProps {
   /** 标签文字，如"订单总数" */
@@ -14,34 +14,26 @@ interface StatCardProps {
   gradient: string;
   /** 入场动画延时因子（0, 1, 2, ...），用于错开淡入 */
   delay?: number;
+  /** 可选微型图表数据 */
+  chartData?: { name: string, value: number }[];
+  /** 图表走势线颜色 */
+  chartColor?: string;
 }
 
-export default function StatCard({ label, value, subtitle, icon, gradient, delay = 0 }: StatCardProps) {
+export default function StatCard({ label, value, subtitle, icon, gradient, delay = 0, chartData, chartColor = '#3b82f6' }: StatCardProps) {
   return (
     <Fade in timeout={400 + delay * 150}>
       <Paper
-        elevation={0}
         sx={{
-          p: 2.5,
-          borderRadius: 3,
+          p: { xs: 2.5, sm: 3 },
           position: 'relative',
           overflow: 'hidden',
           flex: 1,
-          border: '1px solid',
-          borderColor: 'divider',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             transform: { xs: 'none', sm: 'translateY(-4px)' },
-            boxShadow: '0 12px 40px rgba(0,0,0,0.08)',
-          },
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: gradient,
+            boxShadow: 'var(--shadow-heavy)',
+            borderColor: 'rgba(148, 163, 184, 0.4)',
           },
         }}
       >
@@ -49,35 +41,48 @@ export default function StatCard({ label, value, subtitle, icon, gradient, delay
           <Box>
             <Typography
               variant="caption"
-              sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.7rem' }}
+              sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.75rem' }}
             >
               {label}
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, letterSpacing: -0.5, fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
+            <Typography variant="h3" sx={{ fontWeight: 900, mt: 1, letterSpacing: '-0.04em', fontSize: { xs: '1.75rem', sm: '2.5rem' } }}>
               {value}
             </Typography>
             {subtitle && (
-              <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.75, display: 'block', fontWeight: 500 }}>
                 {subtitle}
               </Typography>
             )}
           </Box>
           {icon && (
-            <Avatar
+              <Box
               sx={{
                 background: gradient,
-                width: { xs: 36, sm: 44 },
-                height: { xs: 36, sm: 44 },
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                '& .MuiSvgIcon-root': {
-                  fontSize: { xs: 20, sm: 24 }
+                width: { xs: 42, sm: 56 },
+                height: { xs: 42, sm: 56 },
+                borderRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                boxShadow: '0 8px 24px rgba(15, 23, 42, 0.1)',
+                '& > svg': {
+                  width: { xs: 20, sm: 26 },
+                  height: { xs: 20, sm: 26 },
                 }
               }}
             >
               {icon}
-            </Avatar>
+            </Box>
           )}
         </Box>
+        {chartData && chartData.length > 0 && (
+          <Box sx={{ height: 48, mt: 2, mx: -2.5, mb: -3, opacity: 0.6, overflow: 'hidden' }}>
+            <LineChart width={300} height={48} data={chartData} style={{ width: '100%', height: '100%' }}>
+              <Line type="monotone" dataKey="value" stroke={chartColor} strokeWidth={2.5} dot={false} isAnimationActive={true} />
+            </LineChart>
+          </Box>
+        )}
       </Paper>
     </Fade>
   );
