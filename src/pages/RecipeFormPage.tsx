@@ -165,9 +165,22 @@ export default function RecipeFormPage() {
       setCableWire(coilResult.wireGauge);
     }
     if (coilResult.capacitor) {
-      const uf = String(coilResult.capacitor);
-      const capPart = parts.find(p => p.category === '电容' && p.model.includes(uf));
-      if (capPart) setCapacitorModel(capPart.model);
+      // 从线圈表的 default_capacitor 提取纯数值 (如 "18" → 18, "20uF" → 20)
+      const rawCap = String(coilResult.capacitor).replace(/[uUfF\s]/g, '').trim();
+      const capValue = parseFloat(rawCap);
+      if (!isNaN(capValue)) {
+        // 匹配优先级: 1) 型号以 "{capValue}uF" 开头 2) 型号中包含该数值
+        const capParts = parts.filter(p => p.category === '电容');
+        const exact = capParts.find(p => {
+          const m = p.model.toLowerCase();
+          return m.startsWith(`${capValue}uf`) || m.startsWith(`${capValue}UF`);
+        });
+        const fuzzy = exact || capParts.find(p => p.model.includes(`${capValue}uF`) || p.model.includes(`${capValue}UF`) || p.model.includes(`${capValue}uf`));
+        if (fuzzy) setCapacitorModel(fuzzy.model);
+        else setCapacitorModel('');
+      }
+    } else {
+      setCapacitorModel('');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coilResult]);
@@ -406,6 +419,7 @@ export default function RecipeFormPage() {
           useCoilCustomWeight={useCoilCustomWeight} setUseCoilCustomWeight={setUseCoilCustomWeight}
           coilCustomWireWeight={coilCustomWireWeight} setCoilCustomWireWeight={setCoilCustomWireWeight}
           coilResult={coilResult} coilLoading={coilLoading}
+          capacitorModel={capacitorModel} capacitorPrice={capCost}
           optionalParts={optionalParts} handleAddOptional={handleAddOptional}
           handleOptionalChange={handleOptionalChange} handleRemoveOptional={handleRemoveOptional}
           hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}

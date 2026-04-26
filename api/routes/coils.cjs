@@ -106,21 +106,21 @@ router.post('/calculate', async (req, res) => {
                 coilFee = parseFloat(lower.coilFee || 0) + (parseFloat(upper.coilFee || 0) - parseFloat(lower.coilFee || 0)) * ratio;
                 rotorFee = parseFloat(lower.rotorFee || 0) + (parseFloat(upper.rotorFee || 0) - parseFloat(lower.rotorFee || 0)) * ratio;
                 wireGauge = lower.defaultWireGauge || upper.defaultWireGauge || null;
-                capacitor = null;
+                capacitor = lower.defaultCapacitor || upper.defaultCapacitor || null;
                 source = `插值(${lS}片↔${uS}片, ratio=${ratio.toFixed(3)})`;
             } else if (lower) {
                 unitPrice = parseFloat(lower.unitPrice || 0);
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(lower.wireWeight || 0);
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.copperBase || 0);
                 coilFee = parseFloat(lower.coilFee || 0); rotorFee = parseFloat(lower.rotorFee || 0);
-                wireGauge = lower.defaultWireGauge || null; capacitor = null;
+                wireGauge = lower.defaultWireGauge || null; capacitor = lower.defaultCapacitor || null;
                 source = `外推(基于${parseInt(lower.sheets)}片)`;
             } else if (upper) {
                 unitPrice = parseFloat(upper.unitPrice || 0);
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(upper.wireWeight || 0);
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(upper.copperBase || 0);
                 coilFee = parseFloat(upper.coilFee || 0); rotorFee = parseFloat(upper.rotorFee || 0);
-                wireGauge = upper.defaultWireGauge || null; capacitor = null;
+                wireGauge = upper.defaultWireGauge || null; capacitor = upper.defaultCapacitor || null;
                 source = `外推(基于${parseInt(upper.sheets)}片)`;
             }
         }

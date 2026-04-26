@@ -39,6 +39,9 @@ interface StepPartsConfigProps {
   coilResult: CoilCalcResult | null;
   coilLoading: boolean;
 
+  capacitorModel: string;
+  capacitorPrice: number;
+
   optionalParts: Array<PartSelection & { id: number }>;
   handleAddOptional: () => void;
   handleOptionalChange: (id: number, field: keyof PartSelection, value: string | number) => void;
@@ -72,6 +75,7 @@ export default function StepPartsConfig({
   coilSpecs, coilSpec, setCoilSpec, coilSheets, setCoilSheets,
   useCoilCustomWeight, setUseCoilCustomWeight, coilCustomWireWeight, setCoilCustomWireWeight,
   coilResult, coilLoading,
+  capacitorModel, capacitorPrice,
   optionalParts, handleAddOptional, handleOptionalChange, handleRemoveOptional,
   hasFloat, setHasFloat, floatWire, setFloatWire,
   hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire,
@@ -179,6 +183,29 @@ export default function StepPartsConfig({
             </Typography>
           )}
         </Box>
+        {/* 电容联动提示 */}
+        {capacitorModel && (
+          <Box sx={{ px: 2, py: 0.75, bgcolor: 'rgba(46, 125, 50, 0.04)', borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              ⚡ 自动关联电容：
+            </Typography>
+            <Chip
+              label={capacitorModel}
+              size="small"
+              variant="outlined"
+              color="success"
+              sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+            />
+            <Typography variant="caption" color="success.main" fontWeight={600}>
+              ¥{capacitorPrice.toFixed(2)}
+            </Typography>
+            {coilResult?.capacitor && (
+              <Typography variant="caption" color="text.disabled" sx={{ ml: 'auto' }}>
+                来自线圈表: {coilResult.capacitor}
+              </Typography>
+            )}
+          </Box>
+        )}
       </Paper>
 
       {/* ━━ 选配配件 ━━ */}
