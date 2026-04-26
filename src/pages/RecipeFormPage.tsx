@@ -7,13 +7,11 @@ import {
   Box,
   CircularProgress,
   IconButton,
-  Stepper,
-  Step,
-  StepLabel,
+  Button,
 } from '@mui/material';
-import { ArrowLeft as BackIcon } from 'lucide-react';
+import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { RecipePart, TemplatePart, PartSelection } from '../types';
-import { createRecipe, updateRecipe } from '../utils/api';
+import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { colors } from '../utils/theme';
@@ -39,10 +37,6 @@ export default function RecipeFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  // Stepper
-  const STEPS = ['基本信息 + 模板', '配件配置', '工资 + 确认'];
-  const [activeStep, setActiveStep] = useState(0);
 
   // 基本信息
   const [recipeName, setRecipeName] = useState(editFrom?.name || cloneFrom?.name || '');
@@ -120,8 +114,7 @@ export default function RecipeFormPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${COIL_API_BASE}/api/coils/specs`);
-        const json = await res.json();
+        const json = await proxyRequest<{ success: boolean; data: CoilSpecInfo[] }>(`${COIL_API_BASE}/api/coils/specs`);
         if (json.success) setCoilSpecs(json.data);
       } catch (err) {
         console.error('加载线圈规格失败:', err);
@@ -135,12 +128,11 @@ export default function RecipeFormPage() {
       setCoilLoading(true);
       const body: Record<string, unknown> = { spec, sheets: parseInt(sheets) };
       if (customWeight) body.wireWeight = parseFloat(customWeight);
-      const res = await fetch(`${COIL_API_BASE}/api/coils/calculate`, {
+      const json = await proxyRequest<{ success: boolean; data: CoilCalcResult }>(`${COIL_API_BASE}/api/coils/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      const json = await res.json();
       if (json.success) setCoilResult(json.data);
       else setCoilResult(null);
     } catch {
@@ -281,7 +273,8 @@ export default function RecipeFormPage() {
     }
   }, [selectedTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const templateCost = templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
+  const shellPrice = selectedTemplate ? getPriceByModelAndSupplier(selectedTemplate.shell_model, '') : 0;
+  const templateCost = shellPrice + templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
 
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
@@ -304,6 +297,11 @@ export default function RecipeFormPage() {
 
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
+    // 泵壳本体
+    if (selectedTemplate) {
+      const sp = getPriceByModelAndSupplier(selectedTemplate.shell_model, '');
+      all.push({ model: selectedTemplate.shell_model, name: '泵壳', supplier: '', qty: 1, snapshotPrice: sp });
+    }
     templateParts.forEach(p => {
       const supplier = p.supplier || '';
       const price = getPriceByModelAndSupplier(p.model, supplier);
@@ -320,7 +318,7 @@ export default function RecipeFormPage() {
     });
     all.push(...buildConfigParts());
     return all;
-  }, [templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
+  }, [selectedTemplate, templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
 
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
   const laborCost = useMemo(() => (assemblyWage || 0) + (packingWage || 0) + (paintingWage || 0) + (managementFee || 0), [assemblyWage, packingWage, paintingWage, managementFee]);
@@ -394,54 +392,54 @@ export default function RecipeFormPage() {
         </Box>
       </Box>
 
-      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
-        {STEPS.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
-      </Stepper>
-
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
-      {activeStep === 0 && (
-        <StepTemplateSelect
-          recipeName={recipeName} setRecipeName={setRecipeName}
-          recipeSpec={recipeSpec} setRecipeSpec={setRecipeSpec}
-          selectedTemplateId={selectedTemplateId} setSelectedTemplateId={setSelectedTemplateId}
-          templates={templates} templateParts={templateParts} templateCost={templateCost}
-          getPriceByModelAndSupplier={getPriceByModelAndSupplier} shellMetaInfo={shellMetaInfo}
-          customBarrelLength={customBarrelLength} setCustomBarrelLength={setCustomBarrelLength}
-          onNext={() => setActiveStep(1)}
-        />
-      )}
+      <StepTemplateSelect
+        recipeName={recipeName} setRecipeName={setRecipeName}
+        recipeSpec={recipeSpec} setRecipeSpec={setRecipeSpec}
+        selectedTemplateId={selectedTemplateId} setSelectedTemplateId={setSelectedTemplateId}
+        templates={templates} templateParts={templateParts} templateCost={templateCost}
+        getPriceByModelAndSupplier={getPriceByModelAndSupplier} shellMetaInfo={shellMetaInfo}
+        customBarrelLength={customBarrelLength} setCustomBarrelLength={setCustomBarrelLength}
+      />
 
-      {activeStep === 1 && (
-        <StepPartsConfig
-          coilSpecs={coilSpecs} coilSpec={coilSpec} setCoilSpec={setCoilSpec}
-          coilSheets={coilSheets} setCoilSheets={setCoilSheets}
-          useCoilCustomWeight={useCoilCustomWeight} setUseCoilCustomWeight={setUseCoilCustomWeight}
-          coilCustomWireWeight={coilCustomWireWeight} setCoilCustomWireWeight={setCoilCustomWireWeight}
-          coilResult={coilResult} coilLoading={coilLoading}
-          capacitorModel={capacitorModel} capacitorPrice={capCost}
-          optionalParts={optionalParts} handleAddOptional={handleAddOptional}
-          handleOptionalChange={handleOptionalChange} handleRemoveOptional={handleRemoveOptional}
-          hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}
-          hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
-          cableWire={cableWire} setCableWire={setCableWire}
-          boxType={boxType} setBoxType={setBoxType}
-          parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}
-          getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
-          onPrev={() => setActiveStep(0)} onNext={() => setActiveStep(2)}
-        />
-      )}
+      <StepPartsConfig
+        coilSpecs={coilSpecs} coilSpec={coilSpec} setCoilSpec={setCoilSpec}
+        coilSheets={coilSheets} setCoilSheets={setCoilSheets}
+        useCoilCustomWeight={useCoilCustomWeight} setUseCoilCustomWeight={setUseCoilCustomWeight}
+        coilCustomWireWeight={coilCustomWireWeight} setCoilCustomWireWeight={setCoilCustomWireWeight}
+        coilResult={coilResult} coilLoading={coilLoading}
+        capacitorModel={capacitorModel} capacitorPrice={capCost}
+        optionalParts={optionalParts} handleAddOptional={handleAddOptional}
+        handleOptionalChange={handleOptionalChange} handleRemoveOptional={handleRemoveOptional}
+        hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}
+        hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
+        cableWire={cableWire} setCableWire={setCableWire}
+        boxType={boxType} setBoxType={setBoxType}
+        parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}
+        getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
+      />
 
-      {activeStep === 2 && (
-        <StepWageConfirm
-          selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
-          packingWage={packingWage} setPackingWage={setPackingWage} paintingWage={paintingWage} setPaintingWage={setPaintingWage}
-          managementFee={managementFee} setManagementFee={setManagementFee} laborCost={laborCost}
-          recipeName={recipeName} recipeSpec={recipeSpec} coilSpec={coilSpec} coilSheets={coilSheets}
-          optionalParts={optionalParts} allPartsPreview={allPartsPreview}
-          saving={saving} handleSubmit={handleSubmit} onPrev={() => setActiveStep(1)}
-        />
-      )}
+      <StepWageConfirm
+        selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
+        packingWage={packingWage} setPackingWage={setPackingWage} paintingWage={paintingWage} setPaintingWage={setPaintingWage}
+        managementFee={managementFee} setManagementFee={setManagementFee} laborCost={laborCost}
+        recipeName={recipeName} recipeSpec={recipeSpec} coilSpec={coilSpec} coilSheets={coilSheets}
+        optionalParts={optionalParts}
+      />
+
+      <Button
+        variant="contained"
+        color="success"
+        size="large"
+        fullWidth
+        startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon size={18} />}
+        onClick={handleSubmit}
+        disabled={saving || !recipeName.trim() || (allPartsPreview.length === 0 && !selectedTemplateId)}
+        sx={{ mt: 2 }}
+      >
+        完成保存
+      </Button>
     </Paper>
 
     {/* 浮动面板 */}
@@ -449,7 +447,7 @@ export default function RecipeFormPage() {
       <Box sx={{ maxWidth: 960, mx: 'auto', display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 3 }, flexWrap: 'wrap' }}>
         {selectedTemplate && (
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>模板配件</Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>模板(含泵壳)</Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.purple.main }}>¥{templateCost.toFixed(0)}</Typography>
           </Box>
         )}

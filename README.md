@@ -1,236 +1,144 @@
-# 水泵 BOM 管理与出图系统
+# 水泵 BOM 成本管理系统
 
-集成订单/配方/库存/成本核算、DeepSeek AI Agent、企业微信助手和 FreeCAD 参数化出图的水泵生产管理系统。
+集成订单 / 配方 / 库存 / 成本核算 + DeepSeek AI Agent + 企微助手 + FreeCAD 转子出图的水泵生产管理系统。
 
 ## 技术栈
 
-| 层     | 技术                                                         |
-| ------ | ------------------------------------------------------------ |
-| 前端   | React 18 + TypeScript + Vite + MUI 5 + Zustand               |
-| 后端   | Node.js Express 5 + better-sqlite3                            |
-| AI     | DeepSeek Chat (Function Calling) + 阿里云 ASR 语音识别        |
-| 出图   | FreeCAD TechDraw 2D 投影自动化（独立子进程调度）               |
-| 部署   | PM2 守护进程 + Cloudflare Tunnel 外网暴露                     |
-
----
+| 层 | 技术 |
+|---|------|
+| 前端 | React 18 + TypeScript + Vite + MUI 5 + Zustand |
+| 后端 | Node.js + Express 5 + better-sqlite3 |
+| AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
+| 出图 | FreeCAD Python 脚本 + PDF 生成 |
+| 通讯 | 企业微信 Webhook + Siri 快捷指令 |
 
 ## 项目结构
 
 ```
-├── api.cjs                 # Express 入口（挂载路由 + 静态托管）
+├── api.cjs                  # Express 入口 — 路由挂载 + 中间件 + 静态托管
 ├── api/
-│   ├── db.cjs              # SQLite 数据层
-│   ├── authMiddleware.cjs  # JWT 认证中间件
-│   ├── routes/
-│   │   ├── ai.cjs          # AI 路由入口（拆分到 ai/ 子目录）
-│   │   ├── ai/             # AI 子模块（chat/prompt/voice/siri/tools/executor）
-│   │   ├── auth.cjs        # 登录/登出/状态检查
-│   │   ├── parts.cjs       # 零件 CRUD
-│   │   ├── recipes.cjs     # 配方 CRUD
-│   │   ├── orders.cjs      # 订单 CRUD
-│   │   ├── templates.cjs   # 泵壳模板 CRUD
-│   │   ├── coils.cjs       # 线圈记录 + 成本计算
-│   │   ├── cost.cjs        # 成本精算（含铜价更新）
-│   │   ├── rotor.cjs       # 转子出图（NL + 结构化参数）
-│   │   ├── settings.cjs    # 系统全局配置
-│   │   └── wecom.cjs       # 企业微信 Webhook
-│   └── __tests__/          # 后端测试
-├── src/                    # React 前端源码
-│   ├── pages/              # 页面组件
-│   ├── components/         # UI 组件
-│   ├── utils/              # API 封装、Store、主题
-│   └── types/              # TypeScript 类型定义
-├── freecad/                # FreeCAD worker.py 脚本
-├── scripts/                # 种子数据 / 数据库备份脚本
-├── docs/                   # 补充文档
-└── public/                 # 静态资源
+│   ├── db.cjs               # SQLite 初始化 + 建表 + Row Adapter + 工具函数
+│   └── routes/
+│       ├── parts.cjs         # 零件 CRUD
+│       ├── recipes.cjs       # 配方 CRUD
+│       ├── orders.cjs        # 订单 CRUD + 历史价格查询
+│       ├── coils.cjs         # 线圈 CRUD + 成本插值计算
+│       ├── templates.cjs     # 泵壳模板 CRUD
+│       ├── cost.cjs          # 成本计算 + 铜价定时更新
+│       ├── rotor.cjs         # FreeCAD 转子出图调度
+│       ├── auth.cjs          # JWT 认证
+│       ├── settings.cjs      # 系统设置
+│       ├── wecom.cjs         # 企业微信消息接收
+│       └── ai/               # AI 对话 + 语音 + Siri
+├── src/
+│   ├── main.tsx              # React 入口 + AuthGuard
+│   ├── App.tsx               # 路由 + 导航布局
+│   ├── pages/                # 页面组件
+│   ├── components/           # 通用 + 业务组件
+│   └── utils/
+│       ├── api.ts            # proxyRequest 统一请求层
+│       ├── store.ts          # Zustand 全局状态
+│       ├── orderStore.ts     # 订单业务逻辑
+│       ├── costCalculator.ts # 前端成本计算（与 db.cjs 同步）
+│       └── theme.ts          # MUI 主题 + 设计 Token
+├── freecad/                  # FreeCAD 出图模板与脚本
+├── wechat-miniprogram/       # 微信小程序语音助手
+├── scripts/
+│   └── seed-demo-data.cjs    # 演示数据播种
+└── docs/                     # 技术文档
 ```
 
----
-
-## 开发环境（Windows / Mac）
-
-### 1. 前置条件
-
-- Node.js ≥ 18
-- npm
-
-### 2. 环境变量
-
-在项目根目录创建 `.env`（已 gitignore）：
-
-```env
-ACCESS_PASSWORD=你的登录密码
-JWT_SECRET=随机长字符串
-
-# AI 引擎
-DEEPSEEK_API_KEY=sk-...
-ALIYUN_APP_KEY=阿里云ASR的AppKey
-ALIYUN_AK_ID=阿里云AccessKey
-ALIYUN_AK_SECRET=阿里云Secret
-
-# 企业微信（可选）
-WECOM_CORP_ID=ww...
-WECOM_AGENT_ID=1000xxx
-WECOM_SECRET=...
-WECOM_TOKEN=...
-WECOM_ENCODING_AES_KEY=...
-
-# FreeCAD 路径（可选，仅出图功能需要）
-# Windows:
-FREECAD_BIN=C:\Program Files\FreeCAD 1.1\bin\freecad.exe
-# macOS:
-# FREECAD_BIN=/Applications/FreeCAD.app/Contents/MacOS/FreeCAD
-```
-
-### 3. 启动
-
-```bash
-npm install
-npm start          # 同时启动 Vite (https://localhost:3000) + Express API (:3002)
-```
-
-前端通过 Vite proxy 将 `/api/*` 转发到 `localhost:3002`，无需额外配置。
-
----
-
-## 生产环境（Mac Mini + Cloudflare Tunnel）
-
-### 1. 首次部署
+## 快速开始
 
 ```bash
 # 安装依赖
 npm install
 
-# 构建前端静态文件
+# 开发模式（前端 :3000 + 后端 :3002）
+npm start
+
+# 仅启动后端
+npm run server
+
+# 生产构建
 npm run build
-
-# 全局安装 PM2
-npm install -g pm2
-
-# 启动 API（Express 自动托管 dist/ 静态文件）
-pm2 start api.cjs --name pump-api
-
-# 设置开机自启
-pm2 startup
-pm2 save
 ```
 
-### 2. .env 补充配置
-
-生产环境 `.env` 中额外添加：
+### 环境变量 (.env)
 
 ```env
-BEHIND_PROXY=true
+ACCESS_PASSWORD=xxx           # 登录密码
+JWT_SECRET=xxx                # JWT 签名密钥
+DEEPSEEK_API_KEY=sk-xxx       # DeepSeek API Key
+ALI_ACCESS_KEY_ID=xxx         # 阿里云 ASR
+ALI_ACCESS_KEY_SECRET=xxx
+SIRI_API_TOKEN=xxx            # Siri 快捷指令 Token
+WECOM_TOKEN=xxx               # 企微回调 Token
+WECOM_ENCODING_AES_KEY=xxx    # 企微消息加密密钥
+WECOM_CORPID=xxx              # 企微企业 ID
+WECOM_CORPSECRET=xxx          # 企微应用 Secret
+CORS_ORIGIN=https://xxx       # 生产环境 CORS 域名（可选）
 ```
 
-> `BEHIND_PROXY=true` 会让 Cookie 设置为 `secure: true` + `sameSite: none`，
-> 确保通过 Cloudflare Tunnel (HTTPS) 访问时认证正常。
+## 架构要点
 
-### 3. Cloudflare Tunnel 配置
+### 数据流
 
-```bash
-# Mac Mini 上安装 cloudflared
-brew install cloudflare/cloudflare/cloudflared
-
-# 使用 Dashboard 生成的 token 注册为系统服务
-sudo cloudflared service install <TOKEN>
+```
+前端 (proxyRequest) → Vite Proxy → Express API → better-sqlite3 → pump.db
 ```
 
-Dashboard 设置：
-- **Public Hostname**: 你的域名
-- **Service**: `HTTP` → `localhost:3002`
-
-### 4. 防休眠
-
-Mac Mini 必须关闭自动休眠，否则 tunnel 会断连：
-
-```bash
-sudo pmset -a sleep 0 disksleep 0
-```
-
-### 5. 日常更新部署
-
-```bash
-ssh dan@192.168.31.216
-cd ~/Documents/pump-cost-accounting-system
-git pull && npm run build && pm2 restart pump-api
-```
-
----
-
-## API 端点一览
-
-所有业务接口（除标注外）均需 JWT 认证（HttpOnly Cookie）。
-
-### 认证
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/auth/login` | 密码登录，设置 Cookie |
-| POST | `/api/auth/logout` | 清除 Cookie |
-| GET  | `/api/auth/check` | 检查登录状态 |
-
-### 数据 CRUD
-
-| 资源 | GET | POST | PATCH | DELETE |
-|------|-----|------|-------|--------|
-| `/api/parts[/:id]` | 全部零件 | 新增 | 更新 | 删除 |
-| `/api/recipes[/:id]` | 全部配方 | 新增(含快照) | 更新 | 删除 |
-| `/api/orders[/:id]` | 全部订单 | 新增 | 更新 | 删除 |
-| `/api/templates[/:id]` | 泵壳模板 | 新增 | 更新 | 删除 |
-| `/api/coils[/:id]` | 线圈记录 | 新增(自动算) | 更新(自动重算) | 删除 |
-
-### 成本计算
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/cost/calculate` | 按零件数组算成本 |
-| GET  | `/api/cost/recipe/:id` | 按配方 ID 查成本 |
-| GET  | `/api/cost/recipe/by-name?name=xxx` | 按名称查成本 |
-| POST | `/api/cost/dynamic-config` | 动态配置成本(浮球/电缆/包材) |
-| POST | `/api/cost/full-calculate` | **一站式 BOM 计算(推荐)** |
-| GET  | `/api/copper-price` | 实时铜价 |
-| POST | `/api/copper-price/update` | 手动触发铜价更新 |
-
-### AI 智能助手
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/ai/chat` | AI 对话 (SSE 流式) |
-| GET/PUT | `/api/ai/system-prompt` | 管理 System Prompt |
-| POST | `/api/voice/asr` | 语音识别 (阿里云 ASR) |
-| POST | `/api/siri/chat` | Siri 快捷指令对话 (公开) |
-
-### 转子出图
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/rotor/chat` | 自然语言出图 |
-| POST | `/api/rotor/draw` | 结构化参数出图 |
-| GET  | `/api/rotor/status/:jobId` | 查询出图任务状态 |
-| GET  | `/api/rotor/history` | 出图历史记录 |
-
-### 其他
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET  | `/api/health` | 健康检查 (公开) |
-| GET/POST | `/api/wecom/webhook` | 企微回调 (公开) |
-| GET/PUT | `/api/settings/:key` | 系统全局配置 |
+- 所有前端请求通过 `proxyRequest()` 统一处理，自动携带 Cookie、处理 401 跳转登录
+- 后端所有动态 UPDATE 操作通过 `safeUpdate()` 执行，列名正则校验 + 表名白名单防 SQL 注入
+- Row Adapter（`partRow` / `recipeRow` 等）统一输出 camelCase 字段
 
 ### 成本计算公式
 
 ```
-总成本 = 配件成本 + 线圈成本 + 动态配置(浮球/电缆/包材) + 人工工资(安装+打包+喷漆) + 管理费
+总成本 = 配件成本 + 线圈成本 + 动态配置 + 人工工资 + 管理费
 ```
 
----
+- **配件成本**：精确匹配（型号+供应商）→ 型号回退（最低价）
+- **线圈成本**：`单价×片数 + 线重×铜价 + 线圈加工费 + 转子加工费`（支持片数插值）
+- **人工工资**：安装 / 打包 / 喷漆，绑定泵壳模板，配方可覆盖
+- **管理费**：全局默认值存 `system_settings` 表
 
-## 踩坑记录
+### 定时任务
 
-1. **Express 5 通配符路由** — `'*'` 和 `'{*path}'` 在不同版本 path-to-regexp 下都可能报 `PathError`，SPA fallback 请直接用正则 `/(.*)/`。
-2. **Cloudflare Tunnel 502/1033** — 99% 是 Mac Mini 自动休眠断网导致，用 `pmset -a sleep 0` 关闭。
-3. **HTTPS 认证失败 (401)** — 当 Express 跑在反向代理后面，Cookie 需要 `secure: true` + `sameSite: 'none'`，通过 `BEHIND_PROXY=true` 环境变量启用，同时 `app.set('trust proxy', 1)` 已内置。
-4. **企微 60020/42028 错误** — 需在企微后台绑定可信 IP；`.env` 粘贴 AES Key 时注意清除 Windows 回车符。
-5. **前端更新不生效** — `git pull` 后必须 `npm run build` 重新构建前端产物，仅重启后端不够。
+| 任务 | 时间 | 机制 |
+|------|------|------|
+| 铜价更新 | 每天 15:00 BJT | setTimeout 链式调度 |
+| 数据库备份 | 每天 03:00 BJT | VACUUM INTO + 保留最近 7 份 |
+| 启动时 | 服务启动 | WAL Checkpoint + 立即备份一次 |
+
+### 审计日志
+
+所有通过 `safeUpdate()` 的写操作自动记录到 `audit_log` 表：
+
+```
+(action, table_name, record_id, old_value, new_value, user, created_at)
+```
+
+## API 端点
+
+### 公开接口
+- `POST /api/auth/login` — 登录（附限流 5次/分钟）
+- `GET /api/health` — 健康检查
+
+### 认证接口（需 Cookie）
+- `GET/POST/PATCH/DELETE /api/parts` — 零件管理
+- `GET/POST/PATCH/DELETE /api/recipes` — 配方管理
+- `GET/POST/PATCH/DELETE /api/orders` — 订单管理
+- `GET /api/orders/history-price/:recipeName` — 历史价格查询
+- `GET/POST/PATCH/DELETE /api/coils` — 线圈管理
+- `POST /api/coils/calculate` — 线圈成本计算（支持插值）
+- `GET/POST/PATCH/DELETE /api/templates` — 泵壳模板
+- `POST /api/cost/calculate` — 成本计算
+- `POST /api/cost/full-calculate` — 一站式成本计算
+- `GET/POST /api/copper-price` — 铜价查询/更新
+
+### 独立认证接口
+- `POST /api/ai/chat` — AI 对话 (SSE)
+- `POST /api/siri/chat` — Siri 快捷指令（Token 认证）
+- `POST /api/voice/asr` — 语音识别
+- `GET/POST /api/wecom/webhook` — 企微消息

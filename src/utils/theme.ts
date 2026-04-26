@@ -143,3 +143,143 @@ export const sxWarningPanel = {
 export function costDiffColor(diff: number): string {
   return diff > 0 ? colors.red.dark : colors.green.dark;
 }
+
+// ─── MUI 主题（统一管理，从 main.tsx 迁移）─────────────
+import { createTheme } from '@mui/material/styles';
+
+export const muiTheme = createTheme({
+  palette: {
+    primary: {
+      main: '#2563eb',
+      light: '#60a5fa',
+      dark: '#1e40af',
+    },
+    secondary: {
+      main: '#7c3aed',
+    },
+    success: {
+      main: '#059669',
+    },
+    error: {
+      main: '#dc2626',
+    },
+    background: {
+      default: '#f1f5f9',
+      paper: '#ffffff',
+    },
+  },
+  shape: {
+    borderRadius: 14,
+  },
+  typography: {
+    fontFamily: [
+      'Inter',
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      '"Helvetica Neue"',
+      'Arial',
+      'sans-serif',
+    ].join(','),
+    h4: {
+      letterSpacing: '-0.03em',
+      fontWeight: 800,
+    },
+    h5: {
+      letterSpacing: '-0.02em',
+      fontWeight: 800,
+    },
+    h6: {
+      letterSpacing: '-0.02em',
+      fontWeight: 700,
+    },
+  },
+  components: {
+    MuiPaper: {
+      defaultProps: {
+        elevation: 0,
+      },
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          border: '1px solid var(--border)',
+          backgroundColor: 'var(--panel)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRadius: 26,
+          boxShadow: 'var(--shadow)',
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 700,
+          borderRadius: 14,
+        },
+        contained: {
+          boxShadow: 'var(--shadow)',
+          '&:hover': {
+            boxShadow: 'var(--shadow-heavy)',
+          },
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          border: 'none',
+        },
+      },
+    },
+    MuiDialog: {
+      defaultProps: {
+        disableRestoreFocus: true,
+      },
+      styleOverrides: {
+        paper: {
+          borderRadius: 28,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          backgroundColor: 'var(--panel-strong)',
+          '@media (max-width: 600px)': {
+            margin: 16,
+            width: 'calc(100% - 32px)',
+          },
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          '@media (max-width: 600px)': {
+            padding: '8px 8px',
+            fontSize: '0.8rem',
+          },
+        },
+        head: {
+          fontWeight: 700,
+          fontSize: '0.8rem',
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 800,
+          borderRadius: 999,
+          letterSpacing: '0.08em',
+        },
+      },
+    },
+  },
+});

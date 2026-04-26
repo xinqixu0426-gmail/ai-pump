@@ -426,9 +426,28 @@ export default function PartsPage() {
         >
           <Typography variant="body2" fontWeight={700}>已选择 {selectedIds.length} 项</Typography>
           <Box sx={{ width: 1, height: 24, bgcolor: 'rgba(255,255,255,0.2)' }} />
-          <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<LocalOfferIcon />} onClick={() => { /* TODO: Batch Price */ }}>批量调价</Button>
-          <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<DownloadIcon />} onClick={() => { /* TODO: CSV export */ }}>导出 CSV</Button>
-          <Button variant="text" size="small" sx={{ color: '#ef4444', fontWeight: 600, '&:hover': { bgcolor: 'rgba(239,68,68,0.1)' } }} startIcon={<DeleteIcon />} onClick={() => { /* TODO: Batch Delete */ }}>删除</Button>
+          <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<LocalOfferIcon />} onClick={() => showSnackbar('批量调价功能开发中', 'info')}>批量调价</Button>
+          <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<DownloadIcon />} onClick={() => {
+            const selected = parts.filter(p => selectedIds.includes(p.Id));
+            const header = '型号,分类,单价,供应商,库存,备注';
+            const rows = selected.map(p => [p.model, p.category, p.price, p.supplier, p.stock, (p.notes || '').replace(/,/g, '，')].join(','));
+            const csv = '\uFEFF' + [header, ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `零件导出_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click(); URL.revokeObjectURL(url);
+            showSnackbar(`已导出 ${selected.length} 条零件`, 'success');
+          }}>导出 CSV</Button>
+          <Button variant="text" size="small" sx={{ color: '#ef4444', fontWeight: 600, '&:hover': { bgcolor: 'rgba(239,68,68,0.1)' } }} startIcon={<DeleteIcon />} onClick={async () => {
+            if (!confirm(`确定要删除选中的 ${selectedIds.length} 个零件吗？此操作不可撤销。`)) return;
+            try {
+              await deletePart(selectedIds.map(id => ({ Id: id })) as any);
+              await fetchParts(true);
+              showSnackbar(`已删除 ${selectedIds.length} 个零件`, 'info');
+              setSelectedIds([]);
+            } catch { setError('批量删除失败'); }
+          }}>删除</Button>
           <IconButton size="small" onClick={() => setSelectedIds([])} sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, p: 0.5 }}><CloseIcon fontSize="small" /></IconButton>
         </Paper>
       </Slide>

@@ -13,6 +13,7 @@ pump.db-shm
 pump.db.bak.*
 api.cjs.nocodb-backup
 scripts/db-backup/
+backups/
 
 __pycache__/
 public/drawings/output_*.pdf

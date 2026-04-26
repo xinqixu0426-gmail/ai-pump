@@ -9,6 +9,7 @@ const DB_PATH = path.join(__dirname, '..', 'pump.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('wal_checkpoint(TRUNCATE)'); // 启动时清理 WAL，避免 WAL 文件无限增长
 
 // ── 自动建表 & 迁移 ──
 db.exec(`
@@ -96,6 +97,17 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
         value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action TEXT NOT NULL,
+        table_name TEXT,
+        record_id INTEGER,
+        old_value TEXT,
+        new_value TEXT,
+        user TEXT DEFAULT 'system',
+        created_at TEXT
     );
 `);
 
@@ -196,12 +208,12 @@ function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templ
 
 function extractPartFields(body) {
     return {
-        model: body.model || body.model || '',
-        category: body.category || body.category || '其他',
-        price: body.price ?? body.price ?? 0,
-        supplier: body.supplier || body.supplier || '-',
-        stock: body.stock ?? body.stock ?? 0,
-        remark: body.notes || body.remark || body.备注 || '',
+        model: body.model || '',
+        category: body.category || '其他',
+        price: body.price ?? 0,
+        supplier: body.supplier || '-',
+        stock: body.stock ?? 0,
+        remark: body.notes || body.remark || '',
     };
 }
 
@@ -237,22 +249,45 @@ function setSetting(key, value) {
 }
 
 /**
+ * 安全执行 UPDATE — 列名经正则校验 + 表名走白名单
+ * 从根源杜绝 SQL 注入：所有动态 UPDATE 必须走此函数
+ * @param {string} table - 表名（需在白名单中）
+ * @param {number} id - 记录 ID
+ * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
+ */
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'system_settings']);
+const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
+
+function safeUpdate(table, id, updates) {
+    if (!SAFE_TABLES.has(table)) throw new Error(`safeUpdate: 非法表名 "${table}"`);
+    const sets = [];
+    const vals = [];
+    for (const [col, val] of Object.entries(updates)) {
+        if (val === undefined) continue;
+        if (!SAFE_COL_RE.test(col)) throw new Error(`safeUpdate: 非法列名 "${col}"`);
+        sets.push(`${col} = ?`);
+        vals.push(val);
+    }
+    if (sets.length === 0) return;
+    // 审计日志：记录更新前的值
+    const oldRow = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+    sets.push('updated_at = ?');
+    vals.push(new Date().toISOString());
+    vals.push(id);
+    db.prepare(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+    // 异步写审计日志，不阻塞主逻辑
+    try {
+        writeAuditLog('UPDATE', table, id, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(updates));
+    } catch { /* 审计日志写入失败不应阻断业务 */ }
+}
+
+/**
  * 订单字段更新助手 — 替代 ai.cjs 中 5 处 copy-paste 的订单更新样板
  * @param {number} orderId
  * @param {object} fields - { status?, items_json?, purchase_list_json?, todos_json? }
  */
 function updateOrderFields(orderId, fields) {
-    const sets = [];
-    const vals = [];
-    if (fields.status !== undefined) { sets.push('status = ?'); vals.push(fields.status); }
-    if (fields.items_json !== undefined) { sets.push('items_json = ?'); vals.push(fields.items_json); }
-    if (fields.purchase_list_json !== undefined) { sets.push('purchase_list_json = ?'); vals.push(fields.purchase_list_json); }
-    if (fields.todos_json !== undefined) { sets.push('todos_json = ?'); vals.push(fields.todos_json); }
-    if (sets.length === 0) return;
-    sets.push('updated_at = ?');
-    vals.push(new Date().toISOString());
-    vals.push(orderId);
-    db.prepare(`UPDATE orders SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+    safeUpdate('orders', orderId, fields);
 }
 
 // ── P1.7: loadPartsData 缓存 ──
@@ -287,11 +322,58 @@ function invalidatePartsCache() {
     _partsDataCacheTime = 0;
 }
 
+// ── P4.22: 审计日志 ──
+const _auditStmt = db.prepare('INSERT INTO audit_log (action, table_name, record_id, old_value, new_value, user, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+function writeAuditLog(action, tableName, recordId, oldValue, newValue, user = 'system') {
+    _auditStmt.run(action, tableName, recordId, oldValue, newValue, user, new Date().toISOString());
+}
+
+// ── P4.20: 数据库自动备份 ──
+const fsDb = require('fs');
+const BACKUP_DIR = path.join(__dirname, '..', 'backups');
+const MAX_BACKUPS = 7;
+
+function runBackup() {
+    try {
+        if (!fsDb.existsSync(BACKUP_DIR)) fsDb.mkdirSync(BACKUP_DIR, { recursive: true });
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const backupPath = path.join(BACKUP_DIR, `pump_${stamp}.db`);
+        db.exec(`VACUUM INTO '${backupPath.replace(/\\/g, '/')}'`);
+        console.log(`[备份] 数据库已备份到 ${backupPath}`);
+        // 清理旧备份，只保留最近 MAX_BACKUPS 个
+        const files = fsDb.readdirSync(BACKUP_DIR)
+            .filter(f => f.startsWith('pump_') && f.endsWith('.db'))
+            .sort().reverse();
+        for (const old of files.slice(MAX_BACKUPS)) {
+            fsDb.unlinkSync(path.join(BACKUP_DIR, old));
+            console.log(`[备份] 已清理旧备份: ${old}`);
+        }
+    } catch (err) { console.error('[备份] 失败:', err.message); }
+}
+
+function scheduleBackup() {
+    // 每天凌晨 3:00 北京时间备份
+    const now = new Date();
+    const target = new Date(now.getTime() + 8 * 3600 * 1000);
+    target.setUTCHours(19, 0, 0, 0); // 03:00 BJT = 19:00 UTC (前一天)
+    if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+    const delay = target.getTime() - now.getTime();
+    console.log(`[备份] 下次备份: ${target.toISOString()} (${(delay / 3600000).toFixed(1)}h 后)`);
+    setTimeout(() => {
+        runBackup();
+        scheduleBackup();
+    }, delay);
+}
+// 启动时立即备份一次，然后开始定时
+runBackup();
+scheduleBackup();
+
 module.exports = {
     db,
     partRow, recipeRow, templateRow, orderRow, coilRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
-    updateOrderFields, invalidatePartsCache,
+    updateOrderFields, invalidatePartsCache, safeUpdate,
+    writeAuditLog, runBackup,
 };

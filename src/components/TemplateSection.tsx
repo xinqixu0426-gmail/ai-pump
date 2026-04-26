@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Paper, Typography, Box, Collapse, Chip, IconButton, Button,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { PumpShellTemplate, TemplatePart, Part } from '../types';
 import { createTemplate, updateTemplate, deleteTemplate } from '../utils/api';
-import { getPriceByModelAndSupplier as _getPrice, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import TemplateFormDialog, { PartFormRow } from './TemplateFormDialog';
 
 interface Props {
@@ -28,19 +27,13 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [tplSaving, setTplSaving] = useState(false);
   const [tplDeleteId, setTplDeleteId] = useState<number | null>(null);
   const [shellModel, setShellModel] = useState('');
-  const [shellSupplier, setShellSupplier] = useState('');
   const [tplDescription, setTplDescription] = useState('');
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
   const [assemblyWage, setAssemblyWage] = useState(0);
   const [packingWage, setPackingWage] = useState(0);
   const [paintingWage, setPaintingWage] = useState<number | null>(null);
 
-  const getPriceByModelAndSupplier = useCallback(
-    (model: string, supplier: string) => _getPrice(parts, model, supplier),
-    [parts]
-  );
-
-  // ── 泵壳型号列表（显示所有泵壳型号，重复校验在保存时处理） ──
+  // ── 泵壳型号列表 ──
   const shellModels = useMemo(() => {
     const set = new Set<string>();
     parts.forEach(p => { 
@@ -60,7 +53,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
   const openCreateTpl = () => {
     setEditingTpl(null);
-    setShellModel(''); setShellSupplier(''); setTplDescription('');
+    setShellModel(''); setTplDescription('');
     setAssemblyWage(0); setPackingWage(0); setPaintingWage(null);
     setPartRows([
       { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
@@ -72,7 +65,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   };
 
   const openEditTpl = (tpl: PumpShellTemplate) => {
-    setEditingTpl(tpl); setShellModel(tpl.shell_model); setShellSupplier(''); setTplDescription(tpl.description || '');
+    setEditingTpl(tpl); setShellModel(tpl.shell_model); setTplDescription(tpl.description || '');
     setAssemblyWage(tpl.assembly_wage || 0); setPackingWage(tpl.packing_wage || 0); setPaintingWage(tpl.painting_wage);
     try {
       const parsed: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
@@ -117,14 +110,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     catch (err) { setError(err instanceof Error ? err.message : '删除失败'); setTplDeleteId(null); }
   };
 
-  const calcTplCost = (tpl: PumpShellTemplate): number => {
-    try {
-      const p: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
-      const partsCost = p.reduce((sum, x) => sum + getPriceByModelAndSupplier(x.model, x.supplier || '') * x.qty, 0);
-      const laborCost = (tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0);
-      return partsCost + laborCost;
-    } catch { return 0; }
-  };
+
 
   return (
     <>
@@ -164,7 +150,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                 {templates.map(tpl => {
                   let tplParts: TemplatePart[] = [];
                   try { tplParts = JSON.parse(tpl.parts_json || '[]'); } catch { /* */ }
-                  const cost = calcTplCost(tpl);
+                  const laborCost = (tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0);
                   return (
                     <Paper key={tpl.Id} variant="outlined" sx={{
                       p: 2, pb: 2.5, borderRadius: 2, transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
@@ -182,38 +168,24 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                         </Box>
                       </Box>
 
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-                        {tplParts.map((p, i) => {
-                          const price = getPriceByModelAndSupplier(p.model, p.supplier || '');
-                          return (
-                            <Box key={i} display="flex" justifyContent="space-between" alignItems="center">
-                              <Box display="flex" gap={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', width: 60, flexShrink: 0 }}>{p.name}</Typography>
-                                <Typography variant="body2" fontWeight={600}>{p.model}</Typography>
-                                {p.supplier && <Chip label={p.supplier} size="small" sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'action.hover' }} />}
-                                {p.qty > 1 && <Typography variant="caption" fontWeight={600} color="primary.main">×{p.qty}</Typography>}
-                              </Box>
-                              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600, color: price > 0 ? 'text.primary' : 'error.main' }}>
-                                ¥{(price * p.qty).toFixed(2)}
-                              </Typography>
-                            </Box>
-                          );
-                        })}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2 }}>
+                        {tplParts.map((p, i) => (
+                          <Box key={i} display="flex" alignItems="center" gap={1} sx={{ flexWrap: 'wrap' }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', width: 60, flexShrink: 0 }}>{p.name}</Typography>
+                            <Chip label={p.model} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                            {p.qty > 1 && <Typography variant="caption" fontWeight={600} color="primary.main">×{p.qty}</Typography>}
+                          </Box>
+                        ))}
                       </Box>
 
-                      <Box sx={{ bgcolor: 'rgba(124,58,237,0.04)', borderRadius: 2, p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>预估总件费及工资</Typography>
-                          {(tpl.assembly_wage > 0 || tpl.packing_wage > 0 || (tpl.painting_wage != null && tpl.painting_wage > 0)) && (
-                            <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, display: 'block' }}>
-                              其中工时: ¥{((tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0)).toFixed(2)}
-                            </Typography>
-                          )}
+                      {laborCost > 0 && (
+                        <Box sx={{ bgcolor: 'rgba(124,58,237,0.04)', borderRadius: 2, p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="caption" color="text.secondary">工时工资</Typography>
+                          <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 700, fontFamily: 'monospace' }}>
+                            ¥{laborCost.toFixed(2)}
+                          </Typography>
                         </Box>
-                        <Typography variant="h6" sx={{ color: '#7c3aed', fontWeight: 900, fontFamily: 'monospace' }}>
-                          ¥{cost.toFixed(2)}
-                        </Typography>
-                      </Box>
+                      )}
                     </Paper>
                   );
                 })}
@@ -230,8 +202,6 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         editingTpl={editingTpl}
         shellModel={shellModel}
         setShellModel={setShellModel}
-        shellSupplier={shellSupplier}
-        setShellSupplier={setShellSupplier}
         tplDescription={tplDescription}
         setTplDescription={setTplDescription}
         partRows={partRows}

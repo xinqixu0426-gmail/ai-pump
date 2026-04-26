@@ -15,7 +15,7 @@ export async function proxyRequest<T>(path: string, options: RequestInit = {}): 
     credentials: 'include', // 自动携带 HttpOnly Cookie
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
+      ...((options.headers as Record<string, string>) || {}),
     },
   });
 
@@ -26,7 +26,14 @@ export async function proxyRequest<T>(path: string, options: RequestInit = {}): 
   }
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    let serverError: string | undefined;
+    try {
+      const errData = await response.json();
+      serverError = errData?.error;
+    } catch {
+      // 响应体不是 JSON，忽略
+    }
+    throw new Error(serverError || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   return response.json();
@@ -163,13 +170,11 @@ export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'
 // ─── 成本计算 ─────────────────────────────────
 
 export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
-  const response = await fetch('/api/cost/calculate', {
+  const result = await proxyRequest<ApiResponse<CostResult>>('/api/cost/calculate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ parts }),
   });
-
-  const result: ApiResponse<CostResult> = await response.json();
   if (!result.success || !result.data) {
     throw new Error(result.error || '计算成本失败');
   }

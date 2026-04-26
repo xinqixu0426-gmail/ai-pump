@@ -17,9 +17,10 @@ const PORT = 3002;
 app.set('trust proxy', 1);
 
 // ── 中间件 ──
+const IS_DEV = process.platform === 'win32' || process.env.NODE_ENV === 'development';
 app.use(cors({
-  origin: true,           // 允许所有来源（开发环境）
-  credentials: true,      // 允许携带 Cookie
+  origin: IS_DEV ? true : (process.env.CORS_ORIGIN || true),
+  credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
