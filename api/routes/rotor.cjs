@@ -513,4 +513,52 @@ router.post('/print/:jobId', (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════
+// GET /order-pump-models — 获取订单中的水泵型号列表（供关联选择）
+// ═══════════════════════════════════════════════
+router.get('/order-pump-models', (req, res) => {
+    try {
+        const orders = db.prepare('SELECT id, customer_name, contract_no, items_json FROM orders ORDER BY updated_at DESC').all();
+        const models = [];
+        for (const row of orders) {
+            try {
+                const items = JSON.parse(row.items_json || '[]');
+                for (const item of items) {
+                    if (item.recipeName) {
+                        models.push({
+                            orderId: row.id,
+                            customerName: row.customer_name || '',
+                            contractNo: row.contract_no || '',
+                            recipeName: item.recipeName,
+                            spec: item.spec || ''
+                        });
+                    }
+                }
+            } catch { /* skip parse errors */ }
+        }
+        res.json(models);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════
+// PATCH /history/:id/link — 关联水泵型号到出图记录
+// ═══════════════════════════════════════════════
+router.patch('/history/:id/link', (req, res) => {
+    try {
+        const { linked_pump_model } = req.body;
+        if (typeof linked_pump_model !== 'string') {
+            return res.status(400).json({ error: '缺少 linked_pump_model 参数' });
+        }
+        const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(req.params.id);
+        if (!row) return res.status(404).json({ error: '记录不存在' });
+        db.prepare('UPDATE rotor_drawings SET linked_pump_model = ?, updated_at = ? WHERE id = ?')
+            .run(linked_pump_model, new Date().toISOString(), req.params.id);
+        res.json({ ok: true, linked_pump_model });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 module.exports = router;

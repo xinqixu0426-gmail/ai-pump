@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Box, Paper, Typography, TextField, Button,
   Alert, CircularProgress, Chip,
-  LinearProgress, Autocomplete, Snackbar
+  LinearProgress, Autocomplete, Snackbar,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  List, ListItemButton, ListItemText, ListItemIcon
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -10,7 +12,8 @@ import {
   CheckCircle as CheckIcon,
   AlertCircle as ErrorIcon,
   Link as LinkIcon,
-  Printer as PrintIcon
+  Printer as PrintIcon,
+  Package as PackageIcon
 } from 'lucide-react';
 import { getAllTemplates, getAllParts } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
@@ -51,6 +54,11 @@ export default function RotorDrawingPage() {
   const [supplements, setSupplements] = useState<Record<string, string>>({});
   const [printing, setPrinting] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkTargetRow, setLinkTargetRow] = useState<any>(null);
+  const [orderPumpModels, setOrderPumpModels] = useState<Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }>>([]);
+  const [linking, setLinking] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSubmittedMessage = useRef<string>('');
@@ -278,6 +286,41 @@ export default function RotorDrawingPage() {
     finally { setPrinting(false); }
   }, []);
 
+  const handleLinkClick = useCallback(async (row: any) => {
+    setLinkTargetRow(row);
+    try {
+      const res = await fetch(`${API_BASE}/api/rotor/order-pump-models`, { credentials: 'include' });
+      if (res.ok) setOrderPumpModels(await res.json());
+    } catch { setOrderPumpModels([]); }
+    setLinkDialogOpen(true);
+  }, []);
+
+  const handleLinkConfirm = useCallback(async (recipeName: string) => {
+    if (!linkTargetRow) return;
+    setLinking(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/rotor/history/${linkTargetRow.id}/link`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ linked_pump_model: recipeName })
+      });
+      if (res.ok) {
+        setSnackbar({ open: true, message: `已关联到 ${recipeName}`, severity: 'success' });
+        loadHistory();
+      } else {
+        const data = await res.json();
+        setSnackbar({ open: true, message: '关联失败: ' + (data.error || '未知错误'), severity: 'error' });
+      }
+    } catch (e: any) {
+      setSnackbar({ open: true, message: '请求失败: ' + e.message, severity: 'error' });
+    } finally {
+      setLinking(false);
+      setLinkDialogOpen(false);
+      setLinkTargetRow(null);
+    }
+  }, [linkTargetRow, loadHistory]);
+
   return (
     <Box sx={{ maxWidth: { xs: '100%', lg: 1100 }, margin: '0 auto', pb: 6 }}>
       <PageHeader title="转子出图系统" subtitle="自然语言或表单填参，自动生成转子工程图纸" />
@@ -406,13 +449,53 @@ export default function RotorDrawingPage() {
       )}
 
       {/* ── 历史及弹窗 ── */}
-      <RotorHistoryTable history={history} loadHistory={loadHistory} handlePrint={handlePrint} printing={printing} API_BASE={API_BASE} />
+      <RotorHistoryTable history={history} loadHistory={loadHistory} handlePrint={handlePrint} printing={printing} API_BASE={API_BASE} onLinkClick={handleLinkClick} linking={linking} />
 
       <RotorWarningDialog warning={warning} supplements={supplements} setSupplements={setSupplements} onConfirm={handleWarningConfirm} onCancel={handleWarningCancel} />
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>{snackbar.message}</Alert>
       </Snackbar>
+
+      {/* ── 关联订单型号弹窗 ── */}
+      <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LinkIcon size={20} color="#2563eb" />
+          关联订单水泵型号
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            选择要关联到此图纸的订单水泵型号：
+          </Typography>
+          {orderPumpModels.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+              暂无订单数据
+            </Typography>
+          ) : (
+            <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
+              {orderPumpModels.map((m, idx) => (
+                <ListItemButton key={`${m.orderId}-${m.recipeName}-${idx}`}
+                  onClick={() => handleLinkConfirm(m.recipeName)}
+                  disabled={linking}
+                  sx={{ borderRadius: 2, mb: 0.5 }}>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <PackageIcon size={18} color="#64748b" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={m.recipeName + (m.spec ? ` (${m.spec})` : '')}
+                    secondary={`订单#${m.orderId} — ${m.customerName}${m.contractNo ? ' / ' + m.contractNo : ''}`}
+                    primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
+                    secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                  />
+                </ListItemButton>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLinkDialogOpen(false)} disabled={linking}>取消</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

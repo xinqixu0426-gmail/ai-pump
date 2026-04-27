@@ -7,7 +7,8 @@ import {
   RefreshCw as RefreshIcon,
   Trash2 as DeleteIcon,
   FileDown as PdfIcon,
-  Printer as PrintIcon
+  Printer as PrintIcon,
+  Link2 as LinkIcon
 } from 'lucide-react';
 
 interface RotorHistoryTableProps {
@@ -16,10 +17,12 @@ interface RotorHistoryTableProps {
   handlePrint: (jobId: string) => void;
   printing: boolean;
   API_BASE: string;
+  onLinkClick: (row: any) => void;
+  linking: boolean;
 }
 
 export default function RotorHistoryTable({
-  history, loadHistory, handlePrint, printing, API_BASE
+  history, loadHistory, handlePrint, printing, API_BASE, onLinkClick, linking
 }: RotorHistoryTableProps) {
   if (history.length === 0) return null;
 
@@ -37,6 +40,7 @@ export default function RotorHistoryTable({
               <TableCell>时间</TableCell>
               <TableCell>指令</TableCell>
               <TableCell>参数</TableCell>
+              <TableCell>关联型号</TableCell>
               <TableCell>状态</TableCell>
               <TableCell align="right">操作</TableCell>
             </TableRow>
@@ -54,13 +58,13 @@ export default function RotorHistoryTable({
                   </TableCell>
                   <TableCell>
                     <Tooltip title={row.nl_input || ''}>
-                      <Typography variant="body2" sx={{ maxWidth: 300, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.8rem' }}>
+                      <Typography variant="body2" sx={{ maxWidth: 250, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.8rem' }}>
                         {row.nl_input || '-'}
                       </Typography>
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: 350 }}>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: 300 }}>
                       {displayParams.map(([k, v]) => (
                         <Chip color="primary" key={k} label={`${k}:${v}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
                       ))}
@@ -71,6 +75,13 @@ export default function RotorHistoryTable({
                       )}
                       {paramEntries.length === 0 && <span style={{ color: '#aaa', fontSize: '0.75rem' }}>-</span>}
                     </Box>
+                  </TableCell>
+                  <TableCell>
+                    {row.linked_pump_model ? (
+                      <Chip label={row.linked_pump_model} size="small" color="secondary" sx={{ height: 22, fontSize: '0.75rem', fontWeight: 600 }} />
+                    ) : (
+                      <span style={{ color: '#aaa', fontSize: '0.75rem' }}>-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {row.status === 'success' && <Chip label="成功" color="success" size="small" />}
@@ -94,6 +105,12 @@ export default function RotorHistoryTable({
                         </Tooltip>
                       </>
                     )}
+                    <Tooltip title="关联订单型号">
+                      <IconButton size="small" color="secondary" disabled={linking}
+                        onClick={() => onLinkClick(row)}>
+                        <LinkIcon size={18} />
+                      </IconButton>
+                    </Tooltip>
                     <IconButton size="small" color="error" onClick={async () => {
                       if (!confirm('确定删除此记录？')) return;
                       await fetch(`${API_BASE}/api/rotor/history/${row.id}`, { method: 'DELETE', credentials: 'include' });

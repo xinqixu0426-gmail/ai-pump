@@ -84,6 +84,7 @@ db.exec(`
         status TEXT DEFAULT 'processing',
         file_url TEXT DEFAULT '',
         error TEXT DEFAULT '',
+        linked_pump_model TEXT DEFAULT '',
         created_at TEXT,
         updated_at TEXT
     );
@@ -143,6 +144,7 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN rotor_params_json TEX
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN assembly_wage REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN packing_wage REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 
 // ── Row Adapters ──
 
@@ -255,7 +257,7 @@ function setSetting(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'system_settings']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'system_settings', 'rotor_drawings']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function safeUpdate(table, id, updates) {
