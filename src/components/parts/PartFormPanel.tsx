@@ -33,6 +33,9 @@ const WIRE_MODE_CONFIG: Record<string, string> = {
   '电缆线': '电缆-线径',
 };
 
+/** 电容模式：类别集合 */
+const CAPACITOR_CATEGORIES = new Set(['电容']);
+
 /** 预置常用线径 */
 const DEFAULT_WIRE_GAUGES = ['0.35', '0.40', '0.45', '0.50', '0.55', '0.60', '0.65', '0.70', '0.75', '0.80', '0.85', '0.90', '0.95', '1.00', '1.18', '1.50', '2.50', '4.00'];
 
@@ -51,6 +54,10 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   /** 当前类别是否为线径模式 */
   const wirePrefix = WIRE_MODE_CONFIG[category] || '';
   const isWireMode = !!wirePrefix;
+
+  // ── 电容结构化输入 ──
+  const [capacitorUf, setCapacitorUf] = useState('');
+  const isCapacitorMode = CAPACITOR_CATEGORIES.has(category);
 
   /** 线径下拉选项（预置 + 已有数据库中的线径） */
   const wireGaugeOptions = useMemo(() => {
@@ -99,6 +106,11 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       if (editPrefix && editingPart.model.startsWith(editPrefix)) {
         setModel(editingPart.model);
         setWireGauge(editingPart.model.replace(editPrefix, ''));
+      } else if (CAPACITOR_CATEGORIES.has(editingPart.category)) {
+        // 电容模式：从 "12μF" / "12uF" / "12vf" 中提取数值
+        setModel(editingPart.model);
+        const num = editingPart.model.replace(/[uμUvVfF\s]/g, '').trim();
+        setCapacitorUf(num);
       } else {
         setModel(editingPart.model);
         setWireGauge('');
@@ -123,7 +135,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setDefaultThreadDia(meta.defaultThreadDia != null ? String(meta.defaultThreadDia) : '');
       setDefaultStackOffset(meta.defaultStackOffset != null ? String(meta.defaultStackOffset) : '');
     } else {
-      setModel(''); setCategory(''); setWireGauge('');
+      setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf('');
       setPrice(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
@@ -137,7 +149,9 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (isWireMode) {
+    if (isCapacitorMode) {
+      if (!capacitorUf.trim() || isNaN(Number(capacitorUf)) || Number(capacitorUf) <= 0) e.model = '请输入有效的电容值 (μF)';
+    } else if (isWireMode) {
       if (!wireGauge.trim()) e.model = '请选择线径';
     } else {
       if (!model.trim()) e.model = '型号不能为空';
@@ -152,8 +166,10 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    // 线径模式下自动拼接 model
-    const finalModel = isWireMode ? `${wirePrefix}${wireGauge.trim()}` : model.trim();
+    // 结构化模式下自动拼接 model
+    const finalModel = isCapacitorMode
+      ? `${capacitorUf.trim()}μF`
+      : isWireMode ? `${wirePrefix}${wireGauge.trim()}` : model.trim();
     // 构建 notes JSON
     const notes: PumpShellMeta | null = category === '泵壳'
       ? { 
@@ -179,7 +195,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       notes: notes ? JSON.stringify(notes) : '',
     });
     if (!editingPart) {
-      setModel(''); setCategory(''); setWireGauge(''); setPrice(''); setSupplier(''); setStock('');
+      setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
@@ -217,7 +233,35 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
       <Box component="form" id="part-form" onSubmit={handleSubmit}>
         <Stack spacing={2}>
-          {isWireMode ? (
+          {isCapacitorMode ? (
+            /* 电容结构化输入模式：仅允许数字 + μF */
+            <Box display="flex" gap={1} alignItems="flex-start">
+              <Chip
+                label="μF"
+                size="small"
+                sx={{
+                  mt: 0.8, fontWeight: 700, fontSize: '0.85rem',
+                  bgcolor: colors.amber.bg, color: colors.amber.text,
+                  border: '1px solid', borderColor: colors.amber.border,
+                }}
+              />
+              <TextField
+                id="part-model-input"
+                label="电容值"
+                type="number"
+                value={capacitorUf}
+                onChange={(e) => setCapacitorUf(e.target.value)}
+                placeholder="如 12"
+                required
+                fullWidth
+                size="small"
+                error={!!errors.model}
+                helperText={errors.model || `最终型号：${capacitorUf ? capacitorUf.trim() + 'μF' : '?'}`}
+                inputProps={{ min: 0.1, step: 0.1 }}
+                InputProps={{ endAdornment: <InputAdornment position="end">μF</InputAdornment> }}
+              />
+            </Box>
+          ) : isWireMode ? (
             /* 线径结构化输入模式 */
             <Box display="flex" gap={1} alignItems="flex-start">
               <Chip

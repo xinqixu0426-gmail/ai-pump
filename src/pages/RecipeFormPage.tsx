@@ -157,17 +157,18 @@ export default function RecipeFormPage() {
       setCableWire(coilResult.wireGauge);
     }
     if (coilResult.capacitor) {
-      // 从线圈表的 default_capacitor 提取纯数值 (如 "18" → 18, "20uF" → 20)
-      const rawCap = String(coilResult.capacitor).replace(/[uUfF\s]/g, '').trim();
+      // 从线圈表的 default_capacitor 提取纯数值 (如 "18"→18, "20uF"→20, "12μF"→12)
+      const rawCap = String(coilResult.capacitor).replace(/[uUμfFvV\s]/g, '').trim();
       const capValue = parseFloat(rawCap);
       if (!isNaN(capValue)) {
-        // 匹配优先级: 1) 型号以 "{capValue}uF" 开头 2) 型号中包含该数值
+        // 精确匹配标准化格式 "{capValue}μF"
         const capParts = parts.filter(p => p.category === '电容');
-        const exact = capParts.find(p => {
-          const m = p.model.toLowerCase();
-          return m.startsWith(`${capValue}uf`) || m.startsWith(`${capValue}UF`);
+        const exact = capParts.find(p => p.model === `${capValue}μF`);
+        // 回退：兼容旧格式
+        const fuzzy = exact || capParts.find(p => {
+          const m = p.model.replace(/[uUμfFvV\s]/g, '').trim();
+          return m === String(capValue);
         });
-        const fuzzy = exact || capParts.find(p => p.model.includes(`${capValue}uF`) || p.model.includes(`${capValue}UF`) || p.model.includes(`${capValue}uf`));
         if (fuzzy) setCapacitorModel(fuzzy.model);
         else setCapacitorModel('');
       }
