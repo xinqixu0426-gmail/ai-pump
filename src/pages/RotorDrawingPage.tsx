@@ -39,6 +39,9 @@ export default function RotorDrawingPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<PumpShellTemplate | null>(null);
   const [templateHint, setTemplateHint] = useState('');
 
+  const [ssMeta, setSsMeta] = useState<PumpShellMeta | null>(null);
+  const [ssBarrelLength, setSsBarrelLength] = useState('');
+
   const [warning, setWarning] = useState<RotorWarningData | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -59,6 +62,8 @@ export default function RotorDrawingPage() {
 
   const handleTemplateSelect = useCallback((tpl: PumpShellTemplate | null) => {
     setSelectedTemplate(tpl);
+    setSsMeta(null);
+    setSsBarrelLength('');
     if (!tpl) { setTemplateHint(''); return; }
 
     const newForm: RotorFormData = {
@@ -98,7 +103,10 @@ export default function RotorDrawingPage() {
 
           if (!newForm.bearing_span) {
             if (meta.defaultBearingSpan != null) { newForm.bearing_span = String(meta.defaultBearingSpan); hints.push(`预设开档${meta.defaultBearingSpan}mm`); }
-            else if (meta.isStainless && meta.barrelLength && meta.openFactor != null) { const span = meta.barrelLength - meta.openFactor; newForm.bearing_span = String(span); hints.push(`开档${span}mm`); }
+            else if (meta.isStainless && (meta.openOffset != null || meta.openFactor != null)) {
+              setSsMeta(meta);
+              if (meta.barrelLength) setSsBarrelLength(String(meta.barrelLength));
+            }
           }
           if (!newForm.impeller_dia && meta.defaultImpellerDia != null) { newForm.impeller_dia = String(meta.defaultImpellerDia); hints.push(`预设叶轮孔径${meta.defaultImpellerDia}mm`); }
           if (!newForm.impeller_span && meta.defaultImpellerSpan != null) { newForm.impeller_span = String(meta.defaultImpellerSpan); hints.push(`预设叶轮开档${meta.defaultImpellerSpan}mm`); }
@@ -114,6 +122,16 @@ export default function RotorDrawingPage() {
     setFormMode(true);
     setTemplateHint(hints.length > 0 ? `已从 ${tpl.shell_model} 模板自动带入：${hints.join('、')}` : '');
   }, [allParts]);
+
+  useEffect(() => {
+    if (ssMeta && (ssMeta.openOffset != null || ssMeta.openFactor != null)) {
+      const len = parseFloat(ssBarrelLength);
+      if (!isNaN(len) && len > 0) {
+        const span = len - (ssMeta.openOffset ?? ssMeta.openFactor ?? 0);
+        setForm(prev => ({ ...prev, bearing_span: String(span) }));
+      }
+    }
+  }, [ssBarrelLength, ssMeta]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -277,6 +295,48 @@ export default function RotorDrawingPage() {
           renderInput={(params) => <TextField {...params} placeholder="选择泵壳模板，自动带入轴承/油封/开档参数" />}
           isOptionEqualToValue={(o, v) => o.Id === v.Id}
         />
+        {ssMeta && (
+          <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, border: '1px solid #bae6fd', bgcolor: '#f0f9ff' }}>
+            <Typography variant="body2" fontWeight={700} color="#0369a1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <span style={{ fontSize: '1.2rem' }}>🔧</span> SS机筒长度
+            </Typography>
+            <Box display="flex" flexDirection="column" gap={1.5}>
+              {ssMeta.barrelLengthPresets && ssMeta.barrelLengthPresets.length > 0 && (
+                <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
+                  <Typography variant="caption" color="text.secondary">快速选择:</Typography>
+                  {ssMeta.barrelLengthPresets.map((len, idx) => (
+                    <Chip
+                      key={idx}
+                      label={`${len} mm`}
+                      size="small"
+                      color={ssBarrelLength === String(len) ? 'primary' : 'default'}
+                      onClick={() => setSsBarrelLength(String(len))}
+                      sx={{ fontWeight: ssBarrelLength === String(len) ? 700 : 400 }}
+                    />
+                  ))}
+                </Box>
+              )}
+              <Box display="flex" gap={1.5} alignItems="center">
+                <TextField
+                  size="small" label="机筒长度" type="number"
+                  value={ssBarrelLength} onChange={(e) => setSsBarrelLength(e.target.value)}
+                  placeholder="请输入机筒长度"
+                  InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
+                  sx={{ width: 150 }}
+                />
+                {ssBarrelLength && (ssMeta.openOffset != null || ssMeta.openFactor != null) && (
+                  <Typography variant="body2" color="text.secondary">
+                    → 开档自动计算: 
+                    <Typography component="span" fontWeight={700} color="primary.main" sx={{ mx: 0.5 }}>
+                      {(Number(ssBarrelLength) - (ssMeta.openOffset ?? ssMeta.openFactor ?? 0)).toFixed(1)}
+                    </Typography>
+                    mm
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        )}
       </Paper>
       {templateHint && <Alert severity="info" sx={{ mb: 2 }} onClose={() => setTemplateHint('')}>{templateHint}</Alert>}
 

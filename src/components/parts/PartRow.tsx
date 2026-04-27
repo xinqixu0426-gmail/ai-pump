@@ -20,7 +20,7 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
   const cc = getCatColor(part.category, customCats);
 
   // 解析泵壳元数据
-  const pumpMeta: { isStainless: boolean; barrelLength?: number; openFactor?: number } | null =
+  const pumpMeta: { isStainless: boolean; barrelLength?: number; openFactor?: number; openOffset?: number } | null =
     part.category === '泵壳' && part.notes
       ? (() => { try { return JSON.parse(part.notes); } catch { return null; } })()
       : null;
@@ -55,7 +55,7 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
           <Box display="flex" gap={0.5} flexWrap="wrap" mt={0.3}>
             <Chip label={part.category} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, bgcolor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }} />
             {pumpMeta?.isStainless && (
-              <Tooltip title={`不锈钢机筒${pumpMeta.barrelLength ? `  机筒长度: ${pumpMeta.barrelLength}mm` : ''}${pumpMeta.openFactor ? `  开档系数: ${pumpMeta.openFactor}` : ''}`}>
+              <Tooltip title={`不锈钢机筒${pumpMeta.barrelLength ? `  默认机筒长度: ${pumpMeta.barrelLength}mm` : ''}${pumpMeta.openOffset != null ? `  开档偏移量: ${pumpMeta.openOffset}` : (pumpMeta.openFactor != null ? `  开档系数: ${pumpMeta.openFactor}` : '')}`}>
                 <Chip
                   label={`✨ SS${pumpMeta.barrelLength ? ` ${pumpMeta.barrelLength}mm` : ''}`}
                   size="small"

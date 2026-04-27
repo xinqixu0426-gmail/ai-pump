@@ -148,23 +148,41 @@ export default function StepTemplateSelect({
               <Typography variant="body2" fontWeight={700} color="#0369a1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <span style={{ fontSize: '1.2rem' }}>📏</span> 不锈钢机筒长度 (配方级配置)
               </Typography>
-              <Box display="flex" gap={1.5} alignItems="center">
-                <TextField
-                  size="small" label="机筒长度" type="number"
-                  value={customBarrelLength} onChange={(e) => setCustomBarrelLength(e.target.value)}
-                  placeholder={`默认: ${shellMetaInfo.barrelLength || '未设置'}`}
-                  InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
-                  sx={{ width: 150 }}
-                />
-                {(customBarrelLength || shellMetaInfo.barrelLength) && shellMetaInfo.openFactor != null && (
-                  <Typography variant="body2" color="text.secondary">
-                    自动重算开档: 
-                    <Typography component="span" fontWeight={700} color="primary.main" sx={{ mx: 0.5 }}>
-                      {(Number(customBarrelLength || shellMetaInfo.barrelLength) - shellMetaInfo.openFactor).toFixed(1)}
-                    </Typography>
-                    mm
-                  </Typography>
+              <Box display="flex" flexDirection="column" gap={1.5}>
+                {shellMetaInfo.barrelLengthPresets && shellMetaInfo.barrelLengthPresets.length > 0 && (
+                  <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
+                    <Typography variant="caption" color="text.secondary">快速选择:</Typography>
+                    {shellMetaInfo.barrelLengthPresets.map((len, idx) => (
+                      <Chip
+                        key={idx}
+                        label={`${len} mm`}
+                        size="small"
+                        color={customBarrelLength === String(len) ? 'primary' : 'default'}
+                        onClick={() => setCustomBarrelLength(String(len))}
+                        sx={{ fontWeight: customBarrelLength === String(len) ? 700 : 400 }}
+                      />
+                    ))}
+                  </Box>
                 )}
+                <Box display="flex" gap={1.5} alignItems="center">
+                  <TextField
+                    size="small" label="机筒长度" type="number" required
+                    value={customBarrelLength} onChange={(e) => setCustomBarrelLength(e.target.value)}
+                    placeholder={shellMetaInfo.barrelLength ? `未填将默认使用 ${shellMetaInfo.barrelLength}` : "必填"}
+                    InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
+                    sx={{ width: 220 }}
+                    error={!customBarrelLength && !shellMetaInfo.barrelLength}
+                  />
+                  {(customBarrelLength || shellMetaInfo.barrelLength) && (shellMetaInfo.openOffset != null || shellMetaInfo.openFactor != null) && (
+                    <Typography variant="body2" color="text.secondary">
+                      自动重算开档: 
+                      <Typography component="span" fontWeight={700} color="primary.main" sx={{ mx: 0.5 }}>
+                        {(Number(customBarrelLength || shellMetaInfo.barrelLength) - (shellMetaInfo.openOffset ?? shellMetaInfo.openFactor ?? 0)).toFixed(1)}
+                      </Typography>
+                      mm
+                    </Typography>
+                  )}
+                </Box>
               </Box>
             </Box>
           )}
@@ -183,7 +201,7 @@ export default function StepTemplateSelect({
           variant="contained"
           endIcon={<NextIcon size={18} />}
           onClick={onNext}
-          disabled={!recipeName.trim()}
+          disabled={!recipeName.trim() || (shellMetaInfo?.isStainless ? (!customBarrelLength && !shellMetaInfo.barrelLength) : false)}
         >
           下一步：配件配置
         </Button>

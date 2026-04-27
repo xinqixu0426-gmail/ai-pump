@@ -68,7 +68,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   // ── 泵壳不锈钢机筒扩展属性 ──
   const [isStainless, setIsStainless] = useState(false);
   const [barrelLength, setBarrelLength] = useState('');
-  const [openFactor, setOpenFactor] = useState('');
+  const [openOffset, setOpenOffset] = useState('');
+  const [barrelLengthPresets, setBarrelLengthPresets] = useState<number[]>([150, 170, 190, 210, 230]);
 
   // ── 泵壳转子出图备用参数 ──
   const [defaultUpperBearing, setDefaultUpperBearing] = useState('');
@@ -109,7 +110,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       const meta = parseMeta(editingPart.notes);
       setIsStainless(meta.isStainless ?? false);
       setBarrelLength(meta.barrelLength != null ? String(meta.barrelLength) : '');
-      setOpenFactor(meta.openFactor != null ? String(meta.openFactor) : '');
+      setOpenOffset(meta.openOffset != null ? String(meta.openOffset) : (meta.openFactor != null ? String(meta.openFactor) : ''));
+      setBarrelLengthPresets(meta.barrelLengthPresets && meta.barrelLengthPresets.length > 0 ? meta.barrelLengthPresets : [150, 170, 190, 210, 230]);
       setDefaultUpperBearing(meta.defaultUpperBearing || '');
       setDefaultLowerBearing(meta.defaultLowerBearing || '');
       setDefaultOilSealDia(meta.defaultOilSealDia != null ? String(meta.defaultOilSealDia) : '');
@@ -123,7 +125,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     } else {
       setModel(''); setCategory(''); setWireGauge('');
       setPrice(''); setSupplier(''); setStock('');
-      setIsStainless(false); setBarrelLength(''); setOpenFactor('');
+      setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
       if (open) {
@@ -157,7 +159,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       ? { 
           isStainless, 
           barrelLength: barrelLength ? parseFloat(barrelLength) : undefined, 
-          openFactor: openFactor ? parseFloat(openFactor) : undefined,
+          openOffset: openOffset ? parseFloat(openOffset) : undefined,
+          barrelLengthPresets,
           defaultUpperBearing: defaultUpperBearing || undefined,
           defaultLowerBearing: defaultLowerBearing || undefined,
           defaultOilSealDia: defaultOilSealDia ? parseFloat(defaultOilSealDia) : undefined,
@@ -177,7 +180,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     });
     if (!editingPart) {
       setModel(''); setCategory(''); setWireGauge(''); setPrice(''); setSupplier(''); setStock('');
-      setIsStainless(false); setBarrelLength(''); setOpenFactor('');
+      setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
       if (open) {
@@ -374,28 +377,59 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
                 <Collapse in={isStainless}>
                   <Stack spacing={1.5} mt={1.5}>
                     <TextField
+                      id="part-open-offset-input"
+                      label="开档偏移量"
+                      type="number"
+                      size="small"
+                      fullWidth
+                      value={openOffset}
+                      onChange={(e) => setOpenOffset(e.target.value)}
+                      placeholder="开档 = 机筒长度 - 此值"
+                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
+                      inputProps={{ step: 0.1 }}
+                    />
+                    <TextField
                       id="part-barrel-length-input"
-                      label="机筒长度"
+                      label="默认机筒长度"
                       type="number"
                       size="small"
                       fullWidth
                       value={barrelLength}
                       onChange={(e) => setBarrelLength(e.target.value)}
-                      placeholder="可选"
+                      placeholder="可选，仅作参考默认值"
                       InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
                       inputProps={{ min: 0, step: 1 }}
                     />
-                    <TextField
-                      id="part-open-factor-input"
-                      label="开档系数"
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={openFactor}
-                      onChange={(e) => setOpenFactor(e.target.value)}
-                      placeholder="可选，如 0.85"
-                      inputProps={{ min: 0, max: 100, step: 0.01 }}
-                    />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        常用长度预设 (供配方和出图时快速选择)
+                      </Typography>
+                      <Box display="flex" flexWrap="wrap" gap={1}>
+                        {barrelLengthPresets.map((len, idx) => (
+                          <Chip 
+                            key={idx} 
+                            label={`${len} mm`} 
+                            size="small" 
+                            onDelete={() => setBarrelLengthPresets(prev => prev.filter((_, i) => i !== idx))} 
+                          />
+                        ))}
+                        <TextField 
+                          size="small" 
+                          placeholder="+ 添加" 
+                          sx={{ width: 80, '& .MuiInputBase-root': { height: 24, fontSize: '0.75rem' } }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const val = parseFloat((e.target as HTMLInputElement).value);
+                              if (!isNaN(val) && !barrelLengthPresets.includes(val)) {
+                                setBarrelLengthPresets(prev => [...prev, val].sort((a, b) => a - b));
+                              }
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                      </Box>
+                    </Box>
                   </Stack>
                 </Collapse>
               </Box>

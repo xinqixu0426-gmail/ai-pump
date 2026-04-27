@@ -15,8 +15,11 @@ export interface Part {
 /** 泵壳不锈钢机筒元数据（存于 Part.notes 字段） */
 export interface PumpShellMeta {
   isStainless: boolean;
-  barrelLength?: number;   // 机筒长度（mm）
-  openFactor?: number;     // 开档系数
+  barrelLength?: number;   // 机筒长度默认值（mm）
+  openOffset?: number;     // 开档偏移量（mm），开档 = 机筒长度 - openOffset
+  barrelLengthPresets?: number[]; // 常用机筒长度列表，如 [150, 170, 190, 210, 230]
+  /** @deprecated 使用 openOffset 替代 */
+  openFactor?: number;     // 开档系数（旧字段）
   // 转子出图备用参数（可选预设）
   defaultUpperBearing?: string;   // 默认上轴承型号 e.g. "6202"
   defaultLowerBearing?: string;   // 默认下轴承型号
