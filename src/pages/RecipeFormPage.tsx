@@ -14,6 +14,7 @@ import { RecipePart, TemplatePart, PartSelection } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { colors } from '../utils/theme';
 
 import { COIL_API_BASE, CoilCalcResult, CoilSpecInfo } from '../components/recipe/recipeFormConstants';
@@ -98,6 +99,10 @@ export default function RecipeFormPage() {
   }, [fetchParts, fetchTemplates]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // 表单离开保护：有模板/线圈/名称/选配即为有未保存内容
+  const isDirty = !!selectedTemplateId || coilSpec !== '' || recipeName !== '' || optionalParts.length > 0;
+  useUnsavedChanges(isDirty && !saving);
 
   // 读取管理费默认值（仅新建时）
   useEffect(() => {
@@ -484,6 +489,7 @@ export default function RecipeFormPage() {
         </Box>
       </Box>
     </Paper>
+
     </Box>
   );
 }

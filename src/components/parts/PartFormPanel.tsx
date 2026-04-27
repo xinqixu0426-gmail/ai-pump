@@ -170,6 +170,15 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     const finalModel = isCapacitorMode
       ? `${capacitorUf.trim()}μF`
       : isWireMode ? `${wirePrefix}${wireGauge.trim()}` : model.trim();
+
+    // 重复检测：新增时检查同型号+类别是否已存在
+    if (!editingPart) {
+      const dup = parts.find(p => p.model === finalModel && p.category === category);
+      if (dup && !confirm(`型号「${finalModel}」的${category}已存在（供应商: ${dup.supplier}），是否仍要新增？`)) {
+        return;
+      }
+    }
+
     // 构建 notes JSON
     const notes: PumpShellMeta | null = category === '泵壳'
       ? { 

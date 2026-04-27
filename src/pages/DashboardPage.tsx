@@ -329,7 +329,7 @@ export default function DashboardPage() {
   }, [fetchAll]);
 
   useEffect(() => {
-    load();
+    load(true);
   }, [load]);
 
   // 按状态分组

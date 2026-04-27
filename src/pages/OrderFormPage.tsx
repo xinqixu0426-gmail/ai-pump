@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Paper, Box, Button, Stepper, Step, StepLabel, Alert, CircularProgress
+  Paper, Box, Button, Stepper, Step, StepLabel, Alert, CircularProgress,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, ArrowRight as NextIcon } from 'lucide-react';
 import { Recipe, RecipePart } from '../types';
@@ -11,6 +11,7 @@ import {
   createEmptyOrder, createOrderItem, buildPurchaseList, buildTodos,
   saveOrder, calcOrderTotals, findHistoryPrice, getOrder, HistoryPrice,
 } from '../utils/orderStore';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import PageHeader from '../components/PageHeader';
 import OrderBasicInfo from '../components/order/OrderBasicInfo';
 import OrderItemsManager, { DraftItem } from '../components/order/OrderItemsManager';
@@ -135,6 +136,10 @@ export default function OrderFormPage() {
   // ── Step 4: 提交 ─────────────────────
   const [submitting, setSubmitting] = useState(false);
 
+  // 表单离开保护：有客户名称或已添加配方即为有未保存内容
+  const isDirty = customerName.trim() !== '' || draftItems.length > 0;
+  useUnsavedChanges(isDirty && !submitting);
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
@@ -241,6 +246,7 @@ export default function OrderFormPage() {
           </Box>
         )}
       </Paper>
+
     </Box>
   );
 }
