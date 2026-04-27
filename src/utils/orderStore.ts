@@ -8,37 +8,22 @@ function genId(): string {
 
 // ── 后端行 → Order 对象转换 ──────────────────────────
 
+// 后端 orderRow() 适配器输出的字段（camelCase）
 interface OrderRow {
   Id: number;
-  customer_name?: string;
-  contract_no?: string;
+  customerName: string;
+  contractNo?: string;
   remark?: string;
   status?: string;
-  items_json?: string;
-  purchase_list_json?: string;
-  todos_json?: string;
-  
-  // Backend often returns these as camelCase
-  customerName?: string;
-  contractNo?: string;
   itemsJson?: string;
   purchaseListJson?: string;
   todosJson?: string;
-
-  // 兼容后端 row adapter 返回的中文字段
-  客户名称?: string;
-  合同号?: string;
-  备注?: string;
-  订单状态?: string;
-  型号列表JSON?: string;
-  采购清单JSON?: string;
-  采购TodoJSON?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
 
 function rowToOrder(row: OrderRow): Order {
-  const items = safeJsonParse<OrderItem[]>(row.items_json || row.itemsJson || row.型号列表JSON, []);
+  const items = safeJsonParse<OrderItem[]>(row.itemsJson, []);
   // 兼容旧数据：如果 item 没有 unitCost 则补 0
   for (const it of items) {
     if (it.unitCost === undefined) it.unitCost = 0;
@@ -48,13 +33,13 @@ function rowToOrder(row: OrderRow): Order {
   const totals = calcOrderTotals(items);
   return {
     id: String(row.Id),
-    customerName: row.customer_name || row.customerName || '',
-    contractNo: row.contract_no || row.contractNo || row.合同号 || undefined,
-    remark: row.remark || row.remark || row.备注 || undefined,
-    status: ((row.status || row.订单状态) as Order['status']) || '待采购',
+    customerName: row.customerName || '',
+    contractNo: row.contractNo || undefined,
+    remark: row.remark || undefined,
+    status: (row.status as Order['status']) || '待采购',
     items,
-    purchaseList: safeJsonParse<PurchaseItem[]>(row.purchase_list_json || row.purchaseListJson || row.采购清单JSON, []),
-    todos: safeJsonParse<TodoItem[]>(row.todos_json || row.todosJson || row.采购TodoJSON, []),
+    purchaseList: safeJsonParse<PurchaseItem[]>(row.purchaseListJson, []),
+    todos: safeJsonParse<TodoItem[]>(row.todosJson, []),
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,
@@ -183,23 +168,14 @@ export interface HistoryPrice {
 
 /** 从历史订单中查找相同配方名称的最近一次出厂价 */
 export async function findHistoryPrice(recipeName: string): Promise<HistoryPrice | null> {
-  const orders = await getAllOrders();
-  // 按时间降序
-  orders.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  for (const order of orders) {
-    for (const item of order.items) {
-      if (item.recipeName === recipeName && item.unitPrice > 0) {
-        return {
-          unitPrice: item.unitPrice,
-          unitCost: item.unitCost,
-          profitMargin: item.profitMargin,
-          customerName: order.customerName,
-          date: order.updatedAt,
-        };
-      }
-    }
+  try {
+    const res = await proxyRequest<{ success: boolean; data: HistoryPrice | null }>(
+      `/api/orders/history-price/${encodeURIComponent(recipeName)}`
+    );
+    return res.data || null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 // ── 汇总算法（纯计算，无副作用） ─────────────────────

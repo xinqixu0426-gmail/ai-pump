@@ -1,14 +1,13 @@
-import { useCallback, useMemo, MutableRefObject } from 'react';
+import { useCallback, MutableRefObject } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Box, TextField,
   Button, Table, TableBody, TableCell, TableHead, TableRow, Divider,
-  IconButton, CircularProgress, Autocomplete, FormControl, Select, MenuItem, Typography, Checkbox, FormControlLabel,
+  IconButton, CircularProgress, Autocomplete, Typography, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
   Trash2 as DeleteIcon, Plus as AddIcon, Save as SaveIcon, X as CloseIcon,
 } from 'lucide-react';
 import { PumpShellTemplate, Part } from '../types';
-import { getPriceByModelAndSupplier as _getPrice, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 
 export interface PartFormRow { id: number; name: string; model: string; qty: number; supplier: string; }
 
@@ -26,8 +25,6 @@ interface Props {
   editingTpl: PumpShellTemplate | null;
   shellModel: string;
   setShellModel: (v: string) => void;
-  shellSupplier: string;
-  setShellSupplier: (v: string) => void;
   tplDescription: string;
   setTplDescription: (v: string) => void;
   partRows: PartFormRow[];
@@ -48,22 +45,12 @@ interface Props {
 
 export default function TemplateFormDialog({
   open, onClose, editingTpl,
-  shellModel, setShellModel, shellSupplier, setShellSupplier,
+  shellModel, setShellModel,
   tplDescription, setTplDescription,
   partRows, setPartRows, parts, shellModels, uniqueModels,
   tplSaving, onSave, nextRowId,
   assemblyWage, setAssemblyWage, packingWage, setPackingWage, paintingWage, setPaintingWage,
 }: Props) {
-
-  const getPriceByModelAndSupplier = useCallback(
-    (model: string, supplier: string) => _getPrice(parts, model, supplier),
-    [parts]
-  );
-
-  const getSuppliersByModel = useCallback(
-    (model: string) => _getSuppliersByModel(parts, model),
-    [parts]
-  );
 
   const getCategoryFromName = useCallback((name: string): string | null => {
     if (!name) return null;
@@ -82,16 +69,6 @@ export default function TemplateFormDialog({
     return Array.from(set).sort();
   }, [parts, uniqueModels]);
 
-  // 泵壳供应商下拉列表
-  const shellSupplierOptions = useMemo(() => {
-    if (shellModel) return getSuppliersByModel(shellModel);
-    const s = new Set<string>();
-    parts.forEach(p => {
-      if (['泵体', '壳体', '泵壳'].includes(p.category) && p.supplier) s.add(p.supplier);
-    });
-    if (s.size === 0) parts.forEach(p => { if (p.supplier) s.add(p.supplier); });
-    return Array.from(s).sort();
-  }, [shellModel, parts, getSuppliersByModel]);
 
   const handleRowChange = (id: number, field: keyof Omit<PartFormRow, 'id'>, value: string | number) => {
     setPartRows(prev => prev.map(r => {
@@ -136,27 +113,19 @@ export default function TemplateFormDialog({
         <Box display="flex" gap={2} mb={2} mt={1}>
           <Autocomplete
             freeSolo disableClearable options={shellModels} value={shellModel}
-            onChange={(_e, v) => { setShellModel(v || ''); setShellSupplier(''); checkStainlessScrewRow(v || ''); }}
+            onChange={(_e, v) => { setShellModel(v || ''); checkStainlessScrewRow(v || ''); }}
             onInputChange={(_e, v) => { setShellModel(v || ''); }}
             sx={{ flex: 1 }}
             renderInput={(params) => (
               <TextField {...params} label="泵壳型号" placeholder="搜索或输入泵壳型号" required size="small" />
             )}
           />
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <Select value={shellSupplier} onChange={e => setShellSupplier(e.target.value)} displayEmpty sx={{ fontSize: '0.85rem' }}>
-              <MenuItem value=""><em style={{ fontSize: '0.8rem', color: '#aaa' }}>泵壳供应商</em></MenuItem>
-              {shellSupplierOptions.map(s => (
-                <MenuItem key={s} value={s} sx={{ fontSize: '0.85rem' }}>{s}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
           <TextField label="描述(可选)" value={tplDescription} onChange={e => setTplDescription(e.target.value)}
             placeholder="如 V750标准配件包" size="small" sx={{ flex: 2 }} />
         </Box>
 
         <Typography variant="subtitle2" fontWeight={700} mb={1} color="text.secondary">
-          固定配件清单（填写型号、供应商和数量，价格从零件表自动拉取）
+          固定配件清单（只需填写型号和数量，价格在配方阶段自动匹配）
         </Typography>
 
         <Table size="small">
@@ -164,9 +133,7 @@ export default function TemplateFormDialog({
             <TableRow sx={{ bgcolor: 'grey.50' }}>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 100 }}>配件名称</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>型号</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', minWidth: 120 }}>供应商</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 60 }}>数量</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 80, textAlign: 'right' }}>实时单价</TableCell>
               <TableCell sx={{ width: 40 }} />
             </TableRow>
           </TableHead>
@@ -174,8 +141,6 @@ export default function TemplateFormDialog({
             {partRows.map(row => {
               const rowCat = getCategoryFromName(row.name);
               const filteredModels = getModelsByCategory(rowCat);
-              const rowSuppliers = row.model ? getSuppliersByModel(row.model) : [];
-              const price = row.model ? getPriceByModelAndSupplier(row.model, row.supplier) : 0;
               return (
                 <TableRow key={row.id}>
                   <TableCell sx={{ py: 0.5 }}>
@@ -198,31 +163,10 @@ export default function TemplateFormDialog({
                     />
                   </TableCell>
                   <TableCell sx={{ py: 0.5 }}>
-                    <FormControl fullWidth size="small" disabled={!row.model || rowSuppliers.length === 0}>
-                      <Select value={row.supplier} onChange={e => handleRowChange(row.id, 'supplier', e.target.value)}
-                        displayEmpty variant="standard" sx={{ fontSize: '0.85rem' }}>
-                        <MenuItem value="">
-                          <em style={{ fontSize: '0.75rem', color: '#aaa' }}>{rowSuppliers.length === 0 ? '—' : '选择供应商'}</em>
-                        </MenuItem>
-                        {rowSuppliers.map(s => (
-                          <MenuItem key={s} value={s} sx={{ fontSize: '0.85rem' }}>{s}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </TableCell>
-                  <TableCell sx={{ py: 0.5 }}>
                     <TextField size="small" type="number" value={row.qty}
                       onChange={e => handleRowChange(row.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))}
                       variant="standard" sx={{ width: 50 }}
                       inputProps={{ min: 1, style: { fontSize: '0.85rem', textAlign: 'center' } }} />
-                  </TableCell>
-                  <TableCell sx={{ py: 0.5, textAlign: 'right' }}>
-                    <Typography variant="body2" sx={{
-                      fontFamily: 'monospace', fontSize: '0.8rem',
-                      color: row.model && price > 0 ? 'success.main' : (row.model ? 'error.main' : 'text.disabled')
-                    }}>
-                      {row.model ? `¥${price.toFixed(2)}` : '-'}
-                    </Typography>
                   </TableCell>
                   <TableCell sx={{ py: 0.5 }}>
                     <IconButton size="small" color="error" onClick={() => setPartRows(prev => prev.filter(r => r.id !== row.id))}>

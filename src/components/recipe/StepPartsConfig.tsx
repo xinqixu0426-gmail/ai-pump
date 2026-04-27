@@ -20,7 +20,7 @@ import {
   Divider,
   Autocomplete
 } from '@mui/material';
-import { Cable as CableIcon, Plus as AddIcon, ChevronRight as NextIcon, ChevronLeft as PrevIcon } from 'lucide-react';
+import { Cable as CableIcon, Plus as AddIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
@@ -66,9 +66,6 @@ interface StepPartsConfigProps {
   getPriceByModelAndSupplier: (model: string, supplier: string) => number;
   getSuppliersByModel: (model: string) => string[];
   getModelsByCategory: (category: string) => string[];
-  
-  onPrev: () => void;
-  onNext: () => void;
 }
 
 export default function StepPartsConfig({
@@ -81,7 +78,6 @@ export default function StepPartsConfig({
   hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire,
   boxType, setBoxType,
   parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory,
-  onPrev, onNext
 }: StepPartsConfigProps) {
 
   const TableHeader = () => (
@@ -349,15 +345,6 @@ export default function StepPartsConfig({
         </Box>
       </Paper>
 
-      {/* Step navigation */}
-      <Box display="flex" justifyContent="space-between" mt={2}>
-        <Button variant="outlined" startIcon={<PrevIcon size={18} />} onClick={onPrev}>
-          上一步
-        </Button>
-        <Button variant="contained" endIcon={<NextIcon size={18} />} onClick={onNext}>
-          下一步：确认
-        </Button>
-      </Box>
     </>
   );
 }

@@ -1,13 +1,13 @@
 const { Router } = require('express');
-const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost } = require('../db.cjs');
+const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate } = require('../db.cjs');
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllTemplates() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', (req, res) => {
     try {
         const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(parseInt(req.params.id)));
         if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
@@ -15,7 +15,7 @@ router.get('/:id', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.get('/:id/cost', async (req, res) => {
+router.get('/:id/cost', (req, res) => {
     try {
         const tpl = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(parseInt(req.params.id));
         if (!tpl) return res.status(404).json({ success: false, error: '模板不存在' });
@@ -27,14 +27,14 @@ router.get('/:id/cost', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.get('/:id/recipes', async (req, res) => {
+router.get('/:id/recipes', (req, res) => {
     try {
         const records = db.prepare('SELECT * FROM recipes WHERE template_id = ?').all(parseInt(req.params.id)).map(recipeRow);
         res.json({ success: true, data: records });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
     try {
         const { shell_model, description, parts_json, rotor_params_json, assembly_wage, packing_wage, painting_wage } = req.body;
         if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
@@ -55,37 +55,30 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id);
         const b = req.body;
-        const now = new Date().toISOString();
-        const sets = [], vals = [];
-        if (b.shell_model !== undefined) { sets.push('shell_model = ?'); vals.push(b.shell_model); }
-        if (b.description !== undefined) { sets.push('description = ?'); vals.push(b.description); }
-        if (b.parts_json !== undefined) {
-            const pJson = typeof b.parts_json === 'string' ? b.parts_json : JSON.stringify(b.parts_json);
-            sets.push('parts_json = ?'); vals.push(pJson);
-        }
-        if (b.rotor_params_json !== undefined) {
-            const rJson = typeof b.rotor_params_json === 'string' ? b.rotor_params_json : JSON.stringify(b.rotor_params_json);
-            sets.push('rotor_params_json = ?'); vals.push(rJson);
-        }
-        if (b.assembly_wage !== undefined) { sets.push('assembly_wage = ?'); vals.push(parseFloat(b.assembly_wage)); }
-        if (b.packing_wage !== undefined) { sets.push('packing_wage = ?'); vals.push(parseFloat(b.packing_wage)); }
-        if (b.painting_wage !== undefined) { sets.push('painting_wage = ?'); vals.push(b.painting_wage != null ? parseFloat(b.painting_wage) : null); }
-        sets.push('updated_at = ?'); vals.push(now); vals.push(id);
-        if (sets.length > 1) db.prepare(`UPDATE pump_shell_templates SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+        const updates = {};
+        if (b.shell_model !== undefined) updates.shell_model = b.shell_model;
+        if (b.description !== undefined) updates.description = b.description;
+        if (b.parts_json !== undefined) updates.parts_json = typeof b.parts_json === 'string' ? b.parts_json : JSON.stringify(b.parts_json);
+        if (b.rotor_params_json !== undefined) updates.rotor_params_json = typeof b.rotor_params_json === 'string' ? b.rotor_params_json : JSON.stringify(b.rotor_params_json);
+        if (b.assembly_wage !== undefined) updates.assembly_wage = parseFloat(b.assembly_wage);
+        if (b.packing_wage !== undefined) updates.packing_wage = parseFloat(b.packing_wage);
+        if (b.painting_wage !== undefined) updates.painting_wage = b.painting_wage != null ? parseFloat(b.painting_wage) : null;
+        safeUpdate('pump_shell_templates', id, updates);
         const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
         if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
         res.json({ success: true, data: record });
     } catch (error) {
+        console.error("PATCH Template Error:", error);
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: '泵壳型号已存在' });
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id);
         const refs = db.prepare('SELECT COUNT(*) as cnt FROM recipes WHERE template_id = ?').get(id);

@@ -8,7 +8,7 @@ router.get('/health', (req, res) => {
 });
 
 // ── POST /cost/calculate ──
-router.post('/cost/calculate', async (req, res) => {
+router.post('/cost/calculate', (req, res) => {
     try {
         const { parts } = req.body;
         if (!parts || !Array.isArray(parts) || parts.length === 0) {
@@ -20,7 +20,7 @@ router.post('/cost/calculate', async (req, res) => {
 });
 
 // ── GET /cost/recipe/by-name ──
-router.get('/cost/recipe/by-name', async (req, res) => {
+router.get('/cost/recipe/by-name', (req, res) => {
     try {
         const recipeName = req.query.name;
         if (!recipeName) return res.status(400).json({ success: false, error: '请提供 name 查询参数' });
@@ -31,8 +31,8 @@ router.get('/cost/recipe/by-name', async (req, res) => {
         const recipe = allRecipes.find(r => { const name = r.name || ''; return name.includes(recipeName); });
         if (!recipe) return res.status(404).json({ success: false, error: `未找到名称包含 "${recipeName}" 的配方` });
         const name = recipe.name;
-        const spec = recipe.规格 || recipe.spec;
-        const partsJson = recipe.配件JSON || recipe.parts_json || '[]';
+        const spec = recipe.spec;
+        const partsJson = recipe.parts_json || '[]';
         let parts = [];
         try { parts = JSON.parse(partsJson); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
         const { partsCache, partsByModel } = loadPartsData();
@@ -42,16 +42,16 @@ router.get('/cost/recipe/by-name', async (req, res) => {
 });
 
 // ── GET /cost/recipe/:id ──
-router.get('/cost/recipe/:id', async (req, res) => {
+router.get('/cost/recipe/:id', (req, res) => {
     try {
         const recipeId = req.params.id;
         const data = { list: [recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(parseInt(recipeId)))].filter(Boolean) };
         if (!data.list || data.list.length === 0) return res.status(404).json({ success: false, error: `配方ID ${recipeId} 不存在` });
         const recipe = data.list[0];
         const name = recipe.name;
-        const spec = recipe.规格 || recipe.spec;
+        const spec = recipe.spec;
         let parts = [];
-        try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
+        try { parts = JSON.parse(recipe.parts_json || '[]'); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
         const { partsCache, partsByModel } = loadPartsData();
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
         res.json({ success: true, data: { recipeId, recipeName: name, recipeSpec: spec, ...result } });
@@ -73,7 +73,7 @@ function resolveWire(dbWire, explicitWire) {
 }
 
 // ── POST /cost/dynamic-config ──
-router.post('/cost/dynamic-config', async (req, res) => {
+router.post('/cost/dynamic-config', (req, res) => {
     try {
         const { stator, statorSpec: rawSpec, statorSheets: rawSheets, hasFloat, floatWire, hasCable, cableWire, cableLength, boxType } = req.body;
         let statorSpec = rawSpec, statorSheets = rawSheets;
@@ -112,7 +112,7 @@ router.post('/cost/dynamic-config', async (req, res) => {
 });
 
 // ── POST /cost/full-calculate ──
-router.post('/cost/full-calculate', async (req, res) => {
+router.post('/cost/full-calculate', (req, res) => {
     try {
         const { pumphousing_model, stator, cableLength = 0, boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
         const { partsCache, partsByModel } = loadPartsData();
@@ -126,9 +126,9 @@ router.post('/cost/full-calculate', async (req, res) => {
                 const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => (r.name || '').includes(pumphousing_model));
                 if (recipe) {
-                    let parts = []; try { parts = JSON.parse(recipe.配件JSON || recipe.parts_json || '[]'); } catch { /* */ }
+                    let parts = []; try { parts = JSON.parse(recipe.parts_json || '[]'); } catch { /* */ }
                     const rc = calculateRecipeCost(parts, partsCache, partsByModel);
-                    result.recipeCost = { recipeName: recipe.name, recipeSpec: recipe.规格 || recipe.spec, ...rc };
+                    result.recipeCost = { recipeName: recipe.name, recipeSpec: recipe.spec, ...rc };
                     grandTotal += parseFloat(rc.totalCost);
                 } else { result.recipeCost = { error: `未找到名称包含 "${pumphousing_model}" 的配方` }; }
             } catch (e) { result.recipeCost = { error: '查询配方失败: ' + e.message }; }
@@ -141,16 +141,16 @@ router.post('/cost/full-calculate', async (req, res) => {
             try {
                 const sr = coilRow(db.prepare('SELECT * FROM coils WHERE spec = ? AND sheets = ? LIMIT 1').get(statorSpec, parseInt(statorSheets)));
                 if (sr) {
-                    const cost = parseFloat(sr.成本 || sr.cost || 0);
-                    result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cost.toFixed(2), wireGauge: sr.默认线径 || null, source: '精确匹配' };
+                    const cost = parseFloat(sr.cost || 0);
+                    result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cost.toFixed(2), wireGauge: sr.defaultWireGauge || null, source: '精确匹配' };
                     grandTotal += cost;
                 } else {
                     const bases = db.prepare('SELECT * FROM coils WHERE spec = ? LIMIT 10').all(statorSpec).map(coilRow);
                     if (bases.length > 0) {
-                        const b = bases[0]; const up = parseFloat(b.price || 0); const ww = parseFloat(b.wireWeight || 0);
-                        const cb = parseFloat(b.铜价基数 || 0); const cf = parseFloat(b.线圈加工费用 || 0); const rf = parseFloat(b.转子加工费用 || 0);
+                        const b = bases[0]; const up = parseFloat(b.unitPrice || 0); const ww = parseFloat(b.wireWeight || 0);
+                        const cb = parseFloat(b.copperBase || 0); const cf = parseFloat(b.coilFee || 0); const rf = parseFloat(b.rotorFee || 0);
                         const sh = parseInt(statorSheets); const cc = up * sh + ww * cb + cf + rf;
-                        result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cc.toFixed(2), wireGauge: b.默认线径 || null, source: '公式推算', formula: `${up}×${sh} + ${ww}×${cb} + ${cf} + ${rf}` };
+                        result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cc.toFixed(2), wireGauge: b.defaultWireGauge || null, source: '公式推算', formula: `${up}×${sh} + ${ww}×${cb} + ${cf} + ${rf}` };
                         grandTotal += cc;
                     } else { result.statorCost = { error: `未找到规格 ${statorSpec} 的线圈数据` }; }
                 }
@@ -216,19 +216,24 @@ async function runCopperPriceUpdate() {
     } catch (err) { console.error('[铜价更新] 失败:', err.message); return null; }
 }
 
-// 定时任务：每天15:00
-let lastCopperUpdateDate = '';
-setInterval(() => {
+// 定时任务：每天北京时间 15:00 更新铜价
+function scheduleNextCopperUpdate() {
     const now = new Date();
-    const bjHour = (now.getUTCHours() + 8) % 24;
-    const bjMinute = now.getUTCMinutes();
-    const dateKey = now.toISOString().slice(0, 10);
-    if (bjHour === 15 && bjMinute === 0 && lastCopperUpdateDate !== dateKey) {
-        lastCopperUpdateDate = dateKey;
+    // 计算下一个北京时间 15:00 的 UTC 时间
+    const bjNow = new Date(now.getTime() + 8 * 3600 * 1000);
+    const target = new Date(bjNow);
+    target.setUTCHours(7, 0, 0, 0); // 15:00 BJT = 07:00 UTC
+    if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+    const delay = target.getTime() - now.getTime();
+    const hours = (delay / 3600000).toFixed(1);
+    console.log(`[定时任务] 下次铜价更新: ${target.toISOString()} (${hours}h 后)`);
+    setTimeout(async () => {
         console.log('[定时任务] 触发每日铜价更新...');
-        runCopperPriceUpdate();
-    }
-}, 60 * 1000);
+        await runCopperPriceUpdate();
+        scheduleNextCopperUpdate(); // 链式调度下一次
+    }, delay);
+}
+scheduleNextCopperUpdate();
 
 router.post('/copper-price/update', async (req, res) => {
     try {
@@ -242,7 +247,7 @@ router.get('/copper-price', async (req, res) => {
     try {
         const price = await fetchCopperPrice();
         const coils = dbGetAllCoils();
-        const dbCopperPrice = coils.length > 0 ? coils[0].铜价基数 : null;
+        const dbCopperPrice = coils.length > 0 ? coils[0].copperBase : null;
         res.json({ success: true, data: { livePrice: price, livePricePerKg: (price / 1000).toFixed(2), dbPrice: dbCopperPrice, lastUpdate: coils[0]?.UpdatedAt || null } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

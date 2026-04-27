@@ -6,7 +6,7 @@ import {
 import { ArrowLeft as BackIcon, ArrowRight as NextIcon } from 'lucide-react';
 import { Recipe, RecipePart } from '../types';
 import { useAppStore } from '../utils/store';
-import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
+import { calculateCost } from '../utils/api';
 import {
   createEmptyOrder, createOrderItem, buildPurchaseList, buildTodos,
   saveOrder, calcOrderTotals, findHistoryPrice, getOrder, HistoryPrice,
@@ -80,8 +80,7 @@ export default function OrderFormPage() {
     if (!unitCost) {
       try {
         const parts: RecipePart[] = JSON.parse(partsJson);
-        const { partsCache, partsByModel } = buildPartsIndex(allParts);
-        const result = calculateRecipeCost(parts, partsCache, partsByModel);
+        const result = await calculateCost(parts);
         unitCost = parseFloat(result.totalCost) || 0;
       } catch { /* ignore */ }
     }

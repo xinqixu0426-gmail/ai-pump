@@ -4,13 +4,10 @@ import {
   Paper,
   Typography,
   Chip,
-  Button,
   FormControlLabel,
   Checkbox,
-  CircularProgress
 } from '@mui/material';
-import { Save as SaveIcon, ChevronLeft as PrevIcon } from 'lucide-react';
-import { PumpShellTemplate, PartSelection, RecipePart } from '../../types';
+import { PumpShellTemplate, PartSelection } from '../../types';
 
 interface StepWageConfirmProps {
   selectedTemplate: PumpShellTemplate | null;
@@ -23,24 +20,17 @@ interface StepWageConfirmProps {
   managementFee: number;
   setManagementFee: (val: number) => void;
   laborCost: number;
-  
+
   recipeName: string;
   recipeSpec: string;
   coilSpec: string;
   coilSheets: string;
   optionalParts: Array<PartSelection & { id: number }>;
-
-  allPartsPreview: RecipePart[];
-
-  saving: boolean;
-  handleSubmit: () => void;
-  onPrev: () => void;
 }
 
 export default function StepWageConfirm({
   selectedTemplate, assemblyWage, setAssemblyWage, packingWage, setPackingWage, paintingWage, setPaintingWage, managementFee, setManagementFee, laborCost,
   recipeName, recipeSpec, coilSpec, coilSheets, optionalParts,
-  allPartsPreview, saving, handleSubmit, onPrev
 }: StepWageConfirmProps) {
 
   return (
@@ -98,26 +88,6 @@ export default function StepWageConfirm({
         </Box>
       </Paper>
 
-      {/* 保存按钮 */}
-      <Button
-        variant="contained"
-        color="success"
-        size="large"
-        fullWidth
-        startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon size={18} />}
-        onClick={handleSubmit}
-        disabled={saving || !recipeName.trim() || (allPartsPreview.length === 0 && !selectedTemplate)}
-        sx={{ mt: 1 }}
-      >
-        完成保存
-      </Button>
-
-      {/* Step navigation */}
-      <Box display="flex" justifyContent="flex-start" mt={2}>
-        <Button variant="outlined" startIcon={<PrevIcon size={18} />} onClick={onPrev}>
-          上一步
-        </Button>
-      </Box>
     </>
   );
 }

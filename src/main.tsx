@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import './index.css';
@@ -9,141 +9,7 @@ import App from './App';
 import VoiceAssistantPage from './pages/VoiceAssistantPage';
 import LoginPage from './pages/LoginPage';
 import { checkAuth } from './utils/authUtils';
-
-// 创建主题
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#2563eb',
-      light: '#60a5fa',
-      dark: '#1e40af',
-    },
-    secondary: {
-      main: '#7c3aed',
-    },
-    success: {
-      main: '#059669',
-    },
-    error: {
-      main: '#dc2626',
-    },
-    background: {
-      default: '#f1f5f9',
-      paper: '#ffffff',
-    },
-  },
-  shape: {
-    borderRadius: 14,
-  },
-  typography: {
-    fontFamily: [
-      'Inter',
-      '-apple-system',
-      'BlinkMacSystemFont',
-      '"Segoe UI"',
-      'Roboto',
-      '"Helvetica Neue"',
-      'Arial',
-      'sans-serif',
-    ].join(','),
-    h4: {
-      letterSpacing: '-0.03em',
-      fontWeight: 800,
-    },
-    h5: {
-      letterSpacing: '-0.02em',
-      fontWeight: 800,
-    },
-    h6: {
-      letterSpacing: '-0.02em',
-      fontWeight: 700,
-    },
-  },
-  components: {
-    MuiPaper: {
-      defaultProps: {
-        elevation: 0,
-      },
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-          border: '1px solid var(--border)',
-          backgroundColor: 'var(--panel)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderRadius: 26,
-          boxShadow: 'var(--shadow)',
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          fontWeight: 700,
-          borderRadius: 14,
-        },
-        contained: {
-          boxShadow: 'var(--shadow)',
-          '&:hover': {
-            boxShadow: 'var(--shadow-heavy)',
-          },
-        },
-      },
-    },
-    MuiAppBar: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-        },
-      },
-    },
-    MuiDrawer: {
-      styleOverrides: {
-        paper: {
-          border: 'none',
-        },
-      },
-    },
-    MuiDialog: {
-      styleOverrides: {
-        paper: {
-          borderRadius: 28,
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          backgroundColor: 'var(--panel-strong)',
-          '@media (max-width: 600px)': {
-            margin: 16,
-            width: 'calc(100% - 32px)',
-          },
-        },
-      },
-    },
-    MuiTableCell: {
-      styleOverrides: {
-        root: {
-          '@media (max-width: 600px)': {
-            padding: '8px 8px',
-            fontSize: '0.8rem',
-          },
-        },
-        head: {
-          fontWeight: 700,
-          fontSize: '0.8rem',
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          fontWeight: 800,
-          borderRadius: 999,
-          letterSpacing: '0.08em',
-        },
-      },
-    },
-  },
-});
+import { muiTheme } from './utils/theme';
 
 /**
  * 全屏加载动画 — 应用启动时检查认证状态
@@ -209,7 +75,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthGuard>

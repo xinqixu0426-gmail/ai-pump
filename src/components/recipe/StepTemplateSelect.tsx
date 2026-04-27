@@ -8,9 +8,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Button
 } from '@mui/material';
-import { Package as TemplateIcon, ChevronRight as NextIcon } from 'lucide-react';
+import { Package as TemplateIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { TemplatePart, PumpShellTemplate, PumpShellMeta } from '../../types';
 
@@ -28,7 +27,6 @@ interface StepTemplateSelectProps {
   shellMetaInfo: PumpShellMeta | null;
   customBarrelLength: string;
   setCustomBarrelLength: (val: string) => void;
-  onNext: () => void;
 }
 
 export default function StepTemplateSelect({
@@ -45,7 +43,6 @@ export default function StepTemplateSelect({
   shellMetaInfo,
   customBarrelLength,
   setCustomBarrelLength,
-  onNext,
 }: StepTemplateSelectProps) {
   const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
 
@@ -108,8 +105,18 @@ export default function StepTemplateSelect({
           </FormControl>
 
           {/* 模板配件预览（只读） */}
-          {selectedTemplate && templateParts.length > 0 && (
+          {selectedTemplate && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 1 }}>
+              {/* 泵壳本体 */}
+              <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ py: 0.25, fontSize: '0.8rem' }}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70 }}>泵壳</Typography>
+                  <Chip label={selectedTemplate.shell_model} size="small" variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.7rem' }} />
+                </Box>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', color: getPriceByModelAndSupplier(selectedTemplate.shell_model, '') > 0 ? 'success.main' : 'error.main', fontSize: '0.8rem' }}>
+                  ¥{getPriceByModelAndSupplier(selectedTemplate.shell_model, '').toFixed(2)}
+                </Typography>
+              </Box>
               {templateParts.map((p, i) => {
                 const supplier = p.supplier || '';
                 const price = getPriceByModelAndSupplier(p.model, supplier);
@@ -194,18 +201,6 @@ export default function StepTemplateSelect({
           )}
         </Box>
       </Paper>
-
-      {/* Step navigation */}
-      <Box display="flex" justifyContent="flex-end" mt={2}>
-        <Button
-          variant="contained"
-          endIcon={<NextIcon size={18} />}
-          onClick={onNext}
-          disabled={!recipeName.trim() || (shellMetaInfo?.isStainless ? (!customBarrelLength && !shellMetaInfo.barrelLength) : false)}
-        >
-          下一步：配件配置
-        </Button>
-      </Box>
     </>
   );
 }

@@ -1,13 +1,13 @@
 const { Router } = require('express');
-const { db, dbGetAllParts, partRow, extractPartFields } = require('../db.cjs');
+const { db, dbGetAllParts, partRow, extractPartFields, safeUpdate } = require('../db.cjs');
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllParts() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
     try {
         const f = extractPartFields(req.body);
         const now = new Date().toISOString();
@@ -16,25 +16,23 @@ router.post('/', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.patch('/', async (req, res) => {
+router.patch('/', (req, res) => {
     try {
         const id = req.body.Id || req.body.id;
         const f = extractPartFields(req.body);
-        const now = new Date().toISOString();
-        const sets = [], vals = [];
-        if (req.body.model !== undefined) { sets.push('model = ?'); vals.push(f.model); }
-        if (req.body.category !== undefined) { sets.push('category = ?'); vals.push(f.category); }
-        if (req.body.price !== undefined) { sets.push('price = ?'); vals.push(f.price); }
-        if (req.body.supplier !== undefined) { sets.push('supplier = ?'); vals.push(f.supplier); }
-        if (req.body.stock !== undefined) { sets.push('stock = ?'); vals.push(f.stock); }
-        if (req.body.notes !== undefined || req.body.remark !== undefined || req.body.备注 !== undefined) { sets.push('remark = ?'); vals.push(f.remark); }
-        sets.push('updated_at = ?'); vals.push(now); vals.push(id);
-        db.prepare(`UPDATE parts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+        const updates = {};
+        if (req.body.model !== undefined) updates.model = f.model;
+        if (req.body.category !== undefined) updates.category = f.category;
+        if (req.body.price !== undefined) updates.price = f.price;
+        if (req.body.supplier !== undefined) updates.supplier = f.supplier;
+        if (req.body.stock !== undefined) updates.stock = f.stock;
+        if (req.body.notes !== undefined || req.body.remark !== undefined) updates.remark = f.remark;
+        safeUpdate('parts', id, updates);
         res.json({ success: true, data: partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.delete('/', async (req, res) => {
+router.delete('/', (req, res) => {
     try {
         const items = Array.isArray(req.body) ? req.body : [req.body];
         for (const item of items) { db.prepare('DELETE FROM parts WHERE id = ?').run(item.Id || item.id); }
