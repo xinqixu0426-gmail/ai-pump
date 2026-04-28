@@ -12,9 +12,8 @@ import {
   Package as TemplateIcon, FileText as FileIcon, ScrollText as RecipeIcon, Wrench as PartIcon,
 } from 'lucide-react';
 import { Recipe, RecipePart, CostResult } from '../types';
-import { deleteRecipe } from '../utils/api';
+import { deleteRecipe, calculateCost } from '../utils/api';
 import { useAppStore } from '../utils/store';
-import { buildPartsIndex, calculateRecipeCost } from '../utils/costCalculator';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 import TemplateSection from '../components/TemplateSection';
 import PageHeader from '../components/PageHeader';
@@ -30,6 +29,9 @@ export default function RecipesPage() {
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<{ recipe: Recipe; costResult: CostResult } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+
+  // P1-4: 配方成本改用后端 API，消除前后端双写
+  const [recipeData, setRecipeData] = useState<Map<number, { overview: string; cost: string; costResult: CostResult }>>(new Map());
 
   // ── 数据加载 ──
   const loadData = useCallback(async () => {
@@ -50,28 +52,33 @@ export default function RecipesPage() {
     return m;
   }, [templates]);
 
-  // ── 配方成本 ──
-  const recipeData = useMemo(() => {
-    if (parts.length === 0) return new Map<number, { overview: string; cost: string; costResult: CostResult }>();
-    const { partsCache, partsByModel } = buildPartsIndex(parts);
-    const map = new Map<number, { overview: string; cost: string; costResult: CostResult }>();
-    for (const recipe of recipes) {
-      let recipeParts: RecipePart[] = [];
-      try { recipeParts = JSON.parse(recipe.parts_json); } catch { /* */ }
-      const validParts = recipeParts.filter(p => p && p.model);
-      const overview = validParts.length > 0
-        ? validParts.map(p => `${p.model}×${p.qty ?? 1}`).join(', ')
-        : '-';
-      const costResult = calculateRecipeCost(validParts, partsCache, partsByModel, recipe.saved_total_cost);
-      const costNum = parseFloat(costResult.totalCost);
-      map.set(recipe.Id, {
-        overview,
-        cost: isNaN(costNum) ? '¥0.00' : `¥${costResult.totalCost}`,
-        costResult,
-      });
-    }
-    return map;
-  }, [recipes, parts]);
+  // ── 配方成本（后端批量计算） ──
+  useEffect(() => {
+    if (recipes.length === 0) { setRecipeData(new Map()); return; }
+    let cancelled = false;
+    (async () => {
+      const map = new Map<number, { overview: string; cost: string; costResult: CostResult }>();
+      for (const recipe of recipes) {
+        let recipeParts: RecipePart[] = [];
+        try { recipeParts = JSON.parse(recipe.parts_json); } catch { /* */ }
+        const validParts = recipeParts.filter(p => p && p.model);
+        const overview = validParts.length > 0
+          ? validParts.map(p => `${p.model}×${p.qty ?? 1}`).join(', ')
+          : '-';
+        try {
+          const costResult = await calculateCost(validParts);
+          const costNum = parseFloat(costResult.totalCost);
+          map.set(recipe.Id, { overview, cost: isNaN(costNum) ? '¥0.00' : `¥${costResult.totalCost}`, costResult });
+        } catch {
+          // 计算失败时用保存的总成本兜底
+          const fallbackCost = recipe.saved_total_cost ?? 0;
+          map.set(recipe.Id, { overview, cost: `¥${fallbackCost.toFixed(2)}`, costResult: { totalCost: String(fallbackCost), itemCount: validParts.length, details: [], missingParts: [] } });
+        }
+      }
+      if (!cancelled) setRecipeData(map);
+    })();
+    return () => { cancelled = true; };
+  }, [recipes]);
 
   // ── 配方操作 ──
   const handleViewDetail = (recipe: Recipe) => {

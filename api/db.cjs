@@ -146,6 +146,11 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN packing_wage REAL DEF
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 
+// P0-2: 软删除列迁移（幂等）
+for (const tbl of ['orders', 'recipes', 'parts']) {
+    try { db.exec(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT`); } catch { /* already exists */ }
+}
+
 // ── Row Adapters ──
 
 function partRow(r) {
@@ -202,9 +207,9 @@ function coilRow(r) {
 }
 
 // ── 数据访问层 ──
-function dbGetAllParts() { return db.prepare('SELECT * FROM parts').all().map(partRow); }
-function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes').all().map(recipeRow); }
-function dbGetAllOrders() { return db.prepare('SELECT * FROM orders').all().map(orderRow); }
+function dbGetAllParts() { return db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all().map(partRow); }
+function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes WHERE deleted_at IS NULL').all().map(recipeRow); }
+function dbGetAllOrders() { return db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all().map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
 function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all().map(templateRow); }
 
@@ -293,6 +298,23 @@ function updateOrderFields(orderId, fields) {
     safeUpdate('orders', orderId, fields);
 }
 
+/**
+ * 软删除 — 标记 deleted_at 而非物理删除
+ * @param {string} table - 表名
+ * @param {number} id - 记录 ID
+ */
+function softDelete(table, id) {
+    if (!SAFE_TABLES.has(table)) throw new Error(`softDelete: 非法表名 "${table}"`);
+    const now = new Date().toISOString();
+    // 记录旧值到审计日志
+    const oldRow = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+    if (!oldRow) throw new Error(`softDelete: 记录不存在 (${table}#${id})`);
+    db.prepare(`UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE id = ?`).run(now, now, id);
+    try {
+        writeAuditLog('SOFT_DELETE', table, id, JSON.stringify(oldRow), null);
+    } catch { /* 审计日志写入失败不应阻断业务 */ }
+}
+
 // ── P1.7: loadPartsData 缓存 ──
 let _partsDataCache = null;
 let _partsDataCacheTime = 0;
@@ -303,7 +325,7 @@ function loadPartsData() {
     if (_partsDataCache && (now - _partsDataCacheTime) < PARTS_CACHE_TTL) {
         return _partsDataCache;
     }
-    const records = db.prepare('SELECT * FROM parts').all();
+    const records = db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all();
     const partsCache = {};
     const partsByModel = {};
     records.forEach(record => {
@@ -341,16 +363,20 @@ function runBackup() {
         if (!fsDb.existsSync(BACKUP_DIR)) fsDb.mkdirSync(BACKUP_DIR, { recursive: true });
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const backupPath = path.join(BACKUP_DIR, `pump_${stamp}.db`);
-        db.exec(`VACUUM INTO '${backupPath.replace(/\\/g, '/')}'`);
-        console.log(`[备份] 数据库已备份到 ${backupPath}`);
-        // 清理旧备份，只保留最近 MAX_BACKUPS 个
-        const files = fsDb.readdirSync(BACKUP_DIR)
-            .filter(f => f.startsWith('pump_') && f.endsWith('.db'))
-            .sort().reverse();
-        for (const old of files.slice(MAX_BACKUPS)) {
-            fsDb.unlinkSync(path.join(BACKUP_DIR, old));
-            console.log(`[备份] 已清理旧备份: ${old}`);
-        }
+        // P0-3: 使用 better-sqlite3 backup() API 替代字符串拼接的 VACUUM INTO
+        db.backup(backupPath)
+            .then(() => {
+                console.log(`[备份] 数据库已备份到 ${backupPath}`);
+                // 清理旧备份，只保留最近 MAX_BACKUPS 个
+                const files = fsDb.readdirSync(BACKUP_DIR)
+                    .filter(f => f.startsWith('pump_') && f.endsWith('.db'))
+                    .sort().reverse();
+                for (const old of files.slice(MAX_BACKUPS)) {
+                    fsDb.unlinkSync(path.join(BACKUP_DIR, old));
+                    console.log(`[备份] 已清理旧备份: ${old}`);
+                }
+            })
+            .catch(err => console.error('[备份] 失败:', err.message));
     } catch (err) { console.error('[备份] 失败:', err.message); }
 }
 
@@ -377,6 +403,6 @@ module.exports = {
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
-    updateOrderFields, invalidatePartsCache, safeUpdate,
+    updateOrderFields, invalidatePartsCache, safeUpdate, softDelete,
     writeAuditLog, runBackup,
 };

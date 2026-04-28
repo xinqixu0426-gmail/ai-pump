@@ -19,7 +19,6 @@ import {
   Checkbox,
   Alert,
   CircularProgress,
-  Divider,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -168,63 +167,41 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
         {successMsg && <Alert severity="success" sx={{ mb: 2 }}>{successMsg}</Alert>}
 
-        {/* ── Tab 0: 型号列表 ── */}
+        {/* ── Tab 0: 型号列表（水泵概览） ── */}
         {tab === 0 && (
           <Box>
             {localOrder.items.map((item) => {
-              let parts: { model: string; name: string; qty: number; supplier: string }[] = [];
-              try { parts = JSON.parse(item.partsJson); } catch { /* noop */ }
               const marginPct = Math.round(((item.profitMargin || 1) - 1) * 100);
               const itemSubtotal = (item.unitPrice || 0) * item.qty;
               const costSubtotal = (item.unitCost || 0) * item.qty;
               return (
-                <Box key={item.id} sx={{ mb: 3 }}>
-                  <Box display="flex" alignItems="center" gap={1} mb={0.5} flexWrap="wrap">
-                    <Typography fontWeight={700}>{item.recipeName}</Typography>
+                <Box key={item.id} sx={{
+                  mb: 2, p: 2, borderRadius: 2,
+                  border: '1px solid', borderColor: 'divider',
+                  '&:hover': { borderColor: 'primary.light', bgcolor: 'rgba(37,99,235,0.02)' },
+                  transition: 'all 0.2s',
+                }}>
+                  <Box display="flex" alignItems="center" gap={1} mb={1} flexWrap="wrap">
+                    <Typography fontWeight={700} fontSize="1rem">{item.recipeName}</Typography>
                     {item.spec && <Chip label={item.spec} size="small" variant="outlined" />}
                     <Chip label={`×${item.qty} 台`} color="primary" size="small" />
                   </Box>
-                  <Box display="flex" gap={2} mb={1} flexWrap="wrap">
-                    <Typography variant="caption" color="text.secondary">
-                      成本 ¥{(item.unitCost || 0).toFixed(2)}
+                  <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
+                    <Typography variant="body2" color="text.secondary">
+                      单台成本 <b>¥{(item.unitCost || 0).toFixed(2)}</b>
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      利润率 {marginPct}%
+                    <Typography variant="body2" color="text.secondary">
+                      利润率 <b>{marginPct}%</b>
                     </Typography>
-                    <Typography variant="caption" color="primary.main" fontWeight={600}>
+                    <Typography variant="body2" color="primary.main" fontWeight={600}>
                       出厂价 ¥{(item.unitPrice || 0).toFixed(2)}
                     </Typography>
-                    <Typography variant="caption" fontWeight={600}>
-                      小计 ¥{costSubtotal.toFixed(2)} → ¥{itemSubtotal.toFixed(2)}
-                    </Typography>
+                    <Box sx={{ ml: 'auto' }}>
+                      <Typography variant="body2" fontWeight={700}>
+                        小计 ¥{costSubtotal.toFixed(2)} → ¥{itemSubtotal.toFixed(2)}
+                      </Typography>
+                    </Box>
                   </Box>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                          <TableCell>型号</TableCell>
-                          <TableCell>名称</TableCell>
-                          <TableCell>供应商</TableCell>
-                          <TableCell align="right">单台数量</TableCell>
-                          <TableCell align="right">合计数量</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {parts.map((p, i) => (
-                          <TableRow key={i}>
-                            <TableCell>{p.model}</TableCell>
-                            <TableCell>{p.name}</TableCell>
-                            <TableCell>{p.supplier}</TableCell>
-                            <TableCell align="right">{p.qty}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>
-                              {p.qty * item.qty}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  <Divider sx={{ mt: 2 }} />
                 </Box>
               );
             })}

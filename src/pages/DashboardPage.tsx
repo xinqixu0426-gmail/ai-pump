@@ -98,7 +98,6 @@ function OrderCard({ order, onDetail, index }: OrderCardProps) {
           border: '1px solid',
           borderColor: 'divider',
           transition: 'all 0.2s ease',
-          borderColor: 'divider',
           '&:hover': {
             borderColor: config.color,
             boxShadow: `0 4px 12px ${config.bg}`,

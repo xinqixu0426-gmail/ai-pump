@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllRecipes, recipeRow, safeUpdate } = require('../db.cjs');
+const { db, dbGetAllRecipes, recipeRow, safeUpdate, softDelete } = require('../db.cjs');
 const router = Router();
 
 router.get('/', (req, res) => {
@@ -44,7 +44,11 @@ router.post('/', (req, res) => {
 router.delete('/', (req, res) => {
     try {
         const items = Array.isArray(req.body) ? req.body : [req.body];
-        for (const item of items) { db.prepare('DELETE FROM recipes WHERE id = ?').run(item.Id || item.id); }
+        for (const item of items) {
+            const id = item.Id || item.id;
+            if (!id || isNaN(Number(id))) continue;
+            softDelete('recipes', Number(id));
+        }
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

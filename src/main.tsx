@@ -10,6 +10,7 @@ import VoiceAssistantPage from './pages/VoiceAssistantPage';
 import LoginPage from './pages/LoginPage';
 import { checkAuth } from './utils/authUtils';
 import { muiTheme } from './utils/theme';
+import ErrorBoundary from './components/ErrorBoundary';
 
 /**
  * 全屏加载动画 — 应用启动时检查认证状态
@@ -77,18 +78,20 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <AuthGuard>
-          <Routes>
-            {/* /voice 全屏沉浸式语音助手页面，不走 App 的 AppBar 布局 */}
-            <Route path="/voice" element={<VoiceAssistantPage />} />
-            {/* /login 路由由 AuthGuard 内部处理 */}
-            <Route path="/login" element={<Navigate to="/" replace />} />
-            {/* 其余所有路由走原 App 布局 */}
-            <Route path="/*" element={<App />} />
-          </Routes>
-        </AuthGuard>
-      </BrowserRouter>
+      <ErrorBoundary>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <AuthGuard>
+            <Routes>
+              {/* /voice 全屏沉浸式语音助手页面，不走 App 的 AppBar 布局 */}
+              <Route path="/voice" element={<VoiceAssistantPage />} />
+              {/* /login 路由由 AuthGuard 内部处理 */}
+              <Route path="/login" element={<Navigate to="/" replace />} />
+              {/* 其余所有路由走原 App 布局 */}
+              <Route path="/*" element={<App />} />
+            </Routes>
+          </AuthGuard>
+        </BrowserRouter>
+      </ErrorBoundary>
     </ThemeProvider>
   </React.StrictMode>
 );

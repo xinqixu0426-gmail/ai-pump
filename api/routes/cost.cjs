@@ -72,6 +72,53 @@ function resolveWire(dbWire, explicitWire) {
     return '0.55';
 }
 
+// ── P1-5: 动态配件成本共享计算函数 ──
+function calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache }) {
+    let totalCost = 0;
+    const details = [];
+
+    if (hasFloat) {
+        const wire = floatWire || resolvedWire;
+        const model = `浮球-线径${wire}`;
+        const price = getPrice(model);
+        totalCost += price;
+        details.push({ name: '浮球', model, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+    }
+
+    const needCable = cableLength && Number(cableLength) > 0;
+    if (needCable) {
+        const wire = cableWire || resolvedWire;
+        const cableModel = `电缆-线径${wire}`;
+        const cp = getPrice(cableModel);
+        const len = Number(cableLength);
+        totalCost += cp * len;
+        details.push({ name: '电缆线', model: cableModel, price: cp.toFixed(2), qty: len, subtotal: (cp * len).toFixed(2) });
+        const ap = getPrice('电缆配件费');
+        totalCost += ap;
+        details.push({ name: '电缆接头配件', model: '电缆配件费', price: ap.toFixed(2), qty: 1, subtotal: ap.toFixed(2) });
+    }
+
+    if (boxType) {
+        let matchedModel = boxType, price = getPrice(boxType);
+        if (price === 0) {
+            const kw = boxType.trim();
+            const cands = [];
+            for (const [m, info] of Object.entries(partsCache)) {
+                if (info.category === '包装' && m.includes(kw)) cands.push({ model: m, price: info.price });
+            }
+            if (cands.length > 0) {
+                const best = cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]);
+                matchedModel = best.model;
+                price = best.price;
+            }
+        }
+        totalCost += price;
+        details.push({ name: matchedModel.includes('木') ? '木箱' : '纸箱', model: matchedModel, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+    }
+
+    return { totalCost, details };
+}
+
 // ── POST /cost/dynamic-config ──
 router.post('/cost/dynamic-config', (req, res) => {
     try {
@@ -86,27 +133,9 @@ router.post('/cost/dynamic-config', (req, res) => {
         const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
         const dbWire = resolveWireFromStator(statorSpec, statorSheets);
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
-        let totalCost = 0; const details = [];
 
-        if (hasFloat) {
-            const wire = floatWire || resolvedWire; const model = `浮球-线径${wire}`; const price = getPrice(model);
-            totalCost += price; details.push({ name: '浮球', model, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
-        }
-        const needCable = hasCable || (cableLength && Number(cableLength) > 0);
-        if (needCable && cableLength && Number(cableLength) > 0) {
-            const wire = cableWire || resolvedWire; const cableModel = `电缆-线径${wire}`; const cp = getPrice(cableModel); const len = Number(cableLength);
-            totalCost += cp * len; details.push({ name: '电缆线', model: cableModel, price: cp.toFixed(2), qty: len, subtotal: (cp * len).toFixed(2) });
-            const ap = getPrice('电缆配件费'); totalCost += ap; details.push({ name: '电缆接头配件', model: '电缆配件费', price: ap.toFixed(2), qty: 1, subtotal: ap.toFixed(2) });
-        }
-        if (boxType) {
-            let matchedModel = boxType, price = getPrice(boxType);
-            if (price === 0) {
-                const kw = boxType.trim(); const cands = [];
-                for (const [m, info] of Object.entries(partsCache)) { if (info.category === '包装' && m.includes(kw)) cands.push({ model: m, price: info.price }); }
-                if (cands.length > 0) { const best = cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]); matchedModel = best.model; price = best.price; }
-            }
-            totalCost += price; details.push({ name: matchedModel.includes('木') ? '木箱' : '纸箱', model: matchedModel, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
-        }
+        const effectiveCableLength = (hasCable || (cableLength && Number(cableLength) > 0)) ? cableLength : 0;
+        const { totalCost, details } = calculateDynamicCost({ hasFloat, floatWire, cableLength: effectiveCableLength, cableWire, boxType, resolvedWire, getPrice, partsCache });
         res.json({ success: true, data: { totalCost: totalCost.toFixed(2), itemCount: details.length, resolvedWire, details } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -157,25 +186,14 @@ router.post('/cost/full-calculate', (req, res) => {
             } catch (e) { result.statorCost = { error: '查询线圈成本失败: ' + e.message }; }
         }
 
-        // 步骤3: 动态配置成本
+        // 步骤3: 动态配置成本（复用共享函数）
         const dbWire = statorSpec && statorSheets ? resolveWireFromStator(statorSpec, statorSheets) : null;
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
-        let dynamicTotal = 0; const dynamicDetails = [];
-        if (hasFloat) { const w = floatWire || resolvedWire; const m = `浮球-线径${w}`; const p = getPrice(m); dynamicTotal += p; dynamicDetails.push({ name: '浮球', model: m, price: p.toFixed(2), qty: 1, subtotal: p.toFixed(2) }); }
-        if (cableLength && Number(cableLength) > 0) {
-            const w = cableWire || resolvedWire; const cm = `电缆-线径${w}`; const cp = getPrice(cm); const len = Number(cableLength);
-            dynamicTotal += cp * len; dynamicDetails.push({ name: '电缆线', model: cm, price: cp.toFixed(2), qty: len, subtotal: (cp * len).toFixed(2) });
-            const ap = getPrice('电缆配件费'); dynamicTotal += ap; dynamicDetails.push({ name: '电缆接头配件', model: '电缆配件费', price: ap.toFixed(2), qty: 1, subtotal: ap.toFixed(2) });
-        }
-        if (boxType) {
-            let mm = boxType, price = getPrice(boxType);
-            if (price === 0) { const cands = []; for (const [m, info] of Object.entries(partsCache)) { if (info.category === '包装' && m.includes(boxType.trim())) cands.push({ model: m, price: info.price }); } if (cands.length > 0) { const best = cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]); mm = best.model; price = best.price; } }
-            dynamicTotal += price; dynamicDetails.push({ name: mm.includes('木') ? '木箱' : '纸箱', model: mm, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
-        }
-        result.dynamicCost = { totalCost: dynamicTotal.toFixed(2), resolvedWire, details: dynamicDetails };
-        grandTotal += dynamicTotal;
+        const dynamic = calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache });
+        result.dynamicCost = { totalCost: dynamic.totalCost.toFixed(2), resolvedWire, details: dynamic.details };
+        grandTotal += dynamic.totalCost;
         result.totalCost = grandTotal.toFixed(2);
-        result.breakdown = { recipeCost: result.recipeCost?.totalCost || '0', statorCost: result.statorCost?.cost || '0', dynamicCost: dynamicTotal.toFixed(2) };
+        result.breakdown = { recipeCost: result.recipeCost?.totalCost || '0', statorCost: result.statorCost?.cost || '0', dynamicCost: dynamic.totalCost.toFixed(2) };
         res.json({ success: true, data: result });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

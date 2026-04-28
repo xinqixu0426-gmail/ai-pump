@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllOrders, orderRow, safeUpdate } = require('../db.cjs');
+const { db, dbGetAllOrders, orderRow, safeUpdate, softDelete } = require('../db.cjs');
 const router = Router();
 
 router.get('/', (req, res) => {
@@ -11,7 +11,7 @@ router.get('/history-price/:recipeName', (req, res) => {
     try {
         const recipeName = decodeURIComponent(req.params.recipeName);
         // 在 SQLite 层搜索，避免全量加载所有订单到内存
-        const orders = db.prepare('SELECT * FROM orders ORDER BY updated_at DESC').all();
+        const orders = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL ORDER BY updated_at DESC').all();
         for (const row of orders) {
             try {
                 const items = JSON.parse(row.items_json || '[]');
@@ -76,7 +76,11 @@ router.patch('/', (req, res) => {
 router.delete('/', (req, res) => {
     try {
         const items = Array.isArray(req.body) ? req.body : [req.body];
-        for (const item of items) { db.prepare('DELETE FROM orders WHERE id = ?').run(item.Id || item.id); }
+        for (const item of items) {
+            const id = item.Id || item.id;
+            if (!id || isNaN(Number(id))) continue;
+            softDelete('orders', Number(id));
+        }
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

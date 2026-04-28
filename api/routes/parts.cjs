@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllParts, partRow, extractPartFields, safeUpdate } = require('../db.cjs');
+const { db, dbGetAllParts, partRow, extractPartFields, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
 const router = Router();
 
 router.get('/', (req, res) => {
@@ -35,7 +35,12 @@ router.patch('/', (req, res) => {
 router.delete('/', (req, res) => {
     try {
         const items = Array.isArray(req.body) ? req.body : [req.body];
-        for (const item of items) { db.prepare('DELETE FROM parts WHERE id = ?').run(item.Id || item.id); }
+        for (const item of items) {
+            const id = item.Id || item.id;
+            if (!id || isNaN(Number(id))) continue;
+            softDelete('parts', Number(id));
+        }
+        invalidatePartsCache();
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

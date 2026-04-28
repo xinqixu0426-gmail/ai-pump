@@ -188,6 +188,29 @@ function launchDrawJob(fcParams, source, res) {
 }
 
 // ── 共享：轴承查表 + 组装 FreeCAD 参数 ──
+// P0-1: 严格数值校验白名单 — 防止异常值传入 execFile
+const FC_PARAM_LIMITS = {
+    piece_count:      { min: 1,   max: 1000 },
+    rotor_dia:        { min: 1,   max: 500  },
+    bearing_span:     { min: 1,   max: 1000 },
+    stack_offset:     { min: 0,   max: 500  },
+    oil_seal_dia:     { min: 1,   max: 200  },
+    impeller_dia:     { min: 1,   max: 500  },
+    impeller_depth:   { min: 0.1, max: 200  },
+    thread_dia:       { min: 1,   max: 100  },
+    thread_length:    { min: 1,   max: 500  },
+    impeller_span:    { min: 1,   max: 500  },
+    bearing_to_impeller: { min: 1, max: 500 },
+};
+
+function validateFcParam(key, value) {
+    const v = parseFloat(value);
+    if (!isFinite(v)) return null;
+    const limits = FC_PARAM_LIMITS[key];
+    if (limits && (v < limits.min || v > limits.max)) return null;
+    return v;
+}
+
 function buildFcParams(params) {
     const fcParams = {};
     const errors = [];
@@ -215,10 +238,19 @@ function buildFcParams(params) {
     ['piece_count', 'rotor_dia', 'bearing_span', 'stack_offset',
      'oil_seal_dia', 'impeller_dia', 'impeller_depth',
      'thread_dia', 'thread_length'].forEach(k => {
-        if (params[k] != null) fcParams[k] = parseFloat(params[k]) || 0;
+        if (params[k] != null) {
+            const v = validateFcParam(k, params[k]);
+            if (v !== null) fcParams[k] = v;
+        }
     });
-    if (params.impeller_span != null) fcParams.bearing_to_impeller = parseFloat(params.impeller_span) || 0;
-    if (params.bearing_to_impeller != null) fcParams.bearing_to_impeller = parseFloat(params.bearing_to_impeller) || 0;
+    if (params.impeller_span != null) {
+        const v = validateFcParam('impeller_span', params.impeller_span);
+        if (v !== null) fcParams.bearing_to_impeller = v;
+    }
+    if (params.bearing_to_impeller != null) {
+        const v = validateFcParam('bearing_to_impeller', params.bearing_to_impeller);
+        if (v !== null) fcParams.bearing_to_impeller = v;
+    }
 
     if (fcParams.piece_count) {
         fcParams._core_length = fcParams.piece_count * 0.5;
