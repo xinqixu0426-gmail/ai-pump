@@ -75,12 +75,9 @@ export default function RecipeDetailModal({
   const hasSnapshot = costResult.snapshotTotalCost !== undefined;
 
   const { totalCostValue, groupedDetails } = useMemo(() => {
-    const laborWage = (recipe.assembly_wage || 0) + (recipe.packing_wage || 0) + (recipe.painting_wage || 0);
-    const mgmtFee = recipe.management_fee || 0;
-    const laborTotal = laborWage + mgmtFee;
-
-    const partsTotal = parseFloat(costResult.totalCost) || 0;
-    const totalCost = partsTotal + laborTotal;
+    let laborWage = (recipe.assembly_wage || 0) + (recipe.packing_wage || 0) + (recipe.painting_wage || 0);
+    let mgmtFee = recipe.management_fee || 0;
+    let laborTotal = laborWage + mgmtFee;
 
     const groups = {
       template: { id: 'template', title: '泵壳模板', icon: <FactoryIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
@@ -126,6 +123,27 @@ export default function RecipeDetailModal({
     if (recipe.packing_wage) groups.labor.items.push({ name: '打包工资', model: '-', supplier: '-', price: recipe.packing_wage.toFixed(2), qty: 1, subtotal: recipe.packing_wage.toFixed(2), source: '配方预设' });
     if (recipe.painting_wage) groups.labor.items.push({ name: '喷漆工资', model: '-', supplier: '-', price: recipe.painting_wage.toFixed(2), qty: 1, subtotal: recipe.painting_wage.toFixed(2), source: '配方预设' });
     if (recipe.management_fee) groups.labor.items.push({ name: '管理费用', model: '-', supplier: '-', price: recipe.management_fee.toFixed(2), qty: 1, subtotal: recipe.management_fee.toFixed(2), source: '系统设定' });
+
+    // 兼容老数据：如果数据库里没记录人工字段，但历史快照文本里有，就把它们提取出来放进分组
+    if (laborTotal === 0 && recipe.saved_cost_details) {
+      const lines = recipe.saved_cost_details.split('\n');
+      lines.forEach(line => {
+        if (line.includes('工资') || line.includes('费用')) {
+          const match = line.match(/(.+?):\s*¥([\d.]+)/);
+          if (match) {
+            const name = match[1].trim();
+            const price = parseFloat(match[2]);
+            groups.labor.items.push({ name, model: '-', supplier: '-', price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2), source: '历史快照' });
+            laborTotal += price;
+            groups.labor.total += price;
+            groups.labor.snapshotTotal += price;
+          }
+        }
+      });
+    }
+
+    const partsTotal = parseFloat(costResult.totalCost) || 0;
+    const totalCost = partsTotal + laborTotal;
 
     return {
       totalCostValue: totalCost,
@@ -393,6 +411,21 @@ export default function RecipeDetailModal({
           <Alert severity="info" sx={{ mt: 2 }}>
             该配方保存时未记录价格快照（可能是旧版本创建的），仅显示当前实时成本。重新录入后将自动带上快照。
           </Alert>
+        )}
+
+        {hasSnapshot && recipe.saved_cost_details && (
+          <Accordion elevation={0} sx={{ mt: 2, bgcolor: 'info.50', border: '1px solid', borderColor: 'info.light', borderRadius: 1, '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon size={20} color="#0288d1" />} sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.5 } }}>
+              <Typography variant="subtitle2" color="info.dark" sx={{ fontWeight: 700 }}>
+                查看原始保存的明细快照 (包含历史人工记录)
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Box component="pre" sx={{ mt: 0, mb: 0, whiteSpace: 'pre-wrap', fontSize: '0.8rem', fontFamily: 'monospace', color: 'info.dark' }}>
+                {recipe.saved_cost_details}
+              </Box>
+            </AccordionDetails>
+          </Accordion>
         )}
 
         {/* 生产扣减区域 */}

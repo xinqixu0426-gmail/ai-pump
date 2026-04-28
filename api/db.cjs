@@ -233,6 +233,7 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
         let price = 0, source = '';
         if (match && p.supplier) { price = match.price; source = '精确匹配'; }
         else if (suppliers.length > 0) { const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]); price = fb.price; source = '型号回退(取最低价)'; }
+        else if ((p.name === '线圈转子' || p.name === '电容') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '快照价格'; }
         else { missingParts.push(p.model); source = '未找到'; }
         const subtotal = price * p.qty;
         totalCost += subtotal;

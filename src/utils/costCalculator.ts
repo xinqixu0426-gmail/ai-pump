@@ -78,6 +78,10 @@ export function calculateRecipeCost(
         price = fallbackPart.price;
         matchedSupplier = fallbackPart.supplier;
         source = `型号回退(${matchedSupplier})`;
+      } else if ((rp.name === '线圈转子' || rp.name === '电容') && rp.snapshotPrice !== undefined) {
+        // 线圈和电容不在配件表中，使用快照价格
+        price = rp.snapshotPrice;
+        source = '快照价格';
       } else {
         missingParts.push(rp.model);
       }
