@@ -100,7 +100,7 @@ export default function CoilRotorPage() {
               <Typography variant="subtitle2" sx={{ color: colors.amber.text, fontWeight: 600 }}>实时铜价监控</Typography>
               {copperLoading ? <CircularProgress size={20} /> : copperPrice ? (
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary' }}>¥{Number(copperPrice.livePrice).toLocaleString()}</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>¥{Number(copperPrice.livePrice).toLocaleString()}</Typography>
                   <Typography variant="body2" sx={{ color: colors.amber.text }}>元/吨</Typography>
                   <Chip label={`${copperPrice.livePricePerKg} 元/千克`} size="small" sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }} />
                   <Divider orientation="vertical" flexItem sx={{ borderColor: colors.amber.border }} />
@@ -159,7 +159,7 @@ export default function CoilRotorPage() {
                   <Typography variant="subtitle2" color="success.dark">计算结果</Typography>
                   <Chip label={calcResult.source} size="small" color={calcResult.source === '精确匹配' ? 'success' : 'info'} variant="outlined" />
                 </Box>
-                <Typography variant="h4" sx={{ fontWeight: 800, color: colors.green.text, mb: 1 }}>¥{calcResult.totalCost.toFixed(2)}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: colors.green.text, mb: 1 }}>¥{calcResult.totalCost.toFixed(2)}</Typography>
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace', bgcolor: colors.slate.bg, p: 1, borderRadius: 1, lineHeight: 1.8, fontSize: '0.75rem' }}>
                   <Box component="span" sx={{ color: 'primary.main' }}>单价</Box> {calcResult.unitPrice} × <Box component="span" sx={{ color: 'primary.main' }}>片数</Box> {calcResult.sheets} = {(calcResult.unitPrice * calcResult.sheets).toFixed(2)}<br />

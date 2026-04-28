@@ -45,16 +45,16 @@ export default function TopBar() {
         {/* Brand */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{
-            width: 42, height: 42, borderRadius: '14px',
+            width: 38, height: 38, borderRadius: '10px',
             background: 'var(--dark)', color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 18px 36px rgba(15, 23, 42, 0.15)',
-            fontWeight: 900,
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)',
+            fontWeight: 700,
           }}>
             <Droplet size={22} fill="currentColor" strokeWidth={0} />
           </Box>
           <Box sx={{ display: { xs: 'none', lg: 'block' } }}>
-            <Typography sx={{ m: 0, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>
+            <Typography sx={{ m: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>
               水泵BOM
             </Typography>
             <Typography sx={{ m: 0, color: 'text.secondary', fontSize: 12, fontWeight: 600 }}>
@@ -90,7 +90,7 @@ export default function TopBar() {
                   fontWeight: 700,
                   fontSize: 14,
                   transition: '0.2s ease',
-                  boxShadow: active ? '0 10px 24px rgba(15, 23, 42, 0.18)' : 'none',
+                  boxShadow: active ? '0 2px 8px rgba(15, 23, 42, 0.15)' : 'none',
                   flexShrink: 0,
                   '&:hover': {
                     bgcolor: active ? 'var(--dark)' : 'rgba(255, 255, 255, 0.9)',
@@ -107,16 +107,8 @@ export default function TopBar() {
           })}
         </Box>
 
-        {/* Status & Search Hint */}
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 2, color: 'text.secondary', fontSize: 12, fontWeight: 700 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{
-              width: 8, height: 8, borderRadius: 999,
-              bgcolor: '#22c55e', boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.14)'
-            }} />
-            <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>v1.2 Ready</Box>
-          </Box>
-        </Box>
+        {/* 预留右侧位置 */}
+        <Box sx={{ width: { xs: 0, md: 20 } }} />
       </Box>
     </Box>
   );

@@ -118,12 +118,12 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 800,
+              fontWeight: 700,
               color: '#f1f5f9',
               letterSpacing: 1,
             }}
           >
-            💧 水泵BOM管理系统
+            水泵BOM管理系统
           </Typography>
           <Typography
             variant="body2"

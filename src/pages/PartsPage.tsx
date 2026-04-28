@@ -289,7 +289,7 @@ export default function PartsPage() {
           {(searchQuery || filterCategory) && (
             <Box sx={{ px: 2, py: 1, bgcolor: colors.blue.bg, borderBottom: '1px solid', borderColor: colors.blue.border }}>
               <Typography variant="caption" color={colors.blue.text} fontWeight={600}>
-                🔍 找到 {filteredParts.length} 个零件{filteredParts.length !== parts.length ? `（共 ${parts.length} 个）` : ''}
+                找到 {filteredParts.length} 个零件{filteredParts.length !== parts.length ? `（共 ${parts.length} 个）` : ''}
               </Typography>
             </Box>
           )}
@@ -319,12 +319,11 @@ export default function PartsPage() {
                     display: 'flex', alignItems: 'center', gap: 1.5,
                     px: 2, py: 1.2, cursor: 'pointer',
                     bgcolor: cc.bg, borderBottom: '1px solid', borderColor: cc.border,
-                    borderLeft: `4px solid ${cc.text}20`,
+                    borderLeft: `4px solid ${cc.text}`,
                     transition: 'all 0.15s',
                     '&:hover': { filter: 'brightness(0.97)' },
                   }}
                 >
-                  <Typography sx={{ fontSize: '1rem' }}>{getCatIcon(cat)}</Typography>
                   <Checkbox 
                     size="small" 
                     checked={catParts.length > 0 && catParts.every(p => selectedIds.includes(p.Id))}
@@ -333,8 +332,8 @@ export default function PartsPage() {
                     onClick={(e) => e.stopPropagation()}
                     sx={{ p: 0.5, color: cc.text, '&.Mui-checked, &.MuiCheckbox-indeterminate': { color: cc.text } }}
                   />
-                  <Typography variant="subtitle2" fontWeight={800} color={cc.text}>{cat}</Typography>
-                  <Chip label={`${catParts.length} 项`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: 'white', color: cc.text, border: `1px solid ${cc.border}` }} />
+                  <Typography variant="subtitle2" fontWeight={600} color={cc.text}>{cat}</Typography>
+                  <Chip label={`${catParts.length} 项`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, bgcolor: 'white', color: cc.text, border: `1px solid ${cc.border}` }} />
                   {zeroCount > 0 && <Chip icon={<ErrorOutlineIcon size={14} />} label={`缺货 ${zeroCount}`} size="small" color="error" sx={{ height: 20, fontSize: '0.68rem', '& .MuiChip-icon': { ml: 0.5 } }} />}
                   {lowCount > 0 && <Chip icon={<WarningIcon size={14} />} label={`低库存 ${lowCount}`} size="small" color="warning" sx={{ height: 20, fontSize: '0.68rem', '& .MuiChip-icon': { ml: 0.5 } }} />}
                   <Box flex={1} />
@@ -395,7 +394,7 @@ export default function PartsPage() {
 
       {/* 删除确认弹窗 */}
       <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 700 }}>⚠️ 删除零件</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>删除零件</DialogTitle>
         <DialogContent>
           <DialogContentText>确定要删除该零件吗？此操作不可撤销，且可能影响引用此零件的配方成本计算。</DialogContentText>
         </DialogContent>
@@ -448,7 +447,7 @@ export default function PartsPage() {
               setSelectedIds([]);
             } catch { setError('批量删除失败'); }
           }}>删除</Button>
-          <IconButton size="small" onClick={() => setSelectedIds([])} sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, p: 0.5 }}><CloseIcon fontSize="small" /></IconButton>
+          <IconButton size="small" onClick={() => setSelectedIds([])} sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, p: 0.5 }}><CloseIcon size={18} /></IconButton>
         </Paper>
       </Slide>
 
@@ -792,7 +791,7 @@ function HarnessPanel({ parts, testResults, setTestResults, testRunning, setTest
       {testResults.length > 0 && (
         <Box sx={{ px: 3, py: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, bgcolor: failed === 0 ? colors.green.bg : colors.red.bg }}>
           {failed === 0
-            ? <><CheckCircleIcon color={colors.green.main} size={20} /><Typography variant="caption" fontWeight={700} color={colors.green.text}>🎉 所有 {passed} 个测试用例全部通过！</Typography></>
+            ? <><CheckCircleIcon color={colors.green.main} size={20} /><Typography variant="caption" fontWeight={700} color={colors.green.text}>所有 {passed} 个测试用例全部通过！</Typography></>
             : <><ErrorOutlineIcon color={colors.red.main} size={20} /><Typography variant="caption" fontWeight={700} color={colors.red.text}>⚠ {failed} 个测试失败，请查看上方详情</Typography></>
           }
           <Box flex={1} />

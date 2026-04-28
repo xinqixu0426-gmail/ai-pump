@@ -25,7 +25,7 @@ export default function PageHeader({ title, subtitle, actions }: PageHeaderProps
         mb={3}
       >
         <Box mb={{ xs: actions ? 1 : 0, sm: 0 }}>
-          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.04em', fontSize: { xs: '1.5rem', sm: '2.25rem' } }}>
+          <Typography variant="h3" sx={{ fontWeight: 700, letterSpacing: '-0.01em', fontSize: { xs: '1.5rem', sm: '2rem' } }}>
             {title}
           </Typography>
           {subtitle && (

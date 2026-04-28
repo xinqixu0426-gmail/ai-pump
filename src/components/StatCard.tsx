@@ -29,10 +29,8 @@ export default function StatCard({ label, value, subtitle, icon, gradient, delay
           position: 'relative',
           overflow: 'hidden',
           flex: 1,
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'border-color 0.2s ease',
           '&:hover': {
-            transform: { xs: 'none', sm: 'translateY(-4px)' },
-            boxShadow: 'var(--shadow-heavy)',
             borderColor: 'rgba(148, 163, 184, 0.4)',
           },
         }}
@@ -41,11 +39,11 @@ export default function StatCard({ label, value, subtitle, icon, gradient, delay
           <Box>
             <Typography
               variant="caption"
-              sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.75rem' }}
+              sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase', fontSize: '0.75rem' }}
             >
               {label}
             </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 900, mt: 1, letterSpacing: '-0.04em', fontSize: { xs: '1.75rem', sm: '2.5rem' } }}>
+            <Typography variant="h3" sx={{ fontWeight: 700, mt: 1, letterSpacing: '-0.02em', fontSize: { xs: '1.75rem', sm: '2.25rem' } }}>
               {value}
             </Typography>
             {subtitle && (

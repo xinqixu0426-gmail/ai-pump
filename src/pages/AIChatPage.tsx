@@ -45,14 +45,14 @@ interface ChatMessage {
 
 // ─── 示例问题 ─────────────────────────────────────────
 const EXAMPLE_QUESTIONS = [
-  { text: 'V750的成本是多少？', icon: '💰' },
-  { text: '当前铜价是多少？', icon: '🔴' },
-  { text: '12规格200片线圈成本', icon: '⚡' },
-  { text: '系统运营数据汇总', icon: '📊' },
-  { text: '帮我新建一个台州李总的订单，加2台V750(1.5寸)', icon: '📝' },
-  { text: '看看订单5的详情', icon: '🔍' },
-  { text: '生成订单5的采购清单', icon: '🛠' },
-  { text: '对比一下V750和V550的成本差异', icon: '🧩' },
+  { text: 'V750的成本是多少？' },
+  { text: '当前铜价是多少？' },
+  { text: '12规格200片线圈成本' },
+  { text: '系统运营数据汇总' },
+  { text: '帮我新建一个台州李总的订单，加2台V750(1.5寸)' },
+  { text: '看看订单5的详情' },
+  { text: '生成订单5的采购清单' },
+  { text: '对比一下V750和V550的成本差异' },
 ];
 
 // ─── 主页面组件 ───────────────────────────────────────
@@ -342,20 +342,15 @@ export default function AIChatPage() {
           // 欢迎界面
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 3 }}>
             <Box sx={{
-              width: 80, height: 80, borderRadius: '50%',
+              width: 64, height: 64, borderRadius: '50%',
               background: gradients.brand,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 32px rgba(124, 58, 237, 0.3)',
-              animation: 'float 3s ease-in-out infinite',
-              '@keyframes float': {
-                '0%, 100%': { transform: 'translateY(0px)' },
-                '50%': { transform: 'translateY(-10px)' },
-              }
+              boxShadow: '0 4px 16px rgba(124, 58, 237, 0.2)',
             }}>
-              <SparkleIcon size={40} color="white" />
+              <SparkleIcon size={32} color="white" />
             </Box>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, background: gradients.brandText, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5, color: 'text.primary' }}>
                 BOM 智能助手
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -380,8 +375,8 @@ export default function AIChatPage() {
                   }}
                   onClick={() => handleSend(q.text)}
                 >
-                  <Typography variant="body2" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <span>{q.icon}</span> {q.text}
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {q.text}
                   </Typography>
                 </Paper>
               ))}

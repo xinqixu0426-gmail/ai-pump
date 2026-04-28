@@ -483,7 +483,7 @@ export default function RecipeFormPage() {
         )}
         <Box sx={{ ml: 'auto', textAlign: 'right' }}>
           <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>预估总成本</Typography>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: totalCost > 0 ? 'success.main' : 'text.disabled', fontSize: '1.25rem', lineHeight: 1.2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: totalCost > 0 ? 'success.main' : 'text.disabled', fontSize: '1.25rem', lineHeight: 1.2 }}>
             ¥{totalCost.toFixed(2)}
           </Typography>
         </Box>

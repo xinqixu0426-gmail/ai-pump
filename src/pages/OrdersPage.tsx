@@ -139,7 +139,7 @@ export default function OrdersPage() {
             <Tooltip title="刷新数据">
               <span>
                 <IconButton onClick={handleRefresh} disabled={loading}>
-                  <RefreshIcon />
+                  <RefreshIcon size={18} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -200,7 +200,6 @@ export default function OrdersPage() {
 
         {orders.length === 0 ? (
           <Box textAlign="center" py={8} color="text.secondary">
-            <Typography variant="h4" sx={{ mb: 1, opacity: 0.5 }}>📦</Typography>
             <Typography variant="body2" sx={{ mb: 1.5 }}>暂无订单，点击右上角新建</Typography>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={() => navigate('/order-form')}>
               新建第一个订单
@@ -236,9 +235,9 @@ export default function OrdersPage() {
                             pr: 0,
                           }}
                         >
-                          <MenuItem value="待采购">⏳ 待采购</MenuItem>
-                          <MenuItem value="采购中">🔄 采购中</MenuItem>
-                          <MenuItem value="已完成">✅ 已完成</MenuItem>
+                          <MenuItem value="待采购">待采购</MenuItem>
+                          <MenuItem value="采购中">采购中</MenuItem>
+                          <MenuItem value="已完成">已完成</MenuItem>
                         </Select>
                       )}
                     </Box>
@@ -333,9 +332,9 @@ export default function OrdersPage() {
                                 '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${STATUS_COLOR[order.status]}.50` || 'action.hover' },
                               }}
                             >
-                              <MenuItem value="待采购">⏳ 待采购</MenuItem>
-                              <MenuItem value="采购中">🔄 采购中</MenuItem>
-                              <MenuItem value="已完成">✅ 已完成</MenuItem>
+                              <MenuItem value="待采购">待采购</MenuItem>
+                              <MenuItem value="采购中">采购中</MenuItem>
+                              <MenuItem value="已完成">已完成</MenuItem>
                             </Select>
                           )}
                         </TableCell>
@@ -345,17 +344,17 @@ export default function OrdersPage() {
                         <TableCell align="center">
                           <Tooltip title="查看详情">
                             <IconButton size="small" color="info" onClick={() => handleDetail(order)}>
-                              <InfoIcon fontSize="small" />
+                              <InfoIcon size={18} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="编辑订单">
                             <IconButton size="small" color="primary" onClick={() => navigate(`/order-form/${order.id}`)}>
-                              <EditIcon fontSize="small" />
+                              <EditIcon size={18} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="删除订单">
                             <IconButton size="small" color="error" onClick={() => handleDelete(order.id)}>
-                              <DeleteIcon fontSize="small" />
+                              <DeleteIcon size={18} />
                             </IconButton>
                           </Tooltip>
                         </TableCell>

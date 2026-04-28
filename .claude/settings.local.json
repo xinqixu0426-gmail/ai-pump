@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe //c \"taskkill /PID 18636 /F\")",
+      "Bash(node api.cjs)"
+    ]
+  }
+}

@@ -418,7 +418,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
                   label={
                     <Box display="flex" alignItems="center" gap={0.5}>
                       <Typography variant="body2" fontWeight={700} color={isStainless ? '#0369a1' : 'text.secondary'}>
-                        ✨ 不锈钢机筒
+                        不锈钢机筒
                       </Typography>
                       {isStainless && (
                         <Chip label="SS" size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: '#0284c7', color: 'white' }} />

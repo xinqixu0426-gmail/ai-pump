@@ -100,11 +100,11 @@ export const gradients = {
 /** Glassmorphism 默认卡片 */
 export const sxGlassPanel = {
   bgcolor: 'var(--panel)',
-  borderRadius: '26px',
+  borderRadius: '12px',
   border: '1px solid var(--border)',
   boxShadow: 'var(--shadow)',
-  backdropFilter: 'blur(16px)',
-  WebkitBackdropFilter: 'blur(16px)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
 } as const;
 
 /** 信息面板 - 蓝色 */
@@ -169,7 +169,7 @@ export const muiTheme = createTheme({
     },
   },
   shape: {
-    borderRadius: 14,
+    borderRadius: 10,
   },
   typography: {
     fontFamily: [
@@ -183,16 +183,16 @@ export const muiTheme = createTheme({
       'sans-serif',
     ].join(','),
     h4: {
-      letterSpacing: '-0.03em',
-      fontWeight: 800,
+      letterSpacing: '-0.01em',
+      fontWeight: 700,
     },
     h5: {
-      letterSpacing: '-0.02em',
-      fontWeight: 800,
+      letterSpacing: '-0.01em',
+      fontWeight: 700,
     },
     h6: {
-      letterSpacing: '-0.02em',
-      fontWeight: 700,
+      letterSpacing: '-0.01em',
+      fontWeight: 600,
     },
   },
   components: {
@@ -205,9 +205,9 @@ export const muiTheme = createTheme({
           backgroundImage: 'none',
           border: '1px solid var(--border)',
           backgroundColor: 'var(--panel)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderRadius: 26,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderRadius: 12,
           boxShadow: 'var(--shadow)',
         },
       },
@@ -216,8 +216,8 @@ export const muiTheme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          fontWeight: 700,
-          borderRadius: 14,
+          fontWeight: 600,
+          borderRadius: 10,
         },
         contained: {
           boxShadow: 'var(--shadow)',
@@ -247,9 +247,9 @@ export const muiTheme = createTheme({
       },
       styleOverrides: {
         paper: {
-          borderRadius: 28,
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          borderRadius: 16,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           backgroundColor: 'var(--panel-strong)',
           '@media (max-width: 600px)': {
             margin: 16,
@@ -275,9 +275,9 @@ export const muiTheme = createTheme({
     MuiChip: {
       styleOverrides: {
         root: {
-          fontWeight: 800,
+          fontWeight: 600,
           borderRadius: 999,
-          letterSpacing: '0.08em',
+          letterSpacing: '0.02em',
         },
       },
     },

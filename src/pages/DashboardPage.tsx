@@ -97,11 +97,11 @@ function OrderCard({ order, onDetail, index }: OrderCardProps) {
           cursor: 'pointer',
           border: '1px solid',
           borderColor: 'divider',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 0.2s ease',
+          borderColor: 'divider',
           '&:hover': {
             borderColor: config.color,
-            transform: 'translateY(-4px)',
-            boxShadow: `0 12px 32px ${config.bg}, 0 4px 14px rgba(0,0,0,0.06)`,
+            boxShadow: `0 4px 12px ${config.bg}`,
           },
         }}
       >
@@ -464,7 +464,7 @@ export default function DashboardPage() {
         }}
       >
         <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-          ⚡ 快捷操作
+          快捷操作
         </Typography>
         <Box
           sx={{
@@ -492,13 +492,11 @@ export default function DashboardPage() {
                 py: 1.5,
                 borderRadius: 2.5,
                 cursor: 'pointer',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.15s ease',
                 '&:hover': {
-                  transform: 'translateY(-3px)',
                   bgcolor: 'rgba(0,0,0,0.02)',
-                  boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
                 },
-                '&:active': { transform: 'scale(0.96)' },
+                '&:active': { transform: 'scale(0.97)' },
               }}
             >
               <Avatar
@@ -530,8 +528,8 @@ export default function DashboardPage() {
         }}
       >
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            🗂️ 订单看板
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            订单看板
           </Typography>
           <Chip
             label={`共 ${orders.length} 单`}
@@ -563,8 +561,8 @@ export default function DashboardPage() {
       {/* 最近订单列表 */}
       <Paper elevation={0} sx={{ p: 3, borderRadius: 3 }}>
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            🕐 最近动态
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            最近动态
           </Typography>
           <Chip
             label="查看全部"

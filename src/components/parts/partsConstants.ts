@@ -8,11 +8,11 @@ export const BUILTIN_CATEGORIES: string[] = [
   '电容', '电缆线', '浮球', '皮垫', '配件', '包装',
 ];
 
-/** 内置图标 */
+/** 内置图标 — 不再使用 emoji，类别由色条区分 */
 export const BUILTIN_ICONS: Record<string, string> = {
-  轴承: '⚙️', 油封: '🔧', 螺丝: '🔩', 泵壳: '🏠',
-  线圈转子: '⚡', 电容: '🔋', 电缆线: '📡', 浮球: '🔴', 皮垫: '🟤',
-  配件: '🛠️', 包装: '📦',
+  轴承: '', 油封: '', 螺丝: '', 泵壳: '',
+  线圈转子: '', 电容: '', 电缆线: '', 浮球: '', 皮垫: '',
+  配件: '', 包装: '',
 };
 
 /** 内置颜色映射 */
@@ -68,7 +68,7 @@ export function getCatColor(cat: string, customCategories: string[]): { bg: stri
 
 /** 返回某个类别的 emoji 图标 */
 export function getCatIcon(cat: string): string {
-  return BUILTIN_ICONS[cat] ?? '🏷️';
+  return BUILTIN_ICONS[cat] ?? '';
 }
 
 // ─── 库存状态 ─────────────────────────────────────────

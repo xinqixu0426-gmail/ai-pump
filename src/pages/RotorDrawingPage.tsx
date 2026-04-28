@@ -280,7 +280,7 @@ export default function RotorDrawingPage() {
     try {
       const res = await fetch(`${API_BASE}/api/rotor/print/${targetJobId}`, { method: 'POST', credentials: 'include' });
       const data = await res.json();
-      if (res.ok && data.ok) setSnackbar({ open: true, message: '🖨️ 打印指令已发送到默认打印机', severity: 'success' });
+      if (res.ok && data.ok) setSnackbar({ open: true, message: '打印指令已发送到默认打印机', severity: 'success' });
       else setSnackbar({ open: true, message: '打印失败: ' + (data.error || '未知错误'), severity: 'error' });
     } catch (e: any) { setSnackbar({ open: true, message: '打印请求失败: ' + e.message, severity: 'error' }); }
     finally { setPrinting(false); }
@@ -341,7 +341,7 @@ export default function RotorDrawingPage() {
         {ssMeta && (
           <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, border: '1px solid #bae6fd', bgcolor: '#f0f9ff' }}>
             <Typography variant="body2" fontWeight={700} color="#0369a1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <span style={{ fontSize: '1.2rem' }}>🔧</span> SS机筒长度
+              SS机筒长度
             </Typography>
             <Box display="flex" flexDirection="column" gap={1.5}>
               {ssMeta.barrelLengthPresets && ssMeta.barrelLengthPresets.length > 0 && (

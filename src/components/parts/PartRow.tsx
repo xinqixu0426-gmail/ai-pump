@@ -57,7 +57,7 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
             {pumpMeta?.isStainless && (
               <Tooltip title={`不锈钢机筒${pumpMeta.barrelLength ? `  默认机筒长度: ${pumpMeta.barrelLength}mm` : ''}${pumpMeta.openOffset != null ? `  开档偏移量: ${pumpMeta.openOffset}` : (pumpMeta.openFactor != null ? `  开档系数: ${pumpMeta.openFactor}` : '')}`}>
                 <Chip
-                  label={`✨ SS${pumpMeta.barrelLength ? ` ${pumpMeta.barrelLength}mm` : ''}`}
+                  label={`SS${pumpMeta.barrelLength ? ` ${pumpMeta.barrelLength}mm` : ''}`}
                   size="small"
                   sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#0284c7', color: 'white', cursor: 'default' }}
                 />

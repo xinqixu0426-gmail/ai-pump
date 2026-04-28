@@ -91,13 +91,13 @@ function CopperPriceCard({ data }: { data: { livePrice: number; livePricePerKg: 
   return (
     <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
       <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 160, borderRadius: 3, background: gradients.copperCard, border: 'none' }}>
-        <Typography variant="caption" sx={{ color: colors.amber.text, fontWeight: 600 }}>🔴 实时铜价</Typography>
-        <Typography variant="h5" sx={{ fontWeight: 800, color: colors.amber.deepText, mt: 0.5 }}>¥{data.livePricePerKg}/kg</Typography>
+        <Typography variant="caption" sx={{ color: colors.amber.text, fontWeight: 600 }}>实时铜价</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: colors.amber.deepText, mt: 0.5 }}>¥{data.livePricePerKg}/kg</Typography>
         <Typography variant="caption" sx={{ color: colors.amber.text }}>({data.livePrice?.toLocaleString()} 元/吨)</Typography>
       </Paper>
       <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 160, borderRadius: 3, background: gradients.dbCard, border: 'none' }}>
         <Typography variant="caption" sx={{ color: colors.blue.dark, fontWeight: 600 }}>📊 数据库铜价</Typography>
-        <Typography variant="h5" sx={{ fontWeight: 800, color: colors.blue.deepText, mt: 0.5 }}>¥{data.dbPrice}/kg</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: colors.blue.deepText, mt: 0.5 }}>¥{data.dbPrice}/kg</Typography>
         {data.lastUpdate && <Typography variant="caption" sx={{ color: colors.blue.dark }}>更新: {new Date(data.lastUpdate).toLocaleString('zh-CN')}</Typography>}
       </Paper>
     </Box>
@@ -111,8 +111,8 @@ function CoilCostCard({ data }: { data: { spec: string; sheets: number; totalCos
       <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, background: gradients.coilCost, border: 'none' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Box>
-            <Typography variant="caption" sx={{ color: colors.green.text, fontWeight: 600 }}>⚡ 线圈转子成本</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: colors.green.deepText }}>¥{data.totalCost?.toFixed(2)}</Typography>
+            <Typography variant="caption" sx={{ color: colors.green.text, fontWeight: 600 }}>线圈转子成本</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: colors.green.deepText }}>¥{data.totalCost?.toFixed(2)}</Typography>
           </Box>
           <Chip label={data.source} size="small" color="success" variant="outlined" />
         </Box>
@@ -151,8 +151,8 @@ function FullCalculateCard({ data }: { data: { totalCost: string; recipeCost?: R
   return (
     <Box sx={{ mt: 1.5 }}>
       <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, background: gradients.fullCalc, border: 'none', mb: 2 }}>
-        <Typography variant="caption" sx={{ color: colors.purple.text, fontWeight: 600 }}>🧮 一站式BOM综合成本</Typography>
-        <Typography variant="h3" sx={{ fontWeight: 800, color: colors.purple.deepText }}>¥{data.totalCost}</Typography>
+        <Typography variant="caption" sx={{ color: colors.purple.text, fontWeight: 600 }}>一站式BOM综合成本</Typography>
+        <Typography variant="h3" sx={{ fontWeight: 700, color: colors.purple.deepText }}>¥{data.totalCost}</Typography>
         {data.breakdown && (
           <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
             <Chip label={`配方: ¥${data.breakdown.recipeCost}`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.6)' }} />
