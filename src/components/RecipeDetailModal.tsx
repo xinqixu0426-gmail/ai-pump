@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -16,11 +16,20 @@ import {
   Alert,
   Chip,
   IconButton,
-  TextField
+  TextField,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   X as CloseIcon,
-  Play as ProduceIcon
+  Play as ProduceIcon,
+  ChevronDown as ExpandMoreIcon,
+  Factory as FactoryIcon,
+  Zap as ZapIcon,
+  Wrench as WrenchIcon,
+  Package as PackageIcon,
+  Users as UsersIcon
 } from 'lucide-react';
 import { Recipe, CostResult, Part, RecipePart } from '../types';
 import { batchDeductStock } from '../utils/api';
@@ -64,6 +73,65 @@ export default function RecipeDetailModal({
   };
 
   const hasSnapshot = costResult.snapshotTotalCost !== undefined;
+
+  const { totalCostValue, groupedDetails } = useMemo(() => {
+    const laborWage = (recipe.assembly_wage || 0) + (recipe.packing_wage || 0) + (recipe.painting_wage || 0);
+    const mgmtFee = recipe.management_fee || 0;
+    const laborTotal = laborWage + mgmtFee;
+
+    const partsTotal = parseFloat(costResult.totalCost) || 0;
+    const totalCost = partsTotal + laborTotal;
+
+    const groups = {
+      template: { id: 'template', title: '泵壳模板', icon: <FactoryIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
+      coil: { id: 'coil', title: '线圈转子', icon: <ZapIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
+      optional: { id: 'optional', title: '选配配件', icon: <WrenchIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
+      dynamic: { id: 'dynamic', title: '动态配置', icon: <PackageIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
+      labor: { id: 'labor', title: '人工与管理', icon: <UsersIcon size={18} />, items: [] as any[], total: laborTotal, snapshotTotal: laborTotal },
+    };
+
+    let extraModels = new Set<string>();
+    try {
+      const extras = JSON.parse(recipe.extra_parts_json || '[]');
+      extras.forEach((p: any) => extraModels.add(`${p.model}||${p.supplier||''}`));
+    } catch {}
+
+    costResult.details.forEach(detail => {
+      const name = detail.name;
+      const sub = parseFloat(detail.subtotal) || 0;
+      const snapSub = parseFloat(detail.snapshotSubtotal || '0') || 0;
+      const extraKey = `${detail.model}||${detail.supplier||''}`;
+      const extraKeyNoSup = `${detail.model}||`;
+
+      let groupKey: keyof typeof groups = 'template';
+
+      if (['线圈转子', '电容'].includes(name)) {
+        groupKey = 'coil';
+      } else if (['浮球', '电缆线', '电缆接头配件', '木箱', '纸箱'].includes(name)) {
+        groupKey = 'dynamic';
+      } else if (name === '泵壳') {
+        groupKey = 'template';
+      } else if (extraModels.has(extraKey) || extraModels.has(extraKeyNoSup)) {
+        groupKey = 'optional';
+      } else if (name === detail.model) {
+        groupKey = 'optional';
+      }
+
+      groups[groupKey].items.push(detail);
+      groups[groupKey].total += sub;
+      groups[groupKey].snapshotTotal += snapSub;
+    });
+
+    if (recipe.assembly_wage) groups.labor.items.push({ name: '安装工资', model: '-', supplier: '-', price: recipe.assembly_wage.toFixed(2), qty: 1, subtotal: recipe.assembly_wage.toFixed(2), source: '配方预设' });
+    if (recipe.packing_wage) groups.labor.items.push({ name: '打包工资', model: '-', supplier: '-', price: recipe.packing_wage.toFixed(2), qty: 1, subtotal: recipe.packing_wage.toFixed(2), source: '配方预设' });
+    if (recipe.painting_wage) groups.labor.items.push({ name: '喷漆工资', model: '-', supplier: '-', price: recipe.painting_wage.toFixed(2), qty: 1, subtotal: recipe.painting_wage.toFixed(2), source: '配方预设' });
+    if (recipe.management_fee) groups.labor.items.push({ name: '管理费用', model: '-', supplier: '-', price: recipe.management_fee.toFixed(2), qty: 1, subtotal: recipe.management_fee.toFixed(2), source: '系统设定' });
+
+    return {
+      totalCostValue: totalCost,
+      groupedDetails: [groups.template, groups.coil, groups.optional, groups.dynamic, groups.labor].filter(g => g.items.length > 0)
+    };
+  }, [costResult.details, costResult.totalCost, recipe]);
 
   const getPriceDiffColor = (current: string, snapshot?: string) => {
     if (!snapshot) return 'inherit';
@@ -187,7 +255,7 @@ export default function RecipeDetailModal({
             <Typography variant="body1" component="div" sx={{ display: 'flex', alignItems: 'center' }}>
               <strong>当前成本：</strong>
               <Typography component="span" variant="h6" color="error" sx={{ ml: 1 }}>
-                ¥{costResult.totalCost}
+                ¥{totalCostValue.toFixed(2)}
               </Typography>
             </Typography>
             {hasSnapshot && (
@@ -197,7 +265,7 @@ export default function RecipeDetailModal({
                   ¥{costResult.snapshotTotalCost}
                 </Typography>
                 {(() => {
-                  const diff = parseFloat(costResult.totalCost) - parseFloat(costResult.snapshotTotalCost!);
+                  const diff = totalCostValue - parseFloat(costResult.snapshotTotalCost!);
                   if (Math.abs(diff) < 0.01) return null;
                   const pct = ((diff / parseFloat(costResult.snapshotTotalCost!)) * 100).toFixed(1);
                   return (
@@ -214,98 +282,105 @@ export default function RecipeDetailModal({
           </Box>
         </Box>
 
-        <Typography variant="subtitle1" gutterBottom sx={{ borderBottom: 1, borderColor: 'divider', pb: 1 }}>
-          配件明细
+        <Typography variant="subtitle1" gutterBottom sx={{ borderBottom: 1, borderColor: 'divider', pb: 1, mb: 2 }}>
+          配件与人工明细
         </Typography>
 
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ backgroundColor: 'grey.100' }}>
-                <TableCell>名称</TableCell>
-                <TableCell>型号</TableCell>
-                <TableCell>供应商</TableCell>
-                <TableCell align="right">当前单价</TableCell>
-                {hasSnapshot && <TableCell align="right">保存时单价</TableCell>}
-                <TableCell align="center">数量</TableCell>
-                <TableCell align="right">当前小计</TableCell>
-                {hasSnapshot && <TableCell align="right">保存时小计</TableCell>}
-                <TableCell>来源</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {costResult.details.map((detail, index) => (
-                <TableRow key={index}>
-                  <TableCell>{detail.name}</TableCell>
-                  <TableCell>{detail.model}</TableCell>
-                  <TableCell>{detail.supplier}</TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ color: getPriceDiffColor(detail.price, detail.snapshotPrice), fontWeight: hasSnapshot ? 600 : 'normal' }}
-                  >
-                    ¥{detail.price}
-                  </TableCell>
-                  {hasSnapshot && (
-                    <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                      {detail.snapshotPrice ? `¥${detail.snapshotPrice}` : '-'}
-                    </TableCell>
-                  )}
-                  <TableCell align="center">{detail.qty}</TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ color: getPriceDiffColor(detail.subtotal, detail.snapshotSubtotal), fontWeight: hasSnapshot ? 600 : 'normal' }}
-                  >
-                    ¥{detail.subtotal}
-                  </TableCell>
-                  {hasSnapshot && (
-                    <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                      {detail.snapshotSubtotal ? `¥${detail.snapshotSubtotal}` : '-'}
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <Chip
-                      label={detail.source}
-                      color={getSourceColor(detail.source)}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-              <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                <TableCell colSpan={3} />
-                <TableCell align="right">
-                  <Typography color="error" fontWeight="bold">
-                    ¥{costResult.totalCost}
+        {groupedDetails.map(group => {
+          const percent = totalCostValue > 0 ? ((group.total / totalCostValue) * 100).toFixed(1) : '0.0';
+          return (
+            <Accordion key={group.id} defaultExpanded disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', mb: 1.5, '&:before': { display: 'none' }, borderRadius: 1 }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon size={20} />} sx={{ bgcolor: 'grey.50', minHeight: 48, '& .MuiAccordionSummary-content': { my: 1, alignItems: 'center' } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                  {group.icon}
+                </Box>
+                <Typography variant="subtitle2" sx={{ ml: 1, fontWeight: 700 }}>
+                  {group.title}
+                </Typography>
+                <Chip label={`${group.items.length} 项`} size="small" sx={{ ml: 2, height: 20, fontSize: '0.7rem' }} />
+                <Typography variant="subtitle2" color="primary.main" sx={{ ml: 'auto', mr: 2, fontWeight: 700 }}>
+                  ¥{group.total.toFixed(2)}
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1, fontWeight: 'normal' }}>
+                    ({percent}%)
                   </Typography>
-                </TableCell>
-                {hasSnapshot && (
-                  <TableCell align="right">
-                    <Typography color="text.secondary" fontWeight="bold">
-                      ¥{costResult.snapshotTotalCost}
-                    </Typography>
-                  </TableCell>
-                )}
-                <TableCell align="center">
-                  <strong>合计</strong>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography color="error" fontWeight="bold">
-                    ¥{costResult.totalCost}
-                  </Typography>
-                </TableCell>
-                {hasSnapshot && (
-                  <TableCell align="right">
-                    <Typography color="text.secondary" fontWeight="bold">
-                      ¥{costResult.snapshotTotalCost}
-                    </Typography>
-                  </TableCell>
-                )}
-                <TableCell />
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ p: 0 }}>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: 'grey.100' }}>
+                        <TableCell>名称</TableCell>
+                        <TableCell>型号</TableCell>
+                        <TableCell>供应商</TableCell>
+                        <TableCell align="right">当前单价</TableCell>
+                        {hasSnapshot && <TableCell align="right">保存时单价</TableCell>}
+                        <TableCell align="center">数量</TableCell>
+                        <TableCell align="right">当前小计</TableCell>
+                        {hasSnapshot && <TableCell align="right">保存时小计</TableCell>}
+                        <TableCell>来源</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {group.items.map((detail, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{detail.name}</TableCell>
+                          <TableCell>{detail.model}</TableCell>
+                          <TableCell>{detail.supplier}</TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{ color: getPriceDiffColor(detail.price, detail.snapshotPrice), fontWeight: hasSnapshot ? 600 : 'normal' }}
+                          >
+                            ¥{detail.price}
+                          </TableCell>
+                          {hasSnapshot && (
+                            <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                              {detail.snapshotPrice ? `¥${detail.snapshotPrice}` : '-'}
+                            </TableCell>
+                          )}
+                          <TableCell align="center">{detail.qty}</TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{ color: getPriceDiffColor(detail.subtotal, detail.snapshotSubtotal), fontWeight: hasSnapshot ? 600 : 'normal' }}
+                          >
+                            ¥{detail.subtotal}
+                          </TableCell>
+                          {hasSnapshot && (
+                            <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                              {detail.snapshotSubtotal ? `¥${detail.snapshotSubtotal}` : '-'}
+                            </TableCell>
+                          )}
+                          <TableCell>
+                            <Chip
+                              label={detail.source}
+                              color={getSourceColor(detail.source)}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider', mt: 2 }}>
+          <Typography variant="subtitle1" fontWeight="bold" sx={{ mr: 3 }}>
+            合计
+          </Typography>
+          {hasSnapshot && (
+            <Typography variant="body1" color="text.secondary" fontWeight="bold" sx={{ mr: 3 }}>
+              保存时: ¥{costResult.snapshotTotalCost}
+            </Typography>
+          )}
+          <Typography variant="h6" color="error" fontWeight="bold">
+            当前: ¥{totalCostValue.toFixed(2)}
+          </Typography>
+        </Box>
 
         {costResult.missingParts.length > 0 && (
           <Alert severity="warning" sx={{ mt: 2 }}>
