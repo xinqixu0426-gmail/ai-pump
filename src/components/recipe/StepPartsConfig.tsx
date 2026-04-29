@@ -199,35 +199,31 @@ export default function StepPartsConfig({
 
       {/* ━━ 选配配件 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
-        <Table size="small" sx={{ tableLayout: 'auto' }}>
-          <TableHeader />
-          <TableBody>
-            <TableRow>
-              <TableCell colSpan={7} sx={{ py: 0.5, px: 1.5, bgcolor: 'grey.50', borderBottom: 'none' }}>
-                <Box display="flex" alignItems="center" justifyContent="space-between">
-                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
-                    ▸ 选配配件（{optionalParts.length} 项）
-                  </Typography>
-                  <Button
-                    variant="text"
-                    size="small"
-                    startIcon={<AddIcon size={18} />}
-                    onClick={handleAddOptional}
-                    sx={{ py: 0, minWidth: 'auto', fontSize: '0.75rem' }}
-                  >
-                    添加配件
-                  </Button>
-                </Box>
-              </TableCell>
-            </TableRow>
-            {optionalParts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 1.5, color: 'text.disabled', fontSize: '0.8rem' }}>
-                  暂无选配配件
-                </TableCell>
-              </TableRow>
-            ) : (
-              optionalParts.map((part) => (
+        <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography sx={{ fontSize: 15, lineHeight: 1 }}>🔩</Typography>
+            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
+              ▸ 选配配件（{optionalParts.length} 项）
+            </Typography>
+          </Box>
+          <Button
+            variant="text" size="small"
+            startIcon={<AddIcon size={16} />}
+            onClick={handleAddOptional}
+            sx={{ py: 0, fontSize: '0.75rem' }}
+          >
+            添加配件
+          </Button>
+        </Box>
+        {optionalParts.length === 0 ? (
+          <Box sx={{ py: 2, textAlign: 'center', color: 'text.disabled', fontSize: '0.8rem' }}>
+            暂无选配配件
+          </Box>
+        ) : (
+          <Table size="small" sx={{ tableLayout: 'auto' }}>
+            <TableHeader />
+            <TableBody>
+              {optionalParts.map((part) => (
                 <RecipePartRow
                   key={part.id}
                   label="配件"
@@ -238,16 +234,17 @@ export default function StepPartsConfig({
                   onChange={(field, value) => handleOptionalChange(part.id, field, value)}
                   onDelete={() => handleRemoveOptional(part.id)}
                 />
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </Paper>
 
       {/* ━━ 动态配置 & 包装 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
-        <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography sx={{ fontSize: 15, lineHeight: 1 }}>⚙️</Typography>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
             ▸ 动态配置 & 包装
           </Typography>
         </Box>
@@ -312,17 +309,20 @@ export default function StepPartsConfig({
         <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           px: 2, py: 0.75,
-          bgcolor: 'rgba(251,146,60,0.06)',
+          bgcolor: 'grey.50',
           borderTop: '1px solid', borderColor: 'divider',
         }}>
-          <Typography variant="caption" fontWeight={700} color="warning.dark" sx={{ letterSpacing: 0.5 }}>
-            📦 包装材料（{packingParts.length} 项）
-          </Typography>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography sx={{ fontSize: 13, lineHeight: 1 }}>📦</Typography>
+            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
+              包装材料（{packingParts.length} 项）
+            </Typography>
+          </Box>
           <Button
             variant="text" size="small"
             startIcon={<AddIcon size={14} />}
             onClick={() => setPackingParts([...packingParts, { id: Date.now() + Math.random(), model: '', supplier: '', qty: 1 }])}
-            sx={{ py: 0, fontSize: '0.72rem', color: 'warning.dark' }}
+            sx={{ py: 0, fontSize: '0.72rem' }}
           >
             添加包材
           </Button>
@@ -339,6 +339,7 @@ export default function StepPartsConfig({
                 <TableCell sx={{ py: 0.75, pl: 1.5, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary' }}>型号</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary' }}>供应商</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 70 }}>数量</TableCell>
+                <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 72, textAlign: 'right' }}>单价</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 80, textAlign: 'right' }}>小计</TableCell>
                 <TableCell sx={{ py: 0.75, width: 36 }} />
               </TableRow>
@@ -396,6 +397,9 @@ export default function StepPartsConfig({
                         ))}
                         sx={{ width: 60 }}
                       />
+                    </TableCell>
+                    <TableCell sx={{ textAlign: 'right', color: price > 0 ? 'text.secondary' : 'error.main', fontSize: '0.82rem', py: 0.5 }}>
+                      {price > 0 ? `¥${price.toFixed(2)}` : '-'}
                     </TableCell>
                     <TableCell sx={{ textAlign: 'right', color: subtotal > 0 ? 'text.primary' : 'error.main', fontWeight: 600, fontSize: '0.82rem', py: 0.5 }}>
                       {subtotal > 0 ? `¥${subtotal.toFixed(2)}` : '未找到'}

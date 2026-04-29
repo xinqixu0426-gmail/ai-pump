@@ -39,8 +39,8 @@ export default function StepWageConfirm({
       {selectedTemplate && (
         <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
           <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(245, 158, 11, 0.06)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 16 }}>👷</Typography>
-            <Typography variant="caption" fontWeight={700} color="warning.main" sx={{ letterSpacing: 1 }}>
+            <Typography sx={{ fontSize: 15, lineHeight: 1 }}>👷</Typography>
+            <Typography variant="caption" fontWeight={700} color="warning.main" sx={{ letterSpacing: 0.5 }}>
               ▸ 人工工资 & 管理费（元/台）
             </Typography>
             {laborCost > 0 && (
@@ -76,9 +76,14 @@ export default function StepWageConfirm({
       )}
 
       {/* 配方概览 */}
-      <Paper variant="outlined" sx={{ mb: 2, p: 2 }}>
-        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>📋 配方概览</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography sx={{ fontSize: 15, lineHeight: 1 }}>📋</Typography>
+          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
+            ▸ 配方概览
+          </Typography>
+        </Box>
+        <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
           <Typography variant="body2" color="text.secondary">配方名称：<strong>{recipeName || '-'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">规格：<strong>{recipeSpec || '-'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">泵壳模板：<strong>{selectedTemplate?.shell_model || '未选择'}</strong></Typography>
