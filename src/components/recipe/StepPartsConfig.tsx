@@ -244,11 +244,11 @@ export default function StepPartsConfig({
         </Table>
       </Paper>
 
-      {/* ━━ 动态配置区 ━━ */}
+      {/* ━━ 动态配置 & 包装 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 1 }}>
-            ▸ 动态配置（浮球 / 电缆 / 包材）
+            ▸ 动态配置 & 包装
           </Typography>
         </Box>
         <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -306,28 +306,30 @@ export default function StepPartsConfig({
               </>
             )}
           </Box>
-          <Divider />
         </Box>
-      </Paper>
 
-      {/* ━━ 包装区 ━━ */}
-      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
-        <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(251,146,60,0.07)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="caption" fontWeight={700} color="warning.dark" sx={{ letterSpacing: 1 }}>
-            ▸ 📦 包装（{packingParts.length} 项）
+        {/* ─── 包装材料分段 ─── */}
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          px: 2, py: 0.75,
+          bgcolor: 'rgba(251,146,60,0.06)',
+          borderTop: '1px solid', borderColor: 'divider',
+        }}>
+          <Typography variant="caption" fontWeight={700} color="warning.dark" sx={{ letterSpacing: 0.5 }}>
+            📦 包装材料（{packingParts.length} 项）
           </Typography>
           <Button
             variant="text" size="small"
-            startIcon={<AddIcon size={16} />}
+            startIcon={<AddIcon size={14} />}
             onClick={() => setPackingParts([...packingParts, { id: Date.now() + Math.random(), model: '', supplier: '', qty: 1 }])}
-            sx={{ py: 0, fontSize: '0.75rem' }}
+            sx={{ py: 0, fontSize: '0.72rem', color: 'warning.dark' }}
           >
             添加包材
           </Button>
         </Box>
 
         {packingParts.length === 0 ? (
-          <Box sx={{ py: 2.5, textAlign: 'center', color: 'text.disabled', fontSize: '0.82rem' }}>
+          <Box sx={{ py: 2, textAlign: 'center', color: 'text.disabled', fontSize: '0.8rem', borderTop: '1px solid', borderColor: 'divider' }}>
             暂无包材，点击「添加包材」
           </Box>
         ) : (
@@ -411,6 +413,7 @@ export default function StepPartsConfig({
           </Table>
         )}
       </Paper>
+
 
     </>
   );
