@@ -5,7 +5,7 @@ dist/
 *.log
 uploads/
 .cert/
-.env
+.claude/
 
 pump.db
 pump.db-wal
@@ -24,3 +24,6 @@ freecad/output_*.pdf
 *.bak
 *.FCBak
 Document.xml
+
+# IDE / 工具私有配置
+wechat-miniprogram/project.private.config.json

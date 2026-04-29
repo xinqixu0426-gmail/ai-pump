@@ -1,6 +1,6 @@
 # 水泵 BOM 成本管理系统
 
-集成订单 / 配方 / 库存 / 成本核算 + DeepSeek AI Agent + 企微助手 + FreeCAD 转子出图的水泵生产管理系统。
+集成订单 / 配方 / 库存 / 成本核算 + DeepSeek AI Agent + 企微助手 + 微信小程序语音助手 + FreeCAD 转子出图的水泵生产管理系统。
 
 ## 技术栈
 
@@ -11,6 +11,7 @@
 | AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
 | 出图 | FreeCAD Python 脚本 + PDF 生成 |
 | 通讯 | 企业微信 Webhook + Siri 快捷指令 |
+| 移动端 | 微信小程序（语音助手 + Server-Driven UI） |
 
 ## 项目结构
 
@@ -18,33 +19,40 @@
 ├── api.cjs                  # Express 入口 — 路由挂载 + 中间件 + 静态托管
 ├── api/
 │   ├── db.cjs               # SQLite 初始化 + 建表 + Row Adapter + 工具函数
+│   ├── authMiddleware.cjs    # JWT 认证中间件
 │   └── routes/
 │       ├── parts.cjs         # 零件 CRUD
-│       ├── recipes.cjs       # 配方 CRUD
+│       ├── recipes.cjs       # 配方 CRUD（含包装配置）
 │       ├── orders.cjs        # 订单 CRUD + 历史价格查询
 │       ├── coils.cjs         # 线圈 CRUD + 成本插值计算
 │       ├── templates.cjs     # 泵壳模板 CRUD
 │       ├── cost.cjs          # 成本计算 + 铜价定时更新
 │       ├── rotor.cjs         # FreeCAD 转子出图调度
-│       ├── auth.cjs          # JWT 认证
-│       ├── settings.cjs      # 系统设置
+│       ├── auth.cjs          # JWT 认证 + 登录限流
+│       ├── settings.cjs      # 系统设置（管理费等）
 │       ├── wecom.cjs         # 企业微信消息接收
 │       └── ai/               # AI 对话 + 语音 + Siri
+│           ├── chat.cjs      # DeepSeek SSE 对话
+│           ├── voice.cjs     # 阿里云 ASR 语音识别
+│           ├── siri.cjs      # Siri 快捷指令入口
+│           └── executor.cjs  # AI Function Calling 执行器
 ├── src/
 │   ├── main.tsx              # React 入口 + AuthGuard
 │   ├── App.tsx               # 路由 + 导航布局
-│   ├── pages/                # 页面组件
+│   ├── pages/                # 页面组件（Dashboard/Parts/Recipes/Orders/Coils/AI等）
 │   ├── components/           # 通用 + 业务组件
 │   └── utils/
 │       ├── api.ts            # proxyRequest 统一请求层
 │       ├── store.ts          # Zustand 全局状态
 │       ├── orderStore.ts     # 订单业务逻辑
-│       ├── costCalculator.ts # 前端成本计算（与 db.cjs 同步）
+│       ├── costCalculator.ts # 前端成本计算
 │       └── theme.ts          # MUI 主题 + 设计 Token
-├── freecad/                  # FreeCAD 出图模板与脚本
+├── freecad/                  # FreeCAD 转子出图模板与 Python 脚本
 ├── wechat-miniprogram/       # 微信小程序语音助手
+│   ├── pages/voice/          # 语音对话主页面
+│   └── components/           # detail-panel 等组件
 ├── scripts/
-│   └── seed-demo-data.cjs    # 演示数据播种
+│   └── migrate-add-packing.cjs  # 包装字段迁移脚本
 └── docs/                     # 技术文档
 ```
 
@@ -72,12 +80,14 @@ JWT_SECRET=xxx                # JWT 签名密钥
 DEEPSEEK_API_KEY=sk-xxx       # DeepSeek API Key
 ALI_ACCESS_KEY_ID=xxx         # 阿里云 ASR
 ALI_ACCESS_KEY_SECRET=xxx
+ALI_ASR_APPKEY=xxx            # 阿里云 ASR AppKey
 SIRI_API_TOKEN=xxx            # Siri 快捷指令 Token
 WECOM_TOKEN=xxx               # 企微回调 Token
 WECOM_ENCODING_AES_KEY=xxx    # 企微消息加密密钥
-WECOM_CORPID=xxx              # 企微企业 ID
-WECOM_CORPSECRET=xxx          # 企微应用 Secret
-CORS_ORIGIN=https://xxx       # 生产环境 CORS 域名（可选）
+WECOM_CORP_ID=xxx             # 企微企业 ID
+WECOM_SECRET=xxx              # 企微应用 Secret
+WECOM_AGENT_ID=xxx            # 企微应用 AgentID
+INTERNAL_SECRET=xxx           # 内部 API 鉴权密钥
 ```
 
 ## 架构要点
@@ -95,12 +105,13 @@ CORS_ORIGIN=https://xxx       # 生产环境 CORS 域名（可选）
 ### 成本计算公式
 
 ```
-总成本 = 配件成本 + 线圈成本 + 动态配置 + 人工工资 + 管理费
+总成本 = 配件成本 + 线圈成本 + 动态配置 + 人工工资 + 包装材料 + 管理费
 ```
 
 - **配件成本**：精确匹配（型号+供应商）→ 型号回退（最低价）
 - **线圈成本**：`单价×片数 + 线重×铜价 + 线圈加工费 + 转子加工费`（支持片数插值）
 - **人工工资**：安装 / 打包 / 喷漆，绑定泵壳模板，配方可覆盖
+- **包装材料**：支持 standalone 和 grouped 两种模式，配方级配置
 - **管理费**：全局默认值存 `system_settings` 表
 
 ### 定时任务
@@ -117,6 +128,23 @@ CORS_ORIGIN=https://xxx       # 生产环境 CORS 域名（可选）
 
 ```
 (action, table_name, record_id, old_value, new_value, user, created_at)
+```
+
+## 部署
+
+### 生产环境（Mac Mini）
+
+```bash
+# SSH 到服务器
+ssh dan@192.168.31.216
+cd ~/Documents/pump-cost-accounting-system
+
+# 拉取 + 构建 + 重启
+export PATH=/opt/homebrew/bin:$PATH
+git pull origin master
+npm run build
+pkill -f 'node api.cjs'
+nohup node api.cjs > /dev/null 2>&1 &
 ```
 
 ## API 端点
@@ -136,6 +164,7 @@ CORS_ORIGIN=https://xxx       # 生产环境 CORS 域名（可选）
 - `POST /api/cost/calculate` — 成本计算
 - `POST /api/cost/full-calculate` — 一站式成本计算
 - `GET/POST /api/copper-price` — 铜价查询/更新
+- `GET/PUT /api/settings` — 系统设置
 
 ### 独立认证接口
 - `POST /api/ai/chat` — AI 对话 (SSE)

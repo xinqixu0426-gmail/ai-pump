@@ -20,8 +20,9 @@
 - 数据库列名保持 snake_case
 
 ### 成本架构
-- 成本公式：`配件 + 线圈 + 动态配置 + 人工工资 + 管理费`
+- 成本公式：`配件 + 线圈 + 动态配置 + 人工工资 + 包装材料 + 管理费`
 - 人工工资（安装/打包/喷漆）绑定 `pump_shell_templates` 表，选模板自动带入，配方可覆盖
+- 包装材料支持 standalone 和 grouped 两种模式，配方级配置
 - 管理费全局默认值存于 `system_settings` 表
 - 前端 `costCalculator.ts` 与后端 `db.cjs:calculateRecipeCost` 逻辑必须同步
 - 单次成本计算优先调后端 API `POST /api/cost/calculate`；批量场景可用前端版本
@@ -32,6 +33,7 @@
 - 登录限流：5 次/分钟 per IP
 - JWT Cookie：生产环境 `secure: true` + `sameSite: strict`
 - AI 工具调用：`tools.cjs` 中的 `WRITE_TOOLS` 白名单控制写操作权限
+- 微信小程序鉴权：通过 `INTERNAL_SECRET` header 认证（后续迁移至 OpenID）
 
 ## 3. 定时任务
 
@@ -44,6 +46,7 @@
 - 全局样式在 `src/utils/theme.ts` 中固化为 Token，`main.tsx` 只引用 `muiTheme`
 - MUI 中不要将 `<Chip>` / `<div>` 等块级元素嵌套在 `<Typography>` 内
 - 如需搭配块级元素，指定 `component="div"`
+- 微信小程序组件放在 `wechat-miniprogram/components/` 下，使用组件化开发
 
 ## 5. 服务端口
 
@@ -51,7 +54,14 @@
 - 后端 Express：`:3002`
 - Vite Proxy：`/api/*` → `http://localhost:3002`
 
-## 6. 代码风格
+## 6. 部署
+
+- 生产服务器：Mac Mini (192.168.31.216)
+- 路径：`~/Documents/pump-cost-accounting-system`
+- 进程管理：裸 node 进程（`nohup node api.cjs &`）
+- SSH 需要手动 export PATH 才能用 npm：`export PATH=/opt/homebrew/bin:$PATH`
+
+## 7. 代码风格
 
 - 最小改动原则，不重构无关代码
 - 不解释基础框架知识，直接给代码
