@@ -69,6 +69,31 @@ router.delete('/:id', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// ── 按规格批量更新单价 ──
+
+router.patch('/spec/:spec', (req, res) => {
+    try {
+        const spec = decodeURIComponent(req.params.spec);
+        const { unitPrice } = req.body;
+        if (unitPrice === undefined) return res.status(400).json({ success: false, error: 'unitPrice 为必填' });
+        const up = parseFloat(unitPrice);
+
+        const rows = db.prepare('SELECT * FROM coils WHERE spec = ?').all(spec);
+        if (rows.length === 0) return res.status(404).json({ success: false, error: `未找到规格 "${spec}"` });
+
+        const stmt = db.prepare('UPDATE coils SET unit_price = ?, cost = ?, updated_at = ? WHERE id = ?');
+        const now = new Date().toISOString();
+        const updateAll = db.transaction(() => {
+            for (const r of rows) {
+                const cost = (up * r.sheets + r.wire_weight * r.copper_base + r.coil_fee + r.rotor_fee).toFixed(5);
+                stmt.run(up, cost, now, r.id);
+            }
+        });
+        updateAll();
+        res.json({ success: true, updated: rows.length });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
 // ── 成本计算（支持插值）──
 
 router.post('/calculate', (req, res) => {

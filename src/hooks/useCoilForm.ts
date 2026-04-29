@@ -111,6 +111,39 @@ export function useCoilForm() {
     setDialogOpen(true);
   };
 
+  // 新增时输入规格后自动带入同规格字段
+  const autoFillFromSpec = useCallback((spec: string) => {
+    const existing = groupedCoils[spec];
+    if (!existing || existing.length === 0) return;
+    const ref = existing[0];
+    setFormData(prev => ({
+      ...prev,
+      spec,
+      unitPrice: ref.unitPrice || prev.unitPrice,
+      copperBase: ref.copperBase || prev.copperBase,
+      coilFee: ref.coilFee || prev.coilFee,
+      rotorFee: ref.rotorFee || prev.rotorFee,
+      defaultWireGauge: ref.defaultWireGauge || prev.defaultWireGauge,
+      defaultCapacitor: ref.defaultCapacitor || prev.defaultCapacitor,
+    }));
+  }, [groupedCoils]);
+
+  // 按规格批量更新单价
+  const updateSpecPrice = async (spec: string, newPrice: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/coils/spec/${encodeURIComponent(spec)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unitPrice: newPrice })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showSnackbar(`规格 ${spec} 的单价已更新为 ¥${newPrice}（${json.updated} 条记录）`, 'success');
+        await loadCoils();
+      } else setError(json.error || '更新失败');
+    } catch (err) { setError('更新失败: ' + (err as Error).message); }
+  };
+
   const handleEdit = (coil: CoilRecord) => {
     setEditingId(coil.Id);
     setFormData({
@@ -154,6 +187,7 @@ export function useCoilForm() {
     copperPrice, copperLoading, copperUpdating, handleCopperUpdate,
     groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
     dialogOpen, setDialogOpen, editingId, formData, setFormData,
-    deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete
+    deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete,
+    autoFillFromSpec, updateSpecPrice
   };
 }

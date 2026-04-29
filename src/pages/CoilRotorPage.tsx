@@ -5,7 +5,7 @@ import {
   IconButton, Button, TextField, Chip, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
   FormControl, InputLabel, Select, MenuItem, Divider, Card, CardContent,
-  Switch, FormControlLabel, Collapse, InputAdornment, Fade
+  Switch, FormControlLabel, Collapse, InputAdornment, Fade, Autocomplete
 } from '@mui/material';
 import {
   Plus as AddIcon, Edit3 as EditIcon, Trash2 as DeleteIcon, RefreshCw as RefreshIcon,
@@ -43,8 +43,13 @@ export default function CoilRotorPage() {
     copperPrice, copperLoading, copperUpdating, handleCopperUpdate,
     groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
     dialogOpen, setDialogOpen, editingId, formData, setFormData,
-    deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete
+    deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete,
+    autoFillFromSpec, updateSpecPrice
   } = useCoilForm();
+
+  // 规格级单价编辑状态
+  const [editingSpec, setEditingSpec] = useState<string | null>(null);
+  const [editingPrice, setEditingPrice] = useState('');
 
   const [calcSpec, setCalcSpec] = useState('');
   const [calcSheets, setCalcSheets] = useState('');
@@ -190,7 +195,27 @@ export default function CoilRotorPage() {
               <Box onClick={() => toggleSpec(spec)} sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', p: 1.5, borderRadius: 1, bgcolor: colors.slate.light, '&:hover': { bgcolor: colors.slate.hover }, transition: 'background 0.2s' }}>
                 {expandedSpecs.has(spec) ? <ExpandLessIcon size={20} /> : <ExpandMoreIcon size={20} />}
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, ml: 1, flexGrow: 1 }}>规格 {spec}</Typography>
-                <Chip label={`单价 ¥${records[0].unitPrice}`} size="small" variant="outlined" sx={{ mr: 1 }} />
+                {editingSpec === spec ? (
+                  <Box onClick={e => e.stopPropagation()} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <TextField
+                      size="small" type="number" value={editingPrice}
+                      onChange={e => setEditingPrice(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { updateSpecPrice(spec, editingPrice); setEditingSpec(null); } if (e.key === 'Escape') setEditingSpec(null); }}
+                      autoFocus sx={{ width: 100 }}
+                      InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                    />
+                    <IconButton size="small" color="primary" onClick={() => { updateSpecPrice(spec, editingPrice); setEditingSpec(null); }}><SaveIcon size={16} /></IconButton>
+                    <IconButton size="small" onClick={() => setEditingSpec(null)}><CloseIcon size={16} /></IconButton>
+                  </Box>
+                ) : (
+                  <Chip
+                    label={`单价 ¥${records[0].unitPrice}`} size="small" variant="outlined"
+                    onClick={e => { e.stopPropagation(); setEditingSpec(spec); setEditingPrice(records[0].unitPrice); }}
+                    onDelete={() => { setEditingSpec(spec); setEditingPrice(records[0].unitPrice); }}
+                    deleteIcon={<EditIcon size={14} />}
+                    sx={{ mr: 1, cursor: 'pointer' }}
+                  />
+                )}
                 <Chip label={`${records.length} 种片数`} size="small" color="primary" variant="outlined" />
               </Box>
               <Collapse in={expandedSpecs.has(spec)}>
@@ -237,9 +262,24 @@ export default function CoilRotorPage() {
         <DialogTitle sx={{ fontWeight: 700 }}>{editingId ? '编辑线圈记录' : '新增线圈记录'}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            <Grid item xs={6}><TextField fullWidth size="small" label="规格 *" value={formData.spec} onChange={e => setFormData(p => ({ ...p, spec: e.target.value }))} /></Grid>
+            <Grid item xs={6}>
+              <Autocomplete
+                freeSolo options={specOptions} value={formData.spec}
+                onChange={(_e, v) => { const val = v || ''; setFormData(p => ({ ...p, spec: val })); if (!editingId) autoFillFromSpec(val); }}
+                onInputChange={(_e, v) => { setFormData(p => ({ ...p, spec: v })); }}
+                onBlur={() => { if (!editingId && formData.spec) autoFillFromSpec(formData.spec); }}
+                renderInput={(params) => <TextField {...params} fullWidth size="small" label="规格 *" />}
+              />
+            </Grid>
             <Grid item xs={6}><TextField fullWidth size="small" label="片数 *" type="number" value={formData.sheets} onChange={e => setFormData(p => ({ ...p, sheets: e.target.value }))} /></Grid>
-            <Grid item xs={6}><TextField fullWidth size="small" label="单价" type="number" value={formData.unitPrice} onChange={e => setFormData(p => ({ ...p, unitPrice: e.target.value }))} InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }} /></Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth size="small" label="单价" type="number" value={formData.unitPrice}
+                onChange={e => setFormData(p => ({ ...p, unitPrice: e.target.value }))}
+                InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                disabled={!!editingId}
+                helperText={editingId ? '请在规格组头部统一修改' : ''}
+              />
+            </Grid>
             <Grid item xs={6}><TextField fullWidth size="small" label="默认线重" type="number" value={formData.wireWeight} onChange={e => setFormData(p => ({ ...p, wireWeight: e.target.value }))} InputProps={{ endAdornment: <InputAdornment position="end">kg</InputAdornment> }} /></Grid>
             <Grid item xs={6}><TextField fullWidth size="small" label="铜价基数" type="number" value={formData.copperBase} onChange={e => setFormData(p => ({ ...p, copperBase: e.target.value }))} InputProps={{ endAdornment: <InputAdornment position="end">元/千克</InputAdornment> }} /></Grid>
             <Grid item xs={6}><TextField fullWidth size="small" label="线圈加工费" type="number" value={formData.coilFee} onChange={e => setFormData(p => ({ ...p, coilFee: e.target.value }))} InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }} /></Grid>
