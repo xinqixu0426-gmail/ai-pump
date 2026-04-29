@@ -145,8 +145,14 @@ export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> 
       has_cable: recipe.has_cable || 0,
       cable_length: recipe.cable_length || 0,
       cable_wire: recipe.cable_wire || '',
-      box_type: recipe.box_type || '',
+      // box_type 已废弃，不再发送
       extra_parts_json: recipe.extra_parts_json || '[]',
+      packing_parts_json: recipe.packing_parts_json || '[]',
+      assembly_wage: recipe.assembly_wage || 0,
+      packing_wage: recipe.packing_wage || 0,
+      painting_wage: recipe.painting_wage != null ? recipe.painting_wage : null,
+      management_fee: recipe.management_fee || 0,
+      custom_barrel_length: recipe.custom_barrel_length ?? null,
     }),
   });
   return res.data;

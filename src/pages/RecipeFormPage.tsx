@@ -67,7 +67,8 @@ export default function RecipeFormPage() {
   const [hasCable, setHasCable] = useState(!!editFrom?.has_cable || !!cloneFrom?.has_cable);
   const [cableLength, setCableLength] = useState(editFrom?.cable_length ? String(editFrom.cable_length) : (cloneFrom?.cable_length ? String(cloneFrom.cable_length) : ''));
   const [cableWire, setCableWire] = useState(editFrom?.cable_wire || cloneFrom?.cable_wire || '0.55');
-  const [boxType, setBoxType] = useState(editFrom?.box_type || cloneFrom?.box_type || '');
+  const [packingParts, setPackingParts] = useState<Array<PartSelection & { id: number }>>([]);
+  const nextPackingId = useRef(100);
 
   // 不锈钢自定义机筒长度
   const [customBarrelLength, setCustomBarrelLength] = useState(
@@ -198,7 +199,16 @@ export default function RecipeFormPage() {
       setHasCable(!!source.has_cable);
       if (source.cable_length) setCableLength(String(source.cable_length));
       if (source.cable_wire) setCableWire(source.cable_wire);
-      if (source.box_type) setBoxType(source.box_type);
+      // 读取 packing_parts_json，向后兼容旧 box_type
+      const rawPacking: PartSelection[] = (() => {
+        try {
+          const arr = JSON.parse(source.packing_parts_json || '[]');
+          if (arr.length > 0) return arr;
+          if (source.box_type) return [{ model: source.box_type, supplier: '', qty: 1 }];
+          return [];
+        } catch { return source.box_type ? [{ model: source.box_type, supplier: '', qty: 1 }] : []; }
+      })();
+      setPackingParts(rawPacking.map(p => ({ id: nextPackingId.current++, ...p })));
       if (source.custom_barrel_length) setCustomBarrelLength(String(source.custom_barrel_length));
 
       try {
@@ -223,7 +233,10 @@ export default function RecipeFormPage() {
         if (cp.name === '浮球') { setHasFloat(true); const w = cp.model.replace('浮球-线径', ''); if (w) setFloatWire(w); return; }
         if (cp.name === '电缆线') { setHasCable(true); const w = cp.model.replace('电缆-线径', ''); if (w) setCableWire(w); setCableLength(String(cp.qty || '')); return; }
         if (cp.name === '电缆接头配件') return;
-        if (cp.name === '纸箱' || cp.name === '木箱') { setBoxType(cp.model); return; }
+        if (cp.name === '纸箱' || cp.name === '木箱') {
+          setPackingParts(prev => [...prev, { id: nextPackingId.current++, model: cp.model, supplier: '', qty: 1 }]);
+          return;
+        }
         newOptional.push({ id: nextOptionalId.current++, model: cp.model, supplier: cp.supplier, qty: cp.qty });
       });
       setOptionalParts(newOptional);
@@ -246,17 +259,6 @@ export default function RecipeFormPage() {
     [parts]
   );
 
-  const resolveBoxType = useCallback((keyword: string): { model: string; price: number } => {
-    const k = (keyword || '').trim();
-    if (!k) return { model: '', price: 0 };
-    const exactPrice = getPriceByModelAndSupplier(k, '');
-    if (exactPrice > 0) return { model: k, price: exactPrice };
-    const candidates = parts
-      .filter((p) => p.category === '包装' && p.model.includes(k))
-      .map((p) => ({ model: p.model, price: p.price }));
-    if (candidates.length > 0) return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
-    return { model: k, price: 0 };
-  }, [parts, getPriceByModelAndSupplier]);
 
   const selectedTemplate = templates.find(t => t.Id === selectedTemplateId) || null;
   const templateParts: TemplatePart[] = (() => {
@@ -293,13 +295,14 @@ export default function RecipeFormPage() {
       configParts.push({ model: cableModel, name: '电缆线', supplier: '', qty: Number(cableLength), snapshotPrice: getPriceByModelAndSupplier(cableModel, '') });
       configParts.push({ model: '电缆配件费', name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier('电缆配件费', '') });
     }
-    if (boxType) {
-      const resolved = resolveBoxType(boxType);
-      const name = resolved.model.includes('木') ? '木箱' : '纸箱';
-      configParts.push({ model: resolved.model, name, supplier: '', qty: 1, snapshotPrice: resolved.price });
-    }
+    // 包装件
+    packingParts.forEach(p => {
+      if (!p.model) return;
+      const price = getPriceByModelAndSupplier(p.model, p.supplier);
+      configParts.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty || 1, snapshotPrice: price });
+    });
     return configParts;
-  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, boxType, getPriceByModelAndSupplier, resolveBoxType]);
+  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, packingParts, getPriceByModelAndSupplier]);
 
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
@@ -329,6 +332,10 @@ export default function RecipeFormPage() {
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
   const laborCost = useMemo(() => (assemblyWage || 0) + (packingWage || 0) + (paintingWage || 0) + (managementFee || 0), [assemblyWage, packingWage, paintingWage, managementFee]);
   const partsCost = useMemo(() => allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0), [allPartsPreview]);
+  const packingCost = useMemo(
+    () => packingParts.filter(p => p.model).reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier) * (p.qty || 1), 0),
+    [packingParts, getPriceByModelAndSupplier]
+  );
   const totalCost = partsCost + laborCost;
 
   const handleAddOptional = () => setOptionalParts((prev) => [...prev, { id: nextOptionalId.current++, model: '', supplier: '', qty: 1 }]);
@@ -361,7 +368,11 @@ export default function RecipeFormPage() {
       saved_total_cost: savedTotalCost, saved_cost_details: savedCostDetails,
       template_id: selectedTemplateId, coil_spec: coilSpec, coil_sheets: coilSheets ? parseInt(coilSheets) : 0,
       has_float: hasFloat ? 1 : 0, float_wire: floatWire, has_cable: hasCable ? 1 : 0,
-      cable_length: cableLength ? parseFloat(cableLength) : 0, cable_wire: cableWire, box_type: boxType,
+      cable_length: cableLength ? parseFloat(cableLength) : 0, cable_wire: cableWire,
+      // 包装
+      packing_parts_json: JSON.stringify(
+        packingParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))
+      ),
       custom_barrel_length: customBarrelLength ? parseFloat(customBarrelLength) : null,
       extra_parts_json: JSON.stringify(optionalParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))),
       assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: paintingWage, management_fee: managementFee,
@@ -409,22 +420,23 @@ export default function RecipeFormPage() {
         customBarrelLength={customBarrelLength} setCustomBarrelLength={setCustomBarrelLength}
       />
 
-      <StepPartsConfig
-        coilSpecs={coilSpecs} coilSpec={coilSpec} setCoilSpec={setCoilSpec}
-        coilSheets={coilSheets} setCoilSheets={setCoilSheets}
-        useCoilCustomWeight={useCoilCustomWeight} setUseCoilCustomWeight={setUseCoilCustomWeight}
-        coilCustomWireWeight={coilCustomWireWeight} setCoilCustomWireWeight={setCoilCustomWireWeight}
-        coilResult={coilResult} coilLoading={coilLoading}
-        capacitorModel={capacitorModel} capacitorPrice={capCost}
-        optionalParts={optionalParts} handleAddOptional={handleAddOptional}
-        handleOptionalChange={handleOptionalChange} handleRemoveOptional={handleRemoveOptional}
-        hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}
-        hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
-        cableWire={cableWire} setCableWire={setCableWire}
-        boxType={boxType} setBoxType={setBoxType}
-        parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}
-        getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
-      />
+        <StepPartsConfig
+          coilSpecs={coilSpecs} coilSpec={coilSpec} setCoilSpec={setCoilSpec}
+          coilSheets={coilSheets} setCoilSheets={setCoilSheets}
+          useCoilCustomWeight={useCoilCustomWeight} setUseCoilCustomWeight={setUseCoilCustomWeight}
+          coilCustomWireWeight={coilCustomWireWeight} setCoilCustomWireWeight={setCoilCustomWireWeight}
+          coilResult={coilResult} coilLoading={coilLoading}
+          capacitorModel={capacitorModel} capacitorPrice={capCost}
+          optionalParts={optionalParts} handleAddOptional={handleAddOptional}
+          handleOptionalChange={handleOptionalChange} handleRemoveOptional={handleRemoveOptional}
+          hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}
+          hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
+          cableWire={cableWire} setCableWire={setCableWire}
+          packingParts={packingParts}
+          setPackingParts={setPackingParts}
+          parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}
+          getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
+        />
 
       <StepWageConfirm
         selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
@@ -473,6 +485,12 @@ export default function RecipeFormPage() {
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>动态配置</Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.blue.text }}>¥{configCost.toFixed(0)}</Typography>
+          </Box>
+        )}
+        {packingCost > 0 && (
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>📦 包装</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.amber.dark }}>¥{packingCost.toFixed(0)}</Typography>
           </Box>
         )}
         {laborCost > 0 && (

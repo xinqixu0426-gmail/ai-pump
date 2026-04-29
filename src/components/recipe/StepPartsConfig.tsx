@@ -18,9 +18,10 @@ import {
   TableCell,
   TableBody,
   Divider,
-  Autocomplete
+  Autocomplete,
+  IconButton,
 } from '@mui/material';
-import { Cable as CableIcon, Plus as AddIcon } from 'lucide-react';
+import { Cable as CableIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
@@ -59,8 +60,11 @@ interface StepPartsConfigProps {
   cableWire: string;
   setCableWire: (val: string) => void;
 
-  boxType: string;
-  setBoxType: (val: string) => void;
+  boxType?: never;      // 已废弃
+  setBoxType?: never;   // 已废弃
+
+  packingParts: Array<PartSelection & { id: number }>;
+  setPackingParts: (parts: Array<PartSelection & { id: number }>) => void;
 
   parts: Part[];
   getPriceByModelAndSupplier: (model: string, supplier: string) => number;
@@ -76,7 +80,7 @@ export default function StepPartsConfig({
   optionalParts, handleAddOptional, handleOptionalChange, handleRemoveOptional,
   hasFloat, setHasFloat, floatWire, setFloatWire,
   hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire,
-  boxType, setBoxType,
+  packingParts, setPackingParts,
   parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory,
 }: StepPartsConfigProps) {
 
@@ -103,17 +107,6 @@ export default function StepPartsConfig({
     return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
   };
 
-  const resolveBoxType = (keyword: string): { model: string; price: number } => {
-    const k = (keyword || '').trim();
-    if (!k) return { model: '', price: 0 };
-    const exactPrice = getPriceByModelAndSupplier(k, '');
-    if (exactPrice > 0) return { model: k, price: exactPrice };
-    const candidates = parts
-      .filter((p) => p.category === '包装' && p.model.includes(k))
-      .map((p) => ({ model: p.model, price: p.price }));
-    if (candidates.length > 0) return candidates.reduce((min, c) => c.price < min.price ? c : min, candidates[0]);
-    return { model: k, price: 0 };
-  };
 
   return (
     <>
@@ -314,35 +307,109 @@ export default function StepPartsConfig({
             )}
           </Box>
           <Divider />
-          {/* 包材 */}
-          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-            <Typography variant="body2" fontWeight={500} sx={{ minWidth: 100 }}>包装</Typography>
-            <Autocomplete
-              freeSolo
-              disableClearable
-              options={getModelsByCategory('包装')}
-              value={boxType}
-              onInputChange={(_, v) => setBoxType(v)}
-              sx={{ width: 220 }}
-              renderInput={(params) => (
-                <TextField {...params} label="包装箱型号" size="small" placeholder="选择或输入" InputProps={{ ...params.InputProps, type: 'search' }} />
-              )}
-            />
-            {boxType && (() => {
-              const resolved = resolveBoxType(boxType);
-              return (
-                <Typography variant="body2" color={resolved.price > 0 ? 'text.secondary' : 'error'} sx={{ ml: 'auto' }}>
-                  ¥{resolved.price.toFixed(2)}
-                  {resolved.model !== boxType && resolved.price > 0 && (
-                    <Typography component="span" variant="caption" sx={{ ml: 0.5, color: 'text.disabled' }}>
-                      ({resolved.model})
-                    </Typography>
-                  )}
-                </Typography>
-              );
-            })()}
-          </Box>
         </Box>
+      </Paper>
+
+      {/* ━━ 包装区 ━━ */}
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(251,146,60,0.07)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="caption" fontWeight={700} color="warning.dark" sx={{ letterSpacing: 1 }}>
+            ▸ 📦 包装（{packingParts.length} 项）
+          </Typography>
+          <Button
+            variant="text" size="small"
+            startIcon={<AddIcon size={16} />}
+            onClick={() => setPackingParts([...packingParts, { id: Date.now() + Math.random(), model: '', supplier: '', qty: 1 }])}
+            sx={{ py: 0, fontSize: '0.75rem' }}
+          >
+            添加包材
+          </Button>
+        </Box>
+
+        {packingParts.length === 0 ? (
+          <Box sx={{ py: 2.5, textAlign: 'center', color: 'text.disabled', fontSize: '0.82rem' }}>
+            暂无包材，点击「添加包材」
+          </Box>
+        ) : (
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.50' }}>
+                <TableCell sx={{ py: 0.75, pl: 1.5, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary' }}>型号</TableCell>
+                <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary' }}>供应商</TableCell>
+                <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 70 }}>数量</TableCell>
+                <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 80, textAlign: 'right' }}>小计</TableCell>
+                <TableCell sx={{ py: 0.75, width: 36 }} />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {packingParts.map((part) => {
+                const packingModels = getModelsByCategory('包装');
+                const suppliers = part.model ? getSuppliersByModel(part.model) : [];
+                const price = part.model ? getPriceByModelAndSupplier(part.model, part.supplier) : 0;
+                const subtotal = price * (part.qty || 1);
+                return (
+                  <TableRow key={part.id}>
+                    <TableCell sx={{ pl: 1.5, py: 0.5 }}>
+                      <Autocomplete
+                        size="small"
+                        options={packingModels}
+                        value={part.model || null}
+                        onChange={(_, v) => {
+                          const newModel = v || '';
+                          const newSuppliers = newModel ? getSuppliersByModel(newModel) : [];
+                          setPackingParts(packingParts.map(p =>
+                            p.id === part.id
+                              ? { ...p, model: newModel, supplier: newSuppliers[0] || '' }
+                              : p
+                          ));
+                        }}
+                        renderInput={(params) => (
+                          <TextField {...params} placeholder="选择包材" size="small" sx={{ minWidth: 160 }} />
+                        )}
+                        sx={{ minWidth: 160 }}
+                        noOptionsText="零件库无『包装』类别零件"
+                      />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                          value={part.supplier}
+                          displayEmpty
+                          onChange={(e) => setPackingParts(packingParts.map(p =>
+                            p.id === part.id ? { ...p, supplier: e.target.value } : p
+                          ))}
+                        >
+                          <MenuItem value=""><em>默认</em></MenuItem>
+                          {suppliers.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <TextField
+                        size="small" type="number"
+                        value={part.qty}
+                        inputProps={{ min: 1, step: 1 }}
+                        onChange={(e) => setPackingParts(packingParts.map(p =>
+                          p.id === part.id ? { ...p, qty: parseInt(e.target.value) || 1 } : p
+                        ))}
+                        sx={{ width: 60 }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ textAlign: 'right', color: subtotal > 0 ? 'text.primary' : 'error.main', fontWeight: 600, fontSize: '0.82rem', py: 0.5 }}>
+                      {subtotal > 0 ? `¥${subtotal.toFixed(2)}` : '未找到'}
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <IconButton size="small" color="error"
+                        onClick={() => setPackingParts(packingParts.filter(p => p.id !== part.id))}>
+                        <DeleteIcon size={16} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </Paper>
 
     </>

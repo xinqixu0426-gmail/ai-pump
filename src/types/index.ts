@@ -71,7 +71,9 @@ export interface Recipe {
   has_cable?: number;
   cable_length?: number;
   cable_wire?: string;
+  /** @deprecated 使用 packing_parts_json 替代，仅保留用于旧数据兼容读取 */
   box_type?: string;
+  packing_parts_json?: string;  // JSON: PartSelection[] 包材列表
   extra_parts_json?: string;
   // 不锈钢机筒长度覆盖（配方级）
   custom_barrel_length?: number | null;

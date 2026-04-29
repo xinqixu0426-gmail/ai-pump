@@ -92,7 +92,7 @@ export default function RecipesPage() {
       template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets,
       has_float: recipe.has_float, float_wire: recipe.float_wire,
       has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
-      box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json,
+      box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
       assembly_wage: recipe.assembly_wage, packing_wage: recipe.packing_wage, painting_wage: recipe.painting_wage,
       management_fee: recipe.management_fee,
     }}});
@@ -104,9 +104,10 @@ export default function RecipesPage() {
       template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets,
       has_float: recipe.has_float, float_wire: recipe.float_wire,
       has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
-      box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json,
+      box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
       assembly_wage: recipe.assembly_wage, packing_wage: recipe.packing_wage, painting_wage: recipe.painting_wage,
       management_fee: recipe.management_fee,
+      custom_barrel_length: recipe.custom_barrel_length,
     }}});
   };
 
