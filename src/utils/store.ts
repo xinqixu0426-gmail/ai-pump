@@ -12,6 +12,8 @@ interface AppState {
   recipes: Recipe[];
   orders: Order[];
   templates: PumpShellTemplate[];
+  customers: any[];
+  quotations: any[];
 
   // 加载状态
   partsLoading: boolean;
@@ -36,6 +38,8 @@ interface AppState {
   fetchRecipes: (force?: boolean) => Promise<Recipe[]>;
   fetchOrders: (force?: boolean) => Promise<Order[]>;
   fetchTemplates: (force?: boolean) => Promise<PumpShellTemplate[]>;
+  fetchCustomers: (force?: boolean) => Promise<any[]>;
+  fetchQuotations: (force?: boolean) => Promise<any[]>;
   fetchAll: (force?: boolean) => Promise<void>;
 
   // 局部更新（避免全量 refetch）
@@ -69,6 +73,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   recipes: [],
   orders: [],
   templates: [],
+  customers: [],
+  quotations: [],
   partsLoading: false,
   recipesLoading: false,
   ordersLoading: false,
@@ -166,6 +172,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ templatesError: msg, templatesLoading: false });
       return state.templates;
     }
+  },
+
+  // ── 客户 ────────
+  fetchCustomers: async (force = false) => {
+    const state = get();
+    if (!force && state.customers.length > 0) return state.customers;
+    try {
+      const { fetchCustomers: fetchC } = await import('./api');
+      const data = await fetchC();
+      set({ customers: data });
+      return data;
+    } catch (err) { console.error(err); return state.customers; }
+  },
+
+  // ── 报价单 ────────
+  fetchQuotations: async (force = false) => {
+    const state = get();
+    if (!force && state.quotations.length > 0) return state.quotations;
+    try {
+      const { fetchQuotations: fetchQ } = await import('./api');
+      const data = await fetchQ();
+      set({ quotations: data });
+      return data;
+    } catch (err) { console.error(err); return state.quotations; }
   },
 
   // ── 批量加载 ────

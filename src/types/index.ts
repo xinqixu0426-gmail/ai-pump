@@ -180,3 +180,47 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
 }
+
+// ====== 客户与报价单 ======
+
+export interface Customer {
+  Id: number;
+  name: string;
+  contactInfo: string;
+  defaultMargin: number;
+  remark: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
+export interface Quotation {
+  Id: number;
+  customerId: number;
+  status: string;
+  itemsJson: string;
+  totalCost: number;
+  totalPrice: number;
+  remark: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
+export interface QuotationItem {
+  id: string;
+  base_recipe_id: number | '';
+  base_recipe_name: string;
+  qty: number;
+  overrides: {
+    has_float?: boolean;
+    float_wire?: string;
+    has_cable?: boolean;
+    cable_length?: number;
+    cable_wire?: string;
+    custom_barrel_length?: number;
+    box_type?: string;
+  };
+  unit_cost: number;
+  margin: number;
+  unit_price: number;
+  total_price: number;
+}

@@ -110,6 +110,30 @@ db.exec(`
         user TEXT DEFAULT 'system',
         created_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        contact_info TEXT DEFAULT '',
+        default_margin REAL DEFAULT 0,
+        remark TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS quotations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER NOT NULL,
+        status TEXT DEFAULT '报价中',
+        items_json TEXT DEFAULT '[]',
+        total_cost REAL DEFAULT 0,
+        total_price REAL DEFAULT 0,
+        remark TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT
+    );
 `);
 
 // seed 默认管理费
@@ -205,6 +229,21 @@ function coilRow(r) {
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
+function customerRow(r) {
+    if (!r) return r;
+    return {
+        Id: r.id, name: r.name, contactInfo: r.contact_info, defaultMargin: r.default_margin, remark: r.remark,
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
+}
+function quotationRow(r) {
+    if (!r) return r;
+    return {
+        Id: r.id, customerId: r.customer_id, status: r.status, itemsJson: r.items_json,
+        totalCost: r.total_cost, totalPrice: r.total_price, remark: r.remark,
+        CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
+}
 
 // ── 数据访问层 ──
 function dbGetAllParts() { return db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all().map(partRow); }
@@ -212,6 +251,8 @@ function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes WHERE dele
 function dbGetAllOrders() { return db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all().map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
 function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all().map(templateRow); }
+function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY id DESC').all().map(customerRow); }
+function dbGetAllQuotations() { return db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all().map(quotationRow); }
 
 function extractPartFields(body) {
     return {
@@ -263,7 +304,7 @@ function setSetting(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'system_settings', 'rotor_drawings']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'system_settings', 'rotor_drawings', 'customers', 'quotations']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function safeUpdate(table, id, updates) {
@@ -399,8 +440,8 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, orderRow, coilRow,
-    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates,
+    partRow, recipeRow, templateRow, orderRow, coilRow, customerRow, quotationRow,
+    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllCustomers, dbGetAllQuotations,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
     updateOrderFields, invalidatePartsCache, safeUpdate, softDelete,

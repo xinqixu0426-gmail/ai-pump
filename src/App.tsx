@@ -10,6 +10,8 @@ import OrderFormPage from './pages/OrderFormPage';
 import CoilRotorPage from './pages/CoilRotorPage';
 import AIChatPage from './pages/AIChatPage';
 import RotorDrawingPage from './pages/RotorDrawingPage';
+import CustomersPage from './pages/CustomersPage';
+import QuotationsPage from './pages/QuotationsPage';
 import GlobalSnackbar from './components/GlobalSnackbar';
 
 function App() {
@@ -40,6 +42,8 @@ function App() {
             <Route path="/order-form" element={<OrderFormPage />} />
             <Route path="/order-form/:id" element={<OrderFormPage />} />
             <Route path="/coils" element={<CoilRotorPage />} />
+            <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/quotations" element={<QuotationsPage />} />
             <Route path="/ai" element={<AIChatPage />} />
             <Route path="/rotor" element={<RotorDrawingPage />} />
           </Routes>

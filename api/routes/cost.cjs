@@ -140,6 +140,106 @@ router.post('/cost/dynamic-config', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// ── POST /cost/dynamic-calculate ──
+router.post('/cost/dynamic-calculate', (req, res) => {
+    const { baseRecipeId, overrides } = req.body;
+    try {
+        const row = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(baseRecipeId);
+        if (!row) return res.status(404).json({ error: 'Recipe not found' });
+        
+        // Merge DB data with overrides
+        const recipeData = {
+            id: row.id,
+            name: row.name,
+            parts_json: row.parts_json,
+            template_id: row.template_id,
+            coil_spec: overrides?.coil_spec !== undefined ? overrides.coil_spec : row.coil_spec,
+            coil_sheets: overrides?.coil_sheets !== undefined ? Number(overrides.coil_sheets) : row.coil_sheets,
+            has_float: overrides?.has_float !== undefined ? overrides.has_float : row.has_float,
+            float_wire: overrides?.float_wire !== undefined ? overrides.float_wire : row.float_wire,
+            has_cable: overrides?.has_cable !== undefined ? overrides.has_cable : row.has_cable,
+            cable_length: overrides?.cable_length !== undefined ? Number(overrides.cable_length) : row.cable_length,
+            cable_wire: overrides?.cable_wire !== undefined ? overrides.cable_wire : row.cable_wire,
+            box_type: overrides?.box_type !== undefined ? overrides.box_type : row.box_type,
+            custom_barrel_length: overrides?.custom_barrel_length !== undefined ? Number(overrides.custom_barrel_length) : row.custom_barrel_length,
+            extra_parts_json: overrides?.extra_parts_json !== undefined ? overrides.extra_parts_json : row.extra_parts_json,
+            assembly_wage: row.assembly_wage,
+            packing_wage: row.packing_wage,
+            painting_wage: row.painting_wage,
+            management_fee: row.management_fee
+        };
+
+        const { partsCache, partsByModel } = loadPartsData();
+        let totalCost = 0;
+        
+        // Parts cost
+        const parsedParts = JSON.parse(recipeData.parts_json || '[]');
+        const partsResult = calculateRecipeCost(parsedParts, partsCache, partsByModel);
+        totalCost += Number(partsResult.totalCost);
+
+        // Coils
+        if (recipeData.coil_spec) {
+            const coil = db.prepare('SELECT * FROM coils WHERE spec = ?').get(recipeData.coil_spec);
+            if (coil) {
+                const getSetting = require('../db.cjs').getSetting;
+                const copperPrice = Number(getSetting('copper_price') || 0);
+                const coilPrice = recipeData.coil_sheets * coil.unit_price;
+                const copperCost = coil.wire_weight * copperPrice;
+                const calculatedCoilCost = coilPrice + copperCost + coil.coil_fee + coil.rotor_fee;
+                totalCost += calculatedCoilCost;
+            }
+        }
+
+        const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
+        const dbWire = resolveWireFromStator(recipeData.coil_spec, recipeData.coil_sheets);
+        const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
+
+        // Float
+        if (recipeData.has_float) {
+            const model = recipeData.float_wire || `浮球-线径${resolvedWire}`;
+            const floatP = getPrice(model);
+            totalCost += floatP;
+        }
+
+        // Cable
+        if (recipeData.has_cable && recipeData.cable_length > 0) {
+            const model = recipeData.cable_wire || `电缆-线径${resolvedWire}`;
+            const cableP = getPrice(model);
+            totalCost += cableP * recipeData.cable_length;
+            // Add accessory fee if cable is added
+            totalCost += getPrice('电缆配件费');
+        }
+
+        // Box
+        if (recipeData.box_type) {
+            let price = getPrice(recipeData.box_type);
+            if (price === 0) {
+                const kw = recipeData.box_type.trim();
+                const cands = [];
+                for (const [m, info] of Object.entries(partsCache)) {
+                    if (info.category === '包装' && m.includes(kw)) cands.push({ model: m, price: info.price });
+                }
+                if (cands.length > 0) {
+                    price = cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]).price;
+                }
+            }
+            totalCost += price;
+        }
+
+        // Wages
+        const getSetting = require('../db.cjs').getSetting;
+        totalCost += (recipeData.assembly_wage || 0);
+        totalCost += (recipeData.packing_wage || 0);
+        totalCost += (recipeData.painting_wage || 0);
+        totalCost += (recipeData.management_fee || Number(getSetting('management_fee')) || 0);
+
+        console.log(`[DynamicCalc] Recipe: ${recipeData.name}, Final has_float: ${recipeData.has_float}, totalCost: ${totalCost}`);
+        res.json({ success: true, unitCost: Number(totalCost.toFixed(2)) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── POST /cost/full-calculate ──
 router.post('/cost/full-calculate', (req, res) => {
     try {

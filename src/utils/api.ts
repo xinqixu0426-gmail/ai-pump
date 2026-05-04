@@ -229,3 +229,19 @@ export async function updateTemplate(id: number, tpl: Partial<Omit<PumpShellTemp
 export async function deleteTemplate(id: number): Promise<void> {
   await proxyRequest(`/api/templates/${id}`, { method: 'DELETE' });
 }
+
+// ====== 客户 CRUD ======
+
+export const fetchCustomers = async () => proxyRequest<any>('/api/customers');
+export const createCustomer = async (data: any) => proxyRequest<any>('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+export const updateCustomer = async (id: number, data: any) => proxyRequest<any>(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteCustomer = async (id: number) => proxyRequest<any>(`/api/customers/${id}`, { method: 'DELETE' });
+
+// ====== 报价单 CRUD ======
+
+export const fetchQuotations = async () => proxyRequest<any>('/api/quotations');
+export const createQuotation = async (data: any) => proxyRequest<any>('/api/quotations', { method: 'POST', body: JSON.stringify(data) });
+export const updateQuotation = async (id: number, data: any) => proxyRequest<any>(`/api/quotations/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteQuotation = async (id: number) => proxyRequest<any>(`/api/quotations/${id}`, { method: 'DELETE' });
+
+export const dynamicCalculateCost = async (baseRecipeId: number, overrides: any) => proxyRequest<any>('/api/cost/dynamic-calculate', { method: 'POST', body: JSON.stringify({ baseRecipeId, overrides }) });
