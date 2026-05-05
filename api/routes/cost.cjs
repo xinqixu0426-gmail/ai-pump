@@ -119,6 +119,84 @@ function calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, box
     return { totalCost, details };
 }
 
+function toBool(v) {
+    return v === true || v === 1 || v === '1';
+}
+
+function sameNumber(a, b) {
+    return Number(a || 0) === Number(b || 0);
+}
+
+function sameText(a, b) {
+    return String(a || '') === String(b || '');
+}
+
+function managedPartType(part) {
+    const name = String(part?.name || '');
+    const model = String(part?.model || '');
+    if (name === '线圈转子') return 'coil';
+    if (name.includes('浮球') || model.startsWith('浮球-')) return 'float';
+    if (name.includes('电缆') || model.startsWith('电缆-') || model === '电缆配件费') return 'cable';
+    if (name.includes('木箱') || name.includes('纸箱') || model.includes('木箱') || model.includes('纸箱')) return 'box';
+    return null;
+}
+
+function partSnapshotSubtotal(part, partsCache, partsByModel) {
+    if (part?.snapshotPrice !== undefined) return Number(part.snapshotPrice || 0) * Number(part.qty || 0);
+    return Number(calculateRecipeCost([part], partsCache, partsByModel).totalCost || 0);
+}
+
+function configuredModel(prefix, wireOrModel, resolvedWire) {
+    const value = String(wireOrModel || '').trim();
+    if (value.startsWith(prefix)) return value;
+    const wire = value || resolvedWire;
+    return wire ? `${prefix}-线径${wire}` : '';
+}
+
+function findBoxPrice(boxType, getPrice, partsCache) {
+    if (!boxType) return 0;
+    let price = getPrice(boxType);
+    if (price !== 0) return price;
+    const kw = String(boxType).trim();
+    const cands = [];
+    for (const [m, info] of Object.entries(partsCache)) {
+        if (info.category === '包装' && m.includes(kw)) cands.push({ model: m, price: info.price });
+    }
+    return cands.length > 0 ? cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]).price : 0;
+}
+
+function calculateCoilCostValue(spec, sheets) {
+    if (!spec || !sheets) return 0;
+    const targetSheets = parseInt(sheets);
+    const specCoils = dbGetAllCoils()
+        .filter(c => String(c.spec).trim() === String(spec).trim())
+        .sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets));
+    if (specCoils.length === 0) return 0;
+
+    const exact = specCoils.find(c => parseInt(c.sheets) === targetSheets);
+    if (exact) return Number(exact.cost || 0);
+
+    let lower = null, upper = null;
+    for (const c of specCoils) {
+        const s = parseInt(c.sheets);
+        if (s < targetSheets) lower = c;
+        if (s > targetSheets && !upper) upper = c;
+    }
+    const base = lower || upper;
+    if (!base) return 0;
+    let wireWeight = parseFloat(base.wireWeight || 0);
+    let coilFee = parseFloat(base.coilFee || 0);
+    let rotorFee = parseFloat(base.rotorFee || 0);
+    if (lower && upper) {
+        const lS = parseInt(lower.sheets), uS = parseInt(upper.sheets);
+        const ratio = (targetSheets - lS) / (uS - lS);
+        wireWeight = parseFloat(lower.wireWeight || 0) + (parseFloat(upper.wireWeight || 0) - parseFloat(lower.wireWeight || 0)) * ratio;
+        coilFee = parseFloat(lower.coilFee || 0) + (parseFloat(upper.coilFee || 0) - parseFloat(lower.coilFee || 0)) * ratio;
+        rotorFee = parseFloat(lower.rotorFee || 0) + (parseFloat(upper.rotorFee || 0) - parseFloat(lower.rotorFee || 0)) * ratio;
+    }
+    return parseFloat(base.unitPrice || 0) * targetSheets + wireWeight * parseFloat(base.copperBase || 0) + coilFee + rotorFee;
+}
+
 // ── POST /cost/dynamic-config ──
 router.post('/cost/dynamic-config', (req, res) => {
     try {
@@ -170,68 +248,53 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         };
 
         const { partsCache, partsByModel } = loadPartsData();
-        let totalCost = 0;
-        
-        // Parts cost
         const parsedParts = JSON.parse(recipeData.parts_json || '[]');
-        const partsResult = calculateRecipeCost(parsedParts, partsCache, partsByModel);
-        totalCost += Number(partsResult.totalCost);
+        const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
 
-        // Coils
-        if (recipeData.coil_spec) {
-            const coil = db.prepare('SELECT * FROM coils WHERE spec = ?').get(recipeData.coil_spec);
-            if (coil) {
-                const getSetting = require('../db.cjs').getSetting;
-                const copperPrice = Number(getSetting('copper_price') || 0);
-                const coilPrice = recipeData.coil_sheets * coil.unit_price;
-                const copperCost = coil.wire_weight * copperPrice;
-                const calculatedCoilCost = coilPrice + copperCost + coil.coil_fee + coil.rotor_fee;
-                totalCost += calculatedCoilCost;
-            }
+        const managedTotals = { coil: 0, float: 0, cable: 0, box: 0 };
+        for (const part of parsedParts) {
+            const type = managedPartType(part);
+            if (type) managedTotals[type] += partSnapshotSubtotal(part, partsCache, partsByModel);
         }
 
-        const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
+        const savedBaseCost = Number(row.saved_total_cost || 0);
+        const hasSavedBase = savedBaseCost > 0;
+        const partsResult = calculateRecipeCost(parsedParts, partsCache, partsByModel);
+        let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
+        totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box;
+
         const dbWire = resolveWireFromStator(recipeData.coil_spec, recipeData.coil_sheets);
         const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
 
-        // Float
-        if (recipeData.has_float) {
-            const model = recipeData.float_wire || `浮球-线径${resolvedWire}`;
-            const floatP = getPrice(model);
-            totalCost += floatP;
+        const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets);
+        const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire);
+        const cableChanged = toBool(recipeData.has_cable) !== toBool(row.has_cable) || !sameNumber(recipeData.cable_length, row.cable_length) || !sameText(recipeData.cable_wire, row.cable_wire);
+        const boxChanged = !sameText(recipeData.box_type, row.box_type);
+
+        totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets) : managedTotals.coil;
+
+        if (!floatChanged) {
+            totalCost += managedTotals.float;
+        } else if (toBool(recipeData.has_float)) {
+            totalCost += getPrice(configuredModel('浮球', recipeData.float_wire, resolvedWire));
         }
 
-        // Cable
-        if (recipeData.has_cable && recipeData.cable_length > 0) {
-            const model = recipeData.cable_wire || `电缆-线径${resolvedWire}`;
-            const cableP = getPrice(model);
-            totalCost += cableP * recipeData.cable_length;
-            // Add accessory fee if cable is added
+        if (!cableChanged) {
+            totalCost += managedTotals.cable;
+        } else if (toBool(recipeData.has_cable) && Number(recipeData.cable_length) > 0) {
+            totalCost += getPrice(configuredModel('电缆', recipeData.cable_wire, resolvedWire)) * Number(recipeData.cable_length);
             totalCost += getPrice('电缆配件费');
         }
 
-        // Box
-        if (recipeData.box_type) {
-            let price = getPrice(recipeData.box_type);
-            if (price === 0) {
-                const kw = recipeData.box_type.trim();
-                const cands = [];
-                for (const [m, info] of Object.entries(partsCache)) {
-                    if (info.category === '包装' && m.includes(kw)) cands.push({ model: m, price: info.price });
-                }
-                if (cands.length > 0) {
-                    price = cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]).price;
-                }
-            }
-            totalCost += price;
-        }
+        totalCost += boxChanged ? findBoxPrice(recipeData.box_type, getPrice, partsCache) : managedTotals.box;
 
-        // Wages
         const getSetting = require('../db.cjs').getSetting;
-        totalCost += (recipeData.assembly_wage || 0);
-        totalCost += (recipeData.packing_wage || 0);
-        totalCost += (recipeData.painting_wage || 0);
-        totalCost += (recipeData.management_fee || Number(getSetting('management_fee')) || 0);
+        if (!hasSavedBase) {
+            totalCost += (recipeData.assembly_wage || 0);
+            totalCost += (recipeData.packing_wage || 0);
+            totalCost += (recipeData.painting_wage || 0);
+            totalCost += (recipeData.management_fee || Number(getSetting('management_fee')) || 0);
+        }
 
         console.log(`[DynamicCalc] Recipe: ${recipeData.name}, Final has_float: ${recipeData.has_float}, totalCost: ${totalCost}`);
         res.json({ success: true, unitCost: Number(totalCost.toFixed(2)) });

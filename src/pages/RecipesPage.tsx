@@ -20,6 +20,25 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { colors, gradients } from '../utils/theme';
 
+function getRecipeLaborTotal(recipe: Recipe): number {
+  let laborTotal =
+    (recipe.assembly_wage || 0) +
+    (recipe.packing_wage || 0) +
+    (recipe.painting_wage || 0) +
+    (recipe.management_fee || 0);
+
+  if (laborTotal === 0 && recipe.saved_cost_details) {
+    recipe.saved_cost_details.split('\n').forEach(line => {
+      if (line.includes('工资') || line.includes('费用')) {
+        const match = line.match(/(.+?):\s*¥([\d.]+)/);
+        if (match) laborTotal += parseFloat(match[2]) || 0;
+      }
+    });
+  }
+
+  return laborTotal;
+}
+
 export default function RecipesPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -68,7 +87,8 @@ export default function RecipesPage() {
         try {
           const costResult = await calculateCost(validParts);
           const costNum = parseFloat(costResult.totalCost);
-          map.set(recipe.Id, { overview, cost: isNaN(costNum) ? '¥0.00' : `¥${costResult.totalCost}`, costResult });
+          const totalCost = (isNaN(costNum) ? 0 : costNum) + getRecipeLaborTotal(recipe);
+          map.set(recipe.Id, { overview, cost: `¥${totalCost.toFixed(2)}`, costResult });
         } catch {
           // 计算失败时用保存的总成本兜底
           const fallbackCost = recipe.saved_total_cost ?? 0;
