@@ -4,7 +4,7 @@ const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const fs = require('fs');
-const { db } = require('../db.cjs');
+const { db, safeUpdate } = require('../db.cjs');
 
 const router = Router();
 
@@ -579,15 +579,14 @@ router.get('/order-pump-models', (req, res) => {
 // ═══════════════════════════════════════════════
 router.patch('/history/:id/link', (req, res) => {
     try {
-        const { linked_pump_model } = req.body;
-        if (typeof linked_pump_model !== 'string') {
-            return res.status(400).json({ error: '缺少 linked_pump_model 参数' });
+        const linkedPumpModel = req.body.linkedPumpModel ?? req.body.linked_pump_model;
+        if (typeof linkedPumpModel !== 'string') {
+            return res.status(400).json({ error: '缺少 linkedPumpModel 参数' });
         }
         const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(req.params.id);
         if (!row) return res.status(404).json({ error: '记录不存在' });
-        db.prepare('UPDATE rotor_drawings SET linked_pump_model = ?, updated_at = ? WHERE id = ?')
-            .run(linked_pump_model, new Date().toISOString(), req.params.id);
-        res.json({ ok: true, linked_pump_model });
+        safeUpdate('rotor_drawings', Number(req.params.id), { linked_pump_model: linkedPumpModel });
+        res.json({ ok: true, linkedPumpModel });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

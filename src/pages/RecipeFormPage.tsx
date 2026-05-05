@@ -110,8 +110,7 @@ export default function RecipeFormPage() {
     if (editFrom || cloneFrom) return;
     (async () => {
       try {
-        const res = await fetch('/api/settings/management_fee', { credentials: 'include' });
-        const json = await res.json();
+        const json = await proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/management_fee');
         if (json.success) setManagementFee(parseFloat(json.data.value) || 0);
       } catch { /* */ }
     })();
@@ -136,7 +135,6 @@ export default function RecipeFormPage() {
       if (customWeight) body.wireWeight = parseFloat(customWeight);
       const json = await proxyRequest<{ success: boolean; data: CoilCalcResult }>(`${COIL_API_BASE}/api/coils/calculate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       if (json.success) setCoilResult(json.data);

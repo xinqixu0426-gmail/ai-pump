@@ -71,13 +71,13 @@ export async function getOrder(id: string): Promise<Order | null> {
 
 export async function saveOrder(order: Order): Promise<Order> {
   const record: Record<string, unknown> = {
-    customer_name: order.customerName,
-    contract_no: order.contractNo || '',
+    customerName: order.customerName,
+    contractNo: order.contractNo || '',
     remark: order.remark || '',
     status: order.status,
-    items_json: JSON.stringify(order.items),
-    purchase_list_json: JSON.stringify(order.purchaseList),
-    todos_json: JSON.stringify(order.todos),
+    itemsJson: JSON.stringify(order.items),
+    purchaseListJson: JSON.stringify(order.purchaseList),
+    todosJson: JSON.stringify(order.todos),
   };
 
   // 如果 id 是纯数字 → 已存在行，PATCH 更新

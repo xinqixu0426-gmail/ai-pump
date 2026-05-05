@@ -9,37 +9,76 @@ import {
 
 // ─── 通用请求封装 ─────────────────────────────
 // 统一代理请求入口，在此集中处理 401 和重定向
-export async function proxyRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+export const API_BASE = import.meta.env.VITE_API_URL || '';
+
+interface ProxyOptions {
+  redirectOnUnauthorized?: boolean;
+  throwOnError?: boolean;
+}
+
+function isFormData(body: BodyInit | null | undefined): boolean {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+function resolveApiPath(path: string): string {
+  if (/^https?:\/\//.test(path)) return path;
+  return `${API_BASE}${path}`;
+}
+
+export async function proxyFetch(
+  path: string,
+  options: RequestInit = {},
+  proxyOptions: ProxyOptions = {}
+): Promise<Response> {
+  const { redirectOnUnauthorized = true, throwOnError = true } = proxyOptions;
+  const headers = new Headers(options.headers);
+  if (options.body && !isFormData(options.body) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(resolveApiPath(path), {
     ...options,
-    credentials: 'include', // 自动携带 HttpOnly Cookie
-    headers: {
-      'Content-Type': 'application/json',
-      ...((options.headers as Record<string, string>) || {}),
-    },
+    credentials: 'include',
+    headers,
   });
 
-  // 全局 401 拦截：未授权时跳转登录页
   if (response.status === 401) {
-    window.location.href = '/login';
+    if (redirectOnUnauthorized) window.location.href = '/login';
     throw new Error('未授权，跳转登录页');
   }
 
-  if (!response.ok) {
+  if (throwOnError && !response.ok) {
     let serverError: string | undefined;
     try {
       const errData = await response.json();
-      serverError = errData?.error;
+      serverError = errData?.error || errData?.message;
     } catch {
       // 响应体不是 JSON，忽略
     }
     throw new Error(serverError || `HTTP ${response.status}: ${response.statusText}`);
   }
 
+  return response;
+}
+
+export async function proxyRequest<T>(
+  path: string,
+  options: RequestInit = {},
+  proxyOptions: ProxyOptions = {}
+): Promise<T> {
+  const response = await proxyFetch(path, options, proxyOptions);
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 
-// ─── 零件 CRUD ──────────────────────────────
+export async function proxyFormRequest<T>(
+  path: string,
+  formData: FormData,
+  options: Omit<RequestInit, 'body'> = {},
+  proxyOptions: ProxyOptions = {}
+): Promise<T> {
+  return proxyRequest<T>(path, { method: 'POST', ...options, body: formData }, proxyOptions);
+}
 
 export async function getAllParts(): Promise<Part[]> {
   const res = await proxyRequest<{ success: boolean; data: Part[] }>('/api/parts');
@@ -114,6 +153,31 @@ export async function batchAddStock(
 
 // ─── 配方 CRUD ──────────────────────────────
 
+function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (recipe.name !== undefined) payload.name = recipe.name;
+  if (recipe.spec !== undefined) payload.spec = recipe.spec;
+  if (recipe.parts_json !== undefined) payload.partsJson = recipe.parts_json || '[]';
+  if (recipe.saved_total_cost !== undefined) payload.savedTotalCost = recipe.saved_total_cost;
+  if (recipe.saved_cost_details !== undefined) payload.savedCostDetails = recipe.saved_cost_details;
+  if (recipe.template_id !== undefined) payload.templateId = recipe.template_id || null;
+  if (recipe.coil_spec !== undefined) payload.coilSpec = recipe.coil_spec || '';
+  if (recipe.coil_sheets !== undefined) payload.coilSheets = recipe.coil_sheets || 0;
+  if (recipe.has_float !== undefined) payload.hasFloat = recipe.has_float || 0;
+  if (recipe.float_wire !== undefined) payload.floatWire = recipe.float_wire || '';
+  if (recipe.has_cable !== undefined) payload.hasCable = recipe.has_cable || 0;
+  if (recipe.cable_length !== undefined) payload.cableLength = recipe.cable_length || 0;
+  if (recipe.cable_wire !== undefined) payload.cableWire = recipe.cable_wire || '';
+  if (recipe.extra_parts_json !== undefined) payload.extraPartsJson = recipe.extra_parts_json || '[]';
+  if (recipe.packing_parts_json !== undefined) payload.packingPartsJson = recipe.packing_parts_json || '[]';
+  if (recipe.assembly_wage !== undefined) payload.assemblyWage = recipe.assembly_wage || 0;
+  if (recipe.packing_wage !== undefined) payload.packingWage = recipe.packing_wage || 0;
+  if (recipe.painting_wage !== undefined) payload.paintingWage = recipe.painting_wage != null ? recipe.painting_wage : null;
+  if (recipe.management_fee !== undefined) payload.managementFee = recipe.management_fee || 0;
+  if (recipe.custom_barrel_length !== undefined) payload.customBarrelLength = recipe.custom_barrel_length ?? null;
+  return payload;
+}
+
 export async function getAllRecipes(): Promise<Recipe[]> {
   const res = await proxyRequest<{ success: boolean; data: Recipe[] }>('/api/recipes');
   return res.data || [];
@@ -131,29 +195,7 @@ export async function getRecipe(id: number): Promise<Recipe | null> {
 export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> {
   const res = await proxyRequest<{ success: boolean; data: Recipe }>('/api/recipes', {
     method: 'POST',
-    body: JSON.stringify({
-      name: recipe.name,
-      spec: recipe.spec,
-      parts_json: recipe.parts_json || '[]',
-      saved_total_cost: recipe.saved_total_cost,
-      saved_cost_details: recipe.saved_cost_details,
-      template_id: recipe.template_id || null,
-      coil_spec: recipe.coil_spec || '',
-      coil_sheets: recipe.coil_sheets || 0,
-      has_float: recipe.has_float || 0,
-      float_wire: recipe.float_wire || '',
-      has_cable: recipe.has_cable || 0,
-      cable_length: recipe.cable_length || 0,
-      cable_wire: recipe.cable_wire || '',
-      // box_type 已废弃，不再发送
-      extra_parts_json: recipe.extra_parts_json || '[]',
-      packing_parts_json: recipe.packing_parts_json || '[]',
-      assembly_wage: recipe.assembly_wage || 0,
-      packing_wage: recipe.packing_wage || 0,
-      painting_wage: recipe.painting_wage != null ? recipe.painting_wage : null,
-      management_fee: recipe.management_fee || 0,
-      custom_barrel_length: recipe.custom_barrel_length ?? null,
-    }),
+    body: JSON.stringify(recipeToApiPayload(recipe)),
   });
   return res.data;
 }
@@ -168,7 +210,7 @@ export async function deleteRecipe(id: number): Promise<void> {
 export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'>>): Promise<Recipe> {
   const res = await proxyRequest<{ success: boolean; data: Recipe }>('/api/recipes', {
     method: 'PATCH',
-    body: JSON.stringify({ Id: id, ...recipe }),
+    body: JSON.stringify({ Id: id, ...recipeToApiPayload(recipe) }),
   });
   return res.data;
 }
@@ -176,9 +218,12 @@ export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'
 // ─── 成本计算 ─────────────────────────────────
 
 export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
+  if (!parts || parts.length === 0) {
+    return { totalCost: '0.00', itemCount: 0, details: [], missingParts: [] };
+  }
+
   const result = await proxyRequest<ApiResponse<CostResult>>('/api/cost/calculate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ parts }),
   });
   if (!result.success || !result.data) {
@@ -188,6 +233,17 @@ export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
 }
 
 // ─── 泵壳模板 CRUD ──────────────────────────
+
+function templateToApiPayload(tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (tpl.shell_model !== undefined) payload.shellModel = tpl.shell_model;
+  if (tpl.description !== undefined) payload.description = tpl.description || '';
+  if (tpl.parts_json !== undefined) payload.partsJson = tpl.parts_json || '[]';
+  if (tpl.assembly_wage !== undefined) payload.assemblyWage = tpl.assembly_wage ?? 0;
+  if (tpl.packing_wage !== undefined) payload.packingWage = tpl.packing_wage ?? 0;
+  if (tpl.painting_wage !== undefined) payload.paintingWage = tpl.painting_wage ?? null;
+  return payload;
+}
 
 export async function getAllTemplates(): Promise<PumpShellTemplate[]> {
   const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate[] }>('/api/templates');
@@ -206,14 +262,7 @@ export async function getTemplate(id: number): Promise<PumpShellTemplate | null>
 export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promise<PumpShellTemplate> {
   const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate }>('/api/templates', {
     method: 'POST',
-    body: JSON.stringify({
-      shell_model: tpl.shell_model,
-      description: tpl.description || '',
-      parts_json: tpl.parts_json || '[]',
-      assembly_wage: tpl.assembly_wage ?? 0,
-      packing_wage: tpl.packing_wage ?? 0,
-      painting_wage: tpl.painting_wage ?? null,
-    }),
+    body: JSON.stringify(templateToApiPayload(tpl)),
   });
   return res.data;
 }
@@ -221,7 +270,7 @@ export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promis
 export async function updateTemplate(id: number, tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Promise<PumpShellTemplate> {
   const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate }>(`/api/templates/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(tpl),
+    body: JSON.stringify(templateToApiPayload(tpl)),
   });
   return res.data;
 }

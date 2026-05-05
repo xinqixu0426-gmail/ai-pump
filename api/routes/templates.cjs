@@ -2,6 +2,26 @@ const { Router } = require('express');
 const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate } = require('../db.cjs');
 const router = Router();
 
+const TEMPLATE_ALIASES = {
+    shellModel: 'shell_model',
+    partsJson: 'parts_json',
+    rotorParamsJson: 'rotor_params_json',
+    assemblyWage: 'assembly_wage',
+    packingWage: 'packing_wage',
+    paintingWage: 'painting_wage',
+};
+
+function templateBodyToDb(body) {
+    const updates = {};
+    for (const f of ['shell_model', 'description', 'parts_json', 'rotor_params_json', 'assembly_wage', 'packing_wage', 'painting_wage']) {
+        if (body[f] !== undefined) updates[f] = body[f];
+    }
+    for (const [camel, snake] of Object.entries(TEMPLATE_ALIASES)) {
+        if (body[camel] !== undefined) updates[snake] = body[camel];
+    }
+    return updates;
+}
+
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllTemplates() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -36,7 +56,7 @@ router.get('/:id/recipes', (req, res) => {
 
 router.post('/', (req, res) => {
     try {
-        const { shell_model, description, parts_json, rotor_params_json, assembly_wage, packing_wage, painting_wage } = req.body;
+        const { shell_model, description, parts_json, rotor_params_json, assembly_wage, packing_wage, painting_wage } = templateBodyToDb(req.body);
         if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
         const now = new Date().toISOString();
         const pJson = typeof parts_json === 'string' ? parts_json : JSON.stringify(parts_json || []);
@@ -50,7 +70,8 @@ router.post('/', (req, res) => {
         );
         res.json({ success: true, data: templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) {
-        if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: `泵壳型号 "${req.body.shell_model}" 已存在` });
+        const body = templateBodyToDb(req.body);
+        if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: `泵壳型号 "${body.shell_model}" 已存在` });
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -58,7 +79,7 @@ router.post('/', (req, res) => {
 router.patch('/:id', (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const b = req.body;
+        const b = templateBodyToDb(req.body);
         const updates = {};
         if (b.shell_model !== undefined) updates.shell_model = b.shell_model;
         if (b.description !== undefined) updates.description = b.description;

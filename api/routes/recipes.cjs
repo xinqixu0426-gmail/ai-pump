@@ -2,6 +2,48 @@ const { Router } = require('express');
 const { db, dbGetAllRecipes, recipeRow, safeUpdate, softDelete } = require('../db.cjs');
 const router = Router();
 
+const RECIPE_FIELDS = [
+    'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
+    'template_id', 'coil_spec', 'coil_sheets',
+    'has_float', 'float_wire', 'has_cable', 'cable_length', 'cable_wire',
+    'box_type', 'extra_parts_json', 'packing_parts_json',
+    'assembly_wage', 'packing_wage', 'painting_wage',
+    'management_fee', 'custom_barrel_length',
+];
+
+const RECIPE_ALIASES = {
+    partsJson: 'parts_json',
+    savedTotalCost: 'saved_total_cost',
+    savedCostDetails: 'saved_cost_details',
+    templateId: 'template_id',
+    coilSpec: 'coil_spec',
+    coilSheets: 'coil_sheets',
+    hasFloat: 'has_float',
+    floatWire: 'float_wire',
+    hasCable: 'has_cable',
+    cableLength: 'cable_length',
+    cableWire: 'cable_wire',
+    boxType: 'box_type',
+    extraPartsJson: 'extra_parts_json',
+    packingPartsJson: 'packing_parts_json',
+    assemblyWage: 'assembly_wage',
+    packingWage: 'packing_wage',
+    paintingWage: 'painting_wage',
+    managementFee: 'management_fee',
+    customBarrelLength: 'custom_barrel_length',
+};
+
+function recipeBodyToDb(body) {
+    const updates = {};
+    for (const f of RECIPE_FIELDS) {
+        if (body[f] !== undefined) updates[f] = body[f];
+    }
+    for (const [camel, snake] of Object.entries(RECIPE_ALIASES)) {
+        if (body[camel] !== undefined) updates[snake] = body[camel];
+    }
+    return updates;
+}
+
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllRecipes() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -17,7 +59,7 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
     try {
-        const b = req.body;
+        const b = recipeBodyToDb(req.body);
         const now = new Date().toISOString();
         const info = db.prepare(`INSERT INTO recipes (
             name, spec, parts_json, saved_total_cost, saved_cost_details,
@@ -57,16 +99,7 @@ router.patch('/', (req, res) => {
     try {
         const b = req.body;
         const id = b.Id || b.id;
-        const RECIPE_FIELDS = [
-            'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
-            'template_id', 'coil_spec', 'coil_sheets',
-            'has_float', 'float_wire', 'has_cable', 'cable_length', 'cable_wire',
-            'box_type', 'extra_parts_json', 'packing_parts_json',
-            'assembly_wage', 'packing_wage', 'painting_wage',
-            'management_fee', 'custom_barrel_length',
-        ];
-        const updates = {};
-        for (const f of RECIPE_FIELDS) { if (b[f] !== undefined) updates[f] = b[f]; }
+        const updates = recipeBodyToDb(b);
         safeUpdate('recipes', id, updates);
         res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }

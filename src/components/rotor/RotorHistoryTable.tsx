@@ -10,6 +10,7 @@ import {
   Printer as PrintIcon,
   Link2 as LinkIcon
 } from 'lucide-react';
+import { proxyRequest } from '../../utils/api';
 
 interface RotorHistoryTableProps {
   history: any[];
@@ -113,7 +114,7 @@ export default function RotorHistoryTable({
                     </Tooltip>
                     <IconButton size="small" color="error" onClick={async () => {
                       if (!confirm('确定删除此记录？')) return;
-                      await fetch(`${API_BASE}/api/rotor/history/${row.id}`, { method: 'DELETE', credentials: 'include' });
+                      await proxyRequest(`/api/rotor/history/${row.id}`, { method: 'DELETE' });
                       loadHistory();
                     }}>
                       <DeleteIcon size={18} />

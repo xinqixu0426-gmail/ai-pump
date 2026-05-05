@@ -17,8 +17,7 @@ import PageHeader from '../components/PageHeader';
 import { colors } from '../utils/theme';
 import { useAppStore } from '../utils/store';
 import { useCoilForm, CoilRecord } from '../hooks/useCoilForm';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { proxyRequest } from '../utils/api';
 
 interface CalcResult {
   spec: string;
@@ -76,10 +75,9 @@ export default function CoilRotorPage() {
       setCalcLoading(true);
       const body: Record<string, unknown> = { spec: calcSpec, sheets: parseInt(calcSheets) };
       if (useCustomWireWeight && calcWireWeight) body.wireWeight = parseFloat(calcWireWeight);
-      const res = await fetch(`${API_BASE}/api/coils/calculate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      const json = await proxyRequest<{ success: boolean; data: CalcResult; error?: string }>('/api/coils/calculate', {
+        method: 'POST', body: JSON.stringify(body)
       });
-      const json = await res.json();
       if (json.success) {
         setCalcResult(json.data); showSnackbar(`成本计算完成: ¥${json.data.totalCost.toFixed(2)}`, 'success');
       } else setError(json.error || '计算失败');

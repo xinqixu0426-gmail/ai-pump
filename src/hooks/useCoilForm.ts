@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useAppStore } from '../utils/store';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { proxyRequest } from '../utils/api';
 
 export interface CoilRecord {
   Id: number;
@@ -61,8 +60,7 @@ export function useCoilForm() {
   const loadCoils = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/api/coils`);
-      const json = await res.json();
+      const json = await proxyRequest<{ success: boolean; data: CoilRecord[] }>('/api/coils');
       if (json.success) {
         setCoils(json.data);
         const specs = new Set(json.data.map((c: CoilRecord) => c.spec));
@@ -75,8 +73,7 @@ export function useCoilForm() {
   const loadCopperPrice = useCallback(async () => {
     try {
       setCopperLoading(true);
-      const res = await fetch(`${API_BASE}/api/copper-price`);
-      const json = await res.json();
+      const json = await proxyRequest<{ success: boolean; data: CopperPriceInfo }>('/api/copper-price');
       if (json.success) setCopperPrice(json.data);
     } catch { /* ignore */ }
     finally { setCopperLoading(false); }
@@ -95,8 +92,7 @@ export function useCoilForm() {
   const handleCopperUpdate = async () => {
     try {
       setCopperUpdating(true);
-      const res = await fetch(`${API_BASE}/api/copper-price/update`, { method: 'POST' });
-      const json = await res.json();
+      const json = await proxyRequest<{ success: boolean; error?: string }>('/api/copper-price/update', { method: 'POST' });
       if (json.success) {
         showSnackbar(`铜价更新成功`, 'success');
         await loadCoils(); await loadCopperPrice();
@@ -131,12 +127,10 @@ export function useCoilForm() {
   // 按规格批量更新单价
   const updateSpecPrice = async (spec: string, newPrice: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/coils/spec/${encodeURIComponent(spec)}`, {
+      const json = await proxyRequest<{ success: boolean; updated: number; error?: string }>(`/api/coils/spec/${encodeURIComponent(spec)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ unitPrice: newPrice })
       });
-      const json = await res.json();
       if (json.success) {
         showSnackbar(`规格 ${spec} 的单价已更新为 ¥${newPrice}（${json.updated} 条记录）`, 'success');
         await loadCoils();
@@ -156,13 +150,11 @@ export function useCoilForm() {
 
   const handleSave = async () => {
     try {
-      const url = editingId ? `${API_BASE}/api/coils/${editingId}` : `${API_BASE}/api/coils`;
-      const res = await fetch(url, {
+      const url = editingId ? `/api/coils/${editingId}` : '/api/coils';
+      const json = await proxyRequest<{ success: boolean; error?: string }>(url, {
         method: editingId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
-      const json = await res.json();
       if (json.success) {
         showSnackbar(editingId ? '记录已保存' : '添加成功', 'success');
         setDialogOpen(false); await loadCoils();
@@ -173,8 +165,7 @@ export function useCoilForm() {
   const confirmDelete = async () => {
     if (deleteTarget === null) return;
     try {
-      const res = await fetch(`${API_BASE}/api/coils/${deleteTarget}`, { method: 'DELETE' });
-      const json = await res.json();
+      const json = await proxyRequest<{ success: boolean; error?: string }>(`/api/coils/${deleteTarget}`, { method: 'DELETE' });
       if (json.success) {
         showSnackbar('记录已删除', 'info'); await loadCoils();
       } else setError('删除失败');

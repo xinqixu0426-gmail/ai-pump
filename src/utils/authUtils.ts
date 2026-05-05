@@ -2,6 +2,7 @@
  * 认证工具函数
  * 所有请求都使用 credentials: 'include' 以自动携带 HttpOnly Cookie
  */
+import { proxyFetch, proxyRequest } from './api';
 
 const API_BASE = '/api/auth';
 
@@ -10,12 +11,10 @@ const API_BASE = '/api/auth';
  */
 export async function login(password: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${API_BASE}/login`, {
+    const res = await proxyFetch(`${API_BASE}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ password }),
-    });
+    }, { redirectOnUnauthorized: false, throwOnError: false });
 
     const data = await res.json();
 
@@ -33,10 +32,7 @@ export async function login(password: string): Promise<{ success: boolean; error
  * 登出 — 清除身份 Cookie
  */
 export async function logout(): Promise<void> {
-  await fetch(`${API_BASE}/logout`, {
-    method: 'POST',
-    credentials: 'include',
-  });
+  await proxyRequest(`${API_BASE}/logout`, { method: 'POST' }, { redirectOnUnauthorized: false });
 }
 
 /**
@@ -44,9 +40,7 @@ export async function logout(): Promise<void> {
  */
 export async function checkAuth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/check`, {
-      credentials: 'include',
-    });
+    const res = await proxyFetch(`${API_BASE}/check`, {}, { redirectOnUnauthorized: false, throwOnError: false });
 
     if (!res.ok) return false;
 

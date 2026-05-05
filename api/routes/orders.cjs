@@ -2,6 +2,26 @@ const { Router } = require('express');
 const { db, dbGetAllOrders, orderRow, safeUpdate, softDelete } = require('../db.cjs');
 const router = Router();
 
+const ORDER_FIELDS = ['customer_name', 'contract_no', 'remark', 'status', 'items_json', 'purchase_list_json', 'todos_json'];
+const ORDER_ALIASES = {
+    customerName: 'customer_name',
+    contractNo: 'contract_no',
+    itemsJson: 'items_json',
+    purchaseListJson: 'purchase_list_json',
+    todosJson: 'todos_json',
+};
+
+function orderBodyToDb(body) {
+    const updates = {};
+    for (const f of ORDER_FIELDS) {
+        if (body[f] !== undefined) updates[f] = body[f];
+    }
+    for (const [camel, snake] of Object.entries(ORDER_ALIASES)) {
+        if (body[camel] !== undefined) updates[snake] = body[camel];
+    }
+    return updates;
+}
+
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllOrders() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -45,7 +65,7 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
     try {
-        const b = req.body;
+        const b = orderBodyToDb(req.body);
         const now = new Date().toISOString();
         const info = db.prepare('INSERT INTO orders (customer_name, contract_no, remark, status, items_json, purchase_list_json, todos_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
             b.customer_name || '', b.contract_no || '', b.remark || '',
@@ -60,14 +80,7 @@ router.patch('/', (req, res) => {
     try {
         const b = req.body;
         const id = b.Id || b.id;
-        const updates = {};
-        if (b.customer_name !== undefined) updates.customer_name = b.customer_name;
-        if (b.contract_no !== undefined) updates.contract_no = b.contract_no;
-        if (b.remark !== undefined) updates.remark = b.remark;
-        if (b.status !== undefined) updates.status = b.status;
-        if (b.items_json !== undefined) updates.items_json = b.items_json;
-        if (b.purchase_list_json !== undefined) updates.purchase_list_json = b.purchase_list_json;
-        if (b.todos_json !== undefined) updates.todos_json = b.todos_json;
+        const updates = orderBodyToDb(b);
         safeUpdate('orders', id, updates);
         res.json({ success: true, data: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }

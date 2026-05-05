@@ -30,6 +30,7 @@ import StructuredResult from '../components/ai/StructuredResult';
 import StatusIndicator from '../components/ai/StatusIndicator';
 import PageHeader from '../components/PageHeader';
 import { colors, gradients } from '../utils/theme';
+import { proxyFetch, proxyRequest } from '../utils/api';
 
 // ─── Types ────────────────────────────────────────────
 interface ChatMessage {
@@ -84,8 +85,7 @@ export default function AIChatPage() {
   // 加载 system prompt
   const loadSystemPrompt = useCallback(async () => {
     try {
-      const res = await fetch('/api/ai/system-prompt');
-      const json = await res.json();
+      const json = await proxyRequest<{ success: boolean; data: string }>('/api/ai/system-prompt');
       if (json.success) setSystemPrompt(json.data);
     } catch { /* ignore */ }
   }, []);
@@ -99,12 +99,10 @@ export default function AIChatPage() {
   const handleSavePrompt = async () => {
     setPromptLoading(true);
     try {
-      const res = await fetch('/api/ai/system-prompt', {
+      const json = await proxyRequest<{ success: boolean }>('/api/ai/system-prompt', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: systemPrompt }),
       });
-      const json = await res.json();
       if (json.success) {
         setPromptSaved(true);
         setTimeout(() => setPromptSaved(false), 2000);
@@ -146,9 +144,8 @@ export default function AIChatPage() {
 
     try {
       abortControllerRef.current = new AbortController();
-      const response = await fetch('/api/ai/chat', {
+      const response = await proxyFetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages }),
         signal: abortControllerRef.current.signal,
       });

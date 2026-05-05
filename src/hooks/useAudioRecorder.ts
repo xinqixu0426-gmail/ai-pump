@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { proxyFormRequest } from '../utils/api';
 
 interface UseAudioRecorderOptions {
   onTranscribed: (text: string) => void;
@@ -85,8 +86,10 @@ export function useAudioRecorder({ onTranscribed }: UseAudioRecorderOptions) {
       formData.append('format', 'wav');
       formData.append('sampleRate', '16000');
 
-      const asrRes = await fetch('/api/voice/asr', { method: 'POST', body: formData });
-      const asrJson = await asrRes.json();
+      const asrJson = await proxyFormRequest<{ success: boolean; text?: string; error?: string }>(
+        '/api/voice/asr',
+        formData
+      );
 
       if (!asrJson.success || !asrJson.text?.trim()) {
         setInterimText(asrJson.error ? `识别失败: ${asrJson.error}` : '');

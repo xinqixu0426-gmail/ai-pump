@@ -15,7 +15,7 @@ import {
   Printer as PrintIcon,
   Package as PackageIcon
 } from 'lucide-react';
-import { getAllTemplates, getAllParts } from '../utils/api';
+import { getAllTemplates, getAllParts, proxyFetch, proxyRequest } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
 import PageHeader from '../components/PageHeader';
 
@@ -143,8 +143,7 @@ export default function RotorDrawingPage() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/rotor/history`, { credentials: 'include' });
-      if (res.ok) setHistory(await res.json());
+      setHistory(await proxyRequest<any[]>('/api/rotor/history'));
     } catch { /* */ }
   }, []);
 
@@ -157,10 +156,10 @@ export default function RotorDrawingPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/rotor/status/${jobId}`, { credentials: 'include' });
+        const res = await proxyFetch(`/api/rotor/status/${jobId}`, {}, { throwOnError: false });
         if (res.status === 404) {
           if (pollRef.current) clearInterval(pollRef.current);
-          const histRes = await fetch(`${API_BASE}/api/rotor/history`, { credentials: 'include' });
+          const histRes = await proxyFetch('/api/rotor/history', {}, { throwOnError: false });
           if (histRes.ok) {
             const histData = await histRes.json();
             const found = histData.find((r: any) => r.job_id === jobId);
@@ -192,11 +191,10 @@ export default function RotorDrawingPage() {
     try {
       const body: any = { message, force };
       if (sups && Object.keys(sups).length > 0) body.supplements = sups;
-      const res = await fetch(`${API_BASE}/api/rotor/chat`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      const data = await proxyRequest<any>('/api/rotor/chat', {
+        method: 'POST',
         body: JSON.stringify(body)
       });
-      const data = await res.json();
 
       if (data.status === 'warning') {
         setWarning({ missing_length: data.missing_length, stator_clearance: data.stator_clearance, extracted: data.extracted });
@@ -278,7 +276,7 @@ export default function RotorDrawingPage() {
   const handlePrint = useCallback(async (targetJobId: string) => {
     setPrinting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/rotor/print/${targetJobId}`, { method: 'POST', credentials: 'include' });
+      const res = await proxyFetch(`/api/rotor/print/${targetJobId}`, { method: 'POST' }, { throwOnError: false });
       const data = await res.json();
       if (res.ok && data.ok) setSnackbar({ open: true, message: '打印指令已发送到默认打印机', severity: 'success' });
       else setSnackbar({ open: true, message: '打印失败: ' + (data.error || '未知错误'), severity: 'error' });
@@ -289,8 +287,7 @@ export default function RotorDrawingPage() {
   const handleLinkClick = useCallback(async (row: any) => {
     setLinkTargetRow(row);
     try {
-      const res = await fetch(`${API_BASE}/api/rotor/order-pump-models`, { credentials: 'include' });
-      if (res.ok) setOrderPumpModels(await res.json());
+      setOrderPumpModels(await proxyRequest<Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }>>('/api/rotor/order-pump-models'));
     } catch { setOrderPumpModels([]); }
     setLinkDialogOpen(true);
   }, []);
@@ -299,12 +296,10 @@ export default function RotorDrawingPage() {
     if (!linkTargetRow) return;
     setLinking(true);
     try {
-      const res = await fetch(`${API_BASE}/api/rotor/history/${linkTargetRow.id}/link`, {
+      const res = await proxyFetch(`/api/rotor/history/${linkTargetRow.id}/link`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ linked_pump_model: recipeName })
-      });
+        body: JSON.stringify({ linkedPumpModel: recipeName })
+      }, { throwOnError: false });
       if (res.ok) {
         setSnackbar({ open: true, message: `已关联到 ${recipeName}`, severity: 'success' });
         loadHistory();

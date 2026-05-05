@@ -4,6 +4,7 @@ import { Trash2 as DeleteIcon } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import VoiceChatMessages, { ChatMessage } from '../components/voice/VoiceChatMessages';
+import { proxyFetch } from '../utils/api';
 import './VoiceAssistant.css';
 
 export default function VoiceAssistantPage() {
@@ -63,9 +64,8 @@ export default function VoiceAssistantPage() {
         return prev;
       });
 
-      const response = await fetch('/api/ai/chat', {
+      const response = await proxyFetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: historyToSend }),
       });
 
