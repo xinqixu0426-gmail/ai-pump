@@ -147,7 +147,7 @@ function launchDrawJob(fcParams, source, res) {
 
     fcParams._jobId = jobId;
     const args = [WORKER_SCRIPT, '--pass', JSON.stringify(fcParams)];
-    execFile(FREECAD_BIN, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180000 }, (error, stdout, stderr) => {
+    execFile(FREECAD_BIN, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180000, killSignal: 'SIGKILL' }, (error, stdout, stderr) => {
         runningJobs = Math.max(0, runningJobs - 1);
         console.log('[Rotor] FreeCAD stdout:\n' + stdout);
         if (stderr) console.error('[Rotor] FreeCAD stderr:\n' + stderr);

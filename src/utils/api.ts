@@ -43,8 +43,10 @@ export async function proxyFetch(
   });
 
   if (response.status === 401) {
-    if (redirectOnUnauthorized) window.location.href = '/login';
-    throw new Error('未授权，跳转登录页');
+    if (redirectOnUnauthorized) {
+      window.location.href = '/login';
+      throw new Error('未授权，跳转登录页');
+    }
   }
 
   if (throwOnError && !response.ok) {
