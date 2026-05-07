@@ -93,7 +93,40 @@ export default function RecipeDetailModal({
       extras.forEach((p: any) => extraModels.add(`${p.model}||${p.supplier||''}`));
     } catch {}
 
-    costResult.details.forEach(detail => {
+    const displayDetails = (() => {
+      const cable = costResult.details.find(detail => detail.name === '电缆线');
+      const cableAccessory = costResult.details.find(detail => detail.name === '电缆接头配件');
+      if (!cable || !cableAccessory) return costResult.details;
+
+      const cableSubtotal = parseFloat(cable.subtotal) || 0;
+      const accessorySubtotal = parseFloat(cableAccessory.subtotal) || 0;
+      const cableSnapshotSubtotal = parseFloat(cable.snapshotSubtotal || '0') || 0;
+      const accessorySnapshotSubtotal = parseFloat(cableAccessory.snapshotSubtotal || '0') || 0;
+      const combinedSubtotal = cableSubtotal + accessorySubtotal;
+      const combinedSnapshotSubtotal = cableSnapshotSubtotal + accessorySnapshotSubtotal;
+      const displayModel = cable.model.startsWith('电缆-') ? cable.model.replace('电缆-', '电缆线-') : cable.model;
+      const combinedCable = {
+        ...cable,
+        model: displayModel,
+        price: combinedSubtotal.toFixed(2),
+        qty: 1,
+        subtotal: combinedSubtotal.toFixed(2),
+        source: cable.source === cableAccessory.source ? cable.source : `${cable.source} / ${cableAccessory.source}`,
+        ...(combinedSnapshotSubtotal > 0 ? {
+          snapshotPrice: combinedSnapshotSubtotal.toFixed(2),
+          snapshotSubtotal: combinedSnapshotSubtotal.toFixed(2),
+        } : {})
+      };
+
+      return costResult.details.reduce((list: any[], detail) => {
+        if (detail === cable) list.push(combinedCable);
+        if (detail === cableAccessory) return list;
+        if (detail !== cable) list.push(detail);
+        return list;
+      }, []);
+    })();
+
+    displayDetails.forEach(detail => {
       const name = detail.name;
       const sub = parseFloat(detail.subtotal) || 0;
       const snapSub = parseFloat(detail.snapshotSubtotal || '0') || 0;
@@ -143,7 +176,10 @@ export default function RecipeDetailModal({
     }
 
     const partsTotal = parseFloat(costResult.totalCost) || 0;
-    const totalCost = partsTotal + laborTotal;
+    const savedTotalCost = Number(recipe.saved_total_cost);
+    const totalCost = Number.isFinite(savedTotalCost) && savedTotalCost > 0
+      ? savedTotalCost
+      : partsTotal + laborTotal;
 
     return {
       totalCostValue: totalCost,

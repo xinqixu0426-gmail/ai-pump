@@ -131,6 +131,26 @@ function sameText(a, b) {
     return String(a || '') === String(b || '');
 }
 
+function normalizePackingJsonText(value, boxType) {
+    let list = [];
+    try {
+        list = JSON.parse(value || '[]');
+    } catch {
+        list = [];
+    }
+    if ((!Array.isArray(list) || list.length === 0) && boxType) {
+        list = [{ model: boxType, supplier: '', qty: 1 }];
+    }
+    if (!Array.isArray(list)) list = [];
+    return JSON.stringify(list
+        .filter(part => part?.model)
+        .map(part => ({
+            model: part.model,
+            supplier: part.supplier || '',
+            qty: Number(part.qty || 1)
+        })));
+}
+
 function managedPartType(part) {
     const name = String(part?.name || '');
     const model = String(part?.model || '');
@@ -163,6 +183,16 @@ function findBoxPrice(boxType, getPrice, partsCache) {
         if (info.category === '包装' && m.includes(kw)) cands.push({ model: m, price: info.price });
     }
     return cands.length > 0 ? cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]).price : 0;
+}
+
+function calculatePackingPartsCost(packingPartsJson, getPrice) {
+    let packingParts = [];
+    try { packingParts = JSON.parse(packingPartsJson || '[]'); } catch { packingParts = []; }
+    return packingParts.reduce((sum, part) => {
+        if (!part?.model) return sum;
+        const price = part.snapshotPrice !== undefined ? Number(part.snapshotPrice || 0) : getPrice(part.model);
+        return sum + price * Number(part.qty || 1);
+    }, 0);
 }
 
 function calculateCoilCostValue(spec, sheets) {
@@ -239,6 +269,7 @@ router.post('/cost/dynamic-calculate', (req, res) => {
             cable_length: overrides?.cable_length !== undefined ? Number(overrides.cable_length) : row.cable_length,
             cable_wire: overrides?.cable_wire !== undefined ? overrides.cable_wire : row.cable_wire,
             box_type: overrides?.box_type !== undefined ? overrides.box_type : row.box_type,
+            packing_parts_json: overrides?.packing_parts_json !== undefined ? overrides.packing_parts_json : row.packing_parts_json,
             custom_barrel_length: overrides?.custom_barrel_length !== undefined ? Number(overrides.custom_barrel_length) : row.custom_barrel_length,
             extra_parts_json: overrides?.extra_parts_json !== undefined ? overrides.extra_parts_json : row.extra_parts_json,
             assembly_wage: row.assembly_wage,
@@ -269,7 +300,8 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets);
         const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire);
         const cableChanged = toBool(recipeData.has_cable) !== toBool(row.has_cable) || !sameNumber(recipeData.cable_length, row.cable_length) || !sameText(recipeData.cable_wire, row.cable_wire);
-        const boxChanged = !sameText(recipeData.box_type, row.box_type);
+        const packingJsonChanged = normalizePackingJsonText(recipeData.packing_parts_json, recipeData.box_type) !== normalizePackingJsonText(row.packing_parts_json, row.box_type);
+        const boxChanged = !sameText(recipeData.box_type, row.box_type) || packingJsonChanged;
 
         totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets) : managedTotals.coil;
 
@@ -286,7 +318,9 @@ router.post('/cost/dynamic-calculate', (req, res) => {
             totalCost += getPrice('电缆配件费');
         }
 
-        totalCost += boxChanged ? findBoxPrice(recipeData.box_type, getPrice, partsCache) : managedTotals.box;
+        totalCost += boxChanged
+            ? (calculatePackingPartsCost(recipeData.packing_parts_json, getPrice) || findBoxPrice(recipeData.box_type, getPrice, partsCache))
+            : managedTotals.box;
 
         const getSetting = require('../db.cjs').getSetting;
         if (!hasSavedBase) {

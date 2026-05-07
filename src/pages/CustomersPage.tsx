@@ -1,41 +1,112 @@
-import { useState, useEffect } from 'react';
-import { Box, Paper, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableHead, TableRow, TableCell, TableBody, IconButton } from '@mui/material';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Paper,
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  IconButton,
+  Typography,
+  Chip,
+  Tooltip,
+} from '@mui/material';
+import { Plus, Edit, Trash2, FileText, ArrowRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useAppStore } from '../utils/store';
-import { createCustomer, updateCustomer, deleteCustomer } from '../utils/api';
+import { createCustomer, updateCustomer, deleteCustomer, deleteQuotation } from '../utils/api';
 
 export default function CustomersPage() {
-  const { customers, fetchCustomers, showSnackbar } = useAppStore();
+  const navigate = useNavigate();
+  const { customers, quotations, fetchCustomers, fetchQuotations, showSnackbar } = useAppStore();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', contactInfo: '', defaultMargin: 0.15, remark: '' });
 
-  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+  useEffect(() => {
+    fetchCustomers();
+    fetchQuotations();
+  }, [fetchCustomers, fetchQuotations]);
+
+  useEffect(() => {
+    if (selectedCustomerId || customers.length === 0) return;
+    setSelectedCustomerId(customers[0].Id);
+  }, [customers, selectedCustomerId]);
+
+  const selectedCustomer = customers.find(c => c.Id === selectedCustomerId) || null;
+  const customerQuotations = useMemo(
+    () => quotations.filter(q => q.customerId === selectedCustomerId),
+    [quotations, selectedCustomerId]
+  );
+
+  const quotationStats = useMemo(() => {
+    const totalPrice = customerQuotations.reduce((sum, q) => sum + Number(q.totalPrice || 0), 0);
+    const latest = customerQuotations
+      .map(q => (q.CreatedAt ? new Date(q.CreatedAt) : null))
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.getTime() - a.getTime())[0] as Date | undefined;
+    return { count: customerQuotations.length, totalPrice, latest };
+  }, [customerQuotations]);
 
   const handleSave = async () => {
     try {
-      if (editing) await updateCustomer(editing.Id, form);
-      else await createCustomer(form);
-      await fetchCustomers(true);
+      if (editing) {
+        await updateCustomer(editing.Id, form);
+        await fetchCustomers(true);
+      } else {
+        await createCustomer(form);
+        const refreshed = await fetchCustomers(true);
+        const created = refreshed.find((c: any) => c.name === form.name);
+        if (created) setSelectedCustomerId(created.Id);
+      }
       setOpen(false);
       showSnackbar('客户保存成功', 'success');
-    } catch (err: any) { showSnackbar(err.message || '保存失败', 'error'); }
+    } catch (err: any) {
+      showSnackbar(err.message || '保存失败', 'error');
+    }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除?')) return;
+    if (!confirm('确定删除该客户?')) return;
     try {
       await deleteCustomer(id);
       await fetchCustomers(true);
+      if (selectedCustomerId === id) setSelectedCustomerId(null);
       showSnackbar('删除成功', 'info');
-    } catch (err: any) { showSnackbar(err.message || '删除失败', 'error'); }
+    } catch (err: any) {
+      showSnackbar(err.message || '删除失败', 'error');
+    }
+  };
+
+  const handleDeleteQuotation = async (id: number) => {
+    if (!confirm('确定删除该报价单?')) return;
+    try {
+      await deleteQuotation(id);
+      await fetchQuotations(true);
+      showSnackbar('报价单已删除', 'info');
+    } catch (err: any) {
+      showSnackbar(err.message || '删除失败', 'error');
+    }
   };
 
   const openForm = (c?: any) => {
     if (c) {
       setEditing(c);
-      setForm({ name: c.name, contactInfo: c.contactInfo, defaultMargin: c.defaultMargin, remark: c.remark });
+      setForm({
+        name: c.name,
+        contactInfo: c.contactInfo || '',
+        defaultMargin: c.defaultMargin,
+        remark: c.remark || '',
+      });
     } else {
       setEditing(null);
       setForm({ name: '', contactInfo: '', defaultMargin: 0.15, remark: '' });
@@ -45,46 +116,143 @@ export default function CustomersPage() {
 
   return (
     <Box>
-      <PageHeader title="客户档案" subtitle="管理客户基础信息及利润率" actions={<Button variant="contained" startIcon={<Plus size={20} />} onClick={() => openForm()}>新增客户</Button>} />
-      <Paper elevation={0} sx={{ mt: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
-              <TableCell>客户名称</TableCell>
-              <TableCell>联系方式</TableCell>
-              <TableCell>默认利润率</TableCell>
-              <TableCell>备注</TableCell>
-              <TableCell align="right">操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {customers.map(c => (
-              <TableRow key={c.Id}>
-                <TableCell sx={{ fontWeight: 600 }}>{c.name}</TableCell>
-                <TableCell>{c.contactInfo}</TableCell>
-                <TableCell>{(c.defaultMargin * 100).toFixed(0)}%</TableCell>
-                <TableCell>{c.remark}</TableCell>
-                <TableCell align="right">
-                  <IconButton size="small" onClick={() => openForm(c)}><Edit size={16} /></IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(c.Id)}><Trash2 size={16} /></IconButton>
-                </TableCell>
+      <PageHeader
+        title="客户与报价"
+        subtitle="在同一个页面管理客户档案和对应报价单"
+        actions={<Button variant="contained" startIcon={<Plus size={20} />} onClick={() => openForm()}>新增客户</Button>}
+      />
+
+      <Box sx={{ mt: 3, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '420px 1fr' }, gap: 2, alignItems: 'start' }}>
+        <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="subtitle1" fontWeight={700}>客户列表</Typography>
+            <Chip size="small" label={`${customers.length} 个客户`} variant="outlined" />
+          </Box>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
+                <TableCell>客户</TableCell>
+                <TableCell align="right">默认加价</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
-            ))}
-            {customers.length === 0 && (
+            </TableHead>
+            <TableBody>
+              {customers.map(c => {
+                const selected = c.Id === selectedCustomerId;
+                const quoteCount = quotations.filter(q => q.customerId === c.Id).length;
+                return (
+                  <TableRow
+                    key={c.Id}
+                    hover
+                    selected={selected}
+                    onClick={() => setSelectedCustomerId(c.Id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={700}>{c.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{c.contactInfo || c.remark || '-'}</Typography>
+                      <Box sx={{ mt: 0.5 }}>
+                        <Chip size="small" label={`${quoteCount} 张报价`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">{(c.defaultMargin * 100).toFixed(0)}%</TableCell>
+                    <TableCell align="right" onClick={e => e.stopPropagation()}>
+                      <IconButton size="small" onClick={() => openForm(c)}><Edit size={16} /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDelete(c.Id)}><Trash2 size={16} /></IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {customers.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>暂无客户记录</TableCell>
+                  <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>暂无客户记录</TableCell>
                 </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </Paper>
+              )}
+            </TableBody>
+          </Table>
+        </Paper>
+
+        <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>
+                {selectedCustomer ? selectedCustomer.name : '选择客户'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {selectedCustomer
+                  ? `${selectedCustomer.contactInfo || '无联系方式'} · 默认加价 ${(selectedCustomer.defaultMargin * 100).toFixed(0)}%`
+                  : '点击左侧客户查看报价历史'}
+              </Typography>
+            </Box>
+            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+              <Chip size="small" icon={<FileText size={14} />} label={`${quotationStats.count} 张报价`} />
+              <Chip size="small" label={`总报价 ¥${quotationStats.totalPrice.toFixed(2)}`} color="primary" variant="outlined" />
+              {quotationStats.latest && <Chip size="small" label={`最近 ${quotationStats.latest.toLocaleDateString()}`} variant="outlined" />}
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<Plus size={16} />}
+                disabled={!selectedCustomer}
+                onClick={() => navigate('/quotations')}
+              >
+                新建报价
+              </Button>
+            </Box>
+          </Box>
+
+          <Table>
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
+                <TableCell>状态</TableCell>
+                <TableCell>总成本</TableCell>
+                <TableCell>总报价</TableCell>
+                <TableCell>备注</TableCell>
+                <TableCell>创建时间</TableCell>
+                <TableCell align="right">操作</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {customerQuotations.map(q => (
+                <TableRow key={q.Id}>
+                  <TableCell><Chip size="small" label={q.status} color={q.status === '已接受' ? 'success' : q.status === '已转订单' ? 'info' : 'default'} /></TableCell>
+                  <TableCell>¥{Number(q.totalCost || 0).toFixed(2)}</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>¥{Number(q.totalPrice || 0).toFixed(2)}</TableCell>
+                  <TableCell>{q.remark || '-'}</TableCell>
+                  <TableCell>{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '-'}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="在报价单页编辑">
+                      <IconButton size="small" onClick={() => navigate('/quotations')}><ArrowRight size={16} /></IconButton>
+                    </Tooltip>
+                    <IconButton size="small" color="error" onClick={() => handleDeleteQuotation(q.Id)}><Trash2 size={16} /></IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {selectedCustomer && customerQuotations.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                    该客户还没有报价单
+                  </TableCell>
+                </TableRow>
+              )}
+              {!selectedCustomer && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                    请先选择一个客户
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Paper>
+      </Box>
+
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? '编辑客户' : '新增客户'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField label="客户名称" value={form.name} onChange={e => setForm({...form, name: e.target.value})} fullWidth />
-          <TextField label="联系方式" value={form.contactInfo} onChange={e => setForm({...form, contactInfo: e.target.value})} fullWidth />
-          <TextField label="默认利润率 (小数，例如0.15代表15%)" type="number" inputProps={{ step: 0.01 }} value={form.defaultMargin} onChange={e => setForm({...form, defaultMargin: parseFloat(e.target.value)})} fullWidth />
-          <TextField label="备注" value={form.remark} onChange={e => setForm({...form, remark: e.target.value})} fullWidth multiline rows={3} />
+          <TextField label="客户名称" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} fullWidth />
+          <TextField label="联系方式" value={form.contactInfo} onChange={e => setForm({ ...form, contactInfo: e.target.value })} fullWidth />
+          <TextField label="默认加价率(小数，例如 .15 代表 15%)" type="number" inputProps={{ step: 0.01 }} value={form.defaultMargin} onChange={e => setForm({ ...form, defaultMargin: parseFloat(e.target.value) })} fullWidth />
+          <TextField label="备注" value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} fullWidth multiline rows={3} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>取消</Button>

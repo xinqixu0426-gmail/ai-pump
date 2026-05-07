@@ -154,6 +154,7 @@ const recipeAlterColumns = [
     ['cable_wire', "TEXT DEFAULT ''"],
     ['box_type', "TEXT DEFAULT ''"],
     ['extra_parts_json', "TEXT DEFAULT '[]'"],
+    ['packing_parts_json', "TEXT DEFAULT '[]'"],
     ['assembly_wage', 'REAL DEFAULT 0'],
     ['packing_wage', 'REAL DEFAULT 0'],
     ['painting_wage', 'REAL'],
@@ -195,6 +196,7 @@ function recipeRow(r) {
         has_float: r.has_float, float_wire: r.float_wire, has_cable: r.has_cable,
         cable_length: r.cable_length, cable_wire: r.cable_wire, box_type: r.box_type,
         custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
+        packing_parts_json: r.packing_parts_json,
         assembly_wage: r.assembly_wage, packing_wage: r.packing_wage, painting_wage: r.painting_wage,
         management_fee: r.management_fee,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
