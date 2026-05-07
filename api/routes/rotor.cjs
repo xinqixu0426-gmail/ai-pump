@@ -55,10 +55,30 @@ const SYSTEM_PROMPT = '你是一个专业的工业图纸参数提取 AI。请仔
     + '- "impeller_depth" (专属代名词：叶轮厚度。例如说叶轮厚度9 -> 9)\n'
     + '- "thread_length" (专属代名词：螺丝长度/螺纹长度)\n'
     + '- "thread_dia" (专属代名词：螺纹直径。例如用户说：螺丝直径12 -> 12)\n\n'
+    + '重要规则：开档/轴承间距已经包含转子片数形成的叠片长度；当用户只要求修改片数并说其他不变时，不要推导或增大开档/总长。\n\n'
     + '示例反馈：\n'
     + '用户：上轴承202，下轴承203.转子片数160片，定位30，开档150\n'
     + 'AI的JSON返回：\n'
     + '{"upper_bearing":"6202","lower_bearing":"6203","piece_count":160,"rotor_dia":null,"bearing_span":150,"stack_offset":30,"oil_seal_dia":null,"impeller_dia":null,"impeller_span":null,"impeller_depth":null,"thread_length":null,"thread_dia":null,"reply":"好的，正在为您生成转子图纸。"}';
+
+const ROTOR_PARAM_KEYS = [
+    'upper_bearing', 'lower_bearing', 'piece_count', 'rotor_dia',
+    'bearing_span', 'stack_offset', 'oil_seal_dia', 'impeller_dia',
+    'impeller_span', 'bearing_to_impeller', 'impeller_depth',
+    'thread_length', 'thread_dia'
+];
+
+function mergeRotorBaseParams(baseParams, parsed) {
+    if (!baseParams || typeof baseParams !== 'object') return parsed;
+    const merged = { ...parsed };
+    for (const key of ROTOR_PARAM_KEYS) {
+        const current = merged[key];
+        if ((current === null || current === undefined || current === '') && baseParams[key] !== undefined && baseParams[key] !== null && baseParams[key] !== '') {
+            merged[key] = baseParams[key];
+        }
+    }
+    return merged;
+}
 
 // ── DeepSeek 调用（带超时+重试） ──
 function callDeepSeek(messages, retries = 2) {
@@ -255,6 +275,8 @@ function buildFcParams(params) {
     if (fcParams.piece_count) {
         fcParams._core_length = fcParams.piece_count * 0.5;
     }
+    // 开档(bearing_span)已经包含叠片长度(_core_length)，总长不能再叠加片数长度。
+    // 因此同一开档下，仅修改 piece_count 不应改变 _total_length。
     const totalLen = Number(fcParams.upper_bearing_depth || 0)
         + Number(fcParams.bearing_span || 0)
         + Number(fcParams.bearing_to_impeller || 0)
@@ -305,7 +327,7 @@ router.post('/draw', (req, res) => {
 // ═══════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
     try {
-        const { message, force, supplements } = req.body;
+        const { message, force, supplements, baseParams } = req.body;
         if (!message) return res.status(400).json({ status: 'error', message: '缺少 message 字段' });
 
         if (!DEEPSEEK_API_KEY) {
@@ -350,6 +372,8 @@ router.post('/chat', async (req, res) => {
         }
         const mtRotorDia = message.match(/转子直径\s*(\d+\.?\d*)/);
         if (mtRotorDia) parsed.rotor_dia = parseFloat(mtRotorDia[1]);
+
+        parsed = mergeRotorBaseParams(baseParams, parsed);
 
         // 3. 组装参数
         const { fcParams, errors } = buildFcParams(parsed);

@@ -12,6 +12,7 @@ router.post('/', (req, res) => {
         const f = extractPartFields(req.body);
         const now = new Date().toISOString();
         const info = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(f.model, f.category, f.price, f.supplier, f.stock, f.remark, now, now);
+        invalidatePartsCache();
         res.json({ success: true, data: partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -28,6 +29,7 @@ router.patch('/', (req, res) => {
         if (req.body.stock !== undefined) updates.stock = f.stock;
         if (req.body.notes !== undefined || req.body.remark !== undefined) updates.remark = f.remark;
         safeUpdate('parts', id, updates);
+        invalidatePartsCache();
         res.json({ success: true, data: partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

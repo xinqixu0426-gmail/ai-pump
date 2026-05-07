@@ -16,7 +16,7 @@ import { BUILTIN_CATEGORIES, getCatIcon } from './partsConstants';
 
 interface PartFormPanelProps {
   editingPart: Part | null;
-  onSave: (part: Omit<Part, 'Id'>) => Promise<void>;
+  onSave: (part: Omit<Part, 'Id'>, options?: { continueEntry?: boolean }) => Promise<void>;
   onCancel: () => void;
   saving: boolean;
   allCategories: string[];
@@ -164,6 +164,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const continueEntry = submitter?.name === 'continueEntry' && !editingPart;
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     // 结构化模式下自动拼接 model
@@ -202,12 +204,15 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       model: finalModel, category, price: parseFloat(price) || 0,
       supplier: supplier.trim(), stock: parseInt(stock) || 0,
       notes: notes ? JSON.stringify(notes) : '',
-    });
+    }, { continueEntry });
     if (!editingPart) {
-      setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setSupplier(''); setStock('');
-      setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
-      setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
-      setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
+      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStock('');
+      if (!continueEntry) {
+        setCategory(''); setSupplier('');
+        setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
+        setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
+        setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
+      }
       if (open) {
         setTimeout(() => modelInputRef.current?.focus(), 100);
       }
@@ -242,6 +247,44 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
       <Box component="form" id="part-form" onSubmit={handleSubmit}>
         <Stack spacing={2}>
+          <Box display="flex" gap={1} alignItems="flex-start">
+            <FormControl fullWidth size="small" required error={!!errors.category}>
+              <InputLabel>类别</InputLabel>
+              <Select
+                id="part-category-select"
+                value={allCategories.includes(category) ? category : (category || '')}
+                label="类别"
+                onChange={(e) => { setCategory(e.target.value); setErrors((prev) => ({ ...prev, category: '' })); }}
+              >
+                <MenuItem value=""><em>请选择类别</em></MenuItem>
+                <MenuItem disabled sx={{ fontSize: '0.7rem', color: 'text.disabled', letterSpacing: 0.5, py: 0.3 }}>── 内置类别 ──</MenuItem>
+                {BUILTIN_CATEGORIES.map((cat) => (
+                  <MenuItem key={cat} value={cat}>{getCatIcon(cat)} {cat}</MenuItem>
+                ))}
+                <MenuItem disabled sx={{ fontSize: '0.7rem', color: 'text.disabled', letterSpacing: 0.5, py: 0.3 }}>── 自定义类别 ──</MenuItem>
+                {allCategories.filter((c) => !BUILTIN_CATEGORIES.includes(c)).length === 0
+                  ? <MenuItem disabled sx={{ fontStyle: 'italic', fontSize: '0.8rem' }}>（暂无，点击 ⚙ 添加）</MenuItem>
+                  : allCategories.filter((c) => !BUILTIN_CATEGORIES.includes(c)).map((cat, idx) => (
+                      <MenuItem key={cat} value={cat}>
+                        <Box component="span" sx={{ mr: 0.5 }}>🏷️</Box> {cat}
+                        <Box component="span" sx={{ ml: 0.5, fontSize: '0.65rem', opacity: 0.4 }}>#{idx + 1}</Box>
+                      </MenuItem>
+                    ))
+                }
+              </Select>
+              {errors.category && <Typography variant="caption" color="error" sx={{ ml: 1.5, mt: 0.3 }}>{errors.category}</Typography>}
+            </FormControl>
+            <Tooltip title="管理类别（增删改）">
+              <IconButton
+                id="manage-categories-btn"
+                size="small"
+                onClick={onManageCategories}
+                sx={{ mt: 0.5, flexShrink: 0, color: colors.purple.main, bgcolor: colors.purple.bg, border: `1px solid ${colors.purple.border}`, '&:hover': { bgcolor: colors.purple.light } }}
+              >
+                <SettingsIcon size={18} />
+              </IconButton>
+            </Tooltip>
+          </Box>
           {isCapacitorMode ? (
             /* 电容结构化输入模式：仅允许数字 + μF */
             <Box display="flex" gap={1} alignItems="flex-start">
@@ -313,44 +356,6 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               error={!!errors.model} helperText={errors.model}
             />
           )}
-          <Box display="flex" gap={1} alignItems="flex-start">
-            <FormControl fullWidth size="small" required error={!!errors.category}>
-              <InputLabel>类别</InputLabel>
-              <Select
-                id="part-category-select"
-                value={allCategories.includes(category) ? category : (category || '')}
-                label="类别"
-                onChange={(e) => { setCategory(e.target.value); setErrors((prev) => ({ ...prev, category: '' })); }}
-              >
-                <MenuItem value=""><em>请选择类别</em></MenuItem>
-                <MenuItem disabled sx={{ fontSize: '0.7rem', color: 'text.disabled', letterSpacing: 0.5, py: 0.3 }}>── 内置类别 ──</MenuItem>
-                {BUILTIN_CATEGORIES.map((cat) => (
-                  <MenuItem key={cat} value={cat}>{getCatIcon(cat)} {cat}</MenuItem>
-                ))}
-                <MenuItem disabled sx={{ fontSize: '0.7rem', color: 'text.disabled', letterSpacing: 0.5, py: 0.3 }}>── 自定义类别 ──</MenuItem>
-                {allCategories.filter((c) => !BUILTIN_CATEGORIES.includes(c)).length === 0
-                  ? <MenuItem disabled sx={{ fontStyle: 'italic', fontSize: '0.8rem' }}>（暂无，点击 ⚙ 添加）</MenuItem>
-                  : allCategories.filter((c) => !BUILTIN_CATEGORIES.includes(c)).map((cat, idx) => (
-                      <MenuItem key={cat} value={cat}>
-                        <Box component="span" sx={{ mr: 0.5 }}>🏷️</Box> {cat}
-                        <Box component="span" sx={{ ml: 0.5, fontSize: '0.65rem', opacity: 0.4 }}>#{idx + 1}</Box>
-                      </MenuItem>
-                    ))
-                }
-              </Select>
-              {errors.category && <Typography variant="caption" color="error" sx={{ ml: 1.5, mt: 0.3 }}>{errors.category}</Typography>}
-            </FormControl>
-            <Tooltip title="管理类别（增删改）">
-              <IconButton
-                id="manage-categories-btn"
-                size="small"
-                onClick={onManageCategories}
-                sx={{ mt: 0.5, flexShrink: 0, color: colors.purple.main, bgcolor: colors.purple.bg, border: `1px solid ${colors.purple.border}`, '&:hover': { bgcolor: colors.purple.light } }}
-              >
-                <SettingsIcon size={18} />
-              </IconButton>
-            </Tooltip>
-          </Box>
           <Box display="flex" gap={1.5} alignItems="flex-start">
             <TextField
               id="part-price-input" label="单价（元）" type="number" value={price}
@@ -538,6 +543,19 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
             >
               {saving ? '保存中...' : isEditing ? '保存修改' : '新增零件'}
             </Button>
+            {!isEditing && (
+              <Button
+                id="part-save-continue-btn"
+                name="continueEntry"
+                type="submit"
+                variant="outlined"
+                startIcon={<AddIcon size={18} />}
+                disabled={saving}
+                sx={{ flexShrink: 0, fontWeight: 700 }}
+              >
+                保存并继续
+              </Button>
+            )}
             {isEditing && (
               <Button id="part-cancel-btn" variant="outlined" startIcon={<CancelIcon size={18} />} onClick={onCancel} sx={{ flexShrink: 0 }}>
                 取消

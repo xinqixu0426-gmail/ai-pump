@@ -63,6 +63,9 @@ export default function RotorDrawingPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSubmittedMessage = useRef<string>('');
 
+  const isFollowUpRotorEdit = (message: string) =>
+    !!extracted && /(同样|一样|其他不变|其它不变|不变|改成|改为|修改|调整|换成|变成)/.test(message);
+
   useEffect(() => {
     getAllTemplates().then(setTemplates).catch(() => {});
     getAllParts().then(setAllParts).catch(() => {});
@@ -191,6 +194,7 @@ export default function RotorDrawingPage() {
     try {
       const body: any = { message, force };
       if (sups && Object.keys(sups).length > 0) body.supplements = sups;
+      if (isFollowUpRotorEdit(message)) body.baseParams = extracted;
       const data = await proxyRequest<any>('/api/rotor/chat', {
         method: 'POST',
         body: JSON.stringify(body)
@@ -212,7 +216,7 @@ export default function RotorDrawingPage() {
     } finally {
       setNlLoading(false);
     }
-  }, [loadHistory]);
+  }, [loadHistory, extracted]);
 
   const handleNlSubmit = () => {
     if (!nlInput.trim()) return;

@@ -136,7 +136,7 @@ export default function PartsPage() {
   }, [parts]);
 
   // ── CRUD ─────────────────────────────────────────
-  const handleSave = async (partData: Omit<Part, 'Id'>) => {
+  const handleSave = async (partData: Omit<Part, 'Id'>, options?: { continueEntry?: boolean }) => {
     try {
       setSaving(true);
       if (editingPart) {
@@ -147,7 +147,7 @@ export default function PartsPage() {
         showSnackbar(`零件「${partData.model}」已新增`);
       }
       await fetchParts(true);
-      setEditingPart(null);
+      if (!options?.continueEntry) setEditingPart(null);
       setError('');
     } catch {
       setError('保存失败，请重试');
@@ -373,9 +373,9 @@ export default function PartsPage() {
         <Box ref={formRef} sx={{ overflow: 'auto', maxHeight: '90vh' }}>
           <PartFormPanel
             editingPart={editingPart}
-            onSave={async (partData) => {
-              await handleSave(partData);
-              handleDrawerClose();
+            onSave={async (partData, options) => {
+              await handleSave(partData, options);
+              if (!options?.continueEntry) handleDrawerClose();
             }}
             onCancel={handleDrawerClose}
             saving={saving}

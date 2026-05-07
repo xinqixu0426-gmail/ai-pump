@@ -107,6 +107,11 @@ export default function StepPartsConfig({
     return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
   };
 
+  const cableModel = `电缆-线径${cableWire}`;
+  const cableMeters = Number(cableLength) || 0;
+  const cableUnitPrice = getPriceByModelAndSupplier(cableModel, '');
+  const cableAccessoryPrice = getPriceByModelAndSupplier('电缆配件费', '');
+  const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
 
   return (
     <>
@@ -297,9 +302,22 @@ export default function StepPartsConfig({
                   onChange={(e) => setCableLength(e.target.value)}
                   sx={{ width: 110 }}
                 />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                  ¥{((getPriceByModelAndSupplier(`电缆-线径${cableWire}`, '') * (Number(cableLength) || 0)) + getPriceByModelAndSupplier('电缆配件费', '')).toFixed(2)}
-                </Typography>
+                <Box
+                  sx={{
+                    ml: { xs: 0, md: 'auto' },
+                    maxWidth: { xs: '100%', md: 560 },
+                    textAlign: { xs: 'left', md: 'right' },
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                    ¥{cableTotal.toFixed(2)}
+                  </Typography>
+                  {cableMeters > 0 && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
+                      {`${cableModel}: ¥${cableUnitPrice.toFixed(2)} × ${cableMeters}m + 电缆配件费 ¥${cableAccessoryPrice.toFixed(2)} = ¥${cableTotal.toFixed(2)}`}
+                    </Typography>
+                  )}
+                </Box>
               </>
             )}
           </Box>
