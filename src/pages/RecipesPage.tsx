@@ -39,6 +39,11 @@ function getRecipeLaborTotal(recipe: Recipe): number {
   return laborTotal;
 }
 
+function getRecipeSavedTotal(recipe: Recipe): number | null {
+  const saved = Number(recipe.saved_total_cost);
+  return Number.isFinite(saved) && saved > 0 ? saved : null;
+}
+
 export default function RecipesPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -87,12 +92,29 @@ export default function RecipesPage() {
         try {
           const costResult = await calculateCost(validParts);
           const costNum = parseFloat(costResult.totalCost);
-          const totalCost = (isNaN(costNum) ? 0 : costNum) + getRecipeLaborTotal(recipe);
-          map.set(recipe.Id, { overview, cost: `¥${totalCost.toFixed(2)}`, costResult });
+          const totalCost = getRecipeSavedTotal(recipe) ?? ((isNaN(costNum) ? 0 : costNum) + getRecipeLaborTotal(recipe));
+          map.set(recipe.Id, {
+            overview,
+            cost: `¥${totalCost.toFixed(2)}`,
+            costResult: {
+              ...costResult,
+              snapshotTotalCost: getRecipeSavedTotal(recipe)?.toFixed(2)
+            }
+          });
         } catch {
           // 计算失败时用保存的总成本兜底
           const fallbackCost = recipe.saved_total_cost ?? 0;
-          map.set(recipe.Id, { overview, cost: `¥${fallbackCost.toFixed(2)}`, costResult: { totalCost: String(fallbackCost), itemCount: validParts.length, details: [], missingParts: [] } });
+          map.set(recipe.Id, {
+            overview,
+            cost: `¥${fallbackCost.toFixed(2)}`,
+            costResult: {
+              totalCost: String(fallbackCost),
+              snapshotTotalCost: fallbackCost.toFixed(2),
+              itemCount: validParts.length,
+              details: [],
+              missingParts: []
+            }
+          });
         }
       }
       if (!cancelled) setRecipeData(map);
