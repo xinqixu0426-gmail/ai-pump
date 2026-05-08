@@ -267,6 +267,42 @@ function extractPartFields(body) {
     };
 }
 
+function parseCableAccessoryFee(notes) {
+    if (!notes) return null;
+    try {
+        const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
+        return Number.isFinite(fee) && fee >= 0 ? fee : null;
+    } catch {
+        return null;
+    }
+}
+
+function getCableAccessoryFee(partsByModel, cableModel, supplier) {
+    const suppliers = partsByModel[cableModel] || [];
+    const normalizedSupplier = String(supplier || '').trim();
+    const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);
+    const matchedFee = parseCableAccessoryFee(match?.notes);
+    if (match && normalizedSupplier && matchedFee != null) return matchedFee;
+    if (suppliers.length > 0) {
+        const fallback = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]);
+        const fallbackFee = parseCableAccessoryFee(fallback?.notes);
+        if (fallbackFee != null) return fallbackFee;
+    }
+    const legacy = partsByModel['电缆配件费'] || [];
+    if (legacy.length === 0) return 0;
+    return legacy.reduce((min, c) => c.price < min.price ? c : min, legacy[0]).price;
+}
+
+function isCableAccessoryPart(part) {
+    const model = String(part?.model || '');
+    const name = String(part?.name || '');
+    return model === '电缆配件费' || name.includes('电缆接头配件');
+}
+
+function findCablePart(parts) {
+    return parts.find(part => String(part?.model || '').startsWith('电缆-') || String(part?.name || '').includes('电缆线'));
+}
+
 
 
 // ⚠️ SYNC REQUIRED: 本组成本计算逻辑必须与 src/utils/costCalculator.ts 中的主逻辑保持高度一致！
@@ -279,7 +315,12 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
         const suppliers = partsByModel[p.model] || [];
         const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
         let price = 0, source = '';
-        if (match && p.supplier) { price = match.price; source = '精确匹配'; }
+        if (isCableAccessoryPart(p)) {
+            const cablePart = findCablePart(parts);
+            price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '');
+            source = '电缆线配件费';
+        }
+        else if (match && p.supplier) { price = match.price; source = '精确匹配'; }
         else if (suppliers.length > 0) { const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]); price = fb.price; source = '型号回退(取最低价)'; }
         else if ((p.name === '线圈转子' || p.name === '电容') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '快照价格'; }
         else { missingParts.push(p.model); source = '未找到'; }
@@ -375,9 +416,10 @@ function loadPartsData() {
         const model = record.model;
         const price = record.price || 0;
         const supplier = record.supplier || '-';
-        partsCache[model] = { price, supplier, category: record.category || '其他' };
+        const notes = record.remark || '';
+        partsCache[model] = { price, supplier, category: record.category || '其他', notes };
         if (!partsByModel[model]) partsByModel[model] = [];
-        partsByModel[model].push({ id: record.id, supplier, price });
+        partsByModel[model].push({ id: record.id, supplier, price, notes });
     });
     _partsDataCache = { partsCache, partsByModel };
     _partsDataCacheTime = now;

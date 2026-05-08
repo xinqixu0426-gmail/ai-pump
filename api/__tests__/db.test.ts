@@ -54,4 +54,25 @@ describe('db.cjs - calculateRecipeCost', () => {
     expect(result.itemCount).toBe(2);
     expect(result.missingParts).toContain('C');
   });
+
+  it('uses cable part notes as the cable accessory fee baseline', () => {
+    const pbm: Record<string, any[]> = {
+      '电缆-线径0.55': [
+        { id: 10, supplier: '-', price: 2, notes: JSON.stringify({ cableAccessoryFee: 3.5 }) }
+      ],
+      '电缆配件费': [
+        { id: 11, supplier: '-', price: 9 }
+      ]
+    };
+    const parts = [
+      { model: '电缆-线径0.55', name: '电缆线', supplier: '', qty: 10 },
+      { model: '电缆配件费', name: '电缆接头配件', supplier: '', qty: 1 }
+    ];
+
+    const result = calculateRecipeCost(parts, {}, pbm);
+
+    expect(result.totalCost).toBe('23.50');
+    expect(result.details[1].price).toBe('3.50');
+    expect(result.details[1].source).toBe('电缆线配件费');
+  });
 });

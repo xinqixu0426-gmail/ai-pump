@@ -26,6 +26,7 @@ import { colors } from '../../utils/theme';
 import { Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
 import { CoilSpecInfo, CoilCalcResult } from './recipeFormConstants';
+import { getCableAccessoryFee } from '../../utils/partHelpers';
 
 interface StepPartsConfigProps {
   coilSpecs: CoilSpecInfo[];
@@ -110,7 +111,7 @@ export default function StepPartsConfig({
   const cableModel = `电缆-线径${cableWire}`;
   const cableMeters = Number(cableLength) || 0;
   const cableUnitPrice = getPriceByModelAndSupplier(cableModel, '');
-  const cableAccessoryPrice = getPriceByModelAndSupplier('电缆配件费', '');
+  const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '');
   const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
 
   return (

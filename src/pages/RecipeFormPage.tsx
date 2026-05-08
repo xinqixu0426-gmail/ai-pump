@@ -13,7 +13,7 @@ import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { RecipePart, TemplatePart, PartSelection } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
-import { getPriceByModelAndSupplier as _getPrice, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
+import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { colors } from '../utils/theme';
 
@@ -248,6 +248,10 @@ export default function RecipeFormPage() {
     (model: string, supplier: string) => _getPrice(parts, model, supplier),
     [parts]
   );
+  const getCableAccessoryFee = useCallback(
+    (model: string, supplier: string) => _getCableAccessoryFee(parts, model, supplier),
+    [parts]
+  );
   const getModelsByCategory = useCallback(
     (category: string) => _getModelsByCategory(parts, category),
     [parts]
@@ -291,7 +295,7 @@ export default function RecipeFormPage() {
     if (hasCable && cableLength && Number(cableLength) > 0) {
       const cableModel = `电缆-线径${cableWire}`;
       configParts.push({ model: cableModel, name: '电缆线', supplier: '', qty: Number(cableLength), snapshotPrice: getPriceByModelAndSupplier(cableModel, '') });
-      configParts.push({ model: '电缆配件费', name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier('电缆配件费', '') });
+      configParts.push({ model: '电缆配件费', name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: getCableAccessoryFee(cableModel, '') });
     }
     // 包装件
     packingParts.forEach(p => {
@@ -300,7 +304,7 @@ export default function RecipeFormPage() {
       configParts.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty || 1, snapshotPrice: price });
     });
     return configParts;
-  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, packingParts, getPriceByModelAndSupplier]);
+  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, packingParts, getPriceByModelAndSupplier, getCableAccessoryFee]);
 
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];

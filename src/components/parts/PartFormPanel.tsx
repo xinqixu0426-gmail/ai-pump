@@ -54,6 +54,8 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   /** 当前类别是否为线径模式 */
   const wirePrefix = WIRE_MODE_CONFIG[category] || '';
   const isWireMode = !!wirePrefix;
+  const isCableMode = category === '电缆线';
+  const [cableAccessoryFee, setCableAccessoryFee] = useState('');
 
   // ── 电容结构化输入 ──
   const [capacitorUf, setCapacitorUf] = useState('');
@@ -98,6 +100,16 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     try { return JSON.parse(notes) as PumpShellMeta; } catch { return { isStainless: false }; }
   }
 
+  function parseCableAccessoryFee(notes?: string): string {
+    if (!notes) return '';
+    try {
+      const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
+      return Number.isFinite(fee) && fee >= 0 ? String(fee) : '';
+    } catch {
+      return '';
+    }
+  }
+
   useEffect(() => {
     if (editingPart) {
       setCategory(editingPart.category);
@@ -116,6 +128,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
         setWireGauge('');
       }
       setPrice(String(editingPart.price || ''));
+      setCableAccessoryFee(parseCableAccessoryFee(editingPart.notes));
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
       // 解析不锈钢及备用参数元数据
@@ -136,7 +149,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setDefaultStackOffset(meta.defaultStackOffset != null ? String(meta.defaultStackOffset) : '');
     } else {
       setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf('');
-      setPrice(''); setSupplier(''); setStock('');
+      setPrice(''); setCableAccessoryFee(''); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
@@ -158,6 +171,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     }
     if (!category) e.category = '请选择类别';
     if (!price || isNaN(Number(price)) || Number(price) < 0) e.price = '请输入有效价格';
+    if (isCableMode && cableAccessoryFee && (isNaN(Number(cableAccessoryFee)) || Number(cableAccessoryFee) < 0)) e.cableAccessoryFee = '请输入有效的电缆线配件费';
     if (!supplier.trim()) e.supplier = '供应商不能为空';
     return e;
   };
@@ -182,8 +196,9 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     }
 
     // 构建 notes JSON
-    const notes: PumpShellMeta | null = category === '泵壳'
-      ? { 
+    let notes: PumpShellMeta | { cableAccessoryFee: number } | null = null;
+    if (category === '泵壳') {
+      notes = { 
           isStainless, 
           barrelLength: barrelLength ? parseFloat(barrelLength) : undefined, 
           openOffset: openOffset ? parseFloat(openOffset) : undefined,
@@ -198,15 +213,17 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
           defaultThreadLength: defaultThreadLength ? parseFloat(defaultThreadLength) : undefined,
           defaultThreadDia: defaultThreadDia ? parseFloat(defaultThreadDia) : undefined,
           defaultStackOffset: defaultStackOffset ? parseFloat(defaultStackOffset) : undefined
-        }
-      : null;
+        };
+    } else if (isCableMode) {
+      notes = { cableAccessoryFee: cableAccessoryFee ? parseFloat(cableAccessoryFee) : 0 };
+    }
     await onSave({
       model: finalModel, category, price: parseFloat(price) || 0,
       supplier: supplier.trim(), stock: parseInt(stock) || 0,
       notes: notes ? JSON.stringify(notes) : '',
     }, { continueEntry });
     if (!editingPart) {
-      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStock('');
+      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setCableAccessoryFee(''); setStock('');
       if (!continueEntry) {
         setCategory(''); setSupplier('');
         setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
@@ -366,6 +383,23 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               error={!!errors.price} helperText={errors.price || ' '}
               sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
             />
+            {isCableMode && (
+              <TextField
+                id="part-cable-accessory-fee-input"
+                label="电缆线配件费"
+                type="number"
+                value={cableAccessoryFee}
+                onChange={(e) => setCableAccessoryFee(e.target.value)}
+                placeholder="0.00"
+                fullWidth
+                size="small"
+                inputProps={{ step: 0.01, min: 0 }}
+                InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                error={!!errors.cableAccessoryFee}
+                helperText={errors.cableAccessoryFee || ' '}
+                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+              />
+            )}
             <TextField
               id="part-stock-input" label="库存数量" type="number" value={stock}
               onChange={(e) => setStock(e.target.value)} placeholder="0"

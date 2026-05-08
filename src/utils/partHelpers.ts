@@ -16,6 +16,34 @@ export function getPriceByModelAndSupplier(parts: Part[], model: string, supplie
   return 0;
 }
 
+function parseCableAccessoryFee(notes?: string): number | null {
+  if (!notes) return null;
+  try {
+    const meta = JSON.parse(notes);
+    const fee = Number(meta?.cableAccessoryFee);
+    return Number.isFinite(fee) && fee >= 0 ? fee : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getCableAccessoryFee(parts: Part[], cableModel: string, supplier: string): number {
+  const m1 = (cableModel || '').trim();
+  const s1 = (supplier || '').trim();
+  const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);
+  const exactFee = parseCableAccessoryFee(exactPart?.notes);
+  if (exactPart && s1 && exactFee != null) return exactFee;
+
+  const modelParts = parts.filter(p => p.model.trim() === m1);
+  if (modelParts.length > 0) {
+    const fallbackPart = modelParts.reduce((min, curr) => curr.price < min.price ? curr : min, modelParts[0]);
+    const fallbackFee = parseCableAccessoryFee(fallbackPart.notes);
+    if (fallbackFee != null) return fallbackFee;
+  }
+
+  return getPriceByModelAndSupplier(parts, '电缆配件费', '');
+}
+
 /**
  * 获取指定类别下的去重型号列表
  */

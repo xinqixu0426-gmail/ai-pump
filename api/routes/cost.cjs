@@ -73,7 +73,7 @@ function resolveWire(dbWire, explicitWire) {
 }
 
 // ── P1-5: 动态配件成本共享计算函数 ──
-function calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache }) {
+function calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache, partsByModel }) {
     let totalCost = 0;
     const details = [];
 
@@ -93,7 +93,7 @@ function calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, box
         const len = Number(cableLength);
         totalCost += cp * len;
         details.push({ name: '电缆线', model: cableModel, price: cp.toFixed(2), qty: len, subtotal: (cp * len).toFixed(2) });
-        const ap = getPrice('电缆配件费');
+        const ap = getCableAccessoryFee(partsByModel, cableModel, '', getPrice);
         totalCost += ap;
         details.push({ name: '电缆接头配件', model: '电缆配件费', price: ap.toFixed(2), qty: 1, subtotal: ap.toFixed(2) });
     }
@@ -129,6 +129,30 @@ function sameNumber(a, b) {
 
 function sameText(a, b) {
     return String(a || '') === String(b || '');
+}
+
+function parseCableAccessoryFee(notes) {
+    if (!notes) return null;
+    try {
+        const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
+        return Number.isFinite(fee) && fee >= 0 ? fee : null;
+    } catch {
+        return null;
+    }
+}
+
+function getCableAccessoryFee(partsByModel, cableModel, supplier, getPrice) {
+    const suppliers = partsByModel[cableModel] || [];
+    const normalizedSupplier = String(supplier || '').trim();
+    const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);
+    const matchedFee = parseCableAccessoryFee(match?.notes);
+    if (match && normalizedSupplier && matchedFee != null) return matchedFee;
+    if (suppliers.length > 0) {
+        const fallback = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]);
+        const fallbackFee = parseCableAccessoryFee(fallback?.notes);
+        if (fallbackFee != null) return fallbackFee;
+    }
+    return getPrice('电缆配件费');
 }
 
 function normalizePackingJsonText(value, boxType) {
@@ -243,7 +267,7 @@ router.post('/cost/dynamic-config', (req, res) => {
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
 
         const effectiveCableLength = (hasCable || (cableLength && Number(cableLength) > 0)) ? cableLength : 0;
-        const { totalCost, details } = calculateDynamicCost({ hasFloat, floatWire, cableLength: effectiveCableLength, cableWire, boxType, resolvedWire, getPrice, partsCache });
+        const { totalCost, details } = calculateDynamicCost({ hasFloat, floatWire, cableLength: effectiveCableLength, cableWire, boxType, resolvedWire, getPrice, partsCache, partsByModel });
         res.json({ success: true, data: { totalCost: totalCost.toFixed(2), itemCount: details.length, resolvedWire, details } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -314,8 +338,9 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         if (!cableChanged) {
             totalCost += managedTotals.cable;
         } else if (toBool(recipeData.has_cable) && Number(recipeData.cable_length) > 0) {
-            totalCost += getPrice(configuredModel('电缆', recipeData.cable_wire, resolvedWire)) * Number(recipeData.cable_length);
-            totalCost += getPrice('电缆配件费');
+            const cableModel = configuredModel('电缆', recipeData.cable_wire, resolvedWire);
+            totalCost += getPrice(cableModel) * Number(recipeData.cable_length);
+            totalCost += getCableAccessoryFee(partsByModel, cableModel, '', getPrice);
         }
 
         totalCost += boxChanged
@@ -386,7 +411,7 @@ router.post('/cost/full-calculate', (req, res) => {
         // 步骤3: 动态配置成本（复用共享函数）
         const dbWire = statorSpec && statorSheets ? resolveWireFromStator(statorSpec, statorSheets) : null;
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
-        const dynamic = calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache });
+        const dynamic = calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache, partsByModel });
         result.dynamicCost = { totalCost: dynamic.totalCost.toFixed(2), resolvedWire, details: dynamic.details };
         grandTotal += dynamic.totalCost;
         result.totalCost = grandTotal.toFixed(2);

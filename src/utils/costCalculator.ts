@@ -41,6 +41,40 @@ export interface RecipePartForCalc {
   snapshotPrice?: number;
 }
 
+function parseCableAccessoryFee(notes?: string): number | null {
+  if (!notes) return null;
+  try {
+    const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
+    return Number.isFinite(fee) && fee >= 0 ? fee : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCableAccessoryFee(partsByModel: Map<string, Part[]>, cableModel: string, supplier: string): number {
+  const candidates = partsByModel.get(cableModel) || [];
+  const normalizedSupplier = (supplier || '').trim();
+  const matchedPart = candidates.find(p => (p.supplier || '').trim() === normalizedSupplier);
+  const matchedFee = parseCableAccessoryFee(matchedPart?.notes);
+  if (matchedPart && normalizedSupplier && matchedFee != null) return matchedFee;
+  if (candidates.length > 0) {
+    const fallbackPart = candidates.reduce((min, curr) => curr.price < min.price ? curr : min, candidates[0]);
+    const fallbackFee = parseCableAccessoryFee(fallbackPart.notes);
+    if (fallbackFee != null) return fallbackFee;
+  }
+  const legacyParts = partsByModel.get('电缆配件费') || [];
+  if (legacyParts.length === 0) return 0;
+  return legacyParts.reduce((min, curr) => curr.price < min.price ? curr : min, legacyParts[0]).price;
+}
+
+function isCableAccessoryPart(part: RecipePartForCalc): boolean {
+  return part.model === '电缆配件费' || part.name.includes('电缆接头配件');
+}
+
+function findCablePart(parts: RecipePartForCalc[]): RecipePartForCalc | undefined {
+  return parts.find(part => part.model.startsWith('电缆-') || part.name.includes('电缆线'));
+}
+
 export function calculateRecipeCost(
   recipeParts: RecipePartForCalc[],
   partsCache: Map<string, Part>,
@@ -64,7 +98,11 @@ export function calculateRecipeCost(
     // 1) 精确匹配: model + supplier
     const exactKey = `${rp.model}||${rp.supplier}`;
     const matchedPart = partsCache.get(exactKey);
-    if (matchedPart) {
+    if (isCableAccessoryPart(rp)) {
+      const cablePart = findCablePart(recipeParts);
+      price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '');
+      source = '电缆线配件费';
+    } else if (matchedPart) {
       price = matchedPart.price;
       source = '精确匹配';
       matchedSupplier = matchedPart.supplier;
