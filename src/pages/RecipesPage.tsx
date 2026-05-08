@@ -21,10 +21,11 @@ import StatCard from '../components/StatCard';
 import { colors, gradients } from '../utils/theme';
 
 function getRecipeLaborTotal(recipe: Recipe): number {
+  const surfaceTreatmentCost = recipe.surface_treatment_cost ?? recipe.painting_wage ?? 0;
   let laborTotal =
     (recipe.assembly_wage || 0) +
     (recipe.packing_wage || 0) +
-    (recipe.painting_wage || 0) +
+    surfaceTreatmentCost +
     (recipe.management_fee || 0);
 
   if (laborTotal === 0 && recipe.saved_cost_details) {
@@ -42,6 +43,16 @@ function getRecipeLaborTotal(recipe: Recipe): number {
 function getRecipeSavedTotal(recipe: Recipe): number | null {
   const saved = Number(recipe.saved_total_cost);
   return Number.isFinite(saved) && saved > 0 ? saved : null;
+}
+
+function formatEntryTime(value?: string): string {
+  if (!value) return '-';
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default function RecipesPage() {
@@ -136,6 +147,8 @@ export default function RecipesPage() {
       has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
       box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
       assembly_wage: recipe.assembly_wage, packing_wage: recipe.packing_wage, painting_wage: recipe.painting_wage,
+      surface_treatment_mode: recipe.surface_treatment_mode,
+      surface_treatment_cost: recipe.surface_treatment_cost,
       management_fee: recipe.management_fee,
     }}});
   };
@@ -148,6 +161,8 @@ export default function RecipesPage() {
       has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
       box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
       assembly_wage: recipe.assembly_wage, packing_wage: recipe.packing_wage, painting_wage: recipe.painting_wage,
+      surface_treatment_mode: recipe.surface_treatment_mode,
+      surface_treatment_cost: recipe.surface_treatment_cost,
       management_fee: recipe.management_fee,
       custom_barrel_length: recipe.custom_barrel_length,
     }}});
@@ -236,6 +251,9 @@ export default function RecipesPage() {
                   <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
                     {recipe.spec || '无规格'}
                   </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+                    录入时间：{formatEntryTime(recipe.CreatedAt)}
+                  </Typography>
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
                     <Typography variant="body2" color="text.secondary">总成本</Typography>
                     <Typography variant="body2" fontWeight={700} color="primary.main">{data?.cost || '-'}</Typography>
@@ -257,6 +275,7 @@ export default function RecipesPage() {
                   <TableCell>配方名称</TableCell>
                   <TableCell>规格</TableCell>
                   <TableCell>泵壳模板</TableCell>
+                  <TableCell>录入时间</TableCell>
                   <TableCell>配件概览</TableCell>
                   <TableCell>总成本</TableCell>
                   <TableCell align="center" sx={{ width: '200px' }}>操作</TableCell>
@@ -275,6 +294,9 @@ export default function RecipesPage() {
                           <Chip label={tplName} size="small" variant="outlined"
                             sx={{ height: 22, fontSize: '0.7rem', borderColor: colors.purple.border, color: colors.purple.main }} />
                         ) : '-'}
+                      </TableCell>
+                      <TableCell title={recipe.CreatedAt ? new Date(recipe.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
+                        {formatEntryTime(recipe.CreatedAt)}
                       </TableCell>
                       <TableCell sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         title={data?.overview || '-'}>

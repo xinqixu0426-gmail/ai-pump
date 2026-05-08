@@ -10,6 +10,8 @@ export interface Part {
   stock: number;
   remark?: string;
   notes?: string; // JSON 字符串，泵壳类扩展属性（如不锈钢机筒参数）
+  CreatedAt?: string;
+  UpdatedAt?: string;
 }
 
 /** 泵壳不锈钢机筒元数据（存于 Part.notes 字段） */
@@ -40,6 +42,8 @@ export interface TemplatePart {
   qty: number;
   supplier?: string;
 }
+
+export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'powder_coating';
 
 /** 泵壳模板 */
 export interface PumpShellTemplate {
@@ -81,6 +85,8 @@ export interface Recipe {
   assembly_wage?: number;
   packing_wage?: number;
   painting_wage?: number | null;
+  surface_treatment_mode?: SurfaceTreatmentMode;
+  surface_treatment_cost?: number;
   management_fee?: number;
   CreatedAt?: string;
   UpdatedAt?: string;

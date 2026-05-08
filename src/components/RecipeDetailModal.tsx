@@ -53,6 +53,13 @@ interface StockCheck {
   partId?: number;
 }
 
+function getSurfaceTreatmentLabel(mode?: string | null): string {
+  if (mode === 'painting') return '喷漆费';
+  if (mode === 'electrophoresis') return '电泳外加工费';
+  if (mode === 'powder_coating') return '喷塑外加工费';
+  return '表面处理费';
+}
+
 export default function RecipeDetailModal({
   recipe,
   costResult,
@@ -75,7 +82,9 @@ export default function RecipeDetailModal({
   const hasSnapshot = costResult.snapshotTotalCost !== undefined;
 
   const { totalCostValue, groupedDetails } = useMemo(() => {
-    let laborWage = (recipe.assembly_wage || 0) + (recipe.packing_wage || 0) + (recipe.painting_wage || 0);
+    const surfaceTreatmentMode = recipe.surface_treatment_mode || (recipe.painting_wage != null ? 'painting' : 'none');
+    const surfaceTreatmentCost = recipe.surface_treatment_cost ?? recipe.painting_wage ?? 0;
+    let laborWage = (recipe.assembly_wage || 0) + (recipe.packing_wage || 0) + surfaceTreatmentCost;
     let mgmtFee = recipe.management_fee || 0;
     let laborTotal = laborWage + mgmtFee;
 
@@ -154,7 +163,7 @@ export default function RecipeDetailModal({
 
     if (recipe.assembly_wage) groups.labor.items.push({ name: '安装工资', model: '-', supplier: '-', price: recipe.assembly_wage.toFixed(2), qty: 1, subtotal: recipe.assembly_wage.toFixed(2), source: '配方预设' });
     if (recipe.packing_wage) groups.labor.items.push({ name: '打包工资', model: '-', supplier: '-', price: recipe.packing_wage.toFixed(2), qty: 1, subtotal: recipe.packing_wage.toFixed(2), source: '配方预设' });
-    if (recipe.painting_wage) groups.labor.items.push({ name: '喷漆工资', model: '-', supplier: '-', price: recipe.painting_wage.toFixed(2), qty: 1, subtotal: recipe.painting_wage.toFixed(2), source: '配方预设' });
+    if (surfaceTreatmentCost) groups.labor.items.push({ name: getSurfaceTreatmentLabel(surfaceTreatmentMode), model: '-', supplier: '-', price: surfaceTreatmentCost.toFixed(2), qty: 1, subtotal: surfaceTreatmentCost.toFixed(2), source: '配方预设' });
     if (recipe.management_fee) groups.labor.items.push({ name: '管理费用', model: '-', supplier: '-', price: recipe.management_fee.toFixed(2), qty: 1, subtotal: recipe.management_fee.toFixed(2), source: '系统设定' });
 
     // 兼容老数据：如果数据库里没记录人工字段，但历史快照文本里有，就把它们提取出来放进分组

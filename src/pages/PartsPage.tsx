@@ -341,8 +341,8 @@ export default function PartsPage() {
 
                 {/* 表头 */}
                 <Collapse in={!isCollapsed}>
-                  <Box sx={{ px: 2, py: 1, display: 'grid', gridTemplateColumns: { xs: '30px 2fr 1fr 70px 80px', sm: '40px 2fr 1fr 1fr 90px 90px' }, gap: 1.5, bgcolor: 'rgba(0,0,0,0.012)', borderBottom: '1px solid', borderColor: 'divider' }}>
-                    {[{label:'', hSm:!1}, {label:'型号 / 类别', hSm:!1}, {label:'单价', hSm:!1}, {label:'供应商', hSm:!0}, {label:'库存', hSm:!1}, {label:'操作', hSm:!1}].map((h, i) => (
+                  <Box sx={{ px: 2, py: 1, display: 'grid', gridTemplateColumns: { xs: '30px 2fr 1fr 70px 80px', sm: '40px 2fr 1fr 1fr 90px 100px 90px' }, gap: 1.5, bgcolor: 'rgba(0,0,0,0.012)', borderBottom: '1px solid', borderColor: 'divider' }}>
+                    {[{label:'', hSm:!1}, {label:'型号 / 类别', hSm:!1}, {label:'单价', hSm:!1}, {label:'供应商', hSm:!0}, {label:'库存', hSm:!1}, {label:'录入时间', hSm:!0}, {label:'操作', hSm:!1}].map((h, i) => (
                       <Typography key={i} variant="caption" color="text.disabled" fontWeight={700} sx={{ display: h.hSm ? { xs: 'none', sm: 'block' } : 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{h.label}</Typography>
                     ))}
                   </Box>

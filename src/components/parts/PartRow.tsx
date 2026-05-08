@@ -18,6 +18,9 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
   const ss = stockStatus(part.stock);
   const customCats = loadCustomCategories();
   const cc = getCatColor(part.category, customCats);
+  const createdAt = part.CreatedAt
+    ? new Date(part.CreatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : '-';
 
   // 解析泵壳元数据
   const pumpMeta: { isStainless: boolean; barrelLength?: number; openFactor?: number; openOffset?: number } | null =
@@ -32,8 +35,8 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
         sx={{
           display: 'grid',
           gridTemplateColumns: onSelect 
-            ? { xs: '30px 2fr 1fr 70px 80px', sm: '40px 2fr 1fr 1fr 90px 90px' }
-            : { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 90px' },
+            ? { xs: '30px 2fr 1fr 70px 80px', sm: '40px 2fr 1fr 1fr 90px 100px 90px' }
+            : { xs: '2fr 1fr 70px 80px', sm: '2fr 1fr 1fr 90px 100px 90px' },
           alignItems: 'center',
           gap: 1.5, px: 2, py: 1.5,
           borderBottom: '1px solid', borderColor: 'divider',
@@ -78,6 +81,11 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
             {ss.label}
           </Typography>
         </Box>
+        <Tooltip title={part.CreatedAt ? new Date(part.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '无录入时间'}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
+            {createdAt}
+          </Typography>
+        </Tooltip>
         <Box display="flex" gap={0.5} justifyContent="flex-end">
           <Tooltip title="编辑">
             <IconButton id={`edit-part-${part.Id}`} size="small" color="primary" onClick={() => onEdit(part)}>

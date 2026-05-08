@@ -8,6 +8,7 @@ const RECIPE_FIELDS = [
     'has_float', 'float_wire', 'has_cable', 'cable_length', 'cable_wire',
     'box_type', 'extra_parts_json', 'packing_parts_json',
     'assembly_wage', 'packing_wage', 'painting_wage',
+    'surface_treatment_mode', 'surface_treatment_cost',
     'management_fee', 'custom_barrel_length',
 ];
 
@@ -29,6 +30,8 @@ const RECIPE_ALIASES = {
     assemblyWage: 'assembly_wage',
     packingWage: 'packing_wage',
     paintingWage: 'painting_wage',
+    surfaceTreatmentMode: 'surface_treatment_mode',
+    surfaceTreatmentCost: 'surface_treatment_cost',
     managementFee: 'management_fee',
     customBarrelLength: 'custom_barrel_length',
 };
@@ -67,15 +70,18 @@ router.post('/', (req, res) => {
             has_float, float_wire, has_cable, cable_length, cable_wire,
             box_type, extra_parts_json, packing_parts_json,
             assembly_wage, packing_wage, painting_wage,
+            surface_treatment_mode, surface_treatment_cost,
             management_fee, custom_barrel_length,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
             b.name || '', b.spec || '', b.parts_json || '[]',
             b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
             b.template_id || null, b.coil_spec || '', b.coil_sheets || 0,
             b.has_float || 0, b.float_wire || '', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '',
             b.box_type || '', b.extra_parts_json || '[]', b.packing_parts_json || '[]',
             b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,
+            b.surface_treatment_mode || (b.painting_wage != null ? 'painting' : 'none'),
+            b.surface_treatment_cost != null ? b.surface_treatment_cost : (b.painting_wage != null ? b.painting_wage : 0),
             b.management_fee || 0, b.custom_barrel_length != null ? b.custom_barrel_length : null,
             now, now
         );
