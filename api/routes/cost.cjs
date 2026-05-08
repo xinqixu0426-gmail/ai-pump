@@ -299,6 +299,8 @@ router.post('/cost/dynamic-calculate', (req, res) => {
             assembly_wage: row.assembly_wage,
             packing_wage: row.packing_wage,
             painting_wage: row.painting_wage,
+            surface_treatment_mode: row.surface_treatment_mode || (row.painting_wage != null ? 'painting' : 'none'),
+            surface_treatment_cost: row.surface_treatment_cost != null ? row.surface_treatment_cost : (row.painting_wage != null ? row.painting_wage : 0),
             management_fee: row.management_fee
         };
 
@@ -351,7 +353,7 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         if (!hasSavedBase) {
             totalCost += (recipeData.assembly_wage || 0);
             totalCost += (recipeData.packing_wage || 0);
-            totalCost += (recipeData.painting_wage || 0);
+            totalCost += (recipeData.surface_treatment_cost || recipeData.painting_wage || 0);
             totalCost += (recipeData.management_fee || Number(getSetting('management_fee')) || 0);
         }
 

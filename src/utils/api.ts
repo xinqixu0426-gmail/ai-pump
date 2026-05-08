@@ -175,6 +175,8 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
   if (recipe.assembly_wage !== undefined) payload.assemblyWage = recipe.assembly_wage || 0;
   if (recipe.packing_wage !== undefined) payload.packingWage = recipe.packing_wage || 0;
   if (recipe.painting_wage !== undefined) payload.paintingWage = recipe.painting_wage != null ? recipe.painting_wage : null;
+  if (recipe.surface_treatment_mode !== undefined) payload.surfaceTreatmentMode = recipe.surface_treatment_mode || 'none';
+  if (recipe.surface_treatment_cost !== undefined) payload.surfaceTreatmentCost = recipe.surface_treatment_cost || 0;
   if (recipe.management_fee !== undefined) payload.managementFee = recipe.management_fee || 0;
   if (recipe.custom_barrel_length !== undefined) payload.customBarrelLength = recipe.custom_barrel_length ?? null;
   return payload;

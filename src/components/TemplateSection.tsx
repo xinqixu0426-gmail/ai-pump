@@ -19,6 +19,16 @@ interface Props {
   setError: (msg: string) => void;
 }
 
+function formatEntryTime(value?: string): string {
+  if (!value) return '-';
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function TemplateSection({ templates, parts, fetchTemplates, setError }: Props) {
   const nextRowId = useRef(1);
   const [tplExpanded, setTplExpanded] = useState(true);
@@ -31,7 +41,6 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
   const [assemblyWage, setAssemblyWage] = useState(0);
   const [packingWage, setPackingWage] = useState(0);
-  const [paintingWage, setPaintingWage] = useState<number | null>(null);
 
   // ── 泵壳型号列表 ──
   const shellModels = useMemo(() => {
@@ -54,7 +63,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const openCreateTpl = () => {
     setEditingTpl(null);
     setShellModel(''); setTplDescription('');
-    setAssemblyWage(0); setPackingWage(0); setPaintingWage(null);
+    setAssemblyWage(0); setPackingWage(0);
     setPartRows([
       { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
       { id: nextRowId.current++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
@@ -66,7 +75,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
   const openEditTpl = (tpl: PumpShellTemplate) => {
     setEditingTpl(tpl); setShellModel(tpl.shell_model); setTplDescription(tpl.description || '');
-    setAssemblyWage(tpl.assembly_wage || 0); setPackingWage(tpl.packing_wage || 0); setPaintingWage(tpl.painting_wage);
+    setAssemblyWage(tpl.assembly_wage || 0); setPackingWage(tpl.packing_wage || 0);
     try {
       const parsed: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
       setPartRows(parsed.map(p => ({ id: nextRowId.current++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
@@ -94,9 +103,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     setTplSaving(true);
     try {
       if (editingTpl) {
-        await updateTemplate(editingTpl.Id, { shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: paintingWage });
+        await updateTemplate(editingTpl.Id, { shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage });
       } else {
-        await createTemplate({ shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: paintingWage });
+        await createTemplate({ shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: null });
       }
       setTplDialogOpen(false);
       await fetchTemplates(true);
@@ -150,7 +159,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                 {templates.map(tpl => {
                   let tplParts: TemplatePart[] = [];
                   try { tplParts = JSON.parse(tpl.parts_json || '[]'); } catch { /* */ }
-                  const laborCost = (tpl.assembly_wage || 0) + (tpl.packing_wage || 0) + (tpl.painting_wage || 0);
+                  const laborCost = (tpl.assembly_wage || 0) + (tpl.packing_wage || 0);
                   return (
                     <Paper key={tpl.Id} variant="outlined" sx={{
                       p: 2, pb: 2.5, borderRadius: 2, transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
@@ -161,6 +170,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                         <Box>
                           <Typography variant="subtitle2" fontWeight={800} sx={{ color: '#7c3aed', fontSize: '1rem', mb: 0.5 }}>{tpl.shell_model}</Typography>
                           {tpl.description && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tpl.description}</Typography>}
+                          <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }} title={tpl.CreatedAt ? new Date(tpl.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
+                            录入：{formatEntryTime(tpl.CreatedAt)}
+                          </Typography>
                         </Box>
                         <Box display="flex" gap={0.5}>
                           <IconButton size="small" sx={{ bgcolor: 'action.hover' }} onClick={() => openEditTpl(tpl)}><EditIcon size={16} /></IconButton>
@@ -216,8 +228,6 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         setAssemblyWage={setAssemblyWage}
         packingWage={packingWage}
         setPackingWage={setPackingWage}
-        paintingWage={paintingWage}
-        setPaintingWage={setPaintingWage}
       />
 
       {/* 模板删除确认 */}

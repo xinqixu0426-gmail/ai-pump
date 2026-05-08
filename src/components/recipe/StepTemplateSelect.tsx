@@ -45,6 +45,30 @@ export default function StepTemplateSelect({
   setCustomBarrelLength,
 }: StepTemplateSelectProps) {
   const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
+  const templatePreviewRows = selectedTemplate
+    ? [
+        {
+          key: 'shell',
+          name: '泵壳',
+          model: selectedTemplate.shell_model,
+          supplier: '',
+          qty: 1,
+          subtotal: getPriceByModelAndSupplier(selectedTemplate.shell_model, ''),
+        },
+        ...templateParts.map((p, i) => {
+          const supplier = p.supplier || '';
+          const price = getPriceByModelAndSupplier(p.model, supplier);
+          return {
+            key: `${p.model}-${i}`,
+            name: p.name,
+            model: p.model,
+            supplier,
+            qty: p.qty,
+            subtotal: price * p.qty,
+          };
+        }),
+      ]
+    : [];
 
   return (
     <>
@@ -106,46 +130,45 @@ export default function StepTemplateSelect({
 
           {/* 模板配件预览（只读） */}
           {selectedTemplate && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 1 }}>
-              {/* 泵壳本体 */}
-              <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ py: 0.25, fontSize: '0.8rem' }}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70 }}>泵壳</Typography>
-                  <Chip label={selectedTemplate.shell_model} size="small" variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.7rem' }} />
-                </Box>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', color: getPriceByModelAndSupplier(selectedTemplate.shell_model, '') > 0 ? 'success.main' : 'error.main', fontSize: '0.8rem' }}>
-                  ¥{getPriceByModelAndSupplier(selectedTemplate.shell_model, '').toFixed(2)}
-                </Typography>
-              </Box>
-              {templateParts.map((p, i) => {
-                const supplier = p.supplier || '';
-                const price = getPriceByModelAndSupplier(p.model, supplier);
-                return (
-                  <Box key={i} display="flex" justifyContent="space-between" alignItems="center"
-                    sx={{ py: 0.25, fontSize: '0.8rem' }}>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 70 }}>
-                        {p.name}
-                      </Typography>
-                      <Chip label={p.model} size="small" variant="outlined"
-                        sx={{ height: 20, fontSize: '0.7rem' }} />
-                      {supplier && (
-                        <Typography variant="caption" color="text.disabled">{supplier}</Typography>
-                      )}
-                      {p.qty > 1 && (
-                        <Typography variant="caption" color="text.disabled">×{p.qty}</Typography>
-                      )}
-                    </Box>
-                    <Typography variant="body2" sx={{
+            <Box sx={{
+              mt: 1.5,
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+              gap: 1,
+            }}>
+              {templatePreviewRows.map((row) => (
+                <Box key={row.key} sx={{
+                  minWidth: 0,
+                  px: 1.25,
+                  py: 0.9,
+                  border: '1px solid',
+                  borderColor: row.subtotal > 0 ? 'rgba(16, 185, 129, 0.28)' : 'rgba(239, 68, 68, 0.28)',
+                  borderRadius: 1,
+                  bgcolor: row.subtotal > 0 ? 'rgba(16, 185, 129, 0.035)' : 'rgba(239, 68, 68, 0.035)',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, mb: 0.35 }}>
+                    <Typography variant="caption" color="text.secondary" noWrap title={row.name} sx={{ flex: 1, minWidth: 0, fontWeight: 700 }}>
+                      {row.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{
+                      flexShrink: 0,
                       fontFamily: 'monospace',
-                      color: price > 0 ? 'success.main' : 'error.main',
-                      fontSize: '0.8rem'
+                      color: row.subtotal > 0 ? 'success.main' : 'error.main',
+                      fontWeight: 800,
                     }}>
-                      ¥{(price * p.qty).toFixed(2)}
+                      ¥{row.subtotal.toFixed(2)}
                     </Typography>
                   </Box>
-                );
-              })}
+                  <Typography variant="body2" noWrap title={row.model} sx={{ fontWeight: 700, lineHeight: 1.25 }}>
+                    {row.model}{row.qty > 1 ? ` ×${row.qty}` : ''}
+                  </Typography>
+                  {row.supplier && (
+                    <Typography variant="caption" color="text.disabled" noWrap title={row.supplier} sx={{ display: 'block', mt: 0.25 }}>
+                      {row.supplier}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
             </Box>
           )}
 

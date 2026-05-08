@@ -158,6 +158,8 @@ const recipeAlterColumns = [
     ['assembly_wage', 'REAL DEFAULT 0'],
     ['packing_wage', 'REAL DEFAULT 0'],
     ['painting_wage', 'REAL'],
+    ['surface_treatment_mode', "TEXT DEFAULT 'none'"],
+    ['surface_treatment_cost', 'REAL DEFAULT 0'],
     ['management_fee', 'REAL DEFAULT 0'],
     ['custom_barrel_length', 'REAL'],
 ];
@@ -188,6 +190,10 @@ function partRow(r) {
 }
 function recipeRow(r) {
     if (!r) return r;
+    const surfaceTreatmentMode = r.surface_treatment_mode || (r.painting_wage != null ? 'painting' : 'none');
+    const surfaceTreatmentCost = r.surface_treatment_cost != null
+        ? r.surface_treatment_cost
+        : (r.painting_wage != null ? r.painting_wage : 0);
     return {
         Id: r.id, name: r.name, spec: r.spec, parts_json: r.parts_json,
         saved_total_cost: r.saved_total_cost,
@@ -198,6 +204,8 @@ function recipeRow(r) {
         custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
         packing_parts_json: r.packing_parts_json,
         assembly_wage: r.assembly_wage, packing_wage: r.packing_wage, painting_wage: r.painting_wage,
+        surface_treatment_mode: surfaceTreatmentMode,
+        surface_treatment_cost: surfaceTreatmentCost,
         management_fee: r.management_fee,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };

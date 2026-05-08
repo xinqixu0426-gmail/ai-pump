@@ -10,7 +10,7 @@ import {
   Button,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
-import { RecipePart, TemplatePart, PartSelection } from '../types';
+import { RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
@@ -82,7 +82,14 @@ export default function RecipeFormPage() {
   // 人工工资
   const [assemblyWage, setAssemblyWage] = useState(editFrom?.assembly_wage ?? cloneFrom?.assembly_wage ?? 0);
   const [packingWage, setPackingWage] = useState(editFrom?.packing_wage ?? cloneFrom?.packing_wage ?? 0);
-  const [paintingWage, setPaintingWage] = useState<number | null>(editFrom?.painting_wage ?? cloneFrom?.painting_wage ?? null);
+  const [surfaceTreatmentMode, setSurfaceTreatmentMode] = useState<SurfaceTreatmentMode>(
+    editFrom?.surface_treatment_mode ?? cloneFrom?.surface_treatment_mode ??
+    ((editFrom?.painting_wage ?? cloneFrom?.painting_wage) != null ? 'painting' : 'none')
+  );
+  const [surfaceTreatmentCost, setSurfaceTreatmentCost] = useState(
+    editFrom?.surface_treatment_cost ?? cloneFrom?.surface_treatment_cost ??
+    editFrom?.painting_wage ?? cloneFrom?.painting_wage ?? 0
+  );
 
   // 管理费用
   const [managementFee, setManagementFee] = useState(editFrom?.management_fee ?? cloneFrom?.management_fee ?? 0);
@@ -279,7 +286,6 @@ export default function RecipeFormPage() {
     if (selectedTemplate) {
       setAssemblyWage(selectedTemplate.assembly_wage || 0);
       setPackingWage(selectedTemplate.packing_wage || 0);
-      setPaintingWage(selectedTemplate.painting_wage);
     }
   }, [selectedTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -332,7 +338,10 @@ export default function RecipeFormPage() {
   }, [selectedTemplate, templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
 
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
-  const laborCost = useMemo(() => (assemblyWage || 0) + (packingWage || 0) + (paintingWage || 0) + (managementFee || 0), [assemblyWage, packingWage, paintingWage, managementFee]);
+  const laborCost = useMemo(
+    () => (assemblyWage || 0) + (packingWage || 0) + (surfaceTreatmentCost || 0) + (managementFee || 0),
+    [assemblyWage, packingWage, surfaceTreatmentCost, managementFee]
+  );
   const partsCost = useMemo(() => allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0), [allPartsPreview]);
   const packingCost = useMemo(
     () => packingParts.filter(p => p.model).reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier) * (p.qty || 1), 0),
@@ -358,7 +367,13 @@ export default function RecipeFormPage() {
 
     const savedTotalCost = recipeParts.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0) + laborCost;
     const wageLines = [`安装工资: ¥${(assemblyWage || 0).toFixed(2)}`, `打包工资: ¥${(packingWage || 0).toFixed(2)}`];
-    if (paintingWage != null) wageLines.push(`喷漆工资: ¥${(paintingWage || 0).toFixed(2)}`);
+    const surfaceLabels: Record<SurfaceTreatmentMode, string> = {
+      none: '无处理',
+      painting: '喷漆',
+      electrophoresis: '电泳',
+      powder_coating: '喷塑',
+    };
+    if (surfaceTreatmentMode !== 'none') wageLines.push(`表面处理(${surfaceLabels[surfaceTreatmentMode]}): ¥${(surfaceTreatmentCost || 0).toFixed(2)}`);
     wageLines.push(`管理费用: ¥${(managementFee || 0).toFixed(2)}`);
     const savedCostDetails = recipeParts
       .map((p) => `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`)
@@ -377,7 +392,12 @@ export default function RecipeFormPage() {
       ),
       custom_barrel_length: customBarrelLength ? parseFloat(customBarrelLength) : null,
       extra_parts_json: JSON.stringify(optionalParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))),
-      assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: paintingWage, management_fee: managementFee,
+      assembly_wage: assemblyWage,
+      packing_wage: packingWage,
+      painting_wage: null,
+      surface_treatment_mode: surfaceTreatmentMode,
+      surface_treatment_cost: surfaceTreatmentMode === 'none' ? 0 : surfaceTreatmentCost,
+      management_fee: managementFee,
     };
 
     setSaving(true);
@@ -442,7 +462,9 @@ export default function RecipeFormPage() {
 
       <StepWageConfirm
         selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
-        packingWage={packingWage} setPackingWage={setPackingWage} paintingWage={paintingWage} setPaintingWage={setPaintingWage}
+        packingWage={packingWage} setPackingWage={setPackingWage}
+        surfaceTreatmentMode={surfaceTreatmentMode} setSurfaceTreatmentMode={setSurfaceTreatmentMode}
+        surfaceTreatmentCost={surfaceTreatmentCost} setSurfaceTreatmentCost={setSurfaceTreatmentCost}
         managementFee={managementFee} setManagementFee={setManagementFee} laborCost={laborCost}
         recipeName={recipeName} recipeSpec={recipeSpec} coilSpec={coilSpec} coilSheets={coilSheets}
         optionalParts={optionalParts}
