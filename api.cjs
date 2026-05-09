@@ -96,6 +96,7 @@ app.use('/api/rotor', require('./api/routes/rotor.cjs'));
 app.use('/api/settings', require('./api/routes/settings.cjs'));
 app.use('/api/customers', require('./api/routes/customers.cjs'));
 app.use('/api/quotations', require('./api/routes/quotations.cjs'));
+app.use('/api/dashboard', require('./api/routes/dashboard.cjs'));
 
 // ── 生产模式：托管前端构建产物 ──
 const distPath = path.join(__dirname, 'dist');

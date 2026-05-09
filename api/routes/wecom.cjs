@@ -1,195 +1,292 @@
 const express = require('express');
-const router = express.Router();
 const xml2js = require('xml2js');
 const { decrypt, getSignature } = require('@wecom/crypto');
 const { processAiChat } = require('./ai.cjs');
+const { buildDashboardBrief, buildBriefText } = require('../services/dashboardBrief.cjs');
 
-// 需要解析 text/xml 的 body
-router.use(express.text({ type: '*/*' }));
+const router = express.Router();
+const xmlParser = new xml2js.Parser({ explicitArray: false });
 
-// 获取 token
+// Only parse WeCom XML/text callbacks here. JSON test endpoints are parsed by api.cjs.
+router.use(express.text({ type: ['text/xml', 'application/xml', 'text/plain'] }));
+
 let accessTokenCache = { token: null, expireTime: 0 };
+
+function getWecomConfig() {
+    return {
+        corpId: (process.env.WECOM_CORP_ID || '').trim(),
+        secret: (process.env.WECOM_SECRET || '').trim(),
+        agentId: (process.env.WECOM_AGENT_ID || '').trim(),
+        token: (process.env.WECOM_TOKEN || '').trim(),
+        encodingAESKey: (process.env.WECOM_ENCODING_AES_KEY || '').trim(),
+        defaultTouser: (process.env.WECOM_DEFAULT_TOUSER || '').trim(),
+        appUrl: (process.env.WECOM_APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').trim(),
+        adminToken: (process.env.WECOM_ADMIN_TOKEN || '').trim(),
+    };
+}
+
+function hasAdminAccess(req) {
+    const cfg = getWecomConfig();
+    const internalSecret = process.env.INTERNAL_SECRET;
+    if (internalSecret && req.headers['x-internal-secret'] === internalSecret) return true;
+    if (!cfg.adminToken) return false;
+    return req.headers['x-wecom-admin-token'] === cfg.adminToken
+        || req.query.adminToken === cfg.adminToken
+        || req.body?.adminToken === cfg.adminToken;
+}
+
+function requireAdmin(req, res, next) {
+    if (hasAdminAccess(req)) return next();
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+}
+
+function assertSendConfig() {
+    const cfg = getWecomConfig();
+    const missing = [];
+    if (!cfg.corpId) missing.push('WECOM_CORP_ID');
+    if (!cfg.secret) missing.push('WECOM_SECRET');
+    if (!cfg.agentId) missing.push('WECOM_AGENT_ID');
+    if (missing.length > 0) throw new Error(`Missing WeCom config: ${missing.join(', ')}`);
+    return cfg;
+}
+
+function assertCallbackConfig() {
+    const cfg = getWecomConfig();
+    const missing = [];
+    if (!cfg.token) missing.push('WECOM_TOKEN');
+    if (!cfg.encodingAESKey) missing.push('WECOM_ENCODING_AES_KEY');
+    if (missing.length > 0) throw new Error(`Missing WeCom callback config: ${missing.join(', ')}`);
+    return cfg;
+}
+
 async function getWecomToken() {
+    const cfg = assertSendConfig();
     if (accessTokenCache.token && Date.now() < accessTokenCache.expireTime) {
         return accessTokenCache.token;
     }
-    const tokenUrl = `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${process.env.WECOM_CORP_ID}&corpsecret=${process.env.WECOM_SECRET}`;
+    const tokenUrl = `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${encodeURIComponent(cfg.corpId)}&corpsecret=${encodeURIComponent(cfg.secret)}`;
     const res = await fetch(tokenUrl);
     const data = await res.json();
-    if (data.errcode === 0) {
-        accessTokenCache.token = data.access_token;
-        accessTokenCache.expireTime = Date.now() + (data.expires_in - 100) * 1000;
-        return data.access_token;
-    } else {
-        throw new Error('Get wecom token failed: ' + JSON.stringify(data));
+    if (data.errcode !== 0) {
+        throw new Error('Get WeCom token failed: ' + JSON.stringify(data));
     }
+    accessTokenCache.token = data.access_token;
+    accessTokenCache.expireTime = Date.now() + (Number(data.expires_in || 7200) - 100) * 1000;
+    return data.access_token;
 }
 
-// 工具调用的友好中文名称映射
+async function sendWecomApiMessage(payload) {
+    const token = await getWecomToken();
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.errcode !== 0) {
+        throw new Error('Send WeCom message failed: ' + JSON.stringify(data));
+    }
+    return data;
+}
+
+async function sendWecomTextMessage(touser, text) {
+    const cfg = assertSendConfig();
+    return sendWecomApiMessage({
+        touser,
+        agentid: Number(cfg.agentId),
+        msgtype: 'text',
+        text: { content: text },
+    });
+}
+
+async function sendWecomTemplateCard(touser, card) {
+    const cfg = assertSendConfig();
+    return sendWecomApiMessage({
+        touser,
+        agentid: Number(cfg.agentId),
+        msgtype: 'template_card',
+        template_card: card,
+    });
+}
+
+function buildBriefCard(brief) {
+    const cfg = getWecomConfig();
+    const s = brief.summary;
+    const detailsUrl = `${cfg.appUrl.replace(/\/$/, '')}/`;
+    return {
+        card_type: 'text_notice',
+        source: { desc: 'PumpDB AI', desc_color: 1 },
+        main_title: {
+            title: `业务简报 ${brief.date}`,
+            desc: `缺货 ${s.outOfStockCount} | 低库存 ${s.lowStockCount} | 未完成订单 ${s.pendingOrderCount}`,
+        },
+        sub_title_text: buildBriefText(brief),
+        horizontal_content_list: [
+            { keyname: '今日新增', value: `零件 ${s.newPartCount} / 配方 ${s.newRecipeCount} / 模板 ${s.newTemplateCount}` },
+            { keyname: '采购关注', value: `${s.purchaseOrderCount} 个订单` },
+            { keyname: '生成时间', value: brief.generatedAtText || '-' },
+        ],
+        jump_list: [
+            { type: 1, title: '打开系统', url: detailsUrl },
+        ],
+        card_action: { type: 1, url: detailsUrl },
+    };
+}
+
+function buildAiResultCard(finalContent, speech, toolResults) {
+    const cfg = getWecomConfig();
+    const detailsUrl = `${cfg.appUrl.replace(/\/$/, '')}/`;
+    const horizontalList = [];
+    if (Array.isArray(toolResults) && toolResults.length > 0) {
+        horizontalList.push({ keyname: '调用工具', value: toolResults.map(t => t.name).join(', ').slice(0, 200) });
+    }
+    return {
+        card_type: 'text_notice',
+        source: { desc: 'PumpDB AI', desc_color: 1 },
+        main_title: {
+            title: 'AI 处理结果',
+            desc: speech || '请求已处理完成',
+        },
+        sub_title_text: (finalContent || '已完成操作').slice(0, 500),
+        horizontal_content_list: horizontalList,
+        jump_list: [
+            { type: 1, title: '打开系统', url: detailsUrl },
+        ],
+        card_action: { type: 1, url: detailsUrl },
+    };
+}
+
+async function sendDailyBrief(touser) {
+    const brief = buildDashboardBrief();
+    const card = buildBriefCard(brief);
+    const result = await sendWecomTemplateCard(touser, card);
+    return { result, brief };
+}
+
 const TOOL_NAMES_CN = {
-    'query_recipe_cost_by_name': '精准计算配方成本...',
-    'query_recipe_cost_by_id': '按标号测算成本...',
-    'full_calculate': '启动一站式BOM综合计算...',
-    'get_recent_orders': '调阅最新订单记录...',
-    'generate_purchase_list': '汇总并生成采购清单...',
-    'create_order': '正在创建新订单...',
-    'get_copper_price': '获取实时铜价...',
-    'compare_recipes': '对比配方成本模型...',
-    'calculate_coil_cost': '计算线圈转子成本...',
-    'dynamic_config_cost': '动态核算电缆浮球...'
+    query_recipe_cost_by_name: '正在计算配方成本...',
+    query_recipe_cost_by_id: '正在按编号测算成本...',
+    full_calculate: '正在做综合成本计算...',
+    get_recent_orders: '正在调阅订单记录...',
+    generate_purchase_list: '正在生成采购清单...',
+    create_order: '正在创建订单...',
+    get_copper_price: '正在获取铜价...',
+    compare_recipes: '正在对比配方...',
+    calculate_coil_cost: '正在计算线圈转子成本...',
+    dynamic_config_cost: '正在计算动态配置成本...',
+    get_dashboard_summary: '正在读取运营概况...',
 };
 
-// 异步发送纯文本中间状态
-async function sendWecomTextMessage(touser, text) {
+router.get('/health', (req, res) => {
+    const cfg = getWecomConfig();
+    res.json({
+        success: true,
+        data: {
+            callbackConfigured: Boolean(cfg.token && cfg.encodingAESKey),
+            sendConfigured: Boolean(cfg.corpId && cfg.secret && cfg.agentId),
+            defaultTouserConfigured: Boolean(cfg.defaultTouser),
+            appUrl: cfg.appUrl,
+        },
+    });
+});
+
+router.post('/test-message', requireAdmin, async (req, res) => {
     try {
-        const token = await getWecomToken();
-        const url = `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}`;
-        const payload = {
-            touser: touser,
-            agentid: process.env.WECOM_AGENT_ID,
-            msgtype: "text",
-            text: { content: text }
-        };
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-    } catch(err) {
-        console.error('[WECOM] 发送过程文本失败:', err);
+        const cfg = getWecomConfig();
+        const touser = req.body?.touser || cfg.defaultTouser;
+        if (!touser) return res.status(400).json({ success: false, error: 'touser or WECOM_DEFAULT_TOUSER is required' });
+        const result = await sendWecomTextMessage(touser, req.body?.text || 'PumpDB 企业微信通道已连通');
+        res.json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
-}
+});
 
-// 异步发送企微消息
-async function sendWecomMessage(touser, finalContent, speech, toolResults) {
+router.post('/send-daily-brief', requireAdmin, async (req, res) => {
     try {
-        const token = await getWecomToken();
-        const url = `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}`;
-        
-        let horizontalList = [];
-        if (toolResults && toolResults.length > 0) {
-            horizontalList.push({ keyname: "调用工具", value: toolResults.map(t => t.name).join(', ') });
-        }
-
-        const payload = {
-            touser: touser,
-            agentid: process.env.WECOM_AGENT_ID,
-            msgtype: "template_card",
-            template_card: {
-                card_type: "text_notice",
-                source: { desc: "PumpDB AI", desc_color: 1 },
-                main_title: { title: "计算结果", desc: speech ? speech : "您的请求已处理完毕" },
-                sub_title_text: finalContent ? finalContent.substring(0, 500) : "已完成操作",
-                horizontal_content_list: horizontalList,
-                jump_list: [
-                    { type: 1, title: "查看系统", url: "http://118.31.32.227" } 
-                ],
-                card_action: { type: 1, url: "http://118.31.32.227" }
-            }
-        };
-
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        console.log('[WECOM] 发送消息结果:', result);
-    } catch (err) {
-        console.error('[WECOM] 异步发送消息失败:', err);
+        const cfg = getWecomConfig();
+        const touser = req.body?.touser || cfg.defaultTouser;
+        if (!touser) return res.status(400).json({ success: false, error: 'touser or WECOM_DEFAULT_TOUSER is required' });
+        const data = await sendDailyBrief(touser);
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
-}
+});
 
-/**
- * 验证企业微信回调 URL (GET)
- */
 router.get('/webhook', (req, res) => {
     const { msg_signature, timestamp, nonce, echostr } = req.query;
-    const token = (process.env.WECOM_TOKEN || '').trim();
-    const encodingAESKey = (process.env.WECOM_ENCODING_AES_KEY || '').trim();
-
-    console.log('[WECOM] 收到 GET 验证请求:', { msg_signature, timestamp, nonce, echostr: echostr?.substring(0, 20) + '...' });
-
-    if (!token || !encodingAESKey) {
-        console.error('[WECOM] 失败: Token 或 AESKey 未配置');
-        return res.status(500).send('WeCom config missing');
-    }
-
     try {
-        const signature = getSignature(token, timestamp, nonce, echostr);
-        if (signature !== msg_signature) {
-            console.error('[WECOM] 验证失败: 签名不匹配', { expect: signature, actual: msg_signature });
-            return res.status(401).send('Signature mismatch');
-        }
-
-        const decrypted = decrypt(encodingAESKey, echostr);
-        console.log('[WECOM] 验证成功，解密后的消息:', decrypted.message);
+        const cfg = assertCallbackConfig();
+        const signature = getSignature(cfg.token, timestamp, nonce, echostr);
+        if (signature !== msg_signature) return res.status(401).send('Signature mismatch');
+        const decrypted = decrypt(cfg.encodingAESKey, echostr);
         res.type('text/plain').send(decrypted.message);
-    } catch (err) {
-        console.error('[WECOM] GET Validation Error:', err);
-        res.status(500).send('Error');
+    } catch (error) {
+        console.error('[WECOM] GET validation failed:', error);
+        res.status(500).send(error.message);
     }
 });
 
-/**
- * 接收真实聊天信息 (POST)
- */
 router.post('/webhook', async (req, res) => {
     const { msg_signature, timestamp, nonce } = req.query;
-    const bodyStr = req.body;
-    const token = (process.env.WECOM_TOKEN || '').trim();
-    const encodingAESKey = (process.env.WECOM_ENCODING_AES_KEY || '').trim();
-
-    if (!token || !encodingAESKey) {
-        return res.status(500).send('WeCom config missing');
-    }
-
     try {
-        // 先解析外层 XML
-        const parser = new xml2js.Parser({ explicitArray: false });
-        const outerXml = await parser.parseStringPromise(bodyStr);
-        const encryptStr = outerXml.xml.Encrypt;
+        const cfg = assertCallbackConfig();
+        const outerXml = await xmlParser.parseStringPromise(req.body || '');
+        const encryptStr = outerXml?.xml?.Encrypt;
+        if (!encryptStr) return res.status(400).send('Missing Encrypt');
 
-        // 验证签名
-        const signature = getSignature(token, timestamp, nonce, encryptStr);
-        if (signature !== msg_signature) {
-            return res.status(401).send('');
-        }
+        const signature = getSignature(cfg.token, timestamp, nonce, encryptStr);
+        if (signature !== msg_signature) return res.status(401).send('');
 
-        // 解密内层信息
-        const decrypted = decrypt(encodingAESKey, encryptStr);
-        const innerXml = await parser.parseStringPromise(decrypted.message);
-        
-        const content = innerXml.xml.Content;
-        const fromUser = innerXml.xml.FromUserName;
+        const decrypted = decrypt(cfg.encodingAESKey, encryptStr);
+        const innerXml = await xmlParser.parseStringPromise(decrypted.message);
+        const msg = innerXml.xml || {};
+        const content = String(msg.Content || '').trim();
+        const fromUser = msg.FromUserName;
 
-        if (content) {
-            // 异步处理 AI
-            (async () => {
-                // 先告诉用户已经收到了
-                await sendWecomTextMessage(fromUser, '✨ AI 已收到，正在分析意图...');
-                try {
-                    const aiData = await processAiChat(content, { 
-                        promptSuffix: '\n\n【企微环境】回答直接给最核心部分，不要包含寒暄，结果会在卡片展示。',
-                        onToolCall: async (funcName) => {
-                            const cnName = TOOL_NAMES_CN[funcName] || `执行底层动作: ${funcName}...`;
-                            await sendWecomTextMessage(fromUser, `🤖 ${cnName}`);
-                        }
-                    });
-                    await sendWecomMessage(fromUser, aiData.finalContent, aiData.speech, aiData.toolResults);
-                } catch (e) {
-                    console.error('[WECOM] AI Chat failed:', e);
-                    await sendWecomMessage(fromUser, "AI 处理失败: " + e.message, "发生错误", []);
-                }
-            })();
-        }
-
-        // 企微要求在 5 秒内返回，直接返回空字符串成功处理
         res.send('success');
-    } catch (err) {
-        console.error('[WECOM] POST Parsing Error:', err);
+
+        if (!content || !fromUser) return;
+        handleIncomingText(fromUser, content).catch(error => {
+            console.error('[WECOM] async message handling failed:', error);
+        });
+    } catch (error) {
+        console.error('[WECOM] POST parsing failed:', error);
         res.status(500).send('Error');
     }
 });
 
+async function handleIncomingText(fromUser, content) {
+    if (/^(ping|测试|test)$/i.test(content)) {
+        await sendWecomTextMessage(fromUser, 'pong');
+        return;
+    }
+
+    if (/简报|今日|今天有什么|今天有啥/.test(content)) {
+        await sendDailyBrief(fromUser);
+        return;
+    }
+
+    await sendWecomTextMessage(fromUser, '已收到，正在分析业务意图...');
+    try {
+        const aiData = await processAiChat(content, {
+            promptSuffix: '\n\n【企业微信环境】回答直接给最核心部分。长结果会放在企业微信卡片里，复杂操作应提示用户打开系统查看。',
+            onToolCall: async (funcName) => {
+                const cnName = TOOL_NAMES_CN[funcName] || `正在执行: ${funcName}...`;
+                await sendWecomTextMessage(fromUser, cnName);
+            },
+        });
+        await sendWecomTemplateCard(fromUser, buildAiResultCard(aiData.finalContent, aiData.speech, aiData.toolResults));
+    } catch (error) {
+        console.error('[WECOM] AI chat failed:', error);
+        await sendWecomTemplateCard(fromUser, buildAiResultCard(`AI 处理失败: ${error.message}`, '发生错误', []));
+    }
+}
+
 module.exports = router;
+module.exports.getWecomToken = getWecomToken;
+module.exports.sendWecomTextMessage = sendWecomTextMessage;
+module.exports.sendWecomTemplateCard = sendWecomTemplateCard;
+module.exports.sendDailyBrief = sendDailyBrief;
