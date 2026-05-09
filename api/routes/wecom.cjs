@@ -25,6 +25,28 @@ function getWecomConfig() {
     };
 }
 
+function truncateForLog(value, len = 12) {
+    if (value === undefined || value === null) return null;
+    const text = String(value);
+    return text.length > len ? `${text.slice(0, len)}...` : text;
+}
+
+function getRawQueryParam(req, name) {
+    const query = String(req.originalUrl || '').split('?')[1] || '';
+    const prefix = `${name}=`;
+    const part = query.split('&').find(item => item.startsWith(prefix));
+    if (!part) return undefined;
+    try {
+        return decodeURIComponent(part.slice(prefix.length));
+    } catch {
+        return part.slice(prefix.length);
+    }
+}
+
+function uniqueTruthy(values) {
+    return [...new Set(values.filter(value => value !== undefined && value !== null && value !== ''))];
+}
+
 function hasAdminAccess(req) {
     const cfg = getWecomConfig();
     const internalSecret = process.env.INTERNAL_SECRET;
@@ -219,9 +241,42 @@ router.get('/webhook', (req, res) => {
     const { msg_signature, timestamp, nonce, echostr } = req.query;
     try {
         const cfg = assertCallbackConfig();
-        const signature = getSignature(cfg.token, timestamp, nonce, echostr);
-        if (signature !== msg_signature) return res.status(401).send('Signature mismatch');
-        const decrypted = decrypt(cfg.encodingAESKey, echostr);
+        if (!msg_signature || !timestamp || !nonce || !echostr) {
+            console.warn('[WECOM] GET validation missing params:', {
+                hasSignature: Boolean(msg_signature),
+                hasTimestamp: Boolean(timestamp),
+                hasNonce: Boolean(nonce),
+                hasEchoStr: Boolean(echostr),
+            });
+            return res.status(400).send('Missing callback params');
+        }
+
+        const rawEchoStr = getRawQueryParam(req, 'echostr');
+        const echoCandidates = uniqueTruthy([echostr, rawEchoStr]);
+        const matchedEcho = echoCandidates.find(candidate => getSignature(cfg.token, timestamp, nonce, candidate) === msg_signature);
+        if (!matchedEcho) {
+            const calculated = echoCandidates.map(candidate => ({
+                signature: truncateForLog(getSignature(cfg.token, timestamp, nonce, candidate)),
+                echoPrefix: truncateForLog(candidate),
+                hasSpace: String(candidate).includes(' '),
+                hasPlus: String(candidate).includes('+'),
+            }));
+            console.warn('[WECOM] GET signature mismatch:', {
+                actual: truncateForLog(msg_signature),
+                calculated,
+                tokenLength: cfg.token.length,
+                aesKeyLength: cfg.encodingAESKey.length,
+                rawEchoPrefix: truncateForLog(rawEchoStr),
+                queryEchoPrefix: truncateForLog(echostr),
+            });
+            return res.status(401).send('Signature mismatch');
+        }
+
+        const decrypted = decrypt(cfg.encodingAESKey, matchedEcho);
+        console.log('[WECOM] GET validation success:', {
+            message: truncateForLog(decrypted.message, 24),
+            corpId: truncateForLog(decrypted.id),
+        });
         res.type('text/plain').send(decrypted.message);
     } catch (error) {
         console.error('[WECOM] GET validation failed:', error);
