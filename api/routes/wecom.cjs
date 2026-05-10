@@ -106,21 +106,9 @@ async function sendWecomApiMessage(payload) {
         body: JSON.stringify(payload),
     });
     const data = await res.json();
-    const logMeta = {
-        msgtype: payload?.msgtype,
-        touser: truncateForLog(payload?.touser, 24),
-        errcode: data.errcode,
-        errmsg: data.errmsg,
-        invaliduser: data.invaliduser,
-    };
     if (data.errcode !== 0) {
-        console.error('[WECOM] send message failed:', logMeta);
         throw new Error('Send WeCom message failed: ' + JSON.stringify(data));
     }
-    console.log('[WECOM] send message result:', {
-        ...logMeta,
-        msgid: truncateForLog(data.msgid, 24),
-    });
     return data;
 }
 
@@ -300,56 +288,22 @@ router.post('/webhook', async (req, res) => {
     const { msg_signature, timestamp, nonce } = req.query;
     try {
         const cfg = assertCallbackConfig();
-        console.log('[WECOM] POST message callback received:', {
-            hasSignature: Boolean(msg_signature),
-            hasTimestamp: Boolean(timestamp),
-            hasNonce: Boolean(nonce),
-            bodyPrefix: truncateForLog(req.body, 32),
-        });
         const outerXml = await xmlParser.parseStringPromise(req.body || '');
         const encryptStr = outerXml?.xml?.Encrypt;
-        if (!encryptStr) {
-            console.warn('[WECOM] POST missing Encrypt:', {
-                bodyPrefix: truncateForLog(req.body, 80),
-            });
-            return res.status(400).send('Missing Encrypt');
-        }
+        if (!encryptStr) return res.status(400).send('Missing Encrypt');
 
         const signature = getSignature(cfg.token, timestamp, nonce, encryptStr);
-        if (signature !== msg_signature) {
-            console.warn('[WECOM] POST signature mismatch:', {
-                actual: truncateForLog(msg_signature),
-                calculated: truncateForLog(signature),
-                encryptPrefix: truncateForLog(encryptStr),
-            });
-            return res.status(401).send('');
-        }
+        if (signature !== msg_signature) return res.status(401).send('');
 
         const decrypted = decrypt(cfg.encodingAESKey, encryptStr);
         const innerXml = await xmlParser.parseStringPromise(decrypted.message);
         const msg = innerXml.xml || {};
-        console.log('[WECOM] POST message decrypted:', {
-            msgType: msg.MsgType,
-            fromUser: truncateForLog(msg.FromUserName, 24),
-            toUser: truncateForLog(msg.ToUserName, 24),
-            agentId: msg.AgentID,
-            contentPrefix: truncateForLog(msg.Content, 32),
-            event: msg.Event,
-        });
         const content = String(msg.Content || '').trim();
         const fromUser = msg.FromUserName;
 
         res.send('success');
 
-        if (!content || !fromUser) {
-            console.warn('[WECOM] POST ignored message:', {
-                hasContent: Boolean(content),
-                hasFromUser: Boolean(fromUser),
-                msgType: msg.MsgType,
-                event: msg.Event,
-            });
-            return;
-        }
+        if (!content || !fromUser) return;
         handleIncomingText(fromUser, content).catch(error => {
             console.error('[WECOM] async message handling failed:', error);
         });
@@ -360,18 +314,12 @@ router.post('/webhook', async (req, res) => {
 });
 
 async function handleIncomingText(fromUser, content) {
-    console.log('[WECOM] handling text message:', {
-        fromUser: truncateForLog(fromUser, 24),
-        contentPrefix: truncateForLog(content, 32),
-    });
     if (/^(ping|测试|test)$/i.test(content)) {
-        console.log('[WECOM] matched ping command');
         await sendWecomTextMessage(fromUser, 'pong');
         return;
     }
 
     if (/简报|今日|今天有什么|今天有啥/.test(content)) {
-        console.log('[WECOM] matched daily brief command');
         await sendDailyBrief(fromUser);
         return;
     }
