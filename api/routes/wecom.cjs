@@ -25,9 +25,6 @@ function getWecomConfig() {
         adminToken: (process.env.WECOM_ADMIN_TOKEN || '').trim(),
         dailyBriefEnabled: (process.env.WECOM_DAILY_BRIEF_ENABLED || 'true').trim() !== 'false',
         dailyBriefTime: (process.env.WECOM_DAILY_BRIEF_TIME || '08:30').trim(),
-        miniprogramAppId: (process.env.WECOM_MINIPROGRAM_APPID || '').trim(),
-        miniprogramHomePagepath: (process.env.WECOM_MINIPROGRAM_HOME_PAGEPATH || 'pages/voice/voice').trim(),
-        miniprogramOrderPagepath: (process.env.WECOM_MINIPROGRAM_ORDER_PAGEPATH || '').trim(),
     };
 }
 
@@ -51,39 +48,6 @@ function getRawQueryParam(req, name) {
 
 function uniqueTruthy(values) {
     return [...new Set(values.filter(value => value !== undefined && value !== null && value !== ''))];
-}
-
-function fillPagepath(template, params = {}) {
-    let pagepath = String(template || '').trim();
-    for (const [key, value] of Object.entries(params)) {
-        pagepath = pagepath.replaceAll(`{${key}}`, encodeURIComponent(String(value ?? '')));
-    }
-    return pagepath;
-}
-
-function buildCardJump({ title, webUrl, pagepath }) {
-    const cfg = getWecomConfig();
-    if (cfg.miniprogramAppId) {
-        return {
-            type: 2,
-            title,
-            appid: cfg.miniprogramAppId,
-            pagepath: pagepath || cfg.miniprogramHomePagepath,
-        };
-    }
-    return { type: 1, title, url: webUrl };
-}
-
-function buildCardAction({ webUrl, pagepath }) {
-    const cfg = getWecomConfig();
-    if (cfg.miniprogramAppId) {
-        return {
-            type: 2,
-            appid: cfg.miniprogramAppId,
-            pagepath: pagepath || cfg.miniprogramHomePagepath,
-        };
-    }
-    return { type: 1, url: webUrl };
 }
 
 function hasAdminAccess(req) {
@@ -187,7 +151,6 @@ function buildBriefCard(brief) {
     const cfg = getWecomConfig();
     const s = brief.summary;
     const detailsUrl = `${cfg.appUrl.replace(/\/$/, '')}/`;
-    const pagepath = cfg.miniprogramHomePagepath;
     return {
         card_type: 'text_notice',
         source: { desc: 'PumpDB AI', desc_color: 1 },
@@ -202,16 +165,15 @@ function buildBriefCard(brief) {
             { keyname: '生成时间', value: brief.generatedAtText || '-' },
         ],
         jump_list: [
-            buildCardJump({ title: cfg.miniprogramAppId ? '打开小程序' : '打开系统', webUrl: detailsUrl, pagepath }),
+            { type: 1, title: '打开系统', url: detailsUrl },
         ],
-        card_action: buildCardAction({ webUrl: detailsUrl, pagepath }),
+        card_action: { type: 1, url: detailsUrl },
     };
 }
 
 function buildAiResultCard(finalContent, speech, toolResults) {
     const cfg = getWecomConfig();
     const detailsUrl = `${cfg.appUrl.replace(/\/$/, '')}/`;
-    const pagepath = cfg.miniprogramHomePagepath;
     const horizontalList = [];
     if (Array.isArray(toolResults) && toolResults.length > 0) {
         horizontalList.push({ keyname: '调用工具', value: toolResults.map(t => t.name).join(', ').slice(0, 200) });
@@ -226,9 +188,9 @@ function buildAiResultCard(finalContent, speech, toolResults) {
         sub_title_text: (finalContent || '已完成操作').slice(0, 500),
         horizontal_content_list: horizontalList,
         jump_list: [
-            buildCardJump({ title: cfg.miniprogramAppId ? '打开小程序' : '打开系统', webUrl: detailsUrl, pagepath }),
+            { type: 1, title: '打开系统', url: detailsUrl },
         ],
-        card_action: buildCardAction({ webUrl: detailsUrl, pagepath }),
+        card_action: { type: 1, url: detailsUrl },
     };
 }
 
@@ -236,10 +198,6 @@ function buildOrderCard(summary) {
     const cfg = getWecomConfig();
     const baseUrl = cfg.appUrl.replace(/\/$/, '');
     const detailsUrl = `${baseUrl}/orders`;
-    const pagepath = fillPagepath(
-        cfg.miniprogramOrderPagepath || cfg.miniprogramHomePagepath,
-        { id: summary.id, orderId: summary.id, contractNo: summary.contractNo }
-    );
     const title = summary.contractNo || `订单${summary.id}`;
     const horizontalList = [
         { keyname: '客户', value: summary.customerName || '-' },
@@ -260,9 +218,9 @@ function buildOrderCard(summary) {
         sub_title_text: buildOrderText(summary).slice(0, 500),
         horizontal_content_list: horizontalList,
         jump_list: [
-            buildCardJump({ title: cfg.miniprogramAppId ? '打开小程序' : '打开订单管理', webUrl: detailsUrl, pagepath }),
+            { type: 1, title: '打开订单管理', url: detailsUrl },
         ],
-        card_action: buildCardAction({ webUrl: detailsUrl, pagepath }),
+        card_action: { type: 1, url: detailsUrl },
     };
 }
 
@@ -358,7 +316,6 @@ router.get('/health', (req, res) => {
             sendConfigured: Boolean(cfg.corpId && cfg.secret && cfg.agentId),
             defaultTouserConfigured: Boolean(cfg.defaultTouser),
             appUrl: cfg.appUrl,
-            miniprogramConfigured: Boolean(cfg.miniprogramAppId),
         },
     });
 });
