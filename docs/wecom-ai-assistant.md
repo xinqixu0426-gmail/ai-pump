@@ -19,6 +19,9 @@ WECOM_APP_URL=
 WECOM_ADMIN_TOKEN=
 WECOM_DAILY_BRIEF_ENABLED=true
 WECOM_DAILY_BRIEF_TIME=08:30
+WECOM_MINIPROGRAM_APPID=
+WECOM_MINIPROGRAM_HOME_PAGEPATH=pages/voice/voice
+WECOM_MINIPROGRAM_ORDER_PAGEPATH=pages/voice/voice?orderId={id}
 ```
 
 说明：
@@ -33,6 +36,9 @@ WECOM_DAILY_BRIEF_TIME=08:30
 - `WECOM_ADMIN_TOKEN`: 手动测试推送用的管理 token。也可以用 `x-internal-secret`。
 - `WECOM_DAILY_BRIEF_ENABLED`: 是否启用每日主动简报，默认 `true`，设为 `false` 可关闭。
 - `WECOM_DAILY_BRIEF_TIME`: 每日简报推送时间，北京时间 `HH:mm`，默认 `08:30`。
+- `WECOM_MINIPROGRAM_APPID`: 企业微信卡片点击跳转的小程序 AppID。留空时卡片继续跳网页。
+- `WECOM_MINIPROGRAM_HOME_PAGEPATH`: 简报和 AI 结果默认打开的小程序页面。
+- `WECOM_MINIPROGRAM_ORDER_PAGEPATH`: 订单卡片打开的小程序页面，支持 `{id}`、`{orderId}`、`{contractNo}` 占位符。
 
 ## 企业微信后台配置
 
@@ -43,6 +49,20 @@ https://你的域名/api/wecom/webhook
 ```
 
 把企业微信后台生成或填写的 `Token`、`EncodingAESKey` 同步到 `.env`。
+
+如果要让企业微信卡片打开微信小程序，需要在企业微信后台把当前自建应用和小程序关联，并配置：
+
+```env
+WECOM_MINIPROGRAM_APPID=wx2eb01189c87a322e
+WECOM_MINIPROGRAM_HOME_PAGEPATH=pages/voice/voice
+WECOM_MINIPROGRAM_ORDER_PAGEPATH=pages/voice/voice?orderId={id}
+```
+
+当前小程序只有 `pages/voice/voice` 页面，所以订单卡片先跳到语音助手页并携带 `orderId`。以后新增订单详情页后，只需要把 `WECOM_MINIPROGRAM_ORDER_PAGEPATH` 改成新页面路径，例如：
+
+```env
+WECOM_MINIPROGRAM_ORDER_PAGEPATH=pages/orders/detail?orderId={id}
+```
 
 ## 已实现接口
 
@@ -112,6 +132,7 @@ x-internal-secret: <INTERNAL_SECRET>
 - 输入 `简报`、`今日`，返回业务简报卡片。
 - 输入 `查订单 订单ID/合同号/客户名`，返回订单摘要卡片。
 - 输入其他业务问题，进入现有 AI 处理流程，并返回企业微信卡片。
+- 配置了 `WECOM_MINIPROGRAM_APPID` 后，简报、订单、AI 结果卡片优先打开小程序；未配置时回退打开网页。
 
 ## 主动简报
 
