@@ -3,7 +3,6 @@ const xml2js = require('xml2js');
 const { decrypt, getSignature } = require('@wecom/crypto');
 const { processAiChat } = require('./ai.cjs');
 const { buildDashboardBrief, buildBriefText } = require('../services/dashboardBrief.cjs');
-const { findOrderByKeyword, summarizeOrder, buildOrderText } = require('../services/orderAssistant.cjs');
 
 const router = express.Router();
 const xmlParser = new xml2js.Parser({ explicitArray: false });
@@ -23,8 +22,6 @@ function getWecomConfig() {
         defaultTouser: (process.env.WECOM_DEFAULT_TOUSER || '').trim(),
         appUrl: (process.env.WECOM_APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').trim(),
         adminToken: (process.env.WECOM_ADMIN_TOKEN || '').trim(),
-        dailyBriefEnabled: (process.env.WECOM_DAILY_BRIEF_ENABLED || 'true').trim() !== 'false',
-        dailyBriefTime: (process.env.WECOM_DAILY_BRIEF_TIME || '08:30').trim(),
     };
 }
 
@@ -194,103 +191,11 @@ function buildAiResultCard(finalContent, speech, toolResults) {
     };
 }
 
-function buildOrderCard(summary) {
-    const cfg = getWecomConfig();
-    const baseUrl = cfg.appUrl.replace(/\/$/, '');
-    const detailsUrl = `${baseUrl}/orders`;
-    const title = summary.contractNo || `订单${summary.id}`;
-    const horizontalList = [
-        { keyname: '客户', value: summary.customerName || '-' },
-        { keyname: '状态', value: summary.status || '-' },
-        { keyname: '产品', value: `${summary.itemCount} 项` },
-        { keyname: '采购', value: `${summary.purchasedCount}/${summary.needToBuyCount} 已采购` },
-    ];
-    if (summary.updatedAtText) {
-        horizontalList.push({ keyname: '更新时间', value: summary.updatedAtText });
-    }
-    return {
-        card_type: 'text_notice',
-        source: { desc: 'PumpDB 订单', desc_color: 1 },
-        main_title: {
-            title,
-            desc: `${summary.customerName || '未填写客户'} | ${summary.status}`,
-        },
-        sub_title_text: buildOrderText(summary).slice(0, 500),
-        horizontal_content_list: horizontalList,
-        jump_list: [
-            { type: 1, title: '打开订单管理', url: detailsUrl },
-        ],
-        card_action: { type: 1, url: detailsUrl },
-    };
-}
-
 async function sendDailyBrief(touser) {
     const brief = buildDashboardBrief();
     const card = buildBriefCard(brief);
     const result = await sendWecomTemplateCard(touser, card);
     return { result, brief };
-}
-
-function parseOrderQuery(content) {
-    const text = String(content || '').trim();
-    const match = text.match(/^(?:查|查看|查询)?\s*(?:订单|合同)\s*[:：#]?\s*(.+)$/);
-    if (match?.[1]) return match[1].trim();
-    return '';
-}
-
-async function sendOrderSummary(touser, keyword) {
-    const { order, matches } = findOrderByKeyword(keyword);
-    if (!order) {
-        await sendWecomTextMessage(touser, `没有找到订单：${keyword}`);
-        return { found: false, keyword, matchCount: 0 };
-    }
-    const summary = summarizeOrder(order);
-    const result = await sendWecomTemplateCard(touser, buildOrderCard(summary));
-    return { found: true, keyword, matchCount: matches.length, order: summary, result };
-}
-
-function parseDailyBriefTime(value) {
-    const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return { hour: 8, minute: 30 };
-    const hour = Math.min(Math.max(Number(match[1]), 0), 23);
-    const minute = Math.min(Math.max(Number(match[2]), 0), 59);
-    return { hour, minute };
-}
-
-function nextBjtTimeDelay(timeText) {
-    const { hour, minute } = parseDailyBriefTime(timeText);
-    const now = new Date();
-    const bjtNowText = now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' });
-    const bjtNow = new Date(bjtNowText);
-    const target = new Date(bjtNow);
-    target.setHours(hour, minute, 0, 0);
-    if (target <= bjtNow) target.setDate(target.getDate() + 1);
-    return target.getTime() - bjtNow.getTime();
-}
-
-let dailyBriefTimer = null;
-function scheduleDailyBrief() {
-    const cfg = getWecomConfig();
-    if (!cfg.dailyBriefEnabled || !cfg.defaultTouser || !cfg.corpId || !cfg.secret || !cfg.agentId) {
-        console.log('[WECOM] daily brief scheduler skipped:', {
-            enabled: cfg.dailyBriefEnabled,
-            hasDefaultTouser: Boolean(cfg.defaultTouser),
-            sendConfigured: Boolean(cfg.corpId && cfg.secret && cfg.agentId),
-        });
-        return;
-    }
-    const delay = nextBjtTimeDelay(cfg.dailyBriefTime);
-    const hours = (delay / 3600000).toFixed(1);
-    console.log(`[WECOM] 下次主动简报: ${cfg.dailyBriefTime} BJT (${hours}h 后)`);
-    dailyBriefTimer = setTimeout(async () => {
-        try {
-            await sendDailyBrief(cfg.defaultTouser);
-        } catch (error) {
-            console.error('[WECOM] daily brief push failed:', error);
-        } finally {
-            scheduleDailyBrief();
-        }
-    }, delay);
 }
 
 const TOOL_NAMES_CN = {
@@ -338,20 +243,6 @@ router.post('/send-daily-brief', requireAdmin, async (req, res) => {
         const touser = req.body?.touser || cfg.defaultTouser;
         if (!touser) return res.status(400).json({ success: false, error: 'touser or WECOM_DEFAULT_TOUSER is required' });
         const data = await sendDailyBrief(touser);
-        res.json({ success: true, data });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-router.post('/send-order-summary', requireAdmin, async (req, res) => {
-    try {
-        const cfg = getWecomConfig();
-        const touser = req.body?.touser || cfg.defaultTouser;
-        const keyword = String(req.body?.keyword || req.body?.orderId || req.body?.contractNo || '').trim();
-        if (!touser) return res.status(400).json({ success: false, error: 'touser or WECOM_DEFAULT_TOUSER is required' });
-        if (!keyword) return res.status(400).json({ success: false, error: 'keyword/orderId/contractNo is required' });
-        const data = await sendOrderSummary(touser, keyword);
         res.json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -485,13 +376,6 @@ async function handleIncomingText(fromUser, content) {
         return;
     }
 
-    const orderKeyword = parseOrderQuery(content);
-    if (orderKeyword) {
-        console.log('[WECOM] matched order query command:', { keyword: truncateForLog(orderKeyword, 24) });
-        await sendOrderSummary(fromUser, orderKeyword);
-        return;
-    }
-
     await sendWecomTextMessage(fromUser, '已收到，正在分析业务意图...');
     try {
         const aiData = await processAiChat(content, {
@@ -513,5 +397,3 @@ module.exports.getWecomToken = getWecomToken;
 module.exports.sendWecomTextMessage = sendWecomTextMessage;
 module.exports.sendWecomTemplateCard = sendWecomTemplateCard;
 module.exports.sendDailyBrief = sendDailyBrief;
-module.exports.sendOrderSummary = sendOrderSummary;
-module.exports.scheduleDailyBrief = scheduleDailyBrief;
