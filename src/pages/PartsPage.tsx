@@ -21,7 +21,6 @@ import {
   Alert,
   Collapse,
   InputAdornment,
-  Badge,
   Checkbox,
   Slide
 } from '@mui/material';
@@ -34,7 +33,6 @@ import {
   ChevronUp as ExpandLessIcon,
   AlertTriangle as WarningIcon,
   AlertCircle as ErrorOutlineIcon,
-  Bug as BugReportIcon,
   Filter as FilterIcon,
   Wrench as PartIcon,
   CircleDollarSign as MoneyIcon,
@@ -55,7 +53,6 @@ import { BUILTIN_CATEGORIES, loadCustomCategories, getCatColor, getCatIcon } fro
 import CategoryManagerDialog from '../components/parts/CategoryManagerDialog';
 import PartFormPanel from '../components/parts/PartFormPanel';
 import PartRow from '../components/parts/PartRow';
-import HarnessPanel, { TestResult } from '../components/parts/HarnessPanel';
 // ─── 统计卡片 ─────────────────────────────────────────
 import StatCard from '../components/StatCard';
 
@@ -73,10 +70,6 @@ export default function PartsPage() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const [harnessOpen, setHarnessOpen] = useState(false);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [testRunning, setTestRunning] = useState(false);
 
   // ── 类别管理 ─────────────────────────────────────
   const [customCategories, setCustomCategories] = useState<string[]>(() => loadCustomCategories());
@@ -213,17 +206,6 @@ export default function PartsPage() {
         subtitle="管理所有配件的型号、价格与库存"
         actions={
           <Box display="flex" gap={1}>
-            <Tooltip title="运行自动化测试">
-              <Badge badgeContent={testResults.filter((r) => !r.passed).length || null} color="error">
-                <IconButton
-                  id="harness-toggle-btn"
-                  onClick={() => setHarnessOpen((v) => !v)}
-                  sx={{ bgcolor: harnessOpen ? '#fdf4ff' : 'action.hover', color: harnessOpen ? colors.purple.main : 'inherit', border: harnessOpen ? `1px solid ${colors.purple.border}` : '1px solid transparent' }}
-                >
-                  <BugReportIcon size={24} />
-                </IconButton>
-              </Badge>
-            </Tooltip>
             <Tooltip title="刷新数据">
               <span>
                 <IconButton id="parts-refresh-btn" onClick={() => loadParts()} disabled={loading}>
@@ -448,12 +430,6 @@ export default function PartsPage() {
         </Paper>
       </Slide>
 
-      {/* ══════════════════════════════════════════════════════════
-          Harness 自动化测试面板（仅开发/演示用）
-          ══════════════════════════════════════════════════════════ */}
-      <Collapse in={harnessOpen}>
-        <HarnessPanel parts={parts} testResults={testResults} setTestResults={setTestResults} testRunning={testRunning} setTestRunning={setTestRunning} />
-      </Collapse>
     </Box>
   );
 }

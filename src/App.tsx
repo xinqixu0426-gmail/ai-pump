@@ -7,6 +7,7 @@ import RecipesPage from './pages/RecipesPage';
 import RecipeFormPage from './pages/RecipeFormPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderFormPage from './pages/OrderFormPage';
+import PurchaseCenterPage from './pages/PurchaseCenterPage';
 import CoilRotorPage from './pages/CoilRotorPage';
 import AIChatPage from './pages/AIChatPage';
 import RotorDrawingPage from './pages/RotorDrawingPage';
@@ -41,6 +42,7 @@ function App() {
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/order-form" element={<OrderFormPage />} />
             <Route path="/order-form/:id" element={<OrderFormPage />} />
+            <Route path="/purchase" element={<PurchaseCenterPage />} />
             <Route path="/coils" element={<CoilRotorPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/quotations" element={<QuotationsPage />} />

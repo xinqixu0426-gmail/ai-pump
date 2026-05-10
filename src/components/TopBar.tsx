@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
-import { LayoutDashboard, Settings, ShoppingCart, Receipt, Cpu, BrainCircuit, PenTool, Droplet, Users, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, ShoppingCart, Receipt, Cpu, BrainCircuit, PenTool, Droplet, Users, FileText, ClipboardList } from 'lucide-react';
 
 interface NavItem {
   label: string;
@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: '零件管理', icon: Settings, path: '/parts' },
   { label: '配方管理', icon: Receipt, path: '/recipes', matchPaths: ['/recipe-form'] },
   { label: '订单管理', icon: ShoppingCart, path: '/orders', matchPaths: ['/order-form'] },
+  { label: '采购中心', icon: ClipboardList, path: '/purchase' },
   { label: '线圈转子', icon: Cpu, path: '/coils' },
   { label: '客户管理', icon: Users, path: '/customers' },
   { label: '报价单', icon: FileText, path: '/quotations' },
