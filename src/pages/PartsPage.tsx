@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -59,6 +60,10 @@ import StatCard from '../components/StatCard';
 // ─── 主页面 ───────────────────────────────────────────
 
 export default function PartsPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState = location.state as { action?: string; searchQuery?: string } | null;
+  const consumedNavigationRef = useRef<string | null>(null);
   const { parts, fetchParts, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -96,6 +101,28 @@ export default function PartsPage() {
   }, [fetchParts]);
 
   useEffect(() => { loadParts(); }, [loadParts]);
+
+  useEffect(() => {
+    if (!navigationState || consumedNavigationRef.current === location.key) return;
+
+    let consumed = false;
+    if (navigationState.searchQuery) {
+      setSearchQuery(navigationState.searchQuery);
+      setFilterCategory('');
+      consumed = true;
+    }
+
+    if (navigationState.action === 'new-part') {
+      setEditingPart(null);
+      setDrawerOpen(true);
+      consumed = true;
+    }
+
+    if (consumed) {
+      consumedNavigationRef.current = location.key;
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [navigationState, location.key, location.pathname, navigate]);
 
   // ── 过滤逻辑 ─────────────────────────────────────
   const filteredParts = useMemo(() => {

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -26,6 +26,9 @@ import { createCustomer, updateCustomer, deleteCustomer, deleteQuotation } from 
 
 export default function CustomersPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState = location.state as { customerId?: number } | null;
+  const consumedNavigationRef = useRef<string | null>(null);
   const { customers, quotations, fetchCustomers, fetchQuotations, showSnackbar } = useAppStore();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -36,6 +39,16 @@ export default function CustomersPage() {
     fetchCustomers();
     fetchQuotations();
   }, [fetchCustomers, fetchQuotations]);
+
+  useEffect(() => {
+    if (!navigationState?.customerId || consumedNavigationRef.current === location.key) return;
+    const target = customers.find(c => c.Id === Number(navigationState.customerId));
+    if (!target) return;
+
+    setSelectedCustomerId(target.Id);
+    consumedNavigationRef.current = location.key;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [navigationState?.customerId, customers, location.key, location.pathname, navigate]);
 
   useEffect(() => {
     if (selectedCustomerId || customers.length === 0) return;

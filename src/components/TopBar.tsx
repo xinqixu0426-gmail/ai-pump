@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
 import { LayoutDashboard, Settings, ShoppingCart, Receipt, Cpu, BrainCircuit, PenTool, Droplet, Users, FileText, ClipboardList } from 'lucide-react';
+import GlobalSearch from './GlobalSearch';
 
 interface NavItem {
   label: string;
@@ -110,8 +111,9 @@ export default function TopBar() {
           })}
         </Box>
 
-        {/* 预留右侧位置 */}
-        <Box sx={{ width: { xs: 0, md: 20 } }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: { xs: 38, md: 48 } }}>
+          <GlobalSearch />
+        </Box>
       </Box>
     </Box>
   );

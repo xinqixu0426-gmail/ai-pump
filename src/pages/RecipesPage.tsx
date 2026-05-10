@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Paper, Typography, Alert, Box, CircularProgress, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip, Button, Dialog,
@@ -59,6 +59,9 @@ export default function RecipesPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState = location.state as { openRecipeId?: number } | null;
+  const consumedNavigationRef = useRef<string | null>(null);
   const { recipes, parts, templates, fetchParts, fetchRecipes, fetchTemplates, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -134,6 +137,17 @@ export default function RecipesPage() {
   }, [recipes]);
 
   // ── 配方操作 ──
+  useEffect(() => {
+    if (!navigationState?.openRecipeId || consumedNavigationRef.current === location.key) return;
+    const target = recipes.find(recipe => recipe.Id === Number(navigationState.openRecipeId));
+    const data = target ? recipeData.get(target.Id) : null;
+    if (!target || !data) return;
+
+    setSelectedRecipe({ recipe: target, costResult: data.costResult });
+    consumedNavigationRef.current = location.key;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [navigationState?.openRecipeId, recipes, recipeData, location.key, location.pathname, navigate]);
+
   const handleViewDetail = (recipe: Recipe) => {
     const data = recipeData.get(recipe.Id);
     if (data) setSelectedRecipe({ recipe, costResult: data.costResult });

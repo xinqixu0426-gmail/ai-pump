@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Paper, Typography, Box, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton, Tooltip,
@@ -33,6 +33,9 @@ export default function OrdersPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState = location.state as { openOrderId?: string; searchQuery?: string } | null;
+  const consumedNavigationRef = useRef<string | null>(null);
   const { orders: rawOrders, fetchOrders, showSnackbar } = useAppStore();
   const [selected, setSelected] = useState<Order | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string | null>(null);
@@ -51,6 +54,29 @@ export default function OrdersPage() {
   );
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  useEffect(() => {
+    if (!navigationState || consumedNavigationRef.current === location.key) return;
+
+    let consumed = false;
+    if (navigationState.searchQuery) {
+      setSearchQuery(navigationState.searchQuery);
+      setPage(0);
+      consumed = true;
+    }
+
+    if (navigationState.openOrderId) {
+      const target = orders.find(o => o.id === navigationState.openOrderId);
+      if (!target) return;
+      setSelected(target);
+      consumed = true;
+    }
+
+    if (consumed) {
+      consumedNavigationRef.current = location.key;
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [navigationState, location.key, location.pathname, orders, navigate]);
 
   const handleRefresh = async () => {
     setLoading(true);

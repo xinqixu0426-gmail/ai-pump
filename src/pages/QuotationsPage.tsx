@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Box, Paper, Typography, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Chip, MenuItem, Select, FormControl, InputLabel, Checkbox, FormControlLabel, Tooltip } from '@mui/material';
 import { Plus, Edit, Trash2, ArrowRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -6,6 +7,10 @@ import { useAppStore } from '../utils/store';
 import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost } from '../utils/api';
 
 export default function QuotationsPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState = location.state as { openQuotationId?: number } | null;
+  const consumedNavigationRef = useRef<string | null>(null);
   const { quotations, customers, recipes, parts, fetchQuotations, fetchCustomers, fetchRecipes, fetchParts, fetchOrders, showSnackbar } = useAppStore();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -220,6 +225,25 @@ export default function QuotationsPage() {
     } catch (err: any) { showSnackbar(err.message || '删除失败', 'error'); }
   };
 
+  const openQuotation = useCallback((quotation: any) => {
+    setEditing(quotation);
+    setCustomerId(quotation.customerId);
+    setStatus(quotation.status);
+    setRemark(quotation.remark || '');
+    setItems(parseJsonArray(quotation.itemsJson));
+    setOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!navigationState?.openQuotationId || consumedNavigationRef.current === location.key) return;
+    const target = quotations.find(q => q.Id === Number(navigationState.openQuotationId));
+    if (!target) return;
+
+    openQuotation(target);
+    consumedNavigationRef.current = location.key;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [navigationState?.openQuotationId, quotations, openQuotation, location.key, location.pathname, navigate]);
+
   const convertToOrder = async (q: any) => {
     if (!confirm('确定转化为正式订单？')) return;
     const c = customers.find(x => x.Id === q.customerId);
@@ -297,7 +321,7 @@ export default function QuotationsPage() {
                             <Button size="small" startIcon={<ArrowRight size={14}/>} onClick={() => convertToOrder(q)} sx={{ mr: 1 }}>转订单</Button>
                         </Tooltip>
                     )}
-                    <IconButton size="small" onClick={() => { setEditing(q); setCustomerId(q.customerId); setStatus(q.status); setRemark(q.remark); setItems(JSON.parse(q.itemsJson || '[]')); setOpen(true); }}><Edit size={16} /></IconButton>
+                    <IconButton size="small" onClick={() => openQuotation(q)}><Edit size={16} /></IconButton>
                     <IconButton size="small" color="error" onClick={() => handleDelete(q.Id)}><Trash2 size={16} /></IconButton>
                   </TableCell>
                 </TableRow>
