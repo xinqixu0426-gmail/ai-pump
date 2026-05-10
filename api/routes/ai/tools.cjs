@@ -444,7 +444,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_dashboard_summary',
-            description: '获取运营数据汇总（订单统计、配方数量、零件数量、成本/利润等）。当用户说"最近的运营数据""系统概况"时使用',
+            description: '获取运营数据汇总（订单统计、配方数量、零件数量、成本/利润、今日工作台、待采购供应商关注等）。当用户说"最近的运营数据""系统概况""今天该处理什么""待采购任务"时使用',
             parameters: { type: 'object', properties: {} }
         }
     },

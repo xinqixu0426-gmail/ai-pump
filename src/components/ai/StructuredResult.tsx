@@ -503,6 +503,26 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
           <strong>配方:</strong> {s.recipes?.total}个 | <strong>零件:</strong> {s.parts?.total}个<br/>
           <strong>统计:</strong> 总成本 ¥{s.financials?.totalCost} | 总营收 ¥{s.financials?.totalRevenue} | 总利润 ¥{s.financials?.totalProfit}
         </Typography>
+        {s.workbench?.items?.length > 0 && (
+          <Box sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
+            {s.workbench.items.map((item: any) => (
+              <Paper key={item.key} variant="outlined" sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.6)' }}>
+                <Typography variant="caption" color="text.secondary">{item.label}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{item.count}</Typography>
+              </Paper>
+            ))}
+          </Box>
+        )}
+        {s.workbench?.supplierFocus?.length > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>供应商关注</Typography>
+            {s.workbench.supplierFocus.slice(0, 5).map((supplier: any) => (
+              <Typography key={supplier.supplier} variant="body2" sx={{ color: colors.green.text }}>
+                • {supplier.supplier}: {supplier.orderCount}单，待采购 {supplier.pendingQty}
+              </Typography>
+            ))}
+          </Box>
+        )}
       </Box>
     );
   }
