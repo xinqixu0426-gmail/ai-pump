@@ -92,6 +92,7 @@ app.use('/api/rotor', require('./api/routes/rotor.cjs'));
 app.use('/api/settings', require('./api/routes/settings.cjs'));
 app.use('/api/customers', require('./api/routes/customers.cjs'));
 app.use('/api/quotations', require('./api/routes/quotations.cjs'));
+app.use('/api/workbench', require('./api/routes/workbench.cjs'));
 
 // ── 生产模式：托管前端构建产物 ──
 const distPath = path.join(__dirname, 'dist');
@@ -141,6 +142,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  PUT  /api/ai/system-prompt              - 修改System Prompt`);
     console.log(`  POST /api/voice/asr                     - 语音识别(阿里云ASR)`);
     console.log(`  POST /api/siri/chat                     - Siri快捷指令对话`);
+    console.log(`  GET  /api/workbench/summary             - 今日工作台汇总`);
     console.log(`========================================`);
 
     // 启动时自动更新铜价

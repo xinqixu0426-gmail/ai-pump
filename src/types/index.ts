@@ -230,3 +230,57 @@ export interface QuotationItem {
   unit_price: number;
   total_price: number;
 }
+
+export interface WorkbenchSummaryItem {
+  key: string;
+  label: string;
+  count: number;
+  desc: string;
+  path: string;
+  severity: 'warning' | 'success' | 'danger' | 'info' | string;
+}
+
+export interface WorkbenchSupplierFocus {
+  supplier: string;
+  pendingQty: number;
+  orderCount: number;
+  orderIds: string[];
+}
+
+export interface BusinessSummary {
+  generatedAt: string;
+  kpis: {
+    totalOrders: number;
+    activeOrders: number;
+    recipeCount: number;
+    partCount: number;
+    totalCost: number;
+    totalRevenue: number;
+    totalProfit: number;
+    lowStockPartCount: number;
+    outOfStockPartCount: number;
+    todayOrderCount: number;
+  };
+  orders: {
+    total: number;
+    active: number;
+    pendingPurchase: number;
+    purchasing: number;
+    completed: number;
+    today: number;
+  };
+  recipes: { total: number };
+  parts: { total: number; lowStock: number; outOfStock: number };
+  financials: {
+    totalCost: number;
+    totalRevenue: number;
+    totalProfit: number;
+    profitRate: number;
+  };
+  workbench: {
+    items: WorkbenchSummaryItem[];
+    supplierFocus: WorkbenchSupplierFocus[];
+    lowStockParts: Part[];
+    outOfStockParts: Part[];
+  };
+}

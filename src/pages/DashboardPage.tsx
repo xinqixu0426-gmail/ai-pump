@@ -34,8 +34,9 @@ import {
   AlertTriangle as AlertIcon,
   Store as StoreIcon,
 } from 'lucide-react';
-import { Order, OrderStatus } from '../types';
+import { BusinessSummary, Order, OrderStatus } from '../types';
 import { useAppStore } from '../utils/store';
+import { getWorkbenchSummary } from '../utils/api';
 import OrderDetailModal from '../components/OrderDetailModal';
 import PageHeader from '../components/PageHeader';
 import { formatDate } from '../utils/format';
@@ -367,6 +368,7 @@ export default function DashboardPage() {
   const { orders: rawOrders, recipes, parts, fetchAll } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [businessSummary, setBusinessSummary] = useState<BusinessSummary | null>(null);
 
   const orders = useMemo(() =>
     [...rawOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -376,7 +378,14 @@ export default function DashboardPage() {
   const load = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      await fetchAll(force);
+      const [, summary] = await Promise.all([
+        fetchAll(force),
+        getWorkbenchSummary().catch((err) => {
+          console.error('工作台汇总加载失败:', err);
+          return null;
+        }),
+      ]);
+      setBusinessSummary(summary);
     } catch (err) {
       console.error('看板加载失败:', err);
     } finally {
@@ -400,6 +409,15 @@ export default function DashboardPage() {
 
   // KPI 统计
   const kpis = useMemo(() => {
+    if (businessSummary) {
+      return {
+        totalRevenue: businessSummary.financials.totalRevenue,
+        totalProfit: businessSummary.financials.totalProfit,
+        pendingCount: businessSummary.orders.active,
+        lowStockParts: businessSummary.parts.lowStock + businessSummary.parts.outOfStock,
+      };
+    }
+
     const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
     const totalProfit = orders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
     const pendingCount = ordersByStatus['待采购'].length + ordersByStatus['采购中'].length;
@@ -408,7 +426,7 @@ export default function DashboardPage() {
       return stock <= 5 && stock >= 0;
     }).length;
     return { totalRevenue, totalProfit, pendingCount, lowStockParts };
-  }, [orders, ordersByStatus, parts]);
+  }, [businessSummary, orders, ordersByStatus, parts]);
 
   const trends = useMemo(() => {
     const chronological = [...orders].reverse();
@@ -418,6 +436,31 @@ export default function DashboardPage() {
   }, [orders]);
 
   const workbench = useMemo(() => {
+    if (businessSummary) {
+      const presentation: Record<string, Pick<WorkbenchItem, 'icon' | 'color' | 'bg'>> = {
+        pending_purchase: { icon: <ShippingIcon size={18} />, color: colors.amber.text, bg: colors.amber.bg },
+        ready_to_receive: { icon: <PackageCheckIcon size={18} />, color: colors.green.text, bg: colors.green.bg },
+        out_of_stock_parts: { icon: <AlertIcon size={18} />, color: colors.red.text, bg: colors.red.bg },
+        today_orders: { icon: <OrderIcon size={18} />, color: colors.blue.text, bg: colors.blue.bg },
+      };
+      const fallbackPresentation = { icon: <OrderIcon size={18} />, color: colors.blue.text, bg: colors.blue.bg };
+
+      return {
+        items: businessSummary.workbench.items.map((item) => ({
+          label: item.label,
+          count: item.count,
+          desc: item.desc,
+          path: item.path,
+          ...(presentation[item.key] || fallbackPresentation),
+        })),
+        supplierFocus: businessSummary.workbench.supplierFocus.map((supplier) => ({
+          supplier: supplier.supplier,
+          pending: supplier.pendingQty,
+          orderIds: new Set(supplier.orderIds),
+        })),
+      };
+    }
+
     const activeOrders = orders.filter(order => order.status !== '已完成');
     const purchaseOrders = activeOrders.filter(order =>
       order.purchaseList.some(item => Number(item.needToBuy || 0) > 0 && !item.purchased)
@@ -489,7 +532,7 @@ export default function DashboardPage() {
       items,
       supplierFocus,
     };
-  }, [orders, parts]);
+  }, [businessSummary, orders, parts]);
 
   const handleDetail = (order: Order) => setSelectedOrder(order);
 

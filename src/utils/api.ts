@@ -5,6 +5,7 @@ import {
   CostResult,
   ApiResponse,
   PumpShellTemplate,
+  BusinessSummary,
 } from '../types';
 
 // ─── 通用请求封装 ─────────────────────────────
@@ -298,3 +299,8 @@ export const updateQuotation = async (id: number, data: any) => proxyRequest<any
 export const deleteQuotation = async (id: number) => proxyRequest<any>(`/api/quotations/${id}`, { method: 'DELETE' });
 
 export const dynamicCalculateCost = async (baseRecipeId: number, overrides: any) => proxyRequest<any>('/api/cost/dynamic-calculate', { method: 'POST', body: JSON.stringify({ baseRecipeId, overrides }) });
+
+export async function getWorkbenchSummary(): Promise<BusinessSummary | null> {
+  const res = await proxyRequest<ApiResponse<BusinessSummary>>('/api/workbench/summary');
+  return res.data || null;
+}

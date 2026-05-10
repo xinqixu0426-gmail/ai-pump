@@ -1,4 +1,5 @@
 const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, partRow, invalidatePartsCache } = require('../../../db.cjs');
+const { buildBusinessSummary } = require('../../../services/businessSummary.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -229,32 +230,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
         }
 
         case 'get_dashboard_summary': {
-            const allOrders = dbGetAllOrders();
-            const allRecipes = dbGetAllRecipes();
-            const allParts = dbGetAllParts();
-
-            const statusCount = { 待采购: 0, 采购中: 0, 已完成: 0 };
-            let totalOrderCost = 0, totalOrderPrice = 0;
-            for (const o of allOrders) {
-                const s = o.status || '待采购';
-                if (statusCount[s] !== undefined) statusCount[s]++;
-                let items = []; try { items = JSON.parse(o.itemsJson || '[]'); } catch (e) { }
-                for (const it of items) { totalOrderCost += (it.unitCost || 0) * (it.qty || 0); totalOrderPrice += (it.unitPrice || 0) * (it.qty || 0); }
-            }
-
-            return {
-                success: true,
-                summary: {
-                    orders: { total: allOrders.length, ...statusCount },
-                    recipes: { total: allRecipes.length },
-                    parts: { total: allParts.length },
-                    financials: {
-                        totalCost: Math.round(totalOrderCost * 100) / 100,
-                        totalRevenue: Math.round(totalOrderPrice * 100) / 100,
-                        totalProfit: Math.round((totalOrderPrice - totalOrderCost) * 100) / 100
-                    }
-                }
-            };
+            return { success: true, summary: buildBusinessSummary() };
         }
 
         default:
