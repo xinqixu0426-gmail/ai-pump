@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
+  Button,
   Typography,
   Paper,
   Chip,
@@ -27,8 +28,11 @@ import {
   Hourglass as PendingIcon,
   Truck as ShippingIcon,
   Package as InventoryIcon,
+  PackageCheck as PackageCheckIcon,
   Zap as BoltIcon,
   Compass as ArchitectureIcon,
+  AlertTriangle as AlertIcon,
+  Store as StoreIcon,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { useAppStore } from '../utils/store';
@@ -69,6 +73,59 @@ const DEFAULT_STATUS_CONFIG = {
 const STATUSES: OrderStatus[] = ['待采购', '采购中', '已完成'];
 
 import StatCard from '../components/StatCard';
+
+interface WorkbenchItem {
+  label: string;
+  count: number;
+  desc: string;
+  path: string;
+  icon: React.ReactNode;
+  color: string;
+  bg: string;
+}
+
+function sameLocalDay(value?: string) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+}
+
+function WorkbenchItemRow({ item, onClick }: { item: WorkbenchItem; onClick: () => void }) {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: '36px 1fr auto',
+        alignItems: 'center',
+        gap: 1.5,
+        py: 1.25,
+        px: 1,
+        borderRadius: 2,
+        cursor: 'pointer',
+        transition: 'background-color 0.15s ease',
+        '&:hover': { bgcolor: 'rgba(15,23,42,0.035)' },
+      }}
+    >
+      <Avatar sx={{ width: 36, height: 36, bgcolor: item.bg, color: item.color }}>
+        {item.icon}
+      </Avatar>
+      <Box minWidth={0}>
+        <Typography variant="body2" fontWeight={700}>{item.label}</Typography>
+        <Typography variant="caption" color="text.secondary">{item.desc}</Typography>
+      </Box>
+      <Chip
+        label={item.count}
+        size="small"
+        sx={{ bgcolor: item.bg, color: item.color, fontWeight: 800, minWidth: 34 }}
+      />
+    </Box>
+  );
+}
 
 // ─── 订单卡片组件 ──────────────────────────────────────
 interface OrderCardProps {
@@ -360,6 +417,80 @@ export default function DashboardPage() {
     return { revTrend, profTrend };
   }, [orders]);
 
+  const workbench = useMemo(() => {
+    const activeOrders = orders.filter(order => order.status !== '已完成');
+    const purchaseOrders = activeOrders.filter(order =>
+      order.purchaseList.some(item => Number(item.needToBuy || 0) > 0 && !item.purchased)
+    );
+    const readyToReceiveOrders = activeOrders.filter(order => {
+      const needItems = order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0);
+      return needItems.length > 0 && needItems.every(item => item.purchased);
+    });
+    const outOfStockParts = parts.filter(part => Number(part.stock || 0) <= 0);
+    const lowStockParts = parts.filter(part => Number(part.stock || 0) > 0 && Number(part.stock || 0) <= 5);
+    const todayOrders = orders.filter(order => sameLocalDay(order.createdAt));
+
+    const supplierMap = new Map<string, { supplier: string; pending: number; orderIds: Set<string> }>();
+    for (const order of purchaseOrders) {
+      for (const item of order.purchaseList) {
+        if (Number(item.needToBuy || 0) <= 0 || item.purchased) continue;
+        const supplier = item.supplier?.trim() || '未指定供应商';
+        const current = supplierMap.get(supplier) || { supplier, pending: 0, orderIds: new Set<string>() };
+        current.pending += Number(item.needToBuy || 0);
+        current.orderIds.add(order.id);
+        supplierMap.set(supplier, current);
+      }
+    }
+
+    const supplierFocus = [...supplierMap.values()]
+      .sort((a, b) => b.pending - a.pending)
+      .slice(0, 5);
+
+    const items: WorkbenchItem[] = [
+      {
+        label: '待采购',
+        count: purchaseOrders.length,
+        desc: '订单中仍有未采购零件',
+        path: '/purchase',
+        icon: <ShippingIcon size={18} />,
+        color: colors.amber.text,
+        bg: colors.amber.bg,
+      },
+      {
+        label: '可确认入库',
+        count: readyToReceiveOrders.length,
+        desc: '采购项已勾选完成，需订单内确认入库',
+        path: '/orders',
+        icon: <PackageCheckIcon size={18} />,
+        color: colors.green.text,
+        bg: colors.green.bg,
+      },
+      {
+        label: '缺货零件',
+        count: outOfStockParts.length,
+        desc: `另有 ${lowStockParts.length} 个低库存零件`,
+        path: '/parts',
+        icon: <AlertIcon size={18} />,
+        color: colors.red.text,
+        bg: colors.red.bg,
+      },
+      {
+        label: '今日新增订单',
+        count: todayOrders.length,
+        desc: '今天录入或转化的订单',
+        path: '/orders',
+        icon: <OrderIcon size={18} />,
+        color: colors.blue.text,
+        bg: colors.blue.bg,
+      },
+    ];
+
+    return {
+      items,
+      supplierFocus,
+    };
+  }, [orders, parts]);
+
   const handleDetail = (order: Order) => setSelectedOrder(order);
 
   return (
@@ -453,6 +584,67 @@ export default function DashboardPage() {
         />
       </Box>
 
+      {/* 今日工作台 */}
+      <Paper elevation={0} sx={{ p: 3, borderRadius: 3, mb: 3 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" gap={2} mb={2}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              今日工作台
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              优先处理采购、入库和库存异常
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            endIcon={<ArrowForwardIcon size={16} />}
+            onClick={() => navigate('/purchase')}
+          >
+            进入采购中心
+          </Button>
+        </Box>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 0.9fr' }, gap: 3 }}>
+          <Box>
+            {workbench.items.map((item) => (
+              <WorkbenchItemRow key={item.label} item={item} onClick={() => navigate(item.path)} />
+            ))}
+          </Box>
+
+          <Box sx={{
+            borderLeft: { xs: 'none', md: '1px solid' },
+            borderTop: { xs: '1px solid', md: 'none' },
+            borderColor: 'divider',
+            pl: { xs: 0, md: 3 },
+            pt: { xs: 2, md: 0 },
+          }}>
+            <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+              <StoreIcon size={18} />
+              <Typography variant="subtitle2" fontWeight={700}>采购关注供应商</Typography>
+            </Box>
+            {workbench.supplierFocus.length > 0 ? (
+              <Box display="flex" flexDirection="column" gap={1}>
+                {workbench.supplierFocus.map((supplier) => (
+                  <Box key={supplier.supplier} display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }}>
+                      {supplier.supplier}
+                    </Typography>
+                    <Chip size="small" label={`${supplier.orderIds.size} 单`} variant="outlined" />
+                    <Chip size="small" label={`待采 ${supplier.pending}`} color="warning" variant="outlined" />
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Box sx={{ py: 3, textAlign: 'center', color: 'text.secondary' }}>
+                <CheckIcon size={32} style={{ opacity: 0.35, marginBottom: 6 }} />
+                <Typography variant="body2">暂无待采购事项</Typography>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Paper>
+
       {/* 快捷操作栏 */}
       <Paper
         elevation={0}
@@ -474,11 +666,12 @@ export default function DashboardPage() {
         >
           {[
             { label: '新建订单', icon: <AddIcon size={22} />, gradient: gradients.orders, path: '/order-form' },
+            { label: '采购中心', icon: <ShippingIcon size={22} />, gradient: gradients.processing, path: '/purchase' },
             { label: '新建配方', icon: <RecipeIcon size={22} />, gradient: gradients.recipes, path: '/recipe-form' },
             { label: '新增零件', icon: <PartIcon size={22} />, gradient: gradients.parts, path: '/parts' },
             { label: '线圈管理', icon: <BoltIcon size={22} />, gradient: gradients.revenue, path: '/coils' },
             { label: '转子绘图', icon: <ArchitectureIcon size={22} />, gradient: gradients.profit, path: '/rotor' },
-            { label: '泵壳模板', icon: <InventoryIcon size={22} />, gradient: gradients.processing, path: '/recipes' },
+            { label: '泵壳模板', icon: <InventoryIcon size={22} />, gradient: gradients.pending, path: '/recipes' },
           ].map((item) => (
             <Box
               key={item.label}
