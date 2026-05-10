@@ -156,4 +156,9 @@ app.listen(PORT, '0.0.0.0', () => {
     // 加载 AI System Prompt
     console.log('[启动] 正在加载 AI System Prompt...');
     aiRouter.loadSystemPromptFromDB();
+
+    // 企业微信每日主动简报
+    if (typeof wecomRouter.scheduleDailyBrief === 'function') {
+        wecomRouter.scheduleDailyBrief();
+    }
 });
