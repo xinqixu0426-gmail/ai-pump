@@ -93,6 +93,70 @@ function summarizePart(part) {
     };
 }
 
+function summarizeOrder(order) {
+    return {
+        id: order.numericId,
+        customerName: order.customerName,
+        contractNo: order.contractNo,
+        status: order.status,
+        itemCount: order.items.length,
+        purchaseItemCount: order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0).length,
+        purchasedItemCount: order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0 && item.purchased).length,
+        totalPrice: order.totalPrice,
+        createdAt: order.createdAt,
+    };
+}
+
+function buildPendingPurchaseItems(purchaseOrders) {
+    const map = new Map();
+    for (const order of purchaseOrders) {
+        for (const item of order.purchaseList) {
+            const needToBuy = Number(item.needToBuy || 0);
+            if (needToBuy <= 0 || item.purchased) continue;
+
+            const supplier = String(item.supplier || '').trim() || '未指定供应商';
+            const model = String(item.model || '').trim() || item.name || '未命名零件';
+            const key = `${supplier}||${model}`;
+            const current = map.get(key) || {
+                key,
+                supplier,
+                model,
+                name: item.name || model,
+                needToBuy: 0,
+                currentStock: Number(item.currentStock || 0),
+                orderIds: new Set(),
+                orders: [],
+            };
+
+            current.needToBuy += needToBuy;
+            current.currentStock = Math.min(current.currentStock, Number(item.currentStock || 0));
+            if (!current.orderIds.has(order.id)) {
+                current.orderIds.add(order.id);
+                current.orders.push({
+                    id: order.numericId,
+                    customerName: order.customerName,
+                    contractNo: order.contractNo,
+                });
+            }
+            map.set(key, current);
+        }
+    }
+
+    return [...map.values()]
+        .sort((a, b) => String(a.supplier).localeCompare(String(b.supplier), 'zh') || b.needToBuy - a.needToBuy)
+        .slice(0, 80)
+        .map(item => ({
+            key: item.key,
+            supplier: item.supplier,
+            model: item.model,
+            name: item.name,
+            needToBuy: roundMoney(item.needToBuy),
+            currentStock: item.currentStock,
+            orderCount: item.orderIds.size,
+            orders: item.orders,
+        }));
+}
+
 function buildBusinessSummary(options = {}) {
     const now = options.now || new Date();
     const orders = (options.orders || dbGetAllOrders()).map(normalizeOrder)
@@ -206,6 +270,9 @@ function buildBusinessSummary(options = {}) {
                 },
             ],
             supplierFocus: buildSupplierFocus(purchaseOrders),
+            pendingPurchaseItems: buildPendingPurchaseItems(purchaseOrders),
+            readyToReceiveOrders: readyToReceiveOrders.slice(0, 20).map(summarizeOrder),
+            todayOrders: todayOrders.slice(0, 20).map(summarizeOrder),
             lowStockParts: lowStockParts.slice(0, 20).map(summarizePart),
             outOfStockParts: outOfStockParts.slice(0, 20).map(summarizePart),
         },

@@ -247,6 +247,29 @@ export interface WorkbenchSupplierFocus {
   orderIds: string[];
 }
 
+export interface WorkbenchPendingPurchaseItem {
+  key: string;
+  supplier: string;
+  model: string;
+  name: string;
+  needToBuy: number;
+  currentStock: number;
+  orderCount: number;
+  orders: Array<{ id: number; customerName: string; contractNo?: string }>;
+}
+
+export interface WorkbenchOrderSummary {
+  id: number;
+  customerName: string;
+  contractNo?: string;
+  status: string;
+  itemCount: number;
+  purchaseItemCount: number;
+  purchasedItemCount: number;
+  totalPrice: number;
+  createdAt?: string;
+}
+
 export interface BusinessSummary {
   generatedAt: string;
   kpis: {
@@ -280,6 +303,9 @@ export interface BusinessSummary {
   workbench: {
     items: WorkbenchSummaryItem[];
     supplierFocus: WorkbenchSupplierFocus[];
+    pendingPurchaseItems: WorkbenchPendingPurchaseItem[];
+    readyToReceiveOrders: WorkbenchOrderSummary[];
+    todayOrders: WorkbenchOrderSummary[];
     lowStockParts: Part[];
     outOfStockParts: Part[];
   };
