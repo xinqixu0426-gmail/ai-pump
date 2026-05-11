@@ -12,6 +12,24 @@ function confirmAuth(req, res, next) {
     return authMiddleware(req, res, next);
 }
 
+function buildPendingWriteReply(toolResults) {
+    const pending = toolResults.find(item => item?.result?.requiresConfirmation && item.result.confirmation);
+    if (!pending) return '';
+    const replies = {
+        create_part: '好的，我来帮你新增这个零件，请核对下面的确认卡片。',
+        update_part: '好的，我来帮你修改这个零件，请核对下面的确认卡片。',
+        delete_part: '好的，我来帮你删除这个零件，请核对下面的确认卡片。',
+        create_order: '好的，我来帮你新建这个订单，请核对下面的确认卡片。',
+        update_order_status: '好的，我来帮你修改订单状态，请核对下面的确认卡片。',
+        create_recipe: '好的，我来帮你新建这个配方，请核对下面的确认卡片。',
+        update_recipe: '好的，我来帮你修改这个配方，请核对下面的确认卡片。',
+        delete_recipe: '好的，我来帮你删除这个配方，请核对下面的确认卡片。',
+    };
+    if (replies[pending.name]) return replies[pending.name];
+    const title = pending.result.confirmation.title || '这个操作';
+    return `好的，我来帮你处理「${title}」，请核对下面的确认卡片。`;
+}
+
 // ── 工具函数: 调用 DeepSeek API ──
 async function fetchDeepSeek(messages, stream = false) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
@@ -156,6 +174,19 @@ router.post('/api/ai/chat', async (req, res) => {
                         name: funcName,
                         content: JSON.stringify(result)
                     });
+                }
+
+                const pendingWriteReply = buildPendingWriteReply(allToolResults);
+                if (pendingWriteReply) {
+                    if (!msgContent.trim()) {
+                        send('content', { content: pendingWriteReply });
+                    }
+                    send('detail', {
+                        detailType: allToolResults.length === 1 ? allToolResults[0].name : 'multi_tool',
+                        toolResults: allToolResults
+                    });
+                    send('done', {});
+                    done = true;
                 }
             } else {
                 if (allToolResults.length > 0) {
