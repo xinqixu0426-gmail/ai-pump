@@ -21,8 +21,86 @@ const TOOL_LABELS = {
     update_recipe: '修改配方',
 };
 
+function hasValue(value) {
+    return value !== undefined && value !== null && value !== '';
+}
+
+function addRow(rows, label, value, suffix = '') {
+    if (hasValue(value)) rows.push({ label, value: `${value}${suffix}` });
+}
+
+function previewItems(items, nameKey = 'recipeName') {
+    if (!Array.isArray(items) || items.length === 0) return '';
+    return items
+        .slice(0, 5)
+        .map(item => `${item[nameKey] || item.model || '项目'} x ${item.qty || 1}`)
+        .join('，');
+}
+
+function buildConfirmationRows(toolName, args = {}) {
+    const rows = [];
+
+    switch (toolName) {
+        case 'create_part':
+        case 'update_part':
+            addRow(rows, '型号', args.model);
+            addRow(rows, '类别', args.category);
+            addRow(rows, '供应商', args.supplier);
+            addRow(rows, '单价', args.price, hasValue(args.price) ? ' 元' : '');
+            addRow(rows, '库存', args.stock);
+            addRow(rows, '库存变动', args.stockDelta);
+            break;
+        case 'delete_part':
+            addRow(rows, '删除型号', args.model);
+            break;
+        case 'batch_update_prices':
+            addRow(rows, '类别', args.category);
+            addRow(rows, '百分比调整', args.percentChange, hasValue(args.percentChange) ? '%' : '');
+            addRow(rows, '固定调整', args.absoluteChange, hasValue(args.absoluteChange) ? ' 元' : '');
+            break;
+        case 'create_order':
+            addRow(rows, '客户', args.customerName);
+            addRow(rows, '合同号', args.contractNo);
+            addRow(rows, '状态', args.status);
+            addRow(rows, '产品', previewItems(args.items));
+            addRow(rows, '备注', args.remark);
+            break;
+        case 'delete_order':
+        case 'generate_purchase_list':
+            addRow(rows, '订单ID', args.orderId);
+            break;
+        case 'update_order_status':
+            addRow(rows, '订单ID', args.orderId);
+            addRow(rows, '新状态', args.status);
+            break;
+        case 'add_recipe_to_order':
+        case 'remove_recipe_from_order':
+        case 'update_order_item':
+            addRow(rows, '订单ID', args.orderId);
+            addRow(rows, '配方', args.recipeName);
+            addRow(rows, '数量', args.qty);
+            addRow(rows, '出厂价', args.unitPrice, hasValue(args.unitPrice) ? ' 元' : '');
+            addRow(rows, '利润率', args.profitMargin);
+            break;
+        case 'create_recipe':
+        case 'update_recipe':
+            addRow(rows, '配方名称', args.name);
+            addRow(rows, '规格', args.spec);
+            addRow(rows, '零件', previewItems(args.parts, 'model'));
+            break;
+        case 'delete_recipe':
+            addRow(rows, '删除配方', args.name);
+            break;
+        default:
+            Object.entries(args || {}).slice(0, 6).forEach(([key, value]) => addRow(rows, key, value));
+    }
+
+    return rows;
+}
+
 function buildWriteConfirmation(toolName, args) {
     const title = TOOL_LABELS[toolName] || toolName;
+    const rows = buildConfirmationRows(toolName, args);
     return {
         success: true,
         requiresConfirmation: true,
@@ -30,6 +108,7 @@ function buildWriteConfirmation(toolName, args) {
             toolName,
             args: args || {},
             title,
+            rows,
             summary: `AI 准备执行「${title}」，确认后才会写入数据库。`,
             warning: '请核对内容无误后再确认。确认后会立即执行写操作，并进入审计日志。',
         },

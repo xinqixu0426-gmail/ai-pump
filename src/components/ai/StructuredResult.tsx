@@ -251,6 +251,16 @@ export default function StructuredResult({ toolName, result }: { toolName: strin
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           {confirmation.summary}
         </Typography>
+        {Array.isArray(confirmation.rows) && confirmation.rows.length > 0 && (
+          <Box sx={{ mb: 1, display: 'grid', gap: 0.75 }}>
+            {confirmation.rows.map((row: { label: string; value: string }, idx: number) => (
+              <Box key={`${row.label}-${idx}`} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                <Typography variant="caption" color="text.secondary">{row.label}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, textAlign: 'right' }}>{row.value}</Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
         <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.65)', maxHeight: 220, overflow: 'auto' }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>参数</Typography>
           <Typography component="pre" variant="caption" sx={{ m: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
