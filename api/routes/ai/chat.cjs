@@ -3,6 +3,14 @@ const router = express.Router();
 const { AI_TOOLS } = require('./tools.cjs');
 const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
+const authMiddleware = require('../../authMiddleware.cjs');
+
+function confirmAuth(req, res, next) {
+    if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
+        return next();
+    }
+    return authMiddleware(req, res, next);
+}
 
 // ── 工具函数: 调用 DeepSeek API ──
 async function fetchDeepSeek(messages, stream = false) {
@@ -137,7 +145,7 @@ router.post('/api/ai/chat', async (req, res) => {
                     try { args = JSON.parse(tc.function.arguments); } catch (e) { /* ignore */ }
 
                     send('tool_call', { name: funcName, args });
-                    const result = await executeToolCall(funcName, args, { allowWrite: true });
+                    const result = await executeToolCall(funcName, args, { allowWrite: false });
                     send('tool_result', { name: funcName, result });
                     
                     allToolResults.push({ name: funcName, result });
@@ -169,6 +177,20 @@ router.post('/api/ai/chat', async (req, res) => {
     } catch (err) {
         send('error', { message: err.message });
         res.end();
+    }
+});
+
+router.post('/api/ai/confirm-tool', confirmAuth, async (req, res) => {
+    try {
+        const { toolName, args } = req.body || {};
+        if (!toolName) {
+            return res.status(400).json({ success: false, error: '缺少 toolName' });
+        }
+
+        const result = await executeToolCall(toolName, args || {}, { allowWrite: true });
+        res.json({ success: true, data: { name: toolName, result } });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 

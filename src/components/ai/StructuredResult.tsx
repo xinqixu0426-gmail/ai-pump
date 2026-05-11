@@ -13,8 +13,11 @@ import {
   Collapse,
   Alert,
   alpha,
+  Button,
+  CircularProgress,
 } from '@mui/material';
 import { colors, gradients, sxInfoPanel, sxSuccessPanel, sxErrorPanel, sxPurplePanel, sxWarningPanel, costDiffColor } from '../../utils/theme';
+import { proxyRequest } from '../../utils/api';
 import {
   ChevronDown as ExpandMoreIcon,
   ChevronUp as ExpandLessIcon,
@@ -211,6 +214,70 @@ function FullCalculateCard({ data }: { data: { totalCost: string; recipeCost?: R
 // ─── 主渲染组件 ────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function StructuredResult({ toolName, result }: { toolName: string; result: any }) {
+  const [localResult, setLocalResult] = useState(result);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
+  const activeResult = localResult || result;
+
+  const handleConfirmWrite = async () => {
+    const confirmation = activeResult?.confirmation;
+    if (!confirmation?.toolName) return;
+    try {
+      setConfirming(true);
+      setConfirmError('');
+      const json = await proxyRequest<{ success: boolean; data?: { name: string; result: any }; error?: string }>('/api/ai/confirm-tool', {
+        method: 'POST',
+        body: JSON.stringify({
+          toolName: confirmation.toolName,
+          args: confirmation.args || {},
+        }),
+      });
+      if (!json.success || !json.data) throw new Error(json.error || '确认执行失败');
+      setLocalResult(json.data.result);
+    } catch (err) {
+      setConfirmError((err as Error).message || '确认执行失败');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (activeResult?.requiresConfirmation && activeResult.confirmation) {
+    const confirmation = activeResult.confirmation;
+    return (
+      <Box sx={{ mt: 1.5, p: 2, ...sxWarningPanel }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.amber.text, mb: 0.5 }}>
+          待确认：{confirmation.title}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {confirmation.summary}
+        </Typography>
+        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.65)', maxHeight: 220, overflow: 'auto' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>参数</Typography>
+          <Typography component="pre" variant="caption" sx={{ m: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {JSON.stringify(confirmation.args || {}, null, 2)}
+          </Typography>
+        </Paper>
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: colors.amber.text }}>
+          {confirmation.warning}
+        </Typography>
+        {confirmError && <Alert severity="error" sx={{ mt: 1 }}>{confirmError}</Alert>}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5 }}>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleConfirmWrite}
+            disabled={confirming}
+            startIcon={confirming ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            确认执行
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  result = activeResult;
+
   if (!result || !result.success) {
     if (result && result.error) return <Alert severity="error" sx={{ mt: 1 }}>{result.error}</Alert>;
     return null;
