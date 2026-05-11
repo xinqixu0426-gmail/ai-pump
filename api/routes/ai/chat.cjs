@@ -30,6 +30,42 @@ function buildPendingWriteReply(toolResults) {
     return `好的，我来帮你处理「${title}」，请核对下面的确认卡片。`;
 }
 
+function buildToolCardReply(toolResults) {
+    if (!Array.isArray(toolResults) || toolResults.length === 0) return '';
+
+    const pendingWriteReply = buildPendingWriteReply(toolResults);
+    if (pendingWriteReply) return pendingWriteReply;
+
+    if (toolResults.length > 1) {
+        return '好的，我把相关结果整理在下面的卡片里。';
+    }
+
+    const { name, result } = toolResults[0];
+    const replies = {
+        query_recipe_cost_by_name: '好的，我把这个配方的成本整理在下面的卡片里。',
+        query_recipe_cost_by_id: '好的，我把这个配方的成本整理在下面的卡片里。',
+        dynamic_config_cost: '好的，我把动态配置成本整理在下面的卡片里。',
+        full_calculate: '好的，我把完整成本测算整理在下面的卡片里。',
+        calculate_coil_cost: '好的，我把线圈转子成本整理在下面的卡片里。',
+        compare_recipes: '好的，我把配方对比结果整理在下面的卡片里。',
+        get_order_detail: '好的，我把订单详情整理在下面的卡片里。',
+        get_recent_orders: '好的，我把最近订单整理在下面的卡片里。',
+        get_dashboard_summary: '好的，我把经营数据整理在下面的卡片里。',
+        search_parts: '好的，我把零件查询结果整理在下面的卡片里。',
+        get_all_parts: '好的，我把零件列表整理在下面的卡片里。',
+        get_all_recipes: '好的，我把配方列表整理在下面的卡片里。',
+        get_coil_specs: '好的，我把线圈规格整理在下面的卡片里。',
+        get_copper_price: '好的，我把实时铜价整理在下面的卡片里。',
+        get_rotor_drawing_history: '好的，我把出图记录整理在下面的卡片里。',
+        generate_rotor_drawing: '好的，图纸生成任务已提交，详情在下面的卡片里。',
+        print_rotor_drawing: '好的，打印结果在下面的卡片里。',
+    };
+
+    if (replies[name]) return replies[name];
+    if (result && result.success === false) return '我查了一下，结果在下面的卡片里。';
+    return '好的，结果已整理在下面的卡片里。';
+}
+
 // ── 工具函数: 调用 DeepSeek API ──
 async function fetchDeepSeek(messages, stream = false) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
@@ -176,10 +212,10 @@ router.post('/api/ai/chat', async (req, res) => {
                     });
                 }
 
-                const pendingWriteReply = buildPendingWriteReply(allToolResults);
-                if (pendingWriteReply) {
+                const directReply = buildToolCardReply(allToolResults);
+                if (directReply) {
                     if (!msgContent.trim()) {
-                        send('content', { content: pendingWriteReply });
+                        send('content', { content: directReply });
                     }
                     send('detail', {
                         detailType: allToolResults.length === 1 ? allToolResults[0].name : 'multi_tool',
