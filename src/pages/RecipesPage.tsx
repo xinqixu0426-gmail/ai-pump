@@ -4,7 +4,7 @@ import {
   Paper, Typography, Alert, Box, CircularProgress, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip, Button, Dialog,
   DialogTitle, DialogContent, DialogContentText, DialogActions, Chip, Collapse,
-  useMediaQuery, useTheme
+  Tab, Tabs, useMediaQuery, useTheme
 } from '@mui/material';
 import {
   Info as InfoIcon, Trash2 as DeleteIcon, RefreshCw as RefreshIcon,
@@ -67,6 +67,7 @@ export default function RecipesPage() {
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<{ recipe: Recipe; costResult: CostResult } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'recipes' | 'templates'>('recipes');
 
   // P1-4: 配方成本改用后端 API，消除前后端双写
   const [recipeData, setRecipeData] = useState<Map<number, { overview: string; cost: string; costResult: CostResult }>>(new Map());
@@ -203,7 +204,7 @@ export default function RecipesPage() {
           <>
             <Tooltip title="刷新数据">
               <span>
-                <IconButton onClick={loadData} disabled={loading}>
+                <IconButton aria-label="刷新数据" onClick={loadData} disabled={loading}>
                   {loading ? <CircularProgress size={20} /> : <RefreshIcon size={20} />}
                 </IconButton>
               </span>
@@ -228,10 +229,24 @@ export default function RecipesPage() {
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>{error}</Alert>
       </Collapse>
 
-      {/* ━━━ 泵壳模板区（子组件） ━━━ */}
-      <TemplateSection templates={templates} parts={parts} fetchTemplates={fetchTemplates} setError={setError} />
+      <Paper elevation={0} sx={{ mb: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, value) => setActiveTab(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ px: 1, borderBottom: '1px solid', borderColor: 'divider' }}
+        >
+          <Tab value="recipes" label={`配方列表 (${recipes.length})`} />
+          <Tab value="templates" label={`泵壳模板 (${templates.length})`} />
+        </Tabs>
+      </Paper>
 
-      {/* ━━━ 配方列表区 ━━━ */}
+      {activeTab === 'templates' && (
+        <TemplateSection templates={templates} parts={parts} fetchTemplates={fetchTemplates} setError={setError} />
+      )}
+
+      {activeTab === 'recipes' && (
       <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden' }}>
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
           <TemplateIcon size={24} style={{ marginRight: 8 }} color="rgba(34,197,94,1)" />
@@ -273,9 +288,9 @@ export default function RecipesPage() {
                     <Typography variant="body2" fontWeight={700} color="primary.main">{data?.cost || '-'}</Typography>
                   </Box>
                   <Box display="flex" justifyContent="flex-end" gap={0.5}>
-                    <IconButton size="small" color="warning" onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }}><EditIcon size={18} /></IconButton>
-                    <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); handleClone(recipe); }}><CopyIcon size={18} /></IconButton>
-                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); setDeleteTarget(recipe.Id); }}><DeleteIcon size={18} /></IconButton>
+                    <IconButton size="small" color="warning" aria-label="编辑配方" onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }}><EditIcon size={18} /></IconButton>
+                    <IconButton size="small" color="primary" aria-label="复制配方" onClick={(e) => { e.stopPropagation(); handleClone(recipe); }}><CopyIcon size={18} /></IconButton>
+                    <IconButton size="small" color="error" aria-label="删除配方" onClick={(e) => { e.stopPropagation(); setDeleteTarget(recipe.Id); }}><DeleteIcon size={18} /></IconButton>
                   </Box>
                 </Paper>
               );
@@ -318,10 +333,10 @@ export default function RecipesPage() {
                       </TableCell>
                       <TableCell>{data?.cost || '-'}</TableCell>
                       <TableCell align="center">
-                        <Tooltip title="详情"><IconButton size="small" color="info" onClick={() => handleViewDetail(recipe)}><InfoIcon size={18} /></IconButton></Tooltip>
-                        <Tooltip title="编辑"><IconButton size="small" color="warning" onClick={() => handleEdit(recipe)}><EditIcon size={18} /></IconButton></Tooltip>
-                        <Tooltip title="复制"><IconButton size="small" color="primary" onClick={() => handleClone(recipe)}><CopyIcon size={18} /></IconButton></Tooltip>
-                        <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => setDeleteTarget(recipe.Id)}><DeleteIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="详情"><IconButton size="small" color="info" aria-label="查看配方详情" onClick={() => handleViewDetail(recipe)}><InfoIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="编辑"><IconButton size="small" color="warning" aria-label="编辑配方" onClick={() => handleEdit(recipe)}><EditIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="复制"><IconButton size="small" color="primary" aria-label="复制配方" onClick={() => handleClone(recipe)}><CopyIcon size={18} /></IconButton></Tooltip>
+                        <Tooltip title="删除"><IconButton size="small" color="error" aria-label="删除配方" onClick={() => setDeleteTarget(recipe.Id)}><DeleteIcon size={18} /></IconButton></Tooltip>
                       </TableCell>
                     </TableRow>
                   );
@@ -331,6 +346,7 @@ export default function RecipesPage() {
           </TableContainer>
         )}
       </Paper>
+      )}
 
       {/* 配方详情弹窗 */}
       {selectedRecipe && (

@@ -294,6 +294,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
             <Tooltip title="管理类别（增删改）">
               <IconButton
                 id="manage-categories-btn"
+                aria-label="管理零件类别"
                 size="small"
                 onClick={onManageCategories}
                 sx={{ mt: 0.5, flexShrink: 0, color: colors.purple.main, bgcolor: colors.purple.bg, border: `1px solid ${colors.purple.border}`, '&:hover': { bgcolor: colors.purple.light } }}

@@ -57,6 +57,16 @@ import PartRow from '../components/parts/PartRow';
 // ─── 统计卡片 ─────────────────────────────────────────
 import StatCard from '../components/StatCard';
 
+type PartQuickFilter = 'all' | 'out' | 'low' | 'noSupplier' | 'noPrice';
+
+const QUICK_FILTERS: Array<{ key: PartQuickFilter; label: string }> = [
+  { key: 'all', label: '全部' },
+  { key: 'out', label: '缺货' },
+  { key: 'low', label: '低库存' },
+  { key: 'noSupplier', label: '无供应商' },
+  { key: 'noPrice', label: '无价格' },
+];
+
 // ─── 主页面 ───────────────────────────────────────────
 
 export default function PartsPage() {
@@ -72,6 +82,7 @@ export default function PartsPage() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [quickFilter, setQuickFilter] = useState<PartQuickFilter>('all');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -86,7 +97,7 @@ export default function PartsPage() {
 
   // 重置选择
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  useEffect(() => { setSelectedIds([]); }, [searchQuery, filterCategory]);
+  useEffect(() => { setSelectedIds([]); }, [searchQuery, filterCategory, quickFilter]);
 
   const loadParts = useCallback(async () => {
     try {
@@ -128,11 +139,19 @@ export default function PartsPage() {
   const filteredParts = useMemo(() => {
     return parts.filter((p) => {
       const q = searchQuery.toLowerCase();
-      const matchQuery = !q || p.model.toLowerCase().includes(q) || p.supplier.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+      const supplier = p.supplier || '';
+      const category = p.category || '';
+      const matchQuery = !q || p.model.toLowerCase().includes(q) || supplier.toLowerCase().includes(q) || category.toLowerCase().includes(q);
       const matchCat = !filterCategory || p.category === filterCategory;
-      return matchQuery && matchCat;
+      const matchQuick =
+        quickFilter === 'all' ||
+        (quickFilter === 'out' && Number(p.stock || 0) === 0) ||
+        (quickFilter === 'low' && Number(p.stock || 0) > 0 && Number(p.stock || 0) <= 5) ||
+        (quickFilter === 'noSupplier' && !supplier.trim()) ||
+        (quickFilter === 'noPrice' && Number(p.price || 0) <= 0);
+      return matchQuery && matchCat && matchQuick;
     });
-  }, [parts, searchQuery, filterCategory]);
+  }, [parts, searchQuery, filterCategory, quickFilter]);
 
   const groupedParts = useMemo(() => {
     const map: Record<string, Part[]> = {};
@@ -235,7 +254,7 @@ export default function PartsPage() {
           <Box display="flex" gap={1}>
             <Tooltip title="刷新数据">
               <span>
-                <IconButton id="parts-refresh-btn" onClick={() => loadParts()} disabled={loading}>
+                <IconButton id="parts-refresh-btn" aria-label="刷新零件数据" onClick={() => loadParts()} disabled={loading}>
                   {loading ? <LinearProgress sx={{ width: 20 }} /> : <RefreshIcon size={24} />}
                 </IconButton>
               </span>
@@ -287,12 +306,25 @@ export default function PartsPage() {
                 {categories.map((cat) => <MenuItem key={cat} value={cat}>{getCatIcon(cat)} {cat}</MenuItem>)}
               </Select>
             </FormControl>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+              {QUICK_FILTERS.map(filter => (
+                <Chip
+                  key={filter.key}
+                  label={filter.label}
+                  clickable
+                  color={quickFilter === filter.key ? (filter.key === 'out' ? 'error' : filter.key === 'low' ? 'warning' : 'primary') : 'default'}
+                  variant={quickFilter === filter.key ? 'filled' : 'outlined'}
+                  onClick={() => setQuickFilter(filter.key)}
+                  sx={{ fontWeight: 700 }}
+                />
+              ))}
+            </Box>
             <Button size="small" variant="text" onClick={() => setCollapsedCategories(new Set())} startIcon={<ExpandMoreIcon size={18} />}>展开全部</Button>
             <Button size="small" variant="text" onClick={() => setCollapsedCategories(new Set(Object.keys(groupedParts)))} startIcon={<ExpandLessIcon size={18} />}>折叠全部</Button>
           </Box>
 
           {/* 结果统计 */}
-          {(searchQuery || filterCategory) && (
+          {(searchQuery || filterCategory || quickFilter !== 'all') && (
             <Box sx={{ px: 2, py: 1, bgcolor: colors.blue.bg, borderBottom: '1px solid', borderColor: colors.blue.border }}>
               <Typography variant="caption" color={colors.blue.text} fontWeight={600}>
                 找到 {filteredParts.length} 个零件{filteredParts.length !== parts.length ? `（共 ${parts.length} 个）` : ''}
@@ -343,7 +375,7 @@ export default function PartsPage() {
                   {zeroCount > 0 && <Chip icon={<ErrorOutlineIcon size={14} />} label={`缺货 ${zeroCount}`} size="small" color="error" sx={{ height: 20, fontSize: '0.68rem', '& .MuiChip-icon': { ml: 0.5 } }} />}
                   {lowCount > 0 && <Chip icon={<WarningIcon size={14} />} label={`低库存 ${lowCount}`} size="small" color="warning" sx={{ height: 20, fontSize: '0.68rem', '& .MuiChip-icon': { ml: 0.5 } }} />}
                   <Box flex={1} />
-                  <IconButton size="small" sx={{ color: cc.text, opacity: 0.6 }}>
+                  <IconButton size="small" aria-label={isCollapsed ? '展开分类' : '折叠分类'} sx={{ color: cc.text, opacity: 0.6 }}>
                     {isCollapsed ? <ExpandMoreIcon size={20} /> : <ExpandLessIcon size={20} />}
                   </IconButton>
                 </Box>
@@ -453,7 +485,7 @@ export default function PartsPage() {
               setSelectedIds([]);
             } catch { setError('批量删除失败'); }
           }}>删除</Button>
-          <IconButton size="small" onClick={() => setSelectedIds([])} sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, p: 0.5 }}><CloseIcon size={18} /></IconButton>
+          <IconButton size="small" aria-label="清空已选零件" onClick={() => setSelectedIds([])} sx={{ color: 'rgba(255,255,255,0.5)', ml: 1, p: 0.5 }}><CloseIcon size={18} /></IconButton>
         </Paper>
       </Slide>
 

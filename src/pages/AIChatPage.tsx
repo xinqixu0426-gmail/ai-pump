@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box,
+  Alert,
   Paper,
   Typography,
   TextField,
@@ -25,6 +26,9 @@ import {
   Settings as SettingsIcon,
   Mic as MicIcon,
   Square as StopIcon,
+  Search as SearchIcon,
+  Calculator as CalculatorIcon,
+  ShoppingCart as OrderIcon,
 } from 'lucide-react';
 import StructuredResult from '../components/ai/StructuredResult';
 import StatusIndicator from '../components/ai/StatusIndicator';
@@ -45,15 +49,33 @@ interface ChatMessage {
 }
 
 // ─── 示例问题 ─────────────────────────────────────────
-const EXAMPLE_QUESTIONS = [
-  { text: 'V750的成本是多少？' },
-  { text: '当前铜价是多少？' },
-  { text: '12规格200片线圈成本' },
-  { text: '系统运营数据汇总' },
-  { text: '帮我新建一个台州李总的订单，加2台V750(1.5寸)' },
-  { text: '看看订单5的详情' },
-  { text: '生成订单5的采购清单' },
-  { text: '对比一下V750和V550的成本差异' },
+const EXAMPLE_GROUPS = [
+  {
+    title: '查询',
+    icon: SearchIcon,
+    examples: [
+      '系统运营数据汇总',
+      '看看订单5的详情',
+      '当前铜价是多少？',
+    ],
+  },
+  {
+    title: '成本',
+    icon: CalculatorIcon,
+    examples: [
+      'V750的成本是多少？',
+      '12规格200片线圈成本',
+      '对比一下V750和V550的成本差异',
+    ],
+  },
+  {
+    title: '订单采购',
+    icon: OrderIcon,
+    examples: [
+      '帮我新建一个台州李总的订单，加2台V750(1.5寸)',
+      '生成订单5的采购清单',
+    ],
+  },
 ];
 
 // ─── 主页面组件 ───────────────────────────────────────
@@ -319,7 +341,7 @@ export default function AIChatPage() {
               </Button>
             )}
             <Tooltip title="设置 System Prompt">
-              <IconButton onClick={handleOpenSettings} sx={{ bgcolor: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <IconButton aria-label="设置 System Prompt" onClick={handleOpenSettings} sx={{ bgcolor: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <SettingsIcon size={20} />
               </IconButton>
             </Tooltip>
@@ -355,28 +377,46 @@ export default function AIChatPage() {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 1.5, width: '100%', maxWidth: 700, mt: 1 }}>
-              {EXAMPLE_QUESTIONS.map((q, idx) => (
-                <Paper
-                  key={idx}
-                  variant="outlined"
-                  sx={{
-                    p: 2, cursor: 'pointer', borderRadius: 3,
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      borderColor: 'primary.main',
-                      bgcolor: alpha('#2563eb', 0.04),
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)',
-                    }
-                  }}
-                  onClick={() => handleSend(q.text)}
-                >
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {q.text}
-                  </Typography>
-                </Paper>
-              ))}
+            <Alert severity="info" sx={{ width: '100%', maxWidth: 760, borderRadius: 2 }}>
+              查询类问题只读取数据；新建订单、修改订单、生成采购清单等写入类指令会调用后端工具并实际保存结果。
+            </Alert>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1.5, width: '100%', maxWidth: 820, mt: 1 }}>
+              {EXAMPLE_GROUPS.map((group) => {
+                const Icon = group.icon;
+                return (
+                  <Paper key={group.title} variant="outlined" sx={{ p: 1.5, borderRadius: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Icon size={17} color="#2563eb" />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{group.title}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                      {group.examples.map((text) => (
+                        <Paper
+                          key={text}
+                          variant="outlined"
+                          sx={{
+                            p: 1.25,
+                            cursor: 'pointer',
+                            borderRadius: 2,
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              borderColor: 'primary.main',
+                              bgcolor: alpha('#2563eb', 0.04),
+                              transform: 'translateY(-1px)',
+                            }
+                          }}
+                          onClick={() => handleSend(text)}
+                        >
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {text}
+                          </Typography>
+                        </Paper>
+                      ))}
+                    </Box>
+                  </Paper>
+                );
+              })}
             </Box>
           </Box>
         ) : (
@@ -481,12 +521,12 @@ export default function AIChatPage() {
         }}
       >
         <Tooltip title="清空对话">
-          <IconButton size="small" onClick={handleClear} sx={{ color: 'text.secondary' }}>
+          <IconButton size="small" aria-label="清空对话" onClick={handleClear} sx={{ color: 'text.secondary' }}>
             <DeleteIcon size={18} />
           </IconButton>
         </Tooltip>
         <Tooltip title="编辑 System Prompt">
-          <IconButton size="small" onClick={handleOpenSettings} sx={{ color: 'text.secondary' }}>
+          <IconButton size="small" aria-label="编辑 System Prompt" onClick={handleOpenSettings} sx={{ color: 'text.secondary' }}>
             <SettingsIcon size={18} />
           </IconButton>
         </Tooltip>
@@ -511,6 +551,7 @@ export default function AIChatPage() {
           autoFocus
         />
         <IconButton
+          aria-label={isRecording ? '停止语音输入' : '开始语音输入'}
           onClick={isRecording ? handleStopRecording : handleStartRecording}
           disabled={isLoading}
           sx={{
@@ -531,6 +572,7 @@ export default function AIChatPage() {
           {isRecording ? <StopIcon size={18} /> : <MicIcon size={18} />}
         </IconButton>
         <IconButton
+          aria-label="发送消息"
           onClick={() => handleSend()}
           disabled={!input.trim() || isLoading}
           sx={{

@@ -102,7 +102,7 @@ export default function TemplateFormDialog({
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         {editingTpl ? `编辑模板 - ${editingTpl.shell_model}` : '新建泵壳模板'}
-        <IconButton onClick={onClose}><CloseIcon size={20} /></IconButton>
+        <IconButton aria-label="关闭模板表单" onClick={onClose}><CloseIcon size={20} /></IconButton>
       </DialogTitle>
       <DialogContent>
         <Box display="flex" gap={2} mb={2} mt={1}>
@@ -191,7 +191,7 @@ export default function TemplateFormDialog({
                     />
                   </TableCell>
                   <TableCell sx={{ py: 0.5 }}>
-                    <IconButton size="small" color="error" onClick={() => setPartRows(prev => prev.filter(r => r.id !== row.id))}>
+                    <IconButton size="small" color="error" aria-label="删除模板零件行" onClick={() => setPartRows(prev => prev.filter(r => r.id !== row.id))}>
                       <DeleteIcon size={18} />
                     </IconButton>
                   </TableCell>

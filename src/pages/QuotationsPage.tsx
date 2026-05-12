@@ -1,10 +1,14 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Box, Paper, Typography, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Chip, MenuItem, Select, FormControl, InputLabel, Checkbox, FormControlLabel, Tooltip } from '@mui/material';
-import { Plus, Edit, Trash2, ArrowRight } from 'lucide-react';
+import { Box, Paper, Typography, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Chip, MenuItem, Select, FormControl, InputLabel, Checkbox, FormControlLabel, Tooltip, InputAdornment } from '@mui/material';
+import { Plus, Edit, Trash2, ArrowRight, Search } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import StatCard from '../components/StatCard';
 import { useAppStore } from '../utils/store';
 import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost } from '../utils/api';
+import { gradients } from '../utils/theme';
+
+const STATUS_OPTIONS = ['全部', '报价中', '已接受', '已拒绝', '已转订单'];
 
 export default function QuotationsPage() {
   const navigate = useNavigate();
@@ -14,6 +18,9 @@ export default function QuotationsPage() {
   const { quotations, customers, recipes, parts, fetchQuotations, fetchCustomers, fetchRecipes, fetchParts, fetchOrders, showSnackbar } = useAppStore();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('全部');
+  const [filterCustomerId, setFilterCustomerId] = useState<number | '全部'>('全部');
   
   // Form State
   const [customerId, setCustomerId] = useState<number | ''>('');
@@ -289,11 +296,67 @@ export default function QuotationsPage() {
     } catch (e) { return false; }
   };
 
+  const customerNameMap = useMemo(() => new Map(customers.map(c => [c.Id, c.name])), [customers]);
+
+  const quotationStats = useMemo(() => {
+    const quoteCount = quotations.length;
+    const quotingCount = quotations.filter(q => q.status === '报价中').length;
+    const acceptedOrConverted = quotations.filter(q => q.status === '已接受' || q.status === '已转订单').length;
+    const totalPrice = quotations.reduce((sum, q) => sum + Number(q.totalPrice || 0), 0);
+    return { quoteCount, quotingCount, acceptedOrConverted, totalPrice };
+  }, [quotations]);
+
+  const filteredQuotations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return quotations.filter(quotation => {
+      const customerName = customerNameMap.get(quotation.customerId) || '';
+      const itemsText = parseJsonArray(quotation.itemsJson)
+        .map((item: any) => `${item.base_recipe_name || item.recipeName || ''}`)
+        .join(' ');
+      const matchSearch = !q || [customerName, quotation.status, quotation.remark, itemsText]
+        .some(value => String(value || '').toLowerCase().includes(q));
+      const matchStatus = filterStatus === '全部' || quotation.status === filterStatus;
+      const matchCustomer = filterCustomerId === '全部' || quotation.customerId === filterCustomerId;
+      return matchSearch && matchStatus && matchCustomer;
+    });
+  }, [quotations, customerNameMap, searchQuery, filterStatus, filterCustomerId]);
+
   return (
     <Box>
       <PageHeader title="报价单" subtitle="管理销售报价并一键转为生产订单" actions={<Button variant="contained" startIcon={<Plus size={20} />} onClick={() => { setEditing(null); setCustomerId(''); setStatus('报价中'); setRemark(''); setItems([]); setOpen(true); }}>新建报价</Button>} />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mt: 3 }}>
+        <StatCard label="报价总数" value={quotationStats.quoteCount} subtitle="全部报价单" gradient={gradients.orders} delay={0} />
+        <StatCard label="报价中" value={quotationStats.quotingCount} subtitle="仍在跟进" gradient={gradients.pending} delay={1} />
+        <StatCard label="已接受/转单" value={quotationStats.acceptedOrConverted} subtitle="成交相关报价" gradient={gradients.completed} delay={2} />
+        <StatCard label="总报价金额" value={`¥${(quotationStats.totalPrice / 10000).toFixed(1)}w`} subtitle="报价单合计" gradient={gradients.revenue} delay={3} />
+      </Box>
       
       <Paper elevation={0} sx={{ mt: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="搜索客户、备注、配方..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Search size={18} color="rgba(148,163,184,0.8)" /></InputAdornment> }}
+            sx={{ minWidth: 240, flex: 1 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>状态</InputLabel>
+            <Select value={filterStatus} label="状态" onChange={event => setFilterStatus(event.target.value)}>
+              {STATUS_OPTIONS.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>客户</InputLabel>
+            <Select value={filterCustomerId} label="客户" onChange={event => setFilterCustomerId(event.target.value as number | '全部')}>
+              <MenuItem value="全部">全部客户</MenuItem>
+              {customers.map(c => <MenuItem key={c.Id} value={c.Id}>{c.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <Chip label={`当前 ${filteredQuotations.length} 张`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
+        </Box>
         <Table>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
@@ -306,7 +369,7 @@ export default function QuotationsPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {quotations.map(q => {
+            {filteredQuotations.map(q => {
               const customer = customers.find(c => c.Id === q.customerId);
               return (
                 <TableRow key={q.Id}>
@@ -321,15 +384,29 @@ export default function QuotationsPage() {
                             <Button size="small" startIcon={<ArrowRight size={14}/>} onClick={() => convertToOrder(q)} sx={{ mr: 1 }}>转订单</Button>
                         </Tooltip>
                     )}
-                    <IconButton size="small" onClick={() => openQuotation(q)}><Edit size={16} /></IconButton>
-                    <IconButton size="small" color="error" onClick={() => handleDelete(q.Id)}><Trash2 size={16} /></IconButton>
+                    <Tooltip title="编辑报价">
+                      <IconButton size="small" aria-label="编辑报价" onClick={() => openQuotation(q)}><Edit size={16} /></IconButton>
+                    </Tooltip>
+                    <Tooltip title="删除报价">
+                      <IconButton size="small" color="error" aria-label="删除报价" onClick={() => handleDelete(q.Id)}><Trash2 size={16} /></IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               );
             })}
             {quotations.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>暂无报价单记录</TableCell>
+                    <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                      <Typography variant="body2" sx={{ mb: 1.5 }}>暂无报价单记录</Typography>
+                      <Button variant="outlined" startIcon={<Plus size={16} />} onClick={() => { setEditing(null); setCustomerId(''); setStatus('报价中'); setRemark(''); setItems([]); setOpen(true); }}>
+                        新建第一张报价单
+                      </Button>
+                    </TableCell>
+                </TableRow>
+            )}
+            {quotations.length > 0 && filteredQuotations.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>没有符合筛选条件的报价单</TableCell>
                 </TableRow>
             )}
           </TableBody>
@@ -380,7 +457,7 @@ export default function QuotationsPage() {
                 <TextField label="加价率" type="number" inputProps={{ step: 0.01 }} size="small" value={item.margin} onChange={e => handleMarginChange(idx, parseFloat(e.target.value))} sx={{ minWidth: 90, width: 100 }} />
                 <TextField label="改单价" type="number" size="small" value={item.unit_price} onChange={e => handleUnitPriceChange(idx, parseFloat(e.target.value))} sx={{ minWidth: 100, width: 110 }} />
 
-                <IconButton color="error" onClick={() => setItems(items.filter((_, i) => i !== idx))}><Trash2 size={16} /></IconButton>
+                <IconButton color="error" aria-label="删除报价明细" onClick={() => setItems(items.filter((_, i) => i !== idx))}><Trash2 size={16} /></IconButton>
               </Box>
               
               {item.base_recipe_id !== '' && (

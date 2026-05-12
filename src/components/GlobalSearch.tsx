@@ -279,6 +279,7 @@ export default function GlobalSearch() {
     <>
       <Tooltip title="全局搜索 Ctrl+K">
         <IconButton
+          aria-label="全局搜索"
           onClick={() => setOpen(true)}
           sx={{
             width: 38,
@@ -304,7 +305,7 @@ export default function GlobalSearch() {
             <Typography variant="h6" fontWeight={800}>全局搜索</Typography>
             <Typography variant="caption" color="text.secondary">订单、零件、配方、客户和报价单</Typography>
           </Box>
-          <IconButton size="small" onClick={() => setOpen(false)}>
+          <IconButton size="small" aria-label="关闭全局搜索" onClick={() => setOpen(false)}>
             <X size={18} />
           </IconButton>
         </DialogTitle>

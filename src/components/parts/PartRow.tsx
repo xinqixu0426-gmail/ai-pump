@@ -88,12 +88,12 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
         </Tooltip>
         <Box display="flex" gap={0.5} justifyContent="flex-end">
           <Tooltip title="编辑">
-            <IconButton id={`edit-part-${part.Id}`} size="small" color="primary" onClick={() => onEdit(part)}>
+            <IconButton id={`edit-part-${part.Id}`} size="small" color="primary" aria-label="编辑零件" onClick={() => onEdit(part)}>
               <EditIcon size={18} />
             </IconButton>
           </Tooltip>
           <Tooltip title="删除">
-            <IconButton id={`delete-part-${part.Id}`} size="small" color="error" onClick={() => onDelete(part.Id)}>
+            <IconButton id={`delete-part-${part.Id}`} size="small" color="error" aria-label="删除零件" onClick={() => onDelete(part.Id)}>
               <DeleteIcon size={18} />
             </IconButton>
           </Tooltip>

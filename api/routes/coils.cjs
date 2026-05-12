@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { db, dbGetAllCoils, coilRow, safeUpdate } = require('../db.cjs');
 const router = Router();
+const DEFAULT_MATERIAL = '钢带';
+const MATERIAL_UNIT_PRICE_DEFAULTS = { '钢带': 0.21, '冷轧800': 0.22 };
 
 // ── CRUD ──
 
@@ -13,9 +15,10 @@ router.post('/', (req, res) => {
     try {
         const b = req.body;
         const spec = b.spec;
+        const material = String(b.material || DEFAULT_MATERIAL).trim() || DEFAULT_MATERIAL;
         const sheetsRaw = b.sheets;
         if (!spec || !sheetsRaw) return res.status(400).json({ success: false, error: '规格和片数为必填项' });
-        const unitPrice = parseFloat(b.unitPrice || 0), sheets = parseInt(sheetsRaw);
+        const unitPrice = parseFloat(b.unitPrice || MATERIAL_UNIT_PRICE_DEFAULTS[material] || 0), sheets = parseInt(sheetsRaw);
         const wireWeight = parseFloat(b.wireWeight || 0), copperBase = parseFloat(b.copperBase || 0);
         const coilFee = parseFloat(b.coilFee || 0), rotorFee = parseFloat(b.rotorFee || 0);
         const cost = unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee;
@@ -23,8 +26,8 @@ router.post('/', (req, res) => {
         const defaultCap = b.defaultCapacitor || null;
         
         const now = new Date().toISOString();
-        const info = db.prepare('INSERT INTO coils (spec, sheets, unit_price, wire_weight, copper_base, coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-            spec, sheets, unitPrice, wireWeight, copperBase, coilFee, rotorFee, cost.toFixed(5), defaultGauge, defaultCap, now, now
+        const info = db.prepare('INSERT INTO coils (spec, material, sheets, unit_price, wire_weight, copper_base, coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            spec, material, sheets, unitPrice, wireWeight, copperBase, coilFee, rotorFee, cost.toFixed(5), defaultGauge, defaultCap, now, now
         );
         res.json({ success: true, data: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -36,6 +39,7 @@ router.patch('/:id', (req, res) => {
         const b = req.body;
         // camelCase body → snake_case column 映射
         const COIL_MAP = {
+            spec: 'spec', material: 'material',
             unitPrice: 'unit_price', sheets: 'sheets', wireWeight: 'wire_weight',
             copperBase: 'copper_base', coilFee: 'coil_fee', rotorFee: 'rotor_fee',
             defaultWireGauge: 'default_wire_gauge', defaultCapacitor: 'default_capacitor',
@@ -43,6 +47,9 @@ router.patch('/:id', (req, res) => {
         const updates = {};
         for (const [bodyKey, col] of Object.entries(COIL_MAP)) {
             if (b[bodyKey] !== undefined) updates[col] = b[bodyKey];
+        }
+        if (updates.material !== undefined && updates.unit_price === undefined && MATERIAL_UNIT_PRICE_DEFAULTS[updates.material] !== undefined) {
+            updates.unit_price = MATERIAL_UNIT_PRICE_DEFAULTS[updates.material];
         }
         // 自动重算 cost
         if (updates.unit_price !== undefined || updates.sheets !== undefined || updates.wire_weight !== undefined || updates.copper_base !== undefined || updates.coil_fee !== undefined || updates.rotor_fee !== undefined) {
@@ -75,11 +82,14 @@ router.patch('/spec/:spec', (req, res) => {
     try {
         const spec = decodeURIComponent(req.params.spec);
         const { unitPrice } = req.body;
+        const material = req.body.material ? String(req.body.material).trim() : '';
         if (unitPrice === undefined) return res.status(400).json({ success: false, error: 'unitPrice 为必填' });
         const up = parseFloat(unitPrice);
 
-        const rows = db.prepare('SELECT * FROM coils WHERE spec = ?').all(spec);
-        if (rows.length === 0) return res.status(404).json({ success: false, error: `未找到规格 "${spec}"` });
+        const rows = material
+            ? db.prepare('SELECT * FROM coils WHERE spec = ? AND material = ?').all(spec, material)
+            : db.prepare('SELECT * FROM coils WHERE spec = ?').all(spec);
+        if (rows.length === 0) return res.status(404).json({ success: false, error: material ? `未找到规格 "${spec}"、材质 "${material}"` : `未找到规格 "${spec}"` });
 
         const stmt = db.prepare('UPDATE coils SET unit_price = ?, cost = ?, updated_at = ? WHERE id = ?');
         const now = new Date().toISOString();
@@ -99,12 +109,16 @@ router.patch('/spec/:spec', (req, res) => {
 router.post('/calculate', (req, res) => {
     try {
         const { spec, sheets, wireWeight: customerWireWeight, copperPrice: customCopperPrice } = req.body;
+        const requestedMaterial = req.body.material ? String(req.body.material).trim() : '';
+        const material = requestedMaterial || DEFAULT_MATERIAL;
         if (!spec || !sheets) return res.status(400).json({ success: false, error: '规格和片数为必填项' });
         const targetSheets = parseInt(sheets);
-        const specCoils = dbGetAllCoils()
+        const allSpecCoils = dbGetAllCoils()
             .filter(c => String(c.spec).trim() === String(spec).trim())
             .sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets));
-        if (specCoils.length === 0) return res.status(404).json({ success: false, error: `未找到规格 "${spec}" 的线圈数据` });
+        const materialCoils = allSpecCoils.filter(c => String(c.material || DEFAULT_MATERIAL).trim() === material);
+        const specCoils = materialCoils.length > 0 ? materialCoils : (!requestedMaterial ? allSpecCoils : []);
+        if (specCoils.length === 0) return res.status(404).json({ success: false, error: requestedMaterial ? `未找到规格 "${spec}"、材质 "${material}" 的线圈数据` : `未找到规格 "${spec}" 的线圈数据` });
 
         const exactMatch = specCoils.find(c => parseInt(c.sheets) === targetSheets);
         let unitPrice, wireWeight, copperBase, coilFee, rotorFee, wireGauge, capacitor, source;
@@ -158,7 +172,7 @@ router.post('/calculate', (req, res) => {
         res.json({
             success: true,
             data: {
-                spec, sheets: targetSheets, unitPrice, wireWeight, copperBase,
+                spec, material, sheets: targetSheets, unitPrice, wireWeight, copperBase,
                 coilFee: parseFloat(coilFee.toFixed(2)), rotorFee: parseFloat(rotorFee.toFixed(2)),
                 wireGauge, capacitor, totalCost: parseFloat(totalCost.toFixed(2)),
                 formula: `${unitPrice}×${targetSheets} + ${wireWeight}×${copperBase} + ${coilFee.toFixed(2)} + ${rotorFee.toFixed(2)}`,
@@ -176,7 +190,13 @@ router.get('/specs', (req, res) => {
         const specsMap = {};
         allCoils.forEach(c => {
             const spec = c.spec;
-            if (!specsMap[spec]) specsMap[spec] = { spec, unitPrice: c.unitPrice, sheets: [], count: 0 };
+            const material = c.material || DEFAULT_MATERIAL;
+            if (!specsMap[spec]) specsMap[spec] = { spec, material, materials: [], unitPrice: c.unitPrice, sheets: [], count: 0 };
+            if (!specsMap[spec].materials.includes(material)) specsMap[spec].materials.push(material);
+            if (material === DEFAULT_MATERIAL) {
+                specsMap[spec].material = material;
+                specsMap[spec].unitPrice = c.unitPrice;
+            }
             const sheets = typeof c.sheets === 'number' ? c.sheets : parseInt(c.sheets);
             if (!specsMap[spec].sheets.includes(sheets)) {
                 specsMap[spec].sheets.push(sheets);

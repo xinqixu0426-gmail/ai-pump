@@ -426,7 +426,7 @@ export default function RecipeFormPage() {
     <Paper sx={{ p: { xs: 2, md: 3 } }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
         <Box display="flex" alignItems="center" gap={1}>
-          <IconButton onClick={() => navigate('/recipes')} size="small"><BackIcon size={20} /></IconButton>
+          <IconButton aria-label="返回配方管理" onClick={() => navigate('/recipes')} size="small"><BackIcon size={20} /></IconButton>
           <Typography variant="h6">{isEditing ? '编辑配方' : cloneFrom ? '复制配方' : '录入配方'}</Typography>
         </Box>
       </Box>

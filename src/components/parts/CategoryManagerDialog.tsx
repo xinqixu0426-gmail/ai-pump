@@ -166,19 +166,19 @@ export default function CategoryManagerDialog({ open, onClose, customCategories,
                   {isEditingRow ? (
                     <>
                       <Tooltip title="保存">
-                        <IconButton size="small" color="success" onClick={() => handleSaveEdit(idx)}><CheckCircleIcon size={18} /></IconButton>
+                        <IconButton size="small" color="success" aria-label="保存分类" onClick={() => handleSaveEdit(idx)}><CheckCircleIcon size={18} /></IconButton>
                       </Tooltip>
                       <Tooltip title="取消">
-                        <IconButton size="small" onClick={() => { setEditingIdx(null); setCatError(''); }}><CancelIcon size={18} /></IconButton>
+                        <IconButton size="small" aria-label="取消编辑分类" onClick={() => { setEditingIdx(null); setCatError(''); }}><CancelIcon size={18} /></IconButton>
                       </Tooltip>
                     </>
                   ) : (
                     <>
                       <Tooltip title="重命名">
-                        <IconButton size="small" color="primary" onClick={() => handleStartEdit(idx)}><EditIcon size={18} /></IconButton>
+                        <IconButton size="small" color="primary" aria-label="重命名分类" onClick={() => handleStartEdit(idx)}><EditIcon size={18} /></IconButton>
                       </Tooltip>
                       <Tooltip title="删除">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(idx)}><DeleteIcon size={18} /></IconButton>
+                        <IconButton size="small" color="error" aria-label="删除分类" onClick={() => handleDelete(idx)}><DeleteIcon size={18} /></IconButton>
                       </Tooltip>
                     </>
                   )}

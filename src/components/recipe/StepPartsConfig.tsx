@@ -424,7 +424,7 @@ export default function StepPartsConfig({
                       {subtotal > 0 ? `¥${subtotal.toFixed(2)}` : '未找到'}
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
-                      <IconButton size="small" color="error"
+                      <IconButton size="small" color="error" aria-label="删除配件行"
                         onClick={() => setPackingParts(packingParts.filter(p => p.id !== part.id))}>
                         <DeleteIcon size={16} />
                       </IconButton>

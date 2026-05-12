@@ -189,7 +189,7 @@ export default function OrderItemsManager(props: OrderItemsManagerProps) {
                       </TableCell>
                       <TableCell align="center">
                         <Tooltip title="移除">
-                          <IconButton size="small" color="error" onClick={() => removeItem(item.id)}>
+                          <IconButton size="small" color="error" aria-label="删除订单型号" onClick={() => removeItem(item.id)}>
                             <DeleteIcon size={18} />
                           </IconButton>
                         </Tooltip>

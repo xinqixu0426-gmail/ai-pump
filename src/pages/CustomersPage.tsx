@@ -130,8 +130,8 @@ export default function CustomersPage() {
   return (
     <Box>
       <PageHeader
-        title="客户与报价"
-        subtitle="在同一个页面管理客户档案和对应报价单"
+        title="客户管理"
+        subtitle="管理客户档案、默认加价与关联报价"
         actions={<Button variant="contained" startIcon={<Plus size={20} />} onClick={() => openForm()}>新增客户</Button>}
       />
 
@@ -170,8 +170,8 @@ export default function CustomersPage() {
                     </TableCell>
                     <TableCell align="right">{(c.defaultMargin * 100).toFixed(0)}%</TableCell>
                     <TableCell align="right" onClick={e => e.stopPropagation()}>
-                      <IconButton size="small" onClick={() => openForm(c)}><Edit size={16} /></IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(c.Id)}><Trash2 size={16} /></IconButton>
+                      <IconButton size="small" aria-label="编辑客户" onClick={() => openForm(c)}><Edit size={16} /></IconButton>
+                      <IconButton size="small" color="error" aria-label="删除客户" onClick={() => handleDelete(c.Id)}><Trash2 size={16} /></IconButton>
                     </TableCell>
                   </TableRow>
                 );
@@ -234,9 +234,9 @@ export default function CustomersPage() {
                   <TableCell>{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '-'}</TableCell>
                   <TableCell align="right">
                     <Tooltip title="在报价单页编辑">
-                      <IconButton size="small" onClick={() => navigate('/quotations')}><ArrowRight size={16} /></IconButton>
+                      <IconButton size="small" aria-label="在报价单页编辑" onClick={() => navigate('/quotations')}><ArrowRight size={16} /></IconButton>
                     </Tooltip>
-                    <IconButton size="small" color="error" onClick={() => handleDeleteQuotation(q.Id)}><Trash2 size={16} /></IconButton>
+                    <IconButton size="small" color="error" aria-label="删除报价单" onClick={() => handleDeleteQuotation(q.Id)}><Trash2 size={16} /></IconButton>
                   </TableCell>
                 </TableRow>
               ))}

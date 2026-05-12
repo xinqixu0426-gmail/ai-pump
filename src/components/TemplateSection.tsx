@@ -175,8 +175,8 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                           </Typography>
                         </Box>
                         <Box display="flex" gap={0.5}>
-                          <IconButton size="small" sx={{ bgcolor: 'action.hover' }} onClick={() => openEditTpl(tpl)}><EditIcon size={16} /></IconButton>
-                          <IconButton size="small" sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }} onClick={() => setTplDeleteId(tpl.Id)}><DeleteIcon size={16} /></IconButton>
+                          <IconButton size="small" aria-label="编辑泵壳模板" sx={{ bgcolor: 'action.hover' }} onClick={() => openEditTpl(tpl)}><EditIcon size={16} /></IconButton>
+                          <IconButton size="small" aria-label="删除泵壳模板" sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }} onClick={() => setTplDeleteId(tpl.Id)}><DeleteIcon size={16} /></IconButton>
                         </Box>
                       </Box>
 

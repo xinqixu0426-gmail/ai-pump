@@ -37,7 +37,7 @@ async function executeCostTool(toolName, args, internalFetch) {
             const response = await internalFetch(`/api/coils/calculate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ spec: args.spec, sheets: args.sheets, wireWeight: args.wireWeight || null })
+                body: JSON.stringify({ spec: args.spec, sheets: args.sheets, material: args.material || null, wireWeight: args.wireWeight || null })
             });
             return await response.json();
         }

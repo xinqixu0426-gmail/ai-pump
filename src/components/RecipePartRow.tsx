@@ -129,7 +129,7 @@ export default function RecipePartRow({
       <TableCell sx={{ py: 0.5, width: 40, pr: 0.5 }}>
         {onDelete ? (
           <Tooltip title="删除">
-            <IconButton size="small" color="error" onClick={onDelete} sx={{ p: 0.5 }}>
+            <IconButton size="small" color="error" aria-label="删除配方零件" onClick={onDelete} sx={{ p: 0.5 }}>
               <DeleteIcon size={18} />
             </IconButton>
           </Tooltip>

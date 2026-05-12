@@ -39,6 +39,7 @@ export default function OrdersPage() {
   const { orders: rawOrders, fetchOrders, showSnackbar } = useAppStore();
   const [selected, setSelected] = useState<Order | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<OrderStatus | '全部'>('全部');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
@@ -124,13 +125,14 @@ export default function OrdersPage() {
     const q = searchQuery.toLowerCase();
     return orders.filter(o => {
       const matchCustomer = !filterCustomer || o.customerName === filterCustomer;
+      const matchStatus = filterStatus === '全部' || o.status === filterStatus;
       const matchSearch = !q || 
         o.customerName.toLowerCase().includes(q) ||
         (o.contractNo || '').toLowerCase().includes(q) ||
         o.items.some(it => it.recipeName.toLowerCase().includes(q));
-      return matchCustomer && matchSearch;
+      return matchCustomer && matchStatus && matchSearch;
     });
-  }, [orders, filterCustomer, searchQuery]);
+  }, [orders, filterCustomer, filterStatus, searchQuery]);
 
   // 排序
   const sortedOrders = useMemo(() => {
@@ -164,7 +166,7 @@ export default function OrdersPage() {
           <>
             <Tooltip title="刷新数据">
               <span>
-                <IconButton onClick={handleRefresh} disabled={loading}>
+                <IconButton aria-label="刷新订单数据" onClick={handleRefresh} disabled={loading}>
                   <RefreshIcon size={18} />
                 </IconButton>
               </span>
@@ -209,6 +211,19 @@ export default function OrdersPage() {
               InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon size={18} color="rgba(148,163,184,0.6)" /></InputAdornment> }}
               sx={{ minWidth: 220, flex: 1 }}
             />
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+              {(['全部', '待采购', '采购中', '已完成'] as Array<OrderStatus | '全部'>).map(status => (
+                <Chip
+                  key={status}
+                  label={status}
+                  clickable
+                  color={filterStatus === status ? (status === '已完成' ? 'success' : status === '采购中' ? 'info' : status === '待采购' ? 'warning' : 'primary') : 'default'}
+                  variant={filterStatus === status ? 'filled' : 'outlined'}
+                  onClick={() => { setFilterStatus(status); setPage(0); }}
+                  sx={{ fontWeight: 700 }}
+                />
+              ))}
+            </Box>
             <Autocomplete
               options={[...new Set(orders.map((o) => o.customerName))].sort()}
               value={filterCustomer}
@@ -335,7 +350,7 @@ export default function OrdersPage() {
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: 'primary.main', fontWeight: 600 }}>¥{(order.totalPrice || 0).toFixed(2)}</TableCell>
                         <TableCell>
                           {needCount > 0 ? (
-                            <Chip label={`${purchasedCount}/${needCount} 已采购`} size="small"
+                            <Chip label={`已采 ${purchasedCount}/${needCount}`} size="small"
                               color={purchasedCount === needCount ? 'success' : 'warning'} variant="outlined" />
                           ) : (
                             <Chip label="库存充足" size="small" color="success" variant="outlined" />
@@ -369,17 +384,17 @@ export default function OrdersPage() {
                         </TableCell>
                         <TableCell align="center">
                           <Tooltip title="查看详情">
-                            <IconButton size="small" color="info" onClick={() => handleDetail(order)}>
+                            <IconButton size="small" color="info" aria-label="查看详情" onClick={(event) => { event.stopPropagation(); handleDetail(order); }}>
                               <InfoIcon size={18} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="编辑订单">
-                            <IconButton size="small" color="primary" onClick={() => navigate(`/order-form/${order.id}`)}>
+                            <IconButton size="small" color="primary" aria-label="编辑订单" onClick={(event) => { event.stopPropagation(); navigate(`/order-form/${order.id}`); }}>
                               <EditIcon size={18} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="删除订单">
-                            <IconButton size="small" color="error" onClick={() => handleDelete(order.id)}>
+                            <IconButton size="small" color="error" aria-label="删除订单" onClick={(event) => { event.stopPropagation(); handleDelete(order.id); }}>
                               <DeleteIcon size={18} />
                             </IconButton>
                           </Tooltip>

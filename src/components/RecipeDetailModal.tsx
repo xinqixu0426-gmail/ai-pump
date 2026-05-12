@@ -293,7 +293,7 @@ export default function RecipeDetailModal({
           <Typography variant="h6">
             配方详情 - {recipe.name}
           </Typography>
-          <IconButton onClick={onClose} size="small">
+          <IconButton aria-label="关闭配方详情" onClick={onClose} size="small">
             <CloseIcon size={20} />
           </IconButton>
         </Box>

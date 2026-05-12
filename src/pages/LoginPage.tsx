@@ -164,6 +164,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
             endAdornment: (
               <InputAdornment position="end">
                 <IconButton
+                  aria-label={showPassword ? '隐藏密码' : '显示密码'}
                   onClick={() => setShowPassword(!showPassword)}
                   edge="end"
                   size="small"

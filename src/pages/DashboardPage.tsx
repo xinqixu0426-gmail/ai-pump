@@ -29,8 +29,6 @@ import {
   Truck as ShippingIcon,
   Package as InventoryIcon,
   PackageCheck as PackageCheckIcon,
-  Zap as BoltIcon,
-  Compass as ArchitectureIcon,
   AlertTriangle as AlertIcon,
   Store as StoreIcon,
 } from 'lucide-react';
@@ -545,13 +543,13 @@ export default function DashboardPage() {
         actions={
           <>
             <Tooltip title="新建订单">
-              <IconButton onClick={() => navigate('/order-form')} sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' }, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}>
+              <IconButton aria-label="新建订单" onClick={() => navigate('/order-form')} sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' }, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)' }}>
                 <AddIcon size={24} />
               </IconButton>
             </Tooltip>
             <Tooltip title="刷新数据">
               <span>
-                <IconButton onClick={() => load(true)} disabled={loading}>
+                <IconButton aria-label="刷新数据" onClick={() => load(true)} disabled={loading}>
                   {loading ? <CircularProgress size={20} /> : <RefreshIcon size={24} />}
                 </IconButton>
               </span>
@@ -703,7 +701,7 @@ export default function DashboardPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
             gap: 2,
           }}
         >
@@ -712,9 +710,6 @@ export default function DashboardPage() {
             { label: '采购中心', icon: <ShippingIcon size={22} />, gradient: gradients.processing, path: '/purchase' },
             { label: '新建配方', icon: <RecipeIcon size={22} />, gradient: gradients.recipes, path: '/recipe-form' },
             { label: '新增零件', icon: <PartIcon size={22} />, gradient: gradients.parts, path: '/parts' },
-            { label: '线圈管理', icon: <BoltIcon size={22} />, gradient: gradients.revenue, path: '/coils' },
-            { label: '转子绘图', icon: <ArchitectureIcon size={22} />, gradient: gradients.profit, path: '/rotor' },
-            { label: '泵壳模板', icon: <InventoryIcon size={22} />, gradient: gradients.pending, path: '/recipes' },
           ].map((item) => (
             <Box
               key={item.label}

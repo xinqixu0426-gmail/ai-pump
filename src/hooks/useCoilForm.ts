@@ -5,6 +5,7 @@ import { proxyRequest } from '../utils/api';
 export interface CoilRecord {
   Id: number;
   spec: string;
+  material: string;
   unitPrice: string;
   sheets: string;
   wireWeight: string;
@@ -25,6 +26,7 @@ export interface CopperPriceInfo {
 
 export interface CoilFormData {
   spec: string;
+  material: string;
   unitPrice: string;
   sheets: string;
   wireWeight: string;
@@ -36,8 +38,19 @@ export interface CoilFormData {
 }
 
 const emptyForm: CoilFormData = {
-  spec: '', unitPrice: '', sheets: '', wireWeight: '', copperBase: '',
+  spec: '', material: '钢带', unitPrice: '', sheets: '', wireWeight: '', copperBase: '',
   coilFee: '', rotorFee: '', defaultCapacitor: '', defaultWireGauge: ''
+};
+
+export const DEFAULT_COIL_MATERIAL = '钢带';
+export const MATERIAL_UNIT_PRICE_DEFAULTS: Record<string, string> = {
+  钢带: '0.21',
+  冷轧800: '0.22',
+};
+export const coilGroupKey = (spec: string, material = DEFAULT_COIL_MATERIAL) => `${spec}||${material || DEFAULT_COIL_MATERIAL}`;
+export const splitCoilGroupKey = (key: string) => {
+  const [spec, material = DEFAULT_COIL_MATERIAL] = key.split('||');
+  return { spec, material: material || DEFAULT_COIL_MATERIAL };
 };
 
 export function useCoilForm() {
@@ -63,7 +76,7 @@ export function useCoilForm() {
       const json = await proxyRequest<{ success: boolean; data: CoilRecord[] }>('/api/coils');
       if (json.success) {
         setCoils(json.data);
-        const specs = new Set(json.data.map((c: CoilRecord) => c.spec));
+        const specs = new Set(json.data.map((c: CoilRecord) => coilGroupKey(c.spec, c.material)));
         setExpandedSpecs(specs as Set<string>);
       } else setError('加载线圈数据失败');
     } catch (err) { setError('加载线圈数据失败: ' + (err as Error).message); }
@@ -82,8 +95,9 @@ export function useCoilForm() {
   const groupedCoils = useMemo(() => {
     const groups: Record<string, CoilRecord[]> = {};
     coils.forEach(c => {
-      if (!groups[c.spec]) groups[c.spec] = [];
-      groups[c.spec].push(c);
+      const key = coilGroupKey(c.spec, c.material);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
     });
     Object.values(groups).forEach(g => g.sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets)));
     return groups;
@@ -103,36 +117,38 @@ export function useCoilForm() {
 
   const handleAdd = () => {
     setEditingId(null);
-    setFormData({ ...emptyForm, copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
+    setFormData({ ...emptyForm, unitPrice: MATERIAL_UNIT_PRICE_DEFAULTS[DEFAULT_COIL_MATERIAL], copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
     setDialogOpen(true);
   };
 
   // 新增时输入规格后自动带入同规格字段
-  const autoFillFromSpec = useCallback((spec: string) => {
-    const existing = groupedCoils[spec];
+  const autoFillFromSpec = useCallback((spec: string, material = DEFAULT_COIL_MATERIAL) => {
+    const exact = groupedCoils[coilGroupKey(spec, material)];
+    const existing = exact || coils.filter(c => c.spec === spec);
     if (!existing || existing.length === 0) return;
     const ref = existing[0];
     setFormData(prev => ({
       ...prev,
       spec,
-      unitPrice: ref.unitPrice || prev.unitPrice,
+      material: ref.material || material || DEFAULT_COIL_MATERIAL,
+      unitPrice: exact ? (ref.unitPrice || prev.unitPrice) : (MATERIAL_UNIT_PRICE_DEFAULTS[material] || ref.unitPrice || prev.unitPrice),
       copperBase: ref.copperBase || prev.copperBase,
       coilFee: ref.coilFee || prev.coilFee,
       rotorFee: ref.rotorFee || prev.rotorFee,
       defaultWireGauge: ref.defaultWireGauge || prev.defaultWireGauge,
       defaultCapacitor: ref.defaultCapacitor || prev.defaultCapacitor,
     }));
-  }, [groupedCoils]);
+  }, [coils, groupedCoils]);
 
   // 按规格批量更新单价
-  const updateSpecPrice = async (spec: string, newPrice: string) => {
+  const updateSpecPrice = async (spec: string, material: string, newPrice: string) => {
     try {
       const json = await proxyRequest<{ success: boolean; updated: number; error?: string }>(`/api/coils/spec/${encodeURIComponent(spec)}`, {
         method: 'PATCH',
-        body: JSON.stringify({ unitPrice: newPrice })
+        body: JSON.stringify({ unitPrice: newPrice, material })
       });
       if (json.success) {
-        showSnackbar(`规格 ${spec} 的单价已更新为 ¥${newPrice}（${json.updated} 条记录）`, 'success');
+        showSnackbar(`规格 ${spec} / ${material} 的单价已更新为 ¥${newPrice}（${json.updated} 条记录）`, 'success');
         await loadCoils();
       } else setError(json.error || '更新失败');
     } catch (err) { setError('更新失败: ' + (err as Error).message); }
@@ -141,7 +157,7 @@ export function useCoilForm() {
   const handleEdit = (coil: CoilRecord) => {
     setEditingId(coil.Id);
     setFormData({
-      spec: coil.spec || '', unitPrice: coil.unitPrice || '', sheets: coil.sheets || '',
+      spec: coil.spec || '', material: coil.material || DEFAULT_COIL_MATERIAL, unitPrice: coil.unitPrice || '', sheets: coil.sheets || '',
       wireWeight: coil.wireWeight || '', copperBase: coil.copperBase || '', coilFee: coil.coilFee || '',
       rotorFee: coil.rotorFee || '', defaultCapacitor: coil.defaultCapacitor || '', defaultWireGauge: coil.defaultWireGauge || ''
     });

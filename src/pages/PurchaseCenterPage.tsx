@@ -6,6 +6,11 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
   IconButton,
   InputAdornment,
@@ -57,6 +62,17 @@ interface PurchaseTask {
   purchasedNeed: number;
   pendingNeed: number;
   orderCount: number;
+  affected: AffectedPurchase[];
+}
+
+interface GroupPurchaseConfirm {
+  supplier: string;
+  taskCount: number;
+  totalNeed: number;
+  pendingNeed: number;
+  orderCount: number;
+  purchased: boolean;
+  savingKey: string;
   affected: AffectedPurchase[];
 }
 
@@ -153,6 +169,7 @@ export default function PurchaseCenterPage() {
   const [statusFilter, setStatusFilter] = useState<PurchaseFilter>('pending');
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [groupConfirm, setGroupConfirm] = useState<GroupPurchaseConfirm | null>(null);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -223,6 +240,13 @@ export default function PurchaseCenterPage() {
     }
   }, [fetchOrders, showSnackbar]);
 
+  const confirmGroupPurchased = async () => {
+    if (!groupConfirm) return;
+    const target = groupConfirm;
+    setGroupConfirm(null);
+    await applyPurchased(target.affected, target.purchased, target.savingKey);
+  };
+
   return (
     <Box>
       <PageHeader
@@ -231,7 +255,7 @@ export default function PurchaseCenterPage() {
         actions={
           <Tooltip title="刷新采购数据">
             <span>
-              <IconButton onClick={refresh} disabled={ordersLoading}>
+              <IconButton aria-label="刷新采购数据" onClick={refresh} disabled={ordersLoading}>
                 {ordersLoading ? <CircularProgress size={18} /> : <RefreshIcon size={18} />}
               </IconButton>
             </span>
@@ -318,7 +342,16 @@ export default function PurchaseCenterPage() {
                   color={allPurchased ? 'inherit' : 'success'}
                   startIcon={savingKey === groupSavingKey ? <CircularProgress size={14} /> : <CheckCircleIcon size={16} />}
                   disabled={savingKey !== null}
-                  onClick={() => applyPurchased(supplierAffected, !allPurchased, groupSavingKey)}
+                  onClick={() => setGroupConfirm({
+                    supplier,
+                    taskCount: supplierTasks.length,
+                    totalNeed: supplierTotal,
+                    pendingNeed: supplierPending,
+                    orderCount: new Set(supplierAffected.map(entry => entry.order.id)).size,
+                    purchased: !allPurchased,
+                    savingKey: groupSavingKey,
+                    affected: supplierAffected,
+                  })}
                 >
                   {allPurchased ? '取消整组已采' : '整组标记已采'}
                 </Button>
@@ -399,6 +432,39 @@ export default function PurchaseCenterPage() {
           onUpdated={() => { fetchOrders(true); setSelectedOrder(null); }}
         />
       )}
+
+      <Dialog open={groupConfirm !== null} onClose={() => setGroupConfirm(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{groupConfirm?.purchased ? '整组标记已采' : '取消整组已采'}</DialogTitle>
+        <DialogContent>
+          <DialogContentText component="div">
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              这只会修改采购状态，不会增加库存；库存入库仍需在订单详情中确认。
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+              <Chip label={`供应商：${groupConfirm?.supplier || '-'}`} variant="outlined" />
+              <Chip label={`${groupConfirm?.taskCount || 0} 个型号`} variant="outlined" />
+              <Chip label={`${groupConfirm?.orderCount || 0} 个订单`} variant="outlined" />
+              <Chip
+                label={groupConfirm?.purchased
+                  ? `待标记 ${groupConfirm?.pendingNeed || 0}`
+                  : `总需求 ${groupConfirm?.totalNeed || 0}`}
+                color={groupConfirm?.purchased ? 'warning' : 'default'}
+                variant="outlined"
+              />
+            </Box>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setGroupConfirm(null)}>取消</Button>
+          <Button
+            variant="contained"
+            color={groupConfirm?.purchased ? 'success' : 'inherit'}
+            onClick={confirmGroupPurchased}
+          >
+            确认
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

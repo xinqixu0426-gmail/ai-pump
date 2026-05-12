@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, coilRow, loadPartsData, calculateRecipeCost } = require('../db.cjs');
 const router = Router();
+const DEFAULT_COIL_MATERIAL = '钢带';
 
 // ── 健康检查 ──
 router.get('/health', (req, res) => {
@@ -62,7 +63,7 @@ router.get('/cost/recipe/:id', (req, res) => {
 function resolveWireFromStator(statorSpec, statorSheets) {
     if (!statorSpec || !statorSheets) return null;
     try {
-        const record = db.prepare('SELECT default_wire_gauge FROM coils WHERE spec = ? AND sheets = ? LIMIT 1').get(String(statorSpec), parseInt(statorSheets));
+        const record = db.prepare(`SELECT default_wire_gauge FROM coils WHERE spec = ? AND sheets = ? ORDER BY CASE WHEN material = ? THEN 0 ELSE 1 END LIMIT 1`).get(String(statorSpec), parseInt(statorSheets), DEFAULT_COIL_MATERIAL);
         return record?.default_wire_gauge || null;
     } catch { return null; }
 }
@@ -222,9 +223,11 @@ function calculatePackingPartsCost(packingPartsJson, getPrice) {
 function calculateCoilCostValue(spec, sheets) {
     if (!spec || !sheets) return 0;
     const targetSheets = parseInt(sheets);
-    const specCoils = dbGetAllCoils()
+    const allSpecCoils = dbGetAllCoils()
         .filter(c => String(c.spec).trim() === String(spec).trim())
         .sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets));
+    const steelCoils = allSpecCoils.filter(c => String(c.material || DEFAULT_COIL_MATERIAL).trim() === DEFAULT_COIL_MATERIAL);
+    const specCoils = steelCoils.length > 0 ? steelCoils : allSpecCoils;
     if (specCoils.length === 0) return 0;
 
     const exact = specCoils.find(c => parseInt(c.sheets) === targetSheets);
@@ -392,13 +395,13 @@ router.post('/cost/full-calculate', (req, res) => {
         if (stator && typeof stator === 'string' && stator.includes('-')) { const [s, sh] = stator.split('-'); statorSpec = s.trim(); statorSheets = sh.trim(); }
         if (statorSpec && statorSheets) {
             try {
-                const sr = coilRow(db.prepare('SELECT * FROM coils WHERE spec = ? AND sheets = ? LIMIT 1').get(statorSpec, parseInt(statorSheets)));
+                const sr = coilRow(db.prepare(`SELECT * FROM coils WHERE spec = ? AND sheets = ? ORDER BY CASE WHEN material = ? THEN 0 ELSE 1 END LIMIT 1`).get(statorSpec, parseInt(statorSheets), DEFAULT_COIL_MATERIAL));
                 if (sr) {
                     const cost = parseFloat(sr.cost || 0);
                     result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cost.toFixed(2), wireGauge: sr.defaultWireGauge || null, source: '精确匹配' };
                     grandTotal += cost;
                 } else {
-                    const bases = db.prepare('SELECT * FROM coils WHERE spec = ? LIMIT 10').all(statorSpec).map(coilRow);
+                    const bases = db.prepare(`SELECT * FROM coils WHERE spec = ? ORDER BY CASE WHEN material = ? THEN 0 ELSE 1 END, sheets LIMIT 10`).all(statorSpec, DEFAULT_COIL_MATERIAL).map(coilRow);
                     if (bases.length > 0) {
                         const b = bases[0]; const up = parseFloat(b.unitPrice || 0); const ww = parseFloat(b.wireWeight || 0);
                         const cb = parseFloat(b.copperBase || 0); const cf = parseFloat(b.coilFee || 0); const rf = parseFloat(b.rotorFee || 0);

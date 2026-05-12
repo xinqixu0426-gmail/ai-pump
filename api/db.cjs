@@ -62,6 +62,7 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS coils (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         spec TEXT NOT NULL,
+        material TEXT DEFAULT '钢带',
         sheets INTEGER NOT NULL,
         unit_price REAL DEFAULT 0,
         wire_weight REAL DEFAULT 0,
@@ -172,6 +173,8 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN assembly_wage REAL DE
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN packing_wage REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
+try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
 
 // P0-2: 软删除列迁移（幂等）
 for (const tbl of ['orders', 'recipes', 'parts']) {
@@ -232,7 +235,7 @@ function orderRow(r) {
 function coilRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, spec: r.spec, unitPrice: r.unit_price, sheets: r.sheets,
+        Id: r.id, spec: r.spec, material: r.material || '钢带', unitPrice: r.unit_price, sheets: r.sheets,
         wireWeight: r.wire_weight, copperBase: r.copper_base,
         coilFee: r.coil_fee, rotorFee: r.rotor_fee,
         cost: r.cost, defaultCapacitor: r.default_capacitor, defaultWireGauge: r.default_wire_gauge,

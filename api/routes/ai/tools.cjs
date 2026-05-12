@@ -65,7 +65,8 @@ const AI_TOOLS = [
                 properties: {
                     spec: { type: 'string', description: '定子规格' },
                     sheets: { type: 'number', description: '片数' },
-                    wireWeight: { type: 'number', description: '自定义线重（可选）' }
+                    wireWeight: { type: 'number', description: '自定义线重（可选）' },
+                    material: { type: 'string', description: '材质（可选），如钢带、冷轧800' }
                 },
                 required: ['spec', 'sheets']
             }

@@ -135,7 +135,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
             color={STATUS_COLOR[localOrder.status]}
             size="small"
           />
-          <IconButton size="small" onClick={onClose}>
+          <IconButton size="small" aria-label="关闭订单详情" onClick={onClose}>
             <CloseIcon size={20} />
           </IconButton>
         </Box>
