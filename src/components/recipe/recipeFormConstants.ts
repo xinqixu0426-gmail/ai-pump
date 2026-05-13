@@ -2,7 +2,7 @@ export const COIL_API_BASE = '';
 
 export interface CoilCalcResult {
   spec: string;
-  material?: string;
+  material: string;
   sheets: number;
   unitPrice: number;
   wireWeight: number;

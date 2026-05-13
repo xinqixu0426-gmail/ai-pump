@@ -64,7 +64,7 @@ export default function StepWageConfirm({
     if (mode === 'painting') setSurfaceTreatmentCost(3);
   };
 
-  const surfaceCostDisabled = surfaceTreatmentMode === 'none' || surfaceTreatmentMode === 'painting';
+  const surfaceCostDisabled = surfaceTreatmentMode === 'none';
 
   return (
     <>
@@ -118,7 +118,7 @@ export default function StepWageConfirm({
               onChange={e => setSurfaceTreatmentCost(parseFloat(e.target.value) || 0)}
               inputProps={{ min: 0, step: 0.5 }}
               disabled={surfaceCostDisabled}
-              helperText={surfaceTreatmentMode === 'painting' ? '喷漆固定 3 元' : undefined}
+              helperText={surfaceTreatmentMode === 'painting' ? '喷漆默认 3 元，可手动修改' : undefined}
               sx={{ width: 130 }}
             />
             <TextField

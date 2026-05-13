@@ -1,14 +1,47 @@
 const { Router } = require('express');
-const { db, dbGetAllCoils, coilRow, safeUpdate } = require('../db.cjs');
+const { db, dbGetAllCoils, coilRow, safeUpdate, getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 const DEFAULT_MATERIAL = '钢带';
 const MATERIAL_UNIT_PRICE_DEFAULTS = { '钢带': 0.21, '冷轧800': 0.22 };
+
+function getMaterialPriceMap() {
+    try {
+        const parsed = JSON.parse(getSetting('coil_material_prices') || '{}');
+        return { ...MATERIAL_UNIT_PRICE_DEFAULTS, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
+    } catch {
+        return { ...MATERIAL_UNIT_PRICE_DEFAULTS };
+    }
+}
 
 // ── CRUD ──
 
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllCoils() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.get('/materials', (req, res) => {
+    try {
+        const materialPrices = getMaterialPriceMap();
+        const usedMaterials = dbGetAllCoils().map(c => c.material || DEFAULT_MATERIAL);
+        const materials = Array.from(new Set([...Object.keys(materialPrices), ...usedMaterials])).filter(Boolean);
+        res.json({ success: true, data: { defaultMaterial: DEFAULT_MATERIAL, materials, materialPrices } });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.put('/materials', (req, res) => {
+    try {
+        const input = req.body?.materialPrices || {};
+        const materialPrices = {};
+        for (const [material, price] of Object.entries(input)) {
+            const key = String(material || '').trim();
+            const value = Number(price);
+            if (key && Number.isFinite(value) && value >= 0) materialPrices[key] = value;
+        }
+        if (!materialPrices[DEFAULT_MATERIAL]) materialPrices[DEFAULT_MATERIAL] = MATERIAL_UNIT_PRICE_DEFAULTS[DEFAULT_MATERIAL];
+        setSetting('coil_material_prices', JSON.stringify(materialPrices));
+        res.json({ success: true, data: { materialPrices } });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
 router.post('/', (req, res) => {
@@ -18,7 +51,8 @@ router.post('/', (req, res) => {
         const material = String(b.material || DEFAULT_MATERIAL).trim() || DEFAULT_MATERIAL;
         const sheetsRaw = b.sheets;
         if (!spec || !sheetsRaw) return res.status(400).json({ success: false, error: '规格和片数为必填项' });
-        const unitPrice = parseFloat(b.unitPrice || MATERIAL_UNIT_PRICE_DEFAULTS[material] || 0), sheets = parseInt(sheetsRaw);
+        const materialPrices = getMaterialPriceMap();
+        const unitPrice = parseFloat(b.unitPrice || materialPrices[material] || 0), sheets = parseInt(sheetsRaw);
         const wireWeight = parseFloat(b.wireWeight || 0), copperBase = parseFloat(b.copperBase || 0);
         const coilFee = parseFloat(b.coilFee || 0), rotorFee = parseFloat(b.rotorFee || 0);
         const cost = unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee;
@@ -48,8 +82,9 @@ router.patch('/:id', (req, res) => {
         for (const [bodyKey, col] of Object.entries(COIL_MAP)) {
             if (b[bodyKey] !== undefined) updates[col] = b[bodyKey];
         }
-        if (updates.material !== undefined && updates.unit_price === undefined && MATERIAL_UNIT_PRICE_DEFAULTS[updates.material] !== undefined) {
-            updates.unit_price = MATERIAL_UNIT_PRICE_DEFAULTS[updates.material];
+        const materialPrices = getMaterialPriceMap();
+        if (updates.material !== undefined && updates.unit_price === undefined && materialPrices[updates.material] !== undefined) {
+            updates.unit_price = materialPrices[updates.material];
         }
         // 自动重算 cost
         if (updates.unit_price !== undefined || updates.sheets !== undefined || updates.wire_weight !== undefined || updates.copper_base !== undefined || updates.coil_fee !== undefined || updates.rotor_fee !== undefined) {

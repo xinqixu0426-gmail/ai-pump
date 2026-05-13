@@ -6,6 +6,7 @@ dist/
 uploads/
 .cert/
 .claude/
+.codex/
 
 pump.db
 pump.db-wal

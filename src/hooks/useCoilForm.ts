@@ -60,6 +60,7 @@ export function useCoilForm() {
   const [error, setError] = useState('');
 
   const [copperPrice, setCopperPrice] = useState<CopperPriceInfo | null>(null);
+  const [materialPrices, setMaterialPrices] = useState<Record<string, string>>(MATERIAL_UNIT_PRICE_DEFAULTS);
   const [copperLoading, setCopperLoading] = useState(false);
   const [copperUpdating, setCopperUpdating] = useState(false);
 
@@ -92,6 +93,37 @@ export function useCoilForm() {
     finally { setCopperLoading(false); }
   }, []);
 
+  const loadMaterialPrices = useCallback(async () => {
+    try {
+      const json = await proxyRequest<{ success: boolean; data: { materialPrices: Record<string, number> } }>('/api/coils/materials');
+      if (json.success) {
+        const next: Record<string, string> = {};
+        Object.entries(json.data.materialPrices || {}).forEach(([material, price]) => { next[material] = String(price); });
+        setMaterialPrices({ ...MATERIAL_UNIT_PRICE_DEFAULTS, ...next });
+      }
+    } catch { /* use defaults */ }
+  }, []);
+
+  const saveMaterialPrices = async (nextPrices: Record<string, string>) => {
+    const materialPricesPayload: Record<string, number> = {};
+    Object.entries(nextPrices).forEach(([material, price]) => {
+      const value = Number(price);
+      if (material.trim() && Number.isFinite(value) && value >= 0) materialPricesPayload[material.trim()] = value;
+    });
+    const json = await proxyRequest<{ success: boolean; data: { materialPrices: Record<string, number> }; error?: string }>('/api/coils/materials', {
+      method: 'PUT',
+      body: JSON.stringify({ materialPrices: materialPricesPayload })
+    });
+    if (json.success) {
+      const saved: Record<string, string> = {};
+      Object.entries(json.data.materialPrices || {}).forEach(([material, price]) => { saved[material] = String(price); });
+      setMaterialPrices(saved);
+      showSnackbar('材质单价配置已保存', 'success');
+    } else {
+      setError(json.error || '保存材质单价失败');
+    }
+  };
+
   const groupedCoils = useMemo(() => {
     const groups: Record<string, CoilRecord[]> = {};
     coils.forEach(c => {
@@ -117,7 +149,7 @@ export function useCoilForm() {
 
   const handleAdd = () => {
     setEditingId(null);
-    setFormData({ ...emptyForm, unitPrice: MATERIAL_UNIT_PRICE_DEFAULTS[DEFAULT_COIL_MATERIAL], copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
+    setFormData({ ...emptyForm, unitPrice: materialPrices[DEFAULT_COIL_MATERIAL] || MATERIAL_UNIT_PRICE_DEFAULTS[DEFAULT_COIL_MATERIAL], copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
     setDialogOpen(true);
   };
 
@@ -131,14 +163,14 @@ export function useCoilForm() {
       ...prev,
       spec,
       material: ref.material || material || DEFAULT_COIL_MATERIAL,
-      unitPrice: exact ? (ref.unitPrice || prev.unitPrice) : (MATERIAL_UNIT_PRICE_DEFAULTS[material] || ref.unitPrice || prev.unitPrice),
+      unitPrice: exact ? (ref.unitPrice || prev.unitPrice) : (materialPrices[material] || MATERIAL_UNIT_PRICE_DEFAULTS[material] || ref.unitPrice || prev.unitPrice),
       copperBase: ref.copperBase || prev.copperBase,
       coilFee: ref.coilFee || prev.coilFee,
       rotorFee: ref.rotorFee || prev.rotorFee,
       defaultWireGauge: ref.defaultWireGauge || prev.defaultWireGauge,
       defaultCapacitor: ref.defaultCapacitor || prev.defaultCapacitor,
     }));
-  }, [coils, groupedCoils]);
+  }, [coils, groupedCoils, materialPrices]);
 
   // 按规格批量更新单价
   const updateSpecPrice = async (spec: string, material: string, newPrice: string) => {
@@ -191,8 +223,9 @@ export function useCoilForm() {
 
   return {
     coils, loading, error, setError,
-    copperPrice, copperLoading, copperUpdating, handleCopperUpdate,
+    copperPrice, materialPrices, setMaterialPrices, saveMaterialPrices, copperLoading, copperUpdating, handleCopperUpdate,
     groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
+    loadMaterialPrices,
     dialogOpen, setDialogOpen, editingId, formData, setFormData,
     deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete,
     autoFillFromSpec, updateSpecPrice

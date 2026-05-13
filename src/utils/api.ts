@@ -6,6 +6,12 @@ import {
   ApiResponse,
   PumpShellTemplate,
   BusinessSummary,
+  Customer,
+  CustomerInput,
+  DynamicCostOverrides,
+  DynamicCostResult,
+  Quotation,
+  QuotationInput,
 } from '../types';
 
 // ─── 通用请求封装 ─────────────────────────────
@@ -166,6 +172,7 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
   if (recipe.template_id !== undefined) payload.templateId = recipe.template_id || null;
   if (recipe.coil_spec !== undefined) payload.coilSpec = recipe.coil_spec || '';
   if (recipe.coil_sheets !== undefined) payload.coilSheets = recipe.coil_sheets || 0;
+  if (recipe.coil_material !== undefined) payload.coilMaterial = recipe.coil_material || '钢带';
   if (recipe.has_float !== undefined) payload.hasFloat = recipe.has_float || 0;
   if (recipe.float_wire !== undefined) payload.floatWire = recipe.float_wire || '';
   if (recipe.has_cable !== undefined) payload.hasCable = recipe.has_cable || 0;
@@ -286,19 +293,26 @@ export async function deleteTemplate(id: number): Promise<void> {
 
 // ====== 客户 CRUD ======
 
-export const fetchCustomers = async () => proxyRequest<any>('/api/customers');
-export const createCustomer = async (data: any) => proxyRequest<any>('/api/customers', { method: 'POST', body: JSON.stringify(data) });
-export const updateCustomer = async (id: number, data: any) => proxyRequest<any>(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-export const deleteCustomer = async (id: number) => proxyRequest<any>(`/api/customers/${id}`, { method: 'DELETE' });
+export const fetchCustomers = async (): Promise<Customer[]> => proxyRequest<Customer[]>('/api/customers');
+export const createCustomer = async (data: CustomerInput): Promise<{ success: boolean; id: number }> =>
+  proxyRequest<{ success: boolean; id: number }>('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+export const updateCustomer = async (id: number, data: CustomerInput): Promise<ApiResponse<never>> =>
+  proxyRequest<ApiResponse<never>>(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteCustomer = async (id: number): Promise<ApiResponse<never>> =>
+  proxyRequest<ApiResponse<never>>(`/api/customers/${id}`, { method: 'DELETE' });
 
 // ====== 报价单 CRUD ======
 
-export const fetchQuotations = async () => proxyRequest<any>('/api/quotations');
-export const createQuotation = async (data: any) => proxyRequest<any>('/api/quotations', { method: 'POST', body: JSON.stringify(data) });
-export const updateQuotation = async (id: number, data: any) => proxyRequest<any>(`/api/quotations/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-export const deleteQuotation = async (id: number) => proxyRequest<any>(`/api/quotations/${id}`, { method: 'DELETE' });
+export const fetchQuotations = async (): Promise<Quotation[]> => proxyRequest<Quotation[]>('/api/quotations');
+export const createQuotation = async (data: QuotationInput): Promise<{ success: boolean; id: number }> =>
+  proxyRequest<{ success: boolean; id: number }>('/api/quotations', { method: 'POST', body: JSON.stringify(data) });
+export const updateQuotation = async (id: number, data: QuotationInput | Partial<QuotationInput>): Promise<ApiResponse<never>> =>
+  proxyRequest<ApiResponse<never>>(`/api/quotations/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteQuotation = async (id: number): Promise<ApiResponse<never>> =>
+  proxyRequest<ApiResponse<never>>(`/api/quotations/${id}`, { method: 'DELETE' });
 
-export const dynamicCalculateCost = async (baseRecipeId: number, overrides: any) => proxyRequest<any>('/api/cost/dynamic-calculate', { method: 'POST', body: JSON.stringify({ baseRecipeId, overrides }) });
+export const dynamicCalculateCost = async (baseRecipeId: number, overrides: DynamicCostOverrides): Promise<DynamicCostResult> =>
+  proxyRequest<DynamicCostResult>('/api/cost/dynamic-calculate', { method: 'POST', body: JSON.stringify({ baseRecipeId, overrides }) });
 
 export async function getWorkbenchSummary(): Promise<BusinessSummary | null> {
   const res = await proxyRequest<ApiResponse<BusinessSummary>>('/api/workbench/summary');

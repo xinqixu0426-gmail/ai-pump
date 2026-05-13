@@ -3,6 +3,8 @@
  */
 const path = require('path');
 const Database = require('better-sqlite3');
+const { createLogger } = require('./logger.cjs');
+const backupLogger = createLogger('backup');
 
 // ── SQLite 初始化 ──
 const DB_PATH = path.join(__dirname, '..', 'pump.db');
@@ -142,12 +144,17 @@ const existing = db.prepare('SELECT key FROM system_settings WHERE key = ?').get
 if (!existing) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('management_fee', '5', new Date().toISOString());
 }
+const existingCoilMaterialPrices = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('coil_material_prices');
+if (!existingCoilMaterialPrices) {
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('coil_material_prices', JSON.stringify({ '钢带': 0.21, '冷轧800': 0.22 }), new Date().toISOString());
+}
 
 // recipes 表新增结构化列（幂等 ALTER）
 const recipeAlterColumns = [
     ['template_id', 'INTEGER'],
     ['coil_spec', "TEXT DEFAULT ''"],
     ['coil_sheets', 'INTEGER DEFAULT 0'],
+    ['coil_material', "TEXT DEFAULT '钢带'"],
     ['has_float', 'INTEGER DEFAULT 0'],
     ['float_wire', "TEXT DEFAULT ''"],
     ['has_cable', 'INTEGER DEFAULT 0'],
@@ -202,6 +209,7 @@ function recipeRow(r) {
         saved_total_cost: r.saved_total_cost,
         saved_cost_details: r.saved_cost_details,
         template_id: r.template_id, coil_spec: r.coil_spec, coil_sheets: r.coil_sheets,
+        coil_material: r.coil_material || '钢带',
         has_float: r.has_float, float_wire: r.float_wire, has_cable: r.has_cable,
         cable_length: r.cable_length, cable_wire: r.cable_wire, box_type: r.box_type,
         custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
@@ -462,18 +470,18 @@ function runBackup() {
         // P0-3: 使用 better-sqlite3 backup() API 替代字符串拼接的 VACUUM INTO
         db.backup(backupPath)
             .then(() => {
-                console.log(`[备份] 数据库已备份到 ${backupPath}`);
+                backupLogger.info(`数据库已备份到 ${backupPath}`);
                 // 清理旧备份，只保留最近 MAX_BACKUPS 个
                 const files = fsDb.readdirSync(BACKUP_DIR)
                     .filter(f => f.startsWith('pump_') && f.endsWith('.db'))
                     .sort().reverse();
                 for (const old of files.slice(MAX_BACKUPS)) {
                     fsDb.unlinkSync(path.join(BACKUP_DIR, old));
-                    console.log(`[备份] 已清理旧备份: ${old}`);
+                    backupLogger.info(`已清理旧备份: ${old}`);
                 }
             })
-            .catch(err => console.error('[备份] 失败:', err.message));
-    } catch (err) { console.error('[备份] 失败:', err.message); }
+            .catch(err => backupLogger.error(`失败: ${err.message}`));
+    } catch (err) { backupLogger.error(`失败: ${err.message}`); }
 }
 
 function scheduleBackup() {
@@ -483,7 +491,7 @@ function scheduleBackup() {
     target.setUTCHours(19, 0, 0, 0); // 03:00 BJT = 19:00 UTC (前一天)
     if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
     const delay = target.getTime() - now.getTime();
-    console.log(`[备份] 下次备份: ${target.toISOString()} (${(delay / 3600000).toFixed(1)}h 后)`);
+    backupLogger.info(`下次备份: ${target.toISOString()} (${(delay / 3600000).toFixed(1)}h 后)`);
     setTimeout(() => {
         runBackup();
         scheduleBackup();

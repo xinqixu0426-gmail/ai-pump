@@ -40,8 +40,9 @@ export default function CoilRotorPage() {
   const { showSnackbar } = useAppStore();
   const {
     coils, loading, error, setError,
-    copperPrice, copperLoading, copperUpdating, handleCopperUpdate,
+    copperPrice, materialPrices, setMaterialPrices, saveMaterialPrices, copperLoading, copperUpdating, handleCopperUpdate,
     groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
+    loadMaterialPrices,
     dialogOpen, setDialogOpen, editingId, formData, setFormData,
     deleteTarget, setDeleteTarget, handleAdd, handleEdit, handleSave, confirmDelete,
     autoFillFromSpec, updateSpecPrice
@@ -50,6 +51,8 @@ export default function CoilRotorPage() {
   // 规格级单价编辑状态
   const [editingSpec, setEditingSpec] = useState<string | null>(null);
   const [editingPrice, setEditingPrice] = useState('');
+  const [newMaterialName, setNewMaterialName] = useState('');
+  const [newMaterialPrice, setNewMaterialPrice] = useState('');
 
   const [calcSpec, setCalcSpec] = useState('');
   const [calcMaterial, setCalcMaterial] = useState(DEFAULT_COIL_MATERIAL);
@@ -59,13 +62,13 @@ export default function CoilRotorPage() {
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null);
   const [calcLoading, setCalcLoading] = useState(false);
 
-  useEffect(() => { loadCoils(); loadCopperPrice(); }, [loadCoils, loadCopperPrice]);
+  useEffect(() => { loadCoils(); loadCopperPrice(); loadMaterialPrices(); }, [loadCoils, loadCopperPrice, loadMaterialPrices]);
 
   const specOptions = useMemo(() => Array.from(new Set(coils.map(c => c.spec))).sort(), [coils]);
   const materialOptions = useMemo(() => {
-    const values = Array.from(new Set([DEFAULT_COIL_MATERIAL, '冷轧800', ...coils.map(c => c.material || DEFAULT_COIL_MATERIAL)]));
+    const values = Array.from(new Set([DEFAULT_COIL_MATERIAL, ...Object.keys(materialPrices), ...coils.map(c => c.material || DEFAULT_COIL_MATERIAL)]));
     return values.filter(Boolean);
-  }, [coils]);
+  }, [coils, materialPrices]);
   const calcMaterialOptions = useMemo(() => {
     if (!calcSpec) return materialOptions;
     const values = Array.from(new Set(coils.filter(c => c.spec === calcSpec).map(c => c.material || DEFAULT_COIL_MATERIAL)));
@@ -241,6 +244,40 @@ export default function CoilRotorPage() {
             <Button variant="contained" startIcon={<AddIcon size={18} />} onClick={handleAdd} size="small" sx={{ ml: 1, fontWeight: 600 }}>新增记录</Button>
           </Box>
 
+          <Box sx={{ mb: 2, p: 1.5, borderRadius: 1, bgcolor: colors.slate.bg, border: `1px solid ${colors.slate.border}` }}>
+            <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 700, color: 'text.secondary' }}>材质默认单价</Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              {Object.entries(materialPrices).map(([material, price]) => (
+                <TextField
+                  key={material}
+                  size="small"
+                  label={material}
+                  type="number"
+                  value={price}
+                  onChange={e => setMaterialPrices({ ...materialPrices, [material]: e.target.value })}
+                  sx={{ width: 130 }}
+                  InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                />
+              ))}
+              <TextField size="small" label="新材质" value={newMaterialName} onChange={e => setNewMaterialName(e.target.value)} sx={{ width: 120 }} />
+              <TextField size="small" label="单价" type="number" value={newMaterialPrice} onChange={e => setNewMaterialPrice(e.target.value)} sx={{ width: 110 }} InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }} />
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => {
+                  const name = newMaterialName.trim();
+                  if (!name) return;
+                  setMaterialPrices({ ...materialPrices, [name]: newMaterialPrice || '0' });
+                  setNewMaterialName('');
+                  setNewMaterialPrice('');
+                }}
+              >
+                添加材质
+              </Button>
+              <Button size="small" variant="contained" onClick={() => saveMaterialPrices(materialPrices)}>保存单价配置</Button>
+            </Box>
+          </Box>
+
           {specOptions.length > 0 && (
             <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 2 }}>
               {specOptions.map(spec => (
@@ -346,10 +383,10 @@ export default function CoilRotorPage() {
                 freeSolo options={materialOptions} value={formData.material || DEFAULT_COIL_MATERIAL}
                 onChange={(_e, v) => {
                   const val = v || DEFAULT_COIL_MATERIAL;
-                  setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? (MATERIAL_UNIT_PRICE_DEFAULTS[val] || p.unitPrice) : p.unitPrice }));
+                  setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? (materialPrices[val] || MATERIAL_UNIT_PRICE_DEFAULTS[val] || p.unitPrice) : p.unitPrice }));
                   if (!editingId && formData.spec) autoFillFromSpec(formData.spec, val);
                 }}
-                onInputChange={(_e, v) => { const val = v || DEFAULT_COIL_MATERIAL; setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? (MATERIAL_UNIT_PRICE_DEFAULTS[val] || p.unitPrice) : p.unitPrice })); }}
+                onInputChange={(_e, v) => { const val = v || DEFAULT_COIL_MATERIAL; setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? (materialPrices[val] || MATERIAL_UNIT_PRICE_DEFAULTS[val] || p.unitPrice) : p.unitPrice })); }}
                 renderInput={(params) => <TextField {...params} fullWidth size="small" label="材质 *" />}
               />
             </Grid>

@@ -70,6 +70,7 @@ export interface Recipe {
   template_id?: number | null;
   coil_spec?: string;
   coil_sheets?: number;
+  coil_material?: string;
   has_float?: number;
   float_wire?: string;
   has_cable?: number;
@@ -100,6 +101,10 @@ export interface RecipePart {
   supplier: string;
   qty: number;
   snapshotPrice?: number;
+  material?: string;
+  unitPrice?: number;
+  source?: string;
+  formula?: string;
 }
 
 // 配件选择（表单用）
@@ -194,9 +199,16 @@ export interface Customer {
   name: string;
   contactInfo: string;
   defaultMargin: number;
-  remark: string;
-  CreatedAt: string;
-  UpdatedAt: string;
+  remark?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+export interface CustomerInput {
+  name: string;
+  contactInfo: string;
+  defaultMargin: number;
+  remark?: string;
 }
 
 export interface Quotation {
@@ -206,9 +218,29 @@ export interface Quotation {
   itemsJson: string;
   totalCost: number;
   totalPrice: number;
-  remark: string;
-  CreatedAt: string;
-  UpdatedAt: string;
+  remark?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+export interface DynamicCostOverrides {
+  coil_spec?: string;
+  coil_sheets?: number;
+  coil_material?: string;
+  has_float?: boolean | number;
+  float_wire?: string;
+  has_cable?: boolean | number;
+  cable_length?: number;
+  cable_wire?: string;
+  box_type?: string;
+  packing_parts_json?: string;
+  custom_barrel_length?: number;
+}
+
+export interface DynamicCostResult {
+  success?: boolean;
+  unitCost: number;
+  error?: string;
 }
 
 export interface QuotationItem {
@@ -216,19 +248,20 @@ export interface QuotationItem {
   base_recipe_id: number | '';
   base_recipe_name: string;
   qty: number;
-  overrides: {
-    has_float?: boolean;
-    float_wire?: string;
-    has_cable?: boolean;
-    cable_length?: number;
-    cable_wire?: string;
-    custom_barrel_length?: number;
-    box_type?: string;
-  };
+  overrides: DynamicCostOverrides;
   unit_cost: number;
   margin: number;
   unit_price: number;
   total_price: number;
+}
+
+export interface QuotationInput {
+  customerId: number | '';
+  status: string;
+  itemsJson: string;
+  totalCost: number;
+  totalPrice: number;
+  remark?: string;
 }
 
 export interface WorkbenchSummaryItem {

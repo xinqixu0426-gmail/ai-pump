@@ -157,7 +157,7 @@ export default function RecipesPage() {
   const handleClone = (recipe: Recipe) => {
     navigate('/recipe-form', { state: { cloneFrom: {
       name: recipe.name + '-副本', spec: recipe.spec, partsJson: recipe.parts_json,
-      template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets,
+      template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets, coil_material: recipe.coil_material,
       has_float: recipe.has_float, float_wire: recipe.float_wire,
       has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
       box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
@@ -171,7 +171,7 @@ export default function RecipesPage() {
   const handleEdit = (recipe: Recipe) => {
     navigate('/recipe-form', { state: { editFrom: {
       id: recipe.Id, name: recipe.name, spec: recipe.spec, partsJson: recipe.parts_json,
-      template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets,
+      template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets, coil_material: recipe.coil_material,
       has_float: recipe.has_float, float_wire: recipe.float_wire,
       has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
       box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
@@ -237,8 +237,8 @@ export default function RecipesPage() {
           scrollButtons="auto"
           sx={{ px: 1, borderBottom: '1px solid', borderColor: 'divider' }}
         >
-          <Tab value="recipes" label={`配方列表 (${recipes.length})`} />
           <Tab value="templates" label={`泵壳模板 (${templates.length})`} />
+          <Tab value="recipes" label={`配方列表 (${recipes.length})`} />
         </Tabs>
       </Paper>
 

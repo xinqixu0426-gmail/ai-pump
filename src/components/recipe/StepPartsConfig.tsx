@@ -32,6 +32,8 @@ interface StepPartsConfigProps {
   coilSpecs: CoilSpecInfo[];
   coilSpec: string;
   setCoilSpec: (val: string) => void;
+  coilMaterial: string;
+  setCoilMaterial: (val: string) => void;
   coilSheets: string;
   setCoilSheets: (val: string) => void;
   useCoilCustomWeight: boolean;
@@ -74,7 +76,7 @@ interface StepPartsConfigProps {
 }
 
 export default function StepPartsConfig({
-  coilSpecs, coilSpec, setCoilSpec, coilSheets, setCoilSheets,
+  coilSpecs, coilSpec, setCoilSpec, coilMaterial, setCoilMaterial, coilSheets, setCoilSheets,
   useCoilCustomWeight, setUseCoilCustomWeight, coilCustomWireWeight, setCoilCustomWireWeight,
   coilResult, coilLoading,
   capacitorModel, capacitorPrice,
@@ -113,6 +115,8 @@ export default function StepPartsConfig({
   const cableUnitPrice = getPriceByModelAndSupplier(cableModel, '');
   const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '');
   const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
+  const selectedCoilSpec = coilSpecs.find(s => s.spec === coilSpec);
+  const coilMaterialOptions = selectedCoilSpec?.materials?.length ? selectedCoilSpec.materials : ['钢带'];
 
   return (
     <>
@@ -139,12 +143,26 @@ export default function StepPartsConfig({
             <Select
               value={coilSpec}
               label="定子规格"
-              onChange={(e) => { setCoilSpec(e.target.value); setCoilSheets(''); }}
+              onChange={(e) => {
+                const nextSpec = e.target.value;
+                const nextInfo = coilSpecs.find(s => s.spec === nextSpec);
+                setCoilSpec(nextSpec);
+                setCoilMaterial(nextInfo?.material || nextInfo?.materials?.[0] || '钢带');
+                setCoilSheets('');
+              }}
             >
               {coilSpecs.map(s => (
                 <MenuItem key={s.spec} value={s.spec}>
                   规格 {s.spec} ({s.count}种)
                 </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>材质</InputLabel>
+            <Select value={coilMaterial} label="材质" onChange={(e) => setCoilMaterial(e.target.value as string)}>
+              {coilMaterialOptions.map(material => (
+                <MenuItem key={material} value={material}>{material}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -174,7 +192,7 @@ export default function StepPartsConfig({
           )}
           {coilResult && (
             <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-              {coilResult.formula}
+              {coilResult.material} / 单价 ¥{coilResult.unitPrice} / {coilResult.formula}
             </Typography>
           )}
         </Box>

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { Part, Recipe, PumpShellTemplate } from '../types';
+import { Customer, Part, Quotation, Recipe, PumpShellTemplate } from '../types';
 import { Order } from '../types';
-import { getAllParts, getAllRecipes, getAllTemplates } from './api';
+import { fetchCustomers as fetchCustomersApi, fetchQuotations as fetchQuotationsApi, getAllParts, getAllRecipes, getAllTemplates } from './api';
 import { getAllOrders } from './orderStore';
 
 // ─── Store 状态定义 ──────────────────────────
@@ -12,8 +12,8 @@ interface AppState {
   recipes: Recipe[];
   orders: Order[];
   templates: PumpShellTemplate[];
-  customers: any[];
-  quotations: any[];
+  customers: Customer[];
+  quotations: Quotation[];
 
   // 加载状态
   partsLoading: boolean;
@@ -38,8 +38,8 @@ interface AppState {
   fetchRecipes: (force?: boolean) => Promise<Recipe[]>;
   fetchOrders: (force?: boolean) => Promise<Order[]>;
   fetchTemplates: (force?: boolean) => Promise<PumpShellTemplate[]>;
-  fetchCustomers: (force?: boolean) => Promise<any[]>;
-  fetchQuotations: (force?: boolean) => Promise<any[]>;
+  fetchCustomers: (force?: boolean) => Promise<Customer[]>;
+  fetchQuotations: (force?: boolean) => Promise<Quotation[]>;
   fetchAll: (force?: boolean) => Promise<void>;
 
   // 局部更新（避免全量 refetch）
@@ -179,11 +179,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     if (!force && state.customers.length > 0) return state.customers;
     try {
-      const { fetchCustomers: fetchC } = await import('./api');
-      const data = await fetchC();
+      const data = await fetchCustomersApi();
       set({ customers: data });
       return data;
-    } catch (err) { console.error(err); return state.customers; }
+    } catch { return state.customers; }
   },
 
   // ── 报价单 ────────
@@ -191,11 +190,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     if (!force && state.quotations.length > 0) return state.quotations;
     try {
-      const { fetchQuotations: fetchQ } = await import('./api');
-      const data = await fetchQ();
+      const data = await fetchQuotationsApi();
       set({ quotations: data });
       return data;
-    } catch (err) { console.error(err); return state.quotations; }
+    } catch { return state.quotations; }
   },
 
   // ── 批量加载 ────

@@ -8,8 +8,14 @@ async function executeQueryTool(toolName, args, internalFetch) {
             const specsMap = {};
             allCoils.forEach(c => {
                 const spec = c.spec;
-                if (!specsMap[spec]) specsMap[spec] = { spec, unitPrice: c.unitPrice, sheets: [], count: 0 };
-                specsMap[spec].sheets.push(parseInt(c.sheets));
+                const material = c.material || '钢带';
+                if (!specsMap[spec]) specsMap[spec] = { spec, material, materials: [], unitPrice: c.unitPrice, sheets: [], count: 0 };
+                if (!specsMap[spec].materials.includes(material)) specsMap[spec].materials.push(material);
+                if (material === '钢带') {
+                    specsMap[spec].material = material;
+                    specsMap[spec].unitPrice = c.unitPrice;
+                }
+                if (!specsMap[spec].sheets.includes(parseInt(c.sheets))) specsMap[spec].sheets.push(parseInt(c.sheets));
                 specsMap[spec].count++;
             });
             Object.values(specsMap).forEach(s => s.sheets.sort((a, b) => a - b));

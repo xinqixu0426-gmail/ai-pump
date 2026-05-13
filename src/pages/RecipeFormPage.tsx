@@ -51,6 +51,7 @@ export default function RecipeFormPage() {
   // 线圈转子
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecInfo[]>([]);
   const [coilSpec, setCoilSpec] = useState(editFrom?.coil_spec || cloneFrom?.coil_spec || '');
+  const [coilMaterial, setCoilMaterial] = useState(editFrom?.coil_material || cloneFrom?.coil_material || '钢带');
   const [coilSheets, setCoilSheets] = useState(editFrom?.coil_sheets ? String(editFrom.coil_sheets) : (cloneFrom?.coil_sheets ? String(cloneFrom.coil_sheets) : ''));
   const [coilCustomWireWeight, setCoilCustomWireWeight] = useState('');
   const [useCoilCustomWeight, setUseCoilCustomWeight] = useState(false);
@@ -134,11 +135,19 @@ export default function RecipeFormPage() {
     })();
   }, []);
 
-  const calculateCoilCost = useCallback(async (spec: string, sheets: string, customWeight?: string) => {
+  useEffect(() => {
+    if (!coilSpec || coilSpecs.length === 0) return;
+    const info = coilSpecs.find(s => s.spec === coilSpec);
+    if (!info) return;
+    const materials = info.materials?.length ? info.materials : [info.material || '钢带'];
+    if (!materials.includes(coilMaterial)) setCoilMaterial(materials[0] || '钢带');
+  }, [coilMaterial, coilSpec, coilSpecs]);
+
+  const calculateCoilCost = useCallback(async (spec: string, material: string, sheets: string, customWeight?: string) => {
     if (!spec || !sheets) { setCoilResult(null); return; }
     try {
       setCoilLoading(true);
-      const body: Record<string, unknown> = { spec, sheets: parseInt(sheets) };
+      const body: Record<string, unknown> = { spec, material: material || '钢带', sheets: parseInt(sheets) };
       if (customWeight) body.wireWeight = parseFloat(customWeight);
       const json = await proxyRequest<{ success: boolean; data: CoilCalcResult }>(`${COIL_API_BASE}/api/coils/calculate`, {
         method: 'POST',
@@ -155,10 +164,10 @@ export default function RecipeFormPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      calculateCoilCost(coilSpec, coilSheets, useCoilCustomWeight ? coilCustomWireWeight : undefined);
+      calculateCoilCost(coilSpec, coilMaterial, coilSheets, useCoilCustomWeight ? coilCustomWireWeight : undefined);
     }, 300);
     return () => clearTimeout(timer);
-  }, [coilSpec, coilSheets, coilCustomWireWeight, useCoilCustomWeight, calculateCoilCost]);
+  }, [coilSpec, coilMaterial, coilSheets, coilCustomWireWeight, useCoilCustomWeight, calculateCoilCost]);
 
   // 线圈结果联动
   useEffect(() => {
@@ -198,6 +207,7 @@ export default function RecipeFormPage() {
     if (source.template_id) {
       setSelectedTemplateId(source.template_id);
       if (source.coil_spec) setCoilSpec(source.coil_spec);
+      if (source.coil_material) setCoilMaterial(source.coil_material);
       if (source.coil_sheets) setCoilSheets(String(source.coil_sheets));
       setHasFloat(!!source.has_float);
       if (source.float_wire) setFloatWire(source.float_wire);
@@ -228,6 +238,7 @@ export default function RecipeFormPage() {
       const newOptional: Array<PartSelection & { id: number }> = [];
       srcParts.forEach((cp) => {
         if (cp.name === '线圈转子') {
+          if (cp.material) setCoilMaterial(cp.material);
           if (cp.model && cp.model.includes('-')) {
             const [s, sh] = cp.model.split('-');
             setCoilSpec(s.trim());
@@ -328,14 +339,24 @@ export default function RecipeFormPage() {
       all.push({ model: capacitorModel, name: '电容', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier(capacitorModel, '') });
     }
     if (coilResult && coilSpec && coilSheets) {
-      all.push({ model: `${coilSpec}-${coilSheets}`, name: '线圈转子', supplier: '', qty: 1, snapshotPrice: coilResult.totalCost });
+      all.push({
+        model: `${coilSpec}-${coilSheets}`,
+        name: '线圈转子',
+        supplier: '',
+        qty: 1,
+        snapshotPrice: coilResult.totalCost,
+        material: coilResult.material || coilMaterial,
+        unitPrice: coilResult.unitPrice,
+        source: coilResult.source,
+        formula: coilResult.formula,
+      });
     }
     optionalParts.forEach((p) => {
       if (p.model) all.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty, snapshotPrice: getPriceByModelAndSupplier(p.model, p.supplier) });
     });
     all.push(...buildConfigParts());
     return all;
-  }, [selectedTemplate, templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilSheets]);
+  }, [selectedTemplate, templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilMaterial, coilSheets]);
 
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
   const laborCost = useMemo(
@@ -376,14 +397,20 @@ export default function RecipeFormPage() {
     if (surfaceTreatmentMode !== 'none') wageLines.push(`表面处理(${surfaceLabels[surfaceTreatmentMode]}): ¥${(surfaceTreatmentCost || 0).toFixed(2)}`);
     wageLines.push(`管理费用: ¥${(managementFee || 0).toFixed(2)}`);
     const savedCostDetails = recipeParts
-      .map((p) => `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`)
+      .map((p) => {
+        const base = `${p.name || p.model}: ¥${(p.snapshotPrice || 0).toFixed(2)} × ${p.qty || 1} = ¥${((p.snapshotPrice || 0) * (p.qty || 1)).toFixed(2)}`;
+        if (p.name === '线圈转子') {
+          return `${base}（材质: ${p.material || coilMaterial || '钢带'}，单价: ¥${Number(p.unitPrice || 0).toFixed(2)}，来源: ${p.source || '-'}，公式: ${p.formula || '-'}）`;
+        }
+        return base;
+      })
       .concat(wageLines)
       .join('\n');
 
     const recipeData = {
       name: recipeName, spec: recipeSpec, parts_json: JSON.stringify(recipeParts),
       saved_total_cost: savedTotalCost, saved_cost_details: savedCostDetails,
-      template_id: selectedTemplateId, coil_spec: coilSpec, coil_sheets: coilSheets ? parseInt(coilSheets) : 0,
+      template_id: selectedTemplateId, coil_spec: coilSpec, coil_material: coilMaterial || '钢带', coil_sheets: coilSheets ? parseInt(coilSheets) : 0,
       has_float: hasFloat ? 1 : 0, float_wire: floatWire, has_cable: hasCable ? 1 : 0,
       cable_length: cableLength ? parseFloat(cableLength) : 0, cable_wire: cableWire,
       // 包装
@@ -444,6 +471,7 @@ export default function RecipeFormPage() {
 
         <StepPartsConfig
           coilSpecs={coilSpecs} coilSpec={coilSpec} setCoilSpec={setCoilSpec}
+          coilMaterial={coilMaterial} setCoilMaterial={setCoilMaterial}
           coilSheets={coilSheets} setCoilSheets={setCoilSheets}
           useCoilCustomWeight={useCoilCustomWeight} setUseCoilCustomWeight={setUseCoilCustomWeight}
           coilCustomWireWeight={coilCustomWireWeight} setCoilCustomWireWeight={setCoilCustomWireWeight}

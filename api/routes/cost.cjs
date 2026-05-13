@@ -1,7 +1,10 @@
 const { Router } = require('express');
 const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, coilRow, loadPartsData, calculateRecipeCost } = require('../db.cjs');
+const { createLogger } = require('../logger.cjs');
 const router = Router();
 const DEFAULT_COIL_MATERIAL = '钢带';
+const costLogger = createLogger('cost');
+const copperLogger = createLogger('copper');
 
 // ── 健康检查 ──
 router.get('/health', (req, res) => {
@@ -60,10 +63,10 @@ router.get('/cost/recipe/:id', (req, res) => {
 });
 
 // ── 辅助：从线圈表查线径 ──
-function resolveWireFromStator(statorSpec, statorSheets) {
+function resolveWireFromStator(statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL) {
     if (!statorSpec || !statorSheets) return null;
     try {
-        const record = db.prepare(`SELECT default_wire_gauge FROM coils WHERE spec = ? AND sheets = ? ORDER BY CASE WHEN material = ? THEN 0 ELSE 1 END LIMIT 1`).get(String(statorSpec), parseInt(statorSheets), DEFAULT_COIL_MATERIAL);
+        const record = db.prepare(`SELECT default_wire_gauge FROM coils WHERE spec = ? AND sheets = ? ORDER BY CASE WHEN material = ? THEN 0 WHEN material = ? THEN 1 ELSE 2 END LIMIT 1`).get(String(statorSpec), parseInt(statorSheets), material || DEFAULT_COIL_MATERIAL, DEFAULT_COIL_MATERIAL);
         return record?.default_wire_gauge || null;
     } catch { return null; }
 }
@@ -220,14 +223,15 @@ function calculatePackingPartsCost(packingPartsJson, getPrice) {
     }, 0);
 }
 
-function calculateCoilCostValue(spec, sheets) {
+function calculateCoilCostValue(spec, sheets, material = DEFAULT_COIL_MATERIAL) {
     if (!spec || !sheets) return 0;
     const targetSheets = parseInt(sheets);
     const allSpecCoils = dbGetAllCoils()
         .filter(c => String(c.spec).trim() === String(spec).trim())
         .sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets));
+    const materialCoils = allSpecCoils.filter(c => String(c.material || DEFAULT_COIL_MATERIAL).trim() === String(material || DEFAULT_COIL_MATERIAL).trim());
     const steelCoils = allSpecCoils.filter(c => String(c.material || DEFAULT_COIL_MATERIAL).trim() === DEFAULT_COIL_MATERIAL);
-    const specCoils = steelCoils.length > 0 ? steelCoils : allSpecCoils;
+    const specCoils = materialCoils.length > 0 ? materialCoils : (steelCoils.length > 0 ? steelCoils : allSpecCoils);
     if (specCoils.length === 0) return 0;
 
     const exact = specCoils.find(c => parseInt(c.sheets) === targetSheets);
@@ -290,6 +294,7 @@ router.post('/cost/dynamic-calculate', (req, res) => {
             template_id: row.template_id,
             coil_spec: overrides?.coil_spec !== undefined ? overrides.coil_spec : row.coil_spec,
             coil_sheets: overrides?.coil_sheets !== undefined ? Number(overrides.coil_sheets) : row.coil_sheets,
+            coil_material: overrides?.coil_material !== undefined ? overrides.coil_material : (row.coil_material || DEFAULT_COIL_MATERIAL),
             has_float: overrides?.has_float !== undefined ? overrides.has_float : row.has_float,
             float_wire: overrides?.float_wire !== undefined ? overrides.float_wire : row.float_wire,
             has_cable: overrides?.has_cable !== undefined ? overrides.has_cable : row.has_cable,
@@ -323,16 +328,16 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
         totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box;
 
-        const dbWire = resolveWireFromStator(recipeData.coil_spec, recipeData.coil_sheets);
+        const dbWire = resolveWireFromStator(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material);
         const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
 
-        const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets);
+        const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets) || !sameText(recipeData.coil_material, row.coil_material || DEFAULT_COIL_MATERIAL);
         const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire);
         const cableChanged = toBool(recipeData.has_cable) !== toBool(row.has_cable) || !sameNumber(recipeData.cable_length, row.cable_length) || !sameText(recipeData.cable_wire, row.cable_wire);
         const packingJsonChanged = normalizePackingJsonText(recipeData.packing_parts_json, recipeData.box_type) !== normalizePackingJsonText(row.packing_parts_json, row.box_type);
         const boxChanged = !sameText(recipeData.box_type, row.box_type) || packingJsonChanged;
 
-        totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets) : managedTotals.coil;
+        totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material) : managedTotals.coil;
 
         if (!floatChanged) {
             totalCost += managedTotals.float;
@@ -360,7 +365,7 @@ router.post('/cost/dynamic-calculate', (req, res) => {
             totalCost += (recipeData.management_fee || Number(getSetting('management_fee')) || 0);
         }
 
-        console.log(`[DynamicCalc] Recipe: ${recipeData.name}, Final has_float: ${recipeData.has_float}, totalCost: ${totalCost}`);
+        costLogger.info(`DynamicCalc recipe=${recipeData.name}, has_float=${recipeData.has_float}, totalCost=${totalCost}`);
         res.json({ success: true, unitCost: Number(totalCost.toFixed(2)) });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -371,6 +376,7 @@ router.post('/cost/dynamic-calculate', (req, res) => {
 router.post('/cost/full-calculate', (req, res) => {
     try {
         const { pumphousing_model, stator, cableLength = 0, boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
+        const statorMaterial = req.body.statorMaterial || req.body.material || DEFAULT_COIL_MATERIAL;
         const { partsCache, partsByModel } = loadPartsData();
         const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
         const result = { recipeCost: null, statorCost: null, dynamicCost: null, totalCost: '0', breakdown: {} };
@@ -395,18 +401,18 @@ router.post('/cost/full-calculate', (req, res) => {
         if (stator && typeof stator === 'string' && stator.includes('-')) { const [s, sh] = stator.split('-'); statorSpec = s.trim(); statorSheets = sh.trim(); }
         if (statorSpec && statorSheets) {
             try {
-                const sr = coilRow(db.prepare(`SELECT * FROM coils WHERE spec = ? AND sheets = ? ORDER BY CASE WHEN material = ? THEN 0 ELSE 1 END LIMIT 1`).get(statorSpec, parseInt(statorSheets), DEFAULT_COIL_MATERIAL));
+                const sr = coilRow(db.prepare(`SELECT * FROM coils WHERE spec = ? AND sheets = ? ORDER BY CASE WHEN material = ? THEN 0 WHEN material = ? THEN 1 ELSE 2 END LIMIT 1`).get(statorSpec, parseInt(statorSheets), statorMaterial, DEFAULT_COIL_MATERIAL));
                 if (sr) {
                     const cost = parseFloat(sr.cost || 0);
-                    result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cost.toFixed(2), wireGauge: sr.defaultWireGauge || null, source: '精确匹配' };
+                    result.statorCost = { spec: statorSpec, material: sr.material || statorMaterial, sheets: statorSheets, unitPrice: sr.unitPrice, cost: cost.toFixed(2), wireGauge: sr.defaultWireGauge || null, source: '精确匹配' };
                     grandTotal += cost;
                 } else {
-                    const bases = db.prepare(`SELECT * FROM coils WHERE spec = ? ORDER BY CASE WHEN material = ? THEN 0 ELSE 1 END, sheets LIMIT 10`).all(statorSpec, DEFAULT_COIL_MATERIAL).map(coilRow);
+                    const bases = db.prepare(`SELECT * FROM coils WHERE spec = ? ORDER BY CASE WHEN material = ? THEN 0 WHEN material = ? THEN 1 ELSE 2 END, sheets LIMIT 10`).all(statorSpec, statorMaterial, DEFAULT_COIL_MATERIAL).map(coilRow);
                     if (bases.length > 0) {
                         const b = bases[0]; const up = parseFloat(b.unitPrice || 0); const ww = parseFloat(b.wireWeight || 0);
                         const cb = parseFloat(b.copperBase || 0); const cf = parseFloat(b.coilFee || 0); const rf = parseFloat(b.rotorFee || 0);
                         const sh = parseInt(statorSheets); const cc = up * sh + ww * cb + cf + rf;
-                        result.statorCost = { spec: statorSpec, sheets: statorSheets, cost: cc.toFixed(2), wireGauge: b.defaultWireGauge || null, source: '公式推算', formula: `${up}×${sh} + ${ww}×${cb} + ${cf} + ${rf}` };
+                        result.statorCost = { spec: statorSpec, material: b.material || statorMaterial, sheets: statorSheets, unitPrice: up, cost: cc.toFixed(2), wireGauge: b.defaultWireGauge || null, source: '公式推算', formula: `${up}×${sh} + ${ww}×${cb} + ${cf} + ${rf}` };
                         grandTotal += cc;
                     } else { result.statorCost = { error: `未找到规格 ${statorSpec} 的线圈数据` }; }
                 }
@@ -414,7 +420,7 @@ router.post('/cost/full-calculate', (req, res) => {
         }
 
         // 步骤3: 动态配置成本（复用共享函数）
-        const dbWire = statorSpec && statorSheets ? resolveWireFromStator(statorSpec, statorSheets) : null;
+        const dbWire = statorSpec && statorSheets ? resolveWireFromStator(statorSpec, statorSheets, statorMaterial) : null;
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
         const dynamic = calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, boxType, resolvedWire, getPrice, partsCache, partsByModel });
         result.dynamicCost = { totalCost: dynamic.totalCost.toFixed(2), resolvedWire, details: dynamic.details };
@@ -437,7 +443,7 @@ async function fetchCopperPrice() {
 
 async function updateAllCoilsCopperPrice(copperPricePerTon) {
     const copperPricePerKg = (copperPricePerTon / 1000).toFixed(2);
-    console.log(`[铜价更新] 获取铜价: ${copperPricePerTon} 元/吨 → ${copperPricePerKg} 元/千克`);
+    copperLogger.info(`获取铜价: ${copperPricePerTon} 元/吨 -> ${copperPricePerKg} 元/千克`);
     const allCoils = db.prepare('SELECT * FROM coils').all();
     const updateCoil = db.prepare('UPDATE coils SET copper_base = ?, cost = ?, updated_at = ? WHERE id = ?');
     const now = new Date().toISOString();
@@ -448,7 +454,7 @@ async function updateAllCoilsCopperPrice(copperPricePerTon) {
         }
     });
     batchUpdate(allCoils);
-    console.log(`[铜价更新] 已更新 ${allCoils.length} 条线圈记录的铜价基数为 ${copperPricePerKg}`);
+    copperLogger.info(`已更新 ${allCoils.length} 条线圈记录的铜价基数为 ${copperPricePerKg}`);
     return { copperPricePerTon, copperPricePerKg, updatedCount: allCoils.length };
 }
 
@@ -456,9 +462,9 @@ async function runCopperPriceUpdate() {
     try {
         const price = await fetchCopperPrice();
         const result = await updateAllCoilsCopperPrice(price);
-        console.log('[铜价更新] 完成:', result);
+        copperLogger.info('完成', result);
         return result;
-    } catch (err) { console.error('[铜价更新] 失败:', err.message); return null; }
+    } catch (err) { copperLogger.error(`失败: ${err.message}`); return null; }
 }
 
 // 定时任务：每天北京时间 15:00 更新铜价
@@ -471,9 +477,9 @@ function scheduleNextCopperUpdate() {
     if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
     const delay = target.getTime() - now.getTime();
     const hours = (delay / 3600000).toFixed(1);
-    console.log(`[定时任务] 下次铜价更新: ${target.toISOString()} (${hours}h 后)`);
+    copperLogger.info(`下次铜价更新: ${target.toISOString()} (${hours}h 后)`);
     setTimeout(async () => {
-        console.log('[定时任务] 触发每日铜价更新...');
+        copperLogger.info('触发每日铜价更新');
         await runCopperPriceUpdate();
         scheduleNextCopperUpdate(); // 链式调度下一次
     }, delay);

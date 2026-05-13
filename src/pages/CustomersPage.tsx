@@ -23,6 +23,11 @@ import { Plus, Edit, Trash2, FileText, ArrowRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useAppStore } from '../utils/store';
 import { createCustomer, updateCustomer, deleteCustomer, deleteQuotation } from '../utils/api';
+import { Customer, CustomerInput } from '../types';
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
 
 export default function CustomersPage() {
   const navigate = useNavigate();
@@ -31,9 +36,9 @@ export default function CustomersPage() {
   const consumedNavigationRef = useRef<string | null>(null);
   const { customers, quotations, fetchCustomers, fetchQuotations, showSnackbar } = useAppStore();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
+  const [editing, setEditing] = useState<Customer | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: '', contactInfo: '', defaultMargin: 0.15, remark: '' });
+  const [form, setForm] = useState<CustomerInput>({ name: '', contactInfo: '', defaultMargin: 0.15, remark: '' });
 
   useEffect(() => {
     fetchCustomers();
@@ -65,8 +70,8 @@ export default function CustomersPage() {
     const totalPrice = customerQuotations.reduce((sum, q) => sum + Number(q.totalPrice || 0), 0);
     const latest = customerQuotations
       .map(q => (q.CreatedAt ? new Date(q.CreatedAt) : null))
-      .filter(Boolean)
-      .sort((a: any, b: any) => b.getTime() - a.getTime())[0] as Date | undefined;
+      .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime())[0];
     return { count: customerQuotations.length, totalPrice, latest };
   }, [customerQuotations]);
 
@@ -78,13 +83,13 @@ export default function CustomersPage() {
       } else {
         await createCustomer(form);
         const refreshed = await fetchCustomers(true);
-        const created = refreshed.find((c: any) => c.name === form.name);
+        const created = refreshed.find(c => c.name === form.name);
         if (created) setSelectedCustomerId(created.Id);
       }
       setOpen(false);
       showSnackbar('客户保存成功', 'success');
-    } catch (err: any) {
-      showSnackbar(err.message || '保存失败', 'error');
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     }
   };
 
@@ -95,8 +100,8 @@ export default function CustomersPage() {
       await fetchCustomers(true);
       if (selectedCustomerId === id) setSelectedCustomerId(null);
       showSnackbar('删除成功', 'info');
-    } catch (err: any) {
-      showSnackbar(err.message || '删除失败', 'error');
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '删除失败'), 'error');
     }
   };
 
@@ -106,12 +111,12 @@ export default function CustomersPage() {
       await deleteQuotation(id);
       await fetchQuotations(true);
       showSnackbar('报价单已删除', 'info');
-    } catch (err: any) {
-      showSnackbar(err.message || '删除失败', 'error');
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '删除失败'), 'error');
     }
   };
 
-  const openForm = (c?: any) => {
+  const openForm = (c?: Customer) => {
     if (c) {
       setEditing(c);
       setForm({

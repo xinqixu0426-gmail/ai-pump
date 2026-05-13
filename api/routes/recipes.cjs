@@ -4,7 +4,7 @@ const router = Router();
 
 const RECIPE_FIELDS = [
     'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
-    'template_id', 'coil_spec', 'coil_sheets',
+    'template_id', 'coil_spec', 'coil_sheets', 'coil_material',
     'has_float', 'float_wire', 'has_cable', 'cable_length', 'cable_wire',
     'box_type', 'extra_parts_json', 'packing_parts_json',
     'assembly_wage', 'packing_wage', 'painting_wage',
@@ -19,6 +19,7 @@ const RECIPE_ALIASES = {
     templateId: 'template_id',
     coilSpec: 'coil_spec',
     coilSheets: 'coil_sheets',
+    coilMaterial: 'coil_material',
     hasFloat: 'has_float',
     floatWire: 'float_wire',
     hasCable: 'has_cable',
@@ -66,17 +67,17 @@ router.post('/', (req, res) => {
         const now = new Date().toISOString();
         const info = db.prepare(`INSERT INTO recipes (
             name, spec, parts_json, saved_total_cost, saved_cost_details,
-            template_id, coil_spec, coil_sheets,
+            template_id, coil_spec, coil_sheets, coil_material,
             has_float, float_wire, has_cable, cable_length, cable_wire,
             box_type, extra_parts_json, packing_parts_json,
             assembly_wage, packing_wage, painting_wage,
             surface_treatment_mode, surface_treatment_cost,
             management_fee, custom_barrel_length,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
             b.name || '', b.spec || '', b.parts_json || '[]',
             b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
-            b.template_id || null, b.coil_spec || '', b.coil_sheets || 0,
+            b.template_id || null, b.coil_spec || '', b.coil_sheets || 0, b.coil_material || '钢带',
             b.has_float || 0, b.float_wire || '', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '',
             b.box_type || '', b.extra_parts_json || '[]', b.packing_parts_json || '[]',
             b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,

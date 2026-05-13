@@ -7,8 +7,25 @@ import StatCard from '../components/StatCard';
 import { useAppStore } from '../utils/store';
 import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost } from '../utils/api';
 import { gradients } from '../utils/theme';
+import { PartSelection, Quotation, QuotationInput, QuotationItem, Recipe, RecipePart } from '../types';
 
 const STATUS_OPTIONS = ['全部', '报价中', '已接受', '已拒绝', '已转订单'];
+
+type PackingSnapshot = PartSelection & { snapshotPrice?: number };
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function parseJsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  try {
+    const parsed = JSON.parse(String(value || '[]'));
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function QuotationsPage() {
   const navigate = useNavigate();
@@ -17,7 +34,7 @@ export default function QuotationsPage() {
   const consumedNavigationRef = useRef<string | null>(null);
   const { quotations, customers, recipes, parts, fetchQuotations, fetchCustomers, fetchRecipes, fetchParts, fetchOrders, showSnackbar } = useAppStore();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
+  const [editing, setEditing] = useState<Quotation | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('全部');
   const [filterCustomerId, setFilterCustomerId] = useState<number | '全部'>('全部');
@@ -26,7 +43,7 @@ export default function QuotationsPage() {
   const [customerId, setCustomerId] = useState<number | ''>('');
   const [status, setStatus] = useState('报价中');
   const [remark, setRemark] = useState('');
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<QuotationItem[]>([]);
 
   useEffect(() => {
     fetchQuotations();
@@ -35,19 +52,9 @@ export default function QuotationsPage() {
     fetchParts();
   }, [fetchQuotations, fetchCustomers, fetchRecipes, fetchParts]);
 
-  const parseJsonArray = (value: any) => {
-    if (Array.isArray(value)) return value;
-    try {
-      const parsed = JSON.parse(value || '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const getRecipePartSnapshotPrice = (recipe: any, model: string, supplier = '') => {
-    const recipeParts = parseJsonArray(recipe?.parts_json);
-    const matched = recipeParts.find((p: any) => {
+  const getRecipePartSnapshotPrice = (recipe: Recipe | undefined, model: string, supplier = '') => {
+    const recipeParts = parseJsonArray<RecipePart>(recipe?.parts_json);
+    const matched = recipeParts.find((p) => {
       const sameModel = p.model === model || p.name === model;
       const sameSupplier = !supplier || (p.supplier || '') === supplier;
       return sameModel && sameSupplier;
@@ -55,8 +62,9 @@ export default function QuotationsPage() {
     return matched?.snapshotPrice !== undefined ? Number(matched.snapshotPrice || 0) : undefined;
   };
 
-  const normalizePackingPart = (recipe: any, part: any) => {
-    const model = part?.model || part?.name || '';
+  const normalizePackingPart = (recipe: Recipe | undefined, part: Partial<PackingSnapshot>) => {
+    const legacyName = (part as Partial<PackingSnapshot> & { name?: string })?.name;
+    const model = part?.model || legacyName || '';
     const supplier = part?.supplier || '';
     const snapshotPrice = part?.snapshotPrice !== undefined
       ? Number(part.snapshotPrice || 0)
@@ -69,14 +77,26 @@ export default function QuotationsPage() {
     };
   };
 
-  const getPackingParts = (recipe: any) => {
-    try {
-      const parsed = JSON.parse(recipe?.packing_parts_json || '[]');
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((p: any) => normalizePackingPart(recipe, p)).filter((p: any) => p.model);
-      }
-    } catch { /* ignore */ }
+  const getPackingParts = (recipe: Recipe | undefined) => {
+    const parsed = parseJsonArray<PackingSnapshot>(recipe?.packing_parts_json);
+    if (parsed.length > 0) {
+      return parsed.map((p) => normalizePackingPart(recipe, p)).filter((p) => p.model);
+    }
     return recipe?.box_type ? [normalizePackingPart(recipe, { model: recipe.box_type, supplier: '', qty: 1 })] : [];
+  };
+
+  const getCoilSnapshot = (recipe: Recipe | undefined) => {
+    const recipeParts = parseJsonArray<RecipePart>(recipe?.parts_json);
+    const coil = recipeParts.find((p) => p.name === '线圈转子');
+    return {
+      spec: recipe?.coil_spec || coil?.model?.split('-')?.[0] || '',
+      sheets: recipe?.coil_sheets || coil?.model?.split('-')?.[1] || '',
+      material: recipe?.coil_material || coil?.material || '钢带',
+      unitPrice: coil?.unitPrice,
+      cost: coil?.snapshotPrice,
+      source: coil?.source,
+      formula: coil?.formula,
+    };
   };
 
   const getPartPrice = (model: string, supplier = '') => {
@@ -95,15 +115,15 @@ export default function QuotationsPage() {
       if (!options.has(key) || price > 0) options.set(key, { model, supplier, price });
     };
 
-    parts.forEach((p: any) => {
+    parts.forEach((p) => {
       const model = p.model || '';
       const category = p.category || '';
       const looksLikePacking = category === '包装' || model.includes('木箱') || model.includes('纸箱') || model.includes('包装');
       if (looksLikePacking) addOption(model, p.supplier || '', Number(p.price || 0));
     });
 
-    recipes.forEach((recipe: any) => {
-      getPackingParts(recipe).forEach((p: any) => {
+    recipes.forEach((recipe) => {
+      getPackingParts(recipe).forEach((p) => {
         const price = p.snapshotPrice !== undefined ? Number(p.snapshotPrice || 0) : getPartPrice(p.model, p.supplier || '');
         addOption(p.model, p.supplier || '', price);
       });
@@ -112,9 +132,8 @@ export default function QuotationsPage() {
     return Array.from(options.values()).sort((a, b) => a.model.localeCompare(b.model));
   }, [parts, recipes]);
 
-  const packingSummary = (item: any) => {
-    let packingParts: Array<{ model: string; supplier?: string; qty?: number; snapshotPrice?: number }> = [];
-    try { packingParts = JSON.parse(item.overrides?.packing_parts_json || '[]'); } catch { packingParts = []; }
+  const packingSummary = (item: QuotationItem) => {
+    let packingParts = parseJsonArray<PackingSnapshot>(item.overrides?.packing_parts_json);
     if (packingParts.length === 0 && item.overrides?.box_type) {
       packingParts = [{ model: item.overrides.box_type, supplier: '', qty: 1 }];
     }
@@ -122,9 +141,11 @@ export default function QuotationsPage() {
       const price = p.snapshotPrice !== undefined ? Number(p.snapshotPrice || 0) : getPartPrice(p.model, p.supplier || '');
       return sum + price * (p.qty || 1);
     }, 0);
+    const source = packingParts.some(p => p.snapshotPrice !== undefined) ? '快照' : '零件库';
     return {
       parts: packingParts,
       total,
+      source,
       label: packingParts.length > 0
         ? packingParts.map(p => `${p.model}×${p.qty || 1}`).join('、')
         : '无包装配置'
@@ -144,11 +165,11 @@ export default function QuotationsPage() {
     setItems([...items, { id: Date.now().toString(), base_recipe_id: '', base_recipe_name: '', qty: 1, overrides: {}, unit_cost: 0, margin: c ? c.defaultMargin : 0.15, unit_price: 0, total_price: 0 }]);
   };
 
-  const updateItemOverride = async (index: number, field: string, val: any) => {
+  const updateItemOverride = async (index: number, field: keyof QuotationItem['overrides'], val: string | number | boolean) => {
     await updateItemOverrides(index, { [field]: val });
   };
 
-  const updateItemOverrides = async (index: number, patch: Record<string, any>) => {
+  const updateItemOverrides = async (index: number, patch: Partial<QuotationItem['overrides']>) => {
     const newItems = [...items];
     newItems[index].overrides = { ...newItems[index].overrides, ...patch };
     
@@ -178,6 +199,9 @@ export default function QuotationsPage() {
       has_cable: recipe.has_cable === 1,
       cable_length: recipe.cable_length,
       cable_wire: recipe.cable_wire,
+      coil_spec: recipe.coil_spec || '',
+      coil_sheets: recipe.coil_sheets || 0,
+      coil_material: recipe.coil_material || '钢带',
       box_type: recipe.box_type || '',
       packing_parts_json: JSON.stringify(getPackingParts(recipe)),
       custom_barrel_length: recipe.custom_barrel_length || undefined
@@ -213,14 +237,14 @@ export default function QuotationsPage() {
   const handleSave = async () => {
     const totalCost = items.reduce((sum, item) => sum + (item.unit_cost * item.qty), 0);
     const totalPrice = items.reduce((sum, item) => sum + item.total_price, 0);
-    const data = { customerId, status, itemsJson: JSON.stringify(items), totalCost, totalPrice, remark };
+    const data: QuotationInput = { customerId, status, itemsJson: JSON.stringify(items), totalCost, totalPrice, remark };
     try {
       if (editing) await updateQuotation(editing.Id, data);
       else await createQuotation(data);
       await fetchQuotations(true);
       setOpen(false);
       showSnackbar('保存成功', 'success');
-    } catch (err: any) { showSnackbar(err.message || '保存失败', 'error'); }
+    } catch (err: unknown) { showSnackbar(getErrorMessage(err, '保存失败'), 'error'); }
   };
 
   const handleDelete = async (id: number) => {
@@ -229,15 +253,15 @@ export default function QuotationsPage() {
       await deleteQuotation(id);
       await fetchQuotations(true);
       showSnackbar('删除成功', 'info');
-    } catch (err: any) { showSnackbar(err.message || '删除失败', 'error'); }
+    } catch (err: unknown) { showSnackbar(getErrorMessage(err, '删除失败'), 'error'); }
   };
 
-  const openQuotation = useCallback((quotation: any) => {
+  const openQuotation = useCallback((quotation: Quotation) => {
     setEditing(quotation);
     setCustomerId(quotation.customerId);
     setStatus(quotation.status);
     setRemark(quotation.remark || '');
-    setItems(parseJsonArray(quotation.itemsJson));
+    setItems(parseJsonArray<QuotationItem>(quotation.itemsJson));
     setOpen(true);
   }, []);
 
@@ -251,12 +275,12 @@ export default function QuotationsPage() {
     navigate(location.pathname, { replace: true, state: null });
   }, [navigationState?.openQuotationId, quotations, openQuotation, location.key, location.pathname, navigate]);
 
-  const convertToOrder = async (q: any) => {
+  const convertToOrder = async (q: Quotation) => {
     if (!confirm('确定转化为正式订单？')) return;
     const c = customers.find(x => x.Id === q.customerId);
     
     // Map QuotationItems to OrderItems (they are slightly different but orders.cjs handles generic itemsJson)
-    const orderItems = JSON.parse(q.itemsJson || '[]').map((item: any) => ({
+    const orderItems = parseJsonArray<QuotationItem>(q.itemsJson).map((item) => ({
         id: item.id,
         recipeId: item.base_recipe_id || undefined,
         recipeName: item.base_recipe_name,
@@ -283,7 +307,7 @@ export default function QuotationsPage() {
         await fetchQuotations(true);
         await fetchOrders(true);
         showSnackbar('转订单成功', 'success');
-    } catch (err: any) { showSnackbar(err.message || '转换失败', 'error'); }
+    } catch (err: unknown) { showSnackbar(getErrorMessage(err, '转换失败'), 'error'); }
   };
 
   const hasStainlessBarrel = (recipeId: number | '') => {
@@ -291,9 +315,9 @@ export default function QuotationsPage() {
     const recipe = recipes.find(r => r.Id === recipeId);
     if (!recipe) return false;
     try {
-      const parts = JSON.parse(recipe.parts_json || '[]');
-      return parts.some((p: any) => (p.name || '').includes('不锈钢机筒') || (p.model || '').includes('不锈钢机筒'));
-    } catch (e) { return false; }
+      const recipeParts = parseJsonArray<RecipePart>(recipe.parts_json);
+      return recipeParts.some((p) => (p.name || '').includes('不锈钢机筒') || (p.model || '').includes('不锈钢机筒'));
+    } catch { return false; }
   };
 
   const customerNameMap = useMemo(() => new Map(customers.map(c => [c.Id, c.name])), [customers]);
@@ -310,8 +334,8 @@ export default function QuotationsPage() {
     const q = searchQuery.trim().toLowerCase();
     return quotations.filter(quotation => {
       const customerName = customerNameMap.get(quotation.customerId) || '';
-      const itemsText = parseJsonArray(quotation.itemsJson)
-        .map((item: any) => `${item.base_recipe_name || item.recipeName || ''}`)
+      const itemsText = parseJsonArray<QuotationItem>(quotation.itemsJson)
+        .map((item) => `${item.base_recipe_name || ''}`)
         .join(' ');
       const matchSearch = !q || [customerName, quotation.status, quotation.remark, itemsText]
         .some(value => String(value || '').toLowerCase().includes(q));
@@ -377,7 +401,7 @@ export default function QuotationsPage() {
                   <TableCell><Chip size="small" label={q.status} color={q.status === '已接受' ? 'success' : q.status === '已转订单' ? 'info' : 'default'} /></TableCell>
                   <TableCell>¥{q.totalCost.toFixed(2)}</TableCell>
                   <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>¥{q.totalPrice.toFixed(2)}</TableCell>
-                  <TableCell>{new Date(q.CreatedAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '-'}</TableCell>
                   <TableCell align="right">
                     {q.status === '已接受' && (
                         <Tooltip title="将此报价转化为正式订单">
@@ -462,6 +486,18 @@ export default function QuotationsPage() {
               
               {item.base_recipe_id !== '' && (
                 <Box display="flex" gap={2} flexWrap="wrap" bgcolor="rgba(0,0,0,0.02)" p={1} borderRadius={1} alignItems="center">
+                  {(() => {
+                    const recipe = recipes.find(r => r.Id === item.base_recipe_id);
+                    const coil = getCoilSnapshot(recipe);
+                    return coil.spec ? (
+                      <Chip
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        label={`线圈: ${coil.spec}-${coil.sheets} / ${item.overrides.coil_material || coil.material} / 单价 ¥${Number(coil.unitPrice || 0).toFixed(2)} / ${coil.source || '快照'} / ¥${Number(coil.cost || 0).toFixed(2)}`}
+                      />
+                    ) : null;
+                  })()}
                   <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.has_float} onChange={e => updateItemOverride(idx, 'has_float', e.target.checked)} />} label="加浮球" />
                   <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.has_cable} onChange={e => updateItemOverride(idx, 'has_cable', e.target.checked)} />} label="加电缆" />
                   {item.overrides.has_cable && <TextField label="电缆长度(米)" size="small" type="number" value={item.overrides.cable_length || ''} onChange={e => updateItemOverride(idx, 'cable_length', Number(e.target.value))} sx={{ minWidth: 120, width: 120 }} />}
@@ -473,7 +509,7 @@ export default function QuotationsPage() {
                     const summary = packingSummary(item);
                     const selectedPacking = summary.parts[0] || { model: '', supplier: '', qty: 1 };
                     const selectedPackingKey = selectedPacking.model ? `${selectedPacking.model}||${selectedPacking.supplier || ''}` : '';
-                    const setPackingPart = (packing: any) => {
+                    const setPackingPart = (packing: { model: string; supplier: string; price: number } | null) => {
                       updateItemOverrides(idx, {
                         box_type: packing?.model || '',
                         packing_parts_json: packing?.model ? JSON.stringify([{
@@ -513,7 +549,7 @@ export default function QuotationsPage() {
                           size="small"
                           color={summary.parts.length > 0 ? 'secondary' : 'default'}
                           variant="outlined"
-                          label={`包装: ${summary.label} / ¥${summary.total.toFixed(2)}`}
+                          label={`包装: ${summary.label} / ${summary.source} / ¥${summary.total.toFixed(2)}`}
                         />
                       </>
                     );
