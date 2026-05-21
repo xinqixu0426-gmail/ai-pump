@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { db, dbGetAllCoils, coilRow, safeUpdate, getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 const DEFAULT_MATERIAL = '钢带';
-const MATERIAL_UNIT_PRICE_DEFAULTS = { '钢带': 0.21, '冷轧800': 0.22 };
+const MATERIAL_UNIT_PRICE_DEFAULTS = { '钢带': 0.21, '冷轧800': 0.22, '其他材质': 0 };
 
 function getMaterialPriceMap() {
     try {

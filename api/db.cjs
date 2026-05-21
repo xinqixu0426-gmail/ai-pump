@@ -146,7 +146,7 @@ if (!existing) {
 }
 const existingCoilMaterialPrices = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('coil_material_prices');
 if (!existingCoilMaterialPrices) {
-    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('coil_material_prices', JSON.stringify({ '钢带': 0.21, '冷轧800': 0.22 }), new Date().toISOString());
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('coil_material_prices', JSON.stringify({ '钢带': 0.21, '冷轧800': 0.22, '其他材质': 0 }), new Date().toISOString());
 }
 
 // recipes 表新增结构化列（幂等 ALTER）

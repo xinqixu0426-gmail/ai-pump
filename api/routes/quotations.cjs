@@ -14,7 +14,19 @@ function parseNonNegativeNumber(value, field) {
     return number;
 }
 
-router.get('/', (req, res) => res.json({ success: true, data: dbGetAllQuotations() }));
+function expireOverdueQuotations() {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 1);
+    const rows = db.prepare('SELECT id FROM quotations WHERE deleted_at IS NULL AND status = ? AND created_at <= ?').all('报价中', cutoff.toISOString());
+    rows.forEach((row) => {
+        safeUpdate('quotations', row.id, { status: '已过时' });
+    });
+}
+
+router.get('/', (req, res) => {
+    expireOverdueQuotations();
+    res.json({ success: true, data: dbGetAllQuotations() });
+});
 
 router.post('/', (req, res) => {
     const { customerId, status, itemsJson, totalCost, totalPrice, remark } = req.body;

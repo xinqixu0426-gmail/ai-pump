@@ -72,7 +72,7 @@ export default function CoilRotorPage() {
   const calcMaterialOptions = useMemo(() => {
     if (!calcSpec) return materialOptions;
     const values = Array.from(new Set(coils.filter(c => c.spec === calcSpec).map(c => c.material || DEFAULT_COIL_MATERIAL)));
-    return values.length > 0 ? values : materialOptions;
+    return Array.from(new Set([...values, ...materialOptions])).filter(Boolean);
   }, [calcSpec, coils, materialOptions]);
   const calcRecords = useMemo(() => (
     calcSpec ? coils.filter(c => c.spec === calcSpec && (c.material || DEFAULT_COIL_MATERIAL) === calcMaterial) : []

@@ -9,7 +9,15 @@ import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost
 import { gradients } from '../utils/theme';
 import { PartSelection, Quotation, QuotationInput, QuotationItem, Recipe, RecipePart } from '../types';
 
-const STATUS_OPTIONS = ['全部', '报价中', '已接受', '已拒绝', '已转订单'];
+const QUOTATION_STATUSES = ['报价中', '已接受', '已拒绝', '已转订单', '已过时'];
+const STATUS_OPTIONS = ['全部', ...QUOTATION_STATUSES];
+const STATUS_COLORS: Record<string, 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'> = {
+  报价中: 'warning',
+  已接受: 'success',
+  已拒绝: 'error',
+  已转订单: 'info',
+  已过时: 'default',
+};
 
 type PackingSnapshot = PartSelection & { snapshotPrice?: number };
 
@@ -256,6 +264,18 @@ export default function QuotationsPage() {
     } catch (err: unknown) { showSnackbar(getErrorMessage(err, '删除失败'), 'error'); }
   };
 
+  const handleStatusChange = async (quotation: Quotation, nextStatus: string) => {
+    if (quotation.status === nextStatus) return;
+    try {
+      await updateQuotation(quotation.Id, { status: nextStatus });
+      await fetchQuotations(true);
+      showSnackbar('状态已更新', 'success');
+    } catch (err: unknown) {
+      await fetchQuotations(true);
+      showSnackbar(getErrorMessage(err, '状态更新失败'), 'error');
+    }
+  };
+
   const openQuotation = useCallback((quotation: Quotation) => {
     setEditing(quotation);
     setCustomerId(quotation.customerId);
@@ -398,7 +418,26 @@ export default function QuotationsPage() {
               return (
                 <TableRow key={q.Id}>
                   <TableCell sx={{ fontWeight: 600 }}>{customer ? customer.name : `未知 ID:${q.customerId}`}</TableCell>
-                  <TableCell><Chip size="small" label={q.status} color={q.status === '已接受' ? 'success' : q.status === '已转订单' ? 'info' : 'default'} /></TableCell>
+                  <TableCell>
+                    <FormControl size="small" sx={{ minWidth: 118 }}>
+                      <Select
+                        value={q.status}
+                        onChange={(event) => handleStatusChange(q, event.target.value)}
+                        renderValue={(selected) => (
+                          <Chip size="small" label={selected} color={STATUS_COLORS[selected] || 'default'} sx={{ height: 22 }} />
+                        )}
+                        sx={{
+                          '& .MuiSelect-select': {
+                            display: 'flex',
+                            alignItems: 'center',
+                            py: 0.5,
+                          },
+                        }}
+                      >
+                        {QUOTATION_STATUSES.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
                   <TableCell>¥{q.totalCost.toFixed(2)}</TableCell>
                   <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>¥{q.totalPrice.toFixed(2)}</TableCell>
                   <TableCell>{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '-'}</TableCell>
@@ -451,10 +490,7 @@ export default function QuotationsPage() {
             <FormControl fullWidth>
               <InputLabel>状态</InputLabel>
               <Select value={status} label="状态" onChange={e => setStatus(e.target.value as string)}>
-                <MenuItem value="报价中">报价中</MenuItem>
-                <MenuItem value="已接受">已接受</MenuItem>
-                <MenuItem value="已拒绝">已拒绝</MenuItem>
-                <MenuItem value="已转订单">已转订单</MenuItem>
+                {QUOTATION_STATUSES.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)}
               </Select>
             </FormControl>
           </Box>

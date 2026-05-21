@@ -46,6 +46,7 @@ export const DEFAULT_COIL_MATERIAL = '钢带';
 export const MATERIAL_UNIT_PRICE_DEFAULTS: Record<string, string> = {
   钢带: '0.21',
   冷轧800: '0.22',
+  其他材质: '0',
 };
 export const coilGroupKey = (spec: string, material = DEFAULT_COIL_MATERIAL) => `${spec}||${material || DEFAULT_COIL_MATERIAL}`;
 export const splitCoilGroupKey = (key: string) => {
