@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost, safeUpdate, softDelete } = require('../../../db.cjs');
 
 async function executeRecipeTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -45,7 +45,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const allRecipes = dbGetAllRecipes();
             const recipe = allRecipes.find(r => (r.name) === recipeName || (r.name || '').includes(recipeName));
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
-            db.prepare('DELETE FROM recipes WHERE id = ?').run(recipe.Id);
+            softDelete('recipes', recipe.Id);
             return { success: true, message: `配方"${recipe.name || recipeName}"已删除`, recipeName: recipe.name || recipeName };
         }
 
@@ -96,16 +96,8 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             patchBody.saved_cost_details = JSON.stringify(costRes.details || []);
 
             if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
-            {
-                const _rSets = []; const _rVals = [];
-                if (patchBody.name) { _rSets.push('name = ?'); _rVals.push(patchBody.name); }
-                if (patchBody.spec) { _rSets.push('spec = ?'); _rVals.push(patchBody.spec); }
-                if (patchBody.parts_json) { _rSets.push('parts_json = ?'); _rVals.push(patchBody.parts_json); }
-                if (patchBody.saved_total_cost !== undefined) { _rSets.push('saved_total_cost = ?'); _rVals.push(patchBody.saved_total_cost); }
-                if (patchBody.saved_cost_details) { _rSets.push('saved_cost_details = ?'); _rVals.push(patchBody.saved_cost_details); }
-                _rSets.push('updated_at = ?'); _rVals.push(new Date().toISOString()); _rVals.push(patchBody.Id);
-                db.prepare(`UPDATE recipes SET ${_rSets.join(', ')} WHERE id = ?`).run(..._rVals);
-            }
+            const { Id, ...recipeUpdates } = patchBody;
+            safeUpdate('recipes', Id, recipeUpdates);
             return { success: true, message: `配方"${recipe.name}"修改成功`, recipeName: newName || recipe.name, partsCount: parts.length, newCost: costRes.totalCost, changes };
         }
 

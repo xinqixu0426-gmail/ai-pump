@@ -120,18 +120,17 @@ router.patch('/spec/:spec', (req, res) => {
         const material = req.body.material ? String(req.body.material).trim() : '';
         if (unitPrice === undefined) return res.status(400).json({ success: false, error: 'unitPrice 为必填' });
         const up = parseFloat(unitPrice);
+        if (!Number.isFinite(up) || up < 0) return res.status(400).json({ success: false, error: 'unitPrice 必须是非负数字' });
 
         const rows = material
             ? db.prepare('SELECT * FROM coils WHERE spec = ? AND material = ?').all(spec, material)
             : db.prepare('SELECT * FROM coils WHERE spec = ?').all(spec);
         if (rows.length === 0) return res.status(404).json({ success: false, error: material ? `未找到规格 "${spec}"、材质 "${material}"` : `未找到规格 "${spec}"` });
 
-        const stmt = db.prepare('UPDATE coils SET unit_price = ?, cost = ?, updated_at = ? WHERE id = ?');
-        const now = new Date().toISOString();
         const updateAll = db.transaction(() => {
             for (const r of rows) {
                 const cost = (up * r.sheets + r.wire_weight * r.copper_base + r.coil_fee + r.rotor_fee).toFixed(5);
-                stmt.run(up, cost, now, r.id);
+                safeUpdate('coils', r.id, { unit_price: up, cost });
             }
         });
         updateAll();

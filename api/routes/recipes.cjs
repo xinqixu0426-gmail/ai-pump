@@ -48,6 +48,17 @@ function recipeBodyToDb(body) {
     return updates;
 }
 
+function parseId(value) {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function updateRecipeRecord(id, body) {
+    const updates = recipeBodyToDb(body);
+    safeUpdate('recipes', id, updates);
+    return recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id));
+}
+
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllRecipes() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -102,13 +113,29 @@ router.delete('/', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+router.delete('/:id', (req, res) => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
+        softDelete('recipes', id);
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
 router.patch('/', (req, res) => {
     try {
         const b = req.body;
         const id = b.Id || b.id;
-        const updates = recipeBodyToDb(b);
-        safeUpdate('recipes', id, updates);
-        res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)) });
+        if (!parseId(id)) return res.status(400).json({ success: false, error: '非法配方ID' });
+        res.json({ success: true, data: updateRecipeRecord(Number(id), b) });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.patch('/:id', (req, res) => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
+        res.json({ success: true, data: updateRecipeRecord(id, req.body) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 

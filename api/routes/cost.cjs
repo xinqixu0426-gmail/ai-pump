@@ -11,8 +11,7 @@ router.get('/health', (req, res) => {
     res.json({ status: 'ok', message: '水泵BOM成本查询API运行中', timestamp: new Date().toISOString() });
 });
 
-// ── POST /cost/calculate ──
-router.post('/cost/calculate', (req, res) => {
+function calculatePartsCostHandler(req, res) {
     try {
         const { parts } = req.body;
         if (!parts || !Array.isArray(parts) || parts.length === 0) {
@@ -21,7 +20,10 @@ router.post('/cost/calculate', (req, res) => {
         const { partsCache, partsByModel } = loadPartsData();
         res.json({ success: true, data: calculateRecipeCost(parts, partsCache, partsByModel) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
+}
+
+router.post('/cost/parts', calculatePartsCostHandler);
+router.post('/cost/calculate', calculatePartsCostHandler);
 
 // ── GET /cost/recipe/by-name ──
 router.get('/cost/recipe/by-name', (req, res) => {
@@ -45,8 +47,7 @@ router.get('/cost/recipe/by-name', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// ── GET /cost/recipe/:id ──
-router.get('/cost/recipe/:id', (req, res) => {
+function recipeCostByIdHandler(req, res) {
     try {
         const recipeId = req.params.id;
         const data = { list: [recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(parseInt(recipeId)))].filter(Boolean) };
@@ -60,7 +61,10 @@ router.get('/cost/recipe/:id', (req, res) => {
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
         res.json({ success: true, data: { recipeId, recipeName: name, recipeSpec: spec, ...result } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
+}
+
+router.get('/recipes/:id/cost', recipeCostByIdHandler);
+router.get('/cost/recipe/:id', recipeCostByIdHandler);
 
 // ── 辅助：从线圈表查线径 ──
 function resolveWireFromStator(statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL) {
@@ -279,12 +283,11 @@ router.post('/cost/dynamic-config', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// ── POST /cost/dynamic-calculate ──
-router.post('/cost/dynamic-calculate', (req, res) => {
+function dynamicCalculateHandler(req, res) {
     const { baseRecipeId, overrides } = req.body;
     try {
         const row = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(baseRecipeId);
-        if (!row) return res.status(404).json({ error: 'Recipe not found' });
+        if (!row) return res.status(404).json({ success: false, error: 'Recipe not found' });
         
         // Merge DB data with overrides
         const recipeData = {
@@ -366,14 +369,19 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         }
 
         costLogger.info(`DynamicCalc recipe=${recipeData.name}, has_float=${recipeData.has_float}, totalCost=${totalCost}`);
-        res.json({ success: true, unitCost: Number(totalCost.toFixed(2)) });
+        res.json({ success: true, data: { unitCost: Number(totalCost.toFixed(2)) } });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ success: false, error: err.message });
     }
-});
+}
 
-// ── POST /cost/full-calculate ──
-router.post('/cost/full-calculate', (req, res) => {
+router.post('/recipes/:id/cost-preview', (req, res) => {
+    req.body = { ...req.body, baseRecipeId: req.params.id };
+    dynamicCalculateHandler(req, res);
+});
+router.post('/cost/dynamic-calculate', dynamicCalculateHandler);
+
+function fullEstimateHandler(req, res) {
     try {
         const { pumphousing_model, stator, cableLength = 0, boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
         const statorMaterial = req.body.statorMaterial || req.body.material || DEFAULT_COIL_MATERIAL;
@@ -429,7 +437,10 @@ router.post('/cost/full-calculate', (req, res) => {
         result.breakdown = { recipeCost: result.recipeCost?.totalCost || '0', statorCost: result.statorCost?.cost || '0', dynamicCost: dynamic.totalCost.toFixed(2) };
         res.json({ success: true, data: result });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
+}
+
+router.post('/cost/full-estimate', fullEstimateHandler);
+router.post('/cost/full-calculate', fullEstimateHandler);
 
 // ── 铜价 ──
 

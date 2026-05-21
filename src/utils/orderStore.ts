@@ -83,8 +83,7 @@ export async function saveOrder(order: Order): Promise<Order> {
   // 如果 id 是纯数字 → 已存在行，PATCH 更新
   const numId = Number(order.id);
   if (!isNaN(numId) && numId > 0) {
-    record.Id = numId;
-    await proxyRequest('/api/orders', {
+    await proxyRequest(`/api/orders/${numId}`, {
       method: 'PATCH',
       body: JSON.stringify(record),
     });
@@ -102,10 +101,7 @@ export async function saveOrder(order: Order): Promise<Order> {
 export async function deleteOrder(id: string): Promise<void> {
   const numId = Number(id);
   if (isNaN(numId)) return;
-  await proxyRequest('/api/orders', {
-    method: 'DELETE',
-    body: JSON.stringify([{ Id: numId }]),
-  });
+  await proxyRequest(`/api/orders/${numId}`, { method: 'DELETE' });
 }
 
 // ── 工厂函数（保持同步，不涉及网络） ─────────────────

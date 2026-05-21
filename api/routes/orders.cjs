@@ -22,6 +22,17 @@ function orderBodyToDb(body) {
     return updates;
 }
 
+function parseId(value) {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function updateOrderRecord(id, body) {
+    const updates = orderBodyToDb(body);
+    safeUpdate('orders', id, updates);
+    return orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
+}
+
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllOrders() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -80,9 +91,16 @@ router.patch('/', (req, res) => {
     try {
         const b = req.body;
         const id = b.Id || b.id;
-        const updates = orderBodyToDb(b);
-        safeUpdate('orders', id, updates);
-        res.json({ success: true, data: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id)) });
+        if (!parseId(id)) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: updateOrderRecord(Number(id), b) });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.patch('/:id', (req, res) => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: updateOrderRecord(id, req.body) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -94,6 +112,15 @@ router.delete('/', (req, res) => {
             if (!id || isNaN(Number(id))) continue;
             softDelete('orders', Number(id));
         }
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.delete('/:id', (req, res) => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        softDelete('orders', id);
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

@@ -205,7 +205,22 @@ function recipeRow(r) {
         ? r.surface_treatment_cost
         : (r.painting_wage != null ? r.painting_wage : 0);
     return {
-        Id: r.id, name: r.name, spec: r.spec, parts_json: r.parts_json,
+        Id: r.id, name: r.name, spec: r.spec,
+        partsJson: r.parts_json,
+        savedTotalCost: r.saved_total_cost,
+        savedCostDetails: r.saved_cost_details,
+        templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
+        coilMaterial: r.coil_material || '閽㈠甫',
+        hasFloat: r.has_float, floatWire: r.float_wire, hasCable: r.has_cable,
+        cableLength: r.cable_length, cableWire: r.cable_wire, boxType: r.box_type,
+        customBarrelLength: r.custom_barrel_length, extraPartsJson: r.extra_parts_json,
+        packingPartsJson: r.packing_parts_json,
+        assemblyWage: r.assembly_wage, packingWage: r.packing_wage, paintingWage: r.painting_wage,
+        surfaceTreatmentMode,
+        surfaceTreatmentCost,
+        managementFee: r.management_fee,
+        // Legacy aliases kept while the frontend migrates fully to camelCase.
+        parts_json: r.parts_json,
         saved_total_cost: r.saved_total_cost,
         saved_cost_details: r.saved_cost_details,
         template_id: r.template_id, coil_spec: r.coil_spec, coil_sheets: r.coil_sheets,
@@ -224,7 +239,12 @@ function recipeRow(r) {
 function templateRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, shell_model: r.shell_model, description: r.description || '',
+        Id: r.id, shellModel: r.shell_model, description: r.description || '',
+        partsJson: r.parts_json || '[]', rotorParamsJson: r.rotor_params_json || '{}',
+        assemblyWage: r.assembly_wage || 0, packingWage: r.packing_wage || 0,
+        paintingWage: r.painting_wage != null ? r.painting_wage : null,
+        // Legacy aliases kept while the frontend migrates fully to camelCase.
+        shell_model: r.shell_model,
         parts_json: r.parts_json || '[]', rotor_params_json: r.rotor_params_json || '{}',
         assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
         painting_wage: r.painting_wage != null ? r.painting_wage : null,

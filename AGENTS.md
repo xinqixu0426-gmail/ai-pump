@@ -66,3 +66,6 @@
 - 最小改动原则，不重构无关代码
 - 不解释基础框架知识，直接给代码
 - 后端路由：同步操作（better-sqlite3）不加 `async`，仅外部 API 调用保留 `async`
+# API SOP
+
+- API 新增和修改必须遵守 `docs/api-sop.md`。

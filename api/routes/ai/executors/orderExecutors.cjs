@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, updateOrderFields } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, updateOrderFields, softDelete } = require('../../../db.cjs');
 
 async function executeOrderTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -272,7 +272,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
             const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
             const row = orderData.list?.[0];
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-            db.prepare('DELETE FROM orders WHERE id = ?').run(row.Id);
+            softDelete('orders', row.Id);
             return { success: true, message: `订单${orderId}已删除`, orderId, customerName: row.customerName };
         }
 

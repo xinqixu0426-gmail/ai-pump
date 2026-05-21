@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, partRow, invalidatePartsCache } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, partRow, invalidatePartsCache, safeUpdate, softDelete } = require('../../../db.cjs');
 const { buildBusinessSummary } = require('../../../services/businessSummary.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
@@ -113,7 +113,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: `未找到型号为"${model}"的零件` };
             }
 
-            const updates = { Id: target.Id };
+            const updates = {};
             const changes = [];
             if (price !== undefined) {
                 updates.price = price;
@@ -141,16 +141,8 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '没有指定任何要修改的字段' };
             }
 
-            {
-                const uSets2 = []; const uVals2 = [];
-                if (updates.price !== undefined) { uSets2.push('price = ?'); uVals2.push(updates.price); }
-                if (updates.stock !== undefined) { uSets2.push('stock = ?'); uVals2.push(updates.stock); }
-                if (updates.supplier !== undefined) { uSets2.push('supplier = ?'); uVals2.push(updates.supplier); }
-                if (updates.category !== undefined) { uSets2.push('category = ?'); uVals2.push(updates.category); }
-                uSets2.push('updated_at = ?'); uVals2.push(new Date().toISOString()); uVals2.push(target.Id);
-                db.prepare(`UPDATE parts SET ${uSets2.join(', ')} WHERE id = ?`).run(...uVals2);
-                invalidatePartsCache();
-            }
+            safeUpdate('parts', target.Id, updates);
+            invalidatePartsCache();
 
             // 回读验证
             try {
@@ -195,7 +187,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
             const allParts = dbGetAllParts();
             const target = allParts.find(p => (p.model || '') === model);
             if (!target) return { success: false, error: '找不到零件: ' + model };
-            db.prepare('DELETE FROM parts WHERE id = ?').run(target.Id);
+            softDelete('parts', target.Id);
             invalidatePartsCache();
             return { success: true, message: `零件"${model}"已删除`, model };
         }
@@ -221,7 +213,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
 
             // PATCH 支持批量
             for (const u of updates) {
-                db.prepare('UPDATE parts SET price = ?, updated_at = ? WHERE id = ?').run(u.price, new Date().toISOString(), u.Id);
+                safeUpdate('parts', u.Id, { price: u.price });
             }
             invalidatePartsCache();
 

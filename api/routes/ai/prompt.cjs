@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../../db.cjs');
+const authMiddleware = require('../../authMiddleware.cjs');
 
 let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮助用户查询成本、配方、零件、铜价、线圈数据，以及执行数据库写操作。
 
@@ -76,7 +77,7 @@ router.get('/api/ai/system-prompt', (req, res) => {
     res.json({ success: true, data: AI_SYSTEM_PROMPT });
 });
 
-router.put('/api/ai/system-prompt', async (req, res) => {
+router.put('/api/ai/system-prompt', authMiddleware, async (req, res) => {
     try {
         const { prompt } = req.body;
         AI_SYSTEM_PROMPT = prompt;

@@ -48,9 +48,16 @@ export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'po
 /** 泵壳模板 */
 export interface PumpShellTemplate {
   Id: number;
+  shellModel?: string;
+  partsJson?: string;
+  rotorParamsJson?: string;
+  assemblyWage?: number;
+  packingWage?: number;
+  paintingWage?: number | null;
   shell_model: string;
   description: string;
   parts_json: string;
+  rotor_params_json?: string;
   assembly_wage: number;
   packing_wage: number;
   painting_wage: number | null;
@@ -63,6 +70,28 @@ export interface Recipe {
   Id: number;
   name: string;
   spec: string;
+  partsJson?: string;
+  savedTotalCost?: number;
+  savedCostDetails?: string;
+  templateId?: number | null;
+  coilSpec?: string;
+  coilSheets?: number;
+  coilMaterial?: string;
+  hasFloat?: number;
+  floatWire?: string;
+  hasCable?: number;
+  cableLength?: number;
+  cableWire?: string;
+  boxType?: string;
+  packingPartsJson?: string;
+  extraPartsJson?: string;
+  customBarrelLength?: number | null;
+  assemblyWage?: number;
+  packingWage?: number;
+  paintingWage?: number | null;
+  surfaceTreatmentMode?: SurfaceTreatmentMode;
+  surfaceTreatmentCost?: number;
+  managementFee?: number;
   parts_json: string;
   saved_total_cost?: number;
   saved_cost_details?: string;

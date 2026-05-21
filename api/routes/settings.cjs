@@ -2,22 +2,27 @@ const { Router } = require('express');
 const { getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 
-// GET /api/settings/:key
+const ALLOWED_SETTINGS = new Set(['management_fee', 'coil_material_prices']);
+
 router.get('/:key', (req, res) => {
+    if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
     const value = getSetting(req.params.key);
     if (value === null) return res.status(404).json({ success: false, error: `设置项 "${req.params.key}" 不存在` });
     res.json({ success: true, data: { key: req.params.key, value } });
 });
 
-// PUT /api/settings/:key
 router.put('/:key', (req, res) => {
     const { value } = req.body;
+    if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
     if (value === undefined) return res.status(400).json({ success: false, error: 'value 为必填项' });
+    if (req.params.key === 'management_fee') {
+        const fee = Number(value);
+        if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ success: false, error: 'management_fee 必须是非负数字' });
+    }
     setSetting(req.params.key, value);
     res.json({ success: true, data: { key: req.params.key, value: String(value) } });
 });
 
-// GET /api/settings — 获取所有设置
 router.get('/', (req, res) => {
     const { db } = require('../db.cjs');
     const rows = db.prepare('SELECT key, value, updated_at FROM system_settings').all();
