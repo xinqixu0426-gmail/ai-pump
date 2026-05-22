@@ -146,19 +146,23 @@ router.post('/calculate', (req, res) => {
         const requestedMaterial = req.body.material ? String(req.body.material).trim() : '';
         const material = requestedMaterial || DEFAULT_MATERIAL;
         if (!spec || !sheets) return res.status(400).json({ success: false, error: '规格和片数为必填项' });
+        const materialPrices = getMaterialPriceMap();
         const targetSheets = parseInt(sheets);
         const allSpecCoils = dbGetAllCoils()
             .filter(c => String(c.spec).trim() === String(spec).trim())
             .sort((a, b) => parseInt(a.sheets) - parseInt(b.sheets));
         const materialCoils = allSpecCoils.filter(c => String(c.material || DEFAULT_MATERIAL).trim() === material);
-        const specCoils = materialCoils.length > 0 ? materialCoils : (!requestedMaterial ? allSpecCoils : []);
+        const canUseMaterialPrice = requestedMaterial && materialPrices[material] !== undefined;
+        const useMaterialPriceFallback = canUseMaterialPrice && materialCoils.length === 0;
+        const specCoils = materialCoils.length > 0 ? materialCoils : ((!requestedMaterial || canUseMaterialPrice) ? allSpecCoils : []);
         if (specCoils.length === 0) return res.status(404).json({ success: false, error: requestedMaterial ? `未找到规格 "${spec}"、材质 "${material}" 的线圈数据` : `未找到规格 "${spec}" 的线圈数据` });
+        const resolveUnitPrice = (coil) => useMaterialPriceFallback ? parseFloat(materialPrices[material] || 0) : parseFloat(coil.unitPrice || 0);
 
         const exactMatch = specCoils.find(c => parseInt(c.sheets) === targetSheets);
         let unitPrice, wireWeight, copperBase, coilFee, rotorFee, wireGauge, capacitor, source;
 
         if (exactMatch) {
-            unitPrice = parseFloat(exactMatch.unitPrice || 0);
+            unitPrice = resolveUnitPrice(exactMatch);
             wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(exactMatch.wireWeight || 0);
             copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(exactMatch.copperBase || 0);
             coilFee = parseFloat(exactMatch.coilFee || 0);
@@ -176,7 +180,7 @@ router.post('/calculate', (req, res) => {
             if (lower && upper) {
                 const lS = parseInt(lower.sheets), uS = parseInt(upper.sheets);
                 const ratio = (targetSheets - lS) / (uS - lS);
-                unitPrice = parseFloat(lower.unitPrice || 0);
+                unitPrice = resolveUnitPrice(lower);
                 const iWW = parseFloat(lower.wireWeight || 0) + (parseFloat(upper.wireWeight || 0) - parseFloat(lower.wireWeight || 0)) * ratio;
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(iWW.toFixed(4));
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.copperBase || 0);
@@ -186,14 +190,14 @@ router.post('/calculate', (req, res) => {
                 capacitor = lower.defaultCapacitor || upper.defaultCapacitor || null;
                 source = `插值(${lS}片↔${uS}片, ratio=${ratio.toFixed(3)})`;
             } else if (lower) {
-                unitPrice = parseFloat(lower.unitPrice || 0);
+                unitPrice = resolveUnitPrice(lower);
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(lower.wireWeight || 0);
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(lower.copperBase || 0);
                 coilFee = parseFloat(lower.coilFee || 0); rotorFee = parseFloat(lower.rotorFee || 0);
                 wireGauge = lower.defaultWireGauge || null; capacitor = lower.defaultCapacitor || null;
                 source = `外推(基于${parseInt(lower.sheets)}片)`;
             } else if (upper) {
-                unitPrice = parseFloat(upper.unitPrice || 0);
+                unitPrice = resolveUnitPrice(upper);
                 wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(upper.wireWeight || 0);
                 copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(upper.copperBase || 0);
                 coilFee = parseFloat(upper.coilFee || 0); rotorFee = parseFloat(upper.rotorFee || 0);
@@ -221,11 +225,12 @@ router.post('/calculate', (req, res) => {
 router.get('/specs', (req, res) => {
     try {
         const allCoils = dbGetAllCoils();
+        const configuredMaterials = Object.keys(getMaterialPriceMap()).filter(Boolean);
         const specsMap = {};
         allCoils.forEach(c => {
             const spec = c.spec;
             const material = c.material || DEFAULT_MATERIAL;
-            if (!specsMap[spec]) specsMap[spec] = { spec, material, materials: [], unitPrice: c.unitPrice, sheets: [], count: 0 };
+            if (!specsMap[spec]) specsMap[spec] = { spec, material, materials: [...configuredMaterials], unitPrice: c.unitPrice, sheets: [], count: 0 };
             if (!specsMap[spec].materials.includes(material)) specsMap[spec].materials.push(material);
             if (material === DEFAULT_MATERIAL) {
                 specsMap[spec].material = material;

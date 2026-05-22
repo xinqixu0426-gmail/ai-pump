@@ -159,7 +159,8 @@ nohup node api.cjs > /dev/null 2>&1 &
 - `GET/POST/PATCH/DELETE /api/orders` — 订单管理
 - `GET /api/orders/history-price/:recipeName` — 历史价格查询
 - `GET/POST/PATCH/DELETE /api/coils` — 线圈管理
-- `POST /api/coils/calculate` — 线圈成本计算（支持插值）
+- `GET /api/coils/specs` — 线圈规格列表，`materials` 合并已配置材质与已使用材质
+- `POST /api/coils/calculate` — 线圈成本计算（支持插值；规格下没有该材质记录时，可用材质配置单价兜底）
 - `GET/POST/PATCH/DELETE /api/templates` — 泵壳模板
 - `POST /api/cost/calculate` — 成本计算
 - `POST /api/cost/full-calculate` — 一站式成本计算

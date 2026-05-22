@@ -117,6 +117,7 @@ export default function StepPartsConfig({
   const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
   const selectedCoilSpec = coilSpecs.find(s => s.spec === coilSpec);
   const coilMaterialOptions = selectedCoilSpec?.materials?.length ? selectedCoilSpec.materials : ['钢带'];
+  const displayedOptionalCount = optionalParts.length + (capacitorModel ? 1 : 0);
 
   return (
     <>
@@ -196,29 +197,6 @@ export default function StepPartsConfig({
             </Typography>
           )}
         </Box>
-        {/* 电容联动提示 */}
-        {capacitorModel && (
-          <Box sx={{ px: 2, py: 0.75, bgcolor: 'rgba(46, 125, 50, 0.04)', borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              ⚡ 自动关联电容：
-            </Typography>
-            <Chip
-              label={capacitorModel}
-              size="small"
-              variant="outlined"
-              color="success"
-              sx={{ fontWeight: 600, fontSize: '0.72rem' }}
-            />
-            <Typography variant="caption" color="success.main" fontWeight={600}>
-              ¥{capacitorPrice.toFixed(2)}
-            </Typography>
-            {coilResult?.capacitor && (
-              <Typography variant="caption" color="text.disabled" sx={{ ml: 'auto' }}>
-                来自线圈表: {coilResult.capacitor}
-              </Typography>
-            )}
-          </Box>
-        )}
       </Paper>
 
       {/* ━━ 选配配件 ━━ */}
@@ -227,7 +205,7 @@ export default function StepPartsConfig({
           <Box display="flex" alignItems="center" gap={1}>
             <Typography sx={{ fontSize: 15, lineHeight: 1 }}>🔩</Typography>
             <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
-              ▸ 选配配件（{optionalParts.length} 项）
+              ▸ 选配配件（{displayedOptionalCount} 项）
             </Typography>
           </Box>
           <Button
@@ -239,7 +217,7 @@ export default function StepPartsConfig({
             添加配件
           </Button>
         </Box>
-        {optionalParts.length === 0 ? (
+        {displayedOptionalCount === 0 ? (
           <Box sx={{ py: 2, textAlign: 'center', color: 'text.disabled', fontSize: '0.8rem' }}>
             暂无选配配件
           </Box>
@@ -247,6 +225,38 @@ export default function StepPartsConfig({
           <Table size="small" sx={{ tableLayout: 'auto' }}>
             <TableHeader />
             <TableBody>
+              {capacitorModel && (
+                <TableRow sx={{ bgcolor: 'rgba(46, 125, 50, 0.04)' }}>
+                  <TableCell sx={{ pl: 1.5, py: 0.75, fontSize: '0.82rem', fontWeight: 600 }}>
+                    电容
+                  </TableCell>
+                  <TableCell sx={{ py: 0.75 }}>
+                    <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                      <Chip
+                        label={capacitorModel}
+                        size="small"
+                        variant="outlined"
+                        color="success"
+                        sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+                      />
+                      {coilResult?.capacitor && (
+                        <Typography variant="caption" color="text.secondary">
+                          自动关联 {coilResult.capacitor}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ py: 0.75, color: 'text.secondary', fontSize: '0.82rem' }}>默认</TableCell>
+                  <TableCell sx={{ py: 0.75, fontSize: '0.82rem' }}>1</TableCell>
+                  <TableCell sx={{ py: 0.75, textAlign: 'right', color: capacitorPrice > 0 ? 'text.secondary' : 'error.main', fontSize: '0.82rem' }}>
+                    {capacitorPrice > 0 ? `¥${capacitorPrice.toFixed(2)}` : '-'}
+                  </TableCell>
+                  <TableCell sx={{ py: 0.75, textAlign: 'right', fontWeight: 600, color: capacitorPrice > 0 ? 'text.primary' : 'error.main', fontSize: '0.82rem' }}>
+                    {capacitorPrice > 0 ? `¥${capacitorPrice.toFixed(2)}` : '未找到'}
+                  </TableCell>
+                  <TableCell sx={{ py: 0.75 }} />
+                </TableRow>
+              )}
               {optionalParts.map((part) => (
                 <RecipePartRow
                   key={part.id}

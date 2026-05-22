@@ -496,6 +496,7 @@ export default function RecipeFormPage() {
         managementFee={managementFee} setManagementFee={setManagementFee} laborCost={laborCost}
         recipeName={recipeName} recipeSpec={recipeSpec} coilSpec={coilSpec} coilSheets={coilSheets}
         optionalParts={optionalParts}
+        capacitorModel={capacitorModel}
       />
 
       <Button

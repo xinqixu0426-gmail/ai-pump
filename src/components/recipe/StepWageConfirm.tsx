@@ -30,6 +30,7 @@ interface StepWageConfirmProps {
   coilSpec: string;
   coilSheets: string;
   optionalParts: Array<PartSelection & { id: number }>;
+  capacitorModel?: string;
 }
 
 const SURFACE_LABELS: Record<SurfaceTreatmentMode, string> = {
@@ -57,6 +58,7 @@ export default function StepWageConfirm({
   coilSpec,
   coilSheets,
   optionalParts,
+  capacitorModel = '',
 }: StepWageConfirmProps) {
   const handleSurfaceModeChange = (mode: SurfaceTreatmentMode) => {
     setSurfaceTreatmentMode(mode);
@@ -65,6 +67,7 @@ export default function StepWageConfirm({
   };
 
   const surfaceCostDisabled = surfaceTreatmentMode === 'none';
+  const displayedOptionalCount = optionalParts.filter(p => p.model).length + (capacitorModel ? 1 : 0);
 
   return (
     <>
@@ -147,7 +150,7 @@ export default function StepWageConfirm({
           <Typography variant="body2" color="text.secondary">规格：<strong>{recipeSpec || '-'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">泵壳模板：<strong>{selectedTemplate?.shellModel || '未选择'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">线圈规格：<strong>{coilSpec ? `${coilSpec} / ${coilSheets}片` : '未配置'}</strong></Typography>
-          <Typography variant="body2" color="text.secondary">选配件数：<strong>{optionalParts.filter(p => p.model).length} 项</strong></Typography>
+          <Typography variant="body2" color="text.secondary">选配件数：<strong>{displayedOptionalCount} 项</strong></Typography>
           <Typography variant="body2" color="text.secondary">表面处理：<strong>{SURFACE_LABELS[surfaceTreatmentMode]} ¥{surfaceTreatmentCost.toFixed(2)}</strong></Typography>
           <Typography variant="body2" color="text.secondary">人工与管理合计：<strong>¥{laborCost.toFixed(2)}</strong></Typography>
         </Box>
