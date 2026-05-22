@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate } = require('../db.cjs');
+const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate, hardDelete } = require('../db.cjs');
 const router = Router();
 
 const TEMPLATE_ALIASES = {
@@ -104,7 +104,7 @@ router.delete('/:id', (req, res) => {
         const id = parseInt(req.params.id);
         const refs = db.prepare('SELECT COUNT(*) as cnt FROM recipes WHERE template_id = ?').get(id);
         if (refs.cnt > 0) return res.status(409).json({ success: false, error: `有 ${refs.cnt} 个配方引用此模板，无法删除` });
-        db.prepare('DELETE FROM pump_shell_templates WHERE id = ?').run(id);
+        hardDelete('pump_shell_templates', id);
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

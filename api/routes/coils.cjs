@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllCoils, coilRow, safeUpdate, getSetting, setSetting } = require('../db.cjs');
+const { db, dbGetAllCoils, coilRow, safeUpdate, hardDelete, getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 const DEFAULT_MATERIAL = '钢带';
 const MATERIAL_UNIT_PRICE_DEFAULTS = { '钢带': 0.21, '冷轧800': 0.22, '其他材质': 0 };
@@ -106,7 +106,7 @@ router.patch('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
     try {
-        db.prepare('DELETE FROM coils WHERE id = ?').run(parseInt(req.params.id));
+        hardDelete('coils', parseInt(req.params.id));
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

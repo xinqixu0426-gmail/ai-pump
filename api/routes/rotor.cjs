@@ -4,9 +4,15 @@ const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const fs = require('fs');
-const { db, safeUpdate } = require('../db.cjs');
+const { db, safeUpdate, hardDelete } = require('../db.cjs');
 
 const router = Router();
+
+function updateRotorJob(jobId, updates) {
+    const row = db.prepare('SELECT id FROM rotor_drawings WHERE job_id = ?').get(jobId);
+    if (!row) return;
+    safeUpdate('rotor_drawings', row.id, updates);
+}
 
 const os = require('os');
 const FREECAD_BIN = process.env.FREECAD_BIN || (os.platform() === 'darwin' ? '/Applications/FreeCAD.app/Contents/MacOS/FreeCAD' : 'C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe');
@@ -175,7 +181,7 @@ function launchDrawJob(fcParams, source, res) {
         if (error) {
             console.error('[Rotor] 💥 渲染异常:', error.message);
             activeJobs.set(jobId, { status: 'failed', error: error.message, doneAt: Date.now() });
-            try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(error.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+            try { updateRotorJob(jobId, { status: 'failed', error: error.message }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             return;
         }
 
@@ -193,14 +199,14 @@ function launchDrawJob(fcParams, source, res) {
                 const fileUrl = '/drawings/' + outputFile;
                 console.log('[Rotor] ✅ PDF 已移至: ' + destPdf);
                 activeJobs.set(jobId, { status: 'success', fileUrl, doneAt: Date.now() });
-                try { db.prepare(`UPDATE rotor_drawings SET status='success', file_url=?, updated_at=? WHERE job_id=?`).run(fileUrl, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+                try { updateRotorJob(jobId, { status: 'success', file_url: fileUrl }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             } else {
                 activeJobs.set(jobId, { status: 'failed', error: '未找到 output PDF', doneAt: Date.now() });
-                try { db.prepare(`UPDATE rotor_drawings SET status='failed', error='未找到 output PDF', updated_at=? WHERE job_id=?`).run(new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+                try { updateRotorJob(jobId, { status: 'failed', error: '未找到 output PDF' }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             }
         } catch (mvErr) {
             activeJobs.set(jobId, { status: 'failed', error: '移动PDF失败: ' + mvErr.message, doneAt: Date.now() });
-            try { db.prepare(`UPDATE rotor_drawings SET status='failed', error=?, updated_at=? WHERE job_id=?`).run(mvErr.message, new Date().toISOString(), jobId); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
+            try { updateRotorJob(jobId, { status: 'failed', error: mvErr.message }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
         }
     });
 
@@ -459,8 +465,8 @@ router.post('/chat', async (req, res) => {
 // ═══════════════════════════════════════════════
 router.get('/status/:jobId', (req, res) => {
     const job = activeJobs.get(req.params.jobId);
-    if (!job) return res.status(404).json({ status: 'not_found', message: '找不到此任务' });
-    res.json(job);
+    if (!job) return res.status(404).json({ success: false, status: 'not_found', message: '找不到此任务' });
+    res.json({ success: true, data: job, ...job });
 });
 
 // ═══════════════════════════════════════════════
@@ -469,9 +475,9 @@ router.get('/status/:jobId', (req, res) => {
 router.get('/history', (req, res) => {
     try {
         const rows = db.prepare('SELECT * FROM rotor_drawings ORDER BY created_at DESC LIMIT 100').all();
-        res.json(rows);
+        res.json({ success: true, data: rows });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 
@@ -481,7 +487,7 @@ router.get('/history', (req, res) => {
 router.delete('/history/:id', (req, res) => {
     try {
         const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(req.params.id);
-        if (!row) return res.status(404).json({ error: '记录不存在' });
+        if (!row) return res.status(404).json({ success: false, error: '记录不存在' });
         // 删除对应 PDF 文件
         if (row.file_url) {
             const filePath = path.join(__dirname, '../../public', row.file_url);
@@ -489,10 +495,10 @@ router.delete('/history/:id', (req, res) => {
                 try { fs.unlinkSync(filePath); } catch(_){}
             }
         }
-        db.prepare('DELETE FROM rotor_drawings WHERE id = ?').run(req.params.id);
-        res.json({ ok: true });
+        hardDelete('rotor_drawings', Number(req.params.id));
+        res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 // ═══════════════════════════════════════════════
@@ -509,28 +515,27 @@ router.post('/print/:jobId', (req, res) => {
         // 内存没有则查数据库
         if (!fileUrl) {
             const row = db.prepare('SELECT file_url, status FROM rotor_drawings WHERE job_id = ?').get(req.params.jobId);
-            if (!row) return res.status(404).json({ error: '找不到此任务' });
-            if (row.status !== 'success') return res.status(400).json({ error: '该任务尚未成功完成，无法打印' });
+            if (!row) return res.status(404).json({ success: false, error: '找不到此任务' });
+            if (row.status !== 'success') return res.status(400).json({ success: false, error: '该任务尚未成功完成，无法打印' });
             fileUrl = row.file_url;
         }
-        if (!fileUrl) return res.status(400).json({ error: '找不到 PDF 文件路径' });
+        if (!fileUrl) return res.status(400).json({ success: false, error: '找不到 PDF 文件路径' });
 
         const pdfPath = path.join(__dirname, '../../public', fileUrl);
         if (!fs.existsSync(pdfPath)) {
-            return res.status(404).json({ error: 'PDF 文件不存在: ' + fileUrl });
+            return res.status(404).json({ success: false, error: 'PDF 文件不存在: ' + fileUrl });
         }
 
         // 使用多种方式尝试打印
-        const { execSync } = require('child_process');
+        const { execFileSync } = require('child_process');
         let printed = false;
         let lastErr = '';
 
         // 方案1: 用 SumatraPDF（如已安装）
         try {
-            execSync(`where SumatraPDF`, { timeout: 3000 });
-            const cmd = `SumatraPDF -print-to-default -silent "${pdfPath}"`;
-            console.log('[Rotor] 🖨️ 尝试 SumatraPDF:', cmd);
-            execSync(cmd, { timeout: 30000 });
+            execFileSync('where', ['SumatraPDF'], { timeout: 3000 });
+            console.log('[Rotor] 🖨️ 尝试 SumatraPDF:', pdfPath);
+            execFileSync('SumatraPDF', ['-print-to-default', '-silent', pdfPath], { timeout: 30000 });
             printed = true;
         } catch (e) { lastErr = e.message; }
 
@@ -539,9 +544,15 @@ router.post('/print/:jobId', (req, res) => {
             try {
                 const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
                 if (fs.existsSync(edgePath)) {
-                    const cmd = `Start-Process -FilePath '${edgePath}' -ArgumentList '--headless','--disable-gpu','--print-to-pdf-no-header','--no-pdf-header-footer','--print-to-default-printer','${pdfPath}' -WindowStyle Hidden`;
-                    console.log('[Rotor] 🖨️ 尝试 Edge 打印');
-                    execSync(`powershell -Command "${cmd}"`, { timeout: 30000 });
+                    console.log('[Rotor] 🖨️ 尝试 Edge 打印:', pdfPath);
+                    execFileSync(edgePath, [
+                        '--headless',
+                        '--disable-gpu',
+                        '--print-to-pdf-no-header',
+                        '--no-pdf-header-footer',
+                        '--print-to-default-printer',
+                        pdfPath
+                    ], { timeout: 30000 });
                     printed = true;
                 }
             } catch (e) { lastErr = e.message; }
@@ -550,22 +561,21 @@ router.post('/print/:jobId', (req, res) => {
         // 方案3: Windows 内置 ShellExecute print（兜底）
         if (!printed) {
             try {
-                const cmd = `rundll32.exe mshtml.dll,PrintHTML "${pdfPath}"`;
-                console.log('[Rotor] 🖨️ 尝试 rundll32 打印');
-                execSync(cmd, { timeout: 15000 });
+                console.log('[Rotor] 🖨️ 尝试 rundll32 打印:', pdfPath);
+                execFileSync('rundll32.exe', ['mshtml.dll,PrintHTML', pdfPath], { timeout: 15000 });
                 printed = true;
             } catch (e) { lastErr = e.message; }
         }
 
         if (printed) {
             console.log('[Rotor] ✅ 打印指令已发送: ' + pdfPath);
-            res.json({ ok: true, message: '打印指令已发送到默认打印机' });
+            res.json({ success: true, message: '打印指令已发送到默认打印机' });
         } else {
             throw new Error('所有打印方式均失败: ' + lastErr);
         }
     } catch (e) {
         console.error('[Rotor] 🖨️ 打印失败:', e.message);
-        res.status(500).json({ error: '打印失败: ' + e.message });
+        res.status(500).json({ success: false, error: '打印失败: ' + e.message });
     }
 });
 
@@ -592,9 +602,9 @@ router.get('/order-pump-models', (req, res) => {
                 }
             } catch { /* skip parse errors */ }
         }
-        res.json(models);
+        res.json({ success: true, data: models });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 
@@ -605,14 +615,14 @@ router.patch('/history/:id/link', (req, res) => {
     try {
         const linkedPumpModel = req.body.linkedPumpModel ?? req.body.linked_pump_model;
         if (typeof linkedPumpModel !== 'string') {
-            return res.status(400).json({ error: '缺少 linkedPumpModel 参数' });
+            return res.status(400).json({ success: false, error: '缺少 linkedPumpModel 参数' });
         }
         const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(req.params.id);
-        if (!row) return res.status(404).json({ error: '记录不存在' });
+        if (!row) return res.status(404).json({ success: false, error: '记录不存在' });
         safeUpdate('rotor_drawings', Number(req.params.id), { linked_pump_model: linkedPumpModel });
-        res.json({ ok: true, linkedPumpModel });
+        res.json({ success: true, data: { linkedPumpModel }, linkedPumpModel });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 

@@ -21,15 +21,15 @@ import StatCard from '../components/StatCard';
 import { colors, gradients } from '../utils/theme';
 
 function getRecipeLaborTotal(recipe: Recipe): number {
-  const surfaceTreatmentCost = recipe.surface_treatment_cost ?? recipe.painting_wage ?? 0;
+  const surfaceTreatmentCost = recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0;
   let laborTotal =
-    (recipe.assembly_wage || 0) +
-    (recipe.packing_wage || 0) +
+    (recipe.assemblyWage || 0) +
+    (recipe.packingWage || 0) +
     surfaceTreatmentCost +
-    (recipe.management_fee || 0);
+    (recipe.managementFee || 0);
 
-  if (laborTotal === 0 && recipe.saved_cost_details) {
-    recipe.saved_cost_details.split('\n').forEach(line => {
+  if (laborTotal === 0 && recipe.savedCostDetails) {
+    recipe.savedCostDetails.split('\n').forEach(line => {
       if (line.includes('工资') || line.includes('费用')) {
         const match = line.match(/(.+?):\s*¥([\d.]+)/);
         if (match) laborTotal += parseFloat(match[2]) || 0;
@@ -41,7 +41,7 @@ function getRecipeLaborTotal(recipe: Recipe): number {
 }
 
 function getRecipeSavedTotal(recipe: Recipe): number | null {
-  const saved = Number(recipe.saved_total_cost);
+  const saved = Number(recipe.savedTotalCost);
   return Number.isFinite(saved) && saved > 0 ? saved : null;
 }
 
@@ -87,7 +87,7 @@ export default function RecipesPage() {
   // ── 模板名称映射 ──
   const tplNameMap = useMemo(() => {
     const m = new Map<number, string>();
-    templates.forEach(t => m.set(t.Id, t.shell_model));
+    templates.forEach(t => m.set(t.Id, t.shellModel));
     return m;
   }, [templates]);
 
@@ -99,7 +99,7 @@ export default function RecipesPage() {
       const map = new Map<number, { overview: string; cost: string; costResult: CostResult }>();
       for (const recipe of recipes) {
         let recipeParts: RecipePart[] = [];
-        try { recipeParts = JSON.parse(recipe.parts_json); } catch { /* */ }
+        try { recipeParts = JSON.parse(recipe.partsJson); } catch { /* */ }
         const validParts = recipeParts.filter(p => p && p.model);
         const overview = validParts.length > 0
           ? validParts.map(p => `${p.model}×${p.qty ?? 1}`).join(', ')
@@ -118,7 +118,7 @@ export default function RecipesPage() {
           });
         } catch {
           // 计算失败时用保存的总成本兜底
-          const fallbackCost = recipe.saved_total_cost ?? 0;
+          const fallbackCost = recipe.savedTotalCost ?? 0;
           map.set(recipe.Id, {
             overview,
             cost: `¥${fallbackCost.toFixed(2)}`,
@@ -156,30 +156,30 @@ export default function RecipesPage() {
 
   const handleClone = (recipe: Recipe) => {
     navigate('/recipe-form', { state: { cloneFrom: {
-      name: recipe.name + '-副本', spec: recipe.spec, partsJson: recipe.parts_json,
-      template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets, coil_material: recipe.coil_material,
-      has_float: recipe.has_float, float_wire: recipe.float_wire,
-      has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
-      box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
-      assembly_wage: recipe.assembly_wage, packing_wage: recipe.packing_wage, painting_wage: recipe.painting_wage,
-      surface_treatment_mode: recipe.surface_treatment_mode,
-      surface_treatment_cost: recipe.surface_treatment_cost,
-      management_fee: recipe.management_fee,
+      name: recipe.name + '-副本', spec: recipe.spec, partsJson: recipe.partsJson,
+      templateId: recipe.templateId, coilSpec: recipe.coilSpec, coilSheets: recipe.coilSheets, coilMaterial: recipe.coilMaterial,
+      hasFloat: recipe.hasFloat, floatWire: recipe.floatWire,
+      hasCable: recipe.hasCable, cableLength: recipe.cableLength, cableWire: recipe.cableWire,
+      boxType: recipe.boxType, extraPartsJson: recipe.extraPartsJson, packingPartsJson: recipe.packingPartsJson,
+      assemblyWage: recipe.assemblyWage, packingWage: recipe.packingWage, paintingWage: recipe.paintingWage,
+      surfaceTreatmentMode: recipe.surfaceTreatmentMode,
+      surfaceTreatmentCost: recipe.surfaceTreatmentCost,
+      managementFee: recipe.managementFee,
     }}});
   };
 
   const handleEdit = (recipe: Recipe) => {
     navigate('/recipe-form', { state: { editFrom: {
-      id: recipe.Id, name: recipe.name, spec: recipe.spec, partsJson: recipe.parts_json,
-      template_id: recipe.template_id, coil_spec: recipe.coil_spec, coil_sheets: recipe.coil_sheets, coil_material: recipe.coil_material,
-      has_float: recipe.has_float, float_wire: recipe.float_wire,
-      has_cable: recipe.has_cable, cable_length: recipe.cable_length, cable_wire: recipe.cable_wire,
-      box_type: recipe.box_type, extra_parts_json: recipe.extra_parts_json, packing_parts_json: recipe.packing_parts_json,
-      assembly_wage: recipe.assembly_wage, packing_wage: recipe.packing_wage, painting_wage: recipe.painting_wage,
-      surface_treatment_mode: recipe.surface_treatment_mode,
-      surface_treatment_cost: recipe.surface_treatment_cost,
-      management_fee: recipe.management_fee,
-      custom_barrel_length: recipe.custom_barrel_length,
+      Id: recipe.Id, name: recipe.name, spec: recipe.spec, partsJson: recipe.partsJson,
+      templateId: recipe.templateId, coilSpec: recipe.coilSpec, coilSheets: recipe.coilSheets, coilMaterial: recipe.coilMaterial,
+      hasFloat: recipe.hasFloat, floatWire: recipe.floatWire,
+      hasCable: recipe.hasCable, cableLength: recipe.cableLength, cableWire: recipe.cableWire,
+      boxType: recipe.boxType, extraPartsJson: recipe.extraPartsJson, packingPartsJson: recipe.packingPartsJson,
+      assemblyWage: recipe.assemblyWage, packingWage: recipe.packingWage, paintingWage: recipe.paintingWage,
+      surfaceTreatmentMode: recipe.surfaceTreatmentMode,
+      surfaceTreatmentCost: recipe.surfaceTreatmentCost,
+      managementFee: recipe.managementFee,
+      customBarrelLength: recipe.customBarrelLength,
     }}});
   };
 
@@ -262,7 +262,7 @@ export default function RecipesPage() {
           <Box p={2}>
             {recipes.map((recipe) => {
               const data = recipeData.get(recipe.Id);
-              const tplName = recipe.template_id ? tplNameMap.get(recipe.template_id) || '-' : '-';
+              const tplName = recipe.templateId ? tplNameMap.get(recipe.templateId) || '-' : '-';
               return (
                 <Paper
                   key={recipe.Id}
@@ -313,7 +313,7 @@ export default function RecipesPage() {
               <TableBody>
                 {recipes.map((recipe) => {
                   const data = recipeData.get(recipe.Id);
-                  const tplName = recipe.template_id ? tplNameMap.get(recipe.template_id) || '-' : '-';
+                  const tplName = recipe.templateId ? tplNameMap.get(recipe.templateId) || '-' : '-';
                   return (
                     <TableRow key={recipe.Id} hover sx={{ cursor: 'pointer' }} onDoubleClick={() => handleViewDetail(recipe)}>
                       <TableCell>{recipe.name}</TableCell>

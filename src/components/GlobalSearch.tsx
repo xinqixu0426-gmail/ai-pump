@@ -192,14 +192,14 @@ export default function GlobalSearch() {
       }));
 
     const recipeResults = (recipes as Recipe[])
-      .filter(recipe => match(recipe.name, recipe.spec, recipe.parts_json))
+      .filter(recipe => match(recipe.name, recipe.spec, recipe.partsJson))
       .slice(0, 8)
       .map<SearchResult>(recipe => ({
         key: `recipe-${recipe.Id}`,
         group: '配方',
         title: recipe.name,
         subtitle: recipe.spec || '未填写规格',
-        meta: recipe.saved_total_cost ? money(recipe.saved_total_cost) : '查看成本',
+        meta: recipe.savedTotalCost ? money(recipe.savedTotalCost) : '查看成本',
         icon: Receipt,
         color: '#7c3aed',
         onSelect: () => closeAndGo('/recipes', { openRecipeId: recipe.Id }),
@@ -236,7 +236,7 @@ export default function GlobalSearch() {
     const quotationResults = quotationsTyped
       .filter(quotation => {
         const quoteItems = parseItems(quotation.itemsJson)
-          .map(item => item.base_recipe_name || item.recipeName || '')
+          .map(item => item.baseRecipeName || item.recipeName || '')
           .join(' ');
         return match(
           customerNameMap.get(quotation.customerId),

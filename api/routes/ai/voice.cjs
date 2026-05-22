@@ -2,7 +2,15 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const crypto = require('crypto');
+const authMiddleware = require('../../authMiddleware.cjs');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+function voiceAuth(req, res, next) {
+    if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
+        return next();
+    }
+    return authMiddleware(req, res, next);
+}
 
 // ── 阿里云 NLS Token 自动获取与缓存 ──
 let nlsTokenCache = { token: '', expireTime: 0 };
@@ -76,7 +84,7 @@ async function getNlsToken() {
  * 语音识别端点 — 接收音频文件，调阿里云一句话识别 REST API
  * 自动获取和刷新 NLS Token
  */
-router.post('/api/voice/asr', upload.single('audio'), async (req, res) => {
+router.post('/api/voice/asr', voiceAuth, upload.single('audio'), async (req, res) => {
     try {
         const appKey = process.env.ALI_ASR_APPKEY;
         if (!appKey) {

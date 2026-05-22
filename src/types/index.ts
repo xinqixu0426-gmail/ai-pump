@@ -48,19 +48,13 @@ export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'po
 /** 泵壳模板 */
 export interface PumpShellTemplate {
   Id: number;
-  shellModel?: string;
-  partsJson?: string;
-  rotorParamsJson?: string;
-  assemblyWage?: number;
-  packingWage?: number;
-  paintingWage?: number | null;
-  shell_model: string;
+  shellModel: string;
   description: string;
-  parts_json: string;
-  rotor_params_json?: string;
-  assembly_wage: number;
-  packing_wage: number;
-  painting_wage: number | null;
+  partsJson: string;
+  rotorParamsJson?: string;
+  assemblyWage: number;
+  packingWage: number;
+  paintingWage: number | null;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -70,7 +64,7 @@ export interface Recipe {
   Id: number;
   name: string;
   spec: string;
-  partsJson?: string;
+  partsJson: string;
   savedTotalCost?: number;
   savedCostDetails?: string;
   templateId?: number | null;
@@ -92,32 +86,6 @@ export interface Recipe {
   surfaceTreatmentMode?: SurfaceTreatmentMode;
   surfaceTreatmentCost?: number;
   managementFee?: number;
-  parts_json: string;
-  saved_total_cost?: number;
-  saved_cost_details?: string;
-  // 新增结构化字段
-  template_id?: number | null;
-  coil_spec?: string;
-  coil_sheets?: number;
-  coil_material?: string;
-  has_float?: number;
-  float_wire?: string;
-  has_cable?: number;
-  cable_length?: number;
-  cable_wire?: string;
-  /** @deprecated 使用 packing_parts_json 替代，仅保留用于旧数据兼容读取 */
-  box_type?: string;
-  packing_parts_json?: string;  // JSON: PartSelection[] 包材列表
-  extra_parts_json?: string;
-  // 不锈钢机筒长度覆盖（配方级）
-  custom_barrel_length?: number | null;
-  // 人工工资（从模板带入，可覆盖）
-  assembly_wage?: number;
-  packing_wage?: number;
-  painting_wage?: number | null;
-  surface_treatment_mode?: SurfaceTreatmentMode;
-  surface_treatment_cost?: number;
-  management_fee?: number;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -253,17 +221,17 @@ export interface Quotation {
 }
 
 export interface DynamicCostOverrides {
-  coil_spec?: string;
-  coil_sheets?: number;
-  coil_material?: string;
-  has_float?: boolean | number;
-  float_wire?: string;
-  has_cable?: boolean | number;
-  cable_length?: number;
-  cable_wire?: string;
-  box_type?: string;
-  packing_parts_json?: string;
-  custom_barrel_length?: number;
+  coilSpec?: string;
+  coilSheets?: number;
+  coilMaterial?: string;
+  hasFloat?: boolean | number;
+  floatWire?: string;
+  hasCable?: boolean | number;
+  cableLength?: number;
+  cableWire?: string;
+  boxType?: string;
+  packingPartsJson?: string;
+  customBarrelLength?: number;
 }
 
 export interface DynamicCostResult {
@@ -274,14 +242,14 @@ export interface DynamicCostResult {
 
 export interface QuotationItem {
   id: string;
-  base_recipe_id: number | '';
-  base_recipe_name: string;
+  baseRecipeId: number | '';
+  baseRecipeName: string;
   qty: number;
   overrides: DynamicCostOverrides;
-  unit_cost: number;
+  unitCost: number;
   margin: number;
-  unit_price: number;
-  total_price: number;
+  unitPrice: number;
+  totalPrice: number;
 }
 
 export interface QuotationInput {

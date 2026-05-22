@@ -61,7 +61,7 @@ export default function QuotationsPage() {
   }, [fetchQuotations, fetchCustomers, fetchRecipes, fetchParts]);
 
   const getRecipePartSnapshotPrice = (recipe: Recipe | undefined, model: string, supplier = '') => {
-    const recipeParts = parseJsonArray<RecipePart>(recipe?.parts_json);
+    const recipeParts = parseJsonArray<RecipePart>(recipe?.partsJson);
     const matched = recipeParts.find((p) => {
       const sameModel = p.model === model || p.name === model;
       const sameSupplier = !supplier || (p.supplier || '') === supplier;
@@ -86,20 +86,20 @@ export default function QuotationsPage() {
   };
 
   const getPackingParts = (recipe: Recipe | undefined) => {
-    const parsed = parseJsonArray<PackingSnapshot>(recipe?.packing_parts_json);
+    const parsed = parseJsonArray<PackingSnapshot>(recipe?.packingPartsJson);
     if (parsed.length > 0) {
       return parsed.map((p) => normalizePackingPart(recipe, p)).filter((p) => p.model);
     }
-    return recipe?.box_type ? [normalizePackingPart(recipe, { model: recipe.box_type, supplier: '', qty: 1 })] : [];
+    return recipe?.boxType ? [normalizePackingPart(recipe, { model: recipe.boxType, supplier: '', qty: 1 })] : [];
   };
 
   const getCoilSnapshot = (recipe: Recipe | undefined) => {
-    const recipeParts = parseJsonArray<RecipePart>(recipe?.parts_json);
+    const recipeParts = parseJsonArray<RecipePart>(recipe?.partsJson);
     const coil = recipeParts.find((p) => p.name === '线圈转子');
     return {
-      spec: recipe?.coil_spec || coil?.model?.split('-')?.[0] || '',
-      sheets: recipe?.coil_sheets || coil?.model?.split('-')?.[1] || '',
-      material: recipe?.coil_material || coil?.material || '钢带',
+      spec: recipe?.coilSpec || coil?.model?.split('-')?.[0] || '',
+      sheets: recipe?.coilSheets || coil?.model?.split('-')?.[1] || '',
+      material: recipe?.coilMaterial || coil?.material || '钢带',
       unitPrice: coil?.unitPrice,
       cost: coil?.snapshotPrice,
       source: coil?.source,
@@ -141,9 +141,9 @@ export default function QuotationsPage() {
   }, [parts, recipes]);
 
   const packingSummary = (item: QuotationItem) => {
-    let packingParts = parseJsonArray<PackingSnapshot>(item.overrides?.packing_parts_json);
-    if (packingParts.length === 0 && item.overrides?.box_type) {
-      packingParts = [{ model: item.overrides.box_type, supplier: '', qty: 1 }];
+    let packingParts = parseJsonArray<PackingSnapshot>(item.overrides?.packingPartsJson);
+    if (packingParts.length === 0 && item.overrides?.boxType) {
+      packingParts = [{ model: item.overrides.boxType, supplier: '', qty: 1 }];
     }
     const total = packingParts.reduce((sum, p) => {
       const price = p.snapshotPrice !== undefined ? Number(p.snapshotPrice || 0) : getPartPrice(p.model, p.supplier || '');
@@ -164,13 +164,13 @@ export default function QuotationsPage() {
     setCustomerId(val);
     const c = customers.find(x => x.Id === val);
     if (c) {
-      setItems(items.map(item => ({ ...item, margin: c.defaultMargin, unit_price: item.unit_cost * (1 + c.defaultMargin), total_price: item.unit_cost * (1 + c.defaultMargin) * item.qty })));
+      setItems(items.map(item => ({ ...item, margin: c.defaultMargin, unitPrice: item.unitCost * (1 + c.defaultMargin), totalPrice: item.unitCost * (1 + c.defaultMargin) * item.qty })));
     }
   };
 
   const addItem = () => {
     const c = customers.find(x => x.Id === customerId);
-    setItems([...items, { id: Date.now().toString(), base_recipe_id: '', base_recipe_name: '', qty: 1, overrides: {}, unit_cost: 0, margin: c ? c.defaultMargin : 0.15, unit_price: 0, total_price: 0 }]);
+    setItems([...items, { id: Date.now().toString(), baseRecipeId: '', baseRecipeName: '', qty: 1, overrides: {}, unitCost: 0, margin: c ? c.defaultMargin : 0.15, unitPrice: 0, totalPrice: 0 }]);
   };
 
   const updateItemOverride = async (index: number, field: keyof QuotationItem['overrides'], val: string | number | boolean) => {
@@ -182,12 +182,12 @@ export default function QuotationsPage() {
     newItems[index].overrides = { ...newItems[index].overrides, ...patch };
     
     // Recalculate cost
-    if (newItems[index].base_recipe_id) {
+    if (newItems[index].baseRecipeId) {
       try {
-        const res = await dynamicCalculateCost(newItems[index].base_recipe_id, newItems[index].overrides);
-        newItems[index].unit_cost = res.unitCost;
-        newItems[index].unit_price = res.unitCost * (1 + newItems[index].margin);
-        newItems[index].total_price = newItems[index].unit_price * newItems[index].qty;
+        const res = await dynamicCalculateCost(newItems[index].baseRecipeId as number, newItems[index].overrides);
+        newItems[index].unitCost = res.unitCost;
+        newItems[index].unitPrice = res.unitCost * (1 + newItems[index].margin);
+        newItems[index].totalPrice = newItems[index].unitPrice * newItems[index].qty;
       } catch (err) {}
     }
     setItems(newItems);
@@ -197,29 +197,29 @@ export default function QuotationsPage() {
     const recipe = recipes.find(r => r.Id === recipeId);
     if (!recipe) return;
     const newItems = [...items];
-    newItems[index].base_recipe_id = recipe.Id;
-    newItems[index].base_recipe_name = recipe.name;
+    newItems[index].baseRecipeId = recipe.Id;
+    newItems[index].baseRecipeName = recipe.name;
     
     // 初始化配置覆盖为配方的默认值
     newItems[index].overrides = {
-      has_float: recipe.has_float === 1,
-      float_wire: recipe.float_wire,
-      has_cable: recipe.has_cable === 1,
-      cable_length: recipe.cable_length,
-      cable_wire: recipe.cable_wire,
-      coil_spec: recipe.coil_spec || '',
-      coil_sheets: recipe.coil_sheets || 0,
-      coil_material: recipe.coil_material || '钢带',
-      box_type: recipe.box_type || '',
-      packing_parts_json: JSON.stringify(getPackingParts(recipe)),
-      custom_barrel_length: recipe.custom_barrel_length || undefined
+      hasFloat: recipe.hasFloat === 1,
+      floatWire: recipe.floatWire,
+      hasCable: recipe.hasCable === 1,
+      cableLength: recipe.cableLength,
+      cableWire: recipe.cableWire,
+      coilSpec: recipe.coilSpec || '',
+      coilSheets: recipe.coilSheets || 0,
+      coilMaterial: recipe.coilMaterial || '钢带',
+      boxType: recipe.boxType || '',
+      packingPartsJson: JSON.stringify(getPackingParts(recipe)),
+      customBarrelLength: recipe.customBarrelLength || undefined
     };
     
     try {
       const res = await dynamicCalculateCost(recipe.Id, newItems[index].overrides);
-      newItems[index].unit_cost = res.unitCost;
-      newItems[index].unit_price = res.unitCost * (1 + newItems[index].margin);
-      newItems[index].total_price = newItems[index].unit_price * newItems[index].qty;
+      newItems[index].unitCost = res.unitCost;
+      newItems[index].unitPrice = res.unitCost * (1 + newItems[index].margin);
+      newItems[index].totalPrice = newItems[index].unitPrice * newItems[index].qty;
     } catch (err) {}
     setItems(newItems);
   };
@@ -227,24 +227,24 @@ export default function QuotationsPage() {
   const handleMarginChange = (index: number, margin: number) => {
     const newItems = [...items];
     newItems[index].margin = margin;
-    newItems[index].unit_price = newItems[index].unit_cost * (1 + margin);
-    newItems[index].total_price = newItems[index].unit_price * newItems[index].qty;
+    newItems[index].unitPrice = newItems[index].unitCost * (1 + margin);
+    newItems[index].totalPrice = newItems[index].unitPrice * newItems[index].qty;
     setItems(newItems);
   };
 
   const handleUnitPriceChange = (index: number, unitPrice: number) => {
     const newItems = [...items];
-    newItems[index].unit_price = unitPrice;
-    if (newItems[index].unit_cost > 0) {
-        newItems[index].margin = (unitPrice / newItems[index].unit_cost) - 1;
+    newItems[index].unitPrice = unitPrice;
+    if (newItems[index].unitCost > 0) {
+        newItems[index].margin = (unitPrice / newItems[index].unitCost) - 1;
     }
-    newItems[index].total_price = unitPrice * newItems[index].qty;
+    newItems[index].totalPrice = unitPrice * newItems[index].qty;
     setItems(newItems);
   };
 
   const handleSave = async () => {
-    const totalCost = items.reduce((sum, item) => sum + (item.unit_cost * item.qty), 0);
-    const totalPrice = items.reduce((sum, item) => sum + item.total_price, 0);
+    const totalCost = items.reduce((sum, item) => sum + (item.unitCost * item.qty), 0);
+    const totalPrice = items.reduce((sum, item) => sum + item.totalPrice, 0);
     const data: QuotationInput = { customerId, status, itemsJson: JSON.stringify(items), totalCost, totalPrice, remark };
     try {
       if (editing) await updateQuotation(editing.Id, data);
@@ -302,13 +302,13 @@ export default function QuotationsPage() {
     // Map QuotationItems to OrderItems (they are slightly different but orders.cjs handles generic itemsJson)
     const orderItems = parseJsonArray<QuotationItem>(q.itemsJson).map((item) => ({
         id: item.id,
-        recipeId: item.base_recipe_id || undefined,
-        recipeName: item.base_recipe_name,
+        recipeId: item.baseRecipeId || undefined,
+        recipeName: item.baseRecipeName,
         qty: item.qty,
         partsJson: JSON.stringify(item.overrides), // Just store overrides as partsJson for now, or you can expand this to full parts
-        unitCost: item.unit_cost,
+        unitCost: item.unitCost,
         profitMargin: item.margin,
-        unitPrice: item.unit_price
+        unitPrice: item.unitPrice
     }));
 
     const orderData = { 
@@ -335,7 +335,7 @@ export default function QuotationsPage() {
     const recipe = recipes.find(r => r.Id === recipeId);
     if (!recipe) return false;
     try {
-      const recipeParts = parseJsonArray<RecipePart>(recipe.parts_json);
+      const recipeParts = parseJsonArray<RecipePart>(recipe.partsJson);
       return recipeParts.some((p) => (p.name || '').includes('不锈钢机筒') || (p.model || '').includes('不锈钢机筒'));
     } catch { return false; }
   };
@@ -355,7 +355,7 @@ export default function QuotationsPage() {
     return quotations.filter(quotation => {
       const customerName = customerNameMap.get(quotation.customerId) || '';
       const itemsText = parseJsonArray<QuotationItem>(quotation.itemsJson)
-        .map((item) => `${item.base_recipe_name || ''}`)
+        .map((item) => `${item.baseRecipeName || ''}`)
         .join(' ');
       const matchSearch = !q || [customerName, quotation.status, quotation.remark, itemsText]
         .some(value => String(value || '').toLowerCase().includes(q));
@@ -502,43 +502,43 @@ export default function QuotationsPage() {
               <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
                 <FormControl sx={{ minWidth: 250, flex: 1 }} size="small">
                   <InputLabel>基础配方</InputLabel>
-                  <Select value={item.base_recipe_id} label="基础配方" onChange={e => handleBaseRecipeChange(idx, Number(e.target.value))}>
+                  <Select value={item.baseRecipeId} label="基础配方" onChange={e => handleBaseRecipeChange(idx, Number(e.target.value))}>
                     {recipes.map(r => <MenuItem key={r.Id} value={r.Id}>{r.name}</MenuItem>)}
                   </Select>
                 </FormControl>
                 
-                <TextField label="数量" type="number" size="small" value={item.qty} onChange={e => { const newItems = [...items]; newItems[idx].qty = Number(e.target.value); newItems[idx].total_price = newItems[idx].unit_price * newItems[idx].qty; setItems(newItems); }} sx={{ minWidth: 80, width: 80 }} />
+                <TextField label="数量" type="number" size="small" value={item.qty} onChange={e => { const newItems = [...items]; newItems[idx].qty = Number(e.target.value); newItems[idx].totalPrice = newItems[idx].unitPrice * newItems[idx].qty; setItems(newItems); }} sx={{ minWidth: 80, width: 80 }} />
                 
                 <Box sx={{ minWidth: 140, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">核算成本: ¥{item.unit_cost.toFixed(2)}</Typography>
-                  <Typography variant="caption" color="primary.main">最终单价: ¥{item.unit_price.toFixed(2)}</Typography>
+                  <Typography variant="caption" color="text.secondary">核算成本: ¥{item.unitCost.toFixed(2)}</Typography>
+                  <Typography variant="caption" color="primary.main">最终单价: ¥{item.unitPrice.toFixed(2)}</Typography>
                 </Box>
-
+ 
                 <TextField label="加价率" type="number" inputProps={{ step: 0.01 }} size="small" value={item.margin} onChange={e => handleMarginChange(idx, parseFloat(e.target.value))} sx={{ minWidth: 90, width: 100 }} />
-                <TextField label="改单价" type="number" size="small" value={item.unit_price} onChange={e => handleUnitPriceChange(idx, parseFloat(e.target.value))} sx={{ minWidth: 100, width: 110 }} />
-
+                <TextField label="改单价" type="number" size="small" value={item.unitPrice} onChange={e => handleUnitPriceChange(idx, parseFloat(e.target.value))} sx={{ minWidth: 100, width: 110 }} />
+ 
                 <IconButton color="error" aria-label="删除报价明细" onClick={() => setItems(items.filter((_, i) => i !== idx))}><Trash2 size={16} /></IconButton>
               </Box>
               
-              {item.base_recipe_id !== '' && (
+              {item.baseRecipeId !== '' && (
                 <Box display="flex" gap={2} flexWrap="wrap" bgcolor="rgba(0,0,0,0.02)" p={1} borderRadius={1} alignItems="center">
                   {(() => {
-                    const recipe = recipes.find(r => r.Id === item.base_recipe_id);
+                    const recipe = recipes.find(r => r.Id === item.baseRecipeId);
                     const coil = getCoilSnapshot(recipe);
                     return coil.spec ? (
                       <Chip
                         size="small"
                         color="primary"
                         variant="outlined"
-                        label={`线圈: ${coil.spec}-${coil.sheets} / ${item.overrides.coil_material || coil.material} / 单价 ¥${Number(coil.unitPrice || 0).toFixed(2)} / ${coil.source || '快照'} / ¥${Number(coil.cost || 0).toFixed(2)}`}
+                        label={`线圈: ${coil.spec}-${coil.sheets} / ${item.overrides.coilMaterial || coil.material} / 单价 ¥${Number(coil.unitPrice || 0).toFixed(2)} / ${coil.source || '快照'} / ¥${Number(coil.cost || 0).toFixed(2)}`}
                       />
                     ) : null;
                   })()}
-                  <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.has_float} onChange={e => updateItemOverride(idx, 'has_float', e.target.checked)} />} label="加浮球" />
-                  <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.has_cable} onChange={e => updateItemOverride(idx, 'has_cable', e.target.checked)} />} label="加电缆" />
-                  {item.overrides.has_cable && <TextField label="电缆长度(米)" size="small" type="number" value={item.overrides.cable_length || ''} onChange={e => updateItemOverride(idx, 'cable_length', Number(e.target.value))} sx={{ minWidth: 120, width: 120 }} />}
-                  {hasStainlessBarrel(item.base_recipe_id) && (
-                    <TextField label="定制机筒" size="small" type="number" value={item.overrides.custom_barrel_length || ''} onChange={e => updateItemOverride(idx, 'custom_barrel_length', Number(e.target.value))} sx={{ minWidth: 100, width: 100 }} />
+                  <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.hasFloat} onChange={e => updateItemOverride(idx, 'hasFloat', e.target.checked)} />} label="加浮球" />
+                  <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.hasCable} onChange={e => updateItemOverride(idx, 'hasCable', e.target.checked)} />} label="加电缆" />
+                  {item.overrides.hasCable && <TextField label="电缆长度(米)" size="small" type="number" value={item.overrides.cableLength || ''} onChange={e => updateItemOverride(idx, 'cableLength', Number(e.target.value))} sx={{ minWidth: 120, width: 120 }} />}
+                  {hasStainlessBarrel(item.baseRecipeId) && (
+                    <TextField label="定制机筒" size="small" type="number" value={item.overrides.customBarrelLength || ''} onChange={e => updateItemOverride(idx, 'customBarrelLength', Number(e.target.value))} sx={{ minWidth: 100, width: 100 }} />
                   )}
                   
                   {(() => {
@@ -547,8 +547,8 @@ export default function QuotationsPage() {
                     const selectedPackingKey = selectedPacking.model ? `${selectedPacking.model}||${selectedPacking.supplier || ''}` : '';
                     const setPackingPart = (packing: { model: string; supplier: string; price: number } | null) => {
                       updateItemOverrides(idx, {
-                        box_type: packing?.model || '',
-                        packing_parts_json: packing?.model ? JSON.stringify([{
+                        boxType: packing?.model || '',
+                        packingPartsJson: packing?.model ? JSON.stringify([{
                           model: packing.model,
                           supplier: packing.supplier || '',
                           qty: 1,
@@ -559,36 +559,36 @@ export default function QuotationsPage() {
                     return (
                       <>
                         <FormControl size="small" sx={{ minWidth: 220 }}>
-                          <InputLabel>包装</InputLabel>
-                          <Select value={selectedPackingKey} label="包装" onChange={e => {
-                            const key = e.target.value as string;
-                            const option = packagingOptions.find(p => `${p.model}||${p.supplier || ''}` === key);
-                            setPackingPart(option || null);
-                          }}>
-                            <MenuItem value="">&nbsp;</MenuItem>
-                            {selectedPacking.model && !packagingOptions.some(p => `${p.model}||${p.supplier || ''}` === selectedPackingKey) && (
-                              <MenuItem value={selectedPackingKey}>
-                                {selectedPacking.model}{selectedPacking.supplier ? ` / ${selectedPacking.supplier}` : ''} - ¥{(summary.total / (selectedPacking.qty || 1)).toFixed(2)}
-                              </MenuItem>
-                            )}
-                            {packagingOptions.map(p => {
-                              const key = `${p.model}||${p.supplier || ''}`;
-                              return (
-                                <MenuItem key={key} value={key}>
-                                  {p.model}{p.supplier ? ` / ${p.supplier}` : ''} - ¥{Number(p.price || 0).toFixed(2)}
-                                </MenuItem>
-                              );
-                            })}
-                          </Select>
-                        </FormControl>
-                        <Chip
-                          size="small"
-                          color={summary.parts.length > 0 ? 'secondary' : 'default'}
-                          variant="outlined"
-                          label={`包装: ${summary.label} / ${summary.source} / ¥${summary.total.toFixed(2)}`}
-                        />
-                      </>
-                    );
+                           <InputLabel>包装</InputLabel>
+                           <Select value={selectedPackingKey} label="包装" onChange={e => {
+                             const key = e.target.value as string;
+                             const option = packagingOptions.find(p => `${p.model}||${p.supplier || ''}` === key);
+                             setPackingPart(option || null);
+                           }}>
+                             <MenuItem value="">&nbsp;</MenuItem>
+                             {selectedPacking.model && !packagingOptions.some(p => `${p.model}||${p.supplier || ''}` === selectedPackingKey) && (
+                               <MenuItem value={selectedPackingKey}>
+                                 {selectedPacking.model}{selectedPacking.supplier ? ` / ${selectedPacking.supplier}` : ''} - ¥{(summary.total / (selectedPacking.qty || 1)).toFixed(2)}
+                               </MenuItem>
+                             )}
+                             {packagingOptions.map(p => {
+                               const key = `${p.model}||${p.supplier || ''}`;
+                               return (
+                                 <MenuItem key={key} value={key}>
+                                   {p.model}{p.supplier ? ` / ${p.supplier}` : ''} - ¥{Number(p.price || 0).toFixed(2)}
+                                 </MenuItem>
+                               );
+                             })}
+                           </Select>
+                         </FormControl>
+                         <Chip
+                           size="small"
+                           color={summary.parts.length > 0 ? 'secondary' : 'default'}
+                           variant="outlined"
+                           label={`包装: ${summary.label} / ${summary.source} / ¥${summary.total.toFixed(2)}`}
+                         />
+                       </>
+                     );
                   })()}
                 </Box>
               )}
@@ -597,7 +597,7 @@ export default function QuotationsPage() {
           <Button variant="outlined" startIcon={<Plus size={16} />} onClick={addItem} disabled={!customerId}>添加明细</Button>
           
           <Box display="flex" justifyContent="flex-end" mt={2}>
-            <Typography variant="h6">总出厂价: ¥{items.reduce((sum, item) => sum + (item.unit_cost * item.qty), 0).toFixed(2)} | 总报价: ¥{items.reduce((sum, item) => sum + item.total_price, 0).toFixed(2)}</Typography>
+            <Typography variant="h6">总出厂价: ¥{items.reduce((sum, item) => sum + (item.unitCost * item.qty), 0).toFixed(2)} | 总报价: ¥{items.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2)}</Typography>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>

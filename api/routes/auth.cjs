@@ -18,15 +18,15 @@ const JWT_EXPIRES_IN = '15d'; // 15 天免重新登录
 // 也可通过 NODE_ENV=production 或 BEHIND_PROXY=true 强制覆盖
 const IS_PRODUCTION =
   process.env.NODE_ENV === 'production' ||
-  process.env.BEHIND_PROXY === 'true' ||
+  (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
   (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
 
-// Cookie 配置：生产环境（经过代理）需要 secure + sameSite=none
+// Cookie 配置：生产环境使用 secure + sameSite=strict
 function getCookieOptions() {
   return {
     httpOnly: true,
     secure: IS_PRODUCTION,
-    sameSite: IS_PRODUCTION ? 'none' : 'lax',
+    sameSite: IS_PRODUCTION ? 'strict' : 'lax',
     maxAge: 15 * 24 * 60 * 60 * 1000,
     path: '/',
   };

@@ -10,7 +10,7 @@ import {
   Button,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
-import { RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode } from '../types';
+import { RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
@@ -45,14 +45,14 @@ export default function RecipeFormPage() {
 
   // 泵壳模板选择
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
-    editFrom?.template_id || cloneFrom?.template_id || null
+    editFrom?.templateId || cloneFrom?.templateId || null
   );
 
   // 线圈转子
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecInfo[]>([]);
-  const [coilSpec, setCoilSpec] = useState(editFrom?.coil_spec || cloneFrom?.coil_spec || '');
-  const [coilMaterial, setCoilMaterial] = useState(editFrom?.coil_material || cloneFrom?.coil_material || '钢带');
-  const [coilSheets, setCoilSheets] = useState(editFrom?.coil_sheets ? String(editFrom.coil_sheets) : (cloneFrom?.coil_sheets ? String(cloneFrom.coil_sheets) : ''));
+  const [coilSpec, setCoilSpec] = useState(editFrom?.coilSpec || cloneFrom?.coilSpec || '');
+  const [coilMaterial, setCoilMaterial] = useState(editFrom?.coilMaterial || cloneFrom?.coilMaterial || '钢带');
+  const [coilSheets, setCoilSheets] = useState(editFrom?.coilSheets ? String(editFrom.coilSheets) : (cloneFrom?.coilSheets ? String(cloneFrom.coilSheets) : ''));
   const [coilCustomWireWeight, setCoilCustomWireWeight] = useState('');
   const [useCoilCustomWeight, setUseCoilCustomWeight] = useState(false);
   const [coilResult, setCoilResult] = useState<CoilCalcResult | null>(null);
@@ -63,37 +63,37 @@ export default function RecipeFormPage() {
   const nextOptionalId = useRef(1);
 
   // 动态配置
-  const [hasFloat, setHasFloat] = useState(!!editFrom?.has_float || !!cloneFrom?.has_float);
-  const [floatWire, setFloatWire] = useState(editFrom?.float_wire || cloneFrom?.float_wire || '0.55');
-  const [hasCable, setHasCable] = useState(!!editFrom?.has_cable || !!cloneFrom?.has_cable);
-  const [cableLength, setCableLength] = useState(editFrom?.cable_length ? String(editFrom.cable_length) : (cloneFrom?.cable_length ? String(cloneFrom.cable_length) : ''));
-  const [cableWire, setCableWire] = useState(editFrom?.cable_wire || cloneFrom?.cable_wire || '0.55');
+  const [hasFloat, setHasFloat] = useState(!!editFrom?.hasFloat || !!cloneFrom?.hasFloat);
+  const [floatWire, setFloatWire] = useState(editFrom?.floatWire || cloneFrom?.floatWire || '0.55');
+  const [hasCable, setHasCable] = useState(!!editFrom?.hasCable || !!cloneFrom?.hasCable);
+  const [cableLength, setCableLength] = useState(editFrom?.cableLength ? String(editFrom.cableLength) : (cloneFrom?.cableLength ? String(cloneFrom.cableLength) : ''));
+  const [cableWire, setCableWire] = useState(editFrom?.cableWire || cloneFrom?.cableWire || '0.55');
   const [packingParts, setPackingParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextPackingId = useRef(100);
 
   // 不锈钢自定义机筒长度
   const [customBarrelLength, setCustomBarrelLength] = useState(
-    editFrom?.custom_barrel_length ? String(editFrom.custom_barrel_length) :
-    (cloneFrom?.custom_barrel_length ? String(cloneFrom.custom_barrel_length) : '')
+    editFrom?.customBarrelLength ? String(editFrom.customBarrelLength) :
+    (cloneFrom?.customBarrelLength ? String(cloneFrom.customBarrelLength) : '')
   );
 
   // 电容（从线圈联动）
   const [capacitorModel, setCapacitorModel] = useState('');
 
   // 人工工资
-  const [assemblyWage, setAssemblyWage] = useState(editFrom?.assembly_wage ?? cloneFrom?.assembly_wage ?? 0);
-  const [packingWage, setPackingWage] = useState(editFrom?.packing_wage ?? cloneFrom?.packing_wage ?? 0);
+  const [assemblyWage, setAssemblyWage] = useState(editFrom?.assemblyWage ?? cloneFrom?.assemblyWage ?? 0);
+  const [packingWage, setPackingWage] = useState(editFrom?.packingWage ?? cloneFrom?.packingWage ?? 0);
   const [surfaceTreatmentMode, setSurfaceTreatmentMode] = useState<SurfaceTreatmentMode>(
-    editFrom?.surface_treatment_mode ?? cloneFrom?.surface_treatment_mode ??
-    ((editFrom?.painting_wage ?? cloneFrom?.painting_wage) != null ? 'painting' : 'none')
+    editFrom?.surfaceTreatmentMode ?? cloneFrom?.surfaceTreatmentMode ??
+    ((editFrom?.paintingWage ?? cloneFrom?.paintingWage) != null ? 'painting' : 'none')
   );
   const [surfaceTreatmentCost, setSurfaceTreatmentCost] = useState(
-    editFrom?.surface_treatment_cost ?? cloneFrom?.surface_treatment_cost ??
-    editFrom?.painting_wage ?? cloneFrom?.painting_wage ?? 0
+    editFrom?.surfaceTreatmentCost ?? cloneFrom?.surfaceTreatmentCost ??
+    editFrom?.paintingWage ?? cloneFrom?.paintingWage ?? 0
   );
 
   // 管理费用
-  const [managementFee, setManagementFee] = useState(editFrom?.management_fee ?? cloneFrom?.management_fee ?? 0);
+  const [managementFee, setManagementFee] = useState(editFrom?.managementFee ?? cloneFrom?.managementFee ?? 0);
 
   // ── 数据加载 ──
   const loadData = useCallback(async () => {
@@ -204,30 +204,30 @@ export default function RecipeFormPage() {
     if (!source || initApplied.current || parts.length === 0) return;
     initApplied.current = true;
 
-    if (source.template_id) {
-      setSelectedTemplateId(source.template_id);
-      if (source.coil_spec) setCoilSpec(source.coil_spec);
-      if (source.coil_material) setCoilMaterial(source.coil_material);
-      if (source.coil_sheets) setCoilSheets(String(source.coil_sheets));
-      setHasFloat(!!source.has_float);
-      if (source.float_wire) setFloatWire(source.float_wire);
-      setHasCable(!!source.has_cable);
-      if (source.cable_length) setCableLength(String(source.cable_length));
-      if (source.cable_wire) setCableWire(source.cable_wire);
-      // 读取 packing_parts_json，向后兼容旧 box_type
+    if (source.templateId) {
+      setSelectedTemplateId(source.templateId);
+      if (source.coilSpec) setCoilSpec(source.coilSpec);
+      if (source.coilMaterial) setCoilMaterial(source.coilMaterial);
+      if (source.coilSheets) setCoilSheets(String(source.coilSheets));
+      setHasFloat(!!source.hasFloat);
+      if (source.floatWire) setFloatWire(source.floatWire);
+      setHasCable(!!source.hasCable);
+      if (source.cableLength) setCableLength(String(source.cableLength));
+      if (source.cableWire) setCableWire(source.cableWire);
+      // 读取 packingPartsJson，向后兼容旧 boxType
       const rawPacking: PartSelection[] = (() => {
         try {
-          const arr = JSON.parse(source.packing_parts_json || '[]');
+          const arr = JSON.parse(source.packingPartsJson || '[]');
           if (arr.length > 0) return arr;
-          if (source.box_type) return [{ model: source.box_type, supplier: '', qty: 1 }];
+          if (source.boxType) return [{ model: source.boxType, supplier: '', qty: 1 }];
           return [];
-        } catch { return source.box_type ? [{ model: source.box_type, supplier: '', qty: 1 }] : []; }
+        } catch { return source.boxType ? [{ model: source.boxType, supplier: '', qty: 1 }] : []; }
       })();
       setPackingParts(rawPacking.map(p => ({ id: nextPackingId.current++, ...p })));
-      if (source.custom_barrel_length) setCustomBarrelLength(String(source.custom_barrel_length));
+      if (source.customBarrelLength) setCustomBarrelLength(String(source.customBarrelLength));
 
       try {
-        const extras = JSON.parse(source.extra_parts_json || '[]');
+        const extras = JSON.parse(source.extraPartsJson || '[]');
         setOptionalParts(extras.map((p: PartSelection) => ({ id: nextOptionalId.current++, ...p })));
       } catch { /* */ }
       return;
@@ -283,24 +283,24 @@ export default function RecipeFormPage() {
   const selectedTemplate = templates.find(t => t.Id === selectedTemplateId) || null;
   const templateParts: TemplatePart[] = (() => {
     if (!selectedTemplate) return [];
-    try { return JSON.parse(selectedTemplate.parts_json || '[]'); } catch { return []; }
+    try { return JSON.parse(selectedTemplate.partsJson || '[]'); } catch { return []; }
   })();
 
   const shellMetaInfo = useMemo(() => {
     if (!selectedTemplate) return null;
-    const shellPart = parts.find(p => p.model === selectedTemplate.shell_model && p.category === '泵壳');
+    const shellPart = parts.find(p => p.model === selectedTemplate.shellModel && p.category === '泵壳');
     if (!shellPart || !shellPart.notes) return null;
     try { return JSON.parse(shellPart.notes); } catch { return null; }
   }, [selectedTemplate, parts]);
 
   useEffect(() => {
     if (selectedTemplate) {
-      setAssemblyWage(selectedTemplate.assembly_wage || 0);
-      setPackingWage(selectedTemplate.packing_wage || 0);
+      setAssemblyWage(selectedTemplate.assemblyWage || 0);
+      setPackingWage(selectedTemplate.packingWage || 0);
     }
   }, [selectedTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shellPrice = selectedTemplate ? getPriceByModelAndSupplier(selectedTemplate.shell_model, '') : 0;
+  const shellPrice = selectedTemplate ? getPriceByModelAndSupplier(selectedTemplate.shellModel, '') : 0;
   const templateCost = shellPrice + templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
 
   const buildConfigParts = useCallback((): RecipePart[] => {
@@ -327,8 +327,8 @@ export default function RecipeFormPage() {
     const all: RecipePart[] = [];
     // 泵壳本体
     if (selectedTemplate) {
-      const sp = getPriceByModelAndSupplier(selectedTemplate.shell_model, '');
-      all.push({ model: selectedTemplate.shell_model, name: '泵壳', supplier: '', qty: 1, snapshotPrice: sp });
+      const sp = getPriceByModelAndSupplier(selectedTemplate.shellModel, '');
+      all.push({ model: selectedTemplate.shellModel, name: '泵壳', supplier: '', qty: 1, snapshotPrice: sp });
     }
     templateParts.forEach(p => {
       const supplier = p.supplier || '';
@@ -407,29 +407,29 @@ export default function RecipeFormPage() {
       .concat(wageLines)
       .join('\n');
 
-    const recipeData = {
-      name: recipeName, spec: recipeSpec, parts_json: JSON.stringify(recipeParts),
-      saved_total_cost: savedTotalCost, saved_cost_details: savedCostDetails,
-      template_id: selectedTemplateId, coil_spec: coilSpec, coil_material: coilMaterial || '钢带', coil_sheets: coilSheets ? parseInt(coilSheets) : 0,
-      has_float: hasFloat ? 1 : 0, float_wire: floatWire, has_cable: hasCable ? 1 : 0,
-      cable_length: cableLength ? parseFloat(cableLength) : 0, cable_wire: cableWire,
+    const recipeData: Omit<Recipe, 'Id'> = {
+      name: recipeName, spec: recipeSpec, partsJson: JSON.stringify(recipeParts),
+      savedTotalCost: savedTotalCost, savedCostDetails: savedCostDetails,
+      templateId: selectedTemplateId, coilSpec: coilSpec, coilMaterial: coilMaterial || '钢带', coilSheets: coilSheets ? parseInt(coilSheets) : 0,
+      hasFloat: hasFloat ? 1 : 0, floatWire: floatWire, hasCable: hasCable ? 1 : 0,
+      cableLength: cableLength ? parseFloat(cableLength) : 0, cableWire: cableWire,
       // 包装
-      packing_parts_json: JSON.stringify(
+      packingPartsJson: JSON.stringify(
         packingParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))
       ),
-      custom_barrel_length: customBarrelLength ? parseFloat(customBarrelLength) : null,
-      extra_parts_json: JSON.stringify(optionalParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))),
-      assembly_wage: assemblyWage,
-      packing_wage: packingWage,
-      painting_wage: null,
-      surface_treatment_mode: surfaceTreatmentMode,
-      surface_treatment_cost: surfaceTreatmentMode === 'none' ? 0 : surfaceTreatmentCost,
-      management_fee: managementFee,
+      customBarrelLength: customBarrelLength ? parseFloat(customBarrelLength) : null,
+      extraPartsJson: JSON.stringify(optionalParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))),
+      assemblyWage: assemblyWage,
+      packingWage: packingWage,
+      paintingWage: null,
+      surfaceTreatmentMode: surfaceTreatmentMode,
+      surfaceTreatmentCost: surfaceTreatmentMode === 'none' ? 0 : surfaceTreatmentCost,
+      managementFee: managementFee,
     };
 
     setSaving(true);
     try {
-      if (isEditing && editFrom) await updateRecipe(editFrom.id, recipeData);
+      if (isEditing && editFrom) await updateRecipe(editFrom.Id, recipeData);
       else await createRecipe(recipeData);
       showSnackbar('配方已保存', 'success');
       navigate('/recipes');

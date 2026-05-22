@@ -140,7 +140,7 @@ async function executeCostTool(toolName, args, internalFetch) {
                 method: 'POST'
             });
             const result = await response.json();
-            if (result.ok) {
+            if (result.ok || result.success) {
                 return { success: true, message: '打印指令已发送到默认打印机', jobId };
             }
             return { success: false, error: result.error || '打印失败' };
@@ -149,7 +149,8 @@ async function executeCostTool(toolName, args, internalFetch) {
         case 'get_rotor_drawing_history': {
             const limit = args.limit || 10;
             const response = await internalFetch('/api/rotor/history');
-            const rows = await response.json();
+            const result = await response.json();
+            const rows = Array.isArray(result) ? result : (result.data || []);
             const recent = (Array.isArray(rows) ? rows : []).slice(0, limit).map(r => ({
                 jobId: r.job_id,
                 status: r.status,

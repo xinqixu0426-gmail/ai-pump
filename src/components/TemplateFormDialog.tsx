@@ -101,7 +101,7 @@ export default function TemplateFormDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {editingTpl ? `编辑模板 - ${editingTpl.shell_model}` : '新建泵壳模板'}
+        {editingTpl ? `编辑模板 - ${editingTpl.shellModel}` : '新建泵壳模板'}
         <IconButton aria-label="关闭模板表单" onClick={onClose}><CloseIcon size={20} /></IconButton>
       </DialogTitle>
       <DialogContent>

@@ -86,7 +86,7 @@ export default function RotorDrawingPage() {
     const hints: string[] = [];
 
     try {
-      const parts: Array<{ name: string; model: string }> = JSON.parse(tpl.parts_json || '[]');
+      const parts: Array<{ name: string; model: string }> = JSON.parse(tpl.partsJson || '[]');
       for (const p of parts) {
         const name = (p.name || '').trim();
         const model = (p.model || '').trim();
@@ -104,7 +104,7 @@ export default function RotorDrawingPage() {
         }
       }
 
-      const shellPart = allParts.find(p => p.model === tpl.shell_model && p.category === '泵壳');
+      const shellPart = allParts.find(p => p.model === tpl.shellModel && p.category === '泵壳');
       if (shellPart && shellPart.notes) {
         try {
           const meta: PumpShellMeta = JSON.parse(shellPart.notes);
@@ -131,7 +131,7 @@ export default function RotorDrawingPage() {
 
     setForm(prev => ({ ...prev, ...newForm }));
     setFormMode(true);
-    setTemplateHint(hints.length > 0 ? `已从 ${tpl.shell_model} 模板自动带入：${hints.join('、')}` : '');
+    setTemplateHint(hints.length > 0 ? `已从 ${tpl.shellModel} 模板自动带入：${hints.join('、')}` : '');
   }, [allParts]);
 
   useEffect(() => {
@@ -146,7 +146,8 @@ export default function RotorDrawingPage() {
 
   const loadHistory = useCallback(async () => {
     try {
-      setHistory(await proxyRequest<any[]>('/api/rotor/history'));
+      const res = await proxyRequest<any[] | { success: boolean; data: any[] }>('/api/rotor/history');
+      setHistory(Array.isArray(res) ? res : res.data);
     } catch { /* */ }
   }, []);
 
@@ -165,7 +166,8 @@ export default function RotorDrawingPage() {
           const histRes = await proxyFetch('/api/rotor/history', {}, { throwOnError: false });
           if (histRes.ok) {
             const histData = await histRes.json();
-            const found = histData.find((r: any) => r.job_id === jobId);
+            const rows = Array.isArray(histData) ? histData : histData.data || [];
+            const found = rows.find((r: any) => r.job_id === jobId);
             if (found) setJobStatus({ status: found.status, fileUrl: found.file_url, error: found.error });
             else setJobStatus({ status: 'failed', error: '任务已过期，未找到记录' });
           }
@@ -282,7 +284,7 @@ export default function RotorDrawingPage() {
     try {
       const res = await proxyFetch(`/api/rotor/print/${targetJobId}`, { method: 'POST' }, { throwOnError: false });
       const data = await res.json();
-      if (res.ok && data.ok) setSnackbar({ open: true, message: '打印指令已发送到默认打印机', severity: 'success' });
+      if (res.ok && (data.ok || data.success)) setSnackbar({ open: true, message: '打印指令已发送到默认打印机', severity: 'success' });
       else setSnackbar({ open: true, message: '打印失败: ' + (data.error || '未知错误'), severity: 'error' });
     } catch (e: any) { setSnackbar({ open: true, message: '打印请求失败: ' + e.message, severity: 'error' }); }
     finally { setPrinting(false); }
@@ -291,7 +293,8 @@ export default function RotorDrawingPage() {
   const handleLinkClick = useCallback(async (row: any) => {
     setLinkTargetRow(row);
     try {
-      setOrderPumpModels(await proxyRequest<Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }>>('/api/rotor/order-pump-models'));
+      const res = await proxyRequest<Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }> | { success: boolean; data: Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }> }>('/api/rotor/order-pump-models');
+      setOrderPumpModels(Array.isArray(res) ? res : res.data);
     } catch { setOrderPumpModels([]); }
     setLinkDialogOpen(true);
   }, []);
@@ -332,7 +335,7 @@ export default function RotorDrawingPage() {
         </Box>
         <Autocomplete
           size="small" options={templates}
-          getOptionLabel={(o) => o.shell_model + (o.description ? ` - ${o.description}` : '')}
+          getOptionLabel={(o) => o.shellModel + (o.description ? ` - ${o.description}` : '')}
           value={selectedTemplate} onChange={(_, v) => handleTemplateSelect(v)}
           renderInput={(params) => <TextField {...params} placeholder="选择泵壳模板，自动带入轴承/油封/开档参数" />}
           isOptionEqualToValue={(o, v) => o.Id === v.Id}

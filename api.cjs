@@ -17,9 +17,19 @@ const PORT = 3002;
 app.set('trust proxy', 1);
 
 // ── 中间件 ──
-const IS_DEV = process.platform === 'win32' || process.env.NODE_ENV === 'development';
+const IS_PRODUCTION =
+  process.env.NODE_ENV === 'production' ||
+  (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
+  (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const IS_DEV = !IS_PRODUCTION;
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+  : [];
+if (IS_PRODUCTION && corsOrigins.length === 0) {
+  throw new Error('生产环境必须配置 CORS_ORIGIN');
+}
 app.use(cors({
-  origin: IS_DEV ? true : (process.env.CORS_ORIGIN || true),
+  origin: IS_DEV ? true : corsOrigins,
   credentials: true,
 }));
 app.use(express.json());
@@ -59,7 +69,7 @@ app.get('/api/health', (req, res, next) => {
   next();
 });
 
-// AI/Siri/Voice 路由 — 保持公开（使用独立的 SIRI_API_TOKEN 验证）
+// AI 路由内部按端点鉴权；Siri 使用独立的 SIRI_API_TOKEN 验证
 const aiRouter = require('./api/routes/ai.cjs');
 app.use('/', aiRouter);
 
@@ -111,11 +121,10 @@ if (fs.existsSync(distPath)) {
 
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {
-    const isProd = process.env.NODE_ENV === 'production' || process.env.BEHIND_PROXY === 'true' || (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
     console.log(`========================================`);
     console.log(`水泵BOM成本查询API已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
-    console.log(`运行平台: ${process.platform} | 环境模式: ${isProd ? '🚀 生产模式 (Secure Cookie)' : '🛠  开发模式 (Lax Cookie)'}`);
+    console.log(`运行平台: ${process.platform} | 环境模式: ${IS_PRODUCTION ? '🚀 生产模式 (Secure Cookie)' : '🛠  开发模式 (Lax Cookie)'}`);
     console.log(`========================================`);
     console.log(`🔒 认证系统已启用`);
     console.log(`   登录接口: POST /api/auth/login`);

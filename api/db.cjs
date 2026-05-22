@@ -438,6 +438,19 @@ function softDelete(table, id) {
     } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
 
+/**
+ * 物理删除（用于暂未支持 deleted_at 的表），删除前写入审计日志
+ */
+function hardDelete(table, id) {
+    if (!SAFE_TABLES.has(table)) throw new Error(`hardDelete: 非法表名 "${table}"`);
+    const oldRow = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+    if (!oldRow) throw new Error(`hardDelete: 记录不存在 (${table}#${id})`);
+    db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+    try {
+        writeAuditLog('DELETE', table, id, JSON.stringify(oldRow), null);
+    } catch { /* 审计日志写入失败不应阻断业务 */ }
+}
+
 // ── P1.7: loadPartsData 缓存 ──
 let _partsDataCache = null;
 let _partsDataCacheTime = 0;
@@ -482,6 +495,22 @@ const fsDb = require('fs');
 const BACKUP_DIR = path.join(__dirname, '..', 'backups');
 const MAX_BACKUPS = 7;
 
+function nextBjtTime(hour, minute = 0) {
+    const now = new Date();
+    const utcMs = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        hour - 8,
+        minute,
+        0,
+        0
+    );
+    let target = new Date(utcMs);
+    if (target <= now) target = new Date(target.getTime() + 24 * 3600 * 1000);
+    return target;
+}
+
 function runBackup() {
     try {
         if (!fsDb.existsSync(BACKUP_DIR)) fsDb.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -507,9 +536,7 @@ function runBackup() {
 function scheduleBackup() {
     // 每天凌晨 3:00 北京时间备份
     const now = new Date();
-    const target = new Date(now.getTime() + 8 * 3600 * 1000);
-    target.setUTCHours(19, 0, 0, 0); // 03:00 BJT = 19:00 UTC (前一天)
-    if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+    const target = nextBjtTime(3);
     const delay = target.getTime() - now.getTime();
     backupLogger.info(`下次备份: ${target.toISOString()} (${(delay / 3600000).toFixed(1)}h 后)`);
     setTimeout(() => {
@@ -527,6 +554,6 @@ module.exports = {
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllCustomers, dbGetAllQuotations,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
-    updateOrderFields, invalidatePartsCache, safeUpdate, softDelete,
-    writeAuditLog, runBackup,
+    updateOrderFields, invalidatePartsCache, safeUpdate, softDelete, hardDelete,
+    writeAuditLog, runBackup, nextBjtTime,
 };

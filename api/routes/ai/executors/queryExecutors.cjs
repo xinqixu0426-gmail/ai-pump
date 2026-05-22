@@ -211,7 +211,6 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 details.push({ model: p.model, oldPrice, newPrice });
             }
 
-            // PATCH 支持批量
             for (const u of updates) {
                 safeUpdate('parts', u.Id, { price: u.price });
             }

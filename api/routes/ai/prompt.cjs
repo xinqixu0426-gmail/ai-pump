@@ -3,6 +3,13 @@ const router = express.Router();
 const { db } = require('../../db.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 
+function promptAuth(req, res, next) {
+    if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
+        return next();
+    }
+    return authMiddleware(req, res, next);
+}
+
 let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮助用户查询成本、配方、零件、铜价、线圈数据，以及执行数据库写操作。
 
 你的能力：
@@ -73,11 +80,11 @@ async function loadSystemPromptFromDB() {
 }
 
 // ── System Prompt 读取/修改 ──
-router.get('/api/ai/system-prompt', (req, res) => {
+router.get('/api/ai/system-prompt', promptAuth, (req, res) => {
     res.json({ success: true, data: AI_SYSTEM_PROMPT });
 });
 
-router.put('/api/ai/system-prompt', authMiddleware, async (req, res) => {
+router.put('/api/ai/system-prompt', promptAuth, async (req, res) => {
     try {
         const { prompt } = req.body;
         AI_SYSTEM_PROMPT = prompt;

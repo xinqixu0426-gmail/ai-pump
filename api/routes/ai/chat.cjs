@@ -92,7 +92,7 @@ async function fetchDeepSeek(messages, stream = false) {
 }
 
 // ── AI Chat SSE 端点 ──
-router.post('/api/ai/chat', async (req, res) => {
+router.post('/api/ai/chat', confirmAuth, async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');

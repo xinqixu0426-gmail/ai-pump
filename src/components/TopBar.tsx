@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ClipboardList,
   Cpu,
-  Droplet,
   FileText,
   LayoutDashboard,
   PenTool,
@@ -69,6 +68,37 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+function PumpLogo() {
+  return (
+    <Box
+      component="svg"
+      viewBox="0 0 48 48"
+      aria-hidden="true"
+      sx={{ width: 31, height: 31, display: 'block' }}
+    >
+      <path
+        d="M10 29
+           C11.2 19.8 17.7 13 24 13
+           C30.3 13 36.8 19.8 38 29
+           C34.6 26.4 31.2 26.4 27.8 29
+           C25.3 30.9 22.7 30.9 20.2 29
+           C16.8 26.4 13.4 26.4 10 29Z"
+        fill="#fff"
+      />
+      <path
+        d="M10 29
+           C13.4 26.4 16.8 26.4 20.2 29
+           C22.7 30.9 25.3 30.9 27.8 29
+           C31.2 26.4 34.6 26.4 38 29"
+        fill="none"
+        stroke="#05070d"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+      />
+    </Box>
+  );
+}
 
 export default function TopBar() {
   const navigate = useNavigate();
@@ -145,13 +175,23 @@ export default function TopBar() {
           {/* Brand */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{
-              width: 38, height: 38, borderRadius: '10px',
-              background: 'var(--dark)', color: '#fff',
+              width: 44, height: 44, borderRadius: '12px',
+              background: '#05070d',
+              color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)',
+              boxShadow: '0 10px 22px rgba(15, 23, 42, 0.18)',
               fontWeight: 700,
+              position: 'relative',
+              overflow: 'hidden',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                inset: 1,
+                borderRadius: '11px',
+                border: '1px solid rgba(255,255,255,0.12)',
+              },
             }}>
-              <Droplet size={22} fill="currentColor" strokeWidth={0} />
+              <PumpLogo />
             </Box>
             <Box sx={{ display: { xs: 'none', lg: 'block' } }}>
               <Typography sx={{ m: 0, fontSize: 20, fontWeight: 700, letterSpacing: 0 }}>

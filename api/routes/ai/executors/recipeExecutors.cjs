@@ -96,8 +96,13 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             patchBody.saved_cost_details = JSON.stringify(costRes.details || []);
 
             if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
-            const { Id, ...recipeUpdates } = patchBody;
-            safeUpdate('recipes', Id, recipeUpdates);
+            safeUpdate('recipes', patchBody.Id, {
+                name: patchBody.name,
+                spec: patchBody.spec,
+                parts_json: patchBody.parts_json,
+                saved_total_cost: patchBody.saved_total_cost,
+                saved_cost_details: patchBody.saved_cost_details,
+            });
             return { success: true, message: `配方"${recipe.name}"修改成功`, recipeName: newName || recipe.name, partsCount: parts.length, newCost: costRes.totalCost, changes };
         }
 

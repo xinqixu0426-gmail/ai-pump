@@ -76,8 +76,8 @@ export default function OrderFormPage() {
 
   const addRecipeToOrder = async () => {
     if (!selectedRecipe) return;
-    const partsJson = selectedRecipe.parts_json;
-    let unitCost = selectedRecipe.saved_total_cost || 0;
+    const partsJson = selectedRecipe.partsJson;
+    let unitCost = selectedRecipe.savedTotalCost || 0;
     if (!unitCost) {
       try {
         const parts: RecipePart[] = JSON.parse(partsJson);

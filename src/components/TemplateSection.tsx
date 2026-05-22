@@ -74,10 +74,10 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   };
 
   const openEditTpl = (tpl: PumpShellTemplate) => {
-    setEditingTpl(tpl); setShellModel(tpl.shell_model); setTplDescription(tpl.description || '');
-    setAssemblyWage(tpl.assembly_wage || 0); setPackingWage(tpl.packing_wage || 0);
+    setEditingTpl(tpl); setShellModel(tpl.shellModel); setTplDescription(tpl.description || '');
+    setAssemblyWage(tpl.assemblyWage || 0); setPackingWage(tpl.packingWage || 0);
     try {
-      const parsed: TemplatePart[] = JSON.parse(tpl.parts_json || '[]');
+      const parsed: TemplatePart[] = JSON.parse(tpl.partsJson || '[]');
       setPartRows(parsed.map(p => ({ id: nextRowId.current++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
     } catch { setPartRows([]); }
     setTplDialogOpen(true);
@@ -88,11 +88,11 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     if (!modelStr) { setError('泵壳型号不能为空'); return; }
 
     // 防止重复创建模板（客户端校验）
-    if (!editingTpl && templates.some(t => t.shell_model === modelStr)) {
+    if (!editingTpl && templates.some(t => t.shellModel === modelStr)) {
       setError(`泵壳型号 "${modelStr}" 已经配置过模板，请直接修改已有模板`);
       return;
     }
-    if (editingTpl && templates.some(t => t.Id !== editingTpl.Id && t.shell_model === modelStr)) {
+    if (editingTpl && templates.some(t => t.Id !== editingTpl.Id && t.shellModel === modelStr)) {
       setError(`泵壳型号 "${modelStr}" 已存在其他模板关联`);
       return;
     }
@@ -103,9 +103,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     setTplSaving(true);
     try {
       if (editingTpl) {
-        await updateTemplate(editingTpl.Id, { shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage });
+        await updateTemplate(editingTpl.Id, { shellModel: shellModel.trim(), description: tplDescription.trim(), partsJson: JSON.stringify(pJson), assemblyWage: assemblyWage, packingWage: packingWage });
       } else {
-        await createTemplate({ shell_model: shellModel.trim(), description: tplDescription.trim(), parts_json: JSON.stringify(pJson), assembly_wage: assemblyWage, packing_wage: packingWage, painting_wage: null });
+        await createTemplate({ shellModel: shellModel.trim(), description: tplDescription.trim(), partsJson: JSON.stringify(pJson), assemblyWage: assemblyWage, packingWage: packingWage, paintingWage: null });
       }
       setTplDialogOpen(false);
       await fetchTemplates(true);
@@ -158,8 +158,8 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
               <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)', xl: 'repeat(4, 1fr)' } }}>
                 {templates.map(tpl => {
                   let tplParts: TemplatePart[] = [];
-                  try { tplParts = JSON.parse(tpl.parts_json || '[]'); } catch { /* */ }
-                  const laborCost = (tpl.assembly_wage || 0) + (tpl.packing_wage || 0);
+                  try { tplParts = JSON.parse(tpl.partsJson || '[]'); } catch { /* */ }
+                  const laborCost = (tpl.assemblyWage || 0) + (tpl.packingWage || 0);
                   return (
                     <Paper key={tpl.Id} variant="outlined" sx={{
                       p: 2, pb: 2.5, borderRadius: 2, transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
@@ -168,7 +168,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                       <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #7c3aed, #ec4899)' }} />
                       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} pb={1} sx={{ borderBottom: '1px dashed', borderColor: 'divider' }}>
                         <Box>
-                          <Typography variant="subtitle2" fontWeight={800} sx={{ color: '#7c3aed', fontSize: '1rem', mb: 0.5 }}>{tpl.shell_model}</Typography>
+                          <Typography variant="subtitle2" fontWeight={800} sx={{ color: '#7c3aed', fontSize: '1rem', mb: 0.5 }}>{tpl.shellModel}</Typography>
                           {tpl.description && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tpl.description}</Typography>}
                           <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }} title={tpl.CreatedAt ? new Date(tpl.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
                             录入：{formatEntryTime(tpl.CreatedAt)}

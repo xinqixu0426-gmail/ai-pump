@@ -50,10 +50,10 @@ export default function StepTemplateSelect({
         {
           key: 'shell',
           name: '泵壳',
-          model: selectedTemplate.shell_model,
+          model: selectedTemplate.shellModel,
           supplier: '',
           qty: 1,
-          subtotal: getPriceByModelAndSupplier(selectedTemplate.shell_model, ''),
+          subtotal: getPriceByModelAndSupplier(selectedTemplate.shellModel, ''),
         },
         ...templateParts.map((p, i) => {
           const supplier = p.supplier || '';
@@ -122,7 +122,7 @@ export default function StepTemplateSelect({
               </MenuItem>
               {templates.map(t => (
                 <MenuItem key={t.Id} value={t.Id}>
-                  {t.shell_model}{t.description ? ` — ${t.description}` : ''}
+                  {t.shellModel}{t.description ? ` — ${t.description}` : ''}
                 </MenuItem>
               ))}
             </Select>

@@ -145,7 +145,7 @@ export default function StepWageConfirm({
         <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
           <Typography variant="body2" color="text.secondary">配方名称：<strong>{recipeName || '-'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">规格：<strong>{recipeSpec || '-'}</strong></Typography>
-          <Typography variant="body2" color="text.secondary">泵壳模板：<strong>{selectedTemplate?.shell_model || '未选择'}</strong></Typography>
+          <Typography variant="body2" color="text.secondary">泵壳模板：<strong>{selectedTemplate?.shellModel || '未选择'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">线圈规格：<strong>{coilSpec ? `${coilSpec} / ${coilSheets}片` : '未配置'}</strong></Typography>
           <Typography variant="body2" color="text.secondary">选配件数：<strong>{optionalParts.filter(p => p.model).length} 项</strong></Typography>
           <Typography variant="body2" color="text.secondary">表面处理：<strong>{SURFACE_LABELS[surfaceTreatmentMode]} ¥{surfaceTreatmentCost.toFixed(2)}</strong></Typography>

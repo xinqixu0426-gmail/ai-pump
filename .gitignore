@@ -16,6 +16,12 @@ api.cjs.nocodb-backup
 scripts/db-backup/
 backups/
 
+# 临时与本地构建文件夹
+tmp/
+temp/
+.env.local
+.env.*.local
+
 __pycache__/
 public/drawings/output_*.pdf
 freecad/work_*.FCStd
