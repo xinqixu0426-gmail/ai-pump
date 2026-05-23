@@ -9,9 +9,9 @@ import {
   Package as TemplateIcon, ChevronDown as ExpandMoreIcon,
   ChevronUp as ExpandLessIcon, Search as SearchIcon,
 } from 'lucide-react';
-import { PumpShellTemplate, TemplatePart, Part } from '../types';
+import { PumpShellTemplate, TemplatePart, Part, ShellComponent } from '../types';
 import { createTemplate, updateTemplate, deleteTemplate } from '../utils/api';
-import TemplateFormDialog, { PartFormRow } from './TemplateFormDialog';
+import TemplateFormDialog, { PartFormRow, ShellComponentFormRow } from './TemplateFormDialog';
 
 interface Props {
   templates: PumpShellTemplate[];
@@ -33,8 +33,43 @@ function formatEntryTime(value?: string): string {
 interface TemplateListItem {
   tpl: PumpShellTemplate;
   parts: TemplatePart[];
+  shellComponents: ShellComponent[];
+  shellCost: number;
+  costMode: 'bundle' | 'components';
   laborCost: number;
   searchText: string;
+}
+
+function parseJsonArray<T>(value?: string): T[] {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function defaultFixedPartRows(nextRowId: React.MutableRefObject<number>): PartFormRow[] {
+  return [
+    { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '机械油封', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '骨架油封', model: '', qty: 1, supplier: '' },
+  ];
+}
+
+function defaultShellComponentRows(nextRowId: React.MutableRefObject<number>): ShellComponentFormRow[] {
+  return ['上帽', '机筒', '花板', '油缸', '泵头', '叶轮', '底座', '法兰'].map(name => ({
+    id: nextRowId.current++,
+    name,
+    model: '',
+    qty: name === '机筒' ? 15 : 1,
+    unitCost: 0,
+    pricingMode: name === '机筒' ? 'lengthCm' : 'fixed',
+    included: name !== '法兰',
+    optional: name === '法兰',
+    note: '',
+  }));
 }
 
 export default function TemplateSection({ templates, parts, fetchTemplates, setError }: Props) {
@@ -47,8 +82,11 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [shellModel, setShellModel] = useState('');
   const [tplDescription, setTplDescription] = useState('');
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
+  const [shellComponentRows, setShellComponentRows] = useState<ShellComponentFormRow[]>([]);
   const [assemblyWage, setAssemblyWage] = useState(0);
   const [packingWage, setPackingWage] = useState(0);
+  const [costMode, setCostMode] = useState<'bundle' | 'components'>('components');
+  const [bundleCost, setBundleCost] = useState(0);
   const [tplQuery, setTplQuery] = useState('');
 
   // ── 泵壳型号列表 ──
@@ -71,15 +109,23 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
   const templateRows = useMemo<TemplateListItem[]>(() => {
     return templates.map(tpl => {
-      let tplParts: TemplatePart[] = [];
-      try { tplParts = JSON.parse(tpl.partsJson || '[]'); } catch { /* */ }
+      const tplParts = parseJsonArray<TemplatePart>(tpl.partsJson);
+      const shellComponents = parseJsonArray<ShellComponent>(tpl.shellComponentsJson);
+      const costMode = tpl.costMode === 'bundle' ? 'bundle' : 'components';
+      const shellCost = costMode === 'bundle'
+        ? Number(tpl.bundleCost || 0)
+        : shellComponents.reduce((sum, c) => c.included === false ? sum : sum + Number(c.unitCost || 0) * Number(c.qty || 1), 0);
       const laborCost = (tpl.assemblyWage || 0) + (tpl.packingWage || 0);
       const partsText = tplParts.map(p => `${p.name} ${p.model}`).join(' ');
+      const componentText = shellComponents.map(c => `${c.name} ${c.model || ''}`).join(' ');
       return {
         tpl,
         parts: tplParts,
+        shellComponents,
+        shellCost,
+        costMode,
         laborCost,
-        searchText: `${tpl.shellModel} ${tpl.description || ''} ${partsText}`.toLowerCase(),
+        searchText: `${tpl.shellModel} ${tpl.description || ''} ${partsText} ${componentText}`.toLowerCase(),
       };
     });
   }, [templates]);
@@ -94,22 +140,33 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     setEditingTpl(null);
     setShellModel(''); setTplDescription('');
     setAssemblyWage(0); setPackingWage(0);
-    setPartRows([
-      { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
-      { id: nextRowId.current++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
-      { id: nextRowId.current++, name: '机械油封', model: '', qty: 1, supplier: '' },
-      { id: nextRowId.current++, name: '骨架油封', model: '', qty: 1, supplier: '' },
-    ]);
+    setCostMode('components');
+    setBundleCost(0);
+    setPartRows(defaultFixedPartRows(nextRowId));
+    setShellComponentRows(defaultShellComponentRows(nextRowId));
     setTplDialogOpen(true);
   };
 
   const openEditTpl = (tpl: PumpShellTemplate) => {
     setEditingTpl(tpl); setShellModel(tpl.shellModel); setTplDescription(tpl.description || '');
     setAssemblyWage(tpl.assemblyWage || 0); setPackingWage(tpl.packingWage || 0);
-    try {
-      const parsed: TemplatePart[] = JSON.parse(tpl.partsJson || '[]');
-      setPartRows(parsed.map(p => ({ id: nextRowId.current++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
-    } catch { setPartRows([]); }
+    setCostMode(tpl.costMode === 'bundle' ? 'bundle' : 'components');
+    setBundleCost(tpl.bundleCost || 0);
+    setPartRows(parseJsonArray<TemplatePart>(tpl.partsJson).map(p => ({ id: nextRowId.current++, name: p.name, model: p.model, qty: p.qty, supplier: p.supplier || '' })));
+    const components = parseJsonArray<ShellComponent>(tpl.shellComponentsJson);
+    setShellComponentRows(components.length > 0
+      ? components.map(c => ({
+          id: nextRowId.current++,
+          name: c.name,
+          model: c.model || '',
+          qty: c.qty || 1,
+          unitCost: c.unitCost || 0,
+          pricingMode: c.pricingMode || 'fixed',
+          included: c.included !== false,
+          optional: !!c.optional,
+          note: c.note || '',
+        }))
+      : defaultShellComponentRows(nextRowId));
     setTplDialogOpen(true);
   };
 
@@ -129,13 +186,43 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
     const validRows = partRows.filter(r => r.model.trim());
     if (validRows.length === 0) { setError('至少需要一个配件'); return; }
+    if (costMode === 'bundle' && bundleCost <= 0) { setError('请填写整套泵壳成本'); return; }
+    const validComponents = shellComponentRows.filter(r => r.name.trim() && r.included !== false);
+    if (costMode === 'components' && validComponents.length === 0) {
+      setError('组件明细模式至少需要一个计入成本的泵壳组件');
+      return;
+    }
     const pJson: TemplatePart[] = validRows.map(r => ({ name: r.name, model: r.model.trim(), qty: r.qty, supplier: r.supplier || '' }));
+    const cJson: ShellComponent[] = costMode === 'components'
+      ? shellComponentRows
+          .filter(r => r.name.trim())
+          .map(r => ({
+            name: r.name.trim(),
+            model: r.model.trim(),
+            qty: r.qty || 1,
+            unitCost: r.unitCost || 0,
+            pricingMode: r.pricingMode || 'fixed',
+            included: r.included !== false,
+            optional: !!r.optional,
+            note: r.note || '',
+          }))
+      : [];
     setTplSaving(true);
     try {
+      const payload = {
+        shellModel: modelStr,
+        description: tplDescription.trim(),
+        partsJson: JSON.stringify(pJson),
+        shellComponentsJson: JSON.stringify(cJson),
+        assemblyWage,
+        packingWage,
+        costMode,
+        bundleCost,
+      };
       if (editingTpl) {
-        await updateTemplate(editingTpl.Id, { shellModel: shellModel.trim(), description: tplDescription.trim(), partsJson: JSON.stringify(pJson), assemblyWage: assemblyWage, packingWage: packingWage });
+        await updateTemplate(editingTpl.Id, payload);
       } else {
-        await createTemplate({ shellModel: shellModel.trim(), description: tplDescription.trim(), partsJson: JSON.stringify(pJson), assemblyWage: assemblyWage, packingWage: packingWage, paintingWage: null });
+        await createTemplate({ ...payload, paintingWage: null });
       }
       setTplDialogOpen(false);
       await fetchTemplates(true);
@@ -223,13 +310,14 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                           <TableCell sx={{ width: 150 }}>型号</TableCell>
                           <TableCell sx={{ minWidth: 160 }}>说明</TableCell>
                           <TableCell sx={{ width: 120 }}>录入时间</TableCell>
+                          <TableCell>泵壳成本</TableCell>
                           <TableCell>固定配件</TableCell>
                           <TableCell align="right" sx={{ width: 96 }}>工时工资</TableCell>
                           <TableCell align="center" sx={{ width: 96 }}>操作</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {filteredTemplateRows.map(({ tpl, parts: tplParts, laborCost }) => (
+                        {filteredTemplateRows.map(({ tpl, parts: tplParts, shellComponents, shellCost, costMode, laborCost }) => (
                           <TableRow key={tpl.Id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                             <TableCell>
                               <Typography variant="body2" fontWeight={800} sx={{ color: '#7c3aed' }}>
@@ -250,6 +338,25 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                               <Typography variant="body2" color="text.secondary">
                                 {formatEntryTime(tpl.CreatedAt)}
                               </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.25 }}>
+                                <Chip
+                                  label={`${costMode === 'bundle' ? '整套' : '组件'} ¥${shellCost.toFixed(2)}`}
+                                  size="small"
+                                  color={costMode === 'bundle' ? 'primary' : 'success'}
+                                  sx={{ height: 22, fontSize: '0.72rem' }}
+                                />
+                                {costMode === 'components' && shellComponents.slice(0, 3).map((c, i) => (
+                                  <Chip
+                                    key={`${c.name}-${i}`}
+                                    label={`${c.name} ¥${Number(c.unitCost || 0).toFixed(2)}${c.pricingMode === 'lengthCm' ? '/cm' : ''}`}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 22, maxWidth: 150, fontSize: '0.72rem', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                                  />
+                                ))}
+                              </Box>
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.25 }}>
@@ -311,6 +418,8 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         setTplDescription={setTplDescription}
         partRows={partRows}
         setPartRows={setPartRows}
+        shellComponentRows={shellComponentRows}
+        setShellComponentRows={setShellComponentRows}
         parts={parts}
         shellModels={shellModels}
         uniqueModels={uniqueModels}
@@ -321,6 +430,10 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         setAssemblyWage={setAssemblyWage}
         packingWage={packingWage}
         setPackingWage={setPackingWage}
+        costMode={costMode}
+        setCostMode={setCostMode}
+        bundleCost={bundleCost}
+        setBundleCost={setBundleCost}
       />
 
       {/* 模板删除确认 */}

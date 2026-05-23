@@ -259,9 +259,13 @@ function templateToApiPayload(tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Reco
   if (tpl.shellModel !== undefined) payload.shellModel = tpl.shellModel;
   if (tpl.description !== undefined) payload.description = tpl.description || '';
   if (tpl.partsJson !== undefined) payload.partsJson = tpl.partsJson || '[]';
+  if (tpl.shellComponentsJson !== undefined) payload.shellComponentsJson = tpl.shellComponentsJson || '[]';
+  if (tpl.rotorParamsJson !== undefined) payload.rotorParamsJson = tpl.rotorParamsJson || '{}';
   if (tpl.assemblyWage !== undefined) payload.assemblyWage = tpl.assemblyWage ?? 0;
   if (tpl.packingWage !== undefined) payload.packingWage = tpl.packingWage ?? 0;
   if (tpl.paintingWage !== undefined) payload.paintingWage = tpl.paintingWage ?? null;
+  if (tpl.costMode !== undefined) payload.costMode = tpl.costMode || 'components';
+  if (tpl.bundleCost !== undefined) payload.bundleCost = tpl.bundleCost ?? 0;
   return payload;
 }
 

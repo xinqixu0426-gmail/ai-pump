@@ -2,22 +2,42 @@ import { useCallback, MutableRefObject } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Box, TextField,
   Button, Table, TableBody, TableCell, TableHead, TableRow, Divider,
-  IconButton, CircularProgress, Autocomplete, Typography,
+  IconButton, CircularProgress, Autocomplete, Typography, ToggleButton,
+  ToggleButtonGroup, Checkbox, Tooltip,
 } from '@mui/material';
 import {
   Trash2 as DeleteIcon, Plus as AddIcon, Save as SaveIcon, X as CloseIcon,
 } from 'lucide-react';
 import { PumpShellTemplate, Part } from '../types';
 
-export interface PartFormRow { id: number; name: string; model: string; qty: number; supplier: string; }
+export interface PartFormRow {
+  id: number;
+  name: string;
+  model: string;
+  qty: number;
+  supplier: string;
+}
+
+export interface ShellComponentFormRow {
+  id: number;
+  name: string;
+  model: string;
+  qty: number;
+  unitCost: number;
+  included: boolean;
+  optional: boolean;
+  note: string;
+}
 
 const NAME_TO_CATEGORY: Record<string, string> = {
-  '花板轴承': '轴承', '油封轴承': '轴承', '轴承': '轴承',
+  '花板轴承': '轴承', '油缸轴承': '轴承', '轴承': '轴承',
   '机械油封': '油封', '骨架油封': '油封', '油封': '油封',
   '皮垫': '密封件', 'O型圈': '密封件',
   '螺丝': '螺丝', '螺杆': '螺丝', '螺母': '螺丝', '不锈钢长螺丝': '螺丝',
   '叶轮': '叶轮', '电容': '电容',
 };
+
+const DEFAULT_SHELL_COMPONENT_NAMES = ['上帽', '机筒', '花板', '油缸', '泵头', '叶轮', '底座', '法兰'];
 
 interface Props {
   open: boolean;
@@ -29,6 +49,8 @@ interface Props {
   setTplDescription: (v: string) => void;
   partRows: PartFormRow[];
   setPartRows: React.Dispatch<React.SetStateAction<PartFormRow[]>>;
+  shellComponentRows: ShellComponentFormRow[];
+  setShellComponentRows: React.Dispatch<React.SetStateAction<ShellComponentFormRow[]>>;
   parts: Part[];
   shellModels: string[];
   uniqueModels: string[];
@@ -39,15 +61,21 @@ interface Props {
   setAssemblyWage: (v: number) => void;
   packingWage: number;
   setPackingWage: (v: number) => void;
+  costMode: 'bundle' | 'components';
+  setCostMode: (v: 'bundle' | 'components') => void;
+  bundleCost: number;
+  setBundleCost: (v: number) => void;
 }
 
 export default function TemplateFormDialog({
   open, onClose, editingTpl,
   shellModel, setShellModel,
   tplDescription, setTplDescription,
-  partRows, setPartRows, parts, shellModels, uniqueModels,
+  partRows, setPartRows, shellComponentRows, setShellComponentRows,
+  parts, shellModels, uniqueModels,
   tplSaving, onSave, nextRowId,
   assemblyWage, setAssemblyWage, packingWage, setPackingWage,
+  costMode, setCostMode, bundleCost, setBundleCost,
 }: Props) {
   const getCategoryFromName = useCallback((name: string): string | null => {
     if (!name) return null;
@@ -66,13 +94,21 @@ export default function TemplateFormDialog({
     return Array.from(set).sort();
   }, [parts, uniqueModels]);
 
-  const handleRowChange = (id: number, field: keyof Omit<PartFormRow, 'id'>, value: string | number) => {
+  const handlePartRowChange = (id: number, field: keyof Omit<PartFormRow, 'id'>, value: string | number) => {
     setPartRows(prev => prev.map(r => {
       if (r.id !== id) return r;
       const updated = { ...r, [field]: value };
       if (field === 'model') updated.supplier = '';
       return updated;
     }));
+  };
+
+  const handleShellComponentChange = (
+    id: number,
+    field: keyof Omit<ShellComponentFormRow, 'id'>,
+    value: string | number | boolean
+  ) => {
+    setShellComponentRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
   const checkStainlessScrewRow = useCallback((currentShellModel: string) => {
@@ -97,6 +133,24 @@ export default function TemplateFormDialog({
       return prev;
     });
   }, [parts, nextRowId, setPartRows]);
+
+  const addShellComponentRow = () => {
+    const used = new Set(shellComponentRows.map(row => row.name));
+    const nextName = DEFAULT_SHELL_COMPONENT_NAMES.find(name => !used.has(name)) || '';
+    setShellComponentRows(prev => [
+      ...prev,
+      {
+        id: nextRowId.current++,
+        name: nextName,
+        model: '',
+        qty: 1,
+        unitCost: 0,
+        included: true,
+        optional: nextName === '法兰',
+        note: '',
+      },
+    ]);
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -128,10 +182,121 @@ export default function TemplateFormDialog({
           />
         </Box>
 
+        <Box display="flex" gap={2} alignItems="center" mb={2} flexWrap="wrap">
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={costMode}
+            onChange={(_e, value) => { if (value) setCostMode(value); }}
+          >
+            <ToggleButton value="bundle">泵壳整套报价</ToggleButton>
+            <ToggleButton value="components">泵壳组件明细</ToggleButton>
+          </ToggleButtonGroup>
+          {costMode === 'bundle' && (
+            <TextField
+              label="整套泵壳成本"
+              type="number"
+              size="small"
+              required
+              value={bundleCost || ''}
+              onChange={e => setBundleCost(Math.max(0, parseFloat(e.target.value) || 0))}
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ width: 160 }}
+            />
+          )}
+        </Box>
+
+        {costMode === 'components' && (
+          <>
+            <Typography variant="subtitle2" fontWeight={700} mb={1} color="text.secondary">
+              泵壳组件明细
+            </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 110 }}>组件名称</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>型号/规格</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 70 }}>数量</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 90 }}>单价</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 70 }}>计入</TableCell>
+                  <TableCell sx={{ width: 40 }} />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {shellComponentRows.map(row => (
+                  <TableRow key={row.id}>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={row.name}
+                        onChange={e => handleShellComponentChange(row.id, 'name', e.target.value)}
+                        placeholder="如 上帽"
+                        variant="standard"
+                        inputProps={{ style: { fontSize: '0.85rem' } }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={row.model}
+                        onChange={e => handleShellComponentChange(row.id, 'model', e.target.value)}
+                        placeholder="如 V750-上帽"
+                        variant="standard"
+                        inputProps={{ style: { fontSize: '0.85rem' } }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={row.qty}
+                        onChange={e => handleShellComponentChange(row.id, 'qty', Math.max(1, parseFloat(e.target.value) || 1))}
+                        variant="standard"
+                        sx={{ width: 50 }}
+                        inputProps={{ min: 1, step: 0.1, style: { fontSize: '0.85rem', textAlign: 'center' } }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={row.unitCost || ''}
+                        onChange={e => handleShellComponentChange(row.id, 'unitCost', Math.max(0, parseFloat(e.target.value) || 0))}
+                        variant="standard"
+                        sx={{ width: 72 }}
+                        inputProps={{ min: 0, step: 0.01, style: { fontSize: '0.85rem', textAlign: 'right' } }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <Tooltip title="是否计入泵壳本体成本">
+                        <Checkbox
+                          size="small"
+                          checked={row.included !== false}
+                          onChange={e => handleShellComponentChange(row.id, 'included', e.target.checked)}
+                        />
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <IconButton size="small" color="error" aria-label="删除泵壳组件行" onClick={() => setShellComponentRows(prev => prev.filter(r => r.id !== row.id))}>
+                        <DeleteIcon size={18} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Button size="small" startIcon={<AddIcon size={18} />} onClick={addShellComponentRow} sx={{ mt: 1 }}>
+              添加泵壳组件
+            </Button>
+            <Divider sx={{ my: 2 }} />
+          </>
+        )}
+
         <Typography variant="subtitle2" fontWeight={700} mb={1} color="text.secondary">
           固定配件清单
         </Typography>
-
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: 'grey.50' }}>
@@ -152,7 +317,7 @@ export default function TemplateFormDialog({
                       size="small"
                       fullWidth
                       value={row.name}
-                      onChange={e => handleRowChange(row.id, 'name', e.target.value)}
+                      onChange={e => handlePartRowChange(row.id, 'name', e.target.value)}
                       placeholder="如 花板轴承"
                       variant="standard"
                       inputProps={{ style: { fontSize: '0.85rem' } }}
@@ -164,8 +329,8 @@ export default function TemplateFormDialog({
                       disableClearable
                       options={filteredModels}
                       value={row.model}
-                      onChange={(_e, v) => handleRowChange(row.id, 'model', v || '')}
-                      onInputChange={(_e, v) => handleRowChange(row.id, 'model', v || '')}
+                      onChange={(_e, v) => handlePartRowChange(row.id, 'model', v || '')}
+                      onInputChange={(_e, v) => handlePartRowChange(row.id, 'model', v || '')}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -184,14 +349,14 @@ export default function TemplateFormDialog({
                       size="small"
                       type="number"
                       value={row.qty}
-                      onChange={e => handleRowChange(row.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={e => handlePartRowChange(row.id, 'qty', Math.max(1, parseInt(e.target.value) || 1))}
                       variant="standard"
                       sx={{ width: 50 }}
                       inputProps={{ min: 1, style: { fontSize: '0.85rem', textAlign: 'center' } }}
                     />
                   </TableCell>
                   <TableCell sx={{ py: 0.5 }}>
-                    <IconButton size="small" color="error" aria-label="删除模板零件行" onClick={() => setPartRows(prev => prev.filter(r => r.id !== row.id))}>
+                    <IconButton size="small" color="error" aria-label="删除固定配件行" onClick={() => setPartRows(prev => prev.filter(r => r.id !== row.id))}>
                       <DeleteIcon size={18} />
                     </IconButton>
                   </TableCell>
@@ -200,14 +365,13 @@ export default function TemplateFormDialog({
             })}
           </TableBody>
         </Table>
-
         <Button
           size="small"
           startIcon={<AddIcon size={18} />}
           onClick={() => setPartRows(prev => [...prev, { id: nextRowId.current++, name: '', model: '', qty: 1, supplier: '' }])}
           sx={{ mt: 1 }}
         >
-          添加配件行
+          添加固定配件
         </Button>
 
         <Divider sx={{ my: 2 }} />

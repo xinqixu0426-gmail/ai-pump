@@ -45,16 +45,34 @@ export default function StepTemplateSelect({
   setCustomBarrelLength,
 }: StepTemplateSelectProps) {
   const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
+  const costMode = selectedTemplate?.costMode || 'components';
+  const shellRows = costMode === 'bundle'
+    ? [{
+        key: 'bundle',
+        name: '整套泵壳',
+        model: selectedTemplate?.shellModel || '',
+        supplier: '',
+        qty: 1,
+        subtotal: Number(selectedTemplate?.bundleCost || 0),
+      }]
+    : shellComponents
+        .filter(c => c.included !== false)
+        .map((c, i) => {
+          const qty = c.pricingMode === 'lengthCm'
+            ? Number(customBarrelLength || shellMetaInfo?.barrelLength || Number(c.qty || 0) * 10) / 10
+            : Number(c.qty || 1);
+          return {
+            key: `shell-${c.name}-${i}`,
+            name: c.pricingMode === 'lengthCm' ? `${c.name}(按cm)` : c.name,
+            model: c.model || c.name,
+            supplier: '',
+            qty,
+            subtotal: Number(c.unitCost || 0) * qty,
+          };
+        });
   const templatePreviewRows = selectedTemplate
     ? [
-        {
-          key: 'shell',
-          name: '泵壳',
-          model: selectedTemplate.shellModel,
-          supplier: '',
-          qty: 1,
-          subtotal: getPriceByModelAndSupplier(selectedTemplate.shellModel, ''),
-        },
+        ...shellRows,
         ...templateParts.map((p, i) => {
           const supplier = p.supplier || '';
           const price = getPriceByModelAndSupplier(p.model, supplier);
@@ -98,7 +116,7 @@ export default function StepTemplateSelect({
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <TemplateIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
-            ▸ 泵壳模板（固定配件）
+            ▸ 泵壳模板（泵壳成本 + 固定配件）
           </Typography>
           {selectedTemplate && (
             <Chip
@@ -219,7 +237,7 @@ export default function StepTemplateSelect({
 
           {!selectedTemplate && (
             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
-              选择泵壳模板后，固定配件(轴承/油封/螺丝等)将自动填入
+              选择泵壳模板后，泵壳成本按模板计价方式计算，固定配件(轴承/油封/螺丝等)自动填入
             </Typography>
           )}
         </Box>

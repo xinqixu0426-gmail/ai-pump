@@ -43,6 +43,17 @@ export interface TemplatePart {
   supplier?: string;
 }
 
+export interface ShellComponent {
+  name: string;
+  model?: string;
+  qty: number;
+  unitCost?: number;
+  pricingMode?: 'fixed' | 'lengthCm';
+  included?: boolean;
+  optional?: boolean;
+  note?: string;
+}
+
 export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'powder_coating';
 
 /** 泵壳模板 */
@@ -51,10 +62,13 @@ export interface PumpShellTemplate {
   shellModel: string;
   description: string;
   partsJson: string;
+  shellComponentsJson?: string;
   rotorParamsJson?: string;
   assemblyWage: number;
   packingWage: number;
   paintingWage: number | null;
+  costMode?: 'bundle' | 'components';
+  bundleCost?: number;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -102,6 +116,7 @@ export interface RecipePart {
   unitPrice?: number;
   source?: string;
   formula?: string;
+  costSource?: string;
 }
 
 // 配件选择（表单用）

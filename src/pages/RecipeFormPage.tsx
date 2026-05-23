@@ -10,7 +10,7 @@ import {
   Button,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
-import { RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
+import { RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
@@ -281,9 +281,17 @@ export default function RecipeFormPage() {
 
 
   const selectedTemplate = templates.find(t => t.Id === selectedTemplateId) || null;
+  const selectedTemplateCostMode = selectedTemplate?.costMode || 'components';
   const templateParts: TemplatePart[] = (() => {
     if (!selectedTemplate) return [];
     try { return JSON.parse(selectedTemplate.partsJson || '[]'); } catch { return []; }
+  })();
+  const shellComponents: ShellComponent[] = (() => {
+    if (!selectedTemplate) return [];
+    try {
+      const parsed = JSON.parse(selectedTemplate.shellComponentsJson || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
   })();
 
   const shellMetaInfo = useMemo(() => {
@@ -300,8 +308,21 @@ export default function RecipeFormPage() {
     }
   }, [selectedTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shellPrice = selectedTemplate ? getPriceByModelAndSupplier(selectedTemplate.shellModel, '') : 0;
-  const templateCost = shellPrice + templateParts.reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier || '') * p.qty, 0);
+  const getTemplatePartPrice = useCallback((p: TemplatePart) => {
+    return getPriceByModelAndSupplier(p.model, p.supplier || '');
+  }, [getPriceByModelAndSupplier]);
+  const shellPrice = selectedTemplate && selectedTemplateCostMode === 'bundle'
+    ? Number(selectedTemplate.bundleCost || 0)
+    : shellComponents.reduce((sum, c) => {
+        if (c.included === false) return sum;
+        const qty = c.pricingMode === 'lengthCm'
+          ? Number(customBarrelLength || shellMetaInfo?.barrelLength || Number(c.qty || 0) * 10) / 10
+          : Number(c.qty || 1);
+        return sum + Number(c.unitCost || 0) * qty;
+      }, 0);
+  const templateCost = selectedTemplate
+    ? shellPrice + templateParts.reduce((sum, p) => sum + getTemplatePartPrice(p) * p.qty, 0)
+    : 0;
 
   const buildConfigParts = useCallback((): RecipePart[] => {
     const configParts: RecipePart[] = [];
@@ -325,14 +346,30 @@ export default function RecipeFormPage() {
 
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
-    // 泵壳本体
     if (selectedTemplate) {
-      const sp = getPriceByModelAndSupplier(selectedTemplate.shellModel, '');
-      all.push({ model: selectedTemplate.shellModel, name: '泵壳', supplier: '', qty: 1, snapshotPrice: sp });
+      if (selectedTemplateCostMode === 'bundle') {
+        all.push({ model: selectedTemplate.shellModel, name: '泵壳整套', supplier: '', qty: 1, snapshotPrice: shellPrice, source: 'pump_shell_template', costSource: 'manual' });
+      } else {
+        shellComponents.forEach(c => {
+          if (c.included === false) return;
+          const qty = c.pricingMode === 'lengthCm'
+            ? Number(customBarrelLength || shellMetaInfo?.barrelLength || Number(c.qty || 0) * 10) / 10
+            : Number(c.qty || 1);
+          all.push({
+            model: c.model || c.name,
+            name: c.pricingMode === 'lengthCm' ? `${c.name}(按cm)` : c.name,
+            supplier: '',
+            qty,
+            snapshotPrice: Number(c.unitCost || 0),
+            source: 'pump_shell_template',
+            costSource: 'manual'
+          });
+        });
+      }
     }
     templateParts.forEach(p => {
       const supplier = p.supplier || '';
-      const price = getPriceByModelAndSupplier(p.model, supplier);
+      const price = getTemplatePartPrice(p);
       all.push({ model: p.model, name: p.name, supplier, qty: p.qty, snapshotPrice: price });
     });
     if (capacitorModel) {
@@ -356,7 +393,7 @@ export default function RecipeFormPage() {
     });
     all.push(...buildConfigParts());
     return all;
-  }, [selectedTemplate, templateParts, capacitorModel, optionalParts, buildConfigParts, getPriceByModelAndSupplier, coilResult, coilSpec, coilMaterial, coilSheets]);
+  }, [selectedTemplate, selectedTemplateCostMode, shellPrice, shellComponents, customBarrelLength, shellMetaInfo, templateParts, capacitorModel, optionalParts, buildConfigParts, getTemplatePartPrice, getPriceByModelAndSupplier, coilResult, coilSpec, coilMaterial, coilSheets]);
 
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
   const laborCost = useMemo(
@@ -464,7 +501,7 @@ export default function RecipeFormPage() {
         recipeName={recipeName} setRecipeName={setRecipeName}
         recipeSpec={recipeSpec} setRecipeSpec={setRecipeSpec}
         selectedTemplateId={selectedTemplateId} setSelectedTemplateId={setSelectedTemplateId}
-        templates={templates} templateParts={templateParts} templateCost={templateCost}
+        templates={templates} templateParts={templateParts} shellComponents={shellComponents} templateCost={templateCost}
         getPriceByModelAndSupplier={getPriceByModelAndSupplier} shellMetaInfo={shellMetaInfo}
         customBarrelLength={customBarrelLength} setCustomBarrelLength={setCustomBarrelLength}
       />

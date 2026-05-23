@@ -39,6 +39,8 @@ export interface RecipePartForCalc {
   supplier: string;
   qty: number;
   snapshotPrice?: number;
+  source?: string;
+  costSource?: string;
 }
 
 function parseCableAccessoryFee(notes?: string): number | null {
@@ -98,7 +100,10 @@ export function calculateRecipeCost(
     // 1) 精确匹配: model + supplier
     const exactKey = `${rp.model}||${rp.supplier}`;
     const matchedPart = partsCache.get(exactKey);
-    if (isCableAccessoryPart(rp)) {
+    if ((rp.source === 'pump_shell_template' || rp.costSource === 'manual') && rp.snapshotPrice !== undefined) {
+      price = rp.snapshotPrice;
+      source = '模板手动价';
+    } else if (isCableAccessoryPart(rp)) {
       const cablePart = findCablePart(recipeParts);
       price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '');
       source = '电缆线配件费';

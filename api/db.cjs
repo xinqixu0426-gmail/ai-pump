@@ -179,6 +179,9 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN rotor_params_json TEX
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN assembly_wage REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN packing_wage REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN cost_mode TEXT DEFAULT 'components'`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_cost REAL DEFAULT 0`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
 try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
@@ -241,13 +244,17 @@ function templateRow(r) {
     return {
         Id: r.id, shellModel: r.shell_model, description: r.description || '',
         partsJson: r.parts_json || '[]', rotorParamsJson: r.rotor_params_json || '{}',
+        shellComponentsJson: r.shell_components_json || '[]',
         assemblyWage: r.assembly_wage || 0, packingWage: r.packing_wage || 0,
         paintingWage: r.painting_wage != null ? r.painting_wage : null,
+        costMode: r.cost_mode || 'components', bundleCost: r.bundle_cost || 0,
         // Legacy aliases kept while the frontend migrates fully to camelCase.
         shell_model: r.shell_model,
         parts_json: r.parts_json || '[]', rotor_params_json: r.rotor_params_json || '{}',
+        shell_components_json: r.shell_components_json || '[]',
         assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
         painting_wage: r.painting_wage != null ? r.painting_wage : null,
+        cost_mode: r.cost_mode || 'components', bundle_cost: r.bundle_cost || 0,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -354,7 +361,8 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
         const suppliers = partsByModel[p.model] || [];
         const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
         let price = 0, source = '';
-        if (isCableAccessoryPart(p)) {
+        if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '模板手动价'; }
+        else if (isCableAccessoryPart(p)) {
             const cablePart = findCablePart(parts);
             price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '');
             source = '电缆线配件费';
