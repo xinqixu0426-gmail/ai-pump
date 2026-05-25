@@ -1,12 +1,13 @@
 import { useState, useMemo, useRef } from 'react';
 import {
   Paper, Typography, Box, Collapse, Chip, IconButton, Button,
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputAdornment,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip,
 } from '@mui/material';
 import {
   Trash2 as DeleteIcon, Plus as AddIcon, Edit3 as EditIcon,
   Package as TemplateIcon, ChevronDown as ExpandMoreIcon,
-  ChevronUp as ExpandLessIcon,
+  ChevronUp as ExpandLessIcon, Search as SearchIcon,
 } from 'lucide-react';
 import { PumpShellTemplate, TemplatePart, Part } from '../types';
 import { createTemplate, updateTemplate, deleteTemplate } from '../utils/api';
@@ -29,6 +30,13 @@ function formatEntryTime(value?: string): string {
   });
 }
 
+interface TemplateListItem {
+  tpl: PumpShellTemplate;
+  parts: TemplatePart[];
+  laborCost: number;
+  searchText: string;
+}
+
 export default function TemplateSection({ templates, parts, fetchTemplates, setError }: Props) {
   const nextRowId = useRef(1);
   const [tplExpanded, setTplExpanded] = useState(true);
@@ -41,6 +49,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
   const [assemblyWage, setAssemblyWage] = useState(0);
   const [packingWage, setPackingWage] = useState(0);
+  const [tplQuery, setTplQuery] = useState('');
 
   // ── 泵壳型号列表 ──
   const shellModels = useMemo(() => {
@@ -59,6 +68,27 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     parts.forEach(p => { if (p.model) set.add(p.model); });
     return Array.from(set).sort();
   }, [parts]);
+
+  const templateRows = useMemo<TemplateListItem[]>(() => {
+    return templates.map(tpl => {
+      let tplParts: TemplatePart[] = [];
+      try { tplParts = JSON.parse(tpl.partsJson || '[]'); } catch { /* */ }
+      const laborCost = (tpl.assemblyWage || 0) + (tpl.packingWage || 0);
+      const partsText = tplParts.map(p => `${p.name} ${p.model}`).join(' ');
+      return {
+        tpl,
+        parts: tplParts,
+        laborCost,
+        searchText: `${tpl.shellModel} ${tpl.description || ''} ${partsText}`.toLowerCase(),
+      };
+    });
+  }, [templates]);
+
+  const filteredTemplateRows = useMemo(() => {
+    const q = tplQuery.trim().toLowerCase();
+    if (!q) return templateRows;
+    return templateRows.filter(row => row.searchText.includes(q));
+  }, [templateRows, tplQuery]);
 
   const openCreateTpl = () => {
     setEditingTpl(null);
@@ -155,53 +185,116 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                 <Typography variant="body2">还没有泵壳模板，点击上方"新建"创建</Typography>
               </Box>
             ) : (
-              <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)', xl: 'repeat(4, 1fr)' } }}>
-                {templates.map(tpl => {
-                  let tplParts: TemplatePart[] = [];
-                  try { tplParts = JSON.parse(tpl.partsJson || '[]'); } catch { /* */ }
-                  const laborCost = (tpl.assemblyWage || 0) + (tpl.packingWage || 0);
-                  return (
-                    <Paper key={tpl.Id} variant="outlined" sx={{
-                      p: 2, pb: 2.5, borderRadius: 2, transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
-                      '&:hover': { borderColor: '#a855f7', boxShadow: '0 4px 20px rgba(124,58,237,0.1)', transform: 'translateY(-2px)' }
-                    }}>
-                      <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #7c3aed, #ec4899)' }} />
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} pb={1} sx={{ borderBottom: '1px dashed', borderColor: 'divider' }}>
-                        <Box>
-                          <Typography variant="subtitle2" fontWeight={800} sx={{ color: '#7c3aed', fontSize: '1rem', mb: 0.5 }}>{tpl.shellModel}</Typography>
-                          {tpl.description && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tpl.description}</Typography>}
-                          <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }} title={tpl.CreatedAt ? new Date(tpl.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
-                            录入：{formatEntryTime(tpl.CreatedAt)}
-                          </Typography>
-                        </Box>
-                        <Box display="flex" gap={0.5}>
-                          <IconButton size="small" aria-label="编辑泵壳模板" sx={{ bgcolor: 'action.hover' }} onClick={() => openEditTpl(tpl)}><EditIcon size={16} /></IconButton>
-                          <IconButton size="small" aria-label="删除泵壳模板" sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }} onClick={() => setTplDeleteId(tpl.Id)}><DeleteIcon size={16} /></IconButton>
-                        </Box>
-                      </Box>
+              <>
+                <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                  <TextField
+                    value={tplQuery}
+                    onChange={(e) => setTplQuery(e.target.value)}
+                    placeholder="搜索型号 / 描述 / 配件"
+                    size="small"
+                    sx={{ width: { xs: '100%', sm: 320 } }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon size={16} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  {tplQuery && (
+                    <Chip
+                      label={`${filteredTemplateRows.length} / ${templates.length}`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  )}
+                </Box>
 
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2 }}>
-                        {tplParts.map((p, i) => (
-                          <Box key={i} display="flex" alignItems="center" gap={1} sx={{ flexWrap: 'wrap' }}>
-                            <Typography variant="caption" sx={{ color: 'text.secondary', width: 60, flexShrink: 0 }}>{p.name}</Typography>
-                            <Chip label={p.model} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                            {p.qty > 1 && <Typography variant="caption" fontWeight={600} color="primary.main">×{p.qty}</Typography>}
-                          </Box>
+                {filteredTemplateRows.length === 0 ? (
+                  <Box textAlign="center" py={3} color="text.secondary">
+                    <Typography variant="body2">没有匹配的泵壳模板</Typography>
+                  </Box>
+                ) : (
+                  <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, maxHeight: 560 }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ width: 150 }}>型号</TableCell>
+                          <TableCell sx={{ minWidth: 160 }}>说明</TableCell>
+                          <TableCell sx={{ width: 120 }}>录入时间</TableCell>
+                          <TableCell>固定配件</TableCell>
+                          <TableCell align="right" sx={{ width: 96 }}>工时工资</TableCell>
+                          <TableCell align="center" sx={{ width: 96 }}>操作</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredTemplateRows.map(({ tpl, parts: tplParts, laborCost }) => (
+                          <TableRow key={tpl.Id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight={800} sx={{ color: '#7c3aed' }}>
+                                {tpl.shellModel}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ maxWidth: 220 }}>
+                              <Typography
+                                variant="body2"
+                                color={tpl.description ? 'text.primary' : 'text.disabled'}
+                                title={tpl.description || '-'}
+                                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                              >
+                                {tpl.description || '-'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell title={tpl.CreatedAt ? new Date(tpl.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
+                              <Typography variant="body2" color="text.secondary">
+                                {formatEntryTime(tpl.CreatedAt)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.25 }}>
+                                {tplParts.length === 0 ? (
+                                  <Typography variant="body2" color="text.disabled">-</Typography>
+                                ) : tplParts.map((p, i) => (
+                                  <Tooltip key={`${p.name}-${p.model}-${i}`} title={`${p.name}${p.qty > 1 ? ` ×${p.qty}` : ''}`}>
+                                    <Chip
+                                      label={`${p.name} ${p.model}${p.qty > 1 ? ` ×${p.qty}` : ''}`}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ height: 22, maxWidth: 180, fontSize: '0.72rem', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                                    />
+                                  </Tooltip>
+                                ))}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              {laborCost > 0 ? (
+                                <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 700, fontFamily: 'monospace' }}>
+                                  ¥{laborCost.toFixed(2)}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" color="text.disabled">-</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Tooltip title="编辑">
+                                <IconButton size="small" aria-label="编辑泵壳模板" color="warning" onClick={() => openEditTpl(tpl)}>
+                                  <EditIcon size={16} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="删除">
+                                <IconButton size="small" aria-label="删除泵壳模板" color="error" onClick={() => setTplDeleteId(tpl.Id)}>
+                                  <DeleteIcon size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </Box>
-
-                      {laborCost > 0 && (
-                        <Box sx={{ bgcolor: 'rgba(124,58,237,0.04)', borderRadius: 2, p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="caption" color="text.secondary">工时工资</Typography>
-                          <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 700, fontFamily: 'monospace' }}>
-                            ¥{laborCost.toFixed(2)}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Paper>
-                  );
-                })}
-              </Box>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </>
             )}
           </Box>
         </Collapse>
