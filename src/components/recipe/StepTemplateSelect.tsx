@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { Package as TemplateIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
-import { TemplatePart, PumpShellTemplate, PumpShellMeta } from '../../types';
+import { TemplatePart, ShellComponent, PumpShellTemplate, PumpShellMeta } from '../../types';
 
 interface StepTemplateSelectProps {
   recipeName: string;
@@ -22,6 +22,7 @@ interface StepTemplateSelectProps {
   setSelectedTemplateId: (val: number | null) => void;
   templates: PumpShellTemplate[];
   templateParts: TemplatePart[];
+  shellComponents: ShellComponent[];
   templateCost: number;
   getPriceByModelAndSupplier: (model: string, supplier: string) => number;
   shellMetaInfo: PumpShellMeta | null;
@@ -38,6 +39,7 @@ export default function StepTemplateSelect({
   setSelectedTemplateId,
   templates,
   templateParts,
+  shellComponents,
   templateCost,
   getPriceByModelAndSupplier,
   shellMetaInfo,

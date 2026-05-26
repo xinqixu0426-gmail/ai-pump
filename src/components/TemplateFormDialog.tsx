@@ -1,9 +1,9 @@
-import { useCallback, MutableRefObject } from 'react';
+import { useCallback, useMemo, MutableRefObject } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Box, TextField,
   Button, Table, TableBody, TableCell, TableHead, TableRow, Divider,
   IconButton, CircularProgress, Autocomplete, Typography, ToggleButton,
-  ToggleButtonGroup, Checkbox, Tooltip,
+  ToggleButtonGroup, Checkbox, Tooltip, Alert,
 } from '@mui/material';
 import {
   Trash2 as DeleteIcon, Plus as AddIcon, Save as SaveIcon, X as CloseIcon,
@@ -24,6 +24,7 @@ export interface ShellComponentFormRow {
   model: string;
   qty: number;
   unitCost: number;
+  pricingMode: 'fixed' | 'lengthCm';
   included: boolean;
   optional: boolean;
   note: string;
@@ -94,6 +95,14 @@ export default function TemplateFormDialog({
     return Array.from(set).sort();
   }, [parts, uniqueModels]);
 
+  const shellPartReferences = useMemo(() => {
+    const model = shellModel.trim();
+    if (!model) return [];
+    return parts
+      .filter(p => ['泵壳', '泵体', '壳体'].includes(p.category) && p.model === model)
+      .map(p => ({ supplier: p.supplier || '-', price: Number(p.price || 0) }));
+  }, [parts, shellModel]);
+
   const handlePartRowChange = (id: number, field: keyof Omit<PartFormRow, 'id'>, value: string | number) => {
     setPartRows(prev => prev.map(r => {
       if (r.id !== id) return r;
@@ -145,6 +154,7 @@ export default function TemplateFormDialog({
         model: '',
         qty: 1,
         unitCost: 0,
+        pricingMode: nextName === '机筒' ? 'lengthCm' : 'fixed',
         included: true,
         optional: nextName === '法兰',
         note: '',
@@ -169,7 +179,14 @@ export default function TemplateFormDialog({
             onInputChange={(_e, v) => { setShellModel(v || ''); }}
             sx={{ flex: 1 }}
             renderInput={(params) => (
-              <TextField {...params} label="泵壳型号" placeholder="搜索或输入泵壳型号" required size="small" />
+              <TextField
+                {...params}
+                label="泵壳模板型号"
+                placeholder="搜索或输入泵壳型号"
+                helperText="仅作为模板标识和出图参数关联，不读取零件库价格"
+                required
+                size="small"
+              />
             )}
           />
           <TextField
@@ -181,6 +198,12 @@ export default function TemplateFormDialog({
             sx={{ flex: 2 }}
           />
         </Box>
+
+        {shellPartReferences.length > 0 && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            零件库参考价：{shellPartReferences.map(ref => `${ref.supplier} ¥${ref.price.toFixed(2)}`).join('，')}。这些价格不参与模板成本；如需采用，请填入下方整套报价或组件单价。
+          </Alert>
+        )}
 
         <Box display="flex" gap={2} alignItems="center" mb={2} flexWrap="wrap">
           <ToggleButtonGroup
@@ -218,6 +241,7 @@ export default function TemplateFormDialog({
                   <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>型号/规格</TableCell>
                   <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 70 }}>数量</TableCell>
                   <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 90 }}>单价</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 80 }}>按长度</TableCell>
                   <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 70 }}>计入</TableCell>
                   <TableCell sx={{ width: 40 }} />
                 </TableRow>
@@ -256,6 +280,7 @@ export default function TemplateFormDialog({
                         variant="standard"
                         sx={{ width: 50 }}
                         inputProps={{ min: 1, step: 0.1, style: { fontSize: '0.85rem', textAlign: 'center' } }}
+                        helperText={row.pricingMode === 'lengthCm' ? 'cm' : ''}
                       />
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
@@ -268,6 +293,15 @@ export default function TemplateFormDialog({
                         sx={{ width: 72 }}
                         inputProps={{ min: 0, step: 0.01, style: { fontSize: '0.85rem', textAlign: 'right' } }}
                       />
+                    </TableCell>
+                    <TableCell sx={{ py: 0.5 }}>
+                      <Tooltip title="按机筒长度(cm)计价，配方定制长度会覆盖数量">
+                        <Checkbox
+                          size="small"
+                          checked={row.pricingMode === 'lengthCm'}
+                          onChange={e => handleShellComponentChange(row.id, 'pricingMode', e.target.checked ? 'lengthCm' : 'fixed')}
+                        />
+                      </Tooltip>
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
                       <Tooltip title="是否计入泵壳本体成本">

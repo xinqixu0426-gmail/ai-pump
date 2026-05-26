@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+﻿import { useState, useMemo, useRef } from 'react';
 import {
   Paper, Typography, Box, Collapse, Chip, IconButton, Button,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputAdornment,
@@ -51,23 +51,23 @@ function parseJsonArray<T>(value?: string): T[] {
 
 function defaultFixedPartRows(nextRowId: React.MutableRefObject<number>): PartFormRow[] {
   return [
-    { id: nextRowId.current++, name: '花板轴承', model: '', qty: 1, supplier: '' },
-    { id: nextRowId.current++, name: '油缸轴承', model: '', qty: 1, supplier: '' },
-    { id: nextRowId.current++, name: '机械油封', model: '', qty: 1, supplier: '' },
-    { id: nextRowId.current++, name: '骨架油封', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '鑺辨澘杞存壙', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '娌圭几杞存壙', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '鏈烘娌瑰皝', model: '', qty: 1, supplier: '' },
+    { id: nextRowId.current++, name: '楠ㄦ灦娌瑰皝', model: '', qty: 1, supplier: '' },
   ];
 }
 
 function defaultShellComponentRows(nextRowId: React.MutableRefObject<number>): ShellComponentFormRow[] {
-  return ['上帽', '机筒', '花板', '油缸', '泵头', '叶轮', '底座', '法兰'].map(name => ({
+  return ['涓婂附', '鏈虹瓛', '鑺辨澘', '娌圭几', '娉靛ご', '鍙惰疆', '搴曞骇', '娉曞叞'].map(name => ({
     id: nextRowId.current++,
     name,
     model: '',
-    qty: name === '机筒' ? 15 : 1,
+    qty: name === '鏈虹瓛' ? 15 : 1,
     unitCost: 0,
-    pricingMode: name === '机筒' ? 'lengthCm' : 'fixed',
-    included: name !== '法兰',
-    optional: name === '法兰',
+    pricingMode: name === '鏈虹瓛' ? 'lengthCm' : 'fixed',
+    included: name !== '娉曞叞',
+    optional: name === '娉曞叞',
     note: '',
   }));
 }
@@ -89,18 +89,18 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [bundleCost, setBundleCost] = useState(0);
   const [tplQuery, setTplQuery] = useState('');
 
-  // ── 泵壳型号列表 ──
+  // 鈹€鈹€ 娉靛３鍨嬪彿鍒楄〃 鈹€鈹€
   const shellModels = useMemo(() => {
     const set = new Set<string>();
     parts.forEach(p => { 
-      if (['泵体', '壳体', '泵壳'].includes(p.category) && p.model) {
+      if (['娉典綋', '澹充綋', '娉靛３'].includes(p.category) && p.model) {
         set.add(p.model);
       }
     });
     return Array.from(set).sort();
   }, [parts]);
 
-  // ── 零件型号去重列表 ──
+  // 鈹€鈹€ 闆朵欢鍨嬪彿鍘婚噸鍒楄〃 鈹€鈹€
   const uniqueModels = useMemo(() => {
     const set = new Set<string>();
     parts.forEach(p => { if (p.model) set.add(p.model); });
@@ -172,9 +172,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
   const handleSaveTpl = async () => {
     const modelStr = shellModel.trim();
-    if (!modelStr) { setError('泵壳型号不能为空'); return; }
+    if (!modelStr) { setError('娉靛３鍨嬪彿涓嶈兘涓虹┖'); return; }
 
-    // 防止重复创建模板（客户端校验）
+    // 闃叉閲嶅鍒涘缓妯℃澘锛堝鎴风鏍￠獙锛?
     if (!editingTpl && templates.some(t => t.shellModel === modelStr)) {
       setError(`泵壳型号 "${modelStr}" 已经配置过模板，请直接修改已有模板`);
       return;
@@ -189,7 +189,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
     if (costMode === 'bundle' && bundleCost <= 0) { setError('请填写整套泵壳成本'); return; }
     const validComponents = shellComponentRows.filter(r => r.name.trim() && r.included !== false);
     if (costMode === 'components' && validComponents.length === 0) {
-      setError('组件明细模式至少需要一个计入成本的泵壳组件');
+      setError('缁勪欢鏄庣粏妯″紡鑷冲皯闇€瑕佷竴涓鍏ユ垚鏈殑娉靛３缁勪欢');
       return;
     }
     const pJson: TemplatePart[] = validRows.map(r => ({ name: r.name, model: r.model.trim(), qty: r.qty, supplier: r.supplier || '' }));
@@ -226,14 +226,14 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
       }
       setTplDialogOpen(false);
       await fetchTemplates(true);
-    } catch (err) { setError(err instanceof Error ? err.message : '保存失败'); }
+    } catch (err) { setError(err instanceof Error ? err.message : '淇濆瓨澶辫触'); }
     finally { setTplSaving(false); }
   };
 
   const confirmDeleteTpl = async () => {
     if (tplDeleteId === null) return;
     try { await deleteTemplate(tplDeleteId); setTplDeleteId(null); await fetchTemplates(true); }
-    catch (err) { setError(err instanceof Error ? err.message : '删除失败'); setTplDeleteId(null); }
+    catch (err) { setError(err instanceof Error ? err.message : '鍒犻櫎澶辫触'); setTplDeleteId(null); }
   };
 
 
@@ -252,7 +252,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         >
           <TemplateIcon size={22} color="#7c3aed" style={{ marginRight: 8 }} />
           <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1, color: '#7c3aed' }}>
-            泵壳模板
+            娉靛３妯℃澘
           </Typography>
           <Chip label={`${templates.length} 套`} size="small" sx={{ mr: 1, fontWeight: 600, fontSize: '0.7rem' }} />
           <Button
@@ -260,7 +260,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
             onClick={(e) => { e.stopPropagation(); openCreateTpl(); }}
             sx={{ mr: 1, fontSize: '0.75rem', color: '#7c3aed' }}
           >
-            新建
+            鏂板缓
           </Button>
           {tplExpanded ? <ExpandLessIcon size={20} color="#9ca3af" /> : <ExpandMoreIcon size={20} color="#9ca3af" />}
         </Box>
@@ -269,7 +269,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
           <Box sx={{ p: 2 }}>
             {templates.length === 0 ? (
               <Box textAlign="center" py={3} color="text.disabled">
-                <Typography variant="body2">还没有泵壳模板，点击上方"新建"创建</Typography>
+                <Typography variant="body2">杩樻病鏈夋车澹虫ā鏉匡紝鐐瑰嚮涓婃柟"鏂板缓"鍒涘缓</Typography>
               </Box>
             ) : (
               <>
@@ -277,7 +277,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                   <TextField
                     value={tplQuery}
                     onChange={(e) => setTplQuery(e.target.value)}
-                    placeholder="搜索型号 / 描述 / 配件"
+                    placeholder="鎼滅储鍨嬪彿 / 鎻忚堪 / 閰嶄欢"
                     size="small"
                     sx={{ width: { xs: '100%', sm: 320 } }}
                     InputProps={{
@@ -307,13 +307,13 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ width: 150 }}>型号</TableCell>
-                          <TableCell sx={{ minWidth: 160 }}>说明</TableCell>
-                          <TableCell sx={{ width: 120 }}>录入时间</TableCell>
-                          <TableCell>泵壳成本</TableCell>
-                          <TableCell>固定配件</TableCell>
-                          <TableCell align="right" sx={{ width: 96 }}>工时工资</TableCell>
-                          <TableCell align="center" sx={{ width: 96 }}>操作</TableCell>
+                          <TableCell sx={{ width: 150 }}>鍨嬪彿</TableCell>
+                          <TableCell sx={{ minWidth: 160 }}>璇存槑</TableCell>
+                          <TableCell sx={{ width: 120 }}>褰曞叆鏃堕棿</TableCell>
+                          <TableCell>娉靛３鎴愭湰</TableCell>
+                          <TableCell>鍥哄畾閰嶄欢</TableCell>
+                          <TableCell align="right" sx={{ width: 96 }}>宸ユ椂宸ヨ祫</TableCell>
+                          <TableCell align="center" sx={{ width: 96 }}>鎿嶄綔</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -342,7 +342,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                             <TableCell>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.25 }}>
                                 <Chip
-                                  label={`${costMode === 'bundle' ? '整套' : '组件'} ¥${shellCost.toFixed(2)}`}
+                                  label={`${costMode === 'bundle' ? '鏁村' : '缁勪欢'} 楼${shellCost.toFixed(2)}`}
                                   size="small"
                                   color={costMode === 'bundle' ? 'primary' : 'success'}
                                   sx={{ height: 22, fontSize: '0.72rem' }}
@@ -350,7 +350,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                                 {costMode === 'components' && shellComponents.slice(0, 3).map((c, i) => (
                                   <Chip
                                     key={`${c.name}-${i}`}
-                                    label={`${c.name} ¥${Number(c.unitCost || 0).toFixed(2)}${c.pricingMode === 'lengthCm' ? '/cm' : ''}`}
+                                    label={`${c.name} 楼${Number(c.unitCost || 0).toFixed(2)}${c.pricingMode === 'lengthCm' ? '/cm' : ''}`}
                                     size="small"
                                     variant="outlined"
                                     sx={{ height: 22, maxWidth: 150, fontSize: '0.72rem', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
@@ -363,9 +363,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                                 {tplParts.length === 0 ? (
                                   <Typography variant="body2" color="text.disabled">-</Typography>
                                 ) : tplParts.map((p, i) => (
-                                  <Tooltip key={`${p.name}-${p.model}-${i}`} title={`${p.name}${p.qty > 1 ? ` ×${p.qty}` : ''}`}>
+                                  <Tooltip key={`${p.name}-${p.model}-${i}`} title={`${p.name}${p.qty > 1 ? ` 脳${p.qty}` : ''}`}>
                                     <Chip
-                                      label={`${p.name} ${p.model}${p.qty > 1 ? ` ×${p.qty}` : ''}`}
+                                      label={`${p.name} ${p.model}${p.qty > 1 ? ` 脳${p.qty}` : ''}`}
                                       size="small"
                                       variant="outlined"
                                       sx={{ height: 22, maxWidth: 180, fontSize: '0.72rem', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
@@ -377,20 +377,20 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                             <TableCell align="right">
                               {laborCost > 0 ? (
                                 <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 700, fontFamily: 'monospace' }}>
-                                  ¥{laborCost.toFixed(2)}
+                                  楼{laborCost.toFixed(2)}
                                 </Typography>
                               ) : (
                                 <Typography variant="body2" color="text.disabled">-</Typography>
                               )}
                             </TableCell>
                             <TableCell align="center">
-                              <Tooltip title="编辑">
-                                <IconButton size="small" aria-label="编辑泵壳模板" color="warning" onClick={() => openEditTpl(tpl)}>
+                              <Tooltip title="缂栬緫">
+                                <IconButton size="small" aria-label="缂栬緫娉靛３妯℃澘" color="warning" onClick={() => openEditTpl(tpl)}>
                                   <EditIcon size={16} />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="删除">
-                                <IconButton size="small" aria-label="删除泵壳模板" color="error" onClick={() => setTplDeleteId(tpl.Id)}>
+                              <Tooltip title="鍒犻櫎">
+                                <IconButton size="small" aria-label="鍒犻櫎娉靛３妯℃澘" color="error" onClick={() => setTplDeleteId(tpl.Id)}>
                                   <DeleteIcon size={16} />
                                 </IconButton>
                               </Tooltip>
@@ -407,7 +407,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         </Collapse>
       </Paper>
 
-      {/* 模板编辑对话框 */}
+      {/* 妯℃澘缂栬緫瀵硅瘽妗?*/}
       <TemplateFormDialog
         open={tplDialogOpen}
         onClose={() => setTplDialogOpen(false)}
@@ -436,13 +436,13 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         setBundleCost={setBundleCost}
       />
 
-      {/* 模板删除确认 */}
+      {/* 妯℃澘鍒犻櫎纭 */}
       <Dialog open={tplDeleteId !== null} onClose={() => setTplDeleteId(null)}>
         <DialogTitle>确认删除</DialogTitle>
         <DialogContent><Typography>确定要删除此泵壳模板吗？如果有配方引用此模板将无法删除。</Typography></DialogContent>
         <DialogActions>
-          <Button onClick={() => setTplDeleteId(null)}>取消</Button>
-          <Button color="error" variant="contained" onClick={confirmDeleteTpl}>确认删除</Button>
+          <Button onClick={() => setTplDeleteId(null)}>鍙栨秷</Button>
+          <Button color="error" variant="contained" onClick={confirmDeleteTpl}>纭鍒犻櫎</Button>
         </DialogActions>
       </Dialog>
     </>

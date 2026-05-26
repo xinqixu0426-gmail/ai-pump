@@ -182,6 +182,7 @@ function normalizePackingJsonText(value, boxType) {
 function managedPartType(part) {
     const name = String(part?.name || '');
     const model = String(part?.model || '');
+    if (name.includes('cm)')) return 'barrelLength';
     if (name === '线圈转子') return 'coil';
     if (name.includes('浮球') || model.startsWith('浮球-')) return 'float';
     if (name.includes('电缆') || model.startsWith('电缆-') || model === '电缆配件费') return 'cable';
@@ -192,6 +193,13 @@ function managedPartType(part) {
 function partSnapshotSubtotal(part, partsCache, partsByModel) {
     if (part?.snapshotPrice !== undefined) return Number(part.snapshotPrice || 0) * Number(part.qty || 0);
     return Number(calculateRecipeCost([part], partsCache, partsByModel).totalCost || 0);
+}
+
+function lengthPricedPartSubtotal(part, customBarrelLength) {
+    const price = Number(part?.snapshotPrice || 0);
+    const savedQty = Number(part?.qty || 0);
+    const nextQty = customBarrelLength && Number(customBarrelLength) > 0 ? Number(customBarrelLength) / 10 : savedQty;
+    return price * nextQty;
 }
 
 function configuredModel(prefix, wireOrModel, resolvedWire) {
@@ -316,9 +324,11 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         const parsedParts = JSON.parse(recipeData.parts_json || '[]');
         const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
 
-        const managedTotals = { coil: 0, float: 0, cable: 0, box: 0 };
+        const managedTotals = { coil: 0, float: 0, cable: 0, box: 0, barrelLength: 0 };
+        const lengthPricedParts = [];
         for (const part of parsedParts) {
             const type = managedPartType(part);
+            if (type === 'barrelLength') lengthPricedParts.push(part);
             if (type) managedTotals[type] += partSnapshotSubtotal(part, partsCache, partsByModel);
         }
 
@@ -326,7 +336,7 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         const hasSavedBase = savedBaseCost > 0;
         const partsResult = calculateRecipeCost(parsedParts, partsCache, partsByModel);
         let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
-        totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box;
+        totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box + managedTotals.barrelLength;
 
         const dbWire = resolveWireFromStator(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material);
         const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
@@ -356,6 +366,8 @@ router.post('/cost/dynamic-calculate', (req, res) => {
         totalCost += boxChanged
             ? (calculatePackingPartsCost(recipeData.packing_parts_json, getPrice) || findBoxPrice(recipeData.box_type, getPrice, partsCache))
             : managedTotals.box;
+
+        totalCost += lengthPricedParts.reduce((sum, part) => sum + lengthPricedPartSubtotal(part, recipeData.custom_barrel_length), 0);
 
         const getSetting = require('../db.cjs').getSetting;
         if (!hasSavedBase) {
