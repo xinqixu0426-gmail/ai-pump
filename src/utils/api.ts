@@ -132,6 +132,14 @@ export async function deletePart(id: number): Promise<void> {
   });
 }
 
+export async function deleteParts(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  await proxyRequest('/api/parts', {
+    method: 'DELETE',
+    body: JSON.stringify(ids.map((id) => ({ Id: id }))),
+  });
+}
+
 /**
  * 批量扣减库存（生产用）— 原子操作
  */

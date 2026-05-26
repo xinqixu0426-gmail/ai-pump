@@ -37,13 +37,18 @@ router.patch('/', (req, res) => {
 router.delete('/', (req, res) => {
     try {
         const items = Array.isArray(req.body) ? req.body : [req.body];
+        let deleted = 0;
         for (const item of items) {
             const id = item.Id || item.id;
             if (!id || isNaN(Number(id))) continue;
             softDelete('parts', Number(id));
+            deleted++;
+        }
+        if (items.length > 0 && deleted === 0) {
+            return res.status(400).json({ success: false, error: '没有有效的零件 ID' });
         }
         invalidatePartsCache();
-        res.json({ success: true });
+        res.json({ success: true, data: { deleted } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 

@@ -46,7 +46,7 @@ import {
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { Part } from '../types';
-import { createPart, updatePart, deletePart } from '../utils/api';
+import { createPart, updatePart, deletePart, deleteParts } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { colors, gradients } from '../utils/theme';
 
@@ -478,10 +478,11 @@ export default function PartsPage() {
           }}>导出 CSV</Button>
           <Button variant="text" size="small" sx={{ color: '#ef4444', fontWeight: 600, '&:hover': { bgcolor: 'rgba(239,68,68,0.1)' } }} startIcon={<DeleteIcon />} onClick={async () => {
             if (!confirm(`确定要删除选中的 ${selectedIds.length} 个零件吗？此操作不可撤销。`)) return;
+            const idsToDelete = [...selectedIds];
             try {
-              await deletePart(selectedIds.map(id => ({ Id: id })) as any);
+              await deleteParts(idsToDelete);
               await fetchParts(true);
-              showSnackbar(`已删除 ${selectedIds.length} 个零件`, 'info');
+              showSnackbar(`已删除 ${idsToDelete.length} 个零件`, 'info');
               setSelectedIds([]);
             } catch { setError('批量删除失败'); }
           }}>删除</Button>
