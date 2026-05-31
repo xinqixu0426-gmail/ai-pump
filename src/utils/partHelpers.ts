@@ -1,4 +1,4 @@
-import { Part } from '../types';
+import { CableAccessoryType, Part } from '../types';
 
 /**
  * 根据型号和供应商查找零件价格
@@ -16,10 +16,12 @@ export function getPriceByModelAndSupplier(parts: Part[], model: string, supplie
   return 0;
 }
 
-function parseCableAccessoryFee(notes?: string): number | null {
+function parseCableAccessoryFee(notes?: string, accessoryType: CableAccessoryType = 'standard'): number | null {
   if (!notes) return null;
   try {
     const meta = JSON.parse(notes);
+    const typedFee = Number(meta?.cableAccessoryFees?.[accessoryType]);
+    if (Number.isFinite(typedFee) && typedFee >= 0) return typedFee;
     const fee = Number(meta?.cableAccessoryFee);
     return Number.isFinite(fee) && fee >= 0 ? fee : null;
   } catch {
@@ -27,21 +29,48 @@ function parseCableAccessoryFee(notes?: string): number | null {
   }
 }
 
-export function getCableAccessoryFee(parts: Part[], cableModel: string, supplier: string): number {
+function parseCableAccessoryName(notes?: string, accessoryType: CableAccessoryType = 'standard'): string | null {
+  if (!notes) return null;
+  try {
+    const name = JSON.parse(notes)?.cableAccessoryNames?.[accessoryType];
+    return typeof name === 'string' && name.trim() ? name.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getCableAccessoryFee(parts: Part[], cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard'): number {
   const m1 = (cableModel || '').trim();
   const s1 = (supplier || '').trim();
   const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);
-  const exactFee = parseCableAccessoryFee(exactPart?.notes);
+  const exactFee = parseCableAccessoryFee(exactPart?.notes, accessoryType);
   if (exactPart && s1 && exactFee != null) return exactFee;
 
   const modelParts = parts.filter(p => p.model.trim() === m1);
   if (modelParts.length > 0) {
     const fallbackPart = modelParts.reduce((min, curr) => curr.price < min.price ? curr : min, modelParts[0]);
-    const fallbackFee = parseCableAccessoryFee(fallbackPart.notes);
+    const fallbackFee = parseCableAccessoryFee(fallbackPart.notes, accessoryType);
     if (fallbackFee != null) return fallbackFee;
   }
 
   return getPriceByModelAndSupplier(parts, '电缆配件费', '');
+}
+
+export function getCableAccessoryName(parts: Part[], cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard'): string {
+  const m1 = (cableModel || '').trim();
+  const s1 = (supplier || '').trim();
+  const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);
+  const exactName = parseCableAccessoryName(exactPart?.notes, accessoryType);
+  if (exactPart && s1 && exactName) return exactName;
+
+  const modelParts = parts.filter(p => p.model.trim() === m1);
+  if (modelParts.length > 0) {
+    const fallbackPart = modelParts.reduce((min, curr) => curr.price < min.price ? curr : min, modelParts[0]);
+    const fallbackName = parseCableAccessoryName(fallbackPart.notes, accessoryType);
+    if (fallbackName) return fallbackName;
+  }
+
+  return accessoryType === 'xinjie' ? '新界式' : '普通铜套';
 }
 
 /**

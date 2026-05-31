@@ -55,7 +55,10 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   const wirePrefix = WIRE_MODE_CONFIG[category] || '';
   const isWireMode = !!wirePrefix;
   const isCableMode = category === '电缆线';
-  const [cableAccessoryFee, setCableAccessoryFee] = useState('');
+  const [standardCableAccessoryFee, setStandardCableAccessoryFee] = useState('');
+  const [xinjieCableAccessoryFee, setXinjieCableAccessoryFee] = useState('');
+  const [standardCableAccessoryName, setStandardCableAccessoryName] = useState('普通铜套');
+  const [xinjieCableAccessoryName, setXinjieCableAccessoryName] = useState('新界式');
 
   // ── 电容结构化输入 ──
   const [capacitorUf, setCapacitorUf] = useState('');
@@ -100,13 +103,27 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     try { return JSON.parse(notes) as PumpShellMeta; } catch { return { isStainless: false }; }
   }
 
-  function parseCableAccessoryFee(notes?: string): string {
-    if (!notes) return '';
+  function parseCableAccessoryMeta(notes?: string): { standardFee: string; xinjieFee: string; standardName: string; xinjieName: string } {
+    if (!notes) return { standardFee: '', xinjieFee: '', standardName: '普通铜套', xinjieName: '新界式' };
     try {
-      const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
-      return Number.isFinite(fee) && fee >= 0 ? String(fee) : '';
+      const meta = JSON.parse(notes);
+      const legacyFee = Number(meta?.cableAccessoryFee);
+      const standardFee = Number(meta?.cableAccessoryFees?.standard);
+      const xinjieFee = Number(meta?.cableAccessoryFees?.xinjie);
+      return {
+        standardFee: Number.isFinite(standardFee) && standardFee >= 0
+          ? String(standardFee)
+          : (Number.isFinite(legacyFee) && legacyFee >= 0 ? String(legacyFee) : ''),
+        xinjieFee: Number.isFinite(xinjieFee) && xinjieFee >= 0 ? String(xinjieFee) : '',
+        standardName: typeof meta?.cableAccessoryNames?.standard === 'string' && meta.cableAccessoryNames.standard.trim()
+          ? meta.cableAccessoryNames.standard.trim()
+          : '普通铜套',
+        xinjieName: typeof meta?.cableAccessoryNames?.xinjie === 'string' && meta.cableAccessoryNames.xinjie.trim()
+          ? meta.cableAccessoryNames.xinjie.trim()
+          : '新界式',
+      };
     } catch {
-      return '';
+      return { standardFee: '', xinjieFee: '', standardName: '普通铜套', xinjieName: '新界式' };
     }
   }
 
@@ -128,7 +145,11 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
         setWireGauge('');
       }
       setPrice(String(editingPart.price || ''));
-      setCableAccessoryFee(parseCableAccessoryFee(editingPart.notes));
+      const cableAccessoryMeta = parseCableAccessoryMeta(editingPart.notes);
+      setStandardCableAccessoryFee(cableAccessoryMeta.standardFee);
+      setXinjieCableAccessoryFee(cableAccessoryMeta.xinjieFee);
+      setStandardCableAccessoryName(cableAccessoryMeta.standardName);
+      setXinjieCableAccessoryName(cableAccessoryMeta.xinjieName);
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
       // 解析不锈钢及备用参数元数据
@@ -149,7 +170,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setDefaultStackOffset(meta.defaultStackOffset != null ? String(meta.defaultStackOffset) : '');
     } else {
       setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf('');
-      setPrice(''); setCableAccessoryFee(''); setSupplier(''); setStock('');
+      setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName('普通铜套'); setXinjieCableAccessoryName('新界式'); setSupplier(''); setStock('');
       setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
@@ -171,7 +192,10 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     }
     if (!category) e.category = '请选择类别';
     if (!price || isNaN(Number(price)) || Number(price) < 0) e.price = '请输入有效价格';
-    if (isCableMode && cableAccessoryFee && (isNaN(Number(cableAccessoryFee)) || Number(cableAccessoryFee) < 0)) e.cableAccessoryFee = '请输入有效的电缆线配件费';
+    if (isCableMode && standardCableAccessoryFee && (isNaN(Number(standardCableAccessoryFee)) || Number(standardCableAccessoryFee) < 0)) e.standardCableAccessoryFee = '请输入有效的普通铜套配件费';
+    if (isCableMode && xinjieCableAccessoryFee && (isNaN(Number(xinjieCableAccessoryFee)) || Number(xinjieCableAccessoryFee) < 0)) e.xinjieCableAccessoryFee = '请输入有效的新界式铜套配件费';
+    if (isCableMode && !standardCableAccessoryName.trim()) e.standardCableAccessoryName = '请输入第一种配件费名称';
+    if (isCableMode && !xinjieCableAccessoryName.trim()) e.xinjieCableAccessoryName = '请输入第二种配件费名称';
     if (!supplier.trim()) e.supplier = '供应商不能为空';
     return e;
   };
@@ -196,7 +220,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     }
 
     // 构建 notes JSON
-    let notes: PumpShellMeta | { cableAccessoryFee: number } | null = null;
+    let notes: PumpShellMeta | { cableAccessoryFee: number; cableAccessoryFees: { standard: number; xinjie: number }; cableAccessoryNames: { standard: string; xinjie: string } } | null = null;
     if (category === '泵壳') {
       notes = { 
           isStainless, 
@@ -215,7 +239,18 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
           defaultStackOffset: defaultStackOffset ? parseFloat(defaultStackOffset) : undefined
         };
     } else if (isCableMode) {
-      notes = { cableAccessoryFee: cableAccessoryFee ? parseFloat(cableAccessoryFee) : 0 };
+      const standard = standardCableAccessoryFee ? parseFloat(standardCableAccessoryFee) : 0;
+      notes = {
+        cableAccessoryFee: standard,
+        cableAccessoryFees: {
+          standard,
+          xinjie: xinjieCableAccessoryFee ? parseFloat(xinjieCableAccessoryFee) : 0,
+        },
+        cableAccessoryNames: {
+          standard: standardCableAccessoryName.trim(),
+          xinjie: xinjieCableAccessoryName.trim(),
+        },
+      };
     }
     await onSave({
       model: finalModel, category, price: parseFloat(price) || 0,
@@ -223,7 +258,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       notes: notes ? JSON.stringify(notes) : '',
     }, { continueEntry });
     if (!editingPart) {
-      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setCableAccessoryFee(''); setStock('');
+      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName('普通铜套'); setXinjieCableAccessoryName('新界式'); setStock('');
       if (!continueEntry) {
         setCategory(''); setSupplier('');
         setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
@@ -374,6 +409,34 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               error={!!errors.model} helperText={errors.model}
             />
           )}
+          {isCableMode && (
+            <Box display="flex" gap={1.5} alignItems="flex-start">
+              <TextField
+                id="part-standard-cable-accessory-name-input"
+                label="第一种配件费名称"
+                value={standardCableAccessoryName}
+                onChange={(e) => setStandardCableAccessoryName(e.target.value)}
+                placeholder="如：普通铜套"
+                fullWidth
+                size="small"
+                error={!!errors.standardCableAccessoryName}
+                helperText={errors.standardCableAccessoryName || ' '}
+                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+              />
+              <TextField
+                id="part-xinjie-cable-accessory-name-input"
+                label="第二种配件费名称"
+                value={xinjieCableAccessoryName}
+                onChange={(e) => setXinjieCableAccessoryName(e.target.value)}
+                placeholder="如：新界式"
+                fullWidth
+                size="small"
+                error={!!errors.xinjieCableAccessoryName}
+                helperText={errors.xinjieCableAccessoryName || ' '}
+                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+              />
+            </Box>
+          )}
           <Box display="flex" gap={1.5} alignItems="flex-start">
             <TextField
               id="part-price-input" label="单价（元）" type="number" value={price}
@@ -386,18 +449,35 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
             />
             {isCableMode && (
               <TextField
-                id="part-cable-accessory-fee-input"
-                label="电缆线配件费"
+                id="part-standard-cable-accessory-fee-input"
+                label={`${standardCableAccessoryName.trim() || '第一种'}配件费`}
                 type="number"
-                value={cableAccessoryFee}
-                onChange={(e) => setCableAccessoryFee(e.target.value)}
+                value={standardCableAccessoryFee}
+                onChange={(e) => setStandardCableAccessoryFee(e.target.value)}
                 placeholder="0.00"
                 fullWidth
                 size="small"
                 inputProps={{ step: 0.01, min: 0 }}
                 InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
-                error={!!errors.cableAccessoryFee}
-                helperText={errors.cableAccessoryFee || ' '}
+                error={!!errors.standardCableAccessoryFee}
+                helperText={errors.standardCableAccessoryFee || ' '}
+                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+              />
+            )}
+            {isCableMode && (
+              <TextField
+                id="part-xinjie-cable-accessory-fee-input"
+                label={`${xinjieCableAccessoryName.trim() || '第二种'}配件费`}
+                type="number"
+                value={xinjieCableAccessoryFee}
+                onChange={(e) => setXinjieCableAccessoryFee(e.target.value)}
+                placeholder="0.00"
+                fullWidth
+                size="small"
+                inputProps={{ step: 0.01, min: 0 }}
+                InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                error={!!errors.xinjieCableAccessoryFee}
+                helperText={errors.xinjieCableAccessoryFee || ' '}
                 sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
               />
             )}

@@ -186,6 +186,7 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
   if (recipe.hasCable !== undefined) payload.hasCable = recipe.hasCable || 0;
   if (recipe.cableLength !== undefined) payload.cableLength = recipe.cableLength || 0;
   if (recipe.cableWire !== undefined) payload.cableWire = recipe.cableWire || '';
+  if (recipe.cableAccessoryType !== undefined) payload.cableAccessoryType = recipe.cableAccessoryType || 'standard';
   if (recipe.extraPartsJson !== undefined) payload.extraPartsJson = recipe.extraPartsJson || '[]';
   if (recipe.packingPartsJson !== undefined) payload.packingPartsJson = recipe.packingPartsJson || '[]';
   if (recipe.assemblyWage !== undefined) payload.assemblyWage = recipe.assemblyWage || 0;
@@ -330,7 +331,8 @@ export const deleteQuotation = async (id: number): Promise<ApiResponse<never>> =
   proxyRequest<ApiResponse<never>>(`/api/quotations/${id}`, { method: 'DELETE' });
 
 export const dynamicCalculateCost = async (baseRecipeId: number, overrides: DynamicCostOverrides): Promise<DynamicCostResult> =>
-  proxyRequest<DynamicCostResult>('/api/cost/dynamic-calculate', { method: 'POST', body: JSON.stringify({ baseRecipeId, overrides }) });
+  proxyRequest<{ success: boolean; data: DynamicCostResult }>(`/api/recipes/${baseRecipeId}/cost-preview`, { method: 'POST', body: JSON.stringify({ overrides }) })
+    .then(res => res.data);
 
 export async function getWorkbenchSummary(): Promise<BusinessSummary | null> {
   const res = await proxyRequest<ApiResponse<BusinessSummary>>('/api/workbench/summary');

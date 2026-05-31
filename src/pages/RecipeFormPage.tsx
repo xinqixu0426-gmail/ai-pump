@@ -10,10 +10,10 @@ import {
   Button,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
-import { RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
+import { CableAccessoryType, RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
-import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
+import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { colors } from '../utils/theme';
 
@@ -68,6 +68,7 @@ export default function RecipeFormPage() {
   const [hasCable, setHasCable] = useState(!!editFrom?.hasCable || !!cloneFrom?.hasCable);
   const [cableLength, setCableLength] = useState(editFrom?.cableLength ? String(editFrom.cableLength) : (cloneFrom?.cableLength ? String(cloneFrom.cableLength) : ''));
   const [cableWire, setCableWire] = useState(editFrom?.cableWire || cloneFrom?.cableWire || '0.55');
+  const [cableAccessoryType, setCableAccessoryType] = useState<CableAccessoryType>(editFrom?.cableAccessoryType || cloneFrom?.cableAccessoryType || 'standard');
   const [packingParts, setPackingParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextPackingId = useRef(100);
 
@@ -214,6 +215,7 @@ export default function RecipeFormPage() {
       setHasCable(!!source.hasCable);
       if (source.cableLength) setCableLength(String(source.cableLength));
       if (source.cableWire) setCableWire(source.cableWire);
+      if (source.cableAccessoryType) setCableAccessoryType(source.cableAccessoryType);
       // 读取 packingPartsJson，向后兼容旧 boxType
       const rawPacking: PartSelection[] = (() => {
         try {
@@ -267,7 +269,11 @@ export default function RecipeFormPage() {
     [parts]
   );
   const getCableAccessoryFee = useCallback(
-    (model: string, supplier: string) => _getCableAccessoryFee(parts, model, supplier),
+    (model: string, supplier: string, accessoryType: CableAccessoryType = 'standard') => _getCableAccessoryFee(parts, model, supplier, accessoryType),
+    [parts]
+  );
+  const getCableAccessoryName = useCallback(
+    (model: string, supplier: string, accessoryType: CableAccessoryType = 'standard') => _getCableAccessoryName(parts, model, supplier, accessoryType),
     [parts]
   );
   const getModelsByCategory = useCallback(
@@ -333,7 +339,7 @@ export default function RecipeFormPage() {
     if (hasCable && cableLength && Number(cableLength) > 0) {
       const cableModel = `电缆-线径${cableWire}`;
       configParts.push({ model: cableModel, name: '电缆线', supplier: '', qty: Number(cableLength), snapshotPrice: getPriceByModelAndSupplier(cableModel, '') });
-      configParts.push({ model: '电缆配件费', name: '电缆接头配件', supplier: '', qty: 1, snapshotPrice: getCableAccessoryFee(cableModel, '') });
+      configParts.push({ model: '电缆配件费', name: getCableAccessoryName(cableModel, '', cableAccessoryType), supplier: '', qty: 1, snapshotPrice: getCableAccessoryFee(cableModel, '', cableAccessoryType), cableAccessoryType });
     }
     // 包装件
     packingParts.forEach(p => {
@@ -342,7 +348,7 @@ export default function RecipeFormPage() {
       configParts.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty || 1, snapshotPrice: price });
     });
     return configParts;
-  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, packingParts, getPriceByModelAndSupplier, getCableAccessoryFee]);
+  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, cableAccessoryType, packingParts, getPriceByModelAndSupplier, getCableAccessoryFee, getCableAccessoryName]);
 
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
@@ -450,6 +456,7 @@ export default function RecipeFormPage() {
       templateId: selectedTemplateId, coilSpec: coilSpec, coilMaterial: coilMaterial || '钢带', coilSheets: coilSheets ? parseInt(coilSheets) : 0,
       hasFloat: hasFloat ? 1 : 0, floatWire: floatWire, hasCable: hasCable ? 1 : 0,
       cableLength: cableLength ? parseFloat(cableLength) : 0, cableWire: cableWire,
+      cableAccessoryType,
       // 包装
       packingPartsJson: JSON.stringify(
         packingParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))
@@ -519,6 +526,7 @@ export default function RecipeFormPage() {
           hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}
           hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
           cableWire={cableWire} setCableWire={setCableWire}
+          cableAccessoryType={cableAccessoryType} setCableAccessoryType={setCableAccessoryType}
           packingParts={packingParts}
           setPackingParts={setPackingParts}
           parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}

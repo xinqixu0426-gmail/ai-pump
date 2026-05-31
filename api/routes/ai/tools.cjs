@@ -41,7 +41,8 @@ const AI_TOOLS = [
                     cableLength: { type: 'number', description: '电缆长度（米）' },
                     boxType: { type: 'string', description: '包装类型' },
                     floatWire: { type: 'string', description: '浮球线径（可选）' },
-                    cableWire: { type: 'string', description: '电缆线径（可选）' }
+                    cableWire: { type: 'string', description: '电缆线径（可选）' },
+                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '铜套规格：普通铜套 standard，新界式 xinjie' }
                 },
                 required: ['pumphousing_model']
             }
@@ -109,7 +110,8 @@ const AI_TOOLS = [
                     cableLength: { type: 'number' },
                     boxType: { type: 'string' },
                     floatWire: { type: 'string' },
-                    cableWire: { type: 'string' }
+                    cableWire: { type: 'string' },
+                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }
                 }
             }
         }

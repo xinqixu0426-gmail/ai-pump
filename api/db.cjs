@@ -160,6 +160,7 @@ const recipeAlterColumns = [
     ['has_cable', 'INTEGER DEFAULT 0'],
     ['cable_length', 'REAL DEFAULT 0'],
     ['cable_wire', "TEXT DEFAULT ''"],
+    ['cable_accessory_type', "TEXT DEFAULT 'standard'"],
     ['box_type', "TEXT DEFAULT ''"],
     ['extra_parts_json', "TEXT DEFAULT '[]'"],
     ['packing_parts_json', "TEXT DEFAULT '[]'"],
@@ -215,7 +216,7 @@ function recipeRow(r) {
         templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
         coilMaterial: r.coil_material || '閽㈠甫',
         hasFloat: r.has_float, floatWire: r.float_wire, hasCable: r.has_cable,
-        cableLength: r.cable_length, cableWire: r.cable_wire, boxType: r.box_type,
+        cableLength: r.cable_length, cableWire: r.cable_wire, cableAccessoryType: r.cable_accessory_type || 'standard', boxType: r.box_type,
         customBarrelLength: r.custom_barrel_length, extraPartsJson: r.extra_parts_json,
         packingPartsJson: r.packing_parts_json,
         assemblyWage: r.assembly_wage, packingWage: r.packing_wage, paintingWage: r.painting_wage,
@@ -229,7 +230,7 @@ function recipeRow(r) {
         template_id: r.template_id, coil_spec: r.coil_spec, coil_sheets: r.coil_sheets,
         coil_material: r.coil_material || '钢带',
         has_float: r.has_float, float_wire: r.float_wire, has_cable: r.has_cable,
-        cable_length: r.cable_length, cable_wire: r.cable_wire, box_type: r.box_type,
+        cable_length: r.cable_length, cable_wire: r.cable_wire, cable_accessory_type: r.cable_accessory_type || 'standard', box_type: r.box_type,
         custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
         packing_parts_json: r.packing_parts_json,
         assembly_wage: r.assembly_wage, packing_wage: r.packing_wage, painting_wage: r.painting_wage,
@@ -313,25 +314,28 @@ function extractPartFields(body) {
     };
 }
 
-function parseCableAccessoryFee(notes) {
+function parseCableAccessoryFee(notes, accessoryType = 'standard') {
     if (!notes) return null;
     try {
-        const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
+        const meta = JSON.parse(notes);
+        const typedFee = Number(meta?.cableAccessoryFees?.[accessoryType]);
+        if (Number.isFinite(typedFee) && typedFee >= 0) return typedFee;
+        const fee = Number(meta?.cableAccessoryFee);
         return Number.isFinite(fee) && fee >= 0 ? fee : null;
     } catch {
         return null;
     }
 }
 
-function getCableAccessoryFee(partsByModel, cableModel, supplier) {
+function getCableAccessoryFee(partsByModel, cableModel, supplier, accessoryType = 'standard') {
     const suppliers = partsByModel[cableModel] || [];
     const normalizedSupplier = String(supplier || '').trim();
     const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);
-    const matchedFee = parseCableAccessoryFee(match?.notes);
+    const matchedFee = parseCableAccessoryFee(match?.notes, accessoryType);
     if (match && normalizedSupplier && matchedFee != null) return matchedFee;
     if (suppliers.length > 0) {
         const fallback = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]);
-        const fallbackFee = parseCableAccessoryFee(fallback?.notes);
+        const fallbackFee = parseCableAccessoryFee(fallback?.notes, accessoryType);
         if (fallbackFee != null) return fallbackFee;
     }
     const legacy = partsByModel['电缆配件费'] || [];
@@ -364,7 +368,7 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
         if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '模板手动价'; }
         else if (isCableAccessoryPart(p)) {
             const cablePart = findCablePart(parts);
-            price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '');
+            price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', p.cableAccessoryType);
             source = '电缆线配件费';
         }
         else if (match && p.supplier) { price = match.price; source = '精确匹配'; }

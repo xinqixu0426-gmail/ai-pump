@@ -104,7 +104,7 @@ export default function RecipeDetailModal({
 
     const displayDetails = (() => {
       const cable = costResult.details.find(detail => detail.name === '电缆线');
-      const cableAccessory = costResult.details.find(detail => detail.name === '电缆接头配件');
+      const cableAccessory = costResult.details.find(detail => detail.model === '电缆配件费');
       if (!cable || !cableAccessory) return costResult.details;
 
       const cableSubtotal = parseFloat(cable.subtotal) || 0;

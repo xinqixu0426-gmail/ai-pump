@@ -1,7 +1,7 @@
 // ⚠️ SYNC REQUIRED: 本组成本计算逻辑（包括 buildIndices 和 calculateRecipeCost）必须与 api/db.cjs 中的逻辑保持高度一致！
 // 若修改了以下任一匹配降级逻辑，请务必同步修改 api/db.cjs。
 
-import { Part } from '../types';
+import { CableAccessoryType, Part } from '../types';
 
 /**
  * 构建零件索引
@@ -41,27 +41,31 @@ export interface RecipePartForCalc {
   snapshotPrice?: number;
   source?: string;
   costSource?: string;
+  cableAccessoryType?: CableAccessoryType;
 }
 
-function parseCableAccessoryFee(notes?: string): number | null {
+function parseCableAccessoryFee(notes?: string, accessoryType: CableAccessoryType = 'standard'): number | null {
   if (!notes) return null;
   try {
-    const fee = Number(JSON.parse(notes)?.cableAccessoryFee);
+    const meta = JSON.parse(notes);
+    const typedFee = Number(meta?.cableAccessoryFees?.[accessoryType]);
+    if (Number.isFinite(typedFee) && typedFee >= 0) return typedFee;
+    const fee = Number(meta?.cableAccessoryFee);
     return Number.isFinite(fee) && fee >= 0 ? fee : null;
   } catch {
     return null;
   }
 }
 
-function getCableAccessoryFee(partsByModel: Map<string, Part[]>, cableModel: string, supplier: string): number {
+function getCableAccessoryFee(partsByModel: Map<string, Part[]>, cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard'): number {
   const candidates = partsByModel.get(cableModel) || [];
   const normalizedSupplier = (supplier || '').trim();
   const matchedPart = candidates.find(p => (p.supplier || '').trim() === normalizedSupplier);
-  const matchedFee = parseCableAccessoryFee(matchedPart?.notes);
+  const matchedFee = parseCableAccessoryFee(matchedPart?.notes, accessoryType);
   if (matchedPart && normalizedSupplier && matchedFee != null) return matchedFee;
   if (candidates.length > 0) {
     const fallbackPart = candidates.reduce((min, curr) => curr.price < min.price ? curr : min, candidates[0]);
-    const fallbackFee = parseCableAccessoryFee(fallbackPart.notes);
+    const fallbackFee = parseCableAccessoryFee(fallbackPart.notes, accessoryType);
     if (fallbackFee != null) return fallbackFee;
   }
   const legacyParts = partsByModel.get('电缆配件费') || [];
@@ -105,7 +109,7 @@ export function calculateRecipeCost(
       source = '模板手动价';
     } else if (isCableAccessoryPart(rp)) {
       const cablePart = findCablePart(recipeParts);
-      price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '');
+      price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', rp.cableAccessoryType);
       source = '电缆线配件费';
     } else if (matchedPart) {
       price = matchedPart.price;

@@ -90,6 +90,7 @@ export interface Recipe {
   hasCable?: number;
   cableLength?: number;
   cableWire?: string;
+  cableAccessoryType?: CableAccessoryType;
   boxType?: string;
   packingPartsJson?: string;
   extraPartsJson?: string;
@@ -104,6 +105,8 @@ export interface Recipe {
   UpdatedAt?: string;
 }
 
+export type CableAccessoryType = 'standard' | 'xinjie';
+
 
 // ─── 配方配件项 ──────────────────────────────────────
 export interface RecipePart {
@@ -117,6 +120,7 @@ export interface RecipePart {
   source?: string;
   formula?: string;
   costSource?: string;
+  cableAccessoryType?: CableAccessoryType;
 }
 
 // 配件选择（表单用）
@@ -244,6 +248,7 @@ export interface DynamicCostOverrides {
   hasCable?: boolean | number;
   cableLength?: number;
   cableWire?: string;
+  cableAccessoryType?: CableAccessoryType;
   boxType?: string;
   packingPartsJson?: string;
   customBarrelLength?: number;

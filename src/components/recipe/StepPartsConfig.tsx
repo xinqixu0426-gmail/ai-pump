@@ -23,10 +23,10 @@ import {
 } from '@mui/material';
 import { Cable as CableIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
-import { Part, PartSelection } from '../../types';
+import { CableAccessoryType, Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
 import { CoilSpecInfo, CoilCalcResult } from './recipeFormConstants';
-import { getCableAccessoryFee } from '../../utils/partHelpers';
+import { getCableAccessoryFee, getCableAccessoryName } from '../../utils/partHelpers';
 
 interface StepPartsConfigProps {
   coilSpecs: CoilSpecInfo[];
@@ -62,6 +62,8 @@ interface StepPartsConfigProps {
   setCableLength: (val: string) => void;
   cableWire: string;
   setCableWire: (val: string) => void;
+  cableAccessoryType: CableAccessoryType;
+  setCableAccessoryType: (val: CableAccessoryType) => void;
 
   boxType?: never;      // 已废弃
   setBoxType?: never;   // 已废弃
@@ -82,7 +84,7 @@ export default function StepPartsConfig({
   capacitorModel, capacitorPrice,
   optionalParts, handleAddOptional, handleOptionalChange, handleRemoveOptional,
   hasFloat, setHasFloat, floatWire, setFloatWire,
-  hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire,
+  hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire, cableAccessoryType, setCableAccessoryType,
   packingParts, setPackingParts,
   parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory,
 }: StepPartsConfigProps) {
@@ -113,7 +115,10 @@ export default function StepPartsConfig({
   const cableModel = `电缆-线径${cableWire}`;
   const cableMeters = Number(cableLength) || 0;
   const cableUnitPrice = getPriceByModelAndSupplier(cableModel, '');
-  const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '');
+  const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '', cableAccessoryType);
+  const standardCableAccessoryName = getCableAccessoryName(parts, cableModel, '', 'standard');
+  const xinjieCableAccessoryName = getCableAccessoryName(parts, cableModel, '', 'xinjie');
+  const cableAccessoryName = cableAccessoryType === 'xinjie' ? xinjieCableAccessoryName : standardCableAccessoryName;
   const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
   const selectedCoilSpec = coilSpecs.find(s => s.spec === coilSpec);
   const coilMaterialOptions = selectedCoilSpec?.materials?.length ? selectedCoilSpec.materials : ['钢带'];
@@ -331,6 +336,17 @@ export default function StepPartsConfig({
                   onChange={(e) => setCableLength(e.target.value)}
                   sx={{ width: 110 }}
                 />
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel>铜套规格</InputLabel>
+                  <Select
+                    value={cableAccessoryType}
+                    label="铜套规格"
+                    onChange={(e) => setCableAccessoryType(e.target.value as CableAccessoryType)}
+                  >
+                    <MenuItem value="standard">{standardCableAccessoryName}</MenuItem>
+                    <MenuItem value="xinjie">{xinjieCableAccessoryName}</MenuItem>
+                  </Select>
+                </FormControl>
                 <Box
                   sx={{
                     ml: { xs: 0, md: 'auto' },
@@ -343,7 +359,7 @@ export default function StepPartsConfig({
                   </Typography>
                   {cableMeters > 0 && (
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
-                      {`${cableModel}: ¥${cableUnitPrice.toFixed(2)} × ${cableMeters}m + 电缆配件费 ¥${cableAccessoryPrice.toFixed(2)} = ¥${cableTotal.toFixed(2)}`}
+                      {`${cableModel}: ¥${cableUnitPrice.toFixed(2)} × ${cableMeters}m + ${cableAccessoryName} ¥${cableAccessoryPrice.toFixed(2)} = ¥${cableTotal.toFixed(2)}`}
                     </Typography>
                   )}
                 </Box>

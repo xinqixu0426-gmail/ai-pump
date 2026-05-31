@@ -20,7 +20,7 @@ async function executeCostTool(toolName, args, internalFetch) {
         }
 
         case 'full_calculate': {
-            const response = await internalFetch(`/api/cost/full-calculate`, {
+            const response = await internalFetch(`/api/cost/full-estimate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(args)
@@ -43,7 +43,7 @@ async function executeCostTool(toolName, args, internalFetch) {
         }
 
         case 'dynamic_config_cost': {
-            const response = await internalFetch(`/api/cost/dynamic-config`, {
+            const response = await internalFetch(`/api/cost/dynamic`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(args)

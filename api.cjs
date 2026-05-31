@@ -133,7 +133,15 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
     console.log(`可用端点:（需认证）`);
     console.log(`  GET  /api/health                        - 健康检查（公开）`);
-    console.log(`  POST /api/cost/calculate                - 计算成本（传parts数组）`);
+  console.log(`  POST /api/cost/calculate                - 计算成本（传parts数组）`);
+  console.log(`  POST /api/cost/parts                    - 配件数组成本`);
+  console.log(`  POST /api/cost/coil                     - 线圈转子成本`);
+  console.log(`  POST /api/cost/float                    - 浮球成本`);
+  console.log(`  POST /api/cost/cable                    - 电缆线成本`);
+  console.log(`  POST /api/cost/packing                  - 包装材料成本`);
+  console.log(`  POST /api/cost/overhead                 - 人工与管理费`);
+  console.log(`  POST /api/cost/dynamic                  - 动态配置成本`);
+  console.log(`  POST /api/cost/full-estimate            - 完整成本估算`);
     console.log(`  GET  /api/cost/recipe/:id               - 按配方ID查询成本`);
     console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
     console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);

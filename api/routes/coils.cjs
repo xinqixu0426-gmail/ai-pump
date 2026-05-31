@@ -140,7 +140,7 @@ router.patch('/spec/:spec', (req, res) => {
 
 // ── 成本计算（支持插值）──
 
-router.post('/calculate', (req, res) => {
+function calculateCoilCostHandler(req, res) {
     try {
         const { spec, sheets, wireWeight: customerWireWeight, copperPrice: customCopperPrice } = req.body;
         const requestedMaterial = req.body.material ? String(req.body.material).trim() : '';
@@ -218,7 +218,9 @@ router.post('/calculate', (req, res) => {
             }
         });
     } catch (error) { console.error('Coil Calculate Error:', error); res.status(500).json({ success: false, error: error.message }); }
-});
+}
+
+router.post('/calculate', calculateCoilCostHandler);
 
 // ── 规格列表 ──
 
@@ -248,3 +250,4 @@ router.get('/specs', (req, res) => {
 });
 
 module.exports = router;
+module.exports.calculateCoilCostHandler = calculateCoilCostHandler;

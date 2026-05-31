@@ -207,6 +207,7 @@ export default function QuotationsPage() {
       hasCable: recipe.hasCable === 1,
       cableLength: recipe.cableLength,
       cableWire: recipe.cableWire,
+      cableAccessoryType: recipe.cableAccessoryType || 'standard',
       coilSpec: recipe.coilSpec || '',
       coilSheets: recipe.coilSheets || 0,
       coilMaterial: recipe.coilMaterial || '钢带',
@@ -537,6 +538,19 @@ export default function QuotationsPage() {
                   <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.hasFloat} onChange={e => updateItemOverride(idx, 'hasFloat', e.target.checked)} />} label="加浮球" />
                   <FormControlLabel control={<Checkbox size="small" checked={!!item.overrides.hasCable} onChange={e => updateItemOverride(idx, 'hasCable', e.target.checked)} />} label="加电缆" />
                   {item.overrides.hasCable && <TextField label="电缆长度(米)" size="small" type="number" value={item.overrides.cableLength || ''} onChange={e => updateItemOverride(idx, 'cableLength', Number(e.target.value))} sx={{ minWidth: 120, width: 120 }} />}
+                  {item.overrides.hasCable && (
+                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                      <InputLabel>铜套规格</InputLabel>
+                      <Select
+                        value={item.overrides.cableAccessoryType || 'standard'}
+                        label="铜套规格"
+                        onChange={e => updateItemOverride(idx, 'cableAccessoryType', e.target.value)}
+                      >
+                        <MenuItem value="standard">普通铜套</MenuItem>
+                        <MenuItem value="xinjie">新界式</MenuItem>
+                      </Select>
+                    </FormControl>
+                  )}
                   {hasStainlessBarrel(item.baseRecipeId) && (
                     <TextField label="定制机筒" size="small" type="number" value={item.overrides.customBarrelLength || ''} onChange={e => updateItemOverride(idx, 'customBarrelLength', Number(e.target.value))} sx={{ minWidth: 100, width: 100 }} />
                   )}
