@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Part, PumpShellMeta } from '../../types';
 import { colors, gradients } from '../../utils/theme';
+import { proxyRequest } from '../../utils/api';
 import { BUILTIN_CATEGORIES, getCatIcon } from './partsConstants';
 
 // ─── 零件表单面板 ─────────────────────────────────────
@@ -181,6 +182,19 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     setErrors({});
   }, [editingPart, open]);
 
+  useEffect(() => {
+    if (!open || !isCableMode) return;
+    proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/cable_accessories')
+      .then(({ data }) => {
+        const config = JSON.parse(data.value);
+        setStandardCableAccessoryName(config.standard?.name || '普通铜套');
+        setStandardCableAccessoryFee(String(config.standard?.fee ?? 0));
+        setXinjieCableAccessoryName(config.xinjie?.name || '新界式');
+        setXinjieCableAccessoryFee(String(config.xinjie?.fee ?? 0));
+      })
+      .catch(() => { /* 兼容尚未初始化全局配置的旧环境 */ });
+  }, [open, isCableMode]);
+
   const validate = () => {
     const e: Record<string, string> = {};
     if (isCapacitorMode) {
@@ -251,6 +265,15 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
           xinjie: xinjieCableAccessoryName.trim(),
         },
       };
+    }
+    if (isCableMode) {
+      await proxyRequest('/api/settings/cable_accessories', {
+        method: 'PUT',
+        body: JSON.stringify({ value: {
+          standard: { name: standardCableAccessoryName.trim(), fee: standardCableAccessoryFee ? parseFloat(standardCableAccessoryFee) : 0 },
+          xinjie: { name: xinjieCableAccessoryName.trim(), fee: xinjieCableAccessoryFee ? parseFloat(xinjieCableAccessoryFee) : 0 },
+        } }),
+      });
     }
     await onSave({
       model: finalModel, category, price: parseFloat(price) || 0,
@@ -410,32 +433,37 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
             />
           )}
           {isCableMode && (
-            <Box display="flex" gap={1.5} alignItems="flex-start">
-              <TextField
-                id="part-standard-cable-accessory-name-input"
-                label="第一种配件费名称"
-                value={standardCableAccessoryName}
-                onChange={(e) => setStandardCableAccessoryName(e.target.value)}
-                placeholder="如：普通铜套"
-                fullWidth
-                size="small"
-                error={!!errors.standardCableAccessoryName}
-                helperText={errors.standardCableAccessoryName || ' '}
-                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
-              />
-              <TextField
-                id="part-xinjie-cable-accessory-name-input"
-                label="第二种配件费名称"
-                value={xinjieCableAccessoryName}
-                onChange={(e) => setXinjieCableAccessoryName(e.target.value)}
-                placeholder="如：新界式"
-                fullWidth
-                size="small"
-                error={!!errors.xinjieCableAccessoryName}
-                helperText={errors.xinjieCableAccessoryName || ' '}
-                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
-              />
-            </Box>
+            <>
+              <Typography variant="caption" color="text.secondary">
+                铜套配件费为全局配置，修改后自动应用于所有电缆线径
+              </Typography>
+              <Box display="flex" gap={1.5} alignItems="flex-start">
+                <TextField
+                  id="part-standard-cable-accessory-name-input"
+                  label="第一种配件费名称"
+                  value={standardCableAccessoryName}
+                  onChange={(e) => setStandardCableAccessoryName(e.target.value)}
+                  placeholder="如：普通铜套"
+                  fullWidth
+                  size="small"
+                  error={!!errors.standardCableAccessoryName}
+                  helperText={errors.standardCableAccessoryName || ' '}
+                  sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+                />
+                <TextField
+                  id="part-xinjie-cable-accessory-name-input"
+                  label="第二种配件费名称"
+                  value={xinjieCableAccessoryName}
+                  onChange={(e) => setXinjieCableAccessoryName(e.target.value)}
+                  placeholder="如：新界式"
+                  fullWidth
+                  size="small"
+                  error={!!errors.xinjieCableAccessoryName}
+                  helperText={errors.xinjieCableAccessoryName || ' '}
+                  sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+                />
+              </Box>
+            </>
           )}
           <Box display="flex" gap={1.5} alignItems="flex-start">
             <TextField

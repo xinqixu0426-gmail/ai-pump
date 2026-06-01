@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import { Cable as CableIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
-import { CableAccessoryType, Part, PartSelection } from '../../types';
+import { CableAccessoryConfig, CableAccessoryType, Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
 import { CoilSpecInfo, CoilCalcResult } from './recipeFormConstants';
 import { getCableAccessoryFee, getCableAccessoryName } from '../../utils/partHelpers';
@@ -64,6 +64,7 @@ interface StepPartsConfigProps {
   setCableWire: (val: string) => void;
   cableAccessoryType: CableAccessoryType;
   setCableAccessoryType: (val: CableAccessoryType) => void;
+  cableAccessoryConfig: CableAccessoryConfig | null;
 
   boxType?: never;      // 已废弃
   setBoxType?: never;   // 已废弃
@@ -84,7 +85,7 @@ export default function StepPartsConfig({
   capacitorModel, capacitorPrice,
   optionalParts, handleAddOptional, handleOptionalChange, handleRemoveOptional,
   hasFloat, setHasFloat, floatWire, setFloatWire,
-  hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire, cableAccessoryType, setCableAccessoryType,
+  hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire, cableAccessoryType, setCableAccessoryType, cableAccessoryConfig,
   packingParts, setPackingParts,
   parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory,
 }: StepPartsConfigProps) {
@@ -115,9 +116,9 @@ export default function StepPartsConfig({
   const cableModel = `电缆-线径${cableWire}`;
   const cableMeters = Number(cableLength) || 0;
   const cableUnitPrice = getPriceByModelAndSupplier(cableModel, '');
-  const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '', cableAccessoryType);
-  const standardCableAccessoryName = getCableAccessoryName(parts, cableModel, '', 'standard');
-  const xinjieCableAccessoryName = getCableAccessoryName(parts, cableModel, '', 'xinjie');
+  const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '', cableAccessoryType, cableAccessoryConfig);
+  const standardCableAccessoryName = getCableAccessoryName(parts, cableModel, '', 'standard', cableAccessoryConfig);
+  const xinjieCableAccessoryName = getCableAccessoryName(parts, cableModel, '', 'xinjie', cableAccessoryConfig);
   const cableAccessoryName = cableAccessoryType === 'xinjie' ? xinjieCableAccessoryName : standardCableAccessoryName;
   const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
   const selectedCoilSpec = coilSpecs.find(s => s.spec === coilSpec);

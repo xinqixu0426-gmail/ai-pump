@@ -10,7 +10,7 @@ import {
   Button,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
-import { CableAccessoryType, RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
+import { CableAccessoryConfig, CableAccessoryType, RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
 import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
@@ -69,6 +69,7 @@ export default function RecipeFormPage() {
   const [cableLength, setCableLength] = useState(editFrom?.cableLength ? String(editFrom.cableLength) : (cloneFrom?.cableLength ? String(cloneFrom.cableLength) : ''));
   const [cableWire, setCableWire] = useState(editFrom?.cableWire || cloneFrom?.cableWire || '0.55');
   const [cableAccessoryType, setCableAccessoryType] = useState<CableAccessoryType>(editFrom?.cableAccessoryType || cloneFrom?.cableAccessoryType || 'standard');
+  const [cableAccessoryConfig, setCableAccessoryConfig] = useState<CableAccessoryConfig | null>(null);
   const [packingParts, setPackingParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextPackingId = useRef(100);
 
@@ -115,6 +116,12 @@ export default function RecipeFormPage() {
   useUnsavedChanges(isDirty && !saving);
 
   // 读取管理费默认值（仅新建时）
+  useEffect(() => {
+    proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/cable_accessories')
+      .then(({ data }) => setCableAccessoryConfig(JSON.parse(data.value)))
+      .catch(() => setCableAccessoryConfig(null));
+  }, []);
+
   useEffect(() => {
     if (editFrom || cloneFrom) return;
     (async () => {
@@ -269,12 +276,12 @@ export default function RecipeFormPage() {
     [parts]
   );
   const getCableAccessoryFee = useCallback(
-    (model: string, supplier: string, accessoryType: CableAccessoryType = 'standard') => _getCableAccessoryFee(parts, model, supplier, accessoryType),
-    [parts]
+    (model: string, supplier: string, accessoryType: CableAccessoryType = 'standard') => _getCableAccessoryFee(parts, model, supplier, accessoryType, cableAccessoryConfig),
+    [parts, cableAccessoryConfig]
   );
   const getCableAccessoryName = useCallback(
-    (model: string, supplier: string, accessoryType: CableAccessoryType = 'standard') => _getCableAccessoryName(parts, model, supplier, accessoryType),
-    [parts]
+    (model: string, supplier: string, accessoryType: CableAccessoryType = 'standard') => _getCableAccessoryName(parts, model, supplier, accessoryType, cableAccessoryConfig),
+    [parts, cableAccessoryConfig]
   );
   const getModelsByCategory = useCallback(
     (category: string) => _getModelsByCategory(parts, category),
@@ -527,6 +534,7 @@ export default function RecipeFormPage() {
           hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
           cableWire={cableWire} setCableWire={setCableWire}
           cableAccessoryType={cableAccessoryType} setCableAccessoryType={setCableAccessoryType}
+          cableAccessoryConfig={cableAccessoryConfig}
           packingParts={packingParts}
           setPackingParts={setPackingParts}
           parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}

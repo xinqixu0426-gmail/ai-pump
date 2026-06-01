@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, coilRow, loadPartsData, calculateRecipeCost, safeUpdate, nextBjtTime } = require('../db.cjs');
+const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, coilRow, loadPartsData, calculateRecipeCost, safeUpdate, nextBjtTime, getSetting } = require('../db.cjs');
 const { createLogger } = require('../logger.cjs');
 const { calculateCoilCostHandler } = require('./coils.cjs');
 const router = Router();
@@ -170,7 +170,24 @@ function parseCableAccessoryName(notes, accessoryType = 'standard') {
     }
 }
 
+function getGlobalCableAccessory(accessoryType = 'standard') {
+    try {
+        const config = JSON.parse(getSetting('cable_accessories') || '{}')?.[accessoryType];
+        const fee = Number(config?.fee);
+        return {
+            name: typeof config?.name === 'string' && config.name.trim()
+                ? config.name.trim()
+                : (accessoryType === 'xinjie' ? '新界式' : '普通铜套'),
+            fee: Number.isFinite(fee) && fee >= 0 ? fee : null,
+        };
+    } catch {
+        return { name: accessoryType === 'xinjie' ? '新界式' : '普通铜套', fee: null };
+    }
+}
+
 function getCableAccessoryFee(partsByModel, cableModel, supplier, getPrice, accessoryType = 'standard') {
+    const globalAccessory = getGlobalCableAccessory(accessoryType);
+    if (globalAccessory.fee != null) return globalAccessory.fee;
     const suppliers = partsByModel[cableModel] || [];
     const normalizedSupplier = String(supplier || '').trim();
     const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);
@@ -185,6 +202,8 @@ function getCableAccessoryFee(partsByModel, cableModel, supplier, getPrice, acce
 }
 
 function getCableAccessoryName(partsByModel, cableModel, supplier, accessoryType = 'standard') {
+    const globalAccessory = getGlobalCableAccessory(accessoryType);
+    if (globalAccessory.name) return globalAccessory.name;
     const suppliers = partsByModel[cableModel] || [];
     const normalizedSupplier = String(supplier || '').trim();
     const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);

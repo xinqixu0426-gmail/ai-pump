@@ -1,4 +1,4 @@
-import { CableAccessoryType, Part } from '../types';
+import { CableAccessoryConfig, CableAccessoryType, Part } from '../types';
 
 /**
  * 根据型号和供应商查找零件价格
@@ -39,7 +39,8 @@ function parseCableAccessoryName(notes?: string, accessoryType: CableAccessoryTy
   }
 }
 
-export function getCableAccessoryFee(parts: Part[], cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard'): number {
+export function getCableAccessoryFee(parts: Part[], cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard', config?: CableAccessoryConfig | null): number {
+  if (config?.[accessoryType] && Number.isFinite(config[accessoryType].fee)) return config[accessoryType].fee;
   const m1 = (cableModel || '').trim();
   const s1 = (supplier || '').trim();
   const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);
@@ -56,7 +57,8 @@ export function getCableAccessoryFee(parts: Part[], cableModel: string, supplier
   return getPriceByModelAndSupplier(parts, '电缆配件费', '');
 }
 
-export function getCableAccessoryName(parts: Part[], cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard'): string {
+export function getCableAccessoryName(parts: Part[], cableModel: string, supplier: string, accessoryType: CableAccessoryType = 'standard', config?: CableAccessoryConfig | null): string {
+  if (config?.[accessoryType]?.name?.trim()) return config[accessoryType].name.trim();
   const m1 = (cableModel || '').trim();
   const s1 = (supplier || '').trim();
   const exactPart = parts.find(p => p.model.trim() === m1 && p.supplier.trim() === s1);

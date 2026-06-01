@@ -148,6 +148,31 @@ const existingCoilMaterialPrices = db.prepare('SELECT key FROM system_settings W
 if (!existingCoilMaterialPrices) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('coil_material_prices', JSON.stringify({ '钢带': 0.21, '冷轧800': 0.22, '其他材质': 0 }), new Date().toISOString());
 }
+const existingCableAccessories = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('cable_accessories');
+if (!existingCableAccessories) {
+    const legacyCableAccessoryPart = db.prepare(`SELECT price FROM parts WHERE model = '电缆配件费' ORDER BY price LIMIT 1`).get();
+    const cableParts = db.prepare(`SELECT remark FROM parts WHERE model LIKE '电缆-线径%' AND remark IS NOT NULL AND TRIM(remark) <> ''`).all();
+    const inferred = {
+        standard: { name: '普通铜套', fee: Number(legacyCableAccessoryPart?.price || 0) },
+        xinjie: { name: '新界式', fee: 0 },
+    };
+    for (const part of cableParts) {
+        try {
+            const meta = JSON.parse(part.remark);
+            for (const type of ['standard', 'xinjie']) {
+                const name = meta?.cableAccessoryNames?.[type];
+                const fee = Number(meta?.cableAccessoryFees?.[type] ?? (type === 'standard' ? meta?.cableAccessoryFee : undefined));
+                if (typeof name === 'string' && name.trim()) inferred[type].name = name.trim();
+                if (Number.isFinite(fee) && fee >= 0 && (fee > 0 || inferred[type].fee === 0)) inferred[type].fee = fee;
+            }
+            break;
+        } catch { /* try next cable part */ }
+    }
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('cable_accessories', JSON.stringify({
+        standard: inferred.standard,
+        xinjie: inferred.xinjie,
+    }), new Date().toISOString());
+}
 
 // recipes 表新增结构化列（幂等 ALTER）
 const recipeAlterColumns = [
@@ -327,7 +352,24 @@ function parseCableAccessoryFee(notes, accessoryType = 'standard') {
     }
 }
 
+function getGlobalCableAccessory(accessoryType = 'standard') {
+    try {
+        const config = JSON.parse(getSetting('cable_accessories') || '{}')?.[accessoryType];
+        const fee = Number(config?.fee);
+        return {
+            name: typeof config?.name === 'string' && config.name.trim()
+                ? config.name.trim()
+                : (accessoryType === 'xinjie' ? '新界式' : '普通铜套'),
+            fee: Number.isFinite(fee) && fee >= 0 ? fee : null,
+        };
+    } catch {
+        return { name: accessoryType === 'xinjie' ? '新界式' : '普通铜套', fee: null };
+    }
+}
+
 function getCableAccessoryFee(partsByModel, cableModel, supplier, accessoryType = 'standard') {
+    const globalAccessory = getGlobalCableAccessory(accessoryType);
+    if (globalAccessory.fee != null) return globalAccessory.fee;
     const suppliers = partsByModel[cableModel] || [];
     const normalizedSupplier = String(supplier || '').trim();
     const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);

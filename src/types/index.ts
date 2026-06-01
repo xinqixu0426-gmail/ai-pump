@@ -106,6 +106,7 @@ export interface Recipe {
 }
 
 export type CableAccessoryType = 'standard' | 'xinjie';
+export type CableAccessoryConfig = Record<CableAccessoryType, { name: string; fee: number }>;
 
 
 // ─── 配方配件项 ──────────────────────────────────────
