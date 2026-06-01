@@ -37,9 +37,6 @@ const WIRE_MODE_CONFIG: Record<string, string> = {
 /** 电容模式：类别集合 */
 const CAPACITOR_CATEGORIES = new Set(['电容']);
 
-/** 预置常用线径 */
-const DEFAULT_WIRE_GAUGES = ['0.35', '0.40', '0.45', '0.50', '0.55', '0.60', '0.65', '0.70', '0.75', '0.80', '0.85', '0.90', '0.95', '1.00', '1.18', '1.50', '2.50', '4.00'];
-
 export default function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions, parts, open }: PartFormPanelProps) {
   const [model, setModel] = useState('');
   const [category, setCategory] = useState('');
@@ -65,10 +62,10 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   const [capacitorUf, setCapacitorUf] = useState('');
   const isCapacitorMode = CAPACITOR_CATEGORIES.has(category);
 
-  /** 线径下拉选项（预置 + 已有数据库中的线径） */
+  /** 线径下拉选项（已有数据库中的线径，可手工录入新值） */
   const wireGaugeOptions = useMemo(() => {
     if (!wirePrefix) return [];
-    const set = new Set<string>(DEFAULT_WIRE_GAUGES);
+    const set = new Set<string>();
     parts.forEach(p => {
       if (p.model.startsWith(wirePrefix)) {
         const w = p.model.replace(wirePrefix, '');

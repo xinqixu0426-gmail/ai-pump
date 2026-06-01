@@ -105,7 +105,7 @@ export default function StepPartsConfig({
   );
 
   const getWireOptions = (prefix: string): string[] => {
-    const wires = new Set<string>(['0.35', '0.40', '0.45', '0.50', '0.55', '0.60', '0.65', '0.70', '0.75', '0.80', '0.85', '0.90', '0.95', '1.00', '1.18', '1.50', '2.50', '4.00']);
+    const wires = new Set<string>();
     parts.forEach((p) => {
       const m = p.model;
       if (m.startsWith(prefix)) { const w = m.replace(prefix, ''); if (w) wires.add(w); }

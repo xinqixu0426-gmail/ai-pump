@@ -64,14 +64,27 @@ export default function RecipeFormPage() {
 
   // 动态配置
   const [hasFloat, setHasFloat] = useState(!!editFrom?.hasFloat || !!cloneFrom?.hasFloat);
-  const [floatWire, setFloatWire] = useState(editFrom?.floatWire || cloneFrom?.floatWire || '0.55');
+  const [floatWire, setFloatWire] = useState(editFrom?.floatWire || cloneFrom?.floatWire || '');
   const [hasCable, setHasCable] = useState(!!editFrom?.hasCable || !!cloneFrom?.hasCable);
   const [cableLength, setCableLength] = useState(editFrom?.cableLength ? String(editFrom.cableLength) : (cloneFrom?.cableLength ? String(cloneFrom.cableLength) : ''));
-  const [cableWire, setCableWire] = useState(editFrom?.cableWire || cloneFrom?.cableWire || '0.55');
+  const [cableWire, setCableWire] = useState(editFrom?.cableWire || cloneFrom?.cableWire || '');
   const [cableAccessoryType, setCableAccessoryType] = useState<CableAccessoryType>(editFrom?.cableAccessoryType || cloneFrom?.cableAccessoryType || 'standard');
   const [cableAccessoryConfig, setCableAccessoryConfig] = useState<CableAccessoryConfig | null>(null);
   const [packingParts, setPackingParts] = useState<Array<PartSelection & { id: number }>>([]);
   const nextPackingId = useRef(100);
+  const getInventoryWireGauges = useCallback((prefix: string) => Array.from(new Set(
+    parts
+      .filter(p => p.model.startsWith(prefix))
+      .map(p => p.model.replace(prefix, ''))
+      .filter(Boolean)
+  )).sort((a, b) => parseFloat(a) - parseFloat(b)), [parts]);
+  const floatWireOptions = useMemo(() => getInventoryWireGauges('浮球-线径'), [getInventoryWireGauges]);
+  const cableWireOptions = useMemo(() => getInventoryWireGauges('电缆-线径'), [getInventoryWireGauges]);
+
+  useEffect(() => {
+    setFloatWire((current: string) => floatWireOptions.includes(current) ? current : (floatWireOptions[0] || ''));
+    setCableWire((current: string) => cableWireOptions.includes(current) ? current : (cableWireOptions[0] || ''));
+  }, [floatWireOptions, cableWireOptions]);
 
   // 不锈钢自定义机筒长度
   const [customBarrelLength, setCustomBarrelLength] = useState(
@@ -181,8 +194,8 @@ export default function RecipeFormPage() {
   useEffect(() => {
     if (!coilResult) return;
     if (coilResult.wireGauge) {
-      setFloatWire(coilResult.wireGauge);
-      setCableWire(coilResult.wireGauge);
+      if (floatWireOptions.includes(coilResult.wireGauge)) setFloatWire(coilResult.wireGauge);
+      if (cableWireOptions.includes(coilResult.wireGauge)) setCableWire(coilResult.wireGauge);
     }
     if (coilResult.capacitor) {
       // 从线圈表的 default_capacitor 提取纯数值 (如 "18"→18, "20uF"→20, "12μF"→12)
@@ -204,7 +217,7 @@ export default function RecipeFormPage() {
       setCapacitorModel('');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coilResult]);
+  }, [coilResult, floatWireOptions, cableWireOptions, parts]);
 
   // 编辑/复制预填
   useEffect(() => {
@@ -218,10 +231,10 @@ export default function RecipeFormPage() {
       if (source.coilMaterial) setCoilMaterial(source.coilMaterial);
       if (source.coilSheets) setCoilSheets(String(source.coilSheets));
       setHasFloat(!!source.hasFloat);
-      if (source.floatWire) setFloatWire(source.floatWire);
+      if (source.floatWire) setFloatWire(floatWireOptions.includes(source.floatWire) ? source.floatWire : (floatWireOptions[0] || ''));
       setHasCable(!!source.hasCable);
       if (source.cableLength) setCableLength(String(source.cableLength));
-      if (source.cableWire) setCableWire(source.cableWire);
+      if (source.cableWire) setCableWire(cableWireOptions.includes(source.cableWire) ? source.cableWire : (cableWireOptions[0] || ''));
       if (source.cableAccessoryType) setCableAccessoryType(source.cableAccessoryType);
       // 读取 packingPartsJson，向后兼容旧 boxType
       const rawPacking: PartSelection[] = (() => {
@@ -255,8 +268,8 @@ export default function RecipeFormPage() {
           }
           return;
         }
-        if (cp.name === '浮球') { setHasFloat(true); const w = cp.model.replace('浮球-线径', ''); if (w) setFloatWire(w); return; }
-        if (cp.name === '电缆线') { setHasCable(true); const w = cp.model.replace('电缆-线径', ''); if (w) setCableWire(w); setCableLength(String(cp.qty || '')); return; }
+        if (cp.name === '浮球') { setHasFloat(true); const w = cp.model.replace('浮球-线径', ''); if (floatWireOptions.includes(w)) setFloatWire(w); return; }
+        if (cp.name === '电缆线') { setHasCable(true); const w = cp.model.replace('电缆-线径', ''); if (cableWireOptions.includes(w)) setCableWire(w); setCableLength(String(cp.qty || '')); return; }
         if (cp.name === '电缆接头配件') return;
         if (cp.name === '纸箱' || cp.name === '木箱') {
           setPackingParts(prev => [...prev, { id: nextPackingId.current++, model: cp.model, supplier: '', qty: 1 }]);
@@ -268,7 +281,7 @@ export default function RecipeFormPage() {
     } catch (e) {
       console.error('解析配方失败', e);
     }
-  }, [editFrom, cloneFrom, parts]);
+  }, [editFrom, cloneFrom, parts, floatWireOptions, cableWireOptions]);
 
   // ── 辅助函数 ──
   const getPriceByModelAndSupplier = useCallback(
