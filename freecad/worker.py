@@ -10,6 +10,13 @@ import time
 import json
 import shutil
 import traceback
+import site
+
+# FreeCAD's embedded interpreter may omit user-level Python package paths.
+site.addsitedir(site.getusersitepackages())
+freecad_user_packages = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "FreeCAD", "python-packages")
+if os.path.isdir(freecad_user_packages):
+    site.addsitedir(freecad_user_packages)
 
 t_total_start = time.time()
 

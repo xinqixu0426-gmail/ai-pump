@@ -72,6 +72,35 @@ npm run server
 npm run build
 ```
 
+### Windows 转子出图依赖
+
+转子出图会先由 FreeCAD 导出 SVG，再使用 `svglib` 和 `reportlab` 转换为 PDF。Windows 版 FreeCAD 1.1 自带独立的 Python 3.11 环境，不能假设系统 Python 或项目 npm 依赖中已经包含这些库。
+
+如果终端出现以下报错：
+
+```text
+ModuleNotFoundError: No module named 'svglib'
+```
+
+使用 FreeCAD 自带的 Python 将依赖安装到当前用户的 FreeCAD 专用目录：
+
+```powershell
+$target = Join-Path $env:APPDATA 'FreeCAD\python-packages'
+New-Item -ItemType Directory -Force -Path $target | Out-Null
+& 'C:\Program Files\FreeCAD 1.1\bin\python.exe' -m pip install `
+  --target $target `
+  --index-url https://pypi.tuna.tsinghua.edu.cn/simple `
+  svglib reportlab
+```
+
+注意：直接设置 `PYTHONPATH` 并不一定有效。FreeCAD 的嵌入式解释器可能忽略用户级 Python 包目录，因此 `worker.py` 启动时会显式加载：
+
+```text
+%APPDATA%\FreeCAD\python-packages
+```
+
+安装完成后，重新启动 Node.js 后端服务，再发起一次转子出图请求验证 PDF 是否正常生成。
+
 ### 环境变量 (.env)
 
 ```env
