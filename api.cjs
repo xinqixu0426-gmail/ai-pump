@@ -28,6 +28,18 @@ const corsOrigins = process.env.CORS_ORIGIN
 if (IS_PRODUCTION && corsOrigins.length === 0) {
   throw new Error('生产环境必须配置 CORS_ORIGIN');
 }
+
+if (IS_PRODUCTION) {
+  app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    if (forwardedProto && forwardedProto !== 'https' && req.headers.host) {
+      return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    }
+    next();
+  });
+}
+
 app.use(cors({
   origin: IS_DEV ? true : corsOrigins,
   credentials: true,

@@ -14,9 +14,13 @@ import site
 
 # FreeCAD's embedded interpreter may omit user-level Python package paths.
 site.addsitedir(site.getusersitepackages())
-freecad_user_packages = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "FreeCAD", "python-packages")
-if os.path.isdir(freecad_user_packages):
-    site.addsitedir(freecad_user_packages)
+freecad_user_package_dirs = [
+    os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "FreeCAD", "python-packages"),
+    os.path.join(os.path.expanduser("~"), "Library", "Application Support", "FreeCAD", "python-packages"),
+]
+for freecad_user_packages in freecad_user_package_dirs:
+    if os.path.isdir(freecad_user_packages):
+        site.addsitedir(freecad_user_packages)
 
 t_total_start = time.time()
 
