@@ -183,6 +183,7 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
   if (recipe.coilMaterial !== undefined) payload.coilMaterial = recipe.coilMaterial || '钢带';
   if (recipe.hasFloat !== undefined) payload.hasFloat = recipe.hasFloat || 0;
   if (recipe.floatWire !== undefined) payload.floatWire = recipe.floatWire || '';
+  if (recipe.floatAccessoryType !== undefined) payload.floatAccessoryType = recipe.floatAccessoryType || 'standard';
   if (recipe.hasCable !== undefined) payload.hasCable = recipe.hasCable || 0;
   if (recipe.cableLength !== undefined) payload.cableLength = recipe.cableLength || 0;
   if (recipe.cableWire !== undefined) payload.cableWire = recipe.cableWire || '';

@@ -55,6 +55,9 @@ interface StepPartsConfigProps {
   setHasFloat: (val: boolean) => void;
   floatWire: string;
   setFloatWire: (val: string) => void;
+  floatAccessoryType: CableAccessoryType;
+  setFloatAccessoryType: (val: CableAccessoryType) => void;
+  floatAccessoryDelta: number;
 
   hasCable: boolean;
   setHasCable: (val: boolean) => void;
@@ -84,7 +87,7 @@ export default function StepPartsConfig({
   coilResult, coilLoading,
   capacitorModel, capacitorPrice,
   optionalParts, handleAddOptional, handleOptionalChange, handleRemoveOptional,
-  hasFloat, setHasFloat, floatWire, setFloatWire,
+  hasFloat, setHasFloat, floatWire, setFloatWire, floatAccessoryType, setFloatAccessoryType, floatAccessoryDelta,
   hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire, cableAccessoryType, setCableAccessoryType, cableAccessoryConfig,
   packingParts, setPackingParts,
   parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory,
@@ -114,6 +117,10 @@ export default function StepPartsConfig({
   };
 
   const cableModel = `电缆-线径${cableWire}`;
+  const floatModel = `浮球-线径${floatWire}`;
+  const floatBasePrice = getPriceByModelAndSupplier(floatModel, '');
+  const floatDelta = floatAccessoryType === 'xinjie' ? floatAccessoryDelta : 0;
+  const floatTotal = floatBasePrice + floatDelta;
   const cableMeters = Number(cableLength) || 0;
   const cableUnitPrice = getPriceByModelAndSupplier(cableModel, '');
   const cableAccessoryPrice = getCableAccessoryFee(parts, cableModel, '', cableAccessoryType, cableAccessoryConfig);
@@ -306,9 +313,27 @@ export default function StepPartsConfig({
                     ))}
                   </Select>
                 </FormControl>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                  ¥{getPriceByModelAndSupplier(`浮球-线径${floatWire}`, '').toFixed(2)}
-                </Typography>
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel>铜套规格</InputLabel>
+                  <Select
+                    value={floatAccessoryType}
+                    label="铜套规格"
+                    onChange={(e) => setFloatAccessoryType(e.target.value as CableAccessoryType)}
+                  >
+                    <MenuItem value="standard">普通铜套</MenuItem>
+                    <MenuItem value="xinjie">新界式</MenuItem>
+                  </Select>
+                </FormControl>
+                <Box sx={{ ml: { xs: 0, md: 'auto' }, textAlign: { xs: 'left', md: 'right' } }}>
+                  <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                    ¥{floatTotal.toFixed(2)}
+                  </Typography>
+                  {floatAccessoryType === 'xinjie' && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
+                      {`${floatModel}: ¥${floatBasePrice.toFixed(2)} + 新界式 ¥${floatDelta.toFixed(2)} = ¥${floatTotal.toFixed(2)}`}
+                    </Typography>
+                  )}
+                </Box>
               </>
             )}
           </Box>

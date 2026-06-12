@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 
-const ALLOWED_SETTINGS = new Set(['management_fee', 'coil_material_prices', 'cable_accessories']);
+const ALLOWED_SETTINGS = new Set(['management_fee', 'coil_material_prices', 'cable_accessories', 'float_accessory_delta']);
 
 router.get('/:key', (req, res) => {
     if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
@@ -18,6 +18,10 @@ router.put('/:key', (req, res) => {
     if (req.params.key === 'management_fee') {
         const fee = Number(value);
         if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ success: false, error: 'management_fee 必须是非负数字' });
+    }
+    if (req.params.key === 'float_accessory_delta') {
+        const delta = Number(value);
+        if (!Number.isFinite(delta) || delta < 0) return res.status(400).json({ success: false, error: 'float_accessory_delta 必须是非负数字' });
     }
     if (req.params.key === 'cable_accessories') {
         let config;

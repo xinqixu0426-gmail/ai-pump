@@ -82,16 +82,17 @@ function resolveWire(dbWire, explicitWire) {
 }
 
 // ── P1-5: 动态配件成本共享计算函数 ──
-function calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, cableAccessoryType = 'standard', boxType, resolvedWire, getPrice, partsCache, partsByModel }) {
+function calculateDynamicCost({ hasFloat, floatWire, floatAccessoryType = 'standard', cableLength, cableWire, cableAccessoryType = 'standard', boxType, resolvedWire, getPrice, partsCache, partsByModel }) {
     let totalCost = 0;
     const details = [];
+    const normalizedFloatAccessoryType = normalizeFloatAccessoryType(floatAccessoryType);
 
     if (hasFloat) {
         const wire = floatWire || resolvedWire;
         const model = `浮球-线径${wire}`;
-        const price = getPrice(model);
+        const price = getFloatPrice(model, getPrice, normalizedFloatAccessoryType);
         totalCost += price;
-        details.push({ name: '浮球', model, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2) });
+        details.push({ name: normalizedFloatAccessoryType === 'xinjie' ? '浮球-新界式' : '浮球-普通铜套', model, price: price.toFixed(2), qty: 1, subtotal: price.toFixed(2), floatAccessoryType: normalizedFloatAccessoryType });
     }
 
     const needCable = cableLength && Number(cableLength) > 0;
@@ -348,13 +349,32 @@ function normalizeCableAccessoryType(value) {
     return type;
 }
 
+function normalizeFloatAccessoryType(value) {
+    const type = value || 'standard';
+    if (!['standard', 'xinjie'].includes(type)) throw new Error('floatAccessoryType 必须是 standard 或 xinjie');
+    return type;
+}
+
+function getFloatAccessoryDelta(accessoryType = 'standard') {
+    if (accessoryType !== 'xinjie') return 0;
+    const delta = Number(getSetting('float_accessory_delta'));
+    return Number.isFinite(delta) && delta >= 0 ? delta : 0;
+}
+
+function getFloatPrice(model, getPrice, accessoryType = 'standard') {
+    return getPrice(model) + getFloatAccessoryDelta(accessoryType);
+}
+
 function calculateFloatEstimate(body, partsByModel) {
     const wire = String(body.wire || body.floatWire || '0.55').trim();
     const model = String(body.model || `浮球-线径${wire}`).trim();
     const qty = parseNonNegativeNumber(body.qty, 'qty', { defaultValue: 1 });
     const getPrice = createPartPriceGetter(partsByModel);
-    const unitPrice = getPrice(model, body.supplier);
-    return { model, wire, supplier: body.supplier || '', qty, unitPrice, totalCost: Number((unitPrice * qty).toFixed(2)) };
+    const floatAccessoryType = normalizeFloatAccessoryType(body.floatAccessoryType);
+    const basePrice = getPrice(model, body.supplier);
+    const accessoryDelta = getFloatAccessoryDelta(floatAccessoryType);
+    const unitPrice = basePrice + accessoryDelta;
+    return { model, wire, supplier: body.supplier || '', qty, floatAccessoryType, basePrice, accessoryDelta, unitPrice, totalCost: Number((unitPrice * qty).toFixed(2)) };
 }
 
 function calculateCableEstimate(body, partsByModel) {
@@ -443,7 +463,7 @@ router.post('/cost/overhead', (req, res) => {
 // ── POST /cost/dynamic-config ──
 router.post(['/cost/dynamic', '/cost/dynamic-config'], (req, res) => {
     try {
-        const { stator, statorSpec: rawSpec, statorSheets: rawSheets, hasFloat, floatWire, hasCable, cableWire, cableLength, cableAccessoryType = 'standard', boxType } = req.body;
+        const { stator, statorSpec: rawSpec, statorSheets: rawSheets, hasFloat, floatWire, floatAccessoryType = 'standard', hasCable, cableWire, cableLength, cableAccessoryType = 'standard', boxType } = req.body;
         let statorSpec = rawSpec, statorSheets = rawSheets;
         if (stator && typeof stator === 'string' && stator.includes('-')) {
             const [s, sh] = stator.split('-');
@@ -456,7 +476,7 @@ router.post(['/cost/dynamic', '/cost/dynamic-config'], (req, res) => {
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
 
         const effectiveCableLength = (hasCable || (cableLength && Number(cableLength) > 0)) ? cableLength : 0;
-        const { totalCost, details } = calculateDynamicCost({ hasFloat, floatWire, cableLength: effectiveCableLength, cableWire, cableAccessoryType, boxType, resolvedWire, getPrice, partsCache, partsByModel });
+        const { totalCost, details } = calculateDynamicCost({ hasFloat, floatWire, floatAccessoryType, cableLength: effectiveCableLength, cableWire, cableAccessoryType, boxType, resolvedWire, getPrice, partsCache, partsByModel });
         res.json({ success: true, data: { totalCost: totalCost.toFixed(2), itemCount: details.length, resolvedWire, details } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -480,6 +500,7 @@ router.post(['/recipes/:id/cost-preview', '/cost/dynamic-calculate'], (req, res)
             coil_material: getOverride(overrides, 'coilMaterial', 'coil_material', row.coil_material || DEFAULT_COIL_MATERIAL),
             has_float: getOverride(overrides, 'hasFloat', 'has_float', row.has_float),
             float_wire: getOverride(overrides, 'floatWire', 'float_wire', row.float_wire),
+            float_accessory_type: getOverride(overrides, 'floatAccessoryType', 'float_accessory_type', row.float_accessory_type || 'standard'),
             has_cable: getOverride(overrides, 'hasCable', 'has_cable', row.has_cable),
             cable_length: Number(getOverride(overrides, 'cableLength', 'cable_length', row.cable_length)),
             cable_wire: getOverride(overrides, 'cableWire', 'cable_wire', row.cable_wire),
@@ -521,7 +542,7 @@ router.post(['/recipes/:id/cost-preview', '/cost/dynamic-calculate'], (req, res)
         const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
 
         const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets) || !sameText(recipeData.coil_material, row.coil_material || DEFAULT_COIL_MATERIAL);
-        const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire);
+        const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire) || !sameText(recipeData.float_accessory_type, row.float_accessory_type || 'standard');
         const cableChanged = toBool(recipeData.has_cable) !== toBool(row.has_cable) || !sameNumber(recipeData.cable_length, row.cable_length) || !sameText(recipeData.cable_wire, row.cable_wire) || !sameText(recipeData.cable_accessory_type, row.cable_accessory_type || 'standard');
         const packingJsonChanged = normalizePackingJsonText(recipeData.packing_parts_json, recipeData.box_type) !== normalizePackingJsonText(row.packing_parts_json, row.box_type);
         const boxChanged = !sameText(recipeData.box_type, row.box_type) || packingJsonChanged;
@@ -531,7 +552,7 @@ router.post(['/recipes/:id/cost-preview', '/cost/dynamic-calculate'], (req, res)
         if (!floatChanged) {
             totalCost += managedTotals.float;
         } else if (toBool(recipeData.has_float)) {
-            totalCost += getPrice(configuredModel('浮球', recipeData.float_wire, resolvedWire));
+            totalCost += getFloatPrice(configuredModel('浮球', recipeData.float_wire, resolvedWire), getPrice, recipeData.float_accessory_type);
         }
 
         if (!cableChanged) {
@@ -569,7 +590,7 @@ router.post(['/recipes/:id/cost-preview', '/cost/dynamic-calculate'], (req, res)
 // ── POST /cost/full-calculate ──
 router.post(['/cost/full-estimate', '/cost/full-calculate'], (req, res) => {
     try {
-        const { pumphousing_model, stator, cableLength = 0, cableAccessoryType = 'standard', boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
+        const { pumphousing_model, stator, cableLength = 0, floatAccessoryType = 'standard', cableAccessoryType = 'standard', boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
         const statorMaterial = req.body.statorMaterial || req.body.material || DEFAULT_COIL_MATERIAL;
         const { partsCache, partsByModel } = loadPartsData();
         const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
@@ -616,7 +637,7 @@ router.post(['/cost/full-estimate', '/cost/full-calculate'], (req, res) => {
         // 步骤3: 动态配置成本（复用共享函数）
         const dbWire = statorSpec && statorSheets ? resolveWireFromStator(statorSpec, statorSheets, statorMaterial) : null;
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
-        const dynamic = calculateDynamicCost({ hasFloat, floatWire, cableLength, cableWire, cableAccessoryType, boxType, resolvedWire, getPrice, partsCache, partsByModel });
+        const dynamic = calculateDynamicCost({ hasFloat, floatWire, floatAccessoryType, cableLength, cableWire, cableAccessoryType, boxType, resolvedWire, getPrice, partsCache, partsByModel });
         result.dynamicCost = { totalCost: dynamic.totalCost.toFixed(2), resolvedWire, details: dynamic.details };
         grandTotal += dynamic.totalCost;
         result.totalCost = grandTotal.toFixed(2);

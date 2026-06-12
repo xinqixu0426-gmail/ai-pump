@@ -51,11 +51,17 @@
 ```json
 {
   "wire": "0.55",
-  "qty": 1
+  "qty": 1,
+  "floatAccessoryType": "standard"
 }
 ```
 
-也可直接传 `model` 和 `supplier`。返回匹配型号、单价和合计。
+也可直接传 `model` 和 `supplier`。`floatAccessoryType` 可选：
+
+- `standard`：普通铜套，使用浮球零件单价
+- `xinjie`：新界式，使用浮球零件单价 + 全局差价 `float_accessory_delta`
+
+返回匹配型号、基础单价、款式差价、最终单价和合计。
 
 ## 电缆线成本
 
@@ -116,6 +122,7 @@
   "statorSheets": 120,
   "hasFloat": true,
   "floatWire": "0.55",
+  "floatAccessoryType": "standard",
   "hasCable": true,
   "cableWire": "0.55",
   "cableLength": 2,
@@ -159,6 +166,7 @@
   "stator": "12-120",
   "hasFloat": true,
   "floatWire": "0.55",
+  "floatAccessoryType": "xinjie",
   "cableWire": "0.55",
   "cableLength": 2,
   "cableAccessoryType": "standard",

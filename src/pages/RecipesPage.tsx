@@ -158,7 +158,7 @@ export default function RecipesPage() {
     navigate('/recipe-form', { state: { cloneFrom: {
       name: recipe.name + '-副本', spec: recipe.spec, partsJson: recipe.partsJson,
       templateId: recipe.templateId, coilSpec: recipe.coilSpec, coilSheets: recipe.coilSheets, coilMaterial: recipe.coilMaterial,
-      hasFloat: recipe.hasFloat, floatWire: recipe.floatWire,
+      hasFloat: recipe.hasFloat, floatWire: recipe.floatWire, floatAccessoryType: recipe.floatAccessoryType,
       hasCable: recipe.hasCable, cableLength: recipe.cableLength, cableWire: recipe.cableWire, cableAccessoryType: recipe.cableAccessoryType,
       boxType: recipe.boxType, extraPartsJson: recipe.extraPartsJson, packingPartsJson: recipe.packingPartsJson,
       assemblyWage: recipe.assemblyWage, packingWage: recipe.packingWage, paintingWage: recipe.paintingWage,
@@ -172,7 +172,7 @@ export default function RecipesPage() {
     navigate('/recipe-form', { state: { editFrom: {
       Id: recipe.Id, name: recipe.name, spec: recipe.spec, partsJson: recipe.partsJson,
       templateId: recipe.templateId, coilSpec: recipe.coilSpec, coilSheets: recipe.coilSheets, coilMaterial: recipe.coilMaterial,
-      hasFloat: recipe.hasFloat, floatWire: recipe.floatWire,
+      hasFloat: recipe.hasFloat, floatWire: recipe.floatWire, floatAccessoryType: recipe.floatAccessoryType,
       hasCable: recipe.hasCable, cableLength: recipe.cableLength, cableWire: recipe.cableWire, cableAccessoryType: recipe.cableAccessoryType,
       boxType: recipe.boxType, extraPartsJson: recipe.extraPartsJson, packingPartsJson: recipe.packingPartsJson,
       assemblyWage: recipe.assemblyWage, packingWage: recipe.packingWage, paintingWage: recipe.paintingWage,

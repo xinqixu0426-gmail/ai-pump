@@ -87,6 +87,7 @@ export interface Recipe {
   coilMaterial?: string;
   hasFloat?: number;
   floatWire?: string;
+  floatAccessoryType?: CableAccessoryType;
   hasCable?: number;
   cableLength?: number;
   cableWire?: string;
@@ -121,6 +122,8 @@ export interface RecipePart {
   source?: string;
   formula?: string;
   costSource?: string;
+  floatAccessoryType?: CableAccessoryType;
+  floatAccessoryDelta?: number;
   cableAccessoryType?: CableAccessoryType;
 }
 
@@ -246,6 +249,7 @@ export interface DynamicCostOverrides {
   coilMaterial?: string;
   hasFloat?: boolean | number;
   floatWire?: string;
+  floatAccessoryType?: CableAccessoryType;
   hasCable?: boolean | number;
   cableLength?: number;
   cableWire?: string;

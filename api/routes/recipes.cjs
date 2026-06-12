@@ -5,7 +5,7 @@ const router = Router();
 const RECIPE_FIELDS = [
     'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
     'template_id', 'coil_spec', 'coil_sheets', 'coil_material',
-    'has_float', 'float_wire', 'has_cable', 'cable_length', 'cable_wire', 'cable_accessory_type',
+    'has_float', 'float_wire', 'float_accessory_type', 'has_cable', 'cable_length', 'cable_wire', 'cable_accessory_type',
     'box_type', 'extra_parts_json', 'packing_parts_json',
     'assembly_wage', 'packing_wage', 'painting_wage',
     'surface_treatment_mode', 'surface_treatment_cost',
@@ -22,6 +22,7 @@ const RECIPE_ALIASES = {
     coilMaterial: 'coil_material',
     hasFloat: 'has_float',
     floatWire: 'float_wire',
+    floatAccessoryType: 'float_accessory_type',
     hasCable: 'has_cable',
     cableLength: 'cable_length',
     cableWire: 'cable_wire',
@@ -80,17 +81,17 @@ router.post('/', (req, res) => {
         const info = db.prepare(`INSERT INTO recipes (
             name, spec, parts_json, saved_total_cost, saved_cost_details,
             template_id, coil_spec, coil_sheets, coil_material,
-            has_float, float_wire, has_cable, cable_length, cable_wire, cable_accessory_type,
+            has_float, float_wire, float_accessory_type, has_cable, cable_length, cable_wire, cable_accessory_type,
             box_type, extra_parts_json, packing_parts_json,
             assembly_wage, packing_wage, painting_wage,
             surface_treatment_mode, surface_treatment_cost,
             management_fee, custom_barrel_length,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
             b.name || '', b.spec || '', b.parts_json || '[]',
             b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
             b.template_id || null, b.coil_spec || '', b.coil_sheets || 0, b.coil_material || '钢带',
-            b.has_float || 0, b.float_wire || '', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '', b.cable_accessory_type || 'standard',
+            b.has_float || 0, b.float_wire || '', b.float_accessory_type || 'standard', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '', b.cable_accessory_type || 'standard',
             b.box_type || '', b.extra_parts_json || '[]', b.packing_parts_json || '[]',
             b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,
             b.surface_treatment_mode || (b.painting_wage != null ? 'painting' : 'none'),

@@ -65,6 +65,8 @@ export default function RecipeFormPage() {
   // 动态配置
   const [hasFloat, setHasFloat] = useState(!!editFrom?.hasFloat || !!cloneFrom?.hasFloat);
   const [floatWire, setFloatWire] = useState(editFrom?.floatWire || cloneFrom?.floatWire || '');
+  const [floatAccessoryType, setFloatAccessoryType] = useState<CableAccessoryType>(editFrom?.floatAccessoryType || cloneFrom?.floatAccessoryType || 'standard');
+  const [floatAccessoryDelta, setFloatAccessoryDelta] = useState(0.6);
   const [hasCable, setHasCable] = useState(!!editFrom?.hasCable || !!cloneFrom?.hasCable);
   const [cableLength, setCableLength] = useState(editFrom?.cableLength ? String(editFrom.cableLength) : (cloneFrom?.cableLength ? String(cloneFrom.cableLength) : ''));
   const [cableWire, setCableWire] = useState(editFrom?.cableWire || cloneFrom?.cableWire || '');
@@ -133,6 +135,12 @@ export default function RecipeFormPage() {
     proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/cable_accessories')
       .then(({ data }) => setCableAccessoryConfig(JSON.parse(data.value)))
       .catch(() => setCableAccessoryConfig(null));
+    proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/float_accessory_delta')
+      .then(({ data }) => {
+        const delta = Number(data.value);
+        setFloatAccessoryDelta(Number.isFinite(delta) && delta >= 0 ? delta : 0.6);
+      })
+      .catch(() => setFloatAccessoryDelta(0.6));
   }, []);
 
   useEffect(() => {
@@ -232,6 +240,7 @@ export default function RecipeFormPage() {
       if (source.coilSheets) setCoilSheets(String(source.coilSheets));
       setHasFloat(!!source.hasFloat);
       if (source.floatWire) setFloatWire(floatWireOptions.includes(source.floatWire) ? source.floatWire : (floatWireOptions[0] || ''));
+      if (source.floatAccessoryType) setFloatAccessoryType(source.floatAccessoryType);
       setHasCable(!!source.hasCable);
       if (source.cableLength) setCableLength(String(source.cableLength));
       if (source.cableWire) setCableWire(cableWireOptions.includes(source.cableWire) ? source.cableWire : (cableWireOptions[0] || ''));
@@ -268,7 +277,7 @@ export default function RecipeFormPage() {
           }
           return;
         }
-        if (cp.name === '浮球') { setHasFloat(true); const w = cp.model.replace('浮球-线径', ''); if (floatWireOptions.includes(w)) setFloatWire(w); return; }
+        if (cp.name === '浮球' || cp.name === '浮球-新界式' || cp.name === '浮球-普通铜套') { setHasFloat(true); const w = cp.model.replace('浮球-线径', ''); if (floatWireOptions.includes(w)) setFloatWire(w); if (cp.floatAccessoryType) setFloatAccessoryType(cp.floatAccessoryType); return; }
         if (cp.name === '电缆线') { setHasCable(true); const w = cp.model.replace('电缆-线径', ''); if (cableWireOptions.includes(w)) setCableWire(w); setCableLength(String(cp.qty || '')); return; }
         if (cp.name === '电缆接头配件') return;
         if (cp.name === '纸箱' || cp.name === '木箱') {
@@ -354,7 +363,17 @@ export default function RecipeFormPage() {
     const configParts: RecipePart[] = [];
     if (hasFloat) {
       const model = `浮球-线径${floatWire}`;
-      configParts.push({ model, name: '浮球', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier(model, '') });
+      const basePrice = getPriceByModelAndSupplier(model, '');
+      const accessoryDelta = floatAccessoryType === 'xinjie' ? floatAccessoryDelta : 0;
+      configParts.push({
+        model,
+        name: floatAccessoryType === 'xinjie' ? '浮球-新界式' : '浮球',
+        supplier: '',
+        qty: 1,
+        snapshotPrice: basePrice + accessoryDelta,
+        floatAccessoryType,
+        floatAccessoryDelta: accessoryDelta,
+      });
     }
     if (hasCable && cableLength && Number(cableLength) > 0) {
       const cableModel = `电缆-线径${cableWire}`;
@@ -368,7 +387,7 @@ export default function RecipeFormPage() {
       configParts.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty || 1, snapshotPrice: price });
     });
     return configParts;
-  }, [hasFloat, floatWire, hasCable, cableLength, cableWire, cableAccessoryType, packingParts, getPriceByModelAndSupplier, getCableAccessoryFee, getCableAccessoryName]);
+  }, [hasFloat, floatWire, floatAccessoryType, floatAccessoryDelta, hasCable, cableLength, cableWire, cableAccessoryType, packingParts, getPriceByModelAndSupplier, getCableAccessoryFee, getCableAccessoryName]);
 
   const buildAllParts = useCallback((): RecipePart[] => {
     const all: RecipePart[] = [];
@@ -474,7 +493,7 @@ export default function RecipeFormPage() {
       name: recipeName, spec: recipeSpec, partsJson: JSON.stringify(recipeParts),
       savedTotalCost: savedTotalCost, savedCostDetails: savedCostDetails,
       templateId: selectedTemplateId, coilSpec: coilSpec, coilMaterial: coilMaterial || '钢带', coilSheets: coilSheets ? parseInt(coilSheets) : 0,
-      hasFloat: hasFloat ? 1 : 0, floatWire: floatWire, hasCable: hasCable ? 1 : 0,
+      hasFloat: hasFloat ? 1 : 0, floatWire: floatWire, floatAccessoryType, hasCable: hasCable ? 1 : 0,
       cableLength: cableLength ? parseFloat(cableLength) : 0, cableWire: cableWire,
       cableAccessoryType,
       // 包装
@@ -544,6 +563,8 @@ export default function RecipeFormPage() {
           optionalParts={optionalParts} handleAddOptional={handleAddOptional}
           handleOptionalChange={handleOptionalChange} handleRemoveOptional={handleRemoveOptional}
           hasFloat={hasFloat} setHasFloat={setHasFloat} floatWire={floatWire} setFloatWire={setFloatWire}
+          floatAccessoryType={floatAccessoryType} setFloatAccessoryType={setFloatAccessoryType}
+          floatAccessoryDelta={floatAccessoryDelta}
           hasCable={hasCable} setHasCable={setHasCable} cableLength={cableLength} setCableLength={setCableLength}
           cableWire={cableWire} setCableWire={setCableWire}
           cableAccessoryType={cableAccessoryType} setCableAccessoryType={setCableAccessoryType}

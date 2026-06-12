@@ -52,11 +52,13 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   /** 当前类别是否为线径模式 */
   const wirePrefix = WIRE_MODE_CONFIG[category] || '';
   const isWireMode = !!wirePrefix;
+  const isFloatMode = category === '浮球';
   const isCableMode = category === '电缆线';
   const [standardCableAccessoryFee, setStandardCableAccessoryFee] = useState('');
   const [xinjieCableAccessoryFee, setXinjieCableAccessoryFee] = useState('');
   const [standardCableAccessoryName, setStandardCableAccessoryName] = useState('普通铜套');
   const [xinjieCableAccessoryName, setXinjieCableAccessoryName] = useState('新界式');
+  const [floatAccessoryDelta, setFloatAccessoryDelta] = useState('0.6');
 
   // ── 电容结构化输入 ──
   const [capacitorUf, setCapacitorUf] = useState('');
@@ -192,6 +194,16 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       .catch(() => { /* 兼容尚未初始化全局配置的旧环境 */ });
   }, [open, isCableMode]);
 
+  useEffect(() => {
+    if (!open || !isFloatMode) return;
+    proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/float_accessory_delta')
+      .then(({ data }) => {
+        const delta = Number(data.value);
+        setFloatAccessoryDelta(String(Number.isFinite(delta) && delta >= 0 ? delta : 0.6));
+      })
+      .catch(() => setFloatAccessoryDelta('0.6'));
+  }, [open, isFloatMode]);
+
   const validate = () => {
     const e: Record<string, string> = {};
     if (isCapacitorMode) {
@@ -207,6 +219,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     if (isCableMode && xinjieCableAccessoryFee && (isNaN(Number(xinjieCableAccessoryFee)) || Number(xinjieCableAccessoryFee) < 0)) e.xinjieCableAccessoryFee = '请输入有效的新界式铜套配件费';
     if (isCableMode && !standardCableAccessoryName.trim()) e.standardCableAccessoryName = '请输入第一种配件费名称';
     if (isCableMode && !xinjieCableAccessoryName.trim()) e.xinjieCableAccessoryName = '请输入第二种配件费名称';
+    if (isFloatMode && (isNaN(Number(floatAccessoryDelta)) || Number(floatAccessoryDelta) < 0)) e.floatAccessoryDelta = '请输入有效的新界式加价';
     if (!supplier.trim()) e.supplier = '供应商不能为空';
     return e;
   };
@@ -272,13 +285,19 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
         } }),
       });
     }
+    if (isFloatMode) {
+      await proxyRequest('/api/settings/float_accessory_delta', {
+        method: 'PUT',
+        body: JSON.stringify({ value: floatAccessoryDelta ? parseFloat(floatAccessoryDelta) : 0 }),
+      });
+    }
     await onSave({
       model: finalModel, category, price: parseFloat(price) || 0,
       supplier: supplier.trim(), stock: parseInt(stock) || 0,
       notes: notes ? JSON.stringify(notes) : '',
     }, { continueEntry });
     if (!editingPart) {
-      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName('普通铜套'); setXinjieCableAccessoryName('新界式'); setStock('');
+      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName('普通铜套'); setXinjieCableAccessoryName('新界式'); setFloatAccessoryDelta('0.6'); setStock('');
       if (!continueEntry) {
         setCategory(''); setSupplier('');
         setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
@@ -503,6 +522,23 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
                 InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
                 error={!!errors.xinjieCableAccessoryFee}
                 helperText={errors.xinjieCableAccessoryFee || ' '}
+                sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
+              />
+            )}
+            {isFloatMode && (
+              <TextField
+                id="part-float-accessory-delta-input"
+                label="新界式加价"
+                type="number"
+                value={floatAccessoryDelta}
+                onChange={(e) => setFloatAccessoryDelta(e.target.value)}
+                placeholder="0.60"
+                fullWidth
+                size="small"
+                inputProps={{ step: 0.01, min: 0 }}
+                InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                error={!!errors.floatAccessoryDelta}
+                helperText={errors.floatAccessoryDelta || (price ? `新界式：¥${((parseFloat(price) || 0) + (parseFloat(floatAccessoryDelta) || 0)).toFixed(2)}` : '普通铜套录入单价，新界式自动加价')}
                 sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
               />
             )}

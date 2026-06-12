@@ -173,6 +173,9 @@ if (!existingCableAccessories) {
         xinjie: inferred.xinjie,
     }), new Date().toISOString());
 }
+if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('float_accessory_delta')) {
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('float_accessory_delta', '0.6', new Date().toISOString());
+}
 
 // recipes 表新增结构化列（幂等 ALTER）
 const recipeAlterColumns = [
@@ -182,6 +185,7 @@ const recipeAlterColumns = [
     ['coil_material', "TEXT DEFAULT '钢带'"],
     ['has_float', 'INTEGER DEFAULT 0'],
     ['float_wire', "TEXT DEFAULT ''"],
+    ['float_accessory_type', "TEXT DEFAULT 'standard'"],
     ['has_cable', 'INTEGER DEFAULT 0'],
     ['cable_length', 'REAL DEFAULT 0'],
     ['cable_wire', "TEXT DEFAULT ''"],
@@ -240,7 +244,7 @@ function recipeRow(r) {
         savedCostDetails: r.saved_cost_details,
         templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
         coilMaterial: r.coil_material || '閽㈠甫',
-        hasFloat: r.has_float, floatWire: r.float_wire, hasCable: r.has_cable,
+        hasFloat: r.has_float, floatWire: r.float_wire, floatAccessoryType: r.float_accessory_type || 'standard', hasCable: r.has_cable,
         cableLength: r.cable_length, cableWire: r.cable_wire, cableAccessoryType: r.cable_accessory_type || 'standard', boxType: r.box_type,
         customBarrelLength: r.custom_barrel_length, extraPartsJson: r.extra_parts_json,
         packingPartsJson: r.packing_parts_json,
@@ -254,7 +258,7 @@ function recipeRow(r) {
         saved_cost_details: r.saved_cost_details,
         template_id: r.template_id, coil_spec: r.coil_spec, coil_sheets: r.coil_sheets,
         coil_material: r.coil_material || '钢带',
-        has_float: r.has_float, float_wire: r.float_wire, has_cable: r.has_cable,
+        has_float: r.has_float, float_wire: r.float_wire, float_accessory_type: r.float_accessory_type || 'standard', has_cable: r.has_cable,
         cable_length: r.cable_length, cable_wire: r.cable_wire, cable_accessory_type: r.cable_accessory_type || 'standard', box_type: r.box_type,
         custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
         packing_parts_json: r.packing_parts_json,
@@ -395,6 +399,18 @@ function findCablePart(parts) {
     return parts.find(part => String(part?.model || '').startsWith('电缆-') || String(part?.name || '').includes('电缆线'));
 }
 
+function getFloatAccessoryDelta(accessoryType = 'standard') {
+    if (accessoryType !== 'xinjie') return 0;
+    const delta = Number(getSetting('float_accessory_delta'));
+    return Number.isFinite(delta) && delta >= 0 ? delta : 0;
+}
+
+function isFloatPart(part) {
+    const model = String(part?.model || '');
+    const name = String(part?.name || '');
+    return model.startsWith('浮球-') || name === '浮球';
+}
+
 
 
 // ⚠️ SYNC REQUIRED: 本组成本计算逻辑必须与 src/utils/costCalculator.ts 中的主逻辑保持高度一致！
@@ -412,6 +428,14 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
             const cablePart = findCablePart(parts);
             price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', p.cableAccessoryType);
             source = '电缆线配件费';
+        }
+        else if (isFloatPart(p)) {
+            if (match && p.supplier) { price = match.price; source = '精确匹配'; }
+            else if (suppliers.length > 0) { const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]); price = fb.price; source = '型号回退(取最低价)'; }
+            else if (p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '快照价格'; }
+            else { missingParts.push(p.model); source = '未找到'; }
+            if (source !== '快照价格') price += getFloatAccessoryDelta(p.floatAccessoryType);
+            if (p.floatAccessoryType === 'xinjie') source += '+新界式';
         }
         else if (match && p.supplier) { price = match.price; source = '精确匹配'; }
         else if (suppliers.length > 0) { const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]); price = fb.price; source = '型号回退(取最低价)'; }

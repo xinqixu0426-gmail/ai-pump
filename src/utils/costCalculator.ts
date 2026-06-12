@@ -41,6 +41,8 @@ export interface RecipePartForCalc {
   snapshotPrice?: number;
   source?: string;
   costSource?: string;
+  floatAccessoryType?: CableAccessoryType;
+  floatAccessoryDelta?: number;
   cableAccessoryType?: CableAccessoryType;
 }
 
@@ -81,6 +83,10 @@ function findCablePart(parts: RecipePartForCalc[]): RecipePartForCalc | undefine
   return parts.find(part => part.model.startsWith('电缆-') || part.name.includes('电缆线'));
 }
 
+function isFloatPart(part: RecipePartForCalc): boolean {
+  return part.model.startsWith('浮球-') || part.name === '浮球' || part.name === '浮球-新界式' || part.name === '浮球-普通铜套';
+}
+
 export function calculateRecipeCost(
   recipeParts: RecipePartForCalc[],
   partsCache: Map<string, Part>,
@@ -111,6 +117,32 @@ export function calculateRecipeCost(
       const cablePart = findCablePart(recipeParts);
       price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', rp.cableAccessoryType);
       source = '电缆线配件费';
+    } else if (isFloatPart(rp)) {
+      if (matchedPart) {
+        price = matchedPart.price;
+        source = '精确匹配';
+        matchedSupplier = matchedPart.supplier;
+      } else {
+        const candidates = partsByModel.get(rp.model);
+        if (candidates && candidates.length > 0) {
+          const fallbackPart = candidates.reduce((min, curr) => curr.price < min.price ? curr : min, candidates[0]);
+          price = fallbackPart.price;
+          matchedSupplier = fallbackPart.supplier;
+          source = `型号回退(${matchedSupplier})`;
+        } else if (rp.snapshotPrice !== undefined) {
+          price = rp.snapshotPrice;
+          source = '快照价格';
+        } else {
+          missingParts.push(rp.model);
+        }
+      }
+      if (rp.floatAccessoryType === 'xinjie' && rp.snapshotPrice !== undefined) {
+        price = rp.snapshotPrice;
+        source = '快照价格';
+      } else if (rp.floatAccessoryType === 'xinjie') {
+        price += Number(rp.floatAccessoryDelta || 0);
+        source += '+新界式';
+      }
     } else if (matchedPart) {
       price = matchedPart.price;
       source = '精确匹配';
