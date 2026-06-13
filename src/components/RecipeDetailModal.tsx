@@ -57,6 +57,7 @@ function getSurfaceTreatmentLabel(mode?: string | null): string {
   if (mode === 'painting') return '喷漆费';
   if (mode === 'electrophoresis') return '电泳外加工费';
   if (mode === 'powder_coating') return '喷塑外加工费';
+  if (mode === 'electrophoresis_powder_coating') return '电泳+喷塑外加工费';
   return '表面处理费';
 }
 

@@ -38,6 +38,7 @@ const SURFACE_LABELS: Record<SurfaceTreatmentMode, string> = {
   painting: '喷漆',
   electrophoresis: '电泳',
   powder_coating: '喷塑',
+  electrophoresis_powder_coating: '电泳+喷塑',
 };
 
 export default function StepWageConfirm({

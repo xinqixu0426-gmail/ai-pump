@@ -54,7 +54,7 @@ export interface ShellComponent {
   note?: string;
 }
 
-export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'powder_coating';
+export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'powder_coating' | 'electrophoresis_powder_coating';
 
 /** 泵壳模板 */
 export interface PumpShellTemplate {

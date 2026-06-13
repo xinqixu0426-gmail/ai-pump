@@ -475,6 +475,7 @@ export default function RecipeFormPage() {
       painting: '喷漆',
       electrophoresis: '电泳',
       powder_coating: '喷塑',
+      electrophoresis_powder_coating: '电泳+喷塑',
     };
     if (surfaceTreatmentMode !== 'none') wageLines.push(`表面处理(${surfaceLabels[surfaceTreatmentMode]}): ¥${(surfaceTreatmentCost || 0).toFixed(2)}`);
     wageLines.push(`管理费用: ¥${(managementFee || 0).toFixed(2)}`);
