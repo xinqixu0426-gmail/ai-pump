@@ -78,4 +78,3 @@ export function stockStatus(stock: number): { label: string; color: 'error' | 'w
   if (stock <= 5) return { label: '低库存', color: 'warning', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)' };
   return { label: '充足', color: 'success', gradient: 'linear-gradient(135deg,#10b981,#059669)' };
 }
-

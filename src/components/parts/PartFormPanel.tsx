@@ -574,7 +574,6 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               />
             )}
           />
-
           {/* 泵壳不锈钢机筒扩展区块 */}
           {isPumpShell && (
             <>
@@ -743,4 +742,3 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     </Paper>
   );
 }
-

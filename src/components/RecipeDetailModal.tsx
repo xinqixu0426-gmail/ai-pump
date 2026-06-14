@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Recipe, CostResult, Part, RecipePart } from '../types';
 import { batchDeductStock } from '../utils/api';
+import { parseTechnicalDataJson, TECHNICAL_DATA_LABELS } from './recipe/StepTechnicalData';
 
 interface RecipeDetailModalProps {
   recipe: Recipe;
@@ -81,6 +82,8 @@ export default function RecipeDetailModal({
   };
 
   const hasSnapshot = costResult.snapshotTotalCost !== undefined;
+  const technicalData = useMemo(() => parseTechnicalDataJson(recipe.technicalDataJson), [recipe.technicalDataJson]);
+  const technicalEntries = Object.entries(technicalData).filter(([, value]) => String(value || '').trim() !== '');
 
   const { totalCostValue, groupedDetails } = useMemo(() => {
     const surfaceTreatmentMode = recipe.surfaceTreatmentMode || (recipe.paintingWage != null ? 'painting' : 'none');
@@ -344,6 +347,27 @@ export default function RecipeDetailModal({
               </Typography>
             )}
           </Box>
+          {(recipe.modelVariantId || recipe.impellerModel) && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              {recipe.modelVariantId ? <Chip size="small" label={`型号变体 #${recipe.modelVariantId}`} variant="outlined" /> : null}
+              {recipe.impellerModel ? <Chip size="small" label={`叶轮 ${recipe.impellerModel}`} color="primary" variant="outlined" /> : null}
+              {recipe.impellerThickness ? <Chip size="small" label={`${recipe.impellerThickness}mm厚`} variant="outlined" /> : null}
+              {recipe.impellerDiameter ? <Chip size="small" label={`直径${recipe.impellerDiameter}mm`} variant="outlined" /> : null}
+              {recipe.impellerBladeCount ? <Chip size="small" label={`${recipe.impellerBladeCount}片叶`} variant="outlined" /> : null}
+            </Box>
+          )}
+          {technicalEntries.length > 0 && (
+            <Box sx={{ mt: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'grey.50' }}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>技术档案</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1 }}>
+                {technicalEntries.map(([key, value]) => (
+                  <Typography key={key} variant="body2" color="text.secondary">
+                    {TECHNICAL_DATA_LABELS[key as keyof typeof TECHNICAL_DATA_LABELS] || key}：<strong>{String(value)}</strong>
+                  </Typography>
+                ))}
+              </Box>
+            </Box>
+          )}
         </Box>
 
         <Typography variant="subtitle1" gutterBottom sx={{ borderBottom: 1, borderColor: 'divider', pb: 1, mb: 2 }}>
