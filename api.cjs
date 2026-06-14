@@ -96,6 +96,7 @@ app.use('/api', costRouter);
 app.use('/api/parts', require('./api/routes/parts.cjs'));
 app.use('/api/recipes', require('./api/routes/recipes.cjs'));
 app.use('/api/templates', require('./api/routes/templates.cjs'));
+app.use('/api/model-variants', require('./api/routes/modelVariants.cjs'));
 app.use('/api/orders', require('./api/routes/orders.cjs'));
 app.use('/api/coils', require('./api/routes/coils.cjs'));
 app.use('/api/rotor', require('./api/routes/rotor.cjs'));

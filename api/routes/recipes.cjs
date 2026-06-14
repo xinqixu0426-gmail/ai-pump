@@ -10,6 +10,8 @@ const RECIPE_FIELDS = [
     'assembly_wage', 'packing_wage', 'painting_wage',
     'surface_treatment_mode', 'surface_treatment_cost',
     'management_fee', 'custom_barrel_length',
+    'model_variant_id', 'impeller_model', 'impeller_thickness', 'impeller_diameter', 'impeller_blade_count',
+    'technical_data_json',
 ];
 
 const RECIPE_ALIASES = {
@@ -36,6 +38,12 @@ const RECIPE_ALIASES = {
     surfaceTreatmentCost: 'surface_treatment_cost',
     managementFee: 'management_fee',
     customBarrelLength: 'custom_barrel_length',
+    modelVariantId: 'model_variant_id',
+    impellerModel: 'impeller_model',
+    impellerThickness: 'impeller_thickness',
+    impellerDiameter: 'impeller_diameter',
+    impellerBladeCount: 'impeller_blade_count',
+    technicalDataJson: 'technical_data_json',
 };
 
 function recipeBodyToDb(body) {
@@ -85,8 +93,10 @@ router.post('/', (req, res) => {
             assembly_wage, packing_wage, painting_wage,
             surface_treatment_mode, surface_treatment_cost,
             management_fee, custom_barrel_length,
+            model_variant_id, impeller_model, impeller_thickness, impeller_diameter, impeller_blade_count,
+            technical_data_json,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
             b.name || '', b.spec || '', b.parts_json || '[]',
             b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
             b.template_id || null, b.coil_spec || '', b.coil_sheets || 0, b.coil_material || '钢带',
@@ -96,6 +106,11 @@ router.post('/', (req, res) => {
             b.surface_treatment_mode || (b.painting_wage != null ? 'painting' : 'none'),
             b.surface_treatment_cost != null ? b.surface_treatment_cost : (b.painting_wage != null ? b.painting_wage : 0),
             b.management_fee || 0, b.custom_barrel_length != null ? b.custom_barrel_length : null,
+            b.model_variant_id || null, b.impeller_model || '',
+            b.impeller_thickness != null ? b.impeller_thickness : null,
+            b.impeller_diameter != null ? b.impeller_diameter : null,
+            b.impeller_blade_count != null ? b.impeller_blade_count : null,
+            b.technical_data_json || '{}',
             now, now
         );
         res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)) });

@@ -11,11 +11,12 @@ import {
   Plus as AddIcon, Copy as CopyIcon, Edit3 as EditIcon,
   Package as TemplateIcon, FileText as FileIcon, ScrollText as RecipeIcon, Wrench as PartIcon,
 } from 'lucide-react';
-import { Recipe, RecipePart, CostResult } from '../types';
-import { deleteRecipe, calculateCost } from '../utils/api';
+import { PumpModelVariant, Recipe, RecipePart, CostResult } from '../types';
+import { deleteRecipe, calculateCost, getAllModelVariants } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 import TemplateSection from '../components/TemplateSection';
+import ModelVariantSection from '../components/ModelVariantSection';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { colors, gradients } from '../utils/theme';
@@ -67,7 +68,8 @@ export default function RecipesPage() {
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<{ recipe: Recipe; costResult: CostResult } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'recipes' | 'templates'>('recipes');
+  const [activeTab, setActiveTab] = useState<'recipes' | 'templates' | 'variants'>('recipes');
+  const [variants, setVariants] = useState<PumpModelVariant[]>([]);
 
   // P1-4: 配方成本改用后端 API，消除前后端双写
   const [recipeData, setRecipeData] = useState<Map<number, { overview: string; cost: string; costResult: CostResult }>>(new Map());
@@ -76,11 +78,16 @@ export default function RecipesPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      await Promise.all([fetchRecipes(), fetchParts(), fetchTemplates()]);
+      const [, , , variantData] = await Promise.all([fetchRecipes(), fetchParts(), fetchTemplates(), getAllModelVariants()]);
+      setVariants(variantData);
       setError('');
     } catch { setError('加载数据失败'); }
     finally { setLoading(false); }
   }, [fetchRecipes, fetchParts, fetchTemplates]);
+
+  const reloadVariants = useCallback(async () => {
+    setVariants(await getAllModelVariants());
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -161,6 +168,13 @@ export default function RecipesPage() {
       hasFloat: recipe.hasFloat, floatWire: recipe.floatWire,
       hasCable: recipe.hasCable, cableLength: recipe.cableLength, cableWire: recipe.cableWire, cableAccessoryType: recipe.cableAccessoryType,
       boxType: recipe.boxType, extraPartsJson: recipe.extraPartsJson, packingPartsJson: recipe.packingPartsJson,
+      modelVariantId: recipe.modelVariantId,
+      customBarrelLength: recipe.customBarrelLength,
+      impellerModel: recipe.impellerModel,
+      impellerThickness: recipe.impellerThickness,
+      impellerDiameter: recipe.impellerDiameter,
+      impellerBladeCount: recipe.impellerBladeCount,
+      technicalDataJson: recipe.technicalDataJson,
       assemblyWage: recipe.assemblyWage, packingWage: recipe.packingWage, paintingWage: recipe.paintingWage,
       surfaceTreatmentMode: recipe.surfaceTreatmentMode,
       surfaceTreatmentCost: recipe.surfaceTreatmentCost,
@@ -180,6 +194,12 @@ export default function RecipesPage() {
       surfaceTreatmentCost: recipe.surfaceTreatmentCost,
       managementFee: recipe.managementFee,
       customBarrelLength: recipe.customBarrelLength,
+      modelVariantId: recipe.modelVariantId,
+      impellerModel: recipe.impellerModel,
+      impellerThickness: recipe.impellerThickness,
+      impellerDiameter: recipe.impellerDiameter,
+      impellerBladeCount: recipe.impellerBladeCount,
+      technicalDataJson: recipe.technicalDataJson,
     }}});
   };
 
@@ -221,7 +241,7 @@ export default function RecipesPage() {
       {/* KPI 统计 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
         <StatCard label="模板数量" value={templates.length} subtitle="泵壳配置模板" icon={<FileIcon size={22} />} gradient={gradients.orders} delay={0} />
-        <StatCard label="配方数量" value={recipes.length} subtitle="已录入配方" icon={<RecipeIcon size={22} />} gradient={gradients.recipes} delay={1} />
+        <StatCard label="型号变体" value={variants.length} subtitle="壳体共用规则" icon={<RecipeIcon size={22} />} gradient={gradients.recipes} delay={1} />
         <StatCard label="零件种类" value={parts.length} subtitle="可选配件库" icon={<PartIcon size={22} />} gradient={gradients.parts} delay={2} />
       </Box>
 
@@ -238,12 +258,17 @@ export default function RecipesPage() {
           sx={{ px: 1, borderBottom: '1px solid', borderColor: 'divider' }}
         >
           <Tab value="templates" label={`泵壳模板 (${templates.length})`} />
+          <Tab value="variants" label={`型号变体 (${variants.length})`} />
           <Tab value="recipes" label={`配方列表 (${recipes.length})`} />
         </Tabs>
       </Paper>
 
       {activeTab === 'templates' && (
         <TemplateSection templates={templates} parts={parts} fetchTemplates={fetchTemplates} setError={setError} />
+      )}
+
+      {activeTab === 'variants' && (
+        <ModelVariantSection variants={variants} templates={templates} reload={reloadVariants} setError={setError} />
       )}
 
       {activeTab === 'recipes' && (

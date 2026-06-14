@@ -5,6 +5,7 @@ import {
   CostResult,
   ApiResponse,
   PumpShellTemplate,
+  PumpModelVariant,
   BusinessSummary,
   Customer,
   CustomerInput,
@@ -196,6 +197,12 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
   if (recipe.surfaceTreatmentCost !== undefined) payload.surfaceTreatmentCost = recipe.surfaceTreatmentCost || 0;
   if (recipe.managementFee !== undefined) payload.managementFee = recipe.managementFee || 0;
   if (recipe.customBarrelLength !== undefined) payload.customBarrelLength = recipe.customBarrelLength ?? null;
+  if (recipe.modelVariantId !== undefined) payload.modelVariantId = recipe.modelVariantId ?? null;
+  if (recipe.impellerModel !== undefined) payload.impellerModel = recipe.impellerModel || '';
+  if (recipe.impellerThickness !== undefined) payload.impellerThickness = recipe.impellerThickness ?? null;
+  if (recipe.impellerDiameter !== undefined) payload.impellerDiameter = recipe.impellerDiameter ?? null;
+  if (recipe.impellerBladeCount !== undefined) payload.impellerBladeCount = recipe.impellerBladeCount ?? null;
+  if (recipe.technicalDataJson !== undefined) payload.technicalDataJson = recipe.technicalDataJson || '{}';
   return payload;
 }
 
@@ -302,6 +309,48 @@ export async function updateTemplate(id: number, tpl: Partial<Omit<PumpShellTemp
 
 export async function deleteTemplate(id: number): Promise<void> {
   await proxyRequest(`/api/templates/${id}`, { method: 'DELETE' });
+}
+
+function modelVariantToApiPayload(variant: Partial<Omit<PumpModelVariant, 'Id'>>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (variant.modelName !== undefined) payload.modelName = variant.modelName;
+  if (variant.templateId !== undefined) payload.templateId = variant.templateId;
+  if (variant.coilSpec !== undefined) payload.coilSpec = variant.coilSpec || '';
+  if (variant.coilSheets !== undefined) payload.coilSheets = variant.coilSheets || 0;
+  if (variant.coilMaterial !== undefined) payload.coilMaterial = variant.coilMaterial || '钢带';
+  if (variant.barrelLength !== undefined) payload.barrelLength = variant.barrelLength ?? null;
+  if (variant.longScrewExtraLength !== undefined) payload.longScrewExtraLength = variant.longScrewExtraLength || 0;
+  if (variant.impellerModel !== undefined) payload.impellerModel = variant.impellerModel || '';
+  if (variant.impellerThickness !== undefined) payload.impellerThickness = variant.impellerThickness ?? null;
+  if (variant.impellerDiameter !== undefined) payload.impellerDiameter = variant.impellerDiameter ?? null;
+  if (variant.impellerBladeCount !== undefined) payload.impellerBladeCount = variant.impellerBladeCount ?? null;
+  if (variant.note !== undefined) payload.note = variant.note || '';
+  return payload;
+}
+
+export async function getAllModelVariants(): Promise<PumpModelVariant[]> {
+  const res = await proxyRequest<{ success: boolean; data: PumpModelVariant[] }>('/api/model-variants');
+  return res.data || [];
+}
+
+export async function createModelVariant(variant: Omit<PumpModelVariant, 'Id'>): Promise<PumpModelVariant> {
+  const res = await proxyRequest<{ success: boolean; data: PumpModelVariant }>('/api/model-variants', {
+    method: 'POST',
+    body: JSON.stringify(modelVariantToApiPayload(variant)),
+  });
+  return res.data;
+}
+
+export async function updateModelVariant(id: number, variant: Partial<Omit<PumpModelVariant, 'Id'>>): Promise<PumpModelVariant> {
+  const res = await proxyRequest<{ success: boolean; data: PumpModelVariant }>(`/api/model-variants/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(modelVariantToApiPayload(variant)),
+  });
+  return res.data;
+}
+
+export async function deleteModelVariant(id: number): Promise<void> {
+  await proxyRequest(`/api/model-variants/${id}`, { method: 'DELETE' });
 }
 
 // ====== 客户 CRUD ======

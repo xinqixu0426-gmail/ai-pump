@@ -137,6 +137,25 @@ db.exec(`
         updated_at TEXT,
         deleted_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS pump_model_variants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        model_name TEXT NOT NULL UNIQUE,
+        template_id INTEGER NOT NULL,
+        coil_spec TEXT DEFAULT '',
+        coil_sheets INTEGER DEFAULT 0,
+        coil_material TEXT DEFAULT '钢带',
+        barrel_length REAL,
+        long_screw_extra_length REAL DEFAULT 0,
+        impeller_model TEXT DEFAULT '',
+        impeller_thickness REAL,
+        impeller_diameter REAL,
+        impeller_blade_count INTEGER,
+        note TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT
+    );
 `);
 
 // seed 默认管理费
@@ -196,6 +215,12 @@ const recipeAlterColumns = [
     ['surface_treatment_cost', 'REAL DEFAULT 0'],
     ['management_fee', 'REAL DEFAULT 0'],
     ['custom_barrel_length', 'REAL'],
+    ['model_variant_id', 'INTEGER'],
+    ['impeller_model', "TEXT DEFAULT ''"],
+    ['impeller_thickness', 'REAL'],
+    ['impeller_diameter', 'REAL'],
+    ['impeller_blade_count', 'INTEGER'],
+    ['technical_data_json', "TEXT DEFAULT '{}'"],
 ];
 for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
@@ -208,6 +233,7 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`);
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN cost_mode TEXT DEFAULT 'components'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_cost REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN long_screw_extra_length REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
 try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
@@ -243,6 +269,12 @@ function recipeRow(r) {
         hasFloat: r.has_float, floatWire: r.float_wire, hasCable: r.has_cable,
         cableLength: r.cable_length, cableWire: r.cable_wire, cableAccessoryType: r.cable_accessory_type || 'standard', boxType: r.box_type,
         customBarrelLength: r.custom_barrel_length, extraPartsJson: r.extra_parts_json,
+        modelVariantId: r.model_variant_id,
+        impellerModel: r.impeller_model || '',
+        impellerThickness: r.impeller_thickness,
+        impellerDiameter: r.impeller_diameter,
+        impellerBladeCount: r.impeller_blade_count,
+        technicalDataJson: r.technical_data_json || '{}',
         packingPartsJson: r.packing_parts_json,
         assemblyWage: r.assembly_wage, packingWage: r.packing_wage, paintingWage: r.painting_wage,
         surfaceTreatmentMode,
@@ -257,6 +289,12 @@ function recipeRow(r) {
         has_float: r.has_float, float_wire: r.float_wire, has_cable: r.has_cable,
         cable_length: r.cable_length, cable_wire: r.cable_wire, cable_accessory_type: r.cable_accessory_type || 'standard', box_type: r.box_type,
         custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
+        model_variant_id: r.model_variant_id,
+        impeller_model: r.impeller_model || '',
+        impeller_thickness: r.impeller_thickness,
+        impeller_diameter: r.impeller_diameter,
+        impeller_blade_count: r.impeller_blade_count,
+        technical_data_json: r.technical_data_json || '{}',
         packing_parts_json: r.packing_parts_json,
         assembly_wage: r.assembly_wage, packing_wage: r.packing_wage, painting_wage: r.painting_wage,
         surface_treatment_mode: surfaceTreatmentMode,
@@ -282,6 +320,26 @@ function templateRow(r) {
         painting_wage: r.painting_wage != null ? r.painting_wage : null,
         cost_mode: r.cost_mode || 'components', bundle_cost: r.bundle_cost || 0,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
+    };
+}
+function modelVariantRow(r) {
+    if (!r) return r;
+    return {
+        Id: r.id,
+        modelName: r.model_name,
+        templateId: r.template_id,
+        coilSpec: r.coil_spec || '',
+        coilSheets: r.coil_sheets || 0,
+        coilMaterial: r.coil_material || '钢带',
+        barrelLength: r.barrel_length,
+        longScrewExtraLength: r.long_screw_extra_length || 0,
+        impellerModel: r.impeller_model || '',
+        impellerThickness: r.impeller_thickness,
+        impellerDiameter: r.impeller_diameter,
+        impellerBladeCount: r.impeller_blade_count,
+        note: r.note || '',
+        CreatedAt: r.created_at,
+        UpdatedAt: r.updated_at,
     };
 }
 function orderRow(r) {
@@ -325,6 +383,7 @@ function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes WHERE dele
 function dbGetAllOrders() { return db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all().map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
 function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all().map(templateRow); }
+function dbGetAllModelVariants() { return db.prepare('SELECT * FROM pump_model_variants WHERE deleted_at IS NULL ORDER BY model_name').all().map(modelVariantRow); }
 function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY id DESC').all().map(customerRow); }
 function dbGetAllQuotations() { return db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all().map(quotationRow); }
 
@@ -440,7 +499,7 @@ function setSetting(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'system_settings', 'rotor_drawings', 'customers', 'quotations']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function safeUpdate(table, id, updates) {
@@ -604,8 +663,8 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, orderRow, coilRow, customerRow, quotationRow,
-    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllCustomers, dbGetAllQuotations,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow,
+    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
     updateOrderFields, invalidatePartsCache, safeUpdate, softDelete, hardDelete,

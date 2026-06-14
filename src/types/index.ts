@@ -73,6 +73,25 @@ export interface PumpShellTemplate {
   UpdatedAt?: string;
 }
 
+/** 泵型号变体：同一泵壳模板下的具体功率/叶轮配置 */
+export interface PumpModelVariant {
+  Id: number;
+  modelName: string;
+  templateId: number;
+  coilSpec?: string;
+  coilSheets?: number;
+  coilMaterial?: string;
+  barrelLength?: number | null;
+  longScrewExtraLength?: number;
+  impellerModel?: string;
+  impellerThickness?: number | null;
+  impellerDiameter?: number | null;
+  impellerBladeCount?: number | null;
+  note?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
 /** 配方 */
 export interface Recipe {
   Id: number;
@@ -95,6 +114,12 @@ export interface Recipe {
   packingPartsJson?: string;
   extraPartsJson?: string;
   customBarrelLength?: number | null;
+  modelVariantId?: number | null;
+  impellerModel?: string;
+  impellerThickness?: number | null;
+  impellerDiameter?: number | null;
+  impellerBladeCount?: number | null;
+  technicalDataJson?: string;
   assemblyWage?: number;
   packingWage?: number;
   paintingWage?: number | null;

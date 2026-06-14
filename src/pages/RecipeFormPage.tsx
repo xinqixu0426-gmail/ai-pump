@@ -10,8 +10,8 @@ import {
   Button,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
-import { CableAccessoryConfig, CableAccessoryType, RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
-import { createRecipe, updateRecipe, proxyRequest } from '../utils/api';
+import { CableAccessoryConfig, CableAccessoryType, PumpModelVariant, RecipePart, TemplatePart, ShellComponent, PartSelection, SurfaceTreatmentMode, Recipe } from '../types';
+import { createRecipe, updateRecipe, proxyRequest, getAllModelVariants } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -21,6 +21,7 @@ import { COIL_API_BASE, CoilCalcResult, CoilSpecInfo } from '../components/recip
 import StepTemplateSelect from '../components/recipe/StepTemplateSelect';
 import StepPartsConfig from '../components/recipe/StepPartsConfig';
 import StepWageConfirm from '../components/recipe/StepWageConfirm';
+import StepTechnicalData, { parseTechnicalDataJson, stringifyTechnicalData } from '../components/recipe/StepTechnicalData';
 
 export default function RecipeFormPage() {
   const location = useLocation();
@@ -42,6 +43,21 @@ export default function RecipeFormPage() {
   // 基本信息
   const [recipeName, setRecipeName] = useState(editFrom?.name || cloneFrom?.name || '');
   const [recipeSpec, setRecipeSpec] = useState(editFrom?.spec || cloneFrom?.spec || '');
+  const [modelVariants, setModelVariants] = useState<PumpModelVariant[]>([]);
+  const [selectedModelVariantId, setSelectedModelVariantId] = useState<number | null>(
+    editFrom?.modelVariantId || cloneFrom?.modelVariantId || null
+  );
+  const [impellerModel, setImpellerModel] = useState(editFrom?.impellerModel || cloneFrom?.impellerModel || '');
+  const [impellerThickness, setImpellerThickness] = useState(
+    editFrom?.impellerThickness ? String(editFrom.impellerThickness) : (cloneFrom?.impellerThickness ? String(cloneFrom.impellerThickness) : '')
+  );
+  const [impellerDiameter, setImpellerDiameter] = useState(
+    editFrom?.impellerDiameter ? String(editFrom.impellerDiameter) : (cloneFrom?.impellerDiameter ? String(cloneFrom.impellerDiameter) : '')
+  );
+  const [impellerBladeCount, setImpellerBladeCount] = useState(
+    editFrom?.impellerBladeCount ? String(editFrom.impellerBladeCount) : (cloneFrom?.impellerBladeCount ? String(cloneFrom.impellerBladeCount) : '')
+  );
+  const [technicalData, setTechnicalData] = useState(() => parseTechnicalDataJson(editFrom?.technicalDataJson || cloneFrom?.technicalDataJson));
 
   // 泵壳模板选择
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
@@ -124,8 +140,16 @@ export default function RecipeFormPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // 表单离开保护：有模板/线圈/名称/选配即为有未保存内容
-  const isDirty = !!selectedTemplateId || coilSpec !== '' || recipeName !== '' || optionalParts.length > 0;
+  useEffect(() => {
+    getAllModelVariants().then(setModelVariants).catch(() => setModelVariants([]));
+  }, []);
+
+  // 表单离开保护：覆盖模板、型号变体、线圈、选配、机筒、叶轮和技术档案。
+  const hasImpellerData = [impellerModel, impellerThickness, impellerDiameter, impellerBladeCount]
+    .some(v => String(v || '').trim() !== '');
+  const hasTechnicalData = Object.values(technicalData).some(v => String(v || '').trim() !== '');
+  const isDirty = !!selectedTemplateId || !!selectedModelVariantId || coilSpec !== '' || recipeName !== ''
+    || optionalParts.length > 0 || customBarrelLength !== '' || hasImpellerData || hasTechnicalData;
   useUnsavedChanges(isDirty && !saving);
 
   // 读取管理费默认值（仅新建时）
@@ -247,6 +271,12 @@ export default function RecipeFormPage() {
       })();
       setPackingParts(rawPacking.map(p => ({ id: nextPackingId.current++, ...p })));
       if (source.customBarrelLength) setCustomBarrelLength(String(source.customBarrelLength));
+      if (source.modelVariantId) setSelectedModelVariantId(source.modelVariantId);
+      if (source.impellerModel) setImpellerModel(source.impellerModel);
+      if (source.impellerThickness) setImpellerThickness(String(source.impellerThickness));
+      if (source.impellerDiameter) setImpellerDiameter(String(source.impellerDiameter));
+      if (source.impellerBladeCount) setImpellerBladeCount(String(source.impellerBladeCount));
+      setTechnicalData(parseTechnicalDataJson(source.technicalDataJson));
 
       try {
         const extras = JSON.parse(source.extraPartsJson || '[]');
@@ -307,11 +337,29 @@ export default function RecipeFormPage() {
 
 
   const selectedTemplate = templates.find(t => t.Id === selectedTemplateId) || null;
+  const selectedModelVariant = modelVariants.find(v => v.Id === selectedModelVariantId) || null;
   const selectedTemplateCostMode = selectedTemplate?.costMode || 'components';
   const templateParts: TemplatePart[] = (() => {
     if (!selectedTemplate) return [];
     try { return JSON.parse(selectedTemplate.partsJson || '[]'); } catch { return []; }
   })();
+  const formatScrewLength = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+  const applyLongScrewVariant = (part: TemplatePart): TemplatePart => {
+    if (!selectedModelVariant?.barrelLength) return part;
+    const isLongScrew = `${part.name || ''}${part.model || ''}`.includes('长螺丝');
+    if (!isLongScrew) return part;
+
+    const screwLength = Number(selectedModelVariant.barrelLength) + Number(selectedModelVariant.longScrewExtraLength || 0);
+    if (!Number.isFinite(screwLength) || screwLength <= 0) return part;
+
+    const prefixMatch = String(part.model || '').match(/^(.+?\*)/);
+    const prefix = prefixMatch ? prefixMatch[1] : '6*';
+    return { ...part, model: `${prefix}${formatScrewLength(screwLength)}` };
+  };
+  const adjustedTemplateParts = useMemo(
+    () => templateParts.map(applyLongScrewVariant),
+    [templateParts, selectedModelVariant]
+  );
   const shellComponents: ShellComponent[] = (() => {
     if (!selectedTemplate) return [];
     try {
@@ -347,7 +395,7 @@ export default function RecipeFormPage() {
         return sum + Number(c.unitCost || 0) * qty;
       }, 0);
   const templateCost = selectedTemplate
-    ? shellPrice + templateParts.reduce((sum, p) => sum + getTemplatePartPrice(p) * p.qty, 0)
+    ? shellPrice + adjustedTemplateParts.reduce((sum, p) => sum + getTemplatePartPrice(p) * p.qty, 0)
     : 0;
 
   const buildConfigParts = useCallback((): RecipePart[] => {
@@ -393,7 +441,7 @@ export default function RecipeFormPage() {
         });
       }
     }
-    templateParts.forEach(p => {
+    adjustedTemplateParts.forEach(p => {
       const supplier = p.supplier || '';
       const price = getTemplatePartPrice(p);
       all.push({ model: p.model, name: p.name, supplier, qty: p.qty, snapshotPrice: price });
@@ -419,7 +467,7 @@ export default function RecipeFormPage() {
     });
     all.push(...buildConfigParts());
     return all;
-  }, [selectedTemplate, selectedTemplateCostMode, shellPrice, shellComponents, customBarrelLength, shellMetaInfo, templateParts, capacitorModel, optionalParts, buildConfigParts, getTemplatePartPrice, getPriceByModelAndSupplier, coilResult, coilSpec, coilMaterial, coilSheets]);
+  }, [selectedTemplate, selectedTemplateCostMode, shellPrice, shellComponents, customBarrelLength, shellMetaInfo, adjustedTemplateParts, capacitorModel, optionalParts, buildConfigParts, getTemplatePartPrice, getPriceByModelAndSupplier, coilResult, coilSpec, coilMaterial, coilSheets]);
 
   const allPartsPreview = useMemo(() => buildAllParts(), [buildAllParts]);
   const laborCost = useMemo(
@@ -434,6 +482,43 @@ export default function RecipeFormPage() {
   const totalCost = partsCost + laborCost;
 
   const handleAddOptional = () => setOptionalParts((prev) => [...prev, { id: nextOptionalId.current++, model: '', supplier: '', qty: 1 }]);
+
+  const resetImpeller = () => {
+    setImpellerModel('');
+    setImpellerThickness('');
+    setImpellerDiameter('');
+    setImpellerBladeCount('');
+  };
+
+  const applyImpeller = (variant: PumpModelVariant) => {
+    setImpellerModel(variant.impellerModel || '');
+    setImpellerThickness(variant.impellerThickness ? String(variant.impellerThickness) : '');
+    setImpellerDiameter(variant.impellerDiameter ? String(variant.impellerDiameter) : '');
+    setImpellerBladeCount(variant.impellerBladeCount ? String(variant.impellerBladeCount) : '');
+  };
+
+  const applyModelVariant = (variantId: number | null) => {
+    setSelectedModelVariantId(variantId);
+    const variant = modelVariants.find(v => v.Id === variantId);
+    if (!variant) {
+      setSelectedTemplateId(null);
+      resetImpeller();
+      return;
+    }
+    setRecipeName(variant.modelName);
+    setRecipeSpec(variant.note || '');
+    setSelectedTemplateId(variant.templateId);
+    setCoilSpec(variant.coilSpec || '');
+    setCoilMaterial(variant.coilMaterial || '钢带');
+    setCoilSheets(variant.coilSheets ? String(variant.coilSheets) : '');
+    setCustomBarrelLength(variant.barrelLength ? String(variant.barrelLength) : '');
+    applyImpeller(variant);
+  };
+  const handleTemplateSelect = (templateId: number | null) => {
+    setSelectedModelVariantId(null);
+    resetImpeller();
+    setSelectedTemplateId(templateId);
+  };
   const handleOptionalChange = (id: number, field: keyof PartSelection, value: string | number) => {
     setOptionalParts((prev) => prev.map((p) => {
       if (p.id !== id) return p;
@@ -482,6 +567,12 @@ export default function RecipeFormPage() {
         packingParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))
       ),
       customBarrelLength: customBarrelLength ? parseFloat(customBarrelLength) : null,
+      modelVariantId: selectedModelVariantId,
+      impellerModel,
+      impellerThickness: impellerThickness ? parseFloat(impellerThickness) : null,
+      impellerDiameter: impellerDiameter ? parseFloat(impellerDiameter) : null,
+      impellerBladeCount: impellerBladeCount ? parseInt(impellerBladeCount) : null,
+      technicalDataJson: stringifyTechnicalData(technicalData),
       extraPartsJson: JSON.stringify(optionalParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))),
       assemblyWage: assemblyWage,
       packingWage: packingWage,
@@ -527,8 +618,15 @@ export default function RecipeFormPage() {
       <StepTemplateSelect
         recipeName={recipeName} setRecipeName={setRecipeName}
         recipeSpec={recipeSpec} setRecipeSpec={setRecipeSpec}
-        selectedTemplateId={selectedTemplateId} setSelectedTemplateId={setSelectedTemplateId}
-        templates={templates} templateParts={templateParts} shellComponents={shellComponents} templateCost={templateCost}
+        selectedTemplateId={selectedTemplateId} onTemplateSelect={handleTemplateSelect}
+        modelVariants={modelVariants}
+        selectedModelVariantId={selectedModelVariantId}
+        onModelVariantSelect={applyModelVariant}
+        impellerModel={impellerModel}
+        impellerThickness={impellerThickness}
+        impellerDiameter={impellerDiameter}
+        impellerBladeCount={impellerBladeCount}
+        templates={templates} templateParts={adjustedTemplateParts} shellComponents={shellComponents} templateCost={templateCost}
         getPriceByModelAndSupplier={getPriceByModelAndSupplier} shellMetaInfo={shellMetaInfo}
         customBarrelLength={customBarrelLength} setCustomBarrelLength={setCustomBarrelLength}
       />
@@ -553,6 +651,8 @@ export default function RecipeFormPage() {
           parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}
           getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
         />
+
+        <StepTechnicalData value={technicalData} onChange={setTechnicalData} />
 
       <StepWageConfirm
         selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}

@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { Package as TemplateIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
-import { TemplatePart, ShellComponent, PumpShellTemplate, PumpShellMeta } from '../../types';
+import { TemplatePart, ShellComponent, PumpShellTemplate, PumpShellMeta, PumpModelVariant } from '../../types';
 
 interface StepTemplateSelectProps {
   recipeName: string;
@@ -19,7 +19,14 @@ interface StepTemplateSelectProps {
   recipeSpec: string;
   setRecipeSpec: (val: string) => void;
   selectedTemplateId: number | null;
-  setSelectedTemplateId: (val: number | null) => void;
+  onTemplateSelect: (val: number | null) => void;
+  modelVariants: PumpModelVariant[];
+  selectedModelVariantId: number | null;
+  onModelVariantSelect: (val: number | null) => void;
+  impellerModel: string;
+  impellerThickness: string;
+  impellerDiameter: string;
+  impellerBladeCount: string;
   templates: PumpShellTemplate[];
   templateParts: TemplatePart[];
   shellComponents: ShellComponent[];
@@ -36,7 +43,14 @@ export default function StepTemplateSelect({
   recipeSpec,
   setRecipeSpec,
   selectedTemplateId,
-  setSelectedTemplateId,
+  onTemplateSelect,
+  modelVariants,
+  selectedModelVariantId,
+  onModelVariantSelect,
+  impellerModel,
+  impellerThickness,
+  impellerDiameter,
+  impellerBladeCount,
   templates,
   templateParts,
   shellComponents,
@@ -47,6 +61,7 @@ export default function StepTemplateSelect({
   setCustomBarrelLength,
 }: StepTemplateSelectProps) {
   const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
+  const selectedVariant = modelVariants.find(v => v.Id === selectedModelVariantId) || null;
   const costMode = selectedTemplate?.costMode || 'components';
   const shellRows = costMode === 'bundle'
     ? [{
@@ -130,23 +145,49 @@ export default function StepTemplateSelect({
           )}
         </Box>
         <Box sx={{ px: 2, py: 1.5 }}>
-          <FormControl size="small" sx={{ minWidth: 240, mb: selectedTemplate ? 1.5 : 0 }}>
-            <InputLabel>选择泵壳模板</InputLabel>
-            <Select
-              value={selectedTemplateId || ''}
-              label="选择泵壳模板"
-              onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <MenuItem value="">
-                <em>不使用模板</em>
-              </MenuItem>
-              {templates.map(t => (
-                <MenuItem key={t.Id} value={t.Id}>
-                  {t.shellModel}{t.description ? ` — ${t.description}` : ''}
+          <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap" mb={selectedTemplate ? 1.5 : 0}>
+            <FormControl size="small" sx={{ minWidth: 240 }}>
+              <InputLabel>型号变体</InputLabel>
+              <Select
+                value={selectedModelVariantId || ''}
+                label="型号变体"
+                onChange={(e) => onModelVariantSelect(e.target.value ? Number(e.target.value) : null)}
+              >
+                <MenuItem value=""><em>不使用型号变体</em></MenuItem>
+                {modelVariants.map(v => (
+                  <MenuItem key={v.Id} value={v.Id}>{v.modelName}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 240 }} disabled={!!selectedModelVariantId}>
+              <InputLabel>选择泵壳模板</InputLabel>
+              <Select
+                value={selectedModelVariantId ? '' : (selectedTemplateId || '')}
+                label="选择泵壳模板"
+                onChange={(e) => onTemplateSelect(e.target.value ? Number(e.target.value) : null)}
+              >
+                <MenuItem value="">
+                  <em>{selectedModelVariantId ? '由型号变体带入' : '不使用模板'}</em>
                 </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+                {templates.map(t => (
+                  <MenuItem key={t.Id} value={t.Id}>
+                    {t.shellModel}{t.description ? ` — ${t.description}` : ''}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {selectedVariant && selectedTemplate && (
+              <Chip label={`模板 ${selectedTemplate.shellModel}`} size="small" color="success" variant="outlined" />
+            )}
+            {impellerModel && (
+              <Box display="flex" gap={0.5} flexWrap="wrap">
+                <Chip label={`叶轮 ${impellerModel}`} size="small" color="primary" variant="outlined" />
+                {impellerThickness && <Chip label={`${impellerThickness}mm厚`} size="small" variant="outlined" />}
+                {impellerDiameter && <Chip label={`直径${impellerDiameter}mm`} size="small" variant="outlined" />}
+                {impellerBladeCount && <Chip label={`${impellerBladeCount}片叶`} size="small" variant="outlined" />}
+              </Box>
+            )}
+          </Box>
 
           {/* 模板配件预览（只读） */}
           {selectedTemplate && (
