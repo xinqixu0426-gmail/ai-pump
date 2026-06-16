@@ -40,7 +40,7 @@ export default function CoilRotorPage() {
   const { showSnackbar } = useAppStore();
   const {
     coils, loading, error, setError,
-    copperPrice, materialPrices, setMaterialPrices, saveMaterialPrices, copperLoading, copperUpdating, handleCopperUpdate,
+    copperPrice, marketIndicators, materialPrices, setMaterialPrices, saveMaterialPrices, copperLoading, copperUpdating, handleCopperUpdate,
     groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
     loadMaterialPrices,
     dialogOpen, setDialogOpen, editingId, formData, setFormData,
@@ -61,6 +61,13 @@ export default function CoilRotorPage() {
   const [useCustomWireWeight, setUseCustomWireWeight] = useState(false);
   const [calcResult, setCalcResult] = useState<CalcResult | null>(null);
   const [calcLoading, setCalcLoading] = useState(false);
+
+  const needsSync = (dbValue?: string | null, liveValue?: string | number | null, precision = 2) => {
+    const dbNumber = Number(dbValue);
+    const liveNumber = Number(liveValue);
+    if (!Number.isFinite(dbNumber) || !Number.isFinite(liveNumber)) return true;
+    return dbNumber.toFixed(precision) !== liveNumber.toFixed(precision);
+  };
 
   useEffect(() => { loadCoils(); loadCopperPrice(); loadMaterialPrices(); }, [loadCoils, loadCopperPrice, loadMaterialPrices]);
 
@@ -127,25 +134,70 @@ export default function CoilRotorPage() {
       <Grid container spacing={3}>
       <Grid item xs={12}>
         <Paper sx={{ p: 3, borderRadius: 3, bgcolor: colors.amber.bg, border: `1px solid ${colors.amber.border}`, borderLeft: `3px solid ${colors.amber.main}`, position: 'relative', overflow: 'hidden' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
             <CurrencyIcon size={36} color={colors.amber.text} />
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="subtitle2" sx={{ color: colors.amber.text, fontWeight: 600 }}>实时铜价监控</Typography>
-              {copperLoading ? <CircularProgress size={20} /> : copperPrice ? (
+            <Box sx={{ flexGrow: 1, minWidth: 260 }}>
+              <Typography variant="subtitle2" sx={{ color: colors.amber.text, fontWeight: 600, mb: 1 }}>实时市场指标监控</Typography>
+              {copperLoading ? <CircularProgress size={20} /> : marketIndicators ? (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ height: '100%', p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.46)', border: `1px solid ${colors.amber.border}` }}>
+                      <Typography variant="caption" sx={{ color: colors.amber.text, fontWeight: 700 }}>铜价</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>¥{Number(marketIndicators.copper.livePrice).toLocaleString()}</Typography>
+                        <Typography variant="body2" sx={{ color: colors.amber.text }}>元/吨</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                        <Chip label={`${marketIndicators.copper.livePricePerKg} 元/千克`} size="small" sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }} />
+                        <Typography variant="caption" sx={{ color: colors.amber.text }}>数据库基数: <strong>{marketIndicators.copper.dbPrice || '-'}</strong> 元/千克</Typography>
+                        {needsSync(marketIndicators.copper.dbPrice, marketIndicators.copper.livePricePerKg) && <Chip icon={<TrendingUpIcon size={14} />} label="需要同步" size="small" color="warning" variant="outlined" />}
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ height: '100%', p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.46)', border: `1px solid ${colors.amber.border}` }}>
+                      <Typography variant="caption" sx={{ color: colors.amber.text, fontWeight: 700 }}>铝线价格</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>¥{Number(marketIndicators.aluminum.livePrice).toLocaleString()}</Typography>
+                        <Typography variant="body2" sx={{ color: colors.amber.text }}>元/吨</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                        <Chip label={`${marketIndicators.aluminum.livePricePerKg} 元/千克`} size="small" sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }} />
+                        <Typography variant="caption" sx={{ color: colors.amber.text }}>数据库基数: <strong>{marketIndicators.aluminum.dbPrice || '-'}</strong> 元/千克</Typography>
+                        {needsSync(marketIndicators.aluminum.dbPrice, marketIndicators.aluminum.livePricePerKg) && <Chip icon={<TrendingUpIcon size={14} />} label="需要同步" size="small" color="warning" variant="outlined" />}
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ height: '100%', p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.46)', border: `1px solid ${colors.amber.border}` }}>
+                      <Typography variant="caption" sx={{ color: colors.amber.text, fontWeight: 700 }}>人民币兑美元汇率</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>{marketIndicators.exchangeRate.liveRate}</Typography>
+                        <Typography variant="body2" sx={{ color: colors.amber.text }}>CNY/USD</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                        <Chip label={`1 USD = ${marketIndicators.exchangeRate.liveRate} CNY`} size="small" sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }} />
+                        <Typography variant="caption" sx={{ color: colors.amber.text }}>数据库基数: <strong>{marketIndicators.exchangeRate.dbRate || '-'}</strong></Typography>
+                        {needsSync(marketIndicators.exchangeRate.dbRate, marketIndicators.exchangeRate.liveRate, 4) && <Chip icon={<TrendingUpIcon size={14} />} label="需要同步" size="small" color="warning" variant="outlined" />}
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              ) : copperPrice ? (
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>¥{Number(copperPrice.livePrice).toLocaleString()}</Typography>
                   <Typography variant="body2" sx={{ color: colors.amber.text }}>元/吨</Typography>
                   <Chip label={`${copperPrice.livePricePerKg} 元/千克`} size="small" sx={{ bgcolor: colors.amber.main, color: 'white', fontWeight: 700 }} />
                   <Divider orientation="vertical" flexItem sx={{ borderColor: colors.amber.border }} />
-                  <Typography variant="body2" sx={{ color: colors.amber.text }}>数据库铜价基数: <strong>{copperPrice.dbPrice}</strong> 元/千克</Typography>
-                  {copperPrice.dbPrice !== copperPrice.livePricePerKg && <Chip icon={<TrendingUpIcon size={16} />} label="需要同步" size="small" color="warning" variant="outlined" />}
+                  <Typography variant="body2" sx={{ color: colors.amber.text }}>数据库铜价基数: <strong>{copperPrice.dbPrice || '-'}</strong> 元/千克</Typography>
+                  {needsSync(copperPrice.dbPrice, copperPrice.livePricePerKg) && <Chip icon={<TrendingUpIcon size={16} />} label="需要同步" size="small" color="warning" variant="outlined" />}
                 </Box>
               ) : <Typography color="text.secondary">加载中...</Typography>}
             </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="刷新铜价"><IconButton aria-label="刷新铜价" onClick={loadCopperPrice} sx={{ color: colors.amber.text }}><RefreshIcon size={20} /></IconButton></Tooltip>
+            <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+              <Tooltip title="刷新市场指标"><IconButton aria-label="刷新市场指标" onClick={loadCopperPrice} sx={{ color: colors.amber.text }}><RefreshIcon size={20} /></IconButton></Tooltip>
               <Button variant="contained" startIcon={copperUpdating ? <CircularProgress size={16} color="inherit" /> : <CurrencyIcon size={20} />} onClick={handleCopperUpdate} disabled={copperUpdating} sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' }, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {copperUpdating ? '更新中...' : '同步铜价到数据库'}
+                {copperUpdating ? '更新中...' : '同步市场指标'}
               </Button>
             </Box>
           </Box>

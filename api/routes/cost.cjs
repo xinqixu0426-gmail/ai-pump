@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, coilRow, loadPartsData, calculateRecipeCost, safeUpdate, nextBjtTime, getSetting } = require('../db.cjs');
+const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, coilRow, loadPartsData, calculateRecipeCost, safeUpdate, nextBjtTime, getSetting, setSetting } = require('../db.cjs');
 const { createLogger } = require('../logger.cjs');
 const { calculateCoilCostHandler } = require('./coils.cjs');
 const router = Router();
@@ -646,14 +646,72 @@ router.post(['/cost/full-estimate', '/cost/full-calculate'], (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// ── 铜价 ──
+// ── 市场指标 ──
 
-async function fetchCopperPrice() {
-    const url = 'https://m.quheqihuo.com/dz/ajax/js_data_history.html?id=746&size=1';
+async function fetchSpotMetalPrice(varietyId, label) {
+    const url = `https://m.quheqihuo.com/dz/ajax/js_data_history.html?id=${varietyId}&size=1`;
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Referer': 'https://m.quheqihuo.com/dz/js-d746.html' } });
     const json = await response.json();
-    if (json.code !== 0 || !json.data || json.data.length === 0) throw new Error('铜价数据获取失败: ' + JSON.stringify(json));
-    return json.data[0].price;
+    if (json.code !== 0 || !json.data || json.data.length === 0) throw new Error(`${label}数据获取失败: ` + JSON.stringify(json));
+    return Number(json.data[0].price);
+}
+
+async function fetchCopperPrice() {
+    return fetchSpotMetalPrice(746, '铜价');
+}
+
+async function fetchAluminumPrice() {
+    return fetchSpotMetalPrice(544, '铝价');
+}
+
+async function fetchUsdCnyRate() {
+    const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { headers: { 'User-Agent': 'pump-bom-manager/1.0' } });
+    const json = await response.json();
+    const rate = Number(json?.rates?.CNY);
+    if (!Number.isFinite(rate) || rate <= 0) throw new Error('美元兑人民币汇率获取失败: ' + JSON.stringify(json));
+    return { rate, date: json.date || null };
+}
+
+function settingValue(key) {
+    const value = Number(getSetting(key));
+    return Number.isFinite(value) && value > 0 ? value.toFixed(key === 'usd_cny_rate' ? 4 : 2) : '';
+}
+
+function settingUpdatedAt(key) {
+    const row = db.prepare('SELECT updated_at FROM system_settings WHERE key = ?').get(key);
+    return row?.updated_at || null;
+}
+
+async function getMarketIndicators() {
+    const [copperPrice, aluminumPrice, exchangeRate] = await Promise.all([
+        fetchCopperPrice(),
+        fetchAluminumPrice(),
+        fetchUsdCnyRate(),
+    ]);
+    const coils = dbGetAllCoils();
+    const dbCopperPrice = coils.length > 0 ? coils[0].copperBase : null;
+    return {
+        copper: {
+            livePrice: copperPrice,
+            livePricePerKg: (copperPrice / 1000).toFixed(2),
+            dbPrice: dbCopperPrice,
+            lastUpdate: coils[0]?.UpdatedAt || null,
+        },
+        aluminum: {
+            livePrice: aluminumPrice,
+            livePricePerKg: (aluminumPrice / 1000).toFixed(2),
+            dbPrice: settingValue('aluminum_wire_price_per_kg'),
+            lastUpdate: settingUpdatedAt('aluminum_wire_price_per_kg'),
+        },
+        exchangeRate: {
+            base: 'USD',
+            quote: 'CNY',
+            liveRate: exchangeRate.rate.toFixed(4),
+            dbRate: settingValue('usd_cny_rate'),
+            lastUpdate: settingUpdatedAt('usd_cny_rate'),
+            sourceDate: exchangeRate.date,
+        },
+    };
 }
 
 async function updateAllCoilsCopperPrice(copperPricePerTon) {
@@ -678,6 +736,26 @@ async function runCopperPriceUpdate() {
         copperLogger.info('完成', result);
         return result;
     } catch (err) { copperLogger.error(`失败: ${err.message}`); return null; }
+}
+
+async function runMarketIndicatorsUpdate() {
+    const [copperPrice, aluminumPrice, exchangeRate] = await Promise.all([
+        fetchCopperPrice(),
+        fetchAluminumPrice(),
+        fetchUsdCnyRate(),
+    ]);
+    const copperResult = await updateAllCoilsCopperPrice(copperPrice);
+    const aluminumPricePerKg = (aluminumPrice / 1000).toFixed(2);
+    const usdCnyRate = exchangeRate.rate.toFixed(4);
+    setSetting('aluminum_wire_price_per_kg', aluminumPricePerKg);
+    setSetting('usd_cny_rate', usdCnyRate);
+    copperLogger.info(`已同步铝线价格基数 ${aluminumPricePerKg} 元/千克，美元汇率 ${usdCnyRate}`);
+    return {
+        ...copperResult,
+        aluminumPricePerTon: aluminumPrice,
+        aluminumPricePerKg,
+        usdCnyRate,
+    };
 }
 
 // 定时任务：每天北京时间 15:00 更新铜价
@@ -712,6 +790,20 @@ router.get('/copper-price', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+router.post('/market-indicators/update', async (req, res) => {
+    try {
+        const result = await runMarketIndicatorsUpdate();
+        res.json({ success: true, data: result });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.get('/market-indicators', async (req, res) => {
+    try {
+        res.json({ success: true, data: await getMarketIndicators() });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
 // 导出 runCopperPriceUpdate 供启动时调用
 module.exports = router;
 module.exports.runCopperPriceUpdate = runCopperPriceUpdate;
+module.exports.runMarketIndicatorsUpdate = runMarketIndicatorsUpdate;

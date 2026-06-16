@@ -159,6 +159,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
     console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);
     console.log(`  POST /api/cost/full-calculate           - 一站式成本计算（推荐N8N用）`);
+    console.log(`  GET  /api/market-indicators             - 获取铜价/铝线价格/美元汇率`);
+    console.log(`  POST /api/market-indicators/update      - 同步市场指标到数据库`);
     console.log(`  GET  /api/copper-price                  - 获取实时铜价`);
     console.log(`  POST /api/copper-price/update           - 手动触发铜价更新`);
     console.log(`  GET  /api/coils                         - 获取所有线圈数据`);

@@ -44,6 +44,29 @@
 
 `wireWeight` 和 `copperPrice` 可选。返回线圈公式、线径、电容和合计。旧接口 `POST /api/coils/calculate` 保留兼容。
 
+## 市场指标
+
+`GET /api/market-indicators`
+
+返回实时铜价、A00 铝线价格和人民币兑美元汇率，以及数据库中已同步的基数。
+
+```json
+{
+  "success": true,
+  "data": {
+    "copper": { "livePrice": 104770, "livePricePerKg": "104.77", "dbPrice": "104.77", "lastUpdate": "2026-06-17T00:00:00.000Z" },
+    "aluminum": { "livePrice": 23795, "livePricePerKg": "23.80", "dbPrice": "23.80", "lastUpdate": "2026-06-17T00:00:00.000Z" },
+    "exchangeRate": { "base": "USD", "quote": "CNY", "liveRate": "7.1700", "dbRate": "7.1700", "lastUpdate": "2026-06-17T00:00:00.000Z", "sourceDate": "2026-06-16" }
+  }
+}
+```
+
+`POST /api/market-indicators/update`
+
+同步市场指标：铜价会批量更新所有线圈的 `copper_base` 与 `cost`，铝线价格基数写入 `system_settings.aluminum_wire_price_per_kg`，美元汇率写入 `system_settings.usd_cny_rate`。
+
+旧接口 `GET /api/copper-price` 与 `POST /api/copper-price/update` 保留兼容，仅处理铜价。
+
 ## 浮球成本
 
 `POST /api/cost/float`

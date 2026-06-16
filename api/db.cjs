@@ -195,6 +195,12 @@ if (!existingCableAccessories) {
 if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('float_accessory_delta')) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('float_accessory_delta', '0.6', new Date().toISOString());
 }
+if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('aluminum_wire_price_per_kg')) {
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('aluminum_wire_price_per_kg', '0', new Date().toISOString());
+}
+if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('usd_cny_rate')) {
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('usd_cny_rate', '0', new Date().toISOString());
+}
 
 // recipes 表新增结构化列（幂等 ALTER）
 const recipeAlterColumns = [

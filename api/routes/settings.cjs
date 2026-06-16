@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 
-const ALLOWED_SETTINGS = new Set(['management_fee', 'coil_material_prices', 'cable_accessories', 'float_accessory_delta']);
+const ALLOWED_SETTINGS = new Set(['management_fee', 'coil_material_prices', 'cable_accessories', 'float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate']);
 
 router.get('/:key', (req, res) => {
     if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
@@ -19,9 +19,9 @@ router.put('/:key', (req, res) => {
         const fee = Number(value);
         if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ success: false, error: 'management_fee 必须是非负数字' });
     }
-    if (req.params.key === 'float_accessory_delta') {
-        const delta = Number(value);
-        if (!Number.isFinite(delta) || delta < 0) return res.status(400).json({ success: false, error: 'float_accessory_delta 必须是非负数字' });
+    if (['float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate'].includes(req.params.key)) {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue) || numericValue < 0) return res.status(400).json({ success: false, error: `${req.params.key} 必须是非负数字` });
     }
     if (req.params.key === 'cable_accessories') {
         let config;

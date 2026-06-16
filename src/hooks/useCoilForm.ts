@@ -20,8 +20,26 @@ export interface CoilRecord {
 export interface CopperPriceInfo {
   livePrice: number;
   livePricePerKg: string;
-  dbPrice: string;
+  dbPrice: string | null;
   lastUpdate: string | null;
+}
+
+export interface MarketIndicatorsInfo {
+  copper: CopperPriceInfo;
+  aluminum: {
+    livePrice: number;
+    livePricePerKg: string;
+    dbPrice: string;
+    lastUpdate: string | null;
+  };
+  exchangeRate: {
+    base: string;
+    quote: string;
+    liveRate: string;
+    dbRate: string;
+    lastUpdate: string | null;
+    sourceDate: string | null;
+  };
 }
 
 export interface CoilFormData {
@@ -61,6 +79,7 @@ export function useCoilForm() {
   const [error, setError] = useState('');
 
   const [copperPrice, setCopperPrice] = useState<CopperPriceInfo | null>(null);
+  const [marketIndicators, setMarketIndicators] = useState<MarketIndicatorsInfo | null>(null);
   const [materialPrices, setMaterialPrices] = useState<Record<string, string>>(MATERIAL_UNIT_PRICE_DEFAULTS);
   const [copperLoading, setCopperLoading] = useState(false);
   const [copperUpdating, setCopperUpdating] = useState(false);
@@ -88,8 +107,11 @@ export function useCoilForm() {
   const loadCopperPrice = useCallback(async () => {
     try {
       setCopperLoading(true);
-      const json = await proxyRequest<{ success: boolean; data: CopperPriceInfo }>('/api/copper-price');
-      if (json.success) setCopperPrice(json.data);
+      const json = await proxyRequest<{ success: boolean; data: MarketIndicatorsInfo }>('/api/market-indicators');
+      if (json.success) {
+        setMarketIndicators(json.data);
+        setCopperPrice(json.data.copper);
+      }
     } catch { /* ignore */ }
     finally { setCopperLoading(false); }
   }, []);
@@ -139,12 +161,12 @@ export function useCoilForm() {
   const handleCopperUpdate = async () => {
     try {
       setCopperUpdating(true);
-      const json = await proxyRequest<{ success: boolean; error?: string }>('/api/copper-price/update', { method: 'POST' });
+      const json = await proxyRequest<{ success: boolean; error?: string }>('/api/market-indicators/update', { method: 'POST' });
       if (json.success) {
-        showSnackbar(`铜价更新成功`, 'success');
+        showSnackbar(`市场指标同步成功`, 'success');
         await loadCoils(); await loadCopperPrice();
-      } else setError('铜价更新失败: ' + json.error);
-    } catch (err) { setError('铜价更新失败: ' + (err as Error).message); }
+      } else setError('市场指标同步失败: ' + json.error);
+    } catch (err) { setError('市场指标同步失败: ' + (err as Error).message); }
     finally { setCopperUpdating(false); }
   };
 
@@ -224,7 +246,7 @@ export function useCoilForm() {
 
   return {
     coils, loading, error, setError,
-    copperPrice, materialPrices, setMaterialPrices, saveMaterialPrices, copperLoading, copperUpdating, handleCopperUpdate,
+    copperPrice, marketIndicators, materialPrices, setMaterialPrices, saveMaterialPrices, copperLoading, copperUpdating, handleCopperUpdate,
     groupedCoils, expandedSpecs, setExpandedSpecs, loadCoils, loadCopperPrice,
     loadMaterialPrices,
     dialogOpen, setDialogOpen, editingId, formData, setFormData,

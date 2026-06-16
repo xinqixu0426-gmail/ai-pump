@@ -193,7 +193,8 @@ nohup node api.cjs > /dev/null 2>&1 &
 - `GET/POST/PATCH/DELETE /api/templates` — 泵壳模板
 - `POST /api/cost/calculate` — 成本计算
 - `POST /api/cost/full-calculate` — 一站式成本计算
-- `GET/POST /api/copper-price` — 铜价查询/更新
+- `GET/POST /api/market-indicators` — 市场指标查询/同步（铜价、铝线价格、人民币兑美元汇率）
+- `GET/POST /api/copper-price` — 铜价查询/更新（兼容旧调用）
 - `GET/PUT /api/settings` — 系统设置
 
 ### 独立认证接口
