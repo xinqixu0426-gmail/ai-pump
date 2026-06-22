@@ -28,7 +28,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 id: r.Id,
                 name: r.name,
                 spec: r.spec,
-                savedCost: r.saved_total_cost || 0
+                savedCost: r.savedTotalCost || 0
             }));
             return { success: true, data: summary };
         }

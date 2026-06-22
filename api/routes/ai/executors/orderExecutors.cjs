@@ -16,7 +16,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
                 for (const reqItem of items) {
                     const recipe = allRecipes.find(r => (r.name) === reqItem.recipeName || r.Id === Number(reqItem.recipeName) || (r.name || '').includes(reqItem.recipeName));
                     if (recipe) {
-                        const partsJson = recipe.parts_json || '[]';
+                        const partsJson = recipe.partsJson || '[]';
                         let parts = [];
                         try { parts = JSON.parse(partsJson); } catch (e) { }
                         const costRes = calculateRecipeCost(parts, partsCache, partsByModel);
@@ -91,7 +91,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
             let itemsList = [];
             try { itemsList = JSON.parse(targetOrder.itemsJson || '[]'); } catch (e) { }
 
-            const partsJson = recipe.parts_json || '[]';
+            const partsJson = recipe.partsJson || '[]';
             let parts = [];
             try { parts = JSON.parse(partsJson); } catch (e) { }
             const { partsCache, partsByModel } = loadPartsData();

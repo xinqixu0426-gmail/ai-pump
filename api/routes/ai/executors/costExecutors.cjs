@@ -59,17 +59,17 @@ async function executeCostTool(toolName, args, internalFetch) {
             if (args.shell_model) {
                 const allTemplates = dbGetAllTemplates();
                 const tpl = allTemplates.find(t => 
-                    (t.泵壳型号 || t.shell_model || '') === args.shell_model ||
-                    (t.泵壳型号 || t.shell_model || '').includes(args.shell_model)
+                    (t.shellModel || '') === args.shell_model ||
+                    (t.shellModel || '').includes(args.shell_model)
                 );
                 if (!tpl) {
                     return { success: false, error: `未找到泵壳模板: ${args.shell_model}` };
                 }
 
                 let parts = [];
-                try { parts = JSON.parse(tpl.配件JSON || tpl.parts_json || '[]'); } catch (e) {}
+                try { parts = JSON.parse(tpl.partsJson || '[]'); } catch (e) {}
 
-                templateInfo = { model: tpl.泵壳型号 || tpl.shell_model, extracted: {} };
+                templateInfo = { model: tpl.shellModel, extracted: {} };
 
                 // 花板轴承 → 上轴承
                 const upperBPart = parts.find(p => (p.name || '').includes('花板轴承'));
@@ -98,7 +98,7 @@ async function executeCostTool(toolName, args, internalFetch) {
 
                 // 从 rotor_params_json 提取出图尺寸参数（开档、定位等）
                 let rotorParams = {};
-                try { rotorParams = JSON.parse(tpl.rotor_params_json || '{}'); } catch (e) {}
+                try { rotorParams = JSON.parse(tpl.rotorParamsJson || '{}'); } catch (e) {}
                 const rotorKeys = ['bearing_span', 'stack_offset', 'bearing_to_impeller',
                     'impeller_depth', 'impeller_dia', 'thread_dia', 'thread_length', 'rotor_dia'];
                 for (const k of rotorKeys) {
