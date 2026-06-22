@@ -178,6 +178,8 @@ nohup node api.cjs > /dev/null 2>&1 &
 
 ## API 端点
 
+当前业务、成本、接口与运维说明见 [`docs/README.md`](docs/README.md)。API 修改必须遵守 [`docs/api-sop.md`](docs/api-sop.md)。
+
 ### 公开接口
 - `POST /api/auth/login` — 登录（附限流 5次/分钟）
 - `GET /api/health` — 健康检查

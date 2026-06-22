@@ -55,7 +55,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const recipe = allRecipes.find(r => (r.name) === recipeName || (r.name || '').includes(recipeName));
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
 
-            let parts = []; try { parts = JSON.parse(recipe.parts_json || '[]'); } catch (e) { }
+            let parts = []; try { parts = JSON.parse(recipe.partsJson || '[]'); } catch (e) { }
             const changes = [];
 
             // 移除零件
@@ -115,8 +115,8 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             if (!r2) return { success: false, error: '找不到配方: ' + recipe2 };
 
             const { partsCache: pc, partsByModel: pbm } = loadPartsData();
-            let p1 = []; try { p1 = JSON.parse(r1.parts_json || '[]'); } catch (e) { }
-            let p2 = []; try { p2 = JSON.parse(r2.parts_json || '[]'); } catch (e) { }
+            let p1 = []; try { p1 = JSON.parse(r1.partsJson || '[]'); } catch (e) { }
+            let p2 = []; try { p2 = JSON.parse(r2.partsJson || '[]'); } catch (e) { }
             const cost1 = calculateRecipeCost(p1, pc, pbm);
             const cost2 = calculateRecipeCost(p2, pc, pbm);
 

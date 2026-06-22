@@ -102,6 +102,5 @@ router.put('/api/ai/system-prompt', promptAuth, async (req, res) => {
 
 
 function getSystemPrompt() { return AI_SYSTEM_PROMPT; }
-function setSystemPrompt(val) { AI_SYSTEM_PROMPT = val; }
 
-module.exports = { getSystemPrompt, setSystemPrompt, loadSystemPromptFromDB, router };
+module.exports = { getSystemPrompt, loadSystemPromptFromDB, router };

@@ -39,7 +39,7 @@ router.get('/cost/recipe/by-name', (req, res) => {
         if (!recipe) return res.status(404).json({ success: false, error: `未找到名称包含 "${recipeName}" 的配方` });
         const name = recipe.name;
         const spec = recipe.spec;
-        const partsJson = recipe.parts_json || '[]';
+        const partsJson = recipe.partsJson || '[]';
         let parts = [];
         try { parts = JSON.parse(partsJson); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
         const { partsCache, partsByModel } = loadPartsData();
@@ -58,7 +58,7 @@ function calculateRecipeByIdHandler(req, res) {
         const name = recipe.name;
         const spec = recipe.spec;
         let parts = [];
-        try { parts = JSON.parse(recipe.parts_json || '[]'); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
+        try { parts = JSON.parse(recipe.partsJson || '[]'); } catch { return res.status(400).json({ success: false, error: '配方配件JSON格式错误' }); }
         const { partsCache, partsByModel } = loadPartsData();
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
         res.json({ success: true, data: { recipeId, recipeName: name, recipeSpec: spec, ...result } });
@@ -603,7 +603,7 @@ router.post(['/cost/full-estimate', '/cost/full-calculate'], (req, res) => {
                 const allRecipes = dbGetAllRecipes();
                 const recipe = allRecipes.find(r => (r.name || '').includes(pumphousing_model));
                 if (recipe) {
-                    let parts = []; try { parts = JSON.parse(recipe.parts_json || '[]'); } catch { /* */ }
+                    let parts = []; try { parts = JSON.parse(recipe.partsJson || '[]'); } catch { /* */ }
                     const rc = calculateRecipeCost(parts, partsCache, partsByModel);
                     result.recipeCost = { recipeName: recipe.name, recipeSpec: recipe.spec, ...rc };
                     grandTotal += parseFloat(rc.totalCost);

@@ -212,15 +212,6 @@ export async function getAllRecipes(): Promise<Recipe[]> {
   return res.data || [];
 }
 
-export async function getRecipe(id: number): Promise<Recipe | null> {
-  try {
-    const res = await proxyRequest<{ success: boolean; data: Recipe }>(`/api/recipes/${id}`);
-    return res.data || null;
-  } catch {
-    return null;
-  }
-}
-
 export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> {
   const res = await proxyRequest<{ success: boolean; data: Recipe }>('/api/recipes', {
     method: 'POST',
@@ -281,15 +272,6 @@ function templateToApiPayload(tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Reco
 export async function getAllTemplates(): Promise<PumpShellTemplate[]> {
   const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate[] }>('/api/templates');
   return res.data || [];
-}
-
-export async function getTemplate(id: number): Promise<PumpShellTemplate | null> {
-  try {
-    const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate }>(`/api/templates/${id}`);
-    return res.data || null;
-  } catch {
-    return null;
-  }
 }
 
 export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promise<PumpShellTemplate> {

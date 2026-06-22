@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate } = require('../db.cjs');
+const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate, hardDelete } = require('../db.cjs');
 const router = Router();
 
 function parseId(value) {
@@ -90,18 +90,13 @@ router.get('/:id/default-recipe', (req, res) => {
     try {
         const id = parseId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const tpl = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
+        const rawTpl = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id);
+        const tpl = templateRow(rawTpl);
         if (!tpl) return res.status(404).json({ success: false, error: '模板不存在' });
         const parts = parseJson(tpl.partsJson, []);
         const rotorParams = parseJson(tpl.rotorParamsJson, {});
         const { partsCache, partsByModel } = loadPartsData();
-        const cost = calculateRecipeCost(buildTemplateCostParts({
-            ...tpl,
-            shell_model: tpl.shell_model,
-            cost_mode: tpl.cost_mode,
-            bundle_cost: tpl.bundle_cost,
-            shell_components_json: tpl.shell_components_json,
-        }, parts), partsCache, partsByModel);
+        const cost = calculateRecipeCost(buildTemplateCostParts(rawTpl, parts), partsCache, partsByModel);
         res.json({
             success: true,
             data: {
@@ -211,7 +206,7 @@ router.delete('/:id', (req, res) => {
         const id = parseInt(req.params.id);
         const refs = db.prepare('SELECT COUNT(*) as cnt FROM recipes WHERE template_id = ?').get(id);
         if (refs.cnt > 0) return res.status(409).json({ success: false, error: `有 ${refs.cnt} 个配方引用此模板，无法删除` });
-        db.prepare('DELETE FROM pump_shell_templates WHERE id = ?').run(id);
+        hardDelete('pump_shell_templates', id);
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

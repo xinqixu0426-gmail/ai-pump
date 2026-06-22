@@ -275,7 +275,7 @@ function recipeRow(r) {
         savedTotalCost: r.saved_total_cost,
         savedCostDetails: r.saved_cost_details,
         templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
-        coilMaterial: r.coil_material || '閽㈠甫',
+        coilMaterial: r.coil_material || '钢带',
         hasFloat: r.has_float, floatWire: r.float_wire, floatAccessoryType: r.float_accessory_type || 'standard', hasCable: r.has_cable,
         cableLength: r.cable_length, cableWire: r.cable_wire, cableAccessoryType: r.cable_accessory_type || 'standard', boxType: r.box_type,
         customBarrelLength: r.custom_barrel_length, extraPartsJson: r.extra_parts_json,
@@ -290,26 +290,6 @@ function recipeRow(r) {
         surfaceTreatmentMode,
         surfaceTreatmentCost,
         managementFee: r.management_fee,
-        // Legacy aliases kept while the frontend migrates fully to camelCase.
-        parts_json: r.parts_json,
-        saved_total_cost: r.saved_total_cost,
-        saved_cost_details: r.saved_cost_details,
-        template_id: r.template_id, coil_spec: r.coil_spec, coil_sheets: r.coil_sheets,
-        coil_material: r.coil_material || '钢带',
-        has_float: r.has_float, float_wire: r.float_wire, float_accessory_type: r.float_accessory_type || 'standard', has_cable: r.has_cable,
-        cable_length: r.cable_length, cable_wire: r.cable_wire, cable_accessory_type: r.cable_accessory_type || 'standard', box_type: r.box_type,
-        custom_barrel_length: r.custom_barrel_length, extra_parts_json: r.extra_parts_json,
-        model_variant_id: r.model_variant_id,
-        impeller_model: r.impeller_model || '',
-        impeller_thickness: r.impeller_thickness,
-        impeller_diameter: r.impeller_diameter,
-        impeller_blade_count: r.impeller_blade_count,
-        technical_data_json: r.technical_data_json || '{}',
-        packing_parts_json: r.packing_parts_json,
-        assembly_wage: r.assembly_wage, packing_wage: r.packing_wage, painting_wage: r.painting_wage,
-        surface_treatment_mode: surfaceTreatmentMode,
-        surface_treatment_cost: surfaceTreatmentCost,
-        management_fee: r.management_fee,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -322,13 +302,6 @@ function templateRow(r) {
         assemblyWage: r.assembly_wage || 0, packingWage: r.packing_wage || 0,
         paintingWage: r.painting_wage != null ? r.painting_wage : null,
         costMode: r.cost_mode || 'components', bundleCost: r.bundle_cost || 0,
-        // Legacy aliases kept while the frontend migrates fully to camelCase.
-        shell_model: r.shell_model,
-        parts_json: r.parts_json || '[]', rotor_params_json: r.rotor_params_json || '{}',
-        shell_components_json: r.shell_components_json || '[]',
-        assembly_wage: r.assembly_wage || 0, packing_wage: r.packing_wage || 0,
-        painting_wage: r.painting_wage != null ? r.painting_wage : null,
-        cost_mode: r.cost_mode || 'components', bundle_cost: r.bundle_cost || 0,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -698,5 +671,5 @@ module.exports = {
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
     updateOrderFields, invalidatePartsCache, safeUpdate, softDelete, hardDelete,
-    writeAuditLog, runBackup, nextBjtTime,
+    nextBjtTime,
 };
