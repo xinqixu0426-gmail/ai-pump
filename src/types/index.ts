@@ -147,6 +147,7 @@ export interface RecipePart {
   source?: string;
   formula?: string;
   costSource?: string;
+  packagingMaterial?: string;
   floatAccessoryType?: CableAccessoryType;
   floatAccessoryDelta?: number;
   cableAccessoryType?: CableAccessoryType;
@@ -157,6 +158,9 @@ export interface PartSelection {
   model: string;
   supplier: string;
   qty: number;
+  snapshotPrice?: number;
+  costSource?: string;
+  packagingMaterial?: string;
 }
 
 // ─── 成本相关 ────────────────────────────────────────

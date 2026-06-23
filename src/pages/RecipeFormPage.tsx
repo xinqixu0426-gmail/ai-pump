@@ -23,6 +23,15 @@ import StepPartsConfig from '../components/recipe/StepPartsConfig';
 import StepWageConfirm from '../components/recipe/StepWageConfirm';
 import StepTechnicalData, { parseTechnicalDataJson, stringifyTechnicalData } from '../components/recipe/StepTechnicalData';
 
+const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
+
+function getPackingMaterial(part: Pick<PartSelection, 'model'> & Partial<PartSelection>) {
+  if (part.packagingMaterial) return part.packagingMaterial;
+  if ((part.model || '').includes('木箱')) return '木箱';
+  if ((part.model || '').includes('彩')) return '彩印纸箱';
+  return DEFAULT_PACKAGING_MATERIAL;
+}
+
 export default function RecipeFormPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -274,11 +283,11 @@ export default function RecipeFormPage() {
         try {
           const arr = JSON.parse(source.packingPartsJson || '[]');
           if (arr.length > 0) return arr;
-          if (source.boxType) return [{ model: source.boxType, supplier: '', qty: 1 }];
+          if (source.boxType) return [{ model: source.boxType, supplier: '', qty: 1, packagingMaterial: getPackingMaterial({ model: source.boxType }) }];
           return [];
-        } catch { return source.boxType ? [{ model: source.boxType, supplier: '', qty: 1 }] : []; }
+        } catch { return source.boxType ? [{ model: source.boxType, supplier: '', qty: 1, packagingMaterial: getPackingMaterial({ model: source.boxType }) }] : []; }
       })();
-      setPackingParts(rawPacking.map(p => ({ id: nextPackingId.current++, ...p })));
+      setPackingParts(rawPacking.map(p => ({ id: nextPackingId.current++, ...p, qty: 1, packagingMaterial: getPackingMaterial(p) })));
       if (source.customBarrelLength) setCustomBarrelLength(String(source.customBarrelLength));
       if (source.modelVariantId) setSelectedModelVariantId(source.modelVariantId);
       if (source.impellerModel) setImpellerModel(source.impellerModel);
@@ -311,7 +320,7 @@ export default function RecipeFormPage() {
         if (cp.name === '电缆线') { setHasCable(true); const w = cp.model.replace('电缆-线径', ''); if (cableWireOptions.includes(w)) setCableWire(w); setCableLength(String(cp.qty || '')); return; }
         if (cp.name === '电缆接头配件') return;
         if (cp.name === '纸箱' || cp.name === '木箱') {
-          setPackingParts(prev => [...prev, { id: nextPackingId.current++, model: cp.model, supplier: '', qty: 1 }]);
+          setPackingParts(prev => [...prev, { id: nextPackingId.current++, model: cp.model, supplier: '', qty: 1, packagingMaterial: cp.packagingMaterial || getPackingMaterial(cp) }]);
           return;
         }
         newOptional.push({ id: nextOptionalId.current++, model: cp.model, supplier: cp.supplier, qty: cp.qty });
@@ -431,8 +440,18 @@ export default function RecipeFormPage() {
     // 包装件
     packingParts.forEach(p => {
       if (!p.model) return;
-      const price = getPriceByModelAndSupplier(p.model, p.supplier);
-      configParts.push({ model: p.model, name: p.model, supplier: p.supplier, qty: p.qty || 1, snapshotPrice: price });
+      const isManual = p.costSource === 'manual';
+      const price = isManual ? Number(p.snapshotPrice || 0) : getPriceByModelAndSupplier(p.model, p.supplier);
+      const packagingMaterial = getPackingMaterial(p);
+      configParts.push({
+        model: p.model,
+        name: `${p.model}（${packagingMaterial}）`,
+        supplier: p.supplier,
+        qty: 1,
+        snapshotPrice: price,
+        packagingMaterial,
+        ...(isManual ? { costSource: 'manual', source: 'manual' } : {})
+      });
     });
     return configParts;
   }, [hasFloat, floatWire, floatAccessoryType, floatAccessoryDelta, hasCable, cableLength, cableWire, cableAccessoryType, packingParts, getPriceByModelAndSupplier, getCableAccessoryFee, getCableAccessoryName]);
@@ -495,7 +514,10 @@ export default function RecipeFormPage() {
   );
   const partsCost = useMemo(() => allPartsPreview.reduce((sum, p) => sum + (p.snapshotPrice || 0) * (p.qty || 1), 0), [allPartsPreview]);
   const packingCost = useMemo(
-    () => packingParts.filter(p => p.model).reduce((sum, p) => sum + getPriceByModelAndSupplier(p.model, p.supplier) * (p.qty || 1), 0),
+    () => packingParts.filter(p => p.model).reduce((sum, p) => {
+      const price = p.costSource === 'manual' ? Number(p.snapshotPrice || 0) : getPriceByModelAndSupplier(p.model, p.supplier);
+      return sum + price;
+    }, 0),
     [packingParts, getPriceByModelAndSupplier]
   );
   const totalCost = partsCost + laborCost;
@@ -584,7 +606,13 @@ export default function RecipeFormPage() {
       cableAccessoryType,
       // 包装
       packingPartsJson: JSON.stringify(
-        packingParts.filter(p => p.model).map(p => ({ model: p.model, supplier: p.supplier, qty: p.qty }))
+        packingParts.filter(p => p.model).map(p => ({
+          model: p.model,
+          supplier: p.supplier,
+          qty: 1,
+          packagingMaterial: getPackingMaterial(p),
+          ...(p.costSource === 'manual' ? { snapshotPrice: Number(p.snapshotPrice || 0), costSource: 'manual' } : {})
+        }))
       ),
       customBarrelLength: customBarrelLength ? parseFloat(customBarrelLength) : null,
       modelVariantId: selectedModelVariantId,

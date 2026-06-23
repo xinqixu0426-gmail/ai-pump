@@ -461,7 +461,7 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
         const suppliers = partsByModel[p.model] || [];
         const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
         let price = 0, source = '';
-        if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '模板手动价'; }
+        if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = p.costSource === 'manual' ? '手动估算价' : '模板手动价'; }
         else if (isCableAccessoryPart(p)) {
             const cablePart = findCablePart(parts);
             price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', p.cableAccessoryType);

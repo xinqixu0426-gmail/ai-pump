@@ -20,6 +20,14 @@ const STATUS_COLORS: Record<string, 'default' | 'primary' | 'secondary' | 'error
 };
 
 type PackingSnapshot = PartSelection & { snapshotPrice?: number };
+const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
+
+function inferPackingMaterial(model: string, material?: string) {
+  if (material) return material;
+  if ((model || '').includes('木箱')) return '木箱';
+  if ((model || '').includes('彩')) return '彩印纸箱';
+  return DEFAULT_PACKAGING_MATERIAL;
+}
 
 function getErrorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
@@ -81,6 +89,7 @@ export default function QuotationsPage() {
       model,
       supplier,
       qty: Number(part?.qty || 1),
+      packagingMaterial: inferPackingMaterial(model, part?.packagingMaterial),
       ...(snapshotPrice !== undefined ? { snapshotPrice } : {})
     };
   };
@@ -155,7 +164,7 @@ export default function QuotationsPage() {
       total,
       source,
       label: packingParts.length > 0
-        ? packingParts.map(p => `${p.model}×${p.qty || 1}`).join('、')
+        ? packingParts.map(p => `${p.model}/${inferPackingMaterial(p.model, p.packagingMaterial)}`).join('、')
         : '无包装配置'
     };
   };
@@ -566,6 +575,7 @@ export default function QuotationsPage() {
                           model: packing.model,
                           supplier: packing.supplier || '',
                           qty: 1,
+                          packagingMaterial: inferPackingMaterial(packing.model),
                           snapshotPrice: Number(packing.price || 0)
                         }]) : '[]',
                       });

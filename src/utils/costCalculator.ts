@@ -112,7 +112,7 @@ export function calculateRecipeCost(
     const matchedPart = partsCache.get(exactKey);
     if ((rp.source === 'pump_shell_template' || rp.costSource === 'manual') && rp.snapshotPrice !== undefined) {
       price = rp.snapshotPrice;
-      source = '模板手动价';
+      source = rp.costSource === 'manual' ? '手动估算价' : '模板手动价';
     } else if (isCableAccessoryPart(rp)) {
       const cablePart = findCablePart(recipeParts);
       price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', rp.cableAccessoryType);

@@ -231,11 +231,17 @@ function normalizePackingJsonText(value, boxType) {
     if (!Array.isArray(list)) list = [];
     return JSON.stringify(list
         .filter(part => part?.model)
-        .map(part => ({
-            model: part.model,
-            supplier: part.supplier || '',
-            qty: Number(part.qty || 1)
-        })));
+        .map(part => {
+            const normalized = {
+                model: part.model,
+                supplier: part.supplier || '',
+                qty: Number(part.qty || 1)
+            };
+            if (part.snapshotPrice !== undefined) normalized.snapshotPrice = Number(part.snapshotPrice || 0);
+            if (part.costSource === 'manual') normalized.costSource = 'manual';
+            if (part.packagingMaterial) normalized.packagingMaterial = String(part.packagingMaterial);
+            return normalized;
+        }));
 }
 
 function managedPartType(part) {
