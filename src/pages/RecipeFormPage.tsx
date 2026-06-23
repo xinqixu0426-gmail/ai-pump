@@ -21,7 +21,7 @@ import { COIL_API_BASE, CoilCalcResult, CoilSpecInfo } from '../components/recip
 import StepTemplateSelect from '../components/recipe/StepTemplateSelect';
 import StepPartsConfig from '../components/recipe/StepPartsConfig';
 import StepWageConfirm from '../components/recipe/StepWageConfirm';
-import StepTechnicalData, { parseTechnicalDataJson, stringifyTechnicalData } from '../components/recipe/StepTechnicalData';
+import StepTechnicalData, { parseTechnicalDataJson, stringifyTechnicalData, TechnicalReferenceField } from '../components/recipe/StepTechnicalData';
 
 const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
 
@@ -393,6 +393,74 @@ export default function RecipeFormPage() {
     try { return JSON.parse(shellPart.notes); } catch { return null; }
   }, [selectedTemplate, parts]);
 
+  const shellTechnicalReferences = useMemo<TechnicalReferenceField[]>(() => {
+    const refs: TechnicalReferenceField[] = [];
+    const addRef = (id: string, label: string, value: unknown, unit = '') => {
+      if (value === undefined || value === null || value === '') return;
+      refs.push({ id, label, value: String(value), unit });
+    };
+    if (shellMetaInfo) {
+      const knownShellMetaKeys = new Set([
+        'isStainless', 'barrelLength', 'openOffset', 'openFactor', 'barrelLengthPresets',
+        'defaultUpperBearing', 'defaultLowerBearing', 'defaultOilSealDia', 'defaultBearingSpan',
+        'defaultImpellerDia', 'defaultImpellerSpan', 'defaultImpellerDepth',
+        'defaultThreadLength', 'defaultThreadDia', 'defaultStackOffset',
+      ]);
+      addRef('barrelLength', '预设机筒长度', shellMetaInfo.barrelLength, 'mm');
+      addRef('openOffset', '开档偏移量', shellMetaInfo.openOffset, 'mm');
+      addRef('defaultBearingSpan', '默认开档', shellMetaInfo.defaultBearingSpan, 'mm');
+      addRef('defaultStackOffset', '默认定位', shellMetaInfo.defaultStackOffset, 'mm');
+      addRef('defaultUpperBearing', '默认上轴承', shellMetaInfo.defaultUpperBearing);
+      addRef('defaultLowerBearing', '默认下轴承', shellMetaInfo.defaultLowerBearing);
+      addRef('defaultOilSealDia', '默认油封孔径', shellMetaInfo.defaultOilSealDia, 'mm');
+      addRef('defaultImpellerDia', '默认叶轮孔径', shellMetaInfo.defaultImpellerDia, 'mm');
+      addRef('defaultImpellerSpan', '默认叶轮开档', shellMetaInfo.defaultImpellerSpan, 'mm');
+      addRef('defaultImpellerDepth', '默认叶轮厚度', shellMetaInfo.defaultImpellerDepth, 'mm');
+      addRef('defaultThreadLength', '默认螺丝长度', shellMetaInfo.defaultThreadLength, 'mm');
+      addRef('defaultThreadDia', '默认螺纹直径', shellMetaInfo.defaultThreadDia, 'mm');
+      if (shellMetaInfo.barrelLengthPresets?.length) {
+        addRef('barrelLengthPresets', '常用机筒长度', shellMetaInfo.barrelLengthPresets.join(' / '), 'mm');
+      }
+      Object.entries(shellMetaInfo as Record<string, unknown>).forEach(([key, value]) => {
+        if (knownShellMetaKeys.has(key)) return;
+        if (Array.isArray(value)) addRef(`shell_${key}`, key, value.join(' / '));
+        else if (typeof value !== 'object') addRef(`shell_${key}`, key, value);
+      });
+    }
+    if (selectedTemplate?.rotorParamsJson) {
+      const rotorParamLabels: Record<string, { label: string; unit?: string }> = {
+        upper_bearing: { label: '模板上轴承' },
+        lower_bearing: { label: '模板下轴承' },
+        piece_count: { label: '模板转子片数', unit: '片' },
+        rotor_dia: { label: '模板转子直径', unit: 'mm' },
+        bearing_span: { label: '模板开档', unit: 'mm' },
+        stack_offset: { label: '模板定位', unit: 'mm' },
+        oil_seal_dia: { label: '模板油封孔径', unit: 'mm' },
+        impeller_dia: { label: '模板叶轮孔径', unit: 'mm' },
+        impeller_span: { label: '模板叶轮开档', unit: 'mm' },
+        impeller_depth: { label: '模板叶轮深度', unit: 'mm' },
+        thread_length: { label: '模板螺丝长度', unit: 'mm' },
+        thread_dia: { label: '模板螺纹直径', unit: 'mm' },
+      };
+      try {
+        const rotorParams = JSON.parse(selectedTemplate.rotorParamsJson || '{}');
+        if (rotorParams && typeof rotorParams === 'object' && !Array.isArray(rotorParams)) {
+          Object.entries(rotorParams).forEach(([key, value]) => {
+            const config = rotorParamLabels[key];
+            if (!config) return;
+            addRef(`rotor_${key}`, config.label, value, config.unit || '');
+          });
+        }
+      } catch { /* ignore invalid template params */ }
+    }
+    const deduped = new Map<string, TechnicalReferenceField>();
+    refs.forEach(ref => {
+      const key = `${ref.label}||${ref.value}||${ref.unit || ''}`;
+      if (!deduped.has(key)) deduped.set(key, ref);
+    });
+    return Array.from(deduped.values());
+  }, [selectedTemplate, shellMetaInfo]);
+
   useEffect(() => {
     if (selectedTemplate) {
       setAssemblyWage(selectedTemplate.assemblyWage || 0);
@@ -702,8 +770,6 @@ export default function RecipeFormPage() {
           getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
         />
 
-        <StepTechnicalData value={technicalData} onChange={setTechnicalData} />
-
       <StepWageConfirm
         selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
         packingWage={packingWage} setPackingWage={setPackingWage}
@@ -714,6 +780,8 @@ export default function RecipeFormPage() {
         optionalParts={optionalParts}
         capacitorModel={capacitorModel}
       />
+
+        <StepTechnicalData value={technicalData} onChange={setTechnicalData} referenceFields={shellTechnicalReferences} />
 
       <Button
         variant="contained"

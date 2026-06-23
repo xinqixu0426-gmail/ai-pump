@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { Recipe, CostResult, Part, RecipePart } from '../types';
 import { batchDeductStock } from '../utils/api';
-import { parseTechnicalDataJson, TECHNICAL_DATA_LABELS } from './recipe/StepTechnicalData';
+import { getTechnicalDataEntries, parseTechnicalDataJson } from './recipe/StepTechnicalData';
 
 interface RecipeDetailModalProps {
   recipe: Recipe;
@@ -83,7 +83,7 @@ export default function RecipeDetailModal({
 
   const hasSnapshot = costResult.snapshotTotalCost !== undefined;
   const technicalData = useMemo(() => parseTechnicalDataJson(recipe.technicalDataJson), [recipe.technicalDataJson]);
-  const technicalEntries = Object.entries(technicalData).filter(([, value]) => String(value || '').trim() !== '');
+  const technicalEntries = useMemo(() => getTechnicalDataEntries(technicalData), [technicalData]);
 
   const { totalCostValue, groupedDetails } = useMemo(() => {
     const surfaceTreatmentMode = recipe.surfaceTreatmentMode || (recipe.paintingWage != null ? 'painting' : 'none');
@@ -360,9 +360,9 @@ export default function RecipeDetailModal({
             <Box sx={{ mt: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'grey.50' }}>
               <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>技术档案</Typography>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1 }}>
-                {technicalEntries.map(([key, value]) => (
-                  <Typography key={key} variant="body2" color="text.secondary">
-                    {TECHNICAL_DATA_LABELS[key as keyof typeof TECHNICAL_DATA_LABELS] || key}：<strong>{String(value)}</strong>
+                {technicalEntries.map(entry => (
+                  <Typography key={entry.id} variant="body2" color="text.secondary">
+                    {entry.label || '未命名字段'}：<strong>{entry.value || '-'}</strong>{entry.unit ? ` ${entry.unit}` : ''}
                   </Typography>
                 ))}
               </Box>

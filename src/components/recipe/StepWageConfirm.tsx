@@ -141,9 +141,8 @@ export default function StepWageConfirm({
 
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ fontSize: 15, lineHeight: 1 }}>表</Typography>
           <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
-            配方概览
+            ▸ 配方概览
           </Typography>
         </Box>
         <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
