@@ -69,3 +69,5 @@
 # API SOP
 
 - API 新增和修改必须遵守 `docs/api-sop.md`。
+- API 新增、修改、废弃或兼容层调整后，必须同步更新 `docs/api-reference.md`；涉及业务/API 概览时同时更新 `docs/README.md`。
+- 未更新 docs 的 API 变更不视为完成。

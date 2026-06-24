@@ -234,7 +234,7 @@ export default function RotorHistoryTable({
       </TableContainer>
       <Dialog open={!!renameRow} onClose={() => setRenameRow(null)} maxWidth="xs" fullWidth>
         <DialogTitle>重命名图纸</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogContent sx={{ pt: 2.5 }}>
           <TextField
             fullWidth
             autoFocus
@@ -243,6 +243,7 @@ export default function RotorHistoryTable({
             onChange={(event) => setRenameValue(event.target.value)}
             placeholder="例如 V750转子-160片"
             size="small"
+            sx={{ mt: 1.5 }}
           />
         </DialogContent>
         <DialogActions>

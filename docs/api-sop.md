@@ -2,7 +2,7 @@
 
 本 SOP 是本项目后续新增、修改 API 的强制流程。所有 API 变更都要先按本文自查，再提交代码。
 
-当前业务、接口地图和真实调用语义见 [README.md](./README.md)。已存在的不规范兼容层不构成新代码的先例。
+当前业务说明见 [README.md](./README.md)，完整接口地图和真实调用语义见 [api-reference.md](./api-reference.md)。已存在的不规范兼容层不构成新代码的先例。
 
 ## 1. 路由命名
 
@@ -158,10 +158,12 @@ function parseId(value) {
 - 写接口确认使用 `safeUpdate` / `softDelete`。
 - 新增/修改接口确认响应格式为 `{ success, data/error }`。
 - 前端调用确认走 `proxyRequest()`。
+- 新增、修改、废弃或调整兼容层后，必须同步更新 `docs/api-reference.md`。
+- 如果 API 变更影响业务流程、核心接口概览或已知边界，必须同步更新 `docs/README.md`。
 
 ## 11. 文档要求
 
-新增模块或重要接口时，同时更新接口文档：
+新增、修改、废弃 API 或调整旧接口兼容层时，必须同时更新接口文档：
 
 - API 路径和方法。
 - 是否需要鉴权。
@@ -170,4 +172,4 @@ function parseId(value) {
 - 失败响应示例。
 - 是否有旧接口兼容层。
 
-接口没有文档，不视为完成。
+接口文档统一维护在 `docs/api-reference.md`；业务/API 概览维护在 `docs/README.md`。接口没有文档，或文档没有跟随代码更新，不视为完成。
