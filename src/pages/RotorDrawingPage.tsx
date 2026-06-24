@@ -7,35 +7,75 @@ import {
   List, ListItemButton, ListItemText, ListItemIcon
 } from '@mui/material';
 import {
-  Send as SendIcon,
   FileText as PdfIcon,
   CheckCircle as CheckIcon,
   AlertCircle as ErrorIcon,
   Link as LinkIcon,
   Printer as PrintIcon,
-  Package as PackageIcon
+  Package as PackageIcon,
+  Copy as CopyIcon
 } from 'lucide-react';
 import { getAllTemplates, getAllParts, proxyFetch, proxyRequest } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
 import PageHeader from '../components/PageHeader';
-
-import { STATOR_TO_ROTOR, normalizeBearing, JobStatus } from '../components/rotor/rotorConstants';
+import { normalizeBearing, JobStatus } from '../components/rotor/rotorConstants';
 import RotorFormPanel, { RotorFormData } from '../components/rotor/RotorFormPanel';
 import RotorHistoryTable from '../components/rotor/RotorHistoryTable';
-import RotorWarningDialog, { RotorWarningData } from '../components/rotor/RotorWarningDialog';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+const emptyRotorForm = (): RotorFormData => ({
+  upper_bearing: '', lower_bearing: '',
+  piece_count: '', rotor_dia: '', bearing_span: '', stack_offset: '',
+  oil_seal_dia: '', impeller_dia: '', impeller_span: '', impeller_depth: '',
+  thread_length: '', thread_dia: ''
+});
+
+const bearingFromDia = (value: unknown) => {
+  const dia = Number(value);
+  if (dia === 12) return '6201';
+  if (dia === 15) return '6202';
+  if (dia === 17) return '6203';
+  if (dia === 20) return '6204';
+  if (dia === 25) return '6205';
+  return '';
+};
+
+const asFormValue = (value: unknown) => value === undefined || value === null || value === '' ? '' : String(value);
+
+function formFromFcParams(params: Record<string, unknown>): RotorFormData {
+  return {
+    upper_bearing: asFormValue(params.upper_bearing) || bearingFromDia(params.upper_bearing_dia),
+    lower_bearing: asFormValue(params.lower_bearing) || bearingFromDia(params.lower_bearing_dia),
+    piece_count: asFormValue(params.piece_count),
+    rotor_dia: asFormValue(params.rotor_dia),
+    bearing_span: asFormValue(params.bearing_span),
+    stack_offset: asFormValue(params.stack_offset),
+    oil_seal_dia: asFormValue(params.oil_seal_dia),
+    impeller_dia: asFormValue(params.impeller_dia),
+    impeller_span: asFormValue(params.impeller_span) || asFormValue(params.bearing_to_impeller),
+    impeller_depth: asFormValue(params.impeller_depth),
+    thread_length: asFormValue(params.thread_length),
+    thread_dia: asFormValue(params.thread_dia),
+  };
+}
+
+function sanitizeDownloadName(value: string) {
+  return `${(value || '转子图纸').trim().replace(/[\\/:*?"<>|]/g, '_') || '转子图纸'}.pdf`;
+}
+
+function parseHistoryParams(row: any): Record<string, unknown> {
+  try {
+    return JSON.parse(row.fc_params_json || '{}');
+  } catch {
+    return {};
+  }
+}
+
 export default function RotorDrawingPage() {
-  const [nlInput, setNlInput] = useState('');
   const [nlLoading, setNlLoading] = useState(false);
-  const [formMode, setFormMode] = useState(false);
-  const [form, setForm] = useState<RotorFormData>({
-    upper_bearing: '', lower_bearing: '',
-    piece_count: '', rotor_dia: '', bearing_span: '', stack_offset: '',
-    oil_seal_dia: '', impeller_dia: '', impeller_span: '', impeller_depth: '',
-    thread_length: '', thread_dia: ''
-  });
+  const [form, setForm] = useState<RotorFormData>(emptyRotorForm);
+  const [drawingName, setDrawingName] = useState('');
 
   const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
   const [allParts, setAllParts] = useState<Part[]>([]);
@@ -45,13 +85,10 @@ export default function RotorDrawingPage() {
   const [ssMeta, setSsMeta] = useState<PumpShellMeta | null>(null);
   const [ssBarrelLength, setSsBarrelLength] = useState('');
 
-  const [warning, setWarning] = useState<RotorWarningData | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState('');
-  const [extracted, setExtracted] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [supplements, setSupplements] = useState<Record<string, string>>({});
   const [printing, setPrinting] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
@@ -61,10 +98,6 @@ export default function RotorDrawingPage() {
   const [linking, setLinking] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastSubmittedMessage = useRef<string>('');
-
-  const isFollowUpRotorEdit = (message: string) =>
-    !!extracted && /(同样|一样|其他不变|其它不变|不变|改成|改为|修改|调整|换成|变成)/.test(message);
 
   useEffect(() => {
     getAllTemplates().then(setTemplates).catch(() => {});
@@ -77,12 +110,7 @@ export default function RotorDrawingPage() {
     setSsBarrelLength('');
     if (!tpl) { setTemplateHint(''); return; }
 
-    const newForm: RotorFormData = {
-      upper_bearing: '', lower_bearing: '',
-      piece_count: '', rotor_dia: '', bearing_span: '', stack_offset: '',
-      oil_seal_dia: '', impeller_dia: '', impeller_span: '', impeller_depth: '',
-      thread_length: '', thread_dia: ''
-    };
+    const newForm: RotorFormData = emptyRotorForm();
     const hints: string[] = [];
 
     try {
@@ -125,12 +153,11 @@ export default function RotorDrawingPage() {
           if (!newForm.thread_length && meta.defaultThreadLength != null) { newForm.thread_length = String(meta.defaultThreadLength); hints.push(`预设螺丝长度${meta.defaultThreadLength}mm`); }
           if (!newForm.thread_dia && meta.defaultThreadDia != null) { newForm.thread_dia = String(meta.defaultThreadDia); hints.push(`预设螺纹直径${meta.defaultThreadDia}mm`); }
           if (!newForm.stack_offset && meta.defaultStackOffset != null) { newForm.stack_offset = String(meta.defaultStackOffset); hints.push(`预设定位${meta.defaultStackOffset}mm`); }
-        } catch { /* */ }
+        } catch { /* ignore invalid shell metadata */ }
       }
-    } catch { /* */ }
+    } catch { /* ignore invalid template json */ }
 
     setForm(prev => ({ ...prev, ...newForm }));
-    setFormMode(true);
     setTemplateHint(hints.length > 0 ? `已从 ${tpl.shellModel} 模板自动带入：${hints.join('、')}` : '');
   }, [allParts]);
 
@@ -148,7 +175,7 @@ export default function RotorDrawingPage() {
     try {
       const res = await proxyRequest<any[] | { success: boolean; data: any[] }>('/api/rotor/history');
       setHistory(Array.isArray(res) ? res : res.data);
-    } catch { /* */ }
+    } catch { /* ignore history refresh errors */ }
   }, []);
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
@@ -156,7 +183,7 @@ export default function RotorDrawingPage() {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
-    setJobStatus({ status: 'processing' });
+    setJobStatus({ status: 'processing', drawingName });
 
     pollRef.current = setInterval(async () => {
       try {
@@ -168,7 +195,7 @@ export default function RotorDrawingPage() {
             const histData = await histRes.json();
             const rows = Array.isArray(histData) ? histData : histData.data || [];
             const found = rows.find((r: any) => r.job_id === jobId);
-            if (found) setJobStatus({ status: found.status, fileUrl: found.file_url, error: found.error });
+            if (found) setJobStatus({ status: found.status, fileUrl: found.file_url, error: found.error, drawingName: found.drawing_name });
             else setJobStatus({ status: 'failed', error: '任务已过期，未找到记录' });
           }
           loadHistory();
@@ -181,103 +208,58 @@ export default function RotorDrawingPage() {
           if (pollRef.current) clearInterval(pollRef.current);
           loadHistory();
         }
-      } catch (e) {
-        // ...
+      } catch {
+        // Keep polling while the backend is busy.
       }
     }, 2000);
 
     return () => { cancelled = true; if (pollRef.current) clearInterval(pollRef.current); };
-  }, [jobId, loadHistory]);
+  }, [jobId, loadHistory, drawingName]);
 
-  const submitChat = useCallback(async (message: string, force = false, sups?: Record<string, number>) => {
-    setError(''); setNlLoading(true); setJobId(null); setJobStatus(null);
-    lastSubmittedMessage.current = message;
+  const handleFormSubmit = async () => {
+    const hasAnyParam = Object.values(form).some(value => String(value || '').trim() !== '');
+    if (!hasAnyParam) { setError('请至少填写一项参数'); return; }
+
+    setError('');
+    setNlLoading(true);
+    setJobId(null);
+    setJobStatus(null);
 
     try {
-      const body: any = { message, force };
-      if (sups && Object.keys(sups).length > 0) body.supplements = sups;
-      if (isFollowUpRotorEdit(message)) body.baseParams = extracted;
-      const data = await proxyRequest<any>('/api/rotor/chat', {
+      const body = { ...form, drawingName: drawingName.trim() };
+      const data = await proxyRequest<any>('/api/rotor/draw', {
         method: 'POST',
         body: JSON.stringify(body)
       });
-
-      if (data.status === 'warning') {
-        setWarning({ missing_length: data.missing_length, stator_clearance: data.stator_clearance, extracted: data.extracted });
-        setExtracted(data.extracted);
-      } else if (data.status === 'success') {
-        setJobId(data.jobId); setExtracted(data.extracted); setWarning(null);
+      if (data.status === 'success') {
+        setJobId(data.jobId);
+        setJobStatus({ status: 'processing', drawingName: data.drawingName || drawingName.trim() });
         setTimeout(loadHistory, 2000);
-      } else if (data.status === 'need_params') {
-        setError('参数不足: ' + data.message); setExtracted(data.extracted);
-      } else if (data.status === 'error') {
-        setError(data.message);
+      } else {
+        setError(data.message || '出图任务启动失败');
       }
     } catch (e: any) {
       setError('请求失败: ' + e.message);
     } finally {
       setNlLoading(false);
     }
-  }, [loadHistory, extracted]);
-
-  const handleNlSubmit = () => {
-    if (!nlInput.trim()) return;
-    let fullMessage = nlInput;
-
-    fullMessage = fullMessage.replace(/(\d+\.?\d*)-(\d+)/g, (_match, spec, pieces) => {
-      const rotorDia = STATOR_TO_ROTOR[spec];
-      if (rotorDia) return `转子直径${rotorDia}，转子片数${pieces}片`;
-      return _match;
-    });
-
-    if (selectedTemplate) {
-      const prefixParts: string[] = [];
-      if (form.upper_bearing) prefixParts.push(`上轴承${form.upper_bearing.replace(/^6/, '')}`);
-      if (form.lower_bearing) prefixParts.push(`下轴承${form.lower_bearing.replace(/^6/, '')}`);
-      if (form.oil_seal_dia) prefixParts.push(`油封孔径${form.oil_seal_dia}`);
-      if (form.bearing_span) prefixParts.push(`开档${form.bearing_span}`);
-      if (prefixParts.length > 0) fullMessage = prefixParts.join('，') + '，' + fullMessage;
-    }
-    submitChat(fullMessage);
-  };
-
-  const handleWarningConfirm = () => {
-    const sups: Record<string, number> = {};
-    if (warning?.missing_length) {
-      for (const [k, v] of Object.entries(supplements)) {
-        const num = parseFloat(v);
-        if (!isNaN(num) && num > 0) sups[k] = num;
-      }
-    }
-    setWarning(null); setSupplements({});
-    submitChat(lastSubmittedMessage.current || nlInput, true, sups);
-  };
-
-  const handleWarningCancel = () => {
-    setWarning(null); setError('已取消。请调整 定位(stack_offset) 后重试。');
-  };
-
-  const handleFormSubmit = () => {
-    const parts: string[] = [];
-    if (form.upper_bearing) parts.push(`上轴承${form.upper_bearing.replace(/^6/, '')}`);
-    if (form.lower_bearing) parts.push(`下轴承${form.lower_bearing.replace(/^6/, '')}`);
-    if (form.piece_count) parts.push(`转子片数${form.piece_count}片`);
-    if (form.rotor_dia) parts.push(`转子直径${form.rotor_dia}`);
-    if (form.bearing_span) parts.push(`开档${form.bearing_span}`);
-    if (form.stack_offset) parts.push(`定位${form.stack_offset}`);
-    if (form.oil_seal_dia) parts.push(`油封孔径${form.oil_seal_dia}`);
-    if (form.impeller_dia) parts.push(`叶轮孔径${form.impeller_dia}`);
-    if (form.impeller_span) parts.push(`叶轮开档${form.impeller_span}`);
-    if (form.impeller_depth) parts.push(`叶轮厚度${form.impeller_depth}`);
-    if (form.thread_length) parts.push(`螺丝长度${form.thread_length}`);
-    if (form.thread_dia) parts.push(`螺纹直径${form.thread_dia}`);
-
-    if (parts.length === 0) { setError('请至少填写一项参数'); return; }
-    const msg = parts.join('，');
-    setNlInput(msg); submitChat(msg);
   };
 
   const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+
+  const reuseParamsFromRow = useCallback((row: any) => {
+    const nextForm = formFromFcParams(parseHistoryParams(row));
+    setForm(prev => ({ ...prev, ...nextForm }));
+    if (row.drawing_name) setDrawingName(`${row.drawing_name}-复用`);
+    setSnackbar({ open: true, message: '已复用历史图纸参数', severity: 'success' });
+  }, []);
+
+  const latestReusableRow = history.find(row => row.fc_params_json);
+
+  const handleReuseLatest = useCallback(() => {
+    if (!latestReusableRow) return;
+    reuseParamsFromRow(latestReusableRow);
+  }, [latestReusableRow, reuseParamsFromRow]);
 
   const handlePrint = useCallback(async (targetJobId: string) => {
     setPrinting(true);
@@ -325,9 +307,8 @@ export default function RotorDrawingPage() {
 
   return (
     <Box sx={{ maxWidth: { xs: '100%', lg: 1100 }, margin: '0 auto', pb: 6 }}>
-      <PageHeader title="转子出图系统" subtitle="自然语言或表单填参，自动生成转子工程图纸" />
+      <PageHeader title="转子出图系统" subtitle="填写参数后自动生成转子工程图纸" />
 
-      {/* ── 泵壳模板关联 ── */}
       <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, bgcolor: 'background.default' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <LinkIcon size={18} color="#2563eb" />
@@ -371,7 +352,7 @@ export default function RotorDrawingPage() {
                 />
                 {ssBarrelLength && (ssMeta.openOffset != null || ssMeta.openFactor != null) && (
                   <Typography variant="body2" color="text.secondary">
-                    → 开档自动计算: 
+                    开档自动计算:
                     <Typography component="span" fontWeight={700} color="primary.main" sx={{ mx: 0.5 }}>
                       {(Number(ssBarrelLength) - (ssMeta.openOffset ?? ssMeta.openFactor ?? 0)).toFixed(1)}
                     </Typography>
@@ -383,45 +364,33 @@ export default function RotorDrawingPage() {
           </Box>
         )}
       </Paper>
+
       {templateHint && <Alert severity="info" sx={{ mb: 2 }} onClose={() => setTemplateHint('')}>{templateHint}</Alert>}
 
-      <Box sx={{ mb: 3, display: 'flex', gap: 1 }}>
-        <Chip label="语音/文字指令" color={!formMode ? 'primary' : 'default'} onClick={() => setFormMode(false)} />
-        <Chip label="表单填参" color={formMode ? 'primary' : 'default'} onClick={() => setFormMode(true)} />
-      </Box>
+      <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            label="图纸名称"
+            value={drawingName}
+            onChange={(e) => setDrawingName(e.target.value)}
+            placeholder="例如 V750转子-160片"
+            sx={{ flex: '1 1 280px' }}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<CopyIcon size={18} />}
+            disabled={!latestReusableRow}
+            onClick={handleReuseLatest}
+          >
+            复用上一张参数
+          </Button>
+        </Box>
+      </Paper>
 
-      {/* ── 自然语言输入 ── */}
-      {!formMode && (
-        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
-            用自然语言描述转子参数，例如："上轴承202，下轴承203，转子片数160片，定位30，开档150"
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField fullWidth value={nlInput} onChange={e => setNlInput(e.target.value)} placeholder="请输入转子参数..."
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleNlSubmit(); } }} disabled={nlLoading} />
-            <Button variant="contained" onClick={handleNlSubmit} disabled={nlLoading || !nlInput.trim()}
-              startIcon={nlLoading ? <CircularProgress size={20} /> : <SendIcon size={20} />}>出图</Button>
-          </Box>
-        </Paper>
-      )}
-
-      {/* ── 表单输入 ── */}
-      {formMode && (
-        <RotorFormPanel form={form} updateForm={updateForm} onSubmit={handleFormSubmit} loading={nlLoading} hasWarning={!!warning} />
-      )}
+      <RotorFormPanel form={form} updateForm={updateForm} onSubmit={handleFormSubmit} loading={nlLoading} hasWarning={false} />
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-
-      {extracted && (
-        <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, bgcolor: 'action.hover' }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>AI 提取参数:</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {Object.entries(extracted).filter(([k, v]) => v != null && k !== 'reply').map(([k, v]) => (
-              <Chip key={k} label={`${k}: ${v}`} size="small" variant="outlined" />
-            ))}
-          </Box>
-        </Paper>
-      )}
 
       {jobStatus && (
         <Paper elevation={0} sx={{ p: 3, mb: 2, borderRadius: 3 }}>
@@ -439,8 +408,15 @@ export default function RotorDrawingPage() {
             <Box>
               <Alert severity="success" icon={<CheckIcon size={24} />} sx={{ mb: 2 }}>转子图纸生成完成！</Alert>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button variant="contained" color="success" startIcon={<PdfIcon size={20} />}
-                  href={`${API_BASE}${jobStatus.fileUrl}`} target="_blank">下载 PDF 图纸</Button>
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<PdfIcon size={20} />}
+                  href={`${API_BASE}${jobStatus.fileUrl}`}
+                  download={sanitizeDownloadName(jobStatus.drawingName || drawingName)}
+                >
+                  下载 PDF 图纸
+                </Button>
                 <Button variant="contained" color="primary" startIcon={printing ? <CircularProgress size={20} color="inherit" /> : <PrintIcon size={20} />}
                   disabled={printing || !jobId} onClick={() => jobId && handlePrint(jobId)}>{printing ? '发送中...' : '打印图纸'}</Button>
               </Box>
@@ -450,16 +426,21 @@ export default function RotorDrawingPage() {
         </Paper>
       )}
 
-      {/* ── 历史及弹窗 ── */}
-      <RotorHistoryTable history={history} loadHistory={loadHistory} handlePrint={handlePrint} printing={printing} API_BASE={API_BASE} onLinkClick={handleLinkClick} linking={linking} />
-
-      <RotorWarningDialog warning={warning} supplements={supplements} setSupplements={setSupplements} onConfirm={handleWarningConfirm} onCancel={handleWarningCancel} />
+      <RotorHistoryTable
+        history={history}
+        loadHistory={loadHistory}
+        handlePrint={handlePrint}
+        printing={printing}
+        API_BASE={API_BASE}
+        onLinkClick={handleLinkClick}
+        linking={linking}
+        onReuseParams={reuseParamsFromRow}
+      />
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>{snackbar.message}</Alert>
       </Snackbar>
 
-      {/* ── 关联订单型号弹窗 ── */}
       <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <LinkIcon size={20} color="#2563eb" />
@@ -485,7 +466,7 @@ export default function RotorDrawingPage() {
                   </ListItemIcon>
                   <ListItemText
                     primary={m.recipeName + (m.spec ? ` (${m.spec})` : '')}
-                    secondary={`订单#${m.orderId} — ${m.customerName}${m.contractNo ? ' / ' + m.contractNo : ''}`}
+                    secondary={`订单#${m.orderId} - ${m.customerName}${m.contractNo ? ' / ' + m.contractNo : ''}`}
                     primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
                     secondaryTypographyProps={{ fontSize: '0.75rem' }}
                   />

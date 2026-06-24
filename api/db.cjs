@@ -81,6 +81,7 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS rotor_drawings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         job_id TEXT NOT NULL UNIQUE,
+        drawing_name TEXT DEFAULT '',
         nl_input TEXT DEFAULT '',
         params_json TEXT DEFAULT '{}',
         fc_params_json TEXT DEFAULT '{}',
@@ -245,6 +246,7 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_cost REAL DEFA
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN long_screw_extra_length REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN drawing_name TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
 try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
 

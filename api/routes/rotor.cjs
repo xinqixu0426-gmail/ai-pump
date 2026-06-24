@@ -14,6 +14,16 @@ function updateRotorJob(jobId, updates) {
     safeUpdate('rotor_drawings', row.id, updates);
 }
 
+function normalizeDrawingName(value, fallback = '') {
+    const raw = String(value || '').trim();
+    const name = raw || fallback;
+    return name
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+}
+
 const os = require('os');
 const FREECAD_BIN = process.env.FREECAD_BIN || (os.platform() === 'darwin' ? '/Applications/FreeCAD.app/Contents/MacOS/FreeCAD' : 'C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe');
 const WORKER_SCRIPT = path.join(__dirname, '../../freecad/worker.py');
@@ -149,7 +159,7 @@ setInterval(() => {
 }, 30000);
 
 // ── 共享：启动 FreeCAD 出图任务 ──
-function launchDrawJob(fcParams, source, res) {
+function launchDrawJob(fcParams, source, res, drawingName = '') {
     if (runningJobs >= MAX_CONCURRENT_FREECAD) {
         res.status(429).json({ status: 'error', message: '出图队列已满（最多 ' + MAX_CONCURRENT_FREECAD + ' 个并发），请稍后再试' });
         return null;
@@ -157,14 +167,15 @@ function launchDrawJob(fcParams, source, res) {
 
     const jobId = crypto.randomUUID();
     const outputFile = 'output_' + jobId + '.pdf';
-    activeJobs.set(jobId, { status: 'processing' });
+    const normalizedDrawingName = normalizeDrawingName(drawingName);
+    activeJobs.set(jobId, { status: 'processing', drawingName: normalizedDrawingName });
     runningJobs++;
 
     const now = new Date().toISOString();
     try {
-        db.prepare(`INSERT INTO rotor_drawings (job_id, nl_input, params_json, fc_params_json, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'processing', ?, ?)`)
-            .run(jobId, source, JSON.stringify(fcParams), JSON.stringify(fcParams), now, now);
+        db.prepare(`INSERT INTO rotor_drawings (job_id, drawing_name, nl_input, params_json, fc_params_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)`)
+            .run(jobId, normalizedDrawingName, source, JSON.stringify(fcParams), JSON.stringify(fcParams), now, now);
     } catch (dbErr) {
         console.error('[Rotor] DB insert error:', dbErr.message);
     }
@@ -180,7 +191,7 @@ function launchDrawJob(fcParams, source, res) {
 
         if (error) {
             console.error('[Rotor] 💥 渲染异常:', error.message);
-            activeJobs.set(jobId, { status: 'failed', error: error.message, doneAt: Date.now() });
+            activeJobs.set(jobId, { status: 'failed', error: error.message, drawingName: normalizedDrawingName, doneAt: Date.now() });
             try { updateRotorJob(jobId, { status: 'failed', error: error.message }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             return;
         }
@@ -198,14 +209,14 @@ function launchDrawJob(fcParams, source, res) {
                 if (fs.existsSync(srcWork)) try { fs.unlinkSync(srcWork); } catch(_){}
                 const fileUrl = '/drawings/' + outputFile;
                 console.log('[Rotor] ✅ PDF 已移至: ' + destPdf);
-                activeJobs.set(jobId, { status: 'success', fileUrl, doneAt: Date.now() });
+                activeJobs.set(jobId, { status: 'success', fileUrl, drawingName: normalizedDrawingName, doneAt: Date.now() });
                 try { updateRotorJob(jobId, { status: 'success', file_url: fileUrl }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             } else {
-                activeJobs.set(jobId, { status: 'failed', error: '未找到 output PDF', doneAt: Date.now() });
+                activeJobs.set(jobId, { status: 'failed', error: '未找到 output PDF', drawingName: normalizedDrawingName, doneAt: Date.now() });
                 try { updateRotorJob(jobId, { status: 'failed', error: '未找到 output PDF' }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
             }
         } catch (mvErr) {
-            activeJobs.set(jobId, { status: 'failed', error: '移动PDF失败: ' + mvErr.message, doneAt: Date.now() });
+            activeJobs.set(jobId, { status: 'failed', error: '移动PDF失败: ' + mvErr.message, drawingName: normalizedDrawingName, doneAt: Date.now() });
             try { updateRotorJob(jobId, { status: 'failed', error: mvErr.message }); } catch(e){ console.error('[Rotor] DB update error:', e.message); }
         }
     });
@@ -313,13 +324,15 @@ router.post('/draw', (req, res) => {
             return res.status(400).json({ status: 'error', message: '未提取到有效参数' });
         }
 
-        const jobId = launchDrawJob(fcParams, '[API] ' + JSON.stringify(params), res);
+        const drawingName = normalizeDrawingName(params.drawingName ?? params.drawing_name);
+        const jobId = launchDrawJob(fcParams, '[API] ' + JSON.stringify(params), res, drawingName);
         if (!jobId) return;
 
         return res.json({
             status: 'success',
             message: '出图任务已启动',
             jobId,
+            drawingName,
             params: fcParams
         });
     } catch (e) {
@@ -334,6 +347,7 @@ router.post('/draw', (req, res) => {
 router.post('/chat', async (req, res) => {
     try {
         const { message, force, supplements, baseParams } = req.body;
+        const drawingName = normalizeDrawingName(req.body.drawingName ?? req.body.drawing_name);
         if (!message) return res.status(400).json({ status: 'error', message: '缺少 message 字段' });
 
         if (!DEEPSEEK_API_KEY) {
@@ -444,13 +458,14 @@ router.post('/chat', async (req, res) => {
         }
 
         // 5. 启动出图
-        const jobId = launchDrawJob(fcParams, message, res);
+        const jobId = launchDrawJob(fcParams, message, res, drawingName);
         if (!jobId) return;
 
         return res.json({
             status: 'success',
             message: '已收到指令，正在后台为您生成转子图纸...',
             jobId,
+            drawingName,
             extracted: parsed
         });
 
@@ -476,6 +491,25 @@ router.get('/history', (req, res) => {
     try {
         const rows = db.prepare('SELECT * FROM rotor_drawings ORDER BY created_at DESC LIMIT 100').all();
         res.json({ success: true, data: rows });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// PATCH /history/:id/name — 重命名图纸
+router.patch('/history/:id/name', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success: false, error: '非法记录ID' });
+        const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(id);
+        if (!row) return res.status(404).json({ success: false, error: '记录不存在' });
+        const drawingName = normalizeDrawingName(req.body.drawingName ?? req.body.drawing_name);
+        safeUpdate('rotor_drawings', id, { drawing_name: drawingName });
+        if (row.job_id && activeJobs.has(row.job_id)) {
+            const job = activeJobs.get(row.job_id);
+            activeJobs.set(row.job_id, { ...job, drawingName });
+        }
+        res.json({ success: true, data: { drawingName } });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }

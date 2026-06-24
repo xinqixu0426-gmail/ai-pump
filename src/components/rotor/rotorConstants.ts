@@ -27,5 +27,6 @@ export function normalizeBearing(raw: string): string {
 export interface JobStatus {
   status: 'processing' | 'success' | 'failed';
   fileUrl?: string;
+  drawingName?: string;
   error?: string;
 }

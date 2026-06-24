@@ -1,6 +1,7 @@
 import {
   Box, Paper, Typography, IconButton, Tooltip, Chip,
-  Table, TableHead, TableBody, TableRow, TableCell, TableContainer
+  Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, CircularProgress
 } from '@mui/material';
 import {
   Clock as HistoryIcon,
@@ -8,8 +9,11 @@ import {
   Trash2 as DeleteIcon,
   FileDown as PdfIcon,
   Printer as PrintIcon,
-  Link2 as LinkIcon
+  Link2 as LinkIcon,
+  Copy as CopyIcon,
+  Edit3 as RenameIcon
 } from 'lucide-react';
+import { useState } from 'react';
 import { proxyRequest } from '../../utils/api';
 
 interface RotorHistoryTableProps {
@@ -20,6 +24,7 @@ interface RotorHistoryTableProps {
   API_BASE: string;
   onLinkClick: (row: any) => void;
   linking: boolean;
+  onReuseParams: (row: any) => void;
 }
 
 const PARAM_LABELS: Record<string, string> = {
@@ -78,10 +83,39 @@ function fullParamText(params: Record<string, unknown>) {
     .join('，');
 }
 
+function sanitizePdfName(value: string) {
+  const clean = String(value || '').trim().replace(/[\\/:*?"<>|]/g, '_');
+  return `${clean || '转子图纸'}.pdf`;
+}
+
 export default function RotorHistoryTable({
-  history, loadHistory, handlePrint, printing, API_BASE, onLinkClick, linking
+  history, loadHistory, handlePrint, printing, API_BASE, onLinkClick, linking, onReuseParams
 }: RotorHistoryTableProps) {
+  const [renameRow, setRenameRow] = useState<any>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
+
   if (history.length === 0) return null;
+
+  const openRename = (row: any) => {
+    setRenameRow(row);
+    setRenameValue(row.drawing_name || '');
+  };
+
+  const submitRename = async () => {
+    if (!renameRow) return;
+    setRenaming(true);
+    try {
+      await proxyRequest(`/api/rotor/history/${renameRow.id}/name`, {
+        method: 'PATCH',
+        body: JSON.stringify({ drawingName: renameValue.trim() })
+      });
+      await loadHistory();
+      setRenameRow(null);
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   return (
     <Paper elevation={0} sx={{ p: 2, mt: 3, borderRadius: 3 }}>
@@ -95,7 +129,7 @@ export default function RotorHistoryTable({
           <TableHead>
             <TableRow>
               <TableCell>时间</TableCell>
-              <TableCell>指令</TableCell>
+              <TableCell>图纸名称</TableCell>
               <TableCell>参数</TableCell>
               <TableCell>关联型号</TableCell>
               <TableCell>状态</TableCell>
@@ -114,11 +148,9 @@ export default function RotorHistoryTable({
                     {row.created_at ? new Date(row.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                   </TableCell>
                   <TableCell>
-                    <Tooltip title={row.nl_input || ''}>
-                      <Typography variant="body2" sx={{ maxWidth: 250, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.8rem' }}>
-                        {row.nl_input || '-'}
-                      </Typography>
-                    </Tooltip>
+                    <Typography variant="body2" sx={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: row.drawing_name ? 700 : 400 }}>
+                      {row.drawing_name || '-'}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: 360 }}>
@@ -148,10 +180,25 @@ export default function RotorHistoryTable({
                   <TableCell align="right">
                     {row.status === 'success' && row.file_url && (
                       <>
+                        <Tooltip title="复用参数">
+                          <IconButton size="small" color="primary"
+                            aria-label="复用参数"
+                            onClick={() => onReuseParams(row)}>
+                            <CopyIcon size={18} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="重命名图纸">
+                          <IconButton size="small" color="primary"
+                            aria-label="重命名图纸"
+                            onClick={() => openRename(row)}>
+                            <RenameIcon size={18} />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="下载 PDF">
                           <IconButton size="small" color="primary" component="a"
                             aria-label="下载 PDF"
-                            href={`${API_BASE}${row.file_url}`} target="_blank">
+                            href={`${API_BASE}${row.file_url}`}
+                            download={sanitizePdfName(row.drawing_name)}>
                             <PdfIcon size={18} />
                           </IconButton>
                         </Tooltip>
@@ -185,6 +232,24 @@ export default function RotorHistoryTable({
           </TableBody>
         </Table>
       </TableContainer>
+      <Dialog open={!!renameRow} onClose={() => setRenameRow(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>重命名图纸</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField
+            fullWidth
+            autoFocus
+            label="图纸名称"
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            placeholder="例如 V750转子-160片"
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenameRow(null)} disabled={renaming}>取消</Button>
+          <Button variant="contained" onClick={submitRename} disabled={renaming} startIcon={renaming ? <CircularProgress size={16} /> : undefined}>保存</Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
