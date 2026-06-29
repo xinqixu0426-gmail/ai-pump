@@ -4,6 +4,7 @@
 const path = require('path');
 const Database = require('better-sqlite3');
 const { createLogger } = require('./logger.cjs');
+const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./services/costEngine.cjs');
 const backupLogger = createLogger('backup');
 
 // ── SQLite 初始化 ──
@@ -383,109 +384,9 @@ function extractPartFields(body) {
     };
 }
 
-function parseCableAccessoryFee(notes, accessoryType = 'standard') {
-    if (!notes) return null;
-    try {
-        const meta = JSON.parse(notes);
-        const typedFee = Number(meta?.cableAccessoryFees?.[accessoryType]);
-        if (Number.isFinite(typedFee) && typedFee >= 0) return typedFee;
-        const fee = Number(meta?.cableAccessoryFee);
-        return Number.isFinite(fee) && fee >= 0 ? fee : null;
-    } catch {
-        return null;
-    }
-}
-
-function getGlobalCableAccessory(accessoryType = 'standard') {
-    try {
-        const config = JSON.parse(getSetting('cable_accessories') || '{}')?.[accessoryType];
-        const fee = Number(config?.fee);
-        return {
-            name: typeof config?.name === 'string' && config.name.trim()
-                ? config.name.trim()
-                : (accessoryType === 'xinjie' ? '新界式' : '普通铜套'),
-            fee: Number.isFinite(fee) && fee >= 0 ? fee : null,
-        };
-    } catch {
-        return { name: accessoryType === 'xinjie' ? '新界式' : '普通铜套', fee: null };
-    }
-}
-
-function getCableAccessoryFee(partsByModel, cableModel, supplier, accessoryType = 'standard') {
-    const globalAccessory = getGlobalCableAccessory(accessoryType);
-    if (globalAccessory.fee != null) return globalAccessory.fee;
-    const suppliers = partsByModel[cableModel] || [];
-    const normalizedSupplier = String(supplier || '').trim();
-    const match = suppliers.find(s => String(s.supplier || '').trim() === normalizedSupplier);
-    const matchedFee = parseCableAccessoryFee(match?.notes, accessoryType);
-    if (match && normalizedSupplier && matchedFee != null) return matchedFee;
-    if (suppliers.length > 0) {
-        const fallback = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]);
-        const fallbackFee = parseCableAccessoryFee(fallback?.notes, accessoryType);
-        if (fallbackFee != null) return fallbackFee;
-    }
-    const legacy = partsByModel['电缆配件费'] || [];
-    if (legacy.length === 0) return 0;
-    return legacy.reduce((min, c) => c.price < min.price ? c : min, legacy[0]).price;
-}
-
-function isCableAccessoryPart(part) {
-    const model = String(part?.model || '');
-    const name = String(part?.name || '');
-    return model === '电缆配件费' || name.includes('电缆接头配件');
-}
-
-function findCablePart(parts) {
-    return parts.find(part => String(part?.model || '').startsWith('电缆-') || String(part?.name || '').includes('电缆线'));
-}
-
-function getFloatAccessoryDelta(accessoryType = 'standard') {
-    if (accessoryType !== 'xinjie') return 0;
-    const delta = Number(getSetting('float_accessory_delta'));
-    return Number.isFinite(delta) && delta >= 0 ? delta : 0;
-}
-
-function isFloatPart(part) {
-    const model = String(part?.model || '');
-    const name = String(part?.name || '');
-    return model.startsWith('浮球-') || name === '浮球';
-}
-
-
-
-// ⚠️ SYNC REQUIRED: 本组成本计算逻辑必须与 src/utils/costCalculator.ts 中的主逻辑保持高度一致！
-// 若修改了精确匹配/回退机制，请务必同步修改前端代码。
+// 兼容导出：成本计算本体位于 api/services/costEngine.cjs。
 function calculateRecipeCost(parts, partsCache, partsByModel) {
-    let totalCost = 0;
-    const details = [];
-    const missingParts = [];
-    parts.forEach(p => {
-        const suppliers = partsByModel[p.model] || [];
-        const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
-        let price = 0, source = '';
-        if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = p.costSource === 'manual' ? '手动估算价' : '模板手动价'; }
-        else if (isCableAccessoryPart(p)) {
-            const cablePart = findCablePart(parts);
-            price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', p.cableAccessoryType);
-            source = '电缆线配件费';
-        }
-        else if (isFloatPart(p)) {
-            if (match && p.supplier) { price = match.price; source = '精确匹配'; }
-            else if (suppliers.length > 0) { const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]); price = fb.price; source = '型号回退(取最低价)'; }
-            else if (p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '快照价格'; }
-            else { missingParts.push(p.model); source = '未找到'; }
-            if (source !== '快照价格') price += getFloatAccessoryDelta(p.floatAccessoryType);
-            if (p.floatAccessoryType === 'xinjie') source += '+新界式';
-        }
-        else if (match && p.supplier) { price = match.price; source = '精确匹配'; }
-        else if (suppliers.length > 0) { const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]); price = fb.price; source = '型号回退(取最低价)'; }
-        else if ((p.name === '线圈转子' || p.name === '电容') && p.snapshotPrice !== undefined) { price = p.snapshotPrice; source = '快照价格'; }
-        else { missingParts.push(p.model); source = '未找到'; }
-        const subtotal = price * p.qty;
-        totalCost += subtotal;
-        details.push({ name: p.name || p.model, model: p.model, supplier: p.supplier || '-', price: parseFloat(price).toFixed(2), qty: p.qty, subtotal: subtotal.toFixed(2), source });
-    });
-    return { totalCost: totalCost.toFixed(2), itemCount: parts.length, details, missingParts };
+    return calculateRecipeCostFromEngine(parts, partsCache, partsByModel, { getSetting });
 }
 
 function getSetting(key) {
@@ -587,9 +488,10 @@ function loadPartsData() {
         const price = record.price || 0;
         const supplier = record.supplier || '-';
         const notes = record.remark || '';
-        partsCache[model] = { price, supplier, category: record.category || '其他', notes };
+        const category = record.category || '其他';
+        partsCache[model] = { price, supplier, category, notes };
         if (!partsByModel[model]) partsByModel[model] = [];
-        partsByModel[model].push({ id: record.id, supplier, price, notes });
+        partsByModel[model].push({ id: record.id, model, category, supplier, price, notes });
     });
     _partsDataCache = { partsCache, partsByModel };
     _partsDataCacheTime = now;

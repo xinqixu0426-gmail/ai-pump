@@ -4,17 +4,26 @@ import {
   Paper, Box, Button, Stepper, Step, StepLabel, Alert, CircularProgress,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, ArrowRight as NextIcon } from 'lucide-react';
-import { Recipe, RecipePart } from '../types';
+import { PurchaseItem, Recipe, TodoItem } from '../types';
 import { useAppStore } from '../utils/store';
-import { calculateCost } from '../utils/api';
+import { calculateCost, generatePurchasePlan } from '../utils/api';
 import {
-  createEmptyOrder, createOrderItem, buildPurchaseList, buildTodos,
   saveOrder, calcOrderTotals, findHistoryPrice, getOrder, HistoryPrice,
 } from '../utils/orderStore';
+import {
+  DraftOrderItem,
+  buildDraftOrderItem,
+  buildOrderForSubmit,
+  canAdvanceOrderStep,
+  removeDraftOrderItem,
+  updateDraftOrderItemMargin,
+  updateDraftOrderItemPrice,
+  updateDraftOrderItemQty,
+} from '../utils/orderFormRules';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import PageHeader from '../components/PageHeader';
 import OrderBasicInfo from '../components/order/OrderBasicInfo';
-import OrderItemsManager, { DraftItem } from '../components/order/OrderItemsManager';
+import OrderItemsManager from '../components/order/OrderItemsManager';
 import OrderReviewSubmit from '../components/order/OrderReviewSubmit';
 
 const STEPS = ['基本信息', '添加型号 & 定价', '预览采购清单', '确认提交'];
@@ -26,7 +35,7 @@ export default function OrderFormPage() {
   const [activeStep, setActiveStep] = useState(0);
 
   // ── 数据加载 ──────────────────────────
-  const { recipes, parts: allParts, fetchRecipes, fetchParts, showSnackbar } = useAppStore();
+  const { recipes, fetchRecipes, fetchParts, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -69,65 +78,59 @@ export default function OrderFormPage() {
   const [remark, setRemark] = useState('');
 
   // ── Step 2 状态 ──────────────────────
-  const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
+  const [draftItems, setDraftItems] = useState<DraftOrderItem[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [addQty, setAddQty] = useState(1);
   const historyCache = useRef<Map<string, HistoryPrice | null>>(new Map());
 
   const addRecipeToOrder = async () => {
     if (!selectedRecipe) return;
-    const partsJson = selectedRecipe.partsJson;
-    let unitCost = selectedRecipe.savedTotalCost || 0;
-    if (!unitCost) {
-      try {
-        const parts: RecipePart[] = JSON.parse(partsJson);
-        const result = await calculateCost(parts);
-        unitCost = parseFloat(result.totalCost) || 0;
-      } catch { /* ignore */ }
-    }
-    const recipeName = selectedRecipe.name;
-    const item = createOrderItem(recipeName, partsJson, addQty, unitCost, selectedRecipe.Id, selectedRecipe.spec);
-    
-    let history: HistoryPrice | null;
-    if (historyCache.current.has(recipeName)) {
-      history = historyCache.current.get(recipeName)!;
-    } else {
-      history = await findHistoryPrice(recipeName);
-      historyCache.current.set(recipeName, history);
-    }
-    setDraftItems((prev) => [...prev, { ...item, history }]);
+    const item = await buildDraftOrderItem({
+      recipe: selectedRecipe,
+      qty: addQty,
+      calculateCost,
+      findHistoryPrice,
+      historyCache: historyCache.current,
+    });
+    setDraftItems((prev) => [...prev, item]);
     setSelectedRecipe(null);
     setAddQty(1);
   };
 
-  const removeItem = (id: string) => setDraftItems((prev) => prev.filter((i) => i.id !== id));
+  const removeItem = (id: string) => setDraftItems((prev) => removeDraftOrderItem(prev, id));
 
   const updateItemQty = (id: string, qty: number) =>
-    setDraftItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, qty) } : i)));
+    setDraftItems((prev) => updateDraftOrderItemQty(prev, id, qty));
 
   const updateItemMargin = (id: string, margin: number) =>
-    setDraftItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        const profitMargin = Math.max(0.01, margin);
-        const unitPrice = Math.round(i.unitCost * profitMargin * 100) / 100;
-        return { ...i, profitMargin, unitPrice };
-      })
-    );
+    setDraftItems((prev) => updateDraftOrderItemMargin(prev, id, margin));
 
   const updateItemPrice = (id: string, price: number) =>
-    setDraftItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        const unitPrice = Math.max(0, price);
-        const profitMargin = i.unitCost > 0 ? Math.round((unitPrice / i.unitCost) * 100) / 100 : 1;
-        return { ...i, unitPrice, profitMargin };
-      })
-    );
+    setDraftItems((prev) => updateDraftOrderItemPrice(prev, id, price));
 
   // ── Step 3: 采购清单预览 ────
-  const purchaseList = useMemo(() => buildPurchaseList(draftItems, allParts), [draftItems, allParts]);
-  const todos = useMemo(() => buildTodos(purchaseList), [purchaseList]);
+  const [purchaseList, setPurchaseList] = useState<PurchaseItem[]>([]);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (draftItems.length === 0) {
+      setPurchaseList([]);
+      setTodos([]);
+      return;
+    }
+    generatePurchasePlan(draftItems)
+      .then(plan => {
+        if (cancelled) return;
+        setPurchaseList(plan.purchaseList);
+        setTodos(plan.todos);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPurchaseList([]);
+        setTodos([]);
+      });
+    return () => { cancelled = true; };
+  }, [draftItems]);
   const needCount = useMemo(() => purchaseList.filter((p) => p.needToBuy > 0).length, [purchaseList]);
 
   // ── 汇总计算 ─────────────────────────
@@ -143,19 +146,16 @@ export default function OrderFormPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      let order;
-      if (isEdit && editOrderId) {
-        order = createEmptyOrder(customerName, remark || undefined, contractNo || undefined);
-        order.id = editOrderId;
-      } else {
-        order = createEmptyOrder(customerName, remark || undefined, contractNo || undefined);
-      }
-      order.items = draftItems as any;
-      order.purchaseList = purchaseList;
-      order.todos = todos;
-      order.totalCost = orderTotals.totalCost;
-      order.totalPrice = orderTotals.totalPrice;
-      order.totalProfit = orderTotals.totalProfit;
+      const order = buildOrderForSubmit({
+        customerName,
+        contractNo,
+        remark,
+        editOrderId: isEdit ? editOrderId : null,
+        draftItems,
+        purchaseList,
+        todos,
+        orderTotals,
+      });
       await saveOrder(order);
       showSnackbar(isEdit ? '订单已成功更新' : '新订单已创建', 'success');
       navigate('/orders');
@@ -167,9 +167,7 @@ export default function OrderFormPage() {
 
   // ── 步骤验证 ─────────────────────────
   const canNext = () => {
-    if (activeStep === 0) return customerName.trim().length > 0;
-    if (activeStep === 1) return draftItems.length > 0;
-    return true;
+    return canAdvanceOrderStep(activeStep, customerName, draftItems.length);
   };
 
   const recipeOptions = recipes.map((r) => ({

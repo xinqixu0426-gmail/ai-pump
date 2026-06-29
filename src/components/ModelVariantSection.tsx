@@ -8,6 +8,7 @@ import { Edit3 as EditIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide
 import { PumpModelVariant, PumpShellTemplate } from '../types';
 import { createModelVariant, deleteModelVariant, updateModelVariant, proxyRequest } from '../utils/api';
 import { CoilSpecInfo } from './recipe/recipeFormConstants';
+import { DEFAULT_COIL_MATERIAL, DEFAULT_LONG_SCREW_EXTRA_LENGTH, roundLengthToStep } from '../utils/businessRules';
 
 interface Props {
   variants: PumpModelVariant[];
@@ -36,9 +37,9 @@ const emptyForm: FormState = {
   templateId: '',
   coilSpec: '',
   coilSheets: '',
-  coilMaterial: '钢带',
+  coilMaterial: DEFAULT_COIL_MATERIAL,
   barrelLength: '',
-  longScrewExtraLength: '',
+  longScrewExtraLength: String(DEFAULT_LONG_SCREW_EXTRA_LENGTH),
   impellerModel: '',
   impellerThickness: '',
   impellerDiameter: '',
@@ -78,9 +79,9 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
       templateId: variant.templateId ? String(variant.templateId) : '',
       coilSpec: variant.coilSpec || '',
       coilSheets: variant.coilSheets ? String(variant.coilSheets) : '',
-      coilMaterial: variant.coilMaterial || '钢带',
+      coilMaterial: variant.coilMaterial || DEFAULT_COIL_MATERIAL,
       barrelLength: variant.barrelLength ? String(variant.barrelLength) : '',
-      longScrewExtraLength: variant.longScrewExtraLength ? String(variant.longScrewExtraLength) : '',
+      longScrewExtraLength: variant.longScrewExtraLength != null ? String(variant.longScrewExtraLength) : String(DEFAULT_LONG_SCREW_EXTRA_LENGTH),
       impellerModel: variant.impellerModel || '',
       impellerThickness: variant.impellerThickness ? String(variant.impellerThickness) : '',
       impellerDiameter: variant.impellerDiameter ? String(variant.impellerDiameter) : '',
@@ -102,7 +103,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
       templateId: Number(form.templateId),
       coilSpec: form.coilSpec,
       coilSheets: form.coilSheets ? Number(form.coilSheets) : 0,
-      coilMaterial: form.coilMaterial || '钢带',
+      coilMaterial: form.coilMaterial || DEFAULT_COIL_MATERIAL,
       barrelLength: form.barrelLength ? Number(form.barrelLength) : null,
       longScrewExtraLength: form.longScrewExtraLength ? Number(form.longScrewExtraLength) : 0,
       impellerModel: form.impellerModel.trim(),
@@ -135,7 +136,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
   };
 
   const selectedCoil = coilSpecs.find(s => s.spec === form.coilSpec);
-  const materialOptions = selectedCoil?.materials?.length ? selectedCoil.materials : ['钢带'];
+  const materialOptions = selectedCoil?.materials?.length ? selectedCoil.materials : [DEFAULT_COIL_MATERIAL];
 
   return (
     <>
@@ -168,10 +169,10 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                   <TableRow key={v.Id} hover>
                     <TableCell><Typography fontWeight={700}>{v.modelName}</Typography></TableCell>
                     <TableCell>{templateNameById.get(v.templateId) || '-'}</TableCell>
-                    <TableCell>{v.coilSpec ? `${v.coilSpec}-${v.coilSheets || 0} / ${v.coilMaterial || '钢带'}` : '-'}</TableCell>
+                    <TableCell>{v.coilSpec ? `${v.coilSpec}-${v.coilSheets || 0} / ${v.coilMaterial || DEFAULT_COIL_MATERIAL}` : '-'}</TableCell>
                     <TableCell>{v.barrelLength ? `${v.barrelLength} mm` : '-'}</TableCell>
                     <TableCell>
-                      {v.barrelLength ? `机筒 + ${v.longScrewExtraLength || 0} = ${Number(v.barrelLength) + Number(v.longScrewExtraLength || 0)} mm` : '-'}
+                      {v.barrelLength ? `机筒 + ${v.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH} = ${roundLengthToStep(Number(v.barrelLength) + Number(v.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH))} mm` : '-'}
                     </TableCell>
                     <TableCell>
                       {v.impellerModel ? (
@@ -222,7 +223,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
             </FormControl>
             <TextField label="线圈片数" type="number" value={form.coilSheets} onChange={e => updateField('coilSheets', e.target.value)} size="small" />
             <TextField label="机筒长度" type="number" value={form.barrelLength} onChange={e => updateField('barrelLength', e.target.value)} size="small" helperText="mm" />
-            <TextField label="长螺丝固定系数" type="number" value={form.longScrewExtraLength} onChange={e => updateField('longScrewExtraLength', e.target.value)} size="small" helperText="长螺丝长度 = 机筒长度 + 固定系数" />
+            <TextField label="长螺丝补偿长度" type="number" value={form.longScrewExtraLength} onChange={e => updateField('longScrewExtraLength', e.target.value)} size="small" helperText="长螺丝长度 = 机筒长度 + 补偿长度，按 5mm 向上取整" />
             <TextField label="叶轮型号" value={form.impellerModel} onChange={e => updateField('impellerModel', e.target.value)} size="small" placeholder="如 400" />
             <TextField label="叶轮厚度" type="number" value={form.impellerThickness} onChange={e => updateField('impellerThickness', e.target.value)} size="small" helperText="mm" />
             <TextField label="叶轮直径" type="number" value={form.impellerDiameter} onChange={e => updateField('impellerDiameter', e.target.value)} size="small" helperText="mm" />

@@ -24,6 +24,15 @@ import PageHeader from '../components/PageHeader';
 import { useAppStore } from '../utils/store';
 import { createCustomer, updateCustomer, deleteCustomer, deleteQuotation } from '../utils/api';
 import { Customer, CustomerInput } from '../types';
+import {
+  calculateCustomerQuotationStats,
+  customerInputFromCustomer,
+  defaultCustomerInput,
+  quotationCountByCustomer,
+  quotationStatusColor,
+  quotationsForCustomer,
+  updateCustomerDefaultMargin,
+} from '../utils/customerRules';
 
 function getErrorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
@@ -38,7 +47,7 @@ export default function CustomersPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
-  const [form, setForm] = useState<CustomerInput>({ name: '', contactInfo: '', defaultMargin: 0.15, remark: '' });
+  const [form, setForm] = useState<CustomerInput>(defaultCustomerInput());
 
   useEffect(() => {
     fetchCustomers();
@@ -62,18 +71,12 @@ export default function CustomersPage() {
 
   const selectedCustomer = customers.find(c => c.Id === selectedCustomerId) || null;
   const customerQuotations = useMemo(
-    () => quotations.filter(q => q.customerId === selectedCustomerId),
+    () => quotationsForCustomer(quotations, selectedCustomerId),
     [quotations, selectedCustomerId]
   );
+  const quotationCounts = useMemo(() => quotationCountByCustomer(quotations), [quotations]);
 
-  const quotationStats = useMemo(() => {
-    const totalPrice = customerQuotations.reduce((sum, q) => sum + Number(q.totalPrice || 0), 0);
-    const latest = customerQuotations
-      .map(q => (q.CreatedAt ? new Date(q.CreatedAt) : null))
-      .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
-      .sort((a, b) => b.getTime() - a.getTime())[0];
-    return { count: customerQuotations.length, totalPrice, latest };
-  }, [customerQuotations]);
+  const quotationStats = useMemo(() => calculateCustomerQuotationStats(customerQuotations), [customerQuotations]);
 
   const handleSave = async () => {
     try {
@@ -119,15 +122,10 @@ export default function CustomersPage() {
   const openForm = (c?: Customer) => {
     if (c) {
       setEditing(c);
-      setForm({
-        name: c.name,
-        contactInfo: c.contactInfo || '',
-        defaultMargin: c.defaultMargin,
-        remark: c.remark || '',
-      });
+      setForm(customerInputFromCustomer(c));
     } else {
       setEditing(null);
-      setForm({ name: '', contactInfo: '', defaultMargin: 0.15, remark: '' });
+      setForm(defaultCustomerInput());
     }
     setOpen(true);
   };
@@ -157,7 +155,7 @@ export default function CustomersPage() {
             <TableBody>
               {customers.map(c => {
                 const selected = c.Id === selectedCustomerId;
-                const quoteCount = quotations.filter(q => q.customerId === c.Id).length;
+                const quoteCount = quotationCounts.get(c.Id) || 0;
                 return (
                   <TableRow
                     key={c.Id}
@@ -232,7 +230,7 @@ export default function CustomersPage() {
             <TableBody>
               {customerQuotations.map(q => (
                 <TableRow key={q.Id}>
-                  <TableCell><Chip size="small" label={q.status} color={q.status === '已接受' ? 'success' : q.status === '已转订单' ? 'info' : 'default'} /></TableCell>
+                  <TableCell><Chip size="small" label={q.status} color={quotationStatusColor(q.status)} /></TableCell>
                   <TableCell>¥{Number(q.totalCost || 0).toFixed(2)}</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>¥{Number(q.totalPrice || 0).toFixed(2)}</TableCell>
                   <TableCell>{q.remark || '-'}</TableCell>
@@ -269,7 +267,7 @@ export default function CustomersPage() {
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField label="客户名称" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} fullWidth />
           <TextField label="联系方式" value={form.contactInfo} onChange={e => setForm({ ...form, contactInfo: e.target.value })} fullWidth />
-          <TextField label="默认加价率(小数，例如 .15 代表 15%)" type="number" inputProps={{ step: 0.01 }} value={form.defaultMargin} onChange={e => setForm({ ...form, defaultMargin: parseFloat(e.target.value) })} fullWidth />
+          <TextField label="默认加价率(小数，例如 .15 代表 15%)" type="number" inputProps={{ step: 0.01 }} value={form.defaultMargin} onChange={e => setForm(updateCustomerDefaultMargin(form, e.target.value))} fullWidth />
           <TextField label="备注" value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} fullWidth multiline rows={3} />
         </DialogContent>
         <DialogActions>

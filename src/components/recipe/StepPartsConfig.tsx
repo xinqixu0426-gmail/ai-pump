@@ -27,8 +27,14 @@ import { CableAccessoryConfig, CableAccessoryType, Part, PartSelection } from '.
 import RecipePartRow from '../RecipePartRow';
 import { CoilSpecInfo, CoilCalcResult } from './recipeFormConstants';
 import { getCableAccessoryFee, getCableAccessoryName } from '../../utils/partHelpers';
-
-const PACKING_MATERIAL_OPTIONS = ['牛皮纸箱', '彩印纸箱', '木箱'];
+import {
+  DEFAULT_COIL_MATERIAL,
+  DEFAULT_PACKAGING_MATERIAL,
+  PACKAGING_MATERIAL_OPTIONS,
+  inferPackingMaterial,
+  wireModel,
+  wireOptionsFromParts,
+} from '../../utils/businessRules';
 
 interface StepPartsConfigProps {
   coilSpecs: CoilSpecInfo[];
@@ -109,17 +115,10 @@ export default function StepPartsConfig({
     </TableHead>
   );
 
-  const getWireOptions = (prefix: string): string[] => {
-    const wires = new Set<string>();
-    parts.forEach((p) => {
-      const m = p.model;
-      if (m.startsWith(prefix)) { const w = m.replace(prefix, ''); if (w) wires.add(w); }
-    });
-    return Array.from(wires).sort((a, b) => parseFloat(a) - parseFloat(b));
-  };
+  const getWireOptions = (prefix: string): string[] => wireOptionsFromParts(parts, prefix);
 
-  const cableModel = `电缆-线径${cableWire}`;
-  const floatModel = `浮球-线径${floatWire}`;
+  const cableModel = wireModel('电缆', cableWire);
+  const floatModel = wireModel('浮球', floatWire);
   const floatBasePrice = getPriceByModelAndSupplier(floatModel, '');
   const floatDelta = floatAccessoryType === 'xinjie' ? floatAccessoryDelta : 0;
   const floatTotal = floatBasePrice + floatDelta;
@@ -131,17 +130,14 @@ export default function StepPartsConfig({
   const cableAccessoryName = cableAccessoryType === 'xinjie' ? xinjieCableAccessoryName : standardCableAccessoryName;
   const cableTotal = cableUnitPrice * cableMeters + cableAccessoryPrice;
   const selectedCoilSpec = coilSpecs.find(s => s.spec === coilSpec);
-  const coilMaterialOptions = selectedCoilSpec?.materials?.length ? selectedCoilSpec.materials : ['钢带'];
+  const coilMaterialOptions = selectedCoilSpec?.materials?.length ? selectedCoilSpec.materials : [DEFAULT_COIL_MATERIAL];
   const displayedOptionalCount = optionalParts.length + (capacitorModel ? 1 : 0);
   const updatePackingPart = (id: number, patch: Partial<PartSelection>) => {
     setPackingParts(packingParts.map(p => p.id === id ? { ...p, ...patch } : p));
   };
   const isManualPacking = (part: PartSelection) => part.costSource === 'manual';
   const getPackingMaterial = (part: PartSelection) => {
-    if (part.packagingMaterial) return part.packagingMaterial;
-    if ((part.model || '').includes('木箱')) return '木箱';
-    if ((part.model || '').includes('彩')) return '彩印纸箱';
-    return '牛皮纸箱';
+    return inferPackingMaterial(part.model || '', part.packagingMaterial);
   };
 
   return (
@@ -173,7 +169,7 @@ export default function StepPartsConfig({
                 const nextSpec = e.target.value;
                 const nextInfo = coilSpecs.find(s => s.spec === nextSpec);
                 setCoilSpec(nextSpec);
-                setCoilMaterial(nextInfo?.material || nextInfo?.materials?.[0] || '钢带');
+                setCoilMaterial(nextInfo?.material || nextInfo?.materials?.[0] || DEFAULT_COIL_MATERIAL);
                 setCoilSheets('');
               }}
             >
@@ -422,7 +418,7 @@ export default function StepPartsConfig({
           <Button
             variant="text" size="small"
             startIcon={<AddIcon size={14} />}
-            onClick={() => setPackingParts([...packingParts, { id: Date.now() + Math.random(), model: '', supplier: '', qty: 1, packagingMaterial: '牛皮纸箱' }])}
+            onClick={() => setPackingParts([...packingParts, { id: Date.now() + Math.random(), model: '', supplier: '', qty: 1, packagingMaterial: DEFAULT_PACKAGING_MATERIAL }])}
             sx={{ py: 0, fontSize: '0.72rem' }}
           >
             添加包材
@@ -473,7 +469,7 @@ export default function StepPartsConfig({
                           onChange={(_, v) => {
                             const newModel = v || '';
                             const newSuppliers = newModel ? getSuppliersByModel(newModel) : [];
-                            updatePackingPart(part.id, { model: newModel, supplier: newSuppliers[0] || '', qty: 1, packagingMaterial: getPackingMaterial({ ...part, model: newModel }), snapshotPrice: undefined, costSource: undefined });
+                            updatePackingPart(part.id, { model: newModel, supplier: newSuppliers[0] || '', qty: 1, packagingMaterial: inferPackingMaterial(newModel), snapshotPrice: undefined, costSource: undefined });
                           }}
                           renderInput={(params) => (
                             <TextField {...params} placeholder="选择包材" size="small" sx={{ minWidth: 160 }} />
@@ -536,7 +532,7 @@ export default function StepPartsConfig({
                           value={packagingMaterial}
                           onChange={(e) => updatePackingPart(part.id, { packagingMaterial: e.target.value, qty: 1 })}
                         >
-                          {PACKING_MATERIAL_OPTIONS.map(material => (
+                          {PACKAGING_MATERIAL_OPTIONS.map(material => (
                             <MenuItem key={material} value={material}>{material}</MenuItem>
                           ))}
                         </Select>

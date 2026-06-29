@@ -17,9 +17,11 @@ export interface Part {
 /** 泵壳不锈钢机筒元数据（存于 Part.notes 字段） */
 export interface PumpShellMeta {
   isStainless: boolean;
-  barrelLength?: number;   // 机筒长度默认值（mm）
-  openOffset?: number;     // 开档偏移量（mm），开档 = 机筒长度 - openOffset
-  barrelLengthPresets?: number[]; // 常用机筒长度列表，如 [150, 170, 190, 210, 230]
+  /** @deprecated 零件库不再维护默认机筒长度，历史 notes 兼容读取 */
+  barrelLength?: number;
+  openOffset?: number;     // 转子出图备用参数：开档偏移量（mm），开档 = 机筒长度 - openOffset
+  /** @deprecated 零件库不再维护常用机筒长度预设，历史 notes 兼容读取 */
+  barrelLengthPresets?: number[];
   /** @deprecated 使用 openOffset 替代 */
   openFactor?: number;     // 开档系数（旧字段）
   // 转子出图备用参数（可选预设）
@@ -33,6 +35,16 @@ export interface PumpShellMeta {
   defaultThreadLength?: number;   // 默认螺丝长度（mm）
   defaultThreadDia?: number;      // 默认螺纹直径（mm）
   defaultStackOffset?: number;    // 默认定位（mm）
+}
+
+/** 参数化螺丝计价元数据（存于 Part.notes 字段） */
+export interface ScrewPricingMeta {
+  enabled: boolean;
+  diameter: number;
+  baseLength: number;
+  stepLength: number;
+  stepPrice: number;
+  modelPrefix?: string;
 }
 
 /** 泵壳模板配件项 */
@@ -151,6 +163,16 @@ export interface RecipePart {
   floatAccessoryType?: CableAccessoryType;
   floatAccessoryDelta?: number;
   cableAccessoryType?: CableAccessoryType;
+  dynamicRule?: string;
+  barrelLength?: number;
+  longScrewExtraLength?: number;
+  requestedScrewLength?: number;
+  screwLength?: number;
+  screwPricingModel?: string;
+  screwPricingSupplier?: string;
+  screwPricingBaseLength?: number;
+  screwPricingStepLength?: number;
+  screwPricingStepPrice?: number;
 }
 
 // 配件选择（表单用）
@@ -182,6 +204,32 @@ export interface CostResult {
   itemCount: number;
   details: CostDetail[];
   missingParts: string[];
+}
+
+export interface RecipeCostDraftResult {
+  parts: RecipePart[];
+  partsCost: number;
+  laborCost: number;
+  savedTotalCost: number;
+  savedCostDetails: string;
+}
+
+export interface RecipeBomDraftResult {
+  parts: RecipePart[];
+  shellPrice: number;
+  templateParts: TemplatePart[];
+  shellComponents: ShellComponent[];
+  coilSnapshot?: {
+    totalCost: number;
+    material?: string;
+    unitPrice?: number;
+    source?: string;
+    formula?: string;
+    defaultCapacitor?: string;
+  } | null;
+  capacitorModel: string;
+  customBarrelLength?: number | null;
+  longScrewExtraLength: number;
 }
 
 // API 响应类型

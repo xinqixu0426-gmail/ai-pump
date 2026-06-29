@@ -14,17 +14,19 @@ import {
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { deleteOrder, saveOrder } from '../utils/orderStore';
+import {
+  ORDER_STATUS_COLOR,
+  buildOrderKpis,
+  filterOrders,
+  orderPurchaseProgress,
+  sortOrders,
+  updateOrderStatus,
+} from '../utils/orderLifecycleRules';
 import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
 import PageHeader from '../components/PageHeader';
 import { formatDate } from '../utils/format';
 import { gradients } from '../utils/theme';
-
-const STATUS_COLOR: Record<OrderStatus, 'warning' | 'info' | 'success'> = {
-  待采购: 'warning',
-  采购中: 'info',
-  已完成: 'success',
-};
 
 // ── KPI 统计卡片 ──
 import StatCard from '../components/StatCard';
@@ -105,7 +107,7 @@ export default function OrdersPage() {
     if (order.status === newStatus) return;
     setStatusUpdating(order.id);
     try {
-      await saveOrder({ ...order, status: newStatus });
+      await saveOrder(updateOrderStatus(order, newStatus));
       await fetchOrders(true);
       showSnackbar(`订单状态已更新为「${newStatus}」`, 'success');
     } catch { /* ignore */ }
@@ -113,37 +115,15 @@ export default function OrdersPage() {
   }, [fetchOrders]);
 
   // KPI 统计
-  const kpis = useMemo(() => {
-    const pending = orders.filter(o => o.status === '待采购' || o.status === '采购中').length;
-    const completed = orders.filter(o => o.status === '已完成').length;
-    const totalRevenue = orders.reduce((s, o) => s + (o.totalPrice || 0), 0);
-    const totalProfit = orders.reduce((s, o) => s + (o.totalProfit || 0), 0);
-    return { pending, completed, totalRevenue, totalProfit };
-  }, [orders]);
+  const kpis = useMemo(() => buildOrderKpis(orders), [orders]);
 
   const filteredOrders = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return orders.filter(o => {
-      const matchCustomer = !filterCustomer || o.customerName === filterCustomer;
-      const matchStatus = filterStatus === '全部' || o.status === filterStatus;
-      const matchSearch = !q || 
-        o.customerName.toLowerCase().includes(q) ||
-        (o.contractNo || '').toLowerCase().includes(q) ||
-        o.items.some(it => it.recipeName.toLowerCase().includes(q));
-      return matchCustomer && matchStatus && matchSearch;
-    });
+    return filterOrders({ orders, customer: filterCustomer, status: filterStatus, searchQuery });
   }, [orders, filterCustomer, filterStatus, searchQuery]);
 
   // 排序
   const sortedOrders = useMemo(() => {
-    return [...filteredOrders].sort((a, b) => {
-      let aVal: any = a[orderBy as keyof Order];
-      let bVal: any = b[orderBy as keyof Order];
-
-      if (aVal < bVal) return order === 'asc' ? -1 : 1;
-      if (aVal > bVal) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
+    return sortOrders(filteredOrders, orderBy, order);
   }, [filteredOrders, order, orderBy]);
 
   // 分页
@@ -249,8 +229,7 @@ export default function OrdersPage() {
         ) : isMobile ? (
           <Box p={2}>
             {paginatedOrders.map((order, idx) => {
-              const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
-              const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
+              const { needCount, purchasedCount } = orderPurchaseProgress(order);
               return (
                 <Fade key={order.id} in timeout={200 + idx * 60}>
                   <Paper
@@ -270,8 +249,8 @@ export default function OrdersPage() {
                           variant="standard"
                           disableUnderline
                           sx={{
-                            fontWeight: 600, fontSize: '0.8rem', color: `${STATUS_COLOR[order.status]}.main`,
-                            '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${STATUS_COLOR[order.status]}.50` },
+                            fontWeight: 600, fontSize: '0.8rem', color: `${ORDER_STATUS_COLOR[order.status]}.main`,
+                            '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${ORDER_STATUS_COLOR[order.status]}.50` },
                             '& .MuiSelect-icon': { display: 'none' },
                             pr: 0,
                           }}
@@ -338,8 +317,7 @@ export default function OrdersPage() {
               </TableHead>
               <TableBody>
                 {paginatedOrders.map((order, idx) => {
-                  const needCount = order.purchaseList.filter((p) => p.needToBuy > 0).length;
-                  const purchasedCount = order.purchaseList.filter((p) => p.needToBuy > 0 && p.purchased).length;
+                  const { needCount, purchasedCount } = orderPurchaseProgress(order);
                   return (
                     <Fade key={order.id} in timeout={200 + idx * 60}>
                       <TableRow hover sx={{ cursor: 'pointer' }} onClick={() => handleDetail(order)}>
@@ -369,8 +347,8 @@ export default function OrdersPage() {
                               sx={{
                                 fontWeight: 600,
                                 fontSize: '0.8rem',
-                                color: `${STATUS_COLOR[order.status]}.main`,
-                                '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${STATUS_COLOR[order.status]}.50` || 'action.hover' },
+                                color: `${ORDER_STATUS_COLOR[order.status]}.main`,
+                                '& .MuiSelect-select': { py: 0.5, px: 1, borderRadius: 1, bgcolor: `${ORDER_STATUS_COLOR[order.status]}.50` || 'action.hover' },
                               }}
                             >
                               <MenuItem value="待采购">待采购</MenuItem>

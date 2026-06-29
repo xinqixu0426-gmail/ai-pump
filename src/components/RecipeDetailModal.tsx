@@ -31,8 +31,15 @@ import {
   Package as PackageIcon,
   Users as UsersIcon
 } from 'lucide-react';
-import { Recipe, CostResult, Part, RecipePart } from '../types';
+import { Recipe, CostResult, Part } from '../types';
 import { batchDeductStock } from '../utils/api';
+import {
+  StockCheck,
+  buildRecipeStockChecks,
+  stockChecksAllSufficient,
+  stockChecksError,
+  stockDeductionsFromChecks,
+} from '../utils/recipeProductionRules';
 import { getTechnicalDataEntries, parseTechnicalDataJson } from './recipe/StepTechnicalData';
 
 interface RecipeDetailModalProps {
@@ -41,17 +48,6 @@ interface RecipeDetailModalProps {
   parts: Part[];
   onClose: () => void;
   onStockUpdated?: () => void;
-}
-
-// 库存检查结果
-interface StockCheck {
-  name: string;
-  model: string;
-  supplier: string;
-  qtyNeeded: number;
-  currentStock: number;
-  sufficient: boolean;
-  partId?: number;
 }
 
 function getSurfaceTreatmentLabel(mode?: string | null): string {
@@ -211,65 +207,22 @@ export default function RecipeDetailModal({
 
   // 检查库存是否足够
   const checkStock = (): StockCheck[] => {
-    const partsJson = recipe.partsJson;
-    let recipeParts: RecipePart[] = [];
-    try {
-      recipeParts = JSON.parse(partsJson);
-    } catch {
-      return [];
-    }
-
-    return recipeParts.map(rp => {
-      const totalNeeded = rp.qty * produceQty;
-
-      // 查找匹配的零件（精确匹配 model+supplier，回退到 model）
-      let matchedPart = parts.find(
-        p => p.model === rp.model && p.supplier === rp.supplier
-      );
-      if (!matchedPart) {
-        matchedPart = parts.find(p => p.model === rp.model);
-      }
-
-      const currentStock = matchedPart ? matchedPart.stock : 0;
-
-      return {
-        name: rp.name || rp.model,
-        model: rp.model,
-        supplier: rp.supplier,
-        qtyNeeded: totalNeeded,
-        currentStock,
-        sufficient: currentStock >= totalNeeded,
-        partId: matchedPart?.Id
-      };
-    });
+    return buildRecipeStockChecks(recipe, parts, produceQty);
   };
 
   // 执行生产扣减
   const handleProduce = async () => {
     const checks = checkStock();
-    const insufficient = checks.filter(c => !c.sufficient);
-    if (insufficient.length > 0) {
-      setProduceError(`库存不足：${insufficient.map(c => `${c.name}(需${c.qtyNeeded}，仅${c.currentStock})`).join('、')}`);
-      return;
-    }
-
-    const missingParts = checks.filter(c => !c.partId);
-    if (missingParts.length > 0) {
-      setProduceError(`以下配件在零件表中不存在：${missingParts.map(c => c.name).join('、')}`);
+    const validationError = stockChecksError(checks);
+    if (validationError) {
+      setProduceError(validationError);
       return;
     }
 
     setProducing(true);
     setProduceError('');
     try {
-      const deductions = checks
-        .filter(c => c.partId)
-        .map(c => ({
-          partId: c.partId!,
-          deductQty: c.qtyNeeded
-        }));
-
-      await batchDeductStock(deductions);
+      await batchDeductStock(stockDeductionsFromChecks(checks));
       setProduceSuccess(`成功！已扣减 ${produceQty} 台生产用料。`);
       setShowProduce(false);
       if (onStockUpdated) onStockUpdated();
@@ -283,7 +236,7 @@ export default function RecipeDetailModal({
   };
 
   const stockChecks = showProduce ? checkStock() : [];
-  const allSufficient = stockChecks.every(c => c.sufficient);
+  const allSufficient = stockChecksAllSufficient(stockChecks);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';

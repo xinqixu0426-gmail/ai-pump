@@ -643,6 +643,80 @@ router.get('/order-pump-models', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════
+// GET /link-targets — 获取出图记录可关联对象（订单/变体/配方）
+// ═══════════════════════════════════════════════
+router.get('/link-targets', (req, res) => {
+    try {
+        const targets = [];
+
+        const orders = db.prepare('SELECT id, customer_name, contract_no, items_json FROM orders WHERE deleted_at IS NULL ORDER BY updated_at DESC').all();
+        for (const row of orders) {
+            try {
+                const items = JSON.parse(row.items_json || '[]');
+                for (const item of items) {
+                    if (!item.recipeName) continue;
+                    const label = item.recipeName + (item.spec ? ` (${item.spec})` : '');
+                    targets.push({
+                        type: 'order',
+                        id: `${row.id}:${item.recipeName}`,
+                        label,
+                        value: `订单:${label}`,
+                        secondary: `订单#${row.id} - ${row.customer_name || ''}${row.contract_no ? ' / ' + row.contract_no : ''}`,
+                    });
+                }
+            } catch { /* skip parse errors */ }
+        }
+
+        const variants = db.prepare(`
+            SELECT v.id, v.model_name, v.barrel_length, v.coil_spec, v.coil_sheets, t.shell_model
+            FROM pump_model_variants v
+            LEFT JOIN pump_shell_templates t ON t.id = v.template_id
+            WHERE v.deleted_at IS NULL
+            ORDER BY v.model_name
+        `).all();
+        variants.forEach(row => {
+            const details = [
+                row.shell_model || '',
+                row.barrel_length ? `机筒${row.barrel_length}mm` : '',
+                row.coil_spec ? `${row.coil_spec}-${row.coil_sheets || 0}` : '',
+            ].filter(Boolean).join(' / ');
+            targets.push({
+                type: 'variant',
+                id: String(row.id),
+                label: row.model_name,
+                value: `变体:${row.model_name}`,
+                secondary: details || '型号变体',
+            });
+        });
+
+        const recipes = db.prepare(`
+            SELECT id, name, spec, custom_barrel_length, coil_spec, coil_sheets
+            FROM recipes
+            WHERE deleted_at IS NULL
+            ORDER BY updated_at DESC
+        `).all();
+        recipes.forEach(row => {
+            const label = row.name + (row.spec ? ` (${row.spec})` : '');
+            const details = [
+                row.custom_barrel_length ? `机筒${row.custom_barrel_length}mm` : '',
+                row.coil_spec ? `${row.coil_spec}-${row.coil_sheets || 0}` : '',
+            ].filter(Boolean).join(' / ');
+            targets.push({
+                type: 'recipe',
+                id: String(row.id),
+                label,
+                value: `配方:${label}`,
+                secondary: details || `配方#${row.id}`,
+            });
+        });
+
+        res.json({ success: true, data: targets });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════
 // PATCH /history/:id/link — 关联水泵型号到出图记录
 // ═══════════════════════════════════════════════
 router.patch('/history/:id/link', (req, res) => {

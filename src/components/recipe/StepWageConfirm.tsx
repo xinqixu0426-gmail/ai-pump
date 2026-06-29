@@ -10,6 +10,7 @@ import {
   MenuItem,
 } from '@mui/material';
 import { PumpShellTemplate, PartSelection, SurfaceTreatmentMode } from '../../types';
+import { DEFAULT_PAINTING_COST } from '../../utils/businessRules';
 
 interface StepWageConfirmProps {
   selectedTemplate: PumpShellTemplate | null;
@@ -64,7 +65,7 @@ export default function StepWageConfirm({
   const handleSurfaceModeChange = (mode: SurfaceTreatmentMode) => {
     setSurfaceTreatmentMode(mode);
     if (mode === 'none') setSurfaceTreatmentCost(0);
-    if (mode === 'painting') setSurfaceTreatmentCost(3);
+    if (mode === 'painting') setSurfaceTreatmentCost(DEFAULT_PAINTING_COST);
   };
 
   const surfaceCostDisabled = surfaceTreatmentMode === 'none';

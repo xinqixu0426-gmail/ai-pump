@@ -24,8 +24,8 @@
 - 人工工资（安装/打包/喷漆）绑定 `pump_shell_templates` 表，选模板自动带入，配方可覆盖
 - 包装材料支持 standalone 和 grouped 两种模式，配方级配置
 - 管理费全局默认值存于 `system_settings` 表
-- 前端 `costCalculator.ts` 与后端 `db.cjs:calculateRecipeCost` 逻辑必须同步
-- 单次成本计算优先调后端 API `POST /api/cost/calculate`；批量场景可用前端版本
+- 通用成本规则集中在 `api/services/costEngine.cjs`，`api/db.cjs:calculateRecipeCost` 仅保留兼容导出
+- 前端不得新增正式成本计算口径；单次成本计算优先调后端 API `POST /api/cost/calculate`
 
 ## 2. 安全约束
 

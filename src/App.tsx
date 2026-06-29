@@ -1,19 +1,29 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Box } from '@mui/material';
+import { Box, CircularProgress } from '@mui/material';
 import TopBar from './components/TopBar';
-import DashboardPage from './pages/DashboardPage';
-import PartsPage from './pages/PartsPage';
-import RecipesPage from './pages/RecipesPage';
-import RecipeFormPage from './pages/RecipeFormPage';
-import OrdersPage from './pages/OrdersPage';
-import OrderFormPage from './pages/OrderFormPage';
-import PurchaseCenterPage from './pages/PurchaseCenterPage';
-import CoilRotorPage from './pages/CoilRotorPage';
-import AIChatPage from './pages/AIChatPage';
-import RotorDrawingPage from './pages/RotorDrawingPage';
-import CustomersPage from './pages/CustomersPage';
-import QuotationsPage from './pages/QuotationsPage';
 import GlobalSnackbar from './components/GlobalSnackbar';
+
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const PartsPage = lazy(() => import('./pages/PartsPage'));
+const RecipesPage = lazy(() => import('./pages/RecipesPage'));
+const RecipeFormPage = lazy(() => import('./pages/RecipeFormPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const OrderFormPage = lazy(() => import('./pages/OrderFormPage'));
+const PurchaseCenterPage = lazy(() => import('./pages/PurchaseCenterPage'));
+const CoilRotorPage = lazy(() => import('./pages/CoilRotorPage'));
+const AIChatPage = lazy(() => import('./pages/AIChatPage'));
+const RotorDrawingPage = lazy(() => import('./pages/RotorDrawingPage'));
+const CustomersPage = lazy(() => import('./pages/CustomersPage'));
+const QuotationsPage = lazy(() => import('./pages/QuotationsPage'));
+
+function PageLoading() {
+  return (
+    <Box display="flex" justifyContent="center" alignItems="center" py={8}>
+      <CircularProgress />
+    </Box>
+  );
+}
 
 function App() {
   return (
@@ -34,21 +44,23 @@ function App() {
         }}
       >
         <Box sx={{ width: '100%', maxWidth: 1360, mx: 'auto', flex: 1 }}>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/parts" element={<PartsPage />} />
-            <Route path="/recipes" element={<RecipesPage />} />
-            <Route path="/recipe-form" element={<RecipeFormPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
-            <Route path="/order-form" element={<OrderFormPage />} />
-            <Route path="/order-form/:id" element={<OrderFormPage />} />
-            <Route path="/purchase" element={<PurchaseCenterPage />} />
-            <Route path="/coils" element={<CoilRotorPage />} />
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/quotations" element={<QuotationsPage />} />
-            <Route path="/ai" element={<AIChatPage />} />
-            <Route path="/rotor" element={<RotorDrawingPage />} />
-          </Routes>
+          <Suspense fallback={<PageLoading />}>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/parts" element={<PartsPage />} />
+              <Route path="/recipes" element={<RecipesPage />} />
+              <Route path="/recipe-form" element={<RecipeFormPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/order-form" element={<OrderFormPage />} />
+              <Route path="/order-form/:id" element={<OrderFormPage />} />
+              <Route path="/purchase" element={<PurchaseCenterPage />} />
+              <Route path="/coils" element={<CoilRotorPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/quotations" element={<QuotationsPage />} />
+              <Route path="/ai" element={<AIChatPage />} />
+              <Route path="/rotor" element={<RotorDrawingPage />} />
+            </Routes>
+          </Suspense>
         </Box>
       </Box>
 

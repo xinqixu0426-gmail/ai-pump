@@ -35,6 +35,12 @@ import {
 import { BusinessSummary, Order, OrderStatus } from '../types';
 import { useAppStore } from '../utils/store';
 import { getWorkbenchSummary } from '../utils/api';
+import {
+  buildDashboardKpis,
+  buildDashboardTrends,
+  buildDashboardWorkbench,
+  groupOrdersByStatus,
+} from '../utils/dashboardRules';
 import OrderDetailModal from '../components/OrderDetailModal';
 import PageHeader from '../components/PageHeader';
 import { formatDate } from '../utils/format';
@@ -81,16 +87,6 @@ interface WorkbenchItem {
   icon: React.ReactNode;
   color: string;
   bg: string;
-}
-
-function sameLocalDay(value?: string) {
-  if (!value) return false;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
 }
 
 function WorkbenchItemRow({ item, onClick }: { item: WorkbenchItem; onClick: () => void }) {
@@ -397,138 +393,33 @@ export default function DashboardPage() {
 
   // 按状态分组
   const ordersByStatus = useMemo(() => {
-    const map: Record<OrderStatus, Order[]> = { 待采购: [], 采购中: [], 已完成: [] };
-    for (const o of orders) {
-      if (map[o.status]) map[o.status].push(o);
-      else map['待采购'].push(o);
-    }
-    return map;
+    return groupOrdersByStatus(orders);
   }, [orders]);
 
   // KPI 统计
   const kpis = useMemo(() => {
-    if (businessSummary) {
-      return {
-        totalRevenue: businessSummary.financials.totalRevenue,
-        totalProfit: businessSummary.financials.totalProfit,
-        pendingCount: businessSummary.orders.active,
-        lowStockParts: businessSummary.parts.lowStock + businessSummary.parts.outOfStock,
-      };
-    }
-
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-    const totalProfit = orders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
-    const pendingCount = ordersByStatus['待采购'].length + ordersByStatus['采购中'].length;
-    const lowStockParts = parts.filter((p) => {
-      const stock = p.stock;
-      return stock <= 5 && stock >= 0;
-    }).length;
-    return { totalRevenue, totalProfit, pendingCount, lowStockParts };
+    return buildDashboardKpis({ businessSummary, orders, ordersByStatus, parts });
   }, [businessSummary, orders, ordersByStatus, parts]);
 
   const trends = useMemo(() => {
-    const chronological = [...orders].reverse();
-    const revTrend = chronological.map((o, i) => ({ name: String(i), value: o.totalPrice || 0 })).slice(-15);
-    const profTrend = chronological.map((o, i) => ({ name: String(i), value: o.totalProfit || 0 })).slice(-15);
-    return { revTrend, profTrend };
+    return buildDashboardTrends(orders);
   }, [orders]);
 
   const workbench = useMemo(() => {
-    if (businessSummary) {
-      const presentation: Record<string, Pick<WorkbenchItem, 'icon' | 'color' | 'bg'>> = {
-        pending_purchase: { icon: <ShippingIcon size={18} />, color: colors.amber.text, bg: colors.amber.bg },
-        ready_to_receive: { icon: <PackageCheckIcon size={18} />, color: colors.green.text, bg: colors.green.bg },
-        out_of_stock_parts: { icon: <AlertIcon size={18} />, color: colors.red.text, bg: colors.red.bg },
-        today_orders: { icon: <OrderIcon size={18} />, color: colors.blue.text, bg: colors.blue.bg },
-      };
-      const fallbackPresentation = { icon: <OrderIcon size={18} />, color: colors.blue.text, bg: colors.blue.bg };
-
-      return {
-        items: businessSummary.workbench.items.map((item) => ({
-          label: item.label,
-          count: item.count,
-          desc: item.desc,
-          path: item.path,
-          ...(presentation[item.key] || fallbackPresentation),
-        })),
-        supplierFocus: businessSummary.workbench.supplierFocus.map((supplier) => ({
-          supplier: supplier.supplier,
-          pending: supplier.pendingQty,
-          orderIds: new Set(supplier.orderIds),
-        })),
-      };
-    }
-
-    const activeOrders = orders.filter(order => order.status !== '已完成');
-    const purchaseOrders = activeOrders.filter(order =>
-      order.purchaseList.some(item => Number(item.needToBuy || 0) > 0 && !item.purchased)
-    );
-    const readyToReceiveOrders = activeOrders.filter(order => {
-      const needItems = order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0);
-      return needItems.length > 0 && needItems.every(item => item.purchased);
-    });
-    const outOfStockParts = parts.filter(part => Number(part.stock || 0) <= 0);
-    const lowStockParts = parts.filter(part => Number(part.stock || 0) > 0 && Number(part.stock || 0) <= 5);
-    const todayOrders = orders.filter(order => sameLocalDay(order.createdAt));
-
-    const supplierMap = new Map<string, { supplier: string; pending: number; orderIds: Set<string> }>();
-    for (const order of purchaseOrders) {
-      for (const item of order.purchaseList) {
-        if (Number(item.needToBuy || 0) <= 0 || item.purchased) continue;
-        const supplier = item.supplier?.trim() || '未指定供应商';
-        const current = supplierMap.get(supplier) || { supplier, pending: 0, orderIds: new Set<string>() };
-        current.pending += Number(item.needToBuy || 0);
-        current.orderIds.add(order.id);
-        supplierMap.set(supplier, current);
-      }
-    }
-
-    const supplierFocus = [...supplierMap.values()]
-      .sort((a, b) => b.pending - a.pending)
-      .slice(0, 5);
-
-    const items: WorkbenchItem[] = [
-      {
-        label: '待采购',
-        count: purchaseOrders.length,
-        desc: '订单中仍有未采购零件',
-        path: '/purchase',
-        icon: <ShippingIcon size={18} />,
-        color: colors.amber.text,
-        bg: colors.amber.bg,
-      },
-      {
-        label: '可确认入库',
-        count: readyToReceiveOrders.length,
-        desc: '采购项已勾选完成，需订单内确认入库',
-        path: '/orders',
-        icon: <PackageCheckIcon size={18} />,
-        color: colors.green.text,
-        bg: colors.green.bg,
-      },
-      {
-        label: '缺货零件',
-        count: outOfStockParts.length,
-        desc: `另有 ${lowStockParts.length} 个低库存零件`,
-        path: '/parts',
-        icon: <AlertIcon size={18} />,
-        color: colors.red.text,
-        bg: colors.red.bg,
-      },
-      {
-        label: '今日新增订单',
-        count: todayOrders.length,
-        desc: '今天录入或转化的订单',
-        path: '/orders',
-        icon: <OrderIcon size={18} />,
-        color: colors.blue.text,
-        bg: colors.blue.bg,
-      },
-    ];
-
+    const rawWorkbench = buildDashboardWorkbench({ businessSummary, orders, parts });
+    const presentation: Record<string, Pick<WorkbenchItem, 'icon' | 'color' | 'bg'>> = {
+      pending_purchase: { icon: <ShippingIcon size={18} />, color: colors.amber.text, bg: colors.amber.bg },
+      ready_to_receive: { icon: <PackageCheckIcon size={18} />, color: colors.green.text, bg: colors.green.bg },
+      out_of_stock_parts: { icon: <AlertIcon size={18} />, color: colors.red.text, bg: colors.red.bg },
+      today_orders: { icon: <OrderIcon size={18} />, color: colors.blue.text, bg: colors.blue.bg },
+    };
+    const fallbackPresentation = { icon: <OrderIcon size={18} />, color: colors.blue.text, bg: colors.blue.bg };
     return {
-      items,
-      supplierFocus,
+      items: rawWorkbench.items.map(item => ({
+        ...item,
+        ...(presentation[item.key] || fallbackPresentation),
+      })),
+      supplierFocus: rawWorkbench.supplierFocus,
     };
   }, [businessSummary, orders, parts]);
 

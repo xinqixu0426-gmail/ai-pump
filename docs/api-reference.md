@@ -86,6 +86,8 @@
 |---|---|---|---|
 | `GET` | `/api/recipes` | 无 | 配方列表 |
 | `GET` | `/api/recipes/:id` | 无 | 单个配方 |
+| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库 |
+| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 基于配方草稿生成保存用成本快照；不写库 |
 | `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照 |
 | `PATCH` | `/api/recipes` | `id/Id` 加配方字段 | 兼容旧入口，更新配方 |
 | `PATCH` | `/api/recipes/:id` | 配方字段 | 推荐更新入口 |
@@ -101,6 +103,7 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细 |
+| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件部分 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价覆盖试算 |
 | `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | AI/N8N 一站式估算，组合配方、线圈和动态配置 |
@@ -164,6 +167,7 @@
 | `GET` | `/api/orders` | 无 | 订单列表 |
 | `GET` | `/api/orders/:id` | 无 | 单个订单 |
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
+| `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
 | `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, status?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单 |
 | `PATCH` | `/api/orders` | `id/Id` 加订单字段 | 兼容旧更新入口 |
 | `PATCH` | `/api/orders/:id` | 订单字段 | 推荐更新入口 |
@@ -202,10 +206,11 @@
 | `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；返回 `{ success, data, ...job }` 兼容格式 |
 | `GET` | `/api/rotor/history` | 无 | 最近 100 条出图历史；当前仍直接返回数据库 snake_case 字段 |
 | `PATCH` | `/api/rotor/history/:id/name` | `{ drawingName/drawing_name }` | 重命名图纸 |
-| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联水泵型号；兼容顶层 `linkedPumpModel` |
+| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联订单型号、型号变体或配方；当前保存为 `linked_pump_model` 文本 |
 | `DELETE` | `/api/rotor/history/:id` | 无 | 删除历史记录并尝试删除对应 PDF |
 | `POST` | `/api/rotor/print/:jobId` | 无 | 打印已成功生成的 PDF |
 | `GET` | `/api/rotor/order-pump-models` | 无 | 从订单明细中提取可关联的水泵型号 |
+| `GET` | `/api/rotor/link-targets` | 无 | 出图历史可关联对象，合并订单型号、型号变体和配方，返回 `{ type, id, label, value, secondary }[]` |
 
 静态下载路径：`/drawings/*` 映射到 `public/drawings/`，用于下载生成的 PDF。
 

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import GlobalSearch from './GlobalSearch';
 import { useAppStore } from '../utils/store';
+import { outOfStockPartCount, pendingPurchaseItemCount } from '../utils/dashboardRules';
 
 interface NavItem {
   label: string;
@@ -108,10 +109,8 @@ export default function TopBar() {
   const [openGroupKey, setOpenGroupKey] = useState<string | null>(null);
 
   const openGroup = NAV_GROUPS.find(group => group.key === openGroupKey);
-  const pendingPurchaseCount = orders
-    .filter(order => order.status !== '已完成')
-    .reduce((sum, order) => sum + order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0 && !item.purchased).length, 0);
-  const outOfStockCount = parts.filter(part => Number(part.stock || 0) === 0).length;
+  const pendingPurchaseCount = pendingPurchaseItemCount(orders);
+  const outOfStockCount = outOfStockPartCount(parts);
 
   useEffect(() => {
     fetchOrders();

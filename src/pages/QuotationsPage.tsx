@@ -5,9 +5,29 @@ import { Plus, Edit, Trash2, ArrowRight, Search } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { useAppStore } from '../utils/store';
-import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost } from '../utils/api';
+import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost, previewRecipeCostDraft } from '../utils/api';
 import { gradients } from '../utils/theme';
-import { PartSelection, Quotation, QuotationInput, QuotationItem, Recipe, RecipePart } from '../types';
+import { Quotation, QuotationInput, QuotationItem, RecipePart } from '../types';
+import { getCableAccessoryFee, getCableAccessoryName } from '../utils/partHelpers';
+import { createEmptyOrder, saveOrder } from '../utils/orderStore';
+import {
+  inferPackingMaterial,
+  partPriceByModelAndSupplier,
+} from '../utils/businessRules';
+import {
+  applyCustomerMargin,
+  applyQuotationItemCost,
+  applyQuotationItemMargin,
+  applyQuotationItemUnitPrice,
+  buildRecipeDefaultOverrides,
+  calculateQuotationTotals,
+  createQuotationItem,
+  getCoilSnapshot,
+  getPackingParts,
+  packingSummary,
+  parseJsonArray,
+} from '../utils/quotationRules';
+import { buildOrderFromQuotation } from '../utils/quotationOrderConversion';
 
 const QUOTATION_STATUSES = ['报价中', '已接受', '已拒绝', '已转订单', '已过时'];
 const STATUS_OPTIONS = ['全部', ...QUOTATION_STATUSES];
@@ -19,28 +39,8 @@ const STATUS_COLORS: Record<string, 'default' | 'primary' | 'secondary' | 'error
   已过时: 'default',
 };
 
-type PackingSnapshot = PartSelection & { snapshotPrice?: number };
-const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
-
-function inferPackingMaterial(model: string, material?: string) {
-  if (material) return material;
-  if ((model || '').includes('木箱')) return '木箱';
-  if ((model || '').includes('彩')) return '彩印纸箱';
-  return DEFAULT_PACKAGING_MATERIAL;
-}
-
 function getErrorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
-}
-
-function parseJsonArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  try {
-    const parsed = JSON.parse(String(value || '[]'));
-    return Array.isArray(parsed) ? parsed as T[] : [];
-  } catch {
-    return [];
-  }
 }
 
 export default function QuotationsPage() {
@@ -68,60 +68,8 @@ export default function QuotationsPage() {
     fetchParts();
   }, [fetchQuotations, fetchCustomers, fetchRecipes, fetchParts]);
 
-  const getRecipePartSnapshotPrice = (recipe: Recipe | undefined, model: string, supplier = '') => {
-    const recipeParts = parseJsonArray<RecipePart>(recipe?.partsJson);
-    const matched = recipeParts.find((p) => {
-      const sameModel = p.model === model || p.name === model;
-      const sameSupplier = !supplier || (p.supplier || '') === supplier;
-      return sameModel && sameSupplier;
-    });
-    return matched?.snapshotPrice !== undefined ? Number(matched.snapshotPrice || 0) : undefined;
-  };
-
-  const normalizePackingPart = (recipe: Recipe | undefined, part: Partial<PackingSnapshot>) => {
-    const legacyName = (part as Partial<PackingSnapshot> & { name?: string })?.name;
-    const model = part?.model || legacyName || '';
-    const supplier = part?.supplier || '';
-    const snapshotPrice = part?.snapshotPrice !== undefined
-      ? Number(part.snapshotPrice || 0)
-      : getRecipePartSnapshotPrice(recipe, model, supplier);
-    return {
-      model,
-      supplier,
-      qty: Number(part?.qty || 1),
-      packagingMaterial: inferPackingMaterial(model, part?.packagingMaterial),
-      ...(snapshotPrice !== undefined ? { snapshotPrice } : {})
-    };
-  };
-
-  const getPackingParts = (recipe: Recipe | undefined) => {
-    const parsed = parseJsonArray<PackingSnapshot>(recipe?.packingPartsJson);
-    if (parsed.length > 0) {
-      return parsed.map((p) => normalizePackingPart(recipe, p)).filter((p) => p.model);
-    }
-    return recipe?.boxType ? [normalizePackingPart(recipe, { model: recipe.boxType, supplier: '', qty: 1 })] : [];
-  };
-
-  const getCoilSnapshot = (recipe: Recipe | undefined) => {
-    const recipeParts = parseJsonArray<RecipePart>(recipe?.partsJson);
-    const coil = recipeParts.find((p) => p.name === '线圈转子');
-    return {
-      spec: recipe?.coilSpec || coil?.model?.split('-')?.[0] || '',
-      sheets: recipe?.coilSheets || coil?.model?.split('-')?.[1] || '',
-      material: recipe?.coilMaterial || coil?.material || '钢带',
-      unitPrice: coil?.unitPrice,
-      cost: coil?.snapshotPrice,
-      source: coil?.source,
-      formula: coil?.formula,
-    };
-  };
-
   const getPartPrice = (model: string, supplier = '') => {
-    const exact = parts.find(p => p.model === model && (p.supplier || '') === (supplier || ''));
-    if (exact) return exact.price || 0;
-    const candidates = parts.filter(p => p.model === model);
-    if (candidates.length === 0) return 0;
-    return candidates.reduce((min, p) => (p.price || 0) < (min.price || 0) ? p : min, candidates[0]).price || 0;
+    return partPriceByModelAndSupplier(parts, model, supplier);
   };
 
   const packagingOptions = useMemo(() => {
@@ -149,37 +97,17 @@ export default function QuotationsPage() {
     return Array.from(options.values()).sort((a, b) => a.model.localeCompare(b.model));
   }, [parts, recipes]);
 
-  const packingSummary = (item: QuotationItem) => {
-    let packingParts = parseJsonArray<PackingSnapshot>(item.overrides?.packingPartsJson);
-    if (packingParts.length === 0 && item.overrides?.boxType) {
-      packingParts = [{ model: item.overrides.boxType, supplier: '', qty: 1 }];
-    }
-    const total = packingParts.reduce((sum, p) => {
-      const price = p.snapshotPrice !== undefined ? Number(p.snapshotPrice || 0) : getPartPrice(p.model, p.supplier || '');
-      return sum + price * (p.qty || 1);
-    }, 0);
-    const source = packingParts.some(p => p.snapshotPrice !== undefined) ? '快照' : '零件库';
-    return {
-      parts: packingParts,
-      total,
-      source,
-      label: packingParts.length > 0
-        ? packingParts.map(p => `${p.model}/${inferPackingMaterial(p.model, p.packagingMaterial)}`).join('、')
-        : '无包装配置'
-    };
-  };
-
   const handleCustomerChange = (val: number) => {
     setCustomerId(val);
     const c = customers.find(x => x.Id === val);
     if (c) {
-      setItems(items.map(item => ({ ...item, margin: c.defaultMargin, unitPrice: item.unitCost * (1 + c.defaultMargin), totalPrice: item.unitCost * (1 + c.defaultMargin) * item.qty })));
+      setItems(applyCustomerMargin(items, c));
     }
   };
 
   const addItem = () => {
     const c = customers.find(x => x.Id === customerId);
-    setItems([...items, { id: Date.now().toString(), baseRecipeId: '', baseRecipeName: '', qty: 1, overrides: {}, unitCost: 0, margin: c ? c.defaultMargin : 0.15, unitPrice: 0, totalPrice: 0 }]);
+    setItems([...items, createQuotationItem(c)]);
   };
 
   const updateItemOverride = async (index: number, field: keyof QuotationItem['overrides'], val: string | number | boolean) => {
@@ -194,9 +122,7 @@ export default function QuotationsPage() {
     if (newItems[index].baseRecipeId) {
       try {
         const res = await dynamicCalculateCost(newItems[index].baseRecipeId as number, newItems[index].overrides);
-        newItems[index].unitCost = res.unitCost;
-        newItems[index].unitPrice = res.unitCost * (1 + newItems[index].margin);
-        newItems[index].totalPrice = newItems[index].unitPrice * newItems[index].qty;
+        newItems[index] = applyQuotationItemCost(newItems[index], res.unitCost);
       } catch (err) {}
     }
     setItems(newItems);
@@ -210,51 +136,29 @@ export default function QuotationsPage() {
     newItems[index].baseRecipeName = recipe.name;
     
     // 初始化配置覆盖为配方的默认值
-    newItems[index].overrides = {
-      hasFloat: recipe.hasFloat === 1,
-      floatWire: recipe.floatWire,
-      hasCable: recipe.hasCable === 1,
-      cableLength: recipe.cableLength,
-      cableWire: recipe.cableWire,
-      cableAccessoryType: recipe.cableAccessoryType || 'standard',
-      coilSpec: recipe.coilSpec || '',
-      coilSheets: recipe.coilSheets || 0,
-      coilMaterial: recipe.coilMaterial || '钢带',
-      boxType: recipe.boxType || '',
-      packingPartsJson: JSON.stringify(getPackingParts(recipe)),
-      customBarrelLength: recipe.customBarrelLength || undefined
-    };
+    newItems[index].overrides = buildRecipeDefaultOverrides(recipe);
     
     try {
       const res = await dynamicCalculateCost(recipe.Id, newItems[index].overrides);
-      newItems[index].unitCost = res.unitCost;
-      newItems[index].unitPrice = res.unitCost * (1 + newItems[index].margin);
-      newItems[index].totalPrice = newItems[index].unitPrice * newItems[index].qty;
+      newItems[index] = applyQuotationItemCost(newItems[index], res.unitCost);
     } catch (err) {}
     setItems(newItems);
   };
 
   const handleMarginChange = (index: number, margin: number) => {
     const newItems = [...items];
-    newItems[index].margin = margin;
-    newItems[index].unitPrice = newItems[index].unitCost * (1 + margin);
-    newItems[index].totalPrice = newItems[index].unitPrice * newItems[index].qty;
+    newItems[index] = applyQuotationItemMargin(newItems[index], margin);
     setItems(newItems);
   };
 
   const handleUnitPriceChange = (index: number, unitPrice: number) => {
     const newItems = [...items];
-    newItems[index].unitPrice = unitPrice;
-    if (newItems[index].unitCost > 0) {
-        newItems[index].margin = (unitPrice / newItems[index].unitCost) - 1;
-    }
-    newItems[index].totalPrice = unitPrice * newItems[index].qty;
+    newItems[index] = applyQuotationItemUnitPrice(newItems[index], unitPrice);
     setItems(newItems);
   };
 
   const handleSave = async () => {
-    const totalCost = items.reduce((sum, item) => sum + (item.unitCost * item.qty), 0);
-    const totalPrice = items.reduce((sum, item) => sum + item.totalPrice, 0);
+    const { totalCost, totalPrice } = calculateQuotationTotals(items);
     const data: QuotationInput = { customerId, status, itemsJson: JSON.stringify(items), totalCost, totalPrice, remark };
     try {
       if (editing) await updateQuotation(editing.Id, data);
@@ -307,31 +211,17 @@ export default function QuotationsPage() {
 
   const convertToOrder = async (q: Quotation) => {
     if (!confirm('确定转化为正式订单？')) return;
-    const c = customers.find(x => x.Id === q.customerId);
-    
-    // Map QuotationItems to OrderItems (they are slightly different but orders.cjs handles generic itemsJson)
-    const orderItems = parseJsonArray<QuotationItem>(q.itemsJson).map((item) => ({
-        id: item.id,
-        recipeId: item.baseRecipeId || undefined,
-        recipeName: item.baseRecipeName,
-        qty: item.qty,
-        partsJson: JSON.stringify(item.overrides), // Just store overrides as partsJson for now, or you can expand this to full parts
-        unitCost: item.unitCost,
-        profitMargin: item.margin,
-        unitPrice: item.unitPrice
-    }));
-
-    const orderData = { 
-        customerName: c ? c.name : 'Unknown', 
-        contractNo: '',
-        remark: `由报价单转化: ${q.remark}`, 
-        status: '待采购', 
-        itemsJson: JSON.stringify(orderItems)
-    };
     try {
-        const { saveOrder, createEmptyOrder } = await import('../utils/orderStore');
-        const empty = createEmptyOrder(orderData.customerName, orderData.remark, orderData.contractNo);
-        const orderToSave = { ...empty, items: orderItems };
+        const orderToSave = await buildOrderFromQuotation({
+          quotation: q,
+          customers,
+          recipes,
+          getPrice: getPartPrice,
+          getCableAccessoryFee: (model, supplier, accessoryType) => getCableAccessoryFee(parts, model, supplier, accessoryType),
+          getCableAccessoryName: (model, supplier, accessoryType) => getCableAccessoryName(parts, model, supplier, accessoryType),
+          previewRecipeCostDraft,
+          createEmptyOrder,
+        });
         await saveOrder(orderToSave);
         await updateQuotation(q.Id, { status: '已转订单' });
         await fetchQuotations(true);
@@ -565,7 +455,7 @@ export default function QuotationsPage() {
                   )}
                   
                   {(() => {
-                    const summary = packingSummary(item);
+                    const summary = packingSummary(item, parts);
                     const selectedPacking = summary.parts[0] || { model: '', supplier: '', qty: 1 };
                     const selectedPackingKey = selectedPacking.model ? `${selectedPacking.model}||${selectedPacking.supplier || ''}` : '';
                     const setPackingPart = (packing: { model: string; supplier: string; price: number } | null) => {

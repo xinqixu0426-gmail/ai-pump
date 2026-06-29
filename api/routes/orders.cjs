@@ -1,5 +1,6 @@
 const { Router } = require('express');
-const { db, dbGetAllOrders, orderRow, safeUpdate, softDelete } = require('../db.cjs');
+const { db, dbGetAllOrders, dbGetAllParts, orderRow, safeUpdate, softDelete } = require('../db.cjs');
+const { buildOrderPlan } = require('../services/orderPlanning.cjs');
 const router = Router();
 
 const ORDER_FIELDS = ['customer_name', 'contract_no', 'remark', 'status', 'items_json', 'purchase_list_json', 'todos_json'];
@@ -64,6 +65,15 @@ router.get('/history-price/:recipeName', (req, res) => {
         }
         res.json({ success: true, data: null });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.post('/purchase-plan', (req, res) => {
+    try {
+        const items = Array.isArray(req.body?.items) ? req.body.items : [];
+        res.json({ success: true, data: buildOrderPlan(items, dbGetAllParts()) });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
 });
 
 router.get('/:id', (req, res) => {

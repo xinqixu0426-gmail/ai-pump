@@ -1,5 +1,7 @@
 const { Router } = require('express');
-const { db, dbGetAllRecipes, recipeRow, safeUpdate, softDelete } = require('../db.cjs');
+const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, recipeRow, safeUpdate, softDelete, templateRow, modelVariantRow } = require('../db.cjs');
+const { buildRecipeCostDraft } = require('../services/costEngine.cjs');
+const { buildRecipeBomDraft } = require('../services/recipeBomEngine.cjs');
 const router = Router();
 
 const RECIPE_FIELDS = [
@@ -72,6 +74,48 @@ function updateRecipeRecord(id, body) {
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllRecipes() }); }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.post('/cost-draft', (req, res) => {
+    try {
+        const data = buildRecipeCostDraft(req.body || {}, { partsCatalog: dbGetAllParts() });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+function loadTemplateContext(templateId) {
+    const id = parseId(templateId);
+    if (!id) return { template: null, shellMeta: null };
+    const template = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
+    if (!template) return { template: null, shellMeta: null };
+    const shellPart = db.prepare('SELECT * FROM parts WHERE model = ? AND category = ? AND deleted_at IS NULL ORDER BY id LIMIT 1').get(template.shellModel, '泵壳');
+    let shellMeta = null;
+    try { shellMeta = shellPart?.remark ? JSON.parse(shellPart.remark) : null; } catch { shellMeta = null; }
+    return { template, shellMeta };
+}
+
+router.post('/bom-draft', (req, res) => {
+    try {
+        const body = req.body || {};
+        const variantId = parseId(body.modelVariantId);
+        const variant = variantId
+            ? modelVariantRow(db.prepare('SELECT * FROM pump_model_variants WHERE id = ? AND deleted_at IS NULL').get(variantId))
+            : null;
+        const templateId = body.templateId ?? variant?.templateId;
+        const { template, shellMeta } = loadTemplateContext(templateId);
+        const data = buildRecipeBomDraft(body, {
+            template,
+            variant,
+            shellMeta,
+            partsCatalog: dbGetAllParts(),
+            coils: dbGetAllCoils(),
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
 });
 
 router.get('/:id', (req, res) => {

@@ -40,127 +40,22 @@ import {
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import OrderDetailModal from '../components/OrderDetailModal';
-import { Order, PurchaseItem } from '../types';
+import { Order } from '../types';
 import { saveOrder } from '../utils/orderStore';
+import {
+  AffectedPurchase,
+  GroupPurchaseConfirm,
+  PurchaseFilter,
+  PurchaseTask,
+  buildPurchaseStats,
+  buildPurchaseTasks,
+  buildUpdatedOrders,
+  statusColor,
+  statusText,
+  taskStatus,
+} from '../utils/purchaseCenterRules';
 import { useAppStore } from '../utils/store';
 import { gradients } from '../utils/theme';
-
-type PurchaseFilter = 'pending' | 'partial' | 'purchased' | 'all';
-
-interface AffectedPurchase {
-  order: Order;
-  item: PurchaseItem;
-}
-
-interface PurchaseTask {
-  key: string;
-  supplier: string;
-  supplierLabel: string;
-  model: string;
-  name: string;
-  totalNeed: number;
-  purchasedNeed: number;
-  pendingNeed: number;
-  orderCount: number;
-  affected: AffectedPurchase[];
-}
-
-interface GroupPurchaseConfirm {
-  supplier: string;
-  taskCount: number;
-  totalNeed: number;
-  pendingNeed: number;
-  orderCount: number;
-  purchased: boolean;
-  savingKey: string;
-  affected: AffectedPurchase[];
-}
-
-function supplierLabel(supplier: string) {
-  return supplier?.trim() || '未指定供应商';
-}
-
-function taskStatus(task: PurchaseTask): PurchaseFilter {
-  if (task.pendingNeed <= 0) return 'purchased';
-  if (task.purchasedNeed > 0) return 'partial';
-  return 'pending';
-}
-
-function statusText(status: PurchaseFilter) {
-  if (status === 'purchased') return '已采购';
-  if (status === 'partial') return '部分已采';
-  if (status === 'pending') return '待采购';
-  return '全部';
-}
-
-function statusColor(status: PurchaseFilter): 'warning' | 'info' | 'success' | 'default' {
-  if (status === 'purchased') return 'success';
-  if (status === 'partial') return 'info';
-  if (status === 'pending') return 'warning';
-  return 'default';
-}
-
-function buildPurchaseTasks(orders: Order[]): PurchaseTask[] {
-  const map = new Map<string, PurchaseTask>();
-  const activeOrders = orders.filter(order => order.status !== '已完成');
-
-  for (const order of activeOrders) {
-    for (const item of order.purchaseList) {
-      if (Number(item.needToBuy || 0) <= 0) continue;
-      const supplier = item.supplier || '';
-      const key = `${supplier}||${item.model}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.totalNeed += Number(item.needToBuy || 0);
-        if (item.purchased) existing.purchasedNeed += Number(item.needToBuy || 0);
-        existing.pendingNeed += item.purchased ? 0 : Number(item.needToBuy || 0);
-        existing.affected.push({ order, item });
-        existing.orderCount = new Set(existing.affected.map(a => a.order.id)).size;
-      } else {
-        const need = Number(item.needToBuy || 0);
-        map.set(key, {
-          key,
-          supplier,
-          supplierLabel: supplierLabel(supplier),
-          model: item.model,
-          name: item.name || item.model,
-          totalNeed: need,
-          purchasedNeed: item.purchased ? need : 0,
-          pendingNeed: item.purchased ? 0 : need,
-          orderCount: 1,
-          affected: [{ order, item }],
-        });
-      }
-    }
-  }
-
-  return [...map.values()].sort((a, b) => {
-    const supplierCmp = a.supplierLabel.localeCompare(b.supplierLabel, 'zh');
-    if (supplierCmp !== 0) return supplierCmp;
-    if (a.pendingNeed !== b.pendingNeed) return b.pendingNeed - a.pendingNeed;
-    return a.model.localeCompare(b.model, 'zh');
-  });
-}
-
-function buildUpdatedOrders(affected: AffectedPurchase[], purchased: boolean): Order[] {
-  const updates = new Map<string, { order: Order; keys: Set<string> }>();
-  for (const entry of affected) {
-    const orderUpdate = updates.get(entry.order.id) || { order: entry.order, keys: new Set<string>() };
-    orderUpdate.keys.add(`${entry.item.model}||${entry.item.supplier || ''}`);
-    updates.set(entry.order.id, orderUpdate);
-  }
-
-  return [...updates.values()].map(({ order, keys }) => ({
-    ...order,
-    status: purchased && order.status === '待采购' ? '采购中' : order.status,
-    purchaseList: order.purchaseList.map(item => (
-      keys.has(`${item.model}||${item.supplier || ''}`) && Number(item.needToBuy || 0) > 0
-        ? { ...item, purchased }
-        : item
-    )),
-    updatedAt: new Date().toISOString(),
-  }));
-}
 
 export default function PurchaseCenterPage() {
   const { orders, fetchOrders, ordersLoading, showSnackbar } = useAppStore();
@@ -204,20 +99,7 @@ export default function PurchaseCenterPage() {
   }, [filteredTasks]);
 
   const stats = useMemo(() => {
-    const activeOrders = orders.filter(order => order.status !== '已完成');
-    const pendingTasks = tasks.filter(task => task.pendingNeed > 0);
-    const purchasedNeed = tasks.reduce((sum, task) => sum + task.purchasedNeed, 0);
-    const totalNeed = tasks.reduce((sum, task) => sum + task.totalNeed, 0);
-    const pendingNeed = tasks.reduce((sum, task) => sum + task.pendingNeed, 0);
-    return {
-      activeOrderCount: activeOrders.filter(order => order.purchaseList.some(item => Number(item.needToBuy || 0) > 0)).length,
-      supplierCount: suppliers.length,
-      taskCount: tasks.length,
-      pendingTaskCount: pendingTasks.length,
-      purchasedNeed,
-      pendingNeed,
-      totalNeed,
-    };
+    return buildPurchaseStats(orders, tasks, suppliers.length);
   }, [orders, tasks, suppliers.length]);
 
   const refresh = async () => {

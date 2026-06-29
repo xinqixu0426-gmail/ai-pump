@@ -1,4 +1,5 @@
 const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, updateOrderFields, softDelete } = require('../../../db.cjs');
+const { buildOrderPlan } = require('../../../services/orderPlanning.cjs');
 
 async function executeOrderTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -212,47 +213,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
             let items = []; try { items = JSON.parse(row.itemsJson || '[]'); } catch (e) { }
             if (items.length === 0) return { success: false, error: '订单中没有任何配方，无法生成采购清单' };
 
-            const allParts = dbGetAllParts();
-            const partIndex = {};
-            const partByModel = {};
-            allParts.forEach(p => {
-                const m = (p.model || '').trim();
-                const s = (p.supplier || '').trim();
-                if (m) { partIndex[`${m}|${s}`] = p; if (!partByModel[m]) partByModel[m] = p; }
-            });
-
-            // 汇总零件需求
-            const merged = {};
-            for (const item of items) {
-                let parts = []; try { parts = JSON.parse(item.partsJson || '[]'); } catch (e) { continue; }
-                for (const rp of parts) {
-                    const key = rp.model;
-                    if (merged[key]) { merged[key].totalQty += rp.qty * item.qty; }
-                    else { merged[key] = { model: rp.model, name: rp.name || rp.model, supplier: rp.supplier || '', totalQty: rp.qty * item.qty }; }
-                }
-            }
-
-            const purchaseList = [];
-            for (const [, m] of Object.entries(merged)) {
-                const dbPart = partIndex[`${m.model}|${m.supplier}`] || partByModel[m.model] || null;
-                const currentStock = Number(dbPart?.stock ?? dbPart?.stock ?? 0);
-                const needToBuy = Math.max(0, m.totalQty - currentStock);
-                purchaseList.push({ model: m.model, name: m.name, supplier: m.supplier, totalQty: m.totalQty, currentStock, needToBuy, purchased: false, partId: dbPart?.Id });
-            }
-            purchaseList.sort((a, b) => a.supplier.localeCompare(b.supplier));
-
-            // 生成 TODO
-            const bySupplier = {};
-            for (const p of purchaseList) {
-                if (p.needToBuy <= 0) continue;
-                if (!bySupplier[p.supplier]) bySupplier[p.supplier] = [];
-                bySupplier[p.supplier].push(p);
-            }
-            const todos = [];
-            for (const [supplier, parts] of Object.entries(bySupplier)) {
-                const detail = parts.map(p => `${p.model}×${p.needToBuy}`).join(', ');
-                todos.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), supplier, description: `联系【${supplier}】采购：${detail}`, done: false });
-            }
+            const { purchaseList, todos } = buildOrderPlan(items, dbGetAllParts());
 
             // 写入订单
             updateOrderFields(row.Id, { purchase_list_json: JSON.stringify(purchaseList), todos_json: JSON.stringify(todos) });

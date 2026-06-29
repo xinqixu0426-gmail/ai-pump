@@ -11,50 +11,16 @@ import {
   Plus as AddIcon, Copy as CopyIcon, Edit3 as EditIcon,
   Package as TemplateIcon, FileText as FileIcon, ScrollText as RecipeIcon, Wrench as PartIcon,
 } from 'lucide-react';
-import { PumpModelVariant, Recipe, RecipePart, CostResult } from '../types';
+import { PumpModelVariant, Recipe, CostResult } from '../types';
 import { deleteRecipe, calculateCost, getAllModelVariants } from '../utils/api';
 import { useAppStore } from '../utils/store';
+import { buildRecipeListData, formatRecipeEntryTime } from '../utils/recipeListRules';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 import TemplateSection from '../components/TemplateSection';
 import ModelVariantSection from '../components/ModelVariantSection';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { colors, gradients } from '../utils/theme';
-
-function getRecipeLaborTotal(recipe: Recipe): number {
-  const surfaceTreatmentCost = recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0;
-  let laborTotal =
-    (recipe.assemblyWage || 0) +
-    (recipe.packingWage || 0) +
-    surfaceTreatmentCost +
-    (recipe.managementFee || 0);
-
-  if (laborTotal === 0 && recipe.savedCostDetails) {
-    recipe.savedCostDetails.split('\n').forEach(line => {
-      if (line.includes('工资') || line.includes('费用')) {
-        const match = line.match(/(.+?):\s*¥([\d.]+)/);
-        if (match) laborTotal += parseFloat(match[2]) || 0;
-      }
-    });
-  }
-
-  return laborTotal;
-}
-
-function getRecipeSavedTotal(recipe: Recipe): number | null {
-  const saved = Number(recipe.savedTotalCost);
-  return Number.isFinite(saved) && saved > 0 ? saved : null;
-}
-
-function formatEntryTime(value?: string): string {
-  if (!value) return '-';
-  return new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 export default function RecipesPage() {
   const theme = useTheme();
@@ -105,39 +71,7 @@ export default function RecipesPage() {
     (async () => {
       const map = new Map<number, { overview: string; cost: string; costResult: CostResult }>();
       for (const recipe of recipes) {
-        let recipeParts: RecipePart[] = [];
-        try { recipeParts = JSON.parse(recipe.partsJson); } catch { /* */ }
-        const validParts = recipeParts.filter(p => p && p.model);
-        const overview = validParts.length > 0
-          ? validParts.map(p => `${p.model}×${p.qty ?? 1}`).join(', ')
-          : '-';
-        try {
-          const costResult = await calculateCost(validParts);
-          const costNum = parseFloat(costResult.totalCost);
-          const totalCost = getRecipeSavedTotal(recipe) ?? ((isNaN(costNum) ? 0 : costNum) + getRecipeLaborTotal(recipe));
-          map.set(recipe.Id, {
-            overview,
-            cost: `¥${totalCost.toFixed(2)}`,
-            costResult: {
-              ...costResult,
-              snapshotTotalCost: getRecipeSavedTotal(recipe)?.toFixed(2)
-            }
-          });
-        } catch {
-          // 计算失败时用保存的总成本兜底
-          const fallbackCost = recipe.savedTotalCost ?? 0;
-          map.set(recipe.Id, {
-            overview,
-            cost: `¥${fallbackCost.toFixed(2)}`,
-            costResult: {
-              totalCost: String(fallbackCost),
-              snapshotTotalCost: fallbackCost.toFixed(2),
-              itemCount: validParts.length,
-              details: [],
-              missingParts: []
-            }
-          });
-        }
+        map.set(recipe.Id, await buildRecipeListData(recipe, calculateCost));
       }
       if (!cancelled) setRecipeData(map);
     })();
@@ -306,7 +240,7 @@ export default function RecipesPage() {
                     {recipe.spec || '无规格'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
-                    录入时间：{formatEntryTime(recipe.CreatedAt)}
+                    录入时间：{formatRecipeEntryTime(recipe.CreatedAt)}
                   </Typography>
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
                     <Typography variant="body2" color="text.secondary">总成本</Typography>
@@ -350,7 +284,7 @@ export default function RecipesPage() {
                         ) : '-'}
                       </TableCell>
                       <TableCell title={recipe.CreatedAt ? new Date(recipe.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
-                        {formatEntryTime(recipe.CreatedAt)}
+                        {formatRecipeEntryTime(recipe.CreatedAt)}
                       </TableCell>
                       <TableCell sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         title={data?.overview || '-'}>

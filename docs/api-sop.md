@@ -131,8 +131,8 @@ function parseId(value) {
 成本逻辑要求：
 
 - 后端是单次成本计算权威来源。
-- 前端 `costCalculator.ts` 只用于批量或离线场景。
-- 修改 `api/db.cjs:calculateRecipeCost` 时必须同步检查前端成本逻辑。
+- `api/services/costEngine.cjs` 是通用成本规则服务层，`api/db.cjs:calculateRecipeCost` 仅保留兼容导出。
+- 前端不得新增独立正式成本计算口径；保存、报价、订单必须以后端 API 结果为准。
 - 成本返回必须包含可追溯明细，不只返回总价。
 
 ## 9. 兼容迁移

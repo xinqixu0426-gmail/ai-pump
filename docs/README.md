@@ -44,7 +44,7 @@
 - 安装工资、打包工资和默认喷漆工资；
 - 转子出图默认参数。
 
-型号变体用于表达同一模板下不同产品型号的差异，包括线圈规格/片数/材质、机筒长度、长螺丝补偿长度和叶轮参数。创建配方时选择变体，会自动带入对应模板和技术参数；配方保存的是快照，后续修改变体不会反向改变历史配方。
+型号变体用于表达同一模板下不同产品型号的差异，包括线圈规格/片数/材质、机筒长度、长螺丝补偿长度和叶轮参数。长螺丝默认按“实际机筒长度 + 25mm”并向上取到 5mm 档；零件库可维护一个参数化基础螺丝，由基准长度单价和每档加价自动算出目标长度单价。创建配方时选择变体会自动带入对应模板和技术参数；配方保存的是快照，后续修改变体不会反向改变历史配方。
 
 ### 产品配方
 
@@ -114,11 +114,12 @@
 |---|---|---|
 | 前端单次配件计算 | `POST /api/cost/calculate` | 当前 Web 主入口，只计算传入配件 |
 | 规范的配件计算入口 | `POST /api/cost/parts` | 与上一接口共用 handler |
+| 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度和参数化计价规则；不写库 |
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson`，不保证包含独立工资/管理费字段 |
 | 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |
 | AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 分别叠加配方配件、线圈和动态配置 |
 
-`full-estimate` 的基础配方若已经包含相同线圈或动态项，不应再次传入，否则会重复计价。修改后端 `calculateRecipeCost` 时，必须同步检查前端 `src/utils/costCalculator.ts`。
+`full-estimate` 的基础配方若已经包含相同线圈或动态项，不应再次传入，否则会重复计价。后端权威成本入口为 `api/services/costEngine.cjs`，前端不再保留独立成本计算口径。
 
 ## 4. API 与鉴权
 
@@ -150,9 +151,9 @@
 | 市场指标 | `/api/market-indicators` | 查询铜价、铝价、美元汇率或手动同步 |
 | 模板 | `/api/templates` | CRUD、应用模板、默认配方、模板成本 |
 | 型号变体 | `/api/model-variants` | CRUD |
-| 配方 | `/api/recipes` | CRUD、成本与覆盖试算 |
+| 配方 | `/api/recipes` | CRUD、BOM 草稿、保存成本快照、成本与覆盖试算 |
 | 客户/报价 | `/api/customers`、`/api/quotations` | CRUD |
-| 订单 | `/api/orders` | CRUD、历史售价 |
+| 订单 | `/api/orders` | CRUD、历史售价、采购清单生成 |
 | 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
 | 转子 | `/api/rotor` | 出图、状态、历史、关联、打印 |
 | 设置 | `/api/settings/:key` | 白名单设置读取和修改 |
@@ -199,6 +200,7 @@ POST /api/rotor/draw 或 /chat
 - `/chat` 接收自然语言，可能返回 `need_params` 或安全警告；确认后再出图。
 - `/draw` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
 - `PATCH /api/rotor/history/:id/name` 用于重命名历史图纸，请求体 `{ "drawingName": "..." }`，成功返回 `{ "success": true, "data": { "drawingName": "..." } }`。
+- 出图历史可通过 `GET /api/rotor/link-targets` 选择关联订单型号、型号变体或配方，保存时仍写入 `linked_pump_model` 文本字段。
 - FreeCAD 默认最多同时执行 2 个任务。
 - 图纸和状态写入 `rotor_drawings`，PDF 位于 `public/drawings/`。
 - 删除历史记录时同时删除对应 PDF。

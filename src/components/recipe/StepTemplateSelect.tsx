@@ -33,6 +33,7 @@ interface StepTemplateSelectProps {
   templateCost: number;
   getPriceByModelAndSupplier: (model: string, supplier: string) => number;
   shellMetaInfo: PumpShellMeta | null;
+  effectiveBarrelLength: string | number | null;
   customBarrelLength: string;
   setCustomBarrelLength: (val: string) => void;
 }
@@ -57,6 +58,7 @@ export default function StepTemplateSelect({
   templateCost,
   getPriceByModelAndSupplier,
   shellMetaInfo,
+  effectiveBarrelLength,
   customBarrelLength,
   setCustomBarrelLength,
 }: StepTemplateSelectProps) {
@@ -76,7 +78,7 @@ export default function StepTemplateSelect({
         .filter(c => c.included !== false)
         .map((c, i) => {
           const qty = c.pricingMode === 'lengthCm'
-            ? Number(customBarrelLength || shellMetaInfo?.barrelLength || Number(c.qty || 0) * 10) / 10
+            ? Number(effectiveBarrelLength || Number(c.qty || 0) * 10) / 10
             : Number(c.qty || 1);
           return {
             key: `shell-${c.name}-${i}`,
@@ -240,35 +242,25 @@ export default function StepTemplateSelect({
                 <span style={{ fontSize: '1.2rem' }}>📏</span> 不锈钢机筒长度 (配方级配置)
               </Typography>
               <Box display="flex" flexDirection="column" gap={1.5}>
-                {shellMetaInfo.barrelLengthPresets && shellMetaInfo.barrelLengthPresets.length > 0 && (
-                  <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-                    <Typography variant="caption" color="text.secondary">快速选择:</Typography>
-                    {shellMetaInfo.barrelLengthPresets.map((len, idx) => (
-                      <Chip
-                        key={idx}
-                        label={`${len} mm`}
-                        size="small"
-                        color={customBarrelLength === String(len) ? 'primary' : 'default'}
-                        onClick={() => setCustomBarrelLength(String(len))}
-                        sx={{ fontWeight: customBarrelLength === String(len) ? 700 : 400 }}
-                      />
-                    ))}
-                  </Box>
+                {selectedVariant?.barrelLength && !customBarrelLength && (
+                  <Typography variant="caption" color="text.secondary">
+                    当前使用变体机筒长度：{selectedVariant.barrelLength} mm；如需覆盖，可在下方填写配方机筒长度。
+                  </Typography>
                 )}
                 <Box display="flex" gap={1.5} alignItems="center">
                   <TextField
-                    size="small" label="机筒长度" type="number" required
+                    size="small" label="配方机筒长度" type="number"
                     value={customBarrelLength} onChange={(e) => setCustomBarrelLength(e.target.value)}
-                    placeholder={shellMetaInfo.barrelLength ? `未填将默认使用 ${shellMetaInfo.barrelLength}` : "必填"}
+                    placeholder={selectedVariant?.barrelLength ? `未填使用变体 ${selectedVariant.barrelLength}` : '未选变体时请填写'}
                     InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
                     sx={{ width: 220 }}
-                    error={!customBarrelLength && !shellMetaInfo.barrelLength}
+                    error={!effectiveBarrelLength}
                   />
-                  {(customBarrelLength || shellMetaInfo.barrelLength) && (shellMetaInfo.openOffset != null || shellMetaInfo.openFactor != null) && (
+                  {effectiveBarrelLength && (shellMetaInfo.openOffset != null || shellMetaInfo.openFactor != null) && (
                     <Typography variant="body2" color="text.secondary">
                       自动重算开档: 
                       <Typography component="span" fontWeight={700} color="primary.main" sx={{ mx: 0.5 }}>
-                        {(Number(customBarrelLength || shellMetaInfo.barrelLength) - (shellMetaInfo.openOffset ?? shellMetaInfo.openFactor ?? 0)).toFixed(1)}
+                        {(Number(effectiveBarrelLength) - (shellMetaInfo.openOffset ?? shellMetaInfo.openFactor ?? 0)).toFixed(1)}
                       </Typography>
                       mm
                     </Typography>

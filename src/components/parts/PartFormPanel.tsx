@@ -8,10 +8,26 @@ import {
   Plus as AddIcon, Edit3 as EditIcon, Save as SaveIcon,
   X as CancelIcon, Package as InventoryIcon, Settings as SettingsIcon
 } from 'lucide-react';
-import { Part, PumpShellMeta } from '../../types';
+import { Part } from '../../types';
 import { colors, gradients } from '../../utils/theme';
 import { proxyRequest } from '../../utils/api';
 import { BUILTIN_CATEGORIES, getCatIcon } from './partsConstants';
+import { DEFAULT_FLOAT_ACCESSORY_DELTA, LONG_SCREW_LENGTH_STEP_MM, wireOptionsFromParts } from '../../utils/businessRules';
+import {
+  DEFAULT_STANDARD_CABLE_ACCESSORY_NAME,
+  DEFAULT_XINJIE_CABLE_ACCESSORY_NAME,
+  WIRE_MODE_CONFIG,
+  buildCableAccessorySettingsValue,
+  buildPartNotes,
+  finalPartModel,
+  isCapacitorCategory,
+  modelFieldsFromPart,
+  parseCableAccessoryMeta,
+  parseFloatAccessoryDelta,
+  parsePumpShellMeta,
+  parseScrewPricingMetaFromNotes,
+  validatePartForm,
+} from '../../utils/partFormRules';
 
 // ─── 零件表单面板 ─────────────────────────────────────
 
@@ -27,15 +43,6 @@ interface PartFormPanelProps {
   parts: Part[];
   open?: boolean;
 }
-
-/** 线径模式配置：类别 → 固定前缀 */
-const WIRE_MODE_CONFIG: Record<string, string> = {
-  '浮球': '浮球-线径',
-  '电缆线': '电缆-线径',
-};
-
-/** 电容模式：类别集合 */
-const CAPACITOR_CATEGORIES = new Set(['电容']);
 
 export default function PartFormPanel({ editingPart, onSave, onCancel, saving, allCategories, onManageCategories, supplierOptions, parts, open }: PartFormPanelProps) {
   const [model, setModel] = useState('');
@@ -56,32 +63,31 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   const isCableMode = category === '电缆线';
   const [standardCableAccessoryFee, setStandardCableAccessoryFee] = useState('');
   const [xinjieCableAccessoryFee, setXinjieCableAccessoryFee] = useState('');
-  const [standardCableAccessoryName, setStandardCableAccessoryName] = useState('普通铜套');
-  const [xinjieCableAccessoryName, setXinjieCableAccessoryName] = useState('新界式');
-  const [floatAccessoryDelta, setFloatAccessoryDelta] = useState('0.6');
+  const [standardCableAccessoryName, setStandardCableAccessoryName] = useState(DEFAULT_STANDARD_CABLE_ACCESSORY_NAME);
+  const [xinjieCableAccessoryName, setXinjieCableAccessoryName] = useState(DEFAULT_XINJIE_CABLE_ACCESSORY_NAME);
+  const [floatAccessoryDelta, setFloatAccessoryDelta] = useState(String(DEFAULT_FLOAT_ACCESSORY_DELTA));
+
+  // ── 螺丝参数化计价 ──
+  const isScrewMode = category === '螺丝';
+  const [screwPricingEnabled, setScrewPricingEnabled] = useState(false);
+  const [screwDiameter, setScrewDiameter] = useState('6');
+  const [screwBaseLength, setScrewBaseLength] = useState('170');
+  const [screwStepLength, setScrewStepLength] = useState(String(LONG_SCREW_LENGTH_STEP_MM));
+  const [screwStepPrice, setScrewStepPrice] = useState('');
 
   // ── 电容结构化输入 ──
   const [capacitorUf, setCapacitorUf] = useState('');
-  const isCapacitorMode = CAPACITOR_CATEGORIES.has(category);
+  const isCapacitorMode = isCapacitorCategory(category);
 
   /** 线径下拉选项（已有数据库中的线径，可手工录入新值） */
   const wireGaugeOptions = useMemo(() => {
     if (!wirePrefix) return [];
-    const set = new Set<string>();
-    parts.forEach(p => {
-      if (p.model.startsWith(wirePrefix)) {
-        const w = p.model.replace(wirePrefix, '');
-        if (w) set.add(w);
-      }
-    });
-    return Array.from(set).sort((a, b) => parseFloat(a) - parseFloat(b));
+    return wireOptionsFromParts(parts, wirePrefix);
   }, [wirePrefix, parts]);
 
   // ── 泵壳不锈钢机筒扩展属性 ──
   const [isStainless, setIsStainless] = useState(false);
-  const [barrelLength, setBarrelLength] = useState('');
   const [openOffset, setOpenOffset] = useState('');
-  const [barrelLengthPresets, setBarrelLengthPresets] = useState<number[]>([150, 170, 190, 210, 230]);
 
   // ── 泵壳转子出图备用参数 ──
   const [defaultUpperBearing, setDefaultUpperBearing] = useState('');
@@ -97,67 +103,31 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
 
   const isPumpShell = category === '泵壳';
 
-  /** 解析 notes JSON */
-  function parseMeta(notes?: string): PumpShellMeta {
-    if (!notes) return { isStainless: false };
-    try { return JSON.parse(notes) as PumpShellMeta; } catch { return { isStainless: false }; }
-  }
-
-  function parseCableAccessoryMeta(notes?: string): { standardFee: string; xinjieFee: string; standardName: string; xinjieName: string } {
-    if (!notes) return { standardFee: '', xinjieFee: '', standardName: '普通铜套', xinjieName: '新界式' };
-    try {
-      const meta = JSON.parse(notes);
-      const legacyFee = Number(meta?.cableAccessoryFee);
-      const standardFee = Number(meta?.cableAccessoryFees?.standard);
-      const xinjieFee = Number(meta?.cableAccessoryFees?.xinjie);
-      return {
-        standardFee: Number.isFinite(standardFee) && standardFee >= 0
-          ? String(standardFee)
-          : (Number.isFinite(legacyFee) && legacyFee >= 0 ? String(legacyFee) : ''),
-        xinjieFee: Number.isFinite(xinjieFee) && xinjieFee >= 0 ? String(xinjieFee) : '',
-        standardName: typeof meta?.cableAccessoryNames?.standard === 'string' && meta.cableAccessoryNames.standard.trim()
-          ? meta.cableAccessoryNames.standard.trim()
-          : '普通铜套',
-        xinjieName: typeof meta?.cableAccessoryNames?.xinjie === 'string' && meta.cableAccessoryNames.xinjie.trim()
-          ? meta.cableAccessoryNames.xinjie.trim()
-          : '新界式',
-      };
-    } catch {
-      return { standardFee: '', xinjieFee: '', standardName: '普通铜套', xinjieName: '新界式' };
-    }
-  }
-
   useEffect(() => {
     if (editingPart) {
       setCategory(editingPart.category);
-      // 线径模式：拆分 model 为 prefix + wireGauge
-      const editPrefix = WIRE_MODE_CONFIG[editingPart.category] || '';
-      if (editPrefix && editingPart.model.startsWith(editPrefix)) {
-        setModel(editingPart.model);
-        setWireGauge(editingPart.model.replace(editPrefix, ''));
-      } else if (CAPACITOR_CATEGORIES.has(editingPart.category)) {
-        // 电容模式：从 "12μF" / "12uF" / "12vf" 中提取数值
-        setModel(editingPart.model);
-        const num = editingPart.model.replace(/[uμUvVfF\s]/g, '').trim();
-        setCapacitorUf(num);
-      } else {
-        setModel(editingPart.model);
-        setWireGauge('');
-      }
+      const modelFields = modelFieldsFromPart(editingPart);
+      setModel(modelFields.model);
+      setWireGauge(modelFields.wireGauge);
+      setCapacitorUf(modelFields.capacitorUf);
       setPrice(String(editingPart.price || ''));
       const cableAccessoryMeta = parseCableAccessoryMeta(editingPart.notes);
       setStandardCableAccessoryFee(cableAccessoryMeta.standardFee);
       setXinjieCableAccessoryFee(cableAccessoryMeta.xinjieFee);
       setStandardCableAccessoryName(cableAccessoryMeta.standardName);
       setXinjieCableAccessoryName(cableAccessoryMeta.xinjieName);
+      const screwPricing = parseScrewPricingMetaFromNotes(editingPart.notes);
+      setScrewPricingEnabled(!!screwPricing);
+      setScrewDiameter(screwPricing?.diameter != null ? String(screwPricing.diameter) : '6');
+      setScrewBaseLength(screwPricing?.baseLength != null ? String(screwPricing.baseLength) : '170');
+      setScrewStepLength(screwPricing?.stepLength != null ? String(screwPricing.stepLength) : String(LONG_SCREW_LENGTH_STEP_MM));
+      setScrewStepPrice(screwPricing?.stepPrice != null ? String(screwPricing.stepPrice) : '');
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
       // 解析不锈钢及备用参数元数据
-      const meta = parseMeta(editingPart.notes);
+      const meta = parsePumpShellMeta(editingPart.notes);
       setIsStainless(meta.isStainless ?? false);
-      setBarrelLength(meta.barrelLength != null ? String(meta.barrelLength) : '');
       setOpenOffset(meta.openOffset != null ? String(meta.openOffset) : (meta.openFactor != null ? String(meta.openFactor) : ''));
-      setBarrelLengthPresets(meta.barrelLengthPresets && meta.barrelLengthPresets.length > 0 ? meta.barrelLengthPresets : [150, 170, 190, 210, 230]);
       setDefaultUpperBearing(meta.defaultUpperBearing || '');
       setDefaultLowerBearing(meta.defaultLowerBearing || '');
       setDefaultOilSealDia(meta.defaultOilSealDia != null ? String(meta.defaultOilSealDia) : '');
@@ -170,8 +140,9 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setDefaultStackOffset(meta.defaultStackOffset != null ? String(meta.defaultStackOffset) : '');
     } else {
       setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf('');
-      setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName('普通铜套'); setXinjieCableAccessoryName('新界式'); setSupplier(''); setStock('');
-      setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
+      setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName(DEFAULT_STANDARD_CABLE_ACCESSORY_NAME); setXinjieCableAccessoryName(DEFAULT_XINJIE_CABLE_ACCESSORY_NAME); setSupplier(''); setStock('');
+      setScrewPricingEnabled(false); setScrewDiameter('6'); setScrewBaseLength('170'); setScrewStepLength(String(LONG_SCREW_LENGTH_STEP_MM)); setScrewStepPrice('');
+      setIsStainless(false); setOpenOffset('');
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
       if (open) {
@@ -186,9 +157,9 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/cable_accessories')
       .then(({ data }) => {
         const config = JSON.parse(data.value);
-        setStandardCableAccessoryName(config.standard?.name || '普通铜套');
+        setStandardCableAccessoryName(config.standard?.name || DEFAULT_STANDARD_CABLE_ACCESSORY_NAME);
         setStandardCableAccessoryFee(String(config.standard?.fee ?? 0));
-        setXinjieCableAccessoryName(config.xinjie?.name || '新界式');
+        setXinjieCableAccessoryName(config.xinjie?.name || DEFAULT_XINJIE_CABLE_ACCESSORY_NAME);
         setXinjieCableAccessoryFee(String(config.xinjie?.fee ?? 0));
       })
       .catch(() => { /* 兼容尚未初始化全局配置的旧环境 */ });
@@ -198,30 +169,35 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     if (!open || !isFloatMode) return;
     proxyRequest<{ success: boolean; data: { value: string } }>('/api/settings/float_accessory_delta')
       .then(({ data }) => {
-        const delta = Number(data.value);
-        setFloatAccessoryDelta(String(Number.isFinite(delta) && delta >= 0 ? delta : 0.6));
+        setFloatAccessoryDelta(String(parseFloatAccessoryDelta(data.value)));
       })
-      .catch(() => setFloatAccessoryDelta('0.6'));
+      .catch(() => setFloatAccessoryDelta(String(DEFAULT_FLOAT_ACCESSORY_DELTA)));
   }, [open, isFloatMode]);
 
   const validate = () => {
-    const e: Record<string, string> = {};
-    if (isCapacitorMode) {
-      if (!capacitorUf.trim() || isNaN(Number(capacitorUf)) || Number(capacitorUf) <= 0) e.model = '请输入有效的电容值 (μF)';
-    } else if (isWireMode) {
-      if (!wireGauge.trim()) e.model = '请选择线径';
-    } else {
-      if (!model.trim()) e.model = '型号不能为空';
-    }
-    if (!category) e.category = '请选择类别';
-    if (!price || isNaN(Number(price)) || Number(price) < 0) e.price = '请输入有效价格';
-    if (isCableMode && standardCableAccessoryFee && (isNaN(Number(standardCableAccessoryFee)) || Number(standardCableAccessoryFee) < 0)) e.standardCableAccessoryFee = '请输入有效的普通铜套配件费';
-    if (isCableMode && xinjieCableAccessoryFee && (isNaN(Number(xinjieCableAccessoryFee)) || Number(xinjieCableAccessoryFee) < 0)) e.xinjieCableAccessoryFee = '请输入有效的新界式铜套配件费';
-    if (isCableMode && !standardCableAccessoryName.trim()) e.standardCableAccessoryName = '请输入第一种配件费名称';
-    if (isCableMode && !xinjieCableAccessoryName.trim()) e.xinjieCableAccessoryName = '请输入第二种配件费名称';
-    if (isFloatMode && (isNaN(Number(floatAccessoryDelta)) || Number(floatAccessoryDelta) < 0)) e.floatAccessoryDelta = '请输入有效的新界式加价';
-    if (!supplier.trim()) e.supplier = '供应商不能为空';
-    return e;
+    return validatePartForm({
+      category,
+      model,
+      price,
+      supplier,
+      isCapacitorMode,
+      capacitorUf,
+      isWireMode,
+      wireGauge,
+      isCableMode,
+      standardCableAccessoryFee,
+      xinjieCableAccessoryFee,
+      standardCableAccessoryName,
+      xinjieCableAccessoryName,
+      isFloatMode,
+      floatAccessoryDelta,
+      isScrewMode,
+      screwPricingEnabled,
+      screwDiameter,
+      screwBaseLength,
+      screwStepLength,
+      screwStepPrice,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -230,10 +206,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     const continueEntry = submitter?.name === 'continueEntry' && !editingPart;
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    // 结构化模式下自动拼接 model
-    const finalModel = isCapacitorMode
-      ? `${capacitorUf.trim()}μF`
-      : isWireMode ? `${wirePrefix}${wireGauge.trim()}` : model.trim();
+    const finalModel = finalPartModel({ isCapacitorMode, capacitorUf, isWireMode, wirePrefix, wireGauge, model });
 
     // 重复检测：新增时检查同型号+类别是否已存在
     if (!editingPart) {
@@ -243,46 +216,36 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       }
     }
 
-    // 构建 notes JSON
-    let notes: PumpShellMeta | { cableAccessoryFee: number; cableAccessoryFees: { standard: number; xinjie: number }; cableAccessoryNames: { standard: string; xinjie: string } } | null = null;
-    if (category === '泵壳') {
-      notes = { 
-          isStainless, 
-          barrelLength: barrelLength ? parseFloat(barrelLength) : undefined, 
-          openOffset: openOffset ? parseFloat(openOffset) : undefined,
-          barrelLengthPresets,
-          defaultUpperBearing: defaultUpperBearing || undefined,
-          defaultLowerBearing: defaultLowerBearing || undefined,
-          defaultOilSealDia: defaultOilSealDia ? parseFloat(defaultOilSealDia) : undefined,
-          defaultBearingSpan: defaultBearingSpan ? parseFloat(defaultBearingSpan) : undefined,
-          defaultImpellerDia: defaultImpellerDia ? parseFloat(defaultImpellerDia) : undefined,
-          defaultImpellerSpan: defaultImpellerSpan ? parseFloat(defaultImpellerSpan) : undefined,
-          defaultImpellerDepth: defaultImpellerDepth ? parseFloat(defaultImpellerDepth) : undefined,
-          defaultThreadLength: defaultThreadLength ? parseFloat(defaultThreadLength) : undefined,
-          defaultThreadDia: defaultThreadDia ? parseFloat(defaultThreadDia) : undefined,
-          defaultStackOffset: defaultStackOffset ? parseFloat(defaultStackOffset) : undefined
-        };
-    } else if (isCableMode) {
-      const standard = standardCableAccessoryFee ? parseFloat(standardCableAccessoryFee) : 0;
-      notes = {
-        cableAccessoryFee: standard,
-        cableAccessoryFees: {
-          standard,
-          xinjie: xinjieCableAccessoryFee ? parseFloat(xinjieCableAccessoryFee) : 0,
-        },
-        cableAccessoryNames: {
-          standard: standardCableAccessoryName.trim(),
-          xinjie: xinjieCableAccessoryName.trim(),
-        },
-      };
-    }
+    const notes = buildPartNotes({
+      category,
+      isCableMode,
+      isScrewMode,
+      isStainless,
+      openOffset,
+      defaultUpperBearing,
+      defaultLowerBearing,
+      defaultOilSealDia,
+      defaultBearingSpan,
+      defaultImpellerDia,
+      defaultImpellerSpan,
+      defaultImpellerDepth,
+      defaultThreadLength,
+      defaultThreadDia,
+      defaultStackOffset,
+      standardCableAccessoryFee,
+      xinjieCableAccessoryFee,
+      standardCableAccessoryName,
+      xinjieCableAccessoryName,
+      screwPricingEnabled,
+      screwDiameter,
+      screwBaseLength,
+      screwStepLength,
+      screwStepPrice,
+    });
     if (isCableMode) {
       await proxyRequest('/api/settings/cable_accessories', {
         method: 'PUT',
-        body: JSON.stringify({ value: {
-          standard: { name: standardCableAccessoryName.trim(), fee: standardCableAccessoryFee ? parseFloat(standardCableAccessoryFee) : 0 },
-          xinjie: { name: xinjieCableAccessoryName.trim(), fee: xinjieCableAccessoryFee ? parseFloat(xinjieCableAccessoryFee) : 0 },
-        } }),
+        body: JSON.stringify({ value: buildCableAccessorySettingsValue({ standardCableAccessoryName, standardCableAccessoryFee, xinjieCableAccessoryName, xinjieCableAccessoryFee }) }),
       });
     }
     if (isFloatMode) {
@@ -297,12 +260,13 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       notes: notes ? JSON.stringify(notes) : '',
     }, { continueEntry });
     if (!editingPart) {
-      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName('普通铜套'); setXinjieCableAccessoryName('新界式'); setFloatAccessoryDelta('0.6'); setStock('');
+      setModel(''); setWireGauge(''); setCapacitorUf(''); setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName(DEFAULT_STANDARD_CABLE_ACCESSORY_NAME); setXinjieCableAccessoryName(DEFAULT_XINJIE_CABLE_ACCESSORY_NAME); setFloatAccessoryDelta(String(DEFAULT_FLOAT_ACCESSORY_DELTA)); setStock('');
       if (!continueEntry) {
         setCategory(''); setSupplier('');
-        setIsStainless(false); setBarrelLength(''); setOpenOffset(''); setBarrelLengthPresets([150, 170, 190, 210, 230]);
+        setIsStainless(false); setOpenOffset('');
         setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
         setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
+        setScrewPricingEnabled(false); setScrewDiameter('6'); setScrewBaseLength('170'); setScrewStepLength(String(LONG_SCREW_LENGTH_STEP_MM)); setScrewStepPrice('');
       }
       if (open) {
         setTimeout(() => modelInputRef.current?.focus(), 100);
@@ -552,6 +516,81 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               sx={{ flex: 1 }}
             />
           </Box>
+          {isScrewMode && (
+            <Box
+              sx={{
+                p: 1.5, borderRadius: 2, border: '1px solid',
+                borderColor: screwPricingEnabled ? colors.amber.border : 'divider',
+                bgcolor: screwPricingEnabled ? colors.amber.bg : 'action.hover',
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={screwPricingEnabled}
+                    onChange={(e) => setScrewPricingEnabled(e.target.checked)}
+                    size="small"
+                    color="warning"
+                  />
+                }
+                label={<Typography variant="body2" fontWeight={700}>按长度自动计价</Typography>}
+                sx={{ m: 0 }}
+              />
+              <Collapse in={screwPricingEnabled}>
+                <Stack spacing={1.5} mt={1.5}>
+                  <Typography variant="caption" color="text.secondary">
+                    单价 = 当前单价 + 向上取整档数 × 每档加价
+                  </Typography>
+                  <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={1.5}>
+                    <TextField
+                      label="螺丝直径"
+                      type="number"
+                      size="small"
+                      value={screwDiameter}
+                      onChange={(e) => setScrewDiameter(e.target.value)}
+                      error={!!errors.screwDiameter}
+                      helperText={errors.screwDiameter || '用于匹配 6*195'}
+                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
+                      inputProps={{ min: 0, step: 0.1 }}
+                    />
+                    <TextField
+                      label="基准长度"
+                      type="number"
+                      size="small"
+                      value={screwBaseLength}
+                      onChange={(e) => setScrewBaseLength(e.target.value)}
+                      error={!!errors.screwBaseLength}
+                      helperText={errors.screwBaseLength || '当前单价对应的长度'}
+                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
+                      inputProps={{ min: 0, step: 1 }}
+                    />
+                    <TextField
+                      label="步进长度"
+                      type="number"
+                      size="small"
+                      value={screwStepLength}
+                      onChange={(e) => setScrewStepLength(e.target.value)}
+                      error={!!errors.screwStepLength}
+                      helperText={errors.screwStepLength || '通常为 5mm'}
+                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
+                      inputProps={{ min: 0, step: 1 }}
+                    />
+                    <TextField
+                      label="每档加价"
+                      type="number"
+                      size="small"
+                      value={screwStepPrice}
+                      onChange={(e) => setScrewStepPrice(e.target.value)}
+                      error={!!errors.screwStepPrice}
+                      helperText={errors.screwStepPrice || '每增加一个步进长度增加多少元'}
+                      InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
+                      inputProps={{ min: 0, step: 0.01 }}
+                    />
+                  </Box>
+                </Stack>
+              </Collapse>
+            </Box>
+          )}
           <Autocomplete
             id="part-supplier-autocomplete"
             freeSolo
@@ -607,73 +646,28 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
                   }
                   sx={{ m: 0 }}
                 />
-                <Collapse in={isStainless}>
-                  <Stack spacing={1.5} mt={1.5}>
-                    <TextField
-                      id="part-open-offset-input"
-                      label="开档偏移量"
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={openOffset}
-                      onChange={(e) => setOpenOffset(e.target.value)}
-                      placeholder="开档 = 机筒长度 - 此值"
-                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
-                      inputProps={{ step: 0.1 }}
-                    />
-                    <TextField
-                      id="part-barrel-length-input"
-                      label="默认机筒长度"
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={barrelLength}
-                      onChange={(e) => setBarrelLength(e.target.value)}
-                      placeholder="可选，仅作参考默认值"
-                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
-                      inputProps={{ min: 0, step: 1 }}
-                    />
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                        常用长度预设 (供配方和出图时快速选择)
-                      </Typography>
-                      <Box display="flex" flexWrap="wrap" gap={1}>
-                        {barrelLengthPresets.map((len, idx) => (
-                          <Chip 
-                            key={idx} 
-                            label={`${len} mm`} 
-                            size="small" 
-                            onDelete={() => setBarrelLengthPresets(prev => prev.filter((_, i) => i !== idx))} 
-                          />
-                        ))}
-                        <TextField 
-                          size="small" 
-                          placeholder="+ 添加" 
-                          sx={{ width: 80, '& .MuiInputBase-root': { height: 24, fontSize: '0.75rem' } }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              const val = parseFloat((e.target as HTMLInputElement).value);
-                              if (!isNaN(val) && !barrelLengthPresets.includes(val)) {
-                                setBarrelLengthPresets(prev => [...prev, val].sort((a, b) => a - b));
-                              }
-                              (e.target as HTMLInputElement).value = '';
-                            }
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                  </Stack>
-                </Collapse>
               </Box>
 
               {/* 转子出图备用参数区块 */}
               <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid divider', bgcolor: 'action.hover' }}>
                 <Typography variant="body2" fontWeight={700} color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <span style={{ fontSize: '1.2rem' }}>⚙️</span> 转子出图备用参数 (可选)
-                </Typography>
+                  </Typography>
                 <Stack spacing={1.5}>
                   <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+                    <TextField
+                      id="part-open-offset-input"
+                      size="small"
+                      fullWidth
+                      label="开档偏移量"
+                      type="number"
+                      value={openOffset}
+                      onChange={(e) => setOpenOffset(e.target.value)}
+                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
+                      InputLabelProps={{ shrink: true }}
+                      inputProps={{ step: 0.1 }}
+                      placeholder={isStainless ? '开档 = 机筒长度 - 此值' : '可选'}
+                    />
                     <FormControl size="small" fullWidth>
                       <InputLabel shrink>上轴承</InputLabel>
                       <Select notched value={defaultUpperBearing} onChange={(e) => setDefaultUpperBearing(e.target.value)} label="上轴承" displayEmpty>

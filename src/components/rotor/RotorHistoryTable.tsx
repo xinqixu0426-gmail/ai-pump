@@ -211,9 +211,9 @@ export default function RotorHistoryTable({
                         </Tooltip>
                       </>
                     )}
-                    <Tooltip title="关联订单型号">
+                    <Tooltip title="关联图纸对象">
                       <IconButton size="small" color="secondary" disabled={linking}
-                        aria-label="关联订单型号"
+                        aria-label="关联图纸对象"
                         onClick={() => onLinkClick(row)}>
                         <LinkIcon size={18} />
                       </IconButton>

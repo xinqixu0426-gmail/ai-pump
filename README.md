@@ -45,7 +45,7 @@
 │       ├── api.ts            # proxyRequest 统一请求层
 │       ├── store.ts          # Zustand 全局状态
 │       ├── orderStore.ts     # 订单业务逻辑
-│       ├── costCalculator.ts # 前端成本计算
+│       ├── recipeBomBuilder.ts # 配方 BOM 本地预览回退
 │       └── theme.ts          # MUI 主题 + 设计 Token
 ├── freecad/                  # FreeCAD 转子出图模板与 Python 脚本
 ├── wechat-miniprogram/       # 微信小程序语音助手

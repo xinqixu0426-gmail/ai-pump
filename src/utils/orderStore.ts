@@ -1,5 +1,6 @@
-import { Order, OrderItem, PurchaseItem, TodoItem, RecipePart, Part } from '../types';
+import { Order, OrderItem, PurchaseItem, TodoItem } from '../types';
 import { proxyRequest } from './api';
+import { DEFAULT_ORDER_MARGIN, roundMoney } from './businessRules';
 
 // ── 生成 ID ──────────────────────────────────────────
 function genId(): string {
@@ -27,7 +28,7 @@ function rowToOrder(row: OrderRow): Order {
   // 兼容旧数据：如果 item 没有 unitCost 则补 0
   for (const it of items) {
     if (it.unitCost === undefined) it.unitCost = 0;
-    if (it.profitMargin === undefined) it.profitMargin = 1.10;
+    if (it.profitMargin === undefined) it.profitMargin = DEFAULT_ORDER_MARGIN;
     if (it.unitPrice === undefined) it.unitPrice = 0;
   }
   const totals = calcOrderTotals(items);
@@ -125,8 +126,6 @@ export function createEmptyOrder(customerName: string, remark?: string, contract
   };
 }
 
-const DEFAULT_MARGIN = 1.10; // 10% 利润
-
 export function createOrderItem(
   recipeName: string,
   partsJson: string,
@@ -134,10 +133,10 @@ export function createOrderItem(
   unitCost: number,
   recipeId?: number,
   spec?: string,
-  profitMargin: number = DEFAULT_MARGIN,
+  profitMargin: number = DEFAULT_ORDER_MARGIN,
   unitPrice?: number
 ): OrderItem {
-  const price = unitPrice ?? Math.round(unitCost * profitMargin * 100) / 100;
+  const price = unitPrice ?? roundMoney(unitCost * profitMargin);
   return { id: genId(), recipeId, recipeName, spec, qty, partsJson, unitCost, profitMargin, unitPrice: price };
 }
 
@@ -149,7 +148,7 @@ export function calcOrderTotals(items: OrderItem[]): { totalCost: number; totalP
     totalCost += it.unitCost * it.qty;
     totalPrice += it.unitPrice * it.qty;
   }
-  return { totalCost: Math.round(totalCost * 100) / 100, totalPrice: Math.round(totalPrice * 100) / 100, totalProfit: Math.round((totalPrice - totalCost) * 100) / 100 };
+  return { totalCost: roundMoney(totalCost), totalPrice: roundMoney(totalPrice), totalProfit: roundMoney(totalPrice - totalCost) };
 }
 
 // ── 历史价格查询 ─────────────────────────────
@@ -172,66 +171,6 @@ export async function findHistoryPrice(recipeName: string): Promise<HistoryPrice
   } catch {
     return null;
   }
-}
-
-// ── 汇总算法（纯计算，无副作用） ─────────────────────
-
-export function buildPurchaseList(items: OrderItem[], allParts: Part[]): PurchaseItem[] {
-  const partIndex: Map<string, Part> = new Map();
-  const partByModel: Map<string, Part> = new Map();
-  for (const p of allParts) {
-    const m = p.model;
-    const s = p.supplier;
-    if (m) {
-      partIndex.set(`${m}|${s}`, p);
-      if (!partByModel.has(m)) partByModel.set(m, p);
-    }
-  }
-
-  const merged: Map<string, { part: RecipePart; totalQty: number; supplier: string }> = new Map();
-  for (const item of items) {
-    let parts: RecipePart[] = [];
-    try { parts = JSON.parse(item.partsJson); } catch { continue; }
-    for (const rp of parts) {
-      const key = rp.model;
-      const existing = merged.get(key);
-      if (existing) {
-        existing.totalQty += rp.qty * item.qty;
-        if (!existing.supplier && rp.supplier) existing.supplier = rp.supplier;
-      } else {
-        merged.set(key, { part: rp, totalQty: rp.qty * item.qty, supplier: rp.supplier || '' });
-      }
-    }
-  }
-
-  const result: PurchaseItem[] = [];
-  for (const [, { part, totalQty, supplier }] of merged) {
-    const dbPart = partIndex.get(`${part.model}|${supplier}`) ?? partByModel.get(part.model) ?? null;
-    const currentStock = dbPart?.stock ?? 0;
-    const needToBuy = Math.max(0, totalQty - currentStock);
-    result.push({
-      model: part.model, name: part.name, supplier, totalQty, currentStock, needToBuy, purchased: false, partId: dbPart?.Id,
-    });
-  }
-
-  result.sort((a, b) => a.supplier.localeCompare(b.supplier));
-  return result;
-}
-
-export function buildTodos(purchaseList: PurchaseItem[]): TodoItem[] {
-  const bySupplier: Map<string, PurchaseItem[]> = new Map();
-  for (const p of purchaseList) {
-    if (p.needToBuy <= 0) continue;
-    const arr = bySupplier.get(p.supplier) ?? [];
-    arr.push(p);
-    bySupplier.set(p.supplier, arr);
-  }
-  const todos: TodoItem[] = [];
-  for (const [supplier, parts] of bySupplier) {
-    const detail = parts.map((p) => `${p.model}×${p.needToBuy}`).join(', ');
-    todos.push({ id: genId(), supplier, description: `联系【${supplier}】采购：${detail}`, done: false });
-  }
-  return todos;
 }
 
 // ── 入库辅助 ─────────────────────────────────────────

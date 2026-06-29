@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Box, Paper, Typography, TextField, Button,
-  Alert, CircularProgress, Chip,
+  Alert, CircularProgress,
   LinearProgress, Autocomplete, Snackbar,
   Dialog, DialogTitle, DialogContent, DialogActions,
   List, ListItemButton, ListItemText, ListItemIcon
@@ -15,14 +15,30 @@ import {
   Package as PackageIcon,
   Copy as CopyIcon
 } from 'lucide-react';
-import { getAllTemplates, getAllParts, proxyFetch, proxyRequest } from '../utils/api';
-import type { PumpShellTemplate, Part, PumpShellMeta } from '../types';
+import { getAllTemplates, getAllParts, getAllModelVariants, proxyFetch, proxyRequest } from '../utils/api';
+import type { PumpShellTemplate, Part, PumpShellMeta, PumpModelVariant } from '../types';
 import PageHeader from '../components/PageHeader';
 import { normalizeBearing, JobStatus } from '../components/rotor/rotorConstants';
 import RotorFormPanel, { RotorFormData } from '../components/rotor/RotorFormPanel';
 import RotorHistoryTable from '../components/rotor/RotorHistoryTable';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+
+type RotorLinkTargetType = 'order' | 'variant' | 'recipe';
+
+interface RotorLinkTarget {
+  type: RotorLinkTargetType;
+  id: string;
+  label: string;
+  value: string;
+  secondary: string;
+}
+
+const LINK_TARGET_LABELS: Record<RotorLinkTargetType, string> = {
+  order: '订单型号',
+  variant: '型号变体',
+  recipe: '配方',
+};
 
 const emptyRotorForm = (): RotorFormData => ({
   upper_bearing: '', lower_bearing: '',
@@ -42,6 +58,23 @@ const bearingFromDia = (value: unknown) => {
 };
 
 const asFormValue = (value: unknown) => value === undefined || value === null || value === '' ? '' : String(value);
+
+const openOffsetFromMeta = (meta: PumpShellMeta | null) => meta?.openOffset ?? meta?.openFactor ?? null;
+
+const calculateBearingSpan = (barrelLength: string | number, openOffset: number | null) => {
+  const length = Number(barrelLength);
+  const offset = Number(openOffset);
+  if (!Number.isFinite(length) || length <= 0 || !Number.isFinite(offset)) return '';
+  return String(Number((length - offset).toFixed(1)));
+};
+
+const normalizeShellModel = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+
+const shellModelCandidates = (value: string) => {
+  const normalized = normalizeShellModel(value);
+  const withoutSuffix = normalized.replace(/-[a-z0-9]+$/i, '');
+  return withoutSuffix === normalized ? [normalized] : [normalized, withoutSuffix];
+};
 
 function formFromFcParams(params: Record<string, unknown>): RotorFormData {
   return {
@@ -78,8 +111,10 @@ export default function RotorDrawingPage() {
   const [drawingName, setDrawingName] = useState('');
 
   const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
+  const [modelVariants, setModelVariants] = useState<PumpModelVariant[]>([]);
   const [allParts, setAllParts] = useState<Part[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<PumpShellTemplate | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<PumpModelVariant | null>(null);
   const [templateHint, setTemplateHint] = useState('');
 
   const [ssMeta, setSsMeta] = useState<PumpShellMeta | null>(null);
@@ -94,17 +129,32 @@ export default function RotorDrawingPage() {
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkTargetRow, setLinkTargetRow] = useState<any>(null);
-  const [orderPumpModels, setOrderPumpModels] = useState<Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }>>([]);
+  const [linkTargets, setLinkTargets] = useState<RotorLinkTarget[]>([]);
   const [linking, setLinking] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     getAllTemplates().then(setTemplates).catch(() => {});
+    getAllModelVariants().then(setModelVariants).catch(() => {});
     getAllParts().then(setAllParts).catch(() => {});
   }, []);
 
-  const handleTemplateSelect = useCallback((tpl: PumpShellTemplate | null) => {
+  const findShellMetaForTemplate = useCallback((tpl: PumpShellTemplate | null): PumpShellMeta | null => {
+    if (!tpl) return null;
+    const candidates = shellModelCandidates(tpl.shellModel);
+    const shellPart = candidates
+      .map(candidate => allParts.find(p => p.category === '泵壳' && normalizeShellModel(p.model) === candidate))
+      .find(Boolean);
+    if (!shellPart?.notes) return null;
+    try {
+      return JSON.parse(shellPart.notes) as PumpShellMeta;
+    } catch {
+      return null;
+    }
+  }, [allParts]);
+
+  const applyTemplate = useCallback((tpl: PumpShellTemplate | null, variant?: PumpModelVariant | null) => {
     setSelectedTemplate(tpl);
     setSsMeta(null);
     setSsBarrelLength('');
@@ -132,20 +182,19 @@ export default function RotorDrawingPage() {
         }
       }
 
-      const shellPart = allParts.find(p => p.model === tpl.shellModel && p.category === '泵壳');
-      if (shellPart && shellPart.notes) {
-        try {
-          const meta: PumpShellMeta = JSON.parse(shellPart.notes);
+      const meta = findShellMetaForTemplate(tpl);
+      if (meta) {
           if (!newForm.upper_bearing && meta.defaultUpperBearing) { newForm.upper_bearing = meta.defaultUpperBearing; hints.push(`预设上轴承${newForm.upper_bearing}`); }
           if (!newForm.lower_bearing && meta.defaultLowerBearing) { newForm.lower_bearing = meta.defaultLowerBearing; hints.push(`预设下轴承${newForm.lower_bearing}`); }
           if (!newForm.oil_seal_dia && meta.defaultOilSealDia != null) { newForm.oil_seal_dia = String(meta.defaultOilSealDia); hints.push(`预设油封孔径${newForm.oil_seal_dia}mm`); }
 
+          const openOffset = openOffsetFromMeta(meta);
+          if (meta.isStainless && openOffset != null) {
+            setSsMeta(meta);
+            hints.push(`开档偏移量${openOffset}mm`);
+          }
           if (!newForm.bearing_span) {
             if (meta.defaultBearingSpan != null) { newForm.bearing_span = String(meta.defaultBearingSpan); hints.push(`预设开档${meta.defaultBearingSpan}mm`); }
-            else if (meta.isStainless && (meta.openOffset != null || meta.openFactor != null)) {
-              setSsMeta(meta);
-              if (meta.barrelLength) setSsBarrelLength(String(meta.barrelLength));
-            }
           }
           if (!newForm.impeller_dia && meta.defaultImpellerDia != null) { newForm.impeller_dia = String(meta.defaultImpellerDia); hints.push(`预设叶轮孔径${meta.defaultImpellerDia}mm`); }
           if (!newForm.impeller_span && meta.defaultImpellerSpan != null) { newForm.impeller_span = String(meta.defaultImpellerSpan); hints.push(`预设叶轮开档${meta.defaultImpellerSpan}mm`); }
@@ -153,23 +202,52 @@ export default function RotorDrawingPage() {
           if (!newForm.thread_length && meta.defaultThreadLength != null) { newForm.thread_length = String(meta.defaultThreadLength); hints.push(`预设螺丝长度${meta.defaultThreadLength}mm`); }
           if (!newForm.thread_dia && meta.defaultThreadDia != null) { newForm.thread_dia = String(meta.defaultThreadDia); hints.push(`预设螺纹直径${meta.defaultThreadDia}mm`); }
           if (!newForm.stack_offset && meta.defaultStackOffset != null) { newForm.stack_offset = String(meta.defaultStackOffset); hints.push(`预设定位${meta.defaultStackOffset}mm`); }
-        } catch { /* ignore invalid shell metadata */ }
       }
     } catch { /* ignore invalid template json */ }
 
-    setForm(prev => ({ ...prev, ...newForm }));
-    setTemplateHint(hints.length > 0 ? `已从 ${tpl.shellModel} 模板自动带入：${hints.join('、')}` : '');
-  }, [allParts]);
-
-  useEffect(() => {
-    if (ssMeta && (ssMeta.openOffset != null || ssMeta.openFactor != null)) {
-      const len = parseFloat(ssBarrelLength);
-      if (!isNaN(len) && len > 0) {
-        const span = len - (ssMeta.openOffset ?? ssMeta.openFactor ?? 0);
-        setForm(prev => ({ ...prev, bearing_span: String(span) }));
+    const meta = findShellMetaForTemplate(tpl);
+    const openOffset = openOffsetFromMeta(meta);
+    if (variant?.barrelLength && openOffset != null) {
+      const span = calculateBearingSpan(variant.barrelLength, openOffset);
+      if (span) {
+        newForm.bearing_span = span;
+        setSsMeta(meta);
+        setSsBarrelLength(String(variant.barrelLength));
+        hints.push(`${variant.modelName}机筒${variant.barrelLength}mm，自动开档${span}mm`);
       }
     }
+
+    setForm(prev => ({ ...prev, ...newForm }));
+    setTemplateHint(hints.length > 0 ? `已从 ${tpl.shellModel} 模板自动带入：${hints.join('、')}` : '');
+  }, [findShellMetaForTemplate]);
+
+  const handleTemplateSelect = useCallback((tpl: PumpShellTemplate | null) => {
+    setSelectedVariant(null);
+    applyTemplate(tpl, null);
+  }, [applyTemplate]);
+
+  const handleVariantSelect = useCallback((variant: PumpModelVariant | null) => {
+    setSelectedVariant(variant);
+    if (!variant) return;
+    const tpl = templates.find(t => t.Id === variant.templateId) || null;
+    applyTemplate(tpl, variant);
+  }, [applyTemplate, templates]);
+
+  useEffect(() => {
+    const span = calculateBearingSpan(ssBarrelLength, openOffsetFromMeta(ssMeta));
+    if (span) {
+      setForm(prev => prev.bearing_span === span ? prev : { ...prev, bearing_span: span });
+    }
   }, [ssBarrelLength, ssMeta]);
+
+  const updateSsBarrelLength = useCallback((value: string) => {
+    setSsBarrelLength(value);
+    const span = calculateBearingSpan(value, openOffsetFromMeta(ssMeta));
+    setForm(prev => ({
+      ...prev,
+      bearing_span: span || (value ? prev.bearing_span : ''),
+    }));
+  }, [ssMeta]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -275,22 +353,22 @@ export default function RotorDrawingPage() {
   const handleLinkClick = useCallback(async (row: any) => {
     setLinkTargetRow(row);
     try {
-      const res = await proxyRequest<Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }> | { success: boolean; data: Array<{ orderId: number; customerName: string; contractNo: string; recipeName: string; spec: string }> }>('/api/rotor/order-pump-models');
-      setOrderPumpModels(Array.isArray(res) ? res : res.data);
-    } catch { setOrderPumpModels([]); }
+      const res = await proxyRequest<RotorLinkTarget[] | { success: boolean; data: RotorLinkTarget[] }>('/api/rotor/link-targets');
+      setLinkTargets(Array.isArray(res) ? res : res.data);
+    } catch { setLinkTargets([]); }
     setLinkDialogOpen(true);
   }, []);
 
-  const handleLinkConfirm = useCallback(async (recipeName: string) => {
+  const handleLinkConfirm = useCallback(async (target: RotorLinkTarget) => {
     if (!linkTargetRow) return;
     setLinking(true);
     try {
       const res = await proxyFetch(`/api/rotor/history/${linkTargetRow.id}/link`, {
         method: 'PATCH',
-        body: JSON.stringify({ linkedPumpModel: recipeName })
+        body: JSON.stringify({ linkedPumpModel: target.value })
       }, { throwOnError: false });
       if (res.ok) {
-        setSnackbar({ open: true, message: `已关联到 ${recipeName}`, severity: 'success' });
+        setSnackbar({ open: true, message: `已关联到 ${target.label}`, severity: 'success' });
         loadHistory();
       } else {
         const data = await res.json();
@@ -314,47 +392,44 @@ export default function RotorDrawingPage() {
           <LinkIcon size={18} color="#2563eb" />
           <Typography variant="subtitle2">关联泵壳模板（可选）</Typography>
         </Box>
-        <Autocomplete
-          size="small" options={templates}
-          getOptionLabel={(o) => o.shellModel + (o.description ? ` - ${o.description}` : '')}
-          value={selectedTemplate} onChange={(_, v) => handleTemplateSelect(v)}
-          renderInput={(params) => <TextField {...params} placeholder="选择泵壳模板，自动带入轴承/油封/开档参数" />}
-          isOptionEqualToValue={(o, v) => o.Id === v.Id}
-        />
+        <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={1.5}>
+          <Autocomplete
+            size="small" options={templates}
+            getOptionLabel={(o) => o.shellModel + (o.description ? ` - ${o.description}` : '')}
+            value={selectedTemplate} onChange={(_, v) => handleTemplateSelect(v)}
+            renderInput={(params) => <TextField {...params} placeholder="选择泵壳模板，自动带入轴承/油封/开档参数" />}
+            isOptionEqualToValue={(o, v) => o.Id === v.Id}
+          />
+          <Autocomplete
+            size="small" options={modelVariants}
+            getOptionLabel={(o) => o.modelName + (o.barrelLength ? ` - ${o.barrelLength}mm` : '')}
+            value={selectedVariant} onChange={(_, v) => handleVariantSelect(v)}
+            renderInput={(params) => <TextField {...params} placeholder="选择泵壳变体，自动计算开档" />}
+            isOptionEqualToValue={(o, v) => o.Id === v.Id}
+          />
+        </Box>
         {ssMeta && (
           <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, border: '1px solid #bae6fd', bgcolor: '#f0f9ff' }}>
             <Typography variant="body2" fontWeight={700} color="#0369a1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
               SS机筒长度
             </Typography>
             <Box display="flex" flexDirection="column" gap={1.5}>
-              {ssMeta.barrelLengthPresets && ssMeta.barrelLengthPresets.length > 0 && (
-                <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-                  <Typography variant="caption" color="text.secondary">快速选择:</Typography>
-                  {ssMeta.barrelLengthPresets.map((len, idx) => (
-                    <Chip
-                      key={idx}
-                      label={`${len} mm`}
-                      size="small"
-                      color={ssBarrelLength === String(len) ? 'primary' : 'default'}
-                      onClick={() => setSsBarrelLength(String(len))}
-                      sx={{ fontWeight: ssBarrelLength === String(len) ? 700 : 400 }}
-                    />
-                  ))}
-                </Box>
-              )}
+              <Typography variant="caption" color="text.secondary">
+                开档偏移量：{openOffsetFromMeta(ssMeta)} mm，填写机筒长度后自动写入图纸参数“开档”。
+              </Typography>
               <Box display="flex" gap={1.5} alignItems="center">
                 <TextField
                   size="small" label="机筒长度" type="number"
-                  value={ssBarrelLength} onChange={(e) => setSsBarrelLength(e.target.value)}
+                  value={ssBarrelLength} onChange={(e) => updateSsBarrelLength(e.target.value)}
                   placeholder="请输入机筒长度"
                   InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
                   sx={{ width: 150 }}
                 />
-                {ssBarrelLength && (ssMeta.openOffset != null || ssMeta.openFactor != null) && (
+                {ssBarrelLength && openOffsetFromMeta(ssMeta) != null && (
                   <Typography variant="body2" color="text.secondary">
                     开档自动计算:
                     <Typography component="span" fontWeight={700} color="primary.main" sx={{ mx: 0.5 }}>
-                      {(Number(ssBarrelLength) - (ssMeta.openOffset ?? ssMeta.openFactor ?? 0)).toFixed(1)}
+                      {calculateBearingSpan(ssBarrelLength, openOffsetFromMeta(ssMeta))}
                     </Typography>
                     mm
                   </Typography>
@@ -444,34 +519,45 @@ export default function RotorDrawingPage() {
       <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <LinkIcon size={20} color="#2563eb" />
-          关联订单水泵型号
+          关联图纸对象
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            选择要关联到此图纸的订单水泵型号：
+            选择要关联到此图纸的订单型号、型号变体或配方：
           </Typography>
-          {orderPumpModels.length === 0 ? (
+          {linkTargets.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-              暂无订单数据
+              暂无可关联对象
             </Typography>
           ) : (
             <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
-              {orderPumpModels.map((m, idx) => (
-                <ListItemButton key={`${m.orderId}-${m.recipeName}-${idx}`}
-                  onClick={() => handleLinkConfirm(m.recipeName)}
-                  disabled={linking}
-                  sx={{ borderRadius: 2, mb: 0.5 }}>
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    <PackageIcon size={18} color="#64748b" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={m.recipeName + (m.spec ? ` (${m.spec})` : '')}
-                    secondary={`订单#${m.orderId} - ${m.customerName}${m.contractNo ? ' / ' + m.contractNo : ''}`}
-                    primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
-                    secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                  />
-                </ListItemButton>
-              ))}
+              {(['order', 'variant', 'recipe'] as RotorLinkTargetType[]).map(type => {
+                const targets = linkTargets.filter(item => item.type === type);
+                if (targets.length === 0) return null;
+                return (
+                  <Box key={type} sx={{ mb: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1, mb: 0.5, fontWeight: 700 }}>
+                      {LINK_TARGET_LABELS[type]}
+                    </Typography>
+                    {targets.map(target => (
+                      <ListItemButton key={`${target.type}-${target.id}-${target.value}`}
+                        onClick={() => handleLinkConfirm(target)}
+                        disabled={linking}
+                        sx={{ borderRadius: 2, mb: 0.5 }}>
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          <PackageIcon size={18} color="#64748b" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={target.label}
+                          secondary={target.secondary}
+                          primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
+                          secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                        />
+                      </ListItemButton>
+                    ))}
+                  </Box>
+                );
+              })}
             </List>
           )}
         </DialogContent>

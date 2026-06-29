@@ -1,6 +1,6 @@
 import { Box, Typography, Chip, IconButton, Tooltip, Fade, Checkbox } from '@mui/material';
 import { Edit3 as EditIcon, Trash2 as DeleteIcon } from 'lucide-react';
-import { Part } from '../../types';
+import { Part, ScrewPricingMeta } from '../../types';
 import { stockStatus, getCatColor, loadCustomCategories } from './partsConstants';
 
 // ─── 零件行 ───────────────────────────────────────────
@@ -23,9 +23,13 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
     : '-';
 
   // 解析泵壳元数据
-  const pumpMeta: { isStainless: boolean; barrelLength?: number; openFactor?: number; openOffset?: number } | null =
+  const pumpMeta: { isStainless: boolean; openFactor?: number; openOffset?: number } | null =
     part.category === '泵壳' && part.notes
       ? (() => { try { return JSON.parse(part.notes); } catch { return null; } })()
+      : null;
+  const screwPricing: ScrewPricingMeta | null =
+    part.category === '螺丝' && part.notes
+      ? (() => { try { const pricing = JSON.parse(part.notes)?.screwPricing; return pricing?.enabled ? pricing : null; } catch { return null; } })()
       : null;
 
   return (
@@ -58,11 +62,20 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
           <Box display="flex" gap={0.5} flexWrap="wrap" mt={0.3}>
             <Chip label={part.category} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, bgcolor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }} />
             {pumpMeta?.isStainless && (
-              <Tooltip title={`不锈钢机筒${pumpMeta.barrelLength ? `  默认机筒长度: ${pumpMeta.barrelLength}mm` : ''}${pumpMeta.openOffset != null ? `  开档偏移量: ${pumpMeta.openOffset}` : (pumpMeta.openFactor != null ? `  开档系数: ${pumpMeta.openFactor}` : '')}`}>
+              <Tooltip title={`不锈钢机筒${pumpMeta.openOffset != null ? `  开档偏移量: ${pumpMeta.openOffset}` : (pumpMeta.openFactor != null ? `  开档系数: ${pumpMeta.openFactor}` : '')}`}>
                 <Chip
-                  label={`SS${pumpMeta.barrelLength ? ` ${pumpMeta.barrelLength}mm` : ''}`}
+                  label="SS"
                   size="small"
                   sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#0284c7', color: 'white', cursor: 'default' }}
+                />
+              </Tooltip>
+            )}
+            {screwPricing && (
+              <Tooltip title={`基准 ${screwPricing.baseLength}mm，每 ${screwPricing.stepLength}mm 加 ¥${Number(screwPricing.stepPrice || 0).toFixed(2)}`}>
+                <Chip
+                  label={`按长计价 φ${screwPricing.diameter}`}
+                  size="small"
+                  sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#f59e0b', color: 'white', cursor: 'default' }}
                 />
               </Tooltip>
             )}
@@ -102,4 +115,3 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
     </Fade>
   );
 }
-

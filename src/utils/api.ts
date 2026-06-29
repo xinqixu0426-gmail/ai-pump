@@ -2,6 +2,8 @@ import {
   Part,
   Recipe,
   RecipePart,
+  RecipeCostDraftResult,
+  RecipeBomDraftResult,
   CostResult,
   ApiResponse,
   PumpShellTemplate,
@@ -13,7 +15,11 @@ import {
   DynamicCostResult,
   Quotation,
   QuotationInput,
+  OrderItem,
+  PurchaseItem,
+  TodoItem,
 } from '../types';
+import { DEFAULT_COIL_MATERIAL } from './businessRules';
 
 // ─── 通用请求封装 ─────────────────────────────
 // 统一代理请求入口，在此集中处理 401 和重定向
@@ -141,6 +147,17 @@ export async function deleteParts(ids: number[]): Promise<void> {
   });
 }
 
+export async function generatePurchasePlan(items: OrderItem[]): Promise<{ purchaseList: PurchaseItem[]; todos: TodoItem[] }> {
+  const result = await proxyRequest<ApiResponse<{ purchaseList: PurchaseItem[]; todos: TodoItem[] }>>('/api/orders/purchase-plan', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '生成采购清单失败');
+  }
+  return result.data;
+}
+
 /**
  * 批量扣减库存（生产用）— 原子操作
  */
@@ -181,7 +198,7 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
   if (recipe.templateId !== undefined) payload.templateId = recipe.templateId || null;
   if (recipe.coilSpec !== undefined) payload.coilSpec = recipe.coilSpec || '';
   if (recipe.coilSheets !== undefined) payload.coilSheets = recipe.coilSheets || 0;
-  if (recipe.coilMaterial !== undefined) payload.coilMaterial = recipe.coilMaterial || '钢带';
+  if (recipe.coilMaterial !== undefined) payload.coilMaterial = recipe.coilMaterial || DEFAULT_COIL_MATERIAL;
   if (recipe.hasFloat !== undefined) payload.hasFloat = recipe.hasFloat || 0;
   if (recipe.floatWire !== undefined) payload.floatWire = recipe.floatWire || '';
   if (recipe.floatAccessoryType !== undefined) payload.floatAccessoryType = recipe.floatAccessoryType || 'standard';
@@ -252,6 +269,64 @@ export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
   return result.data;
 }
 
+export async function previewRecipeCostDraft(input: {
+  parts: RecipePart[];
+  assemblyWage?: number;
+  packingWage?: number;
+  surfaceTreatmentMode?: string;
+  surfaceTreatmentCost?: number;
+  managementFee?: number;
+  coilMaterial?: string;
+  customBarrelLength?: number | string | null;
+  longScrewExtraLength?: number | string;
+}): Promise<RecipeCostDraftResult> {
+  const result = await proxyRequest<ApiResponse<RecipeCostDraftResult>>('/api/recipes/cost-draft', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '生成配方成本快照失败');
+  }
+  return result.data;
+}
+
+export async function previewRecipeBomDraft(input: {
+  templateId?: number | null;
+  modelVariantId?: number | null;
+  customBarrelLength?: number | string | null;
+  longScrewExtraLength?: number | string;
+  coilSpec?: string;
+  coilSheets?: number | string;
+  coilMaterial?: string;
+  coilResult?: {
+    totalCost: number;
+    material?: string;
+    unitPrice?: number;
+    source?: string;
+    formula?: string;
+  };
+  capacitorModel?: string;
+  optionalParts?: Array<{ model: string; supplier?: string; qty?: number }>;
+  hasFloat?: boolean | number;
+  floatWire?: string;
+  floatAccessoryType?: string;
+  floatAccessoryDelta?: number;
+  hasCable?: boolean | number;
+  cableLength?: number | string;
+  cableWire?: string;
+  cableAccessoryType?: string;
+  packingParts?: Array<{ model: string; supplier?: string; qty?: number; snapshotPrice?: number; costSource?: string; packagingMaterial?: string }>;
+}): Promise<RecipeBomDraftResult> {
+  const result = await proxyRequest<ApiResponse<RecipeBomDraftResult>>('/api/recipes/bom-draft', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '生成配方 BOM 草稿失败');
+  }
+  return result.data;
+}
+
 // ─── 泵壳模板 CRUD ──────────────────────────
 
 function templateToApiPayload(tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Record<string, unknown> {
@@ -300,7 +375,7 @@ function modelVariantToApiPayload(variant: Partial<Omit<PumpModelVariant, 'Id'>>
   if (variant.templateId !== undefined) payload.templateId = variant.templateId;
   if (variant.coilSpec !== undefined) payload.coilSpec = variant.coilSpec || '';
   if (variant.coilSheets !== undefined) payload.coilSheets = variant.coilSheets || 0;
-  if (variant.coilMaterial !== undefined) payload.coilMaterial = variant.coilMaterial || '钢带';
+  if (variant.coilMaterial !== undefined) payload.coilMaterial = variant.coilMaterial || DEFAULT_COIL_MATERIAL;
   if (variant.barrelLength !== undefined) payload.barrelLength = variant.barrelLength ?? null;
   if (variant.longScrewExtraLength !== undefined) payload.longScrewExtraLength = variant.longScrewExtraLength || 0;
   if (variant.impellerModel !== undefined) payload.impellerModel = variant.impellerModel || '';

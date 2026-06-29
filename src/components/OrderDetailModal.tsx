@@ -31,20 +31,22 @@ import {
   Package as InventoryIcon,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
-import { saveOrder, calcStockAdditions } from '../utils/orderStore';
+import { saveOrder } from '../utils/orderStore';
 import { batchAddStock } from '../utils/api';
+import {
+  ORDER_STATUS_COLOR,
+  completePurchaseOrder,
+  orderPurchaseProgress,
+  togglePurchaseItem,
+  toggleTodoItem,
+  updateOrderStatus,
+} from '../utils/orderLifecycleRules';
 
 interface Props {
   order: Order;
   onClose: () => void;
   onUpdated: () => void;
 }
-
-const STATUS_COLOR: Record<OrderStatus, 'warning' | 'info' | 'success'> = {
-  待采购: 'warning',
-  采购中: 'info',
-  已完成: 'success',
-};
 
 export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
   const [tab, setTab] = useState(0);
@@ -56,35 +58,21 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
 
   // 切换单条采购项的已采购状态
   const togglePurchased = async (model: string, supplier: string) => {
-    const updated: Order = {
-      ...localOrder,
-      purchaseList: localOrder.purchaseList.map((p) =>
-        p.model === model && p.supplier === supplier
-          ? { ...p, purchased: !p.purchased }
-          : p
-      ),
-      updatedAt: new Date().toISOString(),
-    };
+    const updated = togglePurchaseItem(localOrder, model, supplier);
     setLocalOrder(updated);
     await saveOrder(updated);
   };
 
   // 切换 to-do 完成状态
   const toggleTodo = async (id: string) => {
-    const updated: Order = {
-      ...localOrder,
-      todos: localOrder.todos.map((t) =>
-        t.id === id ? { ...t, done: !t.done } : t
-      ),
-      updatedAt: new Date().toISOString(),
-    };
+    const updated = toggleTodoItem(localOrder, id);
     setLocalOrder(updated);
     await saveOrder(updated);
   };
 
   // 更新订单状态
   const setStatus = async (status: OrderStatus) => {
-    const updated: Order = { ...localOrder, status, updatedAt: new Date().toISOString() };
+    const updated = updateOrderStatus(localOrder, status);
     setLocalOrder(updated);
     await saveOrder(updated);
     onUpdated();
@@ -98,16 +86,10 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
     try {
       // 使用最新的 localOrder 快照
       const currentOrder = localOrder;
-      const additions = calcStockAdditions(currentOrder.purchaseList);
+      const { order: updated, additions } = completePurchaseOrder(currentOrder);
       if (additions.length > 0) {
         await batchAddStock(additions);
       }
-      const updated: Order = {
-        ...currentOrder,
-        status: '已完成',
-        purchaseList: currentOrder.purchaseList.map((p) => ({ ...p, purchased: true })),
-        updatedAt: new Date().toISOString(),
-      };
       setLocalOrder(updated);
       await saveOrder(updated);
       setSuccessMsg(`入库完成！共更新 ${additions.length} 种零件库存。`);
@@ -120,8 +102,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
     }
   };
 
-  const needToBuyCount = localOrder.purchaseList.filter((p) => p.needToBuy > 0).length;
-  const purchasedCount = localOrder.purchaseList.filter((p) => p.purchased && p.needToBuy > 0).length;
+  const { needCount: needToBuyCount, purchasedCount } = orderPurchaseProgress(localOrder);
 
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
@@ -132,7 +113,7 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
           </Typography>
           <Chip
             label={localOrder.status}
-            color={STATUS_COLOR[localOrder.status]}
+            color={ORDER_STATUS_COLOR[localOrder.status]}
             size="small"
           />
           <IconButton size="small" aria-label="关闭订单详情" onClick={onClose}>
