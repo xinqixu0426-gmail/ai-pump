@@ -66,6 +66,29 @@ export const MATERIAL_UNIT_PRICE_DEFAULTS: Record<string, string> = {
   冷轧800: '0.22',
   其他材质: '0',
 };
+export const SPEC_MATERIAL_UNIT_PRICE_DEFAULTS: Record<string, Record<string, string>> = {
+  '9': { 钢带: '0.18', 冷轧800: '0.2' },
+  '12': { 钢带: '0.21', 冷轧800: '0.22' },
+  '12.8': { 钢带: '0.234', 冷轧800: '0.244' },
+};
+export const normalizeCoilSpec = (spec: string) => {
+  const raw = String(spec || '').trim();
+  if (!raw) return '';
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? String(numeric) : raw;
+};
+export const getMaterialUnitPrice = (
+  spec: string,
+  material = DEFAULT_COIL_MATERIAL,
+  materialPrices: Record<string, string> = MATERIAL_UNIT_PRICE_DEFAULTS,
+) => {
+  const normalizedSpec = normalizeCoilSpec(spec);
+  const normalizedMaterial = String(material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
+  return SPEC_MATERIAL_UNIT_PRICE_DEFAULTS[normalizedSpec]?.[normalizedMaterial]
+    || materialPrices[normalizedMaterial]
+    || MATERIAL_UNIT_PRICE_DEFAULTS[normalizedMaterial]
+    || '0';
+};
 export const coilGroupKey = (spec: string, material = DEFAULT_COIL_MATERIAL) => `${spec}||${material || DEFAULT_COIL_MATERIAL}`;
 export const splitCoilGroupKey = (key: string) => {
   const [spec, material = DEFAULT_COIL_MATERIAL] = key.split('||');
@@ -172,7 +195,7 @@ export function useCoilForm() {
 
   const handleAdd = () => {
     setEditingId(null);
-    setFormData({ ...emptyForm, unitPrice: materialPrices[DEFAULT_COIL_MATERIAL] || MATERIAL_UNIT_PRICE_DEFAULTS[DEFAULT_COIL_MATERIAL], copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
+    setFormData({ ...emptyForm, unitPrice: getMaterialUnitPrice('', DEFAULT_COIL_MATERIAL, materialPrices), copperBase: copperPrice?.dbPrice || copperPrice?.livePricePerKg || '' });
     setDialogOpen(true);
   };
 
@@ -180,13 +203,21 @@ export function useCoilForm() {
   const autoFillFromSpec = useCallback((spec: string, material = DEFAULT_COIL_MATERIAL) => {
     const exact = groupedCoils[coilGroupKey(spec, material)];
     const existing = exact || coils.filter(c => c.spec === spec);
-    if (!existing || existing.length === 0) return;
+    if (!existing || existing.length === 0) {
+      setFormData(prev => ({
+        ...prev,
+        spec,
+        material: material || DEFAULT_COIL_MATERIAL,
+        unitPrice: getMaterialUnitPrice(spec, material, materialPrices),
+      }));
+      return;
+    }
     const ref = existing[0];
     setFormData(prev => ({
       ...prev,
       spec,
       material: ref.material || material || DEFAULT_COIL_MATERIAL,
-      unitPrice: exact ? (ref.unitPrice || prev.unitPrice) : (materialPrices[material] || MATERIAL_UNIT_PRICE_DEFAULTS[material] || ref.unitPrice || prev.unitPrice),
+      unitPrice: exact ? (ref.unitPrice || prev.unitPrice) : (getMaterialUnitPrice(spec, material, materialPrices) || ref.unitPrice || prev.unitPrice),
       copperBase: ref.copperBase || prev.copperBase,
       coilFee: ref.coilFee || prev.coilFee,
       rotorFee: ref.rotorFee || prev.rotorFee,

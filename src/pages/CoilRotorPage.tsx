@@ -16,7 +16,7 @@ import {
 import PageHeader from '../components/PageHeader';
 import { colors } from '../utils/theme';
 import { useAppStore } from '../utils/store';
-import { useCoilForm, CoilRecord, DEFAULT_COIL_MATERIAL, MATERIAL_UNIT_PRICE_DEFAULTS, coilGroupKey, splitCoilGroupKey } from '../hooks/useCoilForm';
+import { useCoilForm, CoilRecord, DEFAULT_COIL_MATERIAL, getMaterialUnitPrice, coilGroupKey, splitCoilGroupKey } from '../hooks/useCoilForm';
 import { proxyRequest } from '../utils/api';
 
 interface CalcResult {
@@ -435,10 +435,10 @@ export default function CoilRotorPage() {
                 freeSolo options={materialOptions} value={formData.material || DEFAULT_COIL_MATERIAL}
                 onChange={(_e, v) => {
                   const val = v || DEFAULT_COIL_MATERIAL;
-                  setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? (materialPrices[val] || MATERIAL_UNIT_PRICE_DEFAULTS[val] || p.unitPrice) : p.unitPrice }));
+                  setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? getMaterialUnitPrice(p.spec, val, materialPrices) : p.unitPrice }));
                   if (!editingId && formData.spec) autoFillFromSpec(formData.spec, val);
                 }}
-                onInputChange={(_e, v) => { const val = v || DEFAULT_COIL_MATERIAL; setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? (materialPrices[val] || MATERIAL_UNIT_PRICE_DEFAULTS[val] || p.unitPrice) : p.unitPrice })); }}
+                onInputChange={(_e, v) => { const val = v || DEFAULT_COIL_MATERIAL; setFormData(p => ({ ...p, material: val, unitPrice: !editingId ? getMaterialUnitPrice(p.spec, val, materialPrices) : p.unitPrice })); }}
                 renderInput={(params) => <TextField {...params} fullWidth size="small" label="材质 *" />}
               />
             </Grid>

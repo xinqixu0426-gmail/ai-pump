@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
     calculateCoilCost,
     getMaterialPriceMap,
+    getMaterialUnitPrice,
     resolveWireFromCoils,
 } = require('../api/services/coilCost.cjs');
 
@@ -68,6 +69,33 @@ test('线圈材质单价读取兼容默认值和坏 JSON', () => {
 
     assert.equal(values['钢带'], 0.21);
     assert.equal(values['冷轧800'], 0.22);
+});
+
+test('线圈定子单价按规格和材质取默认值', () => {
+    assert.equal(getMaterialUnitPrice('9', '钢带'), 0.18);
+    assert.equal(getMaterialUnitPrice('9', '冷轧800'), 0.2);
+    assert.equal(getMaterialUnitPrice('12.8', '钢带'), 0.234);
+    assert.equal(getMaterialUnitPrice('12.8', '冷轧800'), 0.244);
+});
+
+test('线圈成本材质回退使用规格材质单价', () => {
+    const specCoils = [
+        {
+            spec: '12.8',
+            material: '钢带',
+            sheets: 10,
+            unitPrice: 0.1,
+            wireWeight: 0,
+            copperBase: 0,
+            coilFee: 0,
+            rotorFee: 0,
+        },
+    ];
+    const result = calculateCoilCost(specCoils, { spec: '12.8', sheets: 10, material: '冷轧800' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.unitPrice, 0.244);
+    assert.equal(result.data.totalCost, 2.44);
 });
 
 test('线圈服务按材质解析默认线径', () => {

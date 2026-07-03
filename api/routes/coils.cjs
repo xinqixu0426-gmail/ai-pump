@@ -4,6 +4,7 @@ const {
     DEFAULT_COIL_MATERIAL,
     MATERIAL_UNIT_PRICE_DEFAULTS,
     getMaterialPriceMap,
+    getMaterialUnitPrice,
     calculateCoilCost,
 } = require('../services/coilCost.cjs');
 const router = Router();
@@ -47,7 +48,8 @@ router.post('/', (req, res) => {
         const sheetsRaw = b.sheets;
         if (!spec || !sheetsRaw) return res.status(400).json({ success: false, error: '规格和片数为必填项' });
         const materialPrices = getMaterialPriceMap(getSetting);
-        const unitPrice = parseFloat(b.unitPrice || materialPrices[material] || 0), sheets = parseInt(sheetsRaw);
+        const unitPriceInput = b.unitPrice !== undefined && b.unitPrice !== '' ? b.unitPrice : getMaterialUnitPrice(spec, material, materialPrices);
+        const unitPrice = parseFloat(unitPriceInput), sheets = parseInt(sheetsRaw);
         const wireWeight = parseFloat(b.wireWeight || 0), copperBase = parseFloat(b.copperBase || 0);
         const coilFee = parseFloat(b.coilFee || 0), rotorFee = parseFloat(b.rotorFee || 0);
         const cost = unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee;
@@ -77,13 +79,13 @@ router.patch('/:id', (req, res) => {
         for (const [bodyKey, col] of Object.entries(COIL_MAP)) {
             if (b[bodyKey] !== undefined) updates[col] = b[bodyKey];
         }
+        const current = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id));
         const materialPrices = getMaterialPriceMap(getSetting);
-        if (updates.material !== undefined && updates.unit_price === undefined && materialPrices[updates.material] !== undefined) {
-            updates.unit_price = materialPrices[updates.material];
+        if (updates.material !== undefined && updates.unit_price === undefined) {
+            updates.unit_price = getMaterialUnitPrice(updates.spec ?? current?.spec, updates.material, materialPrices);
         }
         // 自动重算 cost
         if (updates.unit_price !== undefined || updates.sheets !== undefined || updates.wire_weight !== undefined || updates.copper_base !== undefined || updates.coil_fee !== undefined || updates.rotor_fee !== undefined) {
-            const current = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id));
             if (current) {
                 const up = parseFloat(updates.unit_price ?? current.unitPrice ?? 0);
                 const sh = parseInt(updates.sheets ?? current.sheets ?? 0);
