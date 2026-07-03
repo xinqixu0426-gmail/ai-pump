@@ -12,9 +12,6 @@ const screwCatalog = [
             screwPricing: {
                 enabled: true,
                 diameter: 6,
-                baseLength: 170,
-                stepLength: 5,
-                stepPrice: 0.01,
             },
         }),
     },
@@ -30,30 +27,30 @@ function calculateRecipeCost(parts, partsCache, partsByModel) {
     return { totalCost };
 }
 
-test('报价覆盖 customBarrelLength 后重算长螺丝长度和参数化单价', () => {
+test('报价覆盖 customBarrelLength 后按机筒长度加补偿重算长螺丝', () => {
     const row = {
         id: 1,
         name: '测试配方',
         parts_json: JSON.stringify([
             {
                 name: '不锈钢长螺丝',
-                model: '6*195',
+                model: '6*200',
                 supplier: '',
                 qty: 4,
-                snapshotPrice: 0.35,
+                snapshotPrice: 0.65,
                 dynamicRule: 'longScrewByBarrelLength',
-                barrelLength: 170,
-                longScrewExtraLength: 25,
+                barrelLength: 190,
+                longScrewExtraLength: 10,
             },
         ]),
-        saved_total_cost: 1.4,
-        custom_barrel_length: 170,
+        saved_total_cost: 2.6,
+        custom_barrel_length: 190,
         coil_material: '钢带',
         has_float: 0,
         has_cable: 0,
     };
 
-    const result = calculateRecipeCostPreview(row, { customBarrelLength: 172 }, {
+    const result = calculateRecipeCostPreview(row, { customBarrelLength: 195 }, {
         partsCache: {},
         partsByModel: { 'φ6 不锈钢长螺丝': screwCatalog },
         partsCatalog: screwCatalog,
@@ -62,9 +59,9 @@ test('报价覆盖 customBarrelLength 后重算长螺丝长度和参数化单价
         getCoils: () => [],
     });
 
-    assert.equal(result.unitCost, 1.44);
-    assert.equal(result.parts[0].model, '6*200');
-    assert.equal(result.parts[0].snapshotPrice, 0.36);
+    assert.equal(result.unitCost, 2.68);
+    assert.equal(result.parts[0].model, '6*205');
+    assert.equal(result.parts[0].snapshotPrice, 0.67);
     assert.equal(result.parts[0].costSource, 'screw_pricing');
 });
 

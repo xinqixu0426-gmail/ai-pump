@@ -12,7 +12,7 @@ import { Part } from '../../types';
 import { colors, gradients } from '../../utils/theme';
 import { proxyRequest } from '../../utils/api';
 import { BUILTIN_CATEGORIES, getCatIcon } from './partsConstants';
-import { DEFAULT_FLOAT_ACCESSORY_DELTA, LONG_SCREW_LENGTH_STEP_MM, wireOptionsFromParts } from '../../utils/businessRules';
+import { DEFAULT_FLOAT_ACCESSORY_DELTA, wireOptionsFromParts } from '../../utils/businessRules';
 import {
   DEFAULT_STANDARD_CABLE_ACCESSORY_NAME,
   DEFAULT_XINJIE_CABLE_ACCESSORY_NAME,
@@ -71,9 +71,6 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
   const isScrewMode = category === '螺丝';
   const [screwPricingEnabled, setScrewPricingEnabled] = useState(false);
   const [screwDiameter, setScrewDiameter] = useState('6');
-  const [screwBaseLength, setScrewBaseLength] = useState('170');
-  const [screwStepLength, setScrewStepLength] = useState(String(LONG_SCREW_LENGTH_STEP_MM));
-  const [screwStepPrice, setScrewStepPrice] = useState('');
 
   // ── 电容结构化输入 ──
   const [capacitorUf, setCapacitorUf] = useState('');
@@ -119,9 +116,6 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       const screwPricing = parseScrewPricingMetaFromNotes(editingPart.notes);
       setScrewPricingEnabled(!!screwPricing);
       setScrewDiameter(screwPricing?.diameter != null ? String(screwPricing.diameter) : '6');
-      setScrewBaseLength(screwPricing?.baseLength != null ? String(screwPricing.baseLength) : '170');
-      setScrewStepLength(screwPricing?.stepLength != null ? String(screwPricing.stepLength) : String(LONG_SCREW_LENGTH_STEP_MM));
-      setScrewStepPrice(screwPricing?.stepPrice != null ? String(screwPricing.stepPrice) : '');
       setSupplier(editingPart.supplier);
       setStock(String(editingPart.stock ?? ''));
       // 解析不锈钢及备用参数元数据
@@ -141,7 +135,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
     } else {
       setModel(''); setCategory(''); setWireGauge(''); setCapacitorUf('');
       setPrice(''); setStandardCableAccessoryFee(''); setXinjieCableAccessoryFee(''); setStandardCableAccessoryName(DEFAULT_STANDARD_CABLE_ACCESSORY_NAME); setXinjieCableAccessoryName(DEFAULT_XINJIE_CABLE_ACCESSORY_NAME); setSupplier(''); setStock('');
-      setScrewPricingEnabled(false); setScrewDiameter('6'); setScrewBaseLength('170'); setScrewStepLength(String(LONG_SCREW_LENGTH_STEP_MM)); setScrewStepPrice('');
+      setScrewPricingEnabled(false); setScrewDiameter('6');
       setIsStainless(false); setOpenOffset('');
       setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
       setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
@@ -194,9 +188,6 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       isScrewMode,
       screwPricingEnabled,
       screwDiameter,
-      screwBaseLength,
-      screwStepLength,
-      screwStepPrice,
     });
   };
 
@@ -238,9 +229,6 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       xinjieCableAccessoryName,
       screwPricingEnabled,
       screwDiameter,
-      screwBaseLength,
-      screwStepLength,
-      screwStepPrice,
     });
     if (isCableMode) {
       await proxyRequest('/api/settings/cable_accessories', {
@@ -266,7 +254,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
         setIsStainless(false); setOpenOffset('');
         setDefaultUpperBearing(''); setDefaultLowerBearing(''); setDefaultOilSealDia(''); setDefaultBearingSpan('');
         setDefaultImpellerDia(''); setDefaultImpellerSpan(''); setDefaultImpellerDepth(''); setDefaultThreadLength(''); setDefaultThreadDia(''); setDefaultStackOffset('');
-        setScrewPricingEnabled(false); setScrewDiameter('6'); setScrewBaseLength('170'); setScrewStepLength(String(LONG_SCREW_LENGTH_STEP_MM)); setScrewStepPrice('');
+        setScrewPricingEnabled(false); setScrewDiameter('6');
       }
       if (open) {
         setTimeout(() => modelInputRef.current?.focus(), 100);
@@ -539,52 +527,22 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
               <Collapse in={screwPricingEnabled}>
                 <Stack spacing={1.5} mt={1.5}>
                   <Typography variant="caption" color="text.secondary">
-                    单价 = 当前单价 + 向上取整档数 × 每档加价
+                    单价 ≈ 0.00424 × 螺丝长度 - 0.198
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    螺丝长度取自目标型号，例如 6*195 中的 195；这里只设置用于匹配的直径。
                   </Typography>
                   <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={1.5}>
                     <TextField
-                      label="螺丝直径"
+                      label="匹配直径"
                       type="number"
                       size="small"
                       value={screwDiameter}
                       onChange={(e) => setScrewDiameter(e.target.value)}
                       error={!!errors.screwDiameter}
-                      helperText={errors.screwDiameter || '用于匹配 6*195'}
+                      helperText={errors.screwDiameter || '例如填 6，可匹配 6*195'}
                       InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
                       inputProps={{ min: 0, step: 0.1 }}
-                    />
-                    <TextField
-                      label="基准长度"
-                      type="number"
-                      size="small"
-                      value={screwBaseLength}
-                      onChange={(e) => setScrewBaseLength(e.target.value)}
-                      error={!!errors.screwBaseLength}
-                      helperText={errors.screwBaseLength || '当前单价对应的长度'}
-                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
-                      inputProps={{ min: 0, step: 1 }}
-                    />
-                    <TextField
-                      label="步进长度"
-                      type="number"
-                      size="small"
-                      value={screwStepLength}
-                      onChange={(e) => setScrewStepLength(e.target.value)}
-                      error={!!errors.screwStepLength}
-                      helperText={errors.screwStepLength || '通常为 5mm'}
-                      InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
-                      inputProps={{ min: 0, step: 1 }}
-                    />
-                    <TextField
-                      label="每档加价"
-                      type="number"
-                      size="small"
-                      value={screwStepPrice}
-                      onChange={(e) => setScrewStepPrice(e.target.value)}
-                      error={!!errors.screwStepPrice}
-                      helperText={errors.screwStepPrice || '每增加一个步进长度增加多少元'}
-                      InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
-                      inputProps={{ min: 0, step: 0.01 }}
                     />
                   </Box>
                 </Stack>

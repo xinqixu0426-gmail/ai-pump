@@ -7,8 +7,10 @@ export const DEFAULT_FLOAT_ACCESSORY_DELTA = 0.6;
 export const DEFAULT_ORDER_MARGIN = 1.10;
 export const DEFAULT_QUOTATION_MARGIN = 0.15;
 export const DEFAULT_PAINTING_COST = 3;
-export const DEFAULT_LONG_SCREW_EXTRA_LENGTH = 25;
+export const DEFAULT_LONG_SCREW_EXTRA_LENGTH = 0;
 export const LONG_SCREW_LENGTH_STEP_MM = 5;
+export const SCREW_LENGTH_PRICE_FACTOR = 0.00424;
+export const SCREW_LENGTH_PRICE_OFFSET = -0.198;
 
 export function roundMoney(value: number): number {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -91,12 +93,11 @@ export function longScrewModelFromBarrel(part: { model?: string }, barrelLength?
   const extra = Number(extraLength || 0);
   if (!Number.isFinite(barrel) || barrel <= 0) return null;
   const requestedLength = barrel + extra;
-  const screwLength = roundLengthToStep(requestedLength);
-  if (!Number.isFinite(screwLength) || screwLength <= 0) return null;
+  if (!Number.isFinite(requestedLength) || requestedLength <= 0) return null;
 
   const prefixMatch = String(part.model || '').match(/^(.+?\*)/);
   const prefix = prefixMatch ? prefixMatch[1] : '6*';
-  return `${prefix}${formatLengthMm(screwLength)}`;
+  return `${prefix}${formatLengthMm(requestedLength)}`;
 }
 
 export function applyLongScrewRule<T extends { name?: string; model?: string }>(
@@ -116,17 +117,10 @@ export function parseScrewPricingMeta(notes?: string): ScrewPricingMeta | null {
     const pricing = meta?.screwPricing;
     if (!pricing?.enabled) return null;
     const diameter = Number(pricing.diameter);
-    const baseLength = Number(pricing.baseLength);
-    const stepLength = Number(pricing.stepLength || LONG_SCREW_LENGTH_STEP_MM);
-    const stepPrice = Number(pricing.stepPrice);
-    if (![diameter, baseLength, stepLength, stepPrice].every(Number.isFinite)) return null;
-    if (diameter <= 0 || baseLength <= 0 || stepLength <= 0 || stepPrice < 0) return null;
+    if (!Number.isFinite(diameter) || diameter <= 0) return null;
     return {
       enabled: true,
       diameter,
-      baseLength,
-      stepLength,
-      stepPrice,
       modelPrefix: typeof pricing.modelPrefix === 'string' ? pricing.modelPrefix : undefined,
     };
   } catch {
@@ -147,9 +141,11 @@ export function screwLengthFromModel(model?: string): number | null {
 }
 
 export function calculateScrewUnitPrice(basePrice: number, length: number, pricing: ScrewPricingMeta): number {
-  const extraLength = Math.max(0, Number(length || 0) - Number(pricing.baseLength || 0));
-  const steps = Math.ceil(extraLength / Number(pricing.stepLength || LONG_SCREW_LENGTH_STEP_MM));
-  return roundMoney(Number(basePrice || 0) + steps * Number(pricing.stepPrice || 0));
+  void basePrice;
+  void pricing;
+  const screwLength = Number(length || 0);
+  if (!Number.isFinite(screwLength) || screwLength <= 0) return 0;
+  return roundMoney(Math.max(0, SCREW_LENGTH_PRICE_FACTOR * screwLength + SCREW_LENGTH_PRICE_OFFSET));
 }
 
 export function findScrewPricingPart(parts: Part[], model?: string, supplier = ''): { part: Part; pricing: ScrewPricingMeta } | null {

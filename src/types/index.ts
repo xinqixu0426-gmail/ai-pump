@@ -41,9 +41,6 @@ export interface PumpShellMeta {
 export interface ScrewPricingMeta {
   enabled: boolean;
   diameter: number;
-  baseLength: number;
-  stepLength: number;
-  stepPrice: number;
   modelPrefix?: string;
 }
 
@@ -170,9 +167,6 @@ export interface RecipePart {
   screwLength?: number;
   screwPricingModel?: string;
   screwPricingSupplier?: string;
-  screwPricingBaseLength?: number;
-  screwPricingStepLength?: number;
-  screwPricingStepPrice?: number;
 }
 
 // 配件选择（表单用）

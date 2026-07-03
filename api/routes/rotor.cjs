@@ -356,6 +356,44 @@ router.post('/draw', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════
+// POST /save — 保存暂定转子参数，不启动 FreeCAD
+// ═══════════════════════════════════════════════
+router.post('/save', (req, res) => {
+    try {
+        const params = req.body;
+        if (!params || Object.keys(params).length === 0) {
+            return res.status(400).json({ success: false, error: '缺少参数，请至少提供一项转子参数' });
+        }
+
+        const { fcParams, errors } = buildFcParams(params);
+        if (errors.length > 0) {
+            return res.status(400).json({ success: false, error: errors.join('; ') });
+        }
+        if (Object.keys(fcParams).filter(k => !k.startsWith('_')).length === 0) {
+            return res.status(400).json({ success: false, error: '未提取到有效参数' });
+        }
+
+        const jobId = 'saved-' + crypto.randomUUID();
+        const drawingName = normalizeDrawingName(params.drawingName ?? params.drawing_name, '暂存转子参数');
+        const now = new Date().toISOString();
+        db.prepare(`INSERT INTO rotor_drawings (job_id, drawing_name, nl_input, params_json, fc_params_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'saved', ?, ?)`)
+            .run(jobId, drawingName, '[SAVED] ' + JSON.stringify(params), JSON.stringify(params), JSON.stringify(fcParams), now, now);
+
+        return res.json({
+            success: true,
+            data: { jobId, drawingName, params: fcParams },
+            jobId,
+            drawingName,
+            params: fcParams
+        });
+    } catch (e) {
+        console.error('[Rotor] /save 错误:', e);
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════
 // POST /chat — 自然语言出图（前端页面使用）
 // ═══════════════════════════════════════════════
 router.post('/chat', async (req, res) => {

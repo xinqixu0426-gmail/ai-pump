@@ -71,7 +71,7 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
               </Tooltip>
             )}
             {screwPricing && (
-              <Tooltip title={`基准 ${screwPricing.baseLength}mm，每 ${screwPricing.stepLength}mm 加 ¥${Number(screwPricing.stepPrice || 0).toFixed(2)}`}>
+              <Tooltip title="单价 ≈ 0.00424 × 螺丝长度 - 0.198">
                 <Chip
                   label={`按长计价 φ${screwPricing.diameter}`}
                   size="small"

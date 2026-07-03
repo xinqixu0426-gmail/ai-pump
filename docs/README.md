@@ -44,7 +44,7 @@
 - 安装工资、打包工资和默认喷漆工资；
 - 转子出图默认参数。
 
-型号变体用于表达同一模板下不同产品型号的差异，包括线圈规格/片数/材质、机筒长度、长螺丝补偿长度和叶轮参数。长螺丝默认按“实际机筒长度 + 25mm”并向上取到 5mm 档；零件库可维护一个参数化基础螺丝，由基准长度单价和每档加价自动算出目标长度单价。创建配方时选择变体会自动带入对应模板和技术参数；配方保存的是快照，后续修改变体不会反向改变历史配方。
+型号变体用于表达同一模板下不同产品型号的差异，包括线圈规格/片数/材质、不锈钢机筒长度、长螺丝补偿长度和叶轮参数。长螺丝与不锈钢机筒绑定，目标长度 = 机筒长度 + 补偿长度；零件库可维护一个按长度自动计价的基础螺丝，目标长度单价按 `0.00424 × 长度 - 0.198` 计算。创建配方时选择变体会自动带入对应模板和技术参数；配方保存的是快照，后续修改变体不会反向改变历史配方。
 
 ### 产品配方
 
@@ -155,7 +155,7 @@
 | 客户/报价 | `/api/customers`、`/api/quotations` | CRUD |
 | 订单 | `/api/orders` | CRUD、历史售价、采购清单生成 |
 | 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
-| 转子 | `/api/rotor` | 出图、状态、历史、关联、打印 |
+| 转子 | `/api/rotor` | 出图、参数暂存、状态、历史、关联、打印 |
 | 设置 | `/api/settings/:key` | 白名单设置读取和修改 |
 | AI/语音/Siri | `/api/ai`、`/api/voice`、`/api/siri` | 对话、工具调用、ASR |
 
@@ -194,12 +194,16 @@ POST /api/rotor/draw 或 /chat
   -> 返回 jobId
   -> GET /api/rotor/status/:jobId 轮询
   -> 成功后下载 fileUrl 或 POST /api/rotor/print/:jobId
+
+POST /api/rotor/save
+  -> 保存暂定参数到 rotor_drawings(status=saved)
 ```
 
 - `/draw` 接收结构化参数，至少提供一项；缺失参数可以由泵壳模板补全。
+- `/save` 接收同一套结构化参数，仅保存到历史，不启动 FreeCAD。
 - `/chat` 接收自然语言，可能返回 `need_params` 或安全警告；确认后再出图。
-- `/draw` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
-- `/draw` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
+- `/draw`、`/save` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
+- `/draw`、`/save` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
 - `PATCH /api/rotor/history/:id/name` 用于重命名历史图纸，请求体 `{ "drawingName": "..." }`，成功返回 `{ "success": true, "data": { "drawingName": "..." } }`。
 - 出图历史可通过 `GET /api/rotor/link-targets` 选择关联订单型号、型号变体或配方，保存时仍写入 `linked_pump_model` 文本字段。
 - FreeCAD 默认最多同时执行 2 个任务。

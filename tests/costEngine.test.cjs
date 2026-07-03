@@ -21,45 +21,41 @@ const screwCatalog = [
             screwPricing: {
                 enabled: true,
                 diameter: 6,
-                baseLength: 170,
-                stepLength: 5,
-                stepPrice: 0.01,
             },
         }),
     },
 ];
 
-test('长螺丝长度按机筒长度加补偿计算', () => {
-    const part = applyLongScrewRule({ model: '6*170', name: '不锈钢长螺丝' }, 170, 25);
-    assert.equal(part.model, '6*195');
-    assert.equal(part.requestedScrewLength, 195);
-    assert.equal(part.screwLength, 195);
+test('长螺丝长度按机筒长度加补偿长度计算', () => {
+    const part = applyLongScrewRule({ model: '6*170', name: '不锈钢长螺丝' }, 190, 10);
+    assert.equal(part.model, '6*200');
+    assert.equal(part.barrelLength, 190);
+    assert.equal(part.longScrewExtraLength, 10);
+    assert.equal(part.requestedScrewLength, 200);
+    assert.equal(part.screwLength, 200);
     assert.equal(part.dynamicRule, 'longScrewByBarrelLength');
 });
 
-test('长螺丝长度按 5mm 向上取整', () => {
+test('长螺丝长度不自动按 5mm 取整', () => {
     assert.equal(roundLengthToStep(197), 200);
-    const part = applyLongScrewRule({ model: '6*170', name: '不锈钢长螺丝' }, 172, 25);
-    assert.equal(part.model, '6*200');
+    const part = applyLongScrewRule({ model: '6*170', name: '不锈钢长螺丝' }, 190, 7);
+    assert.equal(part.model, '6*197');
     assert.equal(part.requestedScrewLength, 197);
-    assert.equal(part.screwLength, 200);
+    assert.equal(part.screwLength, 197);
 });
 
 test('没有有效机筒长度时不改长螺丝', () => {
     const original = { model: '6*170', name: '不锈钢长螺丝' };
-    const part = applyLongScrewRule(original, null, 25);
+    const part = applyLongScrewRule(original, null);
     assert.deepEqual(part, original);
 });
 
-test('参数化螺丝单价按基准长度和每档加价计算', () => {
+test('参数化螺丝单价按长度公式计算', () => {
     const price = calculateScrewUnitPrice(0.3, 195, {
         enabled: true,
         diameter: 6,
-        baseLength: 170,
-        stepLength: 5,
-        stepPrice: 0.01,
     });
-    assert.equal(price, 0.35);
+    assert.equal(price, 0.63);
 });
 
 test('参数化基础螺丝可按直径匹配目标型号', () => {
@@ -71,11 +67,8 @@ test('参数化基础螺丝可按直径匹配目标型号', () => {
 
 test('长螺丝目标型号可由参数化基础件计算单价', () => {
     const result = longScrewPriceByModel(screwCatalog, '6*195');
-    assert.equal(result.unitPrice, 0.35);
+    assert.equal(result.unitPrice, 0.63);
     assert.equal(result.pricingPartModel, 'φ6 不锈钢长螺丝');
-    assert.equal(result.baseLength, 170);
-    assert.equal(result.stepLength, 5);
-    assert.equal(result.stepPrice, 0.01);
 });
 
 test('catalog 取价优先参数化螺丝、精确供应商，否则取同型号最低价', () => {
@@ -85,7 +78,7 @@ test('catalog 取价优先参数化螺丝、精确供应商，否则取同型号
         { model: '轴承', category: '轴承', supplier: 'B', price: 1.6 },
     ];
 
-    assert.equal(getPartPriceFromCatalog(catalog, '6*195'), 0.35);
+    assert.equal(getPartPriceFromCatalog(catalog, '6*195'), 0.63);
     assert.equal(getPartPriceFromCatalog(catalog, '轴承', 'A'), 2);
     assert.equal(getPartPriceFromCatalog(catalog, '轴承'), 1.6);
     assert.equal(getPartPriceFromCatalog(catalog, '不存在'), 0);
@@ -94,8 +87,8 @@ test('catalog 取价优先参数化螺丝、精确供应商，否则取同型号
 test('配方成本草稿会应用长螺丝长度和参数化计价', () => {
     const result = buildRecipeCostDraft({
         parts: [{ model: '6*170', name: '不锈钢长螺丝', supplier: '', qty: 4, snapshotPrice: 0 }],
-        customBarrelLength: 170,
-        longScrewExtraLength: 25,
+        customBarrelLength: 190,
+        longScrewExtraLength: 10,
         assemblyWage: 5,
         packingWage: 2,
         managementFee: 1,
@@ -103,13 +96,13 @@ test('配方成本草稿会应用长螺丝长度和参数化计价', () => {
         partsCatalog: screwCatalog,
     });
 
-    assert.equal(result.parts[0].model, '6*195');
-    assert.equal(result.parts[0].snapshotPrice, 0.35);
+    assert.equal(result.parts[0].model, '6*200');
+    assert.equal(result.parts[0].snapshotPrice, 0.65);
     assert.equal(result.parts[0].costSource, 'screw_pricing');
-    assert.equal(result.partsCost, 1.4);
+    assert.equal(result.partsCost, 2.6);
     assert.equal(result.laborCost, 8);
-    assert.equal(result.savedTotalCost, 9.4);
-    assert.match(result.savedCostDetails, /参数化计价: φ6 不锈钢长螺丝/);
+    assert.equal(result.savedTotalCost, 10.6);
+    assert.match(result.savedCostDetails, /按长度计价: φ6 不锈钢长螺丝/);
 });
 
 test('通用配方成本计算支持浮球新界式加价', () => {
@@ -149,6 +142,6 @@ test('通用配方成本计算支持参数化长螺丝', () => {
         'φ6 不锈钢长螺丝': screwCatalog,
     });
 
-    assert.equal(result.totalCost, '1.40');
+    assert.equal(result.totalCost, '2.52');
     assert.equal(result.details[0].source, '参数化螺丝(φ6 不锈钢长螺丝)');
 });

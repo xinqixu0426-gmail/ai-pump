@@ -15,9 +15,6 @@ const partsCatalog = [
             screwPricing: {
                 enabled: true,
                 diameter: 6,
-                baseLength: 170,
-                stepLength: 5,
-                stepPrice: 0.01,
             },
         }),
     },

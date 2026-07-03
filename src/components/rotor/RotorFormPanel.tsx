@@ -1,5 +1,5 @@
 import { TextField, Paper, Grid, MenuItem, Button, CircularProgress } from '@mui/material';
-import { Wrench as BuildIcon } from 'lucide-react';
+import { Save as SaveIcon, Wrench as BuildIcon } from 'lucide-react';
 import { BEARING_OPTIONS } from './rotorConstants';
 
 export interface RotorFormData {
@@ -21,12 +21,14 @@ interface RotorFormPanelProps {
   form: RotorFormData;
   updateForm: (key: string, value: string) => void;
   onSubmit: () => void;
+  onSave: () => void;
   loading: boolean;
+  saving: boolean;
   hasWarning: boolean;
 }
 
 export default function RotorFormPanel({
-  form, updateForm, onSubmit, loading, hasWarning
+  form, updateForm, onSubmit, onSave, loading, saving, hasWarning
 }: RotorFormPanelProps) {
   return (
     <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3 }}>
@@ -85,10 +87,20 @@ export default function RotorFormPanel({
             onChange={e => updateForm('thread_dia', e.target.value)} size="small" />
         </Grid>
       </Grid>
-      <Button variant="contained" sx={{ mt: 2 }} onClick={onSubmit}
-        disabled={loading} startIcon={loading ? <CircularProgress size={20} /> : <BuildIcon size={18} />}>
-        生成图纸
-      </Button>
+      <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+        <Grid item>
+          <Button variant="outlined" onClick={onSave}
+            disabled={loading || saving} startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon size={18} />}>
+            保存参数
+          </Button>
+        </Grid>
+        <Grid item>
+          <Button variant="contained" onClick={onSubmit}
+            disabled={loading || saving} startIcon={loading ? <CircularProgress size={20} /> : <BuildIcon size={18} />}>
+            生成图纸
+          </Button>
+        </Grid>
+      </Grid>
     </Paper>
   );
 }

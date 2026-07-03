@@ -58,6 +58,36 @@ function getSurfaceTreatmentLabel(mode?: string | null): string {
   return '表面处理费';
 }
 
+function screwLengthFromModel(model?: string): number | null {
+  const match = String(model || '').match(/\*(\d+(?:\.\d+)?)$/);
+  const length = match ? Number(match[1]) : NaN;
+  return Number.isFinite(length) && length > 0 ? length : null;
+}
+
+function money(value: number) {
+  return value.toFixed(2);
+}
+
+function buildLongScrewCalculation(detail: any, partMeta?: any): string {
+  const nameAndModel = `${detail?.name || ''}${detail?.model || ''}`;
+  if (!nameAndModel.includes('长螺丝')) return '';
+
+  const screwLength = Number(partMeta?.screwLength || partMeta?.requestedScrewLength || screwLengthFromModel(detail?.model) || 0);
+  if (!Number.isFinite(screwLength) || screwLength <= 0) return '';
+
+  const formulaPrice = Math.max(0, 0.00424 * screwLength - 0.198);
+  const unitPrice = Number(detail?.snapshotPrice || detail?.price || formulaPrice);
+  const qty = Number(detail?.qty || partMeta?.qty || 1);
+  const subtotal = unitPrice * qty;
+  const barrel = Number(partMeta?.barrelLength);
+  const extra = Number(partMeta?.longScrewExtraLength);
+  const lengthText = Number.isFinite(barrel) && barrel > 0 && Number.isFinite(extra)
+    ? `机筒 ${barrel}mm + 补偿 ${extra}mm = 长螺丝 ${screwLength}mm`
+    : `长螺丝长度 ${screwLength}mm`;
+
+  return `${lengthText}；单价≈0.00424×${screwLength}-0.198=¥${money(formulaPrice)}；数量 ${qty}；小计 ¥${money(subtotal)}`;
+}
+
 export default function RecipeDetailModal({
   recipe,
   costResult,
@@ -97,10 +127,15 @@ export default function RecipeDetailModal({
     };
 
     let extraModels = new Set<string>();
+    let savedParts: any[] = [];
     try {
       const extras = JSON.parse(recipe.extraPartsJson || '[]');
       extras.forEach((p: any) => extraModels.add(`${p.model}||${p.supplier||''}`));
     } catch {}
+    try {
+      savedParts = JSON.parse(recipe.partsJson || '[]');
+      if (!Array.isArray(savedParts)) savedParts = [];
+    } catch { savedParts = []; }
 
     const displayDetails = (() => {
       const cable = costResult.details.find(detail => detail.name === '电缆线');
@@ -135,7 +170,18 @@ export default function RecipeDetailModal({
       }, []);
     })();
 
+    const findSavedPart = (detail: any) => savedParts.find(part => (
+      String(part?.model || '') === String(detail?.model || '')
+      && String(part?.name || part?.model || '') === String(detail?.name || detail?.model || '')
+      && String(part?.supplier || '') === String(detail?.supplier === '-' ? '' : detail?.supplier || '')
+    )) || savedParts.find(part => (
+      String(part?.model || '') === String(detail?.model || '')
+      && `${part?.name || ''}${part?.model || ''}`.includes('长螺丝')
+    ));
+
     displayDetails.forEach(detail => {
+      const longScrewCalculation = buildLongScrewCalculation(detail, findSavedPart(detail));
+      const displayDetail = longScrewCalculation ? { ...detail, longScrewCalculation } : detail;
       const name = detail.name;
       const sub = parseFloat(detail.subtotal) || 0;
       const snapSub = parseFloat(detail.snapshotSubtotal || '0') || 0;
@@ -156,7 +202,7 @@ export default function RecipeDetailModal({
         groupKey = 'optional';
       }
 
-      groups[groupKey].items.push(detail);
+      groups[groupKey].items.push(displayDetail);
       groups[groupKey].total += sub;
       groups[groupKey].snapshotTotal += snapSub;
     });
@@ -365,7 +411,14 @@ export default function RecipeDetailModal({
                     <TableBody>
                       {group.items.map((detail, index) => (
                         <TableRow key={index}>
-                          <TableCell>{detail.name}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2">{detail.name}</Typography>
+                            {detail.longScrewCalculation && (
+                              <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+                                {detail.longScrewCalculation}
+                              </Typography>
+                            )}
+                          </TableCell>
                           <TableCell>{detail.model}</TableCell>
                           <TableCell>{detail.supplier}</TableCell>
                           <TableCell

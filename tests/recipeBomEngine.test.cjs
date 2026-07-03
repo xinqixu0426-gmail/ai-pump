@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { buildRecipeBomDraft } = require('../api/services/recipeBomEngine.cjs');
 
 const partsCatalog = [
-    { model: '6*基础', category: '螺丝', supplier: '螺丝供应商', price: 0.3, notes: JSON.stringify({ screwPricing: { enabled: true, diameter: 6, baseLength: 170, stepLength: 5, stepPrice: 0.01 } }) },
+    { model: '6*基础', category: '螺丝', supplier: '螺丝供应商', price: 0.3, notes: JSON.stringify({ screwPricing: { enabled: true, diameter: 6 } }) },
     { model: '201', category: '轴承', supplier: '轴承供应商', price: 1.1 },
     { model: '20μF', category: '电容', supplier: '电容供应商', price: 3 },
     { model: '浮球-线径0.75', category: '浮球', supplier: '线缆供应商', price: 7.6 },
@@ -68,7 +68,7 @@ const interpolationCoils = [
 test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配置', () => {
     const result = buildRecipeBomDraft({
         templateId: 1,
-        customBarrelLength: 170,
+        customBarrelLength: 190,
         coilSpec: 'Y90',
         coilSheets: 10,
         coilMaterial: '钢带',
@@ -78,6 +78,7 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
         cableWire: '0.75',
         cableLength: 3,
         cableAccessoryType: 'xinjie',
+        longScrewExtraLength: 10,
         packingParts: [{ model: '牛皮纸箱A', supplier: '包装供应商', qty: 1 }],
         optionalParts: [],
     }, {
@@ -87,17 +88,17 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
         coils,
     });
 
-    assert.equal(result.shellPrice, 13.6);
+    assert.equal(result.shellPrice, 15.2);
     assert.equal(result.capacitorModel, '20μF');
-    assert.equal(result.customBarrelLength, 170);
-    assert.equal(result.longScrewExtraLength, 25);
+    assert.equal(result.customBarrelLength, 190);
+    assert.equal(result.longScrewExtraLength, 10);
 
     const screw = result.parts.find(part => part.name === '不锈钢长螺丝');
-    assert.equal(screw.model, '6*195');
-    assert.equal(screw.snapshotPrice, 0.35);
+    assert.equal(screw.model, '6*200');
+    assert.equal(screw.snapshotPrice, 0.65);
 
     const barrel = result.parts.find(part => part.name === '机筒(按cm)');
-    assert.equal(barrel.qty, 17);
+    assert.equal(barrel.qty, 19);
     assert.equal(barrel.snapshotPrice, 0.8);
 
     const coil = result.parts.find(part => part.name === '线圈转子');

@@ -8,8 +8,10 @@ function roundMoney(value) {
     return Math.round(Number(value || 0) * 100) / 100;
 }
 
-const DEFAULT_LONG_SCREW_EXTRA_LENGTH = 25;
+const DEFAULT_LONG_SCREW_EXTRA_LENGTH = 0;
 const LONG_SCREW_LENGTH_STEP_MM = 5;
+const SCREW_LENGTH_PRICE_FACTOR = 0.00424;
+const SCREW_LENGTH_PRICE_OFFSET = -0.198;
 const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
 
 function parseNonNegativeNumber(value, field, { required = false, defaultValue = 0 } = {}) {
@@ -128,15 +130,14 @@ function longScrewModelFromBarrel(part, barrelLength, extraLength = DEFAULT_LONG
     const extra = Number(extraLength || 0);
     if (!Number.isFinite(barrel) || barrel <= 0) return null;
     const requestedLength = barrel + extra;
-    const screwLength = roundLengthToStep(requestedLength);
-    if (!Number.isFinite(screwLength) || screwLength <= 0) return null;
+    if (!Number.isFinite(requestedLength) || requestedLength <= 0) return null;
 
     const prefixMatch = String(part?.model || '').match(/^(.+?\*)/);
     const prefix = prefixMatch ? prefixMatch[1] : '6*';
     return {
-        model: `${prefix}${formatLengthMm(screwLength)}`,
+        model: `${prefix}${formatLengthMm(requestedLength)}`,
         requestedLength,
-        screwLength,
+        screwLength: requestedLength,
     };
 }
 
@@ -161,12 +162,8 @@ function parseScrewPricingMeta(notes) {
         const pricing = JSON.parse(notes)?.screwPricing;
         if (!pricing?.enabled) return null;
         const diameter = Number(pricing.diameter);
-        const baseLength = Number(pricing.baseLength);
-        const stepLength = Number(pricing.stepLength || LONG_SCREW_LENGTH_STEP_MM);
-        const stepPrice = Number(pricing.stepPrice);
-        if (![diameter, baseLength, stepLength, stepPrice].every(Number.isFinite)) return null;
-        if (diameter <= 0 || baseLength <= 0 || stepLength <= 0 || stepPrice < 0) return null;
-        return { enabled: true, diameter, baseLength, stepLength, stepPrice, modelPrefix: pricing.modelPrefix };
+        if (!Number.isFinite(diameter) || diameter <= 0) return null;
+        return { enabled: true, diameter, modelPrefix: pricing.modelPrefix };
     } catch {
         return null;
     }
@@ -185,9 +182,9 @@ function screwLengthFromModel(model) {
 }
 
 function calculateScrewUnitPrice(basePrice, length, pricing) {
-    const extraLength = Math.max(0, Number(length || 0) - Number(pricing.baseLength || 0));
-    const steps = Math.ceil(extraLength / Number(pricing.stepLength || LONG_SCREW_LENGTH_STEP_MM));
-    return roundMoney(Number(basePrice || 0) + steps * Number(pricing.stepPrice || 0));
+    const screwLength = Number(length || 0);
+    if (!Number.isFinite(screwLength) || screwLength <= 0) return 0;
+    return roundMoney(Math.max(0, SCREW_LENGTH_PRICE_FACTOR * screwLength + SCREW_LENGTH_PRICE_OFFSET));
 }
 
 function findScrewPricingPart(partsCatalog, model, supplier = '') {
@@ -211,9 +208,6 @@ function longScrewPriceByModel(partsCatalog, model, supplier = '') {
         unitPrice: calculateScrewUnitPrice(matched.part.price, length, matched.pricing),
         pricingPartModel: matched.part.model,
         pricingSupplier: matched.part.supplier || '',
-        baseLength: matched.pricing.baseLength,
-        stepLength: matched.pricing.stepLength,
-        stepPrice: matched.pricing.stepPrice,
     };
 }
 
@@ -347,9 +341,6 @@ function applyScrewPricing(part, partsCatalog) {
         costSource: 'screw_pricing',
         screwPricingModel: pricing.pricingPartModel,
         screwPricingSupplier: pricing.pricingSupplier,
-        screwPricingBaseLength: pricing.baseLength,
-        screwPricingStepLength: pricing.stepLength,
-        screwPricingStepPrice: pricing.stepPrice,
     };
 }
 
@@ -393,9 +384,9 @@ function buildRecipeCostDraft(input, options = {}) {
             }
             if (part.dynamicRule === 'longScrewByBarrelLength') {
                 const pricingText = part.costSource === 'screw_pricing'
-                    ? `，参数化计价: ${part.screwPricingModel || '-'}，基准${part.screwPricingBaseLength}mm，每${part.screwPricingStepLength}mm加¥${Number(part.screwPricingStepPrice || 0).toFixed(2)}`
+                    ? `，按长度计价: ${part.screwPricingModel || '-'}，公式≈0.00424×长度-0.198`
                     : '';
-                return `${base}（机筒: ${part.barrelLength}mm，补偿: ${part.longScrewExtraLength}mm，取整后螺丝: ${part.screwLength}mm${pricingText}）`;
+                return `${base}（机筒: ${part.barrelLength}mm，补偿: ${part.longScrewExtraLength}mm，长螺丝: ${part.screwLength}mm${pricingText}）`;
             }
             return base;
         })

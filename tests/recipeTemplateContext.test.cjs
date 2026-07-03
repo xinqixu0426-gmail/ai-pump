@@ -9,14 +9,13 @@ const source = fs.readFileSync(sourcePath, 'utf8')
     .replace(/import[^;]+;\n/g, '')
     .replace(/export function buildRecipeTemplateContext/, 'function buildRecipeTemplateContext');
 const helpers = `
-const DEFAULT_LONG_SCREW_EXTRA_LENGTH = 25;
+const DEFAULT_LONG_SCREW_EXTRA_LENGTH = 0;
 function applyLongScrewRule(part, barrelLength, extraLength = DEFAULT_LONG_SCREW_EXTRA_LENGTH) {
   if (!String(part.name || '').includes('长螺丝')) return part;
-  const length = Number(barrelLength);
-  if (!Number.isFinite(length) || length <= 0) return part;
-  const requested = length + Number(extraLength || 0);
-  const rounded = Math.ceil(requested / 5) * 5;
-  return { ...part, model: '6*' + rounded, barrelLength: length, longScrewExtraLength: extraLength, requestedScrewLength: requested, screwLength: rounded };
+  const barrel = Number(barrelLength);
+  if (!Number.isFinite(barrel) || barrel <= 0) return part;
+  const length = barrel + Number(extraLength || 0);
+  return { ...part, model: '6*' + length, barrelLength: barrel, longScrewExtraLength: Number(extraLength || 0), requestedScrewLength: length, screwLength: length };
 }
 `;
 const compiled = ts.transpileModule(`${helpers}\n${source}\nmodule.exports = { buildRecipeTemplateContext };`, {
@@ -36,13 +35,13 @@ test('配方模板上下文解析模板、泵壳 notes 并应用长螺丝规则'
             partsJson: JSON.stringify([{ name: '不锈钢长螺丝', model: '6*170', qty: 4 }]),
             shellComponentsJson: JSON.stringify([{ name: '机筒', qty: 1, pricingMode: 'lengthCm' }]),
         },
-        selectedModelVariant: { Id: 2, barrelLength: 172, longScrewExtraLength: 25 },
+        selectedModelVariant: { Id: 2, barrelLength: 190, longScrewExtraLength: 10 },
         parts: [{ model: '泵壳A', category: '泵壳', notes: JSON.stringify({ barrelLength: 170 }) }],
         customBarrelLength: '',
     });
 
-    assert.equal(result.effectiveBarrelLength, 172);
-    assert.equal(result.effectiveLongScrewExtraLength, 25);
+    assert.equal(result.effectiveBarrelLength, 190);
+    assert.equal(result.effectiveLongScrewExtraLength, 10);
     assert.equal(result.shellMetaInfo.barrelLength, 170);
     assert.equal(result.shellComponents[0].name, '机筒');
     assert.equal(result.adjustedTemplateParts[0].model, '6*200');

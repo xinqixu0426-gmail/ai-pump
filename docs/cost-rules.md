@@ -103,15 +103,15 @@ effectiveBarrelLength 仅来自配方 customBarrelLength 或型号变体 barrelL
 
 - 旧规则只在前端生效；现已在保存成本快照时由 `api/services/costEngine.cjs:buildRecipeCostDraft` 再次应用。
 - 通过名称包含“长螺丝”识别，缺少结构化规则。
-- 价格仍依赖离散零件型号，不适合 5mm 步进的连续规格。
+- 价格由目标型号中的长度套用按长度计价公式。
 
 当前规则：
 
 ```text
-实际机筒长度 = 配方 customBarrelLength 优先，否则型号变体 barrelLength
-长螺丝理论长度 = 实际机筒长度 + longScrewExtraLength
-默认 longScrewExtraLength = 25mm
-保存型号长度 = 按 5mm 向上取整
+不锈钢机筒长度 = 配方 customBarrelLength 优先，否则型号变体 barrelLength。
+长螺丝与不锈钢机筒绑定，长度 = 不锈钢机筒长度 + longScrewExtraLength。
+默认 longScrewExtraLength = 0mm，未设置时不改模板长螺丝型号。
+保存型号长度 = 不锈钢机筒长度 + longScrewExtraLength。
 ```
 
 保存快照时会在长螺丝配件上记录：
@@ -129,32 +129,25 @@ effectiveBarrelLength 仅来自配方 customBarrelLength 或型号变体 barrelL
 ```text
 类别：螺丝
 型号：φ6 不锈钢长螺丝
-单价：170mm 基准单价
 notes.screwPricing:
   enabled: true
   diameter: 6
-  baseLength: 170
-  stepLength: 5
-  stepPrice: 每 5mm 加价
 ```
 
 计价规则：
 
 ```text
-档数 = ceil(max(0, 螺丝长度 - baseLength) / stepLength)
-单价 = 基础零件单价 + 档数 × stepPrice
+单价 ≈ 0.00424 × 螺丝长度 - 0.198
+最终单价 = max(0, 上述结果)，并按金额保留 2 位小数
 ```
 
-例如：基础零件单价 `0.30`，基准长度 `170mm`，每 `5mm` 加 `0.01`，则 `195mm` 单价为 `0.35`。
+例如：`195mm` 单价约为 `0.63`，`200mm` 单价约为 `0.65`。
 
 保存快照时若匹配到参数化基础螺丝，会覆盖长螺丝的 `snapshotPrice`，并记录：
 
 - `costSource: screw_pricing`
 - `screwPricingModel`
 - `screwPricingSupplier`
-- `screwPricingBaseLength`
-- `screwPricingStepLength`
-- `screwPricingStepPrice`
 
 通用成本重算也会应用同一计价规则：
 

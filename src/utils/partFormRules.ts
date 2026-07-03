@@ -36,9 +36,6 @@ export interface PartFormValidationInput {
   isScrewMode: boolean;
   screwPricingEnabled: boolean;
   screwDiameter: string;
-  screwBaseLength: string;
-  screwStepLength: string;
-  screwStepPrice: string;
 }
 
 export interface PartNotesInput {
@@ -63,9 +60,6 @@ export interface PartNotesInput {
   xinjieCableAccessoryName: string;
   screwPricingEnabled: boolean;
   screwDiameter: string;
-  screwBaseLength: string;
-  screwStepLength: string;
-  screwStepPrice: string;
 }
 
 function parseJsonObject(value?: string): Record<string, unknown> {
@@ -177,9 +171,6 @@ export function validatePartForm(input: PartFormValidationInput): Record<string,
   if (input.isFloatMode && (Number.isNaN(Number(input.floatAccessoryDelta)) || Number(input.floatAccessoryDelta) < 0)) errors.floatAccessoryDelta = '请输入有效的新界式加价';
   if (input.isScrewMode && input.screwPricingEnabled) {
     if (!input.screwDiameter || Number.isNaN(Number(input.screwDiameter)) || Number(input.screwDiameter) <= 0) errors.screwDiameter = '请输入有效直径';
-    if (!input.screwBaseLength || Number.isNaN(Number(input.screwBaseLength)) || Number(input.screwBaseLength) <= 0) errors.screwBaseLength = '请输入有效基准长度';
-    if (!input.screwStepLength || Number.isNaN(Number(input.screwStepLength)) || Number(input.screwStepLength) <= 0) errors.screwStepLength = '请输入有效步进长度';
-    if (input.screwStepPrice === '' || Number.isNaN(Number(input.screwStepPrice)) || Number(input.screwStepPrice) < 0) errors.screwStepPrice = '请输入有效步进加价';
   }
   if (!input.supplier.trim()) errors.supplier = '供应商不能为空';
   return errors;
@@ -224,9 +215,6 @@ export function buildPartNotes(input: PartNotesInput): Record<string, unknown> |
       screwPricing: {
         enabled: true,
         diameter,
-        baseLength: Number.parseFloat(input.screwBaseLength),
-        stepLength: Number.parseFloat(input.screwStepLength),
-        stepPrice: Number.parseFloat(input.screwStepPrice),
         modelPrefix: `${diameter}*`,
       },
     };

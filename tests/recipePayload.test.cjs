@@ -57,8 +57,8 @@ test('配方保存 payload 统一表单字段类型', () => {
     const payload = buildRecipePayload({
         recipeName: 'WQ750',
         recipeSpec: '测试规格',
-        recipeParts: [{ model: '6*195', name: '不锈钢长螺丝', supplier: '', qty: 4, snapshotPrice: 0.35 }],
-        costDraft: { parts: [], partsCost: 1.4, laborCost: 5, savedTotalCost: 6.4, savedCostDetails: 'details' },
+        recipeParts: [{ model: '6*195', name: '不锈钢长螺丝', supplier: '', qty: 4, snapshotPrice: 0.63 }],
+        costDraft: { parts: [], partsCost: 2.52, laborCost: 5, savedTotalCost: 7.52, savedCostDetails: 'details' },
         selectedTemplateId: 8,
         coilSpec: '750',
         coilMaterial: '',

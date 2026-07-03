@@ -138,6 +138,7 @@ export default function RotorDrawingPage() {
   const [linkTargetRow, setLinkTargetRow] = useState<any>(null);
   const [linkTargets, setLinkTargets] = useState<RotorLinkTarget[]>([]);
   const [linking, setLinking] = useState(false);
+  const [savingParams, setSavingParams] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeJobDrawingNameRef = useRef('');
@@ -353,6 +354,28 @@ export default function RotorDrawingPage() {
     }
   };
 
+  const handleSaveParams = async () => {
+    const hasAnyParam = Object.values(form).some(value => String(value || '').trim() !== '');
+    if (!hasAnyParam) { setError('请至少填写一项参数'); return; }
+
+    setError('');
+    setSavingParams(true);
+
+    try {
+      const submittedDrawingName = drawingName.trim();
+      await proxyRequest<any>('/api/rotor/save', {
+        method: 'POST',
+        body: JSON.stringify({ ...form, drawingName: submittedDrawingName, drawingText: drawingText.trim() })
+      });
+      setSnackbar({ open: true, message: '参数已保存到保存历史', severity: 'success' });
+      loadHistory();
+    } catch (e: any) {
+      setError('保存失败: ' + e.message);
+    } finally {
+      setSavingParams(false);
+    }
+  };
+
   const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
   const handleDrawingNameChange = (value: string) => {
@@ -527,7 +550,15 @@ export default function RotorDrawingPage() {
         />
       </Paper>
 
-      <RotorFormPanel form={form} updateForm={updateForm} onSubmit={handleFormSubmit} loading={nlLoading} hasWarning={false} />
+      <RotorFormPanel
+        form={form}
+        updateForm={updateForm}
+        onSubmit={handleFormSubmit}
+        onSave={handleSaveParams}
+        loading={nlLoading}
+        saving={savingParams}
+        hasWarning={false}
+      />
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 

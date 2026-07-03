@@ -251,6 +251,28 @@ try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN drawing_name TEXT DEFAULT '
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
 try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
 
+try {
+    const rows = db.prepare(`
+        SELECT id, remark FROM parts
+        WHERE remark LIKE '%"screwPricing"%'
+    `).all();
+    const updateRemark = db.prepare('UPDATE parts SET remark = ?, updated_at = ? WHERE id = ?');
+    const now = new Date().toISOString();
+    for (const row of rows) {
+        try {
+            const notes = JSON.parse(row.remark || '{}');
+            if (!notes?.screwPricing || typeof notes.screwPricing !== 'object') continue;
+            const diameter = Number(notes.screwPricing.diameter);
+            notes.screwPricing = {
+                enabled: Boolean(notes.screwPricing.enabled),
+                diameter: Number.isFinite(diameter) && diameter > 0 ? diameter : 6,
+                modelPrefix: typeof notes.screwPricing.modelPrefix === 'string' ? notes.screwPricing.modelPrefix : undefined,
+            };
+            updateRemark.run(JSON.stringify(notes), now, row.id);
+        } catch { /* skip invalid notes */ }
+    }
+} catch { /* ignore screw pricing cleanup */ }
+
 // P0-2: 软删除列迁移（幂等）
 for (const tbl of ['orders', 'recipes', 'parts']) {
     try { db.exec(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT`); } catch { /* already exists */ }

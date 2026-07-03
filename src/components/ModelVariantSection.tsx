@@ -8,7 +8,7 @@ import { Edit3 as EditIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide
 import { PumpModelVariant, PumpShellTemplate } from '../types';
 import { createModelVariant, deleteModelVariant, updateModelVariant, proxyRequest } from '../utils/api';
 import { CoilSpecInfo } from './recipe/recipeFormConstants';
-import { DEFAULT_COIL_MATERIAL, DEFAULT_LONG_SCREW_EXTRA_LENGTH, roundLengthToStep } from '../utils/businessRules';
+import { DEFAULT_COIL_MATERIAL, DEFAULT_LONG_SCREW_EXTRA_LENGTH } from '../utils/businessRules';
 
 interface Props {
   variants: PumpModelVariant[];
@@ -172,7 +172,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                     <TableCell>{v.coilSpec ? `${v.coilSpec}-${v.coilSheets || 0} / ${v.coilMaterial || DEFAULT_COIL_MATERIAL}` : '-'}</TableCell>
                     <TableCell>{v.barrelLength ? `${v.barrelLength} mm` : '-'}</TableCell>
                     <TableCell>
-                      {v.barrelLength ? `机筒 + ${v.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH} = ${roundLengthToStep(Number(v.barrelLength) + Number(v.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH))} mm` : '-'}
+                      {v.barrelLength ? `机筒 ${v.barrelLength} + 补偿 ${v.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH} = ${Number(v.barrelLength) + Number(v.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH)} mm` : '-'}
                     </TableCell>
                     <TableCell>
                       {v.impellerModel ? (
@@ -223,7 +223,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
             </FormControl>
             <TextField label="线圈片数" type="number" value={form.coilSheets} onChange={e => updateField('coilSheets', e.target.value)} size="small" />
             <TextField label="机筒长度" type="number" value={form.barrelLength} onChange={e => updateField('barrelLength', e.target.value)} size="small" helperText="mm" />
-            <TextField label="长螺丝补偿长度" type="number" value={form.longScrewExtraLength} onChange={e => updateField('longScrewExtraLength', e.target.value)} size="small" helperText="长螺丝长度 = 机筒长度 + 补偿长度，按 5mm 向上取整" />
+            <TextField label="长螺丝补偿长度" type="number" value={form.longScrewExtraLength} onChange={e => updateField('longScrewExtraLength', e.target.value)} size="small" helperText="长螺丝长度 = 不锈钢机筒长度 + 补偿长度" />
             <TextField label="叶轮型号" value={form.impellerModel} onChange={e => updateField('impellerModel', e.target.value)} size="small" placeholder="如 400" />
             <TextField label="叶轮厚度" type="number" value={form.impellerThickness} onChange={e => updateField('impellerThickness', e.target.value)} size="small" helperText="mm" />
             <TextField label="叶轮直径" type="number" value={form.impellerDiameter} onChange={e => updateField('impellerDiameter', e.target.value)} size="small" helperText="mm" />

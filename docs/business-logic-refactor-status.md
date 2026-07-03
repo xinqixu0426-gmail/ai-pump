@@ -79,13 +79,9 @@ POST /api/recipes/cost-draft
 当前规则：
 
 ```text
-实际机筒长度 = 配方 customBarrelLength 优先
-否则使用型号变体 barrelLength
-否则不再从泵壳 notes 默认机筒长度兜底
-
-长螺丝理论长度 = 实际机筒长度 + 补偿长度
-默认补偿长度 = 25mm
-最终长度 = 按 5mm 向上取整
+不锈钢机筒长度 = 配方 customBarrelLength 优先，否则使用型号变体 barrelLength
+长螺丝与不锈钢机筒绑定，长度 = 不锈钢机筒长度 + 型号变体/配方中的 longScrewExtraLength
+默认 longScrewExtraLength = 0mm，未设置时不改模板长螺丝型号
 ```
 
 示例：
@@ -109,16 +105,13 @@ POST /api/recipes/cost-draft
 
 ```text
 螺丝直径：6
-基准长度：170
-步进长度：5
-每档加价：例如 0.01
 ```
 
 计价公式：
 
 ```text
-档数 = ceil(max(0, 螺丝长度 - 基准长度) / 步进长度)
-单价 = 基础零件单价 + 档数 × 每档加价
+单价 ≈ 0.00424 × 螺丝长度 - 0.198
+最终单价 = max(0, 上述结果)，并按金额保留 2 位小数
 ```
 
 已覆盖链路：
@@ -218,7 +211,7 @@ src/utils/purchaseCenterRules.ts
 - [x] 测试 `170 + 25 => 195`。
 - [x] 测试 `172 + 25 => 200`。
 - [x] 测试无机筒长度时不改长螺丝。
-- [x] 测试参数化计价：170 基准价 0.30，每 5mm 加 0.01，195mm 得到 0.35。
+- [x] 测试参数化计价：按 `0.00424 × 长度 - 0.198`，195mm 得到 0.63。
 - [x] 测试报价覆盖 `customBarrelLength` 后会重算长螺丝。
 - [x] 测试采购清单能从参数化基础螺丝找到供应商。
 
@@ -241,7 +234,7 @@ src/utils/purchaseCenterRules.ts
 
 补充处理：新增 `src/utils/recipePrefill.ts`，将 `RecipeFormPage.tsx` 编辑/复制时解析 `packingPartsJson`、旧 `boxType`、`extraPartsJson` 和旧 `partsJson` 的预填逻辑移出页面。已补测试覆盖新结构包装、旧包装字段、选配件和旧配方 parts 回填。
 
-补充处理：新增 `src/utils/recipeTemplateContext.ts`，将 `RecipeFormPage.tsx` 中模板配件 JSON、泵壳组件 JSON、泵壳 notes、有效机筒长度、长螺丝补偿长度和模板配件长螺丝调整的上下文推导移出页面。已补测试覆盖坏 JSON 兼容、自定义机筒长度优先和长螺丝长度调整。
+补充处理：新增 `src/utils/recipeTemplateContext.ts`，将 `RecipeFormPage.tsx` 中模板配件 JSON、泵壳组件 JSON、泵壳 notes、有效机筒长度、长螺丝长度和模板配件长螺丝调整的上下文推导移出页面。已补测试覆盖坏 JSON 兼容、自定义机筒长度优先和长螺丝长度调整。
 
 补充处理：新增 `src/utils/recipeCoilForm.ts`，将 `RecipeFormPage.tsx` 中线圈计算请求体生成、线圈结果联动浮球/电缆线径、电容型号匹配逻辑移出页面。已补测试覆盖默认材质、自定义线重、线径联动和电容型号兼容匹配。
 

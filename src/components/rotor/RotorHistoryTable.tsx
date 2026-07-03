@@ -1,7 +1,7 @@
 import {
   Box, Paper, Typography, IconButton, Tooltip, Chip,
   Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, CircularProgress
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, CircularProgress, Tabs, Tab
 } from '@mui/material';
 import {
   Clock as HistoryIcon,
@@ -94,8 +94,13 @@ function RotorHistoryTable({
   const [renameRow, setRenameRow] = useState<any>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [activeTab, setActiveTab] = useState<'drawings' | 'saved'>('drawings');
 
   if (history.length === 0) return null;
+
+  const drawingHistory = history.filter(row => row.status !== 'saved');
+  const savedHistory = history.filter(row => row.status === 'saved');
+  const visibleHistory = activeTab === 'saved' ? savedHistory : drawingHistory;
 
   const openRename = (row: any) => {
     setRenameRow(row);
@@ -121,9 +126,17 @@ function RotorHistoryTable({
     <Paper elevation={0} sx={{ p: 2, mt: 3, borderRadius: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <HistoryIcon size={24} style={{ color: '#2563eb' }} />
-        <Typography variant="h6">出图历史</Typography>
+        <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} sx={{ minHeight: 34 }}>
+          <Tab value="drawings" label={`出图历史 ${drawingHistory.length}`} sx={{ minHeight: 34, py: 0, fontWeight: 700 }} />
+          <Tab value="saved" label={`保存历史 ${savedHistory.length}`} sx={{ minHeight: 34, py: 0, fontWeight: 700 }} />
+        </Tabs>
         <IconButton size="small" aria-label="刷新出图历史" onClick={loadHistory}><RefreshIcon size={18} /></IconButton>
       </Box>
+      {visibleHistory.length === 0 ? (
+        <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.875rem' }}>
+          暂无{activeTab === 'saved' ? '保存历史' : '出图历史'}
+        </Box>
+      ) : (
       <TableContainer>
         <Table size="small">
           <TableHead>
@@ -137,7 +150,7 @@ function RotorHistoryTable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {history.map((row: any) => {
+            {visibleHistory.map((row: any) => {
               const params = (() => { try { return JSON.parse(row.fc_params_json || '{}'); } catch { return {}; } })();
               const keyParamChips = buildKeyParamChips(params);
               const paramEntries = Object.entries(params).filter(([, v]) => v != null && v !== '');
@@ -173,11 +186,30 @@ function RotorHistoryTable({
                     )}
                   </TableCell>
                   <TableCell>
+                    {row.status === 'saved' && <Chip label="保存" color="info" size="small" />}
                     {row.status === 'success' && <Chip label="成功" color="success" size="small" />}
                     {row.status === 'failed' && <Tooltip title={row.error || ''}><Chip label="失败" color="error" size="small" /></Tooltip>}
                     {row.status === 'processing' && <Chip label="进行中" color="warning" size="small" />}
                   </TableCell>
                   <TableCell align="right">
+                    {row.status === 'saved' && (
+                      <>
+                        <Tooltip title="复用参数">
+                          <IconButton size="small" color="primary"
+                            aria-label="复用参数"
+                            onClick={() => onReuseParams(row)}>
+                            <CopyIcon size={18} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="重命名图纸">
+                          <IconButton size="small" color="primary"
+                            aria-label="重命名图纸"
+                            onClick={() => openRename(row)}>
+                            <RenameIcon size={18} />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
                     {row.status === 'success' && row.file_url && (
                       <>
                         <Tooltip title="复用参数">
@@ -232,6 +264,7 @@ function RotorHistoryTable({
           </TableBody>
         </Table>
       </TableContainer>
+      )}
       <Dialog open={!!renameRow} onClose={() => setRenameRow(null)} maxWidth="xs" fullWidth>
         <DialogTitle>重命名图纸</DialogTitle>
         <DialogContent sx={{ pt: 2.5 }}>

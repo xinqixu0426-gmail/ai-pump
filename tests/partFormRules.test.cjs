@@ -56,9 +56,6 @@ function validInput(overrides = {}) {
         isScrewMode: false,
         screwPricingEnabled: false,
         screwDiameter: '6',
-        screwBaseLength: '170',
-        screwStepLength: '5',
-        screwStepPrice: '0.01',
         ...overrides,
     };
 }
@@ -79,7 +76,7 @@ test('零件表单规则解析 notes 元数据并兼容旧电缆配件费字段'
     }));
     assert.deepEqual(cable, { standardFee: '1.5', xinjieFee: '2.5', standardName: 'A套', xinjieName: 'B套' });
 
-    const screw = parseScrewPricingMetaFromNotes(JSON.stringify({ screwPricing: { enabled: true, diameter: 6, baseLength: 170, stepLength: 5, stepPrice: 0.01 } }));
+    const screw = parseScrewPricingMetaFromNotes(JSON.stringify({ screwPricing: { enabled: true, diameter: 6 } }));
     assert.equal(screw.diameter, 6);
 });
 
@@ -107,7 +104,7 @@ test('零件表单规则校验基础字段、电缆配件和螺丝参数化配�
     assert.equal(validatePartForm(validInput({ isCapacitorMode: true, capacitorUf: '0' })).model, '请输入有效的电容值 (μF)');
     assert.equal(validatePartForm(validInput({ supplier: '' })).supplier, '供应商不能为空');
     assert.equal(validatePartForm(validInput({ isCableMode: true, standardCableAccessoryFee: '-1' })).standardCableAccessoryFee, '请输入有效的普通铜套配件费');
-    assert.equal(validatePartForm(validInput({ isScrewMode: true, screwPricingEnabled: true, screwStepPrice: '' })).screwStepPrice, '请输入有效步进加价');
+    assert.equal(validatePartForm(validInput({ isScrewMode: true, screwPricingEnabled: true, screwDiameter: '' })).screwDiameter, '请输入有效直径');
 });
 
 test('零件表单规则组装 notes 和全局设置 payload', () => {
@@ -133,9 +130,6 @@ test('零件表单规则组装 notes 和全局设置 payload', () => {
         xinjieCableAccessoryName: '新界式',
         screwPricingEnabled: false,
         screwDiameter: '6',
-        screwBaseLength: '170',
-        screwStepLength: '5',
-        screwStepPrice: '',
     });
     assert.equal(shellNotes.isStainless, true);
     assert.equal(shellNotes.openOffset, 25);
@@ -150,8 +144,9 @@ test('零件表单规则组装 notes 和全局设置 payload', () => {
         xinjie: { name: '新界', fee: 0 },
     });
 
-    const screwNotes = buildPartNotes({ ...shellNotes, category: '螺丝', isScrewMode: true, screwPricingEnabled: true, screwDiameter: '6', screwBaseLength: '170', screwStepLength: '5', screwStepPrice: '0.01' });
+    const screwNotes = buildPartNotes({ ...shellNotes, category: '螺丝', isScrewMode: true, screwPricingEnabled: true, screwDiameter: '6' });
     assert.equal(screwNotes.screwPricing.modelPrefix, '6*');
+    assert.deepEqual(Object.keys(screwNotes.screwPricing).sort(), ['diameter', 'enabled', 'modelPrefix']);
     assert.equal(parseFloatAccessoryDelta('-1'), 0.6);
     assert.equal(parseFloatAccessoryDelta('0.8'), 0.8);
 });

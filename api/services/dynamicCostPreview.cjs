@@ -166,10 +166,11 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
 
     const recipeData = buildRecipeData(row, overrides);
     const parsedParts = JSON.parse(recipeData.parts_json || '[]');
+    const longScrewPart = parsedParts.find(part => managedPartType(part) === 'longScrew');
     const refreshedPartsDraft = buildRecipeCostDraft({
         parts: parsedParts,
         customBarrelLength: recipeData.custom_barrel_length,
-        longScrewExtraLength: parsedParts.find(part => part?.dynamicRule === 'longScrewByBarrelLength')?.longScrewExtraLength,
+        longScrewExtraLength: longScrewPart?.longScrewExtraLength,
     }, { partsCatalog });
     const pricedParts = refreshedPartsDraft.parts;
     const getPrice = createPartPriceGetter(partsByModel);

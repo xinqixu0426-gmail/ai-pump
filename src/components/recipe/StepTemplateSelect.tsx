@@ -13,6 +13,27 @@ import { Package as TemplateIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { TemplatePart, ShellComponent, PumpShellTemplate, PumpShellMeta, PumpModelVariant } from '../../types';
 
+function screwLengthFromModel(model?: string): number | null {
+  const match = String(model || '').match(/\*(\d+(?:\.\d+)?)$/);
+  const length = match ? Number(match[1]) : NaN;
+  return Number.isFinite(length) && length > 0 ? length : null;
+}
+
+function longScrewCalculation(part: TemplatePart, price: number) {
+  const text = `${part.name || ''}${part.model || ''}`;
+  if (!text.includes('长螺丝')) return '';
+  const length = Number((part as any).screwLength || (part as any).requestedScrewLength || screwLengthFromModel(part.model) || 0);
+  if (!Number.isFinite(length) || length <= 0) return '';
+  const barrel = Number((part as any).barrelLength);
+  const extra = Number((part as any).longScrewExtraLength);
+  const qty = Number(part.qty || 1);
+  const formulaPrice = Math.max(0, 0.00424 * length - 0.198);
+  const lengthText = Number.isFinite(barrel) && barrel > 0 && Number.isFinite(extra)
+    ? `机筒 ${barrel}mm + 补偿 ${extra}mm = 长螺丝 ${length}mm`
+    : `长螺丝长度 ${length}mm`;
+  return `${lengthText}；单价≈0.00424×${length}-0.198=¥${formulaPrice.toFixed(2)}；数量 ${qty}；小计 ¥${(price * qty).toFixed(2)}`;
+}
+
 interface StepTemplateSelectProps {
   recipeName: string;
   setRecipeName: (val: string) => void;
@@ -37,6 +58,16 @@ interface StepTemplateSelectProps {
   customBarrelLength: string;
   setCustomBarrelLength: (val: string) => void;
 }
+
+type TemplatePreviewRow = {
+  key: string;
+  name: string;
+  model: string;
+  supplier: string;
+  qty: number;
+  subtotal: number;
+  calculation?: string;
+};
 
 export default function StepTemplateSelect({
   recipeName,
@@ -65,7 +96,7 @@ export default function StepTemplateSelect({
   const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
   const selectedVariant = modelVariants.find(v => v.Id === selectedModelVariantId) || null;
   const costMode = selectedTemplate?.costMode || 'components';
-  const shellRows = costMode === 'bundle'
+  const shellRows: TemplatePreviewRow[] = costMode === 'bundle'
     ? [{
         key: 'bundle',
         name: '整套泵壳',
@@ -102,6 +133,7 @@ export default function StepTemplateSelect({
             supplier,
             qty: p.qty,
             subtotal: price * p.qty,
+            calculation: longScrewCalculation(p, price),
           };
         }),
       ]
@@ -228,6 +260,11 @@ export default function StepTemplateSelect({
                   {row.supplier && (
                     <Typography variant="caption" color="text.disabled" noWrap title={row.supplier} sx={{ display: 'block', mt: 0.25 }}>
                       {row.supplier}
+                    </Typography>
+                  )}
+                  {row.calculation && (
+                    <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.45 }}>
+                      {row.calculation}
                     </Typography>
                   )}
                 </Box>

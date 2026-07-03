@@ -14,7 +14,7 @@ const DEFAULT_COIL_MATERIAL = '钢带';
 let lastCostDraftPayload = null;
 async function previewRecipeCostDraft(payload) {
   lastCostDraftPayload = payload;
-  return { parts: [{ model: '6*200', name: '长螺丝', supplier: '', qty: 4, snapshotPrice: 0.36 }], savedTotalCost: 1.44, savedCostDetails: 'details' };
+  return { parts: [{ model: '6*200', name: '长螺丝', supplier: '', qty: 4, snapshotPrice: 0.65 }], savedTotalCost: 2.6, savedCostDetails: 'details' };
 }
 function buildRecipePayload(input) {
   return { name: input.recipeName, partsJson: JSON.stringify(input.recipeParts), savedTotalCost: input.costDraft.savedTotalCost, surfaceTreatmentCost: input.surfaceTreatmentMode === 'none' ? 0 : input.surfaceTreatmentCost };
@@ -31,7 +31,7 @@ const { buildRecipeCostDraftPayload, prepareRecipeSubmission, getLastCostDraftPa
 const baseInput = {
     recipeName: '测试配方',
     recipeSpec: '90-100',
-    recipeParts: [{ model: '6*195', name: '长螺丝', supplier: '', qty: 4, snapshotPrice: 0.35 }],
+    recipeParts: [{ model: '6*195', name: '长螺丝', supplier: '', qty: 4, snapshotPrice: 0.63 }],
     selectedTemplateId: 1,
     coilSpec: '750',
     coilMaterial: '',
@@ -75,7 +75,7 @@ test('配方提交使用成本草稿返回的 parts 生成最终 payload', async
 
     assert.equal(getLastCostDraftPayload().parts[0].model, '6*195');
     assert.equal(result.name, '测试配方');
-    assert.equal(result.savedTotalCost, 1.44);
+    assert.equal(result.savedTotalCost, 2.6);
     assert.equal(JSON.parse(result.partsJson)[0].model, '6*200');
     assert.equal(result.surfaceTreatmentCost, 0);
 });
