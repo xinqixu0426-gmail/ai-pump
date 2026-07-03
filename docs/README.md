@@ -199,6 +199,7 @@ POST /api/rotor/draw 或 /chat
 - `/draw` 接收结构化参数，至少提供一项；缺失参数可以由泵壳模板补全。
 - `/chat` 接收自然语言，可能返回 `need_params` 或安全警告；确认后再出图。
 - `/draw` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
+- `/draw` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
 - `PATCH /api/rotor/history/:id/name` 用于重命名历史图纸，请求体 `{ "drawingName": "..." }`，成功返回 `{ "success": true, "data": { "drawingName": "..." } }`。
 - 出图历史可通过 `GET /api/rotor/link-targets` 选择关联订单型号、型号变体或配方，保存时仍写入 `linked_pump_model` 文本字段。
 - FreeCAD 默认最多同时执行 2 个任务。

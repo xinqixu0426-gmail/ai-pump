@@ -13,7 +13,7 @@ import {
   Copy as CopyIcon,
   Edit3 as RenameIcon
 } from 'lucide-react';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { proxyRequest } from '../../utils/api';
 
 interface RotorHistoryTableProps {
@@ -88,7 +88,7 @@ function sanitizePdfName(value: string) {
   return `${clean || '转子图纸'}.pdf`;
 }
 
-export default function RotorHistoryTable({
+function RotorHistoryTable({
   history, loadHistory, handlePrint, printing, API_BASE, onLinkClick, linking, onReuseParams
 }: RotorHistoryTableProps) {
   const [renameRow, setRenameRow] = useState<any>(null);
@@ -254,3 +254,5 @@ export default function RotorHistoryTable({
     </Paper>
   );
 }
+
+export default memo(RotorHistoryTable);

@@ -24,6 +24,18 @@ function normalizeDrawingName(value, fallback = '') {
         .slice(0, 80);
 }
 
+function normalizeDrawingText(value) {
+    return String(value || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map(line => line.replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .join('\n')
+        .slice(0, 120);
+}
+
 const os = require('os');
 const FREECAD_BIN = process.env.FREECAD_BIN || (os.platform() === 'darwin' ? '/Applications/FreeCAD.app/Contents/MacOS/FreeCAD' : 'C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe');
 const WORKER_SCRIPT = path.join(__dirname, '../../freecad/worker.py');
@@ -292,6 +304,8 @@ function buildFcParams(params) {
     if (fcParams.piece_count) {
         fcParams._core_length = fcParams.piece_count * 0.5;
     }
+    const drawingText = normalizeDrawingText(params.drawingText ?? params.drawing_text);
+    if (drawingText) fcParams._drawing_text = drawingText;
     // 开档(bearing_span)已经包含叠片长度(_core_length)，总长不能再叠加片数长度。
     // 因此同一开档下，仅修改 piece_count 不应改变 _total_length。
     const totalLen = Number(fcParams.upper_bearing_depth || 0)
@@ -348,6 +362,7 @@ router.post('/chat', async (req, res) => {
     try {
         const { message, force, supplements, baseParams } = req.body;
         const drawingName = normalizeDrawingName(req.body.drawingName ?? req.body.drawing_name);
+        const drawingText = normalizeDrawingText(req.body.drawingText ?? req.body.drawing_text);
         if (!message) return res.status(400).json({ status: 'error', message: '缺少 message 字段' });
 
         if (!DEEPSEEK_API_KEY) {
@@ -404,6 +419,7 @@ router.post('/chat', async (req, res) => {
         if (Object.keys(fcParams).filter(k => !k.startsWith('_')).length === 0) {
             return res.json({ status: 'need_params', message: aiReply, extracted: parsed });
         }
+        if (drawingText) fcParams._drawing_text = drawingText;
 
         // 4. 安全校验 (未 force 时触发)
         if (!force) {

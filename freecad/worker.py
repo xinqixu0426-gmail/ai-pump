@@ -52,7 +52,56 @@ if not params_str:
 
 params = json.loads(params_str)
 job_id = params.pop("_jobId", "drawing")
+drawing_text = str(params.get("_drawing_text", "") or "").strip()
 print(f"[Worker] [{elapsed()}] 🚀 接收到渲染任务, JobId={job_id}: {params}")
+
+def inject_custom_svg_text(svg_content, text):
+    raw_lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    lines = []
+    for line in raw_lines:
+        while line and len(lines) < 3:
+            lines.append(line[:24])
+            line = line[24:]
+    if not lines:
+        return svg_content
+
+    import re
+    from xml.sax.saxutils import escape
+
+    min_x = 0.0
+    min_y = 0.0
+    width = 1122.0
+    height = 793.0
+
+    view_box = re.search(r'viewBox="([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)"', svg_content)
+    if view_box:
+        min_x, min_y, width, height = [float(v) for v in view_box.groups()]
+    else:
+        width_match = re.search(r'width="([\d.]+)', svg_content)
+        height_match = re.search(r'height="([\d.]+)', svg_content)
+        if width_match:
+            width = float(width_match.group(1))
+        if height_match:
+            height = float(height_match.group(1))
+
+    font_size = 36
+    line_gap = 44
+    # A4 template left-lower blank area, matching the red marked area in the drawing.
+    x = min_x + width * 0.125
+    y = min_y + height * 0.77 - (len(lines) - 1) * line_gap / 2
+    text_nodes = []
+    for idx, line in enumerate(lines[:3]):
+        text_nodes.append(
+            f'<text x="{x:.1f}" y="{y + idx * line_gap:.1f}" '
+            f'font-family="STSong-Light" font-size="{font_size}" '
+            'font-weight="900" fill="#111111" stroke="#111111" stroke-width="0.7">'
+            f'{escape(line)}</text>'
+        )
+
+    group = '<g id="custom-rotor-drawing-text">' + ''.join(text_nodes) + '</g>'
+    if '</svg>' in svg_content:
+        return svg_content.replace('</svg>', group + '</svg>')
+    return svg_content + group
 
 # ============================================================
 # 2. 文件路径准备
@@ -237,6 +286,9 @@ try:
     try:
         with open(output_svg, 'r', encoding='utf-8') as f:
             svg_content = f.read()
+        if drawing_text:
+            svg_content = inject_custom_svg_text(svg_content, drawing_text)
+            print(f"[Worker] [{elapsed()}] 已注入图纸自定义文字")
         svg_content = svg_content.replace('font-family="osifont"', 'font-family="Helvetica"')
         svg_content = svg_content.replace('font-family:osifont', 'font-family:Helvetica')
         with open(output_svg, 'w', encoding='utf-8') as f:

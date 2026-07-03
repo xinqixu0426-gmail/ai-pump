@@ -68,6 +68,12 @@ const calculateBearingSpan = (barrelLength: string | number, openOffset: number 
   return String(Number((length - offset).toFixed(1)));
 };
 
+const stainlessBarrelDrawingText = (barrelLength: string | number | null | undefined) => {
+  const length = Number(barrelLength);
+  if (!Number.isFinite(length) || length <= 0) return '';
+  return `不锈钢机筒：${Number(length.toFixed(1))}mm`;
+};
+
 const normalizeShellModel = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
 const shellModelCandidates = (value: string) => {
@@ -109,6 +115,7 @@ export default function RotorDrawingPage() {
   const [nlLoading, setNlLoading] = useState(false);
   const [form, setForm] = useState<RotorFormData>(emptyRotorForm);
   const [drawingName, setDrawingName] = useState('');
+  const [drawingText, setDrawingText] = useState('');
 
   const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
   const [modelVariants, setModelVariants] = useState<PumpModelVariant[]>([]);
@@ -133,6 +140,8 @@ export default function RotorDrawingPage() {
   const [linking, setLinking] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeJobDrawingNameRef = useRef('');
+  const autoDrawingTextRef = useRef('');
 
   useEffect(() => {
     getAllTemplates().then(setTemplates).catch(() => {});
@@ -153,6 +162,18 @@ export default function RotorDrawingPage() {
       return null;
     }
   }, [allParts]);
+
+  const applyAutoDrawingText = useCallback((text: string) => {
+    const nextAuto = text.trim();
+    const previousAuto = autoDrawingTextRef.current;
+    autoDrawingTextRef.current = nextAuto;
+    if (!nextAuto) return;
+    setDrawingText(prev => {
+      const current = prev.trim();
+      if (!current || current === previousAuto) return nextAuto;
+      return prev;
+    });
+  }, []);
 
   const applyTemplate = useCallback((tpl: PumpShellTemplate | null, variant?: PumpModelVariant | null) => {
     setSelectedTemplate(tpl);
@@ -207,19 +228,23 @@ export default function RotorDrawingPage() {
 
     const meta = findShellMetaForTemplate(tpl);
     const openOffset = openOffsetFromMeta(meta);
+    if (meta?.isStainless && meta.barrelLength) {
+      applyAutoDrawingText(stainlessBarrelDrawingText(meta.barrelLength));
+    }
     if (variant?.barrelLength && openOffset != null) {
       const span = calculateBearingSpan(variant.barrelLength, openOffset);
       if (span) {
         newForm.bearing_span = span;
         setSsMeta(meta);
         setSsBarrelLength(String(variant.barrelLength));
+        applyAutoDrawingText(stainlessBarrelDrawingText(variant.barrelLength));
         hints.push(`${variant.modelName}机筒${variant.barrelLength}mm，自动开档${span}mm`);
       }
     }
 
     setForm(prev => ({ ...prev, ...newForm }));
     setTemplateHint(hints.length > 0 ? `已从 ${tpl.shellModel} 模板自动带入：${hints.join('、')}` : '');
-  }, [findShellMetaForTemplate]);
+  }, [applyAutoDrawingText, findShellMetaForTemplate]);
 
   const handleTemplateSelect = useCallback((tpl: PumpShellTemplate | null) => {
     setSelectedVariant(null);
@@ -243,11 +268,14 @@ export default function RotorDrawingPage() {
   const updateSsBarrelLength = useCallback((value: string) => {
     setSsBarrelLength(value);
     const span = calculateBearingSpan(value, openOffsetFromMeta(ssMeta));
+    if (ssMeta?.isStainless) {
+      applyAutoDrawingText(stainlessBarrelDrawingText(value));
+    }
     setForm(prev => ({
       ...prev,
       bearing_span: span || (value ? prev.bearing_span : ''),
     }));
-  }, [ssMeta]);
+  }, [applyAutoDrawingText, ssMeta]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -261,7 +289,7 @@ export default function RotorDrawingPage() {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
-    setJobStatus({ status: 'processing', drawingName });
+    setJobStatus({ status: 'processing', drawingName: activeJobDrawingNameRef.current });
 
     pollRef.current = setInterval(async () => {
       try {
@@ -292,7 +320,7 @@ export default function RotorDrawingPage() {
     }, 2000);
 
     return () => { cancelled = true; if (pollRef.current) clearInterval(pollRef.current); };
-  }, [jobId, loadHistory, drawingName]);
+  }, [jobId, loadHistory]);
 
   const handleFormSubmit = async () => {
     const hasAnyParam = Object.values(form).some(value => String(value || '').trim() !== '');
@@ -304,14 +332,16 @@ export default function RotorDrawingPage() {
     setJobStatus(null);
 
     try {
-      const body = { ...form, drawingName: drawingName.trim() };
+      const submittedDrawingName = drawingName.trim();
+      activeJobDrawingNameRef.current = submittedDrawingName;
+      const body = { ...form, drawingName: submittedDrawingName, drawingText: drawingText.trim() };
       const data = await proxyRequest<any>('/api/rotor/draw', {
         method: 'POST',
         body: JSON.stringify(body)
       });
       if (data.status === 'success') {
         setJobId(data.jobId);
-        setJobStatus({ status: 'processing', drawingName: data.drawingName || drawingName.trim() });
+        setJobStatus({ status: 'processing', drawingName: data.drawingName || submittedDrawingName });
         setTimeout(loadHistory, 2000);
       } else {
         setError(data.message || '出图任务启动失败');
@@ -325,9 +355,29 @@ export default function RotorDrawingPage() {
 
   const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
+  const handleDrawingNameChange = (value: string) => {
+    setDrawingName(value);
+    if (jobStatus && jobStatus.status !== 'processing') {
+      setJobId(null);
+      setJobStatus(null);
+    }
+  };
+
+  const handleDrawingTextChange = (value: string) => {
+    autoDrawingTextRef.current = '';
+    setDrawingText(value);
+    if (jobStatus && jobStatus.status !== 'processing') {
+      setJobId(null);
+      setJobStatus(null);
+    }
+  };
+
   const reuseParamsFromRow = useCallback((row: any) => {
-    const nextForm = formFromFcParams(parseHistoryParams(row));
+    const params = parseHistoryParams(row);
+    const nextForm = formFromFcParams(params);
     setForm(prev => ({ ...prev, ...nextForm }));
+    autoDrawingTextRef.current = '';
+    setDrawingText(asFormValue(params._drawing_text) || asFormValue(params.drawing_text));
     if (row.drawing_name) setDrawingName(`${row.drawing_name}-复用`);
     setSnackbar({ open: true, message: '已复用历史图纸参数', severity: 'success' });
   }, []);
@@ -448,7 +498,7 @@ export default function RotorDrawingPage() {
             size="small"
             label="图纸名称"
             value={drawingName}
-            onChange={(e) => setDrawingName(e.target.value)}
+            onChange={(e) => handleDrawingNameChange(e.target.value)}
             placeholder="例如 V750转子-160片"
             sx={{ flex: '1 1 280px' }}
           />
@@ -461,6 +511,20 @@ export default function RotorDrawingPage() {
             复用上一张参数
           </Button>
         </Box>
+        <TextField
+          fullWidth
+          multiline
+          minRows={2}
+          maxRows={3}
+          size="small"
+          label="图纸显示文字"
+          value={drawingText}
+          onChange={(e) => handleDrawingTextChange(e.target.value)}
+          placeholder="例如：客户名称、订单号、特殊说明"
+          inputProps={{ maxLength: 120 }}
+          helperText={`${drawingText.length}/120，会显示在生成的转子图纸中`}
+          sx={{ mt: 1.5 }}
+        />
       </Paper>
 
       <RotorFormPanel form={form} updateForm={updateForm} onSubmit={handleFormSubmit} loading={nlLoading} hasWarning={false} />

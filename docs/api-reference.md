@@ -201,8 +201,8 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name` | 启动异步 FreeCAD 出图任务；返回 `{ status, message, jobId, drawingName, params }` |
-| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName? }` | 自然语言出图；可能返回 `need_params` 或 `warning` |
+| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 启动异步 FreeCAD 出图任务；返回 `{ status, message, jobId, drawingName, params }` |
+| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | 自然语言出图；可能返回 `need_params` 或 `warning` |
 | `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；返回 `{ success, data, ...job }` 兼容格式 |
 | `GET` | `/api/rotor/history` | 无 | 最近 100 条出图历史；当前仍直接返回数据库 snake_case 字段 |
 | `PATCH` | `/api/rotor/history/:id/name` | `{ drawingName/drawing_name }` | 重命名图纸 |
