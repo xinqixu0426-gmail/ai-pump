@@ -33,7 +33,7 @@ export interface ShellComponentFormRow {
 const NAME_TO_CATEGORY: Record<string, string> = {
   '花板轴承': '轴承', '油缸轴承': '轴承', '轴承': '轴承',
   '机械油封': '油封', '骨架油封': '油封', '油封': '油封',
-  '皮垫': '密封件', 'O型圈': '密封件',
+  '皮垫': '皮垫', 'O型圈': '皮垫', 'O圈': '皮垫', '密封圈': '皮垫', '密封垫': '皮垫',
   '螺丝': '螺丝', '螺杆': '螺丝', '螺母': '螺丝', '不锈钢长螺丝': '螺丝',
   '叶轮': '叶轮', '电容': '电容',
 };
@@ -85,6 +85,8 @@ export default function TemplateFormDialog({
     for (const [key, cat] of Object.entries(NAME_TO_CATEGORY)) {
       if (n.includes(key)) return cat;
     }
+    const upperName = n.toUpperCase();
+    if (upperName.includes('O型圈') || upperName.includes('O圈')) return '皮垫';
     return null;
   }, []);
 

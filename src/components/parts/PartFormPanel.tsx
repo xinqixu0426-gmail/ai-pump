@@ -31,6 +31,11 @@ import {
 
 // ─── 零件表单面板 ─────────────────────────────────────
 
+const formatPriceInput = (value: string | number) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric.toFixed(3) : String(value || '');
+};
+
 interface PartFormPanelProps {
   editingPart: Part | null;
   onSave: (part: Omit<Part, 'Id'>, options?: { continueEntry?: boolean }) => Promise<void>;
@@ -107,7 +112,7 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
       setModel(modelFields.model);
       setWireGauge(modelFields.wireGauge);
       setCapacitorUf(modelFields.capacitorUf);
-      setPrice(String(editingPart.price || ''));
+      setPrice(editingPart.price != null ? formatPriceInput(editingPart.price) : '');
       const cableAccessoryMeta = parseCableAccessoryMeta(editingPart.notes);
       setStandardCableAccessoryFee(cableAccessoryMeta.standardFee);
       setXinjieCableAccessoryFee(cableAccessoryMeta.xinjieFee);
@@ -436,9 +441,11 @@ export default function PartFormPanel({ editingPart, onSave, onCancel, saving, a
           <Box display="flex" gap={1.5} alignItems="flex-start">
             <TextField
               id="part-price-input" label="单价（元）" type="number" value={price}
-              onChange={(e) => setPrice(e.target.value)} placeholder="0.00"
+              onChange={(e) => setPrice(e.target.value)}
+              onBlur={() => setPrice((value) => (value ? formatPriceInput(value) : value))}
+              placeholder="0.000"
               required fullWidth size="small"
-              inputProps={{ step: 0.01, min: 0 }}
+              inputProps={{ step: 0.001, min: 0 }}
               InputProps={{ startAdornment: <InputAdornment position="start">¥</InputAdornment> }}
               error={!!errors.price} helperText={errors.price || ' '}
               sx={{ '& .MuiFormHelperText-root': { mx: 0 }, flex: 1 }}
