@@ -61,6 +61,14 @@ interface Props {
   value: RecipeTechnicalData;
   onChange: (value: RecipeTechnicalData) => void;
   referenceFields?: TechnicalReferenceField[];
+  impellerModel?: string;
+  onImpellerModelChange?: (value: string) => void;
+  impellerThickness?: string;
+  onImpellerThicknessChange?: (value: string) => void;
+  impellerDiameter?: string;
+  onImpellerDiameterChange?: (value: string) => void;
+  impellerBladeCount?: string;
+  onImpellerBladeCountChange?: (value: string) => void;
 }
 
 const createCustomField = (): CustomTechnicalField => ({
@@ -151,13 +159,38 @@ export function getTechnicalDataEntries(value: RecipeTechnicalData) {
   return [...fixedEntries, ...customEntries];
 }
 
-export default function StepTechnicalData({ value, onChange, referenceFields = [] }: Props) {
+export default function StepTechnicalData({
+  value,
+  onChange,
+  referenceFields = [],
+  impellerModel = '',
+  onImpellerModelChange,
+  impellerThickness = '',
+  onImpellerThicknessChange,
+  impellerDiameter = '',
+  onImpellerDiameterChange,
+  impellerBladeCount = '',
+  onImpellerBladeCountChange,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
   const update = (field: FixedTechnicalDataKey, next: string) => {
     onChange({ ...value, [field]: next });
   };
   const customFields = value.customFields || [];
   const filledCount = getTechnicalDataEntries(value).length;
+  const impellerEntries = [
+    impellerModel ? `叶轮 ${impellerModel}` : '',
+    impellerThickness ? `${impellerThickness}mm厚` : '',
+    impellerDiameter ? `直径${impellerDiameter}mm` : '',
+    impellerBladeCount ? `${impellerBladeCount}片叶` : '',
+  ].filter(Boolean);
+  const showImpellerFields = Boolean(
+    onImpellerModelChange
+    || onImpellerThicknessChange
+    || onImpellerDiameterChange
+    || onImpellerBladeCountChange
+    || impellerEntries.length > 0
+  );
   const addCustomField = () => onChange({ ...value, customFields: [...customFields, createCustomField()] });
   const updateCustomField = (id: string, patch: Partial<CustomTechnicalField>) => {
     onChange({
@@ -177,6 +210,13 @@ export default function StepTechnicalData({ value, onChange, referenceFields = [
         </Typography>
         {filledCount > 0 && <Chip size="small" label={`已填 ${filledCount}`} sx={{ height: 20, fontSize: '0.7rem' }} />}
         {referenceFields.length > 0 && <Chip size="small" label={`参考 ${referenceFields.length}`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />}
+        {impellerEntries.length > 0 && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {impellerEntries.map(entry => (
+              <Chip key={entry} size="small" label={entry} color="primary" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+            ))}
+          </Box>
+        )}
         <Button
           size="small"
           startIcon={expanded ? <CollapseIcon size={14} /> : <ExpandIcon size={14} />}
@@ -187,6 +227,42 @@ export default function StepTechnicalData({ value, onChange, referenceFields = [
         </Button>
       </Box>
       <Collapse in={expanded}>
+        {showImpellerFields && (
+          <Box sx={{ px: 2, pt: 2 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 700 }}>
+              泵壳参数
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+              <TextField
+                size="small"
+                label="叶轮"
+                value={impellerModel}
+                onChange={e => onImpellerModelChange?.(e.target.value)}
+              />
+              <TextField
+                size="small"
+                label="叶轮厚度"
+                value={impellerThickness}
+                onChange={e => onImpellerThicknessChange?.(e.target.value)}
+                helperText="mm"
+              />
+              <TextField
+                size="small"
+                label="叶轮直径"
+                value={impellerDiameter}
+                onChange={e => onImpellerDiameterChange?.(e.target.value)}
+                helperText="mm"
+              />
+              <TextField
+                size="small"
+                label="叶片数"
+                value={impellerBladeCount}
+                onChange={e => onImpellerBladeCountChange?.(e.target.value)}
+                helperText="片"
+              />
+            </Box>
+          </Box>
+        )}
         <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
           <TextField size="small" label="转子长度" value={value.rotorLength || ''} onChange={e => update('rotorLength', e.target.value)} helperText="mm" />
           <TextField size="small" label="转子直径" value={value.rotorDiameter || ''} onChange={e => update('rotorDiameter', e.target.value)} helperText="mm" />

@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { CableAccessoryConfig, CableAccessoryType, PumpModelVariant, RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, RecipeBomDraftResult } from '../types';
-import { createRecipe, updateRecipe, proxyRequest, getAllModelVariants, previewRecipeBomDraft } from '../utils/api';
+import { createPart, createRecipe, updateRecipe, proxyRequest, getAllModelVariants, previewRecipeBomDraft } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -56,6 +56,7 @@ export default function RecipeFormPage() {
   const editFrom = locState?.editFrom;
   const isEditing = !!editFrom;
   const initApplied = useRef(false);
+  const promptedMissingParts = useRef<Set<string>>(new Set());
 
   const { parts, fetchParts, templates, fetchTemplates, showSnackbar } = useAppStore();
   const [loading, setLoading] = useState(true);
@@ -502,6 +503,58 @@ export default function RecipeFormPage() {
   };
   const handleRemoveOptional = (id: number) => setOptionalParts((prev) => removeOptionalPart(prev, id));
 
+  useEffect(() => {
+    const candidate = optionalParts.find((part) => {
+      const model = String(part.model || '').trim();
+      const supplier = String(part.supplier || '').trim();
+      const price = Number(part.snapshotPrice || 0);
+      if (!model || !supplier || price <= 0) return false;
+      const exists = parts.some(p => p.model.trim() === model && p.supplier.trim() === supplier);
+      if (exists) return false;
+      const key = `${model}||${supplier}||${price}`;
+      return !promptedMissingParts.current.has(key);
+    });
+    if (!candidate) return;
+
+    const model = candidate.model.trim();
+    const supplier = candidate.supplier.trim();
+    const price = Number(candidate.snapshotPrice || 0);
+    const key = `${model}||${supplier}||${price}`;
+
+    let cancelled = false;
+    const addMissingPart = async () => {
+      if (cancelled || promptedMissingParts.current.has(key)) return;
+      promptedMissingParts.current.add(key);
+      const confirmed = window.confirm(`零件管理中没有「${model} / ${supplier}」。是否添加到零件管理？\n单价：¥${price.toFixed(3)}`);
+      if (!confirmed || cancelled) return;
+      try {
+        await createPart({
+          model,
+          category: '配件',
+          price,
+          supplier,
+          stock: 0,
+          notes: JSON.stringify({ autoCreatedFrom: 'recipeOptionalPart' }),
+        });
+        await fetchParts(true);
+        setOptionalParts(prev => prev.map(part => (
+          part.id === candidate.id
+            ? { ...part, costSource: undefined, snapshotPrice: undefined }
+            : part
+        )));
+        showSnackbar(`已添加零件：${model}`, 'success');
+      } catch (err) {
+        promptedMissingParts.current.delete(key);
+        setError(err instanceof Error ? err.message : '新增零件失败');
+      }
+    };
+    const timer = window.setTimeout(addMissingPart, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [optionalParts, parts, fetchParts, showSnackbar]);
+
   const handleSubmit = async () => {
     if (!recipeName.trim()) { setError('请输入配方名称'); return; }
     let recipeParts = bomDraft?.parts || buildAllParts();
@@ -576,10 +629,6 @@ export default function RecipeFormPage() {
         modelVariants={modelVariants}
         selectedModelVariantId={selectedModelVariantId}
         onModelVariantSelect={applyModelVariant}
-        impellerModel={impellerModel}
-        impellerThickness={impellerThickness}
-        impellerDiameter={impellerDiameter}
-        impellerBladeCount={impellerBladeCount}
         templates={templates} templateParts={adjustedTemplateParts} shellComponents={shellComponents} templateCost={templateCost}
         getPriceByModelAndSupplier={getPriceByModelAndSupplier} shellMetaInfo={shellMetaInfo}
         effectiveBarrelLength={effectiveBarrelLength}
@@ -620,7 +669,19 @@ export default function RecipeFormPage() {
         capacitorModel={capacitorModel}
       />
 
-        <StepTechnicalData value={technicalData} onChange={setTechnicalData} referenceFields={shellTechnicalReferences} />
+        <StepTechnicalData
+          value={technicalData}
+          onChange={setTechnicalData}
+          referenceFields={shellTechnicalReferences}
+          impellerModel={impellerModel}
+          onImpellerModelChange={setImpellerModel}
+          impellerThickness={impellerThickness}
+          onImpellerThicknessChange={setImpellerThickness}
+          impellerDiameter={impellerDiameter}
+          onImpellerDiameterChange={setImpellerDiameter}
+          impellerBladeCount={impellerBladeCount}
+          onImpellerBladeCountChange={setImpellerBladeCount}
+        />
 
       <Button
         variant="contained"

@@ -1,7 +1,4 @@
 import {
-  FormControl,
-  Select,
-  MenuItem,
   TextField,
   TableRow,
   TableCell,
@@ -22,6 +19,7 @@ interface RecipePartRowProps {
   onChange: (field: keyof PartSelection, value: string | number) => void;
   onDelete?: () => void;
   isRequired?: boolean;
+  allowCreateMissing?: boolean;
 }
 
 export default function RecipePartRow({
@@ -32,13 +30,17 @@ export default function RecipePartRow({
   getPrice,
   onChange,
   onDelete,
-  isRequired = false
+  isRequired = false,
+  allowCreateMissing = false,
 }: RecipePartRowProps) {
   const suppliers = selection.model ? getSuppliers(selection.model) : [];
-  const price =
+  const libraryPrice =
     selection.model && selection.supplier
       ? getPrice(selection.model, selection.supplier)
       : 0;
+  const manualPrice = selection.costSource === 'manual' ? Number(selection.snapshotPrice || 0) : 0;
+  const isMissingPart = allowCreateMissing && !!selection.model && !!selection.supplier && libraryPrice <= 0;
+  const price = isMissingPart ? manualPrice : libraryPrice;
   const subtotal = price * selection.qty;
 
   return (
@@ -63,9 +65,11 @@ export default function RecipePartRow({
       <TableCell sx={{ py: 0.5, minWidth: 140 }}>
         <Autocomplete
           size="small"
+          freeSolo
           options={models}
-          value={selection.model || null}
+          value={selection.model || ''}
           onChange={(_, value) => onChange('model', value || '')}
+          onInputChange={(_, value) => onChange('model', value || '')}
           renderInput={(params) => (
             <TextField
               {...params}
@@ -82,25 +86,25 @@ export default function RecipePartRow({
 
       {/* 供应商 Select */}
       <TableCell sx={{ py: 0.5, minWidth: 120 }}>
-        <FormControl fullWidth size="small" disabled={!selection.model || suppliers.length === 0}>
-          <Select
-            value={selection.supplier}
-            onChange={(e) => onChange('supplier', e.target.value)}
-            displayEmpty
-            sx={{ fontSize: '0.8rem' }}
-          >
-            <MenuItem value="">
-              <em style={{ fontSize: '0.75rem', color: '#aaa' }}>
-                {suppliers.length === 0 ? '—' : '供应商'}
-              </em>
-            </MenuItem>
-            {suppliers.map((s) => (
-              <MenuItem key={s} value={s} sx={{ fontSize: '0.8rem' }}>
-                {s}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Autocomplete
+          size="small"
+          freeSolo
+          disabled={!selection.model}
+          options={suppliers}
+          value={selection.supplier || ''}
+          onChange={(_, value) => onChange('supplier', value || '')}
+          onInputChange={(_, value) => onChange('supplier', value || '')}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="供应商"
+              size="small"
+              sx={{ '& .MuiInputBase-root': { py: 0, fontSize: '0.8rem' } }}
+            />
+          )}
+          noOptionsText="可输入新供应商"
+          sx={{ minWidth: 120 }}
+        />
       </TableCell>
 
       {/* 数量 */}
@@ -116,8 +120,23 @@ export default function RecipePartRow({
       </TableCell>
 
       {/* 单价 */}
-      <TableCell sx={{ py: 0.5, width: 72, textAlign: 'right', color: 'text.secondary', fontSize: '0.8rem' }}>
-        {price > 0 ? `¥${price.toFixed(2)}` : '—'}
+      <TableCell sx={{ py: 0.5, width: 88, textAlign: 'right', color: 'text.secondary', fontSize: '0.8rem' }}>
+        {isMissingPart ? (
+          <TextField
+            type="number"
+            size="small"
+            value={selection.snapshotPrice ?? ''}
+            placeholder="单价"
+            inputProps={{ min: 0, step: 0.001, style: { textAlign: 'right', fontSize: '0.8rem', padding: '4px 6px' } }}
+            onChange={(e) => {
+              onChange('costSource', 'manual');
+              onChange('snapshotPrice', Math.max(0, Number(e.target.value) || 0));
+            }}
+            sx={{ width: 82 }}
+          />
+        ) : (
+          price > 0 ? `¥${price.toFixed(2)}` : '—'
+        )}
       </TableCell>
 
       {/* 小计 */}

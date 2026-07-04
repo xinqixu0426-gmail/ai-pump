@@ -155,7 +155,17 @@ function buildRecipeBomDraft(input, context) {
 
     normalizeSelectionList(input.optionalParts || input.extraParts).forEach(part => {
         if (!part.model) return;
-        bomParts.push({ model: part.model, name: part.model, supplier: part.supplier || '', qty: Number(part.qty || 1), snapshotPrice: getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || '') });
+        const manualPrice = part.costSource === 'manual' && part.snapshotPrice !== undefined
+            ? Number(part.snapshotPrice || 0)
+            : undefined;
+        bomParts.push({
+            model: part.model,
+            name: part.model,
+            supplier: part.supplier || '',
+            qty: Number(part.qty || 1),
+            snapshotPrice: manualPrice ?? getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
+            ...(manualPrice !== undefined ? { costSource: 'manual' } : {}),
+        });
     });
 
     if (toBool(input.hasFloat)) {

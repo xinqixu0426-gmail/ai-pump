@@ -1,5 +1,6 @@
 const { Router } = require('express');
-const { db, dbGetAllModelVariants, modelVariantRow, safeUpdate, softDelete } = require('../db.cjs');
+const { db, dbGetAllModelVariants, modelVariantRow, partRow, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
+const { buildLongScrewInventoryParts } = require('../services/longScrewInventory.cjs');
 
 const router = Router();
 
@@ -61,6 +62,41 @@ function normalizeVariant(body) {
     };
 }
 
+function partsCatalogRows() {
+    return db.prepare(`
+        SELECT id AS Id, model, category, price, supplier, stock, remark AS notes
+        FROM parts
+        WHERE deleted_at IS NULL
+    `).all();
+}
+
+function autoCreateVariantLongScrews(variant) {
+    const template = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(variant.template_id || variant.templateId);
+    if (!template) return [];
+    const partsToCreate = buildLongScrewInventoryParts({
+        variant,
+        template,
+        partsCatalog: partsCatalogRows(),
+    }).filter(part => !db.prepare(`
+        SELECT id FROM parts
+        WHERE deleted_at IS NULL AND category = ? AND model = ?
+        LIMIT 1
+    `).get(part.category, part.model));
+
+    if (partsToCreate.length === 0) return [];
+    const now = new Date().toISOString();
+    const insert = db.prepare(`
+        INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const created = partsToCreate.map(part => {
+        const info = insert.run(part.model, part.category, part.price, part.supplier, part.stock, part.remark, now, now);
+        return partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid));
+    });
+    invalidatePartsCache();
+    return created;
+}
+
 router.get('/', (req, res) => {
     try {
         res.json({ success: true, data: dbGetAllModelVariants() });
@@ -73,16 +109,22 @@ router.post('/', (req, res) => {
     try {
         const b = normalizeVariant(req.body);
         const now = new Date().toISOString();
-        const info = db.prepare(`INSERT INTO pump_model_variants (
+        const saveVariant = db.transaction(() => {
+            const info = db.prepare(`INSERT INTO pump_model_variants (
             model_name, template_id, coil_spec, coil_sheets, coil_material,
             barrel_length, long_screw_extra_length, impeller_model, impeller_thickness, impeller_diameter,
             impeller_blade_count, note, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-            b.model_name, b.template_id, b.coil_spec, b.coil_sheets, b.coil_material,
-            b.barrel_length, b.long_screw_extra_length, b.impeller_model, b.impeller_thickness, b.impeller_diameter,
-            b.impeller_blade_count, b.note, now, now
-        );
-        res.json({ success: true, data: modelVariantRow(db.prepare('SELECT * FROM pump_model_variants WHERE id = ?').get(info.lastInsertRowid)) });
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                b.model_name, b.template_id, b.coil_spec, b.coil_sheets, b.coil_material,
+                b.barrel_length, b.long_screw_extra_length, b.impeller_model, b.impeller_thickness, b.impeller_diameter,
+                b.impeller_blade_count, b.note, now, now
+            );
+            const row = db.prepare('SELECT * FROM pump_model_variants WHERE id = ?').get(info.lastInsertRowid);
+            const createdLongScrewParts = autoCreateVariantLongScrews(row);
+            return { variant: modelVariantRow(row), createdLongScrewParts };
+        });
+        const result = saveVariant();
+        res.json({ success: true, data: result.variant, createdLongScrewParts: result.createdLongScrewParts });
     } catch (error) {
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: '型号名称已存在' });
         res.status(400).json({ success: false, error: error.message });
@@ -94,8 +136,14 @@ router.patch('/:id', (req, res) => {
         const id = parseId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法型号变体ID' });
         const b = normalizeVariant(req.body);
-        safeUpdate('pump_model_variants', id, b);
-        res.json({ success: true, data: modelVariantRow(db.prepare('SELECT * FROM pump_model_variants WHERE id = ?').get(id)) });
+        const saveVariant = db.transaction(() => {
+            safeUpdate('pump_model_variants', id, b);
+            const row = db.prepare('SELECT * FROM pump_model_variants WHERE id = ?').get(id);
+            const createdLongScrewParts = autoCreateVariantLongScrews(row);
+            return { variant: modelVariantRow(row), createdLongScrewParts };
+        });
+        const result = saveVariant();
+        res.json({ success: true, data: result.variant, createdLongScrewParts: result.createdLongScrewParts });
     } catch (error) {
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: '型号名称已存在' });
         res.status(400).json({ success: false, error: error.message });

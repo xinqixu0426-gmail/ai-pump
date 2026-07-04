@@ -52,7 +52,15 @@ export function updateOptionalPart<T extends PartSelection & { id: number }>(
   return parts.map((part) => {
     if (part.id !== id) return part;
     const updated = { ...part, [field]: value };
-    if (field === 'model') updated.supplier = '';
+    if (field === 'model') {
+      updated.supplier = '';
+      updated.snapshotPrice = undefined;
+      updated.costSource = undefined;
+    }
+    if (field === 'supplier') {
+      updated.snapshotPrice = undefined;
+      updated.costSource = undefined;
+    }
     return updated;
   });
 }

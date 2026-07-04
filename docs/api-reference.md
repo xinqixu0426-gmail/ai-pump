@@ -76,8 +76,8 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/model-variants` | 无 | 型号变体列表 |
-| `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段 | 新增变体 |
-| `PATCH` | `/api/model-variants/:id` | 同新增字段 | 更新变体 |
+| `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段 | 新增变体；若模板含长螺丝且变体有机筒长度，会按参数化螺丝公式自动补齐对应长度的螺丝零件，响应附带 `createdLongScrewParts` |
+| `PATCH` | `/api/model-variants/:id` | 同新增字段 | 更新变体；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/model-variants/:id` | 无 | 软删除 |
 
 ## 8. 配方 Recipes
@@ -88,9 +88,9 @@
 | `GET` | `/api/recipes/:id` | 无 | 单个配方 |
 | `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 基于配方草稿生成保存用成本快照；不写库 |
-| `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照 |
+| `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；若 `partsJson` 中含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
 | `PATCH` | `/api/recipes` | `id/Id` 加配方字段 | 兼容旧入口，更新配方 |
-| `PATCH` | `/api/recipes/:id` | 配方字段 | 推荐更新入口 |
+| `PATCH` | `/api/recipes/:id` | 配方字段 | 推荐更新入口；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/recipes` | 单个对象或数组，含 `id/Id` | 兼容批量软删除 |
 | `DELETE` | `/api/recipes/:id` | 无 | 推荐删除入口，软删除 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 配方配件成本重算，不是完整总成本 |

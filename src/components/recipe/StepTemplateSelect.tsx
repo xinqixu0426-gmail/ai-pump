@@ -44,10 +44,6 @@ interface StepTemplateSelectProps {
   modelVariants: PumpModelVariant[];
   selectedModelVariantId: number | null;
   onModelVariantSelect: (val: number | null) => void;
-  impellerModel: string;
-  impellerThickness: string;
-  impellerDiameter: string;
-  impellerBladeCount: string;
   templates: PumpShellTemplate[];
   templateParts: TemplatePart[];
   shellComponents: ShellComponent[];
@@ -79,10 +75,6 @@ export default function StepTemplateSelect({
   modelVariants,
   selectedModelVariantId,
   onModelVariantSelect,
-  impellerModel,
-  impellerThickness,
-  impellerDiameter,
-  impellerBladeCount,
   templates,
   templateParts,
   shellComponents,
@@ -212,14 +204,6 @@ export default function StepTemplateSelect({
             </FormControl>
             {selectedVariant && selectedTemplate && (
               <Chip label={`模板 ${selectedTemplate.shellModel}`} size="small" color="success" variant="outlined" />
-            )}
-            {impellerModel && (
-              <Box display="flex" gap={0.5} flexWrap="wrap">
-                <Chip label={`叶轮 ${impellerModel}`} size="small" color="primary" variant="outlined" />
-                {impellerThickness && <Chip label={`${impellerThickness}mm厚`} size="small" variant="outlined" />}
-                {impellerDiameter && <Chip label={`直径${impellerDiameter}mm`} size="small" variant="outlined" />}
-                {impellerBladeCount && <Chip label={`${impellerBladeCount}片叶`} size="small" variant="outlined" />}
-              </Box>
             )}
           </Box>
 

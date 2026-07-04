@@ -59,6 +59,7 @@ export function serializeOptionalParts(parts: Array<PartSelection & { id?: numbe
     model: part.model,
     supplier: part.supplier,
     qty: part.qty,
+    ...(part.costSource === 'manual' ? { snapshotPrice: Number(part.snapshotPrice || 0), costSource: 'manual' } : {}),
   })));
 }
 

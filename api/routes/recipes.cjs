@@ -1,7 +1,8 @@
 const { Router } = require('express');
-const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, recipeRow, safeUpdate, softDelete, templateRow, modelVariantRow } = require('../db.cjs');
+const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, safeUpdate, softDelete, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
 const { buildRecipeCostDraft } = require('../services/costEngine.cjs');
 const { buildRecipeBomDraft } = require('../services/recipeBomEngine.cjs');
+const { buildLongScrewInventoryPartsFromRecipe } = require('../services/longScrewInventory.cjs');
 const router = Router();
 
 const RECIPE_FIELDS = [
@@ -65,10 +66,55 @@ function parseId(value) {
     return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function parseJsonArray(value) {
+    if (!value) return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function partsCatalogRows() {
+    return db.prepare(`
+        SELECT id AS Id, model, category, price, supplier, stock, remark AS notes
+        FROM parts
+        WHERE deleted_at IS NULL
+    `).all();
+}
+
+function autoCreateRecipeLongScrews(recipeLike) {
+    const partsToCreate = buildLongScrewInventoryPartsFromRecipe({
+        recipeName: recipeLike.name,
+        parts: parseJsonArray(recipeLike.parts_json || recipeLike.partsJson),
+        partsCatalog: partsCatalogRows(),
+    }).filter(part => !db.prepare(`
+        SELECT id FROM parts
+        WHERE deleted_at IS NULL AND category = ? AND model = ?
+        LIMIT 1
+    `).get(part.category, part.model));
+
+    if (partsToCreate.length === 0) return [];
+    const now = new Date().toISOString();
+    const insert = db.prepare(`
+        INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const created = partsToCreate.map(part => {
+        const info = insert.run(part.model, part.category, part.price, part.supplier, part.stock, part.remark, now, now);
+        return partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid));
+    });
+    invalidatePartsCache();
+    return created;
+}
+
 function updateRecipeRecord(id, body) {
     const updates = recipeBodyToDb(body);
     safeUpdate('recipes', id, updates);
-    return recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id));
+    const record = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
+    const createdLongScrewParts = autoCreateRecipeLongScrews(record);
+    return { recipe: recipeRow(record), createdLongScrewParts };
 }
 
 router.get('/', (req, res) => {
@@ -130,7 +176,8 @@ router.post('/', (req, res) => {
     try {
         const b = recipeBodyToDb(req.body);
         const now = new Date().toISOString();
-        const info = db.prepare(`INSERT INTO recipes (
+        const saveRecipe = db.transaction(() => {
+            const info = db.prepare(`INSERT INTO recipes (
             name, spec, parts_json, saved_total_cost, saved_cost_details,
             template_id, coil_spec, coil_sheets, coil_material,
             has_float, float_wire, float_accessory_type, has_cable, cable_length, cable_wire, cable_accessory_type,
@@ -141,24 +188,29 @@ router.post('/', (req, res) => {
             model_variant_id, impeller_model, impeller_thickness, impeller_diameter, impeller_blade_count,
             technical_data_json,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-            b.name || '', b.spec || '', b.parts_json || '[]',
-            b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
-            b.template_id || null, b.coil_spec || '', b.coil_sheets || 0, b.coil_material || '钢带',
-            b.has_float || 0, b.float_wire || '', b.float_accessory_type || 'standard', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '', b.cable_accessory_type || 'standard',
-            b.box_type || '', b.extra_parts_json || '[]', b.packing_parts_json || '[]',
-            b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,
-            b.surface_treatment_mode || (b.painting_wage != null ? 'painting' : 'none'),
-            b.surface_treatment_cost != null ? b.surface_treatment_cost : (b.painting_wage != null ? b.painting_wage : 0),
-            b.management_fee || 0, b.custom_barrel_length != null ? b.custom_barrel_length : null,
-            b.model_variant_id || null, b.impeller_model || '',
-            b.impeller_thickness != null ? b.impeller_thickness : null,
-            b.impeller_diameter != null ? b.impeller_diameter : null,
-            b.impeller_blade_count != null ? b.impeller_blade_count : null,
-            b.technical_data_json || '{}',
-            now, now
-        );
-        res.json({ success: true, data: recipeRow(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)) });
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                b.name || '', b.spec || '', b.parts_json || '[]',
+                b.saved_total_cost ?? 0, b.saved_cost_details || '[]',
+                b.template_id || null, b.coil_spec || '', b.coil_sheets || 0, b.coil_material || '钢带',
+                b.has_float || 0, b.float_wire || '', b.float_accessory_type || 'standard', b.has_cable || 0, b.cable_length || 0, b.cable_wire || '', b.cable_accessory_type || 'standard',
+                b.box_type || '', b.extra_parts_json || '[]', b.packing_parts_json || '[]',
+                b.assembly_wage || 0, b.packing_wage || 0, b.painting_wage != null ? b.painting_wage : null,
+                b.surface_treatment_mode || (b.painting_wage != null ? 'painting' : 'none'),
+                b.surface_treatment_cost != null ? b.surface_treatment_cost : (b.painting_wage != null ? b.painting_wage : 0),
+                b.management_fee || 0, b.custom_barrel_length != null ? b.custom_barrel_length : null,
+                b.model_variant_id || null, b.impeller_model || '',
+                b.impeller_thickness != null ? b.impeller_thickness : null,
+                b.impeller_diameter != null ? b.impeller_diameter : null,
+                b.impeller_blade_count != null ? b.impeller_blade_count : null,
+                b.technical_data_json || '{}',
+                now, now
+            );
+            const row = db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid);
+            const createdLongScrewParts = autoCreateRecipeLongScrews(row);
+            return { recipe: recipeRow(row), createdLongScrewParts };
+        });
+        const result = saveRecipe();
+        res.json({ success: true, data: result.recipe, createdLongScrewParts: result.createdLongScrewParts });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -188,7 +240,8 @@ router.patch('/', (req, res) => {
         const b = req.body;
         const id = b.Id || b.id;
         if (!parseId(id)) return res.status(400).json({ success: false, error: '非法配方ID' });
-        res.json({ success: true, data: updateRecipeRecord(Number(id), b) });
+        const result = db.transaction(() => updateRecipeRecord(Number(id), b))();
+        res.json({ success: true, data: result.recipe, createdLongScrewParts: result.createdLongScrewParts });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -196,7 +249,8 @@ router.patch('/:id', (req, res) => {
     try {
         const id = parseId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
-        res.json({ success: true, data: updateRecipeRecord(id, req.body) });
+        const result = db.transaction(() => updateRecipeRecord(id, req.body))();
+        res.json({ success: true, data: result.recipe, createdLongScrewParts: result.createdLongScrewParts });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 

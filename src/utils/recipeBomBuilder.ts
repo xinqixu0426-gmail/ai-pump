@@ -216,12 +216,14 @@ export function buildRecipeBomParts(input: {
 
   optionalParts.forEach(part => {
     if (!part.model) return;
+    const manualPrice = part.costSource === 'manual' ? Number(part.snapshotPrice || 0) : undefined;
     all.push({
       model: part.model,
       name: part.model,
       supplier: part.supplier,
       qty: part.qty,
-      snapshotPrice: getPriceByModelAndSupplier(part.model, part.supplier),
+      snapshotPrice: manualPrice ?? getPriceByModelAndSupplier(part.model, part.supplier),
+      ...(manualPrice !== undefined ? { costSource: 'manual' } : {}),
     });
   });
 

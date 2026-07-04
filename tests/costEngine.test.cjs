@@ -105,6 +105,24 @@ test('配方成本草稿会应用长螺丝长度和参数化计价', () => {
     assert.match(result.savedCostDetails, /按长度计价: φ6 不锈钢长螺丝/);
 });
 
+test('配方成本草稿没有参数化基础螺丝时也会按长度公式计价', () => {
+    const result = buildRecipeCostDraft({
+        parts: [{ model: '6*170', name: '不锈钢长螺丝', supplier: '', qty: 4, snapshotPrice: 0 }],
+        customBarrelLength: 155,
+        longScrewExtraLength: 25,
+        assemblyWage: 0,
+        packingWage: 0,
+        managementFee: 0,
+    }, {
+        partsCatalog: [],
+    });
+
+    assert.equal(result.parts[0].model, '6*180');
+    assert.equal(result.parts[0].snapshotPrice, 0.57);
+    assert.equal(result.parts[0].costSource, 'screw_formula');
+    assert.equal(result.partsCost, 2.28);
+});
+
 test('通用配方成本计算支持浮球新界式加价', () => {
     const result = calculateRecipeCost([
         { name: '浮球', model: '浮球-线径0.55', supplier: '', qty: 1, floatAccessoryType: 'xinjie' },

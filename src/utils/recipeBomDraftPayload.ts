@@ -45,7 +45,12 @@ export function buildRecipeBomDraftPayload(input: RecipeBomDraftPayloadInput) {
     capacitorModel: input.capacitorModel,
     optionalParts: input.optionalParts
       .filter(part => part.model)
-      .map(part => ({ model: part.model, supplier: part.supplier, qty: part.qty })),
+      .map(part => ({
+        model: part.model,
+        supplier: part.supplier,
+        qty: part.qty,
+        ...(part.costSource === 'manual' ? { snapshotPrice: Number(part.snapshotPrice || 0), costSource: 'manual' } : {}),
+      })),
     hasFloat: input.hasFloat,
     floatWire: input.floatWire,
     floatAccessoryType: input.floatAccessoryType,

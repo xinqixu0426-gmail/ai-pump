@@ -33,7 +33,9 @@ export function calculateRecipeCostSummary(input: RecipeCostSummaryInput): Recip
     sum + Number(part.snapshotPrice || 0) * Number(part.qty || 1)
   ), 0);
   const optionalCost = input.optionalParts.reduce((sum, part) => (
-    part.model ? sum + input.getPriceByModelAndSupplier(part.model, part.supplier) * Number(part.qty || 1) : sum
+    part.model
+      ? sum + (part.costSource === 'manual' ? Number(part.snapshotPrice || 0) : input.getPriceByModelAndSupplier(part.model, part.supplier)) * Number(part.qty || 1)
+      : sum
   ), 0);
   const capacitorCost = input.capacitorModel ? input.getPriceByModelAndSupplier(input.capacitorModel, '') : 0;
   const configCost = input.configParts.reduce((sum, part) => (

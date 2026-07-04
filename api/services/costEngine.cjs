@@ -211,6 +211,16 @@ function longScrewPriceByModel(partsCatalog, model, supplier = '') {
     };
 }
 
+function longScrewFormulaPriceByModel(model) {
+    const length = screwLengthFromModel(model);
+    if (!length) return null;
+    return {
+        unitPrice: calculateScrewUnitPrice(0, length, { enabled: true, diameter: screwDiameterFromModel(model) }),
+        pricingPartModel: '',
+        pricingSupplier: '',
+    };
+}
+
 function getCableAccessoryFee(partsByModel, cableModel, supplier, accessoryType = 'standard', getSetting = () => undefined) {
     return getCableAccessoryFeeFromPartsByModel(partsByModel, cableModel, supplier, accessoryType, getSetting);
 }
@@ -278,10 +288,10 @@ function calculateRecipeCost(parts, partsCache = {}, partsByModel = {}, options 
             if (source !== '快照价格') price += getFloatAccessoryDelta(p.floatAccessoryType, getSetting);
             if (p.floatAccessoryType === 'xinjie') source += '+新界式';
         } else if (isLongScrewPart(p)) {
-            const screwPricing = longScrewPriceByModel(partsCatalog, p.model, p.supplier);
+            const screwPricing = longScrewPriceByModel(partsCatalog, p.model, p.supplier) || longScrewFormulaPriceByModel(p.model);
             if (screwPricing) {
                 price = screwPricing.unitPrice;
-                source = `参数化螺丝(${screwPricing.pricingPartModel})`;
+                source = screwPricing.pricingPartModel ? `参数化螺丝(${screwPricing.pricingPartModel})` : '长螺丝公式价';
             } else if (p.snapshotPrice !== undefined) {
                 price = p.snapshotPrice;
                 source = '快照价格';
@@ -333,12 +343,12 @@ function normalizeRecipeParts(parts) {
 
 function applyScrewPricing(part, partsCatalog) {
     if (!isLongScrewPart(part)) return part;
-    const pricing = longScrewPriceByModel(partsCatalog, part.model, part.supplier);
+    const pricing = longScrewPriceByModel(partsCatalog, part.model, part.supplier) || longScrewFormulaPriceByModel(part.model);
     if (!pricing) return part;
     return {
         ...part,
         snapshotPrice: pricing.unitPrice,
-        costSource: 'screw_pricing',
+        costSource: pricing.pricingPartModel ? 'screw_pricing' : 'screw_formula',
         screwPricingModel: pricing.pricingPartModel,
         screwPricingSupplier: pricing.pricingSupplier,
     };
@@ -383,8 +393,8 @@ function buildRecipeCostDraft(input, options = {}) {
                 return `${base}（材质: ${part.material || coilMaterial || '钢带'}，单价: ¥${Number(part.unitPrice || 0).toFixed(2)}，来源: ${part.source || '-'}，公式: ${part.formula || '-'}）`;
             }
             if (part.dynamicRule === 'longScrewByBarrelLength') {
-                const pricingText = part.costSource === 'screw_pricing'
-                    ? `，按长度计价: ${part.screwPricingModel || '-'}，公式≈0.00424×长度-0.198`
+                const pricingText = part.costSource === 'screw_pricing' || part.costSource === 'screw_formula'
+                    ? `，按长度计价${part.screwPricingModel ? `: ${part.screwPricingModel}` : ''}，公式≈0.00424×长度-0.198`
                     : '';
                 return `${base}（机筒: ${part.barrelLength}mm，补偿: ${part.longScrewExtraLength}mm，长螺丝: ${part.screwLength}mm${pricingText}）`;
             }

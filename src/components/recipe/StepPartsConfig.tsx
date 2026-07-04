@@ -288,6 +288,7 @@ export default function StepPartsConfig({
                   getPrice={getPriceByModelAndSupplier}
                   onChange={(field, value) => handleOptionalChange(part.id, field, value)}
                   onDelete={() => handleRemoveOptional(part.id)}
+                  allowCreateMissing
                 />
               ))}
             </TableBody>
