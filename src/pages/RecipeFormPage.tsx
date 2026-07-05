@@ -8,6 +8,9 @@ import {
   CircularProgress,
   IconButton,
   Button,
+  Popover,
+  Divider,
+  Chip,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { CableAccessoryConfig, CableAccessoryType, PumpModelVariant, RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, RecipeBomDraftResult } from '../types';
@@ -82,6 +85,7 @@ export default function RecipeFormPage() {
     editFrom?.impellerBladeCount ? String(editFrom.impellerBladeCount) : (cloneFrom?.impellerBladeCount ? String(cloneFrom.impellerBladeCount) : '')
   );
   const [technicalData, setTechnicalData] = useState(() => parseTechnicalDataJson(editFrom?.technicalDataJson || cloneFrom?.technicalDataJson));
+  const [costDetailAnchor, setCostDetailAnchor] = useState<HTMLElement | null>(null);
 
   // 泵壳模板选择
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
@@ -461,6 +465,79 @@ export default function RecipeFormPage() {
     allPartsPreview, templateCost, selectedTemplate, coilResult, optionalParts, capacitorModel,
     configPartsPreview, packingParts, laborCost, getPriceByModelAndSupplier,
   ]);
+  const costDetailGroups = useMemo(() => {
+    const row = (label: string, amount: number, note = '', issue = false) => ({ label, amount, note, issue });
+    const packingLibraryPrice = (model: string, supplier = '') => {
+      const candidates = parts.filter(p => p.category === '包装' && p.model.trim() === String(model || '').trim());
+      const normalizedSupplier = String(supplier || '').trim();
+      const exact = candidates.find(p => normalizedSupplier && String(p.supplier || '').trim() === normalizedSupplier);
+      if (exact) return exact.price;
+      return candidates.length ? candidates.reduce((min, p) => p.price < min.price ? p : min, candidates[0]).price : 0;
+    };
+    const groups = [
+      {
+        title: '模板',
+        items: selectedTemplate ? [
+          row(selectedTemplateCostMode === 'bundle' ? '整套泵壳' : '泵壳组件', shellPrice, selectedTemplate.shellModel || ''),
+          ...adjustedTemplateParts.map(part => {
+            const unitPrice = getTemplatePartPrice(part);
+            return row(part.name || part.model, unitPrice * Number(part.qty || 1), `${part.model}${part.qty > 1 ? ` ×${part.qty}` : ''}`, unitPrice <= 0);
+          }),
+        ] : [],
+      },
+      {
+        title: '线圈',
+        items: [
+          ...(coilResult ? [row('线圈转子', coilResult.totalCost || 0, `${coilSpec || '-'} / ${coilSheets || '-'}片`)] : []),
+          ...(capacitorModel ? [row('电容', getPriceByModelAndSupplier(capacitorModel, ''), capacitorModel, getPriceByModelAndSupplier(capacitorModel, '') <= 0)] : []),
+        ],
+      },
+      {
+        title: '选配',
+        items: optionalParts
+          .filter(part => part.model)
+          .map(part => {
+            const unitPrice = part.costSource === 'manual' ? Number(part.snapshotPrice || 0) : getPriceByModelAndSupplier(part.model, part.supplier);
+            return row(part.model, unitPrice * Number(part.qty || 1), `${part.supplier || '默认'}${Number(part.qty || 1) > 1 ? ` ×${part.qty}` : ''}`, unitPrice <= 0);
+          }),
+      },
+      {
+        title: '动态',
+        items: configPartsPreview
+          .filter(part => !part.packagingMaterial)
+          .map(part => row(part.name || part.model, Number(part.snapshotPrice || 0) * Number(part.qty || 1), `${part.model}${Number(part.qty || 1) > 1 ? ` ×${part.qty}` : ''}`, Number(part.snapshotPrice || 0) <= 0)),
+      },
+      {
+        title: '包装',
+        items: packingParts
+          .filter(part => part.model)
+          .map(part => {
+            const unitPrice = part.costSource === 'manual' ? Number(part.snapshotPrice || 0) : packingLibraryPrice(part.model, part.supplier);
+            const qty = Number(part.qty || 1);
+            return row(part.model, unitPrice * qty, `${part.packagingMaterial || '包材'} / ${part.supplier || '默认'}${qty > 1 ? ` ×${qty}` : ''}`, unitPrice <= 0);
+          }),
+      },
+      {
+        title: '人工',
+        items: [
+          row('安装工资', Number(assemblyWage || 0)),
+          row('打包工资', Number(packingWage || 0)),
+          row(surfaceTreatmentMode === 'painting' ? '喷漆' : surfaceTreatmentMode === 'electrophoresis' ? '电泳' : '表面处理', Number(surfaceTreatmentCost || 0)),
+          row('管理费', Number(managementFee || 0)),
+        ].filter(item => item.amount > 0),
+      },
+    ];
+    return groups.filter(group => group.items.length > 0);
+  }, [
+    parts, selectedTemplate, selectedTemplateCostMode, shellPrice, adjustedTemplateParts, getTemplatePartPrice,
+    coilResult, coilSpec, coilSheets, capacitorModel, getPriceByModelAndSupplier, optionalParts,
+    configPartsPreview, packingParts, assemblyWage, packingWage, surfaceTreatmentMode, surfaceTreatmentCost, managementFee,
+  ]);
+  const costIssueCount = useMemo(
+    () => costDetailGroups.reduce((sum, group) => sum + group.items.filter(item => item.issue).length, 0),
+    [costDetailGroups]
+  );
+  const costDetailOpen = Boolean(costDetailAnchor);
 
   const handleAddOptional = () => setOptionalParts((prev) => addOptionalPart(prev, nextOptionalId.current++));
 
@@ -794,6 +871,15 @@ export default function RecipeFormPage() {
             <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: colors.amber.dark }}>¥{costSummary.laborCost.toFixed(0)}</Typography>
           </Box>
         )}
+        <Button
+          size="small"
+          variant={costDetailOpen ? 'contained' : 'outlined'}
+          color={costIssueCount > 0 ? 'warning' : 'primary'}
+          onClick={(event) => setCostDetailAnchor(event.currentTarget)}
+          sx={{ minWidth: 74, fontWeight: 700 }}
+        >
+          明细{costIssueCount > 0 ? ` ${costIssueCount}` : ''}
+        </Button>
         <Box sx={{ ml: 'auto', textAlign: 'right' }}>
           <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>预估总成本</Typography>
           <Typography variant="h6" sx={{ fontWeight: 700, color: costSummary.totalCost > 0 ? 'success.main' : 'text.disabled', fontSize: '1.25rem', lineHeight: 1.2 }}>
@@ -802,7 +888,62 @@ export default function RecipeFormPage() {
         </Box>
       </Box>
     </Paper>
+    <Popover
+      open={costDetailOpen}
+      anchorEl={costDetailAnchor}
+      onClose={() => setCostDetailAnchor(null)}
+      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      PaperProps={{
+        sx: {
+          width: { xs: 'calc(100vw - 24px)', sm: 520 },
+          maxHeight: { xs: '70vh', sm: 560 },
+          p: 1.5,
+          borderRadius: 2,
+          overflow: 'auto',
+        },
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>成本明细</Typography>
+        {costIssueCount > 0 && <Chip size="small" color="warning" label={`${costIssueCount} 项待处理`} sx={{ ml: 1, fontWeight: 700 }} />}
+        <Typography variant="subtitle2" sx={{ ml: 'auto', fontWeight: 800, color: 'success.main' }}>¥{costSummary.totalCost.toFixed(2)}</Typography>
+      </Box>
+      <Divider sx={{ mb: 1 }} />
+      <Box sx={{ display: 'grid', gap: 1 }}>
+        {costDetailGroups.map(group => {
+          const groupTotal = group.items.reduce((sum, item) => sum + item.amount, 0);
+          return (
+            <Box key={group.title}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.4 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>{group.title}</Typography>
+                <Typography variant="caption" sx={{ ml: 'auto', fontWeight: 800 }}>¥{groupTotal.toFixed(2)}</Typography>
+              </Box>
+              <Box sx={{ display: 'grid', gap: 0.35 }}>
+                {group.items.map((item, index) => (
+                  <Box key={`${group.title}-${item.label}-${index}`} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', columnGap: 1, alignItems: 'baseline' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" noWrap title={item.label} sx={{ fontWeight: item.issue ? 800 : 600, color: item.issue ? 'error.main' : 'text.primary', lineHeight: 1.35 }}>
+                        {item.label}
+                      </Typography>
+                      {item.note && (
+                        <Typography variant="caption" color="text.disabled" noWrap title={item.note} sx={{ display: 'block', lineHeight: 1.25 }}>
+                          {item.note}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: item.issue ? 'error.main' : 'text.primary' }}>
+                      {item.issue ? '未找到' : `¥${item.amount.toFixed(2)}`}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+    </Popover>
 
-    </Box>
+  </Box>
   );
 }
