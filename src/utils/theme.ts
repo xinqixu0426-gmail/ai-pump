@@ -230,6 +230,9 @@ export const muiTheme = createTheme({
             boxShadow: 'var(--shadow-heavy)',
           },
         },
+        sizeSmall: {
+          minHeight: 32,
+        },
       },
     },
     MuiIconButton: {
