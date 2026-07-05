@@ -218,11 +218,27 @@ export const muiTheme = createTheme({
           textTransform: 'none',
           fontWeight: 600,
           borderRadius: 10,
+          cursor: 'pointer',
+          userSelect: 'none',
+          '& .MuiButton-startIcon, & .MuiButton-endIcon, & svg, & .MuiTouchRipple-root': {
+            pointerEvents: 'none',
+          },
         },
         contained: {
           boxShadow: 'var(--shadow)',
           '&:hover': {
             boxShadow: 'var(--shadow-heavy)',
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          cursor: 'pointer',
+          userSelect: 'none',
+          '& svg, & .MuiTouchRipple-root': {
+            pointerEvents: 'none',
           },
         },
       },
