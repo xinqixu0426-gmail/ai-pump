@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Paper, Typography, Box, Button, TextField, Select, MenuItem, FormControl,
   InputLabel, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Dialog, DialogActions, DialogContent, DialogTitle, Chip,
+  IconButton, Dialog, DialogActions, DialogContent, DialogTitle, Chip, Tooltip,
 } from '@mui/material';
-import { Edit3 as EditIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
+import { Copy as CopyIcon, Edit3 as EditIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { PumpModelVariant, PumpShellTemplate } from '../types';
 import { createModelVariant, deleteModelVariant, updateModelVariant, proxyRequest } from '../utils/api';
 import { CoilSpecInfo } from './recipe/recipeFormConstants';
@@ -50,6 +50,7 @@ const emptyForm: FormState = {
 export default function ModelVariantSection({ variants, templates, reload, setError }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PumpModelVariant | null>(null);
+  const [cloningFrom, setCloningFrom] = useState<PumpModelVariant | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecInfo[]>([]);
@@ -68,26 +69,37 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
 
   const openCreate = () => {
     setEditing(null);
+    setCloningFrom(null);
     setForm(emptyForm);
     setOpen(true);
   };
 
+  const formFromVariant = (variant: PumpModelVariant, modelName = variant.modelName || ''): FormState => ({
+    modelName,
+    templateId: variant.templateId ? String(variant.templateId) : '',
+    coilSpec: variant.coilSpec || '',
+    coilSheets: variant.coilSheets ? String(variant.coilSheets) : '',
+    coilMaterial: variant.coilMaterial || DEFAULT_COIL_MATERIAL,
+    barrelLength: variant.barrelLength ? String(variant.barrelLength) : '',
+    longScrewExtraLength: variant.longScrewExtraLength != null ? String(variant.longScrewExtraLength) : String(DEFAULT_LONG_SCREW_EXTRA_LENGTH),
+    impellerModel: variant.impellerModel || '',
+    impellerThickness: variant.impellerThickness ? String(variant.impellerThickness) : '',
+    impellerDiameter: variant.impellerDiameter ? String(variant.impellerDiameter) : '',
+    impellerBladeCount: variant.impellerBladeCount ? String(variant.impellerBladeCount) : '',
+    note: variant.note || '',
+  });
+
   const openEdit = (variant: PumpModelVariant) => {
     setEditing(variant);
-    setForm({
-      modelName: variant.modelName || '',
-      templateId: variant.templateId ? String(variant.templateId) : '',
-      coilSpec: variant.coilSpec || '',
-      coilSheets: variant.coilSheets ? String(variant.coilSheets) : '',
-      coilMaterial: variant.coilMaterial || DEFAULT_COIL_MATERIAL,
-      barrelLength: variant.barrelLength ? String(variant.barrelLength) : '',
-      longScrewExtraLength: variant.longScrewExtraLength != null ? String(variant.longScrewExtraLength) : String(DEFAULT_LONG_SCREW_EXTRA_LENGTH),
-      impellerModel: variant.impellerModel || '',
-      impellerThickness: variant.impellerThickness ? String(variant.impellerThickness) : '',
-      impellerDiameter: variant.impellerDiameter ? String(variant.impellerDiameter) : '',
-      impellerBladeCount: variant.impellerBladeCount ? String(variant.impellerBladeCount) : '',
-      note: variant.note || '',
-    });
+    setCloningFrom(null);
+    setForm(formFromVariant(variant));
+    setOpen(true);
+  };
+
+  const openClone = (variant: PumpModelVariant) => {
+    setEditing(null);
+    setCloningFrom(variant);
+    setForm(formFromVariant(variant, `${variant.modelName || ''}-复用`));
     setOpen(true);
   };
 
@@ -161,7 +173,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                   <TableCell>长螺丝</TableCell>
                   <TableCell>叶轮</TableCell>
                   <TableCell>备注</TableCell>
-                  <TableCell align="center" sx={{ width: 96 }}>操作</TableCell>
+                  <TableCell align="center" sx={{ width: 132 }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -186,8 +198,15 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                     </TableCell>
                     <TableCell>{v.note || '-'}</TableCell>
                     <TableCell align="center">
-                      <IconButton size="small" color="warning" onClick={() => openEdit(v)}><EditIcon size={16} /></IconButton>
-                      <IconButton size="small" color="error" onClick={() => remove(v.Id)}><DeleteIcon size={16} /></IconButton>
+                      <Tooltip title="复用为新变体">
+                        <IconButton size="small" color="primary" aria-label="复用型号变体" onClick={() => openClone(v)}><CopyIcon size={16} /></IconButton>
+                      </Tooltip>
+                      <Tooltip title="编辑">
+                        <IconButton size="small" color="warning" aria-label="编辑型号变体" onClick={() => openEdit(v)}><EditIcon size={16} /></IconButton>
+                      </Tooltip>
+                      <Tooltip title="删除">
+                        <IconButton size="small" color="error" aria-label="删除型号变体" onClick={() => remove(v.Id)}><DeleteIcon size={16} /></IconButton>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -198,7 +217,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
       </Paper>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? `编辑型号 - ${editing.modelName}` : '新建型号变体'}</DialogTitle>
+        <DialogTitle>{editing ? `编辑型号 - ${editing.modelName}` : cloningFrom ? `复用型号 - ${cloningFrom.modelName}` : '新建型号变体'}</DialogTitle>
         <DialogContent>
           <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={2} mt={1}>
             <TextField label="型号名称" value={form.modelName} onChange={e => updateField('modelName', e.target.value)} required size="small" />

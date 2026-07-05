@@ -84,6 +84,7 @@ export default function PartsPage() {
   const [filterCategory, setFilterCategory] = useState('');
   const [quickFilter, setQuickFilter] = useState<PartQuickFilter>('all');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const hasInitializedCollapsedCategoriesRef = useRef(false);
   const formRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -162,6 +163,14 @@ export default function PartsPage() {
     }
     return Object.fromEntries(Object.entries(map).sort(([a], [b]) => a.localeCompare(b, 'zh')));
   }, [filteredParts]);
+
+  useEffect(() => {
+    if (hasInitializedCollapsedCategoriesRef.current) return;
+    const groupedCategories = Object.keys(groupedParts);
+    if (groupedCategories.length === 0) return;
+    setCollapsedCategories(new Set(groupedCategories));
+    hasInitializedCollapsedCategoriesRef.current = true;
+  }, [groupedParts]);
 
   const categories = useMemo(() => [...new Set(parts.map((p) => p.category))].sort(), [parts]);
   const supplierOptions = useMemo(() => [...new Set(parts.map((p) => p.supplier).filter(Boolean))].sort(), [parts]);
