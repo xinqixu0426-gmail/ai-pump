@@ -62,8 +62,13 @@ function configuredWireModel(prefix, wireOrModel, resolvedWire) {
 
 function inferPackingMaterial(model = '', material) {
     if (material) return material;
-    if (String(model).includes('木箱')) return '木箱';
-    if (String(model).includes('彩')) return '彩印纸箱';
+    const normalized = String(model || '').trim();
+    if (normalized.includes('木箱')) return '木箱';
+    if (normalized.includes('彩')) return '彩印纸箱';
+    if (normalized.includes('泡沫')) return '泡沫';
+    if (normalized.includes('商标')) return '商标';
+    if (normalized.includes('说明书')) return '说明书';
+    if (normalized.includes('珍珠棉')) return '珍珠棉';
     return DEFAULT_PACKAGING_MATERIAL;
 }
 

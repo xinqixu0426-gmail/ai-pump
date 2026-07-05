@@ -9,6 +9,7 @@ const partsCatalog = [
     { model: '浮球-线径0.75', category: '浮球', supplier: '线缆供应商', price: 7.6 },
     { model: '电缆-线径0.75', category: '电缆线', supplier: '线缆供应商', price: 1.88, notes: JSON.stringify({ cableAccessoryFees: { standard: 0.5, xinjie: 1 }, cableAccessoryNames: { standard: '普通铜套', xinjie: '新界式' } }) },
     { model: '牛皮纸箱A', category: '包装', supplier: '包装供应商', price: 2 },
+    { model: '泡沫内衬', category: '包装', supplier: '包装供应商', price: 0.8 },
 ];
 
 const template = {
@@ -79,7 +80,10 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
         cableLength: 3,
         cableAccessoryType: 'xinjie',
         longScrewExtraLength: 10,
-        packingParts: [{ model: '牛皮纸箱A', supplier: '包装供应商', qty: 1 }],
+        packingParts: [
+            { model: '牛皮纸箱A', supplier: '包装供应商', qty: 1 },
+            { model: '泡沫内衬', supplier: '包装供应商', qty: 1 },
+        ],
         optionalParts: [],
     }, {
         template,
@@ -109,6 +113,7 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
     assert.ok(result.parts.find(part => part.name === '浮球'));
     assert.ok(result.parts.find(part => part.model === '电缆配件费' && part.snapshotPrice === 1));
     assert.ok(result.parts.find(part => part.model === '牛皮纸箱A' && part.packagingMaterial === '牛皮纸箱'));
+    assert.ok(result.parts.find(part => part.model === '泡沫内衬' && part.packagingMaterial === '泡沫'));
 });
 
 test('后端 BOM draft 不再使用泵壳 notes 默认机筒长度', () => {

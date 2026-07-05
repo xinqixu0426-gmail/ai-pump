@@ -100,7 +100,7 @@
 - 电缆成本：`线缆单价 × 长度 + 铜套费`。
 - 铜套类型为 `standard` 或 `xinjie`，名称和价格统一存于 `system_settings.cable_accessories`。
 - 旧零件备注中的铜套 JSON 仅用于历史数据迁移和回退。
-- 包装按配方配置，支持 `standalone`（独立包装）和 `grouped`（组合包装）两种业务方式；材料明细存于 `packingPartsJson`，每项包含型号、供应商和数量。旧 `boxType` 只作为兼容回退。
+- 包装按配方配置，支持 `standalone`（独立包装）和 `grouped`（组合包装）两种业务方式；材料明细存于 `packingPartsJson`，每项包含型号、供应商、数量和包材类型。包材类型可覆盖纸箱、木箱、泡沫、商标、说明书、珍珠棉等。旧 `boxType` 只作为兼容回退。
 
 ### 工资与管理费
 

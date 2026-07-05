@@ -192,7 +192,7 @@ export default function RecipeDetailModal({
 
       if (['线圈转子', '电容'].includes(name)) {
         groupKey = 'coil';
-      } else if (['浮球', '电缆线', '电缆接头配件', '木箱', '纸箱'].includes(name)) {
+      } else if (['浮球', '电缆线', '电缆接头配件', '木箱', '纸箱', '泡沫', '商标', '说明书', '珍珠棉'].includes(name) || detail.packagingMaterial) {
         groupKey = 'dynamic';
       } else if (name === '泵壳') {
         groupKey = 'template';

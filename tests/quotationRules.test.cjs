@@ -29,6 +29,10 @@ function inferPackingMaterial(model, explicit) {
   if (explicit) return explicit;
   if (String(model || '').includes('木箱')) return '木箱';
   if (String(model || '').includes('彩')) return '彩印纸箱';
+  if (String(model || '').includes('泡沫')) return '泡沫';
+  if (String(model || '').includes('商标')) return '商标';
+  if (String(model || '').includes('说明书')) return '说明书';
+  if (String(model || '').includes('珍珠棉')) return '珍珠棉';
   return '牛皮纸箱';
 }
 function partPriceByModelAndSupplier(parts, model, supplier = '') {

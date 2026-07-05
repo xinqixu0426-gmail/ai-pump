@@ -15,6 +15,10 @@ function inferPackingMaterial(model, explicit) {
   if (explicit) return explicit;
   if (String(model || '').includes('木箱')) return '木箱';
   if (String(model || '').includes('彩')) return '彩印纸箱';
+  if (String(model || '').includes('泡沫')) return '泡沫';
+  if (String(model || '').includes('商标')) return '商标';
+  if (String(model || '').includes('说明书')) return '说明书';
+  if (String(model || '').includes('珍珠棉')) return '珍珠棉';
   return '牛皮纸箱';
 }
 `;
@@ -76,6 +80,7 @@ test('BOM draft payload 标准化选配、包装和线圈默认材质', () => {
         packingParts: [
             { model: '彩印纸箱A', supplier: 'P', qty: 1 },
             { model: '木箱B', supplier: 'P', qty: 1, snapshotPrice: 12, costSource: 'manual' },
+            { model: '说明书', supplier: 'P', qty: 1 },
         ],
     });
 
@@ -84,5 +89,6 @@ test('BOM draft payload 标准化选配、包装和线圈默认材质', () => {
     assert.deepEqual(payload.packingParts, [
         { model: '彩印纸箱A', supplier: 'P', qty: 1, snapshotPrice: undefined, costSource: undefined, packagingMaterial: '彩印纸箱' },
         { model: '木箱B', supplier: 'P', qty: 1, snapshotPrice: 12, costSource: 'manual', packagingMaterial: '木箱' },
+        { model: '说明书', supplier: 'P', qty: 1, snapshotPrice: undefined, costSource: undefined, packagingMaterial: '说明书' },
     ]);
 });

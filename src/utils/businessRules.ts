@@ -1,7 +1,7 @@
 import { Part, ScrewPricingMeta } from '../types';
 
 export const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
-export const PACKAGING_MATERIAL_OPTIONS = ['牛皮纸箱', '彩印纸箱', '木箱'];
+export const PACKAGING_MATERIAL_OPTIONS = ['牛皮纸箱', '彩印纸箱', '木箱', '泡沫', '商标', '说明书', '珍珠棉', '其他包材'];
 export const DEFAULT_COIL_MATERIAL = '钢带';
 export const DEFAULT_FLOAT_ACCESSORY_DELTA = 0.6;
 export const DEFAULT_ORDER_MARGIN = 1.10;
@@ -18,8 +18,13 @@ export function roundMoney(value: number): number {
 
 export function inferPackingMaterial(model = '', material?: string): string {
   if (material) return material;
-  if (model.includes('木箱')) return '木箱';
-  if (model.includes('彩')) return '彩印纸箱';
+  const normalized = String(model || '').trim();
+  if (normalized.includes('木箱')) return '木箱';
+  if (normalized.includes('彩')) return '彩印纸箱';
+  if (normalized.includes('泡沫')) return '泡沫';
+  if (normalized.includes('商标')) return '商标';
+  if (normalized.includes('说明书')) return '说明书';
+  if (normalized.includes('珍珠棉')) return '珍珠棉';
   return DEFAULT_PACKAGING_MATERIAL;
 }
 

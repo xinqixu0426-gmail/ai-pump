@@ -36,6 +36,13 @@ import {
   wireOptionsFromParts,
 } from '../../utils/businessRules';
 
+const packingAutocompleteSx = {
+  minWidth: 160,
+  '&, & *, & input, & fieldset, & button, & svg': {
+    cursor: 'text !important',
+  },
+};
+
 interface StepPartsConfigProps {
   coilSpecs: CoilSpecInfo[];
   coilSpec: string;
@@ -135,7 +142,7 @@ export default function StepPartsConfig({
   const updatePackingPart = (id: number, patch: Partial<PartSelection>) => {
     setPackingParts(packingParts.map(p => p.id === id ? { ...p, ...patch } : p));
   };
-  const isManualPacking = (part: PartSelection) => part.costSource === 'manual';
+  const isManualPacking = (part: PartSelection) => part.costSource === 'manual' && !String(part.supplier || '').trim();
   const getPackingMaterial = (part: PartSelection) => {
     return inferPackingMaterial(part.model || '', part.packagingMaterial);
   };
@@ -437,7 +444,7 @@ export default function StepPartsConfig({
                 <TableCell sx={{ py: 0.75, pl: 1.5, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary' }}>型号</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 92 }}>计价</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary' }}>供应商</TableCell>
-                <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 120 }}>材质</TableCell>
+                <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 140 }}>类型</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 72, textAlign: 'right' }}>单价</TableCell>
                 <TableCell sx={{ py: 0.75, fontWeight: 600, fontSize: '0.75rem', color: 'text.secondary', width: 80, textAlign: 'right' }}>小计</TableCell>
                 <TableCell sx={{ py: 0.75, width: 36 }} />
@@ -446,10 +453,21 @@ export default function StepPartsConfig({
             <TableBody>
               {packingParts.map((part) => {
                 const packingModels = getModelsByCategory('包装');
-                const suppliers = part.model ? getSuppliersByModel(part.model) : [];
+                const suppliers = part.model
+                  ? Array.from(new Set(parts
+                      .filter(p => p.category === '包装' && p.model.trim() === String(part.model || '').trim() && p.supplier)
+                      .map(p => p.supplier)))
+                      .sort()
+                  : [];
                 const manualPacking = isManualPacking(part);
                 const packagingMaterial = getPackingMaterial(part);
-                const price = manualPacking ? Number(part.snapshotPrice || 0) : (part.model ? getPriceByModelAndSupplier(part.model, part.supplier) : 0);
+                const packingCandidates = parts.filter(p => p.category === '包装' && p.model.trim() === String(part.model || '').trim());
+                const exactPacking = packingCandidates.find(p => String(part.supplier || '').trim() && p.supplier.trim() === String(part.supplier || '').trim());
+                const libraryPrice = exactPacking
+                  ? exactPacking.price
+                  : (packingCandidates.length > 0 ? packingCandidates.reduce((min, p) => p.price < min.price ? p : min, packingCandidates[0]).price : 0);
+                const missingPacking = !manualPacking && !!String(part.model || '').trim() && !!String(part.supplier || '').trim() && libraryPrice <= 0;
+                const price = (manualPacking || missingPacking) ? Number(part.snapshotPrice || 0) : libraryPrice;
                 const subtotal = price;
                 return (
                   <TableRow key={part.id}>
@@ -465,17 +483,29 @@ export default function StepPartsConfig({
                       ) : (
                         <Autocomplete
                           size="small"
+                          freeSolo
+                          forcePopupIcon={false}
+                          clearIcon={null}
                           options={packingModels}
-                          value={part.model || null}
+                          value={part.model || ''}
                           onChange={(_, v) => {
                             const newModel = v || '';
-                            const newSuppliers = newModel ? getSuppliersByModel(newModel) : [];
+                            const newSuppliers = newModel
+                              ? Array.from(new Set(parts
+                                  .filter(p => p.category === '包装' && p.model.trim() === newModel && p.supplier)
+                                  .map(p => p.supplier)))
+                                  .sort()
+                              : [];
                             updatePackingPart(part.id, { model: newModel, supplier: newSuppliers[0] || '', qty: 1, packagingMaterial: inferPackingMaterial(newModel), snapshotPrice: undefined, costSource: undefined });
+                          }}
+                          onInputChange={(_, value, reason) => {
+                            if (reason === 'reset') return;
+                            updatePackingPart(part.id, { model: value || '', supplier: '', qty: 1, packagingMaterial: inferPackingMaterial(value || ''), snapshotPrice: undefined, costSource: undefined });
                           }}
                           renderInput={(params) => (
                             <TextField {...params} placeholder="选择包材" size="small" sx={{ minWidth: 160 }} />
                           )}
-                          sx={{ minWidth: 160 }}
+                          sx={packingAutocompleteSx}
                           noOptionsText="零件库无『包装』类别零件"
                         />
                       )}
@@ -515,38 +545,47 @@ export default function StepPartsConfig({
                       {manualPacking ? (
                         <Typography variant="body2" color="text.secondary">手输</Typography>
                       ) : (
-                        <FormControl size="small" sx={{ minWidth: 100 }}>
-                          <Select
-                            value={part.supplier}
-                            displayEmpty
-                            onChange={(e) => updatePackingPart(part.id, { supplier: e.target.value })}
-                          >
-                            <MenuItem value=""><em>默认</em></MenuItem>
-                            {suppliers.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                          </Select>
-                        </FormControl>
+                        <Autocomplete
+                          size="small"
+                          freeSolo
+                          disabled={!part.model}
+                          options={suppliers}
+                          value={part.supplier || ''}
+                          onChange={(_, value) => updatePackingPart(part.id, { supplier: value || '', snapshotPrice: undefined, costSource: undefined })}
+                          onInputChange={(_, value, reason) => {
+                            if (reason === 'reset') return;
+                            updatePackingPart(part.id, { supplier: value || '', snapshotPrice: undefined, costSource: undefined });
+                          }}
+                          renderInput={(params) => (
+                            <TextField {...params} placeholder="供应商" size="small" sx={{ minWidth: 100 }} />
+                          )}
+                          noOptionsText="可输入新供应商"
+                          sx={{ minWidth: 100 }}
+                        />
                         )}
                     </TableCell>
                     <TableCell sx={{ py: 0.5 }}>
-                      <FormControl size="small" sx={{ minWidth: 112 }}>
-                        <Select
-                          value={packagingMaterial}
-                          onChange={(e) => updatePackingPart(part.id, { packagingMaterial: e.target.value, qty: 1 })}
-                        >
-                          {PACKAGING_MATERIAL_OPTIONS.map(material => (
-                            <MenuItem key={material} value={material}>{material}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                      <Autocomplete
+                        size="small"
+                        freeSolo
+                        options={PACKAGING_MATERIAL_OPTIONS}
+                        value={packagingMaterial}
+                        onChange={(_, value) => updatePackingPart(part.id, { packagingMaterial: value || DEFAULT_PACKAGING_MATERIAL, qty: 1 })}
+                        onInputChange={(_, value) => updatePackingPart(part.id, { packagingMaterial: value || DEFAULT_PACKAGING_MATERIAL, qty: 1 })}
+                        renderInput={(params) => (
+                          <TextField {...params} placeholder="包材类型" size="small" sx={{ minWidth: 128 }} />
+                        )}
+                        sx={{ minWidth: 128 }}
+                      />
                     </TableCell>
                     <TableCell sx={{ textAlign: 'right', color: price > 0 ? 'text.secondary' : 'error.main', fontSize: '0.82rem', py: 0.5 }}>
-                      {manualPacking ? (
+                      {manualPacking || missingPacking ? (
                         <TextField
                           size="small"
                           type="number"
                           value={part.snapshotPrice ?? ''}
                           inputProps={{ min: 0, step: 0.01 }}
-                          onChange={(e) => updatePackingPart(part.id, { snapshotPrice: Math.max(0, Number(e.target.value) || 0) })}
+                          onChange={(e) => updatePackingPart(part.id, { snapshotPrice: Math.max(0, Number(e.target.value) || 0), costSource: 'manual' })}
                           sx={{ width: 86 }}
                         />
                       ) : (

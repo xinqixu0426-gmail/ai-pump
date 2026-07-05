@@ -555,6 +555,64 @@ export default function RecipeFormPage() {
     };
   }, [optionalParts, parts, fetchParts, showSnackbar]);
 
+  useEffect(() => {
+    const candidate = packingParts.find((part) => {
+      const model = String(part.model || '').trim();
+      const supplier = String(part.supplier || '').trim();
+      const price = Number(part.snapshotPrice || 0);
+      if (!model || !supplier || price <= 0 || part.costSource !== 'manual') return false;
+      const exists = parts.some(p => (
+        p.category === '包装'
+        && p.model.trim() === model
+        && p.supplier.trim() === supplier
+      ));
+      if (exists) return false;
+      const key = `packing||${model}||${supplier}||${price}`;
+      return !promptedMissingParts.current.has(key);
+    });
+    if (!candidate) return;
+
+    const model = candidate.model.trim();
+    const supplier = candidate.supplier.trim();
+    const price = Number(candidate.snapshotPrice || 0);
+    const packagingMaterial = String(candidate.packagingMaterial || '').trim();
+    const key = `packing||${model}||${supplier}||${price}`;
+
+    let cancelled = false;
+    const addMissingPackingPart = async () => {
+      if (cancelled || promptedMissingParts.current.has(key)) return;
+      promptedMissingParts.current.add(key);
+      const materialText = packagingMaterial ? `\n类型：${packagingMaterial}` : '';
+      const confirmed = window.confirm(`零件管理中没有包材「${model} / ${supplier}」。是否添加到零件管理？\n单价：¥${price.toFixed(3)}${materialText}`);
+      if (!confirmed || cancelled) return;
+      try {
+        await createPart({
+          model,
+          category: '包装',
+          price,
+          supplier,
+          stock: 0,
+          notes: JSON.stringify({ autoCreatedFrom: 'recipePackingPart', packagingMaterial }),
+        });
+        await fetchParts(true);
+        setPackingParts(prev => prev.map(part => (
+          part.id === candidate.id
+            ? { ...part, costSource: undefined, snapshotPrice: undefined }
+            : part
+        )));
+        showSnackbar(`已添加包材：${model}`, 'success');
+      } catch (err) {
+        promptedMissingParts.current.delete(key);
+        setError(err instanceof Error ? err.message : '新增包材失败');
+      }
+    };
+    const timer = window.setTimeout(addMissingPackingPart, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [packingParts, parts, fetchParts, showSnackbar]);
+
   const handleSubmit = async () => {
     if (!recipeName.trim()) { setError('请输入配方名称'); return; }
     let recipeParts = bomDraft?.parts || buildAllParts();
