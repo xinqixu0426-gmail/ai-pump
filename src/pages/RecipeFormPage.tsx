@@ -11,8 +11,6 @@ import {
   Popover,
   Divider,
   Chip,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { CableAccessoryConfig, CableAccessoryType, PumpModelVariant, RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, RecipeBomDraftResult } from '../types';
@@ -793,6 +791,10 @@ export default function RecipeFormPage() {
         getPriceByModelAndSupplier={getPriceByModelAndSupplier} shellMetaInfo={shellMetaInfo}
         effectiveBarrelLength={effectiveBarrelLength}
         customBarrelLength={customBarrelLength} setCustomBarrelLength={setCustomBarrelLength}
+        saveAsPreset={saveAsPreset}
+        setSaveAsPreset={setSaveAsPreset}
+        canSaveAsPreset={!!selectedTemplateId && !!recipeName.trim()}
+        isEditing={isEditing}
       />
 
         <StepPartsConfig
@@ -818,17 +820,6 @@ export default function RecipeFormPage() {
           getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
         />
 
-      <StepWageConfirm
-        selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
-        packingWage={packingWage} setPackingWage={setPackingWage}
-        surfaceTreatmentMode={surfaceTreatmentMode} setSurfaceTreatmentMode={setSurfaceTreatmentMode}
-        surfaceTreatmentCost={surfaceTreatmentCost} setSurfaceTreatmentCost={setSurfaceTreatmentCost}
-        managementFee={managementFee} setManagementFee={setManagementFee} laborCost={laborCost}
-        recipeName={recipeName} recipeSpec={recipeSpec} coilSpec={coilSpec} coilSheets={coilSheets}
-        optionalParts={optionalParts}
-        capacitorModel={capacitorModel}
-      />
-
         <StepTechnicalData
           value={technicalData}
           onChange={setTechnicalData}
@@ -843,6 +834,17 @@ export default function RecipeFormPage() {
           onImpellerBladeCountChange={setImpellerBladeCount}
         />
 
+      <StepWageConfirm
+        selectedTemplate={selectedTemplate} assemblyWage={assemblyWage} setAssemblyWage={setAssemblyWage}
+        packingWage={packingWage} setPackingWage={setPackingWage}
+        surfaceTreatmentMode={surfaceTreatmentMode} setSurfaceTreatmentMode={setSurfaceTreatmentMode}
+        surfaceTreatmentCost={surfaceTreatmentCost} setSurfaceTreatmentCost={setSurfaceTreatmentCost}
+        managementFee={managementFee} setManagementFee={setManagementFee} laborCost={laborCost}
+        recipeName={recipeName} recipeSpec={recipeSpec} coilSpec={coilSpec} coilSheets={coilSheets}
+        optionalParts={optionalParts}
+        capacitorModel={capacitorModel}
+      />
+
       <Button
         variant="contained"
         color="success"
@@ -855,20 +857,6 @@ export default function RecipeFormPage() {
       >
         完成保存
       </Button>
-      {!isEditing && (
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={saveAsPreset}
-              onChange={(e) => setSaveAsPreset(e.target.checked)}
-              size="small"
-              disabled={!selectedTemplateId || !recipeName.trim()}
-            />
-          }
-          label="同时保存为常用配置，后续可直接带入线圈、叶轮和机筒参数"
-          sx={{ mt: 1, ml: 0, color: 'text.secondary', '& .MuiFormControlLabel-label': { fontSize: '0.82rem' } }}
-        />
-      )}
     </Paper>
 
     {/* 浮动面板 */}
