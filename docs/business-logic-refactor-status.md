@@ -368,6 +368,8 @@ src/utils/purchaseCenterRules.ts
 
 当前处理：`RecipesPage.tsx` 主要保留数据加载、弹窗状态和表格展示；`RecipeDetailModal.tsx` 主要保留详情展示、生产确认状态和扣库存 API 调用。库存预检和扣减数据规则已经集中到 helper。
 
+补充处理：`RecipeFormPage.tsx` 底部成本明细分组和缺失项统计已迁入 `src/utils/recipeCostSummary.ts`；页面只负责打开明细弹窗和渲染分组。同步修复包装材料浮动汇总未乘数量的问题，并补测试覆盖包装数量和缺失包材标记。
+
 ### P3：继续清理重复成本逻辑
 
 - [x] 评估并迁移 `api/db.cjs:calculateRecipeCost` 到 `api/services/costEngine.cjs`。
@@ -399,6 +401,8 @@ src/utils/purchaseCenterRules.ts
 补充处理：`api/services/costEngine.cjs` 新增 `inferPackingMaterial` 和 `DEFAULT_PACKAGING_MATERIAL`，`recipeBomEngine` 的包装材料推断已复用该 helper，减少后端包装规则重复。
 
 补充处理：`api/services/costEngine.cjs` 新增 `findPartByModelAndSupplierFromCatalog` 和 `getPartPriceFromCatalog`，`recipeBomEngine` 的 catalog 配件取价已复用该 helper。当前规则仍保持：参数化长螺丝优先，否则精确供应商，否则同型号最低价。已补测试覆盖。
+
+补充处理：P3-lite 加固成本口径边界。`api/services/costEngine.cjs`、`dynamicCostPreview.cjs`、`recipeBomEngine.cjs` 已补充保存快照、当前重算、BOM 草稿的边界说明；AI 创建/修改配方改用 `buildRecipeCostDraft` 生成保存快照；AI 创建订单/追加配方通过 `api/services/orderCostLock.cjs` 优先使用配方 `savedTotalCost`，仅在没有保存成本时回退当前重算参考价。已补契约测试覆盖保存快照与当前重算分离、AI 订单锁价优先级。
 
 ## 5. 当前建议优先顺序
 

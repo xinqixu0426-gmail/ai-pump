@@ -154,6 +154,7 @@ db.exec(`
         impeller_diameter REAL,
         impeller_blade_count INTEGER,
         note TEXT DEFAULT '',
+        custom_fields_json TEXT DEFAULT '[]',
         created_at TEXT,
         updated_at TEXT,
         deleted_at TEXT
@@ -246,6 +247,7 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN cost_mode TEXT DEFAUL
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_cost REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN long_screw_extra_length REAL DEFAULT 0`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN custom_fields_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN drawing_name TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
@@ -346,6 +348,7 @@ function modelVariantRow(r) {
         impellerDiameter: r.impeller_diameter,
         impellerBladeCount: r.impeller_blade_count,
         note: r.note || '',
+        customFieldsJson: r.custom_fields_json || '[]',
         CreatedAt: r.created_at,
         UpdatedAt: r.updated_at,
     };

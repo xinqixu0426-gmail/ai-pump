@@ -28,7 +28,6 @@ import {
   Factory as FactoryIcon,
   Zap as ZapIcon,
   Wrench as WrenchIcon,
-  Package as PackageIcon,
   Users as UsersIcon
 } from 'lucide-react';
 import { Recipe, CostResult, Part } from '../types';
@@ -103,15 +102,17 @@ export default function RecipeDetailModal({
 
   const getSourceColor = (source: string) => {
     if (source === '精确匹配') return 'success';
+    if (source === '保存快照') return 'info';
     if (source.includes('型号回退')) return 'warning';
     return 'error';
   };
 
-  const hasSnapshot = costResult.snapshotTotalCost !== undefined;
+  const savedTotalCostValue = Number(recipe.savedTotalCost);
+  const hasSnapshot = Number.isFinite(savedTotalCostValue) && savedTotalCostValue > 0;
   const technicalData = useMemo(() => parseTechnicalDataJson(recipe.technicalDataJson), [recipe.technicalDataJson]);
   const technicalEntries = useMemo(() => getTechnicalDataEntries(technicalData), [technicalData]);
 
-  const { totalCostValue, groupedDetails } = useMemo(() => {
+  const { totalCostValue, currentCostValue, groupedDetails, isSnapshotView } = useMemo(() => {
     const surfaceTreatmentMode = recipe.surfaceTreatmentMode || (recipe.paintingWage != null ? 'painting' : 'none');
     const surfaceTreatmentCost = recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0;
     let laborWage = (recipe.assemblyWage || 0) + (recipe.packingWage || 0) + surfaceTreatmentCost;
@@ -120,9 +121,8 @@ export default function RecipeDetailModal({
 
     const groups = {
       template: { id: 'template', title: '泵壳模板', icon: <FactoryIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
-      coil: { id: 'coil', title: '线圈转子', icon: <ZapIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
+      coil: { id: 'coil', title: '线圈转子+电容+电缆线', icon: <ZapIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
       optional: { id: 'optional', title: '选配配件', icon: <WrenchIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
-      dynamic: { id: 'dynamic', title: '动态配置', icon: <PackageIcon size={18} />, items: [] as any[], total: 0, snapshotTotal: 0 },
       labor: { id: 'labor', title: '人工与管理', icon: <UsersIcon size={18} />, items: [] as any[], total: laborTotal, snapshotTotal: laborTotal },
     };
 
@@ -136,11 +136,32 @@ export default function RecipeDetailModal({
       savedParts = JSON.parse(recipe.partsJson || '[]');
       if (!Array.isArray(savedParts)) savedParts = [];
     } catch { savedParts = []; }
+    const savedCost = Number(recipe.savedTotalCost);
+    const useSavedSnapshotDetails = Number.isFinite(savedCost) && savedCost > 0 && savedParts.length > 0;
+    const sourceDetails = useSavedSnapshotDetails
+      ? savedParts.map(part => {
+        const price = Number(part?.snapshotPrice ?? part?.price ?? 0);
+        const qty = Number(part?.qty ?? 1);
+        const subtotal = price * qty;
+        return {
+          ...part,
+          name: part?.name || part?.model || '-',
+          model: part?.model || '-',
+          supplier: part?.supplier || '-',
+          price: price.toFixed(2),
+          snapshotPrice: price.toFixed(2),
+          qty,
+          subtotal: subtotal.toFixed(2),
+          snapshotSubtotal: subtotal.toFixed(2),
+          source: '保存快照',
+        };
+      })
+      : costResult.details;
 
     const displayDetails = (() => {
-      const cable = costResult.details.find(detail => detail.name === '电缆线');
-      const cableAccessory = costResult.details.find(detail => detail.model === '电缆配件费');
-      if (!cable || !cableAccessory) return costResult.details;
+      const cable = sourceDetails.find(detail => detail.name === '电缆线');
+      const cableAccessory = sourceDetails.find(detail => detail.model === '电缆配件费');
+      if (!cable || !cableAccessory) return sourceDetails;
 
       const cableSubtotal = parseFloat(cable.subtotal) || 0;
       const accessorySubtotal = parseFloat(cableAccessory.subtotal) || 0;
@@ -162,7 +183,7 @@ export default function RecipeDetailModal({
         } : {})
       };
 
-      return costResult.details.reduce((list: any[], detail) => {
+      return sourceDetails.reduce((list: any[], detail) => {
         if (detail === cable) list.push(combinedCable);
         if (detail === cableAccessory) return list;
         if (detail !== cable) list.push(detail);
@@ -190,10 +211,10 @@ export default function RecipeDetailModal({
 
       let groupKey: keyof typeof groups = 'template';
 
-      if (['线圈转子', '电容'].includes(name)) {
+      if (['线圈转子', '电容', '电缆线', '电缆接头配件'].includes(name)) {
         groupKey = 'coil';
-      } else if (['浮球', '电缆线', '电缆接头配件', '木箱', '纸箱', '泡沫', '商标', '说明书', '珍珠棉'].includes(name) || detail.packagingMaterial) {
-        groupKey = 'dynamic';
+      } else if (['浮球', '木箱', '纸箱', '泡沫', '商标', '说明书', '珍珠棉'].includes(name) || detail.packagingMaterial) {
+        groupKey = 'optional';
       } else if (name === '泵壳') {
         groupKey = 'template';
       } else if (extraModels.has(extraKey) || extraModels.has(extraKeyNoSup)) {
@@ -231,14 +252,14 @@ export default function RecipeDetailModal({
     }
 
     const partsTotal = parseFloat(costResult.totalCost) || 0;
-    const savedTotalCost = Number(recipe.savedTotalCost);
-    const totalCost = Number.isFinite(savedTotalCost) && savedTotalCost > 0
-      ? savedTotalCost
-      : partsTotal + laborTotal;
+    const currentCost = partsTotal + laborTotal;
+    const totalCost = useSavedSnapshotDetails ? savedCost : currentCost;
 
     return {
       totalCostValue: totalCost,
-      groupedDetails: [groups.template, groups.coil, groups.optional, groups.dynamic, groups.labor].filter(g => g.items.length > 0)
+      currentCostValue: currentCost,
+      groupedDetails: [groups.template, groups.coil, groups.optional, groups.labor].filter(g => g.items.length > 0),
+      isSnapshotView: useSavedSnapshotDetails,
     };
   }, [costResult.details, costResult.totalCost, recipe]);
 
@@ -319,21 +340,21 @@ export default function RecipeDetailModal({
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
             <Typography variant="body1" component="div" sx={{ display: 'flex', alignItems: 'center' }}>
-              <strong>当前成本：</strong>
+              <strong>{isSnapshotView ? '保存快照成本：' : '当前重算成本：'}</strong>
               <Typography component="span" variant="h6" color="error" sx={{ ml: 1 }}>
                 ¥{totalCostValue.toFixed(2)}
               </Typography>
             </Typography>
-            {hasSnapshot && (
+            {isSnapshotView && (
               <Typography variant="body1" component="div" sx={{ display: 'flex', alignItems: 'center' }}>
-                <strong>保存时成本：</strong>
+                <strong>当前重算参考：</strong>
                 <Typography component="span" variant="h6" color="text.secondary" sx={{ ml: 1 }}>
-                  ¥{costResult.snapshotTotalCost}
+                  ¥{currentCostValue.toFixed(2)}
                 </Typography>
                 {(() => {
-                  const diff = totalCostValue - parseFloat(costResult.snapshotTotalCost!);
+                  const diff = currentCostValue - totalCostValue;
                   if (Math.abs(diff) < 0.01) return null;
-                  const pct = ((diff / parseFloat(costResult.snapshotTotalCost!)) * 100).toFixed(1);
+                  const pct = ((diff / totalCostValue) * 100).toFixed(1);
                   return (
                     <Chip
                       size="small"
@@ -371,6 +392,9 @@ export default function RecipeDetailModal({
 
         <Typography variant="subtitle1" gutterBottom sx={{ borderBottom: 1, borderColor: 'divider', pb: 1, mb: 2 }}>
           配件与人工明细
+          {isSnapshotView && (
+            <Chip size="small" label="按保存快照展示" color="info" variant="outlined" sx={{ ml: 1, fontWeight: 700 }} />
+          )}
         </Typography>
 
         {groupedDetails.map(group => {
@@ -400,11 +424,11 @@ export default function RecipeDetailModal({
                         <TableCell>名称</TableCell>
                         <TableCell>型号</TableCell>
                         <TableCell>供应商</TableCell>
-                        <TableCell align="right">当前单价</TableCell>
-                        {hasSnapshot && <TableCell align="right">保存时单价</TableCell>}
+                        <TableCell align="right">{isSnapshotView ? '快照单价' : '当前单价'}</TableCell>
+                        {hasSnapshot && !isSnapshotView && <TableCell align="right">保存时单价</TableCell>}
                         <TableCell align="center">数量</TableCell>
-                        <TableCell align="right">当前小计</TableCell>
-                        {hasSnapshot && <TableCell align="right">保存时小计</TableCell>}
+                        <TableCell align="right">{isSnapshotView ? '快照小计' : '当前小计'}</TableCell>
+                        {hasSnapshot && !isSnapshotView && <TableCell align="right">保存时小计</TableCell>}
                         <TableCell>来源</TableCell>
                       </TableRow>
                     </TableHead>
@@ -427,7 +451,7 @@ export default function RecipeDetailModal({
                           >
                             ¥{detail.price}
                           </TableCell>
-                          {hasSnapshot && (
+                          {hasSnapshot && !isSnapshotView && (
                             <TableCell align="right" sx={{ color: 'text.secondary' }}>
                               {detail.snapshotPrice ? `¥${detail.snapshotPrice}` : '-'}
                             </TableCell>
@@ -439,7 +463,7 @@ export default function RecipeDetailModal({
                           >
                             ¥{detail.subtotal}
                           </TableCell>
-                          {hasSnapshot && (
+                          {hasSnapshot && !isSnapshotView && (
                             <TableCell align="right" sx={{ color: 'text.secondary' }}>
                               {detail.snapshotSubtotal ? `¥${detail.snapshotSubtotal}` : '-'}
                             </TableCell>
@@ -466,19 +490,19 @@ export default function RecipeDetailModal({
           <Typography variant="subtitle1" fontWeight="bold" sx={{ mr: 3 }}>
             合计
           </Typography>
-          {hasSnapshot && (
+          {isSnapshotView && (
             <Typography variant="body1" color="text.secondary" fontWeight="bold" sx={{ mr: 3 }}>
-              保存时: ¥{costResult.snapshotTotalCost}
+              当前重算参考: ¥{currentCostValue.toFixed(2)}
             </Typography>
           )}
           <Typography variant="h6" color="error" fontWeight="bold">
-            当前: ¥{totalCostValue.toFixed(2)}
+            {isSnapshotView ? '保存快照' : '当前重算'}: ¥{totalCostValue.toFixed(2)}
           </Typography>
         </Box>
 
         {costResult.missingParts.length > 0 && (
           <Alert severity="warning" sx={{ mt: 2 }}>
-            <strong>注意：</strong>以下配件未在零件表中找到：
+            <strong>注意：</strong>当前重算时以下配件未在零件表中找到：
             {costResult.missingParts.join(', ')}
           </Alert>
         )}

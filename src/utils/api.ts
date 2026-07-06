@@ -269,6 +269,14 @@ export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
   return result.data;
 }
 
+export async function getCopperPrice(): Promise<{ livePrice: number; livePricePerKg: string; dbPrice: number | string | null; lastUpdate?: string | null }> {
+  const result = await proxyRequest<ApiResponse<{ livePrice: number; livePricePerKg: string; dbPrice: number | string | null; lastUpdate?: string | null }>>('/api/copper-price');
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '获取铜价失败');
+  }
+  return result.data;
+}
+
 export async function previewRecipeCostDraft(input: {
   parts: RecipePart[];
   assemblyWage?: number;
@@ -383,6 +391,7 @@ function modelVariantToApiPayload(variant: Partial<Omit<PumpModelVariant, 'Id'>>
   if (variant.impellerDiameter !== undefined) payload.impellerDiameter = variant.impellerDiameter ?? null;
   if (variant.impellerBladeCount !== undefined) payload.impellerBladeCount = variant.impellerBladeCount ?? null;
   if (variant.note !== undefined) payload.note = variant.note || '';
+  if (variant.customFieldsJson !== undefined) payload.customFieldsJson = variant.customFieldsJson || '[]';
   return payload;
 }
 

@@ -34,7 +34,7 @@ import StepPartsConfig from '../components/recipe/StepPartsConfig';
 import StepWageConfirm from '../components/recipe/StepWageConfirm';
 import StepTechnicalData, { parseTechnicalDataJson } from '../components/recipe/StepTechnicalData';
 import { buildTechnicalReferenceFields } from '../utils/technicalReferences';
-import { calculateRecipeCostSummary } from '../utils/recipeCostSummary';
+import { calculateRecipeCostDetailGroups, calculateRecipeCostSummary, countRecipeCostIssues } from '../utils/recipeCostSummary';
 import { buildOptionalSelectionsFromRecipe, buildPackingSelectionsFromRecipe, parseLegacyRecipeParts } from '../utils/recipePrefill';
 import { buildRecipeTemplateContext } from '../utils/recipeTemplateContext';
 import { buildCoilCalculateBody, resolveCoilLinkedSelections } from '../utils/recipeCoilForm';
@@ -465,75 +465,34 @@ export default function RecipeFormPage() {
     configPartsPreview, packingParts, laborCost, getPriceByModelAndSupplier,
   ]);
   const costDetailGroups = useMemo(() => {
-    const row = (label: string, amount: number, note = '', issue = false) => ({ label, amount, note, issue });
-    const packingLibraryPrice = (model: string, supplier = '') => {
-      const candidates = parts.filter(p => p.category === '包装' && p.model.trim() === String(model || '').trim());
-      const normalizedSupplier = String(supplier || '').trim();
-      const exact = candidates.find(p => normalizedSupplier && String(p.supplier || '').trim() === normalizedSupplier);
-      if (exact) return exact.price;
-      return candidates.length ? candidates.reduce((min, p) => p.price < min.price ? p : min, candidates[0]).price : 0;
-    };
-    const groups = [
-      {
-        title: '模板',
-        items: selectedTemplate ? [
-          row(selectedTemplateCostMode === 'bundle' ? '整套泵壳' : '泵壳组件', shellPrice, selectedTemplate.shellModel || ''),
-          ...adjustedTemplateParts.map(part => {
-            const unitPrice = getTemplatePartPrice(part);
-            return row(part.name || part.model, unitPrice * Number(part.qty || 1), `${part.model}${part.qty > 1 ? ` ×${part.qty}` : ''}`, unitPrice <= 0);
-          }),
-        ] : [],
-      },
-      {
-        title: '线圈',
-        items: [
-          ...(coilResult ? [row('线圈转子', coilResult.totalCost || 0, `${coilSpec || '-'} / ${coilSheets || '-'}片`)] : []),
-          ...(capacitorModel ? [row('电容', getPriceByModelAndSupplier(capacitorModel, ''), capacitorModel, getPriceByModelAndSupplier(capacitorModel, '') <= 0)] : []),
-        ],
-      },
-      {
-        title: '选配',
-        items: optionalParts
-          .filter(part => part.model)
-          .map(part => {
-            const unitPrice = part.costSource === 'manual' ? Number(part.snapshotPrice || 0) : getPriceByModelAndSupplier(part.model, part.supplier);
-            return row(part.model, unitPrice * Number(part.qty || 1), `${part.supplier || '默认'}${Number(part.qty || 1) > 1 ? ` ×${part.qty}` : ''}`, unitPrice <= 0);
-          }),
-      },
-      {
-        title: '动态',
-        items: configPartsPreview
-          .filter(part => !part.packagingMaterial)
-          .map(part => row(part.name || part.model, Number(part.snapshotPrice || 0) * Number(part.qty || 1), `${part.model}${Number(part.qty || 1) > 1 ? ` ×${part.qty}` : ''}`, Number(part.snapshotPrice || 0) <= 0)),
-      },
-      {
-        title: '包装',
-        items: packingParts
-          .filter(part => part.model)
-          .map(part => {
-            const unitPrice = part.costSource === 'manual' ? Number(part.snapshotPrice || 0) : packingLibraryPrice(part.model, part.supplier);
-            const qty = Number(part.qty || 1);
-            return row(part.model, unitPrice * qty, `${part.packagingMaterial || '包材'} / ${part.supplier || '默认'}${qty > 1 ? ` ×${qty}` : ''}`, unitPrice <= 0);
-          }),
-      },
-      {
-        title: '人工',
-        items: [
-          row('安装工资', Number(assemblyWage || 0)),
-          row('打包工资', Number(packingWage || 0)),
-          row(surfaceTreatmentMode === 'painting' ? '喷漆' : surfaceTreatmentMode === 'electrophoresis' ? '电泳' : '表面处理', Number(surfaceTreatmentCost || 0)),
-          row('管理费', Number(managementFee || 0)),
-        ].filter(item => item.amount > 0),
-      },
-    ];
-    return groups.filter(group => group.items.length > 0);
+    return calculateRecipeCostDetailGroups({
+      parts,
+      selectedTemplate,
+      selectedTemplateCostMode,
+      shellPrice,
+      adjustedTemplateParts,
+      getTemplatePartPrice,
+      coilResult,
+      coilSpec,
+      coilSheets,
+      capacitorModel,
+      optionalParts,
+      configParts: configPartsPreview,
+      packingParts,
+      assemblyWage,
+      packingWage,
+      surfaceTreatmentMode,
+      surfaceTreatmentCost,
+      managementFee,
+      getPriceByModelAndSupplier,
+    });
   }, [
     parts, selectedTemplate, selectedTemplateCostMode, shellPrice, adjustedTemplateParts, getTemplatePartPrice,
     coilResult, coilSpec, coilSheets, capacitorModel, getPriceByModelAndSupplier, optionalParts,
     configPartsPreview, packingParts, assemblyWage, packingWage, surfaceTreatmentMode, surfaceTreatmentCost, managementFee,
   ]);
   const costIssueCount = useMemo(
-    () => costDetailGroups.reduce((sum, group) => sum + group.items.filter(item => item.issue).length, 0),
+    () => countRecipeCostIssues(costDetailGroups),
     [costDetailGroups]
   );
   const costDetailOpen = Boolean(costDetailAnchor);

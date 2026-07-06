@@ -12,6 +12,9 @@ const {
     resolveWireFromCoils,
 } = require('./coilCost.cjs');
 
+// 报价覆盖试算口径：以配方保存快照为基线，只重算 overrides 涉及的动态项。
+// 这里的结果用于报价/试算，不应反向改写配方 savedTotalCost。
+
 function toBool(v) {
     return v === true || v === 1 || v === '1';
 }

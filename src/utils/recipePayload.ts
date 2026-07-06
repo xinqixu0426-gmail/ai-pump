@@ -47,7 +47,7 @@ export function serializePackingParts(parts: Array<PartSelection & { id?: number
     parts.filter(part => part.model).map(part => ({
       model: part.model,
       supplier: part.supplier,
-      qty: 1,
+      qty: Number(part.qty || 1),
       packagingMaterial: inferPackingMaterial(part.model, part.packagingMaterial),
       ...(part.costSource === 'manual' ? { snapshotPrice: Number(part.snapshotPrice || 0), costSource: 'manual' } : {})
     }))

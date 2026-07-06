@@ -220,7 +220,10 @@ export const muiTheme = createTheme({
           borderRadius: 10,
           cursor: 'pointer',
           userSelect: 'none',
-          '& .MuiButton-startIcon, & .MuiButton-endIcon, & svg, & .MuiTouchRipple-root': {
+          '& *': {
+            cursor: 'inherit',
+          },
+          '& .MuiButton-startIcon, & .MuiButton-endIcon, & svg, & .MuiTouchRipple-root, & .MuiCircularProgress-root': {
             pointerEvents: 'none',
           },
         },
@@ -240,6 +243,51 @@ export const muiTheme = createTheme({
         root: {
           cursor: 'pointer',
           userSelect: 'none',
+          '& *': {
+            cursor: 'inherit',
+          },
+          '& svg, & .MuiTouchRipple-root, & .MuiCircularProgress-root': {
+            pointerEvents: 'none',
+          },
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          cursor: 'pointer',
+          userSelect: 'none',
+          '& *': {
+            cursor: 'inherit',
+          },
+          '& .MuiListItemIcon-root, & .MuiListItemText-root, & svg, & .MuiTouchRipple-root': {
+            pointerEvents: 'none',
+          },
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          cursor: 'pointer',
+          userSelect: 'none',
+          '& *': {
+            cursor: 'inherit',
+          },
+          '& svg, & .MuiTouchRipple-root': {
+            pointerEvents: 'none',
+          },
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          cursor: 'pointer',
+          userSelect: 'none',
+          '& *': {
+            cursor: 'inherit',
+          },
           '& svg, & .MuiTouchRipple-root': {
             pointerEvents: 'none',
           },

@@ -7,7 +7,7 @@ const ts = require('typescript');
 const sourcePath = path.join(__dirname, '../src/utils/recipeListRules.ts');
 const source = fs.readFileSync(sourcePath, 'utf8')
     .replace(/import[^;]+;\n/g, '');
-const compiled = ts.transpileModule(`${source}\nmodule.exports = { parseRecipePartsJson, validRecipeParts, recipePartsOverview, getRecipeLaborTotal, getRecipeSavedTotal, buildRecipeListFallbackData, buildRecipeListData };`, {
+const compiled = ts.transpileModule(`${source}\nmodule.exports = { parseRecipePartsJson, validRecipeParts, recipePartsOverview, buildRecipeCopperRisk, getRecipeLaborTotal, getRecipeSavedTotal, buildRecipeListFallbackData, buildRecipeListData };`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
 const moduleStub = { exports: {} };
@@ -17,6 +17,7 @@ const {
     parseRecipePartsJson,
     validRecipeParts,
     recipePartsOverview,
+    buildRecipeCopperRisk,
     getRecipeLaborTotal,
     getRecipeSavedTotal,
     buildRecipeListFallbackData,
@@ -49,4 +50,21 @@ test('配方列表规则优先保存总成本，计算失败时生成兜底数�
     assert.equal(data.costResult.snapshotTotalCost, '99.00');
     assert.equal(fallback.costResult.itemCount, 1);
     assert.equal(failed.cost, '¥99.00');
+});
+
+test('配方列表铜价预警按保存公式和当前铜价分级', () => {
+    const parts = [{
+        model: '12-120',
+        name: '线圈转子',
+        qty: 1,
+        formula: '0.21×120 + 0.533×78 + 8.00 + 5.00',
+    }];
+
+    assert.equal(buildRecipeCopperRisk(parts, 81).level, 'watch');
+    assert.equal(buildRecipeCopperRisk(parts, 83).level, 'review');
+    const critical = buildRecipeCopperRisk(parts, 88);
+    assert.equal(critical.level, 'critical');
+    assert.equal(critical.diffPerTon, 10000);
+    assert.match(critical.label, /上涨 ¥10,000\/吨/);
+    assert.equal(buildRecipeCopperRisk(parts, 76).level, 'none');
 });

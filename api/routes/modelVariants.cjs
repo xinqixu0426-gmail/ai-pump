@@ -7,7 +7,7 @@ const router = Router();
 const VARIANT_FIELDS = [
     'model_name', 'template_id', 'coil_spec', 'coil_sheets', 'coil_material',
     'barrel_length', 'long_screw_extra_length', 'impeller_model', 'impeller_thickness', 'impeller_diameter',
-    'impeller_blade_count', 'note',
+    'impeller_blade_count', 'note', 'custom_fields_json',
 ];
 
 const VARIANT_ALIASES = {
@@ -22,6 +22,7 @@ const VARIANT_ALIASES = {
     impellerThickness: 'impeller_thickness',
     impellerDiameter: 'impeller_diameter',
     impellerBladeCount: 'impeller_blade_count',
+    customFieldsJson: 'custom_fields_json',
 };
 
 function parseId(value) {
@@ -46,6 +47,16 @@ function normalizeVariant(body) {
     const templateId = parseId(b.template_id);
     if (!modelName) throw new Error('型号名称为必填项');
     if (!templateId) throw new Error('必须选择泵壳模板');
+    let customFieldsJson = '[]';
+    if (b.custom_fields_json !== undefined && b.custom_fields_json !== null && b.custom_fields_json !== '') {
+        const parsed = JSON.parse(String(b.custom_fields_json));
+        if (!Array.isArray(parsed)) throw new Error('自定义字段格式错误');
+        customFieldsJson = JSON.stringify(parsed.map(item => ({
+            label: String(item?.label || '').trim(),
+            value: String(item?.value || '').trim(),
+        })).filter(item => item.label || item.value));
+    }
+
     return {
         model_name: modelName,
         template_id: templateId,
@@ -59,6 +70,7 @@ function normalizeVariant(body) {
         impeller_diameter: b.impeller_diameter !== undefined && b.impeller_diameter !== null && b.impeller_diameter !== '' ? Number(b.impeller_diameter) : null,
         impeller_blade_count: b.impeller_blade_count !== undefined && b.impeller_blade_count !== null && b.impeller_blade_count !== '' ? Number(b.impeller_blade_count) : null,
         note: String(b.note || '').trim(),
+        custom_fields_json: customFieldsJson,
     };
 }
 
@@ -113,11 +125,11 @@ router.post('/', (req, res) => {
             const info = db.prepare(`INSERT INTO pump_model_variants (
             model_name, template_id, coil_spec, coil_sheets, coil_material,
             barrel_length, long_screw_extra_length, impeller_model, impeller_thickness, impeller_diameter,
-            impeller_blade_count, note, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            impeller_blade_count, note, custom_fields_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
                 b.model_name, b.template_id, b.coil_spec, b.coil_sheets, b.coil_material,
                 b.barrel_length, b.long_screw_extra_length, b.impeller_model, b.impeller_thickness, b.impeller_diameter,
-                b.impeller_blade_count, b.note, now, now
+                b.impeller_blade_count, b.note, b.custom_fields_json, now, now
             );
             const row = db.prepare('SELECT * FROM pump_model_variants WHERE id = ?').get(info.lastInsertRowid);
             const createdLongScrewParts = autoCreateVariantLongScrews(row);

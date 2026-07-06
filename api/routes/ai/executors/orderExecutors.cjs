@@ -1,5 +1,6 @@
 const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, updateOrderFields, softDelete } = require('../../../db.cjs');
 const { buildOrderPlan } = require('../../../services/orderPlanning.cjs');
+const { resolveRecipeLockedUnitCost } = require('../../../services/orderCostLock.cjs');
 
 async function executeOrderTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -18,10 +19,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     const recipe = allRecipes.find(r => (r.name) === reqItem.recipeName || r.Id === Number(reqItem.recipeName) || (r.name || '').includes(reqItem.recipeName));
                     if (recipe) {
                         const partsJson = recipe.partsJson || '[]';
-                        let parts = [];
-                        try { parts = JSON.parse(partsJson); } catch (e) { }
-                        const costRes = calculateRecipeCost(parts, partsCache, partsByModel);
-                        const unitCost = parseFloat(costRes.totalCost || 0);
+                        const unitCost = resolveRecipeLockedUnitCost(recipe, partsCache, partsByModel, calculateRecipeCost);
                         const profitMargin = 1.10;
                         const unitPrice = Math.round(unitCost * profitMargin * 100) / 100;
                         orderItems.push({
@@ -93,11 +91,8 @@ async function executeOrderTool(toolName, args, internalFetch) {
             try { itemsList = JSON.parse(targetOrder.itemsJson || '[]'); } catch (e) { }
 
             const partsJson = recipe.partsJson || '[]';
-            let parts = [];
-            try { parts = JSON.parse(partsJson); } catch (e) { }
             const { partsCache, partsByModel } = loadPartsData();
-            const recipeCostResult = calculateRecipeCost(parts, partsCache, partsByModel);
-            const unitCost = parseFloat(recipeCostResult.totalCost || 0);
+            const unitCost = resolveRecipeLockedUnitCost(recipe, partsCache, partsByModel, calculateRecipeCost);
 
             const profitMargin = 1.10;
             const finalUnitPrice = Math.round(unitCost * profitMargin * 100) / 100;

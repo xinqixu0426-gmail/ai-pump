@@ -4,9 +4,21 @@ export interface RecipeListData {
   overview: string;
   cost: string;
   costResult: CostResult;
+  copperRisk: RecipeCopperRisk;
 }
 
 export type RecipeCostCalculator = (parts: RecipePart[]) => Promise<CostResult>;
+
+export type CopperRiskLevel = 'none' | 'watch' | 'review' | 'critical' | 'missing';
+
+export interface RecipeCopperRisk {
+  label: string;
+  detail: string;
+  level: CopperRiskLevel;
+  savedCopperPricePerKg?: number;
+  currentCopperPricePerKg?: number;
+  diffPerTon?: number;
+}
 
 export function parseRecipePartsJson(partsJson?: string): RecipePart[] {
   try {
@@ -25,6 +37,72 @@ export function recipePartsOverview(parts: RecipePart[]): string {
   return parts.length > 0
     ? parts.map(part => `${part.model}×${part.qty ?? 1}`).join(', ')
     : '-';
+}
+
+function parseSavedCopperPricePerKg(parts: RecipePart[]): number | null {
+  const coil = parts.find(part => part?.name === '线圈转子' && part.formula);
+  if (!coil?.formula) return null;
+
+  const terms = coil.formula.split('+').map(term => term.trim());
+  const copperTerm = terms[1] || '';
+  const match = copperTerm.match(/[×x*]\s*([\d.]+)/);
+  const value = match ? Number.parseFloat(match[1]) : NaN;
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function buildRecipeCopperRisk(parts: RecipePart[], currentCopperPricePerKg?: number | null): RecipeCopperRisk {
+  const savedCopperPricePerKg = parseSavedCopperPricePerKg(parts);
+  const current = Number(currentCopperPricePerKg);
+
+  if (!savedCopperPricePerKg || !Number.isFinite(current) || current <= 0) {
+    return { label: '无铜价快照', detail: '保存配方时没有可比铜价', level: 'missing' };
+  }
+
+  const diffPerTon = Math.round((current - savedCopperPricePerKg) * 1000);
+  const absDiff = Math.abs(diffPerTon);
+  const direction = diffPerTon >= 0 ? '上涨' : '下跌';
+
+  if (absDiff >= 10000) {
+    return {
+      label: `铜价${direction} ¥${absDiff.toLocaleString('zh-CN')}/吨`,
+      detail: '强提醒：建议重新核算成本',
+      level: 'critical',
+      savedCopperPricePerKg,
+      currentCopperPricePerKg: current,
+      diffPerTon,
+    };
+  }
+
+  if (absDiff >= 5000) {
+    return {
+      label: `铜价${direction} ¥${absDiff.toLocaleString('zh-CN')}/吨`,
+      detail: '建议复核线圈成本',
+      level: 'review',
+      savedCopperPricePerKg,
+      currentCopperPricePerKg: current,
+      diffPerTon,
+    };
+  }
+
+  if (absDiff >= 3000) {
+    return {
+      label: `铜价${direction} ¥${absDiff.toLocaleString('zh-CN')}/吨`,
+      detail: '关注铜价波动',
+      level: 'watch',
+      savedCopperPricePerKg,
+      currentCopperPricePerKg: current,
+      diffPerTon,
+    };
+  }
+
+  return {
+    label: '铜价正常',
+    detail: `波动 ¥${absDiff.toLocaleString('zh-CN')}/吨`,
+    level: 'none',
+    savedCopperPricePerKg,
+    currentCopperPricePerKg: current,
+    diffPerTon,
+  };
 }
 
 export function getRecipeLaborTotal(recipe: Recipe): number {
@@ -67,6 +145,7 @@ export function buildRecipeListFallbackData(recipe: Recipe, validParts: RecipePa
   return {
     overview: recipePartsOverview(validParts),
     cost: `¥${fallbackCost.toFixed(2)}`,
+    copperRisk: buildRecipeCopperRisk(validParts),
     costResult: {
       totalCost: String(fallbackCost),
       snapshotTotalCost: fallbackCost.toFixed(2),
@@ -77,9 +156,10 @@ export function buildRecipeListFallbackData(recipe: Recipe, validParts: RecipePa
   };
 }
 
-export async function buildRecipeListData(recipe: Recipe, calculateCost: RecipeCostCalculator): Promise<RecipeListData> {
+export async function buildRecipeListData(recipe: Recipe, calculateCost: RecipeCostCalculator, currentCopperPricePerKg?: number | null): Promise<RecipeListData> {
   const validParts = validRecipeParts(parseRecipePartsJson(recipe.partsJson));
   const overview = recipePartsOverview(validParts);
+  const copperRisk = buildRecipeCopperRisk(validParts, currentCopperPricePerKg);
   try {
     const costResult = await calculateCost(validParts);
     const costNum = Number.parseFloat(costResult.totalCost);
@@ -87,12 +167,16 @@ export async function buildRecipeListData(recipe: Recipe, calculateCost: RecipeC
     return {
       overview,
       cost: `¥${totalCost.toFixed(2)}`,
+      copperRisk,
       costResult: {
         ...costResult,
         snapshotTotalCost: getRecipeSavedTotal(recipe)?.toFixed(2),
       },
     };
   } catch {
-    return buildRecipeListFallbackData(recipe, validParts);
+    return {
+      ...buildRecipeListFallbackData(recipe, validParts),
+      copperRisk,
+    };
   }
 }

@@ -15,6 +15,9 @@ const {
     calculateCoilCost,
 } = require('./coilCost.cjs');
 
+// BOM 草稿口径：根据模板、常用配置和表单选择展开标准化 parts。
+// 这里只负责组装和带入当前参考价；真正保存成本快照必须再走 buildRecipeCostDraft。
+
 function parseJson(value, fallback) {
     if (!value) return fallback;
     try {

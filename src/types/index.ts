@@ -97,6 +97,7 @@ export interface PumpModelVariant {
   impellerDiameter?: number | null;
   impellerBladeCount?: number | null;
   note?: string;
+  customFieldsJson?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }

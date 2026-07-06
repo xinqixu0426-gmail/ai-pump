@@ -12,15 +12,44 @@ import {
   Package as TemplateIcon, FileText as FileIcon, ScrollText as RecipeIcon, Wrench as PartIcon,
 } from 'lucide-react';
 import { PumpModelVariant, Recipe, CostResult } from '../types';
-import { deleteRecipe, calculateCost, getAllModelVariants } from '../utils/api';
+import { deleteRecipe, calculateCost, getAllModelVariants, getCopperPrice } from '../utils/api';
 import { useAppStore } from '../utils/store';
-import { buildRecipeListData, formatRecipeEntryTime } from '../utils/recipeListRules';
+import { buildRecipeListData, formatRecipeEntryTime, RecipeCopperRisk, RecipeListData } from '../utils/recipeListRules';
 import RecipeDetailModal from '../components/RecipeDetailModal';
 import TemplateSection from '../components/TemplateSection';
 import ModelVariantSection from '../components/ModelVariantSection';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { colors, gradients } from '../utils/theme';
+
+function copperRiskStyle(level: RecipeCopperRisk['level']) {
+  if (level === 'critical') return { color: '#b91c1c', borderColor: '#fca5a5', bgcolor: '#fef2f2' };
+  if (level === 'review') return { color: '#c2410c', borderColor: '#fdba74', bgcolor: '#fff7ed' };
+  if (level === 'watch') return { color: '#a16207', borderColor: '#fde68a', bgcolor: '#fefce8' };
+  if (level === 'missing') return { color: '#64748b', borderColor: '#cbd5e1', bgcolor: '#f8fafc' };
+  return { color: '#047857', borderColor: '#a7f3d0', bgcolor: '#ecfdf5' };
+}
+
+function CopperRiskChip({ risk }: { risk?: RecipeCopperRisk }) {
+  if (!risk) return <Typography variant="body2" color="text.disabled">-</Typography>;
+
+  const title = [
+    risk.detail,
+    risk.savedCopperPricePerKg ? `保存铜价：¥${(risk.savedCopperPricePerKg * 1000).toLocaleString('zh-CN')}/吨` : '',
+    risk.currentCopperPricePerKg ? `当前铜价：¥${(risk.currentCopperPricePerKg * 1000).toLocaleString('zh-CN')}/吨` : '',
+  ].filter(Boolean).join('\n');
+
+  return (
+    <Tooltip title={<Box sx={{ whiteSpace: 'pre-line' }}>{title}</Box>}>
+      <Chip
+        label={risk.label}
+        size="small"
+        variant="outlined"
+        sx={{ ...copperRiskStyle(risk.level), fontWeight: 700, maxWidth: 240 }}
+      />
+    </Tooltip>
+  );
+}
 
 export default function RecipesPage() {
   const theme = useTheme();
@@ -38,14 +67,24 @@ export default function RecipesPage() {
   const [variants, setVariants] = useState<PumpModelVariant[]>([]);
 
   // P1-4: 配方成本改用后端 API，消除前后端双写
-  const [recipeData, setRecipeData] = useState<Map<number, { overview: string; cost: string; costResult: CostResult }>>(new Map());
+  const [recipeData, setRecipeData] = useState<Map<number, RecipeListData>>(new Map());
+  const [currentCopperPricePerKg, setCurrentCopperPricePerKg] = useState<number | null>(null);
 
   // ── 数据加载 ──
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [, , , variantData] = await Promise.all([fetchRecipes(), fetchParts(), fetchTemplates(), getAllModelVariants()]);
+      const [, , , variantData, copperPrice] = await Promise.all([
+        fetchRecipes(),
+        fetchParts(),
+        fetchTemplates(),
+        getAllModelVariants(),
+        getCopperPrice().catch(() => null),
+      ]);
       setVariants(variantData);
+      const dbCopper = Number(copperPrice?.dbPrice || 0);
+      const liveCopper = Number(copperPrice?.livePricePerKg || 0);
+      setCurrentCopperPricePerKg(dbCopper > 0 ? dbCopper : (liveCopper > 0 ? liveCopper : null));
       setError('');
     } catch { setError('加载数据失败'); }
     finally { setLoading(false); }
@@ -69,14 +108,14 @@ export default function RecipesPage() {
     if (recipes.length === 0) { setRecipeData(new Map()); return; }
     let cancelled = false;
     (async () => {
-      const map = new Map<number, { overview: string; cost: string; costResult: CostResult }>();
+      const map = new Map<number, RecipeListData>();
       for (const recipe of recipes) {
-        map.set(recipe.Id, await buildRecipeListData(recipe, calculateCost));
+        map.set(recipe.Id, await buildRecipeListData(recipe, calculateCost, currentCopperPricePerKg));
       }
       if (!cancelled) setRecipeData(map);
     })();
     return () => { cancelled = true; };
-  }, [recipes]);
+  }, [recipes, currentCopperPricePerKg]);
 
   // ── 配方操作 ──
   useEffect(() => {
@@ -246,6 +285,10 @@ export default function RecipesPage() {
                     <Typography variant="body2" color="text.secondary">总成本</Typography>
                     <Typography variant="body2" fontWeight={700} color="primary.main">{data?.cost || '-'}</Typography>
                   </Box>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                    <Typography variant="body2" color="text.secondary">铜价预警</Typography>
+                    <CopperRiskChip risk={data?.copperRisk} />
+                  </Box>
                   <Box display="flex" justifyContent="flex-end" gap={0.5}>
                     <IconButton size="small" color="warning" aria-label="编辑配方" onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }}><EditIcon size={18} /></IconButton>
                     <IconButton size="small" color="primary" aria-label="复制配方" onClick={(e) => { e.stopPropagation(); handleClone(recipe); }}><CopyIcon size={18} /></IconButton>
@@ -264,7 +307,7 @@ export default function RecipesPage() {
                   <TableCell>规格</TableCell>
                   <TableCell>泵壳模板</TableCell>
                   <TableCell>录入时间</TableCell>
-                  <TableCell>配件概览</TableCell>
+                  <TableCell>铜价预警</TableCell>
                   <TableCell>总成本</TableCell>
                   <TableCell align="center" sx={{ width: '200px' }}>操作</TableCell>
                 </TableRow>
@@ -286,9 +329,8 @@ export default function RecipesPage() {
                       <TableCell title={recipe.CreatedAt ? new Date(recipe.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
                         {formatRecipeEntryTime(recipe.CreatedAt)}
                       </TableCell>
-                      <TableCell sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        title={data?.overview || '-'}>
-                        {data?.overview || '-'}
+                      <TableCell>
+                        <CopperRiskChip risk={data?.copperRisk} />
                       </TableCell>
                       <TableCell>{data?.cost || '-'}</TableCell>
                       <TableCell align="center">

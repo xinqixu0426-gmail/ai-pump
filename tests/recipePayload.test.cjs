@@ -45,7 +45,7 @@ test('配方保存 payload 序列化包装和选配件', () => {
     ]);
 
     assert.deepEqual(JSON.parse(packing), [
-        { model: '小纸箱', supplier: 'A', qty: 1, packagingMaterial: 'paper' },
+        { model: '小纸箱', supplier: 'A', qty: 3, packagingMaterial: 'paper' },
         { model: '木箱', supplier: 'B', qty: 1, packagingMaterial: 'wood', snapshotPrice: 12, costSource: 'manual' },
     ]);
     assert.deepEqual(JSON.parse(optional), [

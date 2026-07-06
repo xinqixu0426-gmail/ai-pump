@@ -76,7 +76,7 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/model-variants` | 无 | 型号变体列表 |
-| `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段 | 新增变体；若模板含长螺丝且变体有机筒长度，会按参数化螺丝公式自动补齐对应长度的螺丝零件，响应附带 `createdLongScrewParts` |
+| `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段和 `customFieldsJson` | 新增变体；`customFieldsJson` 为 `[{ label, value }]` JSON 字符串；若模板含长螺丝且变体有机筒长度，会按参数化螺丝公式自动补齐对应长度的螺丝零件，响应附带 `createdLongScrewParts` |
 | `PATCH` | `/api/model-variants/:id` | 同新增字段 | 更新变体；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/model-variants/:id` | 无 | 软删除 |
 
@@ -93,7 +93,7 @@
 | `PATCH` | `/api/recipes/:id` | 配方字段 | 推荐更新入口；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/recipes` | 单个对象或数组，含 `id/Id` | 兼容批量软删除 |
 | `DELETE` | `/api/recipes/:id` | 无 | 推荐删除入口，软删除 |
-| `GET` | `/api/recipes/:id/cost` | 无 | 配方配件成本重算，不是完整总成本 |
+| `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 报价/试算用，以配方快照为基线重算覆盖项 |
 
 ## 9. 成本 Cost
@@ -102,9 +102,9 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细 |
+| `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则 |
-| `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件部分 |
+| `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价覆盖试算 |
 | `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | AI/N8N 一站式估算，组合配方、线圈和动态配置 |
 

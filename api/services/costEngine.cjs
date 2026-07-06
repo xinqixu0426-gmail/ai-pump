@@ -4,6 +4,11 @@ const {
     getCableAccessoryFeeFromPartsByModel,
 } = require('./cableAccessory.cjs');
 
+// 成本口径边界：
+// - buildRecipeCostDraft：保存配方前生成锁定快照，写入 savedTotalCost / savedCostDetails / partsJson。
+// - calculateRecipeCost：按当前零件库重算 partsJson 的参考价，不能当作历史保存成本或订单锁价。
+// 新增正式成本口径时优先扩展这里，并同步更新 docs/api-reference.md。
+
 function roundMoney(value) {
     return Math.round(Number(value || 0) * 100) / 100;
 }

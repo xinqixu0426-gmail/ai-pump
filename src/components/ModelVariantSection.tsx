@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   Paper, Typography, Box, Button, TextField, Select, MenuItem, FormControl,
   InputLabel, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -30,7 +31,16 @@ type FormState = {
   impellerDiameter: string;
   impellerBladeCount: string;
   note: string;
+  customFields: CustomField[];
 };
+
+type CustomField = {
+  id: string;
+  label: string;
+  value: string;
+};
+
+type TextFormField = Exclude<keyof FormState, 'customFields'>;
 
 const emptyForm: FormState = {
   modelName: '',
@@ -45,7 +55,40 @@ const emptyForm: FormState = {
   impellerDiameter: '',
   impellerBladeCount: '',
   note: '',
+  customFields: [],
 };
+
+function parseCustomFields(json?: string): CustomField[] {
+  try {
+    const parsed = JSON.parse(json || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => ({
+      id: `field-${index}`,
+      label: String(item?.label || ''),
+      value: String(item?.value || ''),
+    })).filter(item => item.label || item.value);
+  } catch {
+    return [];
+  }
+}
+
+function customFieldsToJson(fields: CustomField[]): string {
+  return JSON.stringify(fields
+    .map(field => ({ label: field.label.trim(), value: field.value.trim() }))
+    .filter(field => field.label || field.value));
+}
+
+function FormSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2, bgcolor: 'rgba(248,250,252,0.72)' }}>
+      <Box sx={{ mb: 1.5 }}>
+        <Typography variant="subtitle2" fontWeight={800}>{title}</Typography>
+        {subtitle ? <Typography variant="caption" color="text.secondary">{subtitle}</Typography> : null}
+      </Box>
+      {children}
+    </Box>
+  );
+}
 
 export default function ModelVariantSection({ variants, templates, reload, setError }: Props) {
   const [open, setOpen] = useState(false);
@@ -87,6 +130,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
     impellerDiameter: variant.impellerDiameter ? String(variant.impellerDiameter) : '',
     impellerBladeCount: variant.impellerBladeCount ? String(variant.impellerBladeCount) : '',
     note: variant.note || '',
+    customFields: parseCustomFields(variant.customFieldsJson),
   });
 
   const openEdit = (variant: PumpModelVariant) => {
@@ -103,8 +147,29 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
     setOpen(true);
   };
 
-  const updateField = (field: keyof FormState, value: string) => {
+  const updateField = (field: TextFormField, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addCustomField = () => {
+    setForm(prev => ({
+      ...prev,
+      customFields: [...prev.customFields, { id: `field-${Date.now()}`, label: '', value: '' }],
+    }));
+  };
+
+  const updateCustomField = (id: string, patch: Partial<CustomField>) => {
+    setForm(prev => ({
+      ...prev,
+      customFields: prev.customFields.map(field => field.id === id ? { ...field, ...patch } : field),
+    }));
+  };
+
+  const removeCustomField = (id: string) => {
+    setForm(prev => ({
+      ...prev,
+      customFields: prev.customFields.filter(field => field.id !== id),
+    }));
   };
 
   const save = async () => {
@@ -123,6 +188,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
       impellerDiameter: form.impellerDiameter ? Number(form.impellerDiameter) : null,
       impellerBladeCount: form.impellerBladeCount ? Number(form.impellerBladeCount) : null,
       note: form.note.trim(),
+      customFieldsJson: customFieldsToJson(form.customFields),
     };
     setSaving(true);
     try {
@@ -201,7 +267,18 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                         </Box>
                       ) : '-'}
                     </TableCell>
-                    <TableCell>{v.note || '-'}</TableCell>
+                    <TableCell>
+                      <Box>
+                        <Typography variant="body2">{v.note || '-'}</Typography>
+                        {parseCustomFields(v.customFieldsJson).length > 0 ? (
+                          <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
+                            {parseCustomFields(v.customFieldsJson).slice(0, 2).map(field => (
+                              <Chip key={field.id} size="small" variant="outlined" label={`${field.label || '字段'}: ${field.value || '-'}`} />
+                            ))}
+                          </Box>
+                        ) : null}
+                      </Box>
+                    </TableCell>
                     <TableCell align="center">
                       <Tooltip title="复用为新配置">
                         <IconButton size="small" color="primary" aria-label="复用常用配置" onClick={() => openClone(v)}><CopyIcon size={16} /></IconButton>
@@ -221,38 +298,72 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
         )}
       </Paper>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{editing ? `编辑配置 - ${editing.modelName}` : cloningFrom ? `复用配置 - ${cloningFrom.modelName}` : '新建常用配置'}</DialogTitle>
-        <DialogContent>
-          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={2} mt={1}>
-            <TextField label="配置名称" value={form.modelName} onChange={e => updateField('modelName', e.target.value)} required size="small" />
-            <FormControl size="small" required>
-              <InputLabel>共用泵壳模板</InputLabel>
-              <Select value={form.templateId} label="共用泵壳模板" onChange={e => updateField('templateId', e.target.value)}>
-                {templates.map(t => <MenuItem key={t.Id} value={String(t.Id)}>{t.shellModel}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <InputLabel>线圈规格</InputLabel>
-              <Select value={form.coilSpec} label="线圈规格" onChange={e => { updateField('coilSpec', e.target.value); updateField('coilSheets', ''); }}>
-                <MenuItem value=""><em>不预设</em></MenuItem>
-                {coilSpecs.map(s => <MenuItem key={s.spec} value={s.spec}>{s.spec}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <InputLabel>材质</InputLabel>
-              <Select value={form.coilMaterial} label="材质" onChange={e => updateField('coilMaterial', e.target.value)}>
-                {materialOptions.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <TextField label="线圈片数" type="number" value={form.coilSheets} onChange={e => updateField('coilSheets', e.target.value)} size="small" />
-            <TextField label="机筒长度" type="number" value={form.barrelLength} onChange={e => updateField('barrelLength', e.target.value)} size="small" helperText="mm" />
-            <TextField label="长螺丝补偿长度" type="number" value={form.longScrewExtraLength} onChange={e => updateField('longScrewExtraLength', e.target.value)} size="small" helperText="长螺丝长度 = 不锈钢机筒长度 + 补偿长度" />
-            <TextField label="叶轮型号" value={form.impellerModel} onChange={e => updateField('impellerModel', e.target.value)} size="small" placeholder="如 400" />
-            <TextField label="叶轮厚度" type="number" value={form.impellerThickness} onChange={e => updateField('impellerThickness', e.target.value)} size="small" helperText="mm" />
-            <TextField label="叶轮直径" type="number" value={form.impellerDiameter} onChange={e => updateField('impellerDiameter', e.target.value)} size="small" helperText="mm" />
-            <TextField label="叶片数" type="number" value={form.impellerBladeCount} onChange={e => updateField('impellerBladeCount', e.target.value)} size="small" />
-            <TextField label="备注" value={form.note} onChange={e => updateField('note', e.target.value)} size="small" sx={{ gridColumn: { sm: '1 / -1' } }} />
+        <DialogContent sx={{ bgcolor: '#f8fafc' }}>
+          <Box display="grid" gap={2} mt={1}>
+            <FormSection title="基础信息" subtitle="决定这个配置归属哪个泵壳模板">
+              <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={2}>
+                <TextField label="配置名称" value={form.modelName} onChange={e => updateField('modelName', e.target.value)} required size="small" />
+                <FormControl size="small" required>
+                  <InputLabel>共用泵壳模板</InputLabel>
+                  <Select value={form.templateId} label="共用泵壳模板" onChange={e => updateField('templateId', e.target.value)}>
+                    {templates.map(t => <MenuItem key={t.Id} value={String(t.Id)}>{t.shellModel}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+            </FormSection>
+
+            <FormSection title="线圈配置" subtitle="用于新建配方时带入线圈规格、片数和材质">
+              <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr 1fr' }} gap={2}>
+                <FormControl size="small">
+                  <InputLabel>线圈规格</InputLabel>
+                  <Select value={form.coilSpec} label="线圈规格" onChange={e => { updateField('coilSpec', e.target.value); updateField('coilSheets', ''); }}>
+                    <MenuItem value=""><em>不预设</em></MenuItem>
+                    {coilSpecs.map(s => <MenuItem key={s.spec} value={s.spec}>{s.spec}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <InputLabel>材质</InputLabel>
+                  <Select value={form.coilMaterial} label="材质" onChange={e => updateField('coilMaterial', e.target.value)}>
+                    {materialOptions.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField label="线圈片数" type="number" value={form.coilSheets} onChange={e => updateField('coilSheets', e.target.value)} size="small" />
+              </Box>
+            </FormSection>
+
+            <FormSection title="机筒与长螺丝" subtitle="长螺丝长度会按机筒长度加补偿长度自动推导">
+              <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={2}>
+                <TextField label="机筒长度" type="number" value={form.barrelLength} onChange={e => updateField('barrelLength', e.target.value)} size="small" helperText="mm" />
+                <TextField label="长螺丝补偿长度" type="number" value={form.longScrewExtraLength} onChange={e => updateField('longScrewExtraLength', e.target.value)} size="small" helperText="长螺丝长度 = 不锈钢机筒长度 + 补偿长度" />
+              </Box>
+            </FormSection>
+
+            <FormSection title="叶轮参数" subtitle="作为技术参考带入配方技术档案">
+              <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(4, 1fr)' }} gap={2}>
+                <TextField label="叶轮型号" value={form.impellerModel} onChange={e => updateField('impellerModel', e.target.value)} size="small" placeholder="如 400" />
+                <TextField label="叶轮厚度" type="number" value={form.impellerThickness} onChange={e => updateField('impellerThickness', e.target.value)} size="small" helperText="mm" />
+                <TextField label="叶轮直径" type="number" value={form.impellerDiameter} onChange={e => updateField('impellerDiameter', e.target.value)} size="small" helperText="mm" />
+                <TextField label="叶片数" type="number" value={form.impellerBladeCount} onChange={e => updateField('impellerBladeCount', e.target.value)} size="small" />
+              </Box>
+            </FormSection>
+
+            <FormSection title="备注与自定义字段" subtitle="用于记录客户或型号特有参数">
+              <Box display="grid" gap={1.5}>
+                <TextField label="备注" value={form.note} onChange={e => updateField('note', e.target.value)} size="small" />
+                {form.customFields.map(field => (
+                  <Box key={field.id} display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr auto' }} gap={1} alignItems="center">
+                    <TextField label="字段名称" value={field.label} onChange={e => updateCustomField(field.id, { label: e.target.value })} size="small" placeholder="如 扬程" />
+                    <TextField label="字段值" value={field.value} onChange={e => updateCustomField(field.id, { value: e.target.value })} size="small" placeholder="如 10m" />
+                    <IconButton color="error" aria-label="删除自定义字段" onClick={() => removeCustomField(field.id)}><DeleteIcon size={18} /></IconButton>
+                  </Box>
+                ))}
+                <Box>
+                  <Button variant="outlined" size="small" startIcon={<AddIcon size={16} />} onClick={addCustomField}>新增字段</Button>
+                </Box>
+              </Box>
+            </FormSection>
           </Box>
         </DialogContent>
         <DialogActions>
