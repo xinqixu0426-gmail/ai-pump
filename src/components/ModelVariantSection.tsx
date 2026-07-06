@@ -108,7 +108,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
   };
 
   const save = async () => {
-    if (!form.modelName.trim()) { setError('型号名称不能为空'); return; }
+    if (!form.modelName.trim()) { setError('配置名称不能为空'); return; }
     if (!form.templateId) { setError('请选择泵壳模板'); return; }
     const payload = {
       modelName: form.modelName.trim(),
@@ -131,19 +131,19 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
       setOpen(false);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存型号变体失败');
+      setError(err instanceof Error ? err.message : '保存常用配置失败');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (id: number) => {
-    if (!confirm('确定删除这个型号变体吗？已创建的配方不会被删除。')) return;
+    if (!confirm('确定删除这个常用配置吗？已创建的配方不会被删除。')) return;
     try {
       await deleteModelVariant(id);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '删除型号变体失败');
+      setError(err instanceof Error ? err.message : '删除常用配置失败');
     }
   };
 
@@ -154,19 +154,24 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
     <>
       <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" fontWeight={700} sx={{ flex: 1 }}>型号变体</Typography>
-          <Button variant="contained" size="small" startIcon={<AddIcon size={16} />} onClick={openCreate}>新建型号</Button>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="h6" fontWeight={700}>常用配置</Typography>
+            <Typography variant="caption" color="text.secondary">
+              保存常用的“泵壳模板 + 线圈片数 + 叶轮/机筒参数”，新建配方时可直接带入，也可在配方中覆盖。
+            </Typography>
+          </Box>
+          <Button variant="contained" size="small" startIcon={<AddIcon size={16} />} onClick={openCreate}>新建配置</Button>
         </Box>
         {variants.length === 0 ? (
           <Box textAlign="center" py={6} color="text.secondary">
-            <Typography variant="body2">还没有型号变体，先创建 V450 / V550 / V750 这类型号规则</Typography>
+            <Typography variant="body2">还没有常用配置。可以先从配方直接核算，确认会复用后再保存为常用配置。</Typography>
           </Box>
         ) : (
           <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>型号</TableCell>
+                  <TableCell>配置名称</TableCell>
                   <TableCell>共用壳体</TableCell>
                   <TableCell>线圈</TableCell>
                   <TableCell>机筒长度</TableCell>
@@ -198,14 +203,14 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                     </TableCell>
                     <TableCell>{v.note || '-'}</TableCell>
                     <TableCell align="center">
-                      <Tooltip title="复用为新变体">
-                        <IconButton size="small" color="primary" aria-label="复用型号变体" onClick={() => openClone(v)}><CopyIcon size={16} /></IconButton>
+                      <Tooltip title="复用为新配置">
+                        <IconButton size="small" color="primary" aria-label="复用常用配置" onClick={() => openClone(v)}><CopyIcon size={16} /></IconButton>
                       </Tooltip>
                       <Tooltip title="编辑">
-                        <IconButton size="small" color="warning" aria-label="编辑型号变体" onClick={() => openEdit(v)}><EditIcon size={16} /></IconButton>
+                        <IconButton size="small" color="warning" aria-label="编辑常用配置" onClick={() => openEdit(v)}><EditIcon size={16} /></IconButton>
                       </Tooltip>
                       <Tooltip title="删除">
-                        <IconButton size="small" color="error" aria-label="删除型号变体" onClick={() => remove(v.Id)}><DeleteIcon size={16} /></IconButton>
+                        <IconButton size="small" color="error" aria-label="删除常用配置" onClick={() => remove(v.Id)}><DeleteIcon size={16} /></IconButton>
                       </Tooltip>
                     </TableCell>
                   </TableRow>
@@ -217,10 +222,10 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
       </Paper>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? `编辑型号 - ${editing.modelName}` : cloningFrom ? `复用型号 - ${cloningFrom.modelName}` : '新建型号变体'}</DialogTitle>
+        <DialogTitle>{editing ? `编辑配置 - ${editing.modelName}` : cloningFrom ? `复用配置 - ${cloningFrom.modelName}` : '新建常用配置'}</DialogTitle>
         <DialogContent>
           <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={2} mt={1}>
-            <TextField label="型号名称" value={form.modelName} onChange={e => updateField('modelName', e.target.value)} required size="small" />
+            <TextField label="配置名称" value={form.modelName} onChange={e => updateField('modelName', e.target.value)} required size="small" />
             <FormControl size="small" required>
               <InputLabel>共用泵壳模板</InputLabel>
               <Select value={form.templateId} label="共用泵壳模板" onChange={e => updateField('templateId', e.target.value)}>

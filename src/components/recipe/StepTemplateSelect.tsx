@@ -154,12 +154,12 @@ export default function StepTemplateSelect({
         />
       </Box>
 
-      {/* ━━ 泵壳模板选择 ━━ */}
+      {/* ━━ 泵壳模板与常用配置 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <TemplateIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
-            ▸ 泵壳模板（泵壳成本 + 固定配件）
+            ▸ 成本基础：泵壳模板 + 常用配置预设
           </Typography>
           {selectedTemplate && (
             <Chip
@@ -171,29 +171,34 @@ export default function StepTemplateSelect({
           )}
         </Box>
         <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25, lineHeight: 1.6 }}>
+            泵壳模板是必选的结构成本包；常用配置只是快捷预设，会带入线圈、叶轮和机筒参数，带入后仍可在配方中覆盖。
+          </Typography>
           <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap" mb={selectedTemplate ? 1.5 : 0}>
             <FormControl size="small" sx={{ minWidth: 240 }}>
-              <InputLabel>型号变体</InputLabel>
+              <InputLabel>常用配置（可选）</InputLabel>
               <Select
                 value={selectedModelVariantId || ''}
-                label="型号变体"
+                label="常用配置（可选）"
                 onChange={(e) => onModelVariantSelect(e.target.value ? Number(e.target.value) : null)}
               >
-                <MenuItem value=""><em>不使用型号变体</em></MenuItem>
+                <MenuItem value=""><em>不使用预设，直接按模板配置</em></MenuItem>
                 {modelVariants.map(v => (
-                  <MenuItem key={v.Id} value={v.Id}>{v.modelName}</MenuItem>
+                  <MenuItem key={v.Id} value={v.Id}>
+                    {v.modelName}{v.coilSpec ? ` / ${v.coilSpec}-${v.coilSheets || 0}` : ''}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 240 }} disabled={!!selectedModelVariantId}>
+            <FormControl size="small" sx={{ minWidth: 240 }}>
               <InputLabel>选择泵壳模板</InputLabel>
               <Select
-                value={selectedModelVariantId ? '' : (selectedTemplateId || '')}
+                value={selectedTemplateId || ''}
                 label="选择泵壳模板"
                 onChange={(e) => onTemplateSelect(e.target.value ? Number(e.target.value) : null)}
               >
                 <MenuItem value="">
-                  <em>{selectedModelVariantId ? '由型号变体带入' : '不使用模板'}</em>
+                  <em>请选择泵壳模板</em>
                 </MenuItem>
                 {templates.map(t => (
                   <MenuItem key={t.Id} value={t.Id}>
@@ -203,7 +208,7 @@ export default function StepTemplateSelect({
               </Select>
             </FormControl>
             {selectedVariant && selectedTemplate && (
-              <Chip label={`模板 ${selectedTemplate.shellModel}`} size="small" color="success" variant="outlined" />
+              <Chip label={`已带入：${selectedVariant.modelName}`} size="small" color="success" variant="outlined" />
             )}
           </Box>
 
@@ -265,14 +270,14 @@ export default function StepTemplateSelect({
               <Box display="flex" flexDirection="column" gap={1.5}>
                 {selectedVariant?.barrelLength && !customBarrelLength && (
                   <Typography variant="caption" color="text.secondary">
-                    当前使用变体机筒长度：{selectedVariant.barrelLength} mm；如需覆盖，可在下方填写配方机筒长度。
+                    常用配置机筒长度：{selectedVariant.barrelLength} mm；如需覆盖，可在下方填写配方机筒长度。
                   </Typography>
                 )}
                 <Box display="flex" gap={1.5} alignItems="center">
                   <TextField
                     size="small" label="配方机筒长度" type="number"
                     value={customBarrelLength} onChange={(e) => setCustomBarrelLength(e.target.value)}
-                    placeholder={selectedVariant?.barrelLength ? `未填使用变体 ${selectedVariant.barrelLength}` : '未选变体时请填写'}
+                    placeholder={selectedVariant?.barrelLength ? `未填使用预设 ${selectedVariant.barrelLength}` : '按客户需求填写'}
                     InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
                     sx={{ width: 220 }}
                     error={!effectiveBarrelLength}

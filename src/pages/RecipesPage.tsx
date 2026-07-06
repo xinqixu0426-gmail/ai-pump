@@ -153,7 +153,7 @@ export default function RecipesPage() {
     <Box>
       <PageHeader
         title="配方管理"
-        subtitle="管理泵壳模板与配方BOM"
+        subtitle="管理泵壳模板、常用配置与客户配方"
         actions={
           <>
             <Tooltip title="刷新数据">
@@ -175,7 +175,7 @@ export default function RecipesPage() {
       {/* KPI 统计 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
         <StatCard label="模板数量" value={templates.length} subtitle="泵壳配置模板" icon={<FileIcon size={22} />} gradient={gradients.orders} delay={0} />
-        <StatCard label="型号变体" value={variants.length} subtitle="壳体共用规则" icon={<RecipeIcon size={22} />} gradient={gradients.recipes} delay={1} />
+        <StatCard label="常用配置" value={variants.length} subtitle="模板+线圈参数预设" icon={<RecipeIcon size={22} />} gradient={gradients.recipes} delay={1} />
         <StatCard label="零件种类" value={parts.length} subtitle="可选配件库" icon={<PartIcon size={22} />} gradient={gradients.parts} delay={2} />
       </Box>
 
@@ -192,7 +192,7 @@ export default function RecipesPage() {
           sx={{ px: 1, borderBottom: '1px solid', borderColor: 'divider' }}
         >
           <Tab value="templates" label={`泵壳模板 (${templates.length})`} />
-          <Tab value="variants" label={`型号变体 (${variants.length})`} />
+          <Tab value="variants" label={`常用配置 (${variants.length})`} />
           <Tab value="recipes" label={`配方列表 (${recipes.length})`} />
         </Tabs>
       </Paper>

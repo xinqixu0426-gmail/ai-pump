@@ -11,10 +11,12 @@ import {
   Popover,
   Divider,
   Chip,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { CableAccessoryConfig, CableAccessoryType, PumpModelVariant, RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, RecipeBomDraftResult } from '../types';
-import { createPart, createRecipe, updateRecipe, proxyRequest, getAllModelVariants, previewRecipeBomDraft } from '../utils/api';
+import { createModelVariant, createPart, createRecipe, updateRecipe, proxyRequest, getAllModelVariants, previewRecipeBomDraft } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -86,6 +88,7 @@ export default function RecipeFormPage() {
   );
   const [technicalData, setTechnicalData] = useState(() => parseTechnicalDataJson(editFrom?.technicalDataJson || cloneFrom?.technicalDataJson));
   const [costDetailAnchor, setCostDetailAnchor] = useState<HTMLElement | null>(null);
+  const [saveAsPreset, setSaveAsPreset] = useState(false);
 
   // 泵壳模板选择
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
@@ -107,7 +110,7 @@ export default function RecipeFormPage() {
   const nextOptionalId = useRef(1);
 
   // 动态配置
-  const [hasFloat, setHasFloat] = useState(!!editFrom?.hasFloat || !!cloneFrom?.hasFloat);
+  const [hasFloat, setHasFloat] = useState(editFrom ? !!editFrom.hasFloat : cloneFrom ? !!cloneFrom.hasFloat : true);
   const [floatWire, setFloatWire] = useState(editFrom?.floatWire || cloneFrom?.floatWire || '');
   const [floatAccessoryType, setFloatAccessoryType] = useState<CableAccessoryType>(editFrom?.floatAccessoryType || cloneFrom?.floatAccessoryType || 'standard');
   const [floatAccessoryDelta, setFloatAccessoryDelta] = useState(DEFAULT_FLOAT_ACCESSORY_DELTA);
@@ -169,7 +172,7 @@ export default function RecipeFormPage() {
     getAllModelVariants().then(setModelVariants).catch(() => setModelVariants([]));
   }, []);
 
-  // 表单离开保护：覆盖模板、型号变体、线圈、选配、机筒、叶轮和技术档案。
+  // 表单离开保护：覆盖模板、常用配置、线圈、选配、机筒、叶轮和技术档案。
   const hasImpellerData = [impellerModel, impellerThickness, impellerDiameter, impellerBladeCount]
     .some(v => String(v || '').trim() !== '');
   const hasTechnicalData = Object.values(technicalData).some(v => String(v || '').trim() !== '');
@@ -553,8 +556,7 @@ export default function RecipeFormPage() {
     setSelectedModelVariantId(variantId);
     const variant = modelVariants.find(v => v.Id === variantId);
     if (!variant) {
-      setSelectedTemplateId(null);
-      resetImpeller();
+      setSaveAsPreset(false);
       return;
     }
     const fields = recipeFieldsFromVariant(variant);
@@ -694,6 +696,7 @@ export default function RecipeFormPage() {
     if (!recipeName.trim()) { setError('请输入配方名称'); return; }
     let recipeParts = bomDraft?.parts || buildAllParts();
     if (recipeParts.length === 0 && !selectedTemplateId) { setError('请选择泵壳模板或至少添加一个配件'); return; }
+    if (saveAsPreset && !selectedTemplateId) { setError('保存为常用配置前，请先选择泵壳模板'); return; }
 
     try {
       const recipeData = await prepareRecipeSubmission({
@@ -731,6 +734,28 @@ export default function RecipeFormPage() {
       setSaving(true);
       if (isEditing && editFrom) await updateRecipe(editFrom.Id, recipeData);
       else await createRecipe(recipeData);
+      if (saveAsPreset && selectedTemplateId) {
+        try {
+          await createModelVariant({
+            modelName: recipeName.trim(),
+            templateId: selectedTemplateId,
+            coilSpec,
+            coilSheets: coilSheets ? Number(coilSheets) : 0,
+            coilMaterial,
+            barrelLength: effectiveBarrelLength ? Number(effectiveBarrelLength) : null,
+            longScrewExtraLength: Number(effectiveLongScrewExtraLength || 0),
+            impellerModel: impellerModel.trim(),
+            impellerThickness: impellerThickness ? Number(impellerThickness) : null,
+            impellerDiameter: impellerDiameter ? Number(impellerDiameter) : null,
+            impellerBladeCount: impellerBladeCount ? Number(impellerBladeCount) : null,
+            note: recipeSpec.trim(),
+          });
+        } catch (presetErr) {
+          showSnackbar(presetErr instanceof Error ? `配方已保存，常用配置保存失败：${presetErr.message}` : '配方已保存，常用配置保存失败', 'warning');
+          navigate('/recipes');
+          return;
+        }
+      }
       showSnackbar('配方已保存', 'success');
       navigate('/recipes');
     } catch (err) {
@@ -830,6 +855,20 @@ export default function RecipeFormPage() {
       >
         完成保存
       </Button>
+      {!isEditing && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={saveAsPreset}
+              onChange={(e) => setSaveAsPreset(e.target.checked)}
+              size="small"
+              disabled={!selectedTemplateId || !recipeName.trim()}
+            />
+          }
+          label="同时保存为常用配置，后续可直接带入线圈、叶轮和机筒参数"
+          sx={{ mt: 1, ml: 0, color: 'text.secondary', '& .MuiFormControlLabel-label': { fontSize: '0.82rem' } }}
+        />
+      )}
     </Paper>
 
     {/* 浮动面板 */}
