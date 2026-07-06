@@ -245,12 +245,10 @@ export default function RecipeFormPage() {
     return () => clearTimeout(timer);
   }, [coilSpec, coilMaterial, coilSheets, coilCustomWireWeight, useCoilCustomWeight, calculateCoilCost]);
 
-  // 线圈结果联动
+  // 线圈结果联动：只自动带出电容；电缆和浮球线径按客户需求手动选择。
   useEffect(() => {
     if (!coilResult) return;
     const linked = resolveCoilLinkedSelections({ coilResult, floatWireOptions, cableWireOptions, parts });
-    if (linked.nextFloatWire) setFloatWire(linked.nextFloatWire);
-    if (linked.nextCableWire) setCableWire(linked.nextCableWire);
     setCapacitorModel(linked.capacitorModel);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coilResult, floatWireOptions, cableWireOptions, parts]);

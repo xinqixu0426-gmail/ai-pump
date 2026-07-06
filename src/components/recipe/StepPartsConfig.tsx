@@ -154,7 +154,7 @@ export default function StepPartsConfig({
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <CableIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
-            2. 线圈配置（自动带出电容、电缆/浮球线径）
+            2. 线圈配置（自动带出电容）
           </Typography>
           {coilLoading && <CircularProgress size={12} sx={{ ml: 1 }} />}
           {coilResult && (
@@ -225,7 +225,7 @@ export default function StepPartsConfig({
             </Typography>
           )}
         </Box>
-        {(coilResult || capacitorModel || cableWire || floatWire) && (
+        {(coilResult || capacitorModel) && (
           <Box sx={{
             mx: 2,
             mb: 1.5,
@@ -250,12 +250,6 @@ export default function StepPartsConfig({
                 label={`电容 ${capacitorModel}${capacitorPrice > 0 ? ` ¥${capacitorPrice.toFixed(2)}` : ' 未定价'}`}
                 sx={{ fontWeight: 700 }}
               />
-            )}
-            {hasCable && cableWire && (
-              <Chip size="small" variant="outlined" label={`电缆 ${cableWire} mm`} sx={{ fontWeight: 700 }} />
-            )}
-            {hasFloat && floatWire && (
-              <Chip size="small" variant="outlined" label={`浮球 ${floatWire} mm`} sx={{ fontWeight: 700 }} />
             )}
             {coilResult && (
               <Chip size="small" variant="outlined" label={`线圈成本 ¥${coilResult.totalCost.toFixed(2)}`} sx={{ fontWeight: 700 }} />
