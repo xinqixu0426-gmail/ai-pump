@@ -149,12 +149,12 @@ export default function StepPartsConfig({
 
   return (
     <>
-      {/* ━━ 线圈转子 ━━ */}
+      {/* ━━ 线圈配置 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <CableIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
-            ▸ 线圈转子
+            2. 线圈配置（自动带出电容）
           </Typography>
           {coilLoading && <CircularProgress size={12} sx={{ ml: 1 }} />}
           {coilResult && (
@@ -225,6 +225,37 @@ export default function StepPartsConfig({
             </Typography>
           )}
         </Box>
+        {(coilResult || capacitorModel) && (
+          <Box sx={{
+            mx: 2,
+            mb: 1.5,
+            px: 1.5,
+            py: 1,
+            borderRadius: 1.5,
+            bgcolor: 'rgba(37, 99, 235, 0.04)',
+            border: '1px solid rgba(37, 99, 235, 0.14)',
+            display: 'flex',
+            gap: 1,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}>
+            <Typography variant="caption" color="primary.main" sx={{ fontWeight: 800, mr: 0.5 }}>
+              自动关联
+            </Typography>
+            {capacitorModel && (
+              <Chip
+                size="small"
+                color={capacitorPrice > 0 ? 'success' : 'warning'}
+                variant="outlined"
+                label={`电容 ${capacitorModel}${capacitorPrice > 0 ? ` ¥${capacitorPrice.toFixed(2)}` : ' 未定价'}`}
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+            {coilResult && (
+              <Chip size="small" variant="outlined" label={`线圈成本 ¥${coilResult.totalCost.toFixed(2)}`} sx={{ fontWeight: 700 }} />
+            )}
+          </Box>
+        )}
       </Paper>
 
       {/* ━━ 选配配件 ━━ */}
@@ -303,12 +334,12 @@ export default function StepPartsConfig({
         )}
       </Paper>
 
-      {/* ━━ 动态配置 & 包装 ━━ */}
+      {/* ━━ 客户选配 & 包装 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography sx={{ fontSize: 15, lineHeight: 1 }}>⚙️</Typography>
           <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
-            ▸ 动态配置 & 包装
+            4. 客户选配 & 包装
           </Typography>
         </Box>
         <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -316,7 +347,7 @@ export default function StepPartsConfig({
           <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
             <FormControlLabel
               control={<Checkbox checked={hasFloat} onChange={(e) => setHasFloat(e.target.checked)} size="small" />}
-              label={<Typography variant="body2" fontWeight={500}>浮球</Typography>}
+              label={<Typography variant="body2" fontWeight={500}>浮球（默认带）</Typography>}
               sx={{ minWidth: 100 }}
             />
             {hasFloat && (

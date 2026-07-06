@@ -348,7 +348,7 @@ export default function RecipeDetailModal({
           </Box>
           {(recipe.modelVariantId || recipe.impellerModel) && (
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-              {recipe.modelVariantId ? <Chip size="small" label={`型号变体 #${recipe.modelVariantId}`} variant="outlined" /> : null}
+              {recipe.modelVariantId ? <Chip size="small" label={`常用配置 #${recipe.modelVariantId}`} variant="outlined" /> : null}
               {recipe.impellerModel ? <Chip size="small" label={`叶轮 ${recipe.impellerModel}`} color="primary" variant="outlined" /> : null}
               {recipe.impellerThickness ? <Chip size="small" label={`${recipe.impellerThickness}mm厚`} variant="outlined" /> : null}
               {recipe.impellerDiameter ? <Chip size="small" label={`直径${recipe.impellerDiameter}mm`} variant="outlined" /> : null}

@@ -172,7 +172,7 @@ export default function StepTechnicalData({
   impellerBladeCount = '',
   onImpellerBladeCountChange,
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const update = (field: FixedTechnicalDataKey, next: string) => {
     onChange({ ...value, [field]: next });
   };
@@ -206,7 +206,7 @@ export default function StepTechnicalData({
     <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
       <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
-          ▸ 技术档案
+          3. 技术档案 & 叶轮参数
         </Typography>
         {filledCount > 0 && <Chip size="small" label={`已填 ${filledCount}`} sx={{ height: 20, fontSize: '0.7rem' }} />}
         {referenceFields.length > 0 && <Chip size="small" label={`参考 ${referenceFields.length}`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />}
@@ -230,7 +230,7 @@ export default function StepTechnicalData({
         {showImpellerFields && (
           <Box sx={{ px: 2, pt: 2 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 700 }}>
-              泵壳参数
+              叶轮参数
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
               <TextField

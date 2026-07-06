@@ -8,6 +8,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import { Package as TemplateIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
@@ -53,6 +55,10 @@ interface StepTemplateSelectProps {
   effectiveBarrelLength: string | number | null;
   customBarrelLength: string;
   setCustomBarrelLength: (val: string) => void;
+  saveAsPreset: boolean;
+  setSaveAsPreset: (val: boolean) => void;
+  canSaveAsPreset: boolean;
+  isEditing: boolean;
 }
 
 type TemplatePreviewRow = {
@@ -84,6 +90,10 @@ export default function StepTemplateSelect({
   effectiveBarrelLength,
   customBarrelLength,
   setCustomBarrelLength,
+  saveAsPreset,
+  setSaveAsPreset,
+  canSaveAsPreset,
+  isEditing,
 }: StepTemplateSelectProps) {
   const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
   const selectedVariant = modelVariants.find(v => v.Id === selectedModelVariantId) || null;
@@ -134,32 +144,55 @@ export default function StepTemplateSelect({
   return (
     <>
       {/* ━━ 基本信息 ━━ */}
-      <Box display="flex" gap={2} mb={2}>
-        <TextField
-          label="配方名称"
-          value={recipeName}
-          onChange={(e) => setRecipeName(e.target.value)}
-          placeholder="如：人民款370w-90机筒"
-          required
-          size="small"
-          sx={{ flex: 2 }}
-        />
-        <TextField
-          label="规格"
-          value={recipeSpec}
-          onChange={(e) => setRecipeSpec(e.target.value)}
-          placeholder="如：90-100"
-          size="small"
-          sx={{ flex: 1 }}
-        />
-      </Box>
+      <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
+            配方信息
+          </Typography>
+        </Box>
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Box display="flex" gap={2} flexWrap="wrap">
+            <TextField
+              label="配方名称"
+              value={recipeName}
+              onChange={(e) => setRecipeName(e.target.value)}
+              placeholder="客户/型号/配置备注"
+              required
+              size="small"
+              sx={{ flex: '1 1 320px' }}
+            />
+            <TextField
+              label="规格 / 客户要求"
+              value={recipeSpec}
+              onChange={(e) => setRecipeSpec(e.target.value)}
+              placeholder="功率、扬程流量、客户备注"
+              size="small"
+              sx={{ flex: '1 1 220px' }}
+            />
+          </Box>
+          {!isEditing && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={saveAsPreset}
+                  onChange={(e) => setSaveAsPreset(e.target.checked)}
+                  size="small"
+                  disabled={!canSaveAsPreset}
+                />
+              }
+              label="保存配方时，同时沉淀为常用配置"
+              sx={{ mt: 1, ml: 0, color: 'text.secondary', '& .MuiFormControlLabel-label': { fontSize: '0.82rem' } }}
+            />
+          )}
+        </Box>
+      </Paper>
 
-      {/* ━━ 泵壳模板选择 ━━ */}
+      {/* ━━ 泵壳模板与常用配置 ━━ */}
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(124, 58, 237, 0.05)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <TemplateIcon size={16} color={colors.purple.main} />
           <Typography variant="caption" fontWeight={700} color={colors.purple.main} sx={{ letterSpacing: 1 }}>
-            ▸ 泵壳模板（泵壳成本 + 固定配件）
+            1. 泵壳模板（必选结构成本包）
           </Typography>
           {selectedTemplate && (
             <Chip
@@ -171,29 +204,19 @@ export default function StepTemplateSelect({
           )}
         </Box>
         <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25, lineHeight: 1.6 }}>
+            先选择泵壳模板来确定固定壳体、密封件和螺丝成本；如果已有高频组合，可再带入常用配置作为起点。
+          </Typography>
           <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap" mb={selectedTemplate ? 1.5 : 0}>
             <FormControl size="small" sx={{ minWidth: 240 }}>
-              <InputLabel>型号变体</InputLabel>
-              <Select
-                value={selectedModelVariantId || ''}
-                label="型号变体"
-                onChange={(e) => onModelVariantSelect(e.target.value ? Number(e.target.value) : null)}
-              >
-                <MenuItem value=""><em>不使用型号变体</em></MenuItem>
-                {modelVariants.map(v => (
-                  <MenuItem key={v.Id} value={v.Id}>{v.modelName}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 240 }} disabled={!!selectedModelVariantId}>
               <InputLabel>选择泵壳模板</InputLabel>
               <Select
-                value={selectedModelVariantId ? '' : (selectedTemplateId || '')}
+                value={selectedTemplateId || ''}
                 label="选择泵壳模板"
                 onChange={(e) => onTemplateSelect(e.target.value ? Number(e.target.value) : null)}
               >
                 <MenuItem value="">
-                  <em>{selectedModelVariantId ? '由型号变体带入' : '不使用模板'}</em>
+                  <em>请选择泵壳模板</em>
                 </MenuItem>
                 {templates.map(t => (
                   <MenuItem key={t.Id} value={t.Id}>
@@ -202,8 +225,23 @@ export default function StepTemplateSelect({
                 ))}
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 260 }}>
+              <InputLabel>带入常用配置（可选）</InputLabel>
+              <Select
+                value={selectedModelVariantId || ''}
+                label="带入常用配置（可选）"
+                onChange={(e) => onModelVariantSelect(e.target.value ? Number(e.target.value) : null)}
+              >
+                <MenuItem value=""><em>不带入，按客户需求配置</em></MenuItem>
+                {modelVariants.map(v => (
+                  <MenuItem key={v.Id} value={v.Id}>
+                    {v.modelName}{v.coilSpec ? ` / ${v.coilSpec}-${v.coilSheets || 0}` : ''}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             {selectedVariant && selectedTemplate && (
-              <Chip label={`模板 ${selectedTemplate.shellModel}`} size="small" color="success" variant="outlined" />
+              <Chip label={`已带入：${selectedVariant.modelName}`} size="small" color="success" variant="outlined" />
             )}
           </Box>
 
@@ -265,14 +303,14 @@ export default function StepTemplateSelect({
               <Box display="flex" flexDirection="column" gap={1.5}>
                 {selectedVariant?.barrelLength && !customBarrelLength && (
                   <Typography variant="caption" color="text.secondary">
-                    当前使用变体机筒长度：{selectedVariant.barrelLength} mm；如需覆盖，可在下方填写配方机筒长度。
+                    常用配置机筒长度：{selectedVariant.barrelLength} mm；如需覆盖，可在下方填写配方机筒长度。
                   </Typography>
                 )}
                 <Box display="flex" gap={1.5} alignItems="center">
                   <TextField
                     size="small" label="配方机筒长度" type="number"
                     value={customBarrelLength} onChange={(e) => setCustomBarrelLength(e.target.value)}
-                    placeholder={selectedVariant?.barrelLength ? `未填使用变体 ${selectedVariant.barrelLength}` : '未选变体时请填写'}
+                    placeholder={selectedVariant?.barrelLength ? `未填使用预设 ${selectedVariant.barrelLength}` : '按客户需求填写'}
                     InputProps={{ endAdornment: <Typography variant="caption" sx={{ pl: 1 }}>mm</Typography> }}
                     sx={{ width: 220 }}
                     error={!effectiveBarrelLength}

@@ -78,7 +78,7 @@ export default function StepWageConfirm({
           <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(245, 158, 11, 0.06)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography sx={{ fontSize: 15, lineHeight: 1 }}>工</Typography>
             <Typography variant="caption" fontWeight={700} color="warning.main" sx={{ letterSpacing: 0.5 }}>
-              人工工资 & 表面处理 & 管理费
+              5. 人工工资 & 表面处理 & 管理费
             </Typography>
             {laborCost > 0 && (
               <Chip label={`¥${laborCost.toFixed(2)}`} size="small" color="warning" sx={{ ml: 'auto', fontWeight: 700 }} />
@@ -143,7 +143,7 @@ export default function StepWageConfirm({
       <Paper variant="outlined" sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ letterSpacing: 0.5 }}>
-            ▸ 配方概览
+            配方概览
           </Typography>
         </Box>
         <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
