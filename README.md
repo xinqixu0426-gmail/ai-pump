@@ -6,7 +6,7 @@
 
 | 层 | 技术 |
 |---|------|
-| 前端 | React 18 + TypeScript + Vite + MUI 5 + Zustand |
+| 前端 | React 18 + TypeScript + Vite + MUI 5 + Zustand；Next.js + Tailwind CSS 重构预览版 |
 | 后端 | Node.js + Express 5 + better-sqlite3 |
 | AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
 | 出图 | FreeCAD Python 脚本 + PDF 生成 |
@@ -62,15 +62,36 @@
 # 安装依赖
 npm install
 
-# 开发模式（前端 :3000 + 后端 :3002）
+# 开发模式（旧前端 :3000 + 后端 :3002）
 npm start
 
-# 仅启动后端
-npm run server
+# Next 重构预览版（Next :3001 + 后端 :3002）
+npm run web-next:full
 
-# 生产构建
+# 仅启动后端
+npm run api
+
+# 旧前端生产构建
 npm run build
+
+# Next 重构预览版生产构建
+npm run web-next:build
 ```
+
+### Next 重构版主业务入口
+
+`apps/web-next/` 是 Next.js + Tailwind CSS 的新前端，默认运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
+
+当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图和看板，可作为日常主业务入口试运行。AI 助手暂不迁移，`/ai` 导航保持禁用；旧 Vite/MUI 前端仅保留为回滚备用，不再作为新增功能入口。
+
+生产试运行时先执行：
+
+```bash
+npm run web-next:build
+npm run web-next:prod
+```
+
+试运行和后续删除旧前端前，按 [`docs/next-migration-acceptance.md`](docs/next-migration-acceptance.md) 完成验收。
 
 ### Windows 转子出图依赖
 
@@ -175,6 +196,22 @@ npm run build
 pkill -f 'node api.cjs'
 nohup node api.cjs > /dev/null 2>&1 &
 ```
+
+### Next 版主业务入口试运行
+
+Next 版作为主业务入口试运行时需要同时启动 Express API 和 Next server；旧前端保留为回滚备用：
+
+```bash
+export PATH=/opt/homebrew/bin:$PATH
+git pull origin master
+npm run web-next:build
+pkill -f 'node api.cjs'
+pkill -f 'next start -p 3001'
+nohup node api.cjs > api.out.log 2>&1 &
+nohup npm run web-next:start > web-next.out.log 2>&1 &
+```
+
+回滚到旧前端时停止 `next start -p 3001`，保留或重启 `node api.cjs` 即可。
 
 ## API 端点
 

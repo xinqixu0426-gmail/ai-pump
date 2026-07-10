@@ -1,16 +1,24 @@
 # API 接口总表
 
-> 更新于 2026-06-24。本文按当前代码整理，覆盖已记录和未单独记录的 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
+> 更新于 2026-07-09。本文按当前代码整理，覆盖已记录和未单独记录的 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
 
 ## 1. 通用约定
 
 - 后端服务端口：`3002`。
 - 常规 API 前缀：`/api`。
 - Web 前端必须通过 `src/utils/api.ts` 的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()` 调用。
+- Web 新增或调整调用必须使用当前标准入口；历史字段兼容必须封装在 API client 内，不得扩散到页面组件。
+- Web 页面层读取核心资源 ID/时间必须走 `src/utils/entityFields.ts`，禁止直接依赖 `Id/CreatedAt/UpdatedAt`。
 - 请求/响应业务字段默认使用 camelCase；数据库字段保持 snake_case。
+- 核心资源 Row Adapter 标准输出 `id`、`createdAt`、`updatedAt`；历史 `Id`、`CreatedAt`、`UpdatedAt` 暂时保留给旧 Web 代码兼容，新调用方不得依赖。
 - 标准成功响应：`{ "success": true, "data": ... }`。
 - 标准失败响应：`{ "success": false, "error": "错误信息" }`。
-- 历史兼容接口可能额外返回顶层字段，或使用 `{ status, message }` 格式；新接口不得继续扩散这些格式。
+- 健康检查等非业务监控入口可能保留 `{ status, message }`；业务 API 不得新增纯 `{ status, message }` 响应。
+- 路由 `:id` 参数统一通过 `api/services/validation.cjs` 的 `parsePositiveId()` 解析；新增路由不得自定义 `parseId()`。
+- 正式业务资源新增统一使用 `api/db.cjs` 的 `safeInsert(table, values)`，自动校验表名/列名并记录 `INSERT` 审计日志。
+- 动态更新统一使用 `safeUpdate(table, id, updates)`；业务路由和 AI executor 不得直接拼写核心资源表 `INSERT INTO ...` 或动态 `UPDATE ... SET`。
+- 成本基础资料写入，以及订单/报价/配方保存草稿的金额、数量、单价、利润率字段，统一使用 `parseFiniteNumber()` / `parseNonNegativeNumber()` / `parsePositiveNumber()` 校验数字。
+- JSON 字段写库前使用 `stringifyJsonArray()` / `stringifyJsonObject()` 校验并序列化。
 
 ## 2. 鉴权边界
 
@@ -37,11 +45,11 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/parts` | 无 | 零件列表，Row Adapter 输出 camelCase |
+| `GET` | `/api/parts` | 无 | 零件列表，Row Adapter 输出 camelCase，并临时保留 `Id/CreatedAt/UpdatedAt` |
 | `POST` | `/api/parts` | `model, category, price, supplier, stock, remark/notes` | 新增零件，返回新零件 |
-| `PATCH` | `/api/parts` | `id/Id` 加可更新字段 | 动态更新必须走 `safeUpdate('parts', id, updates)` |
-| `DELETE` | `/api/parts` | 单个对象或数组，含 `id/Id` | 软删除；返回 `{ deleted }` |
-| `POST` | `/api/parts/batch-stock` | `{ operations: [{ partId/id/Id, delta }] }` | 批量库存增减，库存最低为 0 |
+| `PATCH` | `/api/parts/:id` | 可更新字段 | 更新入口；动态更新必须走 `safeUpdate('parts', id, updates)` |
+| `DELETE` | `/api/parts/:id` | 无 | 软删除并返回 `{ deleted: 1 }` |
+| `POST` | `/api/parts/batch-stock` | `{ operations: [{ partId, delta }] }` | 批量库存增减，库存最低为 0；`partId` 必须为正整数，`delta` 必须为有效数字 |
 
 ## 5. 线圈 Coils
 
@@ -53,6 +61,7 @@
 | `DELETE` | `/api/coils/:id` | 无 | 硬删除并审计 |
 | `GET` | `/api/coils/materials` | 无 | `{ defaultMaterial, materials, materialPrices }` |
 | `PUT` | `/api/coils/materials` | `{ materialPrices }` | 保存材质单价到 `system_settings.coil_material_prices` |
+| `POST` | `/api/coils/spec-draft` | `{ spec, material? }` | 新增线圈时生成同规格带入草稿；优先同规格同材质，否则同规格辅助字段 + 材质默认单价；不写库 |
 | `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material? }` | 按规格批量更新单价，可按材质过滤 |
 | `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, wireWeight?, copperPrice? }` | 线圈成本计算，支持精确匹配、插值和外推 |
 | `GET` | `/api/coils/specs` | 无 | 可用规格、材质和片数列表 |
@@ -61,10 +70,10 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/templates` | 无 | 泵壳模板列表 |
+| `GET` | `/api/templates` | 无 | 泵壳模板列表，标准字段含 `id/createdAt/updatedAt` |
 | `GET` | `/api/templates/:id` | 无 | 单个模板 |
 | `GET` | `/api/templates/:id/cost` | 无 | 模板固定配件/壳体组件成本 |
-| `GET` | `/api/templates/:id/default-recipe` | 无 | 基于模板生成配方草稿、配件、转子参数和成本 |
+| `GET` | `/api/templates/:id/default-recipe` | 无 | 基于模板生成配方草稿、配件、转子参数和成本；`recipeDraft.templateId` 使用标准 `id` |
 | `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 把模板默认项应用到传入配方草稿 |
 | `GET` | `/api/templates/:id/recipes` | 无 | 引用该模板的配方列表 |
 | `POST` | `/api/templates` | `shellModel/shell_model` 等模板字段 | 新增模板；支持 components/bundle 成本模式 |
@@ -75,7 +84,7 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/model-variants` | 无 | 型号变体列表 |
+| `GET` | `/api/model-variants` | 无 | 型号变体列表，标准字段含 `id/createdAt/updatedAt` |
 | `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段和 `customFieldsJson` | 新增变体；`customFieldsJson` 为 `[{ label, value }]` JSON 字符串；若模板含长螺丝且变体有机筒长度，会按参数化螺丝公式自动补齐对应长度的螺丝零件，响应附带 `createdLongScrewParts` |
 | `PATCH` | `/api/model-variants/:id` | 同新增字段 | 更新变体；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/model-variants/:id` | 无 | 软删除 |
@@ -84,26 +93,30 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/recipes` | 无 | 配方列表 |
-| `GET` | `/api/recipes/:id` | 无 | 单个配方 |
-| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库 |
+| `GET` | `/api/recipes` | 无 | 配方列表，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/recipes/:id` | 无 | 单个配方，标准字段含 `id/createdAt/updatedAt` |
+| `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`；不写库 |
+| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`；计算项或手动价需带 `formula/costSource/source`，供前端在零件旁展示价格来源和公式 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 基于配方草稿生成保存用成本快照；不写库 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`form.coilWireWeight` 会保存为客户指定线重；不写库 |
+| `POST` | `/api/recipes/:id/production-check` | `{ produceQty }` | 按配方 BOM 快照和当前库存生成生产扣库存预检；不写库 |
+| `POST` | `/api/recipes/:id/produce` | `{ produceQty }` | 确认生产并扣减库存；后端重新预检后在事务内更新零件库存 |
 | `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；若 `partsJson` 中含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
-| `PATCH` | `/api/recipes` | `id/Id` 加配方字段 | 兼容旧入口，更新配方 |
-| `PATCH` | `/api/recipes/:id` | 配方字段 | 推荐更新入口；同样可能返回 `createdLongScrewParts` |
-| `DELETE` | `/api/recipes` | 单个对象或数组，含 `id/Id` | 兼容批量软删除 |
-| `DELETE` | `/api/recipes/:id` | 无 | 推荐删除入口，软删除 |
+| `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；同样可能返回 `createdLongScrewParts` |
+| `DELETE` | `/api/recipes/:id` | 无 | 软删除 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 报价/试算用，以配方快照为基线重算覆盖项 |
 
 ## 9. 成本 Cost
 
-### 9.1 推荐入口
+### 9.1 成本入口
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
+| `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 应用常用配置时生成配方草稿，统一带入模板工资、表面处理、线圈、机筒和叶轮字段；不写库 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前生成标准保存 payload，不写库 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价覆盖试算 |
 | `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | AI/N8N 一站式估算，组合配方、线圈和动态配置 |
@@ -129,17 +142,6 @@
 | `GET` | `/api/market-indicators` | 无 | 铜价、铝价、美元兑人民币汇率的实时值与数据库值 |
 | `POST` | `/api/market-indicators/update` | 无 | 同步铜价、铝线价格基数、美元汇率 |
 
-### 9.4 成本兼容入口
-
-| 当前推荐入口 | 兼容入口 | 说明 |
-|---|---|---|
-| `POST /api/cost/parts` | `POST /api/cost/calculate` | 前端历史配件计算入口 |
-| `GET /api/recipes/:id/cost` | `GET /api/cost/recipe/:id` | 按配方 ID 计算配件成本 |
-| `POST /api/recipes/:id/cost-preview` | `POST /api/cost/dynamic-calculate` | legacy 响应会额外返回顶层 `unitCost` |
-| `POST /api/cost/dynamic` | `POST /api/cost/dynamic-config` | 动态配置成本旧名 |
-| `POST /api/cost/full-estimate` | `POST /api/cost/full-calculate` | 一站式估算旧名 |
-| `POST /api/coils/calculate` | `POST /api/cost/coil` | 线圈成本旧/AI 入口 |
-
 ## 10. 客户与报价
 
 ### Customers
@@ -147,8 +149,8 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/customers` | 无 | 客户列表 |
-| `POST` | `/api/customers` | `{ name, contactInfo?, defaultMargin?, remark? }` | 新增客户；返回 `{ data: { id }, id }` 兼容格式 |
-| `PATCH` | `/api/customers/:id` | 客户字段 | 更新客户 |
+| `POST` | `/api/customers` | `{ name, contactInfo?, defaultMargin?, remark? }` | 新增客户；标准返回 `{ data: customer }` |
+| `PATCH` | `/api/customers/:id` | 客户字段 | 更新客户；返回 `{ data: customer }` |
 | `DELETE` | `/api/customers/:id` | 无 | 软删除 |
 
 ### Quotations
@@ -156,23 +158,29 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/quotations` | 无 | 报价列表；读取时自动把超过 1 个月的“报价中”标为“已过时” |
-| `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；返回 `{ data: { id }, id }` 兼容格式 |
-| `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价 |
+| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 基于报价表单草稿生成标准保存 payload；统一明细、总成本和总报价；不写库 |
+| `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；标准返回 `{ data: quotation }` |
+| `POST` | `/api/quotations/:id/order-draft` | 无 | 基于报价、客户、配方快照生成订单草稿、采购清单和待办；不创建订单，不改报价状态 |
+| `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价；返回 `{ data: quotation }` |
 | `DELETE` | `/api/quotations/:id` | 无 | 软删除 |
 
 ## 11. 订单 Orders
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/orders` | 无 | 订单列表 |
-| `GET` | `/api/orders/:id` | 无 | 单个订单 |
+| `GET` | `/api/orders` | 无 | 订单列表，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/orders/:id` | 无 | 单个订单，标准字段含 `id/createdAt/updatedAt` |
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
+| `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 基于订单表单草稿生成标准保存 payload；未传采购清单/待办时自动生成；不写库 |
+| `POST` | `/api/orders/purchase-items/batch` | `{ model, supplier?, purchased }` | 采购中心按供应商和型号批量设置未完成订单的采购项状态；不入库 |
+| `POST` | `/api/orders/:id/status` | `{ status }` | 更新订单状态；`status` 只能是 `待采购/采购中/已完成` |
+| `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 切换或设置指定采购项的已采状态 |
+| `POST` | `/api/orders/:id/todos/toggle` | `{ todoId, done? }` | 切换或设置指定采购待办完成状态 |
+| `POST` | `/api/orders/:id/complete-purchase` | 无 | 确认采购完成并入库；在同一事务内更新零件库存和订单状态 |
 | `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, status?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单 |
-| `PATCH` | `/api/orders` | `id/Id` 加订单字段 | 兼容旧更新入口 |
-| `PATCH` | `/api/orders/:id` | 订单字段 | 推荐更新入口 |
-| `DELETE` | `/api/orders` | 单个对象或数组，含 `id/Id` | 兼容批量软删除 |
-| `DELETE` | `/api/orders/:id` | 无 | 推荐删除入口，软删除 |
+| `PATCH` | `/api/orders/:id` | 订单字段 | 更新入口 |
+| `DELETE` | `/api/orders/:id` | 无 | 软删除 |
 
 ## 12. 工作台 Workbench
 
@@ -201,13 +209,14 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 启动异步 FreeCAD 出图任务；返回 `{ status, message, jobId, drawingName, params }` |
+| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 启动异步 FreeCAD 出图任务；标准返回 `{ success, data: { status, message, jobId, drawingName, params } }`，临时保留顶层 `status/message/jobId` 兼容 |
 | `POST` | `/api/rotor/save` | 结构化转子参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 保存暂定参数到历史，不启动 FreeCAD；记录状态为 `saved`，返回 `{ success, data, jobId, drawingName, params }` |
-| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | 自然语言出图；可能返回 `need_params` 或 `warning` |
+| `POST` | `/api/rotor/template-draft` | `{ templateId, variantId? }` | 根据泵壳模板和可选型号变体生成出图表单草稿，带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注；不写库 |
+| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | 自然语言出图；标准返回 `{ success, data }`，`data.status` 可能为 `success/need_params/warning`，临时保留顶层同名字段兼容 |
 | `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；返回 `{ success, data, ...job }` 兼容格式 |
-| `GET` | `/api/rotor/history` | 无 | 最近 100 条出图/保存历史；当前仍直接返回数据库 snake_case 字段，`status=saved` 表示仅保存参数 |
+| `GET` | `/api/rotor/history` | 无 | 最近 100 条出图/保存历史；标准字段为 `jobId, drawingName, nlInput, paramsJson, fcParamsJson, fileUrl, linkedPumpModel, createdAt, updatedAt`；临时保留 legacy snake_case 字段，`status=saved` 表示仅保存参数 |
 | `PATCH` | `/api/rotor/history/:id/name` | `{ drawingName/drawing_name }` | 重命名图纸 |
-| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联订单型号、型号变体或配方；当前保存为 `linked_pump_model` 文本 |
+| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联订单型号、型号变体或配方；响应标准字段为 `data.linkedPumpModel`，临时保留顶层 `linkedPumpModel` 兼容 |
 | `DELETE` | `/api/rotor/history/:id` | 无 | 删除历史记录并尝试删除对应 PDF |
 | `POST` | `/api/rotor/print/:jobId` | 无 | 打印已成功生成的 PDF |
 | `GET` | `/api/rotor/order-pump-models` | 无 | 从订单明细中提取可关联的水泵型号 |
@@ -245,9 +254,10 @@ AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认�
 
 ## 16. 当前兼容/待收口项
 
-- `PATCH /api/parts`、`PATCH /api/recipes`、`PATCH /api/orders`、`DELETE /api/recipes`、`DELETE /api/orders` 是旧式 body 带 ID 入口；新代码优先使用路径 ID。
-- `POST /api/cost/calculate`、`POST /api/cost/dynamic-config`、`POST /api/cost/full-calculate`、`POST /api/cost/dynamic-calculate` 是旧命名兼容层。
-- `GET /api/rotor/history` 仍输出 snake_case 数据库字段。
-- `POST /api/rotor/draw`、`POST /api/rotor/chat` 使用 `{ status, message }` 格式，不完全符合标准 `{ success, data/error }`。
-- 客户和报价新增接口保留顶层 `id`，用于兼容旧前端。
-- 部分 INSERT/UPSERT 不写审计日志；动态 UPDATE 和删除必须继续走 `safeUpdate`、`softDelete` 或 `hardDelete`。
+- 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是旧 Web 兼容字段。核心页面已改为通过 `entityFields` 读取标准字段并兜底旧字段。
+- 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。
+- 成本旧命名入口已移除；当前标准入口为 `/api/cost/parts`、`/api/recipes/:id/cost`、`/api/recipes/:id/cost-preview`、`/api/cost/dynamic` 和 `/api/cost/full-estimate`。
+- `GET /api/rotor/history` 已输出 camelCase 标准字段，并临时保留 snake_case legacy 字段；Web 前端已改为消费 camelCase。
+- `POST /api/rotor/draw`、`POST /api/rotor/chat` 已改为标准 `{ success, data/error }`，临时保留顶层 `status/message/jobId` 供旧调用方迁移。
+- 客户和报价新增接口标准返回完整 `data` 对象，不再返回顶层 `id`。
+- 正式业务资源的新增、动态更新和删除已分别收口到 `safeInsert`、`safeUpdate`、`softDelete` / `hardDelete`；系统初始化、`system_settings` / `config` UPSERT 仍属于基础设施边界。

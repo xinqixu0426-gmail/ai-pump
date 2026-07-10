@@ -7,6 +7,7 @@ uploads/
 .cert/
 .claude/
 .codex/
+.playwright-mcp/
 
 pump.db
 pump.db-wal

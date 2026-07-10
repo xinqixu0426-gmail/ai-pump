@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-06-24。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)。
+> 当前版本说明，更新于 2026-07-09。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，重构前业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互重构约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，Next 迁移验收清单见 [next-migration-acceptance.md](./next-migration-acceptance.md)。
 
 ## 1. 系统用途
 
@@ -16,6 +16,8 @@
 核心目标是让配方成本、报价、订单和采购都引用同一套基础数据，减少重复录入和口径差异。
 
 ## 2. 业务流程
+
+重构、拆页面或调整状态管理前，必须先对照 [业务流程冻结说明](./business-flow.md)、[前端状态边界冻结说明](./frontend-state-boundary.md) 和 [UI/交互重构约束](./ui-refactor-guidelines.md)。本节只保留业务主线概览。
 
 ```text
 维护零件与线圈
@@ -44,7 +46,7 @@
 - 安装工资、打包工资和默认喷漆工资；
 - 转子出图默认参数。
 
-常用配置用于保存同一模板下的高频组合，包括线圈规格/片数/材质、不锈钢机筒长度、长螺丝补偿长度、叶轮参数和自定义字段。长螺丝与不锈钢机筒绑定，目标长度 = 机筒长度 + 补偿长度；零件库可维护一个按长度自动计价的基础螺丝，目标长度单价按 `0.00424 × 长度 - 0.198` 计算。保存常用配置时若该长度螺丝尚未在零件库中存在，会自动新增对应型号的螺丝零件以便后续库存管理。创建配方时可选择常用配置快速带入模板和技术参数，也可以只选择泵壳模板直接按客户需求配置；配方保存的是快照，后续修改常用配置不会反向改变历史配方。
+常用配置用于保存同一模板下的高频组合，包括线圈规格/片数/材质、不锈钢机筒长度、长螺丝补偿长度、叶轮参数和自定义字段。长螺丝与不锈钢机筒绑定，目标长度 = 机筒长度 + 补偿长度；零件库可维护一个按长度自动计价的基础螺丝，目标长度单价按 `0.00424 × 长度 - 0.198` 计算。保存常用配置时若该长度螺丝尚未在零件库中存在，会自动新增对应型号的螺丝零件以便后续库存管理。创建配方时可通过 `POST /api/recipes/model-variant-draft` 应用常用配置，统一带入模板工资、表面处理、线圈、机筒和叶轮字段；也可以只选择泵壳模板直接按客户需求配置。配方保存的是快照，后续修改常用配置不会反向改变历史配方。
 
 ### 产品配方
 
@@ -59,15 +61,23 @@
 
 配方页以“泵壳模板 + 线圈配置 + 客户选配”为主流程：泵壳模板提供结构成本包，线圈配置联动电容、电缆/浮球线径和叶轮参考，客户选配再覆盖电缆长度、浮球、包装材料、接轴和表面处理等 OEM 差异。保存配方时可将当前组合沉淀为常用配置预设。
 
+BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时必须使用草稿中的 `snapshotPrice`、`costSource/source` 和 `formula` 标注成本价与计算来源；不得在页面里另写正式成本公式。客户指定线重使用配方字段 `coilWireWeight` 进入 BOM 草稿，由后端线圈服务重算成本并自动关联电容。叶轮参数只属于技术档案和出图参考，不参与成本计算。
+
 表面处理支持：无、喷漆、电泳、喷塑。旧 `paintingWage` 字段只用于历史数据兼容，新逻辑使用 `surfaceTreatmentMode + surfaceTreatmentCost`。
 
 ### 报价、订单与采购
 
 - 客户可设置默认利润率；系统默认报价倍率为 `1.10`。
 - 报价可以基于配方临时覆盖线圈、浮球、电缆和包材配置，不修改原配方。
+- 报价保存前通过 `POST /api/quotations/save-payload-draft` 统一生成 `itemsJson`、`totalCost` 和 `totalPrice`。
 - “报价中”超过一个月的报价在列表读取时自动标记为“已过时”。
+- 报价转订单先通过 `POST /api/quotations/:id/order-draft` 生成订单草稿、采购清单和待办，再创建订单并把报价标记为“已转订单”。
+- 订单保存前通过 `POST /api/orders/save-payload-draft` 统一生成 `itemsJson`、`purchaseListJson` 和 `todosJson`。
+- 订单状态、采购项勾选、待办勾选和“确认采购完成并入库”必须通过订单动作 API 执行；确认入库在后端事务内同时更新库存和订单。
+- 采购中心按供应商和型号聚合后，通过 `POST /api/orders/purchase-items/batch` 批量标记未完成订单的采购项；采购中心不入库。
 - 订单保存产品、数量、单位成本、售价、采购清单和待办快照。
 - 采购清单按 BOM × 数量汇总，再扣除当前库存；入库和生产领料通过批量库存接口更新。
+- 生产扣库存必须通过 `POST /api/recipes/:id/produce` 执行，后端会重新预检并在事务内扣减库存。
 - 当前订单状态：`待采购`、`采购中`、`已完成`。
 
 ## 3. 成本口径
@@ -120,9 +130,11 @@
 
 | 场景 | 接口 | 说明 |
 |---|---|---|
-| 前端单次配件计算 | `POST /api/cost/calculate` | 当前 Web 主入口，只计算传入配件 |
-| 规范的配件计算入口 | `POST /api/cost/parts` | 与上一接口共用 handler |
+| 应用常用配置 | `POST /api/recipes/model-variant-draft` | 根据常用配置和关联泵壳模板生成配方表单草稿；不写库 |
+| 新增线圈同规格带入 | `POST /api/coils/spec-draft` | 根据规格和材质生成录入草稿，统一带入同规格的线重、铜价基数、加工费、默认线径和电容；不写库 |
+| 前端单次配件计算 | `POST /api/cost/parts` | Web 当前主入口，只计算传入配件 |
 | 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度和参数化计价规则；不写库 |
+| 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前统一序列化 JSON、数字、ID、表面处理和技术参数；不写库 |
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
 | 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |
 | AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 分别叠加配方配件、线圈和动态配置 |
@@ -134,10 +146,12 @@
 ### 请求与响应
 
 - Web 请求统一使用 `src/utils/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`。
+- Web 新调用必须使用当前标准 API 入口；历史字段兼容只允许封装在 API client 内，不得继续扩散到页面组件。
 - 前后端字段使用 camelCase；数据库列使用 snake_case。
 - 标准成功响应：`{ "success": true, "data": {} }`。
 - 标准失败响应：`{ "success": false, "error": "错误信息" }`。
-- `Id`、`CreatedAt`、`UpdatedAt` 是现存历史命名，新字段不得继续仿照。
+- 核心资源标准输出 `id`、`createdAt`、`updatedAt`。
+- `Id`、`CreatedAt`、`UpdatedAt` 是现存历史命名，仅作为临时兼容字段保留，新字段不得继续仿照。
 
 ### 鉴权边界
 
@@ -150,7 +164,7 @@
 
 ### 核心接口
 
-完整方法、入参、返回和兼容入口见 [API 接口总表](./api-reference.md)。
+完整方法、入参和返回见 [API 接口总表](./api-reference.md)。
 
 | 模块 | 主要路径 | 说明 |
 |---|---|---|
@@ -163,31 +177,19 @@
 | 客户/报价 | `/api/customers`、`/api/quotations` | CRUD |
 | 订单 | `/api/orders` | CRUD、历史售价、采购清单生成 |
 | 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
-| 转子 | `/api/rotor` | 出图、参数暂存、状态、历史、关联、打印 |
+| 转子 | `/api/rotor` | 模板草稿、出图、参数暂存、状态、历史、关联、打印 |
 | 设置 | `/api/settings/:key` | 白名单设置读取和修改 |
 | AI/语音/Siri | `/api/ai`、`/api/voice`、`/api/siri` | 对话、工具调用、ASR |
 
-### 兼容入口
-
-以下旧入口仍服务于 Web、AI、小程序或外部自动化，确认所有调用方迁移前不能删除：
-
-| 当前入口 | 兼容入口 |
-|---|---|
-| `/api/cost/parts` | `/api/cost/calculate` |
-| `/api/recipes/:id/cost` | `/api/cost/recipe/:id` |
-| `/api/recipes/:id/cost-preview` | `/api/cost/dynamic-calculate` |
-| `/api/cost/dynamic` | `/api/cost/dynamic-config` |
-| `/api/cost/full-estimate` | `/api/cost/full-calculate` |
-| `/api/cost/coil` | `/api/coils/calculate` |
-
-配方、订单、模板和型号变体的写接口仍接受部分旧 snake_case 入参，但所有新调用必须使用 camelCase。转子历史接口仍直接返回 snake_case 数据库字段，属于待迁移兼容接口。
+配方、订单、模板和型号变体的写接口仍接受部分旧 snake_case 入参，但所有新调用必须使用 camelCase。转子历史接口已标准输出 camelCase，并临时保留 snake_case legacy 字段。
 
 ## 5. 数据安全与自动任务
 
 - 所有动态 UPDATE 必须走 `safeUpdate()`：表名白名单、列名校验、参数化 SQL、更新时间和审计日志。
+- 正式业务资源 INSERT 必须走 `safeInsert()`：表名白名单、列名校验、参数化 SQL和审计日志。
 - 订单、配方、零件、客户、报价和型号变体使用软删除。
 - 线圈、模板和转子历史没有软删除列，使用 `hardDelete()` 并记录审计。
-- 固定 SQL INSERT 和 `setSetting()` 当前不自动写审计，这是现有审计覆盖边界。
+- 系统初始化、`system_settings` / `config` 的 UPSERT 仍是基础设施边界；新增业务资源表不得绕过 `safeInsert()`。
 - 零件索引缓存 10 秒；零件变更后必须主动失效。
 - Zustand 增删改后必须执行对应 `fetchXxx(true)` 硬刷新。
 - SQLite 使用 WAL；启动时执行 `wal_checkpoint(TRUNCATE)`。
@@ -208,10 +210,12 @@ POST /api/rotor/save
 ```
 
 - `/draw` 接收结构化参数，至少提供一项；缺失参数可以由泵壳模板补全。
+- `/template-draft` 根据泵壳模板和可选型号变体生成出图表单草稿，不写库；用于统一带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注。
 - `/save` 接收同一套结构化参数，仅保存到历史，不启动 FreeCAD。
 - `/chat` 接收自然语言，可能返回 `need_params` 或安全警告；确认后再出图。
 - `/draw`、`/save` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
 - `/draw`、`/save` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
+- `GET /api/rotor/history` 历史列表标准输出 camelCase 字段，包括 `jobId`、`drawingName`、`fcParamsJson`、`fileUrl`、`linkedPumpModel`、`createdAt`；当前临时保留 snake_case legacy 字段供旧调用方迁移。
 - `PATCH /api/rotor/history/:id/name` 用于重命名历史图纸，请求体 `{ "drawingName": "..." }`，成功返回 `{ "success": true, "data": { "drawingName": "..." } }`。
 - 出图历史可通过 `GET /api/rotor/link-targets` 选择关联订单型号、型号变体或配方，保存时仍写入 `linked_pump_model` 文本字段。
 - FreeCAD 默认最多同时执行 2 个任务。
@@ -229,10 +233,12 @@ POST /api/rotor/save
 
 ## 8. 当前已知边界
 
-- 部分旧接口尚未完全统一 `{ success, data/error }` 响应格式。
-- 转子历史仍输出 snake_case；配方等写接口仍保留旧入参兼容。
-- 关键写接口的 ID、金额、非负数和 JSON 校验尚未完全统一。
-- 审计日志目前主要覆盖 UPDATE 和 DELETE，不覆盖所有 INSERT/UPSERT。
+- `apps/web-next/` 是 Next.js + Tailwind + motion 风格的新前端，默认跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。当前已可作为主业务入口试运行；旧 Vite/MUI 前端仅保留为回滚备用。Next 前端不接管业务 API。
+- 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
+- 核心资源的 `Id/CreatedAt/UpdatedAt`、转子历史的 snake_case 字段仍作为 legacy 响应兼容保留；新调用必须使用标准 camelCase。
+- 配方等写接口仍保留少量旧入参兼容，但资源更新和删除已统一为 `/:id` 路径入口。
+- 关键写接口的路由 ID、成本基础资料数字字段、模板/变体 JSON 字段，以及订单/报价/配方保存草稿的金额和数量字段已统一走 `api/services/validation.cjs`。
+- 审计日志覆盖正式业务资源的 INSERT、动态 UPDATE 和 DELETE；系统初始化与 settings/config UPSERT 仍属于基础设施边界。
 - `GET /api/recipes/:id/cost` 不是完整配方总成本接口，报价应使用 `cost-preview`。
 
-这些属于后续收口项，不应成为新代码继续扩散旧格式的理由。
+这些属于后续收口项，不应成为新代码继续扩散旧兼容写法的理由。

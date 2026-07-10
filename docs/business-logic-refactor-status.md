@@ -166,10 +166,11 @@ api/services/orderPlanning.cjs
 ```text
 src/utils/quotationRules.ts
 src/utils/quotationOrderBom.ts
-src/utils/quotationOrderConversion.ts
+POST /api/quotations/save-payload-draft
+POST /api/quotations/:id/order-draft
 ```
 
-`QuotationsPage.tsx` 主要保留状态、筛选、弹窗、保存调用和 UI 展示。
+`QuotationsPage.tsx` 主要保留状态、筛选、弹窗、保存调用和 UI 展示；报价保存 payload 与报价转订单草稿由后端生成。
 
 ### 3.4 订单采购展开已收口到后端
 
@@ -182,13 +183,13 @@ POST /api/orders/purchase-plan
 
 Web 订单页面和 AI/自动化订单工具均复用该后端服务。`src/utils/orderStore.ts` 中旧的本地采购清单生成逻辑已删除。
 
-采购中心页面中的采购任务聚合、采购状态判断、统计摘要和批量更新订单规则已经移入：
+采购中心页面中的采购任务聚合、采购状态判断和统计摘要已经移入：
 
 ```text
 src/utils/purchaseCenterRules.ts
 ```
 
-`PurchaseCenterPage.tsx` 现在主要保留筛选状态、弹窗确认、保存调用和表格展示。
+批量标记采购状态已经进一步后端化到 `POST /api/orders/purchase-items/batch`。`PurchaseCenterPage.tsx` 现在主要保留筛选状态、弹窗确认、调用后端动作 API 和表格展示。
 
 ### 3.5 成本计算体系当前状态
 
@@ -274,9 +275,9 @@ src/utils/purchaseCenterRules.ts
 
 补充处理：新增 `src/utils/quotationRules.ts`，将 `QuotationsPage.tsx` 中 JSON 数组安全解析、包装快照解析、线圈快照读取、报价项成本/加价/手输单价联动、客户默认加价率应用、基础配方默认 overrides、报价合计和包装摘要移出页面。已补测试覆盖包装快照、线圈快照、报价项金额联动、默认 overrides、合计金额和包装摘要。
 
-补充处理：新增 `src/utils/quotationOrderConversion.ts`，将 `QuotationsPage.tsx` 中报价转订单的 orderItems 生成、报价覆盖 BOM 展开、成本草稿回填和订单对象组装移出页面。页面仅保留确认弹窗、保存订单、更新报价状态和刷新数据。已补测试覆盖成本草稿回填 BOM 和订单客户/备注生成。
+补充处理：报价转订单对象生成已进一步后端化到 `POST /api/quotations/:id/order-draft`，旧 `src/utils/quotationOrderConversion.ts` 已删除。页面仅保留确认弹窗、创建订单、更新报价状态和刷新数据。
 
-当前判断：`QuotationsPage.tsx` 剩余内容主要是状态、筛选、弹窗、保存调用和 UI 展示；报价项金额联动、客户利润率、包装摘要、报价转订单对象生成已经有独立 helper 和测试覆盖。
+当前判断：`QuotationsPage.tsx` 剩余内容主要是状态、筛选、弹窗、保存调用和 UI 展示；报价项金额联动、客户利润率、包装摘要仍在前端 helper 中用于交互预览，正式报价保存和报价转订单由后端 API 生成权威 payload。
 
 ### P2：收口采购中心页面规则
 
@@ -284,10 +285,10 @@ src/utils/purchaseCenterRules.ts
 - [x] 移出采购任务按供应商/型号聚合逻辑。
 - [x] 移出采购项状态判断、状态文字和状态颜色逻辑。
 - [x] 移出采购中心统计摘要逻辑。
-- [x] 移出批量标记已采购/取消已采购时的订单更新逻辑。
-- [x] 补测试覆盖聚合、状态、统计和订单更新边界。
+- [x] 批量标记已采购/取消已采购时的订单更新逻辑后端化到 `POST /api/orders/purchase-items/batch`。
+- [x] 补测试覆盖聚合、状态、统计和后端动作 API 边界。
 
-当前处理：`PurchaseCenterPage.tsx` 不再直接承载采购任务聚合和订单更新规则，只负责筛选、确认弹窗、调用 `saveOrder` 和刷新数据。
+当前处理：`PurchaseCenterPage.tsx` 不再直接承载采购任务聚合和订单更新规则，只负责筛选、确认弹窗、调用后端动作 API 和刷新数据。
 
 ### P2：收口订单表单页面规则
 
@@ -299,7 +300,7 @@ src/utils/purchaseCenterRules.ts
 - [x] 移出步骤校验规则。
 - [x] 补测试覆盖保存成本优先、成本计算回退、历史价格缓存、价格联动、提交对象组装和步骤校验。
 
-当前处理：`OrderFormPage.tsx` 继续负责数据加载、React 状态、采购计划预览、保存调用和跳转；订单明细生成与价格联动规则已经有独立 helper 和测试覆盖。
+当前处理：`OrderFormPage.tsx` 继续负责数据加载、React 状态、采购计划预览、保存调用和跳转；订单明细生成与价格联动规则已经有独立 helper 和测试覆盖。正式保存不再携带预览采购清单和待办，统一由 `POST /api/orders/save-payload-draft` 在后端重新生成保存 payload。
 
 ### P2：收口订单列表与详情生命周期规则
 
@@ -380,13 +381,13 @@ src/utils/purchaseCenterRules.ts
 - [x] 拆分 `api/routes/cost.cjs` 中 `/cost/full-estimate` 的线圈估算和结果组装到服务函数。
 - [x] 合并后端服务中重复的电缆配件名称/费用解析逻辑。
 
-当前处理：新增 `api/services/dynamicCostPreview.cjs`，`POST /api/recipes/:id/cost-preview` 和 legacy `/api/cost/dynamic-calculate` 只负责取数、调用服务和返回响应。已补测试覆盖 `customBarrelLength` 覆盖后长螺丝长度与参数化单价重算。
+当前处理：新增 `api/services/dynamicCostPreview.cjs`，`POST /api/recipes/:id/cost-preview` 只负责取数、调用服务和返回响应；旧 `/api/cost/dynamic-calculate` 已在 API 最终收口阶段移除。已补测试覆盖 `customBarrelLength` 覆盖后长螺丝长度与参数化单价重算。
 
 补充处理：`calculateRecipeCost` 已从 `api/db.cjs` 迁入 `api/services/costEngine.cjs`；`db.cjs` 继续导出同名函数以兼容现有路由和 AI executor。已补测试覆盖浮球新界式加价、电缆配件全局配置、参数化长螺丝。
 
 补充处理：`src/utils/costCalculator.ts` 确认没有运行时引用后已删除；正式成本口径以后端 API 和 `api/services/costEngine.cjs` 为准。
 
-补充处理：新增 `api/services/dynamicConfigCost.cjs`，`/api/cost/dynamic-config`、`/api/cost/full-estimate` 中的浮球、电缆、电缆配件费、包装箱动态配置成本已复用同一服务。`/api/cost/float` 和 `/api/cost/cable` 也改为复用该服务的单项估算函数。
+补充处理：新增 `api/services/dynamicConfigCost.cjs`，`/api/cost/dynamic`、`/api/cost/full-estimate` 中的浮球、电缆、电缆配件费、包装箱动态配置成本已复用同一服务。`/api/cost/float` 和 `/api/cost/cable` 也改为复用该服务的单项估算函数。
 
 补充处理：新增 `api/services/fullCostEstimate.cjs`，`/api/cost/full-estimate` 的 `stator` 解析、线圈成本估算、线径解析和组合结果 `breakdown` 已迁到服务层。
 
@@ -404,19 +405,52 @@ src/utils/purchaseCenterRules.ts
 
 补充处理：P3-lite 加固成本口径边界。`api/services/costEngine.cjs`、`dynamicCostPreview.cjs`、`recipeBomEngine.cjs` 已补充保存快照、当前重算、BOM 草稿的边界说明；AI 创建/修改配方改用 `buildRecipeCostDraft` 生成保存快照；AI 创建订单/追加配方通过 `api/services/orderCostLock.cjs` 优先使用配方 `savedTotalCost`，仅在没有保存成本时回退当前重算参考价。已补契约测试覆盖保存快照与当前重算分离、AI 订单锁价优先级。
 
-## 5. 当前建议优先顺序
+## 5. 后续待改清单
 
-建议接下来按这个顺序继续：
+### P1：实际使用反馈优先
 
-1. 前端业务规则整理已基本收官；后续主要做回归使用、必要的 API/服务层集成测试补强。
-2. 根据实际使用情况补充 API/服务层集成测试。
-3. 构建警告已处理：`orderStore.ts` 动态/静态导入混用已改为静态导入；`App.tsx` 已使用页面级 `React.lazy` 分包，`vite.config.ts` 已拆分主要 vendor chunk。
+- [ ] 配方录入、配方详情、报价转订单、订单采购、生产扣库存做一轮真实业务回归，记录仍然别扭或不稳定的流程。
+- [ ] 铜价预警阈值、提示文案和列表展示需要结合实际波动继续调优，避免提示过多或漏掉大幅波动。
+- [ ] 包材、选配件、长螺丝自动沉淀到零件库的交互还需要继续观察，重点看误弹窗、重复创建和供应商为空的边界。
+- [ ] 鼠标频闪问题已经做过全局修复，但后续新增跳转按钮、Autocomplete、IconButton 时仍要回归检查。
 
-现在长螺丝、报价转订单、订单采购计划、采购中心聚合规则、订单表单价格联动、订单提交组装、订单列表筛选汇总、订单详情状态变更、入库规则、客户报价统计、零件表单参数化配置、运营看板统计、顶部角标、配方列表成本兜底和生产库存预检已经有测试或后端服务兜底。前端散落业务规则整理基本完成。
+### P2：稳定性与测试补强
+
+- [x] 给关键 API 做少量集成测试：`/api/recipes/bom-draft`、`/api/recipes/cost-draft`、`/api/recipes/:id/cost-preview`、订单采购计划、批量库存入口。
+- [x] 冻结前端状态边界：明确 Zustand、页面本地状态、跨资源刷新和派生数据位置。
+- [x] 冻结 UI/交互重构约束：明确简洁风格、动效边界、表格/表单/弹窗规则和业务不可变边界。
+- [x] 增加重构准备静态契约测试，确保业务流程、状态边界和 UI 约束文档持续存在并被索引。
+- [ ] 给 AI/自动化写操作补一轮契约测试，确保创建配方、修改配方、创建订单不会绕过保存快照和订单锁价口径。
+- [ ] 定期扫描 `fetch(`、裸 `UPDATE`、前端成本计算函数，防止后续开发重新引入第二套口径。
+- [x] 更新收尾验证记录，移除早期 85/98 测试数量口径。
+
+### P3：暂缓到业务稳定后重构
+
+- [x] 删除 legacy 成本接口 alias，保留当前标准入口并用静态契约测试防回退。
+- [ ] 暂缓把所有前端预览强制改成只调后端；当前前端保留展示级预览，正式保存仍以后端快照为准。
+- [ ] 暂缓继续拆 `api/services/costEngine.cjs`，后续重构时再按“价格解析、快照生成、当前重算、人工管理费”分层。
+- [x] 后续整体重构前先冻结一版业务流程文档，再设计数据库字段、API 边界、服务层目录和前端页面流。
+
+## 6. 当前建议优先顺序
+
+重构准备已经完成。正式重构建议按这个顺序进入：
+
+1. 先重构全局布局、导航、TopBar 和主题 token，降低视觉噪音。
+2. 再按“低风险 CRUD 列表页 -> 报价/订单列表 -> 配方/订单复杂表单 -> 采购/生产/转子高风险流程”的顺序推进 UI。
+3. 每个页面重构时同时检查 `docs/business-flow.md`、`docs/frontend-state-boundary.md` 和 `docs/ui-refactor-guidelines.md`。
+
+当前 UI 重构起点：已新增 `apps/web-next/`，作为 Next.js + Tailwind + motion 风格的新前端预览壳。该目录默认运行在 `:3001`，只通过统一 API client 调用现有 Express API，不接管业务 API。
+
+现在长螺丝、报价转订单、订单采购计划、采购中心聚合规则、订单表单价格联动、订单提交组装、订单列表筛选汇总、订单详情状态变更、入库规则、客户报价统计、零件表单参数化配置、运营看板统计、顶部角标、配方列表成本兜底、生产库存预检、线圈同规格带入草稿和转子模板/变体出图草稿已经有测试或后端服务兜底。前端散落业务规则整理基本完成。
+
+补充处理：线圈新增时的“同规格自动带入线重、铜价基数、加工费、默认线径和电容”已经后端化到 `POST /api/coils/spec-draft` 和 `api/services/coilCost.cjs:buildCoilSpecDraft`；Next 线圈页只负责调用草稿接口并填表。
+
+补充处理：转子出图模板/变体带入已经后端化到 `POST /api/rotor/template-draft` 和 `api/services/rotorTemplateDraft.cjs`；Next 转子页不再解析模板配件、泵壳 notes 和变体机筒长度，只消费后端返回的表单 patch、提示、开档和图纸备注。
 
 收尾验证：
 
-- `npm test` 通过，85 个测试全绿。
+- `npm test` 通过，159 个测试全绿。
 - `npm run build` 通过，当前无 Vite chunk 警告。
+- `npm run web-next:build` 通过，新 Next 前端壳可生产构建。
 - `fetch(` 扫描只剩 `src/utils/api.ts` 内部实现。
 - `UPDATE` 扫描只剩 `safeUpdate`、软删除和启动迁移位置。
