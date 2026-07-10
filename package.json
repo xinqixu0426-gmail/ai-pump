@@ -9,6 +9,13 @@
     "test": "node --test tests/*.test.cjs",
     "preview": "vite preview",
     "api": "node api.cjs",
+    "web-next:dev": "npm --prefix apps/web-next run dev",
+    "web-next:clean": "npm --prefix apps/web-next run clean",
+    "web-next:build": "npm --prefix apps/web-next run build",
+    "web-next:rebuild": "npm --prefix apps/web-next run rebuild",
+    "web-next:start": "npm --prefix apps/web-next run start",
+    "web-next:full": "concurrently \"npm run api\" \"npm run web-next:dev\"",
+    "web-next:prod": "concurrently \"npm run start:prod\" \"npm run web-next:start\"",
     "start": "concurrently \"npm run api\" \"npm run dev\"",
     "start:prod": "NODE_ENV=production node api.cjs"
   },

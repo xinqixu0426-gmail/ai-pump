@@ -1,0 +1,988 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { AnimatePresence } from 'motion/react';
+import { ArrowRight, CircleAlert, FileText, Pencil, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { FadePanel } from '@/components/motion/fade-panel';
+import { PresenceRow } from '@/components/motion/presence-row';
+import { SlideOver } from '@/components/motion/slide-over';
+import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { dateShort, money } from '@/lib/format';
+import type { Customer, Quotation } from '@/lib/customers';
+import type { Part } from '@/lib/parts';
+import type { Recipe } from '@/lib/recipes';
+import {
+  buildCustomerNameMap,
+  buildQuotationOrderDraft,
+  buildQuotationStats,
+  calculateQuotationTotals,
+  convertQuotationToOrder,
+  createQuotation,
+  createQuotationItemFromRecipe,
+  deleteQuotation,
+  getQuotationDataset,
+  parseQuotationItems,
+  previewQuotationItemCost,
+  quotationItemSummary,
+  quotationStatusClassName,
+  quotationStatusOptions,
+  updateQuotation,
+  updateQuotationStatus,
+  type QuotationFilter,
+  type QuotationItem,
+  type QuotationItemOverrides,
+  type QuotationOrderDraft,
+  type QuotationStatus,
+} from '@/lib/quotations';
+
+const filterOptions: Array<{ value: QuotationFilter; label: string }> = [
+  { value: '全部', label: '全部' },
+  ...quotationStatusOptions.map((value) => ({ value, label: value })),
+];
+
+function StatCard({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
+      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
+      <div className="mt-1 text-xs text-muted">{label}</div>
+    </div>
+  );
+}
+
+function parseJsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  try {
+    const parsed = JSON.parse(String(value || '[]'));
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function inferPackingMaterial(model: string): string {
+  if (model.includes('木箱')) return '木箱';
+  if (model.includes('泡沫')) return '泡沫';
+  if (model.includes('商标') || model.includes('贴纸')) return '商标';
+  if (model.includes('说明书')) return '说明书';
+  if (model.includes('珍珠棉')) return '珍珠棉';
+  return '纸箱';
+}
+
+type PackingOption = { model: string; supplier: string; price: number };
+type PackingSnapshot = { model?: string; supplier?: string; qty?: number; packagingMaterial?: string; snapshotPrice?: number };
+
+export function QuotationsView() {
+  const searchParams = useSearchParams();
+  const consumedPrefillRef = useRef('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<QuotationFilter>('全部');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null);
+  const [customerId, setCustomerId] = useState('');
+  const [formStatus, setFormStatus] = useState<QuotationStatus>('报价中');
+  const [remark, setRemark] = useState('');
+  const [recipeId, setRecipeId] = useState('');
+  const [itemQty, setItemQty] = useState('1');
+  const [itemMargin, setItemMargin] = useState('1.10');
+  const [draftItems, setDraftItems] = useState<QuotationItem[]>([]);
+  const [calculatingItemId, setCalculatingItemId] = useState<string | null>(null);
+  const [convertTarget, setConvertTarget] = useState<Quotation | null>(null);
+  const [convertDraft, setConvertDraft] = useState<QuotationOrderDraft | null>(null);
+  const [convertError, setConvertError] = useState<string | null>(null);
+
+  async function load(force = false) {
+    setError(null);
+    if (force) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const data = await getQuotationDataset();
+      setCustomers(data.customers);
+      setQuotations(data.quotations);
+      setRecipes(data.recipes);
+      setParts(data.parts);
+      setCustomerId((current) => current || (data.customers[0] ? String(data.customers[0].id) : ''));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '报价加载失败');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const customerNameMap = useMemo(() => buildCustomerNameMap(customers), [customers]);
+  const stats = useMemo(() => buildQuotationStats(quotations), [quotations]);
+  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
+  const selectedRecipe = recipes.find((recipe) => String(recipe.id) === recipeId);
+  const draftTotals = useMemo(() => calculateQuotationTotals(draftItems), [draftItems]);
+  const prefillCustomerId = searchParams.get('customerId') || '';
+  const shouldCreateFromQuery = searchParams.get('create') === '1';
+  const prefillKey = `${shouldCreateFromQuery}:${prefillCustomerId}`;
+  const packagingOptions = useMemo(() => {
+    const options = new Map<string, PackingOption>();
+    const addOption = (model: string, supplier = '', price = 0) => {
+      const key = `${model}||${supplier}`;
+      if (!model) return;
+      if (!options.has(key) || price > 0) options.set(key, { model, supplier, price });
+    };
+
+    parts.forEach((part) => {
+      const model = part.model || '';
+      const category = part.category || '';
+      const looksLikePacking = category === '包装' || model.includes('木箱') || model.includes('纸箱') || model.includes('包装');
+      if (looksLikePacking) addOption(model, part.supplier || '', Number(part.price || 0));
+    });
+
+    recipes.forEach((recipe) => {
+      parseJsonArray<PackingSnapshot>(recipe.packingPartsJson).forEach((packing) => {
+        const model = packing.model || '';
+        const supplier = packing.supplier || '';
+        const partPrice = parts.find((part) => part.model === model && (!supplier || part.supplier === supplier))?.price || 0;
+        addOption(model, supplier, Number(packing.snapshotPrice ?? partPrice ?? 0));
+      });
+      if (recipe.boxType) addOption(recipe.boxType, '', 0);
+    });
+
+    return Array.from(options.values()).sort((a, b) => a.model.localeCompare(b.model));
+  }, [parts, recipes]);
+
+  const filteredQuotations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return quotations.filter((quotation) => {
+      const customerName = customerNameMap.get(quotation.customerId) || '';
+      const text = `${customerName} ${quotation.status} ${quotation.remark || ''} ${quotationItemSummary(quotation)}`.toLowerCase();
+      return (status === '全部' || quotation.status === status) && (!normalizedQuery || text.includes(normalizedQuery));
+    });
+  }, [customerNameMap, query, quotations, status]);
+
+  useEffect(() => {
+    if (loading || !shouldCreateFromQuery || !prefillCustomerId || consumedPrefillRef.current === prefillKey) return;
+    const customer = customers.find((item) => String(item.id) === prefillCustomerId);
+    if (!customer) return;
+
+    consumedPrefillRef.current = prefillKey;
+    setEditingQuotation(null);
+    setCustomerId(String(customer.id));
+    setFormStatus('报价中');
+    setRemark('');
+    setRecipeId('');
+    setItemQty('1');
+    setItemMargin((1 + Number(customer.defaultMargin || 0)).toFixed(2));
+    setDraftItems([]);
+    setFormError(null);
+    setDrawerOpen(true);
+  }, [customers, loading, prefillCustomerId, prefillKey, shouldCreateFromQuery]);
+
+  async function saveStatus(quotation: Quotation, nextStatus: QuotationStatus) {
+    if (quotation.status === nextStatus) return;
+    setSavingId(String(quotation.id));
+    setError(null);
+
+    try {
+      const updated = await updateQuotationStatus(quotation, nextStatus);
+      setQuotations((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '报价状态保存失败');
+      await load(true);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function resetForm() {
+    const firstCustomer = customers[0];
+    setEditingQuotation(null);
+    setCustomerId(firstCustomer ? String(firstCustomer.id) : '');
+    setFormStatus('报价中');
+    setRemark('');
+    setRecipeId('');
+    setItemQty('1');
+    setItemMargin(firstCustomer ? (1 + Number(firstCustomer.defaultMargin || 0)).toFixed(2) : '1.10');
+    setDraftItems([]);
+    setFormError(null);
+  }
+
+  function openCreateDrawer() {
+    resetForm();
+    setDrawerOpen(true);
+  }
+
+  function openEditDrawer(quotation: Quotation) {
+    const customer = customers.find((item) => item.id === quotation.customerId);
+    setEditingQuotation(quotation);
+    setCustomerId(String(quotation.customerId));
+    setFormStatus(quotation.status as QuotationStatus);
+    setRemark(quotation.remark || '');
+    setRecipeId('');
+    setItemQty('1');
+    setItemMargin(customer ? (1 + Number(customer.defaultMargin || 0)).toFixed(2) : '1.10');
+    setDraftItems(parseQuotationItems(quotation.itemsJson));
+    setFormError(null);
+    setDrawerOpen(true);
+  }
+
+  function onCustomerChange(nextId: string) {
+    setCustomerId(nextId);
+    const customer = customers.find((item) => String(item.id) === nextId);
+    setItemMargin(customer ? (1 + Number(customer.defaultMargin || 0)).toFixed(2) : '1.10');
+  }
+
+  function recostQuotationItem(item: QuotationItem, unitCost: number): QuotationItem {
+    const qty = Math.max(1, Number(item.qty) || 1);
+    const margin = Math.max(0.01, Number(item.margin) || 1.1);
+    const unitPrice = Math.round(unitCost * margin * 100) / 100;
+    return {
+      ...item,
+      qty,
+      unitCost,
+      margin,
+      unitPrice,
+      totalPrice: Math.round(unitPrice * qty * 100) / 100,
+    };
+  }
+
+  async function addDraftItem() {
+    if (!selectedRecipe) {
+      setFormError('请先选择配方');
+      return;
+    }
+    const item = createQuotationItemFromRecipe(selectedRecipe, Number(itemQty), Number(itemMargin));
+    setCalculatingItemId(item.id || null);
+    setFormError(null);
+    try {
+      const unitCost = await previewQuotationItemCost(selectedRecipe.id, item.overrides || {});
+      setDraftItems((current) => [...current, recostQuotationItem(item, unitCost)]);
+      setItemQty('1');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '报价成本重算失败');
+      setDraftItems((current) => [...current, item]);
+    } finally {
+      setCalculatingItemId(null);
+    }
+  }
+
+  function updateDraftItem(id: string | undefined, patch: Partial<QuotationItem>) {
+    if (!id) return;
+    setDraftItems((current) => current.map((item) => {
+      if (item.id !== id) return item;
+      const qty = patch.qty == null ? Number(item.qty || 1) : Math.max(1, Number(patch.qty) || 1);
+      const unitCost = Number(item.unitCost) || 0;
+      const margin = patch.margin == null ? Number(item.margin || 1.1) : Math.max(0.01, Number(patch.margin) || 1.1);
+      const unitPrice = patch.unitPrice == null ? unitCost * margin : Math.max(0, Number(patch.unitPrice) || 0);
+      return {
+        ...item,
+        qty,
+        margin: patch.unitPrice == null ? margin : (unitCost > 0 ? unitPrice / unitCost : margin),
+        unitPrice: Math.round(unitPrice * 100) / 100,
+        totalPrice: Math.round(unitPrice * qty * 100) / 100,
+      };
+    }));
+  }
+
+  async function updateDraftItemOverrides(id: string | undefined, patch: QuotationItemOverrides) {
+    if (!id) return;
+    const currentItem = draftItems.find((item) => item.id === id);
+    const recipeIdForPreview = Number(currentItem?.baseRecipeId || 0);
+    if (!currentItem || !recipeIdForPreview) return;
+
+    const overrides = { ...(currentItem.overrides || {}), ...patch };
+    setCalculatingItemId(id);
+    setFormError(null);
+    try {
+      const unitCost = await previewQuotationItemCost(recipeIdForPreview, overrides);
+      setDraftItems((current) => current.map((item) => (
+        item.id === id ? recostQuotationItem({ ...item, overrides }, unitCost) : item
+      )));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '报价覆盖成本重算失败');
+    } finally {
+      setCalculatingItemId(null);
+    }
+  }
+
+  async function submitQuotation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const numericCustomerId = Number(customerId);
+    if (!numericCustomerId) {
+      setFormError('请选择客户');
+      return;
+    }
+    if (draftItems.length === 0) {
+      setFormError('至少添加一个报价明细');
+      return;
+    }
+
+    setSavingId('form');
+    setFormError(null);
+    setError(null);
+
+    try {
+      if (editingQuotation) {
+        await updateQuotation({ id: editingQuotation.id, customerId: numericCustomerId, status: formStatus, items: draftItems, remark });
+      } else {
+        await createQuotation({ customerId: numericCustomerId, status: formStatus, items: draftItems, remark });
+      }
+      await load(true);
+      setDrawerOpen(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '报价保存失败');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function removeQuotation(quotation: Quotation) {
+    if (!window.confirm(`确定删除报价 #${quotation.id}？`)) return;
+    setSavingId(`delete-${quotation.id}`);
+    setError(null);
+    try {
+      await deleteQuotation(quotation.id);
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '报价删除失败');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function openConvertPreview(quotation: Quotation) {
+    const customer = customers.find((item) => item.id === quotation.customerId);
+    if (!customer) {
+      setError('报价客户不存在，无法转订单');
+      return;
+    }
+    setSavingId(`convert-${quotation.id}`);
+    setConvertError(null);
+    setError(null);
+    try {
+      const draft = await buildQuotationOrderDraft(quotation.id);
+      setConvertTarget(quotation);
+      setConvertDraft(draft);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '生成转单预览失败');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function closeConvertPreview() {
+    if (savingId) return;
+    setConvertTarget(null);
+    setConvertDraft(null);
+    setConvertError(null);
+  }
+
+  async function confirmConvertToOrder() {
+    if (!convertTarget || !convertDraft) return;
+    const customer = customers.find((item) => item.id === convertTarget.customerId);
+    if (!customer) {
+      setConvertError('报价客户不存在，无法转订单');
+      return;
+    }
+    setSavingId(`convert-${convertTarget.id}`);
+    setConvertError(null);
+    try {
+      await convertQuotationToOrder({ quotation: convertTarget, customer, recipes, draft: convertDraft });
+      setConvertTarget(null);
+      setConvertDraft(null);
+      await load(true);
+    } catch (err) {
+      setConvertError(err instanceof Error ? err.message : '转订单失败');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const convertPurchaseRows = convertDraft?.purchaseList.filter((item) => Number(item.needToBuy || 0) > 0) || [];
+
+  return (
+    <div className="space-y-5">
+      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Quotations</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">报价单</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            报价创建、编辑和转订单基于配方保存成本；配置覆盖浮球、电缆和机筒长度时会调用后端试算成本。
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => void load(true)}
+            disabled={refreshing || Boolean(savingId)}
+            icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}
+          >
+            刷新
+          </Button>
+          <Button variant="primary" onClick={openCreateDrawer} disabled={Boolean(savingId)} icon={<Plus size={15} />}>
+            新建报价
+          </Button>
+        </div>
+      </FadePanel>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <FadePanel delay={0.02}>
+          <StatCard value={String(stats.quoteCount)} label="报价总数" />
+        </FadePanel>
+        <FadePanel delay={0.04}>
+          <StatCard value={String(stats.quotingCount)} label="报价中" />
+        </FadePanel>
+        <FadePanel delay={0.06}>
+          <StatCard value={String(stats.acceptedOrConverted)} label="已接受/转单" />
+        </FadePanel>
+        <FadePanel delay={0.08}>
+          <StatCard value={money(stats.totalPrice)} label="总报价金额" />
+        </FadePanel>
+      </div>
+
+      <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-white px-3">
+            <Search size={16} className="text-muted" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索客户、备注、配方或状态"
+              className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={16} className="text-muted" />
+            <SegmentedControl value={status} options={filterOptions} onChange={setStatus} ariaLabel="报价状态筛选" />
+          </div>
+        </div>
+
+        {error ? (
+          <div className="flex items-center gap-2 border-b border-line p-4 text-sm text-rose-700">
+            <CircleAlert size={16} />
+            {error}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />
+            ))}
+          </div>
+        ) : filteredQuotations.length === 0 ? (
+          <div className="p-10 text-center">
+            <FileText className="mx-auto text-slate-300" size={32} />
+            <div className="mt-3 text-sm font-medium text-ink">没有匹配的报价单</div>
+            <div className="mt-1 text-sm text-muted">调整筛选条件或刷新后再看。</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="border-b border-line px-4 py-3">客户</th>
+                  <th className="border-b border-line px-4 py-3">明细</th>
+                  <th className="border-b border-line px-4 py-3">状态</th>
+                  <th className="border-b border-line px-4 py-3 text-right">总成本</th>
+                  <th className="border-b border-line px-4 py-3 text-right">总报价</th>
+                  <th className="border-b border-line px-4 py-3">创建</th>
+                  <th className="border-b border-line px-4 py-3 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence initial={false}>
+                  {filteredQuotations.map((quotation) => {
+                    const customerName = customerNameMap.get(quotation.customerId) || `未知客户 #${quotation.customerId}`;
+                    const saving = savingId === String(quotation.id);
+
+                    return (
+                      <PresenceRow key={quotation.id} className="transition-colors hover:bg-slate-50">
+                        <td className="border-b border-line px-4 py-3">
+                          <div className="font-medium text-ink">{customerName}</div>
+                          <div className="mt-0.5 max-w-[260px] truncate text-xs text-muted">{quotation.remark || '无备注'}</div>
+                        </td>
+                        <td className="border-b border-line px-4 py-3">
+                          <div className="max-w-[360px] truncate text-muted">{quotationItemSummary(quotation)}</div>
+                        </td>
+                        <td className="border-b border-line px-4 py-3">
+                          <select
+                            value={quotation.status}
+                            disabled={saving || Boolean(savingId && savingId !== String(quotation.id))}
+                            onChange={(event) => void saveStatus(quotation, event.target.value as QuotationStatus)}
+                            className={`h-8 rounded-md border bg-white px-2 text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${quotationStatusClassName(quotation.status)}`}
+                          >
+                            {quotationStatusOptions.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{money(quotation.totalCost)}</td>
+                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(quotation.totalPrice)}</td>
+                        <td className="border-b border-line px-4 py-3 text-muted">{dateShort(quotation.createdAt)}</td>
+                        <td className="border-b border-line px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            {quotation.status === '已接受' ? (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={Boolean(savingId)}
+                                onClick={() => void openConvertPreview(quotation)}
+                                icon={<ArrowRight size={14} />}
+                              >
+                                转订单
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="ghost" disabled={Boolean(savingId)} onClick={() => openEditDrawer(quotation)} icon={<Pencil size={14} />}>
+                              编辑
+                            </Button>
+                            <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => void removeQuotation(quotation)} icon={<Trash2 size={14} />}>
+                              删除
+                            </Button>
+                          </div>
+                        </td>
+                      </PresenceRow>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </FadePanel>
+
+      <SlideOver open={Boolean(convertTarget)} onClose={closeConvertPreview}>
+        {convertTarget && convertDraft ? (
+          <div className="flex min-h-full flex-col">
+            <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Convert</div>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">报价转订单预览</h2>
+                <div className="mt-1 text-sm text-muted">确认后会创建订单，并把报价状态改为已转订单。</div>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭"
+                disabled={Boolean(savingId)}
+                onClick={closeConvertPreview}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-5 p-5">
+              {convertError ? (
+                <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                  <CircleAlert size={16} />
+                  {convertError}
+                </div>
+              ) : null}
+
+              <section className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-panel border border-line p-4">
+                  <div className="text-xs text-muted">客户</div>
+                  <div className="mt-1 truncate text-lg font-semibold text-ink">{convertDraft.customerName || '-'}</div>
+                </div>
+                <div className="rounded-panel border border-line p-4">
+                  <div className="text-xs text-muted">订单产品</div>
+                  <div className="mt-1 text-lg font-semibold text-ink">{convertDraft.items.length}</div>
+                </div>
+                <div className="rounded-panel border border-line p-4">
+                  <div className="text-xs text-muted">采购待办</div>
+                  <div className="mt-1 text-lg font-semibold text-ink">{convertDraft.todos.length}</div>
+                </div>
+              </section>
+
+              <section className="rounded-panel border border-line">
+                <div className="border-b border-line p-4">
+                  <div className="text-sm font-semibold text-ink">订单产品</div>
+                  <div className="mt-1 text-xs text-muted">{convertDraft.remark || '无备注'}</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                    <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+                      <tr>
+                        <th className="border-b border-line px-4 py-3">产品</th>
+                        <th className="border-b border-line px-4 py-3 text-right">数量</th>
+                        <th className="border-b border-line px-4 py-3 text-right">成本</th>
+                        <th className="border-b border-line px-4 py-3 text-right">单价</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {convertDraft.items.map((item) => (
+                        <tr key={item.id}>
+                          <td className="border-b border-line px-4 py-3">
+                            <div className="font-medium text-ink">{item.recipeName || '-'}</div>
+                            <div className="mt-0.5 text-xs text-muted">{item.spec || '-'}</div>
+                          </td>
+                          <td className="border-b border-line px-4 py-3 text-right text-muted">{item.qty}</td>
+                          <td className="border-b border-line px-4 py-3 text-right text-muted">{money(item.unitCost)}</td>
+                          <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(item.unitPrice)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="rounded-panel border border-line">
+                <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+                  <div className="text-sm font-semibold text-ink">采购计划预览</div>
+                  <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">{convertPurchaseRows.length} 项</span>
+                </div>
+                {convertPurchaseRows.length === 0 ? (
+                  <div className="p-4 text-sm text-muted">库存充足，暂无需要采购的物料。</div>
+                ) : (
+                  <div className="max-h-64 overflow-auto">
+                    <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                      <thead className="sticky top-0 bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+                        <tr>
+                          <th className="border-b border-line px-4 py-3">型号</th>
+                          <th className="border-b border-line px-4 py-3">供应商</th>
+                          <th className="border-b border-line px-4 py-3 text-right">需采购</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {convertPurchaseRows.map((item) => (
+                          <tr key={`${item.model}-${item.supplier}`}>
+                            <td className="border-b border-line px-4 py-3 font-medium text-ink">{item.model}</td>
+                            <td className="border-b border-line px-4 py-3 text-muted">{item.supplier || '-'}</td>
+                            <td className="border-b border-line px-4 py-3 text-right text-rose-700">{item.needToBuy}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-line p-5">
+              <Button type="button" variant="ghost" onClick={closeConvertPreview} disabled={Boolean(savingId)}>
+                取消
+              </Button>
+              <Button type="button" variant="primary" onClick={() => void confirmConvertToOrder()} disabled={Boolean(savingId)} icon={<ArrowRight size={15} />}>
+                {savingId ? '转单中' : '确认转订单'}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </SlideOver>
+
+      <SlideOver open={drawerOpen} onClose={() => !savingId && setDrawerOpen(false)}>
+        <form onSubmit={submitQuotation} className="flex min-h-full flex-col">
+          <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Quotation</div>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
+                {editingQuotation ? '编辑报价' : '新建报价'}
+              </h2>
+            </div>
+            <button
+              type="button"
+              aria-label="关闭"
+              disabled={Boolean(savingId)}
+              onClick={() => setDrawerOpen(false)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-5 p-5">
+            {formError ? (
+              <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                <CircleAlert size={16} />
+                {formError}
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-ink">客户</span>
+                <select
+                  value={customerId}
+                  onChange={(event) => onCustomerChange(event.target.value)}
+                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                >
+                  <option value="">选择客户</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={String(customer.id)}>{customer.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-ink">状态</span>
+                <select
+                  value={formStatus}
+                  onChange={(event) => setFormStatus(event.target.value as QuotationStatus)}
+                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                >
+                  {quotationStatusOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-medium text-ink">备注</span>
+              <textarea
+                value={remark}
+                onChange={(event) => setRemark(event.target.value)}
+                rows={3}
+                className="mt-2 w-full resize-none rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                placeholder="报价说明、客户特殊要求等"
+              />
+            </label>
+
+            <div className="rounded-panel border border-line">
+              <div className="border-b border-line p-4">
+                <div className="text-sm font-semibold text-ink">添加明细</div>
+                <div className="mt-1 text-xs text-muted">添加配方后可调整浮球、电缆和机筒长度，成本由后端重新试算。</div>
+              </div>
+              <div className="grid gap-3 p-4 lg:grid-cols-[1fr_96px_120px_auto] lg:items-end">
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">配方</span>
+                  <select
+                    value={recipeId}
+                    onChange={(event) => setRecipeId(event.target.value)}
+                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    <option value="">选择配方</option>
+                    {recipes.map((recipe) => (
+                      <option key={recipe.id} value={String(recipe.id)}>
+                        {recipe.name} {recipe.spec ? ` / ${recipe.spec}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">数量</span>
+                  <input
+                    value={itemQty}
+                    onChange={(event) => setItemQty(event.target.value)}
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">加价倍数</span>
+                  <input
+                    value={itemMargin}
+                    onChange={(event) => setItemMargin(event.target.value)}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  />
+                </label>
+
+                <Button type="button" onClick={() => void addDraftItem()} disabled={Boolean(savingId) || Boolean(calculatingItemId)} icon={<Plus size={15} />}>
+                  {calculatingItemId ? '试算中' : '添加'}
+                </Button>
+              </div>
+            </div>
+
+            {draftItems.length > 0 ? (
+              <div className="overflow-x-auto rounded-panel border border-line">
+                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+                    <tr>
+                      <th className="border-b border-line px-4 py-3">产品</th>
+                      <th className="border-b border-line px-4 py-3 text-right">数量</th>
+                      <th className="border-b border-line px-4 py-3 text-right">成本</th>
+                      <th className="border-b border-line px-4 py-3 text-right">加价</th>
+                      <th className="border-b border-line px-4 py-3 text-right">单价</th>
+                      <th className="border-b border-line px-4 py-3 text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftItems.map((item) => (
+                      <tr key={item.id}>
+                        <td className="border-b border-line px-4 py-3 align-top">
+                          <div className="font-medium text-ink">{item.baseRecipeName || '未命名产品'}</div>
+                          <div className="mt-0.5 text-xs text-muted">{item.spec || '-'}</div>
+                          <div className="mt-3 grid gap-2 rounded-md bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-6">
+                            <label className="flex items-center gap-2 text-xs text-muted">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(item.overrides?.hasFloat)}
+                                onChange={(event) => void updateDraftItemOverrides(item.id, { hasFloat: event.target.checked })}
+                                className="h-4 w-4 rounded border-line"
+                              />
+                              加浮球
+                            </label>
+                            <label className="flex items-center gap-2 text-xs text-muted">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(item.overrides?.hasCable)}
+                                onChange={(event) => void updateDraftItemOverrides(item.id, { hasCable: event.target.checked })}
+                                className="h-4 w-4 rounded border-line"
+                              />
+                              加电缆
+                            </label>
+                            <label className="block text-xs text-muted">
+                              电缆长度
+                              <input
+                                value={item.overrides?.cableLength ?? ''}
+                                onChange={(event) => void updateDraftItemOverrides(item.id, { cableLength: event.target.value })}
+                                disabled={!item.overrides?.hasCable}
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
+                              />
+                            </label>
+                            <label className="block text-xs text-muted">
+                              铜套规格
+                              <select
+                                value={item.overrides?.cableAccessoryType || 'standard'}
+                                onChange={(event) => void updateDraftItemOverrides(item.id, { cableAccessoryType: event.target.value as 'standard' | 'xinjie' })}
+                                disabled={!item.overrides?.hasCable}
+                                className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
+                              >
+                                <option value="standard">普通铜套</option>
+                                <option value="xinjie">新界式</option>
+                              </select>
+                            </label>
+                            <label className="block text-xs text-muted">
+                              机筒长度
+                              <input
+                                value={item.overrides?.customBarrelLength ?? ''}
+                                onChange={(event) => void updateDraftItemOverrides(item.id, { customBarrelLength: event.target.value })}
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                              />
+                            </label>
+                            <label className="block text-xs text-muted xl:col-span-2">
+                              包装
+                              <select
+                                value={(() => {
+                                  const packing = parseJsonArray<PackingSnapshot>(item.overrides?.packingPartsJson)[0];
+                                  return packing?.model ? `${packing.model}||${packing.supplier || ''}` : '';
+                                })()}
+                                onChange={(event) => {
+                                  const option = packagingOptions.find((packing) => `${packing.model}||${packing.supplier || ''}` === event.target.value);
+                                  void updateDraftItemOverrides(item.id, {
+                                    boxType: option?.model || '',
+                                    packingPartsJson: option ? JSON.stringify([{
+                                      model: option.model,
+                                      supplier: option.supplier || '',
+                                      qty: 1,
+                                      packagingMaterial: inferPackingMaterial(option.model),
+                                      snapshotPrice: Number(option.price || 0),
+                                    }]) : '[]',
+                                  });
+                                }}
+                                className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                              >
+                                <option value="">不覆盖包装</option>
+                                {packagingOptions.map((option) => {
+                                  const key = `${option.model}||${option.supplier || ''}`;
+                                  return (
+                                    <option key={key} value={key}>
+                                      {option.model}{option.supplier ? ` / ${option.supplier}` : ''} - {money(option.price)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </label>
+                            {calculatingItemId === item.id ? (
+                              <div className="flex items-end text-xs text-muted">后端试算中...</div>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="border-b border-line px-4 py-3 text-right">
+                          <input
+                            value={Number(item.qty || 1)}
+                            onChange={(event) => updateDraftItem(item.id, { qty: Number(event.target.value) })}
+                            type="number"
+                            min="1"
+                            className="h-8 w-20 rounded-md border border-line px-2 text-right text-sm outline-none"
+                          />
+                        </td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{money(Number(item.unitCost) || 0)}</td>
+                        <td className="border-b border-line px-4 py-3 text-right">
+                          <input
+                            value={Number(item.margin || 1.1).toFixed(2)}
+                            onChange={(event) => updateDraftItem(item.id, { margin: Number(event.target.value) })}
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            className="h-8 w-24 rounded-md border border-line px-2 text-right text-sm outline-none"
+                          />
+                        </td>
+                        <td className="border-b border-line px-4 py-3 text-right">
+                          <input
+                            value={Number(item.unitPrice || 0)}
+                            onChange={(event) => updateDraftItem(item.id, { unitPrice: Number(event.target.value) })}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="h-8 w-28 rounded-md border border-line px-2 text-right text-sm outline-none"
+                          />
+                        </td>
+                        <td className="border-b border-line px-4 py-3">
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              type="button"
+                              onClick={() => setDraftItems((current) => current.filter((next) => next.id !== item.id))}
+                              icon={<Trash2 size={14} />}
+                            >
+                              删除
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-2">
+              <div>
+                <div className="text-xs text-muted">总成本</div>
+                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalCost)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted">总报价</div>
+                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalPrice)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-line p-5">
+            <Button type="button" variant="ghost" onClick={() => setDrawerOpen(false)} disabled={Boolean(savingId)}>
+              取消
+            </Button>
+            <Button type="submit" variant="primary" disabled={Boolean(savingId)} icon={<Save size={15} />}>
+              {savingId === 'form' ? '保存中' : '保存'}
+            </Button>
+          </div>
+        </form>
+      </SlideOver>
+    </div>
+  );
+}
