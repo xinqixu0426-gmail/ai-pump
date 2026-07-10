@@ -1,6 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import clsx from 'clsx';
 import { BarChart3, Bot, Boxes, Cable, FileText, Package, ReceiptText, RotateCcwSquare, ShoppingCart, UsersRound } from 'lucide-react';
 import { NavItem } from '@/components/ui/nav-item';
 
@@ -52,13 +54,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="text-sm font-medium text-ink">重构预览版</div>
               <div className="text-xs text-muted">API 仍由现有 Express 服务提供</div>
             </div>
-            <div className="rounded-full border border-line bg-white px-3 py-1 text-xs text-muted shadow-panel">
+            <div className="hidden rounded-full border border-line bg-white px-3 py-1 text-xs text-muted shadow-panel sm:block">
               localhost:3001
             </div>
           </div>
+
+          <nav
+            className="-mx-4 mt-3 flex gap-2 overflow-x-auto border-t border-line/70 px-4 pt-3 md:hidden"
+            aria-label="移动端主导航"
+          >
+            {navItems.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const Icon = item.icon;
+
+              if (!item.enabled) {
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-line bg-slate-50 px-3 text-sm text-slate-400"
+                    aria-disabled="true"
+                    title="待迁移"
+                  >
+                    <Icon size={15} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  className={clsx(
+                    'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-150',
+                    active
+                      ? 'border-ink bg-ink text-white shadow-panel'
+                      : 'border-line bg-white text-slate-600 hover:bg-slate-50 hover:text-ink'
+                  )}
+                >
+                  <Icon size={15} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </header>
 
-        <main className="px-4 py-6 md:px-8">
+        <main className="px-4 py-4 md:px-8 md:py-6">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
       </div>
