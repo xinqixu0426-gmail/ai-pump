@@ -7,7 +7,7 @@ const ts = require('typescript');
 const sourcePath = path.join(__dirname, '../src/utils/orderLifecycleRules.ts');
 const source = fs.readFileSync(sourcePath, 'utf8')
     .replace(/import[^;]+;\n/g, '');
-const compiled = ts.transpileModule(`${source}\nmodule.exports = { ORDER_STATUS_COLOR, buildOrderKpis, orderPurchaseProgress, filterOrders, sortOrders, updateOrderStatus, togglePurchaseItem, toggleTodoItem, stockAdditionsFromPurchaseList, completePurchaseOrder };`, {
+const compiled = ts.transpileModule(`${source}\nmodule.exports = { ORDER_STATUS_COLOR, buildOrderKpis, orderPurchaseProgress, filterOrders, sortOrders };`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
 const moduleStub = { exports: {} };
@@ -19,11 +19,6 @@ const {
     orderPurchaseProgress,
     filterOrders,
     sortOrders,
-    updateOrderStatus,
-    togglePurchaseItem,
-    toggleTodoItem,
-    stockAdditionsFromPurchaseList,
-    completePurchaseOrder,
 } = moduleStub.exports;
 
 function order(overrides) {
@@ -70,7 +65,7 @@ test('订单生命周期规则统计 KPI、筛选和排序', () => {
     assert.deepEqual(sortOrders(orders, 'createdAt', 'desc').map(item => item.id), ['3', '2', '1']);
 });
 
-test('订单生命周期规则计算采购进度并切换采购和 todo 状态', () => {
+test('订单生命周期规则计算采购进度', () => {
     const sourceOrder = order({
         id: '1',
         purchaseList: [
@@ -82,37 +77,4 @@ test('订单生命周期规则计算采购进度并切换采购和 todo 状态',
     });
 
     assert.deepEqual(orderPurchaseProgress(sourceOrder), { needCount: 2, purchasedCount: 1 });
-
-    const purchased = togglePurchaseItem(sourceOrder, 'A', 'S1', '2026-06-29T08:00:00.000Z');
-    assert.equal(purchased.purchaseList[0].purchased, true);
-    assert.equal(purchased.purchaseList[1].purchased, true);
-    assert.equal(purchased.updatedAt, '2026-06-29T08:00:00.000Z');
-
-    const todoDone = toggleTodoItem(sourceOrder, 't1', '2026-06-29T09:00:00.000Z');
-    assert.equal(todoDone.todos[0].done, true);
-    assert.equal(todoDone.updatedAt, '2026-06-29T09:00:00.000Z');
-});
-
-test('订单生命周期规则确认入库生成库存增量并完成订单', () => {
-    const sourceOrder = order({
-        id: '1',
-        status: '采购中',
-        purchaseList: [
-            purchase({ model: 'A', supplier: 'S1', needToBuy: 2, partId: 10 }),
-            purchase({ model: 'B', supplier: 'S1', needToBuy: 0, partId: 11 }),
-            purchase({ model: 'C', supplier: 'S1', needToBuy: 3 }),
-        ],
-    });
-
-    assert.deepEqual(stockAdditionsFromPurchaseList(sourceOrder.purchaseList), [{ partId: 10, addQty: 2 }]);
-
-    const result = completePurchaseOrder(sourceOrder, '2026-06-29T10:00:00.000Z');
-    assert.deepEqual(result.additions, [{ partId: 10, addQty: 2 }]);
-    assert.equal(result.order.status, '已完成');
-    assert.equal(result.order.purchaseList.every(item => item.purchased), true);
-    assert.equal(result.order.updatedAt, '2026-06-29T10:00:00.000Z');
-
-    const reopened = updateOrderStatus(result.order, '采购中', '2026-06-29T11:00:00.000Z');
-    assert.equal(reopened.status, '采购中');
-    assert.equal(reopened.updatedAt, '2026-06-29T11:00:00.000Z');
 });

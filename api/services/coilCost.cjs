@@ -163,6 +163,48 @@ function calculateCoilCost(coils, input = {}, options = {}) {
     };
 }
 
+function buildCoilSpecDraft(coils, input = {}, options = {}) {
+    const spec = String(input.spec || '').trim();
+    const material = String(input.material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
+    const materialPrices = options.materialPrices || {};
+    const allSpecCoils = sortBySheets((coils || []).filter(c => String(coilValue(c, 'spec')).trim() === spec));
+    const exactMaterialCoils = allSpecCoils.filter(c => String(coilValue(c, 'material') || DEFAULT_COIL_MATERIAL).trim() === material);
+    const reference = exactMaterialCoils[0] || allSpecCoils[0] || null;
+    if (!reference) {
+        return {
+            spec,
+            material,
+            unitPrice: getMaterialUnitPrice(spec, material, materialPrices),
+            wireWeight: null,
+            copperBase: null,
+            coilFee: null,
+            rotorFee: null,
+            defaultWireGauge: '',
+            defaultCapacitor: '',
+            source: 'material-default',
+            referenceCoilId: null,
+            exactMaterial: false,
+        };
+    }
+    const exactMaterial = exactMaterialCoils.length > 0;
+    return {
+        spec,
+        material: coilValue(reference, 'material') || material,
+        unitPrice: exactMaterial
+            ? Number(coilValue(reference, 'unitPrice') || 0)
+            : getMaterialUnitPrice(spec, material, materialPrices) || Number(coilValue(reference, 'unitPrice') || 0),
+        wireWeight: Number(coilValue(reference, 'wireWeight') || 0),
+        copperBase: Number(coilValue(reference, 'copperBase') || 0),
+        coilFee: Number(coilValue(reference, 'coilFee') || 0),
+        rotorFee: Number(coilValue(reference, 'rotorFee') || 0),
+        defaultWireGauge: coilValue(reference, 'defaultWireGauge') || '',
+        defaultCapacitor: coilValue(reference, 'defaultCapacitor') || '',
+        source: exactMaterial ? 'same-spec-material' : 'same-spec',
+        referenceCoilId: Number(coilValue(reference, 'id') || 0) || null,
+        exactMaterial,
+    };
+}
+
 function resolveWireFromCoils(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL) {
     if (!statorSpec || !statorSheets) return null;
     const requestedMaterial = material ? String(material).trim() : '';
@@ -197,6 +239,7 @@ module.exports = {
     getMaterialUnitPrice,
     parseStatorInput,
     calculateCoilCost,
+    buildCoilSpecDraft,
     resolveWireFromCoils,
     calculateFullEstimateCoilCost,
 };

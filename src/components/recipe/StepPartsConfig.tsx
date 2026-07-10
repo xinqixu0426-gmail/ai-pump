@@ -22,6 +22,7 @@ import {
   IconButton,
 } from '@mui/material';
 import { Cable as CableIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
+import { useMemo } from 'react';
 import { colors } from '../../utils/theme';
 import { CableAccessoryConfig, CableAccessoryType, Part, PartSelection } from '../../types';
 import RecipePartRow from '../RecipePartRow';
@@ -32,8 +33,7 @@ import {
   DEFAULT_PACKAGING_MATERIAL,
   PACKAGING_MATERIAL_OPTIONS,
   inferPackingMaterial,
-  wireModel,
-  wireOptionsFromParts,
+  resolveWireModel,
 } from '../../utils/businessRules';
 
 const packingAutocompleteSx = {
@@ -94,6 +94,7 @@ interface StepPartsConfigProps {
   getPriceByModelAndSupplier: (model: string, supplier: string) => number;
   getSuppliersByModel: (model: string) => string[];
   getModelsByCategory: (category: string) => string[];
+  getPartsByCategory: (category: string) => Part[];
 }
 
 export default function StepPartsConfig({
@@ -105,7 +106,7 @@ export default function StepPartsConfig({
   hasFloat, setHasFloat, floatWire, setFloatWire, floatAccessoryType, setFloatAccessoryType, floatAccessoryDelta,
   hasCable, setHasCable, cableLength, setCableLength, cableWire, setCableWire, cableAccessoryType, setCableAccessoryType, cableAccessoryConfig,
   packingParts, setPackingParts,
-  parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory,
+  parts, getPriceByModelAndSupplier, getSuppliersByModel, getModelsByCategory, getPartsByCategory,
 }: StepPartsConfigProps) {
 
   const TableHeader = () => (
@@ -122,10 +123,26 @@ export default function StepPartsConfig({
     </TableHead>
   );
 
-  const getWireOptions = (prefix: string): string[] => wireOptionsFromParts(parts, prefix);
+  const floatPartOptions = useMemo(() => {
+    const categoryParts = getPartsByCategory('浮球');
+    const seen = new Set<string>();
+    return categoryParts
+      .filter(p => { if (seen.has(p.model)) return false; seen.add(p.model); return true; })
+      .map(p => ({ model: p.model, supplier: p.supplier, price: p.price }))
+      .sort((a, b) => a.model.localeCompare(b.model, 'zh'));
+  }, [getPartsByCategory]);
 
-  const cableModel = wireModel('电缆', cableWire);
-  const floatModel = wireModel('浮球', floatWire);
+  const cablePartOptions = useMemo(() => {
+    const categoryParts = getPartsByCategory('电缆线');
+    const seen = new Set<string>();
+    return categoryParts
+      .filter(p => { if (seen.has(p.model)) return false; seen.add(p.model); return true; })
+      .map(p => ({ model: p.model, supplier: p.supplier, price: p.price }))
+      .sort((a, b) => a.model.localeCompare(b.model, 'zh'));
+  }, [getPartsByCategory]);
+
+  const cableModel = resolveWireModel('电缆', cableWire);
+  const floatModel = resolveWireModel('浮球', floatWire);
   const floatBasePrice = getPriceByModelAndSupplier(floatModel, '');
   const floatDelta = floatAccessoryType === 'xinjie' ? floatAccessoryDelta : 0;
   const floatTotal = floatBasePrice + floatDelta;
@@ -352,14 +369,24 @@ export default function StepPartsConfig({
             />
             {hasFloat && (
               <>
-                <FormControl size="small" sx={{ minWidth: 110 }}>
-                  <InputLabel>线径</InputLabel>
-                  <Select value={floatWire} label="线径" onChange={(e) => setFloatWire(e.target.value as string)}>
-                    {getWireOptions('浮球-线径').map((w) => (
-                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Autocomplete
+                  freeSolo
+                  size="small"
+                  sx={{ minWidth: 180 }}
+                  options={floatPartOptions}
+                  getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt.model}
+                  value={floatWire}
+                  onChange={(_e, newValue) => setFloatWire(typeof newValue === 'string' ? newValue : (newValue?.model || ''))}
+                  renderOption={(props, opt) => (
+                    <Box component="li" {...props} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                      <Typography variant="body2" fontWeight={500}>{opt.model}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {opt.supplier}{opt.supplier ? ' · ' : ''}¥{opt.price.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  )}
+                  renderInput={(params) => <TextField {...params} label="型号" />}
+                />
                 <FormControl size="small" sx={{ minWidth: 130 }}>
                   <InputLabel>铜套规格</InputLabel>
                   <Select
@@ -394,14 +421,24 @@ export default function StepPartsConfig({
             />
             {hasCable && (
               <>
-                <FormControl size="small" sx={{ minWidth: 110 }}>
-                  <InputLabel>线径</InputLabel>
-                  <Select value={cableWire} label="线径" onChange={(e) => setCableWire(e.target.value as string)}>
-                    {getWireOptions('电缆-线径').map((w) => (
-                      <MenuItem key={w} value={w}>{w} mm</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Autocomplete
+                  freeSolo
+                  size="small"
+                  sx={{ minWidth: 180 }}
+                  options={cablePartOptions}
+                  getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt.model}
+                  value={cableWire}
+                  onChange={(_e, newValue) => setCableWire(typeof newValue === 'string' ? newValue : (newValue?.model || ''))}
+                  renderOption={(props, opt) => (
+                    <Box component="li" {...props} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                      <Typography variant="body2" fontWeight={500}>{opt.model}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {opt.supplier}{opt.supplier ? ' · ' : ''}¥{opt.price.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  )}
+                  renderInput={(params) => <TextField {...params} label="型号" />}
+                />
                 <TextField
                   label="长度(米)" size="small" type="number"
                   inputProps={{ step: '0.1', min: '0' }}

@@ -61,13 +61,13 @@ test('叶轮字段重置为空', () => {
     });
 });
 
-test('选配件增删改会在型号变化时清空供应商', () => {
+test('选配件增删改会在型号变化时自动匹配供应商', () => {
     const added = addOptionalPart([{ id: 1, model: '轴承', supplier: 'A', qty: 2 }], 2);
     assert.deepEqual(added[1], { id: 2, model: '', supplier: '', qty: 1 });
 
-    const changedModel = updateOptionalPart(added, 1, 'model', '油封');
+    const changedModel = updateOptionalPart(added, 1, 'model', '油封', model => model === '油封' ? '油封供应商' : '');
     assert.equal(changedModel[0].model, '油封');
-    assert.equal(changedModel[0].supplier, '');
+    assert.equal(changedModel[0].supplier, '油封供应商');
 
     const changedQty = updateOptionalPart(changedModel, 1, 'qty', 3);
     assert.equal(changedQty[0].qty, 3);

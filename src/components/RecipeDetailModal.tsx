@@ -31,13 +31,14 @@ import {
   Users as UsersIcon
 } from 'lucide-react';
 import { Recipe, CostResult, Part } from '../types';
-import { batchDeductStock } from '../utils/api';
+import { produceRecipe } from '../utils/api';
+import { entityId } from '../utils/entityFields';
+import { entityCreatedAt, entityUpdatedAt } from '../utils/entityFields';
 import {
   StockCheck,
   buildRecipeStockChecks,
   stockChecksAllSufficient,
   stockChecksError,
-  stockDeductionsFromChecks,
 } from '../utils/recipeProductionRules';
 import { getTechnicalDataEntries, parseTechnicalDataJson } from './recipe/StepTechnicalData';
 
@@ -111,6 +112,8 @@ export default function RecipeDetailModal({
   const hasSnapshot = Number.isFinite(savedTotalCostValue) && savedTotalCostValue > 0;
   const technicalData = useMemo(() => parseTechnicalDataJson(recipe.technicalDataJson), [recipe.technicalDataJson]);
   const technicalEntries = useMemo(() => getTechnicalDataEntries(technicalData), [technicalData]);
+  const recipeCreatedAt = entityCreatedAt(recipe);
+  const recipeUpdatedAt = entityUpdatedAt(recipe);
 
   const { totalCostValue, currentCostValue, groupedDetails, isSnapshotView } = useMemo(() => {
     const surfaceTreatmentMode = recipe.surfaceTreatmentMode || (recipe.paintingWage != null ? 'painting' : 'none');
@@ -289,7 +292,7 @@ export default function RecipeDetailModal({
     setProducing(true);
     setProduceError('');
     try {
-      await batchDeductStock(stockDeductionsFromChecks(checks));
+      await produceRecipe(entityId(recipe), produceQty);
       setProduceSuccess(`成功！已扣减 ${produceQty} 台生产用料。`);
       setShowProduce(false);
       if (onStockUpdated) onStockUpdated();
@@ -330,11 +333,11 @@ export default function RecipeDetailModal({
               <strong>规格：</strong> {recipe.spec || '-'}
             </Typography>
             <Typography variant="body1">
-              <strong>创建时间：</strong> {formatDate(recipe.CreatedAt)}
+              <strong>创建时间：</strong> {formatDate(recipeCreatedAt)}
             </Typography>
-            {recipe.UpdatedAt && recipe.UpdatedAt !== recipe.CreatedAt && (
+            {recipeUpdatedAt && recipeUpdatedAt !== recipeCreatedAt && (
               <Typography variant="body1">
-                <strong>最后更新：</strong> {formatDate(recipe.UpdatedAt)}
+                <strong>最后更新：</strong> {formatDate(recipeUpdatedAt)}
               </Typography>
             )}
           </Box>

@@ -76,6 +76,13 @@ export function getModelsByCategory(parts: Part[], category: string): string[] {
 }
 
 /**
+ * 获取指定类别下的所有零件
+ */
+export function getPartsByCategory(parts: Part[], category: string): Part[] {
+  return parts.filter(p => p.category === category);
+}
+
+/**
  * 获取指定型号的所有供应商列表
  */
 export function getSuppliersByModel(parts: Part[], model: string): string[] {

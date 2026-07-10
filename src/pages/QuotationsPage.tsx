@@ -5,10 +5,9 @@ import { Plus, Edit, Trash2, ArrowRight, Search } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { useAppStore } from '../utils/store';
-import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost, previewRecipeCostDraft } from '../utils/api';
+import { createQuotation, updateQuotation, deleteQuotation, dynamicCalculateCost, buildOrderDraftFromQuotation } from '../utils/api';
 import { gradients } from '../utils/theme';
 import { Quotation, QuotationInput, QuotationItem, RecipePart } from '../types';
-import { getCableAccessoryFee, getCableAccessoryName } from '../utils/partHelpers';
 import { createEmptyOrder, saveOrder } from '../utils/orderStore';
 import {
   inferPackingMaterial,
@@ -20,14 +19,13 @@ import {
   applyQuotationItemMargin,
   applyQuotationItemUnitPrice,
   buildRecipeDefaultOverrides,
-  calculateQuotationTotals,
   createQuotationItem,
   getCoilSnapshot,
   getPackingParts,
   packingSummary,
   parseJsonArray,
 } from '../utils/quotationRules';
-import { buildOrderFromQuotation } from '../utils/quotationOrderConversion';
+import { entityCreatedAt, entityId } from '../utils/entityFields';
 
 const QUOTATION_STATUSES = ['报价中', '已接受', '已拒绝', '已转订单', '已过时'];
 const STATUS_OPTIONS = ['全部', ...QUOTATION_STATUSES];
@@ -99,14 +97,14 @@ export default function QuotationsPage() {
 
   const handleCustomerChange = (val: number) => {
     setCustomerId(val);
-    const c = customers.find(x => x.Id === val);
+    const c = customers.find(x => entityId(x) === val);
     if (c) {
       setItems(applyCustomerMargin(items, c));
     }
   };
 
   const addItem = () => {
-    const c = customers.find(x => x.Id === customerId);
+    const c = customers.find(x => entityId(x) === customerId);
     setItems([...items, createQuotationItem(c)]);
   };
 
@@ -129,17 +127,17 @@ export default function QuotationsPage() {
   };
 
   const handleBaseRecipeChange = async (index: number, recipeId: number) => {
-    const recipe = recipes.find(r => r.Id === recipeId);
+    const recipe = recipes.find(r => entityId(r) === recipeId);
     if (!recipe) return;
     const newItems = [...items];
-    newItems[index].baseRecipeId = recipe.Id;
+    newItems[index].baseRecipeId = entityId(recipe);
     newItems[index].baseRecipeName = recipe.name;
     
     // 初始化配置覆盖为配方的默认值
     newItems[index].overrides = buildRecipeDefaultOverrides(recipe);
     
     try {
-      const res = await dynamicCalculateCost(recipe.Id, newItems[index].overrides);
+      const res = await dynamicCalculateCost(entityId(recipe), newItems[index].overrides);
       newItems[index] = applyQuotationItemCost(newItems[index], res.unitCost);
     } catch (err) {}
     setItems(newItems);
@@ -158,10 +156,9 @@ export default function QuotationsPage() {
   };
 
   const handleSave = async () => {
-    const { totalCost, totalPrice } = calculateQuotationTotals(items);
-    const data: QuotationInput = { customerId, status, itemsJson: JSON.stringify(items), totalCost, totalPrice, remark };
+    const data: QuotationInput = { customerId, status, items, remark };
     try {
-      if (editing) await updateQuotation(editing.Id, data);
+      if (editing) await updateQuotation(entityId(editing), data);
       else await createQuotation(data);
       await fetchQuotations(true);
       setOpen(false);
@@ -181,7 +178,7 @@ export default function QuotationsPage() {
   const handleStatusChange = async (quotation: Quotation, nextStatus: string) => {
     if (quotation.status === nextStatus) return;
     try {
-      await updateQuotation(quotation.Id, { status: nextStatus });
+      await updateQuotation(entityId(quotation), { status: nextStatus });
       await fetchQuotations(true);
       showSnackbar('状态已更新', 'success');
     } catch (err: unknown) {
@@ -201,7 +198,7 @@ export default function QuotationsPage() {
 
   useEffect(() => {
     if (!navigationState?.openQuotationId || consumedNavigationRef.current === location.key) return;
-    const target = quotations.find(q => q.Id === Number(navigationState.openQuotationId));
+    const target = quotations.find(q => entityId(q) === Number(navigationState.openQuotationId));
     if (!target) return;
 
     openQuotation(target);
@@ -212,18 +209,15 @@ export default function QuotationsPage() {
   const convertToOrder = async (q: Quotation) => {
     if (!confirm('确定转化为正式订单？')) return;
     try {
-        const orderToSave = await buildOrderFromQuotation({
-          quotation: q,
-          customers,
-          recipes,
-          getPrice: getPartPrice,
-          getCableAccessoryFee: (model, supplier, accessoryType) => getCableAccessoryFee(parts, model, supplier, accessoryType),
-          getCableAccessoryName: (model, supplier, accessoryType) => getCableAccessoryName(parts, model, supplier, accessoryType),
-          previewRecipeCostDraft,
-          createEmptyOrder,
-        });
+        const draft = await buildOrderDraftFromQuotation(entityId(q));
+        const orderToSave = {
+          ...createEmptyOrder(draft.customerName, draft.remark, draft.contractNo),
+          items: draft.items,
+          purchaseList: draft.purchaseList,
+          todos: draft.todos,
+        };
         await saveOrder(orderToSave);
-        await updateQuotation(q.Id, { status: '已转订单' });
+        await updateQuotation(entityId(q), { status: '已转订单' });
         await fetchQuotations(true);
         await fetchOrders(true);
         showSnackbar('转订单成功', 'success');
@@ -232,7 +226,7 @@ export default function QuotationsPage() {
 
   const hasStainlessBarrel = (recipeId: number | '') => {
     if (recipeId === '') return false;
-    const recipe = recipes.find(r => r.Id === recipeId);
+    const recipe = recipes.find(r => entityId(r) === recipeId);
     if (!recipe) return false;
     try {
       const recipeParts = parseJsonArray<RecipePart>(recipe.partsJson);
@@ -240,7 +234,7 @@ export default function QuotationsPage() {
     } catch { return false; }
   };
 
-  const customerNameMap = useMemo(() => new Map(customers.map(c => [c.Id, c.name])), [customers]);
+  const customerNameMap = useMemo(() => new Map(customers.map(c => [entityId(c), c.name])), [customers]);
 
   const quotationStats = useMemo(() => {
     const quoteCount = quotations.length;
@@ -296,7 +290,7 @@ export default function QuotationsPage() {
             <InputLabel>客户</InputLabel>
             <Select value={filterCustomerId} label="客户" onChange={event => setFilterCustomerId(event.target.value as number | '全部')}>
               <MenuItem value="全部">全部客户</MenuItem>
-              {customers.map(c => <MenuItem key={c.Id} value={c.Id}>{c.name}</MenuItem>)}
+              {customers.map(c => <MenuItem key={entityId(c)} value={entityId(c)}>{c.name}</MenuItem>)}
             </Select>
           </FormControl>
           <Chip label={`当前 ${filteredQuotations.length} 张`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
@@ -314,9 +308,9 @@ export default function QuotationsPage() {
           </TableHead>
           <TableBody>
             {filteredQuotations.map(q => {
-              const customer = customers.find(c => c.Id === q.customerId);
+              const customer = customers.find(c => entityId(c) === q.customerId);
               return (
-                <TableRow key={q.Id}>
+                <TableRow key={entityId(q)}>
                   <TableCell sx={{ fontWeight: 600 }}>{customer ? customer.name : `未知 ID:${q.customerId}`}</TableCell>
                   <TableCell>
                     <FormControl size="small" sx={{ minWidth: 118 }}>
@@ -340,7 +334,7 @@ export default function QuotationsPage() {
                   </TableCell>
                   <TableCell>¥{q.totalCost.toFixed(2)}</TableCell>
                   <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>¥{q.totalPrice.toFixed(2)}</TableCell>
-                  <TableCell>{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '-'}</TableCell>
+                  <TableCell>{entityCreatedAt(q) ? new Date(entityCreatedAt(q) as string).toLocaleDateString() : '-'}</TableCell>
                   <TableCell align="right">
                     {q.status === '已接受' && (
                         <Tooltip title="将此报价转化为正式订单">
@@ -351,7 +345,7 @@ export default function QuotationsPage() {
                       <IconButton size="small" aria-label="编辑报价" onClick={() => openQuotation(q)}><Edit size={16} /></IconButton>
                     </Tooltip>
                     <Tooltip title="删除报价">
-                      <IconButton size="small" color="error" aria-label="删除报价" onClick={() => handleDelete(q.Id)}><Trash2 size={16} /></IconButton>
+                      <IconButton size="small" color="error" aria-label="删除报价" onClick={() => handleDelete(entityId(q))}><Trash2 size={16} /></IconButton>
                     </Tooltip>
                   </TableCell>
                 </TableRow>
@@ -384,7 +378,7 @@ export default function QuotationsPage() {
             <FormControl fullWidth>
               <InputLabel>客户</InputLabel>
               <Select value={customerId} label="客户" onChange={e => handleCustomerChange(Number(e.target.value))}>
-                {customers.map(c => <MenuItem key={c.Id} value={c.Id}>{c.name} (默认加价 {(c.defaultMargin*100).toFixed(0)}%)</MenuItem>)}
+                {customers.map(c => <MenuItem key={entityId(c)} value={entityId(c)}>{c.name} (默认加价 {(c.defaultMargin*100).toFixed(0)}%)</MenuItem>)}
               </Select>
             </FormControl>
             <FormControl fullWidth>
@@ -403,7 +397,7 @@ export default function QuotationsPage() {
                 <FormControl sx={{ minWidth: 250, flex: 1 }} size="small">
                   <InputLabel>基础配方</InputLabel>
                   <Select value={item.baseRecipeId} label="基础配方" onChange={e => handleBaseRecipeChange(idx, Number(e.target.value))}>
-                    {recipes.map(r => <MenuItem key={r.Id} value={r.Id}>{r.name}</MenuItem>)}
+                    {recipes.map(r => <MenuItem key={entityId(r)} value={entityId(r)}>{r.name}</MenuItem>)}
                   </Select>
                 </FormControl>
                 
@@ -423,7 +417,7 @@ export default function QuotationsPage() {
               {item.baseRecipeId !== '' && (
                 <Box display="flex" gap={2} flexWrap="wrap" bgcolor="rgba(0,0,0,0.02)" p={1} borderRadius={1} alignItems="center">
                   {(() => {
-                    const recipe = recipes.find(r => r.Id === item.baseRecipeId);
+                    const recipe = recipes.find(r => entityId(r) === item.baseRecipeId);
                     const coil = getCoilSnapshot(recipe);
                     return coil.spec ? (
                       <Chip

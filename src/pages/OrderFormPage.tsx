@@ -152,8 +152,6 @@ export default function OrderFormPage() {
         remark,
         editOrderId: isEdit ? editOrderId : null,
         draftItems,
-        purchaseList,
-        todos,
         orderTotals,
       });
       await saveOrder(order);

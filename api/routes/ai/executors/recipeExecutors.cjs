@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost, safeUpdate, softDelete } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost, safeInsert, safeUpdate, softDelete } = require('../../../db.cjs');
 const { buildRecipeCostDraft } = require('../../../services/costEngine.cjs');
 
 async function executeRecipeTool(toolName, args, internalFetch) {
@@ -23,19 +23,17 @@ async function executeRecipeTool(toolName, args, internalFetch) {
 
             const costDraft = buildRecipeCostDraft({ parts: recipeParts }, { partsCatalog: allParts });
 
-            const body = {
-                name: name,
-                spec: spec,
+            const now_r = new Date().toISOString();
+            const createRes = safeInsert('recipes', {
+                name,
+                spec,
                 parts_json: JSON.stringify(costDraft.parts),
                 saved_total_cost: costDraft.savedTotalCost,
-                saved_cost_details: costDraft.savedCostDetails
-            };
-            const now_r = new Date().toISOString();
-            const createRes = db.prepare('INSERT INTO recipes (name, spec, parts_json, saved_total_cost, saved_cost_details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
-                body.name, body.spec, body.parts_json, body.saved_total_cost, body.saved_cost_details, now_r, now_r
-            );
-            createRes.Id = createRes.lastInsertRowid;
-            const newId = createRes?.Id || createRes?.id;
+                saved_cost_details: costDraft.savedCostDetails,
+                created_at: now_r,
+                updated_at: now_r,
+            });
+            const newId = createRes.lastInsertRowid;
             if (!newId) return { success: false, error: '配方创建失败' };
             return { success: true, message: `配方"${name}"创建成功`, recipe: { id: newId, name, spec, partsCount: costDraft.parts.length, totalCost: costDraft.savedTotalCost } };
         }

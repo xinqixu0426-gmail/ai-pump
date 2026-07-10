@@ -53,14 +53,15 @@ function lengthCmQty(component, customBarrelLength) {
     return Number(customBarrelLength || Number(component.qty || 0) * 10) / 10;
 }
 
-function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATERIAL) {
-    const result = calculateCoilCost(coils, { spec, sheets, material });
+function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATERIAL, options = {}) {
+    const result = calculateCoilCost(coils, { spec, sheets, material, ...options });
     if (!result.success) return null;
     const data = result.data;
     return {
         totalCost: roundMoney(data.totalCost),
         material: data.material || material || DEFAULT_COIL_MATERIAL,
         unitPrice: data.unitPrice,
+        wireWeight: data.wireWeight,
         source: data.source,
         formula: data.formula,
         defaultCapacitor: data.capacitor || '',
@@ -115,18 +116,32 @@ function buildRecipeBomDraft(input, context) {
     const bomParts = [];
     if (template) {
         if (costMode === 'bundle') {
-            bomParts.push({ model: template.shellModel, name: '泵壳整套', supplier: '', qty: 1, snapshotPrice: shellPrice, source: 'pump_shell_template', costSource: 'manual' });
+            bomParts.push({
+                model: template.shellModel,
+                name: '泵壳整套',
+                supplier: '',
+                qty: 1,
+                snapshotPrice: shellPrice,
+                source: 'pump_shell_template',
+                costSource: 'manual',
+                formula: `泵壳整套价 ${roundMoney(shellPrice)}`,
+            });
         } else {
             shellComponents.forEach(component => {
                 if (component.included === false) return;
+                const qty = lengthCmQty(component, customBarrelLength);
+                const unitCost = Number(component.unitCost || 0);
                 bomParts.push({
                     model: component.model || component.name,
                     name: component.pricingMode === 'lengthCm' ? `${component.name}(按cm)` : component.name,
                     supplier: '',
-                    qty: lengthCmQty(component, customBarrelLength),
-                    snapshotPrice: Number(component.unitCost || 0),
+                    qty,
+                    snapshotPrice: unitCost,
                     source: 'pump_shell_template',
                     costSource: 'manual',
+                    formula: component.pricingMode === 'lengthCm'
+                        ? `${component.name}: ${unitCost}×${qty}cm`
+                        : `${component.name}: ${unitCost}×${qty}`,
                 });
             });
         }
@@ -134,10 +149,28 @@ function buildRecipeBomDraft(input, context) {
 
     templateParts.forEach(part => {
         const supplier = part.supplier || '';
-        bomParts.push({ model: part.model, name: part.name, supplier, qty: Number(part.qty || 1), snapshotPrice: getPriceByModelAndSupplier(partsCatalog, part.model, supplier) });
+        bomParts.push({
+            model: part.model,
+            name: part.name,
+            supplier,
+            qty: Number(part.qty || 1),
+            snapshotPrice: getPriceByModelAndSupplier(partsCatalog, part.model, supplier),
+            ...(part.dynamicRule === 'longScrewByBarrelLength' ? {
+                dynamicRule: part.dynamicRule,
+                barrelLength: part.barrelLength,
+                longScrewExtraLength: part.longScrewExtraLength,
+                screwLength: part.screwLength,
+                formula: `长螺丝长度=${part.barrelLength || 0}+${part.longScrewExtraLength || 0}=${part.screwLength || 0}mm`,
+            } : {}),
+        });
     });
 
-    const coilSnapshot = input.coilResult || calculateCoilSnapshot(coils, coilSpec, coilSheets, coilMaterial);
+    const customWireWeight = input.coilWireWeight !== undefined && input.coilWireWeight !== null && input.coilWireWeight !== ''
+        ? Number(input.coilWireWeight)
+        : null;
+    const coilSnapshot = input.coilResult || calculateCoilSnapshot(coils, coilSpec, coilSheets, coilMaterial, {
+        ...(customWireWeight != null && Number.isFinite(customWireWeight) ? { wireWeight: customWireWeight } : {}),
+    });
     const capacitorModel = resolveCapacitorModel(partsCatalog, input.capacitorModel, coilSnapshot);
     if (capacitorModel) {
         bomParts.push({ model: capacitorModel, name: '电容', supplier: '', qty: 1, snapshotPrice: getPriceByModelAndSupplier(partsCatalog, capacitorModel, '') });
@@ -167,7 +200,7 @@ function buildRecipeBomDraft(input, context) {
             supplier: part.supplier || '',
             qty: Number(part.qty || 1),
             snapshotPrice: manualPrice ?? getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
-            ...(manualPrice !== undefined ? { costSource: 'manual' } : {}),
+            ...(manualPrice !== undefined ? { costSource: 'manual', formula: `手输价 ${manualPrice}` } : {}),
         });
     });
 
@@ -176,14 +209,33 @@ function buildRecipeBomDraft(input, context) {
         const accessoryType = input.floatAccessoryType || 'standard';
         const basePrice = getPriceByModelAndSupplier(partsCatalog, model, '');
         const delta = accessoryType === 'xinjie' ? Number(input.floatAccessoryDelta || 0) : 0;
-        bomParts.push({ model, name: accessoryType === 'xinjie' ? '浮球-新界式' : '浮球', supplier: '', qty: 1, snapshotPrice: basePrice + delta, floatAccessoryType: accessoryType, floatAccessoryDelta: delta });
+        bomParts.push({
+            model,
+            name: accessoryType === 'xinjie' ? '浮球-新界式' : '浮球',
+            supplier: '',
+            qty: 1,
+            snapshotPrice: basePrice + delta,
+            floatAccessoryType: accessoryType,
+            floatAccessoryDelta: delta,
+            ...(delta ? { formula: `浮球目录价 ${basePrice}+新界差价 ${delta}` } : {}),
+        });
     }
 
     if (toBool(input.hasCable) && Number(input.cableLength || 0) > 0) {
         const model = wireModel('电缆', input.cableWire || '');
         const accessoryType = input.cableAccessoryType || 'standard';
-        bomParts.push({ model, name: '电缆线', supplier: '', qty: Number(input.cableLength || 0), snapshotPrice: getPriceByModelAndSupplier(partsCatalog, model, '') });
-        bomParts.push({ model: '电缆配件费', name: getCableAccessoryName(partsCatalog, model, '', accessoryType), supplier: '', qty: 1, snapshotPrice: getCableAccessoryFee(partsCatalog, model, '', accessoryType), cableAccessoryType: accessoryType });
+        const cableLength = Number(input.cableLength || 0);
+        const cablePrice = getPriceByModelAndSupplier(partsCatalog, model, '');
+        bomParts.push({ model, name: '电缆线', supplier: '', qty: cableLength, snapshotPrice: cablePrice, formula: `电缆单价 ${cablePrice}×${cableLength}m` });
+        bomParts.push({
+            model: '电缆配件费',
+            name: getCableAccessoryName(partsCatalog, model, '', accessoryType),
+            supplier: '',
+            qty: 1,
+            snapshotPrice: getCableAccessoryFee(partsCatalog, model, '', accessoryType),
+            cableAccessoryType: accessoryType,
+            formula: `电缆配件费(${accessoryType === 'xinjie' ? '新界式' : '普通'})`,
+        });
     }
 
     normalizeSelectionList(input.packingParts || input.packingPartsJson).forEach(part => {
@@ -197,7 +249,7 @@ function buildRecipeBomDraft(input, context) {
             qty: Number(part.qty || 1),
             snapshotPrice: isManual || part.snapshotPrice !== undefined ? Number(part.snapshotPrice || 0) : getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
             packagingMaterial,
-            ...(isManual ? { costSource: 'manual', source: 'manual' } : {}),
+            ...(isManual ? { costSource: 'manual', source: 'manual', formula: `手输价 ${Number(part.snapshotPrice || 0)}` } : {}),
         });
     });
 

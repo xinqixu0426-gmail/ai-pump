@@ -1,6 +1,26 @@
 const { Router } = require('express');
-const { db, dbGetAllParts, partRow, extractPartFields, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
+const { db, dbGetAllParts, partRow, extractPartFields, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
+const { parsePositiveId, parseFiniteNumber } = require('../services/validation.cjs');
 const router = Router();
+
+function partUpdatesFromBody(body) {
+    const f = extractPartFields(body);
+    const updates = {};
+    if (body.model !== undefined) updates.model = f.model;
+    if (body.category !== undefined) updates.category = f.category;
+    if (body.price !== undefined) updates.price = f.price;
+    if (body.supplier !== undefined) updates.supplier = f.supplier;
+    if (body.stock !== undefined) updates.stock = f.stock;
+    if (body.notes !== undefined || body.remark !== undefined) updates.remark = f.remark;
+    return updates;
+}
+
+function updatePartRecord(id, body) {
+    const updates = partUpdatesFromBody(body || {});
+    safeUpdate('parts', id, updates);
+    invalidatePartsCache();
+    return partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id));
+}
 
 router.get('/', (req, res) => {
     try { res.json({ success: true, data: dbGetAllParts() }); }
@@ -11,44 +31,27 @@ router.post('/', (req, res) => {
     try {
         const f = extractPartFields(req.body);
         const now = new Date().toISOString();
-        const info = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(f.model, f.category, f.price, f.supplier, f.stock, f.remark, now, now);
+        const info = safeInsert('parts', { model: f.model, category: f.category, price: f.price, supplier: f.supplier, stock: f.stock, remark: f.remark, created_at: now, updated_at: now });
         invalidatePartsCache();
         res.json({ success: true, data: partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.patch('/', (req, res) => {
+router.patch('/:id', (req, res) => {
     try {
-        const id = req.body.Id || req.body.id;
-        const f = extractPartFields(req.body);
-        const updates = {};
-        if (req.body.model !== undefined) updates.model = f.model;
-        if (req.body.category !== undefined) updates.category = f.category;
-        if (req.body.price !== undefined) updates.price = f.price;
-        if (req.body.supplier !== undefined) updates.supplier = f.supplier;
-        if (req.body.stock !== undefined) updates.stock = f.stock;
-        if (req.body.notes !== undefined || req.body.remark !== undefined) updates.remark = f.remark;
-        safeUpdate('parts', id, updates);
-        invalidatePartsCache();
-        res.json({ success: true, data: partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id)) });
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法零件ID' });
+        res.json({ success: true, data: updatePartRecord(id, req.body) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-router.delete('/', (req, res) => {
+router.delete('/:id', (req, res) => {
     try {
-        const items = Array.isArray(req.body) ? req.body : [req.body];
-        let deleted = 0;
-        for (const item of items) {
-            const id = item.Id || item.id;
-            if (!id || isNaN(Number(id))) continue;
-            softDelete('parts', Number(id));
-            deleted++;
-        }
-        if (items.length > 0 && deleted === 0) {
-            return res.status(400).json({ success: false, error: '没有有效的零件 ID' });
-        }
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法零件ID' });
+        softDelete('parts', id);
         invalidatePartsCache();
-        res.json({ success: true, data: { deleted } });
+        res.json({ success: true, data: { deleted: 1 } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -58,13 +61,19 @@ router.post('/batch-stock', (req, res) => {
         if (!Array.isArray(operations) || operations.length === 0) {
             return res.status(400).json({ success: false, error: 'operations 数组不能为空' });
         }
+        for (const op of operations) {
+            const id = parsePositiveId(op.partId);
+            if (!id) return res.status(400).json({ success: false, error: 'partId 必须是正整数' });
+            try { parseFiniteNumber(op.delta, 'delta'); }
+            catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+        }
         const batch = db.transaction((ops) => {
             for (const op of ops) {
-                const id = Number(op.partId || op.id || op.Id);
-                if (!id || Number.isNaN(id)) continue;
+                const id = parsePositiveId(op.partId);
+                const delta = parseFiniteNumber(op.delta, 'delta');
                 const current = db.prepare('SELECT stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(id);
                 if (!current) continue;
-                const stock = Math.max(0, Number(current.stock || 0) + Number(op.delta || 0));
+                const stock = Math.max(0, Number(current.stock || 0) + delta);
                 safeUpdate('parts', id, { stock });
             }
         });

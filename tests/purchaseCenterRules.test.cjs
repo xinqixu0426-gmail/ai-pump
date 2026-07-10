@@ -7,7 +7,7 @@ const ts = require('typescript');
 const sourcePath = path.join(__dirname, '../src/utils/purchaseCenterRules.ts');
 const source = fs.readFileSync(sourcePath, 'utf8')
     .replace(/import[^;]+;\n/g, '');
-const compiled = ts.transpileModule(`${source}\nmodule.exports = { supplierLabel, taskStatus, statusText, statusColor, buildPurchaseTasks, buildPurchaseStats, buildUpdatedOrders };`, {
+const compiled = ts.transpileModule(`${source}\nmodule.exports = { supplierLabel, taskStatus, statusText, statusColor, buildPurchaseTasks, buildPurchaseStats };`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
 const moduleStub = { exports: {} };
@@ -20,7 +20,6 @@ const {
     statusColor,
     buildPurchaseTasks,
     buildPurchaseStats,
-    buildUpdatedOrders,
 } = moduleStub.exports;
 
 function order(overrides) {
@@ -93,7 +92,6 @@ test('采购中心规则按供应商和型号聚合未完成订单采购需求',
     assert.equal(statusColor(taskStatus(bearing)), 'info');
     assert.equal(screw.supplierLabel, '未指定供应商');
 });
-
 test('采购中心规则生成统计摘要', () => {
     const orders = [
         order({ id: 'o1', purchaseList: [purchase({ model: 'A', supplier: 'S1', needToBuy: 3 })] }),
@@ -112,25 +110,4 @@ test('采购中心规则生成统计摘要', () => {
         pendingNeed: 3,
         totalNeed: 5,
     });
-});
-
-test('采购中心规则批量更新采购状态并保持非目标采购项不变', () => {
-    const targetOrder = order({
-        id: 'o1',
-        status: '待采购',
-        purchaseList: [
-            purchase({ model: '轴承A', supplier: 'S1', needToBuy: 3 }),
-            purchase({ model: '轴承A', supplier: 'S2', needToBuy: 4 }),
-            purchase({ model: '无需求', supplier: 'S1', needToBuy: 0 }),
-        ],
-    });
-    const task = buildPurchaseTasks([targetOrder]).find(item => item.key === 'S1||轴承A');
-    const updated = buildUpdatedOrders(task.affected, true, '2026-06-29T08:00:00.000Z');
-
-    assert.equal(updated.length, 1);
-    assert.equal(updated[0].status, '采购中');
-    assert.equal(updated[0].updatedAt, '2026-06-29T08:00:00.000Z');
-    assert.equal(updated[0].purchaseList[0].purchased, true);
-    assert.equal(updated[0].purchaseList[1].purchased, false);
-    assert.equal(updated[0].purchaseList[2].purchased, false);
 });

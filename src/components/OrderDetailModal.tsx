@@ -31,15 +31,15 @@ import {
   Package as InventoryIcon,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
-import { saveOrder } from '../utils/orderStore';
-import { batchAddStock } from '../utils/api';
+import {
+  completeOrderPurchase,
+  setOrderStatus,
+  toggleOrderPurchaseItem,
+  toggleOrderTodoItem,
+} from '../utils/orderStore';
 import {
   ORDER_STATUS_COLOR,
-  completePurchaseOrder,
   orderPurchaseProgress,
-  togglePurchaseItem,
-  toggleTodoItem,
-  updateOrderStatus,
 } from '../utils/orderLifecycleRules';
 
 interface Props {
@@ -58,23 +58,22 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
 
   // 切换单条采购项的已采购状态
   const togglePurchased = async (model: string, supplier: string) => {
-    const updated = togglePurchaseItem(localOrder, model, supplier);
+    const updated = await toggleOrderPurchaseItem(localOrder, model, supplier);
     setLocalOrder(updated);
-    await saveOrder(updated);
+    onUpdated();
   };
 
   // 切换 to-do 完成状态
   const toggleTodo = async (id: string) => {
-    const updated = toggleTodoItem(localOrder, id);
+    const updated = await toggleOrderTodoItem(localOrder, id);
     setLocalOrder(updated);
-    await saveOrder(updated);
+    onUpdated();
   };
 
   // 更新订单状态
   const setStatus = async (status: OrderStatus) => {
-    const updated = updateOrderStatus(localOrder, status);
+    const updated = await setOrderStatus(localOrder, status);
     setLocalOrder(updated);
-    await saveOrder(updated);
     onUpdated();
   };
 
@@ -84,14 +83,8 @@ export default function OrderDetailModal({ order, onClose, onUpdated }: Props) {
     setConfirming(true);
     setError('');
     try {
-      // 使用最新的 localOrder 快照
-      const currentOrder = localOrder;
-      const { order: updated, additions } = completePurchaseOrder(currentOrder);
-      if (additions.length > 0) {
-        await batchAddStock(additions);
-      }
+      const { order: updated, additions } = await completeOrderPurchase(localOrder);
       setLocalOrder(updated);
-      await saveOrder(updated);
       setSuccessMsg(`入库完成！共更新 ${additions.length} 种零件库存。`);
       onUpdated();
     } catch (e) {

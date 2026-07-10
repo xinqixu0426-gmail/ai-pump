@@ -106,15 +106,14 @@ test('订单表单规则组装提交订单并校验步骤', () => {
         remark: '备注',
         editOrderId: '88',
         draftItems: [{ id: 'a', qty: 2, unitCost: 10, unitPrice: 12, profitMargin: 1.2, recipeName: 'R', partsJson: '[]' }],
-        purchaseList: [{ model: 'A', name: 'A', supplier: 'S', totalQty: 1, currentStock: 0, needToBuy: 1, purchased: false }],
-        todos: [{ id: 't', supplier: 'S', description: '买 A', done: false }],
         orderTotals: { totalCost: 20, totalPrice: 24, totalProfit: 4 },
     });
 
     assert.equal(order.id, '88');
     assert.equal(order.customerName, '客户A');
     assert.equal(order.items.length, 1);
-    assert.equal(order.purchaseList.length, 1);
+    assert.equal(order.purchaseList.length, 0);
+    assert.equal(order.todos.length, 0);
     assert.equal(order.totalProfit, 4);
     assert.equal(canAdvanceOrderStep(0, ' ', 1), false);
     assert.equal(canAdvanceOrderStep(1, '客户A', 0), false);

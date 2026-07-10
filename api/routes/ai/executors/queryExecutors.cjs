@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, partRow, invalidatePartsCache, safeUpdate, softDelete } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, partRow, invalidatePartsCache, safeInsert, safeUpdate, softDelete } = require('../../../db.cjs');
 const { buildBusinessSummary } = require('../../../services/businessSummary.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
@@ -66,13 +66,19 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '缺少必要参数：型号或单价' };
             }
 
-            // 1. 发起创建请求
             const now = new Date().toISOString();
-            const createRes = db.prepare('INSERT INTO parts (model, category, price, supplier, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(model, category, price, supplier, stock, now, now);
+            const createRes = safeInsert('parts', {
+                model,
+                category,
+                price,
+                supplier,
+                stock,
+                created_at: now,
+                updated_at: now,
+            });
             invalidatePartsCache();
-            createRes.Id = createRes.lastInsertRowid;
 
-            const newId = createRes?.Id || createRes?.id;
+            const newId = createRes.lastInsertRowid;
             if (!newId) {
                 return { success: false, error: '数据库未返回有效ID，录入可能失败。返回内容: ' + JSON.stringify(createRes).slice(0, 200) };
             }

@@ -3,13 +3,14 @@ import type { ReactNode } from 'react';
 import {
   Paper, Typography, Box, Button, TextField, Select, MenuItem, FormControl,
   InputLabel, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Dialog, DialogActions, DialogContent, DialogTitle, Chip, Tooltip,
+  IconButton, Dialog, DialogActions, DialogContent, DialogTitle, Chip, Tooltip, InputAdornment,
 } from '@mui/material';
-import { Copy as CopyIcon, Edit3 as EditIcon, Plus as AddIcon, Trash2 as DeleteIcon } from 'lucide-react';
+import { Copy as CopyIcon, Edit3 as EditIcon, Plus as AddIcon, Trash2 as DeleteIcon, Search as SearchIcon } from 'lucide-react';
 import { PumpModelVariant, PumpShellTemplate } from '../types';
 import { createModelVariant, deleteModelVariant, updateModelVariant, proxyRequest } from '../utils/api';
 import { CoilSpecInfo } from './recipe/recipeFormConstants';
 import { DEFAULT_COIL_MATERIAL, DEFAULT_LONG_SCREW_EXTRA_LENGTH } from '../utils/businessRules';
+import { entityId } from '../utils/entityFields';
 
 interface Props {
   variants: PumpModelVariant[];
@@ -97,10 +98,12 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecInfo[]>([]);
+  const [query, setQuery] = useState('');
+  const [templateFilter, setTemplateFilter] = useState('');
 
   const templateNameById = useMemo(() => {
     const map = new Map<number, string>();
-    templates.forEach(t => map.set(t.Id, t.shellModel));
+    templates.forEach(t => map.set(entityId(t), t.shellModel));
     return map;
   }, [templates]);
 
@@ -192,7 +195,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
     };
     setSaving(true);
     try {
-      if (editing) await updateModelVariant(editing.Id, payload);
+      if (editing) await updateModelVariant(entityId(editing), payload);
       else await createModelVariant(payload);
       setOpen(false);
       await reload();
@@ -215,17 +218,37 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
 
   const selectedCoil = coilSpecs.find(s => s.spec === form.coilSpec);
   const materialOptions = selectedCoil?.materials?.length ? selectedCoil.materials : [DEFAULT_COIL_MATERIAL];
+  const filteredVariants = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return variants.filter(variant => {
+      if (templateFilter && String(variant.templateId) !== templateFilter) return false;
+      if (!q) return true;
+      const customText = parseCustomFields(variant.customFieldsJson).map(field => `${field.label} ${field.value}`).join(' ');
+      const text = [
+        variant.modelName,
+        templateNameById.get(variant.templateId),
+        variant.coilSpec,
+        variant.coilSheets,
+        variant.coilMaterial,
+        variant.impellerModel,
+        variant.note,
+        customText,
+      ].join(' ').toLowerCase();
+      return text.includes(q);
+    });
+  }, [variants, templateFilter, query, templateNameById]);
 
   return (
     <>
       <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="h6" fontWeight={700}>常用配置</Typography>
             <Typography variant="caption" color="text.secondary">
               保存常用的“泵壳模板 + 线圈片数 + 叶轮/机筒参数”，新建配方时可直接带入，也可在配方中覆盖。
             </Typography>
           </Box>
+          <Chip label={`${filteredVariants.length} / ${variants.length}`} size="small" variant="outlined" sx={{ mr: 1, fontWeight: 700 }} />
           <Button variant="contained" size="small" startIcon={<AddIcon size={16} />} onClick={openCreate}>新建配置</Button>
         </Box>
         {variants.length === 0 ? (
@@ -233,6 +256,37 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
             <Typography variant="body2">还没有常用配置。可以先从配方直接核算，确认会复用后再保存为常用配置。</Typography>
           </Box>
         ) : (
+          <>
+          <Box sx={{ p: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap', borderBottom: '1px solid', borderColor: 'divider' }}>
+            <TextField
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索配置 / 线圈 / 叶轮 / 备注"
+              size="small"
+              sx={{ width: { xs: '100%', sm: 320 } }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon size={16} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+              <InputLabel>泵壳模板</InputLabel>
+              <Select value={templateFilter} label="泵壳模板" onChange={e => setTemplateFilter(e.target.value)}>
+                <MenuItem value="">全部模板</MenuItem>
+                {templates.map(template => (
+                  <MenuItem key={entityId(template)} value={String(entityId(template))}>{template.shellModel}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          {filteredVariants.length === 0 ? (
+            <Box textAlign="center" py={6} color="text.secondary">
+              <Typography variant="body2">没有匹配的常用配置</Typography>
+            </Box>
+          ) : (
           <TableContainer>
             <Table size="small">
               <TableHead>
@@ -248,8 +302,10 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                 </TableRow>
               </TableHead>
               <TableBody>
-                {variants.map(v => (
-                  <TableRow key={v.Id} hover>
+                {filteredVariants.map(v => {
+                  const variantId = entityId(v);
+                  return (
+                  <TableRow key={variantId} hover>
                     <TableCell><Typography fontWeight={700}>{v.modelName}</Typography></TableCell>
                     <TableCell>{templateNameById.get(v.templateId) || '-'}</TableCell>
                     <TableCell>{v.coilSpec ? `${v.coilSpec}-${v.coilSheets || 0} / ${v.coilMaterial || DEFAULT_COIL_MATERIAL}` : '-'}</TableCell>
@@ -287,14 +343,17 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                         <IconButton size="small" color="warning" aria-label="编辑常用配置" onClick={() => openEdit(v)}><EditIcon size={16} /></IconButton>
                       </Tooltip>
                       <Tooltip title="删除">
-                        <IconButton size="small" color="error" aria-label="删除常用配置" onClick={() => remove(v.Id)}><DeleteIcon size={16} /></IconButton>
+                        <IconButton size="small" color="error" aria-label="删除常用配置" onClick={() => remove(variantId)}><DeleteIcon size={16} /></IconButton>
                       </Tooltip>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
+          )}
+          </>
         )}
       </Paper>
 
@@ -308,7 +367,7 @@ export default function ModelVariantSection({ variants, templates, reload, setEr
                 <FormControl size="small" required>
                   <InputLabel>共用泵壳模板</InputLabel>
                   <Select value={form.templateId} label="共用泵壳模板" onChange={e => updateField('templateId', e.target.value)}>
-                    {templates.map(t => <MenuItem key={t.Id} value={String(t.Id)}>{t.shellModel}</MenuItem>)}
+                    {templates.map(t => <MenuItem key={entityId(t)} value={String(entityId(t))}>{t.shellModel}</MenuItem>)}
                   </Select>
                 </FormControl>
               </Box>

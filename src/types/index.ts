@@ -2,6 +2,7 @@
 
 /** 零件 */
 export interface Part {
+  id?: number;
   Id: number;
   model: string;
   category: string;
@@ -10,6 +11,8 @@ export interface Part {
   stock: number;
   remark?: string;
   notes?: string; // JSON 字符串，泵壳类扩展属性（如不锈钢机筒参数）
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -67,6 +70,7 @@ export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'po
 
 /** 泵壳模板 */
 export interface PumpShellTemplate {
+  id?: number;
   Id: number;
   shellModel: string;
   description: string;
@@ -78,12 +82,15 @@ export interface PumpShellTemplate {
   paintingWage: number | null;
   costMode?: 'bundle' | 'components';
   bundleCost?: number;
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
 
 /** 泵型号变体：同一泵壳模板下的具体功率/叶轮配置 */
 export interface PumpModelVariant {
+  id?: number;
   Id: number;
   modelName: string;
   templateId: number;
@@ -98,12 +105,15 @@ export interface PumpModelVariant {
   impellerBladeCount?: number | null;
   note?: string;
   customFieldsJson?: string;
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
 
 /** 配方 */
 export interface Recipe {
+  id?: number;
   Id: number;
   name: string;
   spec: string;
@@ -137,6 +147,8 @@ export interface Recipe {
   surfaceTreatmentMode?: SurfaceTreatmentMode;
   surfaceTreatmentCost?: number;
   managementFee?: number;
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -287,11 +299,14 @@ export interface Order {
 // ====== 客户与报价单 ======
 
 export interface Customer {
+  id?: number;
   Id: number;
   name: string;
   contactInfo: string;
   defaultMargin: number;
   remark?: string;
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -304,6 +319,7 @@ export interface CustomerInput {
 }
 
 export interface Quotation {
+  id?: number;
   Id: number;
   customerId: number;
   status: string;
@@ -311,6 +327,8 @@ export interface Quotation {
   totalCost: number;
   totalPrice: number;
   remark?: string;
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -352,9 +370,10 @@ export interface QuotationItem {
 export interface QuotationInput {
   customerId: number | '';
   status: string;
-  itemsJson: string;
-  totalCost: number;
-  totalPrice: number;
+  items?: QuotationItem[];
+  itemsJson?: string;
+  totalCost?: number;
+  totalPrice?: number;
   remark?: string;
 }
 

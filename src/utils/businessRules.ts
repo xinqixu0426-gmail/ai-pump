@@ -43,6 +43,17 @@ export function wireModel(prefix: '浮球' | '电缆', wire: string): string {
   return `${prefix}-线径${wire}`;
 }
 
+/**
+ * 解析线径/型号值，兼容旧格式（仅线径数字，如 "2.5"）和新格式（完整型号名，如 "浮球-线径2.5"）
+ */
+export function resolveWireModel(prefix: '浮球' | '电缆', wire: string): string {
+  if (!wire) return '';
+  // 已是完整型号名（如 "浮球-线径2.5"），直接返回
+  if (wire.startsWith(prefix + '-')) return wire;
+  // 旧格式：仅线径（如 "2.5"），拼接前缀
+  return wireModel(prefix, wire);
+}
+
 export function uniqueModelsByCategory(parts: Part[], category: string): string[] {
   const models = new Set<string>();
   parts.forEach(part => {

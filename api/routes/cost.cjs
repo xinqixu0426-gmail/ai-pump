@@ -30,7 +30,7 @@ router.get('/health', (req, res) => {
     res.json({ status: 'ok', message: '水泵BOM成本查询API运行中', timestamp: new Date().toISOString() });
 });
 
-// ── POST /cost/calculate ──
+// ── POST /cost/parts ──
 function calculatePartsCostHandler(req, res) {
     try {
         const { parts } = req.body;
@@ -42,7 +42,7 @@ function calculatePartsCostHandler(req, res) {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 }
 
-router.post(['/cost/parts', '/cost/calculate'], calculatePartsCostHandler);
+router.post('/cost/parts', calculatePartsCostHandler);
 
 // ── GET /cost/recipe/by-name ──
 router.get('/cost/recipe/by-name', (req, res) => {
@@ -66,7 +66,6 @@ router.get('/cost/recipe/by-name', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// ── GET /cost/recipe/:id ──
 function calculateRecipeByIdHandler(req, res) {
     try {
         const recipeId = req.params.id;
@@ -83,7 +82,7 @@ function calculateRecipeByIdHandler(req, res) {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 }
 
-router.get(['/recipes/:id/cost', '/cost/recipe/:id'], calculateRecipeByIdHandler);
+router.get('/recipes/:id/cost', calculateRecipeByIdHandler);
 
 router.post('/cost/coil', calculateCoilCostHandler);
 
@@ -114,8 +113,8 @@ router.post('/cost/overhead', (req, res) => {
     } catch (error) { res.status(400).json({ success: false, error: error.message }); }
 });
 
-// ── POST /cost/dynamic-config ──
-router.post(['/cost/dynamic', '/cost/dynamic-config'], (req, res) => {
+// ── POST /cost/dynamic ──
+router.post('/cost/dynamic', (req, res) => {
     try {
         const { stator, statorSpec: rawSpec, statorSheets: rawSheets, hasFloat, floatWire, floatAccessoryType = 'standard', hasCable, cableWire, cableLength, cableAccessoryType = 'standard', boxType } = req.body;
         let statorSpec = rawSpec, statorSheets = rawSheets;
@@ -138,9 +137,9 @@ router.post(['/cost/dynamic', '/cost/dynamic-config'], (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// ── POST /cost/dynamic-calculate ──
-router.post(['/recipes/:id/cost-preview', '/cost/dynamic-calculate'], (req, res) => {
-    const baseRecipeId = req.params.id || req.body.baseRecipeId;
+// ── POST /recipes/:id/cost-preview ──
+router.post('/recipes/:id/cost-preview', (req, res) => {
+    const baseRecipeId = req.params.id;
     const { overrides = {} } = req.body;
     try {
         const row = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(baseRecipeId);
@@ -155,17 +154,14 @@ router.post(['/recipes/:id/cost-preview', '/cost/dynamic-calculate'], (req, res)
             getSetting,
         });
         costLogger.info(`DynamicCalc recipe=${result.recipeName}, unitCost=${result.unitCost}`);
-        const unitCost = result.unitCost;
-        const response = { success: true, data: { unitCost } };
-        if (req.path === '/cost/dynamic-calculate') response.unitCost = unitCost; // legacy
-        res.json(response);
+        res.json({ success: true, data: { unitCost: result.unitCost } });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// ── POST /cost/full-calculate ──
-router.post(['/cost/full-estimate', '/cost/full-calculate'], (req, res) => {
+// ── POST /cost/full-estimate ──
+router.post('/cost/full-estimate', (req, res) => {
     try {
         const { pumphousing_model, stator, cableLength = 0, floatAccessoryType = 'standard', cableAccessoryType = 'standard', boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
         const statorMaterial = req.body.statorMaterial || req.body.material || DEFAULT_COIL_MATERIAL;

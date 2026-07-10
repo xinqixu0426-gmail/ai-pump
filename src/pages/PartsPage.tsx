@@ -49,6 +49,7 @@ import { Part } from '../types';
 import { createPart, updatePart, deletePart, deleteParts } from '../utils/api';
 import { useAppStore } from '../utils/store';
 import { colors, gradients } from '../utils/theme';
+import { entityId } from '../utils/entityFields';
 
 import { BUILTIN_CATEGORIES, loadCustomCategories, getCatColor, getCatIcon } from '../components/parts/partsConstants';
 import CategoryManagerDialog from '../components/parts/CategoryManagerDialog';
@@ -188,7 +189,7 @@ export default function PartsPage() {
     try {
       setSaving(true);
       if (editingPart) {
-        await updatePart(editingPart.Id, partData);
+        await updatePart(entityId(editingPart), partData);
         showSnackbar(`零件「${partData.model}」已更新`);
       } else {
         await createPart(partData);
@@ -243,7 +244,7 @@ export default function PartsPage() {
   };
   
   const handleSelectGroup = (catParts: Part[]) => {
-    const ids = catParts.map(p => p.Id);
+    const ids = catParts.map(entityId);
     const allSelected = ids.every(id => selectedIds.includes(id));
     if (allSelected) {
       setSelectedIds(prev => prev.filter(x => !ids.includes(x)));
@@ -373,8 +374,8 @@ export default function PartsPage() {
                 >
                   <Checkbox 
                     size="small" 
-                    checked={catParts.length > 0 && catParts.every(p => selectedIds.includes(p.Id))}
-                    indeterminate={catParts.some(p => selectedIds.includes(p.Id)) && !catParts.every(p => selectedIds.includes(p.Id))}
+                    checked={catParts.length > 0 && catParts.every(p => selectedIds.includes(entityId(p)))}
+                    indeterminate={catParts.some(p => selectedIds.includes(entityId(p))) && !catParts.every(p => selectedIds.includes(entityId(p)))}
                     onChange={() => handleSelectGroup(catParts)}
                     onClick={(e) => e.stopPropagation()}
                     sx={{ p: 0.5, color: cc.text, '&.Mui-checked, &.MuiCheckbox-indeterminate': { color: cc.text } }}
@@ -397,7 +398,7 @@ export default function PartsPage() {
                     ))}
                   </Box>
                   {catParts.map((p, idx) => (
-                    <PartRow key={p.Id} part={p} onEdit={handleEdit} onDelete={handleDelete} index={idx} selected={selectedIds.includes(p.Id)} onSelect={toggleSelect} />
+                    <PartRow key={entityId(p)} part={p} onEdit={handleEdit} onDelete={handleDelete} index={idx} selected={selectedIds.includes(entityId(p))} onSelect={toggleSelect} />
                   ))}
                 </Collapse>
               </Box>
@@ -474,7 +475,7 @@ export default function PartsPage() {
           <Box sx={{ width: 1, height: 24, bgcolor: 'rgba(255,255,255,0.2)' }} />
           <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<LocalOfferIcon />} onClick={() => showSnackbar('批量调价功能开发中', 'info')}>批量调价</Button>
           <Button variant="text" size="small" sx={{ color: 'white', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }} startIcon={<DownloadIcon />} onClick={() => {
-            const selected = parts.filter(p => selectedIds.includes(p.Id));
+            const selected = parts.filter(p => selectedIds.includes(entityId(p)));
             const header = '型号,分类,单价,供应商,库存,备注';
             const rows = selected.map(p => [p.model, p.category, p.price, p.supplier, p.stock, (p.notes || '').replace(/,/g, '，')].join(','));
             const csv = '\uFEFF' + [header, ...rows].join('\n');

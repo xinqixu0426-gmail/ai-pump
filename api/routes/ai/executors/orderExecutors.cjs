@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, updateOrderFields, softDelete } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, safeInsert, updateOrderFields, softDelete } = require('../../../db.cjs');
 const { buildOrderPlan } = require('../../../services/orderPlanning.cjs');
 const { resolveRecipeLockedUnitCost } = require('../../../services/orderCostLock.cjs');
 
@@ -38,12 +38,18 @@ async function executeOrderTool(toolName, args, internalFetch) {
             }
 
             const now_o = new Date().toISOString();
-            const createRes = db.prepare('INSERT INTO orders (customer_name, contract_no, remark, status, items_json, purchase_list_json, todos_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-                customerName, contractNo, remark, status, JSON.stringify(orderItems),
-                '[]', '[]', now_o, now_o
-            );
-            createRes.Id = createRes.lastInsertRowid;
-            const newId = createRes?.Id || createRes?.id;
+            const createRes = safeInsert('orders', {
+                customer_name: customerName,
+                contract_no: contractNo,
+                remark,
+                status,
+                items_json: JSON.stringify(orderItems),
+                purchase_list_json: '[]',
+                todos_json: '[]',
+                created_at: now_o,
+                updated_at: now_o,
+            });
+            const newId = createRes.lastInsertRowid;
             if (!newId) {
                 return { success: false, error: '数据库未返回有效ID，订单创建可能失败' };
             }

@@ -1,6 +1,10 @@
-import { CostResult, Order, OrderItem, PurchaseItem, Recipe, RecipePart, TodoItem } from '../types';
+import { CostResult, Order, OrderItem, Recipe, RecipePart } from '../types';
 import { createEmptyOrder, createOrderItem, HistoryPrice } from './orderStore';
 import { roundMoney } from './businessRules';
+
+function resourceId(entity: { id?: number; Id?: number }): number {
+  return entity.id ?? entity['Id'] ?? 0;
+}
 
 type CostCalculator = (parts: RecipePart[]) => Promise<CostResult>;
 type HistoryFinder = (recipeName: string) => Promise<HistoryPrice | null>;
@@ -42,7 +46,7 @@ export async function buildDraftOrderItem(input: {
   const qty = Math.max(1, Number(input.qty || 1));
   const unitCost = await resolveRecipeUnitCost(recipe, calculateCost);
   const recipeName = recipe.name;
-  const item = createOrderItem(recipeName, recipe.partsJson, qty, unitCost, recipe.Id, recipe.spec);
+  const item = createOrderItem(recipeName, recipe.partsJson, qty, unitCost, resourceId(recipe), recipe.spec);
 
   let history: HistoryPrice | null;
   if (historyCache.has(recipeName)) {
@@ -86,8 +90,6 @@ export function buildOrderForSubmit(input: {
   remark: string;
   editOrderId?: string | null;
   draftItems: DraftOrderItem[];
-  purchaseList: PurchaseItem[];
-  todos: TodoItem[];
   orderTotals: { totalCost: number; totalPrice: number; totalProfit: number };
 }): Order {
   const order = createEmptyOrder(
@@ -98,8 +100,6 @@ export function buildOrderForSubmit(input: {
   if (input.editOrderId) order.id = input.editOrderId;
 
   order.items = input.draftItems;
-  order.purchaseList = input.purchaseList;
-  order.todos = input.todos;
   order.totalCost = input.orderTotals.totalCost;
   order.totalPrice = input.orderTotals.totalPrice;
   order.totalProfit = input.orderTotals.totalProfit;

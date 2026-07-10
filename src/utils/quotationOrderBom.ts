@@ -1,5 +1,5 @@
 import { CableAccessoryType, DynamicCostOverrides, RecipePart } from '../types';
-import { inferPackingMaterial, wireModel } from './businessRules';
+import { inferPackingMaterial, resolveWireModel } from './businessRules';
 
 type PriceGetter = (model: string, supplier?: string) => number;
 type CableAccessoryFeeGetter = (model: string, supplier: string, accessoryType: CableAccessoryType) => number;
@@ -46,7 +46,7 @@ export function buildOrderBomFromQuotation(input: {
 
   if (overrides.hasFloat) {
     const floatWire = String(overrides.floatWire || '');
-    const model = wireModel('浮球', floatWire);
+    const model = resolveWireModel('浮球', floatWire);
     const accessoryType = overrides.floatAccessoryType || 'standard';
     parts.push({
       model,
@@ -60,7 +60,7 @@ export function buildOrderBomFromQuotation(input: {
 
   if (overrides.hasCable && Number(overrides.cableLength || 0) > 0) {
     const cableWire = String(overrides.cableWire || '');
-    const model = wireModel('电缆', cableWire);
+    const model = resolveWireModel('电缆', cableWire);
     const accessoryType = overrides.cableAccessoryType || 'standard';
     parts.push({
       model,

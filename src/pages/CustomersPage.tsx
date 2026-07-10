@@ -23,6 +23,7 @@ import { Plus, Edit, Trash2, FileText, ArrowRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useAppStore } from '../utils/store';
 import { createCustomer, updateCustomer, deleteCustomer, deleteQuotation } from '../utils/api';
+import { entityCreatedAt, entityId } from '../utils/entityFields';
 import { Customer, CustomerInput } from '../types';
 import {
   calculateCustomerQuotationStats,
@@ -56,20 +57,20 @@ export default function CustomersPage() {
 
   useEffect(() => {
     if (!navigationState?.customerId || consumedNavigationRef.current === location.key) return;
-    const target = customers.find(c => c.Id === Number(navigationState.customerId));
+    const target = customers.find(c => entityId(c) === Number(navigationState.customerId));
     if (!target) return;
 
-    setSelectedCustomerId(target.Id);
+    setSelectedCustomerId(entityId(target));
     consumedNavigationRef.current = location.key;
     navigate(location.pathname, { replace: true, state: null });
   }, [navigationState?.customerId, customers, location.key, location.pathname, navigate]);
 
   useEffect(() => {
     if (selectedCustomerId || customers.length === 0) return;
-    setSelectedCustomerId(customers[0].Id);
+    setSelectedCustomerId(entityId(customers[0]));
   }, [customers, selectedCustomerId]);
 
-  const selectedCustomer = customers.find(c => c.Id === selectedCustomerId) || null;
+  const selectedCustomer = customers.find(c => entityId(c) === selectedCustomerId) || null;
   const customerQuotations = useMemo(
     () => quotationsForCustomer(quotations, selectedCustomerId),
     [quotations, selectedCustomerId]
@@ -81,13 +82,13 @@ export default function CustomersPage() {
   const handleSave = async () => {
     try {
       if (editing) {
-        await updateCustomer(editing.Id, form);
+        await updateCustomer(entityId(editing), form);
         await fetchCustomers(true);
       } else {
         await createCustomer(form);
         const refreshed = await fetchCustomers(true);
         const created = refreshed.find(c => c.name === form.name);
-        if (created) setSelectedCustomerId(created.Id);
+        if (created) setSelectedCustomerId(entityId(created));
       }
       setOpen(false);
       showSnackbar('客户保存成功', 'success');
@@ -154,14 +155,15 @@ export default function CustomersPage() {
             </TableHead>
             <TableBody>
               {customers.map(c => {
-                const selected = c.Id === selectedCustomerId;
-                const quoteCount = quotationCounts.get(c.Id) || 0;
+                const id = entityId(c);
+                const selected = id === selectedCustomerId;
+                const quoteCount = quotationCounts.get(id) || 0;
                 return (
                   <TableRow
-                    key={c.Id}
+                    key={id}
                     hover
                     selected={selected}
-                    onClick={() => setSelectedCustomerId(c.Id)}
+                    onClick={() => setSelectedCustomerId(id)}
                     sx={{ cursor: 'pointer' }}
                   >
                     <TableCell>
@@ -174,7 +176,7 @@ export default function CustomersPage() {
                     <TableCell align="right">{(c.defaultMargin * 100).toFixed(0)}%</TableCell>
                     <TableCell align="right" onClick={e => e.stopPropagation()}>
                       <IconButton size="small" aria-label="编辑客户" onClick={() => openForm(c)}><Edit size={16} /></IconButton>
-                      <IconButton size="small" color="error" aria-label="删除客户" onClick={() => handleDelete(c.Id)}><Trash2 size={16} /></IconButton>
+                      <IconButton size="small" color="error" aria-label="删除客户" onClick={() => handleDelete(id)}><Trash2 size={16} /></IconButton>
                     </TableCell>
                   </TableRow>
                 );
@@ -229,17 +231,17 @@ export default function CustomersPage() {
             </TableHead>
             <TableBody>
               {customerQuotations.map(q => (
-                <TableRow key={q.Id}>
+                <TableRow key={entityId(q)}>
                   <TableCell><Chip size="small" label={q.status} color={quotationStatusColor(q.status)} /></TableCell>
                   <TableCell>¥{Number(q.totalCost || 0).toFixed(2)}</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>¥{Number(q.totalPrice || 0).toFixed(2)}</TableCell>
                   <TableCell>{q.remark || '-'}</TableCell>
-                  <TableCell>{q.CreatedAt ? new Date(q.CreatedAt).toLocaleDateString() : '-'}</TableCell>
+                  <TableCell>{entityCreatedAt(q) ? new Date(entityCreatedAt(q) as string).toLocaleDateString() : '-'}</TableCell>
                   <TableCell align="right">
                     <Tooltip title="在报价单页编辑">
                       <IconButton size="small" aria-label="在报价单页编辑" onClick={() => navigate('/quotations')}><ArrowRight size={16} /></IconButton>
                     </Tooltip>
-                    <IconButton size="small" color="error" aria-label="删除报价单" onClick={() => handleDeleteQuotation(q.Id)}><Trash2 size={16} /></IconButton>
+                    <IconButton size="small" color="error" aria-label="删除报价单" onClick={() => handleDeleteQuotation(entityId(q))}><Trash2 size={16} /></IconButton>
                   </TableCell>
                 </TableRow>
               ))}

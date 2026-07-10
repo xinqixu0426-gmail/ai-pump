@@ -41,7 +41,7 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import OrderDetailModal from '../components/OrderDetailModal';
 import { Order } from '../types';
-import { saveOrder } from '../utils/orderStore';
+import { applyPurchaseTaskByModel } from '../utils/orderStore';
 import {
   AffectedPurchase,
   GroupPurchaseConfirm,
@@ -49,7 +49,6 @@ import {
   PurchaseTask,
   buildPurchaseStats,
   buildPurchaseTasks,
-  buildUpdatedOrders,
   statusColor,
   statusText,
   taskStatus,
@@ -110,8 +109,11 @@ export default function PurchaseCenterPage() {
   const applyPurchased = useCallback(async (affected: AffectedPurchase[], purchased: boolean, savingId: string) => {
     setSavingKey(savingId);
     try {
-      const updatedOrders = buildUpdatedOrders(affected, purchased);
-      await Promise.all(updatedOrders.map(order => saveOrder(order)));
+      const tasks = new Map<string, { model: string; supplier: string }>();
+      affected.forEach(({ item }) => {
+        tasks.set(`${item.supplier || ''}||${item.model}`, { model: item.model, supplier: item.supplier || '' });
+      });
+      await Promise.all([...tasks.values()].map(task => applyPurchaseTaskByModel({ ...task, purchased })));
       await fetchOrders(true);
       showSnackbar(purchased ? '已标记为已采购' : '已取消已采购标记', purchased ? 'success' : 'info');
     } catch (error) {

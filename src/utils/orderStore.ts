@@ -1,4 +1,4 @@
-import { Order, OrderItem, PurchaseItem, TodoItem } from '../types';
+import { Order, OrderItem, OrderStatus, PurchaseItem, TodoItem } from '../types';
 import { proxyRequest } from './api';
 import { DEFAULT_ORDER_MARGIN, roundMoney } from './businessRules';
 
@@ -11,6 +11,7 @@ function genId(): string {
 
 // 后端 orderRow() 适配器输出的字段（camelCase）
 interface OrderRow {
+  id?: number;
   Id: number;
   customerName: string;
   contractNo?: string;
@@ -19,6 +20,8 @@ interface OrderRow {
   itemsJson?: string;
   purchaseListJson?: string;
   todosJson?: string;
+  createdAt?: string;
+  updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
 }
@@ -32,8 +35,9 @@ function rowToOrder(row: OrderRow): Order {
     if (it.unitPrice === undefined) it.unitPrice = 0;
   }
   const totals = calcOrderTotals(items);
+  const id = row.id ?? row.Id;
   return {
-    id: String(row.Id),
+    id: String(id),
     customerName: row.customerName || '',
     contractNo: row.contractNo || undefined,
     remark: row.remark || undefined,
@@ -44,8 +48,8 @@ function rowToOrder(row: OrderRow): Order {
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,
-    createdAt: row.CreatedAt || new Date().toISOString(),
-    updatedAt: row.UpdatedAt || new Date().toISOString(),
+    createdAt: row.createdAt || row.CreatedAt || new Date().toISOString(),
+    updatedAt: row.updatedAt || row.UpdatedAt || new Date().toISOString(),
   };
 }
 
@@ -71,24 +75,24 @@ export async function getOrder(id: string): Promise<Order | null> {
 }
 
 export async function saveOrder(order: Order): Promise<Order> {
-  const record: Record<string, unknown> = {
+  const record = await buildOrderSavePayloadDraft({
     customerName: order.customerName,
     contractNo: order.contractNo || '',
     remark: order.remark || '',
     status: order.status,
-    itemsJson: JSON.stringify(order.items),
-    purchaseListJson: JSON.stringify(order.purchaseList),
-    todosJson: JSON.stringify(order.todos),
-  };
+    items: order.items,
+    purchaseList: order.purchaseList,
+    todos: order.todos,
+  });
 
   // 如果 id 是纯数字 → 已存在行，PATCH 更新
   const numId = Number(order.id);
   if (!isNaN(numId) && numId > 0) {
-    await proxyRequest(`/api/orders/${numId}`, {
+    const res = await proxyRequest<{ success: boolean; data: OrderRow }>(`/api/orders/${numId}`, {
       method: 'PATCH',
       body: JSON.stringify(record),
     });
-    return { ...order, updatedAt: new Date().toISOString() };
+    return rowToOrder(res.data);
   }
 
   // 新建行
@@ -96,7 +100,75 @@ export async function saveOrder(order: Order): Promise<Order> {
     method: 'POST',
     body: JSON.stringify(record),
   });
-  return { ...order, id: String(res.data.Id), createdAt: res.data.CreatedAt || order.createdAt };
+  return rowToOrder(res.data);
+}
+export async function buildOrderSavePayloadDraft(input: {
+  customerName: string;
+  contractNo?: string;
+  remark?: string;
+  status?: OrderStatus;
+  items: OrderItem[];
+  purchaseList?: PurchaseItem[];
+  todos?: TodoItem[];
+}): Promise<Record<string, unknown>> {
+  const res = await proxyRequest<{ success: boolean; data: Record<string, unknown>; error?: string }>('/api/orders/save-payload-draft', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || '生成订单保存草稿失败');
+  return res.data;
+}
+function numericOrderId(order: Order): number {
+  const id = Number(order.id);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('非法订单 ID');
+  return id;
+}
+
+export async function setOrderStatus(order: Order, status: OrderStatus): Promise<Order> {
+  const res = await proxyRequest<{ success: boolean; data: OrderRow; error?: string }>(`/api/orders/${numericOrderId(order)}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || '订单状态更新失败');
+  return rowToOrder(res.data);
+}
+
+export async function toggleOrderPurchaseItem(order: Order, model: string, supplier: string): Promise<Order> {
+  const res = await proxyRequest<{ success: boolean; data: OrderRow; error?: string }>(`/api/orders/${numericOrderId(order)}/purchase-items/toggle`, {
+    method: 'POST',
+    body: JSON.stringify({ model, supplier: supplier || '' }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || '采购项更新失败');
+  return rowToOrder(res.data);
+}
+
+export async function toggleOrderTodoItem(order: Order, todoId: string): Promise<Order> {
+  const res = await proxyRequest<{ success: boolean; data: OrderRow; error?: string }>(`/api/orders/${numericOrderId(order)}/todos/toggle`, {
+    method: 'POST',
+    body: JSON.stringify({ todoId }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || '待办更新失败');
+  return rowToOrder(res.data);
+}
+
+export async function completeOrderPurchase(order: Order): Promise<{ order: Order; additions: Array<{ partId: number; addQty: number }> }> {
+  const res = await proxyRequest<{ success: boolean; data: { order: OrderRow; additions: Array<{ partId: number; addQty: number }> }; error?: string }>(
+    `/api/orders/${numericOrderId(order)}/complete-purchase`,
+    { method: 'POST' }
+  );
+  if (!res.success || !res.data) throw new Error(res.error || '入库失败');
+  return {
+    order: rowToOrder(res.data.order),
+    additions: res.data.additions || [],
+  };
+}
+
+export async function applyPurchaseTaskByModel(input: { model: string; supplier?: string; purchased: boolean }): Promise<void> {
+  const res = await proxyRequest<{ success: boolean; error?: string }>('/api/orders/purchase-items/batch', {
+    method: 'POST',
+    body: JSON.stringify({ model: input.model, supplier: input.supplier || '', purchased: input.purchased }),
+  });
+  if (!res.success) throw new Error(res.error || '采购状态保存失败');
 }
 
 export async function deleteOrder(id: string): Promise<void> {
@@ -171,12 +243,4 @@ export async function findHistoryPrice(recipeName: string): Promise<HistoryPrice
   } catch {
     return null;
   }
-}
-
-// ── 入库辅助 ─────────────────────────────────────────
-
-export function calcStockAdditions(purchaseList: PurchaseItem[]): Array<{ partId: number; addQty: number }> {
-  return purchaseList
-    .filter((p) => p.needToBuy > 0 && p.partId != null)
-    .map((p) => ({ partId: p.partId!, addQty: p.needToBuy }));
 }

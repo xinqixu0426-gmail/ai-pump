@@ -47,13 +47,14 @@ export function updateOptionalPart<T extends PartSelection & { id: number }>(
   parts: T[],
   id: number,
   field: keyof PartSelection,
-  value: string | number
+  value: string | number,
+  resolveSupplier?: (model: string) => string
 ): T[] {
   return parts.map((part) => {
     if (part.id !== id) return part;
     const updated = { ...part, [field]: value };
     if (field === 'model') {
-      updated.supplier = '';
+      updated.supplier = resolveSupplier ? resolveSupplier(String(value || '')) : '';
       updated.snapshotPrice = undefined;
       updated.costSource = undefined;
     }

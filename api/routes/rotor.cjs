@@ -4,7 +4,10 @@ const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 const fs = require('fs');
-const { db, safeUpdate, hardDelete } = require('../db.cjs');
+const { db, safeInsert, safeUpdate, hardDelete } = require('../db.cjs');
+const { rotorHistoryRow } = require('../services/rotorHistory.cjs');
+const { parsePositiveId } = require('../services/validation.cjs');
+const { buildRotorTemplateDraft } = require('../services/rotorTemplateDraft.cjs');
 
 const router = Router();
 
@@ -34,6 +37,14 @@ function normalizeDrawingText(value) {
         .slice(0, 3)
         .join('\n')
         .slice(0, 120);
+}
+
+function rotorSuccess(res, data) {
+    res.json({ success: true, data, ...data });
+}
+
+function rotorError(res, statusCode, message) {
+    res.status(statusCode).json({ success: false, error: message, status: 'error', message });
 }
 
 const os = require('os');
@@ -173,7 +184,7 @@ setInterval(() => {
 // ── 共享：启动 FreeCAD 出图任务 ──
 function launchDrawJob(fcParams, source, res, drawingName = '') {
     if (runningJobs >= MAX_CONCURRENT_FREECAD) {
-        res.status(429).json({ status: 'error', message: '出图队列已满（最多 ' + MAX_CONCURRENT_FREECAD + ' 个并发），请稍后再试' });
+        rotorError(res, 429, '出图队列已满（最多 ' + MAX_CONCURRENT_FREECAD + ' 个并发），请稍后再试');
         return null;
     }
 
@@ -185,9 +196,16 @@ function launchDrawJob(fcParams, source, res, drawingName = '') {
 
     const now = new Date().toISOString();
     try {
-        db.prepare(`INSERT INTO rotor_drawings (job_id, drawing_name, nl_input, params_json, fc_params_json, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)`)
-            .run(jobId, normalizedDrawingName, source, JSON.stringify(fcParams), JSON.stringify(fcParams), now, now);
+        safeInsert('rotor_drawings', {
+            job_id: jobId,
+            drawing_name: normalizedDrawingName,
+            nl_input: source,
+            params_json: JSON.stringify(fcParams),
+            fc_params_json: JSON.stringify(fcParams),
+            status: 'processing',
+            created_at: now,
+            updated_at: now,
+        });
     } catch (dbErr) {
         console.error('[Rotor] DB insert error:', dbErr.message);
     }
@@ -325,24 +343,24 @@ router.post('/draw', (req, res) => {
     try {
         const params = req.body;
         if (!params || Object.keys(params).length === 0) {
-            return res.status(400).json({ status: 'error', message: '缺少参数，请至少提供一项出图参数' });
+            return rotorError(res, 400, '缺少参数，请至少提供一项出图参数');
         }
 
         console.log('[Rotor] /draw 收到结构化出图请求:', params);
 
         const { fcParams, errors } = buildFcParams(params);
         if (errors.length > 0) {
-            return res.status(400).json({ status: 'error', message: errors.join('; ') });
+            return rotorError(res, 400, errors.join('; '));
         }
         if (Object.keys(fcParams).filter(k => !k.startsWith('_')).length === 0) {
-            return res.status(400).json({ status: 'error', message: '未提取到有效参数' });
+            return rotorError(res, 400, '未提取到有效参数');
         }
 
         const drawingName = normalizeDrawingName(params.drawingName ?? params.drawing_name);
         const jobId = launchDrawJob(fcParams, '[API] ' + JSON.stringify(params), res, drawingName);
         if (!jobId) return;
 
-        return res.json({
+        return rotorSuccess(res, {
             status: 'success',
             message: '出图任务已启动',
             jobId,
@@ -351,7 +369,7 @@ router.post('/draw', (req, res) => {
         });
     } catch (e) {
         console.error('[Rotor] /draw 错误:', e);
-        return res.status(500).json({ status: 'error', message: e.message });
+        return rotorError(res, 500, e.message);
     }
 });
 
@@ -376,9 +394,16 @@ router.post('/save', (req, res) => {
         const jobId = 'saved-' + crypto.randomUUID();
         const drawingName = normalizeDrawingName(params.drawingName ?? params.drawing_name, '暂存转子参数');
         const now = new Date().toISOString();
-        db.prepare(`INSERT INTO rotor_drawings (job_id, drawing_name, nl_input, params_json, fc_params_json, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'saved', ?, ?)`)
-            .run(jobId, drawingName, '[SAVED] ' + JSON.stringify(params), JSON.stringify(params), JSON.stringify(fcParams), now, now);
+        safeInsert('rotor_drawings', {
+            job_id: jobId,
+            drawing_name: drawingName,
+            nl_input: '[SAVED] ' + JSON.stringify(params),
+            params_json: JSON.stringify(params),
+            fc_params_json: JSON.stringify(fcParams),
+            status: 'saved',
+            created_at: now,
+            updated_at: now,
+        });
 
         return res.json({
             success: true,
@@ -401,10 +426,10 @@ router.post('/chat', async (req, res) => {
         const { message, force, supplements, baseParams } = req.body;
         const drawingName = normalizeDrawingName(req.body.drawingName ?? req.body.drawing_name);
         const drawingText = normalizeDrawingText(req.body.drawingText ?? req.body.drawing_text);
-        if (!message) return res.status(400).json({ status: 'error', message: '缺少 message 字段' });
+        if (!message) return rotorError(res, 400, '缺少 message 字段');
 
         if (!DEEPSEEK_API_KEY) {
-            return res.status(500).json({ status: 'error', message: '未配置 DEEPSEEK_API_KEY' });
+            return rotorError(res, 500, '未配置 DEEPSEEK_API_KEY');
         }
 
         console.log('[Rotor] 收到出图指令:', message);
@@ -451,11 +476,11 @@ router.post('/chat', async (req, res) => {
         // 3. 组装参数
         const { fcParams, errors } = buildFcParams(parsed);
         if (errors.length > 0) {
-            return res.status(400).json({ status: 'error', message: errors.join('; ') });
+            return rotorError(res, 400, errors.join('; '));
         }
 
         if (Object.keys(fcParams).filter(k => !k.startsWith('_')).length === 0) {
-            return res.json({ status: 'need_params', message: aiReply, extracted: parsed });
+            return rotorSuccess(res, { status: 'need_params', message: aiReply, extracted: parsed });
         }
         if (drawingText) fcParams._drawing_text = drawingText;
 
@@ -496,7 +521,7 @@ router.post('/chat', async (req, res) => {
                 }
             }
 
-            if (hasWarning) return res.json(warningPayload);
+            if (hasWarning) return rotorSuccess(res, warningPayload);
         }
 
         // 合并补充参数
@@ -515,7 +540,7 @@ router.post('/chat', async (req, res) => {
         const jobId = launchDrawJob(fcParams, message, res, drawingName);
         if (!jobId) return;
 
-        return res.json({
+        return rotorSuccess(res, {
             status: 'success',
             message: '已收到指令，正在后台为您生成转子图纸...',
             jobId,
@@ -525,7 +550,7 @@ router.post('/chat', async (req, res) => {
 
     } catch (e) {
         console.error('[Rotor] 路由错误:', e);
-        return res.status(500).json({ status: 'error', message: e.message });
+        return rotorError(res, 500, e.message);
     }
 });
 
@@ -544,7 +569,7 @@ router.get('/status/:jobId', (req, res) => {
 router.get('/history', (req, res) => {
     try {
         const rows = db.prepare('SELECT * FROM rotor_drawings ORDER BY created_at DESC LIMIT 100').all();
-        res.json({ success: true, data: rows });
+        res.json({ success: true, data: rows.map(rotorHistoryRow) });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -553,8 +578,8 @@ router.get('/history', (req, res) => {
 // PATCH /history/:id/name — 重命名图纸
 router.patch('/history/:id/name', (req, res) => {
     try {
-        const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success: false, error: '非法记录ID' });
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法记录ID' });
         const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(id);
         if (!row) return res.status(404).json({ success: false, error: '记录不存在' });
         const drawingName = normalizeDrawingName(req.body.drawingName ?? req.body.drawing_name);
@@ -574,7 +599,9 @@ router.patch('/history/:id/name', (req, res) => {
 // ═══════════════════════════════════════════════
 router.delete('/history/:id', (req, res) => {
     try {
-        const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(req.params.id);
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法记录ID' });
+        const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(id);
         if (!row) return res.status(404).json({ success: false, error: '记录不存在' });
         // 删除对应 PDF 文件
         if (row.file_url) {
@@ -583,7 +610,7 @@ router.delete('/history/:id', (req, res) => {
                 try { fs.unlinkSync(filePath); } catch(_){}
             }
         }
-        hardDelete('rotor_drawings', Number(req.params.id));
+        hardDelete('rotor_drawings', id);
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -697,6 +724,32 @@ router.get('/order-pump-models', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════
+// POST /template-draft — 根据泵壳模板/变体生成转子出图表单草稿，不写库
+// ═══════════════════════════════════════════════
+router.post('/template-draft', (req, res) => {
+    try {
+        const templateId = parsePositiveId(req.body?.templateId);
+        if (!templateId) return res.status(400).json({ success: false, error: 'templateId 为必填' });
+        const template = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(templateId);
+        if (!template) return res.status(404).json({ success: false, error: '模板不存在' });
+
+        let variant = null;
+        const variantId = req.body?.variantId ? parsePositiveId(req.body.variantId) : null;
+        if (variantId) {
+            variant = db.prepare('SELECT * FROM pump_model_variants WHERE id = ? AND deleted_at IS NULL').get(variantId);
+            if (!variant) return res.status(404).json({ success: false, error: '型号变体不存在' });
+            if (Number(variant.template_id) !== Number(templateId)) return res.status(400).json({ success: false, error: '型号变体不属于该模板' });
+        }
+
+        const parts = db.prepare('SELECT model, category, notes FROM parts WHERE deleted_at IS NULL').all();
+        const draft = buildRotorTemplateDraft({ template, variant, parts });
+        res.json({ success: true, data: { ...draft, templateId, variantId: variantId || null } });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════
 // GET /link-targets — 获取出图记录可关联对象（订单/变体/配方）
 // ═══════════════════════════════════════════════
 router.get('/link-targets', (req, res) => {
@@ -775,13 +828,15 @@ router.get('/link-targets', (req, res) => {
 // ═══════════════════════════════════════════════
 router.patch('/history/:id/link', (req, res) => {
     try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法记录ID' });
         const linkedPumpModel = req.body.linkedPumpModel ?? req.body.linked_pump_model;
         if (typeof linkedPumpModel !== 'string') {
             return res.status(400).json({ success: false, error: '缺少 linkedPumpModel 参数' });
         }
-        const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(req.params.id);
+        const row = db.prepare('SELECT * FROM rotor_drawings WHERE id = ?').get(id);
         if (!row) return res.status(404).json({ success: false, error: '记录不存在' });
-        safeUpdate('rotor_drawings', Number(req.params.id), { linked_pump_model: linkedPumpModel });
+        safeUpdate('rotor_drawings', id, { linked_pump_model: linkedPumpModel });
         res.json({ success: true, data: { linkedPumpModel }, linkedPumpModel });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });

@@ -30,6 +30,16 @@ interface ProxyOptions {
   throwOnError?: boolean;
 }
 
+type EntityCreateResponse = ApiResponse<{ id?: number }>;
+type LegacyEntityShape = {
+  id?: number;
+  Id?: number;
+  createdAt?: string;
+  CreatedAt?: string;
+  updatedAt?: string;
+  UpdatedAt?: string;
+};
+
 function isFormData(body: BodyInit | null | undefined): boolean {
   return typeof FormData !== 'undefined' && body instanceof FormData;
 }
@@ -96,9 +106,32 @@ export async function proxyFormRequest<T>(
   return proxyRequest<T>(path, { method: 'POST', ...options, body: formData }, proxyOptions);
 }
 
+function unwrapCreatedId(response: EntityCreateResponse): number {
+  const id = response.data?.id;
+  if (!response.success || !id) throw new Error(response.error || '创建失败');
+  return id;
+}
+
+function normalizeLegacyEntity<T extends LegacyEntityShape>(item: T): T {
+  if (!item) return item;
+  const id = item.Id ?? item.id;
+  const createdAt = item.CreatedAt ?? item.createdAt;
+  const updatedAt = item.UpdatedAt ?? item.updatedAt;
+  return {
+    ...item,
+    ...(id !== undefined ? { id, Id: id } : {}),
+    ...(createdAt !== undefined ? { createdAt, CreatedAt: createdAt } : {}),
+    ...(updatedAt !== undefined ? { updatedAt, UpdatedAt: updatedAt } : {}),
+  } as T;
+}
+
+function normalizeLegacyEntities<T extends LegacyEntityShape>(items: T[]): T[] {
+  return items.map(normalizeLegacyEntity);
+}
+
 export async function getAllParts(): Promise<Part[]> {
   const res = await proxyRequest<{ success: boolean; data: Part[] }>('/api/parts');
-  return res.data || [];
+  return normalizeLegacyEntities(res.data || []);
 }
 
 export async function createPart(part: Omit<Part, 'Id'>): Promise<Part> {
@@ -113,11 +146,11 @@ export async function createPart(part: Omit<Part, 'Id'>): Promise<Part> {
       notes: part.notes ?? '',
     }),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function updatePart(id: number, part: Partial<Part>): Promise<Part> {
-  const record: Record<string, unknown> = { Id: id };
+  const record: Record<string, unknown> = {};
   if (part.model !== undefined) record.model = part.model;
   if (part.category !== undefined) record.category = part.category;
   if (part.price !== undefined) record.price = part.price;
@@ -125,26 +158,20 @@ export async function updatePart(id: number, part: Partial<Part>): Promise<Part>
   if (part.stock !== undefined) record.stock = part.stock;
   if (part.notes !== undefined) record.notes = part.notes;
 
-  const res = await proxyRequest<{ success: boolean; data: Part }>('/api/parts', {
+  const res = await proxyRequest<{ success: boolean; data: Part }>(`/api/parts/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(record),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function deletePart(id: number): Promise<void> {
-  await proxyRequest('/api/parts', {
-    method: 'DELETE',
-    body: JSON.stringify([{ Id: id }]),
-  });
+  await proxyRequest(`/api/parts/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteParts(ids: number[]): Promise<void> {
   if (ids.length === 0) return;
-  await proxyRequest('/api/parts', {
-    method: 'DELETE',
-    body: JSON.stringify(ids.map((id) => ({ Id: id }))),
-  });
+  await Promise.all(ids.map((id) => deletePart(id)));
 }
 
 export async function generatePurchasePlan(items: OrderItem[]): Promise<{ purchaseList: PurchaseItem[]; todos: TodoItem[] }> {
@@ -158,32 +185,14 @@ export async function generatePurchasePlan(items: OrderItem[]): Promise<{ purcha
   return result.data;
 }
 
-/**
- * 批量扣减库存（生产用）— 原子操作
- */
-export async function batchDeductStock(
-  deductions: Array<{ partId: number; deductQty: number }>
-): Promise<void> {
-  await proxyRequest('/api/parts/batch-stock', {
+export async function produceRecipe(recipeId: number, produceQty: number): Promise<void> {
+  const id = Number(recipeId);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('非法配方 ID');
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/recipes/${id}/produce`, {
     method: 'POST',
-    body: JSON.stringify({
-      operations: deductions.map(d => ({ partId: d.partId, delta: -d.deductQty })),
-    }),
+    body: JSON.stringify({ produceQty }),
   });
-}
-
-/**
- * 批量增加库存（采购入库用）— 原子操作
- */
-export async function batchAddStock(
-  additions: Array<{ partId: number; addQty: number }>
-): Promise<void> {
-  await proxyRequest('/api/parts/batch-stock', {
-    method: 'POST',
-    body: JSON.stringify({
-      operations: additions.map(a => ({ partId: a.partId, delta: a.addQty })),
-    }),
-  });
+  if (!result.success) throw new Error(result.error || '生产扣库存失败');
 }
 
 // ─── 配方 CRUD ──────────────────────────────
@@ -226,7 +235,7 @@ function recipeToApiPayload(recipe: Partial<Omit<Recipe, 'Id'>>): Record<string,
 
 export async function getAllRecipes(): Promise<Recipe[]> {
   const res = await proxyRequest<{ success: boolean; data: Recipe[] }>('/api/recipes');
-  return res.data || [];
+  return normalizeLegacyEntities(res.data || []);
 }
 
 export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> {
@@ -234,22 +243,19 @@ export async function createRecipe(recipe: Omit<Recipe, 'Id'>): Promise<Recipe> 
     method: 'POST',
     body: JSON.stringify(recipeToApiPayload(recipe)),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function deleteRecipe(id: number): Promise<void> {
-  await proxyRequest('/api/recipes', {
-    method: 'DELETE',
-    body: JSON.stringify([{ Id: id }]),
-  });
+  await proxyRequest(`/api/recipes/${id}`, { method: 'DELETE' });
 }
 
 export async function updateRecipe(id: number, recipe: Partial<Omit<Recipe, 'Id'>>): Promise<Recipe> {
-  const res = await proxyRequest<{ success: boolean; data: Recipe }>('/api/recipes', {
+  const res = await proxyRequest<{ success: boolean; data: Recipe }>(`/api/recipes/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ Id: id, ...recipeToApiPayload(recipe) }),
+    body: JSON.stringify(recipeToApiPayload(recipe)),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 // ─── 成本计算 ─────────────────────────────────
@@ -259,7 +265,7 @@ export async function calculateCost(parts: RecipePart[]): Promise<CostResult> {
     return { totalCost: '0.00', itemCount: 0, details: [], missingParts: [] };
   }
 
-  const result = await proxyRequest<ApiResponse<CostResult>>('/api/cost/calculate', {
+  const result = await proxyRequest<ApiResponse<CostResult>>('/api/cost/parts', {
     method: 'POST',
     body: JSON.stringify({ parts }),
   });
@@ -354,7 +360,7 @@ function templateToApiPayload(tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Reco
 
 export async function getAllTemplates(): Promise<PumpShellTemplate[]> {
   const res = await proxyRequest<{ success: boolean; data: PumpShellTemplate[] }>('/api/templates');
-  return res.data || [];
+  return normalizeLegacyEntities(res.data || []);
 }
 
 export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promise<PumpShellTemplate> {
@@ -362,7 +368,7 @@ export async function createTemplate(tpl: Omit<PumpShellTemplate, 'Id'>): Promis
     method: 'POST',
     body: JSON.stringify(templateToApiPayload(tpl)),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function updateTemplate(id: number, tpl: Partial<Omit<PumpShellTemplate, 'Id'>>): Promise<PumpShellTemplate> {
@@ -370,7 +376,7 @@ export async function updateTemplate(id: number, tpl: Partial<Omit<PumpShellTemp
     method: 'PATCH',
     body: JSON.stringify(templateToApiPayload(tpl)),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function deleteTemplate(id: number): Promise<void> {
@@ -397,7 +403,7 @@ function modelVariantToApiPayload(variant: Partial<Omit<PumpModelVariant, 'Id'>>
 
 export async function getAllModelVariants(): Promise<PumpModelVariant[]> {
   const res = await proxyRequest<{ success: boolean; data: PumpModelVariant[] }>('/api/model-variants');
-  return res.data || [];
+  return normalizeLegacyEntities(res.data || []);
 }
 
 export async function createModelVariant(variant: Omit<PumpModelVariant, 'Id'>): Promise<PumpModelVariant> {
@@ -405,7 +411,7 @@ export async function createModelVariant(variant: Omit<PumpModelVariant, 'Id'>):
     method: 'POST',
     body: JSON.stringify(modelVariantToApiPayload(variant)),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function updateModelVariant(id: number, variant: Partial<Omit<PumpModelVariant, 'Id'>>): Promise<PumpModelVariant> {
@@ -413,7 +419,7 @@ export async function updateModelVariant(id: number, variant: Partial<Omit<PumpM
     method: 'PATCH',
     body: JSON.stringify(modelVariantToApiPayload(variant)),
   });
-  return res.data;
+  return normalizeLegacyEntity(res.data);
 }
 
 export async function deleteModelVariant(id: number): Promise<void> {
@@ -423,11 +429,13 @@ export async function deleteModelVariant(id: number): Promise<void> {
 // ====== 客户 CRUD ======
 
 export const fetchCustomers = async (): Promise<Customer[]> => {
-  const res = await proxyRequest<Customer[] | { success: boolean; data: Customer[] }>('/api/customers');
-  return Array.isArray(res) ? res : res.data;
+  const res = await proxyRequest<ApiResponse<Customer[]>>('/api/customers');
+  return normalizeLegacyEntities(res.data || []);
 };
-export const createCustomer = async (data: CustomerInput): Promise<{ success: boolean; id: number }> =>
-  proxyRequest<{ success: boolean; id: number }>('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+export const createCustomer = async (data: CustomerInput): Promise<{ success: boolean; id: number }> => {
+  const res = await proxyRequest<EntityCreateResponse>('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+  return { success: true, id: unwrapCreatedId(res) };
+};
 export const updateCustomer = async (id: number, data: CustomerInput): Promise<ApiResponse<never>> =>
   proxyRequest<ApiResponse<never>>(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const deleteCustomer = async (id: number): Promise<ApiResponse<never>> =>
@@ -436,15 +444,56 @@ export const deleteCustomer = async (id: number): Promise<ApiResponse<never>> =>
 // ====== 报价单 CRUD ======
 
 export const fetchQuotations = async (): Promise<Quotation[]> => {
-  const res = await proxyRequest<Quotation[] | { success: boolean; data: Quotation[] }>('/api/quotations');
-  return Array.isArray(res) ? res : res.data;
+  const res = await proxyRequest<ApiResponse<Quotation[]>>('/api/quotations');
+  return normalizeLegacyEntities(res.data || []);
 };
-export const createQuotation = async (data: QuotationInput): Promise<{ success: boolean; id: number }> =>
-  proxyRequest<{ success: boolean; id: number }>('/api/quotations', { method: 'POST', body: JSON.stringify(data) });
-export const updateQuotation = async (id: number, data: QuotationInput | Partial<QuotationInput>): Promise<ApiResponse<never>> =>
-  proxyRequest<ApiResponse<never>>(`/api/quotations/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+async function buildQuotationSavePayloadDraft(data: QuotationInput): Promise<Record<string, unknown>> {
+  if (!data.items) return data as unknown as Record<string, unknown>;
+  const res = await proxyRequest<ApiResponse<Record<string, unknown>>>('/api/quotations/save-payload-draft', {
+    method: 'POST',
+    body: JSON.stringify({
+      customerId: data.customerId,
+      status: data.status,
+      items: data.items,
+      remark: data.remark,
+    }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || '生成报价保存草稿失败');
+  return res.data;
+}
+
+export const createQuotation = async (data: QuotationInput): Promise<{ success: boolean; id: number }> => {
+  const payload = await buildQuotationSavePayloadDraft(data);
+  const res = await proxyRequest<EntityCreateResponse>('/api/quotations', { method: 'POST', body: JSON.stringify(payload) });
+  return { success: true, id: unwrapCreatedId(res) };
+};
+export const updateQuotation = async (id: number, data: QuotationInput | Partial<QuotationInput>): Promise<ApiResponse<never>> => {
+  const payload = data.items ? await buildQuotationSavePayloadDraft(data as QuotationInput) : data;
+  return proxyRequest<ApiResponse<never>>(`/api/quotations/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+};
 export const deleteQuotation = async (id: number): Promise<ApiResponse<never>> =>
   proxyRequest<ApiResponse<never>>(`/api/quotations/${id}`, { method: 'DELETE' });
+
+export async function buildOrderDraftFromQuotation(quotationId: number): Promise<{
+  customerName: string;
+  contractNo?: string;
+  remark?: string;
+  items: OrderItem[];
+  purchaseList: PurchaseItem[];
+  todos: TodoItem[];
+}> {
+  const res = await proxyRequest<ApiResponse<{
+    customerName: string;
+    contractNo?: string;
+    remark?: string;
+    items: OrderItem[];
+    purchaseList: PurchaseItem[];
+    todos: TodoItem[];
+  }>>(`/api/quotations/${quotationId}/order-draft`, { method: 'POST' });
+  if (!res.success || !res.data) throw new Error(res.error || '报价转订单草稿生成失败');
+  return res.data;
+}
 
 export const dynamicCalculateCost = async (baseRecipeId: number, overrides: DynamicCostOverrides): Promise<DynamicCostResult> =>
   proxyRequest<{ success: boolean; data: DynamicCostResult }>(`/api/recipes/${baseRecipeId}/cost-preview`, { method: 'POST', body: JSON.stringify({ overrides }) })

@@ -7,10 +7,11 @@ import {
 import {
   Trash2 as DeleteIcon, Plus as AddIcon, Edit3 as EditIcon,
   Package as TemplateIcon, ChevronDown as ExpandMoreIcon,
-  ChevronUp as ExpandLessIcon, Search as SearchIcon,
+  ChevronUp as ExpandLessIcon, Search as SearchIcon, ListChecks as DetailIcon,
 } from 'lucide-react';
 import { PumpShellTemplate, TemplatePart, Part, ShellComponent } from '../types';
 import { createTemplate, updateTemplate, deleteTemplate } from '../utils/api';
+import { entityCreatedAt, entityId } from '../utils/entityFields';
 import TemplateFormDialog, { PartFormRow, ShellComponentFormRow } from './TemplateFormDialog';
 
 interface Props {
@@ -79,6 +80,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
   const [editingTpl, setEditingTpl] = useState<PumpShellTemplate | null>(null);
   const [tplSaving, setTplSaving] = useState(false);
   const [tplDeleteId, setTplDeleteId] = useState<number | null>(null);
+  const [detailTarget, setDetailTarget] = useState<TemplateListItem | null>(null);
   const [shellModel, setShellModel] = useState('');
   const [tplDescription, setTplDescription] = useState('');
   const [partRows, setPartRows] = useState<PartFormRow[]>([]);
@@ -179,7 +181,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
       setError(`泵壳型号 "${modelStr}" 已经配置过模板，请直接修改已有模板`);
       return;
     }
-    if (editingTpl && templates.some(t => t.Id !== editingTpl.Id && t.shellModel === modelStr)) {
+    if (editingTpl && templates.some(t => entityId(t) !== entityId(editingTpl) && t.shellModel === modelStr)) {
       setError(`泵壳型号 "${modelStr}" 已存在其他模板关联`);
       return;
     }
@@ -220,7 +222,7 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         bundleCost,
       };
       if (editingTpl) {
-        await updateTemplate(editingTpl.Id, payload);
+        await updateTemplate(entityId(editingTpl), payload);
       } else {
         await createTemplate({ ...payload, paintingWage: null });
       }
@@ -240,14 +242,14 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
 
   return (
     <>
-      <Paper elevation={0} sx={{ mb: 3, overflow: 'hidden', borderRadius: 3 }}>
+      <Paper elevation={0} sx={{ mb: 3, overflow: 'hidden', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
         <Box
           onClick={() => setTplExpanded(!tplExpanded)}
           sx={{
             px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', cursor: 'pointer',
-            background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(168,85,247,0.03) 100%)',
+            bgcolor: 'background.paper',
             borderBottom: tplExpanded ? '1px solid' : 'none', borderColor: 'divider',
-            '&:hover': { bgcolor: 'rgba(124,58,237,0.08)' }, transition: 'all 0.2s',
+            '&:hover': { bgcolor: 'action.hover' }, transition: 'all 0.2s',
           }}
         >
           <TemplateIcon size={22} color="#7c3aed" style={{ marginRight: 8 }} />
@@ -311,14 +313,17 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                           <TableCell sx={{ minWidth: 160 }}>说明</TableCell>
                           <TableCell sx={{ width: 120 }}>录入时间</TableCell>
                           <TableCell>泵壳成本</TableCell>
-                          <TableCell>固定配件</TableCell>
+                          <TableCell align="center" sx={{ width: 120 }}>固定配件</TableCell>
                           <TableCell align="right" sx={{ width: 96 }}>工时工资</TableCell>
                           <TableCell align="center" sx={{ width: 96 }}>操作</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {filteredTemplateRows.map(({ tpl, parts: tplParts, shellComponents, shellCost, costMode, laborCost }) => (
-                          <TableRow key={tpl.Id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                        {filteredTemplateRows.map(({ tpl, parts: tplParts, shellComponents, shellCost, costMode, laborCost }) => {
+                          const tplId = entityId(tpl);
+                          const tplCreatedAt = entityCreatedAt(tpl);
+                          return (
+                          <TableRow key={tplId} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                             <TableCell>
                               <Typography variant="body2" fontWeight={800} sx={{ color: '#7c3aed' }}>
                                 {tpl.shellModel}
@@ -334,9 +339,9 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                                 {tpl.description || '-'}
                               </Typography>
                             </TableCell>
-                            <TableCell title={tpl.CreatedAt ? new Date(tpl.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
+                            <TableCell title={tplCreatedAt ? new Date(tplCreatedAt).toLocaleString('zh-CN', { hour12: false }) : '-'}>
                               <Typography variant="body2" color="text.secondary">
-                                {formatEntryTime(tpl.CreatedAt)}
+                                {formatEntryTime(tplCreatedAt)}
                               </Typography>
                             </TableCell>
                             <TableCell>
@@ -358,21 +363,16 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                                 ))}
                               </Box>
                             </TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.25 }}>
-                                {tplParts.length === 0 ? (
-                                  <Typography variant="body2" color="text.disabled">-</Typography>
-                                ) : tplParts.map((p, i) => (
-                                  <Tooltip key={`${p.name}-${p.model}-${i}`} title={`${p.name}${p.qty > 1 ? ` ×${p.qty}` : ''}`}>
-                                    <Chip
-                                      label={`${p.name} ${p.model}${p.qty > 1 ? ` ×${p.qty}` : ''}`}
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{ height: 22, maxWidth: 180, fontSize: '0.72rem', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
-                                    />
-                                  </Tooltip>
-                                ))}
-                              </Box>
+                            <TableCell align="center">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<DetailIcon size={15} />}
+                                onClick={() => setDetailTarget({ tpl, parts: tplParts, shellComponents, shellCost, costMode, laborCost, searchText: '' })}
+                                sx={{ minWidth: 86, fontWeight: 700 }}
+                              >
+                                明细 {tplParts.length}
+                              </Button>
                             </TableCell>
                             <TableCell align="right">
                               {laborCost > 0 ? (
@@ -390,13 +390,14 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="删除">
-                                <IconButton size="small" aria-label="删除泵壳模板" color="error" onClick={() => setTplDeleteId(tpl.Id)}>
+                                <IconButton size="small" aria-label="删除泵壳模板" color="error" onClick={() => setTplDeleteId(tplId)}>
                                   <DeleteIcon size={16} />
                                 </IconButton>
                               </Tooltip>
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -443,6 +444,84 @@ export default function TemplateSection({ templates, parts, fetchTemplates, setE
         <DialogActions>
           <Button onClick={() => setTplDeleteId(null)}>取消</Button>
           <Button color="error" variant="contained" onClick={confirmDeleteTpl}>确认删除</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!detailTarget} onClose={() => setDetailTarget(null)} maxWidth="md" fullWidth>
+        <DialogTitle>{detailTarget ? `${detailTarget.tpl.shellModel} 明细` : '模板明细'}</DialogTitle>
+        <DialogContent dividers>
+          {detailTarget && (
+            <Box display="grid" gap={2}>
+              <Box>
+                <Typography variant="subtitle2" fontWeight={800} gutterBottom>固定密封配件</Typography>
+                {detailTarget.parts.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">暂无固定配件</Typography>
+                ) : (
+                  <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>配件名称</TableCell>
+                          <TableCell>型号</TableCell>
+                          <TableCell>供应商</TableCell>
+                          <TableCell align="right">数量</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {detailTarget.parts.map((part, index) => (
+                          <TableRow key={`${part.name}-${part.model}-${index}`}>
+                            <TableCell>{part.name || '-'}</TableCell>
+                            <TableCell>{part.model || '-'}</TableCell>
+                            <TableCell>{part.supplier || '-'}</TableCell>
+                            <TableCell align="right">{part.qty || 1}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle2" fontWeight={800} gutterBottom>泵壳组件成本</Typography>
+                {detailTarget.costMode === 'bundle' ? (
+                  <Chip label={`整套泵壳 ¥${detailTarget.shellCost.toFixed(2)}`} color="primary" sx={{ fontWeight: 700 }} />
+                ) : detailTarget.shellComponents.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">暂无组件明细</Typography>
+                ) : (
+                  <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>组件</TableCell>
+                          <TableCell>型号</TableCell>
+                          <TableCell align="right">数量</TableCell>
+                          <TableCell align="right">单价</TableCell>
+                          <TableCell>计价</TableCell>
+                          <TableCell>状态</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {detailTarget.shellComponents.map((component, index) => (
+                          <TableRow key={`${component.name}-${index}`}>
+                            <TableCell>{component.name || '-'}</TableCell>
+                            <TableCell>{component.model || '-'}</TableCell>
+                            <TableCell align="right">{component.qty || 1}</TableCell>
+                            <TableCell align="right">¥{Number(component.unitCost || 0).toFixed(2)}</TableCell>
+                            <TableCell>{component.pricingMode === 'lengthCm' ? '按长度(cm)' : '固定单价'}</TableCell>
+                            <TableCell>{component.included === false ? '不计入' : '计入成本'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailTarget(null)}>关闭</Button>
         </DialogActions>
       </Dialog>
     </>

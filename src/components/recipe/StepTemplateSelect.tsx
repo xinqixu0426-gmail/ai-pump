@@ -14,6 +14,7 @@ import {
 import { Package as TemplateIcon } from 'lucide-react';
 import { colors } from '../../utils/theme';
 import { TemplatePart, ShellComponent, PumpShellTemplate, PumpShellMeta, PumpModelVariant } from '../../types';
+import { entityId } from '../../utils/entityFields';
 
 function screwLengthFromModel(model?: string): number | null {
   const match = String(model || '').match(/\*(\d+(?:\.\d+)?)$/);
@@ -95,8 +96,8 @@ export default function StepTemplateSelect({
   canSaveAsPreset,
   isEditing,
 }: StepTemplateSelectProps) {
-  const selectedTemplate = templates.find((t) => t.Id === selectedTemplateId) || null;
-  const selectedVariant = modelVariants.find(v => v.Id === selectedModelVariantId) || null;
+  const selectedTemplate = templates.find((t) => entityId(t) === selectedTemplateId) || null;
+  const selectedVariant = modelVariants.find(v => entityId(v) === selectedModelVariantId) || null;
   const costMode = selectedTemplate?.costMode || 'components';
   const shellRows: TemplatePreviewRow[] = costMode === 'bundle'
     ? [{
@@ -219,7 +220,7 @@ export default function StepTemplateSelect({
                   <em>请选择泵壳模板</em>
                 </MenuItem>
                 {templates.map(t => (
-                  <MenuItem key={t.Id} value={t.Id}>
+                  <MenuItem key={entityId(t)} value={entityId(t)}>
                     {t.shellModel}{t.description ? ` — ${t.description}` : ''}
                   </MenuItem>
                 ))}
@@ -234,7 +235,7 @@ export default function StepTemplateSelect({
               >
                 <MenuItem value=""><em>不带入，按客户需求配置</em></MenuItem>
                 {modelVariants.map(v => (
-                  <MenuItem key={v.Id} value={v.Id}>
+                  <MenuItem key={entityId(v)} value={entityId(v)}>
                     {v.modelName}{v.coilSpec ? ` / ${v.coilSpec}-${v.coilSheets || 0}` : ''}
                   </MenuItem>
                 ))}

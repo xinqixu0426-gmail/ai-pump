@@ -15,16 +15,17 @@ import {
 } from 'lucide-react';
 import { memo, useState } from 'react';
 import { proxyRequest } from '../../utils/api';
+import { parseRotorFcParams, RotorHistoryRecord } from '../../utils/rotorHistory';
 
 interface RotorHistoryTableProps {
-  history: any[];
+  history: RotorHistoryRecord[];
   loadHistory: () => void;
   handlePrint: (jobId: string) => void;
   printing: boolean;
   API_BASE: string;
-  onLinkClick: (row: any) => void;
+  onLinkClick: (row: RotorHistoryRecord) => void;
   linking: boolean;
-  onReuseParams: (row: any) => void;
+  onReuseParams: (row: RotorHistoryRecord) => void;
 }
 
 const PARAM_LABELS: Record<string, string> = {
@@ -91,7 +92,7 @@ function sanitizePdfName(value: string) {
 function RotorHistoryTable({
   history, loadHistory, handlePrint, printing, API_BASE, onLinkClick, linking, onReuseParams
 }: RotorHistoryTableProps) {
-  const [renameRow, setRenameRow] = useState<any>(null);
+  const [renameRow, setRenameRow] = useState<RotorHistoryRecord | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [activeTab, setActiveTab] = useState<'drawings' | 'saved'>('drawings');
@@ -102,9 +103,9 @@ function RotorHistoryTable({
   const savedHistory = history.filter(row => row.status === 'saved');
   const visibleHistory = activeTab === 'saved' ? savedHistory : drawingHistory;
 
-  const openRename = (row: any) => {
+  const openRename = (row: RotorHistoryRecord) => {
     setRenameRow(row);
-    setRenameValue(row.drawing_name || '');
+    setRenameValue(row.drawingName || '');
   };
 
   const submitRename = async () => {
@@ -150,19 +151,19 @@ function RotorHistoryTable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {visibleHistory.map((row: any) => {
-              const params = (() => { try { return JSON.parse(row.fc_params_json || '{}'); } catch { return {}; } })();
+            {visibleHistory.map((row) => {
+              const params = parseRotorFcParams(row);
               const keyParamChips = buildKeyParamChips(params);
               const paramEntries = Object.entries(params).filter(([, v]) => v != null && v !== '');
               const fullParams = fullParamText(params);
               return (
                 <TableRow key={row.id} hover>
                   <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
-                    {row.created_at ? new Date(row.created_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                    {row.createdAt ? new Date(row.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: row.drawing_name ? 700 : 400 }}>
-                      {row.drawing_name || '-'}
+                    <Typography variant="body2" sx={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: row.drawingName ? 700 : 400 }}>
+                      {row.drawingName || '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -179,8 +180,8 @@ function RotorHistoryTable({
                     </Box>
                   </TableCell>
                   <TableCell>
-                    {row.linked_pump_model ? (
-                      <Chip label={row.linked_pump_model} size="small" color="secondary" sx={{ height: 22, fontSize: '0.75rem', fontWeight: 600 }} />
+                    {row.linkedPumpModel ? (
+                      <Chip label={row.linkedPumpModel} size="small" color="secondary" sx={{ height: 22, fontSize: '0.75rem', fontWeight: 600 }} />
                     ) : (
                       <span style={{ color: '#aaa', fontSize: '0.75rem' }}>-</span>
                     )}
@@ -210,7 +211,7 @@ function RotorHistoryTable({
                         </Tooltip>
                       </>
                     )}
-                    {row.status === 'success' && row.file_url && (
+                    {row.status === 'success' && row.fileUrl && (
                       <>
                         <Tooltip title="复用参数">
                           <IconButton size="small" color="primary"
@@ -229,15 +230,15 @@ function RotorHistoryTable({
                         <Tooltip title="下载 PDF">
                           <IconButton size="small" color="primary" component="a"
                             aria-label="下载 PDF"
-                            href={`${API_BASE}${row.file_url}`}
-                            download={sanitizePdfName(row.drawing_name)}>
+                            href={`${API_BASE}${row.fileUrl}`}
+                            download={sanitizePdfName(row.drawingName)}>
                             <PdfIcon size={18} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="打印">
                           <IconButton size="small" color="primary" disabled={printing}
                             aria-label="打印图纸"
-                            onClick={() => handlePrint(row.job_id)}>
+                            onClick={() => handlePrint(row.jobId)}>
                             <PrintIcon size={18} />
                           </IconButton>
                         </Tooltip>

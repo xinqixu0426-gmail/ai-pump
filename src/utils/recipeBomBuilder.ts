@@ -1,5 +1,5 @@
 import { CableAccessoryType, PartSelection, PumpShellTemplate, RecipePart, ShellComponent, TemplatePart } from '../types';
-import { DEFAULT_COIL_MATERIAL, inferPackingMaterial, wireModel } from './businessRules';
+import { DEFAULT_COIL_MATERIAL, inferPackingMaterial, resolveWireModel } from './businessRules';
 
 type PriceGetter = (model: string, supplier: string) => number;
 type CableAccessoryFeeGetter = (model: string, supplier: string, accessoryType: CableAccessoryType) => number;
@@ -64,7 +64,7 @@ export function buildConfigParts(input: {
 
   const configParts: RecipePart[] = [];
   if (hasFloat) {
-    const model = wireModel('浮球', floatWire);
+    const model = resolveWireModel('浮球', floatWire);
     const basePrice = getPriceByModelAndSupplier(model, '');
     const accessoryDelta = floatAccessoryType === 'xinjie' ? floatAccessoryDelta : 0;
     configParts.push({
@@ -79,7 +79,7 @@ export function buildConfigParts(input: {
   }
 
   if (hasCable && cableLength && Number(cableLength) > 0) {
-    const cableModel = wireModel('电缆', cableWire);
+    const cableModel = resolveWireModel('电缆', cableWire);
     configParts.push({
       model: cableModel,
       name: '电缆线',

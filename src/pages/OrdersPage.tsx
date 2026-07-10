@@ -13,14 +13,13 @@ import {
   Search as SearchIcon, Edit3 as EditIcon, RefreshCw as RefreshIcon,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
-import { deleteOrder, saveOrder } from '../utils/orderStore';
+import { deleteOrder, setOrderStatus } from '../utils/orderStore';
 import {
   ORDER_STATUS_COLOR,
   buildOrderKpis,
   filterOrders,
   orderPurchaseProgress,
   sortOrders,
-  updateOrderStatus,
 } from '../utils/orderLifecycleRules';
 import { useAppStore } from '../utils/store';
 import OrderDetailModal from '../components/OrderDetailModal';
@@ -107,7 +106,7 @@ export default function OrdersPage() {
     if (order.status === newStatus) return;
     setStatusUpdating(order.id);
     try {
-      await saveOrder(updateOrderStatus(order, newStatus));
+      await setOrderStatus(order, newStatus);
       await fetchOrders(true);
       showSnackbar(`订单状态已更新为「${newStatus}」`, 'success');
     } catch { /* ignore */ }
@@ -138,7 +137,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: 1200, mx: 'auto', width: '100%' }}>
       <PageHeader
         title="订单管理"
         subtitle="管理所有客户订单的状态与进度"
@@ -294,25 +293,25 @@ export default function OrdersPage() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
-                  <TableCell>
+                  <TableCell sx={{ width: '18%' }}>
                     <TableSortLabel active={orderBy === 'customerName'} direction={orderBy === 'customerName' ? order : 'asc'} onClick={() => handleRequestSort('customerName')}>客户名称</TableSortLabel>
                   </TableCell>
-                  <TableCell>合同号</TableCell>
-                  <TableCell>型号数</TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={{ width: '10%' }}>合同号</TableCell>
+                  <TableCell sx={{ width: '7%' }}>型号数</TableCell>
+                  <TableCell sx={{ width: '11%' }} align="right">
                     <TableSortLabel active={orderBy === 'totalCost'} direction={orderBy === 'totalCost' ? order : 'asc'} onClick={() => handleRequestSort('totalCost')}>总成本</TableSortLabel>
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={{ width: '11%' }} align="right">
                     <TableSortLabel active={orderBy === 'totalPrice'} direction={orderBy === 'totalPrice' ? order : 'asc'} onClick={() => handleRequestSort('totalPrice')}>总出厂价</TableSortLabel>
                   </TableCell>
-                  <TableCell>需采购零件</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '11%' }}>需采购零件</TableCell>
+                  <TableCell sx={{ width: '9%' }}>
                     <TableSortLabel active={orderBy === 'status'} direction={orderBy === 'status' ? order : 'asc'} onClick={() => handleRequestSort('status')}>状态</TableSortLabel>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '10%' }}>
                     <TableSortLabel active={orderBy === 'createdAt'} direction={orderBy === 'createdAt' ? order : 'asc'} onClick={() => handleRequestSort('createdAt')}>创建时间</TableSortLabel>
                   </TableCell>
-                  <TableCell align="center" sx={{ width: 130 }}>操作</TableCell>
+                  <TableCell sx={{ width: 130 }} align="center">操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

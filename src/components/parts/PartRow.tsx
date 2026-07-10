@@ -2,6 +2,7 @@ import { Box, Typography, Chip, IconButton, Tooltip, Fade, Checkbox } from '@mui
 import { Edit3 as EditIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { Part, ScrewPricingMeta } from '../../types';
 import { stockStatus, getCatColor, loadCustomCategories } from './partsConstants';
+import { entityCreatedAt, entityId } from '../../utils/entityFields';
 
 // ─── 零件行 ───────────────────────────────────────────
 
@@ -18,8 +19,10 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
   const ss = stockStatus(part.stock);
   const customCats = loadCustomCategories();
   const cc = getCatColor(part.category, customCats);
-  const createdAt = part.CreatedAt
-    ? new Date(part.CreatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const partId = entityId(part);
+  const partCreatedAt = entityCreatedAt(part);
+  const createdAt = partCreatedAt
+    ? new Date(partCreatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
     : '-';
 
   // 解析泵壳元数据
@@ -35,7 +38,7 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
   return (
     <Fade in timeout={200 + index * 40}>
       <Box
-        id={`part-row-${part.Id}`}
+        id={`part-row-${partId}`}
         sx={{
           display: 'grid',
           gridTemplateColumns: onSelect 
@@ -50,10 +53,10 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
         }}
       >
         {onSelect && (
-          <Checkbox 
-            checked={!!selected} 
-            onChange={(e) => onSelect(part.Id, e.target.checked)} 
-            size="small" 
+          <Checkbox
+            checked={!!selected}
+            onChange={(e) => onSelect(partId, e.target.checked)}
+            size="small"
             sx={{ p: 0 }}
           />
         )}
@@ -94,19 +97,19 @@ export default function PartRow({ part, onEdit, onDelete, index, selected, onSel
             {ss.label}
           </Typography>
         </Box>
-        <Tooltip title={part.CreatedAt ? new Date(part.CreatedAt).toLocaleString('zh-CN', { hour12: false }) : '无录入时间'}>
+        <Tooltip title={partCreatedAt ? new Date(partCreatedAt).toLocaleString('zh-CN', { hour12: false }) : '无录入时间'}>
           <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
             {createdAt}
           </Typography>
         </Tooltip>
         <Box display="flex" gap={0.5} justifyContent="flex-end">
           <Tooltip title="编辑">
-            <IconButton id={`edit-part-${part.Id}`} size="small" color="primary" aria-label="编辑零件" onClick={() => onEdit(part)}>
+            <IconButton id={`edit-part-${partId}`} size="small" color="primary" aria-label="编辑零件" onClick={() => onEdit(part)}>
               <EditIcon size={18} />
             </IconButton>
           </Tooltip>
           <Tooltip title="删除">
-            <IconButton id={`delete-part-${part.Id}`} size="small" color="error" aria-label="删除零件" onClick={() => onDelete(part.Id)}>
+            <IconButton id={`delete-part-${partId}`} size="small" color="error" aria-label="删除零件" onClick={() => onDelete(partId)}>
               <DeleteIcon size={18} />
             </IconButton>
           </Tooltip>

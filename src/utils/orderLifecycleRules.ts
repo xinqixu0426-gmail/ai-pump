@@ -1,4 +1,4 @@
-import { Order, OrderStatus, PurchaseItem } from '../types';
+import { Order, OrderStatus } from '../types';
 
 export const ORDER_STATUS_COLOR: Record<OrderStatus, 'warning' | 'info' | 'success'> = {
   待采购: 'warning',
@@ -12,12 +12,10 @@ export interface OrderKpis {
   totalRevenue: number;
   totalProfit: number;
 }
-
 export interface OrderPurchaseProgress {
   needCount: number;
   purchasedCount: number;
 }
-
 export function buildOrderKpis(orders: Order[]): OrderKpis {
   return {
     pending: orders.filter(order => order.status === '待采购' || order.status === '采购中').length,
@@ -62,52 +60,4 @@ export function sortOrders(orders: Order[], orderBy: string, direction: 'asc' | 
     if (aVal > bVal) return direction === 'asc' ? 1 : -1;
     return 0;
   });
-}
-
-export function updateOrderStatus(order: Order, status: OrderStatus, updatedAt = new Date().toISOString()): Order {
-  return { ...order, status, updatedAt };
-}
-
-export function togglePurchaseItem(order: Order, model: string, supplier: string, updatedAt = new Date().toISOString()): Order {
-  return {
-    ...order,
-    purchaseList: order.purchaseList.map(item => (
-      item.model === model && item.supplier === supplier
-        ? { ...item, purchased: !item.purchased }
-        : item
-    )),
-    updatedAt,
-  };
-}
-
-export function toggleTodoItem(order: Order, id: string, updatedAt = new Date().toISOString()): Order {
-  return {
-    ...order,
-    todos: order.todos.map(item => (
-      item.id === id ? { ...item, done: !item.done } : item
-    )),
-    updatedAt,
-  };
-}
-
-export function stockAdditionsFromPurchaseList(purchaseList: PurchaseItem[]): Array<{ partId: number; addQty: number }> {
-  return purchaseList
-    .filter(item => item.needToBuy > 0 && item.partId != null)
-    .map(item => ({ partId: item.partId!, addQty: item.needToBuy }));
-}
-
-export function completePurchaseOrder(order: Order, updatedAt = new Date().toISOString()): {
-  order: Order;
-  additions: Array<{ partId: number; addQty: number }>;
-} {
-  const additions = stockAdditionsFromPurchaseList(order.purchaseList);
-  return {
-    additions,
-    order: {
-      ...order,
-      status: '已完成',
-      purchaseList: order.purchaseList.map(item => ({ ...item, purchased: true })),
-      updatedAt,
-    },
-  };
 }

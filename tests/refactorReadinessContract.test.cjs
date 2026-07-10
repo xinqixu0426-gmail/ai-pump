@@ -1,0 +1,485 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const repoRoot = path.join(__dirname, '..');
+
+function readUtf8(filePath) {
+    return fs.readFileSync(path.join(repoRoot, filePath), 'utf8');
+}
+
+function walkFiles(dir, predicate, files = []) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory() && ['node_modules', '.next'].includes(entry.name)) continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            walkFiles(fullPath, predicate, files);
+            continue;
+        }
+        if (predicate(fullPath)) files.push(fullPath);
+    }
+    return files;
+}
+
+function relative(filePath) {
+    return path.relative(repoRoot, filePath).replace(/\\/g, '/');
+}
+
+test('重构准备契约：核心准备文档必须存在并被 README 引用', () => {
+    const readme = readUtf8('docs/README.md');
+    const requiredDocs = [
+        'business-flow.md',
+        'frontend-state-boundary.md',
+        'ui-refactor-guidelines.md',
+        'next-migration-acceptance.md',
+    ];
+
+    for (const doc of requiredDocs) {
+        assert.ok(fs.existsSync(path.join(repoRoot, 'docs', doc)), `${doc} should exist`);
+        assert.match(readme, new RegExp(`\\[${doc}\\]\\(\\.\\/${doc}\\)`));
+    }
+});
+
+test('重构准备契约：Next 迁移验收清单必须冻结覆盖范围和启动方式', () => {
+    const doc = readUtf8('docs/next-migration-acceptance.md');
+    const packageJson = JSON.parse(readUtf8('package.json'));
+
+    assert.equal(packageJson.scripts['web-next:full'], 'concurrently "npm run api" "npm run web-next:dev"');
+    assert.equal(packageJson.scripts['web-next:prod'], 'concurrently "npm run start:prod" "npm run web-next:start"');
+    assert.match(doc, /npm run web-next:full/);
+    assert.match(doc, /web-next:prod/);
+    assert.match(doc, /\/dashboard/);
+    assert.match(doc, /\/rotor/);
+    assert.match(doc, /\/ai[\s\S]*暂未迁移/);
+    assert.match(doc, /暂留差异/);
+    assert.match(doc, /浏览器验收/);
+    assert.match(doc, /切换判定/);
+});
+
+test('重构准备契约：AI 暂不迁移时 Next 导航必须保持禁用', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const acceptance = readUtf8('docs/next-migration-acceptance.md');
+
+    assert.match(shell, /\{\s*href: '\/ai',\s*label: 'AI',\s*icon: Bot,\s*enabled: false\s*\}/);
+    assert.ok(!fs.existsSync(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx')), 'Next AI page should not exist while AI migration is deferred');
+    assert.match(acceptance, /AI 助手：暂不迁移/);
+});
+
+test('重构准备契约：前端状态边界必须冻结全局状态、页面状态和刷新规则', () => {
+    const doc = readUtf8('docs/frontend-state-boundary.md');
+
+    assert.match(doc, /Zustand/);
+    assert.match(doc, /页面本地状态/);
+    assert.match(doc, /fetchXxx\(true\)/);
+    assert.match(doc, /派生数据/);
+    assert.match(doc, /跨资源刷新规则/);
+    assert.match(doc, /禁止全局乐观写入/);
+});
+
+test('重构准备契约：UI 重构约束必须冻结简洁风格、动效和业务边界', () => {
+    const doc = readUtf8('docs/ui-refactor-guidelines.md');
+
+    assert.match(doc, /motion-primitives/);
+    assert.match(doc, /简洁/);
+    assert.match(doc, /AI 味/);
+    assert.match(doc, /动效只用于解释状态变化/);
+    assert.match(doc, /表格操作要稳定/);
+    assert.match(doc, /业务不可变边界/);
+});
+
+test('重构准备契约：业务流程文档必须链接状态和 UI 约束', () => {
+    const doc = readUtf8('docs/business-flow.md');
+
+    assert.match(doc, /\[前端状态边界冻结说明\]\(\.\/frontend-state-boundary\.md\)/);
+    assert.match(doc, /\[UI\/交互重构约束\]\(\.\/ui-refactor-guidelines\.md\)/);
+});
+
+test('Next UI 契约：按钮链接必须走基础组件且不得引入 MUI', () => {
+    const webNextRoot = path.join(repoRoot, 'apps/web-next');
+    const files = walkFiles(
+        webNextRoot,
+        (filePath) => /\.(ts|tsx)$/.test(filePath)
+    );
+
+    const muiOffenders = files
+        .filter((filePath) => readUtf8(relative(filePath)).includes('@mui/'))
+        .map(relative);
+    assert.deepEqual(muiOffenders, []);
+
+    const linkOffenders = files
+        .filter((filePath) => {
+            const rel = relative(filePath);
+            if (rel === 'apps/web-next/components/ui/nav-item.tsx') return false;
+            return /from 'next\/link'|from "next\/link"/.test(readUtf8(rel));
+        })
+        .map(relative);
+    assert.deepEqual(linkOffenders, []);
+
+    const doc = readUtf8('docs/ui-refactor-guidelines.md');
+    assert.match(doc, /无频闪交互规则/);
+    assert.match(doc, /prefetch=\{false\}/);
+});
+
+test('Next UI 契约：详情编辑面板必须居中显示，不使用右侧抽屉', () => {
+    const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
+
+    assert.match(slideOver, /items-center justify-center/);
+    assert.match(slideOver, /max-h-\[calc\(100vh-2rem\)\]/);
+    assert.match(slideOver, /rounded-panel/);
+    assert.doesNotMatch(slideOver, /right-0/);
+    assert.doesNotMatch(slideOver, /\bborder-l\b/);
+});
+
+test('Next UI 契约：启用导航必须有真实页面且只允许 NavItem 使用 Link', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const navMatches = Array.from(shell.matchAll(/\{\s*href: '([^']+)',\s*label: '([^']+)',\s*icon: [^,]+,\s*enabled: true\s*\}/g));
+    const enabledRoutes = navMatches.map((match) => match[1]);
+
+    assert.ok(enabledRoutes.length > 0, 'should find enabled Next nav routes');
+    for (const route of enabledRoutes) {
+        const pagePath = route === '/'
+            ? 'apps/web-next/app/page.tsx'
+            : `apps/web-next/app${route}/page.tsx`;
+        assert.ok(fs.existsSync(path.join(repoRoot, pagePath)), `${route} should have ${pagePath}`);
+    }
+
+    const webNextRoot = path.join(repoRoot, 'apps/web-next');
+    const files = walkFiles(webNextRoot, (filePath) => /\.(ts|tsx)$/.test(filePath));
+    const linkOffenders = files
+        .filter((filePath) => {
+            const rel = relative(filePath);
+            if (rel === 'apps/web-next/components/ui/nav-item.tsx') return false;
+            return /from 'next\/link'|from "next\/link"/.test(readUtf8(rel));
+        })
+        .map(relative);
+
+    assert.deepEqual(linkOffenders, []);
+});
+
+test('Next API 契约：页面组件不得直接请求 API', () => {
+    const componentRoots = [
+        path.join(repoRoot, 'apps/web-next/app'),
+        path.join(repoRoot, 'apps/web-next/components'),
+    ];
+    const files = componentRoots.flatMap((root) => walkFiles(root, (filePath) => /\.(ts|tsx)$/.test(filePath)));
+
+    const offenders = files
+        .filter((filePath) => {
+            const source = readUtf8(relative(filePath));
+            return /import\s+\{[^}]*\bproxy(?:Request|Fetch)\b[^}]*\}/.test(source) ||
+                /\bproxy(?:Request|Fetch)\s*\(/.test(source);
+        })
+        .map(relative);
+
+    assert.deepEqual(offenders, []);
+});
+
+test('Next UI 契约：不得重新引入 MUI 或 Emotion 依赖', () => {
+    const packageJson = JSON.parse(readUtf8('apps/web-next/package.json'));
+    const packageLock = readUtf8('apps/web-next/package-lock.json');
+    const deps = {
+        ...packageJson.dependencies,
+        ...packageJson.devDependencies,
+    };
+
+    const forbiddenDeps = Object.keys(deps).filter((name) => (
+        name.startsWith('@mui/') ||
+        name.startsWith('@emotion/')
+    ));
+    assert.deepEqual(forbiddenDeps, []);
+    assert.doesNotMatch(packageLock, /"node_modules\/@mui\//);
+    assert.doesNotMatch(packageLock, /"node_modules\/@emotion\//);
+});
+
+test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手写 JSON', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const editor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
+    const technicalLib = readUtf8('apps/web-next/lib/technical-data.ts');
+
+    assert.match(recipesView, /TechnicalDataEditor/);
+    assert.match(recipesView, /parseTechnicalDataJson/);
+    assert.match(recipesView, /buildRecipeSavePayloadDraft/);
+    assert.doesNotMatch(recipesView, /技术参数 JSON/);
+    assert.doesNotMatch(recipesView, /<textarea[\s\S]*technicalDataJson/);
+    assert.doesNotMatch(recipesView, /technicalDataJson: stringifyTechnicalData/);
+    assert.match(editor, /固定技术字段/);
+    assert.match(editor, /自定义参数/);
+    assert.match(editor, /useState\(false\)/);
+    assert.match(editor, /expanded \? <div/);
+    assert.match(technicalLib, /customFields/);
+});
+
+test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+    const apiReference = readUtf8('docs/api-reference.md');
+
+    assert.match(recipesView, /partCostLine/);
+    assert.match(recipesView, /partFormulaLine/);
+    assert.match(recipesView, /findDraftPart\(bomDraft, part\)/);
+    assert.match(recipesView, /公式:/);
+    assert.match(recipesView, /小计/);
+    assert.match(recipesLib, /formula\?: string/);
+    assert.match(apiReference, /snapshotPrice/);
+    assert.match(apiReference, /formula\/costSource\/source/);
+});
+
+test('Next UI 契约：配方编辑基础信息和线圈卡片必须清晰分工', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const technicalEditor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
+
+    assert.match(recipesView, /基础信息/);
+    assert.match(recipesView, /配方名称/);
+    assert.match(recipesView, /泵壳模板/);
+    assert.match(recipesView, /型号变体/);
+    assert.match(recipesView, /线重 kg/);
+    assert.match(recipesView, /recipe-coil-wire-weight-options/);
+    assert.match(recipesView, /模板 \/ 型号零配件/);
+    assert.match(recipesView, /relatedBomParts/);
+    assert.match(recipesView, /自动关联电容/);
+    assert.match(recipesView, /bomDraft\?\.coilSnapshot\?\.formula/);
+    assert.doesNotMatch(recipesView, /线圈与叶轮/);
+    assert.match(technicalEditor, /叶轮参数/);
+});
+
+test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
+    const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
+    const rules = readUtf8('apps/web-next/lib/part-form-rules.ts');
+    const partsLib = readUtf8('apps/web-next/lib/parts.ts');
+
+    assert.match(partsView, /validatePartForm/);
+    assert.match(partsView, /buildPartNotes/);
+    assert.match(partsView, /finalPartModel/);
+    assert.match(partsView, /getSettingValue/);
+    assert.match(partsView, /setSettingValue/);
+    for (const label of ['电容容量', '线径', '电缆配件费', '新界式浮球加价', '按长度自动计价', '不锈钢机筒', '保存并继续']) {
+        assert.match(partsView, new RegExp(label));
+    }
+    for (const marker of ['groupedParts', 'collapsedCategories', 'toggleSelectGroup', 'exportSelectedCsv', 'deleteParts']) {
+        assert.match(partsView, new RegExp(marker));
+    }
+    for (const category of ['电容', '电缆线', '浮球', '螺丝', '泵壳']) {
+        assert.match(rules, new RegExp(category));
+    }
+    assert.match(partsLib, /\/api\/settings\/\$\{key\}/);
+    assert.match(partsLib, /export async function deleteParts/);
+});
+
+test('Next UI 契约：订单详情必须保留后端动作和入库确认', () => {
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const detailDrawer = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+    const ordersLib = readUtf8('apps/web-next/lib/orders.ts');
+
+    assert.match(ordersView, /OrderDetailDrawer/);
+    assert.match(ordersView, /createOrder/);
+    assert.match(detailDrawer, /toggleOrderPurchaseItem/);
+    assert.match(detailDrawer, /toggleOrderTodoItem/);
+    assert.match(detailDrawer, /setOrderStatus/);
+    assert.match(detailDrawer, /completeOrderPurchase/);
+    assert.match(detailDrawer, /确认采购完成并入库/);
+    assert.match(detailDrawer, /purchaseAdditions/);
+    assert.match(detailDrawer, /避免重复入库/);
+    assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/status/);
+    assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/toggle/);
+    assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/todos\/toggle/);
+    assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/complete-purchase/);
+});
+
+test('Next UI 契约：订单新增产品保存成本为空时必须后端兜底试算', () => {
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const ordersLib = readUtf8('apps/web-next/lib/orders.ts');
+
+    assert.match(ordersLib, /getRecipeCurrentPartsCost/);
+    assert.match(ordersLib, /\/api\/recipes\/\$\{recipeId\}\/cost/);
+    assert.match(ordersLib, /createOrderItemWithUnitCost/);
+    assert.match(ordersView, /getRecipeCurrentPartsCost\(selectedRecipe\.id\)/);
+    assert.match(ordersView, /保存成本为空时调用后端当前配件价作为参考/);
+    assert.doesNotMatch(ordersView, /保存成本为空时该产品成本为 0/);
+});
+
+test('Next UI 契约：线圈页必须保留材质默认单价和规格组批量改单价', () => {
+    const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
+    const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
+    const acceptance = readUtf8('docs/next-migration-acceptance.md');
+
+    assert.match(coilsView, /实时市场指标/);
+    assert.match(coilsView, /同步市场指标/);
+    assert.match(coilsView, /refreshMarketIndicators/);
+    assert.match(coilsView, /syncMarketIndicators/);
+    assert.match(coilsView, /材质默认单价/);
+    assert.match(coilsView, /保存单价配置/);
+    assert.match(coilsView, /添加材质/);
+    assert.match(coilsView, /改单价/);
+    assert.match(coilsView, /saveMaterialConfig/);
+    assert.match(coilsView, /saveGroupPrice/);
+    assert.match(coilsLib, /saveCoilMaterialPrices/);
+    assert.match(coilsLib, /\/api\/coils\/materials/);
+    assert.match(coilsLib, /updateCoilSpecPrice/);
+    assert.match(coilsLib, /\/api\/coils\/spec\/\$\{encodeURIComponent\(spec\)\}/);
+    assert.match(coilsLib, /getMarketIndicators/);
+    assert.match(coilsLib, /\/api\/market-indicators/);
+    assert.match(coilsLib, /updateMarketIndicators/);
+    assert.match(coilsLib, /\/api\/market-indicators\/update/);
+    assert.match(acceptance, /实时市场指标/);
+    assert.match(acceptance, /同步铜价\/铝线基数\/汇率/);
+    assert.match(acceptance, /材质默认单价配置/);
+    assert.match(acceptance, /规格\+材质组批量改单价/);
+});
+
+test('Next UI 契约：报价转订单必须先预览后确认', () => {
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const quotationsLib = readUtf8('apps/web-next/lib/quotations.ts');
+
+    assert.match(quotationsView, /报价转订单预览/);
+    assert.match(quotationsView, /openConvertPreview/);
+    assert.match(quotationsView, /confirmConvertToOrder/);
+    assert.match(quotationsView, /buildQuotationOrderDraft/);
+    assert.match(quotationsView, /采购计划预览/);
+    assert.match(quotationsLib, /buildQuotationOrderDraft/);
+    assert.match(quotationsLib, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
+    assert.match(quotationsLib, /input\.draft \|\| await buildQuotationOrderDraft\(input\.quotation\.id\)/);
+});
+
+test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const quotationsLib = readUtf8('apps/web-next/lib/quotations.ts');
+
+    assert.match(quotationsLib, /previewQuotationItemCost/);
+    assert.match(quotationsLib, /\/api\/recipes\/\$\{recipeId\}\/cost-preview/);
+    assert.match(quotationsLib, /buildRecipeDefaultQuotationOverrides/);
+    assert.match(quotationsView, /previewQuotationItemCost/);
+    assert.match(quotationsView, /updateDraftItemOverrides/);
+    assert.match(quotationsView, /hasFloat/);
+    assert.match(quotationsView, /hasCable/);
+    assert.match(quotationsView, /customBarrelLength/);
+    assert.match(quotationsView, /packagingOptions/);
+    assert.match(quotationsView, /packingPartsJson/);
+    assert.match(quotationsView, /包装/);
+    assert.match(quotationsLib, /getAllParts/);
+    assert.doesNotMatch(quotationsView, /动态覆盖项稍后单独迁移/);
+});
+
+test('Next UI 契约：客户详情可以带客户上下文新建报价', () => {
+    const customersView = readUtf8('apps/web-next/components/customers-view.tsx');
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const quotationsPage = readUtf8('apps/web-next/app/quotations/page.tsx');
+
+    assert.match(customersView, /useRouter/);
+    assert.match(customersView, /createQuotationForCustomer/);
+    assert.match(customersView, /\/quotations\?create=1&customerId=\$\{customer\.id\}/);
+    assert.match(customersView, /新建报价/);
+    assert.doesNotMatch(customersView, /后续接入报价创建/);
+    assert.match(quotationsView, /useSearchParams/);
+    assert.match(quotationsView, /prefillCustomerId/);
+    assert.match(quotationsView, /shouldCreateFromQuery/);
+    assert.match(quotationsView, /setDrawerOpen\(true\)/);
+    assert.match(quotationsView, /setItemMargin\(\(1 \+ Number\(customer\.defaultMargin/);
+    assert.match(quotationsPage, /Suspense/);
+    assert.match(quotationsPage, /<QuotationsView \/>/);
+});
+
+test('Next UI 契约：转子页必须支持模板变体带入和历史关联', () => {
+    const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
+    const rotorLib = readUtf8('apps/web-next/lib/rotor.ts');
+    const rotorRoute = readUtf8('api/routes/rotor.cjs');
+    const rotorDraftService = readUtf8('api/services/rotorTemplateDraft.cjs');
+
+    assert.match(rotorView, /getAllTemplates/);
+    assert.match(rotorView, /getAllModelVariants/);
+    assert.match(rotorView, /calculateBearingSpan/);
+    assert.match(rotorView, /getRotorTemplateDraft/);
+    assert.doesNotMatch(rotorView, /function formPatchFromTemplate/);
+    assert.doesNotMatch(rotorView, /findShellMetaForTemplate/);
+    assert.match(rotorView, /getRotorLinkTargets/);
+    assert.match(rotorView, /linkRotorHistory/);
+    assert.match(rotorLib, /\/api\/rotor\/template-draft/);
+    assert.match(rotorLib, /\/api\/rotor\/link-targets/);
+    assert.match(rotorLib, /\/api\/rotor\/history\/\$\{id\}\/link/);
+    assert.match(rotorRoute, /router\.post\('\/template-draft'/);
+    assert.match(rotorDraftService, /function buildRotorTemplateDraft/);
+});
+
+test('Next UI 契约：配方页必须恢复模板与常用配置入口', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+
+    assert.match(recipesView, /sectionOptions/);
+    assert.match(recipesView, /泵壳模板/);
+    assert.match(recipesView, /配方对比/);
+    assert.match(recipesView, /toggleCompareRecipe/);
+    assert.match(recipesView, /buildComparePartRows/);
+    assert.match(recipesView, /comparePartRows/);
+    assert.match(recipesView, /Recipe Detail/);
+    assert.match(recipesView, /openRecipeDetail/);
+    assert.match(recipesView, /checkRecipeProduction/);
+    assert.match(recipesView, /produceRecipe/);
+    assert.match(recipesView, /生产扣库存/);
+    assert.match(recipesView, /新建模板/);
+    assert.match(recipesView, /submitTemplate/);
+    assert.match(recipesView, /openEditTemplate/);
+    assert.match(recipesView, /deleteTemplate/);
+    assert.match(recipesView, /getTemplateRecipeDraft/);
+    assert.match(recipesView, /templateId:\s*String\(recipeDraft\.templateId\)/);
+    assert.match(recipesView, /常用配置/);
+    assert.match(recipesView, /新建配置/);
+    assert.match(recipesView, /openCloneVariant/);
+    assert.match(recipesView, /submitVariant/);
+    assert.match(recipesView, /deleteModelVariant/);
+    assert.match(recipesView, /applyModelVariantDraft/);
+    assert.match(recipesView, /saveAsVariant/);
+    assert.match(recipesView, /保存为常用配置/);
+    assert.match(recipesView, /保存为常用配置前，请先选择泵壳模板/);
+    assert.match(recipesView, /createModelVariant\(\{/);
+    assert.match(recipesView, /配方已保存，常用配置保存失败/);
+    assert.match(recipesView, /线圈快照/);
+    assert.match(recipesView, /自动电容/);
+    assert.match(recipesView, /机筒 \/ 长螺丝/);
+    assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
+    assert.match(recipesView, /buildRecipeSavePayloadDraft/);
+    assert.match(recipesView, /name:\s*recipeDraft\.name/);
+    assert.match(recipesView, /spec:\s*recipeDraft\.spec/);
+    assert.match(recipesView, /assemblyWage:\s*String\(recipeDraft\.assemblyWage/);
+    assert.match(recipesLib, /createModelVariant/);
+    assert.match(recipesLib, /updateModelVariant/);
+    assert.match(recipesLib, /deleteModelVariant/);
+    assert.match(recipesLib, /applyModelVariantDraft/);
+    assert.match(recipesLib, /buildRecipeSavePayloadDraft/);
+    assert.match(recipesLib, /getTemplateRecipeDraft/);
+    assert.match(recipesLib, /\/api\/recipes\/model-variant-draft/);
+    assert.match(recipesLib, /\/api\/recipes\/save-payload-draft/);
+    assert.match(recipesLib, /\/api\/recipes\/\$\{recipeId\}\/production-check/);
+    assert.match(recipesLib, /\/api\/recipes\/\$\{recipeId\}\/produce/);
+    assert.match(recipesLib, /\/api\/templates\/\$\{templateId\}\/default-recipe/);
+    assert.match(recipesLib, /createTemplate/);
+    assert.match(recipesLib, /updateTemplate/);
+    assert.match(recipesLib, /deleteTemplate/);
+    assert.match(recipesLib, /\/api\/templates/);
+    assert.match(recipesLib, /\/api\/model-variants/);
+    assert.match(recipesLib, /\/api\/coils\/specs/);
+});
+
+test('Next UI 契约：线圈新增必须保留同规格自动带入小操作', () => {
+    const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
+    const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
+    const coilsRoute = readUtf8('api/routes/coils.cjs');
+    const coilCostService = readUtf8('api/services/coilCost.cjs');
+
+    assert.match(coilsView, /function autoFillFromSpec/);
+    assert.match(coilsView, /getCoilSpecDraft/);
+    assert.match(coilsView, /specOptions\.includes\(spec\)/);
+    assert.match(coilsView, /onBlur=\{\(\) => \{/);
+    assert.match(coilsView, /list="coil-spec-options"/);
+    assert.match(coilsView, /wireWeight:\s*optionalNumberText\(draft\.wireWeight\)/);
+    assert.match(coilsView, /copperBase:\s*optionalNumberText\(draft\.copperBase\)/);
+    assert.match(coilsView, /coilFee:\s*optionalNumberText\(draft\.coilFee\)/);
+    assert.match(coilsView, /rotorFee:\s*optionalNumberText\(draft\.rotorFee\)/);
+    assert.match(coilsView, /defaultWireGauge:\s*draft\.defaultWireGauge/);
+    assert.match(coilsView, /defaultCapacitor:\s*draft\.defaultCapacitor/);
+    assert.match(coilsView, /disabled=\{Boolean\(editingCoil\)\}/);
+    assert.match(coilsView, /单片价请在规格组里批量修改/);
+    assert.match(coilsLib, /getCoilSpecDraft/);
+    assert.match(coilsLib, /\/api\/coils\/spec-draft/);
+    assert.match(coilsRoute, /router\.post\('\/spec-draft'/);
+    assert.match(coilCostService, /function buildCoilSpecDraft/);
+});

@@ -100,18 +100,22 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
     const screw = result.parts.find(part => part.name === '不锈钢长螺丝');
     assert.equal(screw.model, '6*200');
     assert.equal(screw.snapshotPrice, 0.65);
+    assert.match(screw.formula, /长螺丝长度=190\+10=200mm/);
 
     const barrel = result.parts.find(part => part.name === '机筒(按cm)');
     assert.equal(barrel.qty, 19);
     assert.equal(barrel.snapshotPrice, 0.8);
+    assert.equal(barrel.formula, '机筒: 0.8×19cm');
 
     const coil = result.parts.find(part => part.name === '线圈转子');
     assert.equal(coil.model, 'Y90-10');
     assert.equal(coil.snapshotPrice, 21.1);
+    assert.equal(coil.formula, '0.21×10 + 0.2×70 + 2.00 + 3.00');
 
     assert.ok(result.parts.find(part => part.name === '电容' && part.model === '20μF'));
     assert.ok(result.parts.find(part => part.name === '浮球'));
-    assert.ok(result.parts.find(part => part.model === '电缆配件费' && part.snapshotPrice === 1));
+    assert.ok(result.parts.find(part => part.name === '电缆线' && part.formula === '电缆单价 1.88×3m'));
+    assert.ok(result.parts.find(part => part.model === '电缆配件费' && part.snapshotPrice === 1 && part.formula === '电缆配件费(新界式)'));
     assert.ok(result.parts.find(part => part.model === '牛皮纸箱A' && part.packagingMaterial === '牛皮纸箱'));
     assert.ok(result.parts.find(part => part.model === '泡沫内衬' && part.packagingMaterial === '泡沫'));
 });
@@ -150,4 +154,23 @@ test('后端 BOM draft 线圈快照复用插值规则', () => {
     assert.equal(coil.snapshotPrice, 31);
     assert.equal(coil.source, '插值(10片↔20片, ratio=0.500)');
     assert.equal(result.coilSnapshot.formula, '0.2×15 + 0.3×70 + 3.00 + 4.00');
+});
+
+test('后端 BOM draft 支持客户指定线重重算线圈成本', () => {
+    const result = buildRecipeBomDraft({
+        coilSpec: 'Y90',
+        coilSheets: 15,
+        coilMaterial: '钢带',
+        coilWireWeight: 0.5,
+    }, {
+        partsCatalog,
+        coils: interpolationCoils,
+    });
+
+    const coil = result.parts.find(part => part.name === '线圈转子');
+    assert.equal(result.coilSnapshot.wireWeight, 0.5);
+    assert.equal(result.coilSnapshot.totalCost, 45);
+    assert.equal(result.coilSnapshot.formula, '0.2×15 + 0.5×70 + 3.00 + 4.00');
+    assert.equal(coil.snapshotPrice, 45);
+    assert.equal(coil.formula, '0.2×15 + 0.5×70 + 3.00 + 4.00');
 });

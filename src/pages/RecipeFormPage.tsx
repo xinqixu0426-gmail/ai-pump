@@ -16,7 +16,7 @@ import { ArrowLeft as BackIcon, Save as SaveIcon } from 'lucide-react';
 import { CableAccessoryConfig, CableAccessoryType, PumpModelVariant, RecipePart, TemplatePart, PartSelection, SurfaceTreatmentMode, RecipeBomDraftResult } from '../types';
 import { createModelVariant, createPart, createRecipe, updateRecipe, proxyRequest, getAllModelVariants, previewRecipeBomDraft } from '../utils/api';
 import { useAppStore } from '../utils/store';
-import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
+import { getPriceByModelAndSupplier as _getPrice, getCableAccessoryFee as _getCableAccessoryFee, getCableAccessoryName as _getCableAccessoryName, getModelsByCategory as _getModelsByCategory, getPartsByCategory as _getPartsByCategory, getSuppliersByModel as _getSuppliersByModel } from '../utils/partHelpers';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { colors } from '../utils/theme';
 import {
@@ -24,6 +24,7 @@ import {
   DEFAULT_FLOAT_ACCESSORY_DELTA,
   isLongScrewPart,
   longScrewPriceByModel,
+  wireModel,
   wireOptionsFromParts,
 } from '../utils/businessRules';
 import { buildConfigParts as buildConfigRecipeParts, buildRecipeBomParts, calculateShellPrice } from '../utils/recipeBomBuilder';
@@ -47,6 +48,7 @@ import {
   updateOptionalPart,
 } from '../utils/recipeFormActions';
 import { prepareRecipeSubmission } from '../utils/recipeSubmitFlow';
+import { entityId } from '../utils/entityFields';
 
 export default function RecipeFormPage() {
   const location = useLocation();
@@ -124,8 +126,14 @@ export default function RecipeFormPage() {
   const cableWireOptions = useMemo(() => getInventoryWireGauges('电缆-线径'), [getInventoryWireGauges]);
 
   useEffect(() => {
-    setFloatWire((current: string) => floatWireOptions.includes(current) ? current : (floatWireOptions[0] || ''));
-    setCableWire((current: string) => cableWireOptions.includes(current) ? current : (cableWireOptions[0] || ''));
+    setFloatWire((current: string) => {
+      const gauge = current.startsWith('浮球-') ? current.replace('浮球-线径', '') : current;
+      return floatWireOptions.includes(gauge) ? current : (floatWireOptions[0] ? wireModel('浮球', floatWireOptions[0]) : '');
+    });
+    setCableWire((current: string) => {
+      const gauge = current.startsWith('电缆-') ? current.replace('电缆-线径', '') : current;
+      return cableWireOptions.includes(gauge) ? current : (cableWireOptions[0] ? wireModel('电缆', cableWireOptions[0]) : '');
+    });
   }, [floatWireOptions, cableWireOptions]);
 
   // 不锈钢自定义机筒长度
@@ -265,11 +273,11 @@ export default function RecipeFormPage() {
       if (source.coilMaterial) setCoilMaterial(source.coilMaterial);
       if (source.coilSheets) setCoilSheets(String(source.coilSheets));
       setHasFloat(!!source.hasFloat);
-      if (source.floatWire) setFloatWire(floatWireOptions.includes(source.floatWire) ? source.floatWire : (floatWireOptions[0] || ''));
+      if (source.floatWire) setFloatWire(source.floatWire.startsWith('浮球-') ? source.floatWire : wireModel('浮球', source.floatWire));
       if (source.floatAccessoryType) setFloatAccessoryType(source.floatAccessoryType);
       setHasCable(!!source.hasCable);
       if (source.cableLength) setCableLength(String(source.cableLength));
-      if (source.cableWire) setCableWire(cableWireOptions.includes(source.cableWire) ? source.cableWire : (cableWireOptions[0] || ''));
+      if (source.cableWire) setCableWire(source.cableWire.startsWith('电缆-') ? source.cableWire : wireModel('电缆', source.cableWire));
       if (source.cableAccessoryType) setCableAccessoryType(source.cableAccessoryType);
       const rawPacking = buildPackingSelectionsFromRecipe(source);
       setPackingParts(rawPacking.map(p => ({ id: nextPackingId.current++, ...p })));
@@ -290,10 +298,10 @@ export default function RecipeFormPage() {
     if (legacy.coilSpec) setCoilSpec(legacy.coilSpec);
     if (legacy.coilSheets) setCoilSheets(legacy.coilSheets);
     if (legacy.hasFloat) setHasFloat(true);
-    if (legacy.floatWire) setFloatWire(legacy.floatWire);
+    if (legacy.floatWire) setFloatWire(legacy.floatWire.startsWith('浮球-') ? legacy.floatWire : wireModel('浮球', legacy.floatWire));
     if (legacy.floatAccessoryType) setFloatAccessoryType(legacy.floatAccessoryType);
     if (legacy.hasCable) setHasCable(true);
-    if (legacy.cableWire) setCableWire(legacy.cableWire);
+    if (legacy.cableWire) setCableWire(legacy.cableWire.startsWith('电缆-') ? legacy.cableWire : wireModel('电缆', legacy.cableWire));
     if (legacy.cableLength) setCableLength(legacy.cableLength);
     if (legacy.packingParts.length > 0) {
       setPackingParts(legacy.packingParts.map(p => ({ id: nextPackingId.current++, ...p })));
@@ -318,14 +326,18 @@ export default function RecipeFormPage() {
     (category: string) => _getModelsByCategory(parts, category),
     [parts]
   );
+  const getPartsByCategory = useCallback(
+    (category: string) => _getPartsByCategory(parts, category),
+    [parts]
+  );
   const getSuppliersByModel = useCallback(
     (model: string) => _getSuppliersByModel(parts, model),
     [parts]
   );
 
 
-  const selectedTemplate = templates.find(t => t.Id === selectedTemplateId) || null;
-  const selectedModelVariant = modelVariants.find(v => v.Id === selectedModelVariantId) || null;
+  const selectedTemplate = templates.find(t => entityId(t) === selectedTemplateId) || null;
+  const selectedModelVariant = modelVariants.find(v => entityId(v) === selectedModelVariantId) || null;
   const {
     selectedTemplateCostMode,
     shellComponents,
@@ -509,7 +521,7 @@ export default function RecipeFormPage() {
 
   const applyModelVariant = (variantId: number | null) => {
     setSelectedModelVariantId(variantId);
-    const variant = modelVariants.find(v => v.Id === variantId);
+    const variant = modelVariants.find(v => entityId(v) === variantId);
     if (!variant) {
       setSaveAsPreset(false);
       return;
@@ -687,7 +699,7 @@ export default function RecipeFormPage() {
         managementFee,
       });
       setSaving(true);
-      if (isEditing && editFrom) await updateRecipe(editFrom.Id, recipeData);
+      if (isEditing && editFrom) await updateRecipe(entityId(editFrom), recipeData);
       else await createRecipe(recipeData);
       if (saveAsPreset && selectedTemplateId) {
         try {
@@ -775,6 +787,7 @@ export default function RecipeFormPage() {
           setPackingParts={setPackingParts}
           parts={parts} getPriceByModelAndSupplier={getPriceByModelAndSupplier}
           getSuppliersByModel={getSuppliersByModel} getModelsByCategory={getModelsByCategory}
+          getPartsByCategory={getPartsByCategory}
         />
 
         <StepTechnicalData

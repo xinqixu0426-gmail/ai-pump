@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getAllTemplates, getAllParts, getAllModelVariants, proxyFetch, proxyRequest } from '../utils/api';
 import type { PumpShellTemplate, Part, PumpShellMeta, PumpModelVariant } from '../types';
+import { normalizeRotorHistoryRows, parseRotorFcParams, RotorHistoryRecord } from '../utils/rotorHistory';
 import PageHeader from '../components/PageHeader';
 import { normalizeBearing, JobStatus } from '../components/rotor/rotorConstants';
 import RotorFormPanel, { RotorFormData } from '../components/rotor/RotorFormPanel';
@@ -103,12 +104,9 @@ function sanitizeDownloadName(value: string) {
   return `${(value || '转子图纸').trim().replace(/[\\/:*?"<>|]/g, '_') || '转子图纸'}.pdf`;
 }
 
-function parseHistoryParams(row: any): Record<string, unknown> {
-  try {
-    return JSON.parse(row.fc_params_json || '{}');
-  } catch {
-    return {};
-  }
+function normalizeJobStatus(status: string): JobStatus['status'] {
+  if (status === 'success' || status === 'failed') return status;
+  return 'processing';
 }
 
 export default function RotorDrawingPage() {
@@ -130,12 +128,12 @@ export default function RotorDrawingPage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState('');
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<RotorHistoryRecord[]>([]);
   const [printing, setPrinting] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [linkTargetRow, setLinkTargetRow] = useState<any>(null);
+  const [linkTargetRow, setLinkTargetRow] = useState<RotorHistoryRecord | null>(null);
   const [linkTargets, setLinkTargets] = useState<RotorLinkTarget[]>([]);
   const [linking, setLinking] = useState(false);
   const [savingParams, setSavingParams] = useState(false);
@@ -281,7 +279,7 @@ export default function RotorDrawingPage() {
   const loadHistory = useCallback(async () => {
     try {
       const res = await proxyRequest<any[] | { success: boolean; data: any[] }>('/api/rotor/history');
-      setHistory(Array.isArray(res) ? res : res.data);
+      setHistory(normalizeRotorHistoryRows(Array.isArray(res) ? res : res.data));
     } catch { /* ignore history refresh errors */ }
   }, []);
 
@@ -301,8 +299,9 @@ export default function RotorDrawingPage() {
           if (histRes.ok) {
             const histData = await histRes.json();
             const rows = Array.isArray(histData) ? histData : histData.data || [];
-            const found = rows.find((r: any) => r.job_id === jobId);
-            if (found) setJobStatus({ status: found.status, fileUrl: found.file_url, error: found.error, drawingName: found.drawing_name });
+            const normalizedRows = normalizeRotorHistoryRows(rows);
+            const found = normalizedRows.find((r) => r.jobId === jobId);
+            if (found) setJobStatus({ status: normalizeJobStatus(found.status), fileUrl: found.fileUrl, error: found.error, drawingName: found.drawingName });
             else setJobStatus({ status: 'failed', error: '任务已过期，未找到记录' });
           }
           loadHistory();
@@ -395,17 +394,17 @@ export default function RotorDrawingPage() {
     }
   };
 
-  const reuseParamsFromRow = useCallback((row: any) => {
-    const params = parseHistoryParams(row);
+  const reuseParamsFromRow = useCallback((row: RotorHistoryRecord) => {
+    const params = parseRotorFcParams(row);
     const nextForm = formFromFcParams(params);
     setForm(prev => ({ ...prev, ...nextForm }));
     autoDrawingTextRef.current = '';
     setDrawingText(asFormValue(params._drawing_text) || asFormValue(params.drawing_text));
-    if (row.drawing_name) setDrawingName(`${row.drawing_name}-复用`);
+    if (row.drawingName) setDrawingName(`${row.drawingName}-复用`);
     setSnackbar({ open: true, message: '已复用历史图纸参数', severity: 'success' });
   }, []);
 
-  const latestReusableRow = history.find(row => row.fc_params_json);
+  const latestReusableRow = history.find(row => row.fcParamsJson);
 
   const handleReuseLatest = useCallback(() => {
     if (!latestReusableRow) return;
@@ -423,7 +422,7 @@ export default function RotorDrawingPage() {
     finally { setPrinting(false); }
   }, []);
 
-  const handleLinkClick = useCallback(async (row: any) => {
+  const handleLinkClick = useCallback(async (row: RotorHistoryRecord) => {
     setLinkTargetRow(row);
     try {
       const res = await proxyRequest<RotorLinkTarget[] | { success: boolean; data: RotorLinkTarget[] }>('/api/rotor/link-targets');

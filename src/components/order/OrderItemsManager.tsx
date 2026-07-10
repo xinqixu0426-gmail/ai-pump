@@ -1,6 +1,7 @@
 import { Box, Typography, Autocomplete, TextField, InputAdornment, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Tooltip, Chip, IconButton } from '@mui/material';
 import { Search as SearchIcon, Plus as AddIcon, Clock as HistoryIcon, Trash2 as DeleteIcon } from 'lucide-react';
 import { Recipe } from '../../types';
+import { entityId } from '../../utils/entityFields';
 import { HistoryPrice } from '../../utils/orderStore';
 import { formatMoney as fmt } from '../../utils/format';
 
@@ -57,7 +58,7 @@ export default function OrderItemsManager(props: OrderItemsManagerProps) {
         <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
           <Autocomplete
             options={recipeOptions}
-            value={recipeOptions.find((o) => o.recipe.Id === selectedRecipe?.Id) ?? null}
+            value={recipeOptions.find((o) => selectedRecipe && entityId(o.recipe) === entityId(selectedRecipe)) ?? null}
             onChange={(_, v) => setSelectedRecipe(v?.recipe ?? null)}
             renderInput={(params) => (
               <TextField

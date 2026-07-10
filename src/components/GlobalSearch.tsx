@@ -32,6 +32,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Customer, Order, Part, Quotation, Recipe } from '../types';
 import { useAppStore } from '../utils/store';
+import { entityCreatedAt, entityId } from '../utils/entityFields';
 
 type SearchResult = {
   key: string;
@@ -125,7 +126,7 @@ export default function GlobalSearch() {
     const q = query.trim().toLowerCase();
     const customersTyped = customers as Customer[];
     const quotationsTyped = quotations as Quotation[];
-    const customerNameMap = new Map(customersTyped.map(c => [c.Id, c.name]));
+    const customerNameMap = new Map(customersTyped.map(c => [entityId(c), c.name]));
     const hasQuery = q.length > 0;
     const match = (...values: unknown[]) =>
       hasQuery && values.some(value => String(value ?? '').toLowerCase().includes(q));
@@ -195,21 +196,21 @@ export default function GlobalSearch() {
       .filter(recipe => match(recipe.name, recipe.spec, recipe.partsJson))
       .slice(0, 8)
       .map<SearchResult>(recipe => ({
-        key: `recipe-${recipe.Id}`,
+        key: `recipe-${entityId(recipe)}`,
         group: '配方',
         title: recipe.name,
         subtitle: recipe.spec || '未填写规格',
         meta: recipe.savedTotalCost ? money(recipe.savedTotalCost) : '查看成本',
         icon: Receipt,
         color: '#7c3aed',
-        onSelect: () => closeAndGo('/recipes', { openRecipeId: recipe.Id }),
+        onSelect: () => closeAndGo('/recipes', { openRecipeId: entityId(recipe) }),
       }));
 
     const partResults = (parts as Part[])
       .filter(part => match(part.model, part.category, part.supplier, part.remark, part.notes))
       .slice(0, 8)
       .map<SearchResult>(part => ({
-        key: `part-${part.Id}`,
+        key: `part-${entityId(part)}`,
         group: '零件',
         title: part.model,
         subtitle: `${part.category || '未分类'} · ${part.supplier || '无供应商'}`,
@@ -223,14 +224,14 @@ export default function GlobalSearch() {
       .filter(customer => match(customer.name, customer.contactInfo, customer.remark))
       .slice(0, 8)
       .map<SearchResult>(customer => ({
-        key: `customer-${customer.Id}`,
+        key: `customer-${entityId(customer)}`,
         group: '客户',
         title: customer.name,
         subtitle: customer.contactInfo || customer.remark || '客户档案',
         meta: `默认加价 ${(Number(customer.defaultMargin || 0) * 100).toFixed(0)}%`,
         icon: Users,
         color: '#0891b2',
-        onSelect: () => closeAndGo('/customers', { customerId: customer.Id }),
+        onSelect: () => closeAndGo('/customers', { customerId: entityId(customer) }),
       }));
 
     const quotationResults = quotationsTyped
@@ -247,14 +248,14 @@ export default function GlobalSearch() {
       })
       .slice(0, 8)
       .map<SearchResult>(quotation => ({
-        key: `quotation-${quotation.Id}`,
+        key: `quotation-${entityId(quotation)}`,
         group: '报价单',
-        title: customerNameMap.get(quotation.customerId) || `报价单 #${quotation.Id}`,
+        title: customerNameMap.get(quotation.customerId) || `报价单 #${entityId(quotation)}`,
         subtitle: `${quotation.status || '报价中'} · ${quotation.remark || '无备注'}`,
-        meta: `${dateShort(quotation.CreatedAt)} · ${money(quotation.totalPrice)}`,
+        meta: `${dateShort(entityCreatedAt(quotation))} · ${money(quotation.totalPrice)}`,
         icon: FileText,
         color: '#16a34a',
-        onSelect: () => closeAndGo('/quotations', { openQuotationId: quotation.Id }),
+        onSelect: () => closeAndGo('/quotations', { openQuotationId: entityId(quotation) }),
       }));
 
     if (!hasQuery) return commandResults;

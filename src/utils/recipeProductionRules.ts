@@ -1,6 +1,10 @@
 import { Part, Recipe, RecipePart } from '../types';
 import { parseRecipePartsJson } from './recipeListRules';
 
+function resourceId(entity: { id?: number; Id?: number }): number {
+  return entity.id ?? entity['Id'] ?? 0;
+}
+
 export interface StockCheck {
   name: string;
   model: string;
@@ -33,7 +37,7 @@ export function buildRecipeStockChecks(recipe: Recipe, parts: Part[], produceQty
       qtyNeeded: totalNeeded,
       currentStock,
       sufficient: currentStock >= totalNeeded,
-      partId: matchedPart?.Id,
+      partId: matchedPart ? resourceId(matchedPart) : undefined,
     };
   });
 }

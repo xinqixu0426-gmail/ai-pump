@@ -6,7 +6,6 @@ export interface AffectedPurchase {
   order: Order;
   item: PurchaseItem;
 }
-
 export interface PurchaseTask {
   key: string;
   supplier: string;
@@ -19,7 +18,6 @@ export interface PurchaseTask {
   orderCount: number;
   affected: AffectedPurchase[];
 }
-
 export interface GroupPurchaseConfirm {
   supplier: string;
   taskCount: number;
@@ -123,28 +121,4 @@ export function buildPurchaseStats(orders: Order[], tasks: PurchaseTask[], suppl
     pendingNeed,
     totalNeed,
   };
-}
-
-export function buildUpdatedOrders(
-  affected: AffectedPurchase[],
-  purchased: boolean,
-  updatedAt = new Date().toISOString(),
-): Order[] {
-  const updates = new Map<string, { order: Order; keys: Set<string> }>();
-  for (const entry of affected) {
-    const orderUpdate = updates.get(entry.order.id) || { order: entry.order, keys: new Set<string>() };
-    orderUpdate.keys.add(`${entry.item.model}||${entry.item.supplier || ''}`);
-    updates.set(entry.order.id, orderUpdate);
-  }
-
-  return [...updates.values()].map(({ order, keys }) => ({
-    ...order,
-    status: purchased && order.status === '待采购' ? '采购中' : order.status,
-    purchaseList: order.purchaseList.map(item => (
-      keys.has(`${item.model}||${item.supplier || ''}`) && Number(item.needToBuy || 0) > 0
-        ? { ...item, purchased }
-        : item
-    )),
-    updatedAt,
-  }));
 }

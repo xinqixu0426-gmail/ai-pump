@@ -15,7 +15,7 @@ async function executeCostTool(toolName, args, internalFetch) {
         }
 
         case 'query_recipe_cost_by_id': {
-            const response = await internalFetch(`/api/cost/recipe/${args.id}`);
+            const response = await internalFetch(`/api/recipes/${args.id}/cost`);
             return await response.json();
         }
 
@@ -152,11 +152,11 @@ async function executeCostTool(toolName, args, internalFetch) {
             const result = await response.json();
             const rows = Array.isArray(result) ? result : (result.data || []);
             const recent = (Array.isArray(rows) ? rows : []).slice(0, limit).map(r => ({
-                jobId: r.job_id,
+                jobId: r.jobId ?? r.job_id,
                 status: r.status,
-                input: (r.nl_input || '').slice(0, 80),
-                fileUrl: r.file_url,
-                createdAt: r.created_at
+                input: ((r.nlInput ?? r.nl_input) || '').slice(0, 80),
+                fileUrl: r.fileUrl ?? r.file_url,
+                createdAt: r.createdAt ?? r.created_at
             }));
             return { success: true, count: recent.length, history: recent };
         }

@@ -211,6 +211,7 @@ const recipeAlterColumns = [
     ['coil_spec', "TEXT DEFAULT ''"],
     ['coil_sheets', 'INTEGER DEFAULT 0'],
     ['coil_material', "TEXT DEFAULT '钢带'"],
+    ['coil_wire_weight', 'REAL'],
     ['has_float', 'INTEGER DEFAULT 0'],
     ['float_wire', "TEXT DEFAULT ''"],
     ['float_accessory_type', "TEXT DEFAULT 'standard'"],
@@ -285,8 +286,9 @@ for (const tbl of ['orders', 'recipes', 'parts']) {
 function partRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, model: r.model, category: r.category, price: r.price,
+        id: r.id, Id: r.id, model: r.model, category: r.category, price: r.price,
         supplier: r.supplier, stock: r.stock, notes: r.remark || '',
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -297,12 +299,13 @@ function recipeRow(r) {
         ? r.surface_treatment_cost
         : (r.painting_wage != null ? r.painting_wage : 0);
     return {
-        Id: r.id, name: r.name, spec: r.spec,
+        id: r.id, Id: r.id, name: r.name, spec: r.spec,
         partsJson: r.parts_json,
         savedTotalCost: r.saved_total_cost,
         savedCostDetails: r.saved_cost_details,
         templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
         coilMaterial: r.coil_material || '钢带',
+        coilWireWeight: r.coil_wire_weight,
         hasFloat: r.has_float, floatWire: r.float_wire, floatAccessoryType: r.float_accessory_type || 'standard', hasCable: r.has_cable,
         cableLength: r.cable_length, cableWire: r.cable_wire, cableAccessoryType: r.cable_accessory_type || 'standard', boxType: r.box_type,
         customBarrelLength: r.custom_barrel_length, extraPartsJson: r.extra_parts_json,
@@ -317,24 +320,27 @@ function recipeRow(r) {
         surfaceTreatmentMode,
         surfaceTreatmentCost,
         managementFee: r.management_fee,
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function templateRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, shellModel: r.shell_model, description: r.description || '',
+        id: r.id, Id: r.id, shellModel: r.shell_model, description: r.description || '',
         partsJson: r.parts_json || '[]', rotorParamsJson: r.rotor_params_json || '{}',
         shellComponentsJson: r.shell_components_json || '[]',
         assemblyWage: r.assembly_wage || 0, packingWage: r.packing_wage || 0,
         paintingWage: r.painting_wage != null ? r.painting_wage : null,
         costMode: r.cost_mode || 'components', bundleCost: r.bundle_cost || 0,
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function modelVariantRow(r) {
     if (!r) return r;
     return {
+        id: r.id,
         Id: r.id,
         modelName: r.model_name,
         templateId: r.template_id,
@@ -349,6 +355,8 @@ function modelVariantRow(r) {
         impellerBladeCount: r.impeller_blade_count,
         note: r.note || '',
         customFieldsJson: r.custom_fields_json || '[]',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
         CreatedAt: r.created_at,
         UpdatedAt: r.updated_at,
     };
@@ -356,34 +364,38 @@ function modelVariantRow(r) {
 function orderRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, customerName: r.customer_name, contractNo: r.contract_no,
+        id: r.id, Id: r.id, customerName: r.customer_name, contractNo: r.contract_no,
         remark: r.remark, status: r.status, itemsJson: r.items_json,
         purchaseListJson: r.purchase_list_json, todosJson: r.todos_json,
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function coilRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, spec: r.spec, material: r.material || '钢带', unitPrice: r.unit_price, sheets: r.sheets,
+        id: r.id, Id: r.id, spec: r.spec, material: r.material || '钢带', unitPrice: r.unit_price, sheets: r.sheets,
         wireWeight: r.wire_weight, copperBase: r.copper_base,
         coilFee: r.coil_fee, rotorFee: r.rotor_fee,
         cost: r.cost, defaultCapacitor: r.default_capacitor, defaultWireGauge: r.default_wire_gauge,
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function customerRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, name: r.name, contactInfo: r.contact_info, defaultMargin: r.default_margin, remark: r.remark,
+        id: r.id, Id: r.id, name: r.name, contactInfo: r.contact_info, defaultMargin: r.default_margin, remark: r.remark,
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
 function quotationRow(r) {
     if (!r) return r;
     return {
-        Id: r.id, customerId: r.customer_id, status: r.status, itemsJson: r.items_json,
+        id: r.id, Id: r.id, customerId: r.customer_id, status: r.status, itemsJson: r.items_json,
         totalCost: r.total_cost, totalPrice: r.total_price, remark: r.remark,
+        createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
@@ -432,6 +444,29 @@ function setSetting(key, value) {
  */
 const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
+
+function safeInsert(table, values) {
+    if (!SAFE_TABLES.has(table)) throw new Error(`safeInsert: 非法表名 "${table}"`);
+    const cols = [];
+    const vals = [];
+    for (const [col, val] of Object.entries(values || {})) {
+        if (val === undefined) continue;
+        if (!SAFE_COL_RE.test(col)) throw new Error(`safeInsert: 非法列名 "${col}"`);
+        cols.push(col);
+        vals.push(val);
+    }
+    if (cols.length === 0) throw new Error('safeInsert: 写入字段不能为空');
+    const placeholders = cols.map(() => '?').join(', ');
+    const info = db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);
+    try {
+        const recordId = Number(info.lastInsertRowid);
+        const newRow = Number.isInteger(recordId) && recordId > 0
+            ? db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(recordId)
+            : values;
+        writeAuditLog('INSERT', table, recordId || null, null, JSON.stringify(newRow || values));
+    } catch { /* 审计日志写入失败不应阻断业务 */ }
+    return info;
+}
 
 function safeUpdate(table, id, updates) {
     if (!SAFE_TABLES.has(table)) throw new Error(`safeUpdate: 非法表名 "${table}"`);
@@ -599,6 +634,6 @@ module.exports = {
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting,
-    updateOrderFields, invalidatePartsCache, safeUpdate, softDelete, hardDelete,
+    updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,
     nextBjtTime,
 };
