@@ -9,6 +9,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const authMiddleware = require('./api/authMiddleware.cjs');
+const http = require('http');
+const https = require('https');
 
 const app = express();
 const PORT = 3002;
@@ -116,6 +118,43 @@ app.use('/api/settings', require('./api/routes/settings.cjs'));
 app.use('/api/customers', require('./api/routes/customers.cjs'));
 app.use('/api/quotations', require('./api/routes/quotations.cjs'));
 app.use('/api/workbench', require('./api/routes/workbench.cjs'));
+
+// ── 生产模式：Cloudflare Tunnel 仍指向 API 端口时，将页面请求转发到 Next 前端 ──
+const NEXT_ORIGIN = process.env.NEXT_ORIGIN || (IS_PRODUCTION ? 'http://127.0.0.1:3000' : '');
+if (NEXT_ORIGIN) {
+  const nextOriginUrl = new URL(NEXT_ORIGIN);
+  const nextClient = nextOriginUrl.protocol === 'https:' ? https : http;
+  console.log(`[启动] 页面请求将优先转发到 Next 前端: ${NEXT_ORIGIN}`);
+
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/drawings')) {
+      return next();
+    }
+
+    const proxyReq = nextClient.request({
+      protocol: nextOriginUrl.protocol,
+      hostname: nextOriginUrl.hostname,
+      port: nextOriginUrl.port,
+      method: req.method,
+      path: req.originalUrl,
+      headers: {
+        ...req.headers,
+        host: nextOriginUrl.host,
+      },
+      timeout: 5000,
+    }, proxyRes => {
+      res.statusCode = proxyRes.statusCode || 502;
+      Object.entries(proxyRes.headers).forEach(([key, value]) => {
+        if (value !== undefined) res.setHeader(key, value);
+      });
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('timeout', () => proxyReq.destroy(new Error('Next frontend proxy timeout')));
+    proxyReq.on('error', () => next());
+    req.pipe(proxyReq);
+  });
+}
 
 // ── 生产模式：托管前端构建产物 ──
 const distPath = path.join(__dirname, 'dist');
