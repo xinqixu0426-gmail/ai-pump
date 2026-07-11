@@ -25,7 +25,11 @@
 - 包装材料支持 standalone 和 grouped 两种模式，配方级配置
 - 管理费全局默认值存于 `system_settings` 表
 - 通用成本规则集中在 `api/services/costEngine.cjs`，`api/db.cjs:calculateRecipeCost` 仅保留兼容导出
-- 前端不得新增正式成本计算口径；单次成本计算优先调后端 API `POST /api/cost/calculate`
+- 前端不得新增正式成本计算口径；成本计算必须按场景调用当前标准 API：
+  - 配件数组成本：`POST /api/cost/parts`
+  - 配方保存成本快照：`POST /api/recipes/cost-draft`
+  - 报价/订单覆盖试算：`POST /api/recipes/:id/cost-preview`
+  - AI/N8N 组合估算：`POST /api/cost/full-estimate`
 
 ## 2. 安全约束
 
@@ -50,9 +54,11 @@
 
 ## 5. 服务端口
 
-- 前端 Vite Dev：`:3000`（HMR over WSS）
+- Next 主前端：`:3000`
+- Next 并行预览：`:3001`
+- 旧 Vite 前端：通过 `npm run legacy:dev` 单独启动，仅作为回滚备用
 - 后端 Express：`:3002`
-- Vite Proxy：`/api/*` → `http://localhost:3002`
+- Next rewrite：`/api/*` → `http://localhost:3002`
 
 ## 6. 部署
 

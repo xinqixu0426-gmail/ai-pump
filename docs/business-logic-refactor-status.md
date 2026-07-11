@@ -423,6 +423,7 @@ src/utils/purchaseCenterRules.ts
 - [ ] 给 AI/自动化写操作补一轮契约测试，确保创建配方、修改配方、创建订单不会绕过保存快照和订单锁价口径。
 - [ ] 定期扫描 `fetch(`、裸 `UPDATE`、前端成本计算函数，防止后续开发重新引入第二套口径。
 - [x] 更新收尾验证记录，移除早期 85/98 测试数量口径。
+- [x] 冻结 AI 调用 API 改造计划，明确 AI 写操作 executor 后续必须逐步改为调用标准 API，而不是直接复刻业务写库逻辑。
 
 ### P3：暂缓到业务稳定后重构
 
@@ -439,7 +440,7 @@ src/utils/purchaseCenterRules.ts
 2. 再按“低风险 CRUD 列表页 -> 报价/订单列表 -> 配方/订单复杂表单 -> 采购/生产/转子高风险流程”的顺序推进 UI。
 3. 每个页面重构时同时检查 `docs/business-flow.md`、`docs/frontend-state-boundary.md` 和 `docs/ui-refactor-guidelines.md`。
 
-当前 UI 重构起点：已新增 `apps/web-next/`，作为 Next.js + Tailwind + motion 风格的新前端预览壳。该目录默认运行在 `:3001`，只通过统一 API client 调用现有 Express API，不接管业务 API。
+当前 UI 重构状态：`apps/web-next/` 已作为 Next.js + Tailwind + motion 风格的主前端入口。默认业务入口运行在 `:3000`，并行预览入口运行在 `:3001`，只通过统一 API client 调用现有 Express API，不接管业务 API。旧 Vite/MUI 前端仅保留为回滚备用。
 
 现在长螺丝、报价转订单、订单采购计划、采购中心聚合规则、订单表单价格联动、订单提交组装、订单列表筛选汇总、订单详情状态变更、入库规则、客户报价统计、零件表单参数化配置、运营看板统计、顶部角标、配方列表成本兜底、生产库存预检、线圈同规格带入草稿和转子模板/变体出图草稿已经有测试或后端服务兜底。前端散落业务规则整理基本完成。
 
@@ -450,7 +451,7 @@ src/utils/purchaseCenterRules.ts
 收尾验证：
 
 - `npm test` 通过，159 个测试全绿。
-- `npm run build` 通过，当前无 Vite chunk 警告。
-- `npm run web-next:build` 通过，新 Next 前端壳可生产构建。
+- `npm run legacy:build` 用于验证旧 Vite 回滚备用前端。
+- `npm run build` 用于验证 Next 主前端。
 - `fetch(` 扫描只剩 `src/utils/api.ts` 内部实现。
 - `UPDATE` 扫描只剩 `safeUpdate`、软删除和启动迁移位置。

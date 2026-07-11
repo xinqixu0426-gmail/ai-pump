@@ -6,7 +6,7 @@
 
 | 层 | 技术 |
 |---|------|
-| 前端 | React 18 + TypeScript + Vite + MUI 5 + Zustand；Next.js + Tailwind CSS 重构预览版 |
+| 前端 | Next.js + Tailwind CSS 主业务前端；旧 React 18 + Vite + MUI 5 仅作回滚备用 |
 | 后端 | Node.js + Express 5 + better-sqlite3 |
 | AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
 | 出图 | FreeCAD Python 脚本 + PDF 生成 |
@@ -37,16 +37,11 @@
 │           ├── siri.cjs      # Siri 快捷指令入口
 │           └── executor.cjs  # AI Function Calling 执行器
 ├── src/
-│   ├── main.tsx              # React 入口 + AuthGuard
-│   ├── App.tsx               # 路由 + 导航布局
-│   ├── pages/                # 页面组件（Dashboard/Parts/Recipes/Orders/Coils/AI等）
-│   ├── components/           # 通用 + 业务组件
-│   └── utils/
-│       ├── api.ts            # proxyRequest 统一请求层
-│       ├── store.ts          # Zustand 全局状态
-│       ├── orderStore.ts     # 订单业务逻辑
-│       ├── recipeBomBuilder.ts # 配方 BOM 本地预览回退
-│       └── theme.ts          # MUI 主题 + 设计 Token
+│   └── ...                   # 旧 Vite/MUI 前端，保留为回滚备用
+├── apps/web-next/
+│   ├── app/                  # Next App Router 页面入口
+│   ├── components/           # Next 业务组件与基础 UI
+│   └── lib/                  # Next 统一 API client 与页面规则
 ├── freecad/                  # FreeCAD 转子出图模板与 Python 脚本
 ├── wechat-miniprogram/       # 微信小程序语音助手
 │   ├── pages/voice/          # 语音对话主页面
@@ -62,33 +57,36 @@
 # 安装依赖
 npm install
 
-# 开发模式（旧前端 :3000 + 后端 :3002）
+# 开发模式（Next 主前端 :3000 + 后端 :3002）
 npm start
 
-# Next 重构预览版（Next :3001 + 后端 :3002）
+# Next 并行预览版（Next :3001 + 后端 :3002）
 npm run web-next:full
+
+# 旧 Vite 前端回滚备用（旧前端 :3000）
+npm run legacy:dev
 
 # 仅启动后端
 npm run api
 
-# 旧前端生产构建
+# 主前端生产构建（Next）
 npm run build
 
-# Next 重构预览版生产构建
-npm run web-next:build
+# 同时验证旧前端和 Next 构建
+npm run build:all
 ```
 
-### Next 重构版主业务入口
+### Next 主业务入口
 
-`apps/web-next/` 是 Next.js + Tailwind CSS 的新前端，默认运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
+`apps/web-next/` 是 Next.js + Tailwind CSS 的主前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
 
-当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图和看板，可作为日常主业务入口试运行。AI 助手暂不迁移，`/ai` 导航保持禁用；旧 Vite/MUI 前端仅保留为回滚备用，不再作为新增功能入口。
+当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图和看板，作为日常主业务入口。AI 助手暂不迁移，`/ai` 导航保持禁用；旧 Vite/MUI 前端仅保留为回滚备用，不再作为新增功能入口。
 
-生产试运行时先执行：
+生产构建和启动：
 
 ```bash
-npm run web-next:build
-npm run web-next:prod
+npm run build
+npm run preview
 ```
 
 试运行和后续删除旧前端前，按 [`docs/next-migration-acceptance.md`](docs/next-migration-acceptance.md) 完成验收。
@@ -194,12 +192,14 @@ export PATH=/opt/homebrew/bin:$PATH
 git pull origin master
 npm run build
 pkill -f 'node api.cjs'
+pkill -f 'next start -p 3000'
 nohup node api.cjs > /dev/null 2>&1 &
+nohup npm run web-next:start:primary > web-next.out.log 2>&1 &
 ```
 
-### Next 版主业务入口试运行
+### Next 并行预览入口
 
-Next 版作为主业务入口试运行时需要同时启动 Express API 和 Next server；旧前端保留为回滚备用：
+如需不占用 `3000`，可以使用 `3001` 并行预览入口；旧前端保留为回滚备用：
 
 ```bash
 export PATH=/opt/homebrew/bin:$PATH
@@ -211,7 +211,7 @@ nohup node api.cjs > api.out.log 2>&1 &
 nohup npm run web-next:start > web-next.out.log 2>&1 &
 ```
 
-回滚到旧前端时停止 `next start -p 3001`，保留或重启 `node api.cjs` 即可。
+回滚到旧前端时停止 `next start -p 3000` 或 `next start -p 3001`，再用 `npm run legacy:dev` 或旧构建产物临时恢复。
 
 ## API 端点
 
@@ -230,8 +230,10 @@ nohup npm run web-next:start > web-next.out.log 2>&1 &
 - `GET /api/coils/specs` — 线圈规格列表，`materials` 合并已配置材质与已使用材质
 - `POST /api/coils/calculate` — 线圈成本计算（支持插值；规格下没有该材质记录时，可用材质配置单价兜底）
 - `GET/POST/PATCH/DELETE /api/templates` — 泵壳模板
-- `POST /api/cost/calculate` — 成本计算
-- `POST /api/cost/full-calculate` — 一站式成本计算
+- `POST /api/cost/parts` — 配件数组成本计算
+- `POST /api/recipes/cost-draft` — 配方保存成本快照草稿
+- `POST /api/recipes/:id/cost-preview` — 报价/订单覆盖试算
+- `POST /api/cost/full-estimate` — AI/N8N 一站式成本估算
 - `GET/POST /api/market-indicators` — 市场指标查询/同步（铜价、铝线价格、人民币兑美元汇率）
 - `GET/POST /api/copper-price` — 铜价查询/更新（兼容旧调用）
 - `GET/PUT /api/settings` — 系统设置

@@ -4,22 +4,29 @@
 
 ## 1. 联调启动
 
-Next 前端依赖 Express API。做人工验收时必须同时启动两个服务：
+Next 前端依赖 Express API。主入口验收时必须同时启动两个服务：
 
 ```bash
-npm run web-next:full
+npm start
 ```
 
 等价于：
 
 ```bash
 npm run api
-npm run web-next:dev
+npm run web-next:dev:primary
+```
+
+如需保留 `:3000` 给旧前端临时回滚，可使用并行预览命令：
+
+```bash
+npm run web-next:full
 ```
 
 端口约定：
 
-- Next 前端：`http://localhost:3001`
+- Next 主前端：`http://localhost:3000`
+- Next 并行预览：`http://localhost:3001`
 - Express API：`http://localhost:3002`
 - Next rewrite：`/api/* -> http://localhost:3002/api/*`
 
@@ -27,15 +34,17 @@ npm run web-next:dev
 
 ```bash
 npm run web-next:clean
-npm run web-next:build
-npm run web-next:prod
+npm run build
+npm run preview
 ```
 
-`web-next:prod` 会同时启动现有 Express API 和 Next server。正式部署到 Mac Mini 时也可以拆成两个 `nohup` 进程，便于单独回滚 Next 前端。
+`npm run preview` 只启动 Next server，生产环境仍需同时启动现有 Express API。正式部署到 Mac Mini 时建议拆成两个 `nohup` 进程，便于单独回滚 Next 前端。
+
+并行预览生产模式仍可使用 `npm run web-next:prod` 启动 API + `:3001` Next server。
 
 如果页面出现 `HTTP 500: Internal Server Error` 且 Next 日志包含 `ECONNREFUSED`，优先检查 `3002` 是否启动。
 
-如果页面变成裸 HTML、样式丢失，或 Next 日志出现 `SegmentViewNode`、`vendor-chunks/*.js`、`__webpack_modules__[moduleId] is not a function`，说明 dev/prod 构建缓存被污染。先停掉 `3001`，执行 `npm run web-next:rebuild`，再启动 `npm run web-next:start`。
+如果页面变成裸 HTML、样式丢失，或 Next 日志出现 `SegmentViewNode`、`vendor-chunks/*.js`、`__webpack_modules__[moduleId] is not a function`，说明 dev/prod 构建缓存被污染。先停掉 Next 进程，执行 `npm run web-next:rebuild`，再启动 `npm run preview`。
 
 ## 2. 当前覆盖范围
 
@@ -65,8 +74,8 @@ npm run web-next:prod
 
 ```bash
 npm test
-npm run web-next:build
 npm run build
+npm run legacy:build
 ```
 
 当前契约测试必须覆盖：

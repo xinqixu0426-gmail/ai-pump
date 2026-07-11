@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "dev:primary": "next dev -p 3000",
     "dev": "next dev -p 3001",
     "build": "next build",
     "rebuild": "npm run clean && npm run build",
+    "start:primary": "next start -p 3000",
     "start": "next start -p 3001",
     "lint": "next lint"
   },
