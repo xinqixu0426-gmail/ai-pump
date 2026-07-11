@@ -33,12 +33,25 @@ test('重构准备契约：核心准备文档必须存在并被 README 引用', 
         'frontend-state-boundary.md',
         'ui-refactor-guidelines.md',
         'next-migration-acceptance.md',
+        'production-inspection-ai-api-checklist.md',
     ];
 
     for (const doc of requiredDocs) {
         assert.ok(fs.existsSync(path.join(repoRoot, 'docs', doc)), `${doc} should exist`);
         assert.match(readme, new RegExp(`\\[${doc}\\]\\(\\.\\/${doc}\\)`));
     }
+});
+
+test('重构准备契约：生产巡检清单必须覆盖页面、AI 动作和问题归类', () => {
+    const doc = readUtf8('docs/production-inspection-ai-api-checklist.md');
+
+    assert.match(doc, /页面巡检清单/);
+    assert.match(doc, /AI 可调用业务动作清单/);
+    assert.match(doc, /问题归类规则/);
+    assert.match(doc, /配方 Recipes/);
+    assert.match(doc, /订单 Orders/);
+    assert.match(doc, /暂不建议开放给 AI 的动作/);
+    assert.match(doc, /API 缺口/);
 });
 
 test('重构准备契约：Next 迁移验收清单必须冻结覆盖范围和启动方式', () => {

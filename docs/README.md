@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-11。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，重构前业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互重构约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，Next 迁移验收清单见 [next-migration-acceptance.md](./next-migration-acceptance.md)，AI 调用 API 改造计划见 [ai-api-executor-migration-plan.md](./ai-api-executor-migration-plan.md)。
+> 当前版本说明，更新于 2026-07-11。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，重构前业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互重构约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，Next 迁移验收清单见 [next-migration-acceptance.md](./next-migration-acceptance.md)，AI 调用 API 改造计划见 [ai-api-executor-migration-plan.md](./ai-api-executor-migration-plan.md)，生产巡检与 AI API 准备清单见 [production-inspection-ai-api-checklist.md](./production-inspection-ai-api-checklist.md)。
 
 ## 1. 系统用途
 
