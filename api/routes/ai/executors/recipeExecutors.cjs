@@ -1,5 +1,133 @@
-const { dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost, safeInsert, safeUpdate } = require('../../../db.cjs');
-const { buildRecipeCostDraft } = require('../../../services/costEngine.cjs');
+const { dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost } = require('../../../db.cjs');
+
+async function readApiJson(response, fallbackError) {
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(result.error || fallbackError);
+    }
+    return result.data ?? result;
+}
+
+async function postJson(internalFetch, url, body, fallbackError) {
+    const response = await internalFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    return readApiJson(response, fallbackError);
+}
+
+async function patchJson(internalFetch, url, body, fallbackError) {
+    const response = await internalFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    return readApiJson(response, fallbackError);
+}
+
+function buildAiRecipeParts(parts, allParts) {
+    return (Array.isArray(parts) ? parts : []).map(part => {
+        const model = String(part?.model || '').trim();
+        if (!model) return null;
+        const dbPart = allParts.find(dp => (dp.model || '') === model || (dp.model || '').includes(model));
+        return {
+            model,
+            name: dbPart ? (dbPart.model || model) : model,
+            supplier: dbPart ? (dbPart.supplier || '-') : '-',
+            qty: Number(part?.qty || 0),
+            snapshotPrice: dbPart ? Number(dbPart.price || 0) : 0
+        };
+    }).filter(Boolean);
+}
+
+function parseJsonArray(value) {
+    try {
+        const parsed = JSON.parse(value || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function parseJsonObject(value) {
+    try {
+        const parsed = JSON.parse(value || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function buildFormFromRecipe(recipe, overrides = {}) {
+    return {
+        name: overrides.name ?? recipe.name ?? '',
+        spec: overrides.spec ?? recipe.spec ?? '',
+        templateId: recipe.templateId ?? null,
+        coilSpec: recipe.coilSpec || '',
+        coilSheets: recipe.coilSheets ?? 0,
+        coilMaterial: recipe.coilMaterial || '钢带',
+        coilWireWeight: recipe.coilWireWeight ?? null,
+        hasFloat: Boolean(recipe.hasFloat),
+        floatWire: recipe.floatWire || '',
+        floatAccessoryType: recipe.floatAccessoryType || 'standard',
+        hasCable: Boolean(recipe.hasCable),
+        cableLength: recipe.cableLength ?? 0,
+        cableWire: recipe.cableWire || '',
+        cableAccessoryType: recipe.cableAccessoryType || 'standard',
+        customBarrelLength: recipe.customBarrelLength ?? null,
+        modelVariantId: recipe.modelVariantId ?? null,
+        impellerModel: recipe.impellerModel || '',
+        impellerThickness: recipe.impellerThickness ?? null,
+        impellerDiameter: recipe.impellerDiameter ?? null,
+        impellerBladeCount: recipe.impellerBladeCount ?? null,
+        assemblyWage: recipe.assemblyWage ?? 0,
+        packingWage: recipe.packingWage ?? 0,
+        surfaceTreatmentMode: recipe.surfaceTreatmentMode || 'none',
+        surfaceTreatmentCost: recipe.surfaceTreatmentCost ?? 0,
+        managementFee: recipe.managementFee ?? 0,
+    };
+}
+
+async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}) {
+    if (parts.length === 0) {
+        throw new Error('配方 BOM 不能为空，请至少提供一个零件');
+    }
+    const costDraft = await postJson(internalFetch, '/api/recipes/cost-draft', { parts }, '生成配方成本草稿失败');
+    return postJson(internalFetch, '/api/recipes/save-payload-draft', {
+        form: {
+            name: form.name,
+            spec: form.spec || '',
+            assemblyWage: form.assemblyWage ?? 0,
+            packingWage: form.packingWage ?? 0,
+            surfaceTreatmentMode: form.surfaceTreatmentMode || 'none',
+            surfaceTreatmentCost: form.surfaceTreatmentCost ?? 0,
+            managementFee: form.managementFee ?? 0,
+            templateId: form.templateId ?? null,
+            coilSpec: form.coilSpec || '',
+            coilSheets: form.coilSheets ?? 0,
+            coilMaterial: form.coilMaterial || '钢带',
+            coilWireWeight: form.coilWireWeight ?? null,
+            hasFloat: Boolean(form.hasFloat),
+            floatWire: form.floatWire || '',
+            floatAccessoryType: form.floatAccessoryType || 'standard',
+            hasCable: Boolean(form.hasCable),
+            cableLength: form.cableLength ?? 0,
+            cableWire: form.cableWire || '',
+            cableAccessoryType: form.cableAccessoryType || 'standard',
+            customBarrelLength: form.customBarrelLength ?? null,
+            modelVariantId: form.modelVariantId ?? null,
+            impellerModel: form.impellerModel || '',
+            impellerThickness: form.impellerThickness ?? null,
+            impellerDiameter: form.impellerDiameter ?? null,
+            impellerBladeCount: form.impellerBladeCount ?? null,
+        },
+        costDraft,
+        packingParts: options.packingParts || [],
+        optionalParts: options.optionalParts || [],
+        technicalData: options.technicalData || {},
+    }, '生成配方保存草稿失败');
+}
 
 async function executeRecipeTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -7,35 +135,24 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const { name, spec = '', parts = [] } = args;
             if (!name) return { success: false, error: '缺少配方名称' };
 
-            // 解析零件：自动匹配零件库
-            const allParts = dbGetAllParts();
-            const recipeParts = [];
-            for (const p of parts) {
-                const dbPart = allParts.find(dp => (dp.model || '') === p.model || (dp.model || '').includes(p.model));
-                recipeParts.push({
-                    model: p.model,
-                    name: dbPart ? (dbPart.model || p.model) : p.model,
-                    supplier: dbPart ? (dbPart.supplier || '-') : '-',
-                    qty: p.qty,
-                    snapshotPrice: dbPart ? Number(dbPart.price || 0) : 0
-                });
+            try {
+                const recipeParts = buildAiRecipeParts(parts, dbGetAllParts());
+                const payload = await buildAiRecipeSavePayload(internalFetch, { name, spec }, recipeParts);
+                const saved = await postJson(internalFetch, '/api/recipes', payload, '配方创建失败');
+                return {
+                    success: true,
+                    message: `配方"${name}"创建成功（已通过标准 API 写入）`,
+                    recipe: {
+                        id: saved.id || saved.Id,
+                        name: saved.name || name,
+                        spec: saved.spec || spec,
+                        partsCount: recipeParts.length,
+                        totalCost: saved.savedTotalCost ?? payload.savedTotalCost
+                    }
+                };
+            } catch (error) {
+                return { success: false, error: error.message };
             }
-
-            const costDraft = buildRecipeCostDraft({ parts: recipeParts }, { partsCatalog: allParts });
-
-            const now_r = new Date().toISOString();
-            const createRes = safeInsert('recipes', {
-                name,
-                spec,
-                parts_json: JSON.stringify(costDraft.parts),
-                saved_total_cost: costDraft.savedTotalCost,
-                saved_cost_details: costDraft.savedCostDetails,
-                created_at: now_r,
-                updated_at: now_r,
-            });
-            const newId = createRes.lastInsertRowid;
-            if (!newId) return { success: false, error: '配方创建失败' };
-            return { success: true, message: `配方"${name}"创建成功`, recipe: { id: newId, name, spec, partsCount: costDraft.parts.length, totalCost: costDraft.savedTotalCost } };
         }
 
         case 'delete_recipe': {
@@ -57,7 +174,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const recipe = allRecipes.find(r => (r.name) === recipeName || (r.name || '').includes(recipeName));
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
 
-            let parts = []; try { parts = JSON.parse(recipe.partsJson || '[]'); } catch (e) { }
+            let parts = parseJsonArray(recipe.partsJson);
             const changes = [];
 
             // 移除零件
@@ -87,25 +204,29 @@ async function executeRecipeTool(toolName, args, internalFetch) {
                 }
             }
 
-            const patchBody = { Id: recipe.Id, parts_json: JSON.stringify(parts) };
-            if (newName) { patchBody.name = newName; changes.push(`名称: ${recipe.name} → ${newName}`); }
-            if (newSpec) { patchBody.spec = newSpec; changes.push(`规格: ${recipe.spec} → ${newSpec}`); }
-
-            // 保存动作必须生成成本快照；查询/对比才允许使用当前重算参考价。
-            const costDraft = buildRecipeCostDraft({ parts }, { partsCatalog: dbGetAllParts() });
-            patchBody.parts_json = JSON.stringify(costDraft.parts);
-            patchBody.saved_total_cost = costDraft.savedTotalCost;
-            patchBody.saved_cost_details = costDraft.savedCostDetails;
+            const form = buildFormFromRecipe(recipe, { name: newName || recipe.name, spec: newSpec || recipe.spec || '' });
+            if (newName) changes.push(`名称: ${recipe.name} → ${newName}`);
+            if (newSpec) changes.push(`规格: ${recipe.spec} → ${newSpec}`);
 
             if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
-            safeUpdate('recipes', patchBody.Id, {
-                name: patchBody.name,
-                spec: patchBody.spec,
-                parts_json: patchBody.parts_json,
-                saved_total_cost: patchBody.saved_total_cost,
-                saved_cost_details: patchBody.saved_cost_details,
-            });
-            return { success: true, message: `配方"${recipe.name}"修改成功`, recipeName: newName || recipe.name, partsCount: costDraft.parts.length, newCost: costDraft.savedTotalCost, changes };
+            try {
+                const payload = await buildAiRecipeSavePayload(internalFetch, form, parts, {
+                    packingParts: parseJsonArray(recipe.packingPartsJson),
+                    optionalParts: parseJsonArray(recipe.extraPartsJson),
+                    technicalData: parseJsonObject(recipe.technicalDataJson),
+                });
+                const saved = await patchJson(internalFetch, `/api/recipes/${recipe.Id}`, payload, '配方修改失败');
+                return {
+                    success: true,
+                    message: `配方"${recipe.name}"修改成功（已通过标准 API 写入）`,
+                    recipeName: saved.name || newName || recipe.name,
+                    partsCount: parts.length,
+                    newCost: saved.savedTotalCost ?? payload.savedTotalCost,
+                    changes
+                };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
         }
 
         case 'compare_recipes': {

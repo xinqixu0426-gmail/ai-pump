@@ -462,6 +462,17 @@ test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () 
     assert.doesNotMatch(recipeExecutor, /softDelete\('recipes'/);
 });
 
+test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接口', () => {
+    const recipeExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/recipeExecutors.cjs'));
+
+    assert.match(recipeExecutor, /\/api\/recipes\/cost-draft/);
+    assert.match(recipeExecutor, /\/api\/recipes\/save-payload-draft/);
+    assert.match(recipeExecutor, /postJson\(internalFetch,\s*'\/api\/recipes'/);
+    assert.match(recipeExecutor, /patchJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.Id\}`/);
+    assert.doesNotMatch(recipeExecutor, /safeInsert\('recipes'/);
+    assert.doesNotMatch(recipeExecutor, /safeUpdate\('recipes'/);
+});
+
 test('重构准备契约：业务流程冻结文档必须存在并被 README 引用', () => {
     const businessFlowPath = path.join(repoRoot, 'docs/business-flow.md');
     const readme = readUtf8(path.join(repoRoot, 'docs/README.md'));

@@ -22,11 +22,11 @@
 - `create_part`、`update_part`、`delete_part` -> `/api/parts`
 - `delete_recipe` -> `DELETE /api/recipes/:id`
 - `delete_order` -> `DELETE /api/orders/:id`
+- `create_recipe`、`update_recipe` -> `/api/recipes/cost-draft` + `/api/recipes/save-payload-draft` + `/api/recipes`
 
 仍需收口：
 
 - `batch_update_prices`
-- `create_recipe`、`update_recipe`
 - `create_order`、`update_order_status`、`update_order_item`
 - 订单追加/移除配方、生成采购清单等订单动作
 
@@ -60,7 +60,7 @@
 - 写入仍进入 `safeInsert/safeUpdate/softDelete` 和 audit log。
 - 工具返回保持 `{ success, data/error }` 或现有兼容字段。
 
-### P2：配方写操作
+### P2：配方写操作（已完成）
 
 迁移：
 
@@ -81,6 +81,11 @@
 - AI 创建/修改配方与网页保存配方使用相同成本快照和保存 payload。
 - 客户指定线重、长螺丝、电容、包装、人工管理费和表面处理都由后端草稿接口处理。
 - 不允许 AI 自行组装正式 `partsJson/savedCostDetails`。
+
+说明：
+
+- AI 工具仍接收原来的简化参数，内部负责把零件意图转换为 BOM 草稿输入。
+- `update_recipe` 会保留原配方的模板、线圈、浮球电缆、包装、人工管理费、技术档案等上下文，只修改用户指定字段。
 
 ### P3：订单写操作
 
