@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost, safeInsert, safeUpdate, softDelete } = require('../../../db.cjs');
+const { dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost, safeInsert, safeUpdate } = require('../../../db.cjs');
 const { buildRecipeCostDraft } = require('../../../services/costEngine.cjs');
 
 async function executeRecipeTool(toolName, args, internalFetch) {
@@ -43,7 +43,11 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const allRecipes = dbGetAllRecipes();
             const recipe = allRecipes.find(r => (r.name) === recipeName || (r.name || '').includes(recipeName));
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
-            softDelete('recipes', recipe.Id);
+            const response = await internalFetch(`/api/recipes/${recipe.Id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (!result.success) {
+                return { success: false, error: result.error || '配方删除失败' };
+            }
             return { success: true, message: `配方"${recipe.name || recipeName}"已删除`, recipeName: recipe.name || recipeName };
         }
 

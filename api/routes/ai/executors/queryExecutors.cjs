@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, partRow, invalidatePartsCache, safeInsert, safeUpdate, softDelete } = require('../../../db.cjs');
+const { dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, invalidatePartsCache, safeUpdate } = require('../../../db.cjs');
 const { buildBusinessSummary } = require('../../../services/businessSummary.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
@@ -66,45 +66,35 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '缺少必要参数：型号或单价' };
             }
 
-            const now = new Date().toISOString();
-            const createRes = safeInsert('parts', {
-                model,
-                category,
-                price,
-                supplier,
-                stock,
-                created_at: now,
-                updated_at: now,
+            const response = await internalFetch('/api/parts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model,
+                    category,
+                    price,
+                    supplier,
+                    stock,
+                }),
             });
-            invalidatePartsCache();
-
-            const newId = createRes.lastInsertRowid;
-            if (!newId) {
-                return { success: false, error: '数据库未返回有效ID，录入可能失败。返回内容: ' + JSON.stringify(createRes).slice(0, 200) };
+            const result = await response.json();
+            if (!result.success || !result.data) {
+                return { success: false, error: result.error || '零件新建失败' };
             }
 
-            // 2. 回读验证：确认记录真的写入了数据库
-            try {
-                const verify = { list: [partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(newId))].filter(Boolean) };
-                if (!verify.list || verify.list.length === 0) {
-                    return { success: false, error: `数据库返回了ID=${newId}，但回读验证失败，记录不存在` };
-                }
-                const saved = verify.list[0];
-                return {
-                    success: true,
-                    message: '零件新建成功（已验证入库）',
-                    part: {
-                        model: saved.model || model,
-                        category: saved.category || category,
-                        price: saved.price || price,
-                        supplier: saved.supplier || supplier,
-                        stock: saved.stock ?? stock
-                    },
-                    id: newId
-                };
-            } catch (verifyErr) {
-                return { success: false, error: `创建请求已发送(ID=${newId})，但回读验证异常: ${verifyErr.message}` };
-            }
+            const saved = result.data;
+            return {
+                success: true,
+                message: '零件新建成功（已通过标准 API 写入）',
+                part: {
+                    model: saved.model || model,
+                    category: saved.category || category,
+                    price: saved.price ?? price,
+                    supplier: saved.supplier || supplier,
+                    stock: saved.stock ?? stock
+                },
+                id: saved.id || saved.Id
+            };
         }
 
         case 'update_part': {
@@ -147,32 +137,30 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '没有指定任何要修改的字段' };
             }
 
-            safeUpdate('parts', target.Id, updates);
-            invalidatePartsCache();
-
-            // 回读验证
-            try {
-                const verify = { list: [partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(target.Id))].filter(Boolean) };
-                if (!verify.list || verify.list.length === 0) {
-                    return { success: false, error: '回读验证失败，记录不存在' };
-                }
-                const saved = verify.list[0];
-                return {
-                    success: true,
-                    message: '零件修改成功（已验证）',
-                    part: {
-                        id: target.Id,
-                        model: saved.model || model,
-                        category: saved.category,
-                        price: saved.price,
-                        supplier: saved.supplier,
-                        stock: saved.stock
-                    },
-                    changes
-                };
-            } catch (verifyErr) {
-                return { success: false, error: `修改请求已发送，但回读验证异常: ${verifyErr.message}` };
+            const response = await internalFetch(`/api/parts/${target.Id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            const result = await response.json();
+            if (!result.success || !result.data) {
+                return { success: false, error: result.error || '零件修改失败' };
             }
+
+            const saved = result.data;
+            return {
+                success: true,
+                message: '零件修改成功（已通过标准 API 写入）',
+                part: {
+                    id: saved.id || saved.Id || target.Id,
+                    model: saved.model || model,
+                    category: saved.category,
+                    price: saved.price,
+                    supplier: saved.supplier,
+                    stock: saved.stock
+                },
+                changes
+            };
         }
 
         case 'search_parts': {
@@ -193,8 +181,11 @@ async function executeQueryTool(toolName, args, internalFetch) {
             const allParts = dbGetAllParts();
             const target = allParts.find(p => (p.model || '') === model);
             if (!target) return { success: false, error: '找不到零件: ' + model };
-            softDelete('parts', target.Id);
-            invalidatePartsCache();
+            const response = await internalFetch(`/api/parts/${target.Id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (!result.success) {
+                return { success: false, error: result.error || '零件删除失败' };
+            }
             return { success: true, message: `零件"${model}"已删除`, model };
         }
 

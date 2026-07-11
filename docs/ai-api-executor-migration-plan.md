@@ -19,15 +19,18 @@
 - `dynamic_config_cost` -> `POST /api/cost/dynamic`
 - `query_recipe_cost_by_id` -> `GET /api/recipes/:id/cost`
 - 出图相关工具 -> `/api/rotor/*`
+- `create_part`、`update_part`、`delete_part` -> `/api/parts`
+- `delete_recipe` -> `DELETE /api/recipes/:id`
+- `delete_order` -> `DELETE /api/orders/:id`
 
 仍需收口：
 
-- `create_part`、`update_part`、`delete_part`、`batch_update_prices`
-- `create_recipe`、`update_recipe`、`delete_recipe`
-- `create_order`、`update_order_status`、`update_order_item`、`delete_order`
+- `batch_update_prices`
+- `create_recipe`、`update_recipe`
+- `create_order`、`update_order_status`、`update_order_item`
 - 订单追加/移除配方、生成采购清单等订单动作
 
-这些工具当前有的直接调用 `safeInsert/safeUpdate/softDelete` 或读取数据库 helper。它们安全性比裸 SQL 高，但还没有完全复用标准 API 的入参校验、草稿生成和响应契约。
+这些工具当前有的仍直接调用 `safeInsert/safeUpdate` 或读取数据库 helper。它们安全性比裸 SQL 高，但还没有完全复用标准 API 的入参校验、草稿生成和响应契约。
 
 ## 3. 改造顺序
 
@@ -37,7 +40,7 @@
 - 工具内部逐步从 db/helper 调用迁移到 `internalFetch()` 标准 API 调用。
 - 迁移期间保持返回结构兼容现有 `StructuredResult`。
 
-### P1：低风险资源 CRUD
+### P1：低风险资源 CRUD（已完成）
 
 优先迁移：
 
@@ -47,9 +50,13 @@
 - `delete_recipe` -> `DELETE /api/recipes/:id`
 - `delete_order` -> `DELETE /api/orders/:id`
 
+后续保留：
+
+- `batch_update_prices` 当前没有标准批量价格 API，暂保留 `safeUpdate` 实现；如需要继续收口，应先补 `PATCH /api/parts/prices` 或等价业务动作接口。
+
 验收：
 
-- AI executor 不再直接写这些资源表。
+- AI executor 不再直接写这些已迁移资源表。
 - 写入仍进入 `safeInsert/safeUpdate/softDelete` 和 audit log。
 - 工具返回保持 `{ success, data/error }` 或现有兼容字段。
 

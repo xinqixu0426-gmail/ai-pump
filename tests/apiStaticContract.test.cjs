@@ -445,6 +445,23 @@ test('API 静态契约：业务新增写库必须通过 safeInsert', () => {
     assert.deepEqual(offenders, []);
 });
 
+test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () => {
+    const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
+    const orderExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const recipeExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/recipeExecutors.cjs'));
+
+    assert.match(queryExecutor, /internalFetch\('\/api\/parts'/);
+    assert.match(queryExecutor, /internalFetch\(`\/api\/parts\/\$\{target\.Id\}`/);
+    assert.doesNotMatch(queryExecutor, /safeInsert\('parts'/);
+    assert.doesNotMatch(queryExecutor, /softDelete\('parts'/);
+
+    assert.match(orderExecutor, /internalFetch\(`\/api\/orders\/\$\{row\.Id\}`/);
+    assert.doesNotMatch(orderExecutor, /softDelete\('orders'/);
+
+    assert.match(recipeExecutor, /internalFetch\(`\/api\/recipes\/\$\{recipe\.Id\}`/);
+    assert.doesNotMatch(recipeExecutor, /softDelete\('recipes'/);
+});
+
 test('重构准备契约：业务流程冻结文档必须存在并被 README 引用', () => {
     const businessFlowPath = path.join(repoRoot, 'docs/business-flow.md');
     const readme = readUtf8(path.join(repoRoot, 'docs/README.md'));

@@ -1,4 +1,4 @@
-const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, safeInsert, updateOrderFields, softDelete } = require('../../../db.cjs');
+const { db, dbGetAllParts, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost, safeInsert, updateOrderFields } = require('../../../db.cjs');
 const { buildOrderPlan } = require('../../../services/orderPlanning.cjs');
 const { resolveRecipeLockedUnitCost } = require('../../../services/orderCostLock.cjs');
 
@@ -234,7 +234,11 @@ async function executeOrderTool(toolName, args, internalFetch) {
             const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
             const row = orderData.list?.[0];
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-            softDelete('orders', row.Id);
+            const response = await internalFetch(`/api/orders/${row.Id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (!result.success) {
+                return { success: false, error: result.error || '订单删除失败' };
+            }
             return { success: true, message: `订单${orderId}已删除`, orderId, customerName: row.customerName };
         }
 
