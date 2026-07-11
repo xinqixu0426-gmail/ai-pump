@@ -88,6 +88,19 @@ test('关键 API 集成契约：/api/parts/batch-stock 是唯一标准库存增�
     assert.doesNotMatch(section, /\bdb\.prepare\(\s*`?\s*UPDATE\b/i);
 });
 
+test('关键 API 集成契约：/api/parts/prices 是标准批量调价入口', () => {
+    const source = readUtf8('api/routes/parts.cjs');
+    const section = sliceBetween(source, "router.patch('/prices'", "router.patch('/:id'");
+
+    assert.match(section, /updates 数组不能为空/);
+    assert.match(section, /parsePositiveId\(item\?\.partId\)/);
+    assert.match(section, /parseFiniteNumber\(item\?\.price, `updates\[\$\{index\}\]\.price`\)/);
+    assert.match(section, /safeUpdate\('parts', row\.partId, \{ price: row\.price \}\)/);
+    assert.match(section, /invalidatePartsCache\(\)/);
+    assert.doesNotMatch(section, /item\?\.id|item\?\.Id/);
+    assert.doesNotMatch(section, /\bdb\.prepare\(\s*`?\s*UPDATE\b/i);
+});
+
 test('关键 API 集成契约：路由 ID 参数必须使用 validation helper', () => {
     const routeFiles = [
         'api/routes/parts.cjs',

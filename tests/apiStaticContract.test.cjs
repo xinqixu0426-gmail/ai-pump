@@ -452,7 +452,9 @@ test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () 
 
     assert.match(queryExecutor, /internalFetch\('\/api\/parts'/);
     assert.match(queryExecutor, /internalFetch\(`\/api\/parts\/\$\{target\.Id\}`/);
+    assert.match(queryExecutor, /internalFetch\('\/api\/parts\/prices'/);
     assert.doesNotMatch(queryExecutor, /safeInsert\('parts'/);
+    assert.doesNotMatch(queryExecutor, /safeUpdate\('parts'/);
     assert.doesNotMatch(queryExecutor, /softDelete\('parts'/);
 
     assert.match(orderExecutor, /internalFetch\(`\/api\/orders\/\$\{row\.Id\}`/);

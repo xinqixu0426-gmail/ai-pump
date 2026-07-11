@@ -1,4 +1,4 @@
-const { dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, invalidatePartsCache, safeUpdate } = require('../../../db.cjs');
+const { dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils } = require('../../../db.cjs');
 const { buildBusinessSummary } = require('../../../services/businessSummary.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
@@ -204,20 +204,25 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 if (percentChange !== undefined) { newPrice = Math.round(oldPrice * (1 + percentChange / 100) * 100) / 100; }
                 else { newPrice = Math.round((oldPrice + absoluteChange) * 100) / 100; }
                 if (newPrice < 0) newPrice = 0;
-                updates.push({ Id: p.Id, price: newPrice });
+                updates.push({ partId: p.Id, price: newPrice });
                 details.push({ model: p.model, oldPrice, newPrice });
             }
 
-            for (const u of updates) {
-                safeUpdate('parts', u.Id, { price: u.price });
+            const response = await internalFetch('/api/parts/prices', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates }),
+            });
+            const result = await response.json();
+            if (!result.success) {
+                return { success: false, error: result.error || '批量调价失败' };
             }
-            invalidatePartsCache();
 
             return {
                 success: true,
-                message: `已批量更新${targets.length}个"${category}"类零件的价格`,
+                message: `已批量更新${result.data?.updatedCount ?? targets.length}个"${category}"类零件的价格`,
                 category,
-                count: targets.length,
+                count: result.data?.updatedCount ?? targets.length,
                 changeType: percentChange !== undefined ? `${percentChange > 0 ? '+' : ''}${percentChange}%` : `${absoluteChange > 0 ? '+' : ''}${absoluteChange}元`,
                 details
             };

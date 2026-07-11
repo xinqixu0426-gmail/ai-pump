@@ -25,10 +25,10 @@
 - `create_recipe`、`update_recipe` -> `/api/recipes/cost-draft` + `/api/recipes/save-payload-draft` + `/api/recipes`
 - `create_order`、订单项增删改、生成采购清单 -> `/api/orders/save-payload-draft` + `/api/orders`
 - `update_order_status` -> `POST /api/orders/:id/status`
+- `batch_update_prices` -> `PATCH /api/parts/prices`
 
 仍需收口：
 
-- `batch_update_prices`
 - 更细粒度的 AI 订单采购项、待办、入库动作（当前 AI 工具未覆盖这些动作）
 
 这些工具当前有的仍直接调用 `safeInsert/safeUpdate` 或读取数据库 helper。它们安全性比裸 SQL 高，但还没有完全复用标准 API 的入参校验、草稿生成和响应契约。
@@ -50,10 +50,6 @@
 - `delete_part` -> `DELETE /api/parts/:id`
 - `delete_recipe` -> `DELETE /api/recipes/:id`
 - `delete_order` -> `DELETE /api/orders/:id`
-
-后续保留：
-
-- `batch_update_prices` 当前没有标准批量价格 API，暂保留 `safeUpdate` 实现；如需要继续收口，应先补 `PATCH /api/parts/prices` 或等价业务动作接口。
 
 验收：
 

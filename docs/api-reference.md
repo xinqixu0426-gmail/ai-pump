@@ -49,6 +49,7 @@
 | `POST` | `/api/parts` | `model, category, price, supplier, stock, remark/notes` | 新增零件，返回新零件 |
 | `PATCH` | `/api/parts/:id` | 可更新字段 | 更新入口；动态更新必须走 `safeUpdate('parts', id, updates)` |
 | `DELETE` | `/api/parts/:id` | 无 | 软删除并返回 `{ deleted: 1 }` |
+| `PATCH` | `/api/parts/prices` | `{ updates: [{ partId, price }] }` | 批量更新零件价格；`partId` 必须为正整数，`price` 必须为非负有效数字 |
 | `POST` | `/api/parts/batch-stock` | `{ operations: [{ partId, delta }] }` | 批量库存增减，库存最低为 0；`partId` 必须为正整数，`delta` 必须为有效数字 |
 
 ## 5. 线圈 Coils

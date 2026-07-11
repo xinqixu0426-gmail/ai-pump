@@ -37,6 +37,38 @@ router.post('/', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+router.patch('/prices', (req, res) => {
+    try {
+        const { updates } = req.body || {};
+        if (!Array.isArray(updates) || updates.length === 0) {
+            return res.status(400).json({ success: false, error: 'updates 数组不能为空' });
+        }
+        const normalized = updates.map((item, index) => {
+            const partId = parsePositiveId(item?.partId);
+            if (!partId) throw new Error(`updates[${index}].partId 必须是正整数`);
+            const price = parseFiniteNumber(item?.price, `updates[${index}].price`);
+            if (price < 0) throw new Error(`updates[${index}].price 必须大于等于 0`);
+            return { partId, price };
+        });
+
+        const batch = db.transaction((rows) => {
+            const updated = [];
+            for (const row of rows) {
+                const exists = db.prepare('SELECT id FROM parts WHERE id = ? AND deleted_at IS NULL').get(row.partId);
+                if (!exists) continue;
+                safeUpdate('parts', row.partId, { price: row.price });
+                updated.push(partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(row.partId)));
+            }
+            return updated;
+        });
+        const updatedParts = batch(normalized);
+        invalidatePartsCache();
+        res.json({ success: true, data: { updatedCount: updatedParts.length, parts: updatedParts } });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
 router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);

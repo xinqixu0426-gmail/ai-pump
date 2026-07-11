@@ -168,7 +168,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 
 | 模块 | 主要路径 | 说明 |
 |---|---|---|
-| 零件 | `/api/parts`、`/api/parts/batch-stock` | CRUD、批量库存变更 |
+| 零件 | `/api/parts`、`/api/parts/prices`、`/api/parts/batch-stock` | CRUD、批量调价、批量库存变更 |
 | 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、材质配置、成本计算 |
 | 市场指标 | `/api/market-indicators` | 查询铜价、铝价、美元汇率或手动同步 |
 | 模板 | `/api/templates` | CRUD、应用模板、默认配方、模板成本 |
