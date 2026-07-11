@@ -488,6 +488,15 @@ test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接�
     assert.doesNotMatch(recipeExecutor, /safeUpdate\('recipes'/);
 });
 
+test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {
+    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+
+    assert.match(promptRoute, /所有业务写操作必须通过工具调用，由后端标准 API 执行/);
+    assert.match(promptRoute, /优先使用配方保存成本作为订单锁价/);
+    assert.doesNotMatch(promptRoute, /直接写入数据库/);
+    assert.doesNotMatch(promptRoute, /当前最新零件价格动态核算UnitCost/);
+});
+
 test('重构准备契约：业务流程冻结文档必须存在并被 README 引用', () => {
     const businessFlowPath = path.join(repoRoot, 'docs/business-flow.md');
     const readme = readUtf8(path.join(repoRoot, 'docs/README.md'));
