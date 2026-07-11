@@ -462,6 +462,19 @@ test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () 
     assert.doesNotMatch(recipeExecutor, /softDelete\('recipes'/);
 });
 
+test('API 静态契约：AI 订单写操作必须复用订单草稿和动作接口', () => {
+    const orderExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+
+    assert.match(orderExecutor, /\/api\/orders\/save-payload-draft/);
+    assert.match(orderExecutor, /postJson\(internalFetch,\s*'\/api\/orders'/);
+    assert.match(orderExecutor, /patchJson\(internalFetch,\s*`\/api\/orders\/\$\{order\.Id\}`/);
+    assert.match(orderExecutor, /postJson\(internalFetch,\s*`\/api\/orders\/\$\{row\.Id\}\/status`/);
+    assert.doesNotMatch(orderExecutor, /safeInsert\('orders'/);
+    assert.doesNotMatch(orderExecutor, /safeUpdate\('orders'/);
+    assert.doesNotMatch(orderExecutor, /updateOrderFields/);
+    assert.doesNotMatch(orderExecutor, /buildOrderPlan/);
+});
+
 test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接口', () => {
     const recipeExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/recipeExecutors.cjs'));
 

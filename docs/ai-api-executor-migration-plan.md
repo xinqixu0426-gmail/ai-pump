@@ -23,12 +23,13 @@
 - `delete_recipe` -> `DELETE /api/recipes/:id`
 - `delete_order` -> `DELETE /api/orders/:id`
 - `create_recipe`、`update_recipe` -> `/api/recipes/cost-draft` + `/api/recipes/save-payload-draft` + `/api/recipes`
+- `create_order`、订单项增删改、生成采购清单 -> `/api/orders/save-payload-draft` + `/api/orders`
+- `update_order_status` -> `POST /api/orders/:id/status`
 
 仍需收口：
 
 - `batch_update_prices`
-- `create_order`、`update_order_status`、`update_order_item`
-- 订单追加/移除配方、生成采购清单等订单动作
+- 更细粒度的 AI 订单采购项、待办、入库动作（当前 AI 工具未覆盖这些动作）
 
 这些工具当前有的仍直接调用 `safeInsert/safeUpdate` 或读取数据库 helper。它们安全性比裸 SQL 高，但还没有完全复用标准 API 的入参校验、草稿生成和响应契约。
 
@@ -87,7 +88,7 @@
 - AI 工具仍接收原来的简化参数，内部负责把零件意图转换为 BOM 草稿输入。
 - `update_recipe` 会保留原配方的模板、线圈、浮球电缆、包装、人工管理费、技术档案等上下文，只修改用户指定字段。
 
-### P3：订单写操作
+### P3：订单写操作（已完成）
 
 迁移：
 
@@ -118,6 +119,11 @@
 - AI 新建订单优先使用配方 `savedTotalCost` 锁价。
 - 没有保存成本时才调用后端参考成本兜底。
 - 采购清单和待办由后端动作生成。
+
+说明：
+
+- AI 订单工具仍把配方名称和数量转换为订单项，但正式保存 payload、采购清单和待办由 `/api/orders/save-payload-draft` 生成。
+- 当前标准保存草稿要求订单至少包含一个产品，AI 不再创建空订单。
 
 ### P4：补自动化专用动作 API
 
