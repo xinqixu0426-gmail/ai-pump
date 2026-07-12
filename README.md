@@ -86,7 +86,7 @@ npm run build
 3. 选择“添加到主屏幕”。
 4. 从主屏幕打开“水泵助手”。
 
-PWA 当前是基础文字版 AI 助手，复用现有 JWT Cookie 登录、`/api/ai/chat` SSE 和 `/api/ai/confirm-tool` 写操作确认，不新增后端业务 API，也不暴露 DeepSeek 密钥。语音识别能力仍保留在后端 `/api/voice/asr` 和微信小程序场景中，当前 PWA 页面不启用语音入口。
+PWA 当前是基础 AI 助手，支持文字输入和轻量语音输入。语音只负责把录音提交到后端 `/api/voice/asr` 转成文字，之后仍复用 `/api/ai/chat` SSE 和 `/api/ai/confirm-tool` 写操作确认，不新增业务 API，也不暴露 DeepSeek 或 ASR 密钥。
 
 生产构建和启动：
 

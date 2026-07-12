@@ -241,10 +241,11 @@ AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认�
 Next iPhone PWA `/voice` 复用本节接口：
 
 - 文字指令通过 `apps/web-next/lib/ai.ts:streamAiChat()` 调用 `POST /api/ai/chat`。
+- 语音输入通过 `apps/web-next/lib/voice.ts:recognizeVoiceBlob()` 调用 `POST /api/voice/asr` 转文字，然后进入同一 `POST /api/ai/chat` 链路。
 - 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
 - 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力应先扩展 `tools.cjs` 和对应 executor。
 - PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
-- 当前 PWA 基础版不启用语音输入；`/api/voice/asr` 保留给其他语音入口。
+- 当前 PWA 不启用语音播报、Voice Orb 或音频可视化；语音失败时回退到文字输入。
 
 ### Voice
 
@@ -252,7 +253,7 @@ Next iPhone PWA `/voice` 复用本节接口：
 |---|---|---|---|
 | `POST` | `/api/voice/asr` | `multipart/form-data`，文件字段 `audio`，可带 `format`、`sampleRate` | 调阿里云一句话识别；成功返回 `{ success: true, text }` |
 
-当前 iPhone PWA 基础版不调用本接口；如后续恢复语音输入，应继续通过后端适配层调用本接口，避免把阿里云密钥暴露到前端。
+当前 iPhone PWA 语音输入调用本接口；阿里云密钥只保留在后端环境变量中，不暴露到前端。
 
 ### Siri
 

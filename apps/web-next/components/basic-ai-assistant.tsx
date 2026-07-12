@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bot, Check, ChevronDown, Loader2, RefreshCcw, Send, ShieldAlert, Square, Wrench, X } from 'lucide-react';
+import { AlertCircle, Bot, Check, ChevronDown, Loader2, Mic, MicOff, RefreshCcw, Send, ShieldAlert, Square, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import {
@@ -16,8 +16,10 @@ import {
   StreamingText,
 } from '@/components/prompt-kit/basic-chat';
 import { confirmAiTool, streamAiChat, type AiChatMessage, type AiToolResult } from '@/lib/ai';
+import { getSupportedVoiceMimeType, recognizeVoiceBlob } from '@/lib/voice';
 
-type AssistantStatus = 'idle' | 'thinking' | 'calling' | 'answering' | 'confirming' | 'done' | 'error' | 'cancelled';
+type AssistantStatus = 'idle' | 'recording' | 'recognizing' | 'thinking' | 'calling' | 'answering' | 'confirming' | 'done' | 'error' | 'cancelled';
+type VoiceInputState = 'idle' | 'recording' | 'recognizing' | 'error';
 
 type ChatItem = {
   id: string;
@@ -361,8 +363,15 @@ export function BasicAiAssistant() {
   const [loading, setLoading] = useState(false);
   const [lastPrompt, setLastPrompt] = useState('');
   const [serviceStatus, setServiceStatus] = useState('就绪');
+  const [voiceState, setVoiceState] = useState<VoiceInputState>('idle');
+  const [voiceError, setVoiceError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const mimeTypeRef = useRef('');
+  const unmountRef = useRef(false);
 
   const apiMessages = useMemo<AiChatMessage[]>(() => (
     items
@@ -374,6 +383,11 @@ export function BasicAiAssistant() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [items]);
+
+  useEffect(() => () => {
+    unmountRef.current = true;
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   function updateAssistant(id: string, updater: (item: ChatItem) => ChatItem) {
     setItems((current) => current.map((item) => (item.id === id ? updater(item) : item)));
@@ -470,6 +484,87 @@ export function BasicAiAssistant() {
     setItems((current) => current.map((item) => item.status && !['done', 'error', 'confirming'].includes(item.status) ? { ...item, status: 'cancelled', statusMessage: '已取消' } : item));
   }
 
+  function stopMediaStream() {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  }
+
+  async function startVoiceInput() {
+    if (loading || voiceState === 'recording' || voiceState === 'recognizing') return;
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceState('error');
+      setVoiceError('当前浏览器不支持录音，请使用文字输入');
+      return;
+    }
+
+    try {
+      setVoiceError('');
+      setVoiceState('recording');
+      setServiceStatus('正在录音');
+      chunksRef.current = [];
+      mimeTypeRef.current = getSupportedVoiceMimeType();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream, mimeTypeRef.current ? { mimeType: mimeTypeRef.current } : undefined);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        if (unmountRef.current) return;
+        setVoiceState('error');
+        setVoiceError('录音失败，请改用文字输入');
+        setServiceStatus('就绪');
+        stopMediaStream();
+      };
+      recorder.onstop = () => {
+        if (unmountRef.current) return;
+        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || 'audio/wav' });
+        chunksRef.current = [];
+        stopMediaStream();
+        void handleVoiceBlob(blob);
+      };
+
+      recorder.start();
+    } catch (err) {
+      setVoiceState('error');
+      setVoiceError((err as Error).message || '无法访问麦克风，请检查权限');
+      setServiceStatus('就绪');
+      stopMediaStream();
+    }
+  }
+
+  function stopVoiceInput() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state !== 'recording') return;
+    setServiceStatus('正在识别');
+    recorder.stop();
+  }
+
+  async function handleVoiceBlob(blob: Blob) {
+    if (blob.size === 0) {
+      setVoiceState('error');
+      setVoiceError('没有录到声音，请再试一次');
+      setServiceStatus('就绪');
+      return;
+    }
+
+    try {
+      setVoiceState('recognizing');
+      setServiceStatus('正在识别');
+      const text = await recognizeVoiceBlob(blob, mimeTypeRef.current || blob.type);
+      setInput(text);
+      setVoiceState('idle');
+      setServiceStatus('处理中');
+      await sendMessage(text);
+    } catch (err) {
+      setVoiceState('error');
+      setVoiceError((err as Error).message || '语音识别失败，请改用文字输入');
+      setServiceStatus('就绪');
+    }
+  }
+
   function replaceToolResult(messageId: string, oldIndex: number, next: AiToolResult) {
     updateAssistant(messageId, (item) => ({
       ...item,
@@ -491,7 +586,7 @@ export function BasicAiAssistant() {
                 <span>AI Executor</span>
               </div>
               <h1 className="mt-1 text-lg font-semibold tracking-normal text-ink">水泵 AI 助手</h1>
-              <p className="mt-1 text-sm leading-5 text-muted">文字调度入口，可查询成本、订单、零件、线圈、采购和出图记录。</p>
+              <p className="mt-1 text-sm leading-5 text-muted">支持文字和语音输入，可查询成本、订单、零件、线圈、采购和出图记录。</p>
             </div>
             <StatusBadge tone={serviceStatus === '出错' ? 'red' : serviceStatus === '就绪' ? 'green' : 'blue'}>{serviceStatus}</StatusBadge>
           </div>
@@ -506,7 +601,7 @@ export function BasicAiAssistant() {
                     <Bot size={21} />
                   </div>
                   <h2 className="mt-4 text-base font-semibold text-ink">今天要查什么？</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted">先用文字发一个明确任务。涉及写库的操作会先显示确认卡片。</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">可以输入文字，也可以点麦克风说一句任务。涉及写库的操作会先显示确认卡片。</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     {suggestions.slice(0, 3).map((suggestion) => (
                       <PromptSuggestion key={suggestion} onClick={() => void sendMessage(suggestion)} disabled={loading}>
@@ -570,9 +665,14 @@ export function BasicAiAssistant() {
               disabled={loading}
             />
             <PromptInputActions>
-              <div className="flex items-center gap-2 text-xs text-muted">
-                <span>Enter 发送</span>
-                <span>Shift+Enter 换行</span>
+              <div className="min-w-0 text-xs text-muted">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Enter 发送</span>
+                  <span>Shift+Enter 换行</span>
+                  {voiceState === 'recording' ? <span className="font-medium text-rose-600">正在录音</span> : null}
+                  {voiceState === 'recognizing' ? <span className="font-medium text-blue-600">正在识别</span> : null}
+                </div>
+                {voiceError ? <div className="mt-1 text-rose-600">{voiceError}</div> : null}
               </div>
               <div className="flex items-center gap-2">
                 {lastPrompt && !loading ? (
@@ -585,9 +685,21 @@ export function BasicAiAssistant() {
                     停止
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" variant="primary" disabled={!input.trim()} icon={<Send size={15} />}>
-                    发送
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={voiceState === 'recording' ? 'secondary' : 'ghost'}
+                      onClick={voiceState === 'recording' ? stopVoiceInput : () => void startVoiceInput()}
+                      disabled={voiceState === 'recognizing'}
+                      icon={voiceState === 'recording' ? <MicOff size={15} /> : voiceState === 'recognizing' ? <Loader2 size={15} className="animate-spin" /> : <Mic size={15} />}
+                    >
+                      {voiceState === 'recording' ? '结束' : voiceState === 'recognizing' ? '识别中' : '语音'}
+                    </Button>
+                    <Button type="submit" size="sm" variant="primary" disabled={!input.trim() || voiceState === 'recording' || voiceState === 'recognizing'} icon={<Send size={15} />}>
+                      发送
+                    </Button>
+                  </>
                 )}
               </div>
             </PromptInputActions>

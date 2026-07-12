@@ -36,18 +36,23 @@ test('PWA 契约：/voice 使用独立移动外壳，不加载桌面 AppShell �
     assert.match(layout, /viewportFit: 'cover'/);
 });
 
-test('PWA 契约：基础 AI 助手复用受控 AI client 和确认流程，不包含语音入口', () => {
+test('PWA 契约：基础 AI 助手复用受控 AI client、ASR client 和确认流程', () => {
     const component = readUtf8('apps/web-next/components/basic-ai-assistant.tsx');
     const promptKit = readUtf8('apps/web-next/components/prompt-kit/basic-chat.tsx');
+    const voiceClient = readUtf8('apps/web-next/lib/voice.ts');
 
     assert.match(component, /streamAiChat/);
     assert.match(component, /confirmAiTool/);
+    assert.match(component, /recognizeVoiceBlob/);
+    assert.match(component, /MediaRecorder/);
     assert.match(component, /PromptInput/);
     assert.match(component, /StreamingText/);
     assert.match(component, /'confirming'/);
     assert.match(promptKit, /PromptInputTextarea/);
     assert.match(promptKit, /PromptSuggestion/);
     assert.match(promptKit, /function StreamingText/);
-    assert.doesNotMatch(component, /MobileVoiceAssistant|recognizeVoiceBlob|MediaRecorder|getUserMedia|Mic|语音播报|按住说话/);
+    assert.match(voiceClient, /proxyRequest/);
+    assert.match(voiceClient, /\/api\/voice\/asr/);
+    assert.doesNotMatch(component, /MobileVoiceAssistant|SpeechRecognition|AudioContext|voice-orb|语音播报|按住说话/);
     assert.doesNotMatch(component, /\bfetch\s*\(/);
 });
