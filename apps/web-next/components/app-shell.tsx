@@ -14,11 +14,15 @@ const navItems = [
   { href: '/quotations', label: '报价', icon: FileText, enabled: true },
   { href: '/purchase', label: '采购', icon: ShoppingCart, enabled: true },
   { href: '/dashboard', label: '看板', icon: BarChart3, enabled: true },
-  { href: '/ai', label: 'AI', icon: Bot, enabled: false },
+  { href: '/ai', label: 'AI', icon: Bot, enabled: true },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  if (pathname === '/login') {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen">

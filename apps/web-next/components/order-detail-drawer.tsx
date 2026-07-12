@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle2, ClipboardList, PackageCheck, ShoppingCart, X } from 'lucide-react';
 import {
   completeOrderPurchase,
@@ -14,6 +15,7 @@ import {
 import { money } from '@/lib/format';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 
 type OrderDetailDrawerProps = {
@@ -25,10 +27,10 @@ type OrderDetailDrawerProps = {
 
 type TabKey = 'items' | 'purchase' | 'todos';
 
-const statusStyles: Record<OrderStatus, string> = {
-  待采购: 'border-amber-200 bg-amber-50 text-amber-700',
-  采购中: 'border-sky-200 bg-sky-50 text-sky-700',
-  已完成: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+const statusTones: Record<OrderStatus, StatusBadgeTone> = {
+  待采购: 'amber',
+  采购中: 'blue',
+  已完成: 'green',
 };
 
 const tabOptions: Array<{ value: TabKey; label: string }> = [
@@ -38,17 +40,24 @@ const tabOptions: Array<{ value: TabKey; label: string }> = [
 ];
 
 export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetailDrawerProps) {
+  const router = useRouter();
   const [localOrder, setLocalOrder] = useState<Order | null>(order);
   const [tab, setTab] = useState<TabKey>('items');
   const [confirmingPurchase, setConfirmingPurchase] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const previousOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const nextOrderId = order?.id ?? null;
+    const changedOrder = nextOrderId !== previousOrderIdRef.current;
+    previousOrderIdRef.current = nextOrderId;
     setLocalOrder(order);
-    setTab('items');
-    setConfirmingPurchase(false);
+    if (changedOrder) {
+      setTab('items');
+      setConfirmingPurchase(false);
+    }
     setMessage('');
     setError('');
   }, [order]);
@@ -56,8 +65,14 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
   const progress = useMemo(() => (
     localOrder ? orderPurchaseProgress(localOrder) : { needCount: 0, purchasedCount: 0 }
   ), [localOrder]);
+  const purchaseItemsToBuy = useMemo(() => (
+    localOrder ? localOrder.purchaseList.filter((item) => Number(item.needToBuy || 0) > 0) : []
+  ), [localOrder]);
+  const allPurchaseItemsPurchased = purchaseItemsToBuy.length > 0 && purchaseItemsToBuy.every((item) => item.purchased);
+  const todoItems = localOrder?.todos || [];
+  const allTodosDone = todoItems.length > 0 && todoItems.every((todo) => todo.done);
 
-  async function runAction(action: () => Promise<Order>, successMessage?: string) {
+  async function runAction(action: () => Promise<Order>, successMessage?: string): Promise<Order | null> {
     setSaving(true);
     setError('');
     try {
@@ -65,8 +80,10 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
       setLocalOrder(saved);
       setMessage(successMessage || '已保存');
       onSaved();
+      return saved;
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存失败');
+      return null;
     } finally {
       setSaving(false);
     }
@@ -74,7 +91,8 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
 
   async function handleStatus(status: OrderStatus) {
     if (!localOrder) return;
-    await runAction(() => setOrderStatus(localOrder, status), `订单状态已更新为 ${status}`);
+    const saved = await runAction(() => setOrderStatus(localOrder, status), `订单状态已更新为 ${status}`);
+    if (saved && status === '采购中') router.push('/purchase');
   }
 
   async function handleTogglePurchase(model: string, supplier: string) {
@@ -82,9 +100,31 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
     await runAction(() => toggleOrderPurchaseItem(localOrder, { model, supplier }));
   }
 
+  async function handleSetAllPurchaseItems(purchased: boolean) {
+    if (!localOrder || purchaseItemsToBuy.length === 0) return;
+    await runAction(async () => {
+      let nextOrder = localOrder;
+      for (const item of purchaseItemsToBuy) {
+        nextOrder = await toggleOrderPurchaseItem(nextOrder, { model: item.model, supplier: item.supplier }, purchased);
+      }
+      return nextOrder;
+    }, purchased ? '已全选采购项' : '已取消全部采购项');
+  }
+
   async function handleToggleTodo(id: string) {
     if (!localOrder) return;
     await runAction(() => toggleOrderTodoItem(localOrder, id));
+  }
+
+  async function handleSetAllTodos(done: boolean) {
+    if (!localOrder || todoItems.length === 0) return;
+    await runAction(async () => {
+      let nextOrder = localOrder;
+      for (const todo of todoItems) {
+        nextOrder = await toggleOrderTodoItem(nextOrder, todo.id, done);
+      }
+      return nextOrder;
+    }, done ? '已全选待办' : '已取消全部待办');
   }
 
   async function handleCompletePurchase() {
@@ -117,9 +157,7 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold tracking-tight text-ink">{localOrder.customerName || '未命名客户'}</h2>
-                  <span className={`rounded-full border px-2 py-0.5 text-xs ${statusStyles[localOrder.status]}`}>
-                    {localOrder.status}
-                  </span>
+                  <StatusBadge tone={statusTones[localOrder.status]}>{localOrder.status}</StatusBadge>
                 </div>
                 <div className="mt-1 text-sm text-muted">
                   合同号：{localOrder.contractNo || '-'} · 产品 {localOrder.items.length} 项
@@ -207,7 +245,18 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
                         <th className="px-3 py-2 text-right">总量</th>
                         <th className="px-3 py-2 text-right">库存</th>
                         <th className="px-3 py-2 text-right">需采</th>
-                        <th className="px-3 py-2 text-center">已采</th>
+                        <th className="px-3 py-2 text-center">
+                          <label className="inline-flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={allPurchaseItemsPurchased}
+                              disabled={saving || purchaseItemsToBuy.length === 0}
+                              onChange={(event) => void handleSetAllPurchaseItems(event.target.checked)}
+                              className="h-4 w-4 rounded border-line"
+                            />
+                            全选
+                          </label>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -249,21 +298,35 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
                 {localOrder.todos.length === 0 ? (
                   <div className="rounded-panel border border-line p-8 text-center text-sm text-muted">暂无采购待办</div>
                 ) : (
-                  localOrder.todos.map((todo) => (
-                    <label key={todo.id} className="flex gap-3 rounded-panel border border-line p-3 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(todo.done)}
-                        disabled={saving}
-                        onChange={() => void handleToggleTodo(todo.id)}
-                        className="mt-0.5 h-4 w-4 rounded border-line"
-                      />
-                      <span>
-                        <span className={todo.done ? 'text-muted line-through' : 'text-ink'}>{todo.description}</span>
-                        <span className="mt-1 block text-xs text-muted">供应商：{todo.supplier || '-'}</span>
-                      </span>
-                    </label>
-                  ))
+                  <>
+                    <div className="flex justify-end">
+                      <label className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm text-muted">
+                        <input
+                          type="checkbox"
+                          checked={allTodosDone}
+                          disabled={saving || todoItems.length === 0}
+                          onChange={(event) => void handleSetAllTodos(event.target.checked)}
+                          className="h-4 w-4 rounded border-line"
+                        />
+                        全选完成
+                      </label>
+                    </div>
+                    {localOrder.todos.map((todo) => (
+                      <label key={todo.id} className="flex gap-3 rounded-panel border border-line p-3 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(todo.done)}
+                          disabled={saving}
+                          onChange={() => void handleToggleTodo(todo.id)}
+                          className="mt-0.5 h-4 w-4 rounded border-line"
+                        />
+                        <span>
+                          <span className={todo.done ? 'text-muted line-through' : 'text-ink'}>{todo.description}</span>
+                          <span className="mt-1 block text-xs text-muted">供应商：{todo.supplier || '-'}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </>
                 )}
               </div>
             )}

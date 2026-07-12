@@ -10,7 +10,6 @@ import {
   getAllCustomers,
   getAllQuotations,
   quotationCountByCustomer,
-  quotationStatusClassName,
   quotationsForCustomer,
   updateCustomer,
   type Customer,
@@ -21,6 +20,7 @@ import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -33,6 +33,14 @@ function statLabel(value: string, sub: string) {
 
 function marginLabel(value: number) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
+}
+
+function quotationStatusTone(status: string): StatusBadgeTone {
+  if (status === '已接受') return 'green';
+  if (status === '已转订单') return 'purple';
+  if (status === '已拒绝') return 'red';
+  if (status === '已过时') return 'slate';
+  return 'blue';
 }
 
 type CustomerFormState = {
@@ -296,9 +304,9 @@ export function CustomersView() {
                       <span className={`mt-1 block truncate text-xs ${selected ? 'text-white/70' : 'text-muted'}`}>
                         {customer.contactInfo || customer.remark || '无联系方式'}
                       </span>
-                      <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-xs ${selected ? 'border-white/20 text-white/80' : 'border-line text-muted'}`}>
+                      <StatusBadge tone="custom" className={`mt-2 h-6 min-w-0 px-2 ${selected ? 'border-white/20 bg-white/10 text-white/80' : 'border-line bg-slate-50 text-muted'}`}>
                         {quoteCount} 张报价
-                      </span>
+                      </StatusBadge>
                     </span>
                     <span className={`text-xs ${selected ? 'text-white/70' : 'text-muted'}`}>
                       {marginLabel(customer.defaultMargin)}
@@ -370,10 +378,8 @@ export function CustomersView() {
                 <tbody>
                   {customerQuotations.map((quotation) => (
                     <tr key={quotation.id} className="transition-colors duration-150 hover:bg-slate-50">
-                      <td className="border-b border-line px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${quotationStatusClassName(quotation.status)}`}>
-                          {quotation.status}
-                        </span>
+                      <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                        <StatusBadge tone={quotationStatusTone(quotation.status)}>{quotation.status}</StatusBadge>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{money(quotation.totalCost)}</td>
                       <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(quotation.totalPrice)}</td>

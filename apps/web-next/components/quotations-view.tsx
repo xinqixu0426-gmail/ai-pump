@@ -26,7 +26,6 @@ import {
   parseQuotationItems,
   previewQuotationItemCost,
   quotationItemSummary,
-  quotationStatusClassName,
   quotationStatusOptions,
   updateQuotation,
   updateQuotationStatus,
@@ -41,6 +40,14 @@ const filterOptions: Array<{ value: QuotationFilter; label: string }> = [
   { value: '全部', label: '全部' },
   ...quotationStatusOptions.map((value) => ({ value, label: value })),
 ];
+
+function quotationStatusSelectClassName(status: string): string {
+  if (status === '已接受') return '!border-emerald-200 !bg-emerald-50 !text-emerald-700';
+  if (status === '已转订单') return '!border-violet-200 !bg-violet-50 !text-violet-700';
+  if (status === '已拒绝') return '!border-rose-200 !bg-rose-50 !text-rose-700';
+  if (status === '已过时') return '!border-slate-200 !bg-slate-50 !text-slate-600';
+  return '!border-sky-200 !bg-sky-50 !text-sky-700';
+}
 
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
@@ -520,7 +527,7 @@ export function QuotationsView() {
                             value={quotation.status}
                             disabled={saving || Boolean(savingId && savingId !== String(quotation.id))}
                             onChange={(event) => void saveStatus(quotation, event.target.value as QuotationStatus)}
-                            className={`h-8 rounded-md border bg-white px-2 text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${quotationStatusClassName(quotation.status)}`}
+                            className={`h-8 min-w-[5.25rem] whitespace-nowrap rounded-full border px-3 text-center text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${quotationStatusSelectClassName(quotation.status)}`}
                           >
                             {quotationStatusOptions.map((option) => (
                               <option key={option} value={option}>{option}</option>
@@ -680,7 +687,7 @@ export function QuotationsView() {
         ) : null}
       </SlideOver>
 
-      <SlideOver open={drawerOpen} onClose={() => !savingId && setDrawerOpen(false)}>
+      <SlideOver open={drawerOpen} onClose={() => !savingId && setDrawerOpen(false)} size="workspace">
         <form onSubmit={submitQuotation} className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-line p-5">
             <div>
@@ -802,7 +809,7 @@ export function QuotationsView() {
 
             {draftItems.length > 0 ? (
               <div className="overflow-x-auto rounded-panel border border-line">
-                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                <table className="min-w-[960px] border-separate border-spacing-0 text-left text-sm">
                   <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                     <tr>
                       <th className="border-b border-line px-4 py-3">产品</th>
@@ -819,7 +826,7 @@ export function QuotationsView() {
                         <td className="border-b border-line px-4 py-3 align-top">
                           <div className="font-medium text-ink">{item.baseRecipeName || '未命名产品'}</div>
                           <div className="mt-0.5 text-xs text-muted">{item.spec || '-'}</div>
-                          <div className="mt-3 grid gap-2 rounded-md bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-6">
+                          <div className="mt-3 grid gap-2 rounded-md bg-slate-50 p-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
                             <label className="flex items-center gap-2 text-xs text-muted">
                               <input
                                 type="checkbox"

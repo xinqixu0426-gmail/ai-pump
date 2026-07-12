@@ -51,19 +51,19 @@ test('重构准备契约：Next 迁移验收清单必须冻结覆盖范围和启
     assert.match(doc, /web-next:prod/);
     assert.match(doc, /\/dashboard/);
     assert.match(doc, /\/rotor/);
-    assert.match(doc, /\/ai[\s\S]*暂未迁移/);
+    assert.match(doc, /\/ai[\s\S]*已覆盖核心闭环/);
     assert.match(doc, /暂留差异/);
     assert.match(doc, /浏览器验收/);
     assert.match(doc, /切换判定/);
 });
 
-test('重构准备契约：AI 暂不迁移时 Next 导航必须保持禁用', () => {
+test('重构准备契约：AI 文本助手迁移到 Next 并启用导航', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
     const acceptance = readUtf8('docs/next-migration-acceptance.md');
 
-    assert.match(shell, /\{\s*href: '\/ai',\s*label: 'AI',\s*icon: Bot,\s*enabled: false\s*\}/);
-    assert.ok(!fs.existsSync(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx')), 'Next AI page should not exist while AI migration is deferred');
-    assert.match(acceptance, /AI 助手：暂不迁移/);
+    assert.match(shell, /\{\s*href: '\/ai',\s*label: 'AI',\s*icon: Bot,\s*enabled: true\s*\}/);
+    assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx')), 'Next AI page should exist once AI navigation is enabled');
+    assert.match(acceptance, /AI 文本助手已迁移到 Next/);
 });
 
 test('重构准备契约：前端状态边界必须冻结全局状态、页面状态和刷新规则', () => {

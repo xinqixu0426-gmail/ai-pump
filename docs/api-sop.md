@@ -54,7 +54,7 @@
 - 前后端 API 契约必须使用 `camelCase`。
 - 前端类型定义不得新增 `snake_case` 字段。
 - 新增字段不得使用 `Id/CreatedAt/UpdatedAt` 或 snake_case。
-- 现有核心资源的 `Id/CreatedAt/UpdatedAt` 只是历史响应字段；新增页面必须通过 `src/utils/entityFields.ts` 读取 ID/时间。
+- 现有核心资源的 `Id/CreatedAt/UpdatedAt` 只是历史响应字段；新增页面必须通过 `apps/web-next/lib/api.ts` 的 entity helper 读取 ID/时间。
 - 旧字段迁移时允许短期双字段输出，但必须标注为 legacy、限定清理条件，并在 API client 做 normalize。
 
 示例：

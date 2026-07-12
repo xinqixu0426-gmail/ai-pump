@@ -1,6 +1,6 @@
-# Next 前端迁移验收清单
+# Next 前端验收清单
 
-> 更新日期：2026-07-09。本文用于判断 `apps/web-next` 是否可以作为主前端替代旧 Vite/MUI 前端。本文只描述验收标准；API 约束见 [api-sop.md](./api-sop.md)，业务边界见 [business-flow.md](./business-flow.md)，状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI 规则见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。
+> 更新日期：2026-07-11。`apps/web-next` 已作为唯一 Web 前端。本文只描述切换后的验收标准；API 约束见 [api-sop.md](./api-sop.md)，业务边界见 [business-flow.md](./business-flow.md)，状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI 规则见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。
 
 ## 1. 联调启动
 
@@ -17,7 +17,7 @@ npm run api
 npm run web-next:dev:primary
 ```
 
-如需保留 `:3000` 给旧前端临时回滚，可使用并行预览命令：
+如需不占用 `:3000`，可使用并行预览命令：
 
 ```bash
 npm run web-next:full
@@ -38,17 +38,17 @@ npm run build
 npm run preview
 ```
 
-`npm run preview` 只启动 Next server，生产环境仍需同时启动现有 Express API。正式部署到 Mac Mini 时建议拆成两个 `nohup` 进程，便于单独回滚 Next 前端。
+`npm run preview` 只启动 Next server，生产环境仍需同时启动现有 Express API。正式部署到 Mac Mini 时建议拆成两个 `nohup` 进程，便于单独重启前端或后端。
 
 并行预览生产模式仍可使用 `npm run web-next:prod` 启动 API + `:3001` Next server。
 
 如果页面出现 `HTTP 500: Internal Server Error` 且 Next 日志包含 `ECONNREFUSED`，优先检查 `3002` 是否启动。
 
-如果页面变成裸 HTML、样式丢失，或 Next 日志出现 `SegmentViewNode`、`vendor-chunks/*.js`、`__webpack_modules__[moduleId] is not a function`，说明 dev/prod 构建缓存被污染。先停掉 Next 进程，执行 `npm run web-next:rebuild`，再启动 `npm run preview`。
+开发模式和生产构建使用独立缓存目录：`next dev` 写入 `.next-dev`，`next build/start` 写入/读取 `.next`。如果页面变成裸 HTML、样式丢失，或 Next 日志出现 `SegmentViewNode`、`vendor-chunks/*.js`、`__webpack_modules__[moduleId] is not a function`，先停掉 Next 进程，执行 `npm run web-next:clean`，再按需要启动 `npm run dev` 或 `npm run preview`。
 
 ## 2. 当前覆盖范围
 
-| 旧功能入口 | Next 路由 | 当前状态 | 说明 |
+| 功能入口 | Next 路由 | 当前状态 | 说明 |
 |---|---|---|---|
 | 运营看板 | `/dashboard` | 已覆盖 | 使用 `/api/workbench/summary` 权威汇总 |
 | 订单列表与创建 | `/orders` | 已覆盖 | 创建订单先生成采购计划，再写订单；订单详情支持采购项勾选、待办勾选、状态流转、采购完成入库确认 |
@@ -59,14 +59,14 @@ npm run preview
 | 采购中心 | `/purchase` | 已覆盖 | 支持按供应商聚合和采购状态标记；不入库 |
 | 线圈转子 | `/coils` | 已覆盖 | 支持试算、CRUD、分组查看、实时市场指标、同步铜价/铝线基数/汇率、材质默认单价配置、规格+材质组批量改单价 |
 | 转子出图 | `/rotor` | 已覆盖核心闭环 | 支持结构化参数、模板/变体带入、SS 机筒开档计算、暂存、出图、轮询、历史关联、PDF、打印、删除 |
-| AI 助手 | `/ai` | 暂未迁移 | 导航保持 disabled，不得使用真实链接 |
+| AI 助手 | `/ai` | 已覆盖核心闭环 | 支持 DeepSeek 文本对话、SSE 流式输出、工具调用结果展示和写操作确认 |
 
 ## 3. 暂留差异
 
-这些差异不阻塞 Next 作为主业务前端，但切换前必须明确告知使用者：
+这些差异不阻塞 Next 作为主业务前端，但必须明确告知使用者：
 
-- AI 助手：暂不迁移，仍可在旧前端保留或作为后续独立工作。
-- 旧 Vite/MUI 前端仅保留作为回滚备用，不再作为新增功能入口；新增业务 UI 优先在 Next 前端实现。
+- AI 助手：AI 文本助手已迁移到 Next，已覆盖核心闭环；语音入口仍以 API/Siri/小程序能力为主。
+- 旧 Vite/MUI 前端已移除；新增业务 UI 只在 Next 前端实现。
 
 ## 4. 自动验收
 
@@ -75,7 +75,6 @@ npm run preview
 ```bash
 npm test
 npm run build
-npm run legacy:build
 ```
 
 当前契约测试必须覆盖：
@@ -140,18 +139,12 @@ npm run legacy:build
 
 ## 7. 切换判定
 
-满足以下条件后，Next 版可作为默认前端入口：
+满足以下条件后，Next 版可继续作为默认前端入口：
 
 - 本文第 4 节自动验收全部通过；
 - 本文第 5、6 节浏览器验收全部通过；
 - 暂留差异已被业务使用者接受；
-- 生产部署脚本明确选择 Next 前端或保留旧前端备用路径；
-- 新增功能承诺优先在 Next 前端实现，旧前端只做必要维护。
+- 生产部署脚本明确选择 Next 前端；
+- 新增功能承诺只在 Next 前端实现。
 
-本轮明确不迁移 AI，满足切换判定时 `/ai` 仍必须保持 disabled；不能为了“页面覆盖率”临时加空页面或真实链接。
-
-切换后仍不得删除旧前端，除非另开一次删除评审并确认：
-
-- 所有生产功能已在 Next 覆盖；
-- 旧前端没有独有数据维护入口；
-- 部署、回滚和使用说明已更新。
+AI 文本助手已迁移到 Next；后续扩展语音或更复杂结果卡片时仍优先在 Next 前端实现。

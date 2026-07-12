@@ -53,6 +53,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 type QuickFilter = 'all' | PartStockStatus | 'noSupplier' | 'noPrice';
 
@@ -755,10 +756,8 @@ export function PartsView() {
                                 <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
                                 <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(part.price)}</td>
                                 <td className="border-b border-line px-4 py-3 text-right text-muted">{part.stock}</td>
-                                <td className="border-b border-line px-4 py-3">
-                                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${stock.className}`}>
-                                    {stock.label}
-                                  </span>
+                                <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                                  <StatusBadge tone={stock.status === 'out' ? 'red' : stock.status === 'low' ? 'amber' : 'green'}>{stock.label}</StatusBadge>
                                 </td>
                                 <td className="border-b border-line px-4 py-3">
                                   <div className="flex justify-end gap-2">

@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence } from 'motion/react';
 import { CircleAlert, Copy, Download, FileText, Link as LinkIcon, Play, Printer, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
-import { PresenceRow } from '@/components/motion/presence-row';
 import { Button } from '@/components/ui/button';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort } from '@/lib/format';
 import { getAllModelVariants, getAllTemplates, type PumpModelVariant, type PumpShellTemplate } from '@/lib/recipes';
 import {
@@ -42,11 +41,11 @@ const numberFields: Array<{ key: keyof RotorFormData; label: string; placeholder
   { key: 'thread_dia', label: '螺纹直径' },
 ];
 
-function statusLabel(status: string): { label: string; className: string } {
-  if (status === 'success') return { label: '完成', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
-  if (status === 'failed') return { label: '失败', className: 'border-rose-200 bg-rose-50 text-rose-700' };
-  if (status === 'saved') return { label: '暂存', className: 'border-slate-200 bg-slate-50 text-slate-700' };
-  return { label: '处理中', className: 'border-amber-200 bg-amber-50 text-amber-700' };
+function statusLabel(status: string): { label: string; tone: StatusBadgeTone } {
+  if (status === 'success') return { label: '完成', tone: 'green' };
+  if (status === 'failed') return { label: '失败', tone: 'red' };
+  if (status === 'saved') return { label: '暂存', tone: 'slate' };
+  return { label: '处理中', tone: 'blue' };
 }
 
 function downloadUrl(fileUrl: string): string {
@@ -79,6 +78,7 @@ export function RotorView() {
   const [linkTargets, setLinkTargets] = useState<RotorLinkTarget[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const autoDrawingNameRef = useRef('');
   const autoDrawingTextRef = useRef('');
 
   async function load(force = false) {
@@ -145,6 +145,17 @@ export function RotorView() {
     });
   }
 
+  function applyAutoDrawingName(name: string) {
+    const nextAuto = name.trim();
+    const previousAuto = autoDrawingNameRef.current;
+    autoDrawingNameRef.current = nextAuto;
+    if (!nextAuto) return;
+    setDrawingName((current) => {
+      const trimmed = current.trim();
+      return !trimmed || trimmed === previousAuto ? nextAuto : current;
+    });
+  }
+
   async function applyTemplate(template: PumpShellTemplate | null, variant?: PumpModelVariant | null) {
     if (!template) {
       setSelectedTemplateId('');
@@ -152,11 +163,16 @@ export function RotorView() {
       setTemplateHint('');
       setSsBarrelLength('');
       setSelectedShellMeta(null);
+      autoDrawingNameRef.current = '';
       return;
     }
 
     try {
-      const draft = await getRotorTemplateDraft(template.id, variant?.id);
+      const templateId = Number(template.id);
+      const variantId = variant?.id == null ? null : Number(variant.id);
+      if (!Number.isInteger(templateId) || templateId <= 0) throw new Error('泵壳模板 ID 无效');
+      if (variantId != null && (!Number.isInteger(variantId) || variantId <= 0)) throw new Error('泵壳变体 ID 无效');
+      const draft = await getRotorTemplateDraft(templateId, variantId);
       setSelectedShellMeta(draft.meta);
       if (draft.barrelLength) {
         setSsBarrelLength(String(draft.barrelLength));
@@ -164,6 +180,7 @@ export function RotorView() {
       if (draft.drawingText) {
         applyAutoDrawingText(draft.drawingText);
       }
+      applyAutoDrawingName(variant?.modelName || template.shellModel || '');
       setForm((current) => ({ ...current, ...draft.patch }));
       setTemplateHint(draft.hints.length > 0 ? `已从 ${template.shellModel} 带入：${draft.hints.join('、')}` : `已选择 ${template.shellModel}`);
     } catch (err) {
@@ -182,7 +199,7 @@ export function RotorView() {
     setSelectedVariantId(nextVariantId);
     const variant = variants.find((item) => String(item.id) === nextVariantId) || null;
     if (!variant) return;
-    const template = templates.find((item) => item.id === variant.templateId) || null;
+    const template = templates.find((item) => String(item.id) === String(variant.templateId)) || null;
     if (template) setSelectedTemplateId(String(template.id));
     void applyTemplate(template, variant);
   }
@@ -254,6 +271,7 @@ export function RotorView() {
     const params = parseRotorParams(row.paramsJson);
     setForm(formFromRotorParams(params));
     setDrawingName(row.drawingName ? `${row.drawingName}-复用` : '');
+    autoDrawingNameRef.current = '';
     setDrawingText(String(params.drawingText || params.drawing_text || ''));
     setMessage('已复用历史参数');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -344,26 +362,26 @@ export function RotorView() {
         <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-700">{templateHint}</div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          <div className="text-2xl font-semibold tracking-tight text-ink">{stats.total}</div>
-          <div className="mt-1 text-xs text-muted">历史记录</div>
-        </div>
-        <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          <div className="text-2xl font-semibold tracking-tight text-ink">{stats.success}</div>
-          <div className="mt-1 text-xs text-muted">成功出图</div>
-        </div>
-        <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          <div className="text-2xl font-semibold tracking-tight text-ink">{stats.saved}</div>
-          <div className="mt-1 text-xs text-muted">暂存参数</div>
-        </div>
-      </div>
-
-      <FadePanel className="grid gap-5 xl:grid-cols-[440px_1fr]">
-        <div className="rounded-panel border border-line bg-white">
+      <FadePanel className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="rounded-panel border border-line bg-white shadow-panel">
           <div className="border-b border-line p-4">
-            <div className="text-sm font-semibold text-ink">出图参数</div>
-            <div className="mt-1 text-xs text-muted">填写任意有效参数即可暂存；生成 PDF 建议补齐长度相关字段。</div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-ink">出图参数</div>
+                <div className="mt-1 text-xs text-muted">先选模板或变体，再补关键尺寸。历史记录已放到右侧辅助区。</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {activeStatus ? (
+                  <StatusBadge tone={activeStatus.tone}>{activeStatus.label}</StatusBadge>
+                ) : null}
+                <Button type="button" size="sm" onClick={() => void saveOnly()} disabled={saving} icon={<Save size={14} />}>
+                  暂存
+                </Button>
+                <Button type="button" size="sm" variant="primary" onClick={() => void draw()} disabled={saving} icon={<Play size={14} />}>
+                  生成 PDF
+                </Button>
+              </div>
+            </div>
           </div>
           <div className="space-y-4 p-4">
             <div className="rounded-md border border-line bg-slate-50 p-3">
@@ -371,7 +389,7 @@ export function RotorView() {
                 <LinkIcon size={15} />
                 关联模板
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 lg:grid-cols-2">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">泵壳模板</span>
                   <select
@@ -444,46 +462,49 @@ export function RotorView() {
                 placeholder="显示在图纸上的短文本"
               />
             </label>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-ink">上轴承</span>
-                <select
-                  value={form.upper_bearing}
-                  onChange={(event) => updateForm('upper_bearing', event.target.value)}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                >
-                  {bearingOptions.map((bearing) => <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>)}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">下轴承</span>
-                <select
-                  value={form.lower_bearing}
-                  onChange={(event) => updateForm('lower_bearing', event.target.value)}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                >
-                  {bearingOptions.map((bearing) => <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>)}
-                </select>
-              </label>
-              {numberFields.map((field) => (
-                <label key={field.key} className="block">
-                  <span className="text-sm font-medium text-ink">{field.label}</span>
-                  <input
-                    value={form[field.key]}
-                    onChange={(event) => updateForm(field.key, event.target.value)}
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                  />
+            <div className="rounded-md border border-line p-3">
+              <div className="mb-3 text-sm font-semibold text-ink">轴承与主要尺寸</div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">上轴承</span>
+                  <select
+                    value={form.upper_bearing}
+                    onChange={(event) => updateForm('upper_bearing', event.target.value)}
+                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    {bearingOptions.map((bearing) => <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>)}
+                  </select>
                 </label>
-              ))}
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">下轴承</span>
+                  <select
+                    value={form.lower_bearing}
+                    onChange={(event) => updateForm('lower_bearing', event.target.value)}
+                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    {bearingOptions.map((bearing) => <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>)}
+                  </select>
+                </label>
+                {numberFields.map((field) => (
+                  <label key={field.key} className="block">
+                    <span className="text-sm font-medium text-ink">{field.label}</span>
+                    <input
+                      value={form[field.key]}
+                      onChange={(event) => updateForm(field.key, event.target.value)}
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
             {activeStatus ? (
               <div className="rounded-md border border-line bg-slate-50 p-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-medium text-ink">{jobId}</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-xs ${activeStatus.className}`}>{activeStatus.label}</span>
+                  <StatusBadge tone={activeStatus.tone}>{activeStatus.label}</StatusBadge>
                 </div>
                 {jobStatus?.fileUrl ? (
                   <a className="mt-2 inline-flex text-sm font-medium text-ink underline" href={downloadUrl(jobStatus.fileUrl)} target="_blank" rel="noreferrer">
@@ -495,7 +516,7 @@ export function RotorView() {
             ) : null}
           </div>
           <div className="flex justify-end gap-2 border-t border-line p-4">
-            <Button type="button" variant="ghost" onClick={() => { setForm(emptyRotorForm); setDrawingName(''); setDrawingText(''); setSelectedTemplateId(''); setSelectedVariantId(''); setTemplateHint(''); setSsBarrelLength(''); }}>
+            <Button type="button" variant="ghost" onClick={() => { setForm(emptyRotorForm); setDrawingName(''); autoDrawingNameRef.current = ''; setDrawingText(''); setSelectedTemplateId(''); setSelectedVariantId(''); setTemplateHint(''); setSsBarrelLength(''); }}>
               清空
             </Button>
             <Button type="button" onClick={() => void saveOnly()} disabled={saving} icon={<Save size={15} />}>
@@ -507,83 +528,71 @@ export function RotorView() {
           </div>
         </div>
 
-        <div className="min-w-0 rounded-panel border border-line bg-white">
+        <aside className="min-w-0 rounded-panel border border-line bg-white/80 shadow-panel">
           <div className="border-b border-line p-4">
-            <div className="text-sm font-semibold text-ink">出图历史</div>
-            <div className="mt-1 text-xs text-muted">最近 100 条记录。</div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-ink">历史</div>
+                <div className="mt-1 text-xs text-muted">{stats.success} 完成 / {stats.saved} 暂存 / 共 {stats.total}</div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}>
+                刷新
+              </Button>
+            </div>
           </div>
           {loading ? (
             <div className="p-6 text-sm text-muted">加载中...</div>
           ) : history.length === 0 ? (
             <div className="p-6 text-sm text-muted">暂无出图记录</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs text-muted">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">图纸</th>
-                    <th className="px-4 py-3 font-medium">状态</th>
-                    <th className="px-4 py-3 font-medium">关联型号</th>
-                    <th className="px-4 py-3 font-medium">时间</th>
-                    <th className="px-4 py-3 text-right font-medium">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <AnimatePresence initial={false}>
-                    {history.map((row) => {
-                      const status = statusLabel(row.status);
-                      return (
-                        <PresenceRow key={row.id}>
-                          <td className="border-b border-line px-4 py-3">
-                            <div className="font-medium text-ink">{row.drawingName || row.jobId}</div>
-                            <div className="mt-1 text-xs text-muted">{row.jobId}</div>
-                            {row.error ? <div className="mt-1 text-xs text-rose-700">{row.error}</div> : null}
-                          </td>
-                          <td className="border-b border-line px-4 py-3">
-                            <span className={`rounded-full border px-2 py-0.5 text-xs ${status.className}`}>{status.label}</span>
-                          </td>
-                          <td className="border-b border-line px-4 py-3 text-muted">{row.linkedPumpModel || '-'}</td>
-                          <td className="border-b border-line px-4 py-3 text-muted">{dateShort(row.createdAt)}</td>
-                          <td className="border-b border-line px-4 py-3">
-                            <div className="flex justify-end gap-2">
-                              <Button size="sm" variant="ghost" onClick={() => reuse(row)} icon={<Copy size={14} />}>
-                                复用
-                              </Button>
-                              <Button size="sm" variant="ghost" disabled={linkLoading} onClick={() => void openLinkDialog(row)} icon={<LinkIcon size={14} />}>
-                                关联
-                              </Button>
-                              {row.fileUrl ? (
-                                <a
-                                  href={downloadUrl(row.fileUrl)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-medium text-muted transition-colors duration-150 hover:bg-slate-100 hover:text-ink"
-                                >
-                                  <Download size={14} />
-                                  PDF
-                                </a>
-                              ) : (
-                                <Button size="sm" variant="ghost" disabled icon={<FileText size={14} />}>
-                                  PDF
-                                </Button>
-                              )}
-                              <Button size="sm" variant="ghost" disabled={row.status !== 'success' || printingJobId === row.jobId} onClick={() => void print(row)} icon={<Printer size={14} />}>
-                                打印
-                              </Button>
-                              <Button size="sm" variant="danger" disabled={saving} onClick={() => void remove(row)} icon={<Trash2 size={14} />}>
-                                删除
-                              </Button>
-                            </div>
-                          </td>
-                        </PresenceRow>
-                      );
-                    })}
-                  </AnimatePresence>
-                </tbody>
-              </table>
+            <div className="max-h-[680px] overflow-y-auto p-3">
+              <div className="space-y-2">
+                {history.slice(0, 30).map((row) => {
+                    const status = statusLabel(row.status);
+                    return (
+                      <div key={row.id} className="rounded-md border border-line bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-ink">{row.drawingName || row.jobId}</div>
+                            <div className="mt-1 text-xs text-muted">{dateShort(row.createdAt)}</div>
+                          </div>
+                          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                        </div>
+                        {row.linkedPumpModel ? <div className="mt-2 truncate text-xs text-muted">{row.linkedPumpModel}</div> : null}
+                        {row.error ? <div className="mt-2 text-xs text-rose-700">{row.error}</div> : null}
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <Button size="sm" variant="ghost" onClick={() => reuse(row)} icon={<Copy size={14} />}>
+                            复用
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={linkLoading} onClick={() => void openLinkDialog(row)} icon={<LinkIcon size={14} />}>
+                            关联
+                          </Button>
+                          {row.fileUrl ? (
+                            <a
+                              href={downloadUrl(row.fileUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-medium text-muted transition-colors duration-150 hover:bg-slate-100 hover:text-ink"
+                            >
+                              <Download size={14} />
+                              PDF
+                            </a>
+                          ) : null}
+                          <Button size="sm" variant="ghost" disabled={row.status !== 'success' || printingJobId === row.jobId} onClick={() => void print(row)} icon={<Printer size={14} />}>
+                            打印
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => void remove(row)} icon={<Trash2 size={14} />}>
+                            删除
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              {history.length > 30 ? <div className="px-1 pt-3 text-xs text-muted">仅显示最近 30 条</div> : null}
             </div>
           )}
-        </div>
+        </aside>
       </FadePanel>
 
       {linkRow ? (

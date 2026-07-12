@@ -1,4 +1,5 @@
 const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
+const { createInternalFetch } = require('./internalApiClient.cjs');
 const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
 const { executeOrderTool } = require('./executors/orderExecutors.cjs');
@@ -130,13 +131,8 @@ async function executeToolCall(toolName, args, options = {}) {
         return buildWriteConfirmation(toolName, args);
     }
     
-    // 内部网络获取助手，注入系统秘钥绕过鉴权锁
-    const internalFetch = (url, opts = {}) => {
-        const headers = opts.headers || {};
-        headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
-        const port = process.env.PORT || 3002;
-        return fetch(`http://localhost:${port}${url}`, { ...opts, headers });
-    };
+    // 内部网络获取助手，注入系统秘钥并复用标准 API 鉴权入口。
+    const internalFetch = createInternalFetch();
 
     try {
         const costRes = await executeCostTool(toolName, args, internalFetch);

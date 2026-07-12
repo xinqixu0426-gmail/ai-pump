@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-11。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，重构前业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互重构约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，Next 迁移验收清单见 [next-migration-acceptance.md](./next-migration-acceptance.md)，AI 调用 API 改造计划见 [ai-api-executor-migration-plan.md](./ai-api-executor-migration-plan.md)。
+> 当前版本说明，更新于 2026-07-11。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，Next 验收清单见 [next-migration-acceptance.md](./next-migration-acceptance.md)，AI 调用 API 改造计划见 [ai-api-executor-migration-plan.md](./ai-api-executor-migration-plan.md)。
 
 ## 1. 系统用途
 
@@ -145,7 +145,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 
 ### 请求与响应
 
-- Web 请求统一使用 `src/utils/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`。
+- Web 请求统一使用 `apps/web-next/lib/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`。
 - Web 新调用必须使用当前标准 API 入口；历史字段兼容只允许封装在 API client 内，不得继续扩散到页面组件。
 - 前后端字段使用 camelCase；数据库列使用 snake_case。
 - 标准成功响应：`{ "success": true, "data": {} }`。
@@ -233,8 +233,8 @@ POST /api/rotor/save
 
 ## 8. 当前已知边界
 
-- `apps/web-next/` 是 Next.js + Tailwind + motion 风格的主前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。旧 Vite/MUI 前端仅保留为回滚备用。Next 前端不接管业务 API。
-- AI 成本类工具已经调用标准 API；AI 写操作 executor 仍保留部分直接使用 `safeInsert/safeUpdate/dbGetAll...` 的实现。正式让 AI 承担业务自动化前，应按 [AI 调用 API 改造计划](./ai-api-executor-migration-plan.md) 将写操作统一改为调用标准 API。
+- `apps/web-next/` 是 Next.js + Tailwind + motion 风格的唯一 Web 前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。Next 前端不接管业务 API。
+- AI executor 已通过内部 API client 调用标准 API，不再直接访问数据库 helper；后续新增 AI 自动化能力时，应先确认是否能复用现有标准业务动作 API，必要时按 [AI 调用 API 改造计划](./ai-api-executor-migration-plan.md) 补共用接口。
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
 - 核心资源的 `Id/CreatedAt/UpdatedAt`、转子历史的 snake_case 字段仍作为 legacy 响应兼容保留；新调用必须使用标准 camelCase。
 - 配方等写接口仍保留少量旧入参兼容，但资源更新和删除已统一为 `/:id` 路径入口。

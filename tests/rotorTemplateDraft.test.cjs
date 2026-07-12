@@ -54,3 +54,25 @@ test('转子模板草稿应用变体机筒长度并自动计算开档', () => {
     assert.equal(draft.drawingText, '不锈钢机筒：180mm');
     assert.ok(draft.hints.some(hint => hint.includes('V750-180机筒180mm，开档157mm')));
 });
+
+test('转子模板草稿兼容零件库 remark 字段', () => {
+    const draft = buildRotorTemplateDraft({
+        template,
+        parts: [{
+            category: '泵壳',
+            model: 'V750',
+            remark: JSON.stringify({
+                isStainless: true,
+                openOffset: 15,
+                defaultUpperBearing: '6202',
+                defaultLowerBearing: '6203',
+                defaultOilSealDia: 14,
+            }),
+        }],
+    });
+
+    assert.equal(draft.patch.upper_bearing, '6202');
+    assert.equal(draft.patch.lower_bearing, '6204');
+    assert.equal(draft.patch.oil_seal_dia, '14');
+    assert.equal(draft.openOffset, 15);
+});

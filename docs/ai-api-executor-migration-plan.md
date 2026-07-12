@@ -1,6 +1,6 @@
 # AI 调用 API 改造计划
 
-> 当前状态：Next 主前端已经通过统一 API client 调用 Express API；AI 成本类工具已经调用标准成本 API。AI 写操作 executor 仍有部分直接使用数据库 helper 的实现，下一阶段目标是让 AI 与网页、Siri、微信小程序共享同一套业务 API。
+> 当前状态：Next 主前端已经通过统一 API client 调用 Express API；AI executor 已收口为通过内部 API client 调用标准 Express API，不再直接访问数据库 helper。下一阶段目标是在需要新自动化能力时优先补标准业务动作 API，再让 AI、网页、Siri、微信小程序共享。
 
 ## 1. 改造目标
 
@@ -31,14 +31,14 @@
 
 - 更细粒度的 AI 订单采购项、待办、入库动作（当前 AI 工具未覆盖这些动作）
 
-这些工具当前有的仍直接调用 `safeInsert/safeUpdate` 或读取数据库 helper。它们安全性比裸 SQL 高，但还没有完全复用标准 API 的入参校验、草稿生成和响应契约。
+当前 executor 已通过 `api/routes/ai/internalApiClient.cjs` 统一注入 `x-internal-secret` 并调用标准 API。`api/routes/ai/executors` 下禁止直接调用 `safeInsert/safeUpdate/softDelete`、`db.prepare`、`dbGetAll...`、`loadPartsData` 或裸 `response.json()`；该约束由静态契约测试保护。
 
 ## 3. 改造顺序
 
 ### P0：保持现状可用
 
 - 不修改工具名，避免破坏现有提示词、确认卡片和前端展示。
-- 工具内部逐步从 db/helper 调用迁移到 `internalFetch()` 标准 API 调用。
+- 工具内部通过统一 internal API client 调用标准 API。
 - 迁移期间保持返回结构兼容现有 `StructuredResult`。
 
 ### P1：低风险资源 CRUD（已完成）
@@ -137,7 +137,7 @@
 
 - `npm test`
 - `npm run build`
-- 搜索 `api/routes/ai/executors`，确认核心写操作不再直接调用 `safeInsert/safeUpdate/softDelete`，除非该工具没有对应标准 API 且文档明确说明。
+- 搜索 `api/routes/ai/executors`，确认 executor 不直接调用 `safeInsert/safeUpdate/softDelete`、`db.prepare`、`dbGetAll...`、`loadPartsData` 或裸 `response.json()`。
 - 搜索 AI executor 中的旧成本入口，禁止出现 `/api/cost/calculate`、`/api/cost/full-calculate`、`/api/cost/dynamic-config`。
 - AI 写操作仍必须触发确认卡片，不允许未确认直接写库。
 - 内部调用必须带 `x-internal-secret`。

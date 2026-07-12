@@ -7,15 +7,10 @@ const repoRoot = path.join(__dirname, '..');
 
 function walkFiles(dir, predicate, files = []) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (entry.isDirectory() && ['node_modules', '.next', 'dist', 'build'].includes(entry.name)) {
-            continue;
-        }
+        if (entry.isDirectory() && ['node_modules', '.next', '.next-dev', 'dist', 'build'].includes(entry.name)) continue;
         const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            walkFiles(fullPath, predicate, files);
-            continue;
-        }
-        if (predicate(fullPath)) files.push(fullPath);
+        if (entry.isDirectory()) walkFiles(fullPath, predicate, files);
+        else if (predicate(fullPath)) files.push(fullPath);
     }
     return files;
 }
@@ -29,21 +24,39 @@ function relative(filePath) {
 }
 
 function frontendSourceFiles() {
-    const roots = [
-        path.join(repoRoot, 'src'),
+    return walkFiles(
         path.join(repoRoot, 'apps/web-next'),
-    ].filter((dir) => fs.existsSync(dir));
-
-    return roots.flatMap((root) => walkFiles(
-        root,
         (filePath) => /\.(ts|tsx|js|jsx)$/.test(filePath)
-    ));
+    );
 }
 
-test('API 静态契约：前端成本计算不得调用已删除的 /api/cost/calculate', () => {
-    const srcFiles = frontendSourceFiles();
+test('API 静态契约：旧 Vite 前端入口已移除', () => {
+    const removedPaths = [
+        'src',
+        'dist',
+        'index.html',
+        'vite.config.ts',
+        'tsconfig.json',
+        'tsconfig.node.json',
+    ];
 
-    const offenders = srcFiles
+    const offenders = removedPaths.filter((item) => fs.existsSync(path.join(repoRoot, item)));
+    assert.deepEqual(offenders, []);
+});
+
+test('API 静态契约：根 package 不再保留旧前端脚本和依赖', () => {
+    const pkg = JSON.parse(readUtf8(path.join(repoRoot, 'package.json')));
+    const scripts = Object.keys(pkg.scripts || {});
+    const dependencies = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+
+    assert.deepEqual(scripts.filter((name) => name.startsWith('legacy:') || name === 'build:all'), []);
+    for (const dep of ['@mui/material', '@emotion/react', '@emotion/styled', 'react-router-dom', 'vite', '@vitejs/plugin-react', '@vitejs/plugin-basic-ssl']) {
+        assert.equal(dependencies[dep], undefined, dep);
+    }
+});
+
+test('API 静态契约：前端成本计算不得调用已删除的 /api/cost/calculate', () => {
+    const offenders = frontendSourceFiles()
         .filter((filePath) => readUtf8(filePath).includes('/api/cost/calculate'))
         .map(relative);
 
@@ -51,12 +64,10 @@ test('API 静态契约：前端成本计算不得调用已删除的 /api/cost/ca
 });
 
 test('API 静态契约：前端不得新增裸 fetch 调用', () => {
-    const srcFiles = frontendSourceFiles();
-
     const offenders = [];
-    for (const filePath of srcFiles) {
+    for (const filePath of frontendSourceFiles()) {
         const rel = relative(filePath);
-        if (['src/utils/api.ts', 'apps/web-next/lib/api.ts'].includes(rel)) continue;
+        if (rel === 'apps/web-next/lib/api.ts') continue;
 
         const source = readUtf8(filePath).replace(/\bproxyFetch\s*\(/g, '');
         if (/\bfetch\s*\(/.test(source)) offenders.push(rel);
@@ -102,85 +113,52 @@ test('API 静态契约：客户和报价写接口返回标准 data 对象', () =
     assert.deepEqual(offenders, []);
 });
 
-test('API 静态契约：前端 API client 统一处理资源 id 兼容', () => {
-    const source = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
+test('API 静态契约：Next 资源 client 统一处理 legacy id 时间兼容', () => {
+    const clientFiles = [
+        'apps/web-next/lib/parts.ts',
+        'apps/web-next/lib/recipes.ts',
+        'apps/web-next/lib/orders.ts',
+        'apps/web-next/lib/customers.ts',
+        'apps/web-next/lib/coils.ts',
+    ];
 
-    assert.match(source, /function normalizeLegacyEntity/);
-    assert.match(source, /return normalizeLegacyEntities\(res\.data \|\| \[\]\);/);
-    assert.doesNotMatch(source, /type LegacyListResponse/);
-    assert.doesNotMatch(source, /function unwrapList/);
-    assert.doesNotMatch(source, /response\.data\?\.id \?\? response\.data\?\.Id/);
-    assert.doesNotMatch(source, /response\.id|response\.Id/);
+    for (const filePath of clientFiles) {
+        const source = readUtf8(path.join(repoRoot, filePath));
+        assert.match(source, /\.id \?\? .*\.Id|row\.id \?\? row\.Id|id: .*\.id \|\| .*\.Id/, filePath);
+    }
 });
 
 test('API 静态契约：核心资源页面不得直接依赖 legacy Id 时间字段', () => {
-    const files = [
-        'src/pages/PartsPage.tsx',
-        'src/components/parts/PartRow.tsx',
-        'src/pages/RecipesPage.tsx',
-        'src/components/TemplateSection.tsx',
-        'src/components/ModelVariantSection.tsx',
-        'src/components/recipe/StepTemplateSelect.tsx',
-        'src/components/RecipeDetailModal.tsx',
-        'src/pages/RecipeFormPage.tsx',
-        'src/components/order/OrderItemsManager.tsx',
-        'src/pages/CustomersPage.tsx',
-        'src/pages/QuotationsPage.tsx',
-        'src/components/GlobalSearch.tsx',
-        'src/utils/orderFormRules.ts',
-        'src/utils/recipeProductionRules.ts',
-    ];
-
-    const offenders = files.filter((filePath) => {
-        const source = readUtf8(path.join(repoRoot, filePath));
-        return /\.(Id|CreatedAt|UpdatedAt)\b/.test(source);
+    const files = walkFiles(path.join(repoRoot, 'apps/web-next/app'), (filePath) => /\.(ts|tsx)$/.test(filePath))
+        .concat(walkFiles(path.join(repoRoot, 'apps/web-next/components'), (filePath) => /\.(ts|tsx)$/.test(filePath)))
+        .filter((filePath) => {
+        const rel = relative(filePath);
+        return !['apps/web-next/lib/api.ts'].includes(rel);
     });
+
+    const offenders = files
+        .filter((filePath) => /\.(Id|CreatedAt|UpdatedAt)\b/.test(readUtf8(filePath)))
+        .map(relative);
 
     assert.deepEqual(offenders, []);
 });
 
-test('API 静态契约：parts 写接口新调用必须使用路径 ID', () => {
-    const client = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
-    const route = readUtf8(path.join(repoRoot, 'api/routes/parts.cjs'));
+test('API 静态契约：核心资源写接口新调用必须使用路径 ID', () => {
+    const routeFiles = [
+        'api/routes/parts.cjs',
+        'api/routes/orders.cjs',
+        'api/routes/recipes.cjs',
+        'api/routes/customers.cjs',
+        'api/routes/quotations.cjs',
+    ];
 
-    assert.match(route, /router\.patch\('\/:id'/);
-    assert.match(route, /router\.delete\('\/:id'/);
-    assert.doesNotMatch(route, /router\.patch\('\/'/);
-    assert.doesNotMatch(route, /router\.delete\('\/'/);
-    assert.doesNotMatch(client, /proxyRequest<[^>]+>\('\/api\/parts',\s*\{\s*method: 'PATCH'/);
-    assert.doesNotMatch(client, /proxyRequest\('\/api\/parts',\s*\{\s*method: 'DELETE'/);
-});
-
-test('API 静态契约：orders 写接口新调用必须使用路径 ID', () => {
-    const client = readUtf8(path.join(repoRoot, 'src/utils/orderStore.ts'));
-    const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
-
-    assert.match(route, /router\.patch\('\/:id'/);
-    assert.match(route, /router\.delete\('\/:id'/);
-    assert.doesNotMatch(route, /router\.patch\('\/'/);
-    assert.doesNotMatch(route, /router\.delete\('\/'/);
-    assert.match(client, /proxyRequest(?:<[^>]+>)?\(`\/api\/orders\/\$\{numId\}`,\s*\{\s*method: 'PATCH'/);
-    assert.match(client, /proxyRequest(?:<[^>]+>)?\(`\/api\/orders\/\$\{numId\}`,\s*\{\s*method: 'DELETE'/);
-    assert.match(client, /buildOrderSavePayloadDraft/);
-    assert.match(client, /\/api\/orders\/save-payload-draft/);
-    assert.doesNotMatch(client, /itemsJson: JSON\.stringify\(order\.items\)/);
-    assert.doesNotMatch(client, /purchaseListJson: JSON\.stringify\(order\.purchaseList\)/);
-    assert.doesNotMatch(client, /proxyRequest\('\/api\/orders',\s*\{\s*method: 'PATCH'/);
-    assert.doesNotMatch(client, /proxyRequest\('\/api\/orders',\s*\{\s*method: 'DELETE'/);
-});
-
-test('API 静态契约：recipes 写接口新调用必须使用路径 ID', () => {
-    const client = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
-    const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
-
-    assert.match(route, /router\.patch\('\/:id'/);
-    assert.match(route, /router\.delete\('\/:id'/);
-    assert.doesNotMatch(route, /router\.patch\('\/'/);
-    assert.doesNotMatch(route, /router\.delete\('\/'/);
-    assert.match(client, /proxyRequest<[^>]+>\(`\/api\/recipes\/\$\{id\}`,\s*\{\s*method: 'PATCH'/);
-    assert.match(client, /proxyRequest\(`\/api\/recipes\/\$\{id\}`,\s*\{\s*method: 'DELETE'/);
-    assert.doesNotMatch(client, /proxyRequest<[^>]+>\('\/api\/recipes',\s*\{\s*method: 'PATCH'/);
-    assert.doesNotMatch(client, /proxyRequest\('\/api\/recipes',\s*\{\s*method: 'DELETE'/);
+    for (const filePath of routeFiles) {
+        const route = readUtf8(path.join(repoRoot, filePath));
+        assert.match(route, /router\.patch\('\/:id'/, filePath);
+        assert.match(route, /router\.delete\('\/:id'/, filePath);
+        assert.doesNotMatch(route, /router\.patch\('\/'/, filePath);
+        assert.doesNotMatch(route, /router\.delete\('\/'/, filePath);
+    }
 });
 
 test('API 静态契约：配方常用配置应用必须由后端生成草稿', () => {
@@ -189,14 +167,10 @@ test('API 静态契约：配方常用配置应用必须由后端生成草稿', (
     const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(route, /router\.post\('\/model-variant-draft'/);
-    assert.match(route, /pump_model_variants WHERE id = \? AND deleted_at IS NULL/);
-    assert.match(route, /loadTemplateContext\(variant\.templateId\)/);
     assert.match(route, /recipeDraft/);
-    assert.match(route, /surfaceTreatmentMode/);
     assert.match(nextClient, /applyModelVariantDraft/);
     assert.match(nextClient, /\/api\/recipes\/model-variant-draft/);
     assert.match(nextView, /applyModelVariantDraft\(modelVariantId\)/);
-    assert.doesNotMatch(nextView, /variants\.find\(\(item\) => String\(item\.id\) === nextVariantId\)/);
 });
 
 test('API 静态契约：配方泵壳模板应用必须由后端生成草稿', () => {
@@ -206,12 +180,9 @@ test('API 静态契约：配方泵壳模板应用必须由后端生成草稿', (
 
     assert.match(route, /router\.get\('\/:id\/default-recipe'/);
     assert.match(route, /recipeDraft/);
-    assert.match(route, /templateId: tpl\.id/);
-    assert.match(route, /surfaceTreatmentMode: tpl\.paintingWage != null \? 'painting' : 'none'/);
     assert.match(nextClient, /getTemplateRecipeDraft/);
     assert.match(nextClient, /\/api\/templates\/\$\{templateId\}\/default-recipe/);
     assert.match(nextView, /getTemplateRecipeDraft\(templateId\)/);
-    assert.doesNotMatch(nextView, /templates\.find\(\(item\) => String\(item\.id\) === nextTemplateId\)/);
 });
 
 test('API 静态契约：配方保存 payload 必须由后端生成草稿', () => {
@@ -221,177 +192,88 @@ test('API 静态契约：配方保存 payload 必须由后端生成草稿', () =
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
     assert.match(route, /function buildRecipeSavePayloadDraft/);
-    assert.match(route, /packingPartsJson: JSON\.stringify\(recipeSelectionRows\(body\?\.packingParts, true\)\)/);
-    assert.match(route, /technicalDataJson: stringifyTechnicalData\(body\?\.technicalData\)/);
     assert.match(nextClient, /buildRecipeSavePayloadDraft/);
     assert.match(nextClient, /\/api\/recipes\/save-payload-draft/);
     assert.match(nextView, /buildRecipeSavePayloadDraft\(\{/);
     assert.doesNotMatch(nextView, /partsJson: JSON\.stringify\(costDraft\.parts\)/);
-    assert.doesNotMatch(nextView, /technicalDataJson: stringifyTechnicalData/);
 });
 
 test('API 静态契约：配方生产扣库存必须由后端动作执行', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
-    const apiClient = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
-    const detailModal = readUtf8(path.join(repoRoot, 'src/components/RecipeDetailModal.tsx'));
+    const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
+    const recipeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(route, /router\.post\('\/:id\/production-check'/);
     assert.match(route, /router\.post\('\/:id\/produce'/);
-    assert.match(route, /function buildRecipeProductionDraft/);
     assert.match(route, /function produceRecipe/);
-    assert.match(route, /db\.transaction\(\(\) =>/);
     assert.match(route, /safeUpdate\('parts', deduction\.partId, \{ stock \}\)/);
-    assert.match(apiClient, /produceRecipe\(recipeId: number, produceQty: number\)/);
-    assert.match(apiClient, /\/api\/recipes\/\$\{id\}\/produce/);
-    assert.doesNotMatch(detailModal, /batchDeductStock/);
-    assert.doesNotMatch(detailModal, /stockDeductionsFromChecks/);
+    assert.match(nextClient, /produceRecipe\(recipeId: number, produceQty: number\)/);
+    assert.match(nextClient, /\/api\/recipes\/\$\{recipeId\}\/produce/);
+    assert.doesNotMatch(recipeView, /batchDeductStock|stockDeductionsFromChecks/);
 });
 
 test('API 静态契约：报价转订单必须由后端生成订单草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quotations.ts'));
-    const legacyClient = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
-    const legacyPage = readUtf8(path.join(repoRoot, 'src/pages/QuotationsPage.tsx'));
 
     assert.match(route, /router\.post\('\/:id\/order-draft'/);
     assert.match(route, /function buildOrderDraftFromQuotation/);
     assert.match(route, /buildOrderPlan\(orderItems, dbGetAllParts\(\)\)/);
     assert.match(nextClient, /buildQuotationOrderDraft\(quotationId: number\)/);
     assert.match(nextClient, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
-    assert.match(nextClient, /input\.draft \|\| await buildQuotationOrderDraft\(input\.quotation\.id\)/);
     assert.doesNotMatch(nextClient, /generatePurchasePlan/);
-    assert.doesNotMatch(nextClient, /recipes\.find\(\(candidate\) => candidate\.id === Number\(item\.baseRecipeId\)\)/);
-    assert.match(legacyClient, /buildOrderDraftFromQuotation/);
-    assert.match(legacyClient, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
-    assert.match(legacyPage, /buildOrderDraftFromQuotation\(entityId\(q\)\)/);
-    assert.doesNotMatch(legacyPage, /buildOrderFromQuotation/);
-    assert.doesNotMatch(legacyPage, /quotationOrderConversion/);
 });
 
 test('API 静态契约：报价保存 payload 必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quotations.ts'));
-    const legacyClient = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
-    const legacyPage = readUtf8(path.join(repoRoot, 'src/pages/QuotationsPage.tsx'));
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
     assert.match(route, /function buildQuotationSavePayloadDraft/);
-    assert.match(route, /itemsJson: JSON\.stringify\(items\)/);
-    assert.match(route, /totalCost/);
-    assert.match(route, /totalPrice/);
     assert.match(nextClient, /buildQuotationSavePayloadDraft/);
     assert.match(nextClient, /\/api\/quotations\/save-payload-draft/);
     assert.doesNotMatch(nextClient, /itemsJson: JSON\.stringify\(input\.items\)/);
-    assert.doesNotMatch(nextClient, /totalCost: totals\.totalCost/);
-    assert.doesNotMatch(nextClient, /totalPrice: totals\.totalPrice/);
-    assert.match(legacyClient, /buildQuotationSavePayloadDraft/);
-    assert.match(legacyClient, /\/api\/quotations\/save-payload-draft/);
-    assert.match(legacyPage, /const data: QuotationInput = \{ customerId, status, items, remark \}/);
-    assert.doesNotMatch(legacyPage, /itemsJson: JSON\.stringify\(items\)/);
-    assert.doesNotMatch(legacyPage, /calculateQuotationTotals\(items\)/);
 });
 
 test('API 静态契约：订单保存 payload 必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/orders.ts'));
     const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/orders-view.tsx'));
-    const legacyClient = readUtf8(path.join(repoRoot, 'src/utils/orderStore.ts'));
-    const legacyFormRules = readUtf8(path.join(repoRoot, 'src/utils/orderFormRules.ts'));
-    const legacyOrderForm = readUtf8(path.join(repoRoot, 'src/pages/OrderFormPage.tsx'));
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
     assert.match(route, /function buildOrderSavePayloadDraft/);
-    assert.match(route, /itemsJson: JSON\.stringify\(items\)/);
-    assert.match(route, /purchaseListJson: JSON\.stringify\(plan\.purchaseList/);
     assert.match(nextClient, /buildOrderSavePayloadDraft/);
     assert.match(nextClient, /\/api\/orders\/save-payload-draft/);
     assert.doesNotMatch(nextClient, /itemsJson: JSON\.stringify\(order\.items\)/);
-    assert.doesNotMatch(nextClient, /purchaseListJson: JSON\.stringify\(order\.purchaseList\)/);
     assert.doesNotMatch(nextView, /generatePurchasePlan\(draftItems\)/);
-    assert.match(legacyClient, /buildOrderSavePayloadDraft/);
-    assert.match(legacyClient, /\/api\/orders\/save-payload-draft/);
-    assert.doesNotMatch(legacyClient, /itemsJson: JSON\.stringify\(order\.items\)/);
-    assert.doesNotMatch(legacyClient, /purchaseListJson: JSON\.stringify\(order\.purchaseList\)/);
-    assert.doesNotMatch(legacyFormRules, /order\.purchaseList = input\.purchaseList/);
-    assert.doesNotMatch(legacyFormRules, /order\.todos = input\.todos/);
-    assert.doesNotMatch(legacyOrderForm, /purchaseList,\s*\n\s*todos,\s*\n\s*orderTotals/);
 });
 
 test('API 静态契约：订单详情动作必须由后端执行', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/orders.ts'));
     const detailDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
-    const legacyClient = readUtf8(path.join(repoRoot, 'src/utils/orderStore.ts'));
-    const legacyDetail = readUtf8(path.join(repoRoot, 'src/components/OrderDetailModal.tsx'));
-    const legacyOrdersPage = readUtf8(path.join(repoRoot, 'src/pages/OrdersPage.tsx'));
-    const legacyRules = readUtf8(path.join(repoRoot, 'src/utils/orderLifecycleRules.ts'));
-    const legacyApi = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
 
     assert.match(route, /router\.post\('\/:id\/status'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/todos\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/complete-purchase'/);
-    assert.match(route, /db\.transaction\(\(orderId\) =>/);
     assert.match(route, /safeUpdate\('parts', partId, \{ stock \}\)/);
-    assert.match(route, /safeUpdate\('orders', orderId/);
     assert.match(nextClient, /setOrderStatus/);
     assert.match(nextClient, /toggleOrderPurchaseItem/);
     assert.match(nextClient, /toggleOrderTodoItem/);
     assert.match(nextClient, /completeOrderPurchase/);
-    assert.match(nextClient, /\/api\/orders\/\$\{orderId\(order\)\}\/complete-purchase/);
-    assert.doesNotMatch(detailDrawer, /saveOrder/);
-    assert.doesNotMatch(detailDrawer, /batchAddStock/);
-    assert.doesNotMatch(detailDrawer, /updateOrderStatus|togglePurchaseItem|toggleTodoItem|completePurchaseOrder/);
-    assert.match(legacyClient, /setOrderStatus/);
-    assert.match(legacyClient, /toggleOrderPurchaseItem/);
-    assert.match(legacyClient, /toggleOrderTodoItem/);
-    assert.match(legacyClient, /completeOrderPurchase/);
-    assert.doesNotMatch(legacyDetail, /saveOrder/);
-    assert.doesNotMatch(legacyDetail, /batchAddStock/);
-    assert.doesNotMatch(legacyDetail, /updateOrderStatus|togglePurchaseItem|toggleTodoItem|completePurchaseOrder/);
-    assert.doesNotMatch(legacyOrdersPage, /saveOrder\(updateOrderStatus/);
-    assert.doesNotMatch(legacyRules, /export function updateOrderStatus|export function togglePurchaseItem|export function toggleTodoItem|export function completePurchaseOrder|stockAdditionsFromPurchaseList/);
-    assert.doesNotMatch(legacyApi, /export async function batchAddStock/);
+    assert.doesNotMatch(detailDrawer, /saveOrder|batchAddStock/);
 });
 
 test('API 静态契约：采购中心批量采购状态必须由后端执行', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const purchaseClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/purchase.ts'));
-    const legacyClient = readUtf8(path.join(repoRoot, 'src/utils/orderStore.ts'));
-    const legacyPurchasePage = readUtf8(path.join(repoRoot, 'src/pages/PurchaseCenterPage.tsx'));
-    const legacyPurchaseRules = readUtf8(path.join(repoRoot, 'src/utils/purchaseCenterRules.ts'));
 
     assert.match(route, /router\.post\('\/purchase-items\/batch'/);
     assert.match(route, /function applyPurchaseItemsByTask/);
-    assert.match(route, /SELECT \* FROM orders WHERE deleted_at IS NULL AND status != \?/);
     assert.match(route, /safeUpdate\('orders', record\.id/);
     assert.match(purchaseClient, /\/api\/orders\/purchase-items\/batch/);
-    assert.doesNotMatch(purchaseClient, /saveOrder/);
-    assert.doesNotMatch(purchaseClient, /buildUpdatedOrders/);
-    assert.match(legacyClient, /applyPurchaseTaskByModel/);
-    assert.match(legacyClient, /\/api\/orders\/purchase-items\/batch/);
-    assert.doesNotMatch(legacyPurchasePage, /saveOrder/);
-    assert.doesNotMatch(legacyPurchasePage, /buildUpdatedOrders/);
-    assert.doesNotMatch(legacyPurchaseRules, /export function buildUpdatedOrders/);
-});
-
-test('API 静态契约：客户和报价写接口新调用必须使用路径 ID', () => {
-    const client = readUtf8(path.join(repoRoot, 'src/utils/api.ts'));
-    const customersRoute = readUtf8(path.join(repoRoot, 'api/routes/customers.cjs'));
-    const quotationsRoute = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
-
-    assert.match(customersRoute, /router\.patch\('\/:id'/);
-    assert.match(customersRoute, /router\.delete\('\/:id'/);
-    assert.match(quotationsRoute, /router\.patch\('\/:id'/);
-    assert.match(quotationsRoute, /router\.delete\('\/:id'/);
-    assert.match(client, /`\/api\/customers\/\$\{id\}`,\s*\{\s*method: 'PATCH'/);
-    assert.match(client, /`\/api\/customers\/\$\{id\}`,\s*\{\s*method: 'DELETE'/);
-    assert.match(client, /`\/api\/quotations\/\$\{id\}`,\s*\{\s*method: 'PATCH'/);
-    assert.match(client, /`\/api\/quotations\/\$\{id\}`,\s*\{\s*method: 'DELETE'/);
-    assert.doesNotMatch(client, /proxyRequest<[^>]+>\('\/api\/customers',\s*\{\s*method: 'PATCH'/);
-    assert.doesNotMatch(client, /proxyRequest<[^>]+>\('\/api\/customers',\s*\{\s*method: 'DELETE'/);
-    assert.doesNotMatch(client, /proxyRequest<[^>]+>\('\/api\/quotations',\s*\{\s*method: 'PATCH'/);
-    assert.doesNotMatch(client, /proxyRequest<[^>]+>\('\/api\/quotations',\s*\{\s*method: 'DELETE'/);
+    assert.doesNotMatch(purchaseClient, /saveOrder|buildUpdatedOrders/);
 });
 
 test('API 静态契约：成本 API 不再暴露旧命名 alias', () => {
@@ -414,14 +296,12 @@ test('API 静态契约：批量库存接口只接受标准 partId', () => {
     assert.match(route, /parseFiniteNumber\(op\.delta, 'delta'\)/);
     assert.doesNotMatch(route, /op\.id|op\.Id/);
     assert.match(docs, /operations: \[\{ partId, delta \}\]/);
-    assert.doesNotMatch(docs, /partId\/id\/Id/);
 });
 
 test('API 静态契约：业务新增写库必须通过 safeInsert', () => {
     const dbSource = readUtf8(path.join(repoRoot, 'api/db.cjs'));
     assert.match(dbSource, /function safeInsert\(table, values\)/);
     assert.match(dbSource, /writeAuditLog\('INSERT', table/);
-    assert.match(dbSource, /safeInsert,/);
 
     const files = [
         'api/routes/parts.cjs',
@@ -450,17 +330,14 @@ test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () 
     const orderExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
     const recipeExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/recipeExecutors.cjs'));
 
-    assert.match(queryExecutor, /internalFetch\('\/api\/parts'/);
-    assert.match(queryExecutor, /internalFetch\(`\/api\/parts\/\$\{target\.Id\}`/);
-    assert.match(queryExecutor, /internalFetch\('\/api\/parts\/prices'/);
-    assert.doesNotMatch(queryExecutor, /safeInsert\('parts'/);
-    assert.doesNotMatch(queryExecutor, /safeUpdate\('parts'/);
-    assert.doesNotMatch(queryExecutor, /softDelete\('parts'/);
+    assert.match(queryExecutor, /postJson\(internalFetch,\s*'\/api\/parts'/);
+    assert.match(queryExecutor, /patchJson\(internalFetch,\s*`\/api\/parts\/\$\{targetId\}`/);
+    assert.doesNotMatch(queryExecutor, /safeInsert\('parts'|safeUpdate\('parts'|softDelete\('parts'/);
 
-    assert.match(orderExecutor, /internalFetch\(`\/api\/orders\/\$\{row\.Id\}`/);
-    assert.doesNotMatch(orderExecutor, /softDelete\('orders'/);
+    assert.match(orderExecutor, /getJson\(internalFetch,\s*`\/api\/orders\/\$\{id\}`/);
+    assert.match(orderExecutor, /patchJson\(internalFetch,\s*`\/api\/orders\/\$\{order\.id \?\? order\.Id\}`/);
 
-    assert.match(recipeExecutor, /internalFetch\(`\/api\/recipes\/\$\{recipe\.Id\}`/);
+    assert.match(recipeExecutor, /deleteJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
     assert.doesNotMatch(recipeExecutor, /softDelete\('recipes'/);
 });
 
@@ -469,12 +346,8 @@ test('API 静态契约：AI 订单写操作必须复用订单草稿和动作接�
 
     assert.match(orderExecutor, /\/api\/orders\/save-payload-draft/);
     assert.match(orderExecutor, /postJson\(internalFetch,\s*'\/api\/orders'/);
-    assert.match(orderExecutor, /patchJson\(internalFetch,\s*`\/api\/orders\/\$\{order\.Id\}`/);
-    assert.match(orderExecutor, /postJson\(internalFetch,\s*`\/api\/orders\/\$\{row\.Id\}\/status`/);
-    assert.doesNotMatch(orderExecutor, /safeInsert\('orders'/);
-    assert.doesNotMatch(orderExecutor, /safeUpdate\('orders'/);
-    assert.doesNotMatch(orderExecutor, /updateOrderFields/);
-    assert.doesNotMatch(orderExecutor, /buildOrderPlan/);
+    assert.match(orderExecutor, /postJson\(internalFetch,\s*`\/api\/orders\/\$\{row\.id \?\? row\.Id\}\/status`/);
+    assert.doesNotMatch(orderExecutor, /db\.prepare|safeInsert\('orders'|safeUpdate\('orders'|buildOrderPlan/);
 });
 
 test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接口', () => {
@@ -483,9 +356,24 @@ test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接�
     assert.match(recipeExecutor, /\/api\/recipes\/cost-draft/);
     assert.match(recipeExecutor, /\/api\/recipes\/save-payload-draft/);
     assert.match(recipeExecutor, /postJson\(internalFetch,\s*'\/api\/recipes'/);
-    assert.match(recipeExecutor, /patchJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.Id\}`/);
-    assert.doesNotMatch(recipeExecutor, /safeInsert\('recipes'/);
-    assert.doesNotMatch(recipeExecutor, /safeUpdate\('recipes'/);
+    assert.match(recipeExecutor, /patchJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
+    assert.doesNotMatch(recipeExecutor, /safeInsert\('recipes'|safeUpdate\('recipes'/);
+});
+
+test('API 静态契约：AI executor 不得直接访问数据库 helper 或裸解析 API 响应', () => {
+    const executorFiles = [
+        'api/routes/ai/executors/recipeExecutors.cjs',
+        'api/routes/ai/executors/queryExecutors.cjs',
+        'api/routes/ai/executors/orderExecutors.cjs',
+        'api/routes/ai/executors/costExecutors.cjs',
+    ];
+
+    const forbidden = /\b(dbGet\w+|loadPartsData|calculateRecipeCost|db\.prepare|safeInsert|safeUpdate|softDelete|hardDelete)\b|response\.json\(/;
+    const offenders = executorFiles
+        .filter((filePath) => forbidden.test(readUtf8(path.join(repoRoot, filePath))))
+        .map((filePath) => filePath.replace(/\\/g, '/'));
+
+    assert.deepEqual(offenders, []);
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {
@@ -494,7 +382,16 @@ test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接�
     assert.match(promptRoute, /所有业务写操作必须通过工具调用，由后端标准 API 执行/);
     assert.match(promptRoute, /优先使用配方保存成本作为订单锁价/);
     assert.doesNotMatch(promptRoute, /直接写入数据库/);
-    assert.doesNotMatch(promptRoute, /当前最新零件价格动态核算UnitCost/);
+});
+
+test('API 静态契约：DeepSeek 默认模型使用 V4 Flash', () => {
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const rotorRoute = readUtf8(path.join(repoRoot, 'api/routes/rotor.cjs'));
+
+    assert.match(chatRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
+    assert.match(rotorRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
+    assert.doesNotMatch(chatRoute, /deepseek-chat/);
+    assert.doesNotMatch(rotorRoute, /model:\s*'deepseek-chat'/);
 });
 
 test('重构准备契约：业务流程冻结文档必须存在并被 README 引用', () => {

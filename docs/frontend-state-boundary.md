@@ -41,7 +41,7 @@
 - AI 对话、转子出图、打印、下载等会话状态；
 - 只服务当前页面的预览数据和临时校验结果。
 
-复杂页面可以把规则抽到 `src/utils/*Rules.ts` 或专用 helper，但 helper 必须保持纯函数优先，不直接读写 Zustand。
+复杂页面可以把规则抽到 `apps/web-next/lib/*` 或专用 helper，但 helper 必须保持纯函数优先，不直接读写 Zustand。
 
 ## 4. 跨资源刷新规则
 
@@ -70,7 +70,7 @@
 派生数据按优先级放置：
 
 1. 影响业务结果、成本、库存、订单状态的，优先放后端服务/API。
-2. 只影响前端展示且可重复计算的，放 `src/utils/*Rules.ts`、`*Summary.ts`、`*Selectors.ts`。
+2. 只影响前端展示且可重复计算的，放 `apps/web-next/lib/*`、`*Summary.ts`、`*Selectors.ts` 或页面同级纯 helper。
 3. 只影响单个组件视觉的，放组件内部 `useMemo`。
 
 禁止把以下内容作为长期状态保存：
@@ -87,6 +87,6 @@
 - 新 API 请求是否都走 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`；
 - 写入后是否执行对应 `fetchXxx(true)`；
 - 页面草稿是否仍为页面本地状态；
-- 业务规则是否在后端服务或 `src/utils` helper 中；
+- 业务规则是否在后端服务或 `apps/web-next/lib` helper 中；
 - 是否没有新增裸 `fetch()`、裸成本公式、裸 `Id/CreatedAt/UpdatedAt` 依赖；
 - 是否保留加载、空态、错误、保存中和失败提示。

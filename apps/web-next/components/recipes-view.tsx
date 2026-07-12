@@ -15,6 +15,7 @@ import { TemplateMatchSummary } from '@/components/recipe/TemplateMatchSummary';
 import { TechnicalDataEditor } from '@/components/technical-data-editor';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { dateShort, money } from '@/lib/format';
 import { getAllParts, type Part } from '@/lib/parts';
@@ -39,7 +40,6 @@ import {
   previewRecipeBomDraft,
   previewRecipeCostDraft,
   produceRecipe,
-  recipeCopperRiskClassName,
   recipePartsOverview,
   updateModelVariant,
   updateRecipe,
@@ -76,6 +76,45 @@ const sectionOptions: Array<{ value: RecipeSection; label: string }> = [
   { value: 'recipes', label: '配方' },
   { value: 'templates', label: '泵壳模板' },
   { value: 'variants', label: '常用配置' },
+];
+
+function copperRiskTone(level: string): StatusBadgeTone {
+  if (level === 'critical') return 'red';
+  if (level === 'review') return 'orange';
+  if (level === 'watch') return 'amber';
+  if (level === 'missing') return 'slate';
+  return 'green';
+}
+
+type TemplateRotorParamKey =
+  | 'upper_bearing'
+  | 'lower_bearing'
+  | 'piece_count'
+  | 'rotor_dia'
+  | 'bearing_span'
+  | 'stack_offset'
+  | 'oil_seal_dia'
+  | 'impeller_dia'
+  | 'impeller_span'
+  | 'impeller_depth'
+  | 'thread_length'
+  | 'thread_dia';
+
+type TemplateRotorParamsState = Record<TemplateRotorParamKey, string>;
+
+const templateRotorParamFields: Array<{ key: TemplateRotorParamKey; label: string; unit?: string; type?: 'text' | 'number' }> = [
+  { key: 'upper_bearing', label: '上轴承', type: 'text' },
+  { key: 'lower_bearing', label: '下轴承', type: 'text' },
+  { key: 'piece_count', label: '转子片数', unit: '片' },
+  { key: 'rotor_dia', label: '转子直径', unit: 'mm' },
+  { key: 'bearing_span', label: '开档', unit: 'mm' },
+  { key: 'stack_offset', label: '定位', unit: 'mm' },
+  { key: 'oil_seal_dia', label: '油封孔径', unit: 'mm' },
+  { key: 'impeller_dia', label: '叶轮孔径', unit: 'mm' },
+  { key: 'impeller_span', label: '叶轮开档', unit: 'mm' },
+  { key: 'impeller_depth', label: '叶轮深度', unit: 'mm' },
+  { key: 'thread_length', label: '螺纹长度', unit: 'mm' },
+  { key: 'thread_dia', label: '螺纹直径', unit: 'mm' },
 ];
 
 function StatCard({ value, label }: { value: string; label: string }) {
@@ -164,6 +203,7 @@ type TemplateFormState = {
   bundleCost: string;
   partRows: TemplatePartFormRow[];
   componentRows: ShellComponentFormRow[];
+  rotorParams: TemplateRotorParamsState;
 };
 
 type VariantCustomField = {
@@ -239,6 +279,13 @@ function defaultShellComponents(): ShellComponentFormRow[] {
   }));
 }
 
+function emptyTemplateRotorParams(): TemplateRotorParamsState {
+  return templateRotorParamFields.reduce((params, field) => {
+    params[field.key] = '';
+    return params;
+  }, {} as TemplateRotorParamsState);
+}
+
 function emptyTemplateForm(): TemplateFormState {
   return {
     shellModel: '',
@@ -251,6 +298,7 @@ function emptyTemplateForm(): TemplateFormState {
     bundleCost: '0',
     partRows: defaultTemplateParts(),
     componentRows: defaultShellComponents(),
+    rotorParams: emptyTemplateRotorParams(),
   };
 }
 
@@ -408,6 +456,18 @@ function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormStat
     optional: Boolean(component.optional),
     note: component.note || '',
   }));
+  const rotorParams = emptyTemplateRotorParams();
+  try {
+    const parsed = JSON.parse(template.rotorParamsJson || '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      templateRotorParamFields.forEach((field) => {
+        const value = parsed[field.key];
+        rotorParams[field.key] = value == null ? '' : String(value);
+      });
+    }
+  } catch {
+    // Invalid saved rotor params are ignored in the form.
+  }
 
   return {
     shellModel: template.shellModel || '',
@@ -420,6 +480,7 @@ function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormStat
     bundleCost: String(template.bundleCost || 0),
     partRows: partRows.length > 0 ? partRows : defaultTemplateParts(),
     componentRows: componentRows.length > 0 ? componentRows : defaultShellComponents(),
+    rotorParams,
   };
 }
 
@@ -446,13 +507,18 @@ function templateFormToInput(form: TemplateFormState): TemplateInput {
           note: row.note?.trim() || '',
         }))
     : [];
+  const rotorParamsPayload = templateRotorParamFields.reduce<Record<string, string>>((payload, field) => {
+    const value = form.rotorParams[field.key].trim();
+    if (value) payload[field.key] = value;
+    return payload;
+  }, {});
 
   return {
     shellModel: form.shellModel.trim(),
     description: form.description.trim(),
     partsJson: JSON.stringify(partsPayload),
     shellComponentsJson: JSON.stringify(componentsPayload),
-    rotorParamsJson: '{}',
+    rotorParamsJson: JSON.stringify(rotorParamsPayload),
     assemblyWage: Math.max(0, numberValue(form.assemblyWage)),
     packingWage: Math.max(0, numberValue(form.packingWage)),
     paintingWage: form.hasPaintingWage ? Math.max(0, numberValue(form.paintingWage)) : null,
@@ -483,6 +549,18 @@ function wireOptions(parts: Part[], prefix: string): string[] {
     if (value) values.add(value);
   });
   return Array.from(values).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+}
+
+function normalizeWireGauge(value: unknown): string {
+  return String(value ?? '').trim().replace(/^线径/, '');
+}
+
+function matchWireOption(options: string[], wireGauge: unknown): string {
+  const normalizedGauge = normalizeWireGauge(wireGauge);
+  if (!normalizedGauge) return '';
+  return options.find((option) => normalizeWireGauge(option) === normalizedGauge)
+    || options.find((option) => normalizeWireGauge(option).includes(normalizedGauge))
+    || normalizedGauge;
 }
 
 function recipePartKey(part: RecipePart): string {
@@ -990,6 +1068,25 @@ export function RecipesView() {
     packingPartsKey,
   ]);
 
+  useEffect(() => {
+    const wireGauge = bomDraft?.coilSnapshot?.wireGauge;
+    if (!drawerOpen || !wireGauge) return;
+    const nextFloatWire = matchWireOption(floatWireOptions, wireGauge);
+    const nextCableWire = matchWireOption(cableWireOptions, wireGauge);
+    if (!nextFloatWire && !nextCableWire) return;
+
+    setForm((current) => {
+      const patch: Partial<RecipeFormState> = {};
+      if (nextFloatWire && normalizeWireGauge(current.floatWire) !== normalizeWireGauge(nextFloatWire)) {
+        patch.floatWire = nextFloatWire;
+      }
+      if (nextCableWire && normalizeWireGauge(current.cableWire) !== normalizeWireGauge(nextCableWire)) {
+        patch.cableWire = nextCableWire;
+      }
+      return Object.keys(patch).length > 0 ? { ...current, ...patch } : current;
+    });
+  }, [bomDraft?.coilSnapshot?.wireGauge, cableWireOptions, drawerOpen, floatWireOptions]);
+
   function updateForm(patch: Partial<RecipeFormState>, invalidateBom = true) {
     setForm((current) => ({ ...current, ...patch }));
     if (invalidateBom) setBomDraftError(null);
@@ -1342,6 +1439,16 @@ export function RecipesView() {
 
   function updateTemplateForm(patch: Partial<TemplateFormState>) {
     setTemplateForm((current) => ({ ...current, ...patch }));
+  }
+
+  function updateTemplateRotorParam(key: TemplateRotorParamKey, value: string) {
+    setTemplateForm((current) => ({
+      ...current,
+      rotorParams: {
+        ...current.rotorParams,
+        [key]: value,
+      },
+    }));
   }
 
   function addTemplatePartRow() {
@@ -1782,10 +1889,8 @@ export function RecipesView() {
                         {row.savedTotal ? money(row.savedTotal) : '-'}
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{money(row.laborTotal)}</td>
-                      <td className="border-b border-line px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${recipeCopperRiskClassName(row.copperRisk.level)}`}>
-                          {row.copperRisk.label}
-                        </span>
+                      <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                        <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-muted">{dateShort(row.recipe.createdAt)}</td>
                       <td className="border-b border-line px-4 py-3">
@@ -2128,9 +2233,9 @@ export function RecipesView() {
                               <td className="border-b border-line px-3 py-2 text-right text-muted">{check.qtyNeeded}</td>
                               <td className="border-b border-line px-3 py-2 text-right text-muted">{check.partId ? check.currentStock : '未找到'}</td>
                               <td className="border-b border-line px-3 py-2">
-                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${check.sufficient ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                <StatusBadge tone={check.sufficient ? 'green' : 'red'}>
                                   {check.partId ? (check.sufficient ? '充足' : `缺 ${check.qtyNeeded - check.currentStock}`) : '零件缺失'}
-                                </span>
+                                </StatusBadge>
                               </td>
                             </tr>
                           ))}
@@ -2245,7 +2350,7 @@ export function RecipesView() {
         </div>
       </SlideOver>
 
-      <SlideOver open={templateDrawerOpen} onClose={() => !saving && setTemplateDrawerOpen(false)}>
+      <SlideOver open={templateDrawerOpen} onClose={() => !saving && setTemplateDrawerOpen(false)} size="workspace">
         <form onSubmit={submitTemplate} className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-line p-5">
             <div>
@@ -2306,11 +2411,11 @@ export function RecipesView() {
               </div>
               <div className="mt-3 space-y-2">
                 {templateForm.partRows.map((row) => (
-                  <div key={row.id} className="grid gap-2 md:grid-cols-[1fr_1fr_0.7fr_0.7fr_auto]">
+                  <div key={row.id} className="grid gap-2 lg:grid-cols-[minmax(130px,1fr)_minmax(180px,1.2fr)_minmax(120px,0.8fr)_96px_auto]">
                     <input value={row.name} onChange={(event) => updateTemplatePartRow(row.id, { name: event.target.value })} placeholder="名称" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                     <input value={row.model} onChange={(event) => updateTemplatePartRow(row.id, { model: event.target.value })} placeholder="型号" list="template-part-model-options" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                     <input value={row.supplier || ''} onChange={(event) => updateTemplatePartRow(row.id, { supplier: event.target.value })} placeholder="供应商" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                    <input value={String(row.qty)} onChange={(event) => updateTemplatePartRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                    <input value={String(row.qty)} onChange={(event) => updateTemplatePartRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                     <Button type="button" size="sm" variant="danger" onClick={() => removeTemplatePartRow(row.id)} icon={<Trash2 size={14} />}>删除</Button>
                   </div>
                 ))}
@@ -2346,10 +2451,10 @@ export function RecipesView() {
                     <Button type="button" size="sm" onClick={addShellComponentRow} icon={<Plus size={14} />}>添加组件</Button>
                   </div>
                   {templateForm.componentRows.map((row) => (
-                    <div key={row.id} className="grid gap-2 md:grid-cols-[0.9fr_0.9fr_0.55fr_0.65fr_0.75fr_0.55fr_auto]">
+                    <div key={row.id} className="grid gap-2 xl:grid-cols-[minmax(120px,1fr)_minmax(150px,1fr)_88px_100px_120px_82px_auto]">
                       <input value={row.name} onChange={(event) => updateShellComponentRow(row.id, { name: event.target.value })} placeholder="组件" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                       <input value={row.model || ''} onChange={(event) => updateShellComponentRow(row.id, { model: event.target.value })} placeholder="型号" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                      <input value={String(row.qty)} onChange={(event) => updateShellComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <input value={String(row.qty)} onChange={(event) => updateShellComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                       <input value={String(row.unitCost)} onChange={(event) => updateShellComponentRow(row.id, { unitCost: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="单价" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                       <select value={row.pricingMode} onChange={(event) => updateShellComponentRow(row.id, { pricingMode: event.target.value as ShellComponentInput['pricingMode'] })} className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
                         <option value="fixed">固定</option>
@@ -2364,6 +2469,29 @@ export function RecipesView() {
                   ))}
                 </div>
               )}
+            </section>
+
+            <section className="rounded-panel border border-line p-4">
+              <div className="text-sm font-semibold text-ink">转子出图备用参数</div>
+              <div className="mt-1 text-xs text-muted">选择该模板出图时自动带入；留空则继续读取泵壳零件默认参数。</div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+                {templateRotorParamFields.map((field) => (
+                  <label key={field.key} className="block">
+                    <span className="text-xs font-medium text-muted">{field.label}</span>
+                    <div className="mt-1 flex rounded-md border border-line bg-white focus-within:border-slate-400">
+                      <input
+                        value={templateForm.rotorParams[field.key]}
+                        onChange={(event) => updateTemplateRotorParam(field.key, event.target.value)}
+                        type={field.type === 'text' ? 'text' : 'number'}
+                        min={field.type === 'text' ? undefined : '0'}
+                        step={field.type === 'text' ? undefined : '0.1'}
+                        className="h-9 min-w-0 flex-1 rounded-md border-0 px-3 text-sm text-ink outline-none"
+                      />
+                      {field.unit ? <span className="flex h-9 items-center border-l border-line bg-slate-50 px-2 text-xs text-muted">{field.unit}</span> : null}
+                    </div>
+                  </label>
+                ))}
+              </div>
             </section>
 
             <section className="rounded-panel border border-line p-4">

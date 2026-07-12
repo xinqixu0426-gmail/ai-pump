@@ -7,6 +7,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import {
   applyPurchaseTask,
   buildPurchaseStats,
@@ -26,10 +27,10 @@ const filterOptions: Array<{ value: PurchaseFilter; label: string }> = [
   { value: 'all', label: '全部' },
 ];
 
-const statusStyles: Record<Exclude<PurchaseFilter, 'all'>, string> = {
-  pending: 'border-amber-200 bg-amber-50 text-amber-700',
-  partial: 'border-sky-200 bg-sky-50 text-sky-700',
-  purchased: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+const statusTones: Record<Exclude<PurchaseFilter, 'all'>, StatusBadgeTone> = {
+  pending: 'amber',
+  partial: 'blue',
+  purchased: 'green',
 };
 
 function StatCard({ value, label }: { value: string; label: string }) {
@@ -44,9 +45,7 @@ function StatCard({ value, label }: { value: string; label: string }) {
 function TaskStatusBadge({ task }: { task: PurchaseTask }) {
   const status = taskStatus(task);
   return (
-    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusStyles[status]}`}>
-      {statusText(status)}
-    </span>
+    <StatusBadge tone={statusTones[status]}>{statusText(status)}</StatusBadge>
   );
 }
 

@@ -1,29 +1,15 @@
-const { dbGetAllParts, dbGetAllRecipes, loadPartsData, calculateRecipeCost } = require('../../../db.cjs');
+const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
 
-async function readApiJson(response, fallbackError) {
-    const result = await response.json();
-    if (!result.success) {
-        throw new Error(result.error || fallbackError);
-    }
-    return result.data ?? result;
+async function loadRecipes(internalFetch) {
+    return getJson(internalFetch, '/api/recipes', '配方列表读取失败');
 }
 
-async function postJson(internalFetch, url, body, fallbackError) {
-    const response = await internalFetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    return readApiJson(response, fallbackError);
+async function loadParts(internalFetch) {
+    return getJson(internalFetch, '/api/parts', '零件列表读取失败');
 }
 
-async function patchJson(internalFetch, url, body, fallbackError) {
-    const response = await internalFetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    return readApiJson(response, fallbackError);
+function findRecipe(recipes, name) {
+    return (recipes || []).find(r => (r.name) === name || (r.name || '').includes(name));
 }
 
 function buildAiRecipeParts(parts, allParts) {
@@ -89,6 +75,53 @@ function buildFormFromRecipe(recipe, overrides = {}) {
     };
 }
 
+function toNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+}
+
+function aggregateCostDetails(details = []) {
+    const map = new Map();
+    for (const item of details || []) {
+        const model = String(item.model || item.name || '').trim();
+        if (!model) continue;
+        const current = map.get(model) || {
+            model,
+            name: item.name || model,
+            qty: 0,
+            amount: 0,
+            suppliers: new Set(),
+        };
+        current.qty += toNumber(item.qty);
+        current.amount += toNumber(item.subtotal);
+        if (item.supplier && item.supplier !== '-') current.suppliers.add(item.supplier);
+        map.set(model, current);
+    }
+    return map;
+}
+
+function buildRecipeComparison(recipe1, recipe2, cost1, cost2) {
+    const left = aggregateCostDetails(cost1.details);
+    const right = aggregateCostDetails(cost2.details);
+    const keys = [...new Set([...left.keys(), ...right.keys()])];
+    return keys.map(model => {
+        const leftItem = left.get(model);
+        const rightItem = right.get(model);
+        const amount1 = leftItem?.amount || 0;
+        const amount2 = rightItem?.amount || 0;
+        return {
+            model,
+            name: leftItem?.name || rightItem?.name || model,
+            qty1: Number((leftItem?.qty || 0).toFixed(3)),
+            amount1: Number(amount1.toFixed(2)),
+            qty2: Number((rightItem?.qty || 0).toFixed(3)),
+            amount2: Number(amount2.toFixed(2)),
+            diff: Number((amount1 - amount2).toFixed(2)),
+            onlyIn: leftItem && !rightItem ? recipe1 : (!leftItem && rightItem ? recipe2 : '两者共有'),
+        };
+    }).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || a.model.localeCompare(b.model, 'zh-CN'));
+}
+
 async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}) {
     if (parts.length === 0) {
         throw new Error('配方 BOM 不能为空，请至少提供一个零件');
@@ -136,7 +169,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             if (!name) return { success: false, error: '缺少配方名称' };
 
             try {
-                const recipeParts = buildAiRecipeParts(parts, dbGetAllParts());
+                const recipeParts = buildAiRecipeParts(parts, await loadParts(internalFetch));
                 const payload = await buildAiRecipeSavePayload(internalFetch, { name, spec }, recipeParts);
                 const saved = await postJson(internalFetch, '/api/recipes', payload, '配方创建失败');
                 return {
@@ -157,21 +190,15 @@ async function executeRecipeTool(toolName, args, internalFetch) {
 
         case 'delete_recipe': {
             const { recipeName } = args;
-            const allRecipes = dbGetAllRecipes();
-            const recipe = allRecipes.find(r => (r.name) === recipeName || (r.name || '').includes(recipeName));
+            const recipe = findRecipe(await loadRecipes(internalFetch), recipeName);
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
-            const response = await internalFetch(`/api/recipes/${recipe.Id}`, { method: 'DELETE' });
-            const result = await response.json();
-            if (!result.success) {
-                return { success: false, error: result.error || '配方删除失败' };
-            }
+            await deleteJson(internalFetch, `/api/recipes/${recipe.id ?? recipe.Id}`, '配方删除失败');
             return { success: true, message: `配方"${recipe.name || recipeName}"已删除`, recipeName: recipe.name || recipeName };
         }
 
         case 'update_recipe': {
             const { recipeName, newName, newSpec, addParts = [], removeParts = [], updateParts = [] } = args;
-            const allRecipes = dbGetAllRecipes();
-            const recipe = allRecipes.find(r => (r.name) === recipeName || (r.name || '').includes(recipeName));
+            const recipe = findRecipe(await loadRecipes(internalFetch), recipeName);
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
 
             let parts = parseJsonArray(recipe.partsJson);
@@ -190,7 +217,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             }
             // 添加零件
             if (addParts.length > 0) {
-                const allPartsDb = dbGetAllParts();
+                const allPartsDb = await loadParts(internalFetch);
                 for (const ap of addParts) {
                     const dbPart = allPartsDb.find(dp => (dp.model || '') === ap.model || (dp.model || '').includes(ap.model));
                     parts.push({
@@ -215,7 +242,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
                     optionalParts: parseJsonArray(recipe.extraPartsJson),
                     technicalData: parseJsonObject(recipe.technicalDataJson),
                 });
-                const saved = await patchJson(internalFetch, `/api/recipes/${recipe.Id}`, payload, '配方修改失败');
+                const saved = await patchJson(internalFetch, `/api/recipes/${recipe.id ?? recipe.Id}`, payload, '配方修改失败');
                 return {
                     success: true,
                     message: `配方"${recipe.name}"修改成功（已通过标准 API 写入）`,
@@ -231,25 +258,18 @@ async function executeRecipeTool(toolName, args, internalFetch) {
 
         case 'compare_recipes': {
             const { recipe1, recipe2 } = args;
-            const allRecipes = dbGetAllRecipes();
-            const r1 = allRecipes.find(r => (r.name) === recipe1 || (r.name || '').includes(recipe1));
-            const r2 = allRecipes.find(r => (r.name) === recipe2 || (r.name || '').includes(recipe2));
+            const allRecipes = await loadRecipes(internalFetch);
+            const r1 = findRecipe(allRecipes, recipe1);
+            const r2 = findRecipe(allRecipes, recipe2);
             if (!r1) return { success: false, error: '找不到配方: ' + recipe1 };
             if (!r2) return { success: false, error: '找不到配方: ' + recipe2 };
 
-            const { partsCache: pc, partsByModel: pbm } = loadPartsData();
             let p1 = []; try { p1 = JSON.parse(r1.partsJson || '[]'); } catch (e) { }
             let p2 = []; try { p2 = JSON.parse(r2.partsJson || '[]'); } catch (e) { }
-            const cost1 = calculateRecipeCost(p1, pc, pbm);
-            const cost2 = calculateRecipeCost(p2, pc, pbm);
+            const cost1 = await postJson(internalFetch, '/api/cost/parts', { parts: p1 }, '配方1成本计算失败');
+            const cost2 = await postJson(internalFetch, '/api/cost/parts', { parts: p2 }, '配方2成本计算失败');
 
-            // BOM对比
-            const allModels = [...new Set([...p1.map(p => p.model), ...p2.map(p => p.model)])];
-            const comparison = allModels.map(model => {
-                const in1 = p1.find(p => p.model === model);
-                const in2 = p2.find(p => p.model === model);
-                return { model, qty1: in1?.qty || 0, qty2: in2?.qty || 0, onlyIn: in1 && !in2 ? recipe1 : (!in1 && in2 ? recipe2 : '两者共有') };
-            });
+            const comparison = buildRecipeComparison(recipe1, recipe2, cost1, cost2);
 
             return {
                 success: true,

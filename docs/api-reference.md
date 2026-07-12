@@ -6,9 +6,9 @@
 
 - 后端服务端口：`3002`。
 - 常规 API 前缀：`/api`。
-- Web 前端必须通过 `src/utils/api.ts` 的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()` 调用。
+- Web 前端必须通过 `apps/web-next/lib/api.ts` 的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()` 调用。
 - Web 新增或调整调用必须使用当前标准入口；历史字段兼容必须封装在 API client 内，不得扩散到页面组件。
-- Web 页面层读取核心资源 ID/时间必须走 `src/utils/entityFields.ts`，禁止直接依赖 `Id/CreatedAt/UpdatedAt`。
+- Web 页面层读取核心资源 ID/时间必须走 `apps/web-next/lib/api.ts` 的 `entityId()`、`entityCreatedAt()`、`entityUpdatedAt()`，禁止直接依赖 `Id/CreatedAt/UpdatedAt`。
 - 请求/响应业务字段默认使用 camelCase；数据库字段保持 snake_case。
 - 核心资源 Row Adapter 标准输出 `id`、`createdAt`、`updatedAt`；历史 `Id`、`CreatedAt`、`UpdatedAt` 暂时保留给旧 Web 代码兼容，新调用方不得依赖。
 - 标准成功响应：`{ "success": true, "data": ... }`。

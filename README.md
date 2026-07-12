@@ -6,7 +6,7 @@
 
 | 层 | 技术 |
 |---|------|
-| 前端 | Next.js + Tailwind CSS 主业务前端；旧 React 18 + Vite + MUI 5 仅作回滚备用 |
+| 前端 | Next.js + Tailwind CSS 主业务前端 |
 | 后端 | Node.js + Express 5 + better-sqlite3 |
 | AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
 | 出图 | FreeCAD Python 脚本 + PDF 生成 |
@@ -36,8 +36,6 @@
 │           ├── voice.cjs     # 阿里云 ASR 语音识别
 │           ├── siri.cjs      # Siri 快捷指令入口
 │           └── executor.cjs  # AI Function Calling 执行器
-├── src/
-│   └── ...                   # 旧 Vite/MUI 前端，保留为回滚备用
 ├── apps/web-next/
 │   ├── app/                  # Next App Router 页面入口
 │   ├── components/           # Next 业务组件与基础 UI
@@ -63,24 +61,18 @@ npm start
 # Next 并行预览版（Next :3001 + 后端 :3002）
 npm run web-next:full
 
-# 旧 Vite 前端回滚备用（旧前端 :3000）
-npm run legacy:dev
-
 # 仅启动后端
 npm run api
 
 # 主前端生产构建（Next）
 npm run build
-
-# 同时验证旧前端和 Next 构建
-npm run build:all
 ```
 
 ### Next 主业务入口
 
-`apps/web-next/` 是 Next.js + Tailwind CSS 的主前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
+`apps/web-next/` 是 Next.js + Tailwind CSS 的唯一 Web 前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
 
-当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图和看板，作为日常主业务入口。AI 助手暂不迁移，`/ai` 导航保持禁用；旧 Vite/MUI 前端仅保留为回滚备用，不再作为新增功能入口。
+当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板和 AI 助手，作为日常主业务入口。旧 Vite/MUI 前端已移除。
 
 生产构建和启动：
 
@@ -89,7 +81,7 @@ npm run build
 npm run preview
 ```
 
-试运行和后续删除旧前端前，按 [`docs/next-migration-acceptance.md`](docs/next-migration-acceptance.md) 完成验收。
+迁移后的验收标准见 [`docs/next-migration-acceptance.md`](docs/next-migration-acceptance.md)。
 
 ### Windows 转子出图依赖
 
@@ -126,6 +118,7 @@ New-Item -ItemType Directory -Force -Path $target | Out-Null
 ACCESS_PASSWORD=xxx           # 登录密码
 JWT_SECRET=xxx                # JWT 签名密钥
 DEEPSEEK_API_KEY=sk-xxx       # DeepSeek API Key
+DEEPSEEK_MODEL=deepseek-v4-flash # DeepSeek 模型
 ALI_ACCESS_KEY_ID=xxx         # 阿里云 ASR
 ALI_ACCESS_KEY_SECRET=xxx
 ALI_ASR_APPKEY=xxx            # 阿里云 ASR AppKey
@@ -143,7 +136,7 @@ INTERNAL_SECRET=xxx           # 内部 API 鉴权密钥
 ### 数据流
 
 ```
-前端 (proxyRequest) → Vite Proxy → Express API → better-sqlite3 → pump.db
+Next 前端 (proxyRequest/proxyFetch) → Next rewrites → Express API → better-sqlite3 → pump.db
 ```
 
 - 所有前端请求通过 `proxyRequest()` 统一处理，自动携带 Cookie、处理 401 跳转登录
@@ -199,7 +192,7 @@ nohup npm run web-next:start:primary > web-next.out.log 2>&1 &
 
 ### Next 并行预览入口
 
-如需不占用 `3000`，可以使用 `3001` 并行预览入口；旧前端保留为回滚备用：
+如需不占用 `3000`，可以使用 `3001` 并行预览入口：
 
 ```bash
 export PATH=/opt/homebrew/bin:$PATH
@@ -210,8 +203,6 @@ pkill -f 'next start -p 3001'
 nohup node api.cjs > api.out.log 2>&1 &
 nohup npm run web-next:start > web-next.out.log 2>&1 &
 ```
-
-回滚到旧前端时停止 `next start -p 3000` 或 `next start -p 3001`，再用 `npm run legacy:dev` 或旧构建产物临时恢复。
 
 ## API 端点
 

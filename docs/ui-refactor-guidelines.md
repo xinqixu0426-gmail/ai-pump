@@ -41,9 +41,9 @@
 
 ## 4. 组件约束
 
-- 旧 Vite 前端可继续复用 MUI；新 Next 前端使用 Tailwind + 本地基础组件，不再新增 MUI 依赖。
+- Next 前端使用 Tailwind + 本地基础组件，不新增 MUI / Emotion 依赖。
 - motion-primitives 风格组件放在 `apps/web-next/components/motion/`，以源码组件方式沉淀，不把动效逻辑散落到页面里。
-- 新 Next 前端的按钮、链接、导航项必须优先复用 `apps/web-next/components/ui/` 下的基础组件，避免每个页面手写 hover 和跳转行为。
+- Next 前端的按钮、链接、导航项必须优先复用 `apps/web-next/components/ui/` 下的基础组件，避免每个页面手写 hover 和跳转行为。
 - 图标优先用现有 icon 体系；陌生 icon-only 操作必须有 tooltip。
 - `<Typography>` 内不得嵌套 `<Chip>`、`<div>` 等块级元素；需要时使用 `component="div"`。
 - 卡片只用于重复项、弹窗内容或明确的工具容器，避免整页层层套卡片。

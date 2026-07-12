@@ -1,31 +1,16 @@
-const { dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils } = require('../../../db.cjs');
-const { buildBusinessSummary } = require('../../../services/businessSummary.cjs');
+const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
     switch (toolName) {
         case 'get_coil_specs': {
-            const allCoils = dbGetAllCoils();
-            const specsMap = {};
-            allCoils.forEach(c => {
-                const spec = c.spec;
-                const material = c.material || '钢带';
-                if (!specsMap[spec]) specsMap[spec] = { spec, material, materials: [], unitPrice: c.unitPrice, sheets: [], count: 0 };
-                if (!specsMap[spec].materials.includes(material)) specsMap[spec].materials.push(material);
-                if (material === '钢带') {
-                    specsMap[spec].material = material;
-                    specsMap[spec].unitPrice = c.unitPrice;
-                }
-                if (!specsMap[spec].sheets.includes(parseInt(c.sheets))) specsMap[spec].sheets.push(parseInt(c.sheets));
-                specsMap[spec].count++;
-            });
-            Object.values(specsMap).forEach(s => s.sheets.sort((a, b) => a - b));
-            return { success: true, data: Object.values(specsMap) };
+            const specs = await getJson(internalFetch, '/api/coils/specs', '线圈规格读取失败');
+            return { success: true, data: specs };
         }
 
         case 'get_all_recipes': {
-            const recipes = dbGetAllRecipes();
+            const recipes = await getJson(internalFetch, '/api/recipes', '配方列表读取失败');
             const summary = recipes.map(r => ({
-                id: r.Id,
+                id: r.id ?? r.Id,
                 name: r.name,
                 spec: r.spec,
                 savedCost: r.savedTotalCost || 0
@@ -34,9 +19,9 @@ async function executeQueryTool(toolName, args, internalFetch) {
         }
 
         case 'get_all_parts': {
-            const parts = dbGetAllParts();
+            const parts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
             const summary = parts.map(p => ({
-                id: p.Id,
+                id: p.id ?? p.Id,
                 model: p.model,
                 category: p.category,
                 price: p.price,
@@ -48,14 +33,14 @@ async function executeQueryTool(toolName, args, internalFetch) {
 
         case 'get_recent_orders': {
             const limit = args.limit || 10;
-            const allOrders = dbGetAllOrders();
-            const recentOrders = allOrders.sort((a, b) => b.Id - a.Id).slice(0, limit);
+            const allOrders = await getJson(internalFetch, '/api/orders', '订单列表读取失败');
+            const recentOrders = allOrders.sort((a, b) => (b.id ?? b.Id ?? 0) - (a.id ?? a.Id ?? 0)).slice(0, limit);
             const formattedOrders = recentOrders.map(o => ({
-                id: o.Id,
+                id: o.id ?? o.Id,
                 customer: o.customerName || '未知',
                 contract: o.contractNo || '-',
                 status: o.status || '未知',
-                createdAt: o.CreatedAt || o.created_at || new Date().toISOString()
+                createdAt: o.createdAt || o.CreatedAt || new Date().toISOString()
             }));
             return { success: true, data: formattedOrders };
         }
@@ -66,23 +51,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '缺少必要参数：型号或单价' };
             }
 
-            const response = await internalFetch('/api/parts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model,
-                    category,
-                    price,
-                    supplier,
-                    stock,
-                }),
-            });
-            const result = await response.json();
-            if (!result.success || !result.data) {
-                return { success: false, error: result.error || '零件新建失败' };
-            }
-
-            const saved = result.data;
+            const saved = await postJson(internalFetch, '/api/parts', { model, category, price, supplier, stock }, '零件新建失败');
             return {
                 success: true,
                 message: '零件新建成功（已通过标准 API 写入）',
@@ -103,7 +72,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '缺少必要参数：零件型号' };
             }
             // 先查找该零件
-            const allParts = dbGetAllParts();
+            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
             const target = allParts.find(p => (p.model || '') === model);
             if (!target) {
                 return { success: false, error: `未找到型号为"${model}"的零件` };
@@ -137,22 +106,13 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 return { success: false, error: '没有指定任何要修改的字段' };
             }
 
-            const response = await internalFetch(`/api/parts/${target.Id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates),
-            });
-            const result = await response.json();
-            if (!result.success || !result.data) {
-                return { success: false, error: result.error || '零件修改失败' };
-            }
-
-            const saved = result.data;
+            const targetId = target.id ?? target.Id;
+            const saved = await patchJson(internalFetch, `/api/parts/${targetId}`, updates, '零件修改失败');
             return {
                 success: true,
                 message: '零件修改成功（已通过标准 API 写入）',
                 part: {
-                    id: saved.id || saved.Id || target.Id,
+                    id: saved.id || saved.Id || targetId,
                     model: saved.model || model,
                     category: saved.category,
                     price: saved.price,
@@ -165,34 +125,30 @@ async function executeQueryTool(toolName, args, internalFetch) {
 
         case 'search_parts': {
             const { keyword, category } = args;
-            const allParts = dbGetAllParts();
+            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
             let results = allParts;
             if (keyword) { results = results.filter(p => (p.model || '').includes(keyword) || (p.category || '').includes(keyword) || (p.supplier || '').includes(keyword)); }
             if (category) { results = results.filter(p => (p.category || '') === category || (p.category || '').includes(category)); }
             return {
                 success: true,
                 count: results.length,
-                parts: results.slice(0, 30).map(p => ({ id: p.Id, model: p.model, category: p.category, price: p.price, supplier: p.supplier, stock: p.stock || 0 }))
+                parts: results.slice(0, 30).map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, price: p.price, supplier: p.supplier, stock: p.stock || 0 }))
             };
         }
 
         case 'delete_part': {
             const { model } = args;
-            const allParts = dbGetAllParts();
+            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
             const target = allParts.find(p => (p.model || '') === model);
             if (!target) return { success: false, error: '找不到零件: ' + model };
-            const response = await internalFetch(`/api/parts/${target.Id}`, { method: 'DELETE' });
-            const result = await response.json();
-            if (!result.success) {
-                return { success: false, error: result.error || '零件删除失败' };
-            }
+            await deleteJson(internalFetch, `/api/parts/${target.id ?? target.Id}`, '零件删除失败');
             return { success: true, message: `零件"${model}"已删除`, model };
         }
 
         case 'batch_update_prices': {
             const { category, percentChange, absoluteChange } = args;
             if (percentChange === undefined && absoluteChange === undefined) return { success: false, error: '需要指定percentChange或absoluteChange' };
-            const allParts = dbGetAllParts();
+            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
             const targets = allParts.filter(p => (p.category || '') === category || (p.category || '').includes(category));
             if (targets.length === 0) return { success: false, error: `没有找到类别包含"${category}"的零件` };
 
@@ -204,32 +160,25 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 if (percentChange !== undefined) { newPrice = Math.round(oldPrice * (1 + percentChange / 100) * 100) / 100; }
                 else { newPrice = Math.round((oldPrice + absoluteChange) * 100) / 100; }
                 if (newPrice < 0) newPrice = 0;
-                updates.push({ partId: p.Id, price: newPrice });
+                updates.push({ partId: p.id ?? p.Id, price: newPrice });
                 details.push({ model: p.model, oldPrice, newPrice });
             }
 
-            const response = await internalFetch('/api/parts/prices', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ updates }),
-            });
-            const result = await response.json();
-            if (!result.success) {
-                return { success: false, error: result.error || '批量调价失败' };
-            }
+            const result = await patchJson(internalFetch, '/api/parts/prices', { updates }, '批量调价失败');
 
             return {
                 success: true,
-                message: `已批量更新${result.data?.updatedCount ?? targets.length}个"${category}"类零件的价格`,
+                message: `已批量更新${result.updatedCount ?? targets.length}个"${category}"类零件的价格`,
                 category,
-                count: result.data?.updatedCount ?? targets.length,
+                count: result.updatedCount ?? targets.length,
                 changeType: percentChange !== undefined ? `${percentChange > 0 ? '+' : ''}${percentChange}%` : `${absoluteChange > 0 ? '+' : ''}${absoluteChange}元`,
                 details
             };
         }
 
         case 'get_dashboard_summary': {
-            return { success: true, summary: buildBusinessSummary() };
+            const summary = await getJson(internalFetch, '/api/workbench/summary', '运营汇总读取失败');
+            return { success: true, summary };
         }
 
         default:
