@@ -575,9 +575,9 @@ export function BasicAiAssistant() {
   }
 
   return (
-    <main className="min-h-screen bg-canvas text-ink">
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-[calc(env(safe-area-inset-top)+12px)] md:px-5 md:py-5">
-        <header className="mb-3 rounded-panel border border-line bg-white px-4 py-3 shadow-panel">
+    <main className="voice-assistant-root bg-canvas text-ink">
+      <div className="voice-assistant-shell mx-auto flex w-full max-w-4xl flex-col px-2 sm:px-3 md:px-5">
+        <header className="mb-2 shrink-0 rounded-panel border border-line bg-white px-3 py-2.5 shadow-panel sm:mb-3 sm:px-4 sm:py-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted">
@@ -586,16 +586,16 @@ export function BasicAiAssistant() {
                 <span>AI Executor</span>
               </div>
               <h1 className="mt-1 text-lg font-semibold tracking-normal text-ink">水泵 AI 助手</h1>
-              <p className="mt-1 text-sm leading-5 text-muted">支持文字和语音输入，可查询成本、订单、零件、线圈、采购和出图记录。</p>
+              <p className="mt-1 hidden text-sm leading-5 text-muted min-[390px]:block">支持文字和语音输入，可查询成本、订单、零件、线圈、采购和出图记录。</p>
             </div>
             <StatusBadge tone={serviceStatus === '出错' ? 'red' : serviceStatus === '就绪' ? 'green' : 'blue'}>{serviceStatus}</StatusBadge>
           </div>
         </header>
 
-        <ChatContainer className="min-h-[calc(100vh-190px)]">
-          <ChatMessages ref={scrollRef} className="bg-slate-50/80">
+        <ChatContainer className="min-h-0 flex-1 rounded-panel">
+          <ChatMessages ref={scrollRef} className="voice-scroll bg-slate-50/80 px-3 py-3 sm:p-4">
             {items.length === 0 ? (
-              <div className="grid min-h-[48vh] place-items-center text-center">
+              <div className="grid min-h-[42vh] place-items-center text-center">
                 <div className="max-w-sm">
                   <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-md bg-ink text-white">
                     <Bot size={21} />
@@ -646,8 +646,8 @@ export function BasicAiAssistant() {
             ))}
           </ChatMessages>
 
-          <div className="border-t border-line bg-white px-3 py-2">
-            <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="shrink-0 border-t border-line bg-white px-3 py-2">
+            <div className="voice-scroll flex gap-2 overflow-x-auto pb-1">
               {suggestions.map((suggestion) => (
                 <PromptSuggestion key={suggestion} onClick={() => void sendMessage(suggestion)} disabled={loading} className="text-xs">
                   {suggestion}
@@ -656,7 +656,7 @@ export function BasicAiAssistant() {
             </div>
           </div>
 
-          <PromptInput onSubmit={handleSubmit} className="pb-[max(env(safe-area-inset-bottom),12px)]">
+          <PromptInput onSubmit={handleSubmit} className="voice-input-sticky shrink-0">
             <PromptInputTextarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -664,15 +664,17 @@ export function BasicAiAssistant() {
               placeholder="输入任务，例如：查 V750 成本"
               disabled={loading}
             />
-            <PromptInputActions>
+            <PromptInputActions className="items-end">
               <div className="min-w-0 text-xs text-muted">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="hidden flex-wrap items-center gap-2 min-[390px]:flex">
                   <span>Enter 发送</span>
                   <span>Shift+Enter 换行</span>
                   {voiceState === 'recording' ? <span className="font-medium text-rose-600">正在录音</span> : null}
                   {voiceState === 'recognizing' ? <span className="font-medium text-blue-600">正在识别</span> : null}
                 </div>
-                {voiceError ? <div className="mt-1 text-rose-600">{voiceError}</div> : null}
+                {voiceState === 'recording' ? <div className="font-medium text-rose-600 min-[390px]:hidden">正在录音</div> : null}
+                {voiceState === 'recognizing' ? <div className="font-medium text-blue-600 min-[390px]:hidden">正在识别</div> : null}
+                {voiceError ? <div className="mt-1 max-h-8 overflow-hidden text-rose-600">{voiceError}</div> : null}
               </div>
               <div className="flex items-center gap-2">
                 {lastPrompt && !loading ? (
