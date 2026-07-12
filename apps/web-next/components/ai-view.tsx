@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
   Bot,
@@ -24,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/ui/status-badge';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { confirmAiTool, streamAiChat, type AiChatMessage, type AiToolResult } from '@/lib/ai';
 
 type ChatItem = {
@@ -57,6 +58,58 @@ const samples = [
   { icon: FileSearch, label: '转子出图', prompt: '用 V750 模板出 160 片转子图' },
   { icon: ClipboardList, label: '订单流转', prompt: '把订单 5 改成采购中' },
 ];
+
+const textLoopWords = ['订单', '成本', '零件', '出图', '报价', '采购'];
+
+const textLoopVariants = {
+  enter: (direction: number) => ({
+    y: direction > 0 ? 14 : -14,
+    opacity: 0,
+    filter: 'blur(4px)',
+  }),
+  center: {
+    y: 0,
+    opacity: 1,
+    filter: 'blur(0px)',
+  },
+  exit: (direction: number) => ({
+    y: direction > 0 ? -14 : 14,
+    opacity: 0,
+    filter: 'blur(4px)',
+  }),
+};
+
+function TextLoop({ words }: { words: string[] }) {
+  const [[index, direction], setIndex] = useState<[number, number]>([0, 1]);
+  const word = words[index % words.length] || '';
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setIndex(([current]) => [current + 1, 1]);
+    }, 1800);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <span className="relative inline-flex h-8 min-w-[3.5rem] items-center justify-center overflow-hidden align-middle">
+      <AnimatePresence mode="popLayout" initial={false} custom={direction}>
+        <motion.span
+          key={word}
+          custom={direction}
+          variants={textLoopVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
+          className="absolute inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700"
+        >
+          {word}
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  );
+}
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -225,7 +278,7 @@ function KeyValueRows({ rows }: { rows: Array<{ label: string; value: unknown }>
 }
 
 function DataTable({ columns, rows, emptyText = '暂无数据' }: {
-  columns: Array<{ key: string; label: string; render?: (row: Record<string, unknown>) => string }>;
+  columns: Array<{ key: string; label: string; render?: (row: Record<string, unknown>) => ReactNode }>;
   rows: Array<Record<string, unknown>>;
   emptyText?: string;
 }) {
@@ -424,6 +477,15 @@ function CompareResult({ result }: { result: Record<string, unknown> }) {
   const recipe1 = asRecord(result.recipe1);
   const recipe2 = asRecord(result.recipe2);
   const rows = arrayValue(result.comparison);
+  const differenceTone = (value: unknown): StatusBadgeTone => {
+    const label = textValue(value);
+    if (label.includes('仅配方1')) return 'amber';
+    if (label.includes('仅配方2')) return 'blue';
+    if (label.includes('型号')) return 'purple';
+    if (label.includes('数量')) return 'orange';
+    return 'red';
+  };
+
   return (
     <>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -447,12 +509,21 @@ function CompareResult({ result }: { result: Record<string, unknown> }) {
         rows={rows}
         columns={[
           { key: 'name', label: '项目', render: (row) => textValue(row.name || row.model) },
+          {
+            key: 'difference',
+            label: '差异',
+            render: (row) => {
+              const label = textValue(row.difference || row.onlyIn);
+              return <StatusBadge tone={differenceTone(label)}>{label}</StatusBadge>;
+            },
+          },
+          { key: 'model1', label: '配方1型号', render: (row) => textValue(row.model1) },
           { key: 'qty1', label: '配方1数量' },
           { key: 'amount1', label: '配方1金额', render: (row) => money(row.amount1) || textValue(row.amount1) },
+          { key: 'model2', label: '配方2型号', render: (row) => textValue(row.model2) },
           { key: 'qty2', label: '配方2数量' },
           { key: 'amount2', label: '配方2金额', render: (row) => money(row.amount2) || textValue(row.amount2) },
           { key: 'diff', label: '差额', render: (row) => money(row.diff) || textValue(row.diff) },
-          { key: 'onlyIn', label: '归属' },
         ]}
       />
     </>
@@ -765,8 +836,12 @@ export function AiView() {
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-ink text-white">
                       <Bot size={22} />
                     </div>
-                    <div className="mt-4 text-lg font-semibold text-ink">今天要处理哪件事？</div>
-                    <div className="mt-2 text-sm leading-6 text-muted">订单 / 成本 / 零件 / 出图</div>
+                    <div className="mt-4 text-lg font-semibold text-ink">今天要处理哪些事？</div>
+                    <div className="mt-2 flex items-center justify-center gap-2 text-sm leading-6 text-muted">
+                      <span>可以先从</span>
+                      <TextLoop words={textLoopWords} />
+                      <span>开始</span>
+                    </div>
                   </div>
                 </div>
               ) : null}

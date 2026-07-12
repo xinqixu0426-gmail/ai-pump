@@ -564,11 +564,27 @@ function matchWireOption(options: string[], wireGauge: unknown): string {
 }
 
 function recipePartKey(part: RecipePart): string {
-  return `${part.name || part.model}||${part.model || ''}||${part.supplier || ''}`;
+  const name = String(part.name || '').trim();
+  if (name) return `name:${name.replace(/\s+/g, '')}`;
+  if (part.dynamicRule) return `rule:${part.dynamicRule}`;
+  if (part.packagingMaterial) return `packing:${String(part.packagingMaterial).trim()}`;
+  return `model:${String(part.model || '').trim().replace(/\s+/g, '')}`;
 }
 
 function recipePartSubtotal(part?: RecipePart): number {
   return Number(part?.snapshotPrice || 0) * Number(part?.qty || 0);
+}
+
+function comparePartLabel(part: RecipePart): string {
+  if (part.name) return part.name;
+  if (part.dynamicRule === 'longScrewByBarrelLength') return '长螺丝';
+  if (part.packagingMaterial) return String(part.packagingMaterial);
+  return part.model || '-';
+}
+
+function comparePartIdentity(part?: RecipePart): string {
+  if (!part) return '-';
+  return [part.model, part.supplier].filter(Boolean).join(' / ') || part.name || '-';
 }
 
 function partCostSourceLabel(part?: RecipePart): string {
@@ -644,26 +660,59 @@ function liveRecipeTotal(draft: RecipeBomDraftResult | null, form: RecipeFormSta
 }
 
 function buildComparePartRows(left: RecipePart[], right: RecipePart[]): ComparePartRow[] {
-  const map = new Map<string, { left?: RecipePart; right?: RecipePart }>();
+  type CompareAccumulator = {
+    label: string;
+    leftModels: Set<string>;
+    rightModels: Set<string>;
+    leftQty: number;
+    rightQty: number;
+    leftSubtotal: number;
+    rightSubtotal: number;
+  };
+
+  const map = new Map<string, CompareAccumulator>();
+
+  function ensure(key: string, part: RecipePart): CompareAccumulator {
+    const current = map.get(key);
+    if (current) return current;
+    const next = {
+      label: comparePartLabel(part),
+      leftModels: new Set<string>(),
+      rightModels: new Set<string>(),
+      leftQty: 0,
+      rightQty: 0,
+      leftSubtotal: 0,
+      rightSubtotal: 0,
+    };
+    map.set(key, next);
+    return next;
+  }
+
   left.forEach((part) => {
     const key = recipePartKey(part);
-    map.set(key, { ...(map.get(key) || {}), left: part });
+    const row = ensure(key, part);
+    row.leftModels.add(comparePartIdentity(part));
+    row.leftQty += Number(part.qty || 0);
+    row.leftSubtotal += recipePartSubtotal(part);
   });
   right.forEach((part) => {
     const key = recipePartKey(part);
-    map.set(key, { ...(map.get(key) || {}), right: part });
+    const row = ensure(key, part);
+    row.rightModels.add(comparePartIdentity(part));
+    row.rightQty += Number(part.qty || 0);
+    row.rightSubtotal += recipePartSubtotal(part);
   });
 
   return Array.from(map.entries())
-    .map(([key, pair]) => ({
+    .map(([key, row]) => ({
       key,
-      label: pair.left?.name || pair.right?.name || pair.left?.model || pair.right?.model || '-',
-      leftModel: pair.left?.model || '-',
-      rightModel: pair.right?.model || '-',
-      leftQty: Number(pair.left?.qty || 0),
-      rightQty: Number(pair.right?.qty || 0),
-      leftSubtotal: recipePartSubtotal(pair.left),
-      rightSubtotal: recipePartSubtotal(pair.right),
+      label: row.label,
+      leftModel: Array.from(row.leftModels).join('、') || '-',
+      rightModel: Array.from(row.rightModels).join('、') || '-',
+      leftQty: row.leftQty,
+      rightQty: row.rightQty,
+      leftSubtotal: row.leftSubtotal,
+      rightSubtotal: row.rightSubtotal,
     }))
     .filter((row) => (
       row.leftModel !== row.rightModel ||
@@ -671,6 +720,16 @@ function buildComparePartRows(left: RecipePart[], right: RecipePart[]): CompareP
       Math.abs(row.leftSubtotal - row.rightSubtotal) >= 0.01
     ))
     .sort((a, b) => Math.abs(b.rightSubtotal - b.leftSubtotal) - Math.abs(a.rightSubtotal - a.leftSubtotal));
+}
+
+function comparePartDifference(row: ComparePartRow): { label: string; tone: StatusBadgeTone } {
+  const hasLeft = row.leftQty > 0 || row.leftSubtotal > 0 || row.leftModel !== '-';
+  const hasRight = row.rightQty > 0 || row.rightSubtotal > 0 || row.rightModel !== '-';
+  if (hasLeft && !hasRight) return { label: '仅左侧有', tone: 'amber' };
+  if (!hasLeft && hasRight) return { label: '仅右侧有', tone: 'blue' };
+  if (row.leftModel !== row.rightModel) return { label: '型号不同', tone: 'purple' };
+  if (row.leftQty !== row.rightQty) return { label: '数量不同', tone: 'orange' };
+  return { label: '金额不同', tone: 'red' };
 }
 
 function formFromRecipe(recipe: Recipe): RecipeFormState {
@@ -2315,6 +2374,7 @@ export function RecipesView() {
                         <thead className="sticky top-0 bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                           <tr>
                             <th className="border-b border-line px-4 py-3">配件</th>
+                            <th className="border-b border-line px-4 py-3">差异</th>
                             <th className="border-b border-line px-4 py-3">{compareRecipes[0].name || '左侧'}</th>
                             <th className="border-b border-line px-4 py-3">{compareRecipes[1].name || '右侧'}</th>
                             <th className="border-b border-line px-4 py-3 text-right">小计差额</th>
@@ -2323,16 +2383,23 @@ export function RecipesView() {
                         <tbody>
                           {comparePartRows.map((row) => {
                             const diff = row.rightSubtotal - row.leftSubtotal;
+                            const difference = comparePartDifference(row);
                             return (
                               <tr key={row.key} className="transition-colors duration-150 hover:bg-slate-50">
                                 <td className="border-b border-line px-4 py-3">
                                   <div className="font-medium text-ink">{row.label}</div>
-                                  <div className="mt-0.5 text-xs text-muted">
-                                    {row.leftModel === row.rightModel ? row.leftModel : `${row.leftModel} / ${row.rightModel}`}
-                                  </div>
                                 </td>
-                                <td className="border-b border-line px-4 py-3 text-muted">数量 {row.leftQty || '-'}，{money(row.leftSubtotal)}</td>
-                                <td className="border-b border-line px-4 py-3 text-muted">数量 {row.rightQty || '-'}，{money(row.rightSubtotal)}</td>
+                                <td className="border-b border-line px-4 py-3">
+                                  <StatusBadge tone={difference.tone}>{difference.label}</StatusBadge>
+                                </td>
+                                <td className="border-b border-line px-4 py-3">
+                                  <div className="font-medium text-ink">{row.leftModel}</div>
+                                  <div className="mt-0.5 text-xs text-muted">数量 {row.leftQty || '-'}，小计 {money(row.leftSubtotal)}</div>
+                                </td>
+                                <td className="border-b border-line px-4 py-3">
+                                  <div className="font-medium text-ink">{row.rightModel}</div>
+                                  <div className="mt-0.5 text-xs text-muted">数量 {row.rightQty || '-'}，小计 {money(row.rightSubtotal)}</div>
+                                </td>
                                 <td className={`border-b border-line px-4 py-3 text-right font-semibold ${diff >= 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
                                   {diff >= 0 ? '+' : ''}{money(diff)}
                                 </td>

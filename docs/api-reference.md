@@ -238,20 +238,40 @@
 
 AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认流程控制。
 
+Next iPhone PWA `/voice` 复用本节接口：
+
+- 文字指令通过 `apps/web-next/lib/ai.ts:streamAiChat()` 调用 `POST /api/ai/chat`。
+- 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
+- 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力应先扩展 `tools.cjs` 和对应 executor。
+- PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
+- 当前 PWA 基础版不启用语音输入；`/api/voice/asr` 保留给其他语音入口。
+
 ### Voice
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/voice/asr` | `multipart/form-data`，文件字段 `audio`，可带 `format`、`sampleRate` | 调阿里云一句话识别；成功返回 `{ success: true, text }` |
 
+当前 iPhone PWA 基础版不调用本接口；如后续恢复语音输入，应继续通过后端适配层调用本接口，避免把阿里云密钥暴露到前端。
+
 ### Siri
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/siri/chat` | `{ text, project?, context? }` | Siri 快捷指令入口；`project=cad` 时转发到 `CAD_API_URL` |
+| `POST` | `/api/siri/chat` | `{ text, project?, context? }` | Siri 快捷指令统一入口；Siri 只传自然语言，内部仍由 AI tools 调度标准业务 API；`project=cad` 时转发到 `CAD_API_URL` |
+| `POST` | `/api/siri/confirm` | `{ confirmationId, confirm: true }` | Siri 写操作二次确认入口；确认后调用 `executeToolCall(..., { allowWrite: true })` |
 | `GET` | `/api/siri/result/:id` | 无 | 读取 5 分钟内缓存的 Siri 结构化结果 |
 | `GET` | `/siri-result?id=xxx` | 查询参数 `id` | 返回 `public/siri-result.html` 页面 |
 | `GET` | `/public/*` | 静态路径 | AI 路由内挂载的 `public` 静态文件兼容入口 |
+
+`POST /api/siri/chat` 兼容旧字段 `success/speech/content/toolResults/resultUrl`，并新增 `status`：
+
+- `success`：查询或执行完成。
+- `failed`：AI、权限或业务工具执行失败。
+- `processing`：后台任务已提交，例如转子出图，返回 `task.id/statusUrl`。
+- `confirmation_required`：写操作等待确认，返回 `confirmationId` 和 `confirmation`。
+
+Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应通过 `resultUrl` 或 PWA 查看。写操作不得由第一次自然语言请求直接落库。
 
 ## 16. 当前兼容边界
 

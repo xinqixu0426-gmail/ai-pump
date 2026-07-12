@@ -11,7 +11,7 @@
 | AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
 | 出图 | FreeCAD Python 脚本 + PDF 生成 |
 | 通讯 | 企业微信 Webhook + Siri 快捷指令 |
-| 移动端 | 微信小程序（语音助手 + Server-Driven UI） |
+| 移动端 | iPhone PWA（AI 调度入口）+ 微信小程序（语音助手 + Server-Driven UI） |
 
 ## 项目结构
 
@@ -38,6 +38,7 @@
 │           └── executor.cjs  # AI Function Calling 执行器
 ├── apps/web-next/
 │   ├── app/                  # Next App Router 页面入口
+│   │   └── voice/            # iPhone PWA AI 调度入口
 │   ├── components/           # Next 业务组件与基础 UI
 │   └── lib/                  # Next 统一 API client 与页面规则
 ├── freecad/                  # FreeCAD 转子出图模板与 Python 脚本
@@ -73,6 +74,19 @@ npm run build
 `apps/web-next/` 是 Next.js + Tailwind CSS 的唯一 Web 前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
 
 当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板和 AI 助手，作为唯一 Web 前端和日常主业务入口。
+
+### iPhone PWA 入口
+
+移动端 PWA 位于 `http://localhost:3000/voice`，生产环境同域访问 `/voice`。`public/manifest.json` 的 `start_url` 已指向该入口，显示模式为 `standalone`，适合添加到 iPhone 主屏幕后独立启动。
+
+安装方式：
+
+1. 用 iPhone Safari 打开生产环境 `/voice`。
+2. 点击分享按钮。
+3. 选择“添加到主屏幕”。
+4. 从主屏幕打开“水泵助手”。
+
+PWA 当前是基础文字版 AI 助手，复用现有 JWT Cookie 登录、`/api/ai/chat` SSE 和 `/api/ai/confirm-tool` 写操作确认，不新增后端业务 API，也不暴露 DeepSeek 密钥。语音识别能力仍保留在后端 `/api/voice/asr` 和微信小程序场景中，当前 PWA 页面不启用语音入口。
 
 生产构建和启动：
 
@@ -231,6 +245,7 @@ nohup npm run web-next:start > web-next.out.log 2>&1 &
 
 ### 独立认证接口
 - `POST /api/ai/chat` — AI 对话 (SSE)
-- `POST /api/siri/chat` — Siri 快捷指令（Token 认证）
+- `POST /api/siri/chat` — Siri 快捷指令统一入口（Token 认证，只传自然语言）
+- `POST /api/siri/confirm` — Siri 写操作二次确认入口
 - `POST /api/voice/asr` — 语音识别
 - `GET/POST /api/wecom/webhook` — 企微消息

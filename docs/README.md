@@ -228,9 +228,24 @@ POST /api/rotor/save
 
 - AI 只允许执行 `tools.cjs` 中已注册的工具。
 - 写操作还必须位于 `WRITE_TOOLS` 白名单，并通过确认流程；查询工具不能借机写库。
+- iPhone PWA 入口为 Next 页面 `/voice`，面向主屏幕 standalone 使用；桌面业务入口和 `/ai` 工作台不受影响。
+- PWA 当前是基础文字版 AI 助手，使用 `apps/web-next/lib/ai.ts` 的 `streamAiChat()` 调用 `/api/ai/chat`，使用 `confirmAiTool()` 调用 `/api/ai/confirm-tool`；不得在移动组件中自由拼业务 API。
+- PWA 暂不启用语音输入、语音播报、Voice Orb 或复杂动画；后端 `/api/voice/asr` 仍服务于其他语音入口。
+- PWA 状态流使用单一状态枚举：`idle`、`thinking`、`calling`、`answering`、`confirming`、`done`、`error`、`cancelled`，顶部状态和消息状态都由该状态驱动。
+- PWA 当前优先接入成熟 AI 工具：经营概况、最近订单、订单详情、配方成本、零件搜索、线圈成本、铜价、配方对比和出图历史；新建订单、修改订单状态、改零件、生成采购清单、配方/零件写操作必须确认后执行。
+- PWA 历史记录第一版保存在浏览器 `localStorage`，只用于本机快速回看，不作为审计来源；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
 - 微信小程序代码位于 `wechat-miniprogram/`，当前通过 `INTERNAL_SECRET` 认证。
-- Siri 使用文字输入，不经过 ASR；结果临时保存在内存中，5 分钟后失效。
+- Siri 使用快捷指令文字输入，不经过 ASR；统一调用 `POST /api/siri/chat`，由 AI tools 决定业务动作，Siri 不直接访问库存、BOM、采购等内部 API。
+- Siri 返回 `speech` 供朗读，内容保持简短；结构化结果通过 `resultUrl` 查看，结果临时保存在内存中，5 分钟后失效。
+- Siri 写操作返回 `confirmation_required`、`confirmationId` 和确认摘要；用户明确确认后再调用 `POST /api/siri/confirm`，后端仍复用现有写工具确认、标准 API 和审计路径。
 - Web 语音使用阿里云 ASR；AI 对话使用 DeepSeek SSE。
+
+### PWA 调试与限制
+
+- 本地调试：同时启动 Express `:3002` 和 Next `:3000`，访问 `/voice`。
+- iPhone 主屏幕安装需要 Safari 和 HTTPS 生产地址；本地 HTTP 可用于页面调试，但不能完整验证主屏幕体验。
+- 当前 PWA 只支持文字输入；如后续启用语音，需要重新验证 iOS 麦克风权限、浏览器语音识别和录音格式。
+- `/voice` 不新增业务 API，不改变现有权限、确认、审计和成本计算口径。
 
 ## 8. 当前已知边界
 

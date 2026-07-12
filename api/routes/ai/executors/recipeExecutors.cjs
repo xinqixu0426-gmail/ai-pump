@@ -80,46 +80,76 @@ function toNumber(value) {
     return Number.isFinite(number) ? number : 0;
 }
 
+function compareItemKey(item) {
+    const name = String(item.name || '').trim();
+    if (name) return `name:${name.replace(/\s+/g, '')}`;
+    const model = String(item.model || '').trim();
+    if (model) return `model:${model.replace(/\s+/g, '')}`;
+    return '';
+}
+
+function compareItemIdentity(item) {
+    return [item.model, item.supplier].filter(Boolean).join(' / ') || item.name || '-';
+}
+
 function aggregateCostDetails(details = []) {
     const map = new Map();
     for (const item of details || []) {
-        const model = String(item.model || item.name || '').trim();
-        if (!model) continue;
-        const current = map.get(model) || {
-            model,
-            name: item.name || model,
+        const key = compareItemKey(item);
+        if (!key) continue;
+        const current = map.get(key) || {
+            key,
+            name: item.name || item.model || '-',
             qty: 0,
             amount: 0,
+            models: new Set(),
             suppliers: new Set(),
         };
         current.qty += toNumber(item.qty);
         current.amount += toNumber(item.subtotal);
+        current.models.add(compareItemIdentity(item));
         if (item.supplier && item.supplier !== '-') current.suppliers.add(item.supplier);
-        map.set(model, current);
+        map.set(key, current);
     }
     return map;
+}
+
+function comparisonDifference(leftItem, rightItem) {
+    if (leftItem && !rightItem) return '仅配方1有';
+    if (!leftItem && rightItem) return '仅配方2有';
+    const model1 = Array.from(leftItem?.models || []).join('、') || '-';
+    const model2 = Array.from(rightItem?.models || []).join('、') || '-';
+    if (model1 !== model2) return '型号不同';
+    if (Number((leftItem?.qty || 0).toFixed(3)) !== Number((rightItem?.qty || 0).toFixed(3))) return '数量不同';
+    return '金额不同';
 }
 
 function buildRecipeComparison(recipe1, recipe2, cost1, cost2) {
     const left = aggregateCostDetails(cost1.details);
     const right = aggregateCostDetails(cost2.details);
     const keys = [...new Set([...left.keys(), ...right.keys()])];
-    return keys.map(model => {
-        const leftItem = left.get(model);
-        const rightItem = right.get(model);
+    return keys.map(key => {
+        const leftItem = left.get(key);
+        const rightItem = right.get(key);
         const amount1 = leftItem?.amount || 0;
         const amount2 = rightItem?.amount || 0;
+        const model1 = Array.from(leftItem?.models || []).join('、') || '-';
+        const model2 = Array.from(rightItem?.models || []).join('、') || '-';
         return {
-            model,
-            name: leftItem?.name || rightItem?.name || model,
+            key,
+            model: leftItem?.name || rightItem?.name || key,
+            name: leftItem?.name || rightItem?.name || key,
+            model1,
+            model2,
             qty1: Number((leftItem?.qty || 0).toFixed(3)),
             amount1: Number(amount1.toFixed(2)),
             qty2: Number((rightItem?.qty || 0).toFixed(3)),
             amount2: Number(amount2.toFixed(2)),
             diff: Number((amount1 - amount2).toFixed(2)),
+            difference: comparisonDifference(leftItem, rightItem),
             onlyIn: leftItem && !rightItem ? recipe1 : (!leftItem && rightItem ? recipe2 : '两者共有'),
         };
-    }).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || a.model.localeCompare(b.model, 'zh-CN'));
+    }).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || a.name.localeCompare(b.name, 'zh-CN'));
 }
 
 async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}) {

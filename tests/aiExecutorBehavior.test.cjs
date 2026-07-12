@@ -145,7 +145,7 @@ test('AI executor 行为：配方对比按零件聚合数量和金额差额', as
                         spec: 'B',
                         partsJson: JSON.stringify([
                             { model: '线圈转子', name: '线圈转子', qty: 1 },
-                            { model: '6202', name: '轴承', qty: 2 },
+                            { model: '6203', name: '轴承', qty: 2 },
                         ]),
                     },
                 ],
@@ -172,7 +172,7 @@ test('AI executor 行为：配方对比按零件聚合数量和金额差额', as
                     totalCost: '16.00',
                     details: [
                         { model: '线圈转子', name: '线圈转子', qty: 1, price: '10.00', subtotal: '10.00' },
-                        { model: '6202', name: '轴承', qty: 2, price: '3.00', subtotal: '6.00' },
+                        { model: '6203', name: '轴承', qty: 2, price: '3.00', subtotal: '6.00' },
                     ],
                 },
             });
@@ -186,13 +186,33 @@ test('AI executor 行为：配方对比按零件聚合数量和金额差额', as
     const coilRows = result.comparison.filter(row => row.model === '线圈转子');
     assert.equal(coilRows.length, 1);
     assert.deepEqual(coilRows[0], {
+        key: 'name:线圈转子',
         model: '线圈转子',
         name: '线圈转子',
+        model1: '线圈转子',
+        model2: '线圈转子',
         qty1: 2,
         amount1: 20,
         qty2: 1,
         amount2: 10,
         diff: 10,
+        difference: '数量不同',
+        onlyIn: '两者共有',
+    });
+    const bearingRows = result.comparison.filter(row => row.name === '轴承');
+    assert.equal(bearingRows.length, 1);
+    assert.deepEqual(bearingRows[0], {
+        key: 'name:轴承',
+        model: '轴承',
+        name: '轴承',
+        model1: '6202',
+        model2: '6203',
+        qty1: 1,
+        amount1: 3,
+        qty2: 2,
+        amount2: 6,
+        diff: -3,
+        difference: '型号不同',
         onlyIn: '两者共有',
     });
 });
