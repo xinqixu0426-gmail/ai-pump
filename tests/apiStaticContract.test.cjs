@@ -394,7 +394,7 @@ test('API 静态契约：DeepSeek 默认模型使用 V4 Flash', () => {
     assert.doesNotMatch(rotorRoute, /model:\s*'deepseek-chat'/);
 });
 
-test('重构准备契约：业务流程冻结文档必须存在并被 README 引用', () => {
+test('文档契约：业务流程文档必须存在并被 README 引用', () => {
     const businessFlowPath = path.join(repoRoot, 'docs/business-flow.md');
     const readme = readUtf8(path.join(repoRoot, 'docs/README.md'));
     const flow = readUtf8(businessFlowPath);

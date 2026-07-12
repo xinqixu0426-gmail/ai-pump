@@ -1,16 +1,16 @@
 # API 接口总表
 
-> 更新于 2026-07-09。本文按当前代码整理，覆盖已记录和未单独记录的 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
+> 更新于 2026-07-12。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
 
 ## 1. 通用约定
 
 - 后端服务端口：`3002`。
 - 常规 API 前缀：`/api`。
 - Web 前端必须通过 `apps/web-next/lib/api.ts` 的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()` 调用。
-- Web 新增或调整调用必须使用当前标准入口；历史字段兼容必须封装在 API client 内，不得扩散到页面组件。
-- Web 页面层读取核心资源 ID/时间必须走 `apps/web-next/lib/api.ts` 的 `entityId()`、`entityCreatedAt()`、`entityUpdatedAt()`，禁止直接依赖 `Id/CreatedAt/UpdatedAt`。
+- Web 新增或调整调用必须使用当前标准入口；历史字段兼容必须封装在 `apps/web-next/lib/*` 的 normalize/rowToX helper 内，不得扩散到页面组件。
+- Web 页面层读取核心资源 ID/时间必须使用各业务 lib 输出的标准 `id/createdAt/updatedAt`，禁止直接依赖 `Id/CreatedAt/UpdatedAt`。
 - 请求/响应业务字段默认使用 camelCase；数据库字段保持 snake_case。
-- 核心资源 Row Adapter 标准输出 `id`、`createdAt`、`updatedAt`；历史 `Id`、`CreatedAt`、`UpdatedAt` 暂时保留给旧 Web 代码兼容，新调用方不得依赖。
+- 核心资源 Row Adapter 标准输出 `id`、`createdAt`、`updatedAt`；历史 `Id`、`CreatedAt`、`UpdatedAt` 仅作为兼容字段，新调用方不得依赖。
 - 标准成功响应：`{ "success": true, "data": ... }`。
 - 标准失败响应：`{ "success": false, "error": "错误信息" }`。
 - 健康检查等非业务监控入口可能保留 `{ status, message }`；业务 API 不得新增纯 `{ status, message }` 响应。
@@ -210,14 +210,14 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 启动异步 FreeCAD 出图任务；标准返回 `{ success, data: { status, message, jobId, drawingName, params } }`，临时保留顶层 `status/message/jobId` 兼容 |
+| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 启动异步 FreeCAD 出图任务；标准返回 `{ success, data: { status, message, jobId, drawingName, params } }` |
 | `POST` | `/api/rotor/save` | 结构化转子参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 保存暂定参数到历史，不启动 FreeCAD；记录状态为 `saved`，返回 `{ success, data, jobId, drawingName, params }` |
 | `POST` | `/api/rotor/template-draft` | `{ templateId, variantId? }` | 根据泵壳模板和可选型号变体生成出图表单草稿，带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注；不写库 |
-| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | 自然语言出图；标准返回 `{ success, data }`，`data.status` 可能为 `success/need_params/warning`，临时保留顶层同名字段兼容 |
-| `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；返回 `{ success, data, ...job }` 兼容格式 |
-| `GET` | `/api/rotor/history` | 无 | 最近 100 条出图/保存历史；标准字段为 `jobId, drawingName, nlInput, paramsJson, fcParamsJson, fileUrl, linkedPumpModel, createdAt, updatedAt`；临时保留 legacy snake_case 字段，`status=saved` 表示仅保存参数 |
+| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | 自然语言出图；标准返回 `{ success, data }`，`data.status` 可能为 `success/need_params/warning` |
+| `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；返回 `{ success, data }` |
+| `GET` | `/api/rotor/history` | 无 | 最近 100 条出图/保存历史；标准字段为 `jobId, drawingName, nlInput, paramsJson, fcParamsJson, fileUrl, linkedPumpModel, createdAt, updatedAt`；`status=saved` 表示仅保存参数 |
 | `PATCH` | `/api/rotor/history/:id/name` | `{ drawingName/drawing_name }` | 重命名图纸 |
-| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联订单型号、型号变体或配方；响应标准字段为 `data.linkedPumpModel`，临时保留顶层 `linkedPumpModel` 兼容 |
+| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联订单型号、型号变体或配方；响应标准字段为 `data.linkedPumpModel` |
 | `DELETE` | `/api/rotor/history/:id` | 无 | 删除历史记录并尝试删除对应 PDF |
 | `POST` | `/api/rotor/print/:jobId` | 无 | 打印已成功生成的 PDF |
 | `GET` | `/api/rotor/order-pump-models` | 无 | 从订单明细中提取可关联的水泵型号 |
@@ -253,12 +253,12 @@ AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认�
 | `GET` | `/siri-result?id=xxx` | 查询参数 `id` | 返回 `public/siri-result.html` 页面 |
 | `GET` | `/public/*` | 静态路径 | AI 路由内挂载的 `public` 静态文件兼容入口 |
 
-## 16. 当前兼容/待收口项
+## 16. 当前兼容边界
 
-- 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是旧 Web 兼容字段。核心页面已改为通过 `entityFields` 读取标准字段并兜底旧字段。
+- 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是历史兼容字段，Web 页面必须使用标准字段。
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。
-- 成本旧命名入口已移除；当前标准入口为 `/api/cost/parts`、`/api/recipes/:id/cost`、`/api/recipes/:id/cost-preview`、`/api/cost/dynamic` 和 `/api/cost/full-estimate`。
-- `GET /api/rotor/history` 已输出 camelCase 标准字段，并临时保留 snake_case legacy 字段；Web 前端已改为消费 camelCase。
-- `POST /api/rotor/draw`、`POST /api/rotor/chat` 已改为标准 `{ success, data/error }`，临时保留顶层 `status/message/jobId` 供旧调用方迁移。
+- 成本历史命名入口已移除；当前标准入口为 `/api/cost/parts`、`/api/recipes/:id/cost`、`/api/recipes/:id/cost-preview`、`/api/cost/dynamic` 和 `/api/cost/full-estimate`。
+- `GET /api/rotor/history` 已输出 camelCase 标准字段；snake_case 字段仅作为历史兼容字段。
+- `POST /api/rotor/draw`、`POST /api/rotor/chat` 标准响应为 `{ success, data/error }`。
 - 客户和报价新增接口标准返回完整 `data` 对象，不再返回顶层 `id`。
 - 正式业务资源的新增、动态更新和删除已分别收口到 `safeInsert`、`safeUpdate`、`softDelete` / `hardDelete`；系统初始化、`system_settings` / `config` UPSERT 仍属于基础设施边界。

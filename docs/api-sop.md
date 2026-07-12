@@ -158,7 +158,7 @@ const {
 - 常规 JSON 使用 `proxyRequest()`。
 - SSE、流式响应、文件响应可用 `proxyFetch()`。
 - 表单上传使用 `proxyFormRequest()`。
-- Zustand Store 执行增删改后必须调用 `fetchXxx(true)` 硬刷新。
+- 前端执行增删改后必须重新拉取对应资源，不能只更新本地派生状态。
 
 ## 8. 成本接口
 

@@ -10,6 +10,7 @@ const nextConfig = {
   reactStrictMode: true,
   distDir,
   outputFileTracingRoot: __dirname,
+  devIndicators: false,
   async rewrites() {
     return [
       {

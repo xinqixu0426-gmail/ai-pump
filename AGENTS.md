@@ -10,9 +10,9 @@
 - 写操作自动写入 `audit_log` 表，无需手动调用
 
 ### 前端请求
-- **所有 API 请求必须走 `proxyRequest()`**（`src/utils/api.ts`），禁止裸 `fetch()`
+- **所有 API 请求必须走 `proxyRequest()`**（`apps/web-next/lib/api.ts`），禁止裸 `fetch()`
 - `proxyRequest` 自动处理 Cookie 携带、401 跳转登录、错误信息透传
-- Zustand Store 执行增删改后必须调 `fetchXxx(true)` 硬刷新
+- 前端增删改后必须重新拉取对应资源，避免只改本地派生状态
 
 ### 数据适配
 - 后端 Row Adapter（`partRow` / `recipeRow` / `orderRow` 等）统一输出 **camelCase**
@@ -47,16 +47,15 @@
 
 ## 4. 组件规范
 
-- 全局样式在 `src/utils/theme.ts` 中固化为 Token，`main.tsx` 只引用 `muiTheme`
-- MUI 中不要将 `<Chip>` / `<div>` 等块级元素嵌套在 `<Typography>` 内
-- 如需搭配块级元素，指定 `component="div"`
+- Web 前端只使用 `apps/web-next`，当前技术栈为 Next.js + Tailwind CSS + 本地基础组件
+- 不得重新引入 MUI / Emotion / 旧 Vite 前端依赖
+- 全局样式与设计 Token 以 `apps/web-next/app/globals.css` 和本地 UI 组件为准
 - 微信小程序组件放在 `wechat-miniprogram/components/` 下，使用组件化开发
 
 ## 5. 服务端口
 
 - Next 主前端：`:3000`
 - Next 并行预览：`:3001`
-- 旧 Vite 前端：通过 `npm run legacy:dev` 单独启动，仅作为回滚备用
 - 后端 Express：`:3002`
 - Next rewrite：`/api/*` → `http://localhost:3002`
 

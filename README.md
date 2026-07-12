@@ -72,7 +72,7 @@ npm run build
 
 `apps/web-next/` 是 Next.js + Tailwind CSS 的唯一 Web 前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
 
-当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板和 AI 助手，作为日常主业务入口。旧 Vite/MUI 前端已移除。
+当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板和 AI 助手，作为唯一 Web 前端和日常主业务入口。
 
 生产构建和启动：
 
@@ -81,7 +81,7 @@ npm run build
 npm run preview
 ```
 
-迁移后的验收标准见 [`docs/next-migration-acceptance.md`](docs/next-migration-acceptance.md)。
+当前业务流程、API、状态和 UI 规则见 [`docs/README.md`](docs/README.md)。
 
 ### Windows 转子出图依赖
 
