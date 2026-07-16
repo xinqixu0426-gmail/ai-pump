@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence } from 'motion/react';
 import { CircleAlert, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { getAllCustomers, type Customer } from '@/lib/customers';
@@ -23,6 +24,7 @@ import { OrderDetailDrawer } from '@/components/order-detail-drawer';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
 const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
   { value: '全部', label: '全部' },
@@ -31,10 +33,10 @@ const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
   { value: '已完成', label: '已完成' },
 ];
 
-const statusStyles: Record<OrderStatus, string> = {
-  待采购: 'border-amber-200 bg-amber-50 text-amber-700',
-  采购中: 'border-sky-200 bg-sky-50 text-sky-700',
-  已完成: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+const statusTones: Record<OrderStatus, StatusBadgeTone> = {
+  待采购: 'amber',
+  采购中: 'blue',
+  已完成: 'green',
 };
 
 function statLabel(value: string, sub: string) {
@@ -51,6 +53,7 @@ function customerMarginMultiplier(customer: Customer | undefined): number {
 }
 
 export function OrdersView() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -212,8 +215,12 @@ export function OrdersView() {
         items: draftItems,
       });
       await load(true);
-      setSelectedOrder(created);
       setDrawerOpen(false);
+      if (created.purchaseList.some((item) => Number(item.needToBuy || 0) > 0)) {
+        router.push('/purchase');
+        return;
+      }
+      setSelectedOrder(created);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '订单创建失败');
     } finally {
@@ -326,10 +333,8 @@ export function OrdersView() {
                         <div className="mt-0.5 max-w-[280px] truncate text-xs text-muted">{order.remark || '无备注'}</div>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-muted">{order.contractNo || '-'}</td>
-                      <td className="border-b border-line px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusStyles[order.status]}`}>
-                          {order.status}
-                        </span>
+                      <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                        <StatusBadge tone={statusTones[order.status]}>{order.status}</StatusBadge>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{order.items.length}</td>
                       <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(order.totalPrice)}</td>

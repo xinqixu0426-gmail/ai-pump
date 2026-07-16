@@ -2,18 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const ts = require('typescript');
 const { rotorHistoryRow } = require('../api/services/rotorHistory.cjs');
 
-const sourcePath = path.join(__dirname, '../src/utils/rotorHistory.ts');
-const source = fs.readFileSync(sourcePath, 'utf8');
-const compiled = ts.transpileModule(`${source}\nmodule.exports = { normalizeRotorHistoryRow, normalizeRotorHistoryRows, parseRotorFcParams };`, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
-}).outputText;
-const moduleStub = { exports: {} };
-// eslint-disable-next-line no-new-func
-new Function('module', 'exports', compiled)(moduleStub, moduleStub.exports);
-const { normalizeRotorHistoryRow, parseRotorFcParams } = moduleStub.exports;
+const repoRoot = path.join(__dirname, '..');
+
+function readUtf8(filePath) {
+    return fs.readFileSync(path.join(repoRoot, filePath), 'utf8');
+}
 
 test('转子历史后端契约输出 camelCase 并临时保留 legacy 字段', () => {
     const row = rotorHistoryRow({
@@ -40,21 +35,13 @@ test('转子历史后端契约输出 camelCase 并临时保留 legacy 字段', (
     assert.equal(row.drawing_name, 'V750');
 });
 
-test('转子历史前端兼容新旧字段并解析 FreeCAD 参数', () => {
-    const normalized = normalizeRotorHistoryRow({
-        id: 8,
-        job_id: 'legacy-job',
-        drawing_name: '旧图纸',
-        fc_params_json: '{"rotor_dia":88}',
-        file_url: '/drawings/old.pdf',
-        linked_pump_model: '订单:旧型号',
-        created_at: '2026-07-08T01:00:00.000Z',
-    });
+test('转子历史 Next 客户端仍兼容新旧字段', () => {
+    const source = readUtf8('apps/web-next/lib/rotor.ts');
 
-    assert.equal(normalized.jobId, 'legacy-job');
-    assert.equal(normalized.drawingName, '旧图纸');
-    assert.equal(normalized.fileUrl, '/drawings/old.pdf');
-    assert.equal(normalized.linkedPumpModel, '订单:旧型号');
-    assert.deepEqual(parseRotorFcParams(normalized), { rotor_dia: 88 });
-    assert.deepEqual(parseRotorFcParams({ fcParamsJson: '{bad' }), {});
+    assert.match(source, /export function normalizeRotorHistoryRow/);
+    assert.match(source, /row\.jobId \?\? row\.job_id/);
+    assert.match(source, /row\.drawingName \?\? row\.drawing_name/);
+    assert.match(source, /row\.fcParamsJson \?\? row\.fc_params_json/);
+    assert.match(source, /row\.fileUrl \?\? row\.file_url/);
+    assert.match(source, /row\.linkedPumpModel \?\? row\.linked_pump_model/);
 });

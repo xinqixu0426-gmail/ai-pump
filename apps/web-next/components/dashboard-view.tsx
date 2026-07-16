@@ -14,6 +14,7 @@ import { getWorkbenchSummary, severityClassName, type BusinessSummary } from '@/
 import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -24,10 +25,10 @@ function statLabel(value: string, sub: string) {
   );
 }
 
-function statusClassName(status: string) {
-  if (status === '已完成') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (status === '采购中') return 'border-sky-200 bg-sky-50 text-sky-700';
-  return 'border-amber-200 bg-amber-50 text-amber-700';
+function statusTone(status: string): StatusBadgeTone {
+  if (status === '已完成') return 'green';
+  if (status === '采购中') return 'blue';
+  return 'amber';
 }
 
 export function DashboardView() {
@@ -210,9 +211,7 @@ export function DashboardView() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${statusClassName(order.status)}`}>
-                        {order.status}
-                      </span>
+                      <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
                       <span className="text-sm font-medium text-ink">{money(order.totalPrice)}</span>
                     </div>
                   </div>

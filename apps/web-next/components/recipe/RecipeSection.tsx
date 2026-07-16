@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import * as React from 'react';
 import { ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
 export type RecipeSectionStatus = 'default' | 'active' | 'complete' | 'warning' | 'error' | 'disabled';
 export type RecipeBadgeTone = 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'gray';
@@ -74,19 +75,15 @@ const sectionStatusClasses: Record<RecipeSectionStatus, string> = {
   disabled: 'border-slate-200 bg-slate-50/60 opacity-80',
 };
 
-const badgeToneClasses: Record<RecipeBadgeTone, string> = {
-  blue: 'border-sky-200 bg-sky-50 text-sky-700',
-  green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  amber: 'border-amber-200 bg-amber-50 text-amber-700',
-  red: 'border-rose-200 bg-rose-50 text-rose-700',
-  purple: 'border-violet-200 bg-violet-50 text-violet-700',
-  gray: 'border-slate-200 bg-slate-50 text-slate-600',
+const badgeToneMap: Record<RecipeBadgeTone, StatusBadgeTone> = {
+  blue: 'blue',
+  green: 'green',
+  amber: 'amber',
+  red: 'red',
+  purple: 'purple',
+  gray: 'slate',
 };
 
 export function RecipeStatusBadge({ tone = 'gray', children }: { tone?: RecipeBadgeTone; children: ReactNode }) {
-  return (
-    <span className={clsx('inline-flex h-6 items-center rounded-full border px-2 text-xs font-medium', badgeToneClasses[tone])}>
-      {children}
-    </span>
-  );
+  return <StatusBadge tone={badgeToneMap[tone]} className="h-6 min-w-0 px-2">{children}</StatusBadge>;
 }

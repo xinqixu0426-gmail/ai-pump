@@ -1,4 +1,4 @@
-const { dbGetAllTemplates } = require('../../../db.cjs');
+const { getJson, postJson } = require('../internalApiClient.cjs');
 
 /**
  * 成本计算与出图相关的 AI 工具执行器
@@ -10,45 +10,33 @@ const { dbGetAllTemplates } = require('../../../db.cjs');
 async function executeCostTool(toolName, args, internalFetch) {
     switch (toolName) {
         case 'query_recipe_cost_by_name': {
-            const response = await internalFetch(`/api/cost/recipe/by-name?name=${encodeURIComponent(args.name)}`);
-            return await response.json();
+            const data = await getJson(internalFetch, `/api/cost/recipe/by-name?name=${encodeURIComponent(args.name)}`, '配方成本查询失败');
+            return { success: true, data };
         }
 
         case 'query_recipe_cost_by_id': {
-            const response = await internalFetch(`/api/recipes/${args.id}/cost`);
-            return await response.json();
+            const data = await getJson(internalFetch, `/api/recipes/${args.id}/cost`, '配方成本查询失败');
+            return { success: true, data };
         }
 
         case 'full_calculate': {
-            const response = await internalFetch(`/api/cost/full-estimate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(args)
-            });
-            return await response.json();
+            const data = await postJson(internalFetch, '/api/cost/full-estimate', args, '完整成本估算失败');
+            return { success: true, data };
         }
 
         case 'get_copper_price': {
-            const response = await internalFetch(`/api/copper-price`);
-            return await response.json();
+            const data = await getJson(internalFetch, '/api/copper-price', '铜价读取失败');
+            return { success: true, data };
         }
 
         case 'calculate_coil_cost': {
-            const response = await internalFetch(`/api/coils/calculate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ spec: args.spec, sheets: args.sheets, material: args.material || null, wireWeight: args.wireWeight || null })
-            });
-            return await response.json();
+            const data = await postJson(internalFetch, '/api/coils/calculate', { spec: args.spec, sheets: args.sheets, material: args.material || null, wireWeight: args.wireWeight || null }, '线圈成本计算失败');
+            return { success: true, data };
         }
 
         case 'dynamic_config_cost': {
-            const response = await internalFetch(`/api/cost/dynamic`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(args)
-            });
-            return await response.json();
+            const data = await postJson(internalFetch, '/api/cost/dynamic', args, '动态配置成本计算失败');
+            return { success: true, data };
         }
 
         case 'generate_rotor_drawing': {
@@ -57,7 +45,7 @@ async function executeCostTool(toolName, args, internalFetch) {
 
             // 如果提供了泵壳型号，从模板中提取轴承和油封参数
             if (args.shell_model) {
-                const allTemplates = dbGetAllTemplates();
+                const allTemplates = await getJson(internalFetch, '/api/templates', '泵壳模板读取失败');
                 const tpl = allTemplates.find(t => 
                     (t.shellModel || '') === args.shell_model ||
                     (t.shellModel || '').includes(args.shell_model)
@@ -66,59 +54,30 @@ async function executeCostTool(toolName, args, internalFetch) {
                     return { success: false, error: `未找到泵壳模板: ${args.shell_model}` };
                 }
 
-                let parts = [];
-                try { parts = JSON.parse(tpl.partsJson || '[]'); } catch (e) {}
-
                 templateInfo = { model: tpl.shellModel, extracted: {} };
-
-                // 花板轴承 → 上轴承
-                const upperBPart = parts.find(p => (p.name || '').includes('花板轴承'));
-                if (upperBPart && !drawParams.upper_bearing) {
-                    // 从 model 中提取轴承型号 (如 '6202-2RS 轴承' → '6202-2RS', '202' → '202')
-                    const bearingModel = (upperBPart.model || '').replace(/\s*轴承.*$/, '').trim();
-                    drawParams.upper_bearing = bearingModel;
-                    templateInfo.extracted.upper_bearing = bearingModel;
-                }
-                // 油缸轴承 → 下轴承
-                const lowerBPart = parts.find(p => (p.name || '').includes('油缸轴承'));
-                if (lowerBPart && !drawParams.lower_bearing) {
-                    const bearingModel = (lowerBPart.model || '').replace(/\s*轴承.*$/, '').trim();
-                    drawParams.lower_bearing = bearingModel;
-                    templateInfo.extracted.lower_bearing = bearingModel;
-                }
-                // 机械油封 → 油封孔径 (model格式: '14*28*38', 取第一段)
-                const sealPart = parts.find(p => (p.name || '').includes('机械油封'));
-                if (sealPart && drawParams.oil_seal_dia == null) {
-                    const sealDia = parseFloat((sealPart.model || '').split('*')[0]);
-                    if (!isNaN(sealDia)) {
-                        drawParams.oil_seal_dia = sealDia;
-                        templateInfo.extracted.oil_seal_dia = sealDia;
+                const draft = await postJson(internalFetch, '/api/rotor/template-draft', {
+                    templateId: tpl.id ?? tpl.Id,
+                    variantId: args.variant_id || args.variantId || undefined,
+                }, '转子模板草稿生成失败');
+                for (const [key, value] of Object.entries(draft.patch || {})) {
+                    if (value != null && value !== '' && drawParams[key] == null) {
+                        drawParams[key] = value;
+                        templateInfo.extracted[key] = value;
                     }
                 }
-
-                // 从 rotor_params_json 提取出图尺寸参数（开档、定位等）
-                let rotorParams = {};
-                try { rotorParams = JSON.parse(tpl.rotorParamsJson || '{}'); } catch (e) {}
-                const rotorKeys = ['bearing_span', 'stack_offset', 'bearing_to_impeller',
-                    'impeller_depth', 'impeller_dia', 'thread_dia', 'thread_length', 'rotor_dia'];
-                for (const k of rotorKeys) {
-                    if (rotorParams[k] != null && drawParams[k] == null) {
-                        drawParams[k] = rotorParams[k];
-                        templateInfo.extracted[k] = rotorParams[k];
-                    }
-                }
+                if (draft.drawingText && !drawParams.drawingText && !drawParams.drawing_text) drawParams.drawingText = draft.drawingText;
+                if (draft.hints) templateInfo.hints = draft.hints;
+                if (draft.openOffset != null) templateInfo.openOffset = draft.openOffset;
+                if (draft.barrelLength != null) templateInfo.barrelLength = draft.barrelLength;
 
                 // 清理 shell_model 字段，不传给 /api/rotor/draw
                 delete drawParams.shell_model;
+                delete drawParams.variant_id;
+                delete drawParams.variantId;
             }
 
-            const response = await internalFetch('/api/rotor/draw', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(drawParams)
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
+            try {
+                const result = await postJson(internalFetch, '/api/rotor/draw', drawParams, '出图失败');
                 const ret = {
                     success: true,
                     message: '出图任务已启动，大约需要15-30秒',
@@ -129,28 +88,25 @@ async function executeCostTool(toolName, args, internalFetch) {
                 };
                 if (templateInfo) ret.templateInfo = templateInfo;
                 return ret;
+            } catch (error) {
+                return { success: false, error: error.message || '出图失败' };
             }
-            return { success: false, error: result.message || '出图失败' };
         }
 
         case 'print_rotor_drawing': {
             const { jobId } = args;
             if (!jobId) return { success: false, error: '缺少 jobId 参数' };
-            const response = await internalFetch(`/api/rotor/print/${jobId}`, {
-                method: 'POST'
-            });
-            const result = await response.json();
-            if (result.ok || result.success) {
+            try {
+                await postJson(internalFetch, `/api/rotor/print/${jobId}`, undefined, '打印失败');
                 return { success: true, message: '打印指令已发送到默认打印机', jobId };
+            } catch (error) {
+                return { success: false, error: error.message || '打印失败' };
             }
-            return { success: false, error: result.error || '打印失败' };
         }
 
         case 'get_rotor_drawing_history': {
             const limit = args.limit || 10;
-            const response = await internalFetch('/api/rotor/history');
-            const result = await response.json();
-            const rows = Array.isArray(result) ? result : (result.data || []);
+            const rows = await getJson(internalFetch, '/api/rotor/history', '出图历史读取失败');
             const recent = (Array.isArray(rows) ? rows : []).slice(0, limit).map(r => ({
                 jobId: r.jobId ?? r.job_id,
                 status: r.status,

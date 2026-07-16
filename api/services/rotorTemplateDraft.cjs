@@ -76,7 +76,7 @@ function findShellMeta(template, parts) {
     const shellPart = candidates
         .map(candidate => (parts || []).find(part => part.category === '泵壳' && normalizeShellModel(part.model) === candidate))
         .find(Boolean);
-    return safeParseObject(shellPart?.notes || '{}');
+    return safeParseObject(shellPart?.notes ?? shellPart?.remark ?? '{}');
 }
 
 function setPatchIfEmpty(patch, key, value, label, hints, unit = '') {

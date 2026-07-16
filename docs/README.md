@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-11。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，重构前业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互重构约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，Next 迁移验收清单见 [next-migration-acceptance.md](./next-migration-acceptance.md)，AI 调用 API 改造计划见 [ai-api-executor-migration-plan.md](./ai-api-executor-migration-plan.md)，生产巡检与 AI API 准备清单见 [production-inspection-ai-api-checklist.md](./production-inspection-ai-api-checklist.md)。
+> 当前版本说明，更新于 2026-07-12。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。
 
 ## 1. 系统用途
 
@@ -17,7 +17,7 @@
 
 ## 2. 业务流程
 
-重构、拆页面或调整状态管理前，必须先对照 [业务流程冻结说明](./business-flow.md)、[前端状态边界冻结说明](./frontend-state-boundary.md) 和 [UI/交互重构约束](./ui-refactor-guidelines.md)。本节只保留业务主线概览。
+新增业务、拆页面或调整状态管理前，必须先对照 [业务流程说明](./business-flow.md)、[前端状态边界](./frontend-state-boundary.md) 和 [UI/交互约束](./ui-refactor-guidelines.md)。本节只保留业务主线概览。
 
 ```text
 维护零件与线圈
@@ -104,7 +104,8 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 
 - 有精确片数时使用该记录；无精确片数时在相邻记录间插值。
 - 规格存在但材质记录不足时，可使用该材质的全局单价推算。
-- 铜价每天 15:00 BJT 自动更新，并刷新线圈成本。
+- 线圈页提供实时市场指标、材质默认单价配置、同规格同材质自动带入和规格组批量改单价。
+- 铜价每天 15:00 BJT 自动更新，并刷新线圈成本；铝线价格基数和美元汇率可在市场指标中手动同步。
 
 ### 电缆与包装
 
@@ -145,7 +146,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 
 ### 请求与响应
 
-- Web 请求统一使用 `src/utils/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`。
+- Web 请求统一使用 `apps/web-next/lib/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`。
 - Web 新调用必须使用当前标准 API 入口；历史字段兼容只允许封装在 API client 内，不得继续扩散到页面组件。
 - 前后端字段使用 camelCase；数据库列使用 snake_case。
 - 标准成功响应：`{ "success": true, "data": {} }`。
@@ -181,7 +182,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 设置 | `/api/settings/:key` | 白名单设置读取和修改 |
 | AI/语音/Siri | `/api/ai`、`/api/voice`、`/api/siri` | 对话、工具调用、ASR |
 
-配方、订单、模板和型号变体的写接口仍接受部分旧 snake_case 入参，但所有新调用必须使用 camelCase。转子历史接口已标准输出 camelCase，并临时保留 snake_case legacy 字段。
+配方、订单、模板和型号变体的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
 
 ## 5. 数据安全与自动任务
 
@@ -191,7 +192,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 - 线圈、模板和转子历史没有软删除列，使用 `hardDelete()` 并记录审计。
 - 系统初始化、`system_settings` / `config` 的 UPSERT 仍是基础设施边界；新增业务资源表不得绕过 `safeInsert()`。
 - 零件索引缓存 10 秒；零件变更后必须主动失效。
-- Zustand 增删改后必须执行对应 `fetchXxx(true)` 硬刷新。
+- 前端增删改后必须重新拉取对应资源，避免只改本地派生状态。
 - SQLite 使用 WAL；启动时执行 `wal_checkpoint(TRUNCATE)`。
 - 数据库启动时立即备份，此后每天 03:00 BJT 备份，保留最近 7 份。
 - 铜价启动时立即更新，此后每天 15:00 BJT 更新。
@@ -215,7 +216,7 @@ POST /api/rotor/save
 - `/chat` 接收自然语言，可能返回 `need_params` 或安全警告；确认后再出图。
 - `/draw`、`/save` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
 - `/draw`、`/save` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
-- `GET /api/rotor/history` 历史列表标准输出 camelCase 字段，包括 `jobId`、`drawingName`、`fcParamsJson`、`fileUrl`、`linkedPumpModel`、`createdAt`；当前临时保留 snake_case legacy 字段供旧调用方迁移。
+- `GET /api/rotor/history` 历史列表标准输出 camelCase 字段，包括 `jobId`、`drawingName`、`fcParamsJson`、`fileUrl`、`linkedPumpModel`、`createdAt`。
 - `PATCH /api/rotor/history/:id/name` 用于重命名历史图纸，请求体 `{ "drawingName": "..." }`，成功返回 `{ "success": true, "data": { "drawingName": "..." } }`。
 - 出图历史可通过 `GET /api/rotor/link-targets` 选择关联订单型号、型号变体或配方，保存时仍写入 `linked_pump_model` 文本字段。
 - FreeCAD 默认最多同时执行 2 个任务。
@@ -227,19 +228,34 @@ POST /api/rotor/save
 
 - AI 只允许执行 `tools.cjs` 中已注册的工具。
 - 写操作还必须位于 `WRITE_TOOLS` 白名单，并通过确认流程；查询工具不能借机写库。
+- iPhone PWA 入口为 Next 页面 `/voice`，面向主屏幕 standalone 使用；桌面业务入口和 `/ai` 工作台不受影响。
+- PWA 当前是基础 AI 助手，支持文字输入和轻量语音输入；语音输入只通过 `apps/web-next/lib/voice.ts` 调用 `/api/voice/asr` 转文字，之后仍使用 `streamAiChat()` 调用 `/api/ai/chat`。
+- PWA 不启用语音播报、Voice Orb、音频可视化或复杂语音聊天 UI；语音失败时必须回退到文字输入。
+- PWA 状态流使用单一状态枚举：`idle`、`thinking`、`calling`、`answering`、`confirming`、`done`、`error`、`cancelled`，顶部状态和消息状态都由该状态驱动。
+- PWA 当前优先接入成熟 AI 工具：经营概况、最近订单、订单详情、配方成本、零件搜索、线圈成本、铜价、配方对比和出图历史；新建订单、修改订单状态、改零件、生成采购清单、配方/零件写操作必须确认后执行。
+- PWA 历史记录第一版保存在浏览器 `localStorage`，只用于本机快速回看，不作为审计来源；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
 - 微信小程序代码位于 `wechat-miniprogram/`，当前通过 `INTERNAL_SECRET` 认证。
-- Siri 使用文字输入，不经过 ASR；结果临时保存在内存中，5 分钟后失效。
-- Web 语音使用阿里云 ASR；AI 对话使用 DeepSeek SSE。
+- Siri 使用快捷指令文字输入，不经过 ASR；统一调用 `POST /api/siri/chat`，由 AI tools 决定业务动作，Siri 不直接访问库存、BOM、采购等内部 API。
+- Siri 返回 `speech` 供朗读，内容保持简短；结构化结果通过 `resultUrl` 查看，结果临时保存在内存中，5 分钟后失效。
+- Siri 写操作返回 `confirmation_required`、`confirmationId` 和确认摘要；用户明确确认后再调用 `POST /api/siri/confirm`，后端仍复用现有写工具确认、标准 API 和审计路径。
+- Web/PWA 语音识别使用后端阿里云 ASR；AI 对话使用 DeepSeek SSE。
+
+### PWA 调试与限制
+
+- 本地调试：同时启动 Express `:3002` 和 Next `:3000`，访问 `/voice`。
+- iPhone 主屏幕安装需要 Safari 和 HTTPS 生产地址；本地 HTTP 可用于页面调试，但不能完整验证主屏幕体验。
+- 当前 PWA 语音输入依赖浏览器 `MediaRecorder` 和后端 `/api/voice/asr`；iPhone 需要授予麦克风权限，识别失败时可继续使用文字输入。
+- `/voice` 不新增业务 API，不改变现有权限、确认、审计和成本计算口径。
 
 ## 8. 当前已知边界
 
-- `apps/web-next/` 是 Next.js + Tailwind + motion 风格的主前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。旧 Vite/MUI 前端仅保留为回滚备用。Next 前端不接管业务 API。
-- AI 成本类工具已经调用标准 API；AI 写操作 executor 仍保留部分直接使用 `safeInsert/safeUpdate/dbGetAll...` 的实现。正式让 AI 承担业务自动化前，应按 [AI 调用 API 改造计划](./ai-api-executor-migration-plan.md) 将写操作统一改为调用标准 API。
+- `apps/web-next/` 是 Next.js + Tailwind + motion 风格的唯一 Web 前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。Next 前端不接管业务 API。
+- AI executor 已通过内部 API client 调用标准 API，不再直接访问数据库 helper；后续新增 AI 自动化能力时，应先确认是否能复用现有标准业务动作 API。
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
-- 核心资源的 `Id/CreatedAt/UpdatedAt`、转子历史的 snake_case 字段仍作为 legacy 响应兼容保留；新调用必须使用标准 camelCase。
-- 配方等写接口仍保留少量旧入参兼容，但资源更新和删除已统一为 `/:id` 路径入口。
+- 核心资源响应中仍可能带有 `Id/CreatedAt/UpdatedAt` 历史兼容字段；Web 调用必须使用标准 camelCase。
+- 配方等写接口仍保留少量历史入参兼容，但资源更新和删除已统一为 `/:id` 路径入口。
 - 关键写接口的路由 ID、成本基础资料数字字段、模板/变体 JSON 字段，以及订单/报价/配方保存草稿的金额和数量字段已统一走 `api/services/validation.cjs`。
 - 审计日志覆盖正式业务资源的 INSERT、动态 UPDATE 和 DELETE；系统初始化与 settings/config UPSERT 仍属于基础设施边界。
 - `GET /api/recipes/:id/cost` 不是完整配方总成本接口，报价应使用 `cost-preview`。
 
-这些属于后续收口项，不应成为新代码继续扩散旧兼容写法的理由。
+这些属于历史兼容边界，不应成为新代码继续扩散兼容写法的理由。

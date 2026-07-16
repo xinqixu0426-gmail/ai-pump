@@ -264,7 +264,7 @@ if (!resultId) {
 }
 
 function render(result) {
-  const { speech, content, toolResults, query, timestamp } = result;
+  const { status, speech, content, toolResults, query, timestamp, confirmationId, confirmation, task } = result;
   const time = new Date(timestamp).toLocaleString('zh-CN', { hour:'2-digit', minute:'2-digit' });
 
   let html = `
@@ -275,6 +275,8 @@ function render(result) {
     </div>
     <div class="speech-bubble">${escHtml(speech)}</div>
   `;
+
+  if (status) html += renderStatusCard(status, speech, confirmationId, confirmation, task);
 
   // Render tool result cards
   if (toolResults && toolResults.length > 0) {
@@ -289,6 +291,41 @@ function render(result) {
   }
 
   app.innerHTML = html;
+}
+
+function renderStatusCard(status, speech, confirmationId, confirmation, task) {
+  if (status === 'confirmation_required') {
+    const rows = (confirmation?.rows || []).map(row => `
+      <tr><td>${escHtml(row.label)}</td><td>${escHtml(row.value)}</td></tr>
+    `).join('');
+    return `
+      <div class="card" style="border-color:rgba(251,191,36,0.28);background:rgba(251,191,36,0.08)">
+        <div class="card-title"><span class="dot" style="background:var(--amber)"></span>需要确认</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:8px">${escHtml(confirmation?.title || '待确认操作')}</div>
+        <div style="color:var(--text-dim);font-size:13px;line-height:1.6">${escHtml(confirmation?.summary || '')}</div>
+        ${rows ? `<table class="data-table" style="margin-top:12px"><tbody>${rows}</tbody></table>` : ''}
+        ${confirmationId ? `<div style="margin-top:12px;color:var(--text-muted);font-size:12px">确认编号：${escHtml(confirmationId)}</div>` : ''}
+      </div>
+    `;
+  }
+  if (status === 'processing') {
+    return `
+      <div class="card" style="border-color:rgba(108,138,255,0.28);background:rgba(108,138,255,0.08)">
+        <div class="card-title"><span class="dot" style="background:var(--accent)"></span>后台处理中</div>
+        <div style="font-size:15px;font-weight:600">任务编号：${escHtml(task?.id || '-')}</div>
+        ${task?.statusUrl ? `<div style="margin-top:8px;color:var(--text-muted);font-size:12px">${escHtml(task.statusUrl)}</div>` : ''}
+      </div>
+    `;
+  }
+  if (status === 'failed') {
+    return `
+      <div class="card" style="border-color:rgba(248,113,113,0.28);background:rgba(248,113,113,0.08)">
+        <div class="card-title"><span class="dot" style="background:var(--red)"></span>执行失败</div>
+        <div style="font-size:14px;color:var(--text-dim)">${escHtml(speech || '执行失败')}</div>
+      </div>
+    `;
+  }
+  return '';
 }
 
 function renderToolCard(tr, index) {

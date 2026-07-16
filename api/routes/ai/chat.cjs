@@ -69,7 +69,8 @@ function buildToolCardReply(toolResults) {
 // ── 工具函数: 调用 DeepSeek API ──
 async function fetchDeepSeek(messages, stream = false) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
-    const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    if (!apiKey) throw new Error('未配置 DEEPSEEK_API_KEY');
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
     const res = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
         headers: {

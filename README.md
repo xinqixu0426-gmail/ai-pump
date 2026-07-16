@@ -6,12 +6,12 @@
 
 | 层 | 技术 |
 |---|------|
-| 前端 | Next.js + Tailwind CSS 主业务前端；旧 React 18 + Vite + MUI 5 仅作回滚备用 |
+| 前端 | Next.js + Tailwind CSS 主业务前端 |
 | 后端 | Node.js + Express 5 + better-sqlite3 |
 | AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
 | 出图 | FreeCAD Python 脚本 + PDF 生成 |
 | 通讯 | 企业微信 Webhook + Siri 快捷指令 |
-| 移动端 | 微信小程序（语音助手 + Server-Driven UI） |
+| 移动端 | iPhone PWA（AI 调度入口）+ 微信小程序（语音助手 + Server-Driven UI） |
 
 ## 项目结构
 
@@ -36,10 +36,9 @@
 │           ├── voice.cjs     # 阿里云 ASR 语音识别
 │           ├── siri.cjs      # Siri 快捷指令入口
 │           └── executor.cjs  # AI Function Calling 执行器
-├── src/
-│   └── ...                   # 旧 Vite/MUI 前端，保留为回滚备用
 ├── apps/web-next/
 │   ├── app/                  # Next App Router 页面入口
+│   │   └── voice/            # iPhone PWA AI 调度入口
 │   ├── components/           # Next 业务组件与基础 UI
 │   └── lib/                  # Next 统一 API client 与页面规则
 ├── freecad/                  # FreeCAD 转子出图模板与 Python 脚本
@@ -63,24 +62,31 @@ npm start
 # Next 并行预览版（Next :3001 + 后端 :3002）
 npm run web-next:full
 
-# 旧 Vite 前端回滚备用（旧前端 :3000）
-npm run legacy:dev
-
 # 仅启动后端
 npm run api
 
 # 主前端生产构建（Next）
 npm run build
-
-# 同时验证旧前端和 Next 构建
-npm run build:all
 ```
 
 ### Next 主业务入口
 
-`apps/web-next/` 是 Next.js + Tailwind CSS 的主前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
+`apps/web-next/` 是 Next.js + Tailwind CSS 的唯一 Web 前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
 
-当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图和看板，作为日常主业务入口。AI 助手暂不迁移，`/ai` 导航保持禁用；旧 Vite/MUI 前端仅保留为回滚备用，不再作为新增功能入口。
+当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板和 AI 助手，作为唯一 Web 前端和日常主业务入口。
+
+### iPhone PWA 入口
+
+移动端 PWA 位于 `http://localhost:3000/voice`，生产环境同域访问 `/voice`。`public/manifest.json` 的 `start_url` 已指向该入口，显示模式为 `standalone`，适合添加到 iPhone 主屏幕后独立启动。
+
+安装方式：
+
+1. 用 iPhone Safari 打开生产环境 `/voice`。
+2. 点击分享按钮。
+3. 选择“添加到主屏幕”。
+4. 从主屏幕打开“水泵助手”。
+
+PWA 当前是基础 AI 助手，支持文字输入和轻量语音输入。语音只负责把录音提交到后端 `/api/voice/asr` 转成文字，之后仍复用 `/api/ai/chat` SSE 和 `/api/ai/confirm-tool` 写操作确认，不新增业务 API，也不暴露 DeepSeek 或 ASR 密钥。
 
 生产构建和启动：
 
@@ -89,7 +95,7 @@ npm run build
 npm run preview
 ```
 
-试运行和后续删除旧前端前，按 [`docs/next-migration-acceptance.md`](docs/next-migration-acceptance.md) 完成验收。
+当前业务流程、API、状态和 UI 规则见 [`docs/README.md`](docs/README.md)。
 
 ### Windows 转子出图依赖
 
@@ -126,6 +132,7 @@ New-Item -ItemType Directory -Force -Path $target | Out-Null
 ACCESS_PASSWORD=xxx           # 登录密码
 JWT_SECRET=xxx                # JWT 签名密钥
 DEEPSEEK_API_KEY=sk-xxx       # DeepSeek API Key
+DEEPSEEK_MODEL=deepseek-v4-flash # DeepSeek 模型
 ALI_ACCESS_KEY_ID=xxx         # 阿里云 ASR
 ALI_ACCESS_KEY_SECRET=xxx
 ALI_ASR_APPKEY=xxx            # 阿里云 ASR AppKey
@@ -143,7 +150,7 @@ INTERNAL_SECRET=xxx           # 内部 API 鉴权密钥
 ### 数据流
 
 ```
-前端 (proxyRequest) → Vite Proxy → Express API → better-sqlite3 → pump.db
+Next 前端 (proxyRequest/proxyFetch) → Next rewrites → Express API → better-sqlite3 → pump.db
 ```
 
 - 所有前端请求通过 `proxyRequest()` 统一处理，自动携带 Cookie、处理 401 跳转登录
@@ -199,7 +206,7 @@ nohup npm run web-next:start:primary > web-next.out.log 2>&1 &
 
 ### Next 并行预览入口
 
-如需不占用 `3000`，可以使用 `3001` 并行预览入口；旧前端保留为回滚备用：
+如需不占用 `3000`，可以使用 `3001` 并行预览入口：
 
 ```bash
 export PATH=/opt/homebrew/bin:$PATH
@@ -210,8 +217,6 @@ pkill -f 'next start -p 3001'
 nohup node api.cjs > api.out.log 2>&1 &
 nohup npm run web-next:start > web-next.out.log 2>&1 &
 ```
-
-回滚到旧前端时停止 `next start -p 3000` 或 `next start -p 3001`，再用 `npm run legacy:dev` 或旧构建产物临时恢复。
 
 ## API 端点
 
@@ -240,6 +245,7 @@ nohup npm run web-next:start > web-next.out.log 2>&1 &
 
 ### 独立认证接口
 - `POST /api/ai/chat` — AI 对话 (SSE)
-- `POST /api/siri/chat` — Siri 快捷指令（Token 认证）
+- `POST /api/siri/chat` — Siri 快捷指令统一入口（Token 认证，只传自然语言）
+- `POST /api/siri/confirm` — Siri 写操作二次确认入口
 - `POST /api/voice/asr` — 语音识别
 - `GET/POST /api/wecom/webhook` — 企微消息

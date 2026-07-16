@@ -1,6 +1,8 @@
 .env
 node_modules/
 dist/
+.next/
+.next-dev/
 .DS_Store
 *.log
 uploads/

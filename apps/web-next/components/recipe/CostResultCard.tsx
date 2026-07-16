@@ -24,8 +24,8 @@ const toneClasses: Record<NonNullable<CostResultCardProps['tone']>, string> = {
 export function CostResultCard({ label, value, note, tone = 'slate', badge, badgeTone = 'gray', className = '' }: CostResultCardProps) {
   return (
     <div className={clsx('rounded-md border p-3', toneClasses[tone], className)}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-medium text-slate-500">{label}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 text-xs font-medium text-slate-500">{label}</div>
         {badge ? <RecipeStatusBadge tone={badgeTone}>{badge}</RecipeStatusBadge> : null}
       </div>
       <div className="mt-1 text-lg font-semibold text-slate-900">{value}</div>

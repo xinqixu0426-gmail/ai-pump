@@ -1,31 +1,4 @@
-const { db, dbGetAllRecipes, orderRow, loadPartsData, calculateRecipeCost } = require('../../../db.cjs');
-const { resolveRecipeLockedUnitCost } = require('../../../services/orderCostLock.cjs');
-
-async function readApiJson(response, fallbackError) {
-    const result = await response.json();
-    if (!result.success) {
-        throw new Error(result.error || fallbackError);
-    }
-    return result.data ?? result;
-}
-
-async function postJson(internalFetch, url, body, fallbackError) {
-    const response = await internalFetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    return readApiJson(response, fallbackError);
-}
-
-async function patchJson(internalFetch, url, body, fallbackError) {
-    const response = await internalFetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    return readApiJson(response, fallbackError);
-}
+const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
 
 function parseJsonArray(value) {
     try {
@@ -36,14 +9,30 @@ function parseJsonArray(value) {
     }
 }
 
-function buildOrderItemFromRecipe(recipe, qty = 1) {
-    const { partsCache, partsByModel } = loadPartsData();
-    const unitCost = resolveRecipeLockedUnitCost(recipe, partsCache, partsByModel, calculateRecipeCost);
+async function loadRecipes(internalFetch) {
+    return getJson(internalFetch, '/api/recipes', '配方列表读取失败');
+}
+
+function findRecipe(recipes, recipeName) {
+    return (recipes || []).find(r => (r.name) === recipeName || r.id === Number(recipeName) || r.Id === Number(recipeName) || (r.name || '').includes(recipeName));
+}
+
+async function resolveRecipeUnitCost(internalFetch, recipe) {
+    const savedCost = Number(recipe?.savedTotalCost || 0);
+    if (Number.isFinite(savedCost) && savedCost > 0) return savedCost;
+    const recipeId = recipe?.id ?? recipe?.Id;
+    if (!recipeId) return 0;
+    const result = await getJson(internalFetch, `/api/recipes/${recipeId}/cost`, '配方成本计算失败');
+    return Number.parseFloat(result.totalCost || 0) || 0;
+}
+
+async function buildOrderItemFromRecipe(internalFetch, recipe, qty = 1) {
+    const unitCost = await resolveRecipeUnitCost(internalFetch, recipe);
     const profitMargin = 1.10;
     const unitPrice = Math.round(unitCost * profitMargin * 100) / 100;
     return {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-        recipeId: recipe.Id,
+        recipeId: recipe.id ?? recipe.Id,
         recipeName: recipe.name,
         spec: recipe.spec,
         qty,
@@ -66,6 +55,16 @@ async function buildOrderSavePayload(internalFetch, orderLike) {
     }, '生成订单保存草稿失败');
 }
 
+async function loadOrder(internalFetch, orderId) {
+    const id = Number.parseInt(orderId, 10);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    try {
+        return await getJson(internalFetch, `/api/orders/${id}`, '订单读取失败');
+    } catch {
+        return null;
+    }
+}
+
 async function saveExistingOrder(internalFetch, order, items, options = {}) {
     const payload = await buildOrderSavePayload(internalFetch, {
         customerName: order.customerName,
@@ -76,7 +75,7 @@ async function saveExistingOrder(internalFetch, order, items, options = {}) {
         purchaseList: options.purchaseList,
         todos: options.todos,
     });
-    return patchJson(internalFetch, `/api/orders/${order.Id}`, payload, '订单保存失败');
+    return patchJson(internalFetch, `/api/orders/${order.id ?? order.Id}`, payload, '订单保存失败');
 }
 
 async function executeOrderTool(toolName, args, internalFetch) {
@@ -89,12 +88,12 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
             let orderItems = [];
             if (items && items.length > 0) {
-                const allRecipes = dbGetAllRecipes();
+                const allRecipes = await loadRecipes(internalFetch);
 
                 for (const reqItem of items) {
-                    const recipe = allRecipes.find(r => (r.name) === reqItem.recipeName || r.Id === Number(reqItem.recipeName) || (r.name || '').includes(reqItem.recipeName));
+                    const recipe = findRecipe(allRecipes, reqItem.recipeName);
                     if (recipe) {
-                        orderItems.push(buildOrderItemFromRecipe(recipe, reqItem.qty || 1));
+                        orderItems.push(await buildOrderItemFromRecipe(internalFetch, recipe, reqItem.qty || 1));
                     }
                 }
             }
@@ -123,23 +122,18 @@ async function executeOrderTool(toolName, args, internalFetch) {
             const { orderId, recipeName, qty = 1 } = args;
 
             // 1. 获取配方
-            const allRecipes = dbGetAllRecipes();
-            const recipe = allRecipes.find(r => (r.name) === recipeName || r.Id === Number(recipeName) || (r.name || '').includes(recipeName));
+            const recipe = findRecipe(await loadRecipes(internalFetch), recipeName);
             if (!recipe) return { success: false, error: '找不到匹配的配方: ' + recipeName };
 
             // 2. 获取订单
-            let targetOrder;
-            try {
-                const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-                targetOrder = orderData.list?.[0];
-            } catch (e) { }
+            const targetOrder = await loadOrder(internalFetch, orderId);
             if (!targetOrder) return { success: false, error: '找不到订单ID: ' + orderId };
 
             // 3. 更新型号列表
             let itemsList = [];
             try { itemsList = JSON.parse(targetOrder.itemsJson || '[]'); } catch (e) { }
 
-            const item = buildOrderItemFromRecipe(recipe, qty);
+            const item = await buildOrderItemFromRecipe(internalFetch, recipe, qty);
             itemsList.push(item);
 
             try {
@@ -160,8 +154,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'get_order_detail': {
             const { orderId } = args;
-            const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-            const row = orderData.list?.[0];
+            const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
             let purchaseList = parseJsonArray(row.purchaseListJson);
@@ -172,7 +165,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
             return {
                 success: true,
                 order: {
-                    id: row.Id,
+                    id: row.id ?? row.Id,
                     customerName: row.customerName,
                     contractNo: row.contractNo || '',
                     remark: row.remark || '',
@@ -183,8 +176,8 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     totalCost: Math.round(totalCost * 100) / 100,
                     totalPrice: Math.round(totalPrice * 100) / 100,
                     totalProfit: Math.round((totalPrice - totalCost) * 100) / 100,
-                    createdAt: row.CreatedAt,
-                    updatedAt: row.UpdatedAt
+                    createdAt: row.createdAt ?? row.CreatedAt,
+                    updatedAt: row.updatedAt ?? row.UpdatedAt
                 }
             };
         }
@@ -193,12 +186,11 @@ async function executeOrderTool(toolName, args, internalFetch) {
             const { orderId, status } = args;
             const validStatuses = ['待采购', '采购中', '已完成'];
             if (!validStatuses.includes(status)) return { success: false, error: `无效状态: ${status}，可选: ${validStatuses.join('/')}` };
-            const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-            const row = orderData.list?.[0];
+            const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             const oldStatus = row.status || '待采购';
             try {
-                await postJson(internalFetch, `/api/orders/${row.Id}/status`, { status }, '订单状态更新失败');
+                await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, { status }, '订单状态更新失败');
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.customerName };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -207,8 +199,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'remove_recipe_from_order': {
             const { orderId, recipeName } = args;
-            const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-            const row = orderData.list?.[0];
+            const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
             const before = items.length;
@@ -224,8 +215,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'update_order_item': {
             const { orderId, recipeName, qty, unitPrice, profitMargin } = args;
-            const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-            const row = orderData.list?.[0];
+            const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
             const item = items.find(it => (it.recipeName || '').includes(recipeName));
@@ -249,8 +239,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'generate_purchase_list': {
             const { orderId } = args;
-            const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-            const row = orderData.list?.[0];
+            const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
             if (items.length === 0) return { success: false, error: '订单中没有任何配方，无法生成采购清单' };
@@ -263,7 +252,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     status: row.status || '待采购',
                     items,
                 });
-                await patchJson(internalFetch, `/api/orders/${row.Id}`, payload, '采购清单保存失败');
+                await patchJson(internalFetch, `/api/orders/${row.id ?? row.Id}`, payload, '采购清单保存失败');
                 const purchaseList = parseJsonArray(payload.purchaseListJson);
                 const todos = parseJsonArray(payload.todosJson);
                 return {
@@ -281,14 +270,9 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'delete_order': {
             const { orderId } = args;
-            const orderData = { list: [orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(parseInt(orderId)))].filter(Boolean) };
-            const row = orderData.list?.[0];
+            const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-            const response = await internalFetch(`/api/orders/${row.Id}`, { method: 'DELETE' });
-            const result = await response.json();
-            if (!result.success) {
-                return { success: false, error: result.error || '订单删除失败' };
-            }
+            await deleteJson(internalFetch, `/api/orders/${row.id ?? row.Id}`, '订单删除失败');
             return { success: true, message: `订单${orderId}已删除`, orderId, customerName: row.customerName };
         }
 

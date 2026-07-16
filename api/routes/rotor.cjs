@@ -51,6 +51,7 @@ const os = require('os');
 const FREECAD_BIN = process.env.FREECAD_BIN || (os.platform() === 'darwin' ? '/Applications/FreeCAD.app/Contents/MacOS/FreeCAD' : 'C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe');
 const WORKER_SCRIPT = path.join(__dirname, '../../freecad/worker.py');
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
 const BEARING_DB = {
     "6201": { dia: 12.0, depth: 10.0 },
@@ -123,7 +124,7 @@ function mergeRotorBaseParams(baseParams, parsed) {
 function callDeepSeek(messages, retries = 2) {
     return new Promise((resolve, reject) => {
         const payload = JSON.stringify({
-            model: 'deepseek-chat',
+            model: DEEPSEEK_MODEL,
             messages,
             temperature: 0.1,
             max_tokens: 200
@@ -741,7 +742,7 @@ router.post('/template-draft', (req, res) => {
             if (Number(variant.template_id) !== Number(templateId)) return res.status(400).json({ success: false, error: '型号变体不属于该模板' });
         }
 
-        const parts = db.prepare('SELECT model, category, notes FROM parts WHERE deleted_at IS NULL').all();
+        const parts = db.prepare('SELECT model, category, remark AS notes FROM parts WHERE deleted_at IS NULL').all();
         const draft = buildRotorTemplateDraft({ template, variant, parts });
         res.json({ success: true, data: { ...draft, templateId, variantId: variantId || null } });
     } catch (e) {

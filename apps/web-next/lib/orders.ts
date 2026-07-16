@@ -246,19 +246,19 @@ export function orderPurchaseProgress(order: Order) {
   return { needCount, purchasedCount };
 }
 
-export async function toggleOrderPurchaseItem(order: Order, item: Pick<PurchaseItem, 'model' | 'supplier'>): Promise<Order> {
+export async function toggleOrderPurchaseItem(order: Order, item: Pick<PurchaseItem, 'model' | 'supplier'>, purchased?: boolean): Promise<Order> {
   const result = await proxyRequest<ApiResponse<OrderRow>>(`/api/orders/${orderId(order)}/purchase-items/toggle`, {
     method: 'POST',
-    body: JSON.stringify({ model: item.model, supplier: item.supplier || '' }),
+    body: JSON.stringify({ model: item.model, supplier: item.supplier || '', ...(purchased === undefined ? {} : { purchased }) }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '采购项更新失败');
   return rowToOrder(result.data);
 }
 
-export async function toggleOrderTodoItem(order: Order, todoId: string): Promise<Order> {
+export async function toggleOrderTodoItem(order: Order, todoId: string, done?: boolean): Promise<Order> {
   const result = await proxyRequest<ApiResponse<OrderRow>>(`/api/orders/${orderId(order)}/todos/toggle`, {
     method: 'POST',
-    body: JSON.stringify({ todoId }),
+    body: JSON.stringify({ todoId, ...(done === undefined ? {} : { done }) }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '待办更新失败');
   return rowToOrder(result.data);

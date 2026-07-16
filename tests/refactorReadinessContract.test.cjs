@@ -26,14 +26,12 @@ function relative(filePath) {
     return path.relative(repoRoot, filePath).replace(/\\/g, '/');
 }
 
-test('重构准备契约：核心准备文档必须存在并被 README 引用', () => {
+test('文档契约：当前核心文档必须存在并被 README 引用', () => {
     const readme = readUtf8('docs/README.md');
     const requiredDocs = [
         'business-flow.md',
         'frontend-state-boundary.md',
         'ui-refactor-guidelines.md',
-        'next-migration-acceptance.md',
-        'production-inspection-ai-api-checklist.md',
     ];
 
     for (const doc of requiredDocs) {
@@ -42,55 +40,59 @@ test('重构准备契约：核心准备文档必须存在并被 README 引用', 
     }
 });
 
-test('重构准备契约：生产巡检清单必须覆盖页面、AI 动作和问题归类', () => {
-    const doc = readUtf8('docs/production-inspection-ai-api-checklist.md');
+test('文档契约：迁移过程文档和旧前端回滚说明不得保留', () => {
+    const removedDocs = [
+        'docs/next-migration-acceptance.md',
+        'docs/ai-api-executor-migration-plan.md',
+        'docs/business-logic-refactor-status.md',
+        'docs/cost-rules.md',
+    ];
 
-    assert.match(doc, /页面巡检清单/);
-    assert.match(doc, /AI 可调用业务动作清单/);
-    assert.match(doc, /问题归类规则/);
-    assert.match(doc, /配方 Recipes/);
-    assert.match(doc, /订单 Orders/);
-    assert.match(doc, /暂不建议开放给 AI 的动作/);
-    assert.match(doc, /API 缺口/);
+    for (const doc of removedDocs) {
+        assert.equal(fs.existsSync(path.join(repoRoot, doc)), false, `${doc} should be removed`);
+    }
+
+    const docs = walkFiles(path.join(repoRoot, 'docs'), (filePath) => /\.md$/.test(filePath))
+        .map((filePath) => readUtf8(relative(filePath)))
+        .join('\n');
+    const readme = readUtf8('README.md') + '\n' + readUtf8('docs/README.md');
+
+    assert.doesNotMatch(readme, /next-migration-acceptance|ai-api-executor-migration-plan|legacy:dev|回滚备用/);
+    assert.doesNotMatch(docs, /Next 迁移验收清单|AI 调用 API 改造计划|正式 UI\/交互重构前|正式 UI 重构前/);
 });
 
-test('重构准备契约：Next 迁移验收清单必须冻结覆盖范围和启动方式', () => {
-    const doc = readUtf8('docs/next-migration-acceptance.md');
+test('文档契约：Next 当前启动和生产脚本保持可用', () => {
     const packageJson = JSON.parse(readUtf8('package.json'));
+    const rootReadme = readUtf8('README.md');
 
     assert.equal(packageJson.scripts['web-next:full'], 'concurrently "npm run api" "npm run web-next:dev"');
     assert.equal(packageJson.scripts['web-next:prod'], 'concurrently "npm run start:prod" "npm run web-next:start"');
-    assert.match(doc, /npm run web-next:full/);
-    assert.match(doc, /web-next:prod/);
-    assert.match(doc, /\/dashboard/);
-    assert.match(doc, /\/rotor/);
-    assert.match(doc, /\/ai[\s\S]*暂未迁移/);
-    assert.match(doc, /暂留差异/);
-    assert.match(doc, /浏览器验收/);
-    assert.match(doc, /切换判定/);
+    assert.match(rootReadme, /npm start/);
+    assert.match(rootReadme, /npm run web-next:full/);
+    assert.match(rootReadme, /npm run build/);
 });
 
-test('重构准备契约：AI 暂不迁移时 Next 导航必须保持禁用', () => {
+test('文档契约：AI 文本助手在 Next 中启用导航', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
-    const acceptance = readUtf8('docs/next-migration-acceptance.md');
+    const docsReadme = readUtf8('docs/README.md');
 
-    assert.match(shell, /\{\s*href: '\/ai',\s*label: 'AI',\s*icon: Bot,\s*enabled: false\s*\}/);
-    assert.ok(!fs.existsSync(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx')), 'Next AI page should not exist while AI migration is deferred');
-    assert.match(acceptance, /AI 助手：暂不迁移/);
+    assert.match(shell, /\{\s*href: '\/ai',\s*label: 'AI',\s*icon: Bot,\s*enabled: true\s*\}/);
+    assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx')), 'Next AI page should exist once AI navigation is enabled');
+    assert.match(docsReadme, /AI executor 已通过内部 API client 调用标准 API/);
 });
 
-test('重构准备契约：前端状态边界必须冻结全局状态、页面状态和刷新规则', () => {
+test('文档契约：前端状态边界必须约束全局状态、页面状态和刷新规则', () => {
     const doc = readUtf8('docs/frontend-state-boundary.md');
 
-    assert.match(doc, /Zustand/);
+    assert.match(doc, /全局状态/);
     assert.match(doc, /页面本地状态/);
-    assert.match(doc, /fetchXxx\(true\)/);
+    assert.match(doc, /重新拉取对应资源/);
     assert.match(doc, /派生数据/);
     assert.match(doc, /跨资源刷新规则/);
     assert.match(doc, /禁止全局乐观写入/);
 });
 
-test('重构准备契约：UI 重构约束必须冻结简洁风格、动效和业务边界', () => {
+test('文档契约：UI 约束必须覆盖简洁风格、动效和业务边界', () => {
     const doc = readUtf8('docs/ui-refactor-guidelines.md');
 
     assert.match(doc, /motion-primitives/);
@@ -101,11 +103,11 @@ test('重构准备契约：UI 重构约束必须冻结简洁风格、动效和�
     assert.match(doc, /业务不可变边界/);
 });
 
-test('重构准备契约：业务流程文档必须链接状态和 UI 约束', () => {
+test('文档契约：业务流程文档必须链接状态和 UI 约束', () => {
     const doc = readUtf8('docs/business-flow.md');
 
-    assert.match(doc, /\[前端状态边界冻结说明\]\(\.\/frontend-state-boundary\.md\)/);
-    assert.match(doc, /\[UI\/交互重构约束\]\(\.\/ui-refactor-guidelines\.md\)/);
+    assert.match(doc, /\[前端状态边界\]\(\.\/frontend-state-boundary\.md\)/);
+    assert.match(doc, /\[UI\/交互约束\]\(\.\/ui-refactor-guidelines\.md\)/);
 });
 
 test('Next UI 契约：按钮链接必须走基础组件且不得引入 MUI', () => {
@@ -314,7 +316,7 @@ test('Next UI 契约：订单新增产品保存成本为空时必须后端兜底
 test('Next UI 契约：线圈页必须保留材质默认单价和规格组批量改单价', () => {
     const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
     const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
-    const acceptance = readUtf8('docs/next-migration-acceptance.md');
+    const docsReadme = readUtf8('docs/README.md');
 
     assert.match(coilsView, /实时市场指标/);
     assert.match(coilsView, /同步市场指标/);
@@ -334,10 +336,9 @@ test('Next UI 契约：线圈页必须保留材质默认单价和规格组批量
     assert.match(coilsLib, /\/api\/market-indicators/);
     assert.match(coilsLib, /updateMarketIndicators/);
     assert.match(coilsLib, /\/api\/market-indicators\/update/);
-    assert.match(acceptance, /实时市场指标/);
-    assert.match(acceptance, /同步铜价\/铝线基数\/汇率/);
-    assert.match(acceptance, /材质默认单价配置/);
-    assert.match(acceptance, /规格\+材质组批量改单价/);
+    assert.match(docsReadme, /实时市场指标/);
+    assert.match(docsReadme, /材质默认单价/);
+    assert.match(docsReadme, /规格组批量改单价/);
 });
 
 test('Next UI 契约：报价转订单必须先预览后确认', () => {

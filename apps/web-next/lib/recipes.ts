@@ -126,6 +126,7 @@ export type RecipeBomDraftResult = {
     material?: string;
     unitPrice?: number;
     wireWeight?: number;
+    wireGauge?: string;
     source?: string;
     formula?: string;
     defaultCapacitor?: string;

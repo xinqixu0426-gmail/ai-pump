@@ -3,20 +3,28 @@ const router = express.Router();
 const crypto = require('crypto');
 const path = require('path');
 const { processAiChat } = require('./chat.cjs');
+const { executeToolCall } = require('./executor.cjs');
+const { limitText, classifySiriResult, buildSiriSpeech, firstBackgroundTask } = require('./siriResponse.cjs');
 
 const SIRI_TOKEN = process.env.SIRI_API_TOKEN || '';
+const PUBLIC_DIR = path.join(__dirname, '..', '..', '..', 'public');
 
 // ── Siri 结果存储（内存，5分钟 TTL） ──
 const siriResults = new Map();
+const siriConfirmations = new Map();
 const SIRI_RESULT_TTL = 5 * 60 * 1000; // 5 minutes
 
 // 每分钟清理过期结果
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
     const now = Date.now();
     for (const [id, entry] of siriResults) {
         if (now - entry.createdAt > SIRI_RESULT_TTL) siriResults.delete(id);
     }
+    for (const [id, entry] of siriConfirmations) {
+        if (now - entry.createdAt > SIRI_RESULT_TTL) siriConfirmations.delete(id);
+    }
 }, 60000);
+if (typeof cleanupTimer.unref === 'function') cleanupTimer.unref();
 
 /**
  * Siri 鉴权中间件
@@ -33,11 +41,11 @@ function siriAuth(req, res, next) {
 }
 
 // ── Siri 结果页面静态文件 + API ──
-router.use('/public', require('express').static(path.join(__dirname, '..', '..', 'public')));
+router.use('/public', require('express').static(PUBLIC_DIR));
 
 // 重定向: /siri-result?id=xxx → /public/siri-result.html?id=xxx
 router.get('/siri-result', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'siri-result.html'));
+    res.sendFile(path.join(PUBLIC_DIR, 'siri-result.html'));
 });
 
 // 获取存储的 Siri 结果
@@ -48,6 +56,10 @@ router.get('/api/siri/result/:id', (req, res) => {
     }
     res.json({ success: true, data: entry.data });
 });
+
+function buildResultUrl(req, resultId) {
+    return `${req.protocol}://${req.get('host')}/siri-result?id=${resultId}`;
+}
 
 /**
  * POST /api/siri/chat
@@ -101,7 +113,7 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
 
         // ── PumpDB 项目：本地处理 ──
         // 为 Siri 场景增加 system prompt 后缀：要求首句输出口语化摘要
-        const siriPromptSuffix = `\n\n【当前为 Siri 语音模式】\n回复规则调整：\n- 你的回复会被 Siri 朗读给用户听，所以必须口语化、简洁\n- 回复的第一句话必须是对结果的一句话总结（会被提取为 speech 字段）\n- 不要使用 markdown 格式、表格、列表符号\n- 金额直接说"xxx元"，不要用特殊符号\n- 如果有多个数据，只说最关键的2-3个数字`;
+        const siriPromptSuffix = `\n\n【当前为 Siri 快捷指令模式】\n回复规则调整：\n- 回复必须非常简短，优先控制在1句话，最多2句话\n- 第一句话会被 Siri 朗读，必须直接给结论\n- 不要使用 markdown、表格、列表符号或长解释\n- 结构化明细会由系统页面展示，你不要重复逐条列出\n- 金额直接说"xxx元"，不要用特殊符号\n- 如果有多个数据，只说最关键的1-2个数字\n- 如果用户要求返回N条但实际不足N条，说"当前只有X条"，不要说"查不到"\n- 如果用户明确要求新增、修改、删除、生成采购清单等写操作，且参数足够明确，必须调用对应写工具，不要只用自然语言询问确认；后端会自动返回确认状态\n- 只有对象不明确或参数不足时，才先查询候选项并让用户补充`;
 
         let finalContent = '';
         let toolResults = [];
@@ -114,28 +126,116 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
             speech = aiData.speech;
         } catch (err) {
             console.error('[Siri] DeepSeek API 错误:', err);
-            return res.json({ success: false, speech: 'AI服务暂时不可用，请稍后再试', error: err.message });
+            return res.json({ success: false, status: 'failed', speech: 'AI服务暂时不可用。', error: err.message });
         }
+
+        const classified = classifySiriResult(toolResults);
+        const pendingConfirmation = classified.pending || null;
+        const confirmationId = pendingConfirmation ? crypto.randomUUID() : '';
+        if (pendingConfirmation) {
+            siriConfirmations.set(confirmationId, {
+                createdAt: Date.now(),
+                toolName: pendingConfirmation.result.confirmation.toolName,
+                args: pendingConfirmation.result.confirmation.args || {},
+                sourceText: text,
+            });
+        }
+
+        speech = buildSiriSpeech({
+            status: classified.status,
+            aiSpeech: speech,
+            pending: pendingConfirmation,
+            failed: classified.failed,
+            task: classified.task,
+        });
+        finalContent = limitText(finalContent || speech, 180);
 
         // 保存结果并生成 URL
         const resultId = crypto.randomUUID();
         siriResults.set(resultId, {
             createdAt: Date.now(),
-            data: { speech, content: finalContent, toolResults, query: text, timestamp: new Date().toISOString() }
+            data: {
+                status: classified.status,
+                speech,
+                content: finalContent,
+                toolResults,
+                query: text,
+                timestamp: new Date().toISOString(),
+                confirmationId: confirmationId || undefined,
+                confirmation: pendingConfirmation?.result?.confirmation,
+                task: classified.task,
+            }
         });
-        const resultUrl = `${req.protocol}://${req.get('host')}/siri-result?id=${resultId}`;
+        const resultUrl = buildResultUrl(req, resultId);
 
         console.log(`[Siri] 完成, speech="${speech}", 工具调用: ${toolResults.length} 次, resultUrl=${resultUrl}`);
         res.json({
-            success: true,
+            success: classified.status !== 'failed',
+            status: classified.status,
             speech,
             content: finalContent,
             toolResults,
             resultUrl,
+            confirmationId: confirmationId || undefined,
+            confirmation: pendingConfirmation?.result?.confirmation,
+            task: classified.task,
         });
     } catch (err) {
         console.error('[Siri] 错误:', err.message);
-        res.json({ success: false, speech: '处理出错了，请再试一次', error: err.message });
+        res.json({ success: false, status: 'failed', speech: '处理出错了。', error: err.message });
+    }
+});
+
+router.post('/api/siri/confirm', siriAuth, async (req, res) => {
+    try {
+        const { confirmationId, confirm } = req.body || {};
+        if (!confirmationId) {
+            return res.status(400).json({ success: false, status: 'failed', speech: '缺少确认编号。', error: '缺少 confirmationId' });
+        }
+        if (confirm !== true) {
+            return res.json({ success: false, status: 'cancelled', speech: '已取消。', error: '用户取消执行' });
+        }
+
+        const pending = siriConfirmations.get(confirmationId);
+        if (!pending) {
+            return res.status(404).json({ success: false, status: 'failed', speech: '确认已过期。', error: '确认不存在或已过期' });
+        }
+
+        const result = await executeToolCall(pending.toolName, pending.args || {}, { allowWrite: true });
+        siriConfirmations.delete(confirmationId);
+
+        const failed = result?.success === false;
+        const task = firstBackgroundTask([{ name: pending.toolName, result }]);
+        const status = failed ? 'failed' : task ? 'processing' : 'success';
+        const speech = failed ? buildSiriSpeech({ status, failed: { result } }) : task ? buildSiriSpeech({ status, task }) : '已执行。';
+        const toolResults = [{ name: pending.toolName, view_type: 'action_result', result }];
+
+        const resultId = crypto.randomUUID();
+        siriResults.set(resultId, {
+            createdAt: Date.now(),
+            data: {
+                status,
+                speech,
+                content: speech,
+                toolResults,
+                query: pending.sourceText,
+                timestamp: new Date().toISOString(),
+                task,
+            }
+        });
+
+        res.json({
+            success: !failed,
+            status,
+            speech,
+            content: speech,
+            toolResults,
+            resultUrl: buildResultUrl(req, resultId),
+            task,
+        });
+    } catch (err) {
+        console.error('[Siri] 确认执行错误:', err.message);
+        res.status(500).json({ success: false, status: 'failed', speech: '确认执行失败。', error: err.message });
     }
 });
 

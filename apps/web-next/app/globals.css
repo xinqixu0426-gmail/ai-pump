@@ -29,11 +29,51 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
 ::selection {
   background: #111827;
   color: #fff;
+}
+
+.voice-assistant-root {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #f7f8fa;
+}
+
+@supports (height: 100svh) {
+  .voice-assistant-root {
+    height: 100svh;
+    min-height: 100svh;
+  }
+}
+
+@supports (height: 100dvh) {
+  .voice-assistant-root {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+}
+
+.voice-assistant-shell {
+  height: 100%;
+  min-height: 0;
+  padding-top: max(env(safe-area-inset-top), 12px);
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}
+
+.voice-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.voice-input-sticky {
+  padding-bottom: max(env(safe-area-inset-bottom), 12px);
 }
