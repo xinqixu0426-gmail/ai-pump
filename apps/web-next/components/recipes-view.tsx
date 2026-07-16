@@ -32,6 +32,7 @@ import {
   deleteRecipe,
   deleteTemplate,
   getCoilSpecOptions,
+  getRecipeCurrentCost,
   getRecipeDataset,
   getRecipeLaborTotal,
   getRecipeSavedTotal,
@@ -52,6 +53,7 @@ import {
   type PumpShellTemplate,
   type Recipe,
   type RecipeBomDraftResult,
+  type RecipeCurrentCostResult,
   type RecipePart,
   type RecipeProductionDraft,
   type ShellComponentInput,
@@ -124,6 +126,18 @@ function StatCard({ value, label }: { value: string; label: string }) {
       <div className="mt-1 text-xs text-muted">{label}</div>
     </div>
   );
+}
+
+function dateTimeShort(value: string | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 type RecipeFormState = {
@@ -784,6 +798,9 @@ export function RecipesView() {
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [detailRecipe, setDetailRecipe] = useState<Recipe | null>(null);
+  const [detailCurrentCost, setDetailCurrentCost] = useState<RecipeCurrentCostResult | null>(null);
+  const [detailCurrentCostLoading, setDetailCurrentCostLoading] = useState(false);
+  const [detailCurrentCostError, setDetailCurrentCostError] = useState<string | null>(null);
   const [produceQty, setProduceQty] = useState('1');
   const [productionDraft, setProductionDraft] = useState<RecipeProductionDraft | null>(null);
   const [productionLoading, setProductionLoading] = useState(false);
@@ -908,6 +925,33 @@ export function RecipesView() {
     return detailRecipe ? validRecipeParts(parseRecipePartsJson(detailRecipe.partsJson)) : [];
   }, [detailRecipe]);
 
+  useEffect(() => {
+    if (!detailRecipe) {
+      setDetailCurrentCost(null);
+      setDetailCurrentCostError(null);
+      setDetailCurrentCostLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDetailCurrentCostLoading(true);
+    setDetailCurrentCostError(null);
+    void getRecipeCurrentCost(detailRecipe.id)
+      .then((result) => {
+        if (!cancelled) setDetailCurrentCost(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setDetailCurrentCostError(err instanceof Error ? err.message : '当前成本读取失败');
+      })
+      .finally(() => {
+        if (!cancelled) setDetailCurrentCostLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailRecipe]);
+
   const detailTechnicalEntries = useMemo(() => {
     if (!detailRecipe) return [];
     const technicalData = parseTechnicalDataJson(detailRecipe.technicalDataJson);
@@ -928,6 +972,35 @@ export function RecipesView() {
   }, [detailRecipe]);
 
   const detailSavedTotal = detailRecipe ? getRecipeSavedTotal(detailRecipe) : null;
+  const detailCurrentTotal = detailCurrentCost ? Number(detailCurrentCost.totalCost || 0) : null;
+  const detailCostDiff = detailCurrentTotal != null && detailSavedTotal != null
+    ? detailCurrentTotal - detailSavedTotal
+    : null;
+  const detailSavedAt = detailRecipe ? dateTimeShort(detailRecipe.updatedAt || detailRecipe.createdAt) : '-';
+  const detailCurrentAt = detailCurrentCost ? dateTimeShort(detailCurrentCost.fetchedAt) : '-';
+  const detailPartCompareRows = useMemo(() => {
+    return detailParts.map((part, index) => {
+      const current = detailCurrentCost?.details?.[index];
+      const snapshotPrice = part.snapshotPrice != null ? Number(part.snapshotPrice) : null;
+      const qty = Number(part.qty || current?.qty || 1);
+      const savedSubtotal = snapshotPrice != null ? snapshotPrice * qty : null;
+      const currentPrice = current?.price != null ? Number(current.price) : null;
+      const currentSubtotal = current?.subtotal != null
+        ? Number(current.subtotal)
+        : (currentPrice != null ? currentPrice * qty : null);
+      const diff = currentSubtotal != null && savedSubtotal != null ? currentSubtotal - savedSubtotal : null;
+      return {
+        part,
+        current,
+        qty,
+        snapshotPrice,
+        currentPrice,
+        savedSubtotal,
+        currentSubtotal,
+        diff,
+      };
+    });
+  }, [detailCurrentCost, detailParts]);
 
   const templateRows = useMemo(() => {
     return templates.map((template) => {
@@ -2137,7 +2210,7 @@ export function RecipesView() {
         </FadePanel>
       ) : null}
 
-      <SlideOver open={Boolean(detailRecipe)} onClose={() => setDetailRecipe(null)}>
+      <SlideOver open={Boolean(detailRecipe)} onClose={() => setDetailRecipe(null)} size="workspace">
         {detailRecipe ? (
           <div className="flex min-h-full flex-col">
             <div className="flex items-start justify-between gap-4 border-b border-line p-5">
@@ -2157,14 +2230,28 @@ export function RecipesView() {
             </div>
 
             <div className="flex-1 space-y-5 p-5">
-              <section className="grid gap-3 md:grid-cols-3">
+              <section className="grid gap-3 md:grid-cols-5">
                 <div className="rounded-panel border border-line p-4">
                   <div className="text-xs text-muted">保存成本</div>
                   <div className="mt-1 text-xl font-semibold text-ink">{detailSavedTotal ? money(detailSavedTotal) : '-'}</div>
+                  <div className="mt-1 text-xs text-muted">保存 {detailSavedAt}</div>
+                </div>
+                <div className="rounded-panel border border-line p-4">
+                  <div className="text-xs text-muted">当前参考</div>
+                  <div className="mt-1 text-xl font-semibold text-ink">{detailCurrentTotal != null ? money(detailCurrentTotal) : '-'}</div>
+                  <div className="mt-1 text-xs text-muted">{detailCurrentCostLoading ? '读取中' : `读取 ${detailCurrentAt}`}</div>
+                </div>
+                <div className="rounded-panel border border-line p-4">
+                  <div className="text-xs text-muted">成本差额</div>
+                  <div className={`mt-1 text-xl font-semibold ${Number(detailCostDiff || 0) > 0 ? 'text-rose-700' : Number(detailCostDiff || 0) < 0 ? 'text-emerald-700' : 'text-ink'}`}>
+                    {detailCostDiff != null ? money(detailCostDiff) : '-'}
+                  </div>
+                  <div className="mt-1 text-xs text-muted">当前 - 保存</div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
                   <div className="text-xs text-muted">BOM 项数</div>
                   <div className="mt-1 text-xl font-semibold text-ink">{detailParts.length}</div>
+                  <div className="mt-1 text-xs text-muted">{detailCurrentCost?.missingParts?.length ? `${detailCurrentCost.missingParts.length} 项缺当前价` : '当前价已匹配'}</div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
                   <div className="text-xs text-muted">泵壳模板</div>
@@ -2173,6 +2260,13 @@ export function RecipesView() {
                   </div>
                 </div>
               </section>
+
+              {detailCurrentCostError ? (
+                <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <CircleAlert size={16} />
+                  {detailCurrentCostError}
+                </div>
+              ) : null}
 
               <section className="rounded-panel border border-line">
                 <div className="border-b border-line p-4 text-sm font-semibold text-ink">关键参数</div>
@@ -2205,8 +2299,8 @@ export function RecipesView() {
                 {detailParts.length === 0 ? (
                   <div className="p-5 text-sm text-muted">暂无 BOM 快照</div>
                 ) : (
-                  <div className="max-h-72 overflow-auto">
-                    <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                  <div className="max-h-80 overflow-auto">
+                    <table className="min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
                       <thead className="sticky top-0 bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                         <tr>
                           <th className="border-b border-line px-4 py-3">名称</th>
@@ -2214,18 +2308,33 @@ export function RecipesView() {
                           <th className="border-b border-line px-4 py-3">供应商</th>
                           <th className="border-b border-line px-4 py-3 text-right">数量</th>
                           <th className="border-b border-line px-4 py-3 text-right">快照价</th>
+                          <th className="border-b border-line px-4 py-3 text-right">当前价</th>
+                          <th className="border-b border-line px-4 py-3 text-right">快照小计</th>
+                          <th className="border-b border-line px-4 py-3 text-right">当前小计</th>
+                          <th className="border-b border-line px-4 py-3 text-right">差额</th>
+                          <th className="border-b border-line px-4 py-3">当前来源</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {detailParts.map((part, index) => (
-                          <tr key={`${part.model}-${part.supplier || ''}-${index}`} className="transition-colors duration-150 hover:bg-slate-50">
-                            <td className="border-b border-line px-4 py-3 font-medium text-ink">{part.name || part.model || '-'}</td>
-                            <td className="border-b border-line px-4 py-3 text-muted">{part.model || '-'}</td>
-                            <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
-                            <td className="border-b border-line px-4 py-3 text-right text-muted">{part.qty || 1}</td>
-                            <td className="border-b border-line px-4 py-3 text-right text-muted">{part.snapshotPrice != null ? money(Number(part.snapshotPrice)) : '-'}</td>
-                          </tr>
-                        ))}
+                        {detailPartCompareRows.map((row, index) => {
+                          const part = row.part;
+                          return (
+                            <tr key={`${part.model}-${part.supplier || ''}-${index}`} className="transition-colors duration-150 hover:bg-slate-50">
+                              <td className="border-b border-line px-4 py-3 font-medium text-ink">{part.name || part.model || '-'}</td>
+                              <td className="border-b border-line px-4 py-3 text-muted">{part.model || '-'}</td>
+                              <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
+                              <td className="border-b border-line px-4 py-3 text-right text-muted">{row.qty || 1}</td>
+                              <td className="border-b border-line px-4 py-3 text-right text-muted">{row.snapshotPrice != null ? money(row.snapshotPrice) : '-'}</td>
+                              <td className="border-b border-line px-4 py-3 text-right text-muted">{row.currentPrice != null ? money(row.currentPrice) : '-'}</td>
+                              <td className="border-b border-line px-4 py-3 text-right text-muted">{row.savedSubtotal != null ? money(row.savedSubtotal) : '-'}</td>
+                              <td className="border-b border-line px-4 py-3 text-right text-muted">{row.currentSubtotal != null ? money(row.currentSubtotal) : '-'}</td>
+                              <td className={`border-b border-line px-4 py-3 text-right font-medium ${Number(row.diff || 0) > 0 ? 'text-rose-700' : Number(row.diff || 0) < 0 ? 'text-emerald-700' : 'text-muted'}`}>
+                                {row.diff != null ? money(row.diff) : '-'}
+                              </td>
+                              <td className="border-b border-line px-4 py-3 text-muted">{row.current?.source || '-'}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

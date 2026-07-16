@@ -20,6 +20,27 @@ export type RecipePart = {
   cableAccessoryType?: string;
 };
 
+export type RecipeCurrentCostDetail = {
+  name?: string;
+  model?: string;
+  supplier?: string;
+  price?: string | number;
+  qty?: string | number;
+  subtotal?: string | number;
+  source?: string;
+};
+
+export type RecipeCurrentCostResult = {
+  recipeId: number;
+  recipeName?: string;
+  recipeSpec?: string;
+  totalCost: number;
+  itemCount: number;
+  details: RecipeCurrentCostDetail[];
+  missingParts: string[];
+  fetchedAt: string;
+};
+
 export type CableAccessoryType = 'standard' | 'xinjie';
 export type SurfaceTreatmentMode = 'none' | 'painting' | 'custom';
 
@@ -571,6 +592,29 @@ export async function previewRecipeCostDraft(input: {
   });
   if (!result.success || !result.data) throw new Error(result.error || '生成配方成本快照失败');
   return result.data;
+}
+
+export async function getRecipeCurrentCost(recipeId: number): Promise<RecipeCurrentCostResult> {
+  const result = await proxyRequest<ApiResponse<{
+    recipeId?: number | string;
+    recipeName?: string;
+    recipeSpec?: string;
+    totalCost?: string | number;
+    itemCount?: number;
+    details?: RecipeCurrentCostDetail[];
+    missingParts?: string[];
+  }>>(`/api/recipes/${recipeId}/cost`);
+  if (!result.success || !result.data) throw new Error(result.error || '配方当前成本计算失败');
+  return {
+    recipeId,
+    recipeName: result.data.recipeName,
+    recipeSpec: result.data.recipeSpec,
+    totalCost: Number(result.data.totalCost) || 0,
+    itemCount: Number(result.data.itemCount) || 0,
+    details: Array.isArray(result.data.details) ? result.data.details : [],
+    missingParts: Array.isArray(result.data.missingParts) ? result.data.missingParts : [],
+    fetchedAt: new Date().toISOString(),
+  };
 }
 
 export async function checkRecipeProduction(recipeId: number, produceQty: number): Promise<RecipeProductionDraft> {
