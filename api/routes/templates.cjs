@@ -43,13 +43,14 @@ const TEMPLATE_ALIASES = {
     packingWage: 'packing_wage',
     paintingWage: 'painting_wage',
     surfaceTreatmentMode: 'surface_treatment_mode',
+    surfaceTreatmentCost: 'surface_treatment_cost',
     costMode: 'cost_mode',
     bundleCost: 'bundle_cost',
 };
 
 function templateBodyToDb(body) {
     const updates = {};
-    for (const f of ['shell_model', 'description', 'parts_json', 'shell_components_json', 'rotor_params_json', 'assembly_wage', 'packing_wage', 'painting_wage', 'surface_treatment_mode', 'cost_mode', 'bundle_cost']) {
+    for (const f of ['shell_model', 'description', 'parts_json', 'shell_components_json', 'rotor_params_json', 'assembly_wage', 'packing_wage', 'painting_wage', 'surface_treatment_mode', 'surface_treatment_cost', 'cost_mode', 'bundle_cost']) {
         if (body[f] !== undefined) updates[f] = body[f];
     }
     for (const [camel, snake] of Object.entries(TEMPLATE_ALIASES)) {
@@ -132,7 +133,7 @@ router.get('/:id/default-recipe', (req, res) => {
                     packingWage: tpl.packingWage || 0,
                     paintingWage: tpl.paintingWage,
                     surfaceTreatmentMode: normalizeSurfaceTreatmentMode(tpl.surfaceTreatmentMode, tpl.paintingWage),
-                    surfaceTreatmentCost: tpl.paintingWage != null ? tpl.paintingWage : 0,
+                    surfaceTreatmentCost: tpl.surfaceTreatmentCost || 0,
                 },
                 parts,
                 rotorParams,
@@ -158,7 +159,7 @@ router.post('/:id/apply', (req, res) => {
             packingWage: base.packingWage ?? tpl.packingWage ?? 0,
             paintingWage: base.paintingWage ?? tpl.paintingWage ?? null,
             surfaceTreatmentMode: base.surfaceTreatmentMode ?? normalizeSurfaceTreatmentMode(tpl.surfaceTreatmentMode, tpl.paintingWage),
-            surfaceTreatmentCost: base.surfaceTreatmentCost ?? (tpl.paintingWage != null ? tpl.paintingWage : 0),
+            surfaceTreatmentCost: base.surfaceTreatmentCost ?? tpl.surfaceTreatmentCost ?? 0,
         };
         res.json({ success: true, data: { template: tpl, recipeDraft: applied, parts, rotorParams: parseJson(tpl.rotorParamsJson, {}) } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -175,7 +176,7 @@ router.get('/:id/recipes', (req, res) => {
 
 router.post('/', (req, res) => {
     try {
-        const { shell_model, description, parts_json, shell_components_json, rotor_params_json, assembly_wage, packing_wage, painting_wage, surface_treatment_mode, cost_mode, bundle_cost } = templateBodyToDb(req.body);
+        const { shell_model, description, parts_json, shell_components_json, rotor_params_json, assembly_wage, packing_wage, painting_wage, surface_treatment_mode, surface_treatment_cost, cost_mode, bundle_cost } = templateBodyToDb(req.body);
         if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
         const now = new Date().toISOString();
         const json = normalizeTemplateJsonFields({ parts_json, shell_components_json, rotor_params_json });
@@ -190,6 +191,7 @@ router.post('/', (req, res) => {
             packing_wage: parseNonNegativeNumber(packing_wage, 'packing_wage'),
             painting_wage: optionalNonNegative(painting_wage, 'painting_wage'),
             surface_treatment_mode: normalizeSurfaceTreatmentMode(surface_treatment_mode, painting_wage),
+            surface_treatment_cost: surface_treatment_mode === 'none' ? 0 : parseNonNegativeNumber(surface_treatment_cost ?? painting_wage, 'surface_treatment_cost'),
             cost_mode: mode,
             bundle_cost: mode === 'bundle' ? parseNonNegativeNumber(bundle_cost, 'bundle_cost') : 0,
             created_at: now,
@@ -218,6 +220,7 @@ router.patch('/:id', (req, res) => {
         if (b.packing_wage !== undefined) updates.packing_wage = parseNonNegativeNumber(b.packing_wage, 'packing_wage');
         if (b.painting_wage !== undefined) updates.painting_wage = optionalNonNegative(b.painting_wage, 'painting_wage');
         if (b.surface_treatment_mode !== undefined) updates.surface_treatment_mode = normalizeSurfaceTreatmentMode(b.surface_treatment_mode, b.painting_wage);
+        if (b.surface_treatment_cost !== undefined) updates.surface_treatment_cost = parseNonNegativeNumber(b.surface_treatment_cost, 'surface_treatment_cost');
         if (b.cost_mode !== undefined) updates.cost_mode = b.cost_mode === 'bundle' ? 'bundle' : 'components';
         if (b.bundle_cost !== undefined) updates.bundle_cost = parseNonNegativeNumber(b.bundle_cost, 'bundle_cost');
         safeUpdate('pump_shell_templates', id, updates);

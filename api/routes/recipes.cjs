@@ -375,7 +375,7 @@ router.post('/model-variant-draft', (req, res) => {
             packingWage: template?.packingWage || 0,
             paintingWage,
             surfaceTreatmentMode: template?.surfaceTreatmentMode || (paintingWage != null ? 'painting' : 'none'),
-            surfaceTreatmentCost: paintingWage != null ? Number(paintingWage) || 0 : 0,
+            surfaceTreatmentCost: template?.surfaceTreatmentCost ?? (paintingWage != null ? Number(paintingWage) || 0 : 0),
         };
 
         res.json({ success: true, data: { recipeDraft, variant, template } });

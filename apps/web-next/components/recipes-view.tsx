@@ -505,7 +505,7 @@ function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormStat
     assemblyWage: String(template.assemblyWage || 0),
     packingWage: String(template.packingWage || 0),
     surfaceTreatmentMode: template.surfaceTreatmentMode || (template.paintingWage == null ? 'none' : 'painting'),
-    surfaceTreatmentCost: String(template.paintingWage || 0),
+    surfaceTreatmentCost: String(template.surfaceTreatmentCost ?? template.paintingWage ?? 0),
     costMode: template.costMode === 'bundle' ? 'bundle' : 'components',
     bundleCost: String(template.bundleCost || 0),
     partRows: partRows.length > 0 ? partRows : defaultTemplateParts(),
@@ -553,6 +553,7 @@ function templateFormToInput(form: TemplateFormState): TemplateInput {
     packingWage: Math.max(0, numberValue(form.packingWage)),
     paintingWage: form.surfaceTreatmentMode === 'none' ? null : Math.max(0, numberValue(form.surfaceTreatmentCost)),
     surfaceTreatmentMode: form.surfaceTreatmentMode,
+    surfaceTreatmentCost: form.surfaceTreatmentMode === 'none' ? 0 : Math.max(0, numberValue(form.surfaceTreatmentCost)),
     costMode: form.costMode,
     bundleCost: form.costMode === 'bundle' ? Math.max(0, numberValue(form.bundleCost)) : 0,
   };
@@ -1034,7 +1035,7 @@ export function RecipesView() {
         shellComponents,
         costMode,
         shellCost,
-        laborCost: Number(template.assemblyWage || 0) + Number(template.packingWage || 0) + Number(template.paintingWage || 0),
+        laborCost: Number(template.assemblyWage || 0) + Number(template.packingWage || 0),
       };
     });
   }, [templates]);
@@ -2106,7 +2107,7 @@ export function RecipesView() {
                       <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(row.shellCost)}</td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">
                         <div>{money(row.laborCost)}</div>
-                        <div className="mt-0.5 text-xs">{surfaceTreatmentLabel(row.template.surfaceTreatmentMode)}</div>
+                        <div className="mt-0.5 text-xs">{surfaceTreatmentLabel(row.template.surfaceTreatmentMode)} · {money(row.template.surfaceTreatmentCost || 0)}</div>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{row.fixedParts.length}</td>
                       <td className="border-b border-line px-4 py-3">
@@ -2720,7 +2721,7 @@ export function RecipesView() {
 
             <section className="rounded-panel border border-line p-4">
               <div className="text-sm font-semibold text-ink">人工与表面处理</div>
-              <div className="mt-3 grid gap-4 md:grid-cols-3">
+              <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">安装工资</span>
                   <input value={templateForm.assemblyWage} onChange={(event) => updateTemplateForm({ assemblyWage: event.target.value })} type="number" min="0" step="0.01" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
@@ -2746,6 +2747,18 @@ export function RecipesView() {
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">表面处理费用</span>
+                  <input
+                    value={templateForm.surfaceTreatmentCost}
+                    onChange={(event) => updateTemplateForm({ surfaceTreatmentCost: event.target.value })}
+                    disabled={templateForm.surfaceTreatmentMode === 'none'}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-muted"
+                  />
                 </label>
               </div>
             </section>
@@ -2812,7 +2825,7 @@ export function RecipesView() {
               </section>
               <section className="rounded-panel border border-line p-4">
                 <div className="text-sm font-semibold text-ink">表面处理</div>
-                <div className="mt-2 text-sm text-muted">{surfaceTreatmentLabel(templateDetail.surfaceTreatmentMode)}</div>
+                <div className="mt-2 text-sm text-muted">{surfaceTreatmentLabel(templateDetail.surfaceTreatmentMode)} · {money(templateDetail.surfaceTreatmentCost || 0)}</div>
               </section>
             </div>
           </div>

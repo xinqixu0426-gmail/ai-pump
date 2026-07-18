@@ -94,6 +94,7 @@ export type PumpShellTemplate = {
   packingWage?: number;
   paintingWage?: number | null;
   surfaceTreatmentMode?: SurfaceTreatmentMode;
+  surfaceTreatmentCost?: number;
   costMode?: string;
   bundleCost?: number;
 };
@@ -332,6 +333,7 @@ export function rowToTemplate(row: TemplateRow): PumpShellTemplate {
     packingWage: Number(row.packingWage) || 0,
     paintingWage: row.paintingWage == null ? null : Number(row.paintingWage) || 0,
     surfaceTreatmentMode: row.surfaceTreatmentMode || (row.paintingWage == null ? 'none' : 'painting'),
+    surfaceTreatmentCost: Number(row.surfaceTreatmentCost ?? row.paintingWage) || 0,
     costMode: row.costMode || 'components',
     bundleCost: Number(row.bundleCost) || 0,
   };
@@ -469,6 +471,7 @@ export type TemplateInput = {
   packingWage: number;
   paintingWage?: number | null;
   surfaceTreatmentMode: SurfaceTreatmentMode;
+  surfaceTreatmentCost: number;
   costMode: 'components' | 'bundle';
   bundleCost: number;
 };
