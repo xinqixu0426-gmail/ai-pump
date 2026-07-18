@@ -218,6 +218,11 @@ type TemplateFormState = {
   rotorParams: TemplateRotorParamsState;
 };
 
+const templateCostModeOptions: Array<{ value: TemplateFormState['costMode']; label: string }> = [
+  { value: 'bundle', label: '整体泵壳' },
+  { value: 'components', label: '组合泵壳' },
+];
+
 type VariantCustomField = {
   id: string;
   label: string;
@@ -1065,6 +1070,26 @@ export function RecipesView() {
     () => Array.from(new Set(parts.filter((part) => part.category !== '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [parts]
   );
+  const shellCatalogOptions = useMemo(() => {
+    const grouped = new Map<string, Part[]>();
+    parts
+      .filter((part) => part.category === '泵壳' && part.model.trim())
+      .forEach((part) => {
+        const rows = grouped.get(part.model) || [];
+        rows.push(part);
+        grouped.set(part.model, rows);
+      });
+    return Array.from(grouped.entries())
+      .map(([model, rows]) => ({
+        model,
+        rows: rows.sort((left, right) => left.price - right.price),
+      }))
+      .sort((left, right) => left.model.localeCompare(right.model, 'zh-Hans-CN'));
+  }, [parts]);
+  const selectedTemplateShellParts = useMemo(
+    () => shellCatalogOptions.find((option) => option.model === templateForm.shellModel)?.rows || [],
+    [shellCatalogOptions, templateForm.shellModel]
+  );
   const packingModelOptions = useMemo(
     () => Array.from(new Set(parts.filter((part) => part.category === '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [parts]
@@ -1554,6 +1579,30 @@ export function RecipesView() {
     setTemplateForm((current) => ({ ...current, ...patch }));
   }
 
+  function selectTemplateShell(shellModel: string) {
+    const referencePrice = shellCatalogOptions
+      .find((option) => option.model === shellModel)
+      ?.rows.find((part) => part.price > 0)?.price;
+    setTemplateForm((current) => ({
+      ...current,
+      shellModel,
+      bundleCost: current.costMode === 'bundle' && referencePrice != null
+        ? String(referencePrice)
+        : current.bundleCost,
+    }));
+  }
+
+  function selectTemplateCostMode(costMode: TemplateFormState['costMode']) {
+    const referencePrice = selectedTemplateShellParts.find((part) => part.price > 0)?.price;
+    setTemplateForm((current) => ({
+      ...current,
+      costMode,
+      bundleCost: costMode === 'bundle' && numberValue(current.bundleCost) <= 0 && referencePrice != null
+        ? String(referencePrice)
+        : current.bundleCost,
+    }));
+  }
+
   function updateTemplateRotorParam(key: TemplateRotorParamKey, value: string) {
     setTemplateForm((current) => ({
       ...current,
@@ -1626,7 +1675,7 @@ export function RecipesView() {
   async function submitTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!templateForm.shellModel.trim()) {
-      setFormError('泵壳型号不能为空');
+      setFormError('请从零件库选择泵壳型号');
       return;
     }
     const input = templateFormToInput(templateForm);
@@ -1635,11 +1684,11 @@ export function RecipesView() {
       return;
     }
     if (input.costMode === 'bundle' && input.bundleCost <= 0) {
-      setFormError('整套成本模式需要填写整套泵壳成本');
+      setFormError('整体泵壳模式需要填写整体泵壳价格');
       return;
     }
     if (input.costMode === 'components' && JSON.parse(input.shellComponentsJson).filter((row: ShellComponentInput) => row.included !== false).length === 0) {
-      setFormError('组件明细模式至少需要一个计入成本的组件');
+      setFormError('组合泵壳模式至少需要一个计入成本的组件');
       return;
     }
     setSaving(true);
@@ -2037,7 +2086,7 @@ export function RecipesView() {
                       <td className="border-b border-line px-4 py-3 text-muted">{row.template.description || '-'}</td>
                       <td className="border-b border-line px-4 py-3">
                         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
-                          {row.costMode === 'bundle' ? '整套成本' : '组件明细'}
+                          {row.costMode === 'bundle' ? '整体泵壳' : '组合泵壳'}
                         </span>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(row.shellCost)}</td>
@@ -2512,16 +2561,34 @@ export function RecipesView() {
             ) : null}
 
             <section className="rounded-panel border border-line p-4">
-              <div className="text-sm font-semibold text-ink">基础信息</div>
+              <div className="text-sm font-semibold text-ink">选择泵壳</div>
+              <div className="mt-1 text-xs text-muted">模板必须对应零件库中“泵壳”分类下的一个型号。</div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="text-sm font-medium text-ink">泵壳型号</span>
-                  <input
+                  <span className="text-sm font-medium text-ink">零件库泵壳型号</span>
+                  <select
                     value={templateForm.shellModel}
-                    onChange={(event) => updateTemplateForm({ shellModel: event.target.value })}
-                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                    placeholder="例如：QGD-750"
-                  />
+                    onChange={(event) => selectTemplateShell(event.target.value)}
+                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    <option value="">请选择泵壳型号</option>
+                    {templateForm.shellModel && !shellCatalogOptions.some((option) => option.model === templateForm.shellModel) ? (
+                      <option value={templateForm.shellModel}>{templateForm.shellModel}（零件库中未找到）</option>
+                    ) : null}
+                    {shellCatalogOptions.map((option) => {
+                      const hasTemplate = templates.some((template) => template.shellModel === option.model && template.id !== editingTemplate?.id);
+                      const prices = option.rows.filter((part) => part.price > 0).map((part) => part.price);
+                      const priceText = prices.length > 0 ? money(Math.min(...prices)) : '未定价';
+                      return (
+                        <option key={option.model} value={option.model} disabled={hasTemplate}>
+                          {option.model} · {priceText}{hasTemplate ? ' · 已有模板' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {shellCatalogOptions.length === 0 ? (
+                    <span className="mt-2 block text-xs text-amber-700">零件库暂无泵壳，请先在零件页新增并选择“泵壳”分类。</span>
+                  ) : null}
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium text-ink">说明</span>
@@ -2532,6 +2599,14 @@ export function RecipesView() {
                   />
                 </label>
               </div>
+              {selectedTemplateShellParts.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-muted">
+                  <span className="font-medium text-ink">零件库参考价格</span>
+                  {selectedTemplateShellParts.map((part) => (
+                    <span key={part.id}>{part.supplier || '未填写供应商'}：{money(part.price)}</span>
+                  ))}
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-panel border border-line p-4">
@@ -2561,22 +2636,21 @@ export function RecipesView() {
             <section className="rounded-panel border border-line p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-ink">泵壳成本</div>
-                  <div className="mt-1 text-xs text-muted">支持整套成本或组件明细，保存到 shellComponentsJson / bundleCost。</div>
+                  <div className="text-sm font-semibold text-ink">泵壳计价方式</div>
+                  <div className="mt-1 text-xs text-muted">整体泵壳按整套价格计算；组合泵壳按组件逐项汇总。</div>
                 </div>
-                <select
+                <SegmentedControl
                   value={templateForm.costMode}
-                  onChange={(event) => updateTemplateForm({ costMode: event.target.value as TemplateFormState['costMode'] })}
-                  className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                >
-                  <option value="components">组件明细</option>
-                  <option value="bundle">整套成本</option>
-                </select>
+                  options={templateCostModeOptions}
+                  onChange={selectTemplateCostMode}
+                  ariaLabel="泵壳计价方式"
+                />
               </div>
               {templateForm.costMode === 'bundle' ? (
                 <label className="mt-3 block">
-                  <span className="text-sm font-medium text-ink">整套泵壳成本</span>
+                  <span className="text-sm font-medium text-ink">整体泵壳价格</span>
                   <input value={templateForm.bundleCost} onChange={(event) => updateTemplateForm({ bundleCost: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                  <span className="mt-1 block text-xs text-muted">选择泵壳型号时默认带入零件库最低有效价格，可在模板中覆盖。</span>
                 </label>
               ) : (
                 <div className="mt-3 space-y-2">
@@ -2694,10 +2768,10 @@ export function RecipesView() {
                 </div>
               </section>
               <section className="rounded-panel border border-line">
-                <div className="border-b border-line p-4 text-sm font-semibold text-ink">泵壳组件成本</div>
+                <div className="border-b border-line p-4 text-sm font-semibold text-ink">泵壳计价</div>
                 <div className="divide-y divide-line">
                   {templateDetail.costMode === 'bundle' ? (
-                    <div className="p-4 text-sm text-ink">整套泵壳成本：{money(templateDetail.bundleCost || 0)}</div>
+                    <div className="p-4 text-sm text-ink">整体泵壳价格：{money(templateDetail.bundleCost || 0)}</div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).length === 0 ? (
                     <div className="p-4 text-sm text-muted">暂无组件明细</div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).map((component, index) => (
