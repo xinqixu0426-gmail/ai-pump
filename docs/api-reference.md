@@ -77,8 +77,8 @@
 | `GET` | `/api/templates/:id/default-recipe` | 无 | 基于模板生成配方草稿、配件、转子参数和成本；`recipeDraft.templateId` 使用标准 `id` |
 | `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 把模板默认项应用到传入配方草稿 |
 | `GET` | `/api/templates/:id/recipes` | 无 | 引用该模板的配方列表 |
-| `POST` | `/api/templates` | `shellModel/shell_model` 等模板字段 | 新增模板；支持 components/bundle 成本模式 |
-| `PATCH` | `/api/templates/:id` | 模板字段 | 使用 `safeUpdate` 更新 |
+| `POST` | `/api/templates` | `shellModel/shell_model` 等模板字段；`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating` | 新增模板；支持 components/bundle 成本模式和表面处理预设 |
+| `PATCH` | `/api/templates/:id` | 同新增模板字段 | 使用 `safeUpdate` 更新 |
 | `DELETE` | `/api/templates/:id` | 无 | 无配方引用时硬删除 |
 
 ## 7. 型号变体 Model Variants

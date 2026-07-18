@@ -118,13 +118,13 @@ function buildRecipeBomDraft(input, context) {
         if (costMode === 'bundle') {
             bomParts.push({
                 model: template.shellModel,
-                name: '泵壳整套',
+                name: '泵壳套件',
                 supplier: '',
                 qty: 1,
                 snapshotPrice: shellPrice,
                 source: 'pump_shell_template',
                 costSource: 'manual',
-                formula: `泵壳整套价 ${roundMoney(shellPrice)}`,
+                formula: `泵壳套件价 ${roundMoney(shellPrice)}`,
             });
         } else {
             shellComponents.forEach(component => {

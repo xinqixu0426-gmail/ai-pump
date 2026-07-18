@@ -335,7 +335,7 @@ const SURFACE_TREATMENT_LABELS = {
     none: '无处理',
     painting: '喷漆',
     electrophoresis: '电泳',
-    powder_coating: '喷塑',
+    powder_coating: '整体喷塑',
     electrophoresis_powder_coating: '电泳+喷塑',
 };
 

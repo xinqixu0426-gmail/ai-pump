@@ -374,7 +374,7 @@ router.post('/model-variant-draft', (req, res) => {
             assemblyWage: template?.assemblyWage || 0,
             packingWage: template?.packingWage || 0,
             paintingWage,
-            surfaceTreatmentMode: paintingWage != null ? 'painting' : 'none',
+            surfaceTreatmentMode: template?.surfaceTreatmentMode || (paintingWage != null ? 'painting' : 'none'),
             surfaceTreatmentCost: paintingWage != null ? Number(paintingWage) || 0 : 0,
         };
 

@@ -469,14 +469,23 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
 
 test('Next UI 契约：泵壳模板必须引用零件库并分离整体与组合计价', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+    const templatesRoute = readUtf8('api/routes/templates.cjs');
+    const db = readUtf8('api/db.cjs');
 
     assert.match(recipesView, /part\.category === '泵壳'/);
     assert.match(recipesView, /零件库泵壳型号/);
     assert.match(recipesView, /selectTemplateShell/);
-    assert.match(recipesView, /整体泵壳/);
-    assert.match(recipesView, /组合泵壳/);
+    assert.match(recipesView, /泵壳套件/);
+    assert.match(recipesView, /自由搭配/);
     assert.match(recipesView, /ariaLabel="泵壳计价方式"/);
     assert.match(recipesView, /templateForm\.costMode === 'bundle'/);
+    assert.match(recipesView, /电泳\+喷塑/);
+    assert.match(recipesView, /整体喷塑/);
+    assert.doesNotMatch(recipesView, /喷漆工资/);
+    assert.match(recipesLib, /electrophoresis_powder_coating/);
+    assert.match(templatesRoute, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);
+    assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_mode/);
 });
 
 test('Next UI 契约：线圈新增必须保留同规格自动带入小操作', () => {

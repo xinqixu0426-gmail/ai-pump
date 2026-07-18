@@ -56,6 +56,7 @@ import {
   type RecipePart,
   type RecipeProductionDraft,
   type ShellComponentInput,
+  type SurfaceTreatmentMode,
   type TemplateInput,
   type TemplatePartInput,
 } from '@/lib/recipes';
@@ -126,6 +127,10 @@ function StatCard({ value, label }: { value: string; label: string }) {
   );
 }
 
+function surfaceTreatmentLabel(mode?: string): string {
+  return templateSurfaceTreatmentOptions.find((option) => option.value === mode)?.label || '无';
+}
+
 function dateTimeShort(value: string | undefined): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -162,7 +167,7 @@ type RecipeFormState = {
   impellerBladeCount: string;
   assemblyWage: string;
   packingWage: string;
-  surfaceTreatmentMode: 'none' | 'painting' | 'custom';
+  surfaceTreatmentMode: SurfaceTreatmentMode;
   surfaceTreatmentCost: string;
   managementFee: string;
   technicalData: RecipeTechnicalData;
@@ -209,8 +214,8 @@ type TemplateFormState = {
   description: string;
   assemblyWage: string;
   packingWage: string;
-  paintingWage: string;
-  hasPaintingWage: boolean;
+  surfaceTreatmentMode: SurfaceTreatmentMode;
+  surfaceTreatmentCost: string;
   costMode: 'components' | 'bundle';
   bundleCost: string;
   partRows: TemplatePartFormRow[];
@@ -219,8 +224,16 @@ type TemplateFormState = {
 };
 
 const templateCostModeOptions: Array<{ value: TemplateFormState['costMode']; label: string }> = [
-  { value: 'bundle', label: '整体泵壳' },
-  { value: 'components', label: '组合泵壳' },
+  { value: 'bundle', label: '泵壳套件' },
+  { value: 'components', label: '自由搭配' },
+];
+
+const templateSurfaceTreatmentOptions: Array<{ value: SurfaceTreatmentMode; label: string }> = [
+  { value: 'none', label: '无' },
+  { value: 'painting', label: '喷漆' },
+  { value: 'electrophoresis', label: '电泳' },
+  { value: 'electrophoresis_powder_coating', label: '电泳+喷塑' },
+  { value: 'powder_coating', label: '整体喷塑' },
 ];
 
 type VariantCustomField = {
@@ -309,8 +322,8 @@ function emptyTemplateForm(): TemplateFormState {
     description: '',
     assemblyWage: '0',
     packingWage: '0',
-    paintingWage: '0',
-    hasPaintingWage: false,
+    surfaceTreatmentMode: 'none',
+    surfaceTreatmentCost: '0',
     costMode: 'components',
     bundleCost: '0',
     partRows: defaultTemplateParts(),
@@ -491,8 +504,8 @@ function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormStat
     description: template.description || '',
     assemblyWage: String(template.assemblyWage || 0),
     packingWage: String(template.packingWage || 0),
-    paintingWage: String(template.paintingWage || 0),
-    hasPaintingWage: template.paintingWage != null,
+    surfaceTreatmentMode: template.surfaceTreatmentMode || (template.paintingWage == null ? 'none' : 'painting'),
+    surfaceTreatmentCost: String(template.paintingWage || 0),
     costMode: template.costMode === 'bundle' ? 'bundle' : 'components',
     bundleCost: String(template.bundleCost || 0),
     partRows: partRows.length > 0 ? partRows : defaultTemplateParts(),
@@ -538,7 +551,8 @@ function templateFormToInput(form: TemplateFormState): TemplateInput {
     rotorParamsJson: JSON.stringify(rotorParamsPayload),
     assemblyWage: Math.max(0, numberValue(form.assemblyWage)),
     packingWage: Math.max(0, numberValue(form.packingWage)),
-    paintingWage: form.hasPaintingWage ? Math.max(0, numberValue(form.paintingWage)) : null,
+    paintingWage: form.surfaceTreatmentMode === 'none' ? null : Math.max(0, numberValue(form.surfaceTreatmentCost)),
+    surfaceTreatmentMode: form.surfaceTreatmentMode,
     costMode: form.costMode,
     bundleCost: form.costMode === 'bundle' ? Math.max(0, numberValue(form.bundleCost)) : 0,
   };
@@ -1684,11 +1698,11 @@ export function RecipesView() {
       return;
     }
     if (input.costMode === 'bundle' && input.bundleCost <= 0) {
-      setFormError('整体泵壳模式需要填写整体泵壳价格');
+      setFormError('泵壳套件模式需要填写套件价格');
       return;
     }
     if (input.costMode === 'components' && JSON.parse(input.shellComponentsJson).filter((row: ShellComponentInput) => row.included !== false).length === 0) {
-      setFormError('组合泵壳模式至少需要一个计入成本的组件');
+      setFormError('自由搭配模式至少需要一个计入成本的组件');
       return;
     }
     setSaving(true);
@@ -2059,7 +2073,7 @@ export function RecipesView() {
           <div className="flex items-center justify-between gap-3 border-b border-line p-4">
             <div>
               <div className="text-sm font-semibold text-ink">泵壳模板</div>
-              <div className="mt-1 text-xs text-muted">模板决定泵壳固定配件、组件成本、安装/打包/喷漆工资，可在当前页面新建、编辑和删除。</div>
+              <div className="mt-1 text-xs text-muted">模板决定泵壳固定配件、计价方式、安装/打包工资和表面处理，可在当前页面新建、编辑和删除。</div>
             </div>
             <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">{templates.length} 套</span>
           </div>
@@ -2074,7 +2088,7 @@ export function RecipesView() {
                     <th className="border-b border-line px-4 py-3">说明</th>
                     <th className="border-b border-line px-4 py-3">成本模式</th>
                     <th className="border-b border-line px-4 py-3 text-right">泵壳成本</th>
-                    <th className="border-b border-line px-4 py-3 text-right">人工</th>
+                    <th className="border-b border-line px-4 py-3 text-right">人工/表面处理</th>
                     <th className="border-b border-line px-4 py-3 text-right">固定配件</th>
                     <th className="border-b border-line px-4 py-3 text-right">操作</th>
                   </tr>
@@ -2086,11 +2100,14 @@ export function RecipesView() {
                       <td className="border-b border-line px-4 py-3 text-muted">{row.template.description || '-'}</td>
                       <td className="border-b border-line px-4 py-3">
                         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
-                          {row.costMode === 'bundle' ? '整体泵壳' : '组合泵壳'}
+                          {row.costMode === 'bundle' ? '泵壳套件' : '自由搭配'}
                         </span>
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(row.shellCost)}</td>
-                      <td className="border-b border-line px-4 py-3 text-right text-muted">{money(row.laborCost)}</td>
+                      <td className="border-b border-line px-4 py-3 text-right text-muted">
+                        <div>{money(row.laborCost)}</div>
+                        <div className="mt-0.5 text-xs">{surfaceTreatmentLabel(row.template.surfaceTreatmentMode)}</div>
+                      </td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{row.fixedParts.length}</td>
                       <td className="border-b border-line px-4 py-3">
                         <div className="flex justify-end gap-2">
@@ -2637,7 +2654,7 @@ export function RecipesView() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-ink">泵壳计价方式</div>
-                  <div className="mt-1 text-xs text-muted">整体泵壳按整套价格计算；组合泵壳按组件逐项汇总。</div>
+                  <div className="mt-1 text-xs text-muted">泵壳套件按整套价格计算；自由搭配按组件逐项汇总。</div>
                 </div>
                 <SegmentedControl
                   value={templateForm.costMode}
@@ -2648,7 +2665,7 @@ export function RecipesView() {
               </div>
               {templateForm.costMode === 'bundle' ? (
                 <label className="mt-3 block">
-                  <span className="text-sm font-medium text-ink">整体泵壳价格</span>
+                  <span className="text-sm font-medium text-ink">泵壳套件价格</span>
                   <input value={templateForm.bundleCost} onChange={(event) => updateTemplateForm({ bundleCost: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <span className="mt-1 block text-xs text-muted">选择泵壳型号时默认带入零件库最低有效价格，可在模板中覆盖。</span>
                 </label>
@@ -2702,7 +2719,7 @@ export function RecipesView() {
             </section>
 
             <section className="rounded-panel border border-line p-4">
-              <div className="text-sm font-semibold text-ink">人工工资</div>
+              <div className="text-sm font-semibold text-ink">人工与表面处理</div>
               <div className="mt-3 grid gap-4 md:grid-cols-3">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">安装工资</span>
@@ -2713,14 +2730,22 @@ export function RecipesView() {
                   <input value={templateForm.packingWage} onChange={(event) => updateTemplateForm({ packingWage: event.target.value })} type="number" min="0" step="0.01" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">喷漆工资</span>
-                  <div className="mt-1 flex gap-2">
-                    <label className="flex h-9 items-center gap-2 rounded-md border border-line px-2 text-xs text-muted">
-                      <input type="checkbox" checked={templateForm.hasPaintingWage} onChange={(event) => updateTemplateForm({ hasPaintingWage: event.target.checked })} />
-                      启用
-                    </label>
-                    <input value={templateForm.paintingWage} onChange={(event) => updateTemplateForm({ paintingWage: event.target.value })} disabled={!templateForm.hasPaintingWage} type="number" min="0" step="0.01" className="h-9 min-w-0 flex-1 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60" />
-                  </div>
+                  <span className="text-xs font-medium text-muted">表面处理</span>
+                  <select
+                    value={templateForm.surfaceTreatmentMode}
+                    onChange={(event) => {
+                      const surfaceTreatmentMode = event.target.value as SurfaceTreatmentMode;
+                      updateTemplateForm({
+                        surfaceTreatmentMode,
+                        surfaceTreatmentCost: surfaceTreatmentMode === templateForm.surfaceTreatmentMode ? templateForm.surfaceTreatmentCost : '0',
+                      });
+                    }}
+                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    {templateSurfaceTreatmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </section>
@@ -2771,7 +2796,7 @@ export function RecipesView() {
                 <div className="border-b border-line p-4 text-sm font-semibold text-ink">泵壳计价</div>
                 <div className="divide-y divide-line">
                   {templateDetail.costMode === 'bundle' ? (
-                    <div className="p-4 text-sm text-ink">整体泵壳价格：{money(templateDetail.bundleCost || 0)}</div>
+                    <div className="p-4 text-sm text-ink">泵壳套件价格：{money(templateDetail.bundleCost || 0)}</div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).length === 0 ? (
                     <div className="p-4 text-sm text-muted">暂无组件明细</div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).map((component, index) => (
@@ -2784,6 +2809,10 @@ export function RecipesView() {
                     </div>
                   ))}
                 </div>
+              </section>
+              <section className="rounded-panel border border-line p-4">
+                <div className="text-sm font-semibold text-ink">表面处理</div>
+                <div className="mt-2 text-sm text-muted">{surfaceTreatmentLabel(templateDetail.surfaceTreatmentMode)}</div>
               </section>
             </div>
           </div>
@@ -3387,6 +3416,9 @@ export function RecipesView() {
                   >
                     <option value="none">无</option>
                     <option value="painting">喷漆</option>
+                    <option value="electrophoresis">电泳</option>
+                    <option value="electrophoresis_powder_coating">电泳+喷塑</option>
+                    <option value="powder_coating">整体喷塑</option>
                     <option value="custom">自定义</option>
                   </select>
                 </label>

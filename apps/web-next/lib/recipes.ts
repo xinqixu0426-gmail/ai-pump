@@ -42,7 +42,7 @@ export type RecipeCurrentCostResult = {
 };
 
 export type CableAccessoryType = 'standard' | 'xinjie';
-export type SurfaceTreatmentMode = 'none' | 'painting' | 'custom';
+export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'electrophoresis_powder_coating' | 'powder_coating' | 'custom';
 
 export type Recipe = {
   id: number;
@@ -93,6 +93,7 @@ export type PumpShellTemplate = {
   assemblyWage?: number;
   packingWage?: number;
   paintingWage?: number | null;
+  surfaceTreatmentMode?: SurfaceTreatmentMode;
   costMode?: string;
   bundleCost?: number;
 };
@@ -330,6 +331,7 @@ export function rowToTemplate(row: TemplateRow): PumpShellTemplate {
     assemblyWage: Number(row.assemblyWage) || 0,
     packingWage: Number(row.packingWage) || 0,
     paintingWage: row.paintingWage == null ? null : Number(row.paintingWage) || 0,
+    surfaceTreatmentMode: row.surfaceTreatmentMode || (row.paintingWage == null ? 'none' : 'painting'),
     costMode: row.costMode || 'components',
     bundleCost: Number(row.bundleCost) || 0,
   };
@@ -466,6 +468,7 @@ export type TemplateInput = {
   assemblyWage: number;
   packingWage: number;
   paintingWage?: number | null;
+  surfaceTreatmentMode: SurfaceTreatmentMode;
   costMode: 'components' | 'bundle';
   bundleCost: number;
 };
