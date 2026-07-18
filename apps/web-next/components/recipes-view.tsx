@@ -20,7 +20,6 @@ import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { dateShort, money } from '@/lib/format';
 import { getAllParts, type Part } from '@/lib/parts';
 import {
-  applyModelVariantDraft,
   buildRecipeSavePayloadDraft,
   buildRecipeCopperRisk,
   buildTemplateNameMap,
@@ -77,7 +76,6 @@ const quickFilters: Array<{ value: RecipeFilter; label: string }> = [
 const sectionOptions: Array<{ value: RecipeSection; label: string }> = [
   { value: 'recipes', label: '配方' },
   { value: 'templates', label: '泵壳模板' },
-  { value: 'variants', label: '常用配置' },
 ];
 
 function copperRiskTone(level: string): StatusBadgeTone {
@@ -807,7 +805,6 @@ export function RecipesView() {
   const [productionError, setProductionError] = useState<string | null>(null);
   const [productionSuccess, setProductionSuccess] = useState<string | null>(null);
   const [form, setForm] = useState<RecipeFormState>(emptyForm);
-  const [saveAsVariant, setSaveAsVariant] = useState(false);
   const [optionalParts, setOptionalParts] = useState<RecipeSelection[]>([]);
   const [packingParts, setPackingParts] = useState<RecipeSelection[]>([]);
   const [bomDraft, setBomDraft] = useState<RecipeBomDraftResult | null>(null);
@@ -1052,10 +1049,6 @@ export function RecipesView() {
     () => buildTechnicalReferenceFields({ shellMetaInfo: formShellMeta, selectedTemplate: formTemplate || null }),
     [formShellMeta, formTemplate]
   );
-  const formVariants = useMemo(
-    () => variants.filter((variant) => !form.templateId || String(variant.templateId) === form.templateId),
-    [form.templateId, variants]
-  );
   const selectedFormCoilSpec = coilSpecs.find((spec) => spec.spec === form.coilSpec);
   const formMaterialOptions = selectedFormCoilSpec?.materials?.length ? selectedFormCoilSpec.materials : ['钢带'];
   const coilWireWeightOptions = useMemo(() => (
@@ -1244,7 +1237,6 @@ export function RecipesView() {
   function openCreateDrawer() {
     setEditingRecipe(null);
     setForm(emptyForm);
-    setSaveAsVariant(false);
     setOptionalParts([]);
     setPackingParts([]);
     setBomDraft(null);
@@ -1258,7 +1250,32 @@ export function RecipesView() {
   function openEditDrawer(recipe: Recipe) {
     setEditingRecipe(recipe);
     setForm(formFromRecipe(recipe));
-    setSaveAsVariant(false);
+    setOptionalParts(parseSelections(recipe.extraPartsJson));
+    setPackingParts(parseSelections(recipe.packingPartsJson, true));
+    setBomDraft({
+      parts: validRecipeParts(parseRecipePartsJson(recipe.partsJson)),
+      shellPrice: 0,
+      templateParts: [],
+      shellComponents: [],
+      coilSnapshot: null,
+      capacitorModel: '',
+      customBarrelLength: recipe.customBarrelLength ?? null,
+      longScrewExtraLength: 0,
+    });
+    setBomDraftError(null);
+    setTemplateMatchDialogOpen(false);
+    setBomDetailsOpen(false);
+    setFormError(null);
+    setDrawerOpen(true);
+  }
+
+  function openCloneRecipe(recipe: Recipe) {
+    setEditingRecipe(null);
+    setForm({
+      ...formFromRecipe(recipe),
+      name: `${recipe.name || '未命名配方'} - 副本`,
+      variantId: '',
+    });
     setOptionalParts(parseSelections(recipe.extraPartsJson));
     setPackingParts(parseSelections(recipe.packingPartsJson, true));
     setBomDraft({
@@ -1319,42 +1336,6 @@ export function RecipesView() {
     }
   }
 
-  async function onVariantChange(nextVariantId: string) {
-    const modelVariantId = Number(nextVariantId);
-    if (!Number.isInteger(modelVariantId) || modelVariantId <= 0) {
-      updateForm({ variantId: nextVariantId });
-      setBomDraft(null);
-      setBomDraftError(null);
-      return;
-    }
-
-    try {
-      const { recipeDraft } = await applyModelVariantDraft(modelVariantId);
-      updateForm({
-        name: recipeDraft.name,
-        spec: recipeDraft.spec,
-        variantId: nextVariantId,
-        templateId: String(recipeDraft.templateId),
-        coilSpec: recipeDraft.coilSpec,
-        coilSheets: recipeDraft.coilSheets ? String(recipeDraft.coilSheets) : '',
-        coilMaterial: recipeDraft.coilMaterial || '钢带',
-        customBarrelLength: recipeDraft.customBarrelLength != null ? String(recipeDraft.customBarrelLength) : '',
-        longScrewExtraLength: String(recipeDraft.longScrewExtraLength || 0),
-        impellerModel: recipeDraft.impellerModel,
-        impellerThickness: recipeDraft.impellerThickness != null ? String(recipeDraft.impellerThickness) : '',
-        impellerDiameter: recipeDraft.impellerDiameter != null ? String(recipeDraft.impellerDiameter) : '',
-        impellerBladeCount: recipeDraft.impellerBladeCount != null ? String(recipeDraft.impellerBladeCount) : '',
-        assemblyWage: String(recipeDraft.assemblyWage || 0),
-        packingWage: String(recipeDraft.packingWage || 0),
-        surfaceTreatmentMode: recipeDraft.surfaceTreatmentMode || 'none',
-        surfaceTreatmentCost: String(recipeDraft.surfaceTreatmentCost || 0),
-      });
-      setBomDraftError(null);
-      setFormError(null);
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : '应用常用配置失败');
-    }
-  }
 
   function addOptionalPart() {
     setOptionalParts((current) => [
@@ -1753,10 +1734,6 @@ export function RecipesView() {
       scrollToCostWarningTarget();
       return;
     }
-    if (saveAsVariant && !form.templateId) {
-      setFormError('保存为常用配置前，请先选择泵壳模板');
-      return;
-    }
     setSaving(true);
     setFormError(null);
     setError(null);
@@ -1811,29 +1788,6 @@ export function RecipesView() {
 
       if (editingRecipe) await updateRecipe(editingRecipe.id, payload);
       else await createRecipe(payload);
-      if (saveAsVariant && form.templateId) {
-        try {
-          await createModelVariant({
-            modelName: form.name.trim(),
-            templateId: Number(form.templateId),
-            coilSpec: form.coilSpec,
-            coilSheets: numberValue(form.coilSheets),
-            coilMaterial: form.coilMaterial || '钢带',
-            barrelLength: numberOrNull(String(draft.customBarrelLength ?? form.customBarrelLength ?? '')),
-            longScrewExtraLength: Number(draft.longScrewExtraLength ?? numberValue(form.longScrewExtraLength)),
-            impellerModel: form.impellerModel.trim(),
-            impellerThickness: numberOrNull(form.impellerThickness),
-            impellerDiameter: numberOrNull(form.impellerDiameter),
-            impellerBladeCount: numberOrNull(form.impellerBladeCount),
-            note: form.spec.trim(),
-          });
-        } catch (variantError) {
-          await load(true);
-          setDrawerOpen(false);
-          setError(variantError instanceof Error ? `配方已保存，常用配置保存失败：${variantError.message}` : '配方已保存，常用配置保存失败');
-          return;
-        }
-      }
       await load(true);
       setDrawerOpen(false);
     } catch (err) {
@@ -1864,7 +1818,7 @@ export function RecipesView() {
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Recipes</div>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">配方</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            配方列表、BOM 草稿和成本快照保存都走标准 API；模板、常用配置、选配和动态配置统一由后端草稿收口。
+            选择泵壳、线圈转子和选配后直接生成 BOM 与成本；泵壳模板只维护稳定的固定搭配。
           </p>
         </div>
         <div className="flex gap-2">
@@ -1894,7 +1848,7 @@ export function RecipesView() {
       <FadePanel delay={0.01} className="flex flex-col gap-3 rounded-panel border border-line bg-white p-3 shadow-panel md:flex-row md:items-center md:justify-between">
         <SegmentedControl value={activeSection} options={sectionOptions} onChange={setActiveSection} ariaLabel="配方功能区" />
         <div className="text-xs text-muted">
-          配方 {recipes.length} 个 / 模板 {templates.length} 套 / 常用配置 {variants.length} 个
+          配方 {recipes.length} 个 / 泵壳模板 {templates.length} 套
         </div>
       </FadePanel>
 
@@ -2032,6 +1986,9 @@ export function RecipesView() {
                           </Button>
                           <Button size="sm" variant="ghost" disabled={saving} onClick={() => openEditDrawer(row.recipe)} icon={<Pencil size={14} />}>
                             编辑
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => openCloneRecipe(row.recipe)} icon={<Copy size={14} />}>
+                            复制
                           </Button>
                           <Button size="sm" variant="danger" disabled={saving} onClick={() => void removeRecipe(row.recipe)} icon={<Trash2 size={14} />}>
                             删除
@@ -2955,8 +2912,8 @@ export function RecipesView() {
               <div className="min-w-0 space-y-4">
             <WorkspaceSection
               id="recipe-basic-section"
-              title="基础信息"
-              description="配置配方名称、产品规格和泵壳型号。"
+              title="1. 泵壳与产品"
+              description="选择泵壳模板并填写产品名称；模板固定搭配会自动进入 BOM。"
               status={form.name.trim() && form.templateId ? 'complete' : 'warning'}
               badge={form.name.trim() && form.templateId ? '已完成' : '待完善'}
               badgeTone={form.name.trim() && form.templateId ? 'green' : 'amber'}
@@ -2984,7 +2941,7 @@ export function RecipesView() {
                   </label>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                <div>
                   <label className="block min-w-0">
                     <span className="text-xs font-medium text-muted">泵壳模板</span>
                     <select
@@ -2998,23 +2955,9 @@ export function RecipesView() {
                       ))}
                     </select>
                   </label>
-
-                  <label className="block min-w-0">
-                    <span className="text-xs font-medium text-muted">型号变体</span>
-                    <select
-                      value={form.variantId}
-                      onChange={(event) => void onVariantChange(event.target.value)}
-                      className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                    >
-                      <option value="">不使用型号变体</option>
-                      {formVariants.map((variant) => (
-                        <option key={variant.id} value={String(variant.id)}>{variant.modelName}</option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
 
-                <div className="grid items-end gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+                <div className="grid items-end gap-3 md:grid-cols-2">
                   <label className="block">
                     <span className="text-xs font-medium text-muted">机筒长度 mm</span>
                     <input
@@ -3027,19 +2970,17 @@ export function RecipesView() {
                       placeholder="可选"
                     />
                   </label>
-
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                    <span>长螺丝补偿：<span className="font-medium text-slate-700">{numberValue(form.longScrewExtraLength)} mm</span>（{form.variantId ? '常用配置' : '默认值'}）</span>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={saveAsVariant}
-                        onChange={(event) => setSaveAsVariant(event.target.checked)}
-                        className="h-3.5 w-3.5 rounded border-line"
-                      />
-                      <span>保存为常用配置</span>
-                    </label>
-                  </div>
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">长螺丝补偿 mm</span>
+                    <input
+                      value={form.longScrewExtraLength}
+                      onChange={(event) => updateForm({ longScrewExtraLength: event.target.value })}
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    />
+                  </label>
                 </div>
               </div>
             </WorkspaceSection>
@@ -3055,7 +2996,7 @@ export function RecipesView() {
             </div>
 
             <WorkspaceSection
-              title="线圈配置"
+              title="2. 线圈转子"
               description="选择线圈规格和线重候选；客户指定线重可直接输入并由后端重算。"
               status={bomDraft?.coilSnapshot ? 'complete' : 'warning'}
               badge="自动计算"
@@ -3138,7 +3079,7 @@ export function RecipesView() {
             </WorkspaceSection>
 
             <WorkspaceSection
-              title="浮球与电缆"
+              title="3. 浮球与电缆"
               description="动态配置会进入 BOM 草稿，并实时影响成本预览。"
               status={(!form.hasFloat && !form.hasCable) || (!missingConfigHints.some((hint) => hint.includes('浮球') || hint.includes('电缆'))) ? 'default' : 'warning'}
               badge={!form.hasFloat && !form.hasCable ? '未启用' : '已配置'}
@@ -3239,7 +3180,7 @@ export function RecipesView() {
 
             <WorkspaceSection
               id="recipe-optional-packing-section"
-              title="选配件与包装材料"
+              title="4. 包装与其他配件"
               description="额外物料和包装项默认弱化，添加后会参与 BOM 和成本草稿。"
               summary={`${optionalParts.length + packingParts.length} 项，${money(optionalPartsCost + packingPartsCost)}`}
               status={packingParts.length > 0 ? 'complete' : 'warning'}
@@ -3310,7 +3251,7 @@ export function RecipesView() {
 
             <WorkspaceSection
               id="recipe-labor-section"
-              title="人工与管理费"
+              title="5. 人工与费用"
               description="模板会带入默认人工，配方可覆盖。"
               summary={money(laborAndManagementCost + surfaceTreatmentPreviewCost)}
               status={laborCostComplete ? 'complete' : 'warning'}

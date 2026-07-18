@@ -240,14 +240,17 @@ test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式
     assert.match(apiReference, /formula\/costSource\/source/);
 });
 
-test('Next UI 契约：配方编辑基础信息和线圈卡片必须清晰分工', () => {
+test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const technicalEditor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
 
-    assert.match(recipesView, /基础信息/);
+    assert.match(recipesView, /1\. 泵壳与产品/);
+    assert.match(recipesView, /2\. 线圈转子/);
+    assert.match(recipesView, /3\. 浮球与电缆/);
+    assert.match(recipesView, /4\. 包装与其他配件/);
+    assert.match(recipesView, /5\. 人工与费用/);
     assert.match(recipesView, /配方名称/);
     assert.match(recipesView, /泵壳模板/);
-    assert.match(recipesView, /型号变体/);
     assert.match(recipesView, /线重 kg/);
     assert.match(recipesView, /recipe-coil-wire-weight-options/);
     assert.match(recipesView, /模板 \/ 型号零配件/);
@@ -414,7 +417,7 @@ test('Next UI 契约：转子页必须支持模板变体带入和历史关联', 
     assert.match(rotorDraftService, /function buildRotorTemplateDraft/);
 });
 
-test('Next UI 契约：配方页必须恢复模板与常用配置入口', () => {
+test('Next UI 契约：配方页必须保留模板入口并支持直接复制配方', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
 
@@ -435,24 +438,15 @@ test('Next UI 契约：配方页必须恢复模板与常用配置入口', () => 
     assert.match(recipesView, /deleteTemplate/);
     assert.match(recipesView, /getTemplateRecipeDraft/);
     assert.match(recipesView, /templateId:\s*String\(recipeDraft\.templateId\)/);
-    assert.match(recipesView, /常用配置/);
-    assert.match(recipesView, /新建配置/);
-    assert.match(recipesView, /openCloneVariant/);
-    assert.match(recipesView, /submitVariant/);
-    assert.match(recipesView, /deleteModelVariant/);
-    assert.match(recipesView, /applyModelVariantDraft/);
-    assert.match(recipesView, /saveAsVariant/);
-    assert.match(recipesView, /保存为常用配置/);
-    assert.match(recipesView, /保存为常用配置前，请先选择泵壳模板/);
-    assert.match(recipesView, /createModelVariant\(\{/);
-    assert.match(recipesView, /配方已保存，常用配置保存失败/);
+    assert.match(recipesView, /openCloneRecipe/);
+    assert.match(recipesView, /副本/);
+    assert.match(recipesView, /复制/);
+    assert.doesNotMatch(recipesView, /保存为常用配置/);
     assert.match(recipesView, /线圈快照/);
     assert.match(recipesView, /自动电容/);
     assert.match(recipesView, /机筒 \/ 长螺丝/);
     assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
     assert.match(recipesView, /buildRecipeSavePayloadDraft/);
-    assert.match(recipesView, /name:\s*recipeDraft\.name/);
-    assert.match(recipesView, /spec:\s*recipeDraft\.spec/);
     assert.match(recipesView, /assemblyWage:\s*String\(recipeDraft\.assemblyWage/);
     assert.match(recipesLib, /createModelVariant/);
     assert.match(recipesLib, /updateModelVariant/);

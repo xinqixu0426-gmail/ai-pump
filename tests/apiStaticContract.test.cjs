@@ -161,16 +161,14 @@ test('API 静态契约：核心资源写接口新调用必须使用路径 ID', (
     }
 });
 
-test('API 静态契约：配方常用配置应用必须由后端生成草稿', () => {
+test('API 静态契约：历史常用配置草稿接口必须保持后端兼容', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
-    const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(route, /router\.post\('\/model-variant-draft'/);
     assert.match(route, /recipeDraft/);
     assert.match(nextClient, /applyModelVariantDraft/);
     assert.match(nextClient, /\/api\/recipes\/model-variant-draft/);
-    assert.match(nextView, /applyModelVariantDraft\(modelVariantId\)/);
 });
 
 test('API 静态契约：配方泵壳模板应用必须由后端生成草稿', () => {
