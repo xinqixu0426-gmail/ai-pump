@@ -2009,19 +2009,19 @@ export function RecipesView() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[1240px] border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[1040px] table-fixed border-separate border-spacing-0 text-left text-sm">
               <thead className="whitespace-nowrap bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="border-b border-line px-4 py-3 w-12">对比</th>
-                  <th className="min-w-40 border-b border-line px-4 py-3">配方</th>
-                  <th className="min-w-44 border-b border-line px-4 py-3">模板/线圈</th>
-                  <th className="border-b border-line px-4 py-3 text-right">保存成本</th>
-                  <th className="border-b border-line px-4 py-3 text-right">当日成本</th>
-                  <th className="border-b border-line px-4 py-3 text-right" title="当日成本 - 保存成本">成本差额</th>
-                  <th className="border-b border-line px-4 py-3 text-right">人工/管理</th>
-                  <th className="border-b border-line px-4 py-3">铜价</th>
-                  <th className="border-b border-line px-4 py-3">创建</th>
-                  <th className="border-b border-line px-4 py-3 text-right">操作</th>
+                  <th className="w-12 border-b border-line px-4 py-3">对比</th>
+                  <th className="w-36 border-b border-line px-4 py-3">配方</th>
+                  <th className="w-40 border-b border-line px-4 py-3">模板/线圈</th>
+                  <th className="w-20 border-b border-line px-4 py-3 text-right">保存成本</th>
+                  <th className="w-20 border-b border-line px-4 py-3 text-right">当日成本</th>
+                  <th className="w-20 border-b border-line px-4 py-3 text-right" title="当日成本 - 保存成本">成本差额</th>
+                  <th className="w-[72px] border-b border-line px-4 py-3 text-right">人工/管理</th>
+                  <th className="w-24 border-b border-line px-4 py-3">铜价</th>
+                  <th className="w-16 border-b border-line px-4 py-3">创建</th>
+                  <th className="w-44 border-b border-line px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -2066,21 +2066,13 @@ export function RecipesView() {
                       <td className="border-b border-line px-4 py-3 whitespace-nowrap">
                         <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
                       </td>
-                      <td className="border-b border-line px-4 py-3 text-muted">{dateShort(row.recipe.createdAt)}</td>
+                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-muted">{dateShort(row.recipe.createdAt)}</td>
                       <td className="border-b border-line px-4 py-3">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => openRecipeDetail(row.recipe)} icon={<Eye size={14} />}>
-                            详情
-                          </Button>
-                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => openEditDrawer(row.recipe)} icon={<Pencil size={14} />}>
-                            编辑
-                          </Button>
-                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => openCloneRecipe(row.recipe)} icon={<Copy size={14} />}>
-                            复制
-                          </Button>
-                          <Button size="sm" variant="danger" disabled={saving} onClick={() => void removeRecipe(row.recipe)} icon={<Trash2 size={14} />}>
-                            删除
-                          </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button className="w-8 px-0" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => openRecipeDetail(row.recipe)} icon={<Eye size={14} />} />
+                          <Button className="w-8 px-0" size="sm" variant="ghost" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => openEditDrawer(row.recipe)} icon={<Pencil size={14} />} />
+                          <Button className="w-8 px-0" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制" disabled={saving} onClick={() => openCloneRecipe(row.recipe)} icon={<Copy size={14} />} />
+                          <Button className="w-8 px-0" size="sm" variant="danger" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void removeRecipe(row.recipe)} icon={<Trash2 size={14} />} />
                         </div>
                       </td>
                     </PresenceRow>
