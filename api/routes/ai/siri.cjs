@@ -7,6 +7,13 @@ const { executeToolCall } = require('./executor.cjs');
 const { limitText, classifySiriResult, buildSiriSpeech, firstBackgroundTask } = require('./siriResponse.cjs');
 
 const SIRI_TOKEN = process.env.SIRI_API_TOKEN || '';
+const IS_PRODUCTION =
+    process.env.NODE_ENV === 'production' ||
+    (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
+    (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+if (IS_PRODUCTION && !SIRI_TOKEN) {
+    throw new Error('生产环境必须配置 SIRI_API_TOKEN');
+}
 const PUBLIC_DIR = path.join(__dirname, '..', '..', '..', 'public');
 
 // ── Siri 结果存储（内存，5分钟 TTL） ──
@@ -28,11 +35,10 @@ if (typeof cleanupTimer.unref === 'function') cleanupTimer.unref();
 
 /**
  * Siri 鉴权中间件
- * 如果 .env 中设置了 SIRI_API_TOKEN，则要求请求头携带 X-Siri-Token
- * 未设置时跳过鉴权（开发模式）
+ * 开发环境未设置 SIRI_API_TOKEN 时跳过鉴权；生产环境启动时强制要求 token。
  */
 function siriAuth(req, res, next) {
-    if (!SIRI_TOKEN) return next(); // 未配置 token 则跳过
+    if (!SIRI_TOKEN) return next();
     const token = req.headers['x-siri-token'];
     if (token !== SIRI_TOKEN) {
         return res.status(401).json({ success: false, error: '鉴权失败' });

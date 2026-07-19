@@ -55,6 +55,16 @@ test('API 静态契约：根 package 不再保留旧前端脚本和依赖', () =
     }
 });
 
+test('API 静态契约：发布前检查脚本必须串起 audit、test、build 和生产环境校验', () => {
+    const pkg = JSON.parse(readUtf8(path.join(repoRoot, 'package.json')));
+    const release = pkg.scripts?.['verify:release'] || '';
+
+    assert.match(release, /npm audit/);
+    assert.match(release, /npm test/);
+    assert.match(release, /npm run build/);
+    assert.match(release, /npm run verify:prod-env/);
+});
+
 test('API 静态契约：前端成本计算不得调用已删除的 /api/cost/calculate', () => {
     const offenders = frontendSourceFiles()
         .filter((filePath) => readUtf8(filePath).includes('/api/cost/calculate'))
@@ -390,6 +400,75 @@ test('API 静态契约：DeepSeek 默认模型使用 V4 Flash', () => {
     assert.match(rotorRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
     assert.doesNotMatch(chatRoute, /deepseek-chat/);
     assert.doesNotMatch(rotorRoute, /model:\s*'deepseek-chat'/);
+});
+
+test('API 静态契约：生产环境不得使用默认 JWT 密钥且必须校验关键环境变量', () => {
+    const api = readUtf8(path.join(repoRoot, 'api.cjs'));
+    const auth = readUtf8(path.join(repoRoot, 'api/routes/auth.cjs'));
+    const middleware = readUtf8(path.join(repoRoot, 'api/authMiddleware.cjs'));
+    const envExample = readUtf8(path.join(repoRoot, '.env.example'));
+    const verifyScript = readUtf8(path.join(repoRoot, 'scripts/verify-production-env.cjs'));
+
+    assert.match(api, /requireProductionEnv/);
+    assert.match(api, /const PORT = Number\(process\.env\.PORT \|\| 3002\)/);
+    for (const name of ['ACCESS_PASSWORD', 'JWT_SECRET', 'INTERNAL_SECRET', 'CORS_ORIGIN', 'SIRI_API_TOKEN']) {
+        assert.match(api, new RegExp(name));
+        assert.match(envExample, new RegExp(`${name}=`));
+        assert.match(verifyScript, new RegExp(name));
+    }
+    assert.doesNotMatch(auth, /fallback_secret/);
+    assert.doesNotMatch(middleware, /fallback_secret/);
+    assert.match(auth, /生产环境必须配置 JWT_SECRET/);
+    assert.match(middleware, /生产环境必须配置 JWT_SECRET/);
+});
+
+test('API 静态契约：生产环境 Siri 入口必须配置独立 token', () => {
+    const siri = readUtf8(path.join(repoRoot, 'api/routes/ai/siri.cjs'));
+
+    assert.match(siri, /process\.env\.SIRI_API_TOKEN/);
+    assert.match(siri, /生产环境必须配置 SIRI_API_TOKEN/);
+    assert.match(siri, /if \(IS_PRODUCTION && !SIRI_TOKEN\)/);
+});
+
+test('API 静态契约：系统设置写入必须进入审计日志', () => {
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const sectionStart = db.indexOf('function setSetting');
+    const sectionEnd = db.indexOf('/**', sectionStart);
+    const section = db.slice(sectionStart, sectionEnd);
+
+    assert.match(section, /oldRow/);
+    assert.match(section, /INSERT OR REPLACE INTO system_settings/);
+    assert.match(section, /writeAuditLog\(/);
+    assert.match(section, /SETTING_UPDATE|SETTING_INSERT/);
+});
+
+test('API 静态契约：AI System Prompt 修改必须进入审计日志', () => {
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const sectionStart = db.indexOf('function setConfig');
+    const sectionEnd = db.indexOf('// ── P1.7', sectionStart);
+    const section = db.slice(sectionStart, sectionEnd);
+
+    assert.match(section, /writeAuditLog\(/);
+    assert.match(section, /CONFIG_UPDATE|CONFIG_INSERT/);
+    assert.match(promptRoute, /setConfig\('ai-system-prompt', prompt\)/);
+    assert.doesNotMatch(promptRoute, /INSERT OR REPLACE INTO config/);
+});
+
+test('API 静态契约：微信小程序不得提交固定 INTERNAL_SECRET', () => {
+    const config = readUtf8(path.join(repoRoot, 'wechat-miniprogram/config.js'));
+    const apiUtil = readUtf8(path.join(repoRoot, 'wechat-miniprogram/utils/api.js'));
+
+    assert.match(config, /INTERNAL_SECRET:\s*''/);
+    assert.doesNotMatch(config, /pump_internal_|[a-f0-9]{32,}/i);
+    assert.match(apiUtil, /INTERNAL_SECRET 未配置/);
+});
+
+test('API 静态契约：转子页面表单不得直接使用 FreeCAD snake_case 参数名', () => {
+    const rotorView = readUtf8(path.join(repoRoot, 'apps/web-next/components/rotor-view.tsx'));
+    const forbidden = /\b(upper_bearing|lower_bearing|piece_count|rotor_dia|bearing_span|stack_offset|oil_seal_dia|impeller_dia|impeller_span|impeller_depth|thread_length|thread_dia)\b/;
+
+    assert.doesNotMatch(rotorView, forbidden);
 });
 
 test('文档契约：业务流程文档必须存在并被 README 引用', () => {

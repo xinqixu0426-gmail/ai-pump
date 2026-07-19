@@ -32,11 +32,63 @@ test('文档契约：当前核心文档必须存在并被 README 引用', () => 
         'business-flow.md',
         'frontend-state-boundary.md',
         'ui-refactor-guidelines.md',
+        'legacy-compatibility-retirement.md',
     ];
 
     for (const doc of requiredDocs) {
         assert.ok(fs.existsSync(path.join(repoRoot, 'docs', doc)), `${doc} should exist`);
         assert.match(readme, new RegExp(`\\[${doc}\\]\\(\\.\\/${doc}\\)`));
+    }
+});
+
+test('文档契约：生产发布清单必须被根 README 引用并覆盖关键检查', () => {
+    const rootReadme = readUtf8('README.md');
+    const docPath = path.join(repoRoot, 'docs/deployment-checklist.md');
+    const doc = readUtf8('docs/deployment-checklist.md');
+    const deploySection = rootReadme.split('### 生产环境（Mac Mini）')[1].split('### Next 并行预览入口')[0];
+
+    assert.ok(fs.existsSync(docPath), 'deployment checklist should exist');
+    assert.match(rootReadme, /\[docs\/deployment-checklist\.md\]\(docs\/deployment-checklist\.md\)/);
+    assert.match(deploySection, /\.\/scripts\/install-macmini-launchdaemons\.sh/);
+    assert.doesNotMatch(deploySection, /pkill -f/);
+    assert.doesNotMatch(deploySection, /nohup node api\.cjs/);
+    for (const marker of [
+        '.env.example',
+        'ACCESS_PASSWORD',
+        'JWT_SECRET',
+        'INTERNAL_SECRET',
+        'CORS_ORIGIN',
+        'SIRI_API_TOKEN',
+        'npm run verify:release',
+        'npm run verify:prod-env',
+        './scripts/install-macmini-launchdaemons.sh',
+        '不要把手动 `pkill + nohup` 作为常规发布路径',
+        'curl http://127.0.0.1:3002/api/health',
+        'logs/api-launchd.error.log',
+    ]) {
+        assert.match(doc, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+});
+
+test('文档契约：历史兼容收口计划必须约束旧字段扩散', () => {
+    const doc = readUtf8('docs/legacy-compatibility-retirement.md');
+    const docsReadme = readUtf8('docs/README.md');
+
+    assert.match(docsReadme, /\[legacy-compatibility-retirement\.md\]\(\.\/legacy-compatibility-retirement\.md\)/);
+    for (const marker of [
+        'Id',
+        'CreatedAt',
+        'UpdatedAt',
+        'snake_case',
+        'camelCase',
+        'apps/web-next/lib/',
+        'paintingWage',
+        'boxType',
+        'surfaceTreatmentMode',
+        'packingPartsJson',
+        'npm run verify:release',
+    ]) {
+        assert.match(doc, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
 });
 

@@ -29,16 +29,16 @@ import {
 import { calculateBearingSpan, openOffsetFromMeta, stainlessBarrelDrawingText } from '@/lib/technical-references';
 
 const numberFields: Array<{ key: keyof RotorFormData; label: string; placeholder?: string }> = [
-  { key: 'piece_count', label: '片数' },
-  { key: 'rotor_dia', label: '转子直径' },
-  { key: 'bearing_span', label: '开档' },
-  { key: 'stack_offset', label: '定位' },
-  { key: 'oil_seal_dia', label: '油封孔径' },
-  { key: 'impeller_dia', label: '叶轮孔径' },
-  { key: 'impeller_span', label: '叶轮开档' },
-  { key: 'impeller_depth', label: '叶轮厚度' },
-  { key: 'thread_length', label: '螺纹长度' },
-  { key: 'thread_dia', label: '螺纹直径' },
+  { key: 'pieceCount', label: '片数' },
+  { key: 'rotorDia', label: '转子直径' },
+  { key: 'bearingSpan', label: '开档' },
+  { key: 'stackOffset', label: '定位' },
+  { key: 'oilSealDia', label: '油封孔径' },
+  { key: 'impellerDia', label: '叶轮孔径' },
+  { key: 'impellerSpan', label: '叶轮开档' },
+  { key: 'impellerDepth', label: '叶轮厚度' },
+  { key: 'threadLength', label: '螺纹长度' },
+  { key: 'threadDia', label: '螺纹直径' },
 ];
 
 function statusLabel(status: string): { label: string; tone: StatusBadgeTone } {
@@ -210,7 +210,7 @@ export function RotorView() {
     if (selectedShellMeta?.isStainless) applyAutoDrawingText(stainlessBarrelDrawingText(value));
     setForm((current) => ({
       ...current,
-      bearing_span: span || (value ? current.bearing_span : ''),
+      bearingSpan: span || (value ? current.bearingSpan : ''),
     }));
   }
 
@@ -468,8 +468,8 @@ export function RotorView() {
                 <label className="block">
                   <span className="text-sm font-medium text-ink">上轴承</span>
                   <select
-                    value={form.upper_bearing}
-                    onChange={(event) => updateForm('upper_bearing', event.target.value)}
+                    value={form.upperBearing}
+                    onChange={(event) => updateForm('upperBearing', event.target.value)}
                     className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {bearingOptions.map((bearing) => <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>)}
@@ -478,8 +478,8 @@ export function RotorView() {
                 <label className="block">
                   <span className="text-sm font-medium text-ink">下轴承</span>
                   <select
-                    value={form.lower_bearing}
-                    onChange={(event) => updateForm('lower_bearing', event.target.value)}
+                    value={form.lowerBearing}
+                    onChange={(event) => updateForm('lowerBearing', event.target.value)}
                     className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {bearingOptions.map((bearing) => <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>)}

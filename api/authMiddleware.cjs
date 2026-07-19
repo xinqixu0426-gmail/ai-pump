@@ -4,7 +4,14 @@
  */
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+const IS_PRODUCTION =
+  process.env.NODE_ENV === 'production' ||
+  (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
+  (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'dev_jwt_secret');
+if (IS_PRODUCTION && !JWT_SECRET) {
+  throw new Error('生产环境必须配置 JWT_SECRET');
+}
 
 /**
  * 验证 JWT Token 的 Express 中间件

@@ -2,18 +2,18 @@ import type { ApiResponse } from './api';
 import { proxyRequest } from './api';
 
 export type RotorFormData = {
-  upper_bearing: string;
-  lower_bearing: string;
-  piece_count: string;
-  rotor_dia: string;
-  bearing_span: string;
-  stack_offset: string;
-  oil_seal_dia: string;
-  impeller_dia: string;
-  impeller_span: string;
-  impeller_depth: string;
-  thread_length: string;
-  thread_dia: string;
+  upperBearing: string;
+  lowerBearing: string;
+  pieceCount: string;
+  rotorDia: string;
+  bearingSpan: string;
+  stackOffset: string;
+  oilSealDia: string;
+  impellerDia: string;
+  impellerSpan: string;
+  impellerDepth: string;
+  threadLength: string;
+  threadDia: string;
 };
 
 export type RotorHistoryRecord = {
@@ -70,18 +70,18 @@ export type RotorLinkTarget = {
 export const bearingOptions = ['', '6201', '6202', '6203', '6204', '6205'];
 
 export const emptyRotorForm: RotorFormData = {
-  upper_bearing: '',
-  lower_bearing: '',
-  piece_count: '',
-  rotor_dia: '',
-  bearing_span: '',
-  stack_offset: '',
-  oil_seal_dia: '',
-  impeller_dia: '',
-  impeller_span: '',
-  impeller_depth: '',
-  thread_length: '',
-  thread_dia: '',
+  upperBearing: '',
+  lowerBearing: '',
+  pieceCount: '',
+  rotorDia: '',
+  bearingSpan: '',
+  stackOffset: '',
+  oilSealDia: '',
+  impellerDia: '',
+  impellerSpan: '',
+  impellerDepth: '',
+  threadLength: '',
+  threadDia: '',
 };
 
 type RotorHistoryRow = Partial<RotorHistoryRecord> & {
@@ -94,6 +94,24 @@ type RotorHistoryRow = Partial<RotorHistoryRecord> & {
   linked_pump_model?: string;
   created_at?: string;
   updated_at?: string;
+};
+
+type RotorParamPayload = {
+  upper_bearing?: unknown;
+  lower_bearing?: unknown;
+  piece_count?: unknown;
+  rotor_dia?: unknown;
+  bearing_span?: unknown;
+  stack_offset?: unknown;
+  oil_seal_dia?: unknown;
+  impeller_dia?: unknown;
+  impeller_span?: unknown;
+  bearing_to_impeller?: unknown;
+  impeller_depth?: unknown;
+  thread_length?: unknown;
+  thread_dia?: unknown;
+  drawingText?: unknown;
+  drawing_text?: unknown;
 };
 
 function text(value: unknown, fallback = ''): string {
@@ -127,25 +145,55 @@ export function parseRotorParams(value: string): Record<string, unknown> {
 }
 
 export function formFromRotorParams(params: Record<string, unknown>): RotorFormData {
+  const payload = params as RotorParamPayload;
   return {
-    upper_bearing: text(params.upper_bearing),
-    lower_bearing: text(params.lower_bearing),
-    piece_count: text(params.piece_count),
-    rotor_dia: text(params.rotor_dia),
-    bearing_span: text(params.bearing_span),
-    stack_offset: text(params.stack_offset),
-    oil_seal_dia: text(params.oil_seal_dia),
-    impeller_dia: text(params.impeller_dia),
-    impeller_span: text(params.impeller_span ?? params.bearing_to_impeller),
-    impeller_depth: text(params.impeller_depth),
-    thread_length: text(params.thread_length),
-    thread_dia: text(params.thread_dia),
+    upperBearing: text(payload.upper_bearing),
+    lowerBearing: text(payload.lower_bearing),
+    pieceCount: text(payload.piece_count),
+    rotorDia: text(payload.rotor_dia),
+    bearingSpan: text(payload.bearing_span),
+    stackOffset: text(payload.stack_offset),
+    oilSealDia: text(payload.oil_seal_dia),
+    impellerDia: text(payload.impeller_dia),
+    impellerSpan: text(payload.impeller_span ?? payload.bearing_to_impeller),
+    impellerDepth: text(payload.impeller_depth),
+    threadLength: text(payload.thread_length),
+    threadDia: text(payload.thread_dia),
   };
+}
+
+function rotorPatchFromParams(params: Record<string, unknown>): Partial<RotorFormData> {
+  const payload = params as RotorParamPayload;
+  const patch: Partial<RotorFormData> = {};
+  if ('upper_bearing' in payload) patch.upperBearing = text(payload.upper_bearing);
+  if ('lower_bearing' in payload) patch.lowerBearing = text(payload.lower_bearing);
+  if ('piece_count' in payload) patch.pieceCount = text(payload.piece_count);
+  if ('rotor_dia' in payload) patch.rotorDia = text(payload.rotor_dia);
+  if ('bearing_span' in payload) patch.bearingSpan = text(payload.bearing_span);
+  if ('stack_offset' in payload) patch.stackOffset = text(payload.stack_offset);
+  if ('oil_seal_dia' in payload) patch.oilSealDia = text(payload.oil_seal_dia);
+  if ('impeller_dia' in payload) patch.impellerDia = text(payload.impeller_dia);
+  if ('impeller_span' in payload || 'bearing_to_impeller' in payload) patch.impellerSpan = text(payload.impeller_span ?? payload.bearing_to_impeller);
+  if ('impeller_depth' in payload) patch.impellerDepth = text(payload.impeller_depth);
+  if ('thread_length' in payload) patch.threadLength = text(payload.thread_length);
+  if ('thread_dia' in payload) patch.threadDia = text(payload.thread_dia);
+  return patch;
 }
 
 function rotorPayload(form: RotorFormData, drawingName: string, drawingText: string) {
   return {
-    ...form,
+    upper_bearing: form.upperBearing,
+    lower_bearing: form.lowerBearing,
+    piece_count: form.pieceCount,
+    rotor_dia: form.rotorDia,
+    bearing_span: form.bearingSpan,
+    stack_offset: form.stackOffset,
+    oil_seal_dia: form.oilSealDia,
+    impeller_dia: form.impellerDia,
+    impeller_span: form.impellerSpan,
+    impeller_depth: form.impellerDepth,
+    thread_length: form.threadLength,
+    thread_dia: form.threadDia,
     drawingName: drawingName.trim(),
     drawingText: drawingText.trim(),
   };
@@ -195,7 +243,7 @@ export async function getRotorTemplateDraft(templateId: number, variantId?: numb
     body: JSON.stringify({ templateId, variantId: variantId || undefined }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '转子模板草稿生成失败');
-  return result.data;
+  return { ...result.data, patch: rotorPatchFromParams(result.data.patch as Record<string, unknown>) };
 }
 
 export async function printRotorDrawing(jobId: string): Promise<string> {

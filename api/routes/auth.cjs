@@ -8,10 +8,6 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-const JWT_EXPIRES_IN = '15d'; // 15 天免重新登录
-
 // 自动适配环境：
 //   Windows (win32) → 本地开发 → Lax Cookie
 //   macOS/Linux      → Mac Mini 部署 (Cloudflare Tunnel) → Secure Cookie
@@ -20,6 +16,12 @@ const IS_PRODUCTION =
   process.env.NODE_ENV === 'production' ||
   (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
   (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
+const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'dev_jwt_secret');
+const JWT_EXPIRES_IN = '15d'; // 15 天免重新登录
+if (IS_PRODUCTION && !JWT_SECRET) {
+  throw new Error('生产环境必须配置 JWT_SECRET');
+}
 
 // Cookie 配置：生产环境使用 secure + sameSite=strict
 function getCookieOptions() {

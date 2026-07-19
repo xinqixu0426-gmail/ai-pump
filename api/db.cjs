@@ -439,7 +439,25 @@ function getSetting(key) {
 }
 function setSetting(key, value) {
     const now = new Date().toISOString();
+    const oldRow = db.prepare('SELECT key, value, updated_at FROM system_settings WHERE key = ?').get(key);
     db.prepare('INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run(key, String(value), now);
+    try {
+        const newRow = { key, value: String(value), updated_at: now };
+        writeAuditLog(oldRow ? 'SETTING_UPDATE' : 'SETTING_INSERT', 'system_settings', null, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(newRow));
+    } catch { /* 审计日志写入失败不应阻断业务 */ }
+}
+
+function getConfig(key) {
+    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key);
+    return row ? row.value : null;
+}
+function setConfig(key, value) {
+    const oldRow = db.prepare('SELECT key, value FROM config WHERE key = ?').get(key);
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run(key, String(value));
+    try {
+        const newRow = { key, value: String(value) };
+        writeAuditLog(oldRow ? 'CONFIG_UPDATE' : 'CONFIG_INSERT', 'config', null, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(newRow));
+    } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
 
 /**
@@ -640,7 +658,7 @@ module.exports = {
     partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations,
     extractPartFields, loadPartsData, calculateRecipeCost,
-    getSetting, setSetting,
+    getSetting, setSetting, getConfig, setConfig,
     updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,
     nextBjtTime,
 };

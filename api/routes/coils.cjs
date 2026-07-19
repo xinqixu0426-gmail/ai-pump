@@ -102,6 +102,32 @@ router.post('/', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// ── 按规格批量更新单价 ──
+// Must be registered before /:id, otherwise "spec" is treated as an ID.
+router.patch('/spec/:spec', (req, res) => {
+    try {
+        const spec = decodeURIComponent(req.params.spec);
+        const { unitPrice } = req.body;
+        const material = req.body.material ? String(req.body.material).trim() : '';
+        if (unitPrice === undefined) return res.status(400).json({ success: false, error: 'unitPrice 为必填' });
+        const up = parseNonNegativeNumber(unitPrice, 'unitPrice');
+
+        const rows = material
+            ? db.prepare('SELECT * FROM coils WHERE spec = ? AND material = ?').all(spec, material)
+            : db.prepare('SELECT * FROM coils WHERE spec = ?').all(spec);
+        if (rows.length === 0) return res.status(404).json({ success: false, error: material ? `未找到规格 "${spec}"、材质 "${material}"` : `未找到规格 "${spec}"` });
+
+        const updateAll = db.transaction(() => {
+            for (const r of rows) {
+                const cost = (up * r.sheets + r.wire_weight * r.copper_base + r.coil_fee + r.rotor_fee).toFixed(5);
+                safeUpdate('coils', r.id, { unit_price: up, cost });
+            }
+        });
+        updateAll();
+        res.json({ success: true, updated: rows.length });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
 router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
@@ -154,32 +180,6 @@ router.delete('/:id', (req, res) => {
         if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
         hardDelete('coils', id);
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
-
-// ── 按规格批量更新单价 ──
-
-router.patch('/spec/:spec', (req, res) => {
-    try {
-        const spec = decodeURIComponent(req.params.spec);
-        const { unitPrice } = req.body;
-        const material = req.body.material ? String(req.body.material).trim() : '';
-        if (unitPrice === undefined) return res.status(400).json({ success: false, error: 'unitPrice 为必填' });
-        const up = parseNonNegativeNumber(unitPrice, 'unitPrice');
-
-        const rows = material
-            ? db.prepare('SELECT * FROM coils WHERE spec = ? AND material = ?').all(spec, material)
-            : db.prepare('SELECT * FROM coils WHERE spec = ?').all(spec);
-        if (rows.length === 0) return res.status(404).json({ success: false, error: material ? `未找到规格 "${spec}"、材质 "${material}"` : `未找到规格 "${spec}"` });
-
-        const updateAll = db.transaction(() => {
-            for (const r of rows) {
-                const cost = (up * r.sheets + r.wire_weight * r.copper_base + r.coil_fee + r.rotor_fee).toFixed(5);
-                safeUpdate('coils', r.id, { unit_price: up, cost });
-            }
-        });
-        updateAll();
-        res.json({ success: true, updated: rows.length });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 

@@ -13,7 +13,10 @@ const http = require('http');
 const https = require('https');
 
 const app = express();
-const PORT = 3002;
+const PORT = Number(process.env.PORT || 3002);
+if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535) {
+  throw new Error('PORT 必须是有效端口号');
+}
 
 // 解决 Nginx 反向代理下 express-rate-limit 报错 (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
 app.set('trust proxy', 1);
@@ -27,6 +30,17 @@ const IS_DEV = !IS_PRODUCTION;
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
   : [];
+
+function requireProductionEnv(name) {
+  if (!process.env[name]) {
+    throw new Error(`生产环境必须配置 ${name}`);
+  }
+}
+
+if (IS_PRODUCTION) {
+  ['ACCESS_PASSWORD', 'JWT_SECRET', 'INTERNAL_SECRET', 'CORS_ORIGIN', 'SIRI_API_TOKEN'].forEach(requireProductionEnv);
+}
+
 if (IS_PRODUCTION && corsOrigins.length === 0) {
   throw new Error('生产环境必须配置 CORS_ORIGIN');
 }

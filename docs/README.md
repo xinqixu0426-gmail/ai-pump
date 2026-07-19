@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-12。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。
+> 当前版本说明，更新于 2026-07-12。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，历史兼容收口见 [legacy-compatibility-retirement.md](./legacy-compatibility-retirement.md)。
 
 ## 1. 系统用途
 
@@ -237,7 +237,7 @@ POST /api/rotor/save
 - PWA 状态流使用单一状态枚举：`idle`、`thinking`、`calling`、`answering`、`confirming`、`done`、`error`、`cancelled`，顶部状态和消息状态都由该状态驱动。
 - PWA 当前优先接入成熟 AI 工具：经营概况、最近订单、订单详情、配方成本、零件搜索、线圈成本、铜价、配方对比和出图历史；新建订单、修改订单状态、改零件、生成采购清单、配方/零件写操作必须确认后执行。
 - PWA 历史记录第一版保存在浏览器 `localStorage`，只用于本机快速回看，不作为审计来源；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
-- 微信小程序代码位于 `wechat-miniprogram/`，当前通过 `INTERNAL_SECRET` 认证。
+- 微信小程序代码位于 `wechat-miniprogram/`，当前通过 `INTERNAL_SECRET` 兼容认证；真实密钥不得提交到仓库，小程序生产鉴权应迁移到 OpenID 或服务端会话。
 - Siri 使用快捷指令文字输入，不经过 ASR；统一调用 `POST /api/siri/chat`，由 AI tools 决定业务动作，Siri 不直接访问库存、BOM、采购等内部 API。
 - Siri 返回 `speech` 供朗读，内容保持简短；结构化结果通过 `resultUrl` 查看，结果临时保存在内存中，5 分钟后失效。
 - Siri 写操作返回 `confirmation_required`、`confirmationId` 和确认摘要；用户明确确认后再调用 `POST /api/siri/confirm`，后端仍复用现有写工具确认、标准 API 和审计路径。
@@ -257,6 +257,7 @@ POST /api/rotor/save
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
 - 核心资源响应中仍可能带有 `Id/CreatedAt/UpdatedAt` 历史兼容字段；Web 调用必须使用标准 camelCase。
 - 配方等写接口仍保留少量历史入参兼容，但资源更新和删除已统一为 `/:id` 路径入口。
+- 历史兼容字段和旧入参的收口顺序见 [历史兼容收口计划](./legacy-compatibility-retirement.md)；新增功能不得再扩大旧字段使用面。
 - 关键写接口的路由 ID、成本基础资料数字字段、模板/变体 JSON 字段，以及订单/报价/配方保存草稿的金额和数量字段已统一走 `api/services/validation.cjs`。
 - 审计日志覆盖正式业务资源的 INSERT、动态 UPDATE 和 DELETE；系统初始化与 settings/config UPSERT 仍属于基础设施边界。
 - `GET /api/recipes/:id/cost` 不是完整配方总成本接口，报价应使用 `cost-preview`。

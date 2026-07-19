@@ -128,6 +128,8 @@ New-Item -ItemType Directory -Force -Path $target | Out-Null
 
 ### 环境变量 (.env)
 
+可从 `.env.example` 复制后填写真实值；真实 `.env` 已被 `.gitignore` 忽略，不要提交。
+
 ```env
 ACCESS_PASSWORD=xxx           # 登录密码
 JWT_SECRET=xxx                # JWT 签名密钥
@@ -143,7 +145,12 @@ WECOM_CORP_ID=xxx             # 企微企业 ID
 WECOM_SECRET=xxx              # 企微应用 Secret
 WECOM_AGENT_ID=xxx            # 企微应用 AgentID
 INTERNAL_SECRET=xxx           # 内部 API 鉴权密钥
+CORS_ORIGIN=https://your.domain # 生产环境允许的前端源
+PORT=3002                     # 后端 Express 端口
+NEXT_ORIGIN=http://127.0.0.1:3000 # API 端口代理页面请求到 Next
 ```
+
+微信小程序当前仍通过 `INTERNAL_SECRET` 兼容鉴权，但小程序包会分发到客户端，不能在仓库中提交真实密钥。`wechat-miniprogram/config.js` 只保留开发占位；生产应迁移到 OpenID 或服务端会话鉴权。
 
 ## 架构要点
 
@@ -174,7 +181,7 @@ Next 前端 (proxyRequest/proxyFetch) → Next rewrites → Express API → bett
 | 任务 | 时间 | 机制 |
 |------|------|------|
 | 铜价更新 | 每天 15:00 BJT | setTimeout 链式调度 |
-| 数据库备份 | 每天 03:00 BJT | VACUUM INTO + 保留最近 7 份 |
+| 数据库备份 | 每天 03:00 BJT | better-sqlite3 backup() + 保留最近 7 份 |
 | 启动时 | 服务启动 | WAL Checkpoint + 立即备份一次 |
 
 ### 审计日志
@@ -189,6 +196,8 @@ Next 前端 (proxyRequest/proxyFetch) → Next rewrites → Express API → bett
 
 ### 生产环境（Mac Mini）
 
+完整发布前后检查见 [docs/deployment-checklist.md](docs/deployment-checklist.md)。生产重启前必须先通过 `npm run verify:release`。
+
 ```bash
 # SSH 到服务器
 ssh dan@192.168.31.216
@@ -197,11 +206,10 @@ cd ~/Documents/pump-cost-accounting-system
 # 拉取 + 构建 + 重启
 export PATH=/opt/homebrew/bin:$PATH
 git pull origin master
-npm run build
-pkill -f 'node api.cjs'
-pkill -f 'next start -p 3000'
-nohup node api.cjs > /dev/null 2>&1 &
-nohup npm run web-next:start:primary > web-next.out.log 2>&1 &
+npm install
+npm --prefix apps/web-next install
+npm run verify:release
+./scripts/install-macmini-launchdaemons.sh
 ```
 
 ### Next 并行预览入口

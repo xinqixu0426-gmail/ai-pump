@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../../db.cjs');
+const { getConfig, setConfig } = require('../../db.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 
 function promptAuth(req, res, next) {
@@ -69,9 +69,9 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
  */
 async function loadSystemPromptFromDB() {
     try {
-        const record = db.prepare("SELECT value FROM config WHERE key = 'ai-system-prompt'").get();
-        if (record && record.value) {
-            AI_SYSTEM_PROMPT = record.value;
+        const value = getConfig('ai-system-prompt');
+        if (value) {
+            AI_SYSTEM_PROMPT = value;
             console.log('[AI] System prompt 已从数据库加载, 长度:', AI_SYSTEM_PROMPT.length);
             return 1;
         }
@@ -90,9 +90,7 @@ router.put('/api/ai/system-prompt', promptAuth, async (req, res) => {
     try {
         const { prompt } = req.body;
         AI_SYSTEM_PROMPT = prompt;
-
-        // 持久化到 SQLite
-        db.prepare("INSERT OR REPLACE INTO config (key, value) VALUES ('ai-system-prompt', ?)").run(prompt);
+        setConfig('ai-system-prompt', prompt);
 
         res.json({ success: true });
     } catch (err) {

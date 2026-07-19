@@ -158,6 +158,16 @@ test('关键 API 集成契约：成本基础资料写入必须使用统一数字
     assert.doesNotMatch(coils, /Number\.isFinite\(up\)/);
 });
 
+test('关键 API 集成契约：线圈规格批量更新路由必须先于 ID 路由注册', () => {
+    const coils = readUtf8('api/routes/coils.cjs');
+    const specPatch = coils.indexOf("router.patch('/spec/:spec'");
+    const idPatch = coils.indexOf("router.patch('/:id'");
+
+    assert.notEqual(specPatch, -1);
+    assert.notEqual(idPatch, -1);
+    assert.ok(specPatch < idPatch, '/spec/:spec must be registered before /:id');
+});
+
 test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字', () => {
     const orders = readUtf8('api/routes/orders.cjs');
     const quotations = readUtf8('api/routes/quotations.cjs');
