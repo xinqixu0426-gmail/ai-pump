@@ -779,6 +779,17 @@ function partFormulaLine(part?: RecipePart): string {
   return '';
 }
 
+function coilWireWeightFromFormula(formula?: string): string {
+  const match = String(formula || '').match(/\+\s*([0-9]+(?:\.[0-9]+)?)\s*×/);
+  return match?.[1] || '';
+}
+
+function savedCoilWireWeight(recipe: Recipe): string {
+  if (recipe.coilWireWeight != null && Number(recipe.coilWireWeight) > 0) return String(recipe.coilWireWeight);
+  const coilPart = parseRecipePartsJson(recipe.partsJson).find((part) => part.name === '线圈转子' && part.formula);
+  return coilWireWeightFromFormula(coilPart?.formula);
+}
+
 function findDraftPart(draft: RecipeBomDraftResult | null, selection: RecipeSelection): RecipePart | undefined {
   if (!draft || !selection.model.trim()) return undefined;
   const model = selection.model.trim();
@@ -896,7 +907,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     coilSpec: recipe.coilSpec || '',
     coilSheets: recipe.coilSheets ? String(recipe.coilSheets) : '',
     coilMaterial: recipe.coilMaterial || '钢带',
-    coilWireWeight: '',
+    coilWireWeight: savedCoilWireWeight(recipe),
     hasFloat: Boolean(recipe.hasFloat),
     floatWire: recipe.floatWire || '',
     floatAccessoryType: recipe.floatAccessoryType || 'standard',
@@ -1212,9 +1223,6 @@ export function RecipesView() {
     && coil.material === form.coilMaterial
     && Number(coil.sheets) === Number(form.coilSheets)
   )) || null, [coilRecords, form.coilMaterial, form.coilSheets, form.coilSpec]);
-  const displayedCoilWireWeight = exactCoilRecord?.wireWeight
-    ? String(exactCoilRecord.wireWeight)
-    : (bomDraft?.coilSnapshot?.wireWeight ? String(bomDraft.coilSnapshot.wireWeight) : '');
   const floatWireOptions = useMemo(() => wireOptions(parts, '浮球', '浮球-线径'), [parts]);
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
@@ -1381,6 +1389,13 @@ export function RecipesView() {
     optionalPartsKey,
     packingPartsKey,
   ]);
+
+  useEffect(() => {
+    if (!drawerOpen || !exactCoilRecord?.wireWeight) return;
+    setForm((current) => current.coilWireWeight
+      ? current
+      : { ...current, coilWireWeight: String(exactCoilRecord.wireWeight) });
+  }, [drawerOpen, exactCoilRecord]);
 
   useEffect(() => {
     const wireGauge = bomDraft?.coilSnapshot?.wireGauge;
@@ -3324,10 +3339,13 @@ export function RecipesView() {
                 <label className="block">
                   <span className="text-xs font-medium text-muted">线重 kg</span>
                   <input
-                    value={displayedCoilWireWeight}
-                    readOnly
-                    placeholder="选择规格和片数"
-                    className="mt-1 h-9 w-full rounded-md border border-line bg-slate-50 px-3 text-sm tabular-nums text-ink outline-none"
+                    value={form.coilWireWeight}
+                    onChange={(event) => updateForm({ coilWireWeight: event.target.value })}
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    placeholder="系统默认 / 客户指定"
+                    className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm tabular-nums text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   />
                 </label>
                 <CostResultCard
