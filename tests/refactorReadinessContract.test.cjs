@@ -252,7 +252,8 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(recipesView, /配方名称/);
     assert.match(recipesView, /泵壳模板/);
     assert.match(recipesView, /线重 kg/);
-    assert.match(recipesView, /recipe-coil-wire-weight-options/);
+    assert.match(recipesView, /displayedCoilWireWeight/);
+    assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
     assert.match(recipesView, /模板 \/ 型号零配件/);
     assert.match(recipesView, /relatedBomParts/);
     assert.match(recipesView, /自动关联电容/);
@@ -460,6 +461,11 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
     assert.match(recipesView, /function EditableNumberSelect/);
+    assert.match(recipesView, /onFocus=\{\(\) => \{/);
+    assert.match(recipesView, /const exactCoilRecord = useMemo/);
+    assert.match(recipesView, /value=\{displayedCoilWireWeight\}/);
+    assert.match(recipesView, /readOnly/);
+    assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
     assert.match(recipesView, /role="listbox"/);
     assert.match(recipesView, /options=\{coilSheetOptions\}/);
     assert.doesNotMatch(recipesView, /list="recipe-coil-sheet-options"/);

@@ -190,6 +190,12 @@ function EditableValueSelect({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onFocus={() => {
+          if (!disabled && options.length > 0) setOpen(true);
+        }}
+        onClick={() => {
+          if (!disabled && options.length > 0) setOpen(true);
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') setOpen(false);
           if (event.key === 'ArrowDown') setOpen(true);
@@ -773,17 +779,6 @@ function partFormulaLine(part?: RecipePart): string {
   return '';
 }
 
-function coilWireWeightFromFormula(formula?: string): string {
-  const match = String(formula || '').match(/\+\s*([0-9]+(?:\.[0-9]+)?)\s*×/);
-  return match?.[1] || '';
-}
-
-function savedCoilWireWeight(recipe: Recipe): string {
-  if (recipe.coilWireWeight != null && Number(recipe.coilWireWeight) > 0) return String(recipe.coilWireWeight);
-  const coilPart = parseRecipePartsJson(recipe.partsJson).find((part) => part.name === '线圈转子' && part.formula);
-  return coilWireWeightFromFormula(coilPart?.formula);
-}
-
 function findDraftPart(draft: RecipeBomDraftResult | null, selection: RecipeSelection): RecipePart | undefined {
   if (!draft || !selection.model.trim()) return undefined;
   const model = selection.model.trim();
@@ -901,7 +896,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     coilSpec: recipe.coilSpec || '',
     coilSheets: recipe.coilSheets ? String(recipe.coilSheets) : '',
     coilMaterial: recipe.coilMaterial || '钢带',
-    coilWireWeight: savedCoilWireWeight(recipe),
+    coilWireWeight: '',
     hasFloat: Boolean(recipe.hasFloat),
     floatWire: recipe.floatWire || '',
     floatAccessoryType: recipe.floatAccessoryType || 'standard',
@@ -1212,14 +1207,14 @@ export function RecipesView() {
       .sort((a, b) => a - b)
       .map(String)
   ), [coilRecords, form.coilMaterial, form.coilSpec]);
-  const coilWireWeightOptions = useMemo(() => (
-    Array.from(new Set(coilRecords
-      .filter((coil) => (!form.coilSpec || coil.spec === form.coilSpec) && (!form.coilMaterial || coil.material === form.coilMaterial))
-      .map((coil) => Number(coil.wireWeight || 0))
-      .filter((weight) => weight > 0)
-      .map((weight) => String(weight))))
-      .sort((a, b) => Number(a) - Number(b))
-  ), [coilRecords, form.coilMaterial, form.coilSpec]);
+  const exactCoilRecord = useMemo(() => coilRecords.find((coil) => (
+    coil.spec === form.coilSpec
+    && coil.material === form.coilMaterial
+    && Number(coil.sheets) === Number(form.coilSheets)
+  )) || null, [coilRecords, form.coilMaterial, form.coilSheets, form.coilSpec]);
+  const displayedCoilWireWeight = exactCoilRecord?.wireWeight
+    ? String(exactCoilRecord.wireWeight)
+    : (bomDraft?.coilSnapshot?.wireWeight ? String(bomDraft.coilSnapshot.wireWeight) : '');
   const floatWireOptions = useMemo(() => wireOptions(parts, '浮球', '浮球-线径'), [parts]);
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
@@ -3290,7 +3285,7 @@ export function RecipesView() {
 
             <WorkspaceSection
               title="2. 线圈转子"
-              description="选择线圈规格和线重候选；客户指定线重可直接输入并由后端重算。"
+              description="选择线圈规格和片数后，系统自动读取对应线重并计算成本。"
               status={bomDraft?.coilSnapshot ? 'complete' : 'warning'}
               badge="自动计算"
               badgeTone="blue"
@@ -3312,7 +3307,7 @@ export function RecipesView() {
                   <EditableNumberSelect
                     value={form.coilSheets}
                     options={coilSheetOptions}
-                    onChange={(value) => updateForm({ coilSheets: value })}
+                    onChange={(value) => updateForm({ coilSheets: value, coilWireWeight: '' })}
                     ariaLabel="片数"
                   />
                 </label>
@@ -3329,19 +3324,12 @@ export function RecipesView() {
                 <label className="block">
                   <span className="text-xs font-medium text-muted">线重 kg</span>
                   <input
-                    value={form.coilWireWeight}
-                    onChange={(event) => updateForm({ coilWireWeight: event.target.value })}
-                    list="recipe-coil-wire-weight-options"
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    placeholder="默认 / 客户指定"
-                    className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    value={displayedCoilWireWeight}
+                    readOnly
+                    placeholder="选择规格和片数"
+                    className="mt-1 h-9 w-full rounded-md border border-line bg-slate-50 px-3 text-sm tabular-nums text-ink outline-none"
                   />
                 </label>
-                <datalist id="recipe-coil-wire-weight-options">
-                  {coilWireWeightOptions.map((weight) => <option key={weight} value={weight} />)}
-                </datalist>
                 <CostResultCard
                   className="md:col-span-2"
                   label="线圈成本"
