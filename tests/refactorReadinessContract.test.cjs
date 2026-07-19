@@ -453,6 +453,11 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /patch\.cableWire = nextCableWire/);
     assert.match(recipesView, /isFloatWireRecommended \? <RecipeStatusBadge tone="green">系统推荐<\/RecipeStatusBadge>/);
     assert.match(recipesView, /isCableWireRecommended \? <RecipeStatusBadge tone="green">系统推荐<\/RecipeStatusBadge>/);
+    assert.match(recipesView, /wireOptions\(parts, '浮球', '浮球-线径'\)/);
+    assert.match(recipesView, /wireOptions\(parts, '电缆线', '电缆-线径'\)/);
+    assert.match(recipesView, /ariaLabel="浮球线径"/);
+    assert.match(recipesView, /ariaLabel="电缆线径"/);
+    assert.match(recipesView, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
     assert.match(recipesView, /function EditableNumberSelect/);
     assert.match(recipesView, /role="listbox"/);

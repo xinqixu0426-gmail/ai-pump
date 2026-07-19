@@ -150,16 +150,28 @@ function signedMoney(value: number | null | undefined): string {
   return `${sign}${money(Math.abs(value))}`;
 }
 
-function EditableNumberSelect({
+function EditableValueSelect({
   value,
   options,
   onChange,
   ariaLabel,
+  listboxId,
+  inputType = 'text',
+  inputMode,
+  min,
+  step,
+  disabled = false,
 }: {
   value: string;
   options: string[];
   onChange: (value: string) => void;
   ariaLabel: string;
+  listboxId: string;
+  inputType?: 'text' | 'number';
+  inputMode?: 'text' | 'decimal' | 'numeric';
+  min?: string;
+  step?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -182,26 +194,29 @@ function EditableNumberSelect({
           if (event.key === 'Escape') setOpen(false);
           if (event.key === 'ArrowDown') setOpen(true);
         }}
-        type="number"
-        min="0"
-        step="1"
+        type={inputType}
+        inputMode={inputMode}
+        min={min}
+        step={step}
+        disabled={disabled}
         aria-label={ariaLabel}
         aria-expanded={open}
-        aria-controls="recipe-coil-sheet-listbox"
+        aria-controls={listboxId}
         placeholder="选择或输入"
-        className="h-9 w-full rounded-md border border-line px-3 pr-10 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+        className="h-9 w-full rounded-md border border-line px-3 pr-10 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
       />
       <button
         type="button"
         aria-label={`展开${ariaLabel}选项`}
         title={`展开${ariaLabel}选项`}
         onClick={() => setOpen((current) => !current)}
-        className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-r-md border-l border-line text-muted hover:bg-slate-50 hover:text-ink"
+        disabled={disabled}
+        className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-r-md border-l border-line text-muted hover:bg-slate-50 hover:text-ink disabled:opacity-60"
       >
         <ChevronDown size={15} />
       </button>
-      {open && options.length > 0 ? (
-        <div id="recipe-coil-sheet-listbox" role="listbox" aria-label={`${ariaLabel}候选`} className="absolute z-30 mt-1 max-h-64 w-full min-w-36 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
+      {open && !disabled && options.length > 0 ? (
+        <div id={listboxId} role="listbox" aria-label={`${ariaLabel}候选`} className="absolute z-30 mt-1 max-h-64 w-full min-w-36 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
           {options.map((option) => (
             <button
               key={option}
@@ -222,6 +237,33 @@ function EditableNumberSelect({
       ) : null}
     </div>
   );
+}
+
+function EditableNumberSelect(props: {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return <EditableValueSelect {...props} listboxId="recipe-coil-sheet-listbox" inputType="number" inputMode="numeric" min="0" step="1" />;
+}
+
+function EditableWireSelect({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+  listboxId,
+  disabled,
+}: {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  listboxId: string;
+  disabled: boolean;
+}) {
+  return <EditableValueSelect value={value} options={options} onChange={onChange} ariaLabel={ariaLabel} listboxId={listboxId} inputMode="decimal" disabled={disabled} />;
 }
 
 type RecipeFormState = {
@@ -658,14 +700,15 @@ function selectionToRecipeParts(parts: RecipeSelection[], packaging = false): Re
     }));
 }
 
-function wireOptions(parts: Part[], prefix: string): string[] {
+function wireOptions(parts: Part[], category: '浮球' | '电缆线', prefix: string): string[] {
   const values = new Set<string>();
   parts.forEach((part) => {
+    if (part.category !== category) return;
     if (!part.model.startsWith(prefix)) return;
     const value = part.model.slice(prefix.length).trim();
     if (value) values.add(value);
   });
-  return Array.from(values).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+  return Array.from(values).sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b));
 }
 
 function normalizeWireGauge(value: unknown): string {
@@ -1177,8 +1220,8 @@ export function RecipesView() {
       .map((weight) => String(weight))))
       .sort((a, b) => Number(a) - Number(b))
   ), [coilRecords, form.coilMaterial, form.coilSpec]);
-  const floatWireOptions = useMemo(() => wireOptions(parts, '浮球-线径'), [parts]);
-  const cableWireOptions = useMemo(() => wireOptions(parts, '电缆-线径'), [parts]);
+  const floatWireOptions = useMemo(() => wireOptions(parts, '浮球', '浮球-线径'), [parts]);
+  const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
   const recommendedCableWire = matchWireOption(cableWireOptions, bomDraft?.coilSnapshot?.wireGauge);
   const isFloatWireRecommended = Boolean(
@@ -3350,12 +3393,13 @@ export function RecipesView() {
                         线径
                         {isFloatWireRecommended ? <RecipeStatusBadge tone="green">系统推荐</RecipeStatusBadge> : null}
                       </span>
-                      <input
+                      <EditableWireSelect
                         value={form.floatWire}
-                        onChange={(event) => updateForm({ floatWire: event.target.value })}
-                        list="recipe-float-wire-options"
+                        options={floatWireOptions}
+                        onChange={(value) => updateForm({ floatWire: value })}
+                        ariaLabel="浮球线径"
+                        listboxId="recipe-float-wire-listbox"
                         disabled={!form.hasFloat}
-                        className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
                       />
                     </label>
                     <label className="block">
@@ -3389,12 +3433,13 @@ export function RecipesView() {
                         线径
                         {isCableWireRecommended ? <RecipeStatusBadge tone="green">系统推荐</RecipeStatusBadge> : null}
                       </span>
-                      <input
+                      <EditableWireSelect
                         value={form.cableWire}
-                        onChange={(event) => updateForm({ cableWire: event.target.value })}
-                        list="recipe-cable-wire-options"
+                        options={cableWireOptions}
+                        onChange={(value) => updateForm({ cableWire: value })}
+                        ariaLabel="电缆线径"
+                        listboxId="recipe-cable-wire-listbox"
                         disabled={!form.hasCable}
-                        className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
                       />
                     </label>
                     <label className="block">
@@ -3424,12 +3469,6 @@ export function RecipesView() {
                   </div>
                 </div>
               </div>
-              <datalist id="recipe-float-wire-options">
-                {floatWireOptions.map((wire) => <option key={wire} value={wire} />)}
-              </datalist>
-              <datalist id="recipe-cable-wire-options">
-                {cableWireOptions.map((wire) => <option key={wire} value={wire} />)}
-              </datalist>
             </WorkspaceSection>
 
             <WorkspaceSection
