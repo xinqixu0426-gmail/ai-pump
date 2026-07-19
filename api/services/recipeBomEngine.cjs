@@ -64,6 +64,7 @@ function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATE
         wireWeight: data.wireWeight,
         source: data.source,
         formula: data.formula,
+        wireGauge: data.wireGauge || '',
         defaultCapacitor: data.capacitor || '',
     };
 }

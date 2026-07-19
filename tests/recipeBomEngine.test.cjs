@@ -37,6 +37,7 @@ const coils = [
         coilFee: 2,
         rotorFee: 3,
         cost: 21,
+        defaultWireGauge: '0.75',
         defaultCapacitor: '20μF',
     },
 ];
@@ -96,6 +97,7 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
     assert.equal(result.capacitorModel, '20μF');
     assert.equal(result.customBarrelLength, 190);
     assert.equal(result.longScrewExtraLength, 10);
+    assert.equal(result.coilSnapshot.wireGauge, '0.75');
 
     const screw = result.parts.find(part => part.name === '不锈钢长螺丝');
     assert.equal(screw.model, '6*200');
