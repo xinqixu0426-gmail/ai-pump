@@ -53,6 +53,7 @@ import {
   type Recipe,
   type RecipeBomDraftResult,
   type RecipeCurrentCostResult,
+  type RecipeCurrentTotalCost,
   type RecipePart,
   type RecipeProductionDraft,
   type ShellComponentInput,
@@ -141,6 +142,12 @@ function dateTimeShort(value: string | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function signedMoney(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '-';
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}${money(Math.abs(value))}`;
 }
 
 type RecipeFormState = {
@@ -802,6 +809,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
 
 export function RecipesView() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [currentCosts, setCurrentCosts] = useState<RecipeCurrentTotalCost[]>([]);
   const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
   const [variants, setVariants] = useState<PumpModelVariant[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -857,6 +865,7 @@ export function RecipesView() {
     try {
       const [data, partRows] = await Promise.all([getRecipeDataset(), getAllParts()]);
       setRecipes(data.recipes);
+      setCurrentCosts(data.currentCosts);
       setTemplates(data.templates);
       setVariants(data.variants);
       setParts(partRows);
@@ -876,6 +885,7 @@ export function RecipesView() {
   }, []);
 
   const templateNameMap = useMemo(() => buildTemplateNameMap(templates), [templates]);
+  const currentCostMap = useMemo(() => new Map(currentCosts.map((item) => [item.recipeId, item])), [currentCosts]);
 
   const recipeRows = useMemo(() => {
     return recipes.map((recipe) => {
@@ -887,12 +897,13 @@ export function RecipesView() {
         partCount: parts.length,
         overview: recipePartsOverview(parts),
         savedTotal: getRecipeSavedTotal(recipe),
+        currentCost: currentCostMap.get(recipe.id) || null,
         laborTotal: getRecipeLaborTotal(recipe),
         templateName: recipe.templateId ? templateNameMap.get(recipe.templateId) || '' : '',
         copperRisk,
       };
     });
-  }, [currentCopperPricePerKg, recipes, templateNameMap]);
+  }, [currentCopperPricePerKg, currentCostMap, recipes, templateNameMap]);
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -1998,14 +2009,15 @@ export function RecipesView() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+            <table className="min-w-[1240px] border-separate border-spacing-0 text-left text-sm">
+              <thead className="whitespace-nowrap bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="border-b border-line px-4 py-3 w-12">对比</th>
-                  <th className="border-b border-line px-4 py-3">配方</th>
-                  <th className="border-b border-line px-4 py-3">模板/线圈</th>
-                  <th className="border-b border-line px-4 py-3">配件概览</th>
+                  <th className="min-w-40 border-b border-line px-4 py-3">配方</th>
+                  <th className="min-w-44 border-b border-line px-4 py-3">模板/线圈</th>
                   <th className="border-b border-line px-4 py-3 text-right">保存成本</th>
+                  <th className="border-b border-line px-4 py-3 text-right">当日成本</th>
+                  <th className="border-b border-line px-4 py-3 text-right" title="当日成本 - 保存成本">成本差额</th>
                   <th className="border-b border-line px-4 py-3 text-right">人工/管理</th>
                   <th className="border-b border-line px-4 py-3">铜价</th>
                   <th className="border-b border-line px-4 py-3">创建</th>
@@ -2035,12 +2047,20 @@ export function RecipesView() {
                           {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial].filter(Boolean).join(' / ') || '无线圈快照'}
                         </div>
                       </td>
-                      <td className="border-b border-line px-4 py-3">
-                        <div className="max-w-[340px] truncate text-muted">{row.overview}</div>
-                        <div className="mt-0.5 text-xs text-muted">{row.partCount} 项配件</div>
-                      </td>
-                      <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">
+                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium text-ink">
                         {row.savedTotal ? money(row.savedTotal) : '-'}
+                      </td>
+                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium text-ink">
+                        {row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}
+                      </td>
+                      <td className={`whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium ${
+                        Number(row.currentCost?.difference || 0) > 0
+                          ? 'text-rose-700'
+                          : Number(row.currentCost?.difference || 0) < 0
+                            ? 'text-emerald-700'
+                            : 'text-muted'
+                      }`}>
+                        {signedMoney(row.currentCost?.difference)}
                       </td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{money(row.laborTotal)}</td>
                       <td className="border-b border-line px-4 py-3 whitespace-nowrap">

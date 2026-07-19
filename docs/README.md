@@ -139,6 +139,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度和参数化计价规则；不写库 |
 | 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前统一序列化 JSON、数字、ID、表面处理和技术参数；不写库 |
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
+| 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按当前零件价格和当前铜价重算配方 BOM，再叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额 |
 | 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |
 | AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 分别叠加配方配件、线圈和动态配置 |
 

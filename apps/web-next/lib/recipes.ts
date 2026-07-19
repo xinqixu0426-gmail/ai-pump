@@ -41,6 +41,17 @@ export type RecipeCurrentCostResult = {
   fetchedAt: string;
 };
 
+export type RecipeCurrentTotalCost = {
+  recipeId: number;
+  currentTotalCost: number;
+  savedTotalCost: number | null;
+  difference: number | null;
+  partsCost: number;
+  laborCost: number;
+  itemCount: number;
+  missingParts: string[];
+};
+
 export type CableAccessoryType = 'standard' | 'xinjie';
 export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'electrophoresis_powder_coating' | 'powder_coating' | 'custom';
 
@@ -275,6 +286,7 @@ export type RecipeDataset = {
   templates: PumpShellTemplate[];
   variants: PumpModelVariant[];
   currentCopperPricePerKg: number | null;
+  currentCosts: RecipeCurrentTotalCost[];
 };
 
 function rowId(row: { id?: number; Id?: number }): number {
@@ -525,13 +537,30 @@ export async function getCopperPrice(): Promise<number | null> {
 }
 
 export async function getRecipeDataset(): Promise<RecipeDataset> {
-  const [recipes, templates, variants, currentCopperPricePerKg] = await Promise.all([
+  const [recipes, templates, variants, currentCopperPricePerKg, currentCosts] = await Promise.all([
     getAllRecipes(),
     getAllTemplates(),
     getAllModelVariants(),
     getCopperPrice().catch(() => null),
+    getAllRecipeCurrentCosts(),
   ]);
-  return { recipes, templates, variants, currentCopperPricePerKg };
+  return { recipes, templates, variants, currentCopperPricePerKg, currentCosts };
+}
+
+export async function getAllRecipeCurrentCosts(): Promise<RecipeCurrentTotalCost[]> {
+  const result = await proxyRequest<ApiResponse<{ asOf: string; items: RecipeCurrentTotalCost[] }>>('/api/recipes/current-costs');
+  if (!result.success || !result.data) throw new Error(result.error || '配方当日成本计算失败');
+  return (result.data.items || []).map((item) => ({
+    ...item,
+    recipeId: Number(item.recipeId),
+    currentTotalCost: Number(item.currentTotalCost) || 0,
+    savedTotalCost: item.savedTotalCost == null ? null : Number(item.savedTotalCost),
+    difference: item.difference == null ? null : Number(item.difference),
+    partsCost: Number(item.partsCost) || 0,
+    laborCost: Number(item.laborCost) || 0,
+    itemCount: Number(item.itemCount) || 0,
+    missingParts: Array.isArray(item.missingParts) ? item.missingParts : [],
+  }));
 }
 
 export async function previewRecipeBomDraft(input: {

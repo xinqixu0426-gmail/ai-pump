@@ -63,6 +63,18 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assertNoWrites(section);
 });
 
+test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当日成本且不写库', () => {
+    const source = readUtf8('api/routes/cost.cjs');
+    const section = sliceBetween(source, "router.get('/recipes/current-costs'", 'function calculateRecipeByIdHandler');
+
+    assert.match(section, /dbGetAllRecipes\(\)\.map\(recipe => calculateCurrentRecipeCost\(recipe, \{/);
+    assert.match(section, /calculateRecipeCost/);
+    assert.match(section, /coils/);
+    assert.match(section, /getSetting/);
+    assert.match(section, /data: \{ asOf: new Date\(\)\.toISOString\(\), items \}/);
+    assertNoWrites(section);
+});
+
 test('关键 API 集成契约：/api/orders/purchase-plan 只生成采购计划草稿不写库', () => {
     const source = readUtf8('api/routes/orders.cjs');
     const section = sliceBetween(source, "router.post('/purchase-plan'", "router.get('/:id'");

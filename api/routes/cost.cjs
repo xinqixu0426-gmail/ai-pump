@@ -21,6 +21,7 @@ const {
     buildFullEstimateResult,
 } = require('../services/fullCostEstimate.cjs');
 const { getMaterialPriceMap } = require('../services/coilCost.cjs');
+const { calculateCurrentRecipeCost } = require('../services/currentRecipeCost.cjs');
 const router = Router();
 const costLogger = createLogger('cost');
 const copperLogger = createLogger('copper');
@@ -64,6 +65,24 @@ router.get('/cost/recipe/by-name', (req, res) => {
         const result = calculateRecipeCost(parts, partsCache, partsByModel);
         res.json({ success: true, data: { recipeId: recipe.Id, recipeName: name, recipeSpec: spec, ...result } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ── GET /recipes/current-costs ──
+router.get('/recipes/current-costs', (req, res) => {
+    try {
+        const { partsCache, partsByModel } = loadPartsData();
+        const coils = dbGetAllCoils();
+        const items = dbGetAllRecipes().map(recipe => calculateCurrentRecipeCost(recipe, {
+            partsCache,
+            partsByModel,
+            calculateRecipeCost,
+            coils,
+            getSetting,
+        }));
+        res.json({ success: true, data: { asOf: new Date().toISOString(), items } });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 function calculateRecipeByIdHandler(req, res) {
