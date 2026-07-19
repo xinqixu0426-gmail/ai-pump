@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { CircleAlert, Copy, Eye, GitCompare, Layers3, Package, Pencil, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ChevronDown, CircleAlert, Copy, Eye, GitCompare, Layers3, Package, Pencil, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -148,6 +148,80 @@ function signedMoney(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '-';
   const sign = value > 0 ? '+' : value < 0 ? '-' : '';
   return `${sign}${money(Math.abs(value))}`;
+}
+
+function EditableNumberSelect({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative mt-1">
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setOpen(false);
+          if (event.key === 'ArrowDown') setOpen(true);
+        }}
+        type="number"
+        min="0"
+        step="1"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-controls="recipe-coil-sheet-listbox"
+        placeholder="选择或输入"
+        className="h-9 w-full rounded-md border border-line px-3 pr-10 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+      />
+      <button
+        type="button"
+        aria-label={`展开${ariaLabel}选项`}
+        title={`展开${ariaLabel}选项`}
+        onClick={() => setOpen((current) => !current)}
+        className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-r-md border-l border-line text-muted hover:bg-slate-50 hover:text-ink"
+      >
+        <ChevronDown size={15} />
+      </button>
+      {open && options.length > 0 ? (
+        <div id="recipe-coil-sheet-listbox" role="listbox" aria-label={`${ariaLabel}候选`} className="absolute z-30 mt-1 max-h-64 w-full min-w-36 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={value === option}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option);
+                setOpen(false);
+              }}
+              className="flex h-8 w-full items-center px-3 text-left text-sm tabular-nums text-ink hover:bg-slate-50"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 type RecipeFormState = {
@@ -3180,20 +3254,13 @@ export function RecipesView() {
                 </label>
                 <label className="block">
                   <span className="text-xs font-medium text-muted">片数</span>
-                  <input
+                  <EditableNumberSelect
                     value={form.coilSheets}
-                    onChange={(event) => updateForm({ coilSheets: event.target.value })}
-                    list="recipe-coil-sheet-options"
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="选择或输入"
-                    className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    options={coilSheetOptions}
+                    onChange={(value) => updateForm({ coilSheets: value })}
+                    ariaLabel="片数"
                   />
                 </label>
-                <datalist id="recipe-coil-sheet-options">
-                  {coilSheetOptions.map((sheets) => <option key={sheets} value={sheets} />)}
-                </datalist>
                 <label className="block">
                   <span className="text-xs font-medium text-muted">材质</span>
                   <select
