@@ -10,7 +10,7 @@ import { BomTableDialog } from '@/components/recipe/BomTableDialog';
 import { CostResultCard } from '@/components/recipe/CostResultCard';
 import { CostSummaryPanel } from '@/components/recipe/CostSummaryPanel';
 import { RecipeDataTable } from '@/components/recipe/RecipeDataTable';
-import { RecipeSection as WorkspaceSection } from '@/components/recipe/RecipeSection';
+import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/components/recipe/RecipeSection';
 import { TemplateMatchSummary } from '@/components/recipe/TemplateMatchSummary';
 import { TechnicalDataEditor } from '@/components/technical-data-editor';
 import { Button } from '@/components/ui/button';
@@ -1179,6 +1179,18 @@ export function RecipesView() {
   ), [coilRecords, form.coilMaterial, form.coilSpec]);
   const floatWireOptions = useMemo(() => wireOptions(parts, '浮球-线径'), [parts]);
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆-线径'), [parts]);
+  const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
+  const recommendedCableWire = matchWireOption(cableWireOptions, bomDraft?.coilSnapshot?.wireGauge);
+  const isFloatWireRecommended = Boolean(
+    form.hasFloat
+    && recommendedFloatWire
+    && normalizeWireGauge(form.floatWire) === normalizeWireGauge(recommendedFloatWire)
+  );
+  const isCableWireRecommended = Boolean(
+    form.hasCable
+    && recommendedCableWire
+    && normalizeWireGauge(form.cableWire) === normalizeWireGauge(recommendedCableWire)
+  );
   const partModelOptions = useMemo(
     () => Array.from(new Set(parts.filter((part) => part.category !== '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [parts]
@@ -3334,7 +3346,10 @@ export function RecipesView() {
                   </label>
                   <div className="mt-3 grid gap-2 md:grid-cols-2">
                     <label className="block">
-                      <span className="text-xs font-medium text-muted">线径</span>
+                      <span className="flex min-h-6 items-center gap-2 text-xs font-medium text-muted">
+                        线径
+                        {isFloatWireRecommended ? <RecipeStatusBadge tone="green">系统推荐</RecipeStatusBadge> : null}
+                      </span>
                       <input
                         value={form.floatWire}
                         onChange={(event) => updateForm({ floatWire: event.target.value })}
@@ -3370,7 +3385,10 @@ export function RecipesView() {
                   </label>
                   <div className="mt-3 grid gap-2 md:grid-cols-3">
                     <label className="block">
-                      <span className="text-xs font-medium text-muted">线径</span>
+                      <span className="flex min-h-6 items-center gap-2 text-xs font-medium text-muted">
+                        线径
+                        {isCableWireRecommended ? <RecipeStatusBadge tone="green">系统推荐</RecipeStatusBadge> : null}
+                      </span>
                       <input
                         value={form.cableWire}
                         onChange={(event) => updateForm({ cableWire: event.target.value })}
