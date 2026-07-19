@@ -438,6 +438,10 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /deleteTemplate/);
     assert.match(recipesView, /getTemplateRecipeDraft/);
     assert.match(recipesView, /templateId:\s*String\(recipeDraft\.templateId\)/);
+    assert.match(recipesView, /const hasStainlessBarrel = formShellMeta\?\.isStainless === true/);
+    assert.match(recipesView, /\{hasStainlessBarrel \? \(/);
+    assert.match(recipesView, /customBarrelLength: hasStainlessBarrel \? form\.customBarrelLength \|\| null : null/);
+    assert.match(recipesView, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);
     assert.match(recipesView, /openCloneRecipe/);
     assert.match(recipesView, /副本/);
     assert.match(recipesView, /复制/);

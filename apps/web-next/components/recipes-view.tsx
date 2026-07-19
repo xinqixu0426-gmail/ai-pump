@@ -1080,6 +1080,7 @@ export function RecipesView() {
 
   const formTemplate = templates.find((template) => String(template.id) === form.templateId);
   const formShellMeta = useMemo(() => findShellMetaForTemplate(formTemplate, parts), [formTemplate, parts]);
+  const hasStainlessBarrel = formShellMeta?.isStainless === true;
   const technicalReferenceFields = useMemo(
     () => buildTechnicalReferenceFields({ shellMetaInfo: formShellMeta, selectedTemplate: formTemplate || null }),
     [formShellMeta, formTemplate]
@@ -1244,6 +1245,7 @@ export function RecipesView() {
     form.surfaceTreatmentMode,
     form.surfaceTreatmentCost,
     form.managementFee,
+    hasStainlessBarrel,
     optionalPartsKey,
     packingPartsKey,
   ]);
@@ -1356,6 +1358,8 @@ export function RecipesView() {
       updateForm({
         templateId: nextTemplateId,
         variantId: '',
+        customBarrelLength: '',
+        longScrewExtraLength: '0',
         impellerModel: '',
         impellerThickness: '',
         impellerDiameter: '',
@@ -1371,10 +1375,14 @@ export function RecipesView() {
     }
 
     try {
+      const nextTemplate = templates.find((template) => template.id === templateId);
+      const nextShellMeta = findShellMetaForTemplate(nextTemplate, parts);
+      const nextHasStainlessBarrel = nextShellMeta?.isStainless === true;
       const { recipeDraft } = await getTemplateRecipeDraft(templateId);
       updateForm({
         templateId: String(recipeDraft.templateId),
         variantId: '',
+        ...(!nextHasStainlessBarrel ? { customBarrelLength: '', longScrewExtraLength: '0' } : {}),
         impellerModel: '',
         impellerThickness: '',
         impellerDiameter: '',
@@ -1770,8 +1778,8 @@ export function RecipesView() {
       const draft = await previewRecipeBomDraft({
         templateId: Number(form.templateId),
         modelVariantId: form.variantId ? Number(form.variantId) : null,
-        customBarrelLength: form.customBarrelLength || null,
-        longScrewExtraLength: form.longScrewExtraLength || 0,
+        customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
+        longScrewExtraLength: hasStainlessBarrel ? form.longScrewExtraLength || 0 : 0,
         coilSpec: form.coilSpec,
         coilSheets: form.coilSheets,
         coilMaterial: form.coilMaterial,
@@ -1847,7 +1855,7 @@ export function RecipesView() {
           cableLength: form.cableLength,
           cableWire: form.cableWire,
           cableAccessoryType: form.cableAccessoryType,
-          customBarrelLength: form.customBarrelLength || null,
+          customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
           modelVariantId: form.variantId || null,
           impellerModel: form.impellerModel,
           impellerThickness: form.impellerThickness || null,
@@ -3103,31 +3111,33 @@ export function RecipesView() {
                   </label>
                 </div>
 
-                <div className="grid items-end gap-3 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-xs font-medium text-muted">机筒长度 mm</span>
-                    <input
-                      value={form.customBarrelLength}
-                      onChange={(event) => updateForm({ customBarrelLength: event.target.value })}
-                      type="number"
-                      min="0"
-                      step="1"
-                      className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                      placeholder="可选"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-muted">长螺丝补偿 mm</span>
-                    <input
-                      value={form.longScrewExtraLength}
-                      onChange={(event) => updateForm({ longScrewExtraLength: event.target.value })}
-                      type="number"
-                      min="0"
-                      step="1"
-                      className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                    />
-                  </label>
-                </div>
+                {hasStainlessBarrel ? (
+                  <div className="grid items-end gap-3 md:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-medium text-muted">机筒长度 mm</span>
+                      <input
+                        value={form.customBarrelLength}
+                        onChange={(event) => updateForm({ customBarrelLength: event.target.value })}
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                        placeholder="可选"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-muted">长螺丝补偿 mm</span>
+                      <input
+                        value={form.longScrewExtraLength}
+                        onChange={(event) => updateForm({ longScrewExtraLength: event.target.value })}
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      />
+                    </label>
+                  </div>
+                ) : null}
               </div>
             </WorkspaceSection>
 
