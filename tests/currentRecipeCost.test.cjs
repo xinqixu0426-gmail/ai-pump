@@ -62,3 +62,21 @@ test('没有保存成本时仍返回当日成本但差额为空', () => {
     assert.equal(result.savedTotalCost, null);
     assert.equal(result.difference, null);
 });
+
+test('当日成本重算应用全局浮球加价设置', () => {
+    const result = calculateCurrentRecipeCost({
+        id: 14,
+        partsJson: JSON.stringify([
+            { model: '浮球-线径0.55', name: '浮球', supplier: 'A', qty: 1, floatAccessoryType: 'xinjie' },
+        ]),
+    }, {
+        partsByModel: {
+            '浮球-线径0.55': [{ model: '浮球-线径0.55', supplier: 'A', price: 7 }],
+        },
+        calculateRecipeCost,
+        getSetting: key => key === 'float_accessory_delta' ? '0.6' : undefined,
+    });
+
+    assert.equal(result.partsCost, 7.6);
+    assert.equal(result.currentTotalCost, 7.6);
+});

@@ -54,7 +54,7 @@ function calculateCurrentRecipeCost(recipe, dependencies = {}) {
     if (typeof calculateRecipeCost !== 'function') throw new Error('calculateRecipeCost dependency is required');
 
     const parts = refreshCoilSnapshot(parseParts(recipe.partsJson), recipe, coils, getSetting);
-    const partsResult = calculateRecipeCost(parts, partsCache, partsByModel);
+    const partsResult = calculateRecipeCost(parts, partsCache, partsByModel, { getSetting });
     const partsCost = Number(partsResult.totalCost || 0);
     const laborCost = calculateLaborTotal(recipe, getSetting);
     const currentTotalCost = roundMoney(partsCost + laborCost);

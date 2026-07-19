@@ -979,6 +979,7 @@ export function RecipesView() {
   const [editingTemplate, setEditingTemplate] = useState<PumpShellTemplate | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
   const bomDraftRequestRef = useRef(0);
+  const autoWireSelectionRef = useRef({ floatWire: '', cableWire: '' });
 
   async function load(force = false) {
     setError(null);
@@ -1406,11 +1407,17 @@ export function RecipesView() {
 
     setForm((current) => {
       const patch: Partial<RecipeFormState> = {};
-      if (nextFloatWire && normalizeWireGauge(current.floatWire) !== normalizeWireGauge(nextFloatWire)) {
+      const currentFloatWire = normalizeWireGauge(current.floatWire);
+      const currentCableWire = normalizeWireGauge(current.cableWire);
+      const previousAutoFloatWire = normalizeWireGauge(autoWireSelectionRef.current.floatWire);
+      const previousAutoCableWire = normalizeWireGauge(autoWireSelectionRef.current.cableWire);
+      if (nextFloatWire && (!currentFloatWire || (previousAutoFloatWire && currentFloatWire === previousAutoFloatWire))) {
         patch.floatWire = nextFloatWire;
+        autoWireSelectionRef.current.floatWire = nextFloatWire;
       }
-      if (nextCableWire && normalizeWireGauge(current.cableWire) !== normalizeWireGauge(nextCableWire)) {
+      if (nextCableWire && (!currentCableWire || (previousAutoCableWire && currentCableWire === previousAutoCableWire))) {
         patch.cableWire = nextCableWire;
+        autoWireSelectionRef.current.cableWire = nextCableWire;
       }
       return Object.keys(patch).length > 0 ? { ...current, ...patch } : current;
     });
@@ -1440,6 +1447,7 @@ export function RecipesView() {
 
   function openCreateDrawer() {
     setEditingRecipe(null);
+    autoWireSelectionRef.current = { floatWire: '', cableWire: '' };
     setForm(emptyForm);
     setOptionalParts([]);
     setPackingParts([]);
@@ -1453,6 +1461,7 @@ export function RecipesView() {
 
   function openEditDrawer(recipe: Recipe) {
     setEditingRecipe(recipe);
+    autoWireSelectionRef.current = { floatWire: '', cableWire: '' };
     setForm(formFromRecipe(recipe));
     setOptionalParts(parseSelections(recipe.extraPartsJson));
     setPackingParts(parseSelections(recipe.packingPartsJson, true));
@@ -1475,6 +1484,7 @@ export function RecipesView() {
 
   function openCloneRecipe(recipe: Recipe) {
     setEditingRecipe(null);
+    autoWireSelectionRef.current = { floatWire: '', cableWire: '' };
     setForm({
       ...formFromRecipe(recipe),
       name: `${recipe.name || '未命名配方'} - 副本`,
@@ -3402,7 +3412,10 @@ export function RecipesView() {
                       <EditableWireSelect
                         value={form.floatWire}
                         options={floatWireOptions}
-                        onChange={(value) => updateForm({ floatWire: value })}
+                        onChange={(value) => {
+                          autoWireSelectionRef.current.floatWire = '';
+                          updateForm({ floatWire: value });
+                        }}
                         ariaLabel="浮球线径"
                         listboxId="recipe-float-wire-listbox"
                         disabled={!form.hasFloat}
@@ -3442,7 +3455,10 @@ export function RecipesView() {
                       <EditableWireSelect
                         value={form.cableWire}
                         options={cableWireOptions}
-                        onChange={(value) => updateForm({ cableWire: value })}
+                        onChange={(value) => {
+                          autoWireSelectionRef.current.cableWire = '';
+                          updateForm({ cableWire: value });
+                        }}
                         ariaLabel="电缆线径"
                         listboxId="recipe-cable-wire-listbox"
                         disabled={!form.hasCable}
