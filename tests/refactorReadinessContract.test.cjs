@@ -448,6 +448,9 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.doesNotMatch(recipesView, /保存为常用配置/);
     assert.match(recipesView, /线圈快照/);
     assert.match(recipesView, /自动电容/);
+    assert.match(recipesView, /const coilSheetOptions = useMemo/);
+    assert.match(recipesView, /list="recipe-coil-sheet-options"/);
+    assert.match(recipesView, /coilSheetOptions\.map\(\(sheets\) => <option/);
     assert.match(recipesView, /机筒 \/ 长螺丝/);
     assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
     assert.match(recipesView, /buildRecipeSavePayloadDraft/);

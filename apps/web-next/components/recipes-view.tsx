@@ -1087,6 +1087,14 @@ export function RecipesView() {
   );
   const selectedFormCoilSpec = coilSpecs.find((spec) => spec.spec === form.coilSpec);
   const formMaterialOptions = selectedFormCoilSpec?.materials?.length ? selectedFormCoilSpec.materials : ['钢带'];
+  const coilSheetOptions = useMemo(() => (
+    Array.from(new Set(coilRecords
+      .filter((coil) => (!form.coilSpec || coil.spec === form.coilSpec) && (!form.coilMaterial || coil.material === form.coilMaterial))
+      .map((coil) => Number(coil.sheets || 0))
+      .filter((sheets) => sheets > 0)))
+      .sort((a, b) => a - b)
+      .map(String)
+  ), [coilRecords, form.coilMaterial, form.coilSpec]);
   const coilWireWeightOptions = useMemo(() => (
     Array.from(new Set(coilRecords
       .filter((coil) => (!form.coilSpec || coil.spec === form.coilSpec) && (!form.coilMaterial || coil.material === form.coilMaterial))
@@ -3175,12 +3183,17 @@ export function RecipesView() {
                   <input
                     value={form.coilSheets}
                     onChange={(event) => updateForm({ coilSheets: event.target.value })}
+                    list="recipe-coil-sheet-options"
                     type="number"
                     min="0"
                     step="1"
+                    placeholder="选择或输入"
                     className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   />
                 </label>
+                <datalist id="recipe-coil-sheet-options">
+                  {coilSheetOptions.map((sheets) => <option key={sheets} value={sheets} />)}
+                </datalist>
                 <label className="block">
                   <span className="text-xs font-medium text-muted">材质</span>
                   <select
