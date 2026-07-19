@@ -480,6 +480,8 @@ test('Next UI 契约：泵壳模板必须引用零件库并分离整体与组合
     assert.match(recipesView, /自由搭配/);
     assert.match(recipesView, /ariaLabel="泵壳计价方式"/);
     assert.match(recipesView, /templateForm\.costMode === 'bundle'/);
+    assert.match(recipesView, /templateForm\.bundleNote/);
+    assert.match(recipesView, /填写套件计价或配置说明/);
     assert.match(recipesView, /电泳\+喷塑/);
     assert.match(recipesView, /整体喷塑/);
     assert.match(recipesView, /表面处理费用/);
@@ -489,6 +491,7 @@ test('Next UI 契约：泵壳模板必须引用零件库并分离整体与组合
     assert.match(templatesRoute, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);
     assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_mode/);
     assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_cost/);
+    assert.match(db, /pump_shell_templates ADD COLUMN bundle_note/);
 });
 
 test('Next UI 契约：线圈新增必须保留同规格自动带入小操作', () => {

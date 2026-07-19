@@ -248,6 +248,7 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN surface_treatment_mod
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN surface_treatment_cost REAL`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN cost_mode TEXT DEFAULT 'components'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_cost REAL DEFAULT 0`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_note TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN long_screw_extra_length REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN custom_fields_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
@@ -338,7 +339,7 @@ function templateRow(r) {
             ? r.surface_treatment_mode
             : (r.painting_wage != null ? 'painting' : 'none'),
         surfaceTreatmentCost: r.surface_treatment_cost != null ? r.surface_treatment_cost : (r.painting_wage || 0),
-        costMode: r.cost_mode || 'components', bundleCost: r.bundle_cost || 0,
+        costMode: r.cost_mode || 'components', bundleCost: r.bundle_cost || 0, bundleNote: r.bundle_note || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };

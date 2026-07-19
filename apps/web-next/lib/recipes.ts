@@ -97,6 +97,7 @@ export type PumpShellTemplate = {
   surfaceTreatmentCost?: number;
   costMode?: string;
   bundleCost?: number;
+  bundleNote?: string;
 };
 
 export type TemplatePartInput = {
@@ -336,6 +337,7 @@ export function rowToTemplate(row: TemplateRow): PumpShellTemplate {
     surfaceTreatmentCost: Number(row.surfaceTreatmentCost ?? row.paintingWage) || 0,
     costMode: row.costMode || 'components',
     bundleCost: Number(row.bundleCost) || 0,
+    bundleNote: row.bundleNote || '',
   };
 }
 
@@ -474,6 +476,7 @@ export type TemplateInput = {
   surfaceTreatmentCost: number;
   costMode: 'components' | 'bundle';
   bundleCost: number;
+  bundleNote: string;
 };
 
 export async function createTemplate(input: TemplateInput): Promise<PumpShellTemplate> {

@@ -218,6 +218,7 @@ type TemplateFormState = {
   surfaceTreatmentCost: string;
   costMode: 'components' | 'bundle';
   bundleCost: string;
+  bundleNote: string;
   partRows: TemplatePartFormRow[];
   componentRows: ShellComponentFormRow[];
   rotorParams: TemplateRotorParamsState;
@@ -326,6 +327,7 @@ function emptyTemplateForm(): TemplateFormState {
     surfaceTreatmentCost: '0',
     costMode: 'components',
     bundleCost: '0',
+    bundleNote: '',
     partRows: defaultTemplateParts(),
     componentRows: defaultShellComponents(),
     rotorParams: emptyTemplateRotorParams(),
@@ -508,6 +510,7 @@ function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormStat
     surfaceTreatmentCost: String(template.surfaceTreatmentCost ?? template.paintingWage ?? 0),
     costMode: template.costMode === 'bundle' ? 'bundle' : 'components',
     bundleCost: String(template.bundleCost || 0),
+    bundleNote: template.bundleNote || '',
     partRows: partRows.length > 0 ? partRows : defaultTemplateParts(),
     componentRows: componentRows.length > 0 ? componentRows : defaultShellComponents(),
     rotorParams,
@@ -556,6 +559,7 @@ function templateFormToInput(form: TemplateFormState): TemplateInput {
     surfaceTreatmentCost: form.surfaceTreatmentMode === 'none' ? 0 : Math.max(0, numberValue(form.surfaceTreatmentCost)),
     costMode: form.costMode,
     bundleCost: form.costMode === 'bundle' ? Math.max(0, numberValue(form.bundleCost)) : 0,
+    bundleNote: form.costMode === 'bundle' ? form.bundleNote.trim() : '',
   };
 }
 
@@ -2665,11 +2669,22 @@ export function RecipesView() {
                 />
               </div>
               {templateForm.costMode === 'bundle' ? (
-                <label className="mt-3 block">
-                  <span className="text-sm font-medium text-ink">泵壳套件价格</span>
-                  <input value={templateForm.bundleCost} onChange={(event) => updateTemplateForm({ bundleCost: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                  <span className="mt-1 block text-xs text-muted">选择泵壳型号时默认带入零件库最低有效价格，可在模板中覆盖。</span>
-                </label>
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-ink">泵壳套件价格</span>
+                    <input value={templateForm.bundleCost} onChange={(event) => updateTemplateForm({ bundleCost: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                    <span className="mt-1 block text-xs text-muted">选择泵壳型号时默认带入零件库最低有效价格，可在模板中覆盖。</span>
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-medium text-ink">备注</span>
+                    <input
+                      value={templateForm.bundleNote}
+                      onChange={(event) => updateTemplateForm({ bundleNote: event.target.value })}
+                      className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      placeholder="填写套件计价或配置说明"
+                    />
+                  </label>
+                </div>
               ) : (
                 <div className="mt-3 space-y-2">
                   <div className="flex justify-end">
@@ -2809,7 +2824,10 @@ export function RecipesView() {
                 <div className="border-b border-line p-4 text-sm font-semibold text-ink">泵壳计价</div>
                 <div className="divide-y divide-line">
                   {templateDetail.costMode === 'bundle' ? (
-                    <div className="p-4 text-sm text-ink">泵壳套件价格：{money(templateDetail.bundleCost || 0)}</div>
+                    <div className="p-4 text-sm text-ink">
+                      <div>泵壳套件价格：{money(templateDetail.bundleCost || 0)}</div>
+                      <div className="mt-1 text-muted">备注：{templateDetail.bundleNote || '-'}</div>
+                    </div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).length === 0 ? (
                     <div className="p-4 text-sm text-muted">暂无组件明细</div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).map((component, index) => (

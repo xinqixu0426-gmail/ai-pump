@@ -46,11 +46,12 @@ const TEMPLATE_ALIASES = {
     surfaceTreatmentCost: 'surface_treatment_cost',
     costMode: 'cost_mode',
     bundleCost: 'bundle_cost',
+    bundleNote: 'bundle_note',
 };
 
 function templateBodyToDb(body) {
     const updates = {};
-    for (const f of ['shell_model', 'description', 'parts_json', 'shell_components_json', 'rotor_params_json', 'assembly_wage', 'packing_wage', 'painting_wage', 'surface_treatment_mode', 'surface_treatment_cost', 'cost_mode', 'bundle_cost']) {
+    for (const f of ['shell_model', 'description', 'parts_json', 'shell_components_json', 'rotor_params_json', 'assembly_wage', 'packing_wage', 'painting_wage', 'surface_treatment_mode', 'surface_treatment_cost', 'cost_mode', 'bundle_cost', 'bundle_note']) {
         if (body[f] !== undefined) updates[f] = body[f];
     }
     for (const [camel, snake] of Object.entries(TEMPLATE_ALIASES)) {
@@ -176,7 +177,7 @@ router.get('/:id/recipes', (req, res) => {
 
 router.post('/', (req, res) => {
     try {
-        const { shell_model, description, parts_json, shell_components_json, rotor_params_json, assembly_wage, packing_wage, painting_wage, surface_treatment_mode, surface_treatment_cost, cost_mode, bundle_cost } = templateBodyToDb(req.body);
+        const { shell_model, description, parts_json, shell_components_json, rotor_params_json, assembly_wage, packing_wage, painting_wage, surface_treatment_mode, surface_treatment_cost, cost_mode, bundle_cost, bundle_note } = templateBodyToDb(req.body);
         if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
         const now = new Date().toISOString();
         const json = normalizeTemplateJsonFields({ parts_json, shell_components_json, rotor_params_json });
@@ -194,6 +195,7 @@ router.post('/', (req, res) => {
             surface_treatment_cost: surface_treatment_mode === 'none' ? 0 : parseNonNegativeNumber(surface_treatment_cost ?? painting_wage, 'surface_treatment_cost'),
             cost_mode: mode,
             bundle_cost: mode === 'bundle' ? parseNonNegativeNumber(bundle_cost, 'bundle_cost') : 0,
+            bundle_note: mode === 'bundle' ? String(bundle_note || '').trim() : '',
             created_at: now,
             updated_at: now,
         });
@@ -223,6 +225,7 @@ router.patch('/:id', (req, res) => {
         if (b.surface_treatment_cost !== undefined) updates.surface_treatment_cost = parseNonNegativeNumber(b.surface_treatment_cost, 'surface_treatment_cost');
         if (b.cost_mode !== undefined) updates.cost_mode = b.cost_mode === 'bundle' ? 'bundle' : 'components';
         if (b.bundle_cost !== undefined) updates.bundle_cost = parseNonNegativeNumber(b.bundle_cost, 'bundle_cost');
+        if (b.bundle_note !== undefined) updates.bundle_note = String(b.bundle_note || '').trim();
         safeUpdate('pump_shell_templates', id, updates);
         const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
         if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
