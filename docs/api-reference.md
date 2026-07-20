@@ -248,6 +248,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 
 - `build_recipe_bom_draft`：调用 `/api/recipes/bom-draft` 生成联动 BOM 草稿。
 - `preview_recipe_cost`：调用 `/api/recipes/:id/cost-preview` 做报价覆盖试算。
+- `preview_pump_shell_cost`：调用 `/api/recipes/bom-draft` 试算指定泵壳模板在某个机筒长度下的泵壳本体成本；适用于不锈钢机筒整体泵壳随长度加价。
 - `build_quotation_draft`：调用 `/api/quotations/save-payload-draft` 生成报价保存草稿。
 - `build_order_draft`：调用 `/api/orders/save-payload-draft` 生成订单保存草稿、采购清单和待办。
 - `search_customer_history`：组合查询客户、报价和订单历史，供报价前参考。

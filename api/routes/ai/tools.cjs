@@ -3,7 +3,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'query_recipe_cost_by_name',
-            description: '通过配方名称查询最新成本。当用户说"V750的成本是多少"时使用',
+            description: '通过配方名称查询默认/保存的最新成本。当用户只问“V750的默认成本是多少”时使用；如果用户提到机筒长度、机筒高度、customBarrelLength、180mm 等动态条件，不要用本工具，改用 preview_pump_shell_cost 或 preview_recipe_cost。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -415,7 +415,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'preview_recipe_cost',
-            description: '基于已有配方做动态成本试算，不写库。适合报价前覆盖机筒长度、线圈片数、浮球、电缆等参数。',
+            description: '基于已有配方做动态成本试算，不写库。适合用户问“某配方在180mm机筒/140片/带浮球时总成本是多少”。如果只问泵壳本身成本，用 preview_pump_shell_cost。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -433,6 +433,22 @@ const AI_TOOLS = [
                     cableWire: { type: 'string' },
                     cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }
                 }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'preview_pump_shell_cost',
+            description: '计算泵壳模板在指定机筒长度下的泵壳本体成本，不写库。用户问“V750 180mm机筒泵壳成本”“180mm机筒高度时泵壳多少钱”“不锈钢机筒加长后泵壳成本”时使用。会触发不锈钢机筒整体泵壳随长度加价规则；未提供泵壳型号时应先追问型号。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    shellModel: { type: 'string', description: '泵壳型号/模板名称，如 V750。必填，除非已能从上下文明确确定。' },
+                    templateId: { type: 'number', description: '泵壳模板ID，可选；优先于 shellModel' },
+                    customBarrelLength: { type: 'number', description: '机筒长度/高度，单位 mm，如 180' }
+                },
+                required: ['customBarrelLength']
             }
         }
     },

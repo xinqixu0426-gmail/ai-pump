@@ -234,7 +234,8 @@ POST /api/rotor/save
 - 写操作还必须位于 `WRITE_TOOLS` 白名单，并通过确认流程；查询工具不能借机写库。
 - AI 调度器 V1 将普通工具结果作为模型继续推理的上下文，不再把查询结果卡片作为对话终点；只有写操作确认会中断等待用户确认。
 - Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作。
-- 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
+- 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
+- AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary` 和 `get_business_alerts` 读取基础资料健康度、报价和订单经营异常；这些工具均为只读工具。
 - Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。
 - iPhone PWA 入口为 Next 页面 `/voice`，面向主屏幕 standalone 使用；桌面业务入口和 `/ai` 工作台不受影响。

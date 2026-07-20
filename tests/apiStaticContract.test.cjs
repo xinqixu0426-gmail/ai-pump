@@ -395,9 +395,25 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'get_business_alerts']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'get_business_alerts']) {
         assert.match(tools, new RegExp(name));
     }
+});
+
+test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本', () => {
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+
+    assert.match(tools, /preview_pump_shell_cost/);
+    assert.match(tools, /机筒长度/);
+    assert.match(tools, /不要用本工具，改用 preview_pump_shell_cost/);
+    assert.match(promptRoute, /泵壳\/机筒长度规则/);
+    assert.match(promptRoute, /不要用 query_recipe_cost_by_name/);
+    assert.match(chatRoute, /preview_pump_shell_cost/);
+    assert.match(chatRoute, /不要使用 query_recipe_cost_by_name/);
+    assert.match(businessExecutor, /\/api\/recipes\/bom-draft/);
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {

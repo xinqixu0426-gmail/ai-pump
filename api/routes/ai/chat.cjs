@@ -12,6 +12,11 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用短标题、项目符号、编号列表和加粗关键数字组织内容。
 - 成本、报价、订单明细可用 Markdown 表格；不要输出 HTML。
 - 不要只输出一整段纯文本。
+
+【运行时业务路由要求】
+- 用户提到机筒长度、机筒高度、桶长或 180mm/170mm 这类长度，并询问泵壳本体成本时，必须使用 preview_pump_shell_cost；不要使用 query_recipe_cost_by_name 返回默认配方成本。
+- 用户询问整个配方、报价或订单在某个机筒长度下的总成本时，使用 preview_recipe_cost，并把长度放入 customBarrelLength 或 overrides.customBarrelLength。
+- 未提供泵壳型号时先追问型号；不要默认猜 V750 或任何模板。
 `;
 
 function buildSystemPrompt(extra = '') {
@@ -73,6 +78,7 @@ const TOOL_PLAN_LABELS = {
     update_recipe: '修改配方',
     build_recipe_bom_draft: '生成 BOM 草稿',
     preview_recipe_cost: '配方成本试算',
+    preview_pump_shell_cost: '泵壳成本试算',
     build_quotation_draft: '生成报价草稿',
     build_order_draft: '生成订单草稿',
     search_customer_history: '查询客户历史',

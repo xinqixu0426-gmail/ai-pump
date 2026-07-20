@@ -271,3 +271,53 @@ test('AI executor 行为：报价草稿工具复用客户、配方、成本预�
         'POST /api/quotations/save-payload-draft',
     ]);
 });
+
+test('AI executor 行为：泵壳机筒长度成本试算复用 BOM 草稿 API', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/templates') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 3, shellModel: 'V750', description: '不锈钢泵壳' }] });
+        }
+        if (call.url.endsWith('/api/recipes/bom-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body, { templateId: 3, customBarrelLength: 180 });
+            return jsonResponse({
+                success: true,
+                data: {
+                    shellPrice: 93,
+                    customBarrelLength: 180,
+                    parts: [
+                        {
+                            model: 'V750',
+                            name: '泵壳套件',
+                            snapshotPrice: 93,
+                            baseSnapshotPrice: 90,
+                            barrelLength: 180,
+                            barrelExtraCost: 3,
+                            dynamicRule: 'stainlessShellBundleByBarrelLength',
+                            formula: '泵壳套件基准价 90 + 机筒长度加价 3（150mm 起，每 10mm +1）',
+                            source: 'pump_shell_template',
+                        },
+                    ],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_pump_shell_cost', {
+        shellModel: 'V750',
+        customBarrelLength: 180,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'pump_shell_cost_preview');
+    assert.match(result.summary, /93\.00 元/);
+    assert.equal(result.data.shellModel, 'V750');
+    assert.equal(result.data.shellPrice, 93);
+    assert.equal(result.data.baseShellPrice, 90);
+    assert.equal(result.data.barrelExtraCost, 3);
+    assert.match(result.data.formula, /150mm 起/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/templates',
+        'POST /api/recipes/bom-draft',
+    ]);
+});

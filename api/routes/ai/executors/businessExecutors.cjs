@@ -95,6 +95,53 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'preview_pump_shell_cost': {
+            const customBarrelLength = Number(args.customBarrelLength);
+            if (!Number.isFinite(customBarrelLength) || customBarrelLength <= 0) {
+                return { success: false, error: '缺少有效的机筒长度 customBarrelLength，单位 mm' };
+            }
+
+            if (!args.templateId && !args.shellModel) {
+                return { success: false, error: '请先提供泵壳型号，例如 V750' };
+            }
+
+            const templates = await getJson(internalFetch, '/api/templates', '泵壳模板读取失败');
+            const template = findByNameOrId(templates, args.templateId || args.shellModel, ['shellModel', 'description']);
+            if (!template) return { success: false, error: `未找到泵壳模板：${args.shellModel || args.templateId || ''}` };
+
+            const templateId = template.id ?? template.Id;
+            const data = await postJson(internalFetch, '/api/recipes/bom-draft', {
+                templateId,
+                customBarrelLength,
+            }, '泵壳成本试算失败');
+
+            const parts = Array.isArray(data.parts) ? data.parts : [];
+            const shellModel = template.shellModel || args.shellModel || '';
+            const shellPart = parts.find((part) => part.dynamicRule === 'stainlessShellBundleByBarrelLength')
+                || parts.find((part) => part.source === 'pump_shell_template' && part.name === '泵壳套件')
+                || parts.find((part) => normalizeText(part.model) === normalizeText(shellModel) || normalizeText(part.name).includes('泵壳'));
+            const shellPrice = roundMoney(data.shellPrice ?? shellPart?.snapshotPrice ?? shellPart?.price ?? 0);
+            const barrelExtraCost = roundMoney(shellPart?.barrelExtraCost ?? Math.max(0, shellPrice - Number(shellPart?.baseSnapshotPrice || 0)));
+
+            return {
+                success: true,
+                intent: 'pump_shell_cost_preview',
+                summary: `${shellModel || '泵壳'} 在 ${customBarrelLength}mm 机筒下的泵壳成本 ${shellPrice.toFixed(2)} 元。`,
+                display: { mode: 'compact', title: '泵壳成本试算' },
+                data: {
+                    templateId,
+                    shellModel,
+                    customBarrelLength,
+                    shellPrice,
+                    baseShellPrice: shellPart?.baseSnapshotPrice ?? null,
+                    barrelExtraCost,
+                    dynamicRule: shellPart?.dynamicRule || null,
+                    formula: shellPart?.formula || '',
+                    shellPart: shellPart || null,
+                },
+            };
+        }
+
         case 'build_quotation_draft': {
             const customers = await getJson(internalFetch, '/api/customers', '客户列表读取失败');
             const recipes = await loadRecipes(internalFetch);
