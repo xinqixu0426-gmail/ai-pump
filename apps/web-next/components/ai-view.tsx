@@ -23,10 +23,13 @@ import {
   UserRound,
   Wrench,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
-import { confirmAiTool, streamAiChat, type AiChatMessage, type AiToolResult } from '@/lib/ai';
+import { FadePanel } from '@/components/motion/fade-panel';
+import { confirmAiTool, streamAiChat, type AiChatMessage, type AiToolPlan, type AiToolResult } from '@/lib/ai';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 
 type ChatItem = {
@@ -35,6 +38,7 @@ type ChatItem = {
   content: string;
   status?: string;
   statusMessage?: string;
+  toolPlan?: AiToolPlan;
   toolCalls?: Array<{ name: string; args: unknown }>;
   toolResults?: AiToolResult[];
 };
@@ -51,13 +55,26 @@ type ConfirmationResult = {
   };
 };
 
-const samples = [
-  { icon: ClipboardList, label: '最近订单', prompt: '查一下最近 5 个订单' },
-  { icon: Database, label: '成本查询', prompt: 'V750 的成本是多少' },
-  { icon: FileSearch, label: '零件检索', prompt: '找所有螺丝零件' },
-  { icon: Database, label: '配方对比', prompt: '对比 V750 和 V550 配方' },
-  { icon: FileSearch, label: '转子出图', prompt: '用 V750 模板出 160 片转子图' },
-  { icon: ClipboardList, label: '订单流转', prompt: '把订单 5 改成采购中' },
+type SampleCategory = '常用' | '成本' | '订单' | '质量';
+
+const sampleCategoryOptions: Array<{ value: SampleCategory; label: string }> = [
+  { value: '常用', label: '常用' },
+  { value: '成本', label: '成本' },
+  { value: '订单', label: '订单' },
+  { value: '质量', label: '质量' },
+];
+
+const samples: Array<{ category: SampleCategory; icon: LucideIcon; label: string; prompt: string; mode?: 'read' | 'write' }> = [
+  { category: '常用', icon: ClipboardList, label: '最近订单', prompt: '查一下最近 5 个订单' },
+  { category: '常用', icon: FileSearch, label: '转子出图', prompt: '用 V750 模板出 160 片转子图' },
+  { category: '成本', icon: Database, label: '成本查询', prompt: 'V750 的成本是多少' },
+  { category: '成本', icon: Database, label: '配方对比', prompt: '对比 V750 和 V550 配方' },
+  { category: '成本', icon: Coins, label: '差异解释', prompt: '为什么 12-140 比 12-120 贵' },
+  { category: '订单', icon: ClipboardList, label: '订单流转', prompt: '把订单 5 改成采购中', mode: 'write' },
+  { category: '订单', icon: ReceiptText, label: '待采购', prompt: '现在有哪些订单卡在待采购' },
+  { category: '质量', icon: ShieldAlert, label: '经营异常', prompt: '现在有什么报价订单风险需要跟进' },
+  { category: '质量', icon: Database, label: '数据质量', prompt: '系统资料还有什么问题会影响 AI 准确性' },
+  { category: '质量', icon: FileSearch, label: '零件检索', prompt: '找所有螺丝零件' },
 ];
 
 const textLoopWords = ['订单', '成本', '零件', '出图', '报价', '采购'];
@@ -617,6 +634,45 @@ function BusinessResult({ item }: { item: AiToolResult }) {
   return <GenericResult result={result} />;
 }
 
+function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
+  if (!plan.steps || plan.steps.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-medium text-ink">执行计划</div>
+        <div className="text-xs text-muted">{plan.summary}</div>
+      </div>
+      <div className="mt-2 grid gap-2">
+        {plan.steps.map((step) => (
+          <div key={`${step.index}-${step.name}`} className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-slate-100 px-1.5 text-xs font-semibold text-slate-600">{step.index}</span>
+                <span className="font-medium text-ink">{step.label || toolLabel(step.name)}</span>
+                <StatusBadge tone={step.mode === 'write' ? 'amber' : 'blue'}>
+                  {step.mode === 'write' ? '需确认' : '只读'}
+                </StatusBadge>
+              </div>
+              {step.argsSummary && step.argsSummary.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted">
+                  {step.argsSummary.map((arg) => (
+                    <span key={`${step.name}-${arg.key}`} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5">
+                      {arg.key}: {arg.value}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {step.requiresConfirmation ? (
+              <div className="text-xs text-amber-700">确认前不会写入</div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ToolResultCard({ item, onConfirmed }: { item: AiToolResult; onConfirmed: (next: AiToolResult) => void }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
@@ -705,6 +761,7 @@ export function AiView() {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeSampleCategory, setActiveSampleCategory] = useState<SampleCategory>('常用');
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -713,6 +770,9 @@ export function AiView() {
       .filter((item) => item.role === 'user' || (item.role === 'assistant' && item.content.trim()))
       .map((item) => ({ role: item.role, content: item.content }))
   ), [items]);
+  const visibleSamples = useMemo(() => (
+    samples.filter((sample) => sample.category === activeSampleCategory)
+  ), [activeSampleCategory]);
 
   function updateAssistant(id: string, updater: (item: ChatItem) => ChatItem) {
     setItems((current) => current.map((item) => (item.id === id ? updater(item) : item)));
@@ -750,6 +810,7 @@ export function AiView() {
         updateAssistant(assistantId, (item) => {
           if (event.type === 'status') return { ...item, status: event.status, statusMessage: event.message || '' };
           if (event.type === 'content') return { ...item, content: item.content + event.content, status: 'answering', statusMessage: '' };
+          if (event.type === 'tool_plan') return { ...item, toolPlan: { summary: event.summary, steps: event.steps || [] } };
           if (event.type === 'tool_call') return { ...item, toolCalls: [...(item.toolCalls || []), { name: event.name, args: event.args }], status: 'calling', statusMessage: `调用 ${event.name}` };
           if (event.type === 'tool_result') return { ...item, toolResults: [...(item.toolResults || []), { name: event.name, result: event.result }] };
           if (event.type === 'detail') return { ...item, toolResults: event.toolResults || item.toolResults || [] };
@@ -791,9 +852,9 @@ export function AiView() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-128px)]">
-      <div className="mb-4 overflow-hidden rounded-panel border border-line bg-white shadow-panel">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line bg-slate-50 px-5 py-4">
+    <div className="min-h-0">
+      <FadePanel className="mb-4 flex h-[calc(100vh-8rem)] min-h-[620px] flex-col overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-slate-50 px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-ink text-white">
               <Sparkles size={20} />
@@ -812,14 +873,22 @@ export function AiView() {
           </Button>
         </div>
 
-        <div className="grid min-w-0 lg:min-h-[620px] lg:grid-cols-[310px_minmax(0,1fr)]">
+        <div className="grid min-h-0 min-w-0 flex-1 lg:grid-cols-[310px_minmax(0,1fr)]">
           <aside className="min-w-0 border-b border-line bg-white p-3 lg:border-b-0 lg:border-r lg:p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-              <MessageSquareText size={16} />
-              常用任务
+            <div className="mb-3 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <MessageSquareText size={16} />
+                任务模板
+              </div>
+              <SegmentedControl
+                value={activeSampleCategory}
+                options={sampleCategoryOptions}
+                onChange={setActiveSampleCategory}
+                ariaLabel="AI 任务模板分类"
+              />
             </div>
             <div className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:grid-cols-1 lg:overflow-visible lg:px-0 lg:pb-0">
-              {samples.map((sample) => {
+              {visibleSamples.map((sample) => {
                 const Icon = sample.icon;
                 return (
                   <button
@@ -833,7 +902,12 @@ export function AiView() {
                       <Icon size={17} />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium text-ink">{sample.label}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-medium text-ink">{sample.label}</span>
+                        <StatusBadge tone={sample.mode === 'write' ? 'amber' : 'blue'} className="h-5 min-w-0 px-1.5">
+                          {sample.mode === 'write' ? '确认' : '只读'}
+                        </StatusBadge>
+                      </span>
                       <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
                     </span>
                   </button>
@@ -842,7 +916,7 @@ export function AiView() {
             </div>
           </aside>
 
-          <section className="flex min-h-[460px] min-w-0 flex-col bg-slate-50 md:min-h-[560px] lg:min-h-[620px]">
+          <section className="flex min-h-0 min-w-0 flex-col bg-slate-50">
             <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
               {items.length === 0 ? (
                 <div className="flex h-full min-h-[220px] items-center justify-center md:min-h-[360px]">
@@ -885,6 +959,9 @@ export function AiView() {
                         {item.statusMessage || '处理中...'}
                       </div>
                     ) : null}
+                    {item.role === 'assistant' && item.toolPlan ? (
+                      <ToolPlanPanel plan={item.toolPlan} />
+                    ) : null}
                     {item.toolCalls && item.toolCalls.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {item.toolCalls.map((call, index) => (
@@ -907,7 +984,7 @@ export function AiView() {
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t border-line bg-white p-3 md:p-4">
+            <form onSubmit={handleSubmit} className="shrink-0 border-t border-line bg-white p-3 md:p-4">
               <div className="flex items-end gap-2 rounded-panel border border-line bg-slate-50 p-2">
                 <textarea
                   value={input}
@@ -936,7 +1013,7 @@ export function AiView() {
             </form>
           </section>
         </div>
-      </div>
+      </FadePanel>
     </div>
   );
 }

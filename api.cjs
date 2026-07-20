@@ -132,6 +132,7 @@ app.use('/api/settings', require('./api/routes/settings.cjs'));
 app.use('/api/customers', require('./api/routes/customers.cjs'));
 app.use('/api/quotations', require('./api/routes/quotations.cjs'));
 app.use('/api/workbench', require('./api/routes/workbench.cjs'));
+app.use('/api/quality', require('./api/routes/quality.cjs'));
 
 // ── 生产模式：Cloudflare Tunnel 仍指向 API 端口时，将页面请求转发到 Next 前端 ──
 const NEXT_ORIGIN = process.env.NEXT_ORIGIN || (IS_PRODUCTION ? 'http://127.0.0.1:3000' : '');

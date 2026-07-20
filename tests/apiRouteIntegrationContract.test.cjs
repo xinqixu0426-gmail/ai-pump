@@ -63,6 +63,33 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assertNoWrites(section);
 });
 
+test('关键 API 集成契约：/api/cost/recipe-difference 只生成成本差异解释不写库', () => {
+    const source = readUtf8('api/routes/cost.cjs');
+    const section = sliceBetween(source, "router.post('/cost/recipe-difference'", '// ── 市场指标 ──');
+
+    assert.match(section, /buildCostDifference\(req\.body \|\| \{\}\)/);
+    assert.match(section, /res\.json\(\{ success: true, data:/);
+    assert.match(section, /res\.status\(400\)\.json\(\{ success: false, error: error\.message \}\)/);
+    assertNoWrites(section);
+});
+
+test('关键 API 集成契约：/api/quality/summary 只生成数据质量报告不写库', () => {
+    const source = readUtf8('api/routes/quality.cjs');
+
+    assert.match(source, /buildDataQualitySummary\(\)/);
+    assert.match(source, /res\.json\(\{ success: true, data:/);
+    assertNoWrites(source);
+});
+
+test('关键 API 集成契约：/api/quality/business-alerts 只生成经营异常提醒不写库', () => {
+    const source = readUtf8('api/routes/quality.cjs');
+
+    assert.match(source, /buildBusinessAlerts\(\)/);
+    assert.match(source, /router\.get\('\/business-alerts'/);
+    assert.match(source, /res\.json\(\{ success: true, data:/);
+    assertNoWrites(source);
+});
+
 test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当日成本且不写库', () => {
     const source = readUtf8('api/routes/cost.cjs');
     const section = sliceBetween(source, "router.get('/recipes/current-costs'", 'function calculateRecipeByIdHandler');

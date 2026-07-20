@@ -192,6 +192,45 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'explain_cost_change': {
+            const data = await postJson(internalFetch, '/api/cost/recipe-difference', {
+                leftRecipeId: args.leftRecipeId,
+                leftRecipeName: args.leftRecipeName || args.recipe1,
+                rightRecipeId: args.rightRecipeId,
+                rightRecipeName: args.rightRecipeName || args.recipe2,
+                limit: args.limit || 12,
+            }, '成本差异解释失败');
+            return {
+                success: true,
+                intent: 'cost_change_explanation',
+                summary: data.summary,
+                display: { mode: 'compact', title: '成本差异解释' },
+                data,
+            };
+        }
+
+        case 'get_data_quality_summary': {
+            const data = await getJson(internalFetch, '/api/quality/summary', '数据质量报告读取失败');
+            return {
+                success: true,
+                intent: 'data_quality_summary',
+                summary: `数据质量分 ${data.score}，共 ${data.totals?.issueCount || 0} 个问题。`,
+                display: { mode: 'compact', title: '数据质量' },
+                data,
+            };
+        }
+
+        case 'get_business_alerts': {
+            const data = await getJson(internalFetch, '/api/quality/business-alerts', '经营异常提醒读取失败');
+            return {
+                success: true,
+                intent: 'business_alerts',
+                summary: `经营异常提醒 ${data.totals?.all || 0} 条，其中高风险 ${data.totals?.high || 0} 条。`,
+                display: { mode: 'compact', title: '经营异常' },
+                data,
+            };
+        }
+
         default:
             return null;
     }

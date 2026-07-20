@@ -105,7 +105,18 @@ export function MarkdownContent({ id: _id, children, className }: { id: string; 
           );
         }
         if (block.type === 'heading') {
-          return <div key={index} className="pt-1 text-base font-semibold text-ink">{renderInline(block.content, `${index}`)}</div>;
+          const headingClass = block.level <= 2 ? 'text-base' : 'text-sm';
+          return <div key={index} className={`pt-1 font-semibold text-ink ${headingClass}`}>{renderInline(block.content, `${index}`)}</div>;
+        }
+        if (block.type === 'blockquote') {
+          return (
+            <blockquote key={index} className="border-l-4 border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {renderInline(block.content, `${index}`)}
+            </blockquote>
+          );
+        }
+        if (block.type === 'rule') {
+          return <hr key={index} className="border-slate-200" />;
         }
         return <p key={index} className="whitespace-pre-wrap">{renderInline(block.content, `${index}`)}</p>;
       })}
@@ -229,14 +240,16 @@ export function PromptSuggestion({ children, className, ...props }: ButtonHTMLAt
 
 type MarkdownBlock =
   | { type: 'paragraph'; content: string }
-  | { type: 'heading'; content: string }
+  | { type: 'heading'; content: string; level: number }
+  | { type: 'blockquote'; content: string }
+  | { type: 'rule' }
   | { type: 'list'; items: string[] }
   | { type: 'ordered-list'; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] }
   | { type: 'code'; content: string };
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g).filter(Boolean);
   return parts.map((part, index) => {
     if (part.startsWith('`') && part.endsWith('`')) {
       return <code key={`${keyPrefix}-code-${index}`} className="rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-800">{part.slice(1, -1)}</code>;
@@ -244,8 +257,24 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={`${keyPrefix}-strong-${index}`} className="font-semibold text-ink">{part.slice(2, -2)}</strong>;
     }
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      const href = safeHref(link[2]);
+      if (!href) return link[1];
+      return (
+        <a key={`${keyPrefix}-link-${index}`} href={href} target="_blank" rel="noreferrer" className="font-medium text-sky-700 underline underline-offset-2">
+          {link[1]}
+        </a>
+      );
+    }
     return part;
   });
+}
+
+function safeHref(value: string) {
+  const href = value.trim();
+  if (/^(https?:|mailto:|tel:|\/|#)/i.test(href)) return href;
+  return '';
 }
 
 function parseMarkdown(markdown: string): MarkdownBlock[] {
@@ -320,16 +349,33 @@ function parseMarkdown(markdown: string): MarkdownBlock[] {
       tableRows.push(parseTableLine(line));
       continue;
     }
-    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      flushOrderedList();
+      flushTable();
+      blocks.push({ type: 'rule' });
+      continue;
+    }
+    const blockquote = line.match(/^\s*>\s+(.+)$/);
+    if (blockquote) {
+      flushParagraph();
+      flushList();
+      flushOrderedList();
+      flushTable();
+      blocks.push({ type: 'blockquote', content: blockquote[1] });
+      continue;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
     if (heading) {
       flushParagraph();
       flushList();
       flushOrderedList();
       flushTable();
-      blocks.push({ type: 'heading', content: heading[1] });
+      blocks.push({ type: 'heading', level: heading[1].length, content: heading[2] });
       continue;
     }
-    const listItem = line.match(/^\s*[-*]\s+(.+)$/);
+    const listItem = line.match(/^\s*[-*+]\s+(.+)$/);
     if (listItem) {
       flushParagraph();
       flushOrderedList();
@@ -337,7 +383,7 @@ function parseMarkdown(markdown: string): MarkdownBlock[] {
       list.push(listItem[1]);
       continue;
     }
-    const orderedListItem = line.match(/^\s*\d+\.\s+(.+)$/);
+    const orderedListItem = line.match(/^\s*\d+[\.)]\s+(.+)$/);
     if (orderedListItem) {
       flushParagraph();
       flushList();

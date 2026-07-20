@@ -8,6 +8,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { dateShort, money } from '@/lib/format';
 import type { Customer, Quotation } from '@/lib/customers';
@@ -440,6 +441,8 @@ export function QuotationsView() {
           </Button>
         </div>
       </FadePanel>
+
+      <BusinessAlertsBanner scope="quotation" />
 
       <div className="grid gap-3 md:grid-cols-4">
         <FadePanel delay={0.02}>

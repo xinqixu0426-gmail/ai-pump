@@ -76,7 +76,9 @@ npm run build
 
 `apps/web-next/` 是 Next.js + Tailwind CSS 的唯一 Web 前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
 
-当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板和 AI 助手，作为唯一 Web 前端和日常主业务入口。
+当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板、数据质量和 AI 助手，作为唯一 Web 前端和日常主业务入口。
+
+数据质量面板位于 `http://localhost:3000/quality`，用于检查零件、配方、模板、线圈、客户和报价的基础资料健康度，并汇总报价/订单经营异常，辅助 AI 编排和成本核算前置排雷；报价页和订单页也会显示低于成本、长期未跟进、待采购卡住等提醒。
 
 ### iPhone PWA 入口
 
@@ -250,6 +252,7 @@ nohup npm run web-next:start > web-next.out.log 2>&1 &
 - `POST /api/recipes/cost-draft` — 配方保存成本快照草稿
 - `POST /api/recipes/:id/cost-preview` — 报价/订单覆盖试算
 - `POST /api/cost/full-estimate` — AI/N8N 一站式成本估算
+- `GET /api/quality/summary`、`GET /api/quality/business-alerts` — 数据质量与经营异常提醒
 - `GET/POST /api/market-indicators` — 市场指标查询/同步（铜价、铝线价格、人民币兑美元汇率）
 - `GET/POST /api/copper-price` — 铜价查询/更新（兼容旧调用）
 - `GET/PUT /api/settings` — 系统设置

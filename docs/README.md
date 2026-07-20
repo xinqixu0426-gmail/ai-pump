@@ -182,6 +182,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 订单 | `/api/orders` | CRUD、历史售价、采购清单生成 |
 | 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
 | 转子 | `/api/rotor` | 模板草稿、出图、参数暂存、状态、历史、关联、打印 |
+| 质量与经营异常 | `/api/quality` | 基础资料健康度、报价和订单经营异常提醒 |
 | 设置 | `/api/settings/:key` | 白名单设置读取和修改 |
 | AI/语音/Siri | `/api/ai`、`/api/voice`、`/api/siri` | 对话、工具调用、ASR |
 
@@ -232,7 +233,9 @@ POST /api/rotor/save
 - AI 只允许执行 `tools.cjs` 中已注册的工具。
 - 写操作还必须位于 `WRITE_TOOLS` 白名单，并通过确认流程；查询工具不能借机写库。
 - AI 调度器 V1 将普通工具结果作为模型继续推理的上下文，不再把查询结果卡片作为对话终点；只有写操作确认会中断等待用户确认。
+- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作。
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
+- AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary` 和 `get_business_alerts` 读取基础资料健康度、报价和订单经营异常；这些工具均为只读工具。
 - Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。
 - iPhone PWA 入口为 Next 页面 `/voice`，面向主屏幕 standalone 使用；桌面业务入口和 `/ai` 工作台不受影响。
 - PWA 当前是基础 AI 助手，支持文字输入和轻量语音输入；语音输入只通过 `apps/web-next/lib/voice.ts` 调用 `/api/voice/asr` 转文字，之后仍使用 `streamAiChat()` 调用 `/api/ai/chat`。
@@ -256,6 +259,7 @@ POST /api/rotor/save
 ## 8. 当前已知边界
 
 - `apps/web-next/` 是 Next.js + Tailwind + motion 风格的唯一 Web 前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。Next 前端不接管业务 API。
+- `/quality` 是基础资料健康度面板，读取 `/api/quality/summary`，用于提前发现影响 AI 编排、成本核算和采购计划的数据问题；报价页和订单页通过 `/api/quality/business-alerts` 展示经营异常提醒。
 - AI executor 已通过内部 API client 调用标准 API，不再直接访问数据库 helper；后续新增 AI 自动化能力时，应先确认是否能复用现有标准业务动作 API。
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
 - 核心资源响应中仍可能带有 `Id/CreatedAt/UpdatedAt` 历史兼容字段；Web 调用必须使用标准 camelCase。

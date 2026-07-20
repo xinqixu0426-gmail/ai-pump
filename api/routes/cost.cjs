@@ -7,6 +7,7 @@ const {
     calculateOverheadEstimate,
 } = require('../services/costEngine.cjs');
 const { calculateRecipeCostPreview } = require('../services/dynamicCostPreview.cjs');
+const { buildCostDifference } = require('../services/costDifference.cjs');
 const {
     calculateDynamicConfigCost,
     calculateFloatEstimate,
@@ -221,6 +222,14 @@ router.post('/cost/full-estimate', (req, res) => {
         });
         res.json({ success: true, data: result });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.post('/cost/recipe-difference', (req, res) => {
+    try {
+        res.json({ success: true, data: buildCostDifference(req.body || {}) });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
 });
 
 // ── 市场指标 ──

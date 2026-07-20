@@ -14,9 +14,24 @@ export type AiToolResult = {
   result: unknown;
 };
 
+export type AiToolPlanStep = {
+  index: number;
+  name: string;
+  label: string;
+  mode: 'read' | 'write';
+  requiresConfirmation?: boolean;
+  argsSummary?: Array<{ key: string; value: string }>;
+};
+
+export type AiToolPlan = {
+  summary: string;
+  steps: AiToolPlanStep[];
+};
+
 export type AiStreamEvent =
   | { type: 'status'; status: string; message?: string }
   | { type: 'content'; content: string }
+  | ({ type: 'tool_plan' } & AiToolPlan)
   | { type: 'tool_call'; name: string; args: unknown }
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }

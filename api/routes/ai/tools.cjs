@@ -508,6 +508,41 @@ const AI_TOOLS = [
             }
         }
     },
+    {
+        type: 'function',
+        function: {
+            name: 'explain_cost_change',
+            description: '解释两个配方之间的成本差异，不写库。适合用户问“为什么12-140比12-120贵”“两个型号贵在哪里”。返回总差额和主要差异驱动项。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    leftRecipeId: { type: 'number', description: '基准配方ID' },
+                    leftRecipeName: { type: 'string', description: '基准配方名称' },
+                    rightRecipeId: { type: 'number', description: '对比配方ID' },
+                    rightRecipeName: { type: 'string', description: '对比配方名称' },
+                    recipe1: { type: 'string', description: '基准配方名称兼容字段' },
+                    recipe2: { type: 'string', description: '对比配方名称兼容字段' },
+                    limit: { type: 'number', description: '返回差异项数量' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_data_quality_summary',
+            description: '获取数据质量报告，不写库。适合用户问“系统资料还有什么问题”“AI 准确性风险在哪里”“基础数据健康度”。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_business_alerts',
+            description: '获取报价和订单经营异常提醒，不写库。适合用户问“现在还有哪些报价订单风险”“有什么需要跟进”“哪些订单卡住了”。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
     // ── 第三组：数据分析与辅助 ──
     {
         type: 'function',

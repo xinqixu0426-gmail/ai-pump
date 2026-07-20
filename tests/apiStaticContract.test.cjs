@@ -395,7 +395,7 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'get_business_alerts']) {
         assert.match(tools, new RegExp(name));
     }
 });

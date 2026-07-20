@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { AI_TOOLS } = require('./tools.cjs');
+const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
 const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
@@ -45,6 +45,86 @@ function buildPendingWriteReply(toolResults) {
 
 function hasPendingWriteConfirmation(toolResults) {
     return (toolResults || []).some(item => item?.result?.requiresConfirmation && item.result.confirmation);
+}
+
+const TOOL_PLAN_LABELS = {
+    query_recipe_cost_by_name: '查询配方成本',
+    query_recipe_cost_by_id: '查询配方成本',
+    full_calculate: '完整成本估算',
+    get_copper_price: '查询铜价',
+    calculate_coil_cost: '计算线圈成本',
+    get_coil_specs: '读取线圈规格',
+    get_all_recipes: '读取配方列表',
+    get_all_parts: '读取零件列表',
+    dynamic_config_cost: '计算动态配置成本',
+    get_recent_orders: '读取最近订单',
+    create_part: '新建零件',
+    create_order: '新建订单',
+    add_recipe_to_order: '订单追加产品',
+    update_part: '修改零件',
+    get_order_detail: '读取订单详情',
+    update_order_status: '修改订单状态',
+    remove_recipe_from_order: '订单移除产品',
+    update_order_item: '修改订单产品',
+    generate_purchase_list: '生成采购清单',
+    delete_order: '删除订单',
+    create_recipe: '新建配方',
+    delete_recipe: '删除配方',
+    update_recipe: '修改配方',
+    build_recipe_bom_draft: '生成 BOM 草稿',
+    preview_recipe_cost: '配方成本试算',
+    build_quotation_draft: '生成报价草稿',
+    build_order_draft: '生成订单草稿',
+    search_customer_history: '查询客户历史',
+    explain_cost_change: '解释成本差异',
+    get_data_quality_summary: '读取数据质量',
+    get_business_alerts: '读取经营异常',
+    compare_recipes: '对比配方',
+    search_parts: '搜索零件',
+    delete_part: '删除零件',
+    batch_update_prices: '批量调价',
+    get_dashboard_summary: '读取运营看板',
+    generate_rotor_drawing: '生成转子图纸',
+    print_rotor_drawing: '打印转子图纸',
+    get_rotor_drawing_history: '读取出图历史',
+};
+
+function compactValue(value) {
+    if (value === undefined || value === null || value === '') return '';
+    if (Array.isArray(value)) return `共 ${value.length} 项`;
+    if (typeof value === 'object') return '已提供';
+    return String(value);
+}
+
+function summarizeArgs(args = {}) {
+    return Object.entries(args || {})
+        .map(([key, value]) => ({ key, value: compactValue(value) }))
+        .filter(item => item.value)
+        .slice(0, 6);
+}
+
+function buildToolPlan(toolCalls = []) {
+    const steps = toolCalls.map((tc, index) => {
+        const name = tc.function?.name || '';
+        let args = {};
+        try { args = JSON.parse(tc.function?.arguments || '{}'); } catch { args = {}; }
+        const write = WRITE_TOOLS.has(name);
+        return {
+            index: index + 1,
+            name,
+            label: TOOL_PLAN_LABELS[name] || name,
+            mode: write ? 'write' : 'read',
+            requiresConfirmation: write,
+            argsSummary: summarizeArgs(args),
+        };
+    });
+    const writeCount = steps.filter(step => step.mode === 'write').length;
+    return {
+        steps,
+        summary: writeCount > 0
+            ? `准备执行 ${steps.length} 个步骤，其中 ${writeCount} 个写操作需要确认。`
+            : `准备执行 ${steps.length} 个只读/试算步骤。`,
+    };
 }
 
 // ── 工具函数: 调用 DeepSeek API ──
@@ -173,6 +253,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
             });
 
             if (toolCallsArr.length > 0) {
+                send('tool_plan', buildToolPlan(toolCallsArr));
                 for (const tc of toolCallsArr) {
                     const funcName = tc.function.name;
                     send('status', { status: 'calling', message: `正在调用: ${funcName}...` });

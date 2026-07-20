@@ -23,6 +23,7 @@ import { PresenceRow } from '@/components/motion/presence-row';
 import { OrderDetailDrawer } from '@/components/order-detail-drawer';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
@@ -251,6 +252,8 @@ export function OrdersView() {
           </Button>
         </div>
       </FadePanel>
+
+      <BusinessAlertsBanner scope="order" />
 
       <div className="grid gap-3 md:grid-cols-4">
         <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">

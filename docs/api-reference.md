@@ -108,6 +108,7 @@
 | `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 批量返回所有配方的当日完整成本；普通零件按当前零件库价格、线圈按当前铜价和线圈参数重算，并叠加人工、表面处理与管理费；同时返回相对保存成本的差额 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 报价/试算用，以配方快照为基线重算覆盖项 |
+| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 比较两个配方的当前成本，返回总差额和主要差异驱动项；不写库 |
 
 ## 9. 成本 Cost
 
@@ -123,6 +124,7 @@
 | `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价覆盖试算 |
 | `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | AI/N8N 一站式估算，组合配方、线圈和动态配置 |
+| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 成本差异解释器，按金额差异输出主要驱动项 |
 
 ### 9.2 拆分估算入口
 
@@ -240,6 +242,8 @@
 
 AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认流程控制。`/api/ai/chat` 中普通工具结果会继续回流给模型用于多步编排；只有返回 `requiresConfirmation` 的写操作会暂停并等待 `/api/ai/confirm-tool`。
 
+`/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/done/error`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。
+
 AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 
 - `build_recipe_bom_draft`：调用 `/api/recipes/bom-draft` 生成联动 BOM 草稿。
@@ -247,6 +251,8 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `build_quotation_draft`：调用 `/api/quotations/save-payload-draft` 生成报价保存草稿。
 - `build_order_draft`：调用 `/api/orders/save-payload-draft` 生成订单保存草稿、采购清单和待办。
 - `search_customer_history`：组合查询客户、报价和订单历史，供报价前参考。
+- `explain_cost_change`：调用 `/api/cost/recipe-difference` 解释两个配方的成本差异。
+- `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
 
 Next iPhone PWA `/voice` 复用本节接口：
 
@@ -284,7 +290,18 @@ Next iPhone PWA `/voice` 复用本节接口：
 
 Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应通过 `resultUrl` 或 PWA 查看。写操作不得由第一次自然语言请求直接落库。
 
-## 16. 当前兼容边界
+## 16. 数据质量
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
+| `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
+
+数据质量报告返回 `score/totals/issues/topIssues`，用于 `/quality` 页面和 AI 质量检查工具。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
+
+经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
+
+## 17. 当前兼容边界
 
 - 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是历史兼容字段，Web 页面必须使用标准字段。
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。

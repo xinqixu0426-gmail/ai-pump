@@ -1,12 +1,13 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { BarChart3, Bot, Boxes, Cable, FileText, Package, ReceiptText, RotateCcwSquare, ShoppingCart, UsersRound } from 'lucide-react';
+import { BarChart3, Bot, Boxes, Cable, FileText, Package, ReceiptText, RotateCcwSquare, ShieldCheck, ShoppingCart, UsersRound } from 'lucide-react';
 import { NavItem } from '@/components/ui/nav-item';
 
 const navItems = [
   { href: '/ai', label: 'AI', icon: Bot, enabled: true },
   { href: '/dashboard', label: '看板', icon: BarChart3, enabled: true },
+  { href: '/quality', label: '质量', icon: ShieldCheck, enabled: true },
   { href: '/recipes', label: '配方', icon: Package, enabled: true },
   { href: '/parts', label: '零件', icon: Boxes, enabled: true },
   { href: '/quotations', label: '报价', icon: FileText, enabled: true },

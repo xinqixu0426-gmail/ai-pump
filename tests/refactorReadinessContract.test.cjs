@@ -147,6 +147,28 @@ test('文档契约：AI 文本助手在 Next 中启用导航', () => {
     assert.match(docsReadme, /AI executor 已通过内部 API client 调用标准 API/);
 });
 
+test('文档契约：数据质量面板必须有独立导航和标准 API', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const qualityView = readUtf8('apps/web-next/components/quality-view.tsx');
+    const qualityLib = readUtf8('apps/web-next/lib/quality.ts');
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const api = readUtf8('api.cjs');
+    const docs = readUtf8('docs/api-reference.md') + '\n' + readUtf8('docs/README.md');
+
+    assert.match(shell, /\{\s*href: '\/quality',\s*label: '质量',\s*icon: ShieldCheck,\s*enabled: true\s*\}/);
+    assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/app/quality/page.tsx')), 'quality page should exist');
+    assert.match(qualityView, /getDataQualitySummary/);
+    assert.match(qualityView, /getBusinessAlerts/);
+    assert.match(qualityView, /经营提醒/);
+    assert.match(qualityLib, /\/api\/quality\/business-alerts/);
+    assert.match(quotationsView, /BusinessAlertsBanner scope="quotation"/);
+    assert.match(ordersView, /BusinessAlertsBanner scope="order"/);
+    assert.match(api, /\/api\/quality/);
+    assert.match(docs, /\/api\/quality\/summary/);
+    assert.match(docs, /\/api\/quality\/business-alerts/);
+});
+
 test('文档契约：前端状态边界必须约束全局状态、页面状态和刷新规则', () => {
     const doc = readUtf8('docs/frontend-state-boundary.md');
 

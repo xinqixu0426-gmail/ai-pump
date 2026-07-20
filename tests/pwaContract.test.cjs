@@ -64,13 +64,24 @@ test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', (
 
     assert.match(aiClient, /resolveAiStreamUrl/);
     assert.match(aiClient, /:3002\/api\/ai\/chat/);
+    assert.match(aiClient, /type: 'tool_plan'/);
     assert.doesNotMatch(aiClient, /proxyFetch\('\/api\/ai\/chat'/);
     assert.match(aiView, /<StreamingText/);
+    assert.match(aiView, /ToolPlanPanel/);
+    assert.match(aiView, /SegmentedControl/);
+    assert.match(aiView, /FadePanel/);
+    assert.match(aiView, /activeSampleCategory/);
+    assert.match(aiView, /h-\[calc\(100vh-8rem\)\]/);
+    assert.match(aiView, /shrink-0 border-t border-line bg-white/);
     assert.match(promptKit, /function MarkdownContent/);
     assert.match(promptKit, /function renderInline/);
+    assert.match(promptKit, /type: 'blockquote'/);
+    assert.match(promptKit, /target="_blank"/);
+    assert.ok(promptKit.includes('\\d+[\\.)]'));
     assert.match(promptKit, /ordered-list/);
     assert.match(promptKit, /type: 'table'/);
     assert.match(promptKit, /<table/);
     assert.match(readUtf8('api/routes/ai/chat.cjs'), /AI_RUNTIME_RESPONSE_RULES/);
+    assert.match(readUtf8('api/routes/ai/chat.cjs'), /send\('tool_plan'/);
     assert.match(readUtf8('api/routes/ai/chat.cjs'), /最终面向用户的回复必须使用 Markdown/);
 });
