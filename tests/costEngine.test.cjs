@@ -9,6 +9,7 @@ const {
     getPartPriceFromCatalog,
     longScrewPriceByModel,
     roundLengthToStep,
+    stainlessShellBundleExtraCost,
 } = require('../api/services/costEngine.cjs');
 
 const screwCatalog = [
@@ -162,4 +163,32 @@ test('通用配方成本计算支持参数化长螺丝', () => {
 
     assert.equal(result.totalCost, '2.52');
     assert.equal(result.details[0].source, '参数化螺丝(φ6 不锈钢长螺丝)');
+});
+
+test('不锈钢泵壳套件整体价随机筒长度按 150mm 基准加价', () => {
+    assert.equal(stainlessShellBundleExtraCost(150), 0);
+    assert.equal(stainlessShellBundleExtraCost(170), 2);
+    assert.equal(stainlessShellBundleExtraCost(155), 1);
+
+    const result = buildRecipeCostDraft({
+        parts: [{
+            model: 'V750',
+            name: '泵壳套件',
+            qty: 1,
+            snapshotPrice: 90,
+            baseSnapshotPrice: 90,
+            dynamicRule: 'stainlessShellBundleByBarrelLength',
+        }],
+        customBarrelLength: 170,
+        assemblyWage: 0,
+        packingWage: 0,
+        managementFee: 0,
+    });
+
+    assert.equal(result.parts[0].snapshotPrice, 92);
+    assert.equal(result.parts[0].barrelExtraCost, 2);
+    assert.equal(result.parts.length, 1);
+    assert.equal(result.partsCost, 92);
+    assert.equal(result.savedTotalCost, 92);
+    assert.match(result.savedCostDetails, /当前机筒: 170mm/);
 });

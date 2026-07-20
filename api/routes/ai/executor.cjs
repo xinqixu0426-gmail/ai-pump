@@ -4,6 +4,7 @@ const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
 const { executeOrderTool } = require('./executors/orderExecutors.cjs');
 const { executeRecipeTool } = require('./executors/recipeExecutors.cjs');
+const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
 
 const TOOL_LABELS = {
     create_part: '新建零件',
@@ -146,6 +147,9 @@ async function executeToolCall(toolName, args, options = {}) {
 
         const recipeRes = await executeRecipeTool(toolName, args, internalFetch);
         if (recipeRes) return recipeRes;
+
+        const businessRes = await executeBusinessTool(toolName, args, internalFetch);
+        if (businessRes) return businessRes;
 
         return { success: false, error: `未知工具: ${toolName}` };
     } catch (err) {

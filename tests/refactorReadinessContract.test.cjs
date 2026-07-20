@@ -119,9 +119,23 @@ test('文档契约：Next 当前启动和生产脚本保持可用', () => {
 
     assert.equal(packageJson.scripts['web-next:full'], 'concurrently "npm run api" "npm run web-next:dev"');
     assert.equal(packageJson.scripts['web-next:prod'], 'concurrently "npm run start:prod" "npm run web-next:start"');
+    assert.equal(packageJson.scripts['restart:local'], 'powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1');
     assert.match(rootReadme, /npm start/);
+    assert.match(rootReadme, /npm run restart:local/);
     assert.match(rootReadme, /npm run web-next:full/);
     assert.match(rootReadme, /npm run build/);
+});
+
+test('文档契约：本地重启脚本保留前后端崩溃日志', () => {
+    const restartScript = readUtf8('scripts/restart-local-dev.ps1');
+
+    assert.match(restartScript, /Get-NetTCPConnection/);
+    assert.match(restartScript, /Stop-Process/);
+    assert.match(restartScript, /Start-Process/);
+    assert.match(restartScript, /api\.cjs/);
+    assert.match(restartScript, /dev:primary/);
+    assert.match(restartScript, /local-api\.error\.log/);
+    assert.match(restartScript, /local-web\.error\.log/);
 });
 
 test('文档契约：AI 文本助手在 Next 中启用导航', () => {
@@ -524,6 +538,17 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /role="listbox"/);
     assert.match(recipesView, /options=\{coilSheetOptions\}/);
     assert.doesNotMatch(recipesView, /list="recipe-coil-sheet-options"/);
+    assert.match(recipesView, /联动标注/);
+    assert.match(recipesView, /CircleHelp/);
+    assert.match(recipesView, /联动标注说明/);
+    assert.match(recipesView, /当泵体机筒是由不锈钢机筒构成且成本随机筒长度变化时/);
+    assert.match(recipesView, /linkedChangeAnnotations/);
+    assert.match(recipesView, /泵壳整体成本/);
+    assert.match(recipesView, /不锈钢长螺丝/);
+    assert.match(recipesView, /关联电容/);
+    assert.match(recipesView, /浮球线径/);
+    assert.match(recipesView, /电缆线径/);
+    assert.match(recipesView, /wireLinkNote/);
     assert.match(recipesView, /机筒 \/ 长螺丝/);
     assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
     assert.match(recipesView, /buildRecipeSavePayloadDraft/);

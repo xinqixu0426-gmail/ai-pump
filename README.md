@@ -59,6 +59,9 @@ npm install
 # 开发模式（Next 主前端 :3000 + 后端 :3002）
 npm start
 
+# 干净重启本地开发服务，并把 API / Web 日志写入 logs/local-*.log
+npm run restart:local
+
 # Next 并行预览版（Next :3001 + 后端 :3002）
 npm run web-next:full
 

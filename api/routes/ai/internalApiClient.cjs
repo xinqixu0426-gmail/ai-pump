@@ -8,7 +8,13 @@ function createInternalFetch() {
 }
 
 async function readApiJson(response, fallbackError) {
-    const result = await response.json();
+    const text = await response.text();
+    let result = {};
+    try {
+        result = text ? JSON.parse(text) : {};
+    } catch {
+        throw new Error(fallbackError || `API 返回了非 JSON 响应：${response.status}`);
+    }
     if (!response.ok || result.success === false) {
         throw new Error(result.error || fallbackError || `API 调用失败：${response.status}`);
     }

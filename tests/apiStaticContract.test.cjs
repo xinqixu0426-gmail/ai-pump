@@ -324,6 +324,7 @@ test('API 静态契约：业务新增写库必须通过 safeInsert', () => {
         'api/routes/ai/executors/recipeExecutors.cjs',
         'api/routes/ai/executors/queryExecutors.cjs',
         'api/routes/ai/executors/orderExecutors.cjs',
+        'api/routes/ai/executors/businessExecutors.cjs',
     ];
 
     const offenders = files
@@ -374,6 +375,7 @@ test('API 静态契约：AI executor 不得直接访问数据库 helper 或裸�
         'api/routes/ai/executors/queryExecutors.cjs',
         'api/routes/ai/executors/orderExecutors.cjs',
         'api/routes/ai/executors/costExecutors.cjs',
+        'api/routes/ai/executors/businessExecutors.cjs',
     ];
 
     const forbidden = /\b(dbGet\w+|loadPartsData|calculateRecipeCost|db\.prepare|safeInsert|safeUpdate|softDelete|hardDelete)\b|response\.json\(/;
@@ -382,6 +384,20 @@ test('API 静态契约：AI executor 不得直接访问数据库 helper 或裸�
         .map((filePath) => filePath.replace(/\\/g, '/'));
 
     assert.deepEqual(offenders, []);
+});
+
+test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度', () => {
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+
+    assert.match(chatRoute, /hasPendingWriteConfirmation/);
+    assert.doesNotMatch(chatRoute, /buildToolCardReply/);
+    assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
+    assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history']) {
+        assert.match(tools, new RegExp(name));
+    }
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {

@@ -18,6 +18,9 @@ const LONG_SCREW_LENGTH_STEP_MM = 5;
 const SCREW_LENGTH_PRICE_FACTOR = 0.00424;
 const SCREW_LENGTH_PRICE_OFFSET = -0.198;
 const DEFAULT_PACKAGING_MATERIAL = '牛皮纸箱';
+const STAINLESS_SHELL_BUNDLE_BASE_LENGTH_MM = 150;
+const STAINLESS_SHELL_BUNDLE_PRICE_STEP_MM = 10;
+const STAINLESS_SHELL_BUNDLE_PRICE_STEP_AMOUNT = 1;
 
 function parseNonNegativeNumber(value, field, { required = false, defaultValue = 0 } = {}) {
     if ((value === undefined || value === null || value === '') && !required) return defaultValue;
@@ -163,6 +166,46 @@ function applyLongScrewRule(part, barrelLength, extraLength = DEFAULT_LONG_SCREW
         longScrewExtraLength: Number(extraLength || 0),
         requestedScrewLength: result.requestedLength,
         screwLength: result.screwLength,
+    };
+}
+
+function stainlessShellBundleExtraCost(barrelLength, {
+    baseLength = STAINLESS_SHELL_BUNDLE_BASE_LENGTH_MM,
+    stepMm = STAINLESS_SHELL_BUNDLE_PRICE_STEP_MM,
+    stepAmount = STAINLESS_SHELL_BUNDLE_PRICE_STEP_AMOUNT,
+} = {}) {
+    const length = Number(barrelLength || 0);
+    const base = Number(baseLength || 0);
+    const step = Number(stepMm || 0);
+    const amount = Number(stepAmount || 0);
+    if (!Number.isFinite(length) || !Number.isFinite(base) || !Number.isFinite(step) || !Number.isFinite(amount)) return 0;
+    if (length <= base || step <= 0 || amount <= 0) return 0;
+    return roundMoney(Math.ceil((length - base) / step) * amount);
+}
+
+function applyStainlessShellBundleRule(part, barrelLength) {
+    if (part?.dynamicRule !== 'stainlessShellBundleByBarrelLength') return part;
+    const length = Number(barrelLength || part.barrelLength || 0);
+    const basePrice = Number(part.baseSnapshotPrice ?? part.bundleBasePrice ?? part.snapshotPrice ?? 0);
+    const baseLength = Number(part.bundleBaseLength || STAINLESS_SHELL_BUNDLE_BASE_LENGTH_MM);
+    const stepMm = Number(part.bundleStepMm || STAINLESS_SHELL_BUNDLE_PRICE_STEP_MM);
+    const stepAmount = Number(part.bundleStepAmount || STAINLESS_SHELL_BUNDLE_PRICE_STEP_AMOUNT);
+    const extraCost = stainlessShellBundleExtraCost(length, { baseLength, stepMm, stepAmount });
+    return {
+        ...part,
+        qty: Number(part.qty || 1),
+        snapshotPrice: roundMoney(basePrice + extraCost),
+        baseSnapshotPrice: basePrice,
+        bundleBaseLength: baseLength,
+        bundleStepMm: stepMm,
+        bundleStepAmount: stepAmount,
+        barrelLength: length || null,
+        barrelExtraCost: extraCost,
+        costSource: part.costSource || 'manual',
+        source: part.source || 'pump_shell_template',
+        formula: length
+            ? `泵壳套件基准价 ${roundMoney(basePrice)} + 机筒长度加价 ${extraCost}（${baseLength}mm 起，每 ${stepMm}mm +${stepAmount}）`
+            : `泵壳套件基准价 ${roundMoney(basePrice)}`,
     };
 }
 
@@ -370,6 +413,7 @@ function buildRecipeCostDraft(input, options = {}) {
     const partsCatalog = options.partsCatalog || input.partsCatalog || [];
     const parts = normalizeRecipeParts(input.parts || [])
         .map(part => applyLongScrewRule(part, barrelLength, longScrewExtraLength))
+        .map(part => applyStainlessShellBundleRule(part, barrelLength))
         .map(part => applyScrewPricing(part, partsCatalog));
     const assemblyWage = parseNonNegativeNumber(input.assemblyWage, 'assemblyWage');
     const packingWage = parseNonNegativeNumber(input.packingWage, 'packingWage');
@@ -408,6 +452,9 @@ function buildRecipeCostDraft(input, options = {}) {
                     : '';
                 return `${base}（机筒: ${part.barrelLength}mm，补偿: ${part.longScrewExtraLength}mm，长螺丝: ${part.screwLength}mm${pricingText}）`;
             }
+            if (part.dynamicRule === 'stainlessShellBundleByBarrelLength') {
+                return `${base}（基准: ${part.bundleBaseLength}mm，当前机筒: ${part.barrelLength || '-'}mm，每${part.bundleStepMm}mm加¥${Number(part.bundleStepAmount || 0).toFixed(2)}，加价¥${Number(part.barrelExtraCost || 0).toFixed(2)}）`;
+            }
             return base;
         })
         .concat(wageLines)
@@ -426,6 +473,9 @@ module.exports = {
     DEFAULT_LONG_SCREW_EXTRA_LENGTH,
     LONG_SCREW_LENGTH_STEP_MM,
     DEFAULT_PACKAGING_MATERIAL,
+    STAINLESS_SHELL_BUNDLE_BASE_LENGTH_MM,
+    STAINLESS_SHELL_BUNDLE_PRICE_STEP_MM,
+    STAINLESS_SHELL_BUNDLE_PRICE_STEP_AMOUNT,
     roundMoney,
     parseNonNegativeNumber,
     createPartPriceGetter,
@@ -442,6 +492,8 @@ module.exports = {
     isLongScrewPart,
     longScrewModelFromBarrel,
     applyLongScrewRule,
+    stainlessShellBundleExtraCost,
+    applyStainlessShellBundleRule,
     parseScrewPricingMeta,
     screwDiameterFromModel,
     screwLengthFromModel,

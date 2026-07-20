@@ -56,3 +56,21 @@ test('PWA 契约：基础 AI 助手复用受控 AI client、ASR client 和确认
     assert.doesNotMatch(component, /MobileVoiceAssistant|SpeechRecognition|AudioContext|voice-orb|语音播报|按住说话/);
     assert.doesNotMatch(component, /\bfetch\s*\(/);
 });
+
+test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', () => {
+    const aiClient = readUtf8('apps/web-next/lib/ai.ts');
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const promptKit = readUtf8('apps/web-next/components/prompt-kit/basic-chat.tsx');
+
+    assert.match(aiClient, /resolveAiStreamUrl/);
+    assert.match(aiClient, /:3002\/api\/ai\/chat/);
+    assert.doesNotMatch(aiClient, /proxyFetch\('\/api\/ai\/chat'/);
+    assert.match(aiView, /<StreamingText/);
+    assert.match(promptKit, /function MarkdownContent/);
+    assert.match(promptKit, /function renderInline/);
+    assert.match(promptKit, /ordered-list/);
+    assert.match(promptKit, /type: 'table'/);
+    assert.match(promptKit, /<table/);
+    assert.match(readUtf8('api/routes/ai/chat.cjs'), /AI_RUNTIME_RESPONSE_RULES/);
+    assert.match(readUtf8('api/routes/ai/chat.cjs'), /最终面向用户的回复必须使用 Markdown/);
+});

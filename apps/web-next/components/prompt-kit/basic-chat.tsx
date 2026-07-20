@@ -65,14 +65,49 @@ export function MarkdownContent({ id: _id, children, className }: { id: string; 
         if (block.type === 'list') {
           return (
             <ul key={index} className="list-disc space-y-1 pl-5">
-              {block.items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{item}</li>)}
+              {block.items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{renderInline(item, `${index}-${itemIndex}`)}</li>)}
             </ul>
           );
         }
-        if (block.type === 'heading') {
-          return <div key={index} className="font-semibold text-ink">{block.content}</div>;
+        if (block.type === 'table') {
+          return (
+            <div key={index} className="max-w-full overflow-x-auto rounded-md border border-slate-200">
+              <table className="w-full min-w-[360px] border-collapse text-left text-sm">
+                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                  <tr>
+                    {block.headers.map((header, headerIndex) => (
+                      <th key={`${header}-${headerIndex}`} className="border-b border-slate-200 px-3 py-2">
+                        {renderInline(header, `${index}-header-${headerIndex}`)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {block.rows.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {block.headers.map((_, cellIndex) => (
+                        <td key={cellIndex} className="px-3 py-2 text-slate-700">
+                          {renderInline(row[cellIndex] || '', `${index}-${rowIndex}-${cellIndex}`)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
         }
-        return <p key={index} className="whitespace-pre-wrap">{block.content}</p>;
+        if (block.type === 'ordered-list') {
+          return (
+            <ol key={index} className="list-decimal space-y-1 pl-5">
+              {block.items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{renderInline(item, `${index}-${itemIndex}`)}</li>)}
+            </ol>
+          );
+        }
+        if (block.type === 'heading') {
+          return <div key={index} className="pt-1 text-base font-semibold text-ink">{renderInline(block.content, `${index}`)}</div>;
+        }
+        return <p key={index} className="whitespace-pre-wrap">{renderInline(block.content, `${index}`)}</p>;
       })}
     </div>
   );
@@ -129,7 +164,7 @@ export function StreamingText({
     };
   }, [id, streaming]);
 
-  return <div className={clsx('whitespace-pre-wrap text-sm leading-6', className)}>{displayText}</div>;
+  return <MarkdownContent id={id} className={className} >{displayText}</MarkdownContent>;
 }
 
 export function PromptInput({ onSubmit, className, children }: {
@@ -196,13 +231,30 @@ type MarkdownBlock =
   | { type: 'paragraph'; content: string }
   | { type: 'heading'; content: string }
   | { type: 'list'; items: string[] }
+  | { type: 'ordered-list'; items: string[] }
+  | { type: 'table'; headers: string[]; rows: string[][] }
   | { type: 'code'; content: string };
+
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
+  return parts.map((part, index) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={`${keyPrefix}-code-${index}`} className="rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-800">{part.slice(1, -1)}</code>;
+    }
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${keyPrefix}-strong-${index}`} className="font-semibold text-ink">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
 
 function parseMarkdown(markdown: string): MarkdownBlock[] {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const blocks: MarkdownBlock[] = [];
   let paragraph: string[] = [];
   let list: string[] = [];
+  let orderedList: string[] = [];
+  let tableRows: string[][] = [];
   let code: string[] = [];
   let inCode = false;
 
@@ -218,6 +270,22 @@ function parseMarkdown(markdown: string): MarkdownBlock[] {
       list = [];
     }
   };
+  const flushOrderedList = () => {
+    if (orderedList.length > 0) {
+      blocks.push({ type: 'ordered-list', items: orderedList });
+      orderedList = [];
+    }
+  };
+  const flushTable = () => {
+    if (tableRows.length > 0) {
+      const meaningfulRows = tableRows.filter((row) => !row.every((cell) => /^:?-{3,}:?$/.test(cell.trim())));
+      if (meaningfulRows.length > 0) {
+        blocks.push({ type: 'table', headers: meaningfulRows[0], rows: meaningfulRows.slice(1) });
+      }
+      tableRows = [];
+    }
+  };
+  const parseTableLine = (line: string) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
 
   for (const line of lines) {
     if (line.trim().startsWith('```')) {
@@ -228,6 +296,8 @@ function parseMarkdown(markdown: string): MarkdownBlock[] {
       } else {
         flushParagraph();
         flushList();
+        flushOrderedList();
+        flushTable();
         inCode = true;
       }
       continue;
@@ -239,27 +309,52 @@ function parseMarkdown(markdown: string): MarkdownBlock[] {
     if (!line.trim()) {
       flushParagraph();
       flushList();
+      flushOrderedList();
+      flushTable();
+      continue;
+    }
+    if (line.includes('|') && /^\s*\|?.+\|.+\|?\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      flushOrderedList();
+      tableRows.push(parseTableLine(line));
       continue;
     }
     const heading = line.match(/^#{1,3}\s+(.+)$/);
     if (heading) {
       flushParagraph();
       flushList();
+      flushOrderedList();
+      flushTable();
       blocks.push({ type: 'heading', content: heading[1] });
       continue;
     }
     const listItem = line.match(/^\s*[-*]\s+(.+)$/);
     if (listItem) {
       flushParagraph();
+      flushOrderedList();
+      flushTable();
       list.push(listItem[1]);
       continue;
     }
+    const orderedListItem = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (orderedListItem) {
+      flushParagraph();
+      flushList();
+      flushTable();
+      orderedList.push(orderedListItem[1]);
+      continue;
+    }
     flushList();
+    flushOrderedList();
+    flushTable();
     paragraph.push(line);
   }
 
   if (inCode) blocks.push({ type: 'code', content: code.join('\n') });
   flushParagraph();
   flushList();
+  flushOrderedList();
+  flushTable();
   return blocks.length > 0 ? blocks : [{ type: 'paragraph', content: markdown }];
 }

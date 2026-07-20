@@ -5,6 +5,19 @@ const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 
+const AI_RUNTIME_RESPONSE_RULES = `
+
+【运行时回答格式要求】
+- 最终面向用户的回复必须使用 Markdown。
+- 用短标题、项目符号、编号列表和加粗关键数字组织内容。
+- 成本、报价、订单明细可用 Markdown 表格；不要输出 HTML。
+- 不要只输出一整段纯文本。
+`;
+
+function buildSystemPrompt(extra = '') {
+    return `${getSystemPrompt()}${AI_RUNTIME_RESPONSE_RULES}${extra || ''}`;
+}
+
 function confirmAuth(req, res, next) {
     if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
         return next();
@@ -30,40 +43,8 @@ function buildPendingWriteReply(toolResults) {
     return `好的，我来帮你处理「${title}」，请核对下面的确认卡片。`;
 }
 
-function buildToolCardReply(toolResults) {
-    if (!Array.isArray(toolResults) || toolResults.length === 0) return '';
-
-    const pendingWriteReply = buildPendingWriteReply(toolResults);
-    if (pendingWriteReply) return pendingWriteReply;
-
-    if (toolResults.length > 1) {
-        return '好的，我把相关结果整理在下面的卡片里。';
-    }
-
-    const { name, result } = toolResults[0];
-    const replies = {
-        query_recipe_cost_by_name: '好的，我把这个配方的成本整理在下面的卡片里。',
-        query_recipe_cost_by_id: '好的，我把这个配方的成本整理在下面的卡片里。',
-        dynamic_config_cost: '好的，我把动态配置成本整理在下面的卡片里。',
-        full_calculate: '好的，我把完整成本测算整理在下面的卡片里。',
-        calculate_coil_cost: '好的，我把线圈转子成本整理在下面的卡片里。',
-        compare_recipes: '好的，我把配方对比结果整理在下面的卡片里。',
-        get_order_detail: '好的，我把订单详情整理在下面的卡片里。',
-        get_recent_orders: '好的，我把最近订单整理在下面的卡片里。',
-        get_dashboard_summary: '好的，我把经营数据整理在下面的卡片里。',
-        search_parts: '好的，我把零件查询结果整理在下面的卡片里。',
-        get_all_parts: '好的，我把零件列表整理在下面的卡片里。',
-        get_all_recipes: '好的，我把配方列表整理在下面的卡片里。',
-        get_coil_specs: '好的，我把线圈规格整理在下面的卡片里。',
-        get_copper_price: '好的，我把实时铜价整理在下面的卡片里。',
-        get_rotor_drawing_history: '好的，我把出图记录整理在下面的卡片里。',
-        generate_rotor_drawing: '好的，图纸生成任务已提交，详情在下面的卡片里。',
-        print_rotor_drawing: '好的，打印结果在下面的卡片里。',
-    };
-
-    if (replies[name]) return replies[name];
-    if (result && result.success === false) return '我查了一下，结果在下面的卡片里。';
-    return '好的，结果已整理在下面的卡片里。';
+function hasPendingWriteConfirmation(toolResults) {
+    return (toolResults || []).some(item => item?.result?.requiresConfirmation && item.result.confirmation);
 }
 
 // ── 工具函数: 调用 DeepSeek API ──
@@ -109,7 +90,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         send('status', { status: 'thinking', message: '正在理解您的问题...' });
 
         let currentMessages = [
-            { role: 'system', content: getSystemPrompt() },
+            { role: 'system', content: buildSystemPrompt() },
             ...messages
         ];
 
@@ -202,6 +183,12 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     send('tool_call', { name: funcName, args });
                     const result = await executeToolCall(funcName, args, { allowWrite: false });
                     send('tool_result', { name: funcName, result });
+                    send('status', {
+                        status: hasPendingWriteConfirmation([{ name: funcName, result }]) ? 'confirming' : 'analyzing',
+                        message: hasPendingWriteConfirmation([{ name: funcName, result }])
+                            ? '等待确认后执行写操作'
+                            : `已完成 ${funcName}，正在继续分析...`
+                    });
                     
                     allToolResults.push({ name: funcName, result });
 
@@ -213,8 +200,8 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     });
                 }
 
-                const directReply = buildToolCardReply(allToolResults);
-                if (directReply) {
+                if (hasPendingWriteConfirmation(allToolResults)) {
+                    const directReply = buildPendingWriteReply(allToolResults);
                     if (!msgContent.trim()) {
                         send('content', { content: directReply });
                     }
@@ -224,6 +211,8 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     });
                     send('done', {});
                     done = true;
+                } else {
+                    send('status', { status: 'thinking', message: '正在根据工具结果继续推理...' });
                 }
             } else {
                 if (allToolResults.length > 0) {
@@ -276,7 +265,7 @@ async function processAiChat(text, options = {}) {
         : [{ role: 'user', content: text }];
 
     let currentMessages = [
-        { role: 'system', content: getSystemPrompt() + promptSuffix },
+        { role: 'system', content: buildSystemPrompt(promptSuffix) },
         ...messages
     ];
 

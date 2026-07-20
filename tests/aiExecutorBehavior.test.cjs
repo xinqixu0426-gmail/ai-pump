@@ -216,3 +216,58 @@ test('AI executor 行为：配方对比按零件聚合数量和金额差额', as
         onlyIn: '两者共有',
     });
 });
+
+test('AI executor 行为：报价草稿工具复用客户、配方、成本预览和报价草稿 API 且不写库', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/customers') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 3, name: '张三', defaultMargin: 1.2 }] });
+        }
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 5, name: 'V750 12-140', spec: '12-140', savedTotalCost: 90 }] });
+        }
+        if (call.url.endsWith('/api/recipes/5/cost-preview') && call.method === 'POST') {
+            assert.deepEqual(call.body, { overrides: { customBarrelLength: 170, hasFloat: true } });
+            return jsonResponse({ success: true, data: { unitCost: 92 } });
+        }
+        if (call.url.endsWith('/api/quotations/save-payload-draft') && call.method === 'POST') {
+            assert.equal(call.body.customerId, 3);
+            assert.equal(call.body.items[0].baseRecipeId, 5);
+            assert.equal(call.body.items[0].unitCost, 92);
+            assert.equal(call.body.items[0].margin, 1.15);
+            return jsonResponse({
+                success: true,
+                data: {
+                    customerId: 3,
+                    itemsJson: JSON.stringify(call.body.items),
+                    totalCost: 184,
+                    totalPrice: 211.6,
+                    status: '报价中',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('build_quotation_draft', {
+        customerName: '张三',
+        items: [
+            {
+                recipeName: 'V750',
+                qty: 2,
+                margin: 1.15,
+                overrides: { customBarrelLength: 170, hasFloat: true },
+            },
+        ],
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'quotation_draft');
+    assert.match(result.summary, /报价草稿/);
+    assert.equal(result.data.draft.totalCost, 184);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/customers',
+        'GET /api/recipes',
+        'POST /api/recipes/5/cost-preview',
+        'POST /api/quotations/save-payload-draft',
+    ]);
+});

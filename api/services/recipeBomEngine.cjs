@@ -1,6 +1,7 @@
 const {
     DEFAULT_LONG_SCREW_EXTRA_LENGTH,
     applyLongScrewRule,
+    applyStainlessShellBundleRule,
     roundMoney,
     wireModel,
     inferPackingMaterial,
@@ -94,6 +95,7 @@ function buildRecipeBomDraft(input, context) {
     const template = context.template || null;
     const variant = context.variant || null;
     const coils = context.coils || [];
+    const shellMeta = context.shellMeta || null;
 
     const customBarrelLength = resolveBarrelLength(input.customBarrelLength, variant);
     const longScrewExtraLength = input.longScrewExtraLength ?? variant?.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
@@ -105,7 +107,7 @@ function buildRecipeBomDraft(input, context) {
     const templateParts = normalizeSelectionList(template?.partsJson)
         .map(part => applyLongScrewRule(part, customBarrelLength, longScrewExtraLength));
 
-    const shellPrice = template
+    const baseShellPrice = template
         ? (costMode === 'bundle'
             ? Number(template.bundleCost || 0)
             : shellComponents.reduce((sum, component) => {
@@ -113,19 +115,27 @@ function buildRecipeBomDraft(input, context) {
                 return sum + Number(component.unitCost || 0) * lengthCmQty(component, customBarrelLength);
             }, 0))
         : 0;
+    const shellBundlePart = template && costMode === 'bundle'
+        ? applyStainlessShellBundleRule({
+            model: template.shellModel,
+            name: '泵壳套件',
+            supplier: '',
+            qty: 1,
+            snapshotPrice: baseShellPrice,
+            baseSnapshotPrice: baseShellPrice,
+            source: 'pump_shell_template',
+            costSource: 'manual',
+            ...(shellMeta?.isStainless ? { dynamicRule: 'stainlessShellBundleByBarrelLength' } : {}),
+        }, customBarrelLength)
+        : null;
+    const shellPrice = shellBundlePart ? Number(shellBundlePart.snapshotPrice || 0) : baseShellPrice;
 
     const bomParts = [];
     if (template) {
         if (costMode === 'bundle') {
             bomParts.push({
-                model: template.shellModel,
-                name: '泵壳套件',
-                supplier: '',
-                qty: 1,
-                snapshotPrice: shellPrice,
-                source: 'pump_shell_template',
-                costSource: 'manual',
-                formula: `泵壳套件价 ${roundMoney(shellPrice)}`,
+                ...shellBundlePart,
+                formula: shellBundlePart.formula || `泵壳套件价 ${roundMoney(shellPrice)}`,
             });
         } else {
             shellComponents.forEach(component => {

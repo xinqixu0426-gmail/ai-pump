@@ -62,6 +62,7 @@ function normalizePackingJsonText(value, boxType) {
 function managedPartType(part) {
     const name = String(part?.name || '');
     const model = String(part?.model || '');
+    if (part?.dynamicRule === 'stainlessShellBundleByBarrelLength') return 'stainlessShellBundle';
     if (name.includes('cm)')) return 'barrelLength';
     if (part?.dynamicRule === 'longScrewByBarrelLength' || name.includes('长螺丝') || model.includes('长螺丝')) return 'longScrew';
     if (name === '线圈转子') return 'coil';
@@ -178,8 +179,9 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const pricedParts = refreshedPartsDraft.parts;
     const getPrice = createPartPriceGetter(partsByModel);
 
-    const managedTotals = { coil: 0, float: 0, cable: 0, box: 0, barrelLength: 0, longScrew: 0 };
+    const managedTotals = { coil: 0, float: 0, cable: 0, box: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0 };
     let longScrewTotal = 0;
+    let stainlessShellBundleTotal = 0;
     const lengthPricedParts = [];
     for (const part of parsedParts) {
         const type = managedPartType(part);
@@ -190,13 +192,16 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         if (managedPartType(part) === 'longScrew') {
             longScrewTotal += partSnapshotSubtotal(part, partsCache, partsByModel, calculateRecipeCost);
         }
+        if (managedPartType(part) === 'stainlessShellBundle') {
+            stainlessShellBundleTotal += partSnapshotSubtotal(part, partsCache, partsByModel, calculateRecipeCost);
+        }
     }
 
     const savedBaseCost = Number(row.saved_total_cost || 0);
     const hasSavedBase = savedBaseCost > 0;
     const partsResult = calculateRecipeCost(pricedParts, partsCache, partsByModel);
     let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
-    totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box + managedTotals.barrelLength + managedTotals.longScrew;
+    totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box + managedTotals.barrelLength + managedTotals.longScrew + managedTotals.stainlessShellBundle;
 
     const dbWire = resolveWireFromCoils(getCoils(), recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material);
     const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
@@ -229,6 +234,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
 
     totalCost += lengthPricedParts.reduce((sum, part) => sum + lengthPricedPartSubtotal(part, recipeData.custom_barrel_length), 0);
     totalCost += longScrewTotal;
+    totalCost += stainlessShellBundleTotal;
 
     if (!hasSavedBase) {
         totalCost += Number(recipeData.assembly_wage || 0);

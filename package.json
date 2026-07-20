@@ -7,6 +7,7 @@
     "dev": "npm run web-next:dev:primary",
     "build": "npm run web-next:build",
     "test": "node --test tests/*.test.cjs",
+    "restart:local": "powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1",
     "verify:prod-env": "node scripts/verify-production-env.cjs",
     "verify:release": "npm audit && npm test && npm run build && npm run verify:prod-env",
     "preview": "npm run web-next:start:primary",

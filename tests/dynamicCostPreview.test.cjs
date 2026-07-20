@@ -94,3 +94,39 @@ test('报价覆盖线圈片数后复用线圈插值规则', () => {
 
     assert.equal(result.unitCost, 31);
 });
+
+test('报价覆盖 customBarrelLength 后重算不锈钢泵壳套件整体价', () => {
+    const row = {
+        id: 3,
+        name: '不锈钢泵壳配方',
+        parts_json: JSON.stringify([
+            {
+                name: '泵壳套件',
+                model: 'V750',
+                supplier: '',
+                qty: 1,
+                snapshotPrice: 90,
+                baseSnapshotPrice: 90,
+                dynamicRule: 'stainlessShellBundleByBarrelLength',
+                barrelLength: 150,
+            },
+        ]),
+        saved_total_cost: 90,
+        custom_barrel_length: 150,
+        coil_material: '钢带',
+        has_float: 0,
+        has_cable: 0,
+    };
+
+    const result = calculateRecipeCostPreview(row, { customBarrelLength: 170 }, {
+        partsCache: {},
+        partsByModel: {},
+        calculateRecipeCost,
+        getSetting: () => undefined,
+        getCoils: () => [],
+    });
+
+    assert.equal(result.unitCost, 92);
+    assert.equal(result.parts[0].snapshotPrice, 92);
+    assert.equal(result.parts[0].barrelExtraCost, 2);
+});

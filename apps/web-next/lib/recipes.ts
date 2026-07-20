@@ -14,6 +14,11 @@ export type RecipePart = {
   barrelLength?: number;
   longScrewExtraLength?: number;
   screwLength?: number;
+  baseSnapshotPrice?: number;
+  bundleBaseLength?: number;
+  bundleStepMm?: number;
+  bundleStepAmount?: number;
+  barrelExtraCost?: number;
   packagingMaterial?: string;
   floatAccessoryType?: string;
   floatAccessoryDelta?: number;

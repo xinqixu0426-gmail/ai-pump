@@ -58,6 +58,14 @@ export async function proxyFetch(
   return response;
 }
 
+export async function proxyStreamFetch(
+  path: string,
+  options: RequestInit = {},
+  proxyOptions: ProxyOptions = {}
+): Promise<Response> {
+  return proxyFetch(path, options, proxyOptions);
+}
+
 export async function proxyRequest<T>(
   path: string,
   options: RequestInit = {},

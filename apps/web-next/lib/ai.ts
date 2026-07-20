@@ -1,6 +1,6 @@
 'use client';
 
-import { proxyFetch, proxyRequest, type ApiResponse } from './api';
+import { proxyRequest, proxyStreamFetch, type ApiResponse } from './api';
 
 export type AiRole = 'user' | 'assistant';
 
@@ -23,12 +23,21 @@ export type AiStreamEvent =
   | { type: 'done' }
   | { type: 'error'; message: string };
 
+function resolveAiStreamUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_AI_STREAM_URL;
+  if (configured) return configured;
+  if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    return `http://${window.location.hostname}:3002/api/ai/chat`;
+  }
+  return '/api/ai/chat';
+}
+
 export async function streamAiChat(
   messages: AiChatMessage[],
   onEvent: (event: AiStreamEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const response = await proxyFetch('/api/ai/chat', {
+  const response = await proxyStreamFetch(resolveAiStreamUrl(), {
     method: 'POST',
     body: JSON.stringify({ messages }),
     signal,

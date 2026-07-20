@@ -9,6 +9,7 @@ import {
   ChatMessages,
   Message,
   MessageHeader,
+  MarkdownContent,
   PromptInput,
   PromptInputActions,
   PromptInputTextarea,
@@ -283,6 +284,9 @@ function ToolResultCard({ item, onConfirmed }: { item: AiToolResult; onConfirmed
 
   const record = asRecord(result);
   const failed = record.success === false;
+  const display = asRecord(record.display);
+  const title = textValue(display.title, toolLabel(item.name));
+  const summary = textValue(record.summary || record.message || record.error, failed ? '执行失败' : '工具调用完成');
   const data = unwrapResult(result);
   const order = asRecord(data.order || record.order);
   const recipe = asRecord(data.recipe || record.recipe);
@@ -291,38 +295,46 @@ function ToolResultCard({ item, onConfirmed }: { item: AiToolResult; onConfirmed
   const rows = arrayValue(data.data || data.parts || data.items || data.history || data.purchaseList || data.comparison || data.summary);
 
   return (
-    <div className="rounded-panel border border-line bg-white p-3 text-sm">
-      <div className="flex items-center justify-between gap-3 font-medium text-ink">
+    <details className="group rounded-md border border-slate-200 bg-slate-50 text-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2">
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-slate-600">
             <Wrench size={14} />
           </span>
-          <span className="truncate">{toolLabel(item.name)}</span>
+          <span className="min-w-0">
+            <span className="block truncate font-medium text-ink">{title}</span>
+            <span className="block truncate text-xs text-muted">{summary}</span>
+          </span>
         </span>
-        <StatusBadge tone={failed ? 'red' : 'green'}>{failed ? '失败' : '完成'}</StatusBadge>
+        <span className="inline-flex items-center gap-2">
+          <StatusBadge tone={failed ? 'red' : 'green'}>{failed ? '失败' : '完成'}</StatusBadge>
+          <ChevronDown size={14} className="text-slate-400 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-slate-200 bg-white p-3">
+        {failed ? (
+          <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            <span>{textValue(record.error, '执行失败')}</span>
+          </div>
+        ) : (
+          <>
+            <MetricGrid metrics={pickMetrics(primary)} />
+            <KeyValueRows rows={[
+              { label: '消息', value: record.message || data.message },
+              { label: '订单', value: primary.id || data.orderId },
+              { label: '客户', value: primary.customerName || data.customerName },
+              { label: '型号', value: primary.model || data.model },
+              { label: '配方', value: primary.name || data.recipeName || data.itemName },
+              { label: '规格', value: primary.spec || data.spec },
+              { label: '时间', value: dateText(primary.createdAt || data.createdAt) },
+            ]} />
+            <CompactRows rows={rows} />
+          </>
+        )}
+        <RawDetails result={result} />
       </div>
-      {failed ? (
-        <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
-          <span>{textValue(record.error, '执行失败')}</span>
-        </div>
-      ) : (
-        <>
-          <MetricGrid metrics={pickMetrics(primary)} />
-          <KeyValueRows rows={[
-            { label: '消息', value: record.message || data.message },
-            { label: '订单', value: primary.id || data.orderId },
-            { label: '客户', value: primary.customerName || data.customerName },
-            { label: '型号', value: primary.model || data.model },
-            { label: '配方', value: primary.name || data.recipeName || data.itemName },
-            { label: '规格', value: primary.spec || data.spec },
-            { label: '时间', value: dateText(primary.createdAt || data.createdAt) },
-          ]} />
-          <CompactRows rows={rows} />
-        </>
-      )}
-      <RawDetails result={result} />
-    </div>
+    </details>
   );
 }
 
@@ -626,7 +638,7 @@ export function BasicAiAssistant() {
                 {item.content ? (
                   item.role === 'assistant'
                     ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
-                    : <div className="whitespace-pre-wrap">{item.content}</div>
+                    : <MarkdownContent id={item.id}>{item.content}</MarkdownContent>
                 ) : null}
                 {item.role === 'assistant' && loading && !item.content && item.status !== 'error' ? (
                   <div className="flex items-center gap-2 text-sm text-muted">

@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { confirmAiTool, streamAiChat, type AiChatMessage, type AiToolResult } from '@/lib/ai';
+import { StreamingText } from '@/components/prompt-kit/basic-chat';
 
 type ChatItem = {
   id: string;
@@ -670,20 +671,33 @@ function ToolResultCard({ item, onConfirmed }: { item: AiToolResult; onConfirmed
   }
 
   const Icon = resultIcon(item.name);
+  const record = asRecord(result);
+  const failed = record.success === false;
+  const display = asRecord(record.display);
+  const title = textValue(display.title, toolLabel(item.name));
+  const summary = textValue(record.summary || record.message || record.error, failed ? '执行失败' : '工具调用完成');
   return (
-    <div className="rounded-panel border border-line bg-white p-3 text-sm shadow-panel">
-      <div className="flex items-center justify-between gap-3 font-medium text-ink">
+    <details className="group rounded-md border border-slate-200 bg-slate-50 text-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2">
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-slate-600">
             <Icon size={14} />
           </span>
-          <span className="truncate">{toolLabel(item.name)}</span>
+          <span className="min-w-0">
+            <span className="block truncate font-medium text-ink">{title}</span>
+            <span className="block truncate text-xs text-muted">{summary}</span>
+          </span>
         </span>
-        {asRecord(result).success === false ? <StatusBadge tone="red">失败</StatusBadge> : <StatusBadge tone="green">完成</StatusBadge>}
+        <span className="inline-flex items-center gap-2">
+          <StatusBadge tone={failed ? 'red' : 'green'}>{failed ? '失败' : '完成'}</StatusBadge>
+          <ChevronDown size={14} className="text-slate-400 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-slate-200 bg-white p-3">
+        <BusinessResult item={item} />
+        <RawDetails result={result} />
       </div>
-      <BusinessResult item={item} />
-      <RawDetails result={result} />
-    </div>
+    </details>
   );
 }
 
@@ -860,7 +874,11 @@ export function AiView() {
                         </StatusBadge>
                       ) : null}
                     </div>
-                    {item.content ? <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div> : null}
+                    {item.content ? (
+                      item.role === 'assistant'
+                        ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
+                        : <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div>
+                    ) : null}
                     {item.role === 'assistant' && loading && item.status !== 'done' && !item.content ? (
                       <div className="flex items-center gap-2 text-sm text-muted">
                         <Loader2 size={15} className="animate-spin" />

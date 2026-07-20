@@ -383,6 +383,131 @@ const AI_TOOLS = [
             }
         }
     },
+    // ── 第二组补充：AI 业务编排草稿工具（不直接写库） ──
+    {
+        type: 'function',
+        function: {
+            name: 'build_recipe_bom_draft',
+            description: '生成配方 BOM 草稿，不写库。适合用户给出泵壳模板/型号变体、线圈规格片数、机筒长度、浮球、电缆等参数时，先让系统按标准规则生成泵壳、长螺丝、线圈、电容、电缆等联动项目。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    templateId: { type: 'number', description: '泵壳模板ID，可选' },
+                    modelVariantId: { type: 'number', description: '型号变体ID，可选' },
+                    customBarrelLength: { type: 'number', description: '机筒长度 mm，可触发不锈钢泵壳整体价和长螺丝联动' },
+                    longScrewExtraLength: { type: 'number', description: '长螺丝补偿长度 mm，可选' },
+                    coilSpec: { type: 'string', description: '线圈规格，如12' },
+                    coilSheets: { type: 'number', description: '线圈片数，如140' },
+                    coilMaterial: { type: 'string', description: '线圈材质，可选' },
+                    coilWireWeight: { type: 'number', description: '客户指定线重，可选' },
+                    hasFloat: { type: 'boolean', description: '是否带浮球' },
+                    floatWire: { type: 'string', description: '浮球线径，可选' },
+                    floatAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '浮球铜套规格' },
+                    hasCable: { type: 'boolean', description: '是否带电缆' },
+                    cableLength: { type: 'number', description: '电缆长度，米' },
+                    cableWire: { type: 'string', description: '电缆线径，可选' },
+                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '电缆铜套规格' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'preview_recipe_cost',
+            description: '基于已有配方做动态成本试算，不写库。适合报价前覆盖机筒长度、线圈片数、浮球、电缆等参数。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeName: { type: 'string', description: '配方名称，未提供ID时用于查找' },
+                    overrides: { type: 'object', description: '标准覆盖项对象，可包含 customBarrelLength/coilSheets/hasFloat/cableLength 等' },
+                    customBarrelLength: { type: 'number' },
+                    coilSheets: { type: 'number' },
+                    coilWireWeight: { type: 'number' },
+                    hasFloat: { type: 'boolean' },
+                    floatWire: { type: 'string' },
+                    floatAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] },
+                    hasCable: { type: 'boolean' },
+                    cableLength: { type: 'number' },
+                    cableWire: { type: 'string' },
+                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'build_quotation_draft',
+            description: '生成客户报价保存草稿，不写库。适合 AI 先试算成本后，为客户组装报价明细，确认后再调用正式写操作。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    customerName: { type: 'string', description: '客户名称' },
+                    customerId: { type: 'number', description: '客户ID，可选' },
+                    status: { type: 'string', description: '报价状态，默认报价中' },
+                    margin: { type: 'number', description: '默认利润率倍数，如1.1' },
+                    remark: { type: 'string', description: '备注' },
+                    items: {
+                        type: 'array',
+                        description: '报价明细',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                recipeId: { type: 'number' },
+                                recipeName: { type: 'string' },
+                                qty: { type: 'number' },
+                                unitCost: { type: 'number' },
+                                margin: { type: 'number' },
+                                unitPrice: { type: 'number' },
+                                overrides: { type: 'object', description: '成本覆盖项，不传 unitCost 时可用于试算' }
+                            }
+                        }
+                    }
+                },
+                required: ['items']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'build_order_draft',
+            description: '生成订单保存草稿，不写库。适合用户确认报价或产品明细后，先预览订单、采购清单和待办。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    customerName: { type: 'string' },
+                    contractNo: { type: 'string' },
+                    remark: { type: 'string' },
+                    status: { type: 'string' },
+                    items: { type: 'array', description: '订单产品明细，结构同订单保存草稿' },
+                    purchaseList: { type: 'array' },
+                    todos: { type: 'array' }
+                },
+                required: ['customerName', 'items']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'search_customer_history',
+            description: '查询客户历史报价和订单，不写库。适合报价前查看同客户、同型号或相近产品的历史价格。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    customerName: { type: 'string', description: '客户名称' },
+                    customerId: { type: 'number', description: '客户ID，可选' },
+                    keyword: { type: 'string', description: '型号/配方关键词，可选' },
+                    recipeName: { type: 'string', description: '配方名称关键词，可选' },
+                    model: { type: 'string', description: '型号关键词，可选' },
+                    limit: { type: 'number', description: '最多返回条数' }
+                }
+            }
+        }
+    },
     // ── 第三组：数据分析与辅助 ──
     {
         type: 'function',

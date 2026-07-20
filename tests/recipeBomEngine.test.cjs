@@ -142,6 +142,36 @@ test('后端 BOM draft 不再使用泵壳 notes 默认机筒长度', () => {
     assert.equal(barrel.qty, 17);
 });
 
+test('不锈钢泵壳套件按机筒长度在整体价上加价', () => {
+    const bundleTemplate = {
+        ...template,
+        costMode: 'bundle',
+        bundleCost: 90,
+        shellComponentsJson: '[]',
+    };
+
+    const result = buildRecipeBomDraft({
+        templateId: 1,
+        customBarrelLength: 170,
+        optionalParts: [],
+    }, {
+        template: bundleTemplate,
+        shellMeta: { isStainless: true },
+        partsCatalog,
+        coils,
+    });
+
+    const shell = result.parts.find(part => part.name === '泵壳套件');
+    const shellRows = result.parts.filter(part => part.name === '泵壳套件' || String(part.name || '').includes('机筒长度加价'));
+    assert.equal(result.shellPrice, 92);
+    assert.equal(shellRows.length, 1);
+    assert.equal(shell.snapshotPrice, 92);
+    assert.equal(shell.baseSnapshotPrice, 90);
+    assert.equal(shell.dynamicRule, 'stainlessShellBundleByBarrelLength');
+    assert.equal(shell.barrelExtraCost, 2);
+    assert.match(shell.formula, /150mm 起，每 10mm \+1/);
+});
+
 test('后端 BOM draft 线圈快照复用插值规则', () => {
     const result = buildRecipeBomDraft({
         coilSpec: 'Y90',

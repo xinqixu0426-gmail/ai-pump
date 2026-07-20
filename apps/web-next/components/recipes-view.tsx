@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { ChevronDown, CircleAlert, Copy, Eye, GitCompare, Layers3, Package, Pencil, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ChevronDown, CircleAlert, CircleHelp, Copy, Eye, GitCompare, Layers3, Package, Pencil, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -776,7 +776,33 @@ function partFormulaLine(part?: RecipePart): string {
   if (part.dynamicRule === 'longScrewByBarrelLength') {
     return `长螺丝长度=${part.barrelLength || 0}+${part.longScrewExtraLength || 0}=${part.screwLength || 0}mm`;
   }
+  if (part.dynamicRule === 'stainlessShellBundleByBarrelLength') {
+    return `泵壳整体价=${money(Number(part.baseSnapshotPrice ?? part.snapshotPrice ?? 0))}+机筒加价${money(Number(part.barrelExtraCost || 0))}`;
+  }
   return '';
+}
+
+type LinkedChangeAnnotation = {
+  label: string;
+  value: string;
+  note: string;
+  tone: 'blue' | 'green' | 'amber' | 'slate';
+};
+
+function linkedChangeToneClass(tone: LinkedChangeAnnotation['tone']): string {
+  if (tone === 'green') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (tone === 'amber') return 'border-amber-200 bg-amber-50 text-amber-800';
+  if (tone === 'blue') return 'border-sky-200 bg-sky-50 text-sky-800';
+  return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
+function wireLinkNote(enabled: boolean, currentWire: string, recommendedWire?: string): string {
+  if (!enabled) return '未启用';
+  if (!recommendedWire) return '线圈未给出推荐线径';
+  if (!currentWire) return `待选择，线圈推荐 ${recommendedWire}`;
+  return normalizeWireGauge(currentWire) === normalizeWireGauge(recommendedWire)
+    ? `随线圈线径 ${recommendedWire} 自动推荐`
+    : `当前 ${currentWire}，线圈推荐 ${recommendedWire}`;
 }
 
 function coilWireWeightFromFormula(formula?: string): string {
@@ -1238,6 +1264,69 @@ export function RecipesView() {
     && recommendedCableWire
     && normalizeWireGauge(form.cableWire) === normalizeWireGauge(recommendedCableWire)
   );
+  const linkedChangeAnnotations = useMemo<LinkedChangeAnnotation[]>(() => {
+    const annotations: LinkedChangeAnnotation[] = [];
+    const shellPart = bomDraft?.parts.find((part) => part.dynamicRule === 'stainlessShellBundleByBarrelLength');
+    if (shellPart) {
+      annotations.push({
+        label: '泵壳整体成本',
+        value: money(Number(shellPart.snapshotPrice || 0)),
+        note: partFormulaLine(shellPart) || '随不锈钢机筒长度计入泵壳套件成本',
+        tone: 'blue',
+      });
+    }
+
+    const longScrewPart = bomDraft?.parts.find((part) => part.dynamicRule === 'longScrewByBarrelLength');
+    if (longScrewPart) {
+      annotations.push({
+        label: '不锈钢长螺丝',
+        value: longScrewPart.screwLength ? `${longScrewPart.screwLength} mm` : longScrewPart.model,
+        note: partFormulaLine(longScrewPart) || '随机筒长度和补偿长度联动',
+        tone: 'blue',
+      });
+    }
+
+    if (bomDraft?.capacitorModel) {
+      annotations.push({
+        label: '关联电容',
+        value: bomDraft.capacitorModel,
+        note: bomDraft.coilSnapshot?.defaultCapacitor
+          ? `由线圈默认电容 ${bomDraft.coilSnapshot.defaultCapacitor} 匹配`
+          : '由线圈规格匹配',
+        tone: 'green',
+      });
+    }
+
+    if (form.hasFloat) {
+      annotations.push({
+        label: '浮球线径',
+        value: form.floatWire || recommendedFloatWire || '-',
+        note: wireLinkNote(form.hasFloat, form.floatWire, recommendedFloatWire),
+        tone: isFloatWireRecommended ? 'green' : recommendedFloatWire ? 'amber' : 'slate',
+      });
+    }
+
+    if (form.hasCable) {
+      annotations.push({
+        label: '电缆线径',
+        value: form.cableWire || recommendedCableWire || '-',
+        note: wireLinkNote(form.hasCable, form.cableWire, recommendedCableWire),
+        tone: isCableWireRecommended ? 'green' : recommendedCableWire ? 'amber' : 'slate',
+      });
+    }
+
+    return annotations;
+  }, [
+    bomDraft,
+    form.cableWire,
+    form.floatWire,
+    form.hasCable,
+    form.hasFloat,
+    isCableWireRecommended,
+    isFloatWireRecommended,
+    recommendedCableWire,
+    recommendedFloatWire,
+  ]);
   const partModelOptions = useMemo(
     () => Array.from(new Set(parts.filter((part) => part.category !== '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [parts]
@@ -3308,6 +3397,41 @@ export function RecipesView() {
               />
             </div>
 
+            {linkedChangeAnnotations.length > 0 ? (
+              <section className="rounded-panel border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="group min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      联动标注
+                      <button
+                        type="button"
+                        aria-label="联动标注说明"
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 outline-none transition-colors duration-150 hover:text-slate-700 focus-visible:text-slate-700 focus-visible:ring-2 focus-visible:ring-slate-300"
+                      >
+                        <CircleHelp size={15} />
+                      </button>
+                    </div>
+                    <div className="mt-1 text-xs text-muted">这些项目会随泵壳、机筒长度或线圈参数自动变化。</div>
+                    <div className="mt-2 hidden max-w-xl rounded-md border border-slate-200 bg-slate-50 p-3 text-xs font-normal leading-5 text-slate-600 shadow-sm group-focus-within:block group-hover:block">
+                      当泵体机筒是由不锈钢机筒构成且成本随机筒长度变化时。输入机筒长度可以自动计算整体泵壳的成本以及所需不锈钢长螺丝的长度。
+                    </div>
+                  </div>
+                  <RecipeStatusBadge tone="blue">系统联动</RecipeStatusBadge>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {linkedChangeAnnotations.map((item) => (
+                    <div key={`${item.label}-${item.value}`} className={`rounded-md border p-3 ${linkedChangeToneClass(item.tone)}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium opacity-80">{item.label}</span>
+                        <span className="text-sm font-semibold">{item.value}</span>
+                      </div>
+                      <div className="mt-1 text-xs leading-5 opacity-80">{item.note}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <WorkspaceSection
               title="2. 线圈转子"
               description="选择线圈规格和片数后，系统自动读取对应线重并计算成本。"
@@ -3420,6 +3544,11 @@ export function RecipesView() {
                         listboxId="recipe-float-wire-listbox"
                         disabled={!form.hasFloat}
                       />
+                      {form.hasFloat ? (
+                        <span className={`mt-1 block text-xs ${isFloatWireRecommended ? 'text-emerald-700' : recommendedFloatWire ? 'text-amber-700' : 'text-muted'}`}>
+                          {wireLinkNote(form.hasFloat, form.floatWire, recommendedFloatWire)}
+                        </span>
+                      ) : null}
                     </label>
                     <label className="block">
                       <span className="text-xs font-medium text-muted">类型</span>
@@ -3463,6 +3592,11 @@ export function RecipesView() {
                         listboxId="recipe-cable-wire-listbox"
                         disabled={!form.hasCable}
                       />
+                      {form.hasCable ? (
+                        <span className={`mt-1 block text-xs ${isCableWireRecommended ? 'text-emerald-700' : recommendedCableWire ? 'text-amber-700' : 'text-muted'}`}>
+                          {wireLinkNote(form.hasCable, form.cableWire, recommendedCableWire)}
+                        </span>
+                      ) : null}
                     </label>
                     <label className="block">
                       <span className="text-xs font-medium text-muted">长度 m</span>
