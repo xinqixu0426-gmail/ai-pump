@@ -14,6 +14,33 @@ export type AiToolResult = {
   result: unknown;
 };
 
+export type AiConversationSummary = {
+  id: number;
+  title: string;
+  messageCount: number;
+  lastMessagePreview: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiConversationMessage = {
+  id: number;
+  conversationId: number;
+  role: AiRole;
+  content: string;
+  metadata: {
+    toolPlan?: AiToolPlan;
+    toolCalls?: Array<{ name: string; args: unknown }>;
+    toolResults?: AiToolResult[];
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiConversationDetail = AiConversationSummary & {
+  messages: AiConversationMessage[];
+};
+
 export type AiToolPlanStep = {
   index: number;
   name: string;
@@ -38,6 +65,8 @@ export type AiStreamEvent =
   | { type: 'done' }
   | { type: 'error'; message: string };
 
+export const AI_CONTEXT_MESSAGE_LIMIT = 10;
+
 function resolveAiStreamUrl(): string {
   const configured = process.env.NEXT_PUBLIC_AI_STREAM_URL;
   if (configured) return configured;
@@ -54,7 +83,7 @@ export async function streamAiChat(
 ): Promise<void> {
   const response = await proxyStreamFetch(resolveAiStreamUrl(), {
     method: 'POST',
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages: messages.slice(-AI_CONTEXT_MESSAGE_LIMIT) }),
     signal,
   });
 
@@ -82,6 +111,71 @@ export async function streamAiChat(
       }
     }
   }
+}
+
+export async function getAiSystemPrompt(): Promise<string> {
+  const result = await proxyRequest<ApiResponse<string>>('/api/ai/system-prompt');
+  if (!result.success || typeof result.data !== 'string') throw new Error(result.error || '读取提示词失败');
+  return result.data;
+}
+
+export async function updateAiSystemPrompt(prompt: string): Promise<void> {
+  const result = await proxyRequest<ApiResponse<unknown>>('/api/ai/system-prompt', {
+    method: 'PUT',
+    body: JSON.stringify({ prompt }),
+  });
+  if (!result.success) throw new Error(result.error || '保存提示词失败');
+}
+
+export async function listAiConversations(): Promise<AiConversationSummary[]> {
+  const result = await proxyRequest<ApiResponse<AiConversationSummary[]>>('/api/ai/conversations?limit=50');
+  if (!result.success || !Array.isArray(result.data)) throw new Error(result.error || '读取会话历史失败');
+  return result.data;
+}
+
+export async function createAiConversation(title: string): Promise<AiConversationSummary> {
+  const result = await proxyRequest<ApiResponse<AiConversationSummary>>('/api/ai/conversations', {
+    method: 'POST',
+    body: JSON.stringify({ title }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '创建会话失败');
+  return result.data;
+}
+
+export async function getAiConversation(id: number): Promise<AiConversationDetail> {
+  const result = await proxyRequest<ApiResponse<AiConversationDetail>>(`/api/ai/conversations/${id}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取会话失败');
+  return result.data;
+}
+
+export async function appendAiConversationMessage(
+  conversationId: number,
+  message: { role: AiRole; content: string; metadata?: AiConversationMessage['metadata'] }
+): Promise<AiConversationMessage> {
+  const result = await proxyRequest<ApiResponse<AiConversationMessage>>(`/api/ai/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify(message),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '保存会话消息失败');
+  return result.data;
+}
+
+export async function updateAiConversationMessage(
+  conversationId: number,
+  messageId: number,
+  metadata: AiConversationMessage['metadata']
+): Promise<AiConversationMessage> {
+  const result = await proxyRequest<ApiResponse<AiConversationMessage>>(`/api/ai/conversations/${conversationId}/messages/${messageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ metadata }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '更新会话消息失败');
+  return result.data;
+}
+
+export async function deleteAiConversation(id: number): Promise<void> {
+  const result = await proxyRequest<ApiResponse<{ id: number }>>(`/api/ai/conversations/${id}`, { method: 'DELETE' });
+  if (!result.success) throw new Error(result.error || '删除会话失败');
 }
 
 export async function confirmAiTool(toolName: string, args: unknown): Promise<AiToolResult> {

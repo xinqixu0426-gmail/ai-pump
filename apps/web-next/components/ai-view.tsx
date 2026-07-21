@@ -13,9 +13,14 @@ import {
   Database,
   FileSearch,
   FileText,
+  History,
   Loader2,
   MessageSquareText,
+  PanelLeft,
+  Pencil,
+  Plus,
   ReceiptText,
+  Save,
   Send,
   ShieldAlert,
   Sparkles,
@@ -29,7 +34,23 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
-import { confirmAiTool, streamAiChat, type AiChatMessage, type AiToolPlan, type AiToolResult } from '@/lib/ai';
+import {
+  appendAiConversationMessage,
+  confirmAiTool,
+  createAiConversation,
+  deleteAiConversation,
+  getAiConversation,
+  getAiSystemPrompt,
+  listAiConversations,
+  streamAiChat,
+  updateAiConversationMessage,
+  updateAiSystemPrompt,
+  type AiChatMessage,
+  type AiConversationSummary,
+  type AiStreamEvent,
+  type AiToolPlan,
+  type AiToolResult,
+} from '@/lib/ai';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 
 type ChatItem = {
@@ -41,6 +62,8 @@ type ChatItem = {
   toolPlan?: AiToolPlan;
   toolCalls?: Array<{ name: string; args: unknown }>;
   toolResults?: AiToolResult[];
+  persistedMessageId?: number;
+  historical?: boolean;
 };
 
 type ConfirmationResult = {
@@ -56,6 +79,12 @@ type ConfirmationResult = {
 };
 
 type SampleCategory = '常用' | '成本' | '订单' | '质量';
+type AsideMode = 'history' | 'templates';
+
+const asideModeOptions: Array<{ value: AsideMode; label: string }> = [
+  { value: 'history', label: '历史' },
+  { value: 'templates', label: '模板' },
+];
 
 const sampleCategoryOptions: Array<{ value: SampleCategory; label: string }> = [
   { value: '常用', label: '常用' },
@@ -673,7 +702,19 @@ function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
   );
 }
 
-function ToolResultCard({ item, onConfirmed }: { item: AiToolResult; onConfirmed: (next: AiToolResult) => void }) {
+function applyStreamEvent(item: ChatItem, event: AiStreamEvent): ChatItem {
+  if (event.type === 'status') return { ...item, status: event.status, statusMessage: event.message || '' };
+  if (event.type === 'content') return { ...item, content: item.content + event.content, status: 'answering', statusMessage: '' };
+  if (event.type === 'tool_plan') return { ...item, toolPlan: { summary: event.summary, steps: event.steps || [] } };
+  if (event.type === 'tool_call') return { ...item, toolCalls: [...(item.toolCalls || []), { name: event.name, args: event.args }], status: 'calling', statusMessage: `调用 ${event.name}` };
+  if (event.type === 'tool_result') return { ...item, toolResults: [...(item.toolResults || []), { name: event.name, result: event.result }] };
+  if (event.type === 'detail') return { ...item, toolResults: event.toolResults || item.toolResults || [] };
+  if (event.type === 'done') return { ...item, status: 'done', statusMessage: '' };
+  if (event.type === 'error') return { ...item, status: 'error', statusMessage: event.message, content: item.content || event.message };
+  return item;
+}
+
+function ToolResultCard({ item, onConfirmed, readOnly = false }: { item: AiToolResult; onConfirmed: (next: AiToolResult) => void; readOnly?: boolean }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const result = item.result;
@@ -716,9 +757,13 @@ function ToolResultCard({ item, onConfirmed }: { item: AiToolResult; onConfirmed
             {confirmation?.warning ? <div className="mt-2 text-xs text-amber-800">{confirmation.warning}</div> : null}
             {error ? <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700">{error}</div> : null}
             <div className="mt-3 flex justify-end">
-              <Button size="sm" variant="primary" onClick={handleConfirm} disabled={confirming} icon={confirming ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}>
-                确认执行
-              </Button>
+              {readOnly ? (
+                <span className="text-xs text-amber-700">历史记录，仅供查看</span>
+              ) : (
+                <Button size="sm" variant="primary" onClick={handleConfirm} disabled={confirming} icon={confirming ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}>
+                  确认执行
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -761,7 +806,21 @@ export function AiView() {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [asideMode, setAsideMode] = useState<AsideMode>('history');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeSampleCategory, setActiveSampleCategory] = useState<SampleCategory>('常用');
+  const [conversations, setConversations] = useState<AiConversationSummary[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
+  const [openingConversationId, setOpeningConversationId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AiConversationSummary | null>(null);
+  const [deletingConversation, setDeletingConversation] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptDraft, setPromptDraft] = useState('');
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptError, setPromptError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -781,6 +840,30 @@ export function AiView() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [items]);
+
+  useEffect(() => {
+    let active = true;
+    void listAiConversations()
+      .then((rows) => {
+        if (active) setConversations(rows);
+      })
+      .catch((error) => {
+        if (active) setHistoryError((error as Error).message || '读取会话历史失败');
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function refreshConversationList() {
+    try {
+      setConversations(await listAiConversations());
+      setHistoryError('');
+    } catch (error) {
+      setHistoryError((error as Error).message || '读取会话历史失败');
+    }
+  }
 
   async function sendMessage(text: string) {
     const content = text.trim();
@@ -803,24 +886,41 @@ export function AiView() {
     setInput('');
     setLoading(true);
 
+    let conversationId = activeConversationId;
+    let finalAssistantItem = assistantItem;
+
+    try {
+      if (!conversationId) {
+        const conversation = await createAiConversation(content);
+        conversationId = conversation.id;
+        setActiveConversationId(conversation.id);
+        setConversations((current) => [conversation, ...current]);
+      }
+      await appendAiConversationMessage(conversationId, { role: 'user', content });
+      setHistoryError('');
+    } catch (error) {
+      const message = (error as Error).message || '保存会话失败';
+      updateAssistant(assistantId, (item) => ({ ...item, status: 'error', statusMessage: message, content: message }));
+      setHistoryError(message);
+      setLoading(false);
+      return;
+    }
+
     try {
       const controller = new AbortController();
       abortRef.current = controller;
       await streamAiChat(nextMessages, (event) => {
-        updateAssistant(assistantId, (item) => {
-          if (event.type === 'status') return { ...item, status: event.status, statusMessage: event.message || '' };
-          if (event.type === 'content') return { ...item, content: item.content + event.content, status: 'answering', statusMessage: '' };
-          if (event.type === 'tool_plan') return { ...item, toolPlan: { summary: event.summary, steps: event.steps || [] } };
-          if (event.type === 'tool_call') return { ...item, toolCalls: [...(item.toolCalls || []), { name: event.name, args: event.args }], status: 'calling', statusMessage: `调用 ${event.name}` };
-          if (event.type === 'tool_result') return { ...item, toolResults: [...(item.toolResults || []), { name: event.name, result: event.result }] };
-          if (event.type === 'detail') return { ...item, toolResults: event.toolResults || item.toolResults || [] };
-          if (event.type === 'done') return { ...item, status: 'done', statusMessage: '' };
-          if (event.type === 'error') return { ...item, status: 'error', statusMessage: event.message, content: item.content || event.message };
-          return item;
-        });
+        finalAssistantItem = applyStreamEvent(finalAssistantItem, event);
+        updateAssistant(assistantId, (item) => applyStreamEvent(item, event));
       }, controller.signal);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
+        finalAssistantItem = {
+          ...finalAssistantItem,
+          status: 'error',
+          statusMessage: (err as Error).message || 'AI 请求失败',
+          content: finalAssistantItem.content || 'AI 请求失败',
+        };
         updateAssistant(assistantId, (item) => ({
           ...item,
           status: 'error',
@@ -829,6 +929,23 @@ export function AiView() {
         }));
       }
     } finally {
+      if (conversationId && finalAssistantItem.content.trim()) {
+        try {
+          const saved = await appendAiConversationMessage(conversationId, {
+            role: 'assistant',
+            content: finalAssistantItem.content,
+            metadata: {
+              toolPlan: finalAssistantItem.toolPlan,
+              toolCalls: finalAssistantItem.toolCalls,
+              toolResults: finalAssistantItem.toolResults,
+            },
+          });
+          updateAssistant(assistantId, (item) => ({ ...item, persistedMessageId: saved.id }));
+          await refreshConversationList();
+        } catch (error) {
+          setHistoryError((error as Error).message || '保存 AI 回复失败');
+        }
+      }
       setLoading(false);
       abortRef.current = null;
     }
@@ -845,16 +962,135 @@ export function AiView() {
   }
 
   function replaceToolResult(messageId: string, oldIndex: number, next: AiToolResult) {
-    updateAssistant(messageId, (item) => ({
-      ...item,
-      toolResults: (item.toolResults || []).map((tool, index) => (index === oldIndex ? next : tool)),
-    }));
+    const currentItem = items.find((item) => item.id === messageId);
+    const toolResults = (currentItem?.toolResults || []).map((tool, index) => (index === oldIndex ? next : tool));
+    updateAssistant(messageId, (item) => ({ ...item, toolResults }));
+    if (activeConversationId && currentItem?.persistedMessageId) {
+      void updateAiConversationMessage(activeConversationId, currentItem.persistedMessageId, {
+        toolPlan: currentItem.toolPlan,
+        toolCalls: currentItem.toolCalls,
+        toolResults,
+      }).catch((error) => setHistoryError((error as Error).message || '更新会话记录失败'));
+    }
+  }
+
+  function startNewConversation() {
+    if (loading) return;
+    setActiveConversationId(null);
+    setItems([]);
+    setInput('');
+    setAsideMode('history');
+    setMobileSidebarOpen(false);
+  }
+
+  async function openConversation(id: number) {
+    if (loading || openingConversationId) return;
+    setOpeningConversationId(id);
+    setHistoryError('');
+    try {
+      const conversation = await getAiConversation(id);
+      setActiveConversationId(conversation.id);
+      setItems(conversation.messages.map((message) => ({
+        id: `saved-${message.id}`,
+        role: message.role,
+        content: message.content,
+        status: 'done',
+        toolPlan: message.metadata?.toolPlan,
+        toolCalls: message.metadata?.toolCalls || [],
+        toolResults: message.metadata?.toolResults || [],
+        persistedMessageId: message.id,
+        historical: true,
+      })));
+      setMobileSidebarOpen(false);
+    } catch (error) {
+      setHistoryError((error as Error).message || '读取会话失败');
+    } finally {
+      setOpeningConversationId(null);
+    }
+  }
+
+  async function confirmDeleteConversation() {
+    if (!deleteTarget) return;
+    setDeletingConversation(true);
+    try {
+      await deleteAiConversation(deleteTarget.id);
+      if (activeConversationId === deleteTarget.id) startNewConversation();
+      setDeleteTarget(null);
+      await refreshConversationList();
+    } catch (error) {
+      setHistoryError((error as Error).message || '删除会话失败');
+    } finally {
+      setDeletingConversation(false);
+    }
+  }
+
+  async function openPromptEditor() {
+    setPromptOpen(true);
+    setPromptLoading(true);
+    setPromptError('');
+    try {
+      setPromptDraft(await getAiSystemPrompt());
+    } catch (error) {
+      setPromptError((error as Error).message || '读取提示词失败');
+    } finally {
+      setPromptLoading(false);
+    }
+  }
+
+  async function savePrompt() {
+    const prompt = promptDraft.trim();
+    if (!prompt) {
+      setPromptError('提示词不能为空');
+      return;
+    }
+    setPromptSaving(true);
+    setPromptError('');
+    try {
+      await updateAiSystemPrompt(prompt);
+      setPromptDraft(prompt);
+      setPromptOpen(false);
+    } catch (error) {
+      setPromptError((error as Error).message || '保存提示词失败');
+    } finally {
+      setPromptSaving(false);
+    }
   }
 
   return (
-    <div className="min-h-0">
-      <FadePanel className="mb-4 flex h-[calc(100vh-8rem)] min-h-[620px] flex-col overflow-hidden rounded-panel border border-line bg-white shadow-panel">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-slate-50 px-5 py-4">
+    <div className="min-h-0 bg-white lg:bg-transparent">
+      <FadePanel className="flex h-[100dvh] min-h-0 flex-col overflow-hidden border-0 bg-white shadow-none md:h-[calc(100vh-8rem)] md:min-h-[620px] md:rounded-panel md:border md:border-line md:shadow-panel">
+        <div className="ai-mobile-header flex h-auto shrink-0 items-center justify-between border-b border-line bg-white px-3 pb-2 lg:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 px-0"
+            icon={<PanelLeft size={19} />}
+            aria-label="打开会话记录"
+            title="会话记录"
+            onClick={() => setMobileSidebarOpen(true)}
+          />
+          <div className="min-w-0 flex-1 px-2 text-center">
+            <div className="truncate text-sm font-semibold text-ink">
+              {conversations.find((conversation) => conversation.id === activeConversationId)?.title || 'AI 工作台'}
+            </div>
+            <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              DeepSeek
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 px-0"
+            icon={<Plus size={19} />}
+            aria-label="新建会话"
+            title="新建会话"
+            onClick={startNewConversation}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="hidden shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-slate-50 px-5 py-4 lg:flex">
           <div className="flex min-w-0 items-center gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-ink text-white">
               <Sparkles size={20} />
@@ -868,67 +1104,120 @@ export function AiView() {
               <h1 className="mt-1 text-2xl font-semibold tracking-normal text-ink">AI 工作台</h1>
             </div>
           </div>
-          <Button variant="ghost" size="sm" icon={<Trash2 size={15} />} onClick={() => setItems([])} disabled={items.length === 0 || loading}>
-            清空
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" icon={<Pencil size={15} />} onClick={() => void openPromptEditor()} disabled={promptLoading || promptSaving}>
+              提示词
+            </Button>
+            <Button variant="ghost" size="sm" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
+              新会话
+            </Button>
+          </div>
         </div>
 
         <div className="grid min-h-0 min-w-0 flex-1 lg:grid-cols-[310px_minmax(0,1fr)]">
-          <aside className="min-w-0 border-b border-line bg-white p-3 lg:border-b-0 lg:border-r lg:p-4">
-            <div className="mb-3 flex flex-col gap-3">
+          <aside className="hidden min-h-0 min-w-0 flex-col border-r border-line bg-white p-4 lg:flex">
+            <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <MessageSquareText size={16} />
-                任务模板
+                {asideMode === 'history' ? <History size={16} /> : <MessageSquareText size={16} />}
+                {asideMode === 'history' ? '会话记录' : '任务模板'}
               </div>
-              <SegmentedControl
-                value={activeSampleCategory}
-                options={sampleCategoryOptions}
-                onChange={setActiveSampleCategory}
-                ariaLabel="AI 任务模板分类"
-              />
+              <SegmentedControl value={asideMode} options={asideModeOptions} onChange={setAsideMode} ariaLabel="AI 侧栏内容" />
             </div>
-            <div className="-mx-1 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:grid-cols-1 lg:overflow-visible lg:px-0 lg:pb-0">
-              {visibleSamples.map((sample) => {
-                const Icon = sample.icon;
-                return (
-                  <button
-                    key={sample.prompt}
-                    type="button"
-                    onClick={() => void sendMessage(sample.prompt)}
-                    disabled={loading}
-                    className="group flex min-h-14 min-w-[190px] items-center gap-3 rounded-panel border border-line bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-16 lg:min-w-0"
-                  >
-                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600 group-hover:text-ink">
-                      <Icon size={17} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-medium text-ink">{sample.label}</span>
-                        <StatusBadge tone={sample.mode === 'write' ? 'amber' : 'blue'} className="h-5 min-w-0 px-1.5">
-                          {sample.mode === 'write' ? '确认' : '只读'}
-                        </StatusBadge>
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+
+            {asideMode === 'history' ? (
+              <div className="min-h-0">
+                <Button variant="secondary" size="sm" className="mb-2 w-full" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
+                  新建会话
+                </Button>
+                {historyError ? (
+                  <div className="mb-2 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{historyError}</span>
+                  </div>
+                ) : null}
+                <div className="max-h-48 space-y-1 overflow-y-auto pr-1 lg:max-h-[calc(100vh-19rem)]">
+                  {historyLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>
+                  ) : conversations.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-sm text-muted">暂无历史会话</div>
+                  ) : conversations.map((conversation) => (
+                    <div key={conversation.id} className={`group flex items-center gap-1 rounded-md border p-1 ${activeConversationId === conversation.id ? 'border-slate-300 bg-slate-100' : 'border-transparent hover:bg-slate-50'}`}>
+                      <button
+                        type="button"
+                        onClick={() => void openConversation(conversation.id)}
+                        disabled={loading || openingConversationId !== null}
+                        className="min-w-0 flex-1 rounded px-2 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="flex items-center gap-2">
+                          {openingConversationId === conversation.id ? <Loader2 size={13} className="shrink-0 animate-spin text-muted" /> : <MessageSquareText size={13} className="shrink-0 text-muted" />}
+                          <span className="truncate text-sm font-medium text-ink">{conversation.title}</span>
+                        </span>
+                        <span className="mt-1 block truncate pl-5 text-xs text-muted">{conversation.messageCount} 条 · {dateText(conversation.updatedAt)}</span>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-8 px-0 text-slate-400 hover:text-rose-600"
+                        icon={<Trash2 size={14} />}
+                        aria-label={`删除会话 ${conversation.title}`}
+                        title="删除会话"
+                        onClick={() => setDeleteTarget(conversation)}
+                        disabled={loading}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-0">
+                <SegmentedControl value={activeSampleCategory} options={sampleCategoryOptions} onChange={setActiveSampleCategory} ariaLabel="AI 任务模板分类" />
+                <div className="-mx-1 mt-3 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:max-h-[calc(100vh-21rem)] lg:grid-cols-1 lg:overflow-y-auto lg:px-0 lg:pb-0">
+                  {visibleSamples.map((sample) => {
+                    const Icon = sample.icon;
+                    return (
+                      <button
+                        key={sample.prompt}
+                        type="button"
+                        onClick={() => void sendMessage(sample.prompt)}
+                        disabled={loading}
+                        className="group flex min-h-14 min-w-[190px] items-center gap-3 rounded-panel border border-line bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-16 lg:min-w-0"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600 group-hover:text-ink"><Icon size={17} /></span>
+                        <span className="min-w-0">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-sm font-medium text-ink">{sample.label}</span>
+                            <StatusBadge tone={sample.mode === 'write' ? 'amber' : 'blue'} className="h-5 min-w-0 px-1.5">{sample.mode === 'write' ? '确认' : '只读'}</StatusBadge>
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </aside>
 
-          <section className="flex min-h-0 min-w-0 flex-col bg-slate-50">
-            <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
+          <section className="flex min-h-0 min-w-0 flex-col bg-white md:bg-slate-50">
+            <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-4 py-5 md:space-y-4 md:p-5">
               {items.length === 0 ? (
                 <div className="flex h-full min-h-[220px] items-center justify-center md:min-h-[360px]">
-                  <div className="max-w-lg rounded-panel border border-dashed border-slate-300 bg-white px-6 py-7 text-center shadow-panel">
+                  <div className="w-full max-w-lg px-2 py-7 text-center md:rounded-panel md:border md:border-dashed md:border-slate-300 md:bg-white md:px-6 md:shadow-panel">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-ink text-white">
                       <Bot size={22} />
                     </div>
-                    <div className="mt-4 text-lg font-semibold text-ink">今天要处理哪些事？</div>
-                    <div className="mt-2 flex items-center justify-center gap-2 text-sm leading-6 text-muted">
+                    <div className="mt-4 text-lg font-semibold text-ink">有什么可以帮你？</div>
+                    <div className="mt-2 hidden items-center justify-center gap-2 text-sm leading-6 text-muted md:flex">
                       <span>可以先从</span>
                       <TextLoop words={textLoopWords} />
                       <span>开始</span>
+                    </div>
+                    <div className="mx-auto mt-6 grid max-w-sm gap-2 md:hidden">
+                      {samples.filter((sample) => sample.category === '常用').slice(0, 2).map((sample) => (
+                        <button key={sample.prompt} type="button" onClick={() => void sendMessage(sample.prompt)} disabled={loading} className="min-h-11 rounded-md border border-line bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-panel disabled:opacity-60">
+                          {sample.prompt}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -936,9 +1225,9 @@ export function AiView() {
 
               {items.map((item) => (
                 <div key={item.id} className={item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                  <div className={`max-w-[940px] rounded-panel border p-3 shadow-panel ${item.role === 'user' ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'}`}>
-                    <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${item.role === 'user' ? 'text-slate-200' : 'text-muted'}`}>
-                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${item.role === 'user' ? 'bg-white/10' : 'bg-slate-100 text-slate-600'}`}>
+                  <div className={`max-w-[940px] text-ink ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
+                    <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${item.role === 'user' ? 'text-muted md:text-slate-200' : 'text-muted'} ${item.role === 'user' ? 'hidden md:flex' : ''}`}>
+                      <span className={`hidden h-6 w-6 items-center justify-center rounded-md md:inline-flex ${item.role === 'user' ? 'bg-white/10' : 'bg-slate-100 text-slate-600'}`}>
                         {item.role === 'user' ? <UserRound size={14} /> : <Bot size={14} />}
                       </span>
                       <span>{item.role === 'user' ? '你' : 'AI'}</span>
@@ -975,7 +1264,7 @@ export function AiView() {
                     {item.toolResults && item.toolResults.length > 0 ? (
                       <div className="mt-3 space-y-2">
                         {item.toolResults.map((tool, index) => (
-                          <ToolResultCard key={`${tool.name}-${index}`} item={tool} onConfirmed={(next) => replaceToolResult(item.id, index, next)} />
+                          <ToolResultCard key={`${tool.name}-${index}`} item={tool} readOnly={item.historical} onConfirmed={(next) => replaceToolResult(item.id, index, next)} />
                         ))}
                       </div>
                     ) : null}
@@ -984,14 +1273,14 @@ export function AiView() {
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="shrink-0 border-t border-line bg-white p-3 md:p-4">
-              <div className="flex items-end gap-2 rounded-panel border border-line bg-slate-50 p-2">
+            <form onSubmit={handleSubmit} className="ai-mobile-composer shrink-0 border-t border-line bg-white px-3 pt-2 md:p-4">
+              <div className="flex items-end gap-2 rounded-2xl border border-line bg-slate-50 p-1.5 shadow-panel md:rounded-panel md:p-2">
                 <textarea
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   placeholder="输入要查询或处理的事情..."
-                  rows={2}
-                  className="max-h-28 min-h-11 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-slate-400"
+                  rows={1}
+                  className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none placeholder:text-slate-400 md:min-h-11 md:text-sm"
                   disabled={loading}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
@@ -1001,12 +1290,12 @@ export function AiView() {
                   }}
                 />
                 {loading ? (
-                  <Button variant="secondary" icon={<X size={16} />} onClick={handleStop}>
-                    停止
+                  <Button variant="secondary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<X size={16} />} onClick={handleStop} aria-label="停止">
+                    <span className="hidden md:inline">停止</span>
                   </Button>
                 ) : (
-                  <Button type="submit" variant="primary" icon={<Send size={16} />} disabled={!input.trim()}>
-                    发送
+                  <Button type="submit" variant="primary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<Send size={16} />} disabled={!input.trim()} aria-label="发送">
+                    <span className="hidden md:inline">发送</span>
                   </Button>
                 )}
               </div>
@@ -1014,6 +1303,146 @@ export function AiView() {
           </section>
         </div>
       </FadePanel>
+
+      <AnimatePresence>
+        {mobileSidebarOpen ? (
+          <div className="fixed inset-0 z-40 lg:hidden">
+            <motion.button
+              type="button"
+              aria-label="关闭会话记录"
+              className="absolute inset-0 bg-black/25"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+            <motion.aside
+              className="ai-mobile-drawer absolute inset-y-0 left-0 flex w-[86vw] max-w-[340px] flex-col border-r border-line bg-white px-3 shadow-xl"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 420, damping: 38 }}
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-ink">AI 工作台</div>
+                  <div className="mt-0.5 text-xs text-muted">会话记录</div>
+                </div>
+                <Button variant="ghost" size="sm" className="h-9 w-9 px-0" icon={<X size={17} />} aria-label="关闭" title="关闭" onClick={() => setMobileSidebarOpen(false)} />
+              </div>
+
+              <Button variant="secondary" className="mt-3 w-full" icon={<Plus size={16} />} onClick={startNewConversation} disabled={loading}>
+                新建会话
+              </Button>
+
+              {historyError ? (
+                <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>{historyError}</span>
+                </div>
+              ) : null}
+
+              <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
+                {historyLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>
+                ) : conversations.length === 0 ? (
+                  <div className="px-3 py-8 text-center text-sm text-muted">暂无历史会话</div>
+                ) : conversations.map((conversation) => (
+                  <div key={`mobile-${conversation.id}`} className={`flex items-center gap-1 rounded-md p-1 ${activeConversationId === conversation.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
+                    <button type="button" onClick={() => void openConversation(conversation.id)} disabled={loading || openingConversationId !== null} className="min-w-0 flex-1 rounded px-2 py-2 text-left disabled:opacity-60">
+                      <span className="flex items-center gap-2">
+                        {openingConversationId === conversation.id ? <Loader2 size={14} className="shrink-0 animate-spin text-muted" /> : <MessageSquareText size={14} className="shrink-0 text-muted" />}
+                        <span className="truncate text-sm font-medium text-ink">{conversation.title}</span>
+                      </span>
+                      <span className="mt-1 block truncate pl-5 text-xs text-muted">{conversation.messageCount} 条 · {dateText(conversation.updatedAt)}</span>
+                    </button>
+                    <Button variant="ghost" size="sm" className="h-9 w-9 px-0 text-slate-400 hover:text-rose-600" icon={<Trash2 size={14} />} aria-label={`删除会话 ${conversation.title}`} title="删除会话" onClick={() => { setMobileSidebarOpen(false); setDeleteTarget(conversation); }} disabled={loading} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-line pt-2">
+                <Button variant="ghost" className="w-full justify-start" icon={<Pencil size={16} />} onClick={() => { setMobileSidebarOpen(false); void openPromptEditor(); }} disabled={promptLoading || promptSaving}>
+                  编辑提示词
+                </Button>
+              </div>
+            </motion.aside>
+          </div>
+        ) : null}
+      </AnimatePresence>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-conversation-title" className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel">
+            <div className="border-b border-line px-4 py-3">
+              <h2 id="delete-conversation-title" className="text-base font-semibold text-ink">删除会话</h2>
+            </div>
+            <div className="p-4">
+              <p className="text-sm leading-6 text-slate-700">确定删除“{deleteTarget.title}”及其历史记录吗？</p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deletingConversation}>取消</Button>
+              <Button variant="danger" icon={deletingConversation ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} onClick={() => void confirmDeleteConversation()} disabled={deletingConversation}>
+                {deletingConversation ? '删除中' : '删除'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {promptOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !promptSaving) setPromptOpen(false);
+          }}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="ai-prompt-title" className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-panel border border-line bg-white shadow-panel">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">编辑系统提示词</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-8 px-0"
+                icon={<X size={16} />}
+                aria-label="关闭"
+                title="关闭"
+                onClick={() => setPromptOpen(false)}
+                disabled={promptSaving}
+              />
+            </div>
+            <div className="min-h-0 flex-1 p-4">
+              {promptLoading ? (
+                <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-muted">
+                  <Loader2 size={16} className="animate-spin" />
+                  正在读取提示词
+                </div>
+              ) : (
+                <textarea
+                  value={promptDraft}
+                  onChange={(event) => setPromptDraft(event.target.value)}
+                  aria-label="系统提示词"
+                  autoFocus
+                  className="h-[min(58vh,560px)] min-h-72 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-3 font-mono text-sm leading-6 text-ink outline-none transition-colors focus:border-slate-400"
+                  disabled={promptSaving}
+                />
+              )}
+              {promptError ? (
+                <div className="mt-3 flex items-center gap-2 text-sm text-rose-600">
+                  <AlertCircle size={15} />
+                  {promptError}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setPromptOpen(false)} disabled={promptSaving}>取消</Button>
+              <Button variant="primary" icon={promptSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} onClick={() => void savePrompt()} disabled={promptLoading || promptSaving || !promptDraft.trim()}>
+                {promptSaving ? '保存中' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

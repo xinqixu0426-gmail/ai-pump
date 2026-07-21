@@ -90,6 +90,33 @@ test('关键 API 集成契约：/api/quality/business-alerts 只生成经营异�
     assertNoWrites(source);
 });
 
+test('关键 API 集成契约：/api/knowledge 提供搜索、详情和同步入口', () => {
+    const source = readUtf8('api/routes/knowledge.cjs');
+    const app = readUtf8('api.cjs');
+
+    assert.match(app, /app\.use\('\/api\/knowledge', require\('\.\/api\/routes\/knowledge\.cjs'\)\)/);
+    assert.match(source, /router\.get\('\/'/);
+    assert.match(source, /searchKnowledgeEntries\(\{/);
+    assert.match(source, /router\.post\('\/sync'/);
+    assert.match(source, /syncKnowledgeEntries\(\)/);
+    assert.match(source, /router\.get\('\/:id'/);
+    assert.match(source, /parsePositiveId\(req\.params\.id\)/);
+    assert.match(source, /getKnowledgeEntryDetail\(id\)/);
+    assert.match(source, /res\.json\(\{ success: true, data \}\)/);
+});
+
+test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保存和删除入口', () => {
+    const route = readUtf8('api/routes/ai/conversations.cjs');
+    assert.match(route, /router\.get\('\/api\/ai\/conversations'/);
+    assert.match(route, /router\.post\('\/api\/ai\/conversations'/);
+    assert.match(route, /router\.get\('\/api\/ai\/conversations\/:id'/);
+    assert.match(route, /router\.post\('\/api\/ai\/conversations\/:id\/messages'/);
+    assert.match(route, /router\.patch\('\/api\/ai\/conversations\/:id\/messages\/:messageId'/);
+    assert.match(route, /router\.delete\('\/api\/ai\/conversations\/:id'/);
+    assert.match(route, /parsePositiveId/);
+    assert.match(route, /conversationAuth/);
+});
+
 test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当日成本且不写库', () => {
     const source = readUtf8('api/routes/cost.cjs');
     const section = sliceBetween(source, "router.get('/recipes/current-costs'", 'function calculateRecipeByIdHandler');

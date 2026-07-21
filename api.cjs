@@ -133,6 +133,7 @@ app.use('/api/customers', require('./api/routes/customers.cjs'));
 app.use('/api/quotations', require('./api/routes/quotations.cjs'));
 app.use('/api/workbench', require('./api/routes/workbench.cjs'));
 app.use('/api/quality', require('./api/routes/quality.cjs'));
+app.use('/api/knowledge', require('./api/routes/knowledge.cjs'));
 
 // ── 生产模式：Cloudflare Tunnel 仍指向 API 端口时，将页面请求转发到 Next 前端 ──
 const NEXT_ORIGIN = process.env.NEXT_ORIGIN || (IS_PRODUCTION ? 'http://127.0.0.1:3000' : '');
@@ -229,6 +230,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  POST /api/voice/asr                     - 语音识别(阿里云ASR)`);
     console.log(`  POST /api/siri/chat                     - Siri快捷指令对话`);
     console.log(`  GET  /api/workbench/summary             - 今日工作台汇总`);
+    console.log(`  GET  /api/knowledge                     - 工厂知识库搜索`);
+    console.log(`  POST /api/knowledge/sync                - 同步工厂知识库`);
     console.log(`========================================`);
 
     // 启动时自动更新铜价

@@ -21,6 +21,7 @@ const TOOL_LABELS = {
     create_recipe: '新建配方',
     delete_recipe: '删除配方',
     update_recipe: '修改配方',
+    sync_factory_knowledge: '同步工厂知识库',
 };
 
 function hasValue(value) {

@@ -238,7 +238,22 @@
 | `POST` | `/api/ai/chat` | `{ messages }` | SSE 流式对话；事件数据形如 `data: { type, ...payload }` |
 | `POST` | `/api/ai/confirm-tool` | `{ toolName, args? }` | 用户确认后执行写工具；调用 `executeToolCall(..., { allowWrite: true })` |
 | `GET` | `/api/ai/system-prompt` | 无 | 读取当前 System Prompt |
-| `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 更新内存和 SQLite `config.ai-system-prompt` |
+| `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 更新内存和 SQLite `config.ai-system-prompt`；不能为空，最大 50000 字符 |
+
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。
+
+### AI 会话历史
+
+AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，并按当前登录身份隔离；历史消息中的待确认工具只读，不能从历史记录重复执行。
+
+| 方法 | 路径 | 请求 | 说明 |
+|---|---|---|---|
+| `GET` | `/api/ai/conversations?limit=50` | 无 | 获取最近会话，默认 50 条，最大 100 条 |
+| `POST` | `/api/ai/conversations` | `{ title }` | 创建会话，标题最大 80 字符 |
+| `GET` | `/api/ai/conversations/:id` | 无 | 获取会话及按时间排序的全部消息 |
+| `POST` | `/api/ai/conversations/:id/messages` | `{ role, content, metadata? }` | 追加 `user/assistant` 消息及工具展示数据 |
+| `PATCH` | `/api/ai/conversations/:id/messages/:messageId` | `{ metadata }` | 更新已保存消息的工具执行结果 |
+| `DELETE` | `/api/ai/conversations/:id` | 无 | 软删除会话；历史消息保留在数据库中但不再展示 |
 
 AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认流程控制。`/api/ai/chat` 中普通工具结果会继续回流给模型用于多步编排；只有返回 `requiresConfirmation` 的写操作会暂停并等待 `/api/ai/confirm-tool`。
 
@@ -254,15 +269,17 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `search_customer_history`：组合查询客户、报价和订单历史，供报价前参考。
 - `explain_cost_change`：调用 `/api/cost/recipe-difference` 解释两个配方的成本差异。
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
+- `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库。
+- `get_factory_knowledge_detail`：调用 `/api/knowledge/:id` 读取知识条目详情。
+- `sync_factory_knowledge`：调用 `/api/knowledge/sync` 重建知识条目索引；该工具写入派生索引，位于写工具白名单，需确认后执行。
 
-Next iPhone PWA `/voice` 复用本节接口：
+Next iPhone PWA `/ai` 复用本节接口：
 
 - 文字指令通过 `apps/web-next/lib/ai.ts:streamAiChat()` 调用 `POST /api/ai/chat`。
-- 语音输入通过 `apps/web-next/lib/voice.ts:recognizeVoiceBlob()` 调用 `POST /api/voice/asr` 转文字，然后进入同一 `POST /api/ai/chat` 链路。
 - 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
 - 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力应先扩展 `tools.cjs` 和对应 executor。
 - PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
-- 当前 PWA 不启用语音播报、Voice Orb 或音频可视化；语音失败时回退到文字输入。
+- `/voice` 页面已弃用并跳转到 `/ai`，当前工作台不再提供语音输入。
 
 ### Voice
 
@@ -270,7 +287,7 @@ Next iPhone PWA `/voice` 复用本节接口：
 |---|---|---|---|
 | `POST` | `/api/voice/asr` | `multipart/form-data`，文件字段 `audio`，可带 `format`、`sampleRate` | 调阿里云一句话识别；成功返回 `{ success: true, text }` |
 
-当前 iPhone PWA 语音输入调用本接口；阿里云密钥只保留在后端环境变量中，不暴露到前端。
+该接口仅为旧客户端兼容保留，当前 `/ai` 工作台不调用；阿里云密钥只保留在后端环境变量中，不暴露到前端。
 
 ### Siri
 
@@ -302,7 +319,25 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 
 经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
 
-## 17. 当前兼容边界
+## 17. 工厂知识库 Knowledge
+
+Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识条目，并在 SQLite 支持 FTS5 时启用 `knowledge_entries_fts`；如果当前 SQLite 构建不支持 FTS5，搜索自动回退到 `LIKE`。
+
+同步来源覆盖：零件、泵壳模板、配方、线圈、客户、报价、订单、数据质量问题和业务规则。知识条目字段统一为 camelCase 响应，核心字段包括 `id/entryType/sourceTable/sourceId/title/summary/content/tags/metadata/syncedAt/updatedAt`。
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule`；默认最多 10 条，最大 50 条 |
+| `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
+| `POST` | `/api/knowledge/sync` | 无 | 重建 `knowledge_entries` 派生索引并刷新可选 FTS；写入知识索引，不修改原业务资源 |
+
+AI 工具：
+
+- `search_factory_knowledge`：只读搜索知识库。
+- `get_factory_knowledge_detail`：只读读取详情。
+- `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
+
+## 18. 当前兼容边界
 
 - 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是历史兼容字段，Web 页面必须使用标准字段。
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。

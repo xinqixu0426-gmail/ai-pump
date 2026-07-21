@@ -1,5 +1,5 @@
-import { BasicAiAssistant } from '@/components/basic-ai-assistant';
+import { redirect } from 'next/navigation';
 
 export default function VoicePage() {
-  return <BasicAiAssistant />;
+  redirect('/ai');
 }

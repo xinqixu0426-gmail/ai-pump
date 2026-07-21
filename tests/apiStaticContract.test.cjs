@@ -395,9 +395,26 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'get_business_alerts']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
         assert.match(tools, new RegExp(name));
     }
+});
+
+test('API 静态契约：知识库同步工具是受确认保护的写工具', () => {
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+
+    assert.match(tools, /name: 'sync_factory_knowledge'/);
+    assert.match(tools, /'sync_factory_knowledge'/);
+    assert.match(tools, /name: 'search_factory_knowledge'/);
+    assert.match(tools, /name: 'get_factory_knowledge_detail'/);
+    assert.match(businessExecutor, /\/api\/knowledge\/sync/);
+    assert.match(businessExecutor, /\/api\/knowledge\$\{query\.toString\(\)/);
+    assert.match(db, /CREATE TABLE IF NOT EXISTS knowledge_entries/);
+    assert.match(db, /CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_entries_fts/);
+    assert.doesNotMatch(db, /DROP TABLE IF EXISTS knowledge_entries_fts/);
+    assert.match(db, /'knowledge_entries'/);
 });
 
 test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本', () => {
@@ -414,6 +431,20 @@ test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本'
     assert.match(chatRoute, /preview_pump_shell_cost/);
     assert.match(chatRoute, /不要使用 query_recipe_cost_by_name/);
     assert.match(businessExecutor, /\/api\/recipes\/bom-draft/);
+});
+
+test('API 静态契约：AI 会话表进入安全写入白名单', () => {
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
+
+    assert.match(db, /CREATE TABLE IF NOT EXISTS ai_conversations/);
+    assert.match(db, /CREATE TABLE IF NOT EXISTS ai_conversation_messages/);
+    assert.match(db, /'ai_conversations'/);
+    assert.match(db, /'ai_conversation_messages'/);
+    assert.match(service, /safeInsert\('ai_conversations'/);
+    assert.match(service, /safeInsert\('ai_conversation_messages'/);
+    assert.match(service, /safeUpdate\('ai_conversations'/);
+    assert.match(service, /safeUpdate\('ai_conversation_messages'/);
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {
@@ -484,6 +515,8 @@ test('API 静态契约：AI System Prompt 修改必须进入审计日志', () =>
     assert.match(section, /writeAuditLog\(/);
     assert.match(section, /CONFIG_UPDATE|CONFIG_INSERT/);
     assert.match(promptRoute, /setConfig\('ai-system-prompt', prompt\)/);
+    assert.match(promptRoute, /提示词不能为空/);
+    assert.match(promptRoute, /prompt\.length > 50000/);
     assert.doesNotMatch(promptRoute, /INSERT OR REPLACE INTO config/);
 });
 

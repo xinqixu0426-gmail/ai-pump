@@ -183,6 +183,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
 | 转子 | `/api/rotor` | 模板草稿、出图、参数暂存、状态、历史、关联、打印 |
 | 质量与经营异常 | `/api/quality` | 基础资料健康度、报价和订单经营异常提醒 |
+| 工厂知识库 | `/api/knowledge` | SQLite 知识条目同步、搜索和详情读取，供 AI 检索 |
 | 设置 | `/api/settings/:key` | 白名单设置读取和修改 |
 | AI/语音/Siri | `/api/ai`、`/api/voice`、`/api/siri` | 对话、工具调用、ASR |
 
@@ -237,30 +238,31 @@ POST /api/rotor/save
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary` 和 `get_business_alerts` 读取基础资料健康度、报价和订单经营异常；这些工具均为只读工具。
+- AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；`sync_factory_knowledge` 会重建 `knowledge_entries` 派生索引，属于需确认的写工具。
+- AI 工作台会把会话和消息保存到 SQLite，支持查看、继续和删除历史会话；上下文仍只发送最近 10 条消息，历史存档数量不受上下文窗口影响。
 - Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。
-- iPhone PWA 入口为 Next 页面 `/voice`，面向主屏幕 standalone 使用；桌面业务入口和 `/ai` 工作台不受影响。
-- PWA 当前是基础 AI 助手，支持文字输入和轻量语音输入；语音输入只通过 `apps/web-next/lib/voice.ts` 调用 `/api/voice/asr` 转文字，之后仍使用 `streamAiChat()` 调用 `/api/ai/chat`。
-- PWA 不启用语音播报、Voice Orb、音频可视化或复杂语音聊天 UI；语音失败时必须回退到文字输入。
+- iPhone PWA 与桌面统一使用 `/ai`；手机端隐藏全局业务导航，使用全屏对话、会话历史抽屉和安全区输入框。
+- `/voice` 页面已弃用并兼容跳转到 `/ai`；旧基础语音助手不再作为产品入口。
 - PWA 状态流使用单一状态枚举：`idle`、`thinking`、`calling`、`answering`、`confirming`、`done`、`error`、`cancelled`，顶部状态和消息状态都由该状态驱动。
 - PWA 当前优先接入成熟 AI 工具：经营概况、最近订单、订单详情、配方成本、零件搜索、线圈成本、铜价、配方对比和出图历史；新建订单、修改订单状态、改零件、生成采购清单、配方/零件写操作必须确认后执行。
-- PWA 历史记录第一版保存在浏览器 `localStorage`，只用于本机快速回看，不作为审计来源；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
+- PWA 与桌面共享 SQLite AI 会话历史，可跨设备回看和继续；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
 - 微信小程序代码位于 `wechat-miniprogram/`，当前通过 `INTERNAL_SECRET` 兼容认证；真实密钥不得提交到仓库，小程序生产鉴权应迁移到 OpenID 或服务端会话。
 - Siri 使用快捷指令文字输入，不经过 ASR；统一调用 `POST /api/siri/chat`，由 AI tools 决定业务动作，Siri 不直接访问库存、BOM、采购等内部 API。
 - Siri 返回 `speech` 供朗读，内容保持简短；结构化结果通过 `resultUrl` 查看，结果临时保存在内存中，5 分钟后失效。
 - Siri 写操作返回 `confirmation_required`、`confirmationId` 和确认摘要；用户明确确认后再调用 `POST /api/siri/confirm`，后端仍复用现有写工具确认、标准 API 和审计路径。
-- Web/PWA 语音识别使用后端阿里云 ASR；AI 对话使用 DeepSeek SSE。
+- Web/PWA AI 对话使用 DeepSeek SSE；旧 ASR 接口仅保留兼容，不再由当前工作台调用。
 
 ### PWA 调试与限制
 
-- 本地调试：同时启动 Express `:3002` 和 Next `:3000`，访问 `/voice`。
+- 本地调试：同时启动 Express `:3002` 和 Next `:3000`，访问 `/ai`。
 - iPhone 主屏幕安装需要 Safari 和 HTTPS 生产地址；本地 HTTP 可用于页面调试，但不能完整验证主屏幕体验。
-- 当前 PWA 语音输入依赖浏览器 `MediaRecorder` 和后端 `/api/voice/asr`；iPhone 需要授予麦克风权限，识别失败时可继续使用文字输入。
-- `/voice` 不新增业务 API，不改变现有权限、确认、审计和成本计算口径。
+- `/voice` 仅保留到 `/ai` 的兼容跳转；当前移动端不请求麦克风权限。
 
 ## 8. 当前已知边界
 
 - `apps/web-next/` 是 Next.js + Tailwind + motion 风格的唯一 Web 前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。Next 前端不接管业务 API。
 - `/quality` 是基础资料健康度面板，读取 `/api/quality/summary`，用于提前发现影响 AI 编排、成本核算和采购计划的数据问题；报价页和订单页通过 `/api/quality/business-alerts` 展示经营异常提醒。
+- Knowledge Base V1 使用 SQLite `knowledge_entries` 和可选 FTS5，把零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成 AI 可检索知识条目；不依赖外部向量库。
 - 数据质量中的配方完整性只要求真实零件行能在零件库匹配；`线圈转子` 由线圈模块校验，`电缆配件费` 由电缆分类 notes/公式计算，不作为普通零件缺失处理。
 - AI executor 已通过内部 API client 调用标准 API，不再直接访问数据库 helper；后续新增 AI 自动化能力时，应先确认是否能复用现有标准业务动作 API。
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。

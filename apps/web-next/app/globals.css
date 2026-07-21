@@ -77,3 +77,16 @@ textarea {
 .voice-input-sticky {
   padding-bottom: max(env(safe-area-inset-bottom), 12px);
 }
+
+.ai-mobile-header {
+  padding-top: max(env(safe-area-inset-top), 8px);
+}
+
+.ai-mobile-composer {
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}
+
+.ai-mobile-drawer {
+  padding-top: max(env(safe-area-inset-top), 8px);
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}

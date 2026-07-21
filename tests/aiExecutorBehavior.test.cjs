@@ -321,3 +321,53 @@ test('AI executor 行为：泵壳机筒长度成本试算复用 BOM 草稿 API',
         'POST /api/recipes/bom-draft',
     ]);
 });
+
+test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/knowledge?query=V750&entryType=recipe&limit=3') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 9, entryType: 'recipe', title: '配方：V750', summary: '保存成本 90' }] });
+        }
+        if (call.url.endsWith('/api/knowledge/9') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: { id: 9, entryType: 'recipe', title: '配方：V750', content: 'BOM 明细' } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const search = await executeToolCall('search_factory_knowledge', { query: 'V750', entryType: 'recipe', limit: 3 }, { allowWrite: false });
+    const detail = await executeToolCall('get_factory_knowledge_detail', { id: 9 }, { allowWrite: false });
+
+    assert.equal(search.success, true);
+    assert.equal(search.intent, 'factory_knowledge_search');
+    assert.equal(search.data[0].id, 9);
+    assert.equal(detail.success, true);
+    assert.equal(detail.data.content, 'BOM 明细');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/knowledge?query=V750&entryType=recipe&limit=3',
+        'GET /api/knowledge/9',
+    ]);
+});
+
+test('AI executor 行为：知识库同步未确认时返回确认卡片，确认后调用同步 API', async () => {
+    const blockedCalls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
+    const blocked = await executeToolCall('sync_factory_knowledge', {}, { allowWrite: false });
+    assert.equal(blocked.success, true);
+    assert.equal(blocked.requiresConfirmation, true);
+    assert.equal(blocked.confirmation.toolName, 'sync_factory_knowledge');
+    assert.equal(blockedCalls.length, 0);
+
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/knowledge/sync') && call.method === 'POST') {
+            return jsonResponse({ success: true, data: { ftsEnabled: true, stats: { inserted: 8, byType: { part: 2 } } } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const confirmed = await executeToolCall('sync_factory_knowledge', {}, { allowWrite: true });
+
+    assert.equal(confirmed.success, true);
+    assert.equal(confirmed.intent, 'factory_knowledge_sync');
+    assert.match(confirmed.summary, /已同步 8 条/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/knowledge/sync',
+    ]);
+});

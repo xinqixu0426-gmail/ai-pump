@@ -559,6 +559,44 @@ const AI_TOOLS = [
             parameters: { type: 'object', properties: {} }
         }
     },
+    {
+        type: 'function',
+        function: {
+            name: 'search_factory_knowledge',
+            description: '搜索工厂知识库，覆盖零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则。适合用户问“系统里有没有关于XX的资料”“按知识库查一下XX”。只读。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: '搜索关键词' },
+                    entryType: { type: 'string', enum: ['part', 'template', 'recipe', 'coil', 'customer', 'quotation', 'order', 'quality_issue', 'business_rule'], description: '知识类型过滤，可选' },
+                    sourceTable: { type: 'string', description: '来源表过滤，可选' },
+                    limit: { type: 'number', description: '最多返回条数，默认10，最大50' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_factory_knowledge_detail',
+            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    id: { type: 'number', description: '知识条目ID' }
+                },
+                required: ['id']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'sync_factory_knowledge',
+            description: '把当前系统里的零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成工厂知识条目。该工具会重建 SQLite knowledge_entries 索引，需要用户确认后执行。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
     // ── 第三组：数据分析与辅助 ──
     {
         type: 'function',
@@ -689,6 +727,7 @@ const WRITE_TOOLS = new Set([
     'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list',
     'create_recipe', 'delete_recipe', 'update_recipe',
+    'sync_factory_knowledge',
 ]);
 
 

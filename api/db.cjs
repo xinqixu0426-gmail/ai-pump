@@ -159,7 +159,71 @@ db.exec(`
         updated_at TEXT,
         deleted_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS knowledge_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_type TEXT NOT NULL,
+        source_table TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source_updated_at TEXT,
+        title TEXT NOT NULL,
+        summary TEXT DEFAULT '',
+        content TEXT DEFAULT '',
+        tags_json TEXT DEFAULT '[]',
+        metadata_json TEXT DEFAULT '{}',
+        search_text TEXT DEFAULT '',
+        content_hash TEXT DEFAULT '',
+        synced_at TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        UNIQUE(source_table, source_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_entries_type ON knowledge_entries(entry_type);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_entries_source ON knowledge_entries(source_table, source_id);
+
+    CREATE TABLE IF NOT EXISTS ai_conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_key TEXT NOT NULL DEFAULT 'admin',
+        title TEXT NOT NULL,
+        message_count INTEGER DEFAULT 0,
+        last_message_preview TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_conversations_owner_updated
+        ON ai_conversations(owner_key, deleted_at, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS ai_conversation_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        metadata_json TEXT DEFAULT '{}',
+        created_at TEXT,
+        updated_at TEXT,
+        FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation
+        ON ai_conversation_messages(conversation_id, id);
 `);
+
+try {
+    const existingFts = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_entries_fts'").get();
+    // 早期开发版本使用 external-content FTS，列映射与 knowledge_entries 不一致，需要一次性迁移。
+    if (existingFts?.sql && /\bcontent\s*=/i.test(existingFts.sql)) {
+        db.exec('DROP TABLE knowledge_entries_fts');
+    }
+    db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_entries_fts USING fts5(
+            entry_id UNINDEXED,
+            title,
+            summary,
+            content,
+            tags
+        );
+    `);
+} catch { /* FTS5 may be unavailable in some SQLite builds; LIKE search remains supported. */ }
 
 // seed 默认管理费
 const existing = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('management_fee');
@@ -406,6 +470,49 @@ function quotationRow(r) {
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
 }
+function knowledgeEntryRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        entryType: r.entry_type,
+        sourceTable: r.source_table,
+        sourceId: r.source_id,
+        sourceUpdatedAt: r.source_updated_at,
+        title: r.title,
+        summary: r.summary || '',
+        content: r.content || '',
+        tagsJson: r.tags_json || '[]',
+        metadataJson: r.metadata_json || '{}',
+        searchText: r.search_text || '',
+        contentHash: r.content_hash || '',
+        syncedAt: r.synced_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function aiConversationRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        title: r.title,
+        messageCount: Number(r.message_count || 0),
+        lastMessagePreview: r.last_message_preview || '',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function aiConversationMessageRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        conversationId: r.conversation_id,
+        role: r.role,
+        content: r.content || '',
+        metadataJson: r.metadata_json || '{}',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
 
 // ── 数据访问层 ──
 function dbGetAllParts() { return db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all().map(partRow); }
@@ -467,7 +574,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function safeInsert(table, values) {
@@ -655,7 +762,7 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,

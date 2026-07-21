@@ -80,18 +80,20 @@ npm run build
 
 数据质量面板位于 `http://localhost:3000/quality`，用于检查零件、配方、模板、线圈、客户和报价的基础资料健康度，并汇总报价/订单经营异常，辅助 AI 编排和成本核算前置排雷；报价页和订单页也会显示低于成本、长期未跟进、待采购卡住等提醒。
 
+Knowledge Base V1 使用本地 SQLite `knowledge_entries` 和可选 FTS5，把零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成 AI 可检索的工厂知识条目；V1 不依赖外部向量库。
+
 ### iPhone PWA 入口
 
-移动端 PWA 位于 `http://localhost:3000/voice`，生产环境同域访问 `/voice`。`public/manifest.json` 的 `start_url` 已指向该入口，显示模式为 `standalone`，适合添加到 iPhone 主屏幕后独立启动。
+移动端 PWA 与桌面统一使用 AI 工作台：本地访问 `http://localhost:3000/ai`，生产环境同域访问 `/ai`。`public/manifest.json` 的 `start_url` 指向该入口，显示模式为 `standalone`；手机端采用全屏对话、会话抽屉和底部固定输入框。
 
 安装方式：
 
-1. 用 iPhone Safari 打开生产环境 `/voice`。
+1. 用 iPhone Safari 打开生产环境 `/ai`。
 2. 点击分享按钮。
 3. 选择“添加到主屏幕”。
 4. 从主屏幕打开“水泵助手”。
 
-PWA 当前是基础 AI 助手，支持文字输入和轻量语音输入。语音只负责把录音提交到后端 `/api/voice/asr` 转成文字，之后仍复用 `/api/ai/chat` SSE 和 `/api/ai/confirm-tool` 写操作确认，不新增业务 API，也不暴露 DeepSeek 或 ASR 密钥。
+旧 `/voice` 页面已经弃用并跳转到 `/ai`。移动端与桌面端共用 AI 会话、知识库检索、工具调用、写操作确认和 SQLite 会话历史。
 
 生产构建和启动：
 
@@ -253,6 +255,7 @@ nohup npm run web-next:start > web-next.out.log 2>&1 &
 - `POST /api/recipes/:id/cost-preview` — 报价/订单覆盖试算
 - `POST /api/cost/full-estimate` — AI/N8N 一站式成本估算
 - `GET /api/quality/summary`、`GET /api/quality/business-alerts` — 数据质量与经营异常提醒
+- `GET /api/knowledge`、`GET /api/knowledge/:id`、`POST /api/knowledge/sync` — 工厂知识库搜索、详情和同步
 - `GET/POST /api/market-indicators` — 市场指标查询/同步（铜价、铝线价格、人民币兑美元汇率）
 - `GET/POST /api/copper-price` — 铜价查询/更新（兼容旧调用）
 - `GET/PUT /api/settings` — 系统设置

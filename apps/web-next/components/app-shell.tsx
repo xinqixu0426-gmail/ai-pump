@@ -20,8 +20,9 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isAiWorkspace = pathname === '/ai';
 
-  if (pathname === '/login' || pathname === '/voice') {
+  if (pathname === '/login') {
     return <>{children}</>;
   }
 
@@ -51,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="md:pl-64">
-        <header className="sticky top-0 z-20 border-b border-line bg-white/78 px-4 py-3 backdrop-blur md:px-8">
+        <header className={`${isAiWorkspace ? 'hidden md:block' : 'block'} sticky top-0 z-20 border-b border-line bg-white/78 px-4 py-3 backdrop-blur md:px-8`}>
           <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4">
             <div>
               <div className="text-sm font-medium text-ink">水泵 BOM 管理助手</div>
@@ -83,8 +84,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </header>
 
-        <main className="px-4 py-4 md:px-8 md:py-6">
-          <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+        <main className={isAiWorkspace ? 'p-0 md:px-8 md:py-6' : 'px-4 py-4 md:px-8 md:py-6'}>
+          <div className={isAiWorkspace ? 'w-full md:mx-auto md:max-w-[1600px]' : 'mx-auto w-full max-w-[1600px]'}>{children}</div>
         </main>
       </div>
     </div>

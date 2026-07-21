@@ -63,7 +63,7 @@ nohup npm run web-next:start:primary > web-next.out.log 2>&1 &
 curl http://127.0.0.1:3002/api/health
 ```
 
-- 打开 Web 前端并验证登录、订单、配方、报价、线圈、转子出图和 `/voice`。
+- 打开 Web 前端并验证登录、订单、配方、报价、线圈、转子出图和移动端 `/ai`。
 - 查看错误日志：
 
 ```bash

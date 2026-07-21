@@ -30,6 +30,7 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 15. 查询转子出图历史
 16. 生成配方 BOM 草稿、成本试算、报价草稿、订单草稿和客户历史检索，用于多步业务编排
 17. 试算泵壳模板在指定机筒长度下的泵壳本体成本，支持不锈钢机筒按长度加价
+18. 搜索、读取和同步工厂知识库（零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则）
 
 写操作规则：
 - 所有业务写操作必须通过工具调用，由后端标准 API 执行，不要描述为“直接写数据库”
@@ -41,6 +42,7 @@ let AI_SYSTEM_PROMPT = `你是水泵BOM管理系统的智能助手，专门帮�
 业务编排规则：
 - 普通工具返回的数据是给你继续分析和编排使用的，不是对话结束信号
 - 查询、试算、草稿类工具不写库，可以连续调用，直到足以回答用户或形成待确认业务方案
+- 用户要求“查知识库/按资料查/同步知识库”时，优先使用 search_factory_knowledge、get_factory_knowledge_detail 或 sync_factory_knowledge；同步知识库是写入派生索引，必须确认后执行
 - 创建报价/订单/配方前，优先使用草稿或预览工具生成结构化方案，再让用户确认是否保存
 - 当用户要求报价或订单时，优先链路是：识别客户和型号参数 → 查历史 → 试算成本 → 生成草稿 → 总结关键结论 → 需要写入时等待确认
 - 回答用户时要消化工具结果，直接给结论、差异原因和下一步建议，不要只说“见卡片”
@@ -102,9 +104,11 @@ router.get('/api/ai/system-prompt', promptAuth, (req, res) => {
     res.json({ success: true, data: AI_SYSTEM_PROMPT });
 });
 
-router.put('/api/ai/system-prompt', promptAuth, async (req, res) => {
+router.put('/api/ai/system-prompt', promptAuth, (req, res) => {
     try {
-        const { prompt } = req.body;
+        const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+        if (!prompt) return res.status(400).json({ success: false, error: '提示词不能为空' });
+        if (prompt.length > 50000) return res.status(400).json({ success: false, error: '提示词不能超过 50000 个字符' });
         AI_SYSTEM_PROMPT = prompt;
         setConfig('ai-system-prompt', prompt);
 

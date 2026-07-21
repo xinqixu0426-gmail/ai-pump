@@ -3,6 +3,7 @@ const router = express.Router();
 const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
 const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
+const { trimAiContext } = require('../../services/aiContext.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 
 const AI_RUNTIME_RESPONSE_RULES = `
@@ -85,6 +86,9 @@ const TOOL_PLAN_LABELS = {
     explain_cost_change: '解释成本差异',
     get_data_quality_summary: '读取数据质量',
     get_business_alerts: '读取经营异常',
+    search_factory_knowledge: '搜索工厂知识库',
+    get_factory_knowledge_detail: '读取知识详情',
+    sync_factory_knowledge: '同步工厂知识库',
     compare_recipes: '对比配方',
     search_parts: '搜索零件',
     delete_part: '删除零件',
@@ -172,7 +176,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
     };
 
     try {
-        const { messages } = req.body;
+        const messages = trimAiContext(req.body?.messages);
         send('status', { status: 'thinking', message: '正在理解您的问题...' });
 
         let currentMessages = [
@@ -347,9 +351,10 @@ async function processAiChat(text, options = {}) {
     const { context = [], promptSuffix = '', onToolCall, allowWrite = false } = options;
     const toolResults = [];
 
-    const messages = context && context.length > 0
-        ? [...context, { role: 'user', content: text }]
-        : [{ role: 'user', content: text }];
+    const messages = trimAiContext([
+        ...(Array.isArray(context) ? context : []),
+        { role: 'user', content: text },
+    ]);
 
     let currentMessages = [
         { role: 'system', content: buildSystemPrompt(promptSuffix) },

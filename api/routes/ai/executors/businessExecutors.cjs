@@ -278,6 +278,45 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'search_factory_knowledge': {
+            const query = new URLSearchParams();
+            if (args.query || args.keyword) query.set('query', args.query || args.keyword);
+            if (args.entryType || args.type) query.set('entryType', args.entryType || args.type);
+            if (args.sourceTable) query.set('sourceTable', args.sourceTable);
+            if (args.limit) query.set('limit', String(args.limit));
+            const data = await getJson(internalFetch, `/api/knowledge${query.toString() ? `?${query.toString()}` : ''}`, '工厂知识库搜索失败');
+            return {
+                success: true,
+                intent: 'factory_knowledge_search',
+                summary: `工厂知识库找到 ${Array.isArray(data) ? data.length : 0} 条结果。`,
+                display: { mode: 'compact', title: '工厂知识库' },
+                data,
+            };
+        }
+
+        case 'get_factory_knowledge_detail': {
+            if (!args.id) return { success: false, error: '缺少知识条目ID' };
+            const data = await getJson(internalFetch, `/api/knowledge/${args.id}`, '知识条目读取失败');
+            return {
+                success: true,
+                intent: 'factory_knowledge_detail',
+                summary: data.title || `知识条目 #${args.id}`,
+                display: { mode: 'compact', title: '知识详情' },
+                data,
+            };
+        }
+
+        case 'sync_factory_knowledge': {
+            const data = await postJson(internalFetch, '/api/knowledge/sync', {}, '工厂知识库同步失败');
+            return {
+                success: true,
+                intent: 'factory_knowledge_sync',
+                summary: `工厂知识库已同步 ${data.stats?.inserted || 0} 条，FTS ${data.ftsEnabled ? '已启用' : '未启用，使用 LIKE 搜索'}。`,
+                display: { mode: 'compact', title: '知识库同步' },
+                data,
+            };
+        }
+
         default:
             return null;
     }
