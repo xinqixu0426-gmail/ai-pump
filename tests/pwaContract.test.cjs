@@ -10,11 +10,9 @@ function readUtf8(filePath) {
 }
 
 test('PWA 契约：manifest 指向真实 Next 移动助手入口', () => {
-    const manifest = JSON.parse(readUtf8('public/manifest.json'));
-    const nextManifest = JSON.parse(readUtf8('apps/web-next/public/manifest.json'));
+    const manifest = JSON.parse(readUtf8('apps/web-next/public/manifest.json'));
 
     assert.equal(manifest.start_url, '/ai');
-    assert.equal(nextManifest.start_url, '/ai');
     assert.equal(manifest.display, 'standalone');
     assert.equal(manifest.orientation, 'portrait');
     assert.ok(manifest.icons.some(icon => icon.src === '/icons/icon-192.svg' && icon.sizes === '192x192'));
@@ -23,6 +21,9 @@ test('PWA 契约：manifest 指向真实 Next 移动助手入口', () => {
     assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/public/icons/icon-192.svg')));
     assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/public/icons/icon-512.svg')));
     assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/public/icons/apple-touch-icon.png')));
+    assert.equal(fs.existsSync(path.join(repoRoot, 'public/manifest.json')), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, 'apps/web-next/components/basic-ai-assistant.tsx')), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, 'apps/web-next/lib/voice.ts')), false);
     assert.match(readUtf8('apps/web-next/app/voice/page.tsx'), /redirect\('\/ai'\)/);
     assert.doesNotMatch(readUtf8('apps/web-next/app/voice/page.tsx'), /BasicAiAssistant/);
 });

@@ -1,5 +1,7 @@
 # 生产发布检查清单
 
+> 更新于 2026-07-21。
+
 本文用于 Mac Mini 生产环境发布前后的固定检查。发布命令以项目根目录为准：
 
 ```bash
@@ -43,7 +45,7 @@ npm run verify:release
 生产环境统一使用 LaunchDaemon 安装脚本重启。该脚本会在安装前再次执行生产环境检查，并安装 API 与 Web 两个服务：
 
 ```bash
-./scripts/install-macmini-launchdaemons.sh
+sudo ./scripts/install-macmini-launchdaemons.sh
 ```
 
 不要把手动 `pkill + nohup` 作为常规发布路径。只有 LaunchDaemon 被系统策略阻断或需要临时排障时，才允许短时间手动启动，并在排障结束后回到脚本托管：
@@ -72,6 +74,8 @@ tail -n 80 logs/web-launchd.error.log
 ```
 
 - 确认 `backups/` 目录有数据库备份；服务启动时会立即备份一次，之后每天 03:00 BJT 自动备份。
+- 首次部署知识库版本后，在 `/ai` 输入“同步工厂知识库”并确认执行；核对同步总数、新增/更新/删除数量和 FTS 状态。
+- 用真实型号、客户、报价和订单各提问一次，确认 AI 能返回正确来源；知识库同步失败时先检查 API 日志，不要反复清库。
 
 ## 5. 回滚
 
@@ -89,7 +93,7 @@ git pull origin master
 npm install
 npm --prefix apps/web-next install
 npm run verify:release
-./scripts/install-macmini-launchdaemons.sh
+sudo ./scripts/install-macmini-launchdaemons.sh
 ```
 
 回滚后仍必须完成健康检查、关键页面检查和日志检查。

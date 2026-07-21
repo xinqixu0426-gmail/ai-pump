@@ -46,6 +46,13 @@ function createMemoryAccessors() {
             const placeholders = cols.map(() => '?').join(', ');
             return db.prepare(`INSERT INTO knowledge_entries (${cols.join(', ')}) VALUES (${placeholders})`).run(...cols.map(col => values[col]));
         },
+        safeUpdate(table, id, values) {
+            assert.equal(table, 'knowledge_entries');
+            const entries = Object.entries(values).filter(([, value]) => value !== undefined);
+            const sets = entries.map(([column]) => `${column} = ?`).join(', ');
+            return db.prepare(`UPDATE knowledge_entries SET ${sets}, updated_at = ? WHERE id = ?`)
+                .run(...entries.map(([, value]) => value), new Date().toISOString(), id);
+        },
         knowledgeEntryRow(row) {
             return {
                 id: row.id,
@@ -123,6 +130,9 @@ test('Knowledge service：同步后可搜索并读取详情', () => {
 
     assert.equal(result.stats.byType.part, 1);
     assert.equal(result.stats.byType.business_rule, 4);
+    assert.equal(result.stats.inserted, 5);
+    assert.equal(result.stats.updated, 0);
+    assert.equal(result.stats.deleted, 0);
 
     const rows = searchKnowledgeEntries({ query: '6202', limit: 5 }, { dbAccessors: accessors });
     assert.equal(rows.length, 1);
@@ -155,6 +165,43 @@ test('Knowledge service：异常 limit 使用默认值，LIKE 搜索按字面处
     assert.equal(rows[0].title, '零件：A_100%');
 });
 
+test('Knowledge service：增量同步保留条目 ID 并移除过期来源', () => {
+    const accessors = createMemoryAccessors();
+    enableFts(accessors);
+    syncKnowledgeEntries({
+        dbAccessors: accessors,
+        parts: [
+            { id: 1, model: '保留型号', category: '测试', price: 1, stock: 1 },
+            { id: 2, model: '待删除型号', category: '测试', price: 1, stock: 1 },
+        ],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    });
+    const original = searchKnowledgeEntries({ query: '保留型号' }, { dbAccessors: accessors })[0];
+
+    const result = syncKnowledgeEntries({
+        dbAccessors: accessors,
+        parts: [
+            { id: 1, model: '保留型号', category: '测试', price: 2, stock: 1 },
+            { id: 3, model: '新增型号', category: '测试', price: 1, stock: 1 },
+        ],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    });
+
+    const updated = searchKnowledgeEntries({ query: '保留型号' }, { dbAccessors: accessors })[0];
+    assert.equal(updated.id, original.id);
+    assert.equal(updated.metadata.price, 2);
+    assert.equal(searchKnowledgeEntries({ query: '待删除型号' }, { dbAccessors: accessors }).length, 0);
+    assert.equal(result.stats.inserted, 1);
+    assert.equal(result.stats.updated, 1);
+    assert.equal(result.stats.deleted, 1);
+    assert.equal(result.stats.unchanged, 4);
+    assert.equal(accessors.db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries_fts').get().count, result.stats.total);
+});
+
 test('Knowledge service：同步写入失败时保留上一版完整知识', () => {
     const accessors = createMemoryAccessors();
     syncKnowledgeEntries({
@@ -181,4 +228,27 @@ test('Knowledge service：同步写入失败时保留上一版完整知识', () 
     const rows = searchKnowledgeEntries({ query: '旧数据' }, { dbAccessors: accessors });
     assert.equal(rows.length, 1);
     assert.equal(rows[0].title, '零件：旧数据');
+});
+
+test('Knowledge service：FTS 刷新失败时业务条目同步一并回滚', () => {
+    const accessors = createMemoryAccessors();
+    syncKnowledgeEntries({
+        dbAccessors: accessors,
+        parts: [{ id: 1, model: '事务前数据', category: '测试', price: 1, stock: 1 }],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    });
+    accessors.db.exec('CREATE VIRTUAL TABLE knowledge_entries_fts USING fts5(entry_id UNINDEXED, title)');
+
+    assert.throws(() => syncKnowledgeEntries({
+        dbAccessors: accessors,
+        parts: [{ id: 1, model: '事务后数据', category: '测试', price: 2, stock: 1 }],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    }), /summary|content|tags/);
+
+    const row = accessors.db.prepare("SELECT title FROM knowledge_entries WHERE source_table = 'parts' AND source_id = '1'").get();
+    assert.equal(row.title, '零件：事务前数据');
 });

@@ -1,5 +1,7 @@
 # API 开发 SOP
 
+> 更新于 2026-07-21。
+
 本 SOP 是本项目后续新增、修改 API 的强制流程。所有 API 变更都要先按本文自查，再提交代码。
 
 当前业务说明见 [README.md](./README.md)，完整接口地图和真实调用语义见 [api-reference.md](./api-reference.md)。当前 API 已完成主契约收口；新增 API 不得复刻历史兼容写法。
@@ -154,10 +156,10 @@ const {
 
 ## 7. 前端请求
 
-- 前端禁止裸 `fetch()`，统一使用 `proxyRequest()` / `proxyFetch()`。
+- 前端禁止裸 `fetch()`，统一使用 `proxyRequest()` / `proxyFetch()` / `proxyStreamFetch()`。
 - 常规 JSON 使用 `proxyRequest()`。
-- SSE、流式响应、文件响应可用 `proxyFetch()`。
-- 表单上传使用 `proxyFormRequest()`。
+- SSE 和流式响应使用 `proxyStreamFetch()`；文件响应可用 `proxyFetch()`。
+- 表单上传使用 `proxyRequest()` 并传入 `FormData`，公共 client 会保留浏览器生成的 multipart boundary。
 - 前端执行增删改后必须重新拉取对应资源，不能只更新本地派生状态。
 
 ## 8. 成本接口
@@ -224,3 +226,12 @@ API 变更完成后必须同步清理：
 - 是否替换或删除了旧接口。
 
 接口文档统一维护在 `docs/api-reference.md`；业务/API 概览维护在 `docs/README.md`。接口没有文档，或文档没有跟随代码更新，不视为完成。
+
+## 13. 历史兼容边界
+
+- 核心资源响应中的 `Id`、`CreatedAt`、`UpdatedAt` 仅供旧调用兼容；新代码只使用 `id`、`createdAt`、`updatedAt`。
+- 配方、订单、模板和型号变体仍可在后端边界兼容少量 snake_case 入参；Web 类型与页面必须保持 camelCase。
+- 旧字段转换只能放在 `apps/web-next/lib/` 的 normalize 或 row adapter 中，禁止进入页面状态和新组件类型。
+- `paintingWage`、`boxType` 只允许作为旧记录读取回退；正式字段使用 `surfaceTreatmentMode`、`surfaceTreatmentCost` 和 `packingPartsJson`。
+- `GET /api/recipes/:id/cost` 只提供当前配件参考价，不能替代完整成本或报价试算。
+- 删除兼容层前必须搜索 Web、AI、微信小程序和外部入口，并执行 `npm run verify:release`。

@@ -308,10 +308,11 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
         case 'sync_factory_knowledge': {
             const data = await postJson(internalFetch, '/api/knowledge/sync', {}, '工厂知识库同步失败');
+            const total = data.stats?.total ?? data.stats?.inserted ?? 0;
             return {
                 success: true,
                 intent: 'factory_knowledge_sync',
-                summary: `工厂知识库已同步 ${data.stats?.inserted || 0} 条，FTS ${data.ftsEnabled ? '已启用' : '未启用，使用 LIKE 搜索'}。`,
+                summary: `工厂知识库已同步 ${total} 条；新增 ${data.stats?.inserted || 0} 条，更新 ${data.stats?.updated || 0} 条，移除 ${data.stats?.deleted || 0} 条。FTS ${data.ftsEnabled ? '已启用' : '未启用，使用 LIKE 搜索'}。`,
                 display: { mode: 'compact', title: '知识库同步' },
                 data,
             };

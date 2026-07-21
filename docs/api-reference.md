@@ -1,12 +1,12 @@
 # API 接口总表
 
-> 更新于 2026-07-12。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
+> 更新于 2026-07-21。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
 
 ## 1. 通用约定
 
 - 后端服务端口：`3002`。
 - 常规 API 前缀：`/api`。
-- Web 前端必须通过 `apps/web-next/lib/api.ts` 的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()` 调用。
+- Web 前端必须通过 `apps/web-next/lib/api.ts` 的 `proxyRequest()`、`proxyFetch()` 或 `proxyStreamFetch()` 调用。
 - Web 新增或调整调用必须使用当前标准入口；历史字段兼容必须封装在 `apps/web-next/lib/*` 的 normalize/rowToX helper 内，不得扩散到页面组件。
 - Web 页面层读取核心资源 ID/时间必须使用各业务 lib 输出的标准 `id/createdAt/updatedAt`，禁止直接依赖 `Id/CreatedAt/UpdatedAt`。
 - 请求/响应业务字段默认使用 camelCase；数据库字段保持 snake_case。
@@ -271,7 +271,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
 - `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库。
 - `get_factory_knowledge_detail`：调用 `/api/knowledge/:id` 读取知识条目详情。
-- `sync_factory_knowledge`：调用 `/api/knowledge/sync` 重建知识条目索引；该工具写入派生索引，位于写工具白名单，需确认后执行。
+- `sync_factory_knowledge`：调用 `/api/knowledge/sync` 增量更新知识条目并刷新 FTS；该工具写入派生索引，位于写工具白名单，需确认后执行。
 
 Next iPhone PWA `/ai` 复用本节接口：
 
@@ -329,7 +329,9 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 |---|---|---|---|
 | `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule`；默认最多 10 条，最大 50 条 |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
-| `POST` | `/api/knowledge/sync` | 无 | 重建 `knowledge_entries` 派生索引并刷新可选 FTS；写入知识索引，不修改原业务资源 |
+| `POST` | `/api/knowledge/sync` | 无 | 按来源增量新增、更新和移除 `knowledge_entries`，保留既有条目 ID，并在同一事务中刷新可选 FTS；不修改原业务资源 |
+
+同步响应的 `stats` 包含 `total/inserted/updated/unchanged/deleted/byType`。任一业务条目或 FTS 写入失败时，整个同步事务回滚，继续保留上一版完整知识库。
 
 AI 工具：
 

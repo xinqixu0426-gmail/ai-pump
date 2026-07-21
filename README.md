@@ -1,268 +1,190 @@
-# 水泵 BOM 成本管理系统
+# 水泵 BOM 订单及生产管理系统
 
-集成订单 / 配方 / 库存 / 成本核算 + DeepSeek AI Agent + 企微助手 + 微信小程序语音助手 + FreeCAD 转子出图的水泵生产管理系统。
+面向水泵工厂的单机部署管理系统，统一管理零件、线圈、泵壳模板、配方、客户、报价、订单、采购、质量检查、转子出图和 AI 工作台。
+
+当前 Web 前端只使用 `apps/web-next`。每家工厂独立部署一套服务和 SQLite 数据库，不是多租户 SaaS。
 
 ## 技术栈
 
 | 层 | 技术 |
-|---|------|
-| 前端 | Next.js + Tailwind CSS 主业务前端 |
-| 后端 | Node.js + Express 5 + better-sqlite3 |
-| AI | DeepSeek Chat API (SSE) + 阿里云 ASR |
-| 出图 | FreeCAD Python 脚本 + PDF 生成 |
-| 通讯 | 企业微信 Webhook + Siri 快捷指令 |
-| 移动端 | iPhone PWA（AI 调度入口）+ 微信小程序（语音助手 + Server-Driven UI） |
+|---|---|
+| Web | Next.js 15、React 18、Tailwind CSS |
+| API | Node.js、Express 5 |
+| 数据 | SQLite、better-sqlite3、可选 FTS5 |
+| AI | DeepSeek Chat API、SSE、Function Calling |
+| 出图 | FreeCAD Python Worker、PDF |
+| 移动入口 | `/ai` PWA、微信小程序、Siri 快捷指令 |
 
-## 项目结构
-
-```
-├── api.cjs                  # Express 入口 — 路由挂载 + 中间件 + 静态托管
-├── api/
-│   ├── db.cjs               # SQLite 初始化 + 建表 + Row Adapter + 工具函数
-│   ├── authMiddleware.cjs    # JWT 认证中间件
-│   └── routes/
-│       ├── parts.cjs         # 零件 CRUD
-│       ├── recipes.cjs       # 配方 CRUD（含包装配置）
-│       ├── orders.cjs        # 订单 CRUD + 历史价格查询
-│       ├── coils.cjs         # 线圈 CRUD + 成本插值计算
-│       ├── templates.cjs     # 泵壳模板 CRUD
-│       ├── cost.cjs          # 成本计算 + 铜价定时更新
-│       ├── rotor.cjs         # FreeCAD 转子出图调度
-│       ├── auth.cjs          # JWT 认证 + 登录限流
-│       ├── settings.cjs      # 系统设置（管理费等）
-│       ├── wecom.cjs         # 企业微信消息接收
-│       └── ai/               # AI 对话 + 语音 + Siri
-│           ├── chat.cjs      # DeepSeek SSE 对话
-│           ├── voice.cjs     # 阿里云 ASR 语音识别
-│           ├── siri.cjs      # Siri 快捷指令入口
-│           └── executor.cjs  # AI Function Calling 执行器
-├── apps/web-next/
-│   ├── app/                  # Next App Router 页面入口
-│   │   └── voice/            # iPhone PWA AI 调度入口
-│   ├── components/           # Next 业务组件与基础 UI
-│   └── lib/                  # Next 统一 API client 与页面规则
-├── freecad/                  # FreeCAD 转子出图模板与 Python 脚本
-├── wechat-miniprogram/       # 微信小程序语音助手
-│   ├── pages/voice/          # 语音对话主页面
-│   └── components/           # detail-panel 等组件
-├── scripts/
-│   └── migrate-add-packing.cjs  # 包装字段迁移脚本
-└── docs/                     # 技术文档
-```
-
-## 快速开始
-
-```bash
-# 安装依赖
-npm install
-
-# 开发模式（Next 主前端 :3000 + 后端 :3002）
-npm start
-
-# 干净重启本地开发服务，并把 API / Web 日志写入 logs/local-*.log
-npm run restart:local
-
-# Next 并行预览版（Next :3001 + 后端 :3002）
-npm run web-next:full
-
-# 仅启动后端
-npm run api
-
-# 主前端生产构建（Next）
-npm run build
-```
-
-### Next 主业务入口
-
-`apps/web-next/` 是 Next.js + Tailwind CSS 的唯一 Web 前端。默认业务入口运行在 `http://localhost:3000`，并行预览入口运行在 `http://localhost:3001`，通过 rewrites 将 `/api/*` 转发到现有 Express API `http://localhost:3002`。它不接管业务 API，也不改变数据库。
-
-当前 Next 版已覆盖订单、零件、客户、配方、报价、采购、线圈、转子出图、看板、数据质量和 AI 助手，作为唯一 Web 前端和日常主业务入口。
-
-数据质量面板位于 `http://localhost:3000/quality`，用于检查零件、配方、模板、线圈、客户和报价的基础资料健康度，并汇总报价/订单经营异常，辅助 AI 编排和成本核算前置排雷；报价页和订单页也会显示低于成本、长期未跟进、待采购卡住等提醒。
-
-Knowledge Base V1 使用本地 SQLite `knowledge_entries` 和可选 FTS5，把零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成 AI 可检索的工厂知识条目；V1 不依赖外部向量库。
-
-### iPhone PWA 入口
-
-移动端 PWA 与桌面统一使用 AI 工作台：本地访问 `http://localhost:3000/ai`，生产环境同域访问 `/ai`。`public/manifest.json` 的 `start_url` 指向该入口，显示模式为 `standalone`；手机端采用全屏对话、会话抽屉和底部固定输入框。
-
-安装方式：
-
-1. 用 iPhone Safari 打开生产环境 `/ai`。
-2. 点击分享按钮。
-3. 选择“添加到主屏幕”。
-4. 从主屏幕打开“水泵助手”。
-
-旧 `/voice` 页面已经弃用并跳转到 `/ai`。移动端与桌面端共用 AI 会话、知识库检索、工具调用、写操作确认和 SQLite 会话历史。
-
-生产构建和启动：
-
-```bash
-npm run build
-npm run preview
-```
-
-当前业务流程、API、状态和 UI 规则见 [`docs/README.md`](docs/README.md)。
-
-### Windows 转子出图依赖
-
-转子出图会先由 FreeCAD 导出 SVG，再使用 `svglib` 和 `reportlab` 转换为 PDF。Windows 版 FreeCAD 1.1 自带独立的 Python 3.11 环境，不能假设系统 Python 或项目 npm 依赖中已经包含这些库。
-
-如果终端出现以下报错：
+## 目录
 
 ```text
-ModuleNotFoundError: No module named 'svglib'
+api.cjs                         Express 入口、鉴权和路由挂载
+api/db.cjs                      SQLite 建表、迁移、Row Adapter 和安全写入
+api/routes/                     业务 API
+api/routes/ai/                  AI 对话、工具、会话、Siri 和 ASR
+api/services/knowledge.cjs      工厂知识条目构建、同步和搜索
+api/services/aiConversations.cjs AI 会话持久化
+apps/web-next/                  唯一 Web 前端
+freecad/                        转子模板和出图 Worker
+wechat-miniprogram/             微信小程序
+scripts/                        本地重启、生产校验和 LaunchDaemon 安装
+tests/                          Node 测试与架构契约
+docs/                           业务、API、前端和部署文档
 ```
 
-使用 FreeCAD 自带的 Python 将依赖安装到当前用户的 FreeCAD 专用目录：
+## 本地启动
 
 ```powershell
-$target = Join-Path $env:APPDATA 'FreeCAD\python-packages'
-New-Item -ItemType Directory -Force -Path $target | Out-Null
-& 'C:\Program Files\FreeCAD 1.1\bin\python.exe' -m pip install `
-  --target $target `
-  --index-url https://pypi.tuna.tsinghua.edu.cn/simple `
-  svglib reportlab
+npm install
+npm --prefix apps/web-next install
+npm start
 ```
 
-注意：直接设置 `PYTHONPATH` 并不一定有效。FreeCAD 的嵌入式解释器可能忽略用户级 Python 包目录，因此 `worker.py` 启动时会显式加载：
+服务端口：
 
-```text
-%APPDATA%\FreeCAD\python-packages
+- Next 主前端：`http://localhost:3000`
+- Next 并行预览：`http://localhost:3001`
+- Express API：`http://localhost:3002`
+
+常用命令：
+
+```powershell
+npm run restart:local       # 重启 :3000 和 :3002，日志写入 logs/
+npm run api                 # 仅启动 API
+npm run web-next:full       # API + :3001 并行预览
+npm test                    # 运行全部测试
+npm run build               # 构建 Next
+npm run verify:release      # 发布前完整校验
 ```
 
-安装完成后，重新启动 Node.js 后端服务，再发起一次转子出图请求验证 PDF 是否正常生成。
+## 环境变量
 
-### 环境变量 (.env)
-
-可从 `.env.example` 复制后填写真实值；真实 `.env` 已被 `.gitignore` 忽略，不要提交。
+复制 `.env.example` 并填写真实值。`.env` 已忽略，禁止提交密钥。
 
 ```env
-ACCESS_PASSWORD=xxx           # 登录密码
-JWT_SECRET=xxx                # JWT 签名密钥
-DEEPSEEK_API_KEY=sk-xxx       # DeepSeek API Key
-DEEPSEEK_MODEL=deepseek-v4-flash # DeepSeek 模型
-ALI_ACCESS_KEY_ID=xxx         # 阿里云 ASR
+ACCESS_PASSWORD=change-me
+JWT_SECRET=replace-with-random-hex
+INTERNAL_SECRET=replace-with-random-hex
+CORS_ORIGIN=https://your.domain
+
+NODE_ENV=development
+PORT=3002
+NEXT_ORIGIN=
+
+DEEPSEEK_API_KEY=sk-xxx
+DEEPSEEK_MODEL=deepseek-v4-flash
+
+ALI_ACCESS_KEY_ID=xxx
 ALI_ACCESS_KEY_SECRET=xxx
-ALI_ASR_APPKEY=xxx            # 阿里云 ASR AppKey
-SIRI_API_TOKEN=xxx            # Siri 快捷指令 Token
-WECOM_TOKEN=xxx               # 企微回调 Token
-WECOM_ENCODING_AES_KEY=xxx    # 企微消息加密密钥
-WECOM_CORP_ID=xxx             # 企微企业 ID
-WECOM_SECRET=xxx              # 企微应用 Secret
-WECOM_AGENT_ID=xxx            # 企微应用 AgentID
-INTERNAL_SECRET=xxx           # 内部 API 鉴权密钥
-CORS_ORIGIN=https://your.domain # 生产环境允许的前端源
-PORT=3002                     # 后端 Express 端口
-NEXT_ORIGIN=http://127.0.0.1:3000 # API 端口代理页面请求到 Next
+ALI_ASR_APPKEY=xxx
+SIRI_API_TOKEN=xxx
+FREECAD_BIN=
+PYTHONPATH=
 ```
 
-微信小程序当前仍通过 `INTERNAL_SECRET` 兼容鉴权，但小程序包会分发到客户端，不能在仓库中提交真实密钥。`wechat-miniprogram/config.js` 只保留开发占位；生产应迁移到 OpenID 或服务端会话鉴权。
+生产环境必须配置 `ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN` 和 `SIRI_API_TOKEN`。
 
-## 架构要点
+## AI 工作台
 
-### 数据流
+桌面端和移动端统一使用 `/ai`：
 
+- 上下文最多发送最近 10 条用户/助手消息。
+- 完整会话保存在 SQLite，可查看、继续和删除历史记录。
+- 系统提示词可以在工作台内读取和编辑。
+- 查询工具可以直接执行；业务写工具必须显示确认卡片后才能执行。
+- 手机端使用全屏会话、历史抽屉和安全区输入框。
+
+旧 `/voice` 页面只保留跳转到 `/ai`。旧 Web 语音组件已经删除；`POST /api/voice/asr` 仍供微信小程序兼容使用。
+
+PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/ai`。
+
+## 工厂知识库 V1
+
+知识库使用 SQLite `knowledge_entries` 保存由业务数据生成的知识条目，并在当前 SQLite 支持 FTS5 时使用全文索引。V1 不依赖外部向量库，也不导入外部文件。
+
+同步来源：
+
+- 零件、泵壳模板、配方和线圈
+- 客户、报价和订单
+- 数据质量问题
+- 当前系统业务规则
+
+同步采用按 `sourceTable + sourceId` 的增量更新，保留既有知识条目 ID，并删除已经失效的来源；业务条目和 FTS 在同一事务中更新。
+
+首次部署后，在 AI 工作台输入“同步工厂知识库”，核对确认卡片后执行。以后在基础业务数据有较大变化、需要重新测试 AI 检索时再同步。
+
+可以通过 AI 使用：
+
+- “在知识库里查一下 V750。”
+- “查某个客户最近的报价和订单。”
+- “读取刚才第 1 条知识的详细内容。”
+- “同步工厂知识库。”
+
+对应工具：`search_factory_knowledge`、`get_factory_knowledge_detail`、`sync_factory_knowledge`。
+
+## 核心规则
+
+### 数据与 API
+
+- 前端 API 请求统一走 `apps/web-next/lib/api.ts` 的 `proxyRequest()` 或封装函数。
+- 前后端业务字段使用 camelCase，数据库字段使用 snake_case。
+- 动态更新统一使用 `safeUpdate()`；正式资源新增使用 `safeInsert()`。
+- 前端写操作完成后重新拉取对应资源。
+
+### 成本
+
+```text
+总成本 = 配件 + 线圈 + 动态配置 + 人工工资 + 包装材料 + 管理费
 ```
-Next 前端 (proxyRequest/proxyFetch) → Next rewrites → Express API → better-sqlite3 → pump.db
-```
 
-- 所有前端请求通过 `proxyRequest()` 统一处理，自动携带 Cookie、处理 401 跳转登录
-- 后端所有动态 UPDATE 操作通过 `safeUpdate()` 执行，列名正则校验 + 表名白名单防 SQL 注入
-- Row Adapter（`partRow` / `recipeRow` 等）统一输出 camelCase 字段
+权威成本入口：
 
-### 成本计算公式
+- 配件数组：`POST /api/cost/parts`
+- 配方保存快照：`POST /api/recipes/cost-draft`
+- 报价/订单覆盖试算：`POST /api/recipes/:id/cost-preview`
+- AI/N8N 组合估算：`POST /api/cost/full-estimate`
 
-```
-总成本 = 配件成本 + 线圈成本 + 动态配置 + 人工工资 + 包装材料 + 管理费
-```
+### 自动任务
 
-- **配件成本**：精确匹配（型号+供应商）→ 型号回退（最低价）
-- **线圈成本**：`单价×片数 + 线重×铜价 + 线圈加工费 + 转子加工费`（支持片数插值）
-- **人工工资**：安装 / 打包 / 喷漆，绑定泵壳模板，配方可覆盖
-- **包装材料**：支持 standalone 和 grouped 两种模式，配方级配置
-- **管理费**：全局默认值存 `system_settings` 表
+- 启动时执行 WAL checkpoint 和数据库备份。
+- 每天 03:00 BJT 备份数据库，保留最近 7 份。
+- 启动时更新铜价，此后每天 15:00 BJT 更新。
 
-### 定时任务
+## 生产发布
 
-| 任务 | 时间 | 机制 |
-|------|------|------|
-| 铜价更新 | 每天 15:00 BJT | setTimeout 链式调度 |
-| 数据库备份 | 每天 03:00 BJT | better-sqlite3 backup() + 保留最近 7 份 |
-| 启动时 | 服务启动 | WAL Checkpoint + 立即备份一次 |
-
-### 审计日志
-
-所有通过 `safeUpdate()` 的写操作自动记录到 `audit_log` 表：
-
-```
-(action, table_name, record_id, old_value, new_value, user, created_at)
-```
-
-## 部署
-
-### 生产环境（Mac Mini）
-
-完整发布前后检查见 [docs/deployment-checklist.md](docs/deployment-checklist.md)。生产重启前必须先通过 `npm run verify:release`。
+生产环境为 Mac Mini：
 
 ```bash
-# SSH 到服务器
 ssh dan@192.168.31.216
 cd ~/Documents/pump-cost-accounting-system
-
-# 拉取 + 构建 + 重启
 export PATH=/opt/homebrew/bin:$PATH
+
 git pull origin master
 npm install
 npm --prefix apps/web-next install
 npm run verify:release
-./scripts/install-macmini-launchdaemons.sh
+sudo ./scripts/install-macmini-launchdaemons.sh
 ```
 
-### Next 并行预览入口
-
-如需不占用 `3000`，可以使用 `3001` 并行预览入口：
+发布后检查：
 
 ```bash
-export PATH=/opt/homebrew/bin:$PATH
-git pull origin master
-npm run web-next:build
-pkill -f 'node api.cjs'
-pkill -f 'next start -p 3001'
-nohup node api.cjs > api.out.log 2>&1 &
-nohup npm run web-next:start > web-next.out.log 2>&1 &
+curl http://127.0.0.1:3002/api/health
+tail -n 80 logs/api-launchd.error.log
+tail -n 80 logs/web-launchd.error.log
 ```
 
-## API 端点
+完整清单见 [docs/deployment-checklist.md](docs/deployment-checklist.md)。
 
-当前业务、成本、接口与运维说明见 [`docs/README.md`](docs/README.md)。API 修改必须遵守 [`docs/api-sop.md`](docs/api-sop.md)。
+## 文档入口
 
-### 公开接口
-- `POST /api/auth/login` — 登录（附限流 5次/分钟）
-- `GET /api/health` — 健康检查
+- [当前功能与架构](docs/README.md)
+- [业务流程](docs/business-flow.md)
+- [API 接口总表](docs/api-reference.md)
+- [API 开发 SOP](docs/api-sop.md)
+- [生产发布清单](docs/deployment-checklist.md)
+- [前端状态边界](docs/frontend-state-boundary.md)
+- [UI/交互约束](docs/ui-refactor-guidelines.md)
+- [FreeCAD 尺寸映射](freecad/DIM_MAPPING.md)
 
-### 认证接口（需 Cookie）
-- `GET/POST/PATCH/DELETE /api/parts` — 零件管理
-- `GET/POST/PATCH/DELETE /api/recipes` — 配方管理
-- `GET/POST/PATCH/DELETE /api/orders` — 订单管理
-- `GET /api/orders/history-price/:recipeName` — 历史价格查询
-- `GET/POST/PATCH/DELETE /api/coils` — 线圈管理
-- `GET /api/coils/specs` — 线圈规格列表，`materials` 合并已配置材质与已使用材质
-- `POST /api/coils/calculate` — 线圈成本计算（支持插值；规格下没有该材质记录时，可用材质配置单价兜底）
-- `GET/POST/PATCH/DELETE /api/templates` — 泵壳模板
-- `POST /api/cost/parts` — 配件数组成本计算
-- `POST /api/recipes/cost-draft` — 配方保存成本快照草稿
-- `POST /api/recipes/:id/cost-preview` — 报价/订单覆盖试算
-- `POST /api/cost/full-estimate` — AI/N8N 一站式成本估算
-- `GET /api/quality/summary`、`GET /api/quality/business-alerts` — 数据质量与经营异常提醒
-- `GET /api/knowledge`、`GET /api/knowledge/:id`、`POST /api/knowledge/sync` — 工厂知识库搜索、详情和同步
-- `GET/POST /api/market-indicators` — 市场指标查询/同步（铜价、铝线价格、人民币兑美元汇率）
-- `GET/POST /api/copper-price` — 铜价查询/更新（兼容旧调用）
-- `GET/PUT /api/settings` — 系统设置
-
-### 独立认证接口
-- `POST /api/ai/chat` — AI 对话 (SSE)
-- `POST /api/siri/chat` — Siri 快捷指令统一入口（Token 认证，只传自然语言）
-- `POST /api/siri/confirm` — Siri 写操作二次确认入口
-- `POST /api/voice/asr` — 语音识别
-- `GET/POST /api/wecom/webhook` — 企微消息
+API 新增、修改或废弃后，必须同步更新 `docs/api-reference.md`；涉及业务概览时同时更新 `docs/README.md`。

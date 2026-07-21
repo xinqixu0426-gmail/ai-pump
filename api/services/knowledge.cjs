@@ -395,32 +395,34 @@ function buildKnowledgeEntries(options = {}) {
 }
 
 function rebuildFts(db) {
-    try {
-        const rebuild = db.transaction(() => {
-            db.prepare('DELETE FROM knowledge_entries_fts').run();
-            const rows = db.prepare('SELECT id, title, summary, content, tags_json FROM knowledge_entries').all();
-            const insert = db.prepare('INSERT INTO knowledge_entries_fts(entry_id, title, summary, content, tags) VALUES (?, ?, ?, ?, ?)');
-            for (const row of rows) {
-                insert.run(row.id, row.title || '', row.summary || '', row.content || '', parseJsonArray(row.tags_json).join(' '));
-            }
-        });
-        rebuild();
-        return true;
-    } catch {
-        return false;
+    const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_entries_fts'").get();
+    if (!exists) return false;
+
+    db.prepare('DELETE FROM knowledge_entries_fts').run();
+    const rows = db.prepare('SELECT id, title, summary, content, tags_json FROM knowledge_entries').all();
+    const insert = db.prepare('INSERT INTO knowledge_entries_fts(entry_id, title, summary, content, tags) VALUES (?, ?, ?, ?, ?)');
+    for (const row of rows) {
+        insert.run(row.id, row.title || '', row.summary || '', row.content || '', parseJsonArray(row.tags_json).join(' '));
     }
+    return true;
 }
 
 function syncKnowledgeEntries(options = {}) {
     const dbAccessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeInsert, knowledgeEntryRow } = dbAccessors;
+    const { db, safeInsert, safeUpdate, knowledgeEntryRow } = dbAccessors;
     const entries = buildKnowledgeEntries({ ...options, dbAccessors });
     const now = new Date().toISOString();
-    const stats = { total: entries.length, inserted: 0, byType: {} };
+    const stats = { total: entries.length, inserted: 0, updated: 0, unchanged: 0, deleted: 0, byType: {} };
+    let ftsEnabled = false;
     const sync = db.transaction((rows) => {
-        db.prepare('DELETE FROM knowledge_entries').run();
+        const existingRows = db.prepare('SELECT * FROM knowledge_entries').all();
+        const existingBySource = new Map(existingRows.map(row => [`${row.source_table}\u0000${row.source_id}`, row]));
+        const retainedIds = new Set();
+
         for (const entry of rows) {
-            safeInsert('knowledge_entries', {
+            const key = `${entry.sourceTable}\u0000${entry.sourceId}`;
+            const existing = existingBySource.get(key);
+            const values = {
                 entry_type: entry.entryType,
                 source_table: entry.sourceTable,
                 source_id: entry.sourceId,
@@ -433,21 +435,43 @@ function syncKnowledgeEntries(options = {}) {
                 search_text: entry.searchText,
                 content_hash: entry.contentHash,
                 synced_at: now,
-                created_at: now,
-                updated_at: now,
-            });
-            stats.inserted += 1;
+            };
+
+            if (!existing) {
+                const info = safeInsert('knowledge_entries', {
+                    ...values,
+                    created_at: now,
+                    updated_at: now,
+                });
+                retainedIds.add(Number(info.lastInsertRowid));
+                stats.inserted += 1;
+            } else {
+                retainedIds.add(existing.id);
+                if (existing.content_hash === entry.contentHash) {
+                    stats.unchanged += 1;
+                } else {
+                    safeUpdate('knowledge_entries', existing.id, values);
+                    stats.updated += 1;
+                }
+            }
             stats.byType[entry.entryType] = (stats.byType[entry.entryType] || 0) + 1;
         }
+
+        const remove = db.prepare('DELETE FROM knowledge_entries WHERE id = ?');
+        for (const existing of existingRows) {
+            if (retainedIds.has(existing.id)) continue;
+            remove.run(existing.id);
+            stats.deleted += 1;
+        }
+
+        ftsEnabled = rebuildFts(db);
     });
     sync(entries);
-    const ftsEnabled = rebuildFts(db);
-    const latest = db.prepare('SELECT MAX(synced_at) AS syncedAt FROM knowledge_entries').get()?.syncedAt || now;
     return {
-        syncedAt: latest,
+        syncedAt: now,
         ftsEnabled,
         stats,
-        sample: db.prepare('SELECT * FROM knowledge_entries ORDER BY id DESC LIMIT 5').all().map(knowledgeEntryRow),
+        sample: db.prepare('SELECT * FROM knowledge_entries ORDER BY updated_at DESC, id DESC LIMIT 5').all().map(knowledgeEntryRow),
     };
 }
 

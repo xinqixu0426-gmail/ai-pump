@@ -593,7 +593,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'sync_factory_knowledge',
-            description: '把当前系统里的零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成工厂知识条目。该工具会重建 SQLite knowledge_entries 索引，需要用户确认后执行。',
+            description: '把当前系统里的零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则增量同步成工厂知识条目，并刷新 SQLite FTS 索引。需要用户确认后执行。',
             parameters: { type: 'object', properties: {} }
         }
     },

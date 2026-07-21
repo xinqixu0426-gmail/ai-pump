@@ -303,6 +303,17 @@ const recipeAlterColumns = [
 for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
 }
+try {
+    db.exec(`
+        UPDATE recipes
+        SET packing_parts_json = json_array(
+            json_object('model', box_type, 'supplier', '', 'qty', 1)
+        )
+        WHERE box_type IS NOT NULL
+          AND TRIM(box_type) <> ''
+          AND (packing_parts_json IS NULL OR packing_parts_json = '[]')
+    `);
+} catch { /* legacy packing migration is idempotent */ }
 try { db.exec(`ALTER TABLE parts ADD COLUMN remark TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN rotor_params_json TEXT DEFAULT '{}'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN assembly_wage REAL DEFAULT 0`); } catch { /* already exists */ }

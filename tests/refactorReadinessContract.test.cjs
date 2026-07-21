@@ -32,7 +32,6 @@ test('文档契约：当前核心文档必须存在并被 README 引用', () => 
         'business-flow.md',
         'frontend-state-boundary.md',
         'ui-refactor-guidelines.md',
-        'legacy-compatibility-retirement.md',
     ];
 
     for (const doc of requiredDocs) {
@@ -45,7 +44,7 @@ test('文档契约：生产发布清单必须被根 README 引用并覆盖关键
     const rootReadme = readUtf8('README.md');
     const docPath = path.join(repoRoot, 'docs/deployment-checklist.md');
     const doc = readUtf8('docs/deployment-checklist.md');
-    const deploySection = rootReadme.split('### 生产环境（Mac Mini）')[1].split('### Next 并行预览入口')[0];
+    const deploySection = rootReadme.split('## 生产发布')[1].split('## 文档入口')[0];
 
     assert.ok(fs.existsSync(docPath), 'deployment checklist should exist');
     assert.match(rootReadme, /\[docs\/deployment-checklist\.md\]\(docs\/deployment-checklist\.md\)/);
@@ -70,11 +69,9 @@ test('文档契约：生产发布清单必须被根 README 引用并覆盖关键
     }
 });
 
-test('文档契约：历史兼容收口计划必须约束旧字段扩散', () => {
-    const doc = readUtf8('docs/legacy-compatibility-retirement.md');
-    const docsReadme = readUtf8('docs/README.md');
+test('文档契约：API SOP 必须约束历史兼容字段扩散', () => {
+    const doc = readUtf8('docs/api-sop.md');
 
-    assert.match(docsReadme, /\[legacy-compatibility-retirement\.md\]\(\.\/legacy-compatibility-retirement\.md\)/);
     for (const marker of [
         'Id',
         'CreatedAt',

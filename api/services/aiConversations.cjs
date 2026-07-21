@@ -89,20 +89,23 @@ function appendAiConversationMessage(ownerKey, id, input, options = {}) {
     const metadataJson = JSON.stringify(metadata);
     if (metadataJson.length > 200000) throw new Error('消息附加数据过大');
     const now = new Date().toISOString();
-    const info = safeInsert('ai_conversation_messages', {
-        conversation_id: id,
-        role,
-        content,
-        metadata_json: metadataJson,
-        created_at: now,
-        updated_at: now,
+    const append = db.transaction(() => {
+        const info = safeInsert('ai_conversation_messages', {
+            conversation_id: id,
+            role,
+            content,
+            metadata_json: metadataJson,
+            created_at: now,
+            updated_at: now,
+        });
+        const count = db.prepare('SELECT COUNT(*) AS count FROM ai_conversation_messages WHERE conversation_id = ?').get(id).count;
+        safeUpdate('ai_conversations', id, {
+            message_count: count,
+            last_message_preview: content.replace(/\s+/g, ' ').trim().slice(0, 120),
+        });
+        return aiConversationMessageRow(db.prepare('SELECT * FROM ai_conversation_messages WHERE id = ?').get(Number(info.lastInsertRowid)));
     });
-    const count = db.prepare('SELECT COUNT(*) AS count FROM ai_conversation_messages WHERE conversation_id = ?').get(id).count;
-    safeUpdate('ai_conversations', id, {
-        message_count: count,
-        last_message_preview: content.replace(/\s+/g, ' ').trim().slice(0, 120),
-    });
-    const message = aiConversationMessageRow(db.prepare('SELECT * FROM ai_conversation_messages WHERE id = ?').get(Number(info.lastInsertRowid)));
+    const message = append();
     return { ...message, metadata };
 }
 

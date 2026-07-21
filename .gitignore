@@ -36,4 +36,5 @@ freecad/output_*.pdf
 Document.xml
 
 # IDE / 工具私有配置
+.vscode/
 wechat-miniprogram/project.private.config.json

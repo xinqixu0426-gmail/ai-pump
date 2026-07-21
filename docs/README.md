@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-12。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)，历史兼容收口见 [legacy-compatibility-retirement.md](./legacy-compatibility-retirement.md)。
+> 当前版本说明，更新于 2026-07-21。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。
 
 ## 1. 系统用途
 
@@ -149,7 +149,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 
 ### 请求与响应
 
-- Web 请求统一使用 `apps/web-next/lib/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyFormRequest()`。
+- Web 请求统一使用 `apps/web-next/lib/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyStreamFetch()`。
 - Web 新调用必须使用当前标准 API 入口；历史字段兼容只允许封装在 API client 内，不得继续扩散到页面组件。
 - 前后端字段使用 camelCase；数据库列使用 snake_case。
 - 标准成功响应：`{ "success": true, "data": {} }`。
@@ -238,7 +238,7 @@ POST /api/rotor/save
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary` 和 `get_business_alerts` 读取基础资料健康度、报价和订单经营异常；这些工具均为只读工具。
-- AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；`sync_factory_knowledge` 会重建 `knowledge_entries` 派生索引，属于需确认的写工具。
+- AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具。
 - AI 工作台会把会话和消息保存到 SQLite，支持查看、继续和删除历史会话；上下文仍只发送最近 10 条消息，历史存档数量不受上下文窗口影响。
 - Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。
 - iPhone PWA 与桌面统一使用 `/ai`；手机端隐藏全局业务导航，使用全屏对话、会话历史抽屉和安全区输入框。
@@ -262,13 +262,13 @@ POST /api/rotor/save
 
 - `apps/web-next/` 是 Next.js + Tailwind + motion 风格的唯一 Web 前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。Next 前端不接管业务 API。
 - `/quality` 是基础资料健康度面板，读取 `/api/quality/summary`，用于提前发现影响 AI 编排、成本核算和采购计划的数据问题；报价页和订单页通过 `/api/quality/business-alerts` 展示经营异常提醒。
-- Knowledge Base V1 使用 SQLite `knowledge_entries` 和可选 FTS5，把零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成 AI 可检索知识条目；不依赖外部向量库。
+- Knowledge Base V1 使用 SQLite `knowledge_entries` 和可选 FTS5，把零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则同步成 AI 可检索知识条目；同步保留稳定条目 ID，并在同一事务内刷新 FTS，不依赖外部向量库。
 - 数据质量中的配方完整性只要求真实零件行能在零件库匹配；`线圈转子` 由线圈模块校验，`电缆配件费` 由电缆分类 notes/公式计算，不作为普通零件缺失处理。
 - AI executor 已通过内部 API client 调用标准 API，不再直接访问数据库 helper；后续新增 AI 自动化能力时，应先确认是否能复用现有标准业务动作 API。
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
 - 核心资源响应中仍可能带有 `Id/CreatedAt/UpdatedAt` 历史兼容字段；Web 调用必须使用标准 camelCase。
 - 配方等写接口仍保留少量历史入参兼容，但资源更新和删除已统一为 `/:id` 路径入口。
-- 历史兼容字段和旧入参的收口顺序见 [历史兼容收口计划](./legacy-compatibility-retirement.md)；新增功能不得再扩大旧字段使用面。
+- 历史兼容字段和旧入参只允许停留在后端边界与 API client normalize 层；新增功能不得扩大旧字段使用面，具体约束见 [API 开发 SOP](./api-sop.md)。
 - 关键写接口的路由 ID、成本基础资料数字字段、模板/变体 JSON 字段，以及订单/报价/配方保存草稿的金额和数量字段已统一走 `api/services/validation.cjs`。
 - 审计日志覆盖正式业务资源的 INSERT、动态 UPDATE 和 DELETE；系统初始化与 settings/config UPSERT 仍属于基础设施边界。
 - `GET /api/recipes/:id/cost` 不是完整配方总成本接口，报价应使用 `cost-preview`。

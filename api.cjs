@@ -172,21 +172,6 @@ if (NEXT_ORIGIN) {
   });
 }
 
-// ── 生产模式：托管前端构建产物 ──
-const distPath = path.join(__dirname, 'dist');
-const fs = require('fs');
-if (fs.existsSync(distPath)) {
-  console.log('[启动] 检测到 dist/ 目录，启用静态文件托管');
-  app.use(express.static(distPath));
-  // SPA fallback: 所有非 API 路由返回 index.html
-  app.get(/(.*)/, (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/drawings')) {
-      return next();
-    }
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
-
 // ── 启动 ──
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
@@ -199,39 +184,12 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   登出接口: POST /api/auth/logout`);
     console.log(`   状态检查: GET  /api/auth/check`);
     console.log(`========================================`);
-    console.log(`可用端点:（需认证）`);
+    console.log(`核心端点:`);
     console.log(`  GET  /api/health                        - 健康检查（公开）`);
-  console.log(`  POST /api/cost/calculate                - 计算成本（传parts数组）`);
-  console.log(`  POST /api/cost/parts                    - 配件数组成本`);
-  console.log(`  POST /api/cost/coil                     - 线圈转子成本`);
-  console.log(`  POST /api/cost/float                    - 浮球成本`);
-  console.log(`  POST /api/cost/cable                    - 电缆线成本`);
-  console.log(`  POST /api/cost/packing                  - 包装材料成本`);
-  console.log(`  POST /api/cost/overhead                 - 人工与管理费`);
-  console.log(`  POST /api/cost/dynamic                  - 动态配置成本`);
-  console.log(`  POST /api/cost/full-estimate            - 完整成本估算`);
-    console.log(`  GET  /api/cost/recipe/:id               - 按配方ID查询成本`);
-    console.log(`  GET  /api/cost/recipe/by-name?name=xxx  - 按配方名称查询成本`);
-    console.log(`  POST /api/cost/dynamic-config           - 动态配置成本（浮球/电缆/包材）`);
-    console.log(`  POST /api/cost/full-calculate           - 一站式成本计算（推荐N8N用）`);
-    console.log(`  GET  /api/market-indicators             - 获取铜价/铝线价格/美元汇率`);
-    console.log(`  POST /api/market-indicators/update      - 同步市场指标到数据库`);
-    console.log(`  GET  /api/copper-price                  - 获取实时铜价`);
-    console.log(`  POST /api/copper-price/update           - 手动触发铜价更新`);
-    console.log(`  GET  /api/coils                         - 获取所有线圈数据`);
-    console.log(`  POST /api/coils                         - 新增线圈记录`);
-    console.log(`  PATCH /api/coils/:id                    - 更新线圈记录`);
-    console.log(`  DELETE /api/coils/:id                   - 删除线圈记录`);
-    console.log(`  POST /api/coils/calculate               - 线圈成本计算（支持插值）`);
-    console.log(`  GET  /api/coils/specs                   - 获取可用规格列表`);
-    console.log(`  POST /api/ai/chat                       - AI智能助手（SSE）`);
-    console.log(`  GET  /api/ai/system-prompt              - 获取System Prompt`);
-    console.log(`  PUT  /api/ai/system-prompt              - 修改System Prompt`);
-    console.log(`  POST /api/voice/asr                     - 语音识别(阿里云ASR)`);
-    console.log(`  POST /api/siri/chat                     - Siri快捷指令对话`);
-    console.log(`  GET  /api/workbench/summary             - 今日工作台汇总`);
+    console.log(`  POST /api/ai/chat                       - AI 工作台（SSE）`);
+    console.log(`  GET  /api/ai/conversations              - AI 会话历史`);
     console.log(`  GET  /api/knowledge                     - 工厂知识库搜索`);
-    console.log(`  POST /api/knowledge/sync                - 同步工厂知识库`);
+    console.log(`  POST /api/knowledge/sync                - 增量同步工厂知识库`);
     console.log(`========================================`);
 
     // 启动时自动更新铜价

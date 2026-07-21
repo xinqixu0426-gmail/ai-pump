@@ -112,3 +112,18 @@ test('AI 会话：拒绝空消息和非法角色', () => {
     assert.throws(() => appendAiConversationMessage('admin', conversation.id, { role: 'tool', content: 'x' }, { dbAccessors }), /角色不合法/);
     assert.throws(() => appendAiConversationMessage('admin', conversation.id, { role: 'user', content: '   ' }, { dbAccessors }), /内容不能为空/);
 });
+
+test('AI 会话：摘要更新失败时不留下孤立消息', () => {
+    const dbAccessors = createMemoryAccessors();
+    const conversation = createAiConversation('admin', '事务校验', { dbAccessors });
+    dbAccessors.safeUpdate = () => {
+        throw new Error('模拟摘要更新失败');
+    };
+
+    assert.throws(() => appendAiConversationMessage('admin', conversation.id, {
+        role: 'user',
+        content: '这条消息应回滚',
+    }, { dbAccessors }), /模拟摘要更新失败/);
+    const count = dbAccessors.db.prepare('SELECT COUNT(*) AS count FROM ai_conversation_messages').get().count;
+    assert.equal(count, 0);
+});

@@ -184,7 +184,6 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
             ...messages
         ];
 
-        const apiKey = process.env.DEEPSEEK_API_KEY;
         let maxRounds = 5;
         let done = false;
         let allToolResults = [];
@@ -348,7 +347,7 @@ router.post('/api/ai/confirm-tool', confirmAuth, async (req, res) => {
  * 通用 AI 对话处理函数
  */
 async function processAiChat(text, options = {}) {
-    const { context = [], promptSuffix = '', onToolCall, allowWrite = false } = options;
+    const { context = [], promptSuffix = '', allowWrite = false } = options;
     const toolResults = [];
 
     const messages = trimAiContext([
@@ -371,12 +370,7 @@ async function processAiChat(text, options = {}) {
     };
 
     while (!done && maxRounds-- > 0) {
-        let aiRes;
-        try {
-            aiRes = await fetchDeepSeek(currentMessages, false);
-        } catch (err) {
-            throw err;
-        }
+        const aiRes = await fetchDeepSeek(currentMessages, false);
 
         const data = await aiRes.json();
         if (data.error) {
@@ -394,11 +388,6 @@ async function processAiChat(text, options = {}) {
             for (const tc of msg.tool_calls) {
                 const funcName = tc.function.name;
                 console.log(`[AI] 调用工具: ${funcName}`);
-
-                if (typeof onToolCall === 'function') {
-                    // 异步触发回调，不阻塞主流程
-                    onToolCall(funcName).catch(e => console.error('[AI] onToolCall 回调异常:', e.message));
-                }
 
                 let args = {};
                 try { args = JSON.parse(tc.function.arguments); } catch (e) { }
