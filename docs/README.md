@@ -261,6 +261,7 @@ POST /api/rotor/save
 
 - `apps/web-next/` 是 Next.js + Tailwind + motion 风格的唯一 Web 前端，默认业务入口跑在 `:3000`，并行预览入口跑在 `:3001`，通过 rewrites 将 `/api/*` 代理到现有 Express `:3002`。Next 前端不接管业务 API。
 - `/quality` 是基础资料健康度面板，读取 `/api/quality/summary`，用于提前发现影响 AI 编排、成本核算和采购计划的数据问题；报价页和订单页通过 `/api/quality/business-alerts` 展示经营异常提醒。
+- 数据质量中的配方完整性只要求真实零件行能在零件库匹配；`线圈转子` 由线圈模块校验，`电缆配件费` 由电缆分类 notes/公式计算，不作为普通零件缺失处理。
 - AI executor 已通过内部 API client 调用标准 API，不再直接访问数据库 helper；后续新增 AI 自动化能力时，应先确认是否能复用现有标准业务动作 API。
 - 业务 API 已统一使用 `{ success, data/error }` 响应格式；健康检查等监控入口可保留非业务格式。
 - 核心资源响应中仍可能带有 `Id/CreatedAt/UpdatedAt` 历史兼容字段；Web 调用必须使用标准 camelCase。

@@ -37,3 +37,52 @@ test('数据质量报告识别零件、配方、模板和线圈基础资料问�
     assert.ok(summary.issues.find(issue => issue.key === 'recipe_integrity').count >= 3);
     assert.ok(summary.issues.find(issue => issue.key === 'coil_defaults').count >= 3);
 });
+
+test('数据质量报告不把线圈转子和电缆配件费当作零件库缺失', () => {
+    const summary = buildDataQualitySummary({
+        parts: [
+            {
+                id: 1,
+                model: 'V750',
+                category: '泵壳',
+                price: 90,
+                supplier: 'A',
+                stock: 3,
+            },
+            {
+                id: 2,
+                model: '2*0.75',
+                category: '电缆',
+                price: 2.5,
+                supplier: 'B',
+                stock: 20,
+                notes: JSON.stringify({ cableAccessoryFees: { standard: 0.8 } }),
+            },
+        ],
+        recipes: [
+            {
+                id: 10,
+                name: 'V750 12-140',
+                partsJson: JSON.stringify([
+                    { model: 'V750', name: '泵壳套件', qty: 1, snapshotPrice: 90 },
+                    { model: '12-140', name: '线圈转子', qty: 1, snapshotPrice: 30, formula: '线圈成本' },
+                    { model: '2*0.75', name: '电缆', qty: 10, snapshotPrice: 2.5, formula: '2.5×10m' },
+                    { model: '电缆配件费', name: '普通铜套', qty: 1, snapshotPrice: 0.8, formula: '电缆配件费(普通)' },
+                ]),
+                savedTotalCost: 150,
+                templateId: 7,
+                coilSpec: '12',
+                coilSheets: 140,
+                coilMaterial: '钢带',
+            },
+        ],
+        templates: [{ id: 7, shellModel: 'V750', costMode: 'bundle', bundleCost: 90 }],
+        variants: [],
+        coils: [{ id: 4, spec: '12', sheets: 140, material: '钢带', cost: 30, defaultCapacitor: '16uf', defaultWireGauge: '0.75' }],
+        customers: [],
+        quotations: [],
+    });
+
+    const recipeIntegrity = summary.issues.find(issue => issue.key === 'recipe_integrity');
+    assert.equal(recipeIntegrity.count, 0);
+});

@@ -35,6 +35,26 @@ function issue(key, title, severity, items, suggestion) {
     };
 }
 
+function isCoilCalculatedPart(part) {
+    return normalize(part?.name) === '线圈转子';
+}
+
+function isCableAccessoryCalculatedPart(part) {
+    const model = normalize(part?.model);
+    const name = normalize(part?.name);
+    return model === '电缆配件费'
+        || name.includes('电缆接头配件')
+        || name.includes('电缆配件费');
+}
+
+function shouldRequirePartCatalogMatch(part) {
+    if (!part) return false;
+    if (part.dynamicRule || part.costSource) return false;
+    if (isCoilCalculatedPart(part)) return false;
+    if (isCableAccessoryCalculatedPart(part)) return false;
+    return true;
+}
+
 function severityWeight(severity) {
     if (severity === 'danger') return 8;
     if (severity === 'warning') return 4;
@@ -104,7 +124,7 @@ function buildDataQualitySummary(options = {}) {
         }
         for (const part of partsJson || []) {
             const model = normalize(part.model || part.name);
-            if (model && !partByModel.has(model) && !part.dynamicRule && !part.costSource) {
+            if (model && shouldRequirePartCatalogMatch(part) && !partByModel.has(model)) {
                 recipeIssues.push(row('recipe', recipe.id, recipe.name || `配方 #${recipe.id}`, `BOM 中的「${model}」未在零件库找到。`, '/recipes', { reason: 'missing_part', model }));
             }
         }
