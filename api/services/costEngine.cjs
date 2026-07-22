@@ -418,6 +418,31 @@ function normalizeRecipeParts(parts) {
     }));
 }
 
+function findUnpricedRecipeParts(parts) {
+    if (!Array.isArray(parts)) return [];
+    return parts.filter(part => {
+        const price = Number(part?.snapshotPrice);
+        return !Number.isFinite(price) || price <= 0;
+    });
+}
+
+function assertRecipeBomPrices(parts) {
+    const unpricedParts = findUnpricedRecipeParts(parts);
+    if (unpricedParts.length === 0) return;
+    const labels = unpricedParts.slice(0, 8).map(part => {
+        const name = String(part?.name || '').trim();
+        const model = String(part?.model || '').trim();
+        if (name && model && name !== model) return `${name}（${model}）`;
+        return name || model || '未命名项目';
+    });
+    const remaining = unpricedParts.length - labels.length;
+    const error = new Error(`配方 BOM 存在未定价项目：${labels.join('、')}${remaining > 0 ? `等 ${unpricedParts.length} 项` : ''}。请先在零件库补齐对应型号和单价后再保存。`);
+    error.statusCode = 400;
+    error.code = 'RECIPE_BOM_UNPRICED';
+    error.items = unpricedParts;
+    throw error;
+}
+
 function applyScrewPricing(part, partsCatalog) {
     if (!isLongScrewPart(part)) return part;
     const pricing = longScrewPriceByModel(partsCatalog, part.model, part.supplier) || longScrewFormulaPriceByModel(part.model);
@@ -535,4 +560,6 @@ module.exports = {
     partsCatalogFromPartsByModel,
     calculateRecipeCost,
     buildRecipeCostDraft,
+    findUnpricedRecipeParts,
+    assertRecipeBomPrices,
 };

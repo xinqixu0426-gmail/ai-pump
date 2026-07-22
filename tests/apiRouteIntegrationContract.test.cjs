@@ -63,6 +63,20 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assertNoWrites(section);
 });
 
+test('关键 API 集成契约：配方保存的草稿与正式写入口都拒绝零价格 BOM', () => {
+    const source = readUtf8('api/routes/recipes.cjs');
+    const saveDraft = sliceBetween(source, 'function buildRecipeSavePayloadDraft', 'function partsCatalogRows');
+    const create = sliceBetween(source, "router.post('/',", "router.delete('/:id'");
+    const updateRecord = sliceBetween(source, 'function updateRecipeRecord', "router.get('/'");
+    const patch = sliceBetween(source, "router.patch('/:id'", 'module.exports');
+
+    assert.match(saveDraft, /assertRecipeBomPrices\(parts\)/);
+    assert.match(create, /assertRecipeBomPrices\(parseJsonArray\(b\.parts_json \|\| '\[\]'\)\)/);
+    assert.match(updateRecord, /assertRecipeBomPrices\(parseJsonArray\(updates\.parts_json\)\)/);
+    assert.match(create, /res\.status\(error\.statusCode \|\| 500\)/);
+    assert.match(patch, /res\.status\(error\.statusCode \|\| 500\)/);
+});
+
 test('关键 API 集成契约：配方测试报告支持上传、下载和软删除', () => {
     const source = readUtf8('api/routes/recipes.cjs');
     const db = readUtf8('api/db.cjs');

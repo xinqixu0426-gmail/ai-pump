@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, recipeTechnicalFileRow, safeInsert, safeUpdate, softDelete, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
-const { buildRecipeCostDraft } = require('../services/costEngine.cjs');
+const { buildRecipeCostDraft, assertRecipeBomPrices } = require('../services/costEngine.cjs');
 const { collapseLegacyCableParts } = require('../services/cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('../services/recipeBomEngine.cjs');
 const { buildLongScrewInventoryPartsFromRecipe } = require('../services/longScrewInventory.cjs');
@@ -218,6 +218,7 @@ function buildRecipeSavePayloadDraft(body) {
     const parts = Array.isArray(costDraft.parts) ? costDraft.parts : [];
     if (!String(form.name || '').trim()) throw new Error('配方名称不能为空');
     if (parts.length === 0) throw new Error('配方 BOM 不能为空');
+    assertRecipeBomPrices(parts);
 
     const surfaceTreatmentMode = form.surfaceTreatmentMode || 'none';
     return {
@@ -288,6 +289,7 @@ function autoCreateRecipeLongScrews(recipeLike) {
 
 function updateRecipeRecord(id, body) {
     const updates = recipeBodyToDb(body);
+    if (updates.parts_json !== undefined) assertRecipeBomPrices(parseJsonArray(updates.parts_json));
     safeUpdate('recipes', id, updates);
     const record = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
     const createdLongScrewParts = autoCreateRecipeLongScrews(record);
@@ -508,6 +510,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
     try {
         const b = recipeBodyToDb(req.body);
+        assertRecipeBomPrices(parseJsonArray(b.parts_json || '[]'));
         const now = new Date().toISOString();
         const saveRecipe = db.transaction(() => {
             const info = safeInsert('recipes', {
@@ -553,7 +556,7 @@ router.post('/', (req, res) => {
         });
         const result = saveRecipe();
         res.json({ success: true, data: result.recipe, createdLongScrewParts: result.createdLongScrewParts });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
 router.delete('/:id', (req, res) => {
@@ -571,7 +574,7 @@ router.patch('/:id', (req, res) => {
         if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
         const result = db.transaction(() => updateRecipeRecord(id, req.body))();
         res.json({ success: true, data: result.recipe, createdLongScrewParts: result.createdLongScrewParts });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
 module.exports = router;

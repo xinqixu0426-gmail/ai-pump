@@ -819,6 +819,42 @@ function partFormulaLine(part?: RecipePart): string {
   return '';
 }
 
+function DynamicConfigCostRow({
+  label,
+  ready,
+  loading,
+  part,
+}: {
+  label: string;
+  ready: boolean;
+  loading: boolean;
+  part?: RecipePart;
+}) {
+  const amount = recipePartSubtotal(part);
+  const unpriced = Boolean(part) && Number(part?.snapshotPrice || 0) <= 0;
+  const note = loading
+    ? '正在计算'
+    : !ready
+      ? '参数填写完整后自动计算'
+      : !part
+        ? '等待生成成本'
+        : unpriced
+          ? '未匹配到零件价格，请先补齐零件库'
+          : partFormulaLine(part) || partCostLine(part);
+
+  return (
+    <div className="mt-3 flex min-h-12 items-center justify-between gap-4 border-t border-line pt-3">
+      <div className="min-w-0">
+        <div className="text-xs font-medium text-muted">{label}</div>
+        <div className={`mt-0.5 text-xs leading-5 ${unpriced ? 'text-red-700' : 'text-muted'}`}>{note}</div>
+      </div>
+      <div className={`shrink-0 text-base font-semibold tabular-nums ${unpriced ? 'text-red-700' : 'text-ink'}`}>
+        {loading || !ready || !part ? '-' : money(amount)}
+      </div>
+    </div>
+  );
+}
+
 type LinkedChangeAnnotation = {
   label: string;
   value: string;
@@ -1302,6 +1338,27 @@ export function RecipesView() {
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
   const recommendedCableWire = matchWireOption(cableWireOptions, bomDraft?.coilSnapshot?.wireGauge);
+  const floatCostReady = form.hasFloat && Boolean(form.floatWire);
+  const cableCostReady = form.hasCable && Boolean(form.cableWire) && numberValue(form.cableLength) > 0;
+  const floatCostPart = useMemo(() => {
+    if (!floatCostReady) return undefined;
+    const model = `浮球-线径${normalizeWireGauge(form.floatWire)}`;
+    return bomDraft?.parts.find((part) => (
+      part.model === model
+      && String(part.name || '').includes('浮球')
+      && (part.floatAccessoryType || 'standard') === form.floatAccessoryType
+    ));
+  }, [bomDraft, floatCostReady, form.floatAccessoryType, form.floatWire]);
+  const cableCostPart = useMemo(() => {
+    if (!cableCostReady) return undefined;
+    const model = `电缆-线径${normalizeWireGauge(form.cableWire)}`;
+    return bomDraft?.parts.find((part) => (
+      part.model === model
+      && part.cableAssembly === true
+      && Number(part.cableLength || 0) === numberValue(form.cableLength)
+      && (part.cableAccessoryType || 'standard') === form.cableAccessoryType
+    ));
+  }, [bomDraft, cableCostReady, form.cableAccessoryType, form.cableLength, form.cableWire]);
   const isFloatWireRecommended = Boolean(
     form.hasFloat
     && recommendedFloatWire
@@ -3658,6 +3715,14 @@ export function RecipesView() {
                       </select>
                     </label>
                   </div>
+                  {form.hasFloat ? (
+                    <DynamicConfigCostRow
+                      label="浮球成本"
+                      ready={floatCostReady}
+                      loading={bomDraftLoading}
+                      part={floatCostPart}
+                    />
+                  ) : null}
                 </div>
 
                 <div className="rounded-md border border-line p-3">
@@ -3718,6 +3783,14 @@ export function RecipesView() {
                       </select>
                     </label>
                   </div>
+                  {form.hasCable ? (
+                    <DynamicConfigCostRow
+                      label="成品电缆成本"
+                      ready={cableCostReady}
+                      loading={bomDraftLoading}
+                      part={cableCostPart}
+                    />
+                  ) : null}
                 </div>
               </div>
             </WorkspaceSection>

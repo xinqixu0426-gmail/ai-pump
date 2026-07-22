@@ -63,7 +63,7 @@
 
 配方页以“泵壳模板 + 线圈配置 + 客户选配”为唯一可见主流程：泵壳模板提供结构成本包，线圈配置联动电容、电缆/浮球线径和叶轮参考，客户选配再覆盖电缆长度、浮球、包装材料、接轴和表面处理等 OEM 差异。需要复用时直接复制已有配方，不要求用户理解或维护额外的常用配置层级。
 
-BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时必须使用草稿中的 `snapshotPrice`、`costSource/source` 和 `formula` 标注成本价与计算来源；不得在页面里另写正式成本公式。客户指定线重使用配方字段 `coilWireWeight` 进入 BOM 草稿，由后端线圈服务重算成本并自动关联电容。叶轮参数只属于技术档案和出图参考，不参与成本计算。
+BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时必须使用草稿中的 `snapshotPrice`、`costSource/source` 和 `formula` 标注成本价与计算来源；不得在页面里另写正式成本公式。配方保存前，后端会逐项检查完整 BOM 的快照单价；任何项目价格缺失、无效或为 0 都会阻止保存并列出具体项目，避免浮球、电缆等自动匹配失败后漏算成本。客户指定线重使用配方字段 `coilWireWeight` 进入 BOM 草稿，由后端线圈服务重算成本并自动关联电容。叶轮参数只属于技术档案和出图参考，不参与成本计算。
 
 表面处理支持：无、喷漆、电泳、喷塑。旧 `paintingWage` 字段只用于历史数据兼容，新逻辑使用 `surfaceTreatmentMode + surfaceTreatmentCost`。
 
@@ -137,7 +137,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 新增线圈同规格带入 | `POST /api/coils/spec-draft` | 根据规格和材质生成录入草稿，统一带入同规格的线重、铜价基数、加工费、默认线径和电容；不写库 |
 | 前端单次配件计算 | `POST /api/cost/parts` | Web 当前主入口，只计算传入配件 |
 | 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度、参数化计价及成品电缆合并规则；不写库 |
-| 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前统一序列化 JSON、数字、ID、表面处理和技术参数；不写库 |
+| 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前检查完整 BOM 不含零价格项目，并统一序列化 JSON、数字、ID、表面处理和技术参数；不写库 |
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
 | 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按当前零件价格和当前铜价重算配方 BOM，再叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额 |
 | 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |

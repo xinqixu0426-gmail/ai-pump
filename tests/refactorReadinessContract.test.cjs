@@ -376,6 +376,17 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(technicalEditor, /叶轮参数/);
 });
 
+test('Next UI 契约：浮球和电缆参数完成后展示后端 BOM 成本', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+
+    assert.match(recipesView, /DynamicConfigCostRow/);
+    assert.match(recipesView, /label="浮球成本"/);
+    assert.match(recipesView, /label="成品电缆成本"/);
+    assert.match(recipesView, /floatCostPart/);
+    assert.match(recipesView, /cableCostPart/);
+    assert.match(recipesView, /未匹配到零件价格，请先补齐零件库/);
+});
+
 test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
     const rules = readUtf8('apps/web-next/lib/part-form-rules.ts');

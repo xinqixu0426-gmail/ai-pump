@@ -68,6 +68,7 @@
 约束：
 
 - 配方保存必须通过 `POST /api/recipes/cost-draft` 生成保存快照。
+- 配方保存 payload 和正式写入口必须检查完整 BOM；任一项目的快照单价缺失、无效或小于等于 0 时阻止保存，并提示先补齐零件型号和单价。
 - 报价覆盖必须通过 `POST /api/recipes/:id/cost-preview` 试算。
 - 报价转订单必须保存展开后的 BOM 快照，不能只保存 overrides。
 - 订单创建和追加明细优先使用配方 `savedTotalCost`；没有保存成本时才允许回退当前重算参考。

@@ -99,10 +99,10 @@
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`；不写库 |
 | `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。自由组合模板中只有 `componentType=stainlessStretchBarrel` 的“不锈钢拉伸筒”组件会用 `customBarrelLength/modelVariant.barrelLength` 换算 cm 数量，并触发长螺丝长度联动；铝机筒、铁机筒按普通固定组件处理。历史 `isStainlessStretchBarrel=true` 数据继续兼容。自由组合组件取价只读取“泵壳搭配”分类。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写。配方正式保存时 `customBarrelLength` 和 `longScrewExtraLength` 都会持久化，重新编辑可恢复原值 |
-| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`form.coilWireWeight` 会保存为客户指定线重，`form.longScrewExtraLength` 会作为非负数进入正式配方保存；不写库 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；逐项检查 `costDraft.parts[].snapshotPrice`，缺失、无效或小于等于 0 时返回 400 并列出未定价 BOM 项目；`form.coilWireWeight` 会保存为客户指定线重，`form.longScrewExtraLength` 会作为非负数进入正式配方保存；不写库 |
 | `GET` | `/api/recipes/:id/inventory-status` | 无 | 按配方 BOM 返回配件、当前库存和状态；只读，不执行生产或扣减库存 |
-| `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；若 `partsJson` 中含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
-| `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；同样可能返回 `createdLongScrewParts` |
+| `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；`partsJson` 中任一 BOM 项目的 `snapshotPrice` 缺失、无效或小于等于 0 时返回 400；若含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
+| `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；提交 `partsJson` 时执行相同的 BOM 单价检查，同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/recipes/:id` | 无 | 软删除 |
 | `GET` | `/api/recipes/:id/technical-files` | 无 | 列出配方性能测试报告附件及解析摘要，不返回文件二进制和完整解析文本 |
 | `POST` | `/api/recipes/:id/technical-files` | `multipart/form-data`，字段 `file`，支持 `.xls/.xlsx`，最大 10MB | 保存原始 Excel 到 SQLite，并解析水泵性能报告的型号、测试号、日期和测试点明细；模板中的规定点、实测点和偏差不进入 API 摘要或知识检索文本 |
@@ -122,7 +122,7 @@
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 应用常用配置时生成配方草稿，统一带入模板工资、表面处理、线圈、机筒和叶轮字段；不写库 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则；旧式“电缆线 + 电缆配件费”会合并为一条成品电缆 |
-| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前生成标准保存 payload，不写库 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前检查完整 BOM 不含零价格项目并生成标准保存 payload；未定价时返回具体项目且不写库 |
 | `GET` | `/api/recipes/current-costs` | 无 | 配方列表批量重算当日完整成本并返回 `currentTotalCost/savedTotalCost/difference/partsCost/laborCost` |
 | `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价覆盖试算 |
