@@ -94,14 +94,13 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/recipes` | 无 | 配方列表，标准字段含 `id/createdAt/updatedAt` |
-| `GET` | `/api/recipes/:id` | 无 | 单个配方，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/recipes` | 无 | 配方列表，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength` |
+| `GET` | `/api/recipes/:id` | 无 | 单个配方，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength` |
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`；不写库 |
 | `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。自由组合模板中只有 `componentType=stainlessStretchBarrel` 的“不锈钢拉伸筒”组件会用 `customBarrelLength/modelVariant.barrelLength` 换算 cm 数量，并触发长螺丝长度联动；铝机筒、铁机筒按普通固定组件处理。历史 `isStainlessStretchBarrel=true` 数据继续兼容。自由组合组件取价只读取“泵壳搭配”分类。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
-| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写 |
-| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`form.coilWireWeight` 会保存为客户指定线重；不写库 |
-| `POST` | `/api/recipes/:id/production-check` | `{ produceQty }` | 按配方 BOM 快照和当前库存生成生产扣库存预检；不写库 |
-| `POST` | `/api/recipes/:id/produce` | `{ produceQty }` | 确认生产并扣减库存；后端重新预检后在事务内更新零件库存 |
+| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写。配方正式保存时 `customBarrelLength` 和 `longScrewExtraLength` 都会持久化，重新编辑可恢复原值 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`form.coilWireWeight` 会保存为客户指定线重，`form.longScrewExtraLength` 会作为非负数进入正式配方保存；不写库 |
+| `GET` | `/api/recipes/:id/inventory-status` | 无 | 按配方 BOM 返回配件、当前库存和状态；只读，不执行生产或扣减库存 |
 | `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；若 `partsJson` 中含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
 | `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/recipes/:id` | 无 | 软删除 |
@@ -122,7 +121,7 @@
 |---|---|---|---|
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 应用常用配置时生成配方草稿，统一带入模板工资、表面处理、线圈、机筒和叶轮字段；不写库 |
-| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则 |
+| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则；旧式“电缆线 + 电缆配件费”会合并为一条成品电缆 |
 | `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前生成标准保存 payload，不写库 |
 | `GET` | `/api/recipes/current-costs` | 无 | 配方列表批量重算当日完整成本并返回 `currentTotalCost/savedTotalCost/difference/partsCost/laborCost` |
 | `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
@@ -136,10 +135,10 @@
 |---|---|---|---|
 | `POST` | `/api/cost/coil` | 同 `/api/coils/calculate` | 线圈成本兼容入口 |
 | `POST` | `/api/cost/float` | `floatWire?, floatAccessoryType?` 等 | 单独估算浮球成本 |
-| `POST` | `/api/cost/cable` | `cableLength, cableWire?, cableAccessoryType?` 等 | 单独估算电缆和铜套成本 |
+| `POST` | `/api/cost/cable` | `cableLength, cableWire?, cableAccessoryType?` 等 | 单独估算完整成品电缆；总成本包含按米计算的线材及插头/规格费用 |
 | `POST` | `/api/cost/packing` | `packingParts?/packingPartsJson?/boxType?` 等 | 单独估算包装材料成本 |
 | `POST` | `/api/cost/overhead` | `{ assemblyWage?, packingWage?, surfaceTreatmentCost?, managementFee? }` | 人工工资、表面处理和管理费合计 |
-| `POST` | `/api/cost/dynamic` | `{ stator?/statorSpec?/statorSheets?, hasFloat?, floatWire?, hasCable?, cableWire?, cableLength?, boxType?, ...AccessoryType }` | 动态配置成本：浮球、电缆、包材 |
+| `POST` | `/api/cost/dynamic` | `{ stator?/statorSpec?/statorSheets?, hasFloat?, floatWire?, hasCable?, cableWire?, cableLength?, boxType?, ...AccessoryType }` | 动态配置成本：浮球、成品电缆、包材；电缆明细不拆分线材和插头/规格费 |
 
 ### 9.3 查询和市场指标
 

@@ -6,6 +6,7 @@ const {
     wireModel,
 } = require('./costEngine.cjs');
 const {
+    buildCompleteCablePart,
     getCableAccessoryNameFromPartsByModel,
 } = require('./cableAccessory.cjs');
 
@@ -90,13 +91,23 @@ function calculateDynamicConfigCost(input, dependencies = {}) {
         const cableModel = wireModel('电缆', wire);
         const unitPrice = getPrice(cableModel);
         const length = Number(cableLength);
-        totalCost += unitPrice * length;
-        details.push({ name: '电缆线', model: cableModel, price: unitPrice.toFixed(2), qty: length, subtotal: (unitPrice * length).toFixed(2) });
         const normalizedCableAccessoryType = normalizeCableAccessoryType(cableAccessoryType);
         const accessoryFee = getCableAccessoryFee(partsByModel, cableModel, '', normalizedCableAccessoryType, getSetting);
         const accessoryName = getCableAccessoryName(partsByModel, cableModel, '', normalizedCableAccessoryType, getSetting);
-        totalCost += accessoryFee;
-        details.push({ name: accessoryName, model: '电缆配件费', price: accessoryFee.toFixed(2), qty: 1, subtotal: accessoryFee.toFixed(2) });
+        const completeCable = buildCompleteCablePart({
+            model: cableModel,
+            cableLength: length,
+            cableUnitPrice: unitPrice,
+            accessoryType: normalizedCableAccessoryType,
+            accessoryName,
+            accessoryFee,
+        });
+        totalCost += completeCable.snapshotPrice;
+        details.push({
+            ...completeCable,
+            price: completeCable.snapshotPrice.toFixed(2),
+            subtotal: completeCable.snapshotPrice.toFixed(2),
+        });
     }
 
     if (boxType) {

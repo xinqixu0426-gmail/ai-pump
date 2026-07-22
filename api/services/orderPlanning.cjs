@@ -1,4 +1,5 @@
 const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
+const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 
 function makeId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -33,10 +34,10 @@ function buildPurchaseList(items, partsCatalog) {
     for (const item of items || []) {
         const itemQty = Number(item.qty || 0);
         if (itemQty <= 0) continue;
-        for (const part of parsePartsJson(item.partsJson)) {
+        for (const part of collapseLegacyCableParts(parsePartsJson(item.partsJson))) {
             const model = String(part.model || '').trim();
             if (!model) continue;
-            const qty = Number(part.qty || 0);
+            const qty = Number(part.inventoryQty ?? part.qty ?? 0);
             if (qty <= 0) continue;
             const existing = merged.get(model);
             if (existing) {

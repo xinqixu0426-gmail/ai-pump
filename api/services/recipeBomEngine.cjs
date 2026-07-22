@@ -8,6 +8,7 @@ const {
     getPartPriceFromCatalog,
 } = require('./costEngine.cjs');
 const {
+    buildCompleteCablePart,
     getCableAccessoryFeeFromCatalog,
     getCableAccessoryNameFromCatalog,
 } = require('./cableAccessory.cjs');
@@ -266,15 +267,16 @@ function buildRecipeBomDraft(input, context) {
         const accessoryType = input.cableAccessoryType || 'standard';
         const cableLength = Number(input.cableLength || 0);
         const cablePrice = getPriceByModelAndSupplier(partsCatalog, model, '');
-        bomParts.push({ model, name: '电缆线', supplier: '', qty: cableLength, snapshotPrice: cablePrice, formula: `电缆单价 ${cablePrice}×${cableLength}m` });
         bomParts.push({
-            model: '电缆配件费',
-            name: getCableAccessoryName(partsCatalog, model, '', accessoryType),
-            supplier: '',
-            qty: 1,
-            snapshotPrice: getCableAccessoryFee(partsCatalog, model, '', accessoryType),
-            cableAccessoryType: accessoryType,
-            formula: `电缆配件费(${accessoryType === 'xinjie' ? '新界式' : '普通'})`,
+            ...buildCompleteCablePart({
+                model,
+                cableLength,
+                cableUnitPrice: cablePrice,
+                accessoryType,
+                accessoryName: getCableAccessoryName(partsCatalog, model, '', accessoryType),
+                accessoryFee: getCableAccessoryFee(partsCatalog, model, '', accessoryType),
+            }),
+            cableAssembly: true,
         });
     }
 

@@ -2,6 +2,7 @@ const {
     parseCableAccessoryFee,
     getGlobalCableAccessory,
     getCableAccessoryFeeFromPartsByModel,
+    collapseLegacyCableParts,
 } = require('./cableAccessory.cjs');
 
 // 成本口径边界：
@@ -312,13 +313,36 @@ function calculateRecipeCost(parts, partsCache = {}, partsByModel = {}, options 
     const details = [];
     const missingParts = [];
     const partsCatalog = options.partsCatalog || partsCatalogFromPartsByModel(partsByModel);
-    (parts || []).forEach(p => {
+    const normalizedParts = collapseLegacyCableParts(parts || []);
+    normalizedParts.forEach(p => {
         const suppliers = partsByModel[p.model] || [];
         const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
         let price = 0, source = '';
         if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) {
             price = p.snapshotPrice;
             source = p.costSource === 'manual' ? '手动估算价' : '模板手动价';
+        } else if (p.cableAssembly === true || String(p.name || '').startsWith('成品电缆')) {
+            let cableUnitPrice = 0;
+            if (match && p.supplier) {
+                cableUnitPrice = Number(match.price || 0);
+                source = '精确匹配';
+            } else if (suppliers.length > 0) {
+                const fallback = suppliers.reduce((min, candidate) => candidate.price < min.price ? candidate : min, suppliers[0]);
+                cableUnitPrice = Number(fallback.price || 0);
+                source = '型号回退(取最低价)';
+            } else if (p.snapshotPrice !== undefined) {
+                price = Number(p.snapshotPrice || 0);
+                source = '快照价格';
+            } else {
+                missingParts.push(p.model);
+                source = '未找到';
+            }
+            if (source !== '快照价格' && source !== '未找到') {
+                const cableLength = Number(p.cableLength ?? p.inventoryQty ?? 0);
+                const accessoryFee = getCableAccessoryFee(partsByModel, p.model, p.supplier || '', p.cableAccessoryType, getSetting);
+                price = roundMoney(cableUnitPrice * cableLength + accessoryFee);
+                source += `+${p.cableAccessoryName || (p.cableAccessoryType === 'xinjie' ? '新界式' : '普通铜套')}`;
+            }
         } else if (isCableAccessoryPart(p)) {
             const cablePart = findCablePart(parts);
             price = getCableAccessoryFee(partsByModel, cablePart?.model || '', cablePart?.supplier || '', p.cableAccessoryType, getSetting);
@@ -371,7 +395,7 @@ function calculateRecipeCost(parts, partsCache = {}, partsByModel = {}, options 
         totalCost += subtotal;
         details.push({ name: p.name || p.model, model: p.model, supplier: p.supplier || '-', price: parseFloat(price).toFixed(2), qty: p.qty, subtotal: subtotal.toFixed(2), source });
     });
-    return { totalCost: totalCost.toFixed(2), itemCount: (parts || []).length, details, missingParts };
+    return { totalCost: totalCost.toFixed(2), itemCount: normalizedParts.length, details, missingParts };
 }
 
 const SURFACE_TREATMENT_LABELS = {
@@ -412,7 +436,7 @@ function buildRecipeCostDraft(input, options = {}) {
     const longScrewExtraLength = input.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
     const enableLongScrewByBarrelLength = input.enableLongScrewByBarrelLength !== false;
     const partsCatalog = options.partsCatalog || input.partsCatalog || [];
-    const parts = normalizeRecipeParts(input.parts || [])
+    const parts = collapseLegacyCableParts(normalizeRecipeParts(input.parts || []))
         .map(part => enableLongScrewByBarrelLength ? applyLongScrewRule(part, barrelLength, longScrewExtraLength) : part)
         .map(part => applyStainlessShellBundleRule(part, barrelLength))
         .map(part => applyScrewPricing(part, partsCatalog));

@@ -27,7 +27,7 @@ function getSetting(key) {
     return undefined;
 }
 
-test('动态配置成本服务计算浮球、电缆、配件费和包装', () => {
+test('动态配置成本服务将线材和插头规格合并为成品电缆', () => {
     const result = calculateDynamicConfigCost({
         hasFloat: true,
         floatAccessoryType: 'xinjie',
@@ -38,10 +38,11 @@ test('动态配置成本服务计算浮球、电缆、配件费和包装', () =>
     }, { partsCache, partsByModel, getSetting });
 
     assert.equal(result.totalCost, 8.9);
-    assert.deepEqual(result.details.map(item => item.name), ['浮球-新界式', '电缆线', '新界式', '纸箱']);
+    assert.deepEqual(result.details.map(item => item.name), ['浮球-新界式', '成品电缆（新界式）', '纸箱']);
     assert.equal(result.details[0].price, '2.60');
-    assert.equal(result.details[2].price, '0.90');
-    assert.equal(result.details[3].model, '小纸箱');
+    assert.equal(result.details[1].price, '3.30');
+    assert.equal(result.details[1].inventoryQty, 2);
+    assert.equal(result.details[2].model, '小纸箱');
 });
 
 test('单独浮球估算复用动态配置规则', () => {

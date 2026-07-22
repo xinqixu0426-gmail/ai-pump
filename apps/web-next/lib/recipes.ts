@@ -23,6 +23,12 @@ export type RecipePart = {
   floatAccessoryType?: string;
   floatAccessoryDelta?: number;
   cableAccessoryType?: string;
+  cableAssembly?: boolean;
+  cableLength?: number;
+  cableUnitPrice?: number;
+  cableAccessoryName?: string;
+  cableAccessoryFee?: number;
+  inventoryQty?: number;
 };
 
 export type RecipeCurrentCostDetail = {
@@ -55,6 +61,7 @@ export type RecipeCurrentTotalCost = {
   laborCost: number;
   itemCount: number;
   missingParts: string[];
+  fetchedAt?: string;
 };
 
 export type CableAccessoryType = 'standard' | 'xinjie';
@@ -83,6 +90,7 @@ export type Recipe = {
   packingPartsJson?: string;
   extraPartsJson?: string;
   customBarrelLength?: number | null;
+  longScrewExtraLength?: number;
   modelVariantId?: number | null;
   impellerModel?: string;
   impellerThickness?: number | null;
@@ -186,23 +194,18 @@ export type RecipeCostDraftResult = {
   savedCostDetails: string;
 };
 
-export type RecipeProductionCheck = {
+export type RecipeInventoryItem = {
   name: string;
   model: string;
   supplier?: string;
-  qtyNeeded: number;
   currentStock: number;
-  sufficient: boolean;
   partId?: number;
+  status: 'in_stock' | 'out_of_stock' | 'missing';
 };
 
-export type RecipeProductionDraft = {
+export type RecipeInventoryStatusResult = {
   recipe: Recipe;
-  produceQty: number;
-  checks: RecipeProductionCheck[];
-  deductions: Array<{ partId: number; deductQty: number }>;
-  canProduce: boolean;
-  error: string;
+  items: RecipeInventoryItem[];
 };
 
 export type RecipeSelectionDraft = {
@@ -324,6 +327,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     packingPartsJson: row.packingPartsJson || '[]',
     extraPartsJson: row.extraPartsJson || '[]',
     customBarrelLength: row.customBarrelLength == null ? null : Number(row.customBarrelLength),
+    longScrewExtraLength: Number(row.longScrewExtraLength) || 0,
     modelVariantId: row.modelVariantId ?? null,
     impellerModel: row.impellerModel || '',
     impellerThickness: row.impellerThickness == null ? null : Number(row.impellerThickness),
@@ -567,6 +571,7 @@ export async function getAllRecipeCurrentCosts(): Promise<RecipeCurrentTotalCost
     laborCost: Number(item.laborCost) || 0,
     itemCount: Number(item.itemCount) || 0,
     missingParts: Array.isArray(item.missingParts) ? item.missingParts : [],
+    fetchedAt: result.data?.asOf,
   }));
 }
 
@@ -663,24 +668,9 @@ export async function getRecipeCurrentCost(recipeId: number): Promise<RecipeCurr
   };
 }
 
-export async function checkRecipeProduction(recipeId: number, produceQty: number): Promise<RecipeProductionDraft> {
-  const result = await proxyRequest<ApiResponse<RecipeProductionDraft>>(`/api/recipes/${recipeId}/production-check`, {
-    method: 'POST',
-    body: JSON.stringify({ produceQty }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '库存预检失败');
-  return {
-    ...result.data,
-    recipe: rowToRecipe(result.data.recipe),
-  };
-}
-
-export async function produceRecipe(recipeId: number, produceQty: number): Promise<RecipeProductionDraft> {
-  const result = await proxyRequest<ApiResponse<RecipeProductionDraft>>(`/api/recipes/${recipeId}/produce`, {
-    method: 'POST',
-    body: JSON.stringify({ produceQty }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '生产扣库存失败');
+export async function getRecipeInventoryStatus(recipeId: number): Promise<RecipeInventoryStatusResult> {
+  const result = await proxyRequest<ApiResponse<RecipeInventoryStatusResult>>(`/api/recipes/${recipeId}/inventory-status`);
+  if (!result.success || !result.data) throw new Error(result.error || '库存状态读取失败');
   return {
     ...result.data,
     recipe: rowToRecipe(result.data.recipe),
@@ -707,6 +697,7 @@ export type RecipeSaveInput = {
   packingPartsJson?: string;
   extraPartsJson?: string;
   customBarrelLength?: number | null;
+  longScrewExtraLength?: number;
   modelVariantId?: number | null;
   impellerModel?: string;
   impellerThickness?: number | null;
@@ -793,6 +784,7 @@ export type RecipeSavePayloadDraftInput = {
     cableWire?: string;
     cableAccessoryType?: CableAccessoryType;
     customBarrelLength?: number | string | null;
+    longScrewExtraLength?: number | string;
     modelVariantId?: number | string | null;
     impellerModel?: string;
     impellerThickness?: number | string | null;

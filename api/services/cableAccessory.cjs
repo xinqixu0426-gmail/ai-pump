@@ -86,6 +86,84 @@ function getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier = '
     return accessoryType === 'xinjie' ? '新界式' : '普通铜套';
 }
 
+function isCableWirePart(part) {
+    const model = String(part?.model || '');
+    const name = String(part?.name || '');
+    return model.startsWith('电缆-') || name === '电缆线' || name.startsWith('成品电缆');
+}
+
+function isLegacyCableAccessoryPart(part) {
+    const model = String(part?.model || '');
+    const name = String(part?.name || '');
+    return model === '电缆配件费' || name.includes('电缆接头配件') || name.includes('电缆配件费');
+}
+
+function buildCompleteCablePart({
+    model,
+    supplier = '',
+    cableLength,
+    cableUnitPrice,
+    accessoryType = 'standard',
+    accessoryName,
+    accessoryFee,
+}) {
+    const length = Number(cableLength || 0);
+    const unitPrice = Number(cableUnitPrice || 0);
+    const fee = Number(accessoryFee || 0);
+    const resolvedAccessoryName = String(accessoryName || (accessoryType === 'xinjie' ? '新界式' : '普通铜套')).trim();
+    const total = Number((unitPrice * length + fee).toFixed(2));
+    return {
+        model: String(model || ''),
+        name: `成品电缆（${resolvedAccessoryName}）`,
+        supplier: String(supplier || ''),
+        qty: 1,
+        inventoryQty: length,
+        snapshotPrice: total,
+        cableLength: length,
+        cableUnitPrice: unitPrice,
+        cableAccessoryType: accessoryType,
+        cableAccessoryName: resolvedAccessoryName,
+        cableAccessoryFee: fee,
+        formula: `完整电缆：线材 ${unitPrice}×${length}m + ${resolvedAccessoryName} ${fee}`,
+    };
+}
+
+function collapseLegacyCableParts(parts) {
+    if (!Array.isArray(parts)) return [];
+    if (parts.some(part => part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆'))) {
+        return parts;
+    }
+    const cableIndex = parts.findIndex(isCableWirePart);
+    const accessoryIndex = parts.findIndex(isLegacyCableAccessoryPart);
+    if (cableIndex < 0 || accessoryIndex < 0) return parts;
+
+    const cable = parts[cableIndex];
+    const accessory = parts[accessoryIndex];
+    const accessoryType = accessory.cableAccessoryType || cable.cableAccessoryType || 'standard';
+    const legacyAccessoryName = String(accessory.name || '').trim();
+    const accessoryName = !legacyAccessoryName || legacyAccessoryName.includes('配件')
+        ? (accessoryType === 'xinjie' ? '新界式' : '普通铜套')
+        : legacyAccessoryName;
+    const completeCable = {
+        ...cable,
+        ...buildCompleteCablePart({
+            model: cable.model,
+            supplier: cable.supplier,
+            cableLength: cable.cableLength ?? cable.inventoryQty ?? cable.qty,
+            cableUnitPrice: cable.cableUnitPrice ?? cable.snapshotPrice,
+            accessoryType,
+            accessoryName,
+            accessoryFee: accessory.snapshotPrice,
+        }),
+        cableAssembly: true,
+    };
+    return parts.flatMap((part, index) => {
+        if (index === cableIndex) return [completeCable];
+        if (index === accessoryIndex) return [];
+        return [part];
+    });
+}
+
 module.exports = {
     parseCableAccessoryFee,
     parseCableAccessoryName,
@@ -95,4 +173,7 @@ module.exports = {
     getCableAccessoryNameFromPartsByModel,
     getCableAccessoryFeeFromCatalog,
     getCableAccessoryNameFromCatalog,
+    buildCompleteCablePart,
+    collapseLegacyCableParts,
+    isLegacyCableAccessoryPart,
 };

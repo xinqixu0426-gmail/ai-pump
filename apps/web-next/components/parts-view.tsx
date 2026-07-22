@@ -941,7 +941,7 @@ export function PartsView() {
 
             {isCableMode ? (
               <section className="rounded-md border border-line bg-slate-50 p-4">
-                <div className="text-sm font-medium text-ink">电缆配件费</div>
+                <div className="text-sm font-medium text-ink">成品电缆插头 / 规格费用</div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <label className="block">
                     <span className="text-xs font-medium text-muted">第一种名称</span>

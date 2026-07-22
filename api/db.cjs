@@ -5,6 +5,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const { createLogger } = require('./logger.cjs');
 const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./services/costEngine.cjs');
+const { collapseLegacyCableParts } = require('./services/cableAccessory.cjs');
 const backupLogger = createLogger('backup');
 
 // ── SQLite 初始化 ──
@@ -313,6 +314,7 @@ const recipeAlterColumns = [
     ['surface_treatment_cost', 'REAL DEFAULT 0'],
     ['management_fee', 'REAL DEFAULT 0'],
     ['custom_barrel_length', 'REAL'],
+    ['long_screw_extra_length', 'REAL DEFAULT 0'],
     ['model_variant_id', 'INTEGER'],
     ['impeller_model', "TEXT DEFAULT ''"],
     ['impeller_thickness', 'REAL'],
@@ -323,6 +325,20 @@ const recipeAlterColumns = [
 for (const [col, type] of recipeAlterColumns) {
     try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
 }
+try {
+    db.exec(`
+        UPDATE recipes
+        SET long_screw_extra_length = COALESCE((
+            SELECT CAST(json_extract(item.value, '$.longScrewExtraLength') AS REAL)
+            FROM json_each(recipes.parts_json) AS item
+            WHERE json_extract(item.value, '$.dynamicRule') = 'longScrewByBarrelLength'
+              AND json_type(item.value, '$.longScrewExtraLength') IN ('integer', 'real')
+            LIMIT 1
+        ), long_screw_extra_length, 0)
+        WHERE (long_screw_extra_length IS NULL OR long_screw_extra_length = 0)
+          AND json_valid(parts_json)
+    `);
+} catch { /* legacy recipe long screw backfill is idempotent */ }
 try {
     db.exec(`
         UPDATE recipes
@@ -398,7 +414,13 @@ function recipeRow(r) {
         : (r.painting_wage != null ? r.painting_wage : 0);
     return {
         id: r.id, Id: r.id, name: r.name, spec: r.spec,
-        partsJson: r.parts_json,
+        partsJson: (() => {
+            try {
+                return JSON.stringify(collapseLegacyCableParts(JSON.parse(r.parts_json || '[]')));
+            } catch {
+                return r.parts_json;
+            }
+        })(),
         savedTotalCost: r.saved_total_cost,
         savedCostDetails: r.saved_cost_details,
         templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
@@ -413,6 +435,7 @@ function recipeRow(r) {
         impellerDiameter: r.impeller_diameter,
         impellerBladeCount: r.impeller_blade_count,
         technicalDataJson: r.technical_data_json || '{}',
+        longScrewExtraLength: Number(r.long_screw_extra_length || 0),
         packingPartsJson: r.packing_parts_json,
         assemblyWage: r.assembly_wage, packingWage: r.packing_wage, paintingWage: r.painting_wage,
         surfaceTreatmentMode,

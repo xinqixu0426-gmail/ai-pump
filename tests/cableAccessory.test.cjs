@@ -7,6 +7,8 @@ const {
     getCableAccessoryNameFromPartsByModel,
     getCableAccessoryFeeFromCatalog,
     getCableAccessoryNameFromCatalog,
+    buildCompleteCablePart,
+    collapseLegacyCableParts,
 } = require('../api/services/cableAccessory.cjs');
 
 const notes = JSON.stringify({
@@ -46,4 +48,27 @@ test('电缆配件 helper 支持扁平 partsCatalog', () => {
     assert.equal(getCableAccessoryNameFromCatalog(catalog, '电缆-线径0.75', '', 'xinjie'), '新界式');
     assert.equal(getCableAccessoryFeeFromCatalog(catalog, '不存在', '', 'standard'), 0.4);
     assert.equal(getCableAccessoryNameFromCatalog(catalog, '不存在', '', 'standard'), '普通铜套');
+});
+
+test('成品电缆 helper 将线材和插头规格保存为一个业务项', () => {
+    const complete = buildCompleteCablePart({
+        model: '电缆-线径0.75',
+        cableLength: 8,
+        cableUnitPrice: 1.88,
+        accessoryType: 'xinjie',
+        accessoryName: '新界式',
+        accessoryFee: 3.4,
+    });
+    assert.equal(complete.name, '成品电缆（新界式）');
+    assert.equal(complete.qty, 1);
+    assert.equal(complete.inventoryQty, 8);
+    assert.equal(complete.snapshotPrice, 18.44);
+
+    const collapsed = collapseLegacyCableParts([
+        { model: '电缆-线径0.75', name: '电缆线', qty: 8, snapshotPrice: 1.88 },
+        { model: '电缆配件费', name: '新界式', qty: 1, snapshotPrice: 3.4, cableAccessoryType: 'xinjie' },
+    ]);
+    assert.equal(collapsed.length, 1);
+    assert.equal(collapsed[0].snapshotPrice, 18.44);
+    assert.equal(collapsed[0].cableAssembly, true);
 });

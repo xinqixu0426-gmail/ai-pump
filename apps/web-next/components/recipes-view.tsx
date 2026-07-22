@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { ChevronDown, CircleAlert, CircleHelp, Copy, Eye, GitCompare, Layers3, Package, Pencil, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ChevronDown, CircleAlert, CircleHelp, Copy, Eye, GitCompare, Layers3, Package, Pencil, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -23,7 +23,6 @@ import {
   buildRecipeSavePayloadDraft,
   buildRecipeCopperRisk,
   buildTemplateNameMap,
-  checkRecipeProduction,
   createModelVariant,
   createRecipe,
   createTemplate,
@@ -33,13 +32,13 @@ import {
   getCoilSpecOptions,
   getRecipeCurrentCost,
   getRecipeDataset,
+  getRecipeInventoryStatus,
   getRecipeLaborTotal,
   getRecipeSavedTotal,
   getTemplateRecipeDraft,
   parseRecipePartsJson,
   previewRecipeBomDraft,
   previewRecipeCostDraft,
-  produceRecipe,
   recipePartsOverview,
   updateModelVariant,
   updateRecipe,
@@ -55,7 +54,7 @@ import {
   type RecipeCurrentCostResult,
   type RecipeCurrentTotalCost,
   type RecipePart,
-  type RecipeProductionDraft,
+  type RecipeInventoryStatusResult,
   type ShellComponentInput,
   type SurfaceTreatmentMode,
   type TemplateInput,
@@ -980,7 +979,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     cableWire: recipe.cableWire || '',
     cableAccessoryType: recipe.cableAccessoryType || 'standard',
     customBarrelLength: recipe.customBarrelLength ? String(recipe.customBarrelLength) : '',
-    longScrewExtraLength: '0',
+    longScrewExtraLength: String(recipe.longScrewExtraLength || 0),
     impellerModel: recipe.impellerModel || '',
     impellerThickness: recipe.impellerThickness ? String(recipe.impellerThickness) : '',
     impellerDiameter: recipe.impellerDiameter ? String(recipe.impellerDiameter) : '',
@@ -1018,11 +1017,9 @@ export function RecipesView() {
   const [detailCurrentCost, setDetailCurrentCost] = useState<RecipeCurrentCostResult | null>(null);
   const [detailCurrentCostLoading, setDetailCurrentCostLoading] = useState(false);
   const [detailCurrentCostError, setDetailCurrentCostError] = useState<string | null>(null);
-  const [produceQty, setProduceQty] = useState('1');
-  const [productionDraft, setProductionDraft] = useState<RecipeProductionDraft | null>(null);
-  const [productionLoading, setProductionLoading] = useState(false);
-  const [productionError, setProductionError] = useState<string | null>(null);
-  const [productionSuccess, setProductionSuccess] = useState<string | null>(null);
+  const [inventoryStatus, setInventoryStatus] = useState<RecipeInventoryStatusResult | null>(null);
+  const [inventoryStatusLoading, setInventoryStatusLoading] = useState(false);
+  const [inventoryStatusError, setInventoryStatusError] = useState<string | null>(null);
   const [form, setForm] = useState<RecipeFormState>(emptyForm);
   const [optionalParts, setOptionalParts] = useState<RecipeSelection[]>([]);
   const [packingParts, setPackingParts] = useState<RecipeSelection[]>([]);
@@ -1192,12 +1189,11 @@ export function RecipesView() {
   }, [detailRecipe]);
 
   const detailSavedTotal = detailRecipe ? getRecipeSavedTotal(detailRecipe) : null;
-  const detailCurrentTotal = detailCurrentCost ? Number(detailCurrentCost.totalCost || 0) : null;
-  const detailCostDiff = detailCurrentTotal != null && detailSavedTotal != null
-    ? detailCurrentTotal - detailSavedTotal
-    : null;
+  const detailCurrentSummary = detailRecipe ? currentCostMap.get(detailRecipe.id) || null : null;
+  const detailCurrentTotal = detailCurrentSummary?.currentTotalCost ?? null;
+  const detailCostDiff = detailCurrentSummary?.difference ?? null;
   const detailSavedAt = detailRecipe ? dateTimeShort(detailRecipe.updatedAt || detailRecipe.createdAt) : '-';
-  const detailCurrentAt = detailCurrentCost ? dateTimeShort(detailCurrentCost.fetchedAt) : '-';
+  const detailCurrentAt = detailCurrentSummary?.fetchedAt ? dateTimeShort(detailCurrentSummary.fetchedAt) : '-';
   const detailPartCompareRows = useMemo(() => {
     return detailParts.map((part, index) => {
       const current = detailCurrentCost?.details?.[index];
@@ -1632,7 +1628,7 @@ export function RecipesView() {
       coilSnapshot: null,
       capacitorModel: '',
       customBarrelLength: recipe.customBarrelLength ?? null,
-      longScrewExtraLength: 0,
+      longScrewExtraLength: recipe.longScrewExtraLength || 0,
     });
     setBomDraftError(null);
     setTemplateMatchDialogOpen(false);
@@ -1659,7 +1655,7 @@ export function RecipesView() {
       coilSnapshot: null,
       capacitorModel: '',
       customBarrelLength: recipe.customBarrelLength ?? null,
-      longScrewExtraLength: 0,
+      longScrewExtraLength: recipe.longScrewExtraLength || 0,
     });
     setBomDraftError(null);
     setTemplateMatchDialogOpen(false);
@@ -1785,47 +1781,24 @@ export function RecipesView() {
     });
   }
 
-  async function refreshProductionCheck(recipe: Recipe, qtyValue = produceQty) {
-    const qty = Math.max(1, Number(qtyValue || 1));
-    setProductionLoading(true);
-    setProductionError(null);
+  async function refreshInventoryStatus(recipe: Recipe) {
+    setInventoryStatusLoading(true);
+    setInventoryStatusError(null);
     try {
-      const draft = await checkRecipeProduction(recipe.id, qty);
-      setProductionDraft(draft);
+      setInventoryStatus(await getRecipeInventoryStatus(recipe.id));
     } catch (err) {
-      setProductionDraft(null);
-      setProductionError(err instanceof Error ? err.message : '库存预检失败');
+      setInventoryStatus(null);
+      setInventoryStatusError(err instanceof Error ? err.message : '库存状态读取失败');
     } finally {
-      setProductionLoading(false);
+      setInventoryStatusLoading(false);
     }
   }
 
   function openRecipeDetail(recipe: Recipe) {
     setDetailRecipe(recipe);
-    setProduceQty('1');
-    setProductionDraft(null);
-    setProductionError(null);
-    setProductionSuccess(null);
-    void refreshProductionCheck(recipe, '1');
-  }
-
-  async function submitProduction() {
-    if (!detailRecipe) return;
-    const qty = Math.max(1, Number(produceQty || 1));
-    if (!window.confirm(`确认按配方「${detailRecipe.name || detailRecipe.id}」生产 ${qty} 台并扣减库存？`)) return;
-
-    setProductionLoading(true);
-    setProductionError(null);
-    try {
-      const draft = await produceRecipe(detailRecipe.id, qty);
-      setProductionDraft(draft);
-      setProductionSuccess(`已完成生产扣库存：${qty} 台`);
-      await load(true);
-    } catch (err) {
-      setProductionError(err instanceof Error ? err.message : '生产扣库存失败');
-    } finally {
-      setProductionLoading(false);
-    }
+    setInventoryStatus(null);
+    setInventoryStatusError(null);
+    void refreshInventoryStatus(recipe);
   }
 
   function openCreateVariant() {
@@ -2204,6 +2177,7 @@ export function RecipesView() {
           cableWire: form.cableWire,
           cableAccessoryType: form.cableAccessoryType,
           customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
+          longScrewExtraLength: hasStainlessBarrel ? form.longScrewExtraLength || 0 : 0,
           modelVariantId: form.variantId || null,
           impellerModel: form.impellerModel,
           impellerThickness: form.impellerThickness || null,
@@ -2633,16 +2607,16 @@ export function RecipesView() {
                   <div className="mt-1 text-xs text-muted">保存 {detailSavedAt}</div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
-                  <div className="text-xs text-muted">当前参考</div>
+                  <div className="text-xs text-muted">当日完整成本</div>
                   <div className="mt-1 text-xl font-semibold text-ink">{detailCurrentTotal != null ? money(detailCurrentTotal) : '-'}</div>
-                  <div className="mt-1 text-xs text-muted">{detailCurrentCostLoading ? '读取中' : `读取 ${detailCurrentAt}`}</div>
+                  <div className="mt-1 text-xs text-muted">含人工及管理费 · {detailCurrentAt}</div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
                   <div className="text-xs text-muted">成本差额</div>
                   <div className={`mt-1 text-xl font-semibold ${Number(detailCostDiff || 0) > 0 ? 'text-rose-700' : Number(detailCostDiff || 0) < 0 ? 'text-emerald-700' : 'text-ink'}`}>
-                    {detailCostDiff != null ? money(detailCostDiff) : '-'}
+                    {detailCostDiff != null ? signedMoney(detailCostDiff) : '-'}
                   </div>
-                  <div className="mt-1 text-xs text-muted">当前 - 保存</div>
+                  <div className="mt-1 text-xs text-muted">当日完整成本 - 保存成本</div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
                   <div className="text-xs text-muted">BOM 项数</div>
@@ -2719,7 +2693,9 @@ export function RecipesView() {
                               <td className="border-b border-line px-4 py-3 font-medium text-ink">{part.name || part.model || '-'}</td>
                               <td className="border-b border-line px-4 py-3 text-muted">{part.model || '-'}</td>
                               <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
-                              <td className="border-b border-line px-4 py-3 text-right text-muted">{row.qty || 1}</td>
+                              <td className="border-b border-line px-4 py-3 text-right text-muted">
+                                {part.cableAssembly ? `1 根 / ${part.cableLength || part.inventoryQty || 0}m` : row.qty || 1}
+                              </td>
                               <td className="border-b border-line px-4 py-3 text-right text-muted">{row.snapshotPrice != null ? money(row.snapshotPrice) : '-'}</td>
                               <td className="border-b border-line px-4 py-3 text-right text-muted">{row.currentPrice != null ? money(row.currentPrice) : '-'}</td>
                               <td className="border-b border-line px-4 py-3 text-right text-muted">{row.savedSubtotal != null ? money(row.savedSubtotal) : '-'}</td>
@@ -2738,67 +2714,46 @@ export function RecipesView() {
               </section>
 
               <section className="rounded-panel border border-line">
-                <div className="border-b border-line p-4">
-                  <div className="text-sm font-semibold text-ink">生产扣库存</div>
-                  <div className="mt-1 text-xs text-muted">预检和扣减都由后端执行，前端只展示结果。</div>
-                </div>
-                <div className="space-y-4 p-4">
-                  <div className="flex flex-wrap items-end gap-3">
-                    <label className="block">
-                      <span className="text-xs font-medium text-muted">生产数量</span>
-                      <input
-                        value={produceQty}
-                        onChange={(event) => setProduceQty(event.target.value)}
-                        type="number"
-                        min="1"
-                        step="1"
-                        className="mt-1 h-9 w-32 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                      />
-                    </label>
-                    <Button type="button" onClick={() => void refreshProductionCheck(detailRecipe)} disabled={productionLoading} icon={<RefreshCw size={14} className={productionLoading ? 'animate-spin' : ''} />}>
-                      预检库存
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="primary"
-                      onClick={() => void submitProduction()}
-                      disabled={productionLoading || !productionDraft?.canProduce}
-                      icon={<Play size={14} />}
-                    >
-                      确认生产
-                    </Button>
+                <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+                  <div>
+                    <div className="text-sm font-semibold text-ink">配件库存</div>
+                    <div className="mt-1 text-xs text-muted">当前零件库库存状态</div>
                   </div>
-
-                  {productionError ? (
-                    <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{productionError}</div>
-                  ) : null}
-                  {productionSuccess ? (
-                    <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{productionSuccess}</div>
-                  ) : null}
-
-                  {productionDraft ? (
+                  <button
+                    type="button"
+                    aria-label="刷新库存状态"
+                    title="刷新库存状态"
+                    onClick={() => void refreshInventoryStatus(detailRecipe)}
+                    disabled={inventoryStatusLoading}
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:opacity-60"
+                  >
+                    <RefreshCw size={14} className={inventoryStatusLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+                <div className="p-4">
+                  {inventoryStatusError ? (
+                    <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{inventoryStatusError}</div>
+                  ) : inventoryStatus ? (
                     <div className="overflow-x-auto rounded-md border border-line">
                       <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                         <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                           <tr>
                             <th className="border-b border-line px-3 py-2">配件</th>
-                            <th className="border-b border-line px-3 py-2 text-right">需用</th>
                             <th className="border-b border-line px-3 py-2 text-right">库存</th>
                             <th className="border-b border-line px-3 py-2">状态</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {productionDraft.checks.map((check, index) => (
-                            <tr key={`${check.model}-${index}`} className={check.sufficient ? '' : 'bg-rose-50/60'}>
+                          {inventoryStatus.items.map((item, index) => (
+                            <tr key={`${item.model}-${index}`} className={item.status === 'in_stock' ? '' : 'bg-rose-50/60'}>
                               <td className="border-b border-line px-3 py-2">
-                                <div className="font-medium text-ink">{check.name || check.model || '-'}</div>
-                                <div className="text-xs text-muted">{check.model || '-'}{check.supplier ? ` / ${check.supplier}` : ''}</div>
+                                <div className="font-medium text-ink">{item.name || item.model || '-'}</div>
+                                <div className="text-xs text-muted">{item.model || '-'}{item.supplier ? ` / ${item.supplier}` : ''}</div>
                               </td>
-                              <td className="border-b border-line px-3 py-2 text-right text-muted">{check.qtyNeeded}</td>
-                              <td className="border-b border-line px-3 py-2 text-right text-muted">{check.partId ? check.currentStock : '未找到'}</td>
+                              <td className="border-b border-line px-3 py-2 text-right text-muted">{item.partId ? item.currentStock : '未找到'}</td>
                               <td className="border-b border-line px-3 py-2">
-                                <StatusBadge tone={check.sufficient ? 'green' : 'red'}>
-                                  {check.partId ? (check.sufficient ? '充足' : `缺 ${check.qtyNeeded - check.currentStock}`) : '零件缺失'}
+                                <StatusBadge tone={item.status === 'in_stock' ? 'green' : 'red'}>
+                                  {item.status === 'in_stock' ? '有库存' : item.status === 'out_of_stock' ? '缺货' : '零件缺失'}
                                 </StatusBadge>
                               </td>
                             </tr>
@@ -2806,7 +2761,9 @@ export function RecipesView() {
                         </tbody>
                       </table>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="py-4 text-sm text-muted">正在读取库存状态...</div>
+                  )}
                 </div>
               </section>
             </div>
@@ -3749,7 +3706,7 @@ export function RecipesView() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-muted">配件</span>
+                      <span className="text-xs font-medium text-muted">插头 / 规格</span>
                       <select
                         value={form.cableAccessoryType}
                         onChange={(event) => updateForm({ cableAccessoryType: event.target.value as CableAccessoryType })}

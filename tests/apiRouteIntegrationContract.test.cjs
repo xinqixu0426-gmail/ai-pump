@@ -36,7 +36,7 @@ test('关键 API 集成契约：/api/recipes/cost-draft 只生成保存成本草
 
 test('关键 API 集成契约：/api/recipes/bom-draft 只生成 BOM 草稿不写库', () => {
     const source = readUtf8('api/routes/recipes.cjs');
-    const section = sliceBetween(source, "router.post('/bom-draft'", "router.post('/:id/production-check'");
+    const section = sliceBetween(source, "router.post('/bom-draft'", "router.post('/model-variant-draft'");
     const templateContext = sliceBetween(source, 'function loadTemplateContext', "router.post('/bom-draft'");
 
     assert.match(section, /buildRecipeBomDraft\(body, \{/);
@@ -261,13 +261,16 @@ test('关键 API 集成契约：配方保存草稿必须统一校验数字字段
     assert.match(saveDraft, /parseNonNegativeNumber\(costDraft\.savedTotalCost, 'costDraft\.savedTotalCost'\)/);
     assert.match(saveDraft, /parseNonNegativeNumber\(form\.coilSheets, 'form\.coilSheets'\)/);
     assert.match(saveDraft, /parseNonNegativeNumber\(form\.cableLength, 'form\.cableLength'\)/);
+    assert.match(saveDraft, /parseNonNegativeNumber\(form\.longScrewExtraLength, 'form\.longScrewExtraLength'\)/);
     assert.match(saveDraft, /parseNonNegativeNumber\(form\.assemblyWage, 'form\.assemblyWage'\)/);
     assert.match(saveDraft, /parseNonNegativeNumber\(form\.packingWage, 'form\.packingWage'\)/);
     assert.match(saveDraft, /parseNonNegativeNumber\(form\.managementFee, 'form\.managementFee'\)/);
     assert.match(saveDraft, /parseNonNegativeInteger\(form\.impellerBladeCount, 'form\.impellerBladeCount'\)/);
     assert.doesNotMatch(saveDraft, /numberValue\(form\./);
     assert.doesNotMatch(saveDraft, /\bNumber\(form\./);
-    assert.match(recipes, /parsePositiveNumber\(body\?\.produceQty \?\? body\?\.qty, 'produceQty'/);
+    assert.match(recipes, /router\.get\('\/:id\/inventory-status'/);
+    assert.doesNotMatch(recipes, /produceQty|production-check|router\.post\('\/:id\/produce'/);
+    assert.match(recipes, /parseNonNegativeNumber\(updates\.long_screw_extra_length, 'longScrewExtraLength'\)/);
 });
 
 test('关键 API 集成契约：转子出图入口使用标准响应并保留兼容字段', () => {

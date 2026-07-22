@@ -137,7 +137,7 @@ test('通用配方成本计算支持浮球新界式加价', () => {
     assert.equal(result.details[0].source, '型号回退(取最低价)+新界式');
 });
 
-test('通用配方成本计算优先使用全局电缆配件费', () => {
+test('通用配方成本计算兼容旧电缆两行并合并重算成品电缆', () => {
     const result = calculateRecipeCost([
         { name: '电缆线', model: '电缆-线径0.55', supplier: '', qty: 2 },
         { name: '电缆接头配件', model: '电缆配件费', supplier: '', qty: 1, cableAccessoryType: 'xinjie' },
@@ -151,7 +151,11 @@ test('通用配方成本计算优先使用全局电缆配件费', () => {
     });
 
     assert.equal(result.totalCost, '3.30');
-    assert.equal(result.details[1].price, '0.90');
+    assert.equal(result.itemCount, 1);
+    assert.equal(result.details[0].name, '成品电缆（新界式）');
+    assert.equal(result.details[0].price, '3.30');
+    assert.equal(result.details[0].qty, 1);
+    assert.match(result.details[0].source, /新界式/);
 });
 
 test('通用配方成本计算支持参数化长螺丝', () => {

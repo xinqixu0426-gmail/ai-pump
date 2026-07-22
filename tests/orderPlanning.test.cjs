@@ -4,6 +4,7 @@ const { buildOrderPlan, buildPurchaseList } = require('../api/services/orderPlan
 
 const partsCatalog = [
     { Id: 1, model: '201', name: '轴承', category: '轴承', supplier: '轴承供应商', stock: 3, price: 1.1 },
+    { Id: 3, model: '电缆-线径0.75', name: '电缆线', category: '电缆线', supplier: '线缆供应商', stock: 5, price: 1.88 },
     {
         Id: 2,
         model: 'φ6 不锈钢长螺丝',
@@ -55,6 +56,21 @@ test('参数化长螺丝采购项可使用基础螺丝供应商且不扣基础�
     assert.equal(purchaseList[0].currentStock, 0);
     assert.equal(purchaseList[0].needToBuy, 4);
     assert.equal(purchaseList[0].partId, undefined);
+});
+
+test('采购清单将旧电缆两行合并并按实际米数计算', () => {
+    const purchaseList = buildPurchaseList([{
+        qty: 2,
+        partsJson: JSON.stringify([
+            { model: '电缆-线径0.75', name: '电缆线', supplier: '线缆供应商', qty: 8, snapshotPrice: 1.88 },
+            { model: '电缆配件费', name: '新界式', qty: 1, snapshotPrice: 3.4, cableAccessoryType: 'xinjie' },
+        ]),
+    }], partsCatalog);
+
+    assert.equal(purchaseList.length, 1);
+    assert.equal(purchaseList[0].model, '电缆-线径0.75');
+    assert.equal(purchaseList[0].totalQty, 16);
+    assert.equal(purchaseList[0].needToBuy, 11);
 });
 
 test('采购计划同时生成供应商待办', () => {

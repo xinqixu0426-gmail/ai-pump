@@ -119,8 +119,13 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
 
     assert.ok(result.parts.find(part => part.name === '电容' && part.model === '20μF'));
     assert.ok(result.parts.find(part => part.name === '浮球'));
-    assert.ok(result.parts.find(part => part.name === '电缆线' && part.formula === '电缆单价 1.88×3m'));
-    assert.ok(result.parts.find(part => part.model === '电缆配件费' && part.snapshotPrice === 1 && part.formula === '电缆配件费(新界式)'));
+    const cable = result.parts.find(part => part.name === '成品电缆（新界式）');
+    assert.equal(cable.model, '电缆-线径0.75');
+    assert.equal(cable.qty, 1);
+    assert.equal(cable.inventoryQty, 3);
+    assert.equal(cable.snapshotPrice, 6.64);
+    assert.match(cable.formula, /线材 1.88×3m \+ 新界式 1/);
+    assert.equal(result.parts.some(part => part.model === '电缆配件费'), false);
     assert.ok(result.parts.find(part => part.model === '牛皮纸箱A' && part.packagingMaterial === '牛皮纸箱'));
     assert.ok(result.parts.find(part => part.model === '泡沫内衬' && part.packagingMaterial === '泡沫'));
 });

@@ -386,7 +386,7 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     assert.match(partsView, /finalPartModel/);
     assert.match(partsView, /getSettingValue/);
     assert.match(partsView, /setSettingValue/);
-    for (const label of ['电容容量', '线径', '电缆配件费', '新界式浮球加价', '按长度自动计价', '不锈钢机筒', '保存并继续']) {
+    for (const label of ['电容容量', '线径', '成品电缆插头 / 规格费用', '新界式浮球加价', '按长度自动计价', '不锈钢机筒', '保存并继续']) {
         assert.match(partsView, new RegExp(label));
     }
     for (const marker of ['groupedParts', 'collapsedCategories', 'toggleSelectGroup', 'exportSelectedCsv', 'deleteParts']) {
@@ -548,9 +548,12 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /comparePartRows/);
     assert.match(recipesView, /Recipe Detail/);
     assert.match(recipesView, /openRecipeDetail/);
-    assert.match(recipesView, /checkRecipeProduction/);
-    assert.match(recipesView, /produceRecipe/);
-    assert.match(recipesView, /生产扣库存/);
+    assert.match(recipesView, /const detailCurrentSummary = detailRecipe \? currentCostMap\.get\(detailRecipe\.id\)/);
+    assert.match(recipesView, /当日完整成本/);
+    assert.doesNotMatch(recipesView, /detailCurrentCost \? Number\(detailCurrentCost\.totalCost/);
+    assert.match(recipesView, /getRecipeInventoryStatus/);
+    assert.match(recipesView, /配件库存/);
+    assert.doesNotMatch(recipesView, /确认生产|生产数量|预检库存|produceRecipe/);
     assert.match(recipesView, /新建模板/);
     assert.match(recipesView, /submitTemplate/);
     assert.match(recipesView, /openEditTemplate/);
@@ -563,6 +566,8 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /\{hasStainlessBarrel \? \(/);
     assert.match(recipesView, /customBarrelLength: hasStainlessBarrel \? form\.customBarrelLength \|\| null : null/);
     assert.match(recipesView, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);
+    assert.match(recipesView, /longScrewExtraLength: String\(recipe\.longScrewExtraLength \|\| 0\)/);
+    assert.equal((recipesView.match(/longScrewExtraLength: recipe\.longScrewExtraLength \|\| 0/g) || []).length, 2);
     assert.match(recipesView, /openCloneRecipe/);
     assert.match(recipesView, /副本/);
     assert.match(recipesView, /复制/);
@@ -613,8 +618,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesLib, /getTemplateRecipeDraft/);
     assert.match(recipesLib, /\/api\/recipes\/model-variant-draft/);
     assert.match(recipesLib, /\/api\/recipes\/save-payload-draft/);
-    assert.match(recipesLib, /\/api\/recipes\/\$\{recipeId\}\/production-check/);
-    assert.match(recipesLib, /\/api\/recipes\/\$\{recipeId\}\/produce/);
+    assert.match(recipesLib, /\/api\/recipes\/\$\{recipeId\}\/inventory-status/);
     assert.match(recipesLib, /\/api\/templates\/\$\{templateId\}\/default-recipe/);
     assert.match(recipesLib, /createTemplate/);
     assert.match(recipesLib, /updateTemplate/);

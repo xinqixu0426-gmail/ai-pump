@@ -206,18 +206,17 @@ test('API 静态契约：配方保存 payload 必须由后端生成草稿', () =
     assert.doesNotMatch(nextView, /partsJson: JSON\.stringify\(costDraft\.parts\)/);
 });
 
-test('API 静态契约：配方生产扣库存必须由后端动作执行', () => {
+test('API 静态契约：配方详情只读库存状态且不保留生产扣库存入口', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
     const recipeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
-    assert.match(route, /router\.post\('\/:id\/production-check'/);
-    assert.match(route, /router\.post\('\/:id\/produce'/);
-    assert.match(route, /function produceRecipe/);
-    assert.match(route, /safeUpdate\('parts', deduction\.partId, \{ stock \}\)/);
-    assert.match(nextClient, /produceRecipe\(recipeId: number, produceQty: number\)/);
-    assert.match(nextClient, /\/api\/recipes\/\$\{recipeId\}\/produce/);
-    assert.doesNotMatch(recipeView, /batchDeductStock|stockDeductionsFromChecks/);
+    assert.match(route, /router\.get\('\/:id\/inventory-status'/);
+    assert.match(route, /function buildRecipeInventoryStatus/);
+    assert.doesNotMatch(route, /production-check|router\.post\('\/:id\/produce'|function produceRecipe/);
+    assert.match(nextClient, /getRecipeInventoryStatus\(recipeId: number\)/);
+    assert.match(nextClient, /\/api\/recipes\/\$\{recipeId\}\/inventory-status/);
+    assert.doesNotMatch(recipeView, /确认生产|生产数量|预检库存|produceRecipe/);
 });
 
 test('API 静态契约：报价转订单必须由后端生成订单草稿', () => {

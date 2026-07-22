@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, recipeTechnicalFileRow, safeInsert, safeUpdate, softDelete, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
 const { buildRecipeCostDraft } = require('../services/costEngine.cjs');
+const { collapseLegacyCableParts } = require('../services/cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('../services/recipeBomEngine.cjs');
 const { buildLongScrewInventoryPartsFromRecipe } = require('../services/longScrewInventory.cjs');
 const { parsePumpTestReport } = require('../services/pumpTestReport.cjs');
@@ -54,7 +55,7 @@ const RECIPE_FIELDS = [
     'box_type', 'extra_parts_json', 'packing_parts_json',
     'assembly_wage', 'packing_wage', 'painting_wage',
     'surface_treatment_mode', 'surface_treatment_cost',
-    'management_fee', 'custom_barrel_length',
+    'management_fee', 'custom_barrel_length', 'long_screw_extra_length',
     'model_variant_id', 'impeller_model', 'impeller_thickness', 'impeller_diameter', 'impeller_blade_count',
     'technical_data_json',
 ];
@@ -85,6 +86,7 @@ const RECIPE_ALIASES = {
     surfaceTreatmentCost: 'surface_treatment_cost',
     managementFee: 'management_fee',
     customBarrelLength: 'custom_barrel_length',
+    longScrewExtraLength: 'long_screw_extra_length',
     modelVariantId: 'model_variant_id',
     impellerModel: 'impeller_model',
     impellerThickness: 'impeller_thickness',
@@ -101,23 +103,21 @@ function recipeBodyToDb(body) {
     for (const [camel, snake] of Object.entries(RECIPE_ALIASES)) {
         if (body[camel] !== undefined) updates[snake] = body[camel];
     }
+    if (updates.long_screw_extra_length !== undefined) {
+        updates.long_screw_extra_length = parseNonNegativeNumber(updates.long_screw_extra_length, 'longScrewExtraLength');
+    }
     return updates;
 }
 
-function numberValue(value) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function buildRecipeProductionChecks(recipeRecord, produceQty) {
-    const qty = parsePositiveNumber(produceQty, 'produceQty', { defaultValue: 1 });
-    const recipeParts = parseJsonArray(recipeRecord?.parts_json || recipeRecord?.partsJson);
+function buildRecipeInventoryStatus(id) {
+    const recipeRecord = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(id);
+    if (!recipeRecord) throw new Error('配方不存在');
+    const recipeParts = collapseLegacyCableParts(parseJsonArray(recipeRecord?.parts_json || recipeRecord?.partsJson));
     const allParts = db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all();
 
-    return recipeParts.map(recipePart => {
+    const items = recipeParts.map(recipePart => {
         const model = String(recipePart?.model || '').trim();
         const supplier = String(recipePart?.supplier || '').trim();
-        const qtyNeeded = numberValue(recipePart?.qty) * qty;
         const matchedPart = allParts.find(part => part.model === model && String(part.supplier || '') === supplier)
             || allParts.find(part => part.model === model);
         const currentStock = matchedPart ? Number(matchedPart.stock || 0) : 0;
@@ -126,64 +126,16 @@ function buildRecipeProductionChecks(recipeRecord, produceQty) {
             name: String(recipePart?.name || model),
             model,
             supplier,
-            qtyNeeded,
             currentStock,
-            sufficient: Boolean(matchedPart) && currentStock >= qtyNeeded,
             partId: matchedPart?.id,
+            status: !matchedPart ? 'missing' : currentStock > 0 ? 'in_stock' : 'out_of_stock',
         };
     });
-}
-
-function productionChecksError(checks) {
-    const missing = checks.filter(check => !check.partId);
-    if (missing.length > 0) {
-        return `以下配件在零件表中不存在：${missing.map(check => check.name).join('、')}`;
-    }
-
-    const insufficient = checks.filter(check => !check.sufficient);
-    if (insufficient.length > 0) {
-        return `库存不足：${insufficient.map(check => `${check.name}(需${check.qtyNeeded}，仅${check.currentStock})`).join('、')}`;
-    }
-
-    return '';
-}
-
-function buildRecipeProductionDraft(id, body) {
-    const recipe = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(id);
-    if (!recipe) throw new Error('配方不存在');
-    const produceQty = parsePositiveNumber(body?.produceQty ?? body?.qty, 'produceQty', { defaultValue: 1 });
-    const checks = buildRecipeProductionChecks(recipe, produceQty);
-    const error = productionChecksError(checks);
 
     return {
-        recipe: recipeRow(recipe),
-        produceQty,
-        checks,
-        deductions: checks.filter(check => check.partId).map(check => ({ partId: check.partId, deductQty: check.qtyNeeded })),
-        canProduce: !error,
-        error,
+        recipe: recipeRow(recipeRecord),
+        items,
     };
-}
-
-function produceRecipe(id, body) {
-    const action = db.transaction(() => {
-        const draft = buildRecipeProductionDraft(id, body);
-        if (!draft.canProduce) throw new Error(draft.error || '库存预检失败');
-
-        for (const deduction of draft.deductions) {
-            const current = db.prepare('SELECT stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(deduction.partId);
-            if (!current) throw new Error('扣减库存时零件不存在');
-            const stock = Number(current.stock || 0) - Number(deduction.deductQty || 0);
-            if (stock < 0) throw new Error('库存不足，无法扣减');
-            safeUpdate('parts', deduction.partId, { stock });
-        }
-
-        return draft;
-    });
-
-    const result = action();
-    invalidatePartsCache();
-    return result;
 }
 
 function numberOrNull(value) {
@@ -289,6 +241,7 @@ function buildRecipeSavePayloadDraft(body) {
         packingPartsJson: JSON.stringify(recipeSelectionRows(body?.packingParts, true)),
         extraPartsJson: JSON.stringify(recipeSelectionRows(body?.optionalParts)),
         customBarrelLength: form.customBarrelLength === '' || form.customBarrelLength == null ? null : parseNonNegativeNumber(form.customBarrelLength, 'form.customBarrelLength'),
+        longScrewExtraLength: parseNonNegativeNumber(form.longScrewExtraLength, 'form.longScrewExtraLength'),
         modelVariantId: parsePositiveId(form.modelVariantId),
         impellerModel: String(form.impellerModel || '').trim(),
         impellerThickness: form.impellerThickness === '' || form.impellerThickness == null ? null : parseNonNegativeNumber(form.impellerThickness, 'form.impellerThickness'),
@@ -434,22 +387,11 @@ router.post('/save-payload-draft', (req, res) => {
     }
 });
 
-router.post('/:id/production-check', (req, res) => {
+router.get('/:id/inventory-status', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
-        res.json({ success: true, data: buildRecipeProductionDraft(id, req.body || {}) });
-    } catch (error) {
-        const code = error.message === '配方不存在' ? 404 : 400;
-        res.status(code).json({ success: false, error: error.message });
-    }
-});
-
-router.post('/:id/produce', (req, res) => {
-    try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
-        res.json({ success: true, data: produceRecipe(id, req.body || {}) });
+        res.json({ success: true, data: buildRecipeInventoryStatus(id) });
     } catch (error) {
         const code = error.message === '配方不存在' ? 404 : 400;
         res.status(code).json({ success: false, error: error.message });
@@ -595,6 +537,7 @@ router.post('/', (req, res) => {
                 surface_treatment_cost: b.surface_treatment_cost != null ? b.surface_treatment_cost : (b.painting_wage != null ? b.painting_wage : 0),
                 management_fee: b.management_fee || 0,
                 custom_barrel_length: b.custom_barrel_length != null ? b.custom_barrel_length : null,
+                long_screw_extra_length: b.long_screw_extra_length ?? 0,
                 model_variant_id: b.model_variant_id || null,
                 impeller_model: b.impeller_model || '',
                 impeller_thickness: b.impeller_thickness != null ? b.impeller_thickness : null,

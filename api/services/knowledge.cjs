@@ -176,7 +176,7 @@ function recipeEntry(recipe, technicalFiles = []) {
             `泵壳模板ID：${recipe.templateId || ''}`,
             `线圈：${recipe.coilMaterial || '钢带'} ${recipe.coilSpec || ''}-${recipe.coilSheets || ''}，客户指定线重 ${recipe.coilWireWeight ?? ''}`,
             `浮球：${recipe.hasFloat ? '是' : '否'}，线径 ${recipe.floatWire || ''}，铜套 ${recipe.floatAccessoryType || 'standard'}`,
-            `电缆：${recipe.hasCable ? '是' : '否'}，长度 ${Number(recipe.cableLength || 0)}，线径 ${recipe.cableWire || ''}，铜套 ${recipe.cableAccessoryType || 'standard'}`,
+            `成品电缆：${recipe.hasCable ? '是' : '否'}，长度 ${Number(recipe.cableLength || 0)}，线径 ${recipe.cableWire || ''}，插头/规格 ${recipe.cableAccessoryType || 'standard'}`,
             `包装：${packing.map(item => `${item.model || item.name || '包材'} x ${item.qty || 1}`).join('；')}`,
             `人工和管理费：安装 ${Number(recipe.assemblyWage || 0)}，打包 ${Number(recipe.packingWage || 0)}，表面处理 ${recipe.surfaceTreatmentMode || 'none'} ${Number(recipe.surfaceTreatmentCost || 0)}，管理费 ${Number(recipe.managementFee || 0)}`,
             `BOM：${parts.map(item => `${item.model || item.name || '项目'} x ${item.qty || 1}`).join('；')}`,
