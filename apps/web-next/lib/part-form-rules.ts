@@ -1,6 +1,6 @@
 import type { Part } from './parts';
 
-export const BUILTIN_CATEGORIES = ['轴承', '油封', '螺丝', '泵壳', '线圈转子', '电容', '电缆线', '浮球', '皮垫', '配件', '包装'];
+export const BUILTIN_CATEGORIES = ['轴承', '油封', '螺丝', '泵壳', '泵壳搭配', '线圈转子', '电容', '电缆线', '浮球', '皮垫', '配件', '包装'];
 
 export const DEFAULT_FLOAT_ACCESSORY_DELTA = 0.6;
 export const DEFAULT_STANDARD_CABLE_ACCESSORY_NAME = '普通铜套';

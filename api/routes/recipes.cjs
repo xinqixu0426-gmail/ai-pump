@@ -1,10 +1,51 @@
 const { Router } = require('express');
-const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, safeInsert, safeUpdate, softDelete, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
+const crypto = require('crypto');
+const path = require('path');
+const multer = require('multer');
+const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, recipeTechnicalFileRow, safeInsert, safeUpdate, softDelete, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
 const { buildRecipeCostDraft } = require('../services/costEngine.cjs');
 const { buildRecipeBomDraft } = require('../services/recipeBomEngine.cjs');
 const { buildLongScrewInventoryPartsFromRecipe } = require('../services/longScrewInventory.cjs');
+const { parsePumpTestReport } = require('../services/pumpTestReport.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber, parseNonNegativeInteger } = require('../services/validation.cjs');
 const router = Router();
+const technicalFileUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
+
+const ALLOWED_TECHNICAL_FILE_EXTENSIONS = new Set(['.xls', '.xlsx']);
+
+function uploadFileName(value) {
+    const raw = String(value || '测试报告');
+    const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+    return path.basename(decoded.includes('\uFFFD') ? raw : decoded);
+}
+
+function technicalFileResponse(row) {
+    const file = recipeTechnicalFileRow(row);
+    return {
+        id: file.id,
+        recipeId: file.recipeId,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        fileSize: file.fileSize,
+        fileSha256: file.fileSha256,
+        reportType: file.reportType,
+        summary: parseJsonObject(file.summaryJson),
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+    };
+}
+
+function parseJsonObject(value) {
+    try {
+        const parsed = JSON.parse(value || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
 
 const RECIPE_FIELDS = [
     'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
@@ -412,6 +453,103 @@ router.post('/:id/produce', (req, res) => {
     } catch (error) {
         const code = error.message === '配方不存在' ? 404 : 400;
         res.status(code).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/:id/technical-files', (req, res) => {
+    try {
+        const recipeId = parsePositiveId(req.params.id);
+        if (!recipeId) return res.status(400).json({ success: false, error: '非法配方ID' });
+        if (!db.prepare('SELECT id FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId)) {
+            return res.status(404).json({ success: false, error: '配方不存在' });
+        }
+        const rows = db.prepare(`
+            SELECT id, recipe_id, original_name, mime_type, file_size, file_sha256,
+                   report_type, summary_json, parsed_json, extracted_text, created_at, updated_at
+            FROM recipe_technical_files
+            WHERE recipe_id = ? AND deleted_at IS NULL
+            ORDER BY id DESC
+        `).all(recipeId);
+        res.json({ success: true, data: rows.map(technicalFileResponse) });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/technical-files', (req, res) => {
+    technicalFileUpload.single('file')(req, res, error => {
+        if (error) {
+            const message = error.code === 'LIMIT_FILE_SIZE' ? '测试报告不能超过 10MB' : error.message;
+            return res.status(400).json({ success: false, error: message });
+        }
+        try {
+            const recipeId = parsePositiveId(req.params.id);
+            if (!recipeId) return res.status(400).json({ success: false, error: '非法配方ID' });
+            if (!db.prepare('SELECT id FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId)) {
+                return res.status(404).json({ success: false, error: '配方不存在' });
+            }
+            if (!req.file?.buffer?.length) return res.status(400).json({ success: false, error: '请选择测试报告文件' });
+            const originalName = uploadFileName(req.file.originalname);
+            const extension = path.extname(originalName).toLowerCase();
+            if (!ALLOWED_TECHNICAL_FILE_EXTENSIONS.has(extension)) {
+                return res.status(400).json({ success: false, error: '只支持 .xls 和 .xlsx 测试报告' });
+            }
+
+            const report = parsePumpTestReport(req.file.buffer, originalName);
+            const now = new Date().toISOString();
+            const info = safeInsert('recipe_technical_files', {
+                recipe_id: recipeId,
+                original_name: originalName,
+                mime_type: req.file.mimetype || 'application/vnd.ms-excel',
+                file_size: req.file.size,
+                file_sha256: crypto.createHash('sha256').update(req.file.buffer).digest('hex'),
+                file_blob: req.file.buffer,
+                report_type: 'pump_performance_test',
+                summary_json: JSON.stringify(report.summary),
+                parsed_json: JSON.stringify(report.parsed),
+                extracted_text: report.extractedText,
+                created_at: now,
+                updated_at: now,
+            });
+            const row = db.prepare('SELECT * FROM recipe_technical_files WHERE id = ?').get(info.lastInsertRowid);
+            res.json({ success: true, data: technicalFileResponse(row) });
+        } catch (parseError) {
+            res.status(400).json({ success: false, error: parseError.message });
+        }
+    });
+});
+
+router.get('/:id/technical-files/:fileId/download', (req, res) => {
+    try {
+        const recipeId = parsePositiveId(req.params.id);
+        const fileId = parsePositiveId(req.params.fileId);
+        if (!recipeId || !fileId) return res.status(400).json({ success: false, error: '非法配方或文件ID' });
+        const row = db.prepare(`
+            SELECT original_name, mime_type, file_blob
+            FROM recipe_technical_files
+            WHERE id = ? AND recipe_id = ? AND deleted_at IS NULL
+        `).get(fileId, recipeId);
+        if (!row) return res.status(404).json({ success: false, error: '测试报告不存在' });
+        res.setHeader('Content-Type', row.mime_type || 'application/octet-stream');
+        res.setHeader('Content-Length', row.file_blob.length);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(row.original_name)}`);
+        res.send(row.file_blob);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.delete('/:id/technical-files/:fileId', (req, res) => {
+    try {
+        const recipeId = parsePositiveId(req.params.id);
+        const fileId = parsePositiveId(req.params.fileId);
+        if (!recipeId || !fileId) return res.status(400).json({ success: false, error: '非法配方或文件ID' });
+        const row = db.prepare('SELECT id FROM recipe_technical_files WHERE id = ? AND recipe_id = ? AND deleted_at IS NULL').get(fileId, recipeId);
+        if (!row) return res.status(404).json({ success: false, error: '测试报告不存在' });
+        softDelete('recipe_technical_files', fileId);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

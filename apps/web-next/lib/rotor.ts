@@ -48,7 +48,6 @@ export type RotorDrawResult = {
 
 export type RotorTemplateDraft = {
   templateId: number;
-  variantId: number | null;
   patch: Partial<RotorFormData>;
   hints: string[];
   meta: Record<string, unknown> | null;
@@ -237,10 +236,10 @@ export async function getRotorJobStatus(jobId: string): Promise<RotorJobStatus> 
   };
 }
 
-export async function getRotorTemplateDraft(templateId: number, variantId?: number | null): Promise<RotorTemplateDraft> {
+export async function getRotorTemplateDraft(templateId: number): Promise<RotorTemplateDraft> {
   const result = await proxyRequest<ApiResponse<RotorTemplateDraft>>('/api/rotor/template-draft', {
     method: 'POST',
-    body: JSON.stringify({ templateId, variantId: variantId || undefined }),
+    body: JSON.stringify({ templateId }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '转子模板草稿生成失败');
   return { ...result.data, patch: rotorPatchFromParams(result.data.patch as Record<string, unknown>) };

@@ -563,7 +563,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_knowledge',
-            description: '搜索工厂知识库，覆盖零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则。适合用户问“系统里有没有关于XX的资料”“按知识库查一下XX”。只读。',
+            description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题和业务规则。配方结果 metadata.testReports 是性能测试报告附件，不是图纸。适合用户问“系统里有没有关于XX的资料”“按知识库查一下XX”。只读。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -579,7 +579,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_knowledge_detail',
-            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。',
+            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。',
             parameters: {
                 type: 'object',
                 properties: {

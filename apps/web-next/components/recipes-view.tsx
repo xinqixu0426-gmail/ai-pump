@@ -322,11 +322,15 @@ type TemplatePartRow = {
 type ShellComponentRow = {
   name?: string;
   model?: string;
+  supplier?: string;
   qty?: number;
   unitCost?: number;
   pricingMode?: string;
   included?: boolean;
   optional?: boolean;
+  componentType?: 'standard' | 'stainlessStretchBarrel';
+  // Legacy templates used this flag before stainless barrels became a component type.
+  isStainlessStretchBarrel?: boolean;
   note?: string;
 };
 
@@ -365,6 +369,25 @@ const templateSurfaceTreatmentOptions: Array<{ value: SurfaceTreatmentMode; labe
   { value: 'electrophoresis_powder_coating', label: '电泳+喷塑' },
   { value: 'powder_coating', label: '整体喷塑' },
 ];
+
+const SHELL_COMPONENT_CATEGORY = '泵壳搭配';
+const STAINLESS_STRETCH_BARREL_NAME = '不锈钢拉伸筒';
+const barrelComponentNameOptions = ['铝机筒', STAINLESS_STRETCH_BARREL_NAME, '铁机筒'] as const;
+const shellComponentNameOptions = ['上帽', '花板', '油缸', '泵头', '叶轮', '底座', '法兰'];
+
+function isBarrelComponentName(name: string) {
+  return ['机筒', '铝机筒', '铝压铸机筒', '不锈钢拉伸机筒', STAINLESS_STRETCH_BARREL_NAME, '铁机筒'].includes(name.trim());
+}
+
+function normalizeBarrelComponentName(name: string, isStainlessBarrel: boolean) {
+  if (isStainlessBarrel || name === '不锈钢拉伸机筒') return STAINLESS_STRETCH_BARREL_NAME;
+  if (name === '铝压铸机筒') return '铝机筒';
+  return name === '机筒' ? '' : name;
+}
+
+function isStainlessStretchBarrelComponent(component: Pick<ShellComponentRow, 'componentType' | 'isStainlessStretchBarrel'>) {
+  return component.componentType === 'stainlessStretchBarrel' || component.isStainlessStretchBarrel === true;
+}
 
 type VariantCustomField = {
   id: string;
@@ -430,11 +453,13 @@ function defaultShellComponents(): ShellComponentFormRow[] {
     id: nextSelectionId(),
     name,
     model: '',
-    qty: name === '机筒' ? 15 : 1,
+    supplier: '',
+    qty: 1,
     unitCost: 0,
-    pricingMode: name === '机筒' ? 'lengthCm' : 'fixed',
+    pricingMode: 'fixed',
     included: name !== '法兰',
     optional: name === '法兰',
+    componentType: 'standard',
     note: '',
   }));
 }
@@ -606,17 +631,24 @@ function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormStat
     qty: Number(part.qty || 1),
     supplier: part.supplier || '',
   }));
-  const componentRows: ShellComponentFormRow[] = parseJsonArray<ShellComponentRow>(template.shellComponentsJson).map((component) => ({
-    id: nextSelectionId(),
-    name: component.name || '',
-    model: component.model || '',
-    qty: Number(component.qty || 1),
-    unitCost: Number(component.unitCost || 0),
-    pricingMode: component.pricingMode === 'lengthCm' ? 'lengthCm' as const : 'fixed' as const,
-    included: component.included !== false,
-    optional: Boolean(component.optional),
-    note: component.note || '',
-  }));
+  const componentRows: ShellComponentFormRow[] = parseJsonArray<ShellComponentRow>(template.shellComponentsJson).map((component) => {
+    const isStainlessBarrel = isStainlessStretchBarrelComponent(component);
+    return {
+      id: nextSelectionId(),
+      name: isBarrelComponentName(component.name || '')
+        ? normalizeBarrelComponentName(component.name || '', isStainlessBarrel)
+        : component.name || '',
+      model: component.model || '',
+      supplier: component.supplier || '',
+      qty: Number(component.qty || 1),
+      unitCost: Number(component.unitCost || 0),
+      pricingMode: isStainlessBarrel ? 'lengthCm' as const : 'fixed' as const,
+      included: component.included !== false,
+      optional: Boolean(component.optional),
+      componentType: isStainlessBarrel ? 'stainlessStretchBarrel' : 'standard',
+      note: component.note || '',
+    };
+  });
   const rotorParams = emptyTemplateRotorParams();
   try {
     const parsed = JSON.parse(template.rotorParamsJson || '{}');
@@ -658,16 +690,21 @@ function templateFormToInput(form: TemplateFormState): TemplateInput {
   const componentsPayload: ShellComponentInput[] = form.costMode === 'components'
     ? form.componentRows
         .filter((row) => row.name.trim())
-        .map((row) => ({
-          name: row.name.trim(),
-          model: row.model?.trim() || '',
-          qty: numberValue(String(row.qty)) || 1,
-          unitCost: Math.max(0, numberValue(String(row.unitCost))),
-          pricingMode: row.pricingMode === 'lengthCm' ? 'lengthCm' : 'fixed',
-          included: row.included !== false,
-          optional: Boolean(row.optional),
-          note: row.note?.trim() || '',
-        }))
+        .map((row) => {
+          const isStainlessBarrel = row.componentType === 'stainlessStretchBarrel';
+          return {
+            name: row.name.trim(),
+            model: row.model?.trim() || '',
+            supplier: row.supplier?.trim() || '',
+            qty: numberValue(String(row.qty)) || 1,
+            unitCost: Math.max(0, numberValue(String(row.unitCost))),
+            pricingMode: isStainlessBarrel ? 'lengthCm' : 'fixed',
+            included: row.included !== false,
+            optional: Boolean(row.optional),
+            componentType: isStainlessBarrel ? 'stainlessStretchBarrel' : 'standard',
+            note: row.note?.trim() || '',
+          };
+        })
     : [];
   const rotorParamsPayload = templateRotorParamFields.reduce<Record<string, string>>((payload, field) => {
     const value = form.rotorParams[field.key].trim();
@@ -760,6 +797,7 @@ function partCostSourceLabel(part?: RecipePart): string {
   if (part.source === 'manual') return '手输价';
   if (part.name === '线圈转子') return '线圈计算';
   if (part.dynamicRule === 'longScrewByBarrelLength') return '长度计算';
+  if (part.dynamicRule === 'stainlessStretchBarrelByLength') return '长度计算';
   return '目录价';
 }
 
@@ -1193,7 +1231,14 @@ export function RecipesView() {
         ? Number(template.bundleCost || 0)
         : shellComponents
             .filter((component) => component.included !== false)
-            .reduce((sum, component) => sum + Number(component.unitCost || 0) * Number(component.qty || 1), 0);
+            .reduce((sum, component) => {
+              const catalogPart = parts.find((part) => (
+                part.model === component.model
+                && (!component.supplier || part.supplier === component.supplier)
+              ));
+              const unitCost = Number(catalogPart?.price || 0) > 0 ? Number(catalogPart?.price || 0) : Number(component.unitCost || 0);
+              return sum + unitCost * Number(component.qty || 1);
+            }, 0);
       return {
         template,
         fixedParts,
@@ -1203,7 +1248,7 @@ export function RecipesView() {
         laborCost: Number(template.assemblyWage || 0) + Number(template.packingWage || 0),
       };
     });
-  }, [templates]);
+  }, [parts, templates]);
 
   const selectedVariantCoil = coilSpecs.find((spec) => spec.spec === variantForm.coilSpec);
   const variantMaterialOptions = selectedVariantCoil?.materials?.length ? selectedVariantCoil.materials : ['钢带'];
@@ -1230,7 +1275,14 @@ export function RecipesView() {
 
   const formTemplate = templates.find((template) => String(template.id) === form.templateId);
   const formShellMeta = useMemo(() => findShellMetaForTemplate(formTemplate, parts), [formTemplate, parts]);
-  const hasStainlessBarrel = formShellMeta?.isStainless === true;
+  const formTemplateShellComponents = useMemo(
+    () => parseJsonArray<ShellComponentRow>(formTemplate?.shellComponentsJson),
+    [formTemplate?.shellComponentsJson]
+  );
+  const hasStainlessStretchBarrelComponent = formTemplateShellComponents.some((component) => component.included !== false && isStainlessStretchBarrelComponent(component));
+  const hasStainlessBarrel = formTemplate?.costMode === 'components'
+    ? hasStainlessStretchBarrelComponent
+    : formShellMeta?.isStainless === true;
   const technicalReferenceFields = useMemo(
     () => buildTechnicalReferenceFields({ shellMetaInfo: formShellMeta, selectedTemplate: formTemplate || null }),
     [formShellMeta, formTemplate]
@@ -1272,6 +1324,16 @@ export function RecipesView() {
         label: '泵壳整体成本',
         value: money(Number(shellPart.snapshotPrice || 0)),
         note: partFormulaLine(shellPart) || '随不锈钢机筒长度计入泵壳套件成本',
+        tone: 'blue',
+      });
+    }
+
+    const stainlessBarrelPart = bomDraft?.parts.find((part) => part.dynamicRule === 'stainlessStretchBarrelByLength');
+    if (stainlessBarrelPart) {
+      annotations.push({
+        label: '不锈钢拉伸筒',
+        value: `${Number(stainlessBarrelPart.qty || 0)} cm`,
+        note: partFormulaLine(stainlessBarrelPart) || '长度来自配方/型号变体',
         tone: 'blue',
       });
     }
@@ -1330,6 +1392,14 @@ export function RecipesView() {
   const partModelOptions = useMemo(
     () => Array.from(new Set(parts.filter((part) => part.category !== '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [parts]
+  );
+  const shellComponentParts = useMemo(
+    () => parts.filter((part) => part.category === SHELL_COMPONENT_CATEGORY && part.model.trim()),
+    [parts]
+  );
+  const shellComponentModelOptions = useMemo(
+    () => Array.from(new Set(shellComponentParts.map((part) => part.model))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
+    [shellComponentParts]
   );
   const shellCatalogOptions = useMemo(() => {
     const grouped = new Map<string, Part[]>();
@@ -1932,11 +2002,13 @@ export function RecipesView() {
         id: nextSelectionId(),
         name: '',
         model: '',
+        supplier: '',
         qty: 1,
         unitCost: 0,
         pricingMode: 'fixed',
         included: true,
         optional: false,
+        componentType: 'standard',
         note: '',
       }],
     }));
@@ -1945,7 +2017,25 @@ export function RecipesView() {
   function updateShellComponentRow(id: string, patch: Partial<ShellComponentFormRow>) {
     setTemplateForm((current) => ({
       ...current,
-      componentRows: current.componentRows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+      componentRows: current.componentRows.map((row) => {
+        if (row.id !== id) return row;
+        const next = { ...row, ...patch };
+        if (patch.model !== undefined && patch.supplier === undefined) {
+          next.supplier = defaultSupplierForModel(String(patch.model || ''), SHELL_COMPONENT_CATEGORY);
+        }
+        if (patch.name !== undefined) {
+          const isStainlessBarrel = patch.name.trim() === STAINLESS_STRETCH_BARREL_NAME;
+          next.componentType = isStainlessBarrel ? 'stainlessStretchBarrel' : 'standard';
+          if (isStainlessBarrel && Number(next.qty || 0) <= 1) next.qty = 15;
+          if (!isStainlessBarrel && isBarrelComponentName(patch.name) && Number(row.qty || 0) === 15) next.qty = 1;
+          next.pricingMode = isStainlessBarrel ? 'lengthCm' : 'fixed';
+        }
+        if (patch.componentType === 'stainlessStretchBarrel') {
+          next.name = STAINLESS_STRETCH_BARREL_NAME;
+          next.pricingMode = 'lengthCm';
+        }
+        return next;
+      }),
     }));
   }
 
@@ -1959,7 +2049,7 @@ export function RecipesView() {
   async function submitTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!templateForm.shellModel.trim()) {
-      setFormError('请从零件库选择泵壳型号');
+      setFormError(templateForm.costMode === 'bundle' ? '请从零件库选择泵壳型号' : '请填写组合模板名称');
       return;
     }
     const input = templateFormToInput(templateForm);
@@ -1974,6 +2064,17 @@ export function RecipesView() {
     if (input.costMode === 'components' && JSON.parse(input.shellComponentsJson).filter((row: ShellComponentInput) => row.included !== false).length === 0) {
       setFormError('自由搭配模式至少需要一个计入成本的组件');
       return;
+    }
+    if (input.costMode === 'components') {
+      const includedComponents = JSON.parse(input.shellComponentsJson).filter((row: ShellComponentInput) => row.included !== false) as ShellComponentInput[];
+      if (includedComponents.some((row) => !row.model || !shellComponentModelOptions.includes(row.model))) {
+        setFormError('自由搭配组件的零件型号只能选择“泵壳搭配”类别中的零件');
+        return;
+      }
+      if (includedComponents.some((row) => isBarrelComponentName(row.name) && !barrelComponentNameOptions.includes(row.name as typeof barrelComponentNameOptions[number]))) {
+        setFormError('请选择机筒类型：铝机筒、不锈钢拉伸筒或铁机筒');
+        return;
+      }
     }
     setSaving(true);
     setFormError(null);
@@ -2083,6 +2184,7 @@ export function RecipesView() {
         coilMaterial: form.coilMaterial || '钢带',
         customBarrelLength: (draft.customBarrelLength ?? form.customBarrelLength) || null,
         longScrewExtraLength: draft.longScrewExtraLength ?? numberValue(form.longScrewExtraLength),
+        enableLongScrewByBarrelLength: draft.parts.some((part) => part.dynamicRule === 'longScrewByBarrelLength'),
       });
 
       const payload = await buildRecipeSavePayloadDraft({
@@ -2849,34 +2951,52 @@ export function RecipesView() {
             ) : null}
 
             <section className="rounded-panel border border-line p-4">
-              <div className="text-sm font-semibold text-ink">选择泵壳</div>
-              <div className="mt-1 text-xs text-muted">模板必须对应零件库中“泵壳”分类下的一个型号。</div>
+              <div className="text-sm font-semibold text-ink">泵壳模板</div>
+              <div className="mt-1 text-xs text-muted">泵壳套件需要选择零件库整套型号；自由搭配可输入组合名称，也可从已有泵壳型号中选择，组件逐项绑定真实零件。</div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="text-sm font-medium text-ink">零件库泵壳型号</span>
-                  <select
-                    value={templateForm.shellModel}
-                    onChange={(event) => selectTemplateShell(event.target.value)}
-                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                  >
-                    <option value="">请选择泵壳型号</option>
-                    {templateForm.shellModel && !shellCatalogOptions.some((option) => option.model === templateForm.shellModel) ? (
-                      <option value={templateForm.shellModel}>{templateForm.shellModel}（零件库中未找到）</option>
-                    ) : null}
-                    {shellCatalogOptions.map((option) => {
-                      const hasTemplate = templates.some((template) => template.shellModel === option.model && template.id !== editingTemplate?.id);
-                      const prices = option.rows.filter((part) => part.price > 0).map((part) => part.price);
-                      const priceText = prices.length > 0 ? money(Math.min(...prices)) : '未定价';
-                      return (
-                        <option key={option.model} value={option.model} disabled={hasTemplate}>
-                          {option.model} · {priceText}{hasTemplate ? ' · 已有模板' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {shellCatalogOptions.length === 0 ? (
-                    <span className="mt-2 block text-xs text-amber-700">零件库暂无泵壳，请先在零件页新增并选择“泵壳”分类。</span>
-                  ) : null}
+                  <span className="text-sm font-medium text-ink">{templateForm.costMode === 'bundle' ? '零件库泵壳型号' : '组合模板名称'}</span>
+                  {templateForm.costMode === 'bundle' ? (
+                    <>
+                      <select
+                        value={templateForm.shellModel}
+                        onChange={(event) => selectTemplateShell(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      >
+                        <option value="">请选择泵壳型号</option>
+                        {templateForm.shellModel && !shellCatalogOptions.some((option) => option.model === templateForm.shellModel) ? (
+                          <option value={templateForm.shellModel}>{templateForm.shellModel}（零件库中未找到）</option>
+                        ) : null}
+                        {shellCatalogOptions.map((option) => {
+                          const hasTemplate = templates.some((template) => template.shellModel === option.model && template.id !== editingTemplate?.id);
+                          const prices = option.rows.filter((part) => part.price > 0).map((part) => part.price);
+                          const priceText = prices.length > 0 ? money(Math.min(...prices)) : '未定价';
+                          return (
+                            <option key={option.model} value={option.model} disabled={hasTemplate}>
+                              {option.model} · {priceText}{hasTemplate ? ' · 已有模板' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {shellCatalogOptions.length === 0 ? (
+                        <span className="mt-2 block text-xs text-amber-700">零件库暂无泵壳，请先在零件页新增并选择“泵壳”分类。</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        value={templateForm.shellModel}
+                        onChange={(event) => selectTemplateShell(event.target.value)}
+                        list="shell-template-model-options"
+                        placeholder="例如：V系列自由组合壳体"
+                        className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      />
+                      <datalist id="shell-template-model-options">
+                        {shellCatalogOptions.map((option) => <option key={option.model} value={option.model} />)}
+                      </datalist>
+                      <span className="mt-2 block text-xs text-muted">可直接输入新的组合名称，也可展开选择零件库中的泵壳型号。</span>
+                    </>
+                  )}
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium text-ink">说明</span>
@@ -2957,15 +3077,23 @@ export function RecipesView() {
                     <Button type="button" size="sm" onClick={addShellComponentRow} icon={<Plus size={14} />}>添加组件</Button>
                   </div>
                   {templateForm.componentRows.map((row) => (
-                    <div key={row.id} className="grid gap-2 xl:grid-cols-[minmax(120px,1fr)_minmax(150px,1fr)_88px_100px_120px_82px_auto]">
-                      <input value={row.name} onChange={(event) => updateShellComponentRow(row.id, { name: event.target.value })} placeholder="组件" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                      <input value={row.model || ''} onChange={(event) => updateShellComponentRow(row.id, { model: event.target.value })} placeholder="型号" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                      <input value={String(row.qty)} onChange={(event) => updateShellComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                      <input value={String(row.unitCost)} onChange={(event) => updateShellComponentRow(row.id, { unitCost: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="单价" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                      <select value={row.pricingMode} onChange={(event) => updateShellComponentRow(row.id, { pricingMode: event.target.value as ShellComponentInput['pricingMode'] })} className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
-                        <option value="fixed">固定</option>
-                        <option value="lengthCm">按长度</option>
+                    <div key={row.id} className="grid gap-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_minmax(130px,0.9fr)_90px_110px_74px_auto]">
+                      {isBarrelComponentName(row.name) ? (
+                        <select value={normalizeBarrelComponentName(row.name, isStainlessStretchBarrelComponent(row))} onChange={(event) => updateShellComponentRow(row.id, { name: event.target.value })} aria-label="机筒类型" className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
+                          <option value="">请选择机筒类型</option>
+                          {barrelComponentNameOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                      ) : (
+                        <input value={row.name} onChange={(event) => updateShellComponentRow(row.id, { name: event.target.value })} placeholder="组件" list="shell-component-name-options" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      )}
+                      <select value={row.model || ''} onChange={(event) => updateShellComponentRow(row.id, { model: event.target.value })} aria-label={`${row.name || '组件'}零件型号`} className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
+                        <option value="">请选择零件型号</option>
+                        {row.model && !shellComponentModelOptions.includes(row.model) ? <option value={row.model} disabled>{row.model}（不在泵壳搭配类别）</option> : null}
+                        {shellComponentModelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
                       </select>
+                      <input value={row.supplier || ''} onChange={(event) => updateShellComponentRow(row.id, { supplier: event.target.value })} placeholder="供应商" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <input value={String(row.qty)} onChange={(event) => updateShellComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder={row.componentType === 'stainlessStretchBarrel' ? '基准cm' : '数量'} title={row.componentType === 'stainlessStretchBarrel' ? '不锈钢拉伸筒的基准长度，单位 cm' : '组件数量'} className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <input value={String(row.unitCost)} onChange={(event) => updateShellComponentRow(row.id, { unitCost: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="手输单价" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                       <label className="flex h-9 items-center justify-center gap-1 rounded-md border border-line px-2 text-xs text-muted">
                         <input type="checkbox" checked={row.included !== false} onChange={(event) => updateShellComponentRow(row.id, { included: event.target.checked })} />
                         计入
@@ -2973,6 +3101,15 @@ export function RecipesView() {
                       <Button type="button" size="sm" variant="danger" onClick={() => removeShellComponentRow(row.id)} icon={<Trash2 size={14} />}>删除</Button>
                     </div>
                   ))}
+                  <datalist id="shell-component-name-options">
+                    {shellComponentNameOptions.map((name) => <option key={name} value={name} />)}
+                  </datalist>
+                  {shellComponentModelOptions.length === 0 ? (
+                    <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">零件库暂无“泵壳搭配”类别零件，请先到零件管理中建立组件型号。</div>
+                  ) : null}
+                  <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-muted">
+                    每一行代表一个真实组件，零件型号只读取“泵壳搭配”类别，并按“零件型号 + 供应商”读取价格和库存。选择“不锈钢拉伸筒”后，系统自动按配方/型号变体的机筒长度计价，并联动长螺丝长度。
+                  </div>
                 </div>
               )}
             </section>
@@ -3097,12 +3234,13 @@ export function RecipesView() {
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).length === 0 ? (
                     <div className="p-4 text-sm text-muted">暂无组件明细</div>
                   ) : parseJsonArray<ShellComponentRow>(templateDetail.shellComponentsJson).map((component, index) => (
-                    <div key={`${component.name}-${index}`} className="grid gap-2 p-3 text-sm md:grid-cols-[1fr_1fr_auto_auto_auto]">
+                    <div key={`${component.name}-${index}`} className="grid gap-2 p-3 text-sm md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]">
                       <span className="font-medium text-ink">{component.name || '-'}</span>
                       <span className="text-muted">{component.model || '-'}</span>
+                      <span className="text-muted">{component.supplier || '-'}</span>
                       <span className="text-muted">x{component.qty || 1}</span>
                       <span className="text-muted">{money(component.unitCost || 0)}</span>
-                      <span className="text-muted">{component.pricingMode === 'lengthCm' ? '按长度' : '固定'}</span>
+                      <span className="text-muted">{isStainlessStretchBarrelComponent(component) ? '按机筒长度' : '固定'}</span>
                     </div>
                   ))}
                 </div>
@@ -3784,6 +3922,7 @@ export function RecipesView() {
             </WorkspaceSection>
 
             <TechnicalDataEditor
+              recipeId={editingRecipe?.id}
               value={form.technicalData}
               onChange={(technicalData) => updateForm({ technicalData }, false)}
               referenceFields={technicalReferenceFields}

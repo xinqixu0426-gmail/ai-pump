@@ -1,9 +1,16 @@
 'use client';
 
-import { ChevronDown, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Download, FileSpreadsheet, Loader2, Plus, Trash2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  deleteRecipeTechnicalFile,
+  downloadRecipeTechnicalFile,
+  getRecipeTechnicalFiles,
+  uploadRecipeTechnicalFile,
+  type RecipeTechnicalFile,
+} from '@/lib/recipes';
 import {
   createCustomTechnicalField,
   getTechnicalDataEntries,
@@ -28,6 +35,7 @@ const fixedFields: Array<{ key: FixedTechnicalDataKey; unit?: string; type?: str
 ];
 
 type TechnicalDataEditorProps = {
+  recipeId?: number | null;
   value: RecipeTechnicalData;
   onChange: (value: RecipeTechnicalData) => void;
   referenceFields?: TechnicalReferenceField[];
@@ -61,6 +69,7 @@ function FieldShell({ label, unit, children, wide = false }: {
 }
 
 export function TechnicalDataEditor({
+  recipeId,
   value,
   onChange,
   referenceFields = [],
@@ -71,6 +80,11 @@ export function TechnicalDataEditor({
   onImpellerChange,
 }: TechnicalDataEditorProps) {
   const [expanded, setExpanded] = useState(false);
+  const [technicalFiles, setTechnicalFiles] = useState<RecipeTechnicalFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [fileError, setFileError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const customFields = value.customFields || [];
   const filledCount = getTechnicalDataEntries(value).length;
   const impellerEntries = [
@@ -79,6 +93,50 @@ export function TechnicalDataEditor({
     impellerDiameter ? `直径${impellerDiameter}mm` : '',
     impellerBladeCount ? `${impellerBladeCount}片叶` : '',
   ].filter(Boolean);
+
+  useEffect(() => {
+    if (!recipeId) {
+      setTechnicalFiles([]);
+      return;
+    }
+    let cancelled = false;
+    setFilesLoading(true);
+    setFileError('');
+    void getRecipeTechnicalFiles(recipeId)
+      .then((files) => { if (!cancelled) setTechnicalFiles(files); })
+      .catch((error) => { if (!cancelled) setFileError(error instanceof Error ? error.message : '测试报告加载失败'); })
+      .finally(() => { if (!cancelled) setFilesLoading(false); });
+    return () => { cancelled = true; };
+  }, [recipeId]);
+
+  async function uploadTestReport(file?: File) {
+    if (!recipeId || !file) return;
+    setFileBusy(true);
+    setFileError('');
+    try {
+      await uploadRecipeTechnicalFile(recipeId, file);
+      setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : '测试报告上传失败');
+    } finally {
+      setFileBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function removeTestReport(file: RecipeTechnicalFile) {
+    if (!recipeId || !window.confirm(`删除测试报告“${file.originalName}”？`)) return;
+    setFileBusy(true);
+    setFileError('');
+    try {
+      await deleteRecipeTechnicalFile(recipeId, file.id);
+      setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : '测试报告删除失败');
+    } finally {
+      setFileBusy(false);
+    }
+  }
 
   function updateFixed(key: FixedTechnicalDataKey, next: string) {
     onChange({ ...value, [key]: next });
@@ -116,7 +174,7 @@ export function TechnicalDataEditor({
           <div className="mt-1 text-xs text-muted">
             {expanded
               ? '结构化保存到 technicalDataJson，可直接被报价、订单和出图流程复用。'
-              : `${filledCount > 0 ? `已填 ${filledCount} 项` : '未填写'}${referenceFields.length > 0 ? `，参考 ${referenceFields.length}` : ''}`}
+              : `${filledCount > 0 ? `已填 ${filledCount} 项` : '未填写'}${technicalFiles.length > 0 ? `，报告 ${technicalFiles.length} 份` : ''}${referenceFields.length > 0 ? `，参考 ${referenceFields.length}` : ''}`}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -127,6 +185,60 @@ export function TechnicalDataEditor({
       </button>
 
       {expanded ? <div className="space-y-4 border-t border-line p-4">
+        <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold text-muted">性能测试报告</div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(event) => void uploadTestReport(event.target.files?.[0])}
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!recipeId || fileBusy}
+              icon={fileBusy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            >
+              上传 Excel
+            </Button>
+          </div>
+          {!recipeId ? (
+            <div className="rounded-md border border-dashed border-line p-3 text-sm text-muted">保存配方后即可上传测试报告</div>
+          ) : filesLoading ? (
+            <div className="rounded-md border border-line p-3 text-sm text-muted">正在加载测试报告...</div>
+          ) : technicalFiles.length === 0 ? (
+            <div className="rounded-md border border-dashed border-line p-3 text-sm text-muted">暂无测试报告</div>
+          ) : (
+            <div className="space-y-2">
+              {technicalFiles.map((file) => {
+                return (
+                  <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-slate-50 px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                        <FileSpreadsheet size={15} className="shrink-0 text-emerald-600" />
+                        <span className="truncate">{file.originalName}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted">
+                        {[file.summary?.model, file.summary?.testDate, `${file.summary?.testPointCount || 0} 个测试点`].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button type="button" size="sm" variant="ghost" title="下载原文件" aria-label={`下载${file.originalName}`} onClick={() => recipeId && void downloadRecipeTechnicalFile(recipeId, file)} icon={<Download size={14} />} />
+                      <Button type="button" size="sm" variant="danger" title="删除测试报告" aria-label={`删除${file.originalName}`} disabled={fileBusy} onClick={() => void removeTestReport(file)} icon={<Trash2 size={14} />} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {fileError ? <div className="mt-2 text-sm text-rose-700">{fileError}</div> : null}
+        </div>
+
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="text-xs font-semibold text-muted">叶轮参数</div>

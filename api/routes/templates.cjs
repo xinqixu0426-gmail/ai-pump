@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeInsert, safeUpdate, hardDelete } = require('../db.cjs');
 const { parsePositiveId, parseNonNegativeNumber, stringifyJsonArray, stringifyJsonObject } = require('../services/validation.cjs');
 const router = Router();
+const SHELL_COMPONENT_CATEGORY = '泵壳搭配';
 
 function parseJson(value, fallback) {
     if (!value) return fallback;
@@ -12,7 +13,33 @@ function parseJson(value, fallback) {
     }
 }
 
-function buildTemplateCostParts(tpl, fixedParts) {
+function componentCatalogPrice(component, partsByModel = {}) {
+    const model = String(component?.model || '').trim();
+    const supplier = String(component?.supplier || '').trim();
+    const candidates = (partsByModel[model] || []).filter(part => part.category === SHELL_COMPONENT_CATEGORY);
+    const exact = supplier ? candidates.find(part => part.supplier === supplier) : null;
+    const fallback = exact || candidates.find(part => Number(part.price || 0) > 0);
+    return Number(fallback?.price || 0);
+}
+
+function validateShellComponents(costMode, componentsJson) {
+    if (costMode !== 'components') return;
+    const components = parseJson(componentsJson, []);
+    if (!Array.isArray(components)) {
+        const error = new Error('shell_components_json 必须是数组');
+        error.statusCode = 400;
+        throw error;
+    }
+    const allowedModels = new Set(db.prepare('SELECT model FROM parts WHERE category = ? AND deleted_at IS NULL').all(SHELL_COMPONENT_CATEGORY).map(row => String(row.model || '').trim()).filter(Boolean));
+    const invalid = components.find(component => component?.included !== false && !allowedModels.has(String(component?.model || '').trim()));
+    if (invalid) {
+        const error = new Error(`自由搭配组件「${invalid.name || '未命名组件'}」的零件型号只能选择“${SHELL_COMPONENT_CATEGORY}”类别中的零件`);
+        error.statusCode = 400;
+        throw error;
+    }
+}
+
+function buildTemplateCostParts(tpl, fixedParts, partsByModel = {}) {
     const mode = tpl.cost_mode || 'components';
     if (mode === 'bundle') {
         return [
@@ -25,11 +52,11 @@ function buildTemplateCostParts(tpl, fixedParts) {
         .map(c => ({
             model: c.model || c.name,
             name: c.name,
-            supplier: '',
+            supplier: c.supplier || '',
             qty: Number(c.qty || 1),
-            snapshotPrice: Number(c.unitCost || 0),
+            snapshotPrice: componentCatalogPrice(c, partsByModel) || Number(c.unitCost || 0),
             source: 'pump_shell_template',
-            costSource: 'manual',
+            costSource: componentCatalogPrice(c, partsByModel) > 0 ? 'catalog' : 'manual',
         }));
     return [...components, ...fixedParts.map(p => ({ ...p, supplier: p.supplier || '' }))];
 }
@@ -105,7 +132,7 @@ router.get('/:id/cost', (req, res) => {
         let tplParts = [];
         try { tplParts = JSON.parse(tpl.parts_json || '[]'); } catch { /* ignore */ }
         const { partsCache, partsByModel } = loadPartsData();
-        const result = calculateRecipeCost(buildTemplateCostParts(tpl, tplParts), partsCache, partsByModel);
+        const result = calculateRecipeCost(buildTemplateCostParts(tpl, tplParts, partsByModel), partsCache, partsByModel);
         res.json({ success: true, data: { templateId: tpl.id, shellModel: tpl.shell_model, ...result } });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -120,7 +147,7 @@ router.get('/:id/default-recipe', (req, res) => {
         const parts = parseJson(tpl.partsJson, []);
         const rotorParams = parseJson(tpl.rotorParamsJson, {});
         const { partsCache, partsByModel } = loadPartsData();
-        const cost = calculateRecipeCost(buildTemplateCostParts(rawTpl, parts), partsCache, partsByModel);
+        const cost = calculateRecipeCost(buildTemplateCostParts(rawTpl, parts, partsByModel), partsCache, partsByModel);
         res.json({
             success: true,
             data: {
@@ -182,6 +209,7 @@ router.post('/', (req, res) => {
         const now = new Date().toISOString();
         const json = normalizeTemplateJsonFields({ parts_json, shell_components_json, rotor_params_json });
         const mode = cost_mode === 'bundle' ? 'bundle' : 'components';
+        validateShellComponents(mode, json.shellComponentsJson);
         const info = safeInsert('pump_shell_templates', {
             shell_model,
             description: description || '',
@@ -203,6 +231,7 @@ router.post('/', (req, res) => {
     } catch (error) {
         const body = templateBodyToDb(req.body);
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: `泵壳型号 "${body.shell_model}" 已存在` });
+        if (error.statusCode === 400) return res.status(400).json({ success: false, error: error.message });
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -211,6 +240,8 @@ router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
+        const existing = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id);
+        if (!existing) return res.status(404).json({ success: false, error: '模板不存在' });
         const b = templateBodyToDb(req.body);
         const updates = {};
         if (b.shell_model !== undefined) updates.shell_model = b.shell_model;
@@ -226,13 +257,14 @@ router.patch('/:id', (req, res) => {
         if (b.cost_mode !== undefined) updates.cost_mode = b.cost_mode === 'bundle' ? 'bundle' : 'components';
         if (b.bundle_cost !== undefined) updates.bundle_cost = parseNonNegativeNumber(b.bundle_cost, 'bundle_cost');
         if (b.bundle_note !== undefined) updates.bundle_note = String(b.bundle_note || '').trim();
+        validateShellComponents(updates.cost_mode ?? existing.cost_mode, updates.shell_components_json ?? existing.shell_components_json);
         safeUpdate('pump_shell_templates', id, updates);
         const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
-        if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
         res.json({ success: true, data: record });
     } catch (error) {
         console.error("PATCH Template Error:", error);
         if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: '泵壳型号已存在' });
+        if (error.statusCode === 400) return res.status(400).json({ success: false, error: error.message });
         res.status(500).json({ success: false, error: error.message });
     }
 });

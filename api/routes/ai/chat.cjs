@@ -4,6 +4,7 @@ const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
 const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const { trimAiContext } = require('../../services/aiContext.cjs');
+const { buildFreshLookupToolCalls } = require('../../services/aiFreshness.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 
 const AI_RUNTIME_RESPONSE_RULES = `
@@ -15,6 +16,10 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 不要只输出一整段纯文本。
 
 【运行时业务路由要求】
+- 价格、单价、成本、库存、订单状态、报价金额、铜价等会变化的系统数据，每次被询问时都必须重新调用合适的只读工具，以本轮工具结果为准；禁止直接复述历史会话里的数字。
+- 用户明确要求查知识库时使用知识库工具；查询当前零件、配方、订单等实时业务字段时，优先使用对应业务工具。知识库与业务工具结果冲突时，应说明知识库可能尚未同步，并以业务系统当前值为准。
+- 知识条目 metadata.testReports 中的附件以及标记为 pump_performance_test 的 .xls/.xlsx 文件，必须称为“性能测试报告”或“测试报告”；禁止称为“图纸”“参考图纸”或“工程图”。只有转子出图工具返回的 PDF 才能称为图纸。
+- 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时必须明确说未提供，不能把某个点标成额定值或实测结论。
 - 用户提到机筒长度、机筒高度、桶长或 180mm/170mm 这类长度，并询问泵壳本体成本时，必须使用 preview_pump_shell_cost；不要使用 query_recipe_cost_by_name 返回默认配方成本。
 - 用户询问整个配方、报价或订单在某个机筒长度下的总成本时，使用 preview_recipe_cost，并把长度放入 customBarrelLength 或 overrides.customBarrelLength。
 - 未提供泵壳型号时先追问型号；不要默认猜 V750 或任何模板。
@@ -187,6 +192,27 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         let maxRounds = 5;
         let done = false;
         let allToolResults = [];
+
+        const freshLookupCalls = buildFreshLookupToolCalls(messages);
+        if (freshLookupCalls.length > 0) {
+            send('tool_plan', {
+                ...buildToolPlan(freshLookupCalls.map((call, index) => ({
+                    id: `fresh_lookup_${index}`,
+                    type: 'function',
+                    function: { name: call.name, arguments: JSON.stringify(call.args) },
+                }))),
+                summary: `正在刷新 ${freshLookupCalls.length} 项易变业务数据。`,
+            });
+
+            for (const call of freshLookupCalls) {
+                send('tool_call', call);
+                const result = await executeToolCall(call.name, call.args, { allowWrite: false });
+                send('tool_result', { name: call.name, result });
+                allToolResults.push({ name: call.name, result });
+            }
+            currentMessages[0].content += `\n\n【本轮服务端已刷新数据】\n${JSON.stringify(allToolResults)}\n必须以这些本轮查询结果为准，不得复述历史数字。`;
+            send('status', { status: 'analyzing', message: '已刷新当前数据，正在分析...' });
+        }
 
         while (!done && maxRounds-- > 0) {
             let aiRes;
@@ -368,6 +394,14 @@ async function processAiChat(text, options = {}) {
         get_order_detail: 'order_detail',
         generate_purchase_list: 'purchase_list'
     };
+
+    for (const call of buildFreshLookupToolCalls(messages)) {
+        const result = await executeToolCall(call.name, call.args, { allowWrite: false });
+        toolResults.push({ name: call.name, view_type: VIEW_TYPE_MAP[call.name] || 'action_result', result });
+    }
+    if (toolResults.length > 0) {
+        currentMessages[0].content += `\n\n【本轮服务端已刷新数据】\n${JSON.stringify(toolResults)}\n必须以这些本轮查询结果为准，不得复述历史数字。`;
+    }
 
     while (!done && maxRounds-- > 0) {
         const aiRes = await fetchDeepSeek(currentMessages, false);

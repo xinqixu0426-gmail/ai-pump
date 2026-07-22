@@ -76,6 +76,7 @@ function buildDataQualitySummary(options = {}) {
     const quotations = options.quotations || getDb().dbGetAllQuotations();
 
     const partByModel = new Map(parts.map(part => [normalize(part.model), part]));
+    const shellComponentModels = new Set(parts.filter(part => part.category === '泵壳搭配').map(part => normalize(part.model)).filter(Boolean));
     const partModelCategoryCount = new Map();
     for (const part of parts) {
         const key = `${normalize(part.category)}||${normalize(part.model)}`;
@@ -133,11 +134,23 @@ function buildDataQualitySummary(options = {}) {
     const templateIssues = [];
     for (const template of templates) {
         const shellPart = parts.find(part => part.category === '泵壳' && normalize(part.model) === normalize(template.shellModel));
-        if (!shellPart) {
+        if (template.costMode === 'bundle' && !shellPart) {
             templateIssues.push(row('template', template.id, template.shellModel || `模板 #${template.id}`, '模板引用的泵壳型号不在零件库泵壳分类中。', '/recipes', { reason: 'missing_shell_part' }));
         }
         if (template.costMode === 'bundle' && Number(template.bundleCost || 0) <= 0) {
             templateIssues.push(row('template', template.id, template.shellModel || `模板 #${template.id}`, '整体计价模板缺少套件价格。', '/recipes', { reason: 'missing_bundle_cost' }));
+        }
+        if (template.costMode === 'components') {
+            const components = parseJsonArray(template.shellComponentsJson);
+            for (const component of components || []) {
+                if (component?.included === false) continue;
+                const componentModel = normalize(component?.model);
+                if (!componentModel) {
+                    templateIssues.push(row('template', template.id, template.shellModel || `模板 #${template.id}`, `自由组合组件「${component?.name || '未命名组件'}」未绑定零件型号。`, '/recipes', { reason: 'missing_component_model', componentName: component?.name }));
+                } else if (!shellComponentModels.has(componentModel)) {
+                    templateIssues.push(row('template', template.id, template.shellModel || `模板 #${template.id}`, `自由组合组件「${component?.name || componentModel}」的型号「${componentModel}」不在“泵壳搭配”类别中。`, '/recipes', { reason: 'missing_component_part', componentName: component?.name, model: componentModel }));
+                }
+            }
         }
     }
 
@@ -172,7 +185,7 @@ function buildDataQualitySummary(options = {}) {
         issue('out_of_stock_parts', '零件库存为 0', 'warning', outOfStockParts, '优先处理常用件库存，避免生产计划中断。'),
         issue('duplicate_parts', '同分类重复零件', 'warning', duplicateParts, '合并重复型号或明确供应商差异，避免 AI 取价歧义。'),
         issue('recipe_integrity', '配方完整性问题', 'danger', recipeIssues, '修复 BOM、保存成本、模板和线圈引用。'),
-        issue('template_integrity', '泵壳模板问题', 'danger', templateIssues, '确保模板引用零件库泵壳，整体计价模板必须有套件价。'),
+        issue('template_integrity', '泵壳模板问题', 'danger', templateIssues, '整体报价模板需引用零件库泵壳；自由组合模板需为每个计入组件绑定真实零件。'),
         issue('variant_integrity', '型号变体问题', 'warning', variantIssues, '修正型号变体的模板引用。'),
         issue('coil_defaults', '线圈默认参数缺失', 'warning', coilIssues, '补齐线圈成本、电容和线径，提升自动联动质量。'),
         issue('customer_defaults', '客户默认利润率缺失', 'info', customerIssues, '给常用客户设置默认利润率，报价更稳定。'),

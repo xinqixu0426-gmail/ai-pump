@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CircleAlert, DatabaseZap, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleAlert, DatabaseZap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -22,25 +22,20 @@ function severityTone(severity: QualitySeverity): StatusBadgeTone {
   return 'blue';
 }
 
-function scoreTone(score: number): string {
-  if (score >= 90) return 'text-emerald-700';
-  if (score >= 70) return 'text-amber-700';
-  return 'text-rose-700';
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 90) return '资料健康';
-  if (score >= 70) return '需要整理';
-  return '优先修复';
-}
-
 function issueIcon(group: QualityIssueGroup) {
   if (group.severity === 'danger') return <CircleAlert size={16} />;
   if (group.severity === 'warning') return <AlertTriangle size={16} />;
   return <CheckCircle2 size={16} />;
 }
 
-export function QualityView() {
+type QualityViewProps = {
+  embedded?: boolean;
+  refreshKey?: number;
+  onScoreChange?: (score: number) => void;
+  onRefreshComplete?: () => void;
+};
+
+export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, onRefreshComplete }: QualityViewProps) {
   const [summary, setSummary] = useState<DataQualitySummary | null>(null);
   const [businessAlerts, setBusinessAlerts] = useState<BusinessAlertsSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,17 +51,19 @@ export function QualityView() {
       const [quality, alerts] = await Promise.all([getDataQualitySummary(), getBusinessAlerts()]);
       setSummary(quality);
       setBusinessAlerts(alerts);
+      onScoreChange?.(quality.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : '数据质量加载失败');
     } finally {
       setLoading(false);
       setRefreshing(false);
+      onRefreshComplete?.();
     }
   }
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [refreshKey]);
 
   const visibleGroups = useMemo(() => {
     const groups = (summary?.issues || []).filter((group) => group.count > 0);
@@ -77,18 +74,20 @@ export function QualityView() {
 
   return (
     <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Data Quality</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">数据质量</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            检查零件、配方、模板、线圈、客户和报价的基础资料完整性，提前发现会影响 AI 编排、成本核算和采购计划的问题。
-          </p>
-        </div>
-        <Button onClick={() => void load(true)} disabled={refreshing} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
-          刷新
-        </Button>
-      </FadePanel>
+      {!embedded ? (
+        <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Data Quality</div>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">数据质量</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+              检查零件、配方、模板、线圈、客户和报价的基础资料完整性，提前发现会影响 AI 编排、成本核算和采购计划的问题。
+            </p>
+          </div>
+          <Button onClick={() => void load(true)} disabled={refreshing} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
+            刷新
+          </Button>
+        </FadePanel>
+      ) : null}
 
       {error ? (
         <div className="flex items-center gap-2 rounded-panel border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
@@ -103,20 +102,7 @@ export function QualityView() {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 lg:grid-cols-[260px_1fr]">
-            <FadePanel className="rounded-panel border border-line bg-white p-5 shadow-panel">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-ink">健康分</div>
-                <ShieldCheck size={18} className="text-muted" />
-              </div>
-              <div className={`mt-4 text-5xl font-semibold tracking-tight ${scoreTone(summary.score)}`}>{summary.score}</div>
-              <div className="mt-2 text-sm text-muted">{scoreLabel(summary.score)}</div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${summary.score}%` }} />
-              </div>
-            </FadePanel>
-
-            <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-4">
               <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
                 <div className="text-2xl font-semibold text-ink">{summary.totals.issueCount}</div>
                 <div className="mt-1 text-xs text-muted">问题总数</div>
@@ -133,7 +119,6 @@ export function QualityView() {
                 <div className="text-2xl font-semibold text-ink">{businessAlerts?.totals.all || 0}</div>
                 <div className="mt-1 text-xs text-muted">经营提醒</div>
               </FadePanel>
-            </div>
           </div>
 
           <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">

@@ -144,16 +144,23 @@ test('文档契约：AI 文本助手在 Next 中启用导航', () => {
     assert.match(docsReadme, /AI executor 已通过内部 API client 调用标准 API/);
 });
 
-test('文档契约：数据质量面板必须有独立导航和标准 API', () => {
+test('文档契约：数据质量必须融合进看板并保留标准 API', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const dashboardView = readUtf8('apps/web-next/components/dashboard-view.tsx');
     const qualityView = readUtf8('apps/web-next/components/quality-view.tsx');
+    const qualityPage = readUtf8('apps/web-next/app/quality/page.tsx');
     const qualityLib = readUtf8('apps/web-next/lib/quality.ts');
     const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const api = readUtf8('api.cjs');
     const docs = readUtf8('docs/api-reference.md') + '\n' + readUtf8('docs/README.md');
 
-    assert.match(shell, /\{\s*href: '\/quality',\s*label: '质量',\s*icon: ShieldCheck,\s*enabled: true\s*\}/);
+    assert.doesNotMatch(shell, /href: '\/quality'/);
+    assert.match(dashboardView, /<QualityView embedded/);
+    assert.match(dashboardView, /数据质量/);
+    assert.match(dashboardView, /badge: qualityScore/);
+    assert.doesNotMatch(qualityView, />健康分</);
+    assert.match(qualityPage, /redirect\('\/dashboard\?view=quality'\)/);
     assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/app/quality/page.tsx')), 'quality page should exist');
     assert.match(qualityView, /getDataQualitySummary/);
     assert.match(qualityView, /getBusinessAlerts/);
@@ -225,6 +232,7 @@ test('Next UI 契约：详情编辑面板必须居中显示，不使用右侧抽
     const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
 
     assert.match(slideOver, /items-center justify-center/);
+    assert.match(slideOver, /xl:right-\[500px\]/);
     assert.match(slideOver, /max-h-\[calc\(100vh-2rem\)\]/);
     assert.match(slideOver, /rounded-panel/);
     assert.doesNotMatch(slideOver, /right-0/);
@@ -255,6 +263,22 @@ test('Next UI 契约：启用导航必须有真实页面且只允许 NavItem 使
         .map(relative);
 
     assert.deepEqual(linkOffenders, []);
+});
+
+test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助手', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+
+    assert.match(shell, /aria-label="主导航"/);
+    assert.match(shell, /xl:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+    assert.match(shell, /<AiView variant="panel"/);
+    assert.match(shell, /<NavMenu/);
+    assert.match(shell, /label="业务"/);
+    assert.doesNotMatch(shell, /fixed inset-y-0 left-0/);
+    assert.match(aiView, /variant\?: 'workspace' \| 'panel'/);
+    assert.match(aiView, /进入 AI 工作台/);
+    assert.match(aiView, /同步知识库/);
+    assert.match(aiView, /syncFactoryKnowledge/);
 });
 
 test('Next API 契约：页面组件不得直接请求 API', () => {
@@ -307,6 +331,9 @@ test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手
     assert.match(editor, /自定义参数/);
     assert.match(editor, /useState\(false\)/);
     assert.match(editor, /expanded \? <div/);
+    assert.match(editor, /uploadRecipeTechnicalFile/);
+    assert.match(editor, /accept="\.xls,\.xlsx/);
+    assert.match(recipesView, /recipeId=\{editingRecipe\?\.id\}/);
     assert.match(technicalLib, /customFields/);
 });
 
@@ -484,14 +511,17 @@ test('Next UI 契约：客户详情可以带客户上下文新建报价', () => 
     assert.match(quotationsPage, /<QuotationsView \/>/);
 });
 
-test('Next UI 契约：转子页必须支持模板变体带入和历史关联', () => {
+test('Next UI 契约：转子页只允许模板带入并支持历史关联', () => {
     const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
     const rotorLib = readUtf8('apps/web-next/lib/rotor.ts');
     const rotorRoute = readUtf8('api/routes/rotor.cjs');
     const rotorDraftService = readUtf8('api/services/rotorTemplateDraft.cjs');
 
     assert.match(rotorView, /getAllTemplates/);
-    assert.match(rotorView, /getAllModelVariants/);
+    assert.doesNotMatch(rotorView, /getAllModelVariants/);
+    assert.doesNotMatch(rotorView, /selectedVariantId/);
+    assert.doesNotMatch(rotorView, /型号变体/);
+    assert.match(rotorView, /target\.type !== 'variant'/);
     assert.match(rotorView, /calculateBearingSpan/);
     assert.match(rotorView, /getRotorTemplateDraft/);
     assert.doesNotMatch(rotorView, /function formPatchFromTemplate/);
@@ -499,6 +529,7 @@ test('Next UI 契约：转子页必须支持模板变体带入和历史关联', 
     assert.match(rotorView, /getRotorLinkTargets/);
     assert.match(rotorView, /linkRotorHistory/);
     assert.match(rotorLib, /\/api\/rotor\/template-draft/);
+    assert.match(rotorLib, /JSON\.stringify\(\{ templateId \}\)/);
     assert.match(rotorLib, /\/api\/rotor\/link-targets/);
     assert.match(rotorLib, /\/api\/rotor\/history\/\$\{id\}\/link/);
     assert.match(rotorRoute, /router\.post\('\/template-draft'/);
@@ -526,7 +557,9 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /deleteTemplate/);
     assert.match(recipesView, /getTemplateRecipeDraft/);
     assert.match(recipesView, /templateId:\s*String\(recipeDraft\.templateId\)/);
-    assert.match(recipesView, /const hasStainlessBarrel = formShellMeta\?\.isStainless === true/);
+    assert.match(recipesView, /const hasStainlessStretchBarrelComponent = formTemplateShellComponents\.some/);
+    assert.match(recipesView, /isStainlessStretchBarrelComponent\(component\)/);
+    assert.match(recipesView, /const hasStainlessBarrel = formTemplate\?\.costMode === 'components'/);
     assert.match(recipesView, /\{hasStainlessBarrel \? \(/);
     assert.match(recipesView, /customBarrelLength: hasStainlessBarrel \? form\.customBarrelLength \|\| null : null/);
     assert.match(recipesView, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);
@@ -591,14 +624,28 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesLib, /\/api\/coils\/specs/);
 });
 
-test('Next UI 契约：泵壳模板必须引用零件库并分离整体与组合计价', () => {
+test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+    const partFormRules = readUtf8('apps/web-next/lib/part-form-rules.ts');
     const templatesRoute = readUtf8('api/routes/templates.cjs');
     const db = readUtf8('api/db.cjs');
 
     assert.match(recipesView, /part\.category === '泵壳'/);
     assert.match(recipesView, /零件库泵壳型号/);
+    assert.match(recipesView, /组合模板名称/);
+    assert.match(recipesView, /list="shell-template-model-options"/);
+    assert.match(recipesView, /可直接输入新的组合名称，也可展开选择零件库中的泵壳型号/);
+    assert.match(recipesView, /componentType/);
+    assert.match(partFormRules, /泵壳搭配/);
+    assert.match(recipesView, /part\.category === SHELL_COMPONENT_CATEGORY/);
+    assert.match(recipesView, /barrelComponentNameOptions = \['铝机筒', STAINLESS_STRETCH_BARREL_NAME, '铁机筒'\]/);
+    assert.match(recipesView, /不锈钢拉伸筒/);
+    assert.match(recipesView, /aria-label="机筒类型"/);
+    assert.match(recipesView, /shellComponentModelOptions\.map/);
+    assert.doesNotMatch(recipesView, /id="shell-component-model-options"/);
+    assert.doesNotMatch(recipesView, /checked=\{Boolean\(row\.isStainlessStretchBarrel\)\}/);
+    assert.match(recipesView, /supplier/);
     assert.match(recipesView, /selectTemplateShell/);
     assert.match(recipesView, /泵壳套件/);
     assert.match(recipesView, /自由搭配/);
@@ -613,6 +660,8 @@ test('Next UI 契约：泵壳模板必须引用零件库并分离整体与组合
     assert.doesNotMatch(recipesView, /喷漆工资/);
     assert.match(recipesLib, /electrophoresis_powder_coating/);
     assert.match(templatesRoute, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);
+    assert.match(templatesRoute, /validateShellComponents/);
+    assert.match(templatesRoute, /category = \? AND deleted_at IS NULL/);
     assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_mode/);
     assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_cost/);
     assert.match(db, /pump_shell_templates ADD COLUMN bundle_note/);

@@ -51,7 +51,26 @@ function getCableAccessoryName(partsCatalog, cableModel, supplier = '', accessor
 
 function lengthCmQty(component, customBarrelLength) {
     if (component.pricingMode !== 'lengthCm') return Number(component.qty || 1);
-    return Number(customBarrelLength || Number(component.qty || 0) * 10) / 10;
+    if (isStainlessStretchBarrelComponent(component)) {
+        return Number(customBarrelLength || Number(component.qty || 0) * 10) / 10;
+    }
+    return Number(component.qty || 1);
+}
+
+function isStainlessStretchBarrelComponent(component) {
+    return component?.componentType === 'stainlessStretchBarrel'
+        || component?.isStainlessStretchBarrel === true;
+}
+
+function componentUnitPrice(partsCatalog, component) {
+    const model = String(component?.model || '').trim();
+    const supplier = String(component?.supplier || '').trim();
+    const shellComponentCatalog = (partsCatalog || []).filter(part => part.category === '泵壳搭配');
+    const catalogPrice = model ? getPriceByModelAndSupplier(shellComponentCatalog, model, supplier) : 0;
+    if (catalogPrice > 0) {
+        return { price: catalogPrice, costSource: 'catalog' };
+    }
+    return { price: Number(component?.unitCost || 0), costSource: 'manual' };
 }
 
 function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATERIAL, options = {}) {
@@ -104,15 +123,20 @@ function buildRecipeBomDraft(input, context) {
     const coilMaterial = input.coilMaterial ?? variant?.coilMaterial ?? DEFAULT_COIL_MATERIAL;
     const costMode = template?.costMode || 'components';
     const shellComponents = normalizeSelectionList(template?.shellComponentsJson);
+    const hasStainlessStretchBarrelComponent = shellComponents.some(component => component?.included !== false && isStainlessStretchBarrelComponent(component));
+    const shouldApplyLongScrewRule = costMode === 'components'
+        ? hasStainlessStretchBarrelComponent
+        : shellMeta?.isStainless === true;
     const templateParts = normalizeSelectionList(template?.partsJson)
-        .map(part => applyLongScrewRule(part, customBarrelLength, longScrewExtraLength));
+        .map(part => shouldApplyLongScrewRule ? applyLongScrewRule(part, customBarrelLength, longScrewExtraLength) : part);
 
     const baseShellPrice = template
         ? (costMode === 'bundle'
             ? Number(template.bundleCost || 0)
             : shellComponents.reduce((sum, component) => {
                 if (component.included === false) return sum;
-                return sum + Number(component.unitCost || 0) * lengthCmQty(component, customBarrelLength);
+                const { price } = componentUnitPrice(partsCatalog, component);
+                return sum + price * lengthCmQty(component, customBarrelLength);
             }, 0))
         : 0;
     const shellBundlePart = template && costMode === 'bundle'
@@ -141,17 +165,22 @@ function buildRecipeBomDraft(input, context) {
             shellComponents.forEach(component => {
                 if (component.included === false) return;
                 const qty = lengthCmQty(component, customBarrelLength);
-                const unitCost = Number(component.unitCost || 0);
+                const { price: unitCost, costSource } = componentUnitPrice(partsCatalog, component);
+                const isVariableStainlessBarrel = isStainlessStretchBarrelComponent(component) && component.pricingMode === 'lengthCm';
                 bomParts.push({
                     model: component.model || component.name,
                     name: component.pricingMode === 'lengthCm' ? `${component.name}(按cm)` : component.name,
-                    supplier: '',
+                    supplier: component.supplier || '',
                     qty,
                     snapshotPrice: unitCost,
                     source: 'pump_shell_template',
-                    costSource: 'manual',
+                    costSource,
+                    ...(isVariableStainlessBarrel ? {
+                        dynamicRule: 'stainlessStretchBarrelByLength',
+                        barrelLength: Number(customBarrelLength || 0) || null,
+                    } : {}),
                     formula: component.pricingMode === 'lengthCm'
-                        ? `${component.name}: ${unitCost}×${qty}cm`
+                        ? `${component.name}: ${unitCost}×${qty}cm${isVariableStainlessBarrel ? '（长度来自配方/型号变体）' : ''}`
                         : `${component.name}: ${unitCost}×${qty}`,
                 });
             });

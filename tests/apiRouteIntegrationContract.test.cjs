@@ -36,7 +36,7 @@ test('关键 API 集成契约：/api/recipes/cost-draft 只生成保存成本草
 
 test('关键 API 集成契约：/api/recipes/bom-draft 只生成 BOM 草稿不写库', () => {
     const source = readUtf8('api/routes/recipes.cjs');
-    const section = sliceBetween(source, "router.post('/bom-draft'", "router.get('/:id'");
+    const section = sliceBetween(source, "router.post('/bom-draft'", "router.post('/:id/production-check'");
     const templateContext = sliceBetween(source, 'function loadTemplateContext', "router.post('/bom-draft'");
 
     assert.match(section, /buildRecipeBomDraft\(body, \{/);
@@ -61,6 +61,21 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assert.match(section, /res\.json\(\{ success: true, data: \{ unitCost: result\.unitCost \} \}\)/);
     assert.doesNotMatch(section, /response\.unitCost|const response/);
     assertNoWrites(section);
+});
+
+test('关键 API 集成契约：配方测试报告支持上传、下载和软删除', () => {
+    const source = readUtf8('api/routes/recipes.cjs');
+    const db = readUtf8('api/db.cjs');
+
+    assert.match(source, /router\.get\('\/:id\/technical-files'/);
+    assert.match(source, /router\.post\('\/:id\/technical-files'/);
+    assert.match(source, /router\.get\('\/:id\/technical-files\/:fileId\/download'/);
+    assert.match(source, /router\.delete\('\/:id\/technical-files\/:fileId'/);
+    assert.match(source, /parsePumpTestReport\(req\.file\.buffer, originalName\)/);
+    assert.match(source, /safeInsert\('recipe_technical_files'/);
+    assert.match(source, /softDelete\('recipe_technical_files'/);
+    assert.match(db, /CREATE TABLE IF NOT EXISTS recipe_technical_files/);
+    assert.match(db, /'recipe_technical_files'/);
 });
 
 test('关键 API 集成契约：/api/cost/recipe-difference 只生成成本差异解释不写库', () => {

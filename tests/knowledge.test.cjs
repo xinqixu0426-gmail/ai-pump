@@ -40,6 +40,7 @@ function createMemoryAccessors() {
         dbGetAllQuotations: () => [],
         dbGetAllOrders: () => [],
         dbGetAllModelVariants: () => [],
+        dbGetAllRecipeTechnicalFiles: () => [],
         safeInsert(table, values) {
             assert.equal(table, 'knowledge_entries');
             const cols = Object.keys(values);
@@ -110,6 +111,43 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
         assert.equal(types.has(type), true, type);
     }
     assert.ok(entries.find(entry => entry.title.includes('V750 12-140')).searchText.includes('6202轴承'));
+});
+
+test('Knowledge service：配方测试报告进入可检索内容', () => {
+    const entries = buildKnowledgeEntries({
+        dbAccessors: createMemoryAccessors(),
+        parts: [],
+        templates: [],
+        recipes: [{ id: 3, name: 'QDX1.5-38', partsJson: '[]', packingPartsJson: '[]', updatedAt: '2026-01-01' }],
+        technicalFiles: [{
+            id: 8,
+            recipeId: 3,
+            originalName: 'QDX1.5-38-12-180.xls',
+            reportType: 'pump_performance_test',
+            extractedText: '规定点：流量 15m3/h，扬程 10m，效率 15%\n实测点：流量 11.6m3/h，扬程 7.8m，效率 14.6%\n偏差：流量 -22.4%，扬程 -22.4%，效率 -2.4%\n测试点2：流量 1.07m3/h，扬程 34.33m，机组效率 8.42%',
+            updatedAt: '2026-02-01',
+        }],
+        coils: [],
+        customers: [],
+        quotations: [],
+        orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-02-01', issues: [] },
+    });
+
+    const recipe = entries.find(entry => entry.entryType === 'recipe');
+    assert.match(recipe.content, /测试点2：流量 1\.07m3\/h/);
+    assert.doesNotMatch(recipe.content, /规定点：|实测点：|偏差：/);
+    assert.match(recipe.content, /性能测试报告附件（不是图纸）/);
+    assert.ok(recipe.tags.includes('性能测试报告'));
+    assert.equal(recipe.metadata.technicalFileCount, 1);
+    assert.deepEqual(recipe.metadata.testReports, [{
+        id: 8,
+        kind: 'pump_performance_test',
+        label: '性能测试报告',
+        fileName: 'QDX1.5-38-12-180.xls',
+    }]);
+    assert.equal(recipe.sourceUpdatedAt, '2026-02-01');
 });
 
 test('Knowledge service：同步后可搜索并读取详情', () => {

@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 const { buildRecipeBomDraft } = require('../api/services/recipeBomEngine.cjs');
 
 const partsCatalog = [
+    { model: '不锈钢机筒', category: '配件', supplier: '错误分类供应商', price: 0.2 },
+    { model: '不锈钢机筒', category: '泵壳搭配', supplier: '机筒供应商', price: 0.8 },
+    { model: '铝机筒', category: '泵壳搭配', supplier: '铝件供应商', price: 8 },
     { model: '6*基础', category: '螺丝', supplier: '螺丝供应商', price: 0.3, notes: JSON.stringify({ screwPricing: { enabled: true, diameter: 6 } }) },
     { model: '201', category: '轴承', supplier: '轴承供应商', price: 1.1 },
     { model: '20μF', category: '电容', supplier: '电容供应商', price: 3 },
@@ -20,7 +23,7 @@ const template = {
         { model: '201', name: '轴承', supplier: '轴承供应商', qty: 2 },
     ]),
     shellComponentsJson: JSON.stringify([
-        { name: '机筒', model: '不锈钢机筒', qty: 17, unitCost: 0.8, pricingMode: 'lengthCm', included: true },
+        { name: '不锈钢拉伸筒', model: '不锈钢机筒', qty: 17, unitCost: 0.4, pricingMode: 'lengthCm', included: true, componentType: 'stainlessStretchBarrel' },
     ]),
     costMode: 'components',
     bundleCost: 0,
@@ -104,10 +107,10 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
     assert.equal(screw.snapshotPrice, 0.65);
     assert.match(screw.formula, /长螺丝长度=190\+10=200mm/);
 
-    const barrel = result.parts.find(part => part.name === '机筒(按cm)');
+    const barrel = result.parts.find(part => part.name === '不锈钢拉伸筒(按cm)');
     assert.equal(barrel.qty, 19);
     assert.equal(barrel.snapshotPrice, 0.8);
-    assert.equal(barrel.formula, '机筒: 0.8×19cm');
+    assert.equal(barrel.formula, '不锈钢拉伸筒: 0.8×19cm（长度来自配方/型号变体）');
 
     const coil = result.parts.find(part => part.name === '线圈转子');
     assert.equal(coil.model, 'Y90-10');
@@ -138,8 +141,31 @@ test('后端 BOM draft 不再使用泵壳 notes 默认机筒长度', () => {
     const screw = result.parts.find(part => part.name === '不锈钢长螺丝');
     assert.equal(screw.model, '6*170');
 
-    const barrel = result.parts.find(part => part.name === '机筒(按cm)');
+    const barrel = result.parts.find(part => part.name === '不锈钢拉伸筒(按cm)');
     assert.equal(barrel.qty, 17);
+});
+
+test('后端 BOM draft 只有不锈钢拉伸筒组件才联动机筒长度和长螺丝', () => {
+    const normalTemplate = {
+        ...template,
+        shellComponentsJson: JSON.stringify([
+            { name: '铝机筒', model: '铝机筒', qty: 1, unitCost: 0.8, pricingMode: 'fixed', included: true, componentType: 'standard' },
+        ]),
+    };
+    const result = buildRecipeBomDraft({
+        customBarrelLength: 190,
+        longScrewExtraLength: 10,
+    }, {
+        template: normalTemplate,
+        partsCatalog,
+        coils,
+    });
+
+    const barrel = result.parts.find(part => part.name === '铝机筒');
+    const screw = result.parts.find(part => part.name === '不锈钢长螺丝');
+    assert.equal(barrel.qty, 1);
+    assert.equal(screw.model, '6*170');
+    assert.equal(screw.dynamicRule, undefined);
 });
 
 test('不锈钢泵壳套件按机筒长度在整体价上加价', () => {

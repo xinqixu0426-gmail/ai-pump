@@ -77,7 +77,7 @@
 | `GET` | `/api/templates/:id/default-recipe` | 无 | 基于模板生成配方草稿、配件、转子参数和成本；`recipeDraft.templateId` 使用标准 `id` |
 | `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 把模板默认项应用到传入配方草稿 |
 | `GET` | `/api/templates/:id/recipes` | 无 | 引用该模板的配方列表 |
-| `POST` | `/api/templates` | `shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 新增模板；支持 components/bundle 成本模式和表面处理预设 |
+| `POST` | `/api/templates` | `shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合组件，组件字段可含 `name/model/supplier/qty/unitCost/pricingMode/included/componentType/note`；每个计入的组件 `model` 必须存在于零件库“泵壳搭配”分类，否则返回 400；机筒名称为 `铝机筒/不锈钢拉伸筒/铁机筒`，不锈钢拉伸筒使用 `componentType=stainlessStretchBarrel`，其他组件使用 `standard`；`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 新增模板；支持 components/bundle 成本模式和表面处理预设。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的 `shellModel` 可手输组合名称，也可选择零件库泵壳型号；历史 `isStainlessStretchBarrel=true` 及“不锈钢拉伸机筒”名称继续兼容读取 |
 | `PATCH` | `/api/templates/:id` | 同新增模板字段 | 使用 `safeUpdate` 更新 |
 | `DELETE` | `/api/templates/:id` | 无 | 无配方引用时硬删除 |
 
@@ -97,14 +97,18 @@
 | `GET` | `/api/recipes` | 无 | 配方列表，标准字段含 `id/createdAt/updatedAt` |
 | `GET` | `/api/recipes/:id` | 无 | 单个配方，标准字段含 `id/createdAt/updatedAt` |
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`；不写库 |
-| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
-| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 基于配方草稿生成保存用成本快照；不写库 |
+| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。自由组合模板中只有 `componentType=stainlessStretchBarrel` 的“不锈钢拉伸筒”组件会用 `customBarrelLength/modelVariant.barrelLength` 换算 cm 数量，并触发长螺丝长度联动；铝机筒、铁机筒按普通固定组件处理。历史 `isStainlessStretchBarrel=true` 数据继续兼容。自由组合组件取价只读取“泵壳搭配”分类。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
+| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写 |
 | `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`form.coilWireWeight` 会保存为客户指定线重；不写库 |
 | `POST` | `/api/recipes/:id/production-check` | `{ produceQty }` | 按配方 BOM 快照和当前库存生成生产扣库存预检；不写库 |
 | `POST` | `/api/recipes/:id/produce` | `{ produceQty }` | 确认生产并扣减库存；后端重新预检后在事务内更新零件库存 |
 | `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；若 `partsJson` 中含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
 | `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/recipes/:id` | 无 | 软删除 |
+| `GET` | `/api/recipes/:id/technical-files` | 无 | 列出配方性能测试报告附件及解析摘要，不返回文件二进制和完整解析文本 |
+| `POST` | `/api/recipes/:id/technical-files` | `multipart/form-data`，字段 `file`，支持 `.xls/.xlsx`，最大 10MB | 保存原始 Excel 到 SQLite，并解析水泵性能报告的型号、测试号、日期和测试点明细；模板中的规定点、实测点和偏差不进入 API 摘要或知识检索文本 |
+| `GET` | `/api/recipes/:id/technical-files/:fileId/download` | 无 | 下载原始测试报告 |
+| `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 无 | 软删除测试报告 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 批量返回所有配方的当日完整成本；普通零件按当前零件库价格、线圈按当前铜价和线圈参数重算，并叠加人工、表面处理与管理费；同时返回相对保存成本的差额 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 报价/试算用，以配方快照为基线重算覆盖项 |
@@ -242,6 +246,8 @@
 
 AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。
 
+价格、成本、库存、订单状态、报价金额和铜价等易变业务数据查询会在首轮强制调用至少一个只读工具，避免模型从会话上下文复述已过期数值。明确查询知识库时使用知识库结果；若知识条目与实时业务 API 冲突，以实时业务值为准并提示同步知识库。
+
 ### AI 会话历史
 
 AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，并按当前登录身份隔离；历史消息中的待确认工具只读，不能从历史记录重复执行。
@@ -315,7 +321,7 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 | `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
 | `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
 
-数据质量报告返回 `score/totals/issues/topIssues`，用于 `/quality` 页面和 AI 质量检查工具。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
+数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
 
 经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
 
@@ -323,7 +329,7 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 
 Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识条目，并在 SQLite 支持 FTS5 时启用 `knowledge_entries_fts`；如果当前 SQLite 构建不支持 FTS5，搜索自动回退到 `LIKE`。
 
-同步来源覆盖：零件、泵壳模板、配方、线圈、客户、报价、订单、数据质量问题和业务规则。知识条目字段统一为 camelCase 响应，核心字段包括 `id/entryType/sourceTable/sourceId/title/summary/content/tags/metadata/syncedAt/updatedAt`。
+同步来源覆盖：零件、泵壳模板、配方、线圈、客户、报价、订单、数据质量问题和业务规则。配方知识条目会合并其性能测试报告解析文本，因此 AI 可检索报告型号、测试结论和每个性能点；上传或删除报告后需再次同步知识库。配方条目的 `metadata.testReports` 以 `{ id, kind: "pump_performance_test", label: "性能测试报告", fileName }` 明确标识附件类型，测试报告不得作为图纸展示。知识条目字段统一为 camelCase 响应，核心字段包括 `id/entryType/sourceTable/sourceId/title/summary/content/tags/metadata/syncedAt/updatedAt`。
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|

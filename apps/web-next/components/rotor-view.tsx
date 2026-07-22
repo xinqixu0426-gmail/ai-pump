@@ -6,7 +6,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort } from '@/lib/format';
-import { getAllModelVariants, getAllTemplates, type PumpModelVariant, type PumpShellTemplate } from '@/lib/recipes';
+import { getAllTemplates, type PumpShellTemplate } from '@/lib/recipes';
 import {
   bearingOptions,
   deleteRotorHistory,
@@ -60,10 +60,8 @@ export function RotorView() {
   const [drawingText, setDrawingText] = useState('');
   const [history, setHistory] = useState<RotorHistoryRecord[]>([]);
   const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
-  const [variants, setVariants] = useState<PumpModelVariant[]>([]);
   const [selectedShellMeta, setSelectedShellMeta] = useState<Record<string, unknown> | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [selectedVariantId, setSelectedVariantId] = useState('');
   const [templateHint, setTemplateHint] = useState('');
   const [ssBarrelLength, setSsBarrelLength] = useState('');
   const [loading, setLoading] = useState(true);
@@ -105,12 +103,7 @@ export function RotorView() {
 
   async function loadAuxiliaryData() {
     try {
-      const [templateRows, variantRows] = await Promise.all([
-        getAllTemplates(),
-        getAllModelVariants(),
-      ]);
-      setTemplates(templateRows);
-      setVariants(variantRows);
+      setTemplates(await getAllTemplates());
     } catch {
       // The page can still draw manually when auxiliary template data is unavailable.
     }
@@ -124,10 +117,6 @@ export function RotorView() {
     };
   }, [history]);
 
-  const filteredVariants = useMemo(
-    () => variants.filter((variant) => !selectedTemplateId || String(variant.templateId) === selectedTemplateId),
-    [selectedTemplateId, variants]
-  );
   const ssOpenOffset = openOffsetFromMeta(selectedShellMeta);
 
   function updateForm(key: keyof RotorFormData, value: string) {
@@ -156,10 +145,9 @@ export function RotorView() {
     });
   }
 
-  async function applyTemplate(template: PumpShellTemplate | null, variant?: PumpModelVariant | null) {
+  async function applyTemplate(template: PumpShellTemplate | null) {
     if (!template) {
       setSelectedTemplateId('');
-      setSelectedVariantId('');
       setTemplateHint('');
       setSsBarrelLength('');
       setSelectedShellMeta(null);
@@ -169,10 +157,8 @@ export function RotorView() {
 
     try {
       const templateId = Number(template.id);
-      const variantId = variant?.id == null ? null : Number(variant.id);
       if (!Number.isInteger(templateId) || templateId <= 0) throw new Error('泵壳模板 ID 无效');
-      if (variantId != null && (!Number.isInteger(variantId) || variantId <= 0)) throw new Error('泵壳变体 ID 无效');
-      const draft = await getRotorTemplateDraft(templateId, variantId);
+      const draft = await getRotorTemplateDraft(templateId);
       setSelectedShellMeta(draft.meta);
       if (draft.barrelLength) {
         setSsBarrelLength(String(draft.barrelLength));
@@ -180,7 +166,7 @@ export function RotorView() {
       if (draft.drawingText) {
         applyAutoDrawingText(draft.drawingText);
       }
-      applyAutoDrawingName(variant?.modelName || template.shellModel || '');
+      applyAutoDrawingName(template.shellModel || '');
       setForm((current) => ({ ...current, ...draft.patch }));
       setTemplateHint(draft.hints.length > 0 ? `已从 ${template.shellModel} 带入：${draft.hints.join('、')}` : `已选择 ${template.shellModel}`);
     } catch (err) {
@@ -190,18 +176,8 @@ export function RotorView() {
 
   function onTemplateChange(nextTemplateId: string) {
     setSelectedTemplateId(nextTemplateId);
-    setSelectedVariantId('');
     const template = templates.find((item) => String(item.id) === nextTemplateId) || null;
-    void applyTemplate(template, null);
-  }
-
-  function onVariantChange(nextVariantId: string) {
-    setSelectedVariantId(nextVariantId);
-    const variant = variants.find((item) => String(item.id) === nextVariantId) || null;
-    if (!variant) return;
-    const template = templates.find((item) => String(item.id) === String(variant.templateId)) || null;
-    if (template) setSelectedTemplateId(String(template.id));
-    void applyTemplate(template, variant);
+    void applyTemplate(template);
   }
 
   function updateSsBarrelLength(value: string) {
@@ -282,7 +258,7 @@ export function RotorView() {
     setLinkLoading(true);
     setError(null);
     try {
-      setLinkTargets(await getRotorLinkTargets());
+      setLinkTargets((await getRotorLinkTargets()).filter((target) => target.type !== 'variant'));
     } catch (err) {
       setError(err instanceof Error ? err.message : '关联对象加载失败');
       setLinkTargets([]);
@@ -368,7 +344,7 @@ export function RotorView() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-ink">出图参数</div>
-                <div className="mt-1 text-xs text-muted">先选模板或变体，再补关键尺寸。历史记录已放到右侧辅助区。</div>
+                <div className="mt-1 text-xs text-muted">先选泵壳模板，再补关键尺寸。历史记录已放到右侧辅助区。</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {activeStatus ? (
@@ -389,7 +365,7 @@ export function RotorView() {
                 <LinkIcon size={15} />
                 关联模板
               </div>
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="max-w-xl">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">泵壳模板</span>
                   <select
@@ -401,21 +377,6 @@ export function RotorView() {
                     {templates.map((template) => (
                       <option key={template.id} value={String(template.id)}>
                         {template.shellModel}{template.description ? ` - ${template.description}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-muted">型号变体</span>
-                  <select
-                    value={selectedVariantId}
-                    onChange={(event) => onVariantChange(event.target.value)}
-                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                  >
-                    <option value="">不使用变体</option>
-                    {filteredVariants.map((variant) => (
-                      <option key={variant.id} value={String(variant.id)}>
-                        {variant.modelName}{variant.barrelLength ? ` - ${variant.barrelLength}mm` : ''}
                       </option>
                     ))}
                   </select>
@@ -516,7 +477,7 @@ export function RotorView() {
             ) : null}
           </div>
           <div className="flex justify-end gap-2 border-t border-line p-4">
-            <Button type="button" variant="ghost" onClick={() => { setForm(emptyRotorForm); setDrawingName(''); autoDrawingNameRef.current = ''; setDrawingText(''); setSelectedTemplateId(''); setSelectedVariantId(''); setTemplateHint(''); setSsBarrelLength(''); }}>
+            <Button type="button" variant="ghost" onClick={() => { setForm(emptyRotorForm); setDrawingName(''); autoDrawingNameRef.current = ''; setDrawingText(''); setSelectedTemplateId(''); setTemplateHint(''); setSsBarrelLength(''); }}>
               清空
             </Button>
             <Button type="button" onClick={() => void saveOnly()} disabled={saving} icon={<Save size={15} />}>
@@ -624,7 +585,7 @@ export function RotorView() {
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-medium text-ink">{target.label}</span>
                         <span className="rounded-full border border-line bg-slate-50 px-2 py-0.5 text-xs text-muted">
-                          {target.type === 'order' ? '订单' : target.type === 'variant' ? '变体' : '配方'}
+                          {target.type === 'order' ? '订单' : '配方'}
                         </span>
                       </div>
                       <div className="mt-1 text-xs text-muted">{target.secondary}</div>

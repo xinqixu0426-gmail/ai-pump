@@ -410,9 +410,10 @@ function applyScrewPricing(part, partsCatalog) {
 function buildRecipeCostDraft(input, options = {}) {
     const barrelLength = input.customBarrelLength ?? input.barrelLength;
     const longScrewExtraLength = input.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
+    const enableLongScrewByBarrelLength = input.enableLongScrewByBarrelLength !== false;
     const partsCatalog = options.partsCatalog || input.partsCatalog || [];
     const parts = normalizeRecipeParts(input.parts || [])
-        .map(part => applyLongScrewRule(part, barrelLength, longScrewExtraLength))
+        .map(part => enableLongScrewByBarrelLength ? applyLongScrewRule(part, barrelLength, longScrewExtraLength) : part)
         .map(part => applyStainlessShellBundleRule(part, barrelLength))
         .map(part => applyScrewPricing(part, partsCatalog));
     const assemblyWage = parseNonNegativeNumber(input.assemblyWage, 'assemblyWage');

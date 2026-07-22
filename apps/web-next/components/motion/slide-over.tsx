@@ -19,7 +19,7 @@ export function SlideOver({ open, children, onClose, size = 'standard' }: SlideO
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 xl:right-[500px]">
           <motion.button
             type="button"
             aria-label="关闭"

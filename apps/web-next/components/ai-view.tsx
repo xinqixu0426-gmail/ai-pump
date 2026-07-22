@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
@@ -13,6 +14,7 @@ import {
   Database,
   FileSearch,
   FileText,
+  Maximize2,
   History,
   Loader2,
   MessageSquareText,
@@ -20,6 +22,7 @@ import {
   Pencil,
   Plus,
   ReceiptText,
+  RefreshCw,
   Save,
   Send,
   ShieldAlert,
@@ -51,6 +54,7 @@ import {
   type AiToolPlan,
   type AiToolResult,
 } from '@/lib/ai';
+import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 
 type ChatItem = {
@@ -802,7 +806,14 @@ function ToolResultCard({ item, onConfirmed, readOnly = false }: { item: AiToolR
   );
 }
 
-export function AiView() {
+type AiViewProps = {
+  variant?: 'workspace' | 'panel';
+  onClose?: () => void;
+};
+
+export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
+  const isPanel = variant === 'panel';
+  const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -821,6 +832,10 @@ export function AiView() {
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptError, setPromptError] = useState('');
+  const [knowledgeSyncOpen, setKnowledgeSyncOpen] = useState(false);
+  const [knowledgeSyncing, setKnowledgeSyncing] = useState(false);
+  const [knowledgeSyncResult, setKnowledgeSyncResult] = useState<KnowledgeSyncStats | null>(null);
+  const [knowledgeSyncError, setKnowledgeSyncError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -1056,10 +1071,28 @@ export function AiView() {
     }
   }
 
+  function openKnowledgeSync() {
+    setKnowledgeSyncResult(null);
+    setKnowledgeSyncError('');
+    setKnowledgeSyncOpen(true);
+  }
+
+  async function runKnowledgeSync() {
+    setKnowledgeSyncing(true);
+    setKnowledgeSyncError('');
+    try {
+      setKnowledgeSyncResult(await syncFactoryKnowledge());
+    } catch (error) {
+      setKnowledgeSyncError((error as Error).message || '知识库同步失败');
+    } finally {
+      setKnowledgeSyncing(false);
+    }
+  }
+
   return (
-    <div className="min-h-0 bg-white lg:bg-transparent">
-      <FadePanel className="flex h-[100dvh] min-h-0 flex-col overflow-hidden border-0 bg-white shadow-none md:h-[calc(100vh-8rem)] md:min-h-[620px] md:rounded-panel md:border md:border-line md:shadow-panel">
-        <div className="ai-mobile-header flex h-auto shrink-0 items-center justify-between border-b border-line bg-white px-3 pb-2 lg:hidden">
+    <div className={`min-h-0 bg-white ${isPanel ? 'h-full' : 'lg:bg-transparent'}`}>
+      <FadePanel className={`flex min-h-0 flex-col overflow-hidden border-0 bg-white shadow-none ${isPanel ? 'h-full xl:rounded-panel xl:border xl:border-line xl:shadow-panel' : 'h-[100dvh] md:h-[calc(100vh-8rem)] md:min-h-[620px] md:rounded-panel md:border md:border-line md:shadow-panel'}`}>
+        <div className={`ai-mobile-header h-auto shrink-0 items-center justify-between border-b border-line bg-white px-3 pb-2 ${isPanel ? 'flex xl:pt-2' : 'flex lg:hidden'}`}>
           <Button
             variant="ghost"
             size="sm"
@@ -1071,26 +1104,62 @@ export function AiView() {
           />
           <div className="min-w-0 flex-1 px-2 text-center">
             <div className="truncate text-sm font-semibold text-ink">
-              {conversations.find((conversation) => conversation.id === activeConversationId)?.title || 'AI 工作台'}
+              {conversations.find((conversation) => conversation.id === activeConversationId)?.title || (isPanel ? '业务 AI 助手' : 'AI 工作台')}
             </div>
             <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               DeepSeek
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 px-0"
-            icon={<Plus size={19} />}
-            aria-label="新建会话"
-            title="新建会话"
-            onClick={startNewConversation}
-            disabled={loading}
-          />
+          <div className="flex items-center gap-1">
+            {isPanel ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 px-0"
+                icon={<Database size={17} />}
+                aria-label="同步知识库"
+                title="同步知识库"
+                onClick={openKnowledgeSync}
+                disabled={knowledgeSyncing}
+              />
+            ) : null}
+            {isPanel ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 px-0"
+                icon={<Maximize2 size={17} />}
+                aria-label="进入 AI 工作台"
+                title="进入 AI 工作台"
+                onClick={() => router.push('/ai')}
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 w-9 px-0"
+              icon={<Plus size={19} />}
+              aria-label="新建会话"
+              title="新建会话"
+              onClick={startNewConversation}
+              disabled={loading}
+            />
+            {isPanel && onClose ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 px-0 xl:hidden"
+                icon={<X size={18} />}
+                aria-label="关闭 AI 助手"
+                title="关闭"
+                onClick={onClose}
+              />
+            ) : null}
+          </div>
         </div>
 
-        <div className="hidden shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-slate-50 px-5 py-4 lg:flex">
+        <div className={`${isPanel ? 'hidden' : 'hidden lg:flex'} shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-slate-50 px-5 py-4`}>
           <div className="flex min-w-0 items-center gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-ink text-white">
               <Sparkles size={20} />
@@ -1114,8 +1183,8 @@ export function AiView() {
           </div>
         </div>
 
-        <div className="grid min-h-0 min-w-0 flex-1 lg:grid-cols-[310px_minmax(0,1fr)]">
-          <aside className="hidden min-h-0 min-w-0 flex-col border-r border-line bg-white p-4 lg:flex">
+        <div className={`grid min-h-0 min-w-0 flex-1 ${isPanel ? '' : 'lg:grid-cols-[310px_minmax(0,1fr)]'}`}>
+          <aside className={`${isPanel ? 'hidden' : 'hidden lg:flex'} min-h-0 min-w-0 flex-col border-r border-line bg-white p-4`}>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                 {asideMode === 'history' ? <History size={16} /> : <MessageSquareText size={16} />}
@@ -1199,20 +1268,20 @@ export function AiView() {
           </aside>
 
           <section className="flex min-h-0 min-w-0 flex-col bg-white md:bg-slate-50">
-            <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-4 py-5 md:space-y-4 md:p-5">
+            <div ref={scrollRef} className={`flex-1 overflow-y-auto ${isPanel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
               {items.length === 0 ? (
-                <div className="flex h-full min-h-[220px] items-center justify-center md:min-h-[360px]">
-                  <div className="w-full max-w-lg px-2 py-7 text-center md:rounded-panel md:border md:border-dashed md:border-slate-300 md:bg-white md:px-6 md:shadow-panel">
+                <div className={`flex h-full items-center justify-center ${isPanel ? 'min-h-[220px]' : 'min-h-[220px] md:min-h-[360px]'}`}>
+                  <div className={`w-full max-w-lg px-2 py-7 text-center ${isPanel ? '' : 'md:rounded-panel md:border md:border-dashed md:border-slate-300 md:bg-white md:px-6 md:shadow-panel'}`}>
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-ink text-white">
                       <Bot size={22} />
                     </div>
                     <div className="mt-4 text-lg font-semibold text-ink">有什么可以帮你？</div>
-                    <div className="mt-2 hidden items-center justify-center gap-2 text-sm leading-6 text-muted md:flex">
+                    <div className={`${isPanel ? 'flex' : 'hidden md:flex'} mt-2 items-center justify-center gap-2 text-sm leading-6 text-muted`}>
                       <span>可以先从</span>
                       <TextLoop words={textLoopWords} />
                       <span>开始</span>
                     </div>
-                    <div className="mx-auto mt-6 grid max-w-sm gap-2 md:hidden">
+                    <div className={`mx-auto mt-6 max-w-sm gap-2 ${isPanel ? 'grid' : 'grid md:hidden'}`}>
                       {samples.filter((sample) => sample.category === '常用').slice(0, 2).map((sample) => (
                         <button key={sample.prompt} type="button" onClick={() => void sendMessage(sample.prompt)} disabled={loading} className="min-h-11 rounded-md border border-line bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-panel disabled:opacity-60">
                           {sample.prompt}
@@ -1225,7 +1294,7 @@ export function AiView() {
 
               {items.map((item) => (
                 <div key={item.id} className={item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                  <div className={`max-w-[940px] text-ink ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
+                  <div className={`text-ink ${isPanel ? 'max-w-[94%]' : 'max-w-[940px]'} ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
                     <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${item.role === 'user' ? 'text-muted md:text-slate-200' : 'text-muted'} ${item.role === 'user' ? 'hidden md:flex' : ''}`}>
                       <span className={`hidden h-6 w-6 items-center justify-center rounded-md md:inline-flex ${item.role === 'user' ? 'bg-white/10' : 'bg-slate-100 text-slate-600'}`}>
                         {item.role === 'user' ? <UserRound size={14} /> : <Bot size={14} />}
@@ -1273,7 +1342,7 @@ export function AiView() {
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="ai-mobile-composer shrink-0 border-t border-line bg-white px-3 pt-2 md:p-4">
+            <form onSubmit={handleSubmit} className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${isPanel ? 'px-3 pt-2 xl:p-3' : 'px-3 pt-2 md:p-4'}`}>
               <div className="flex items-end gap-2 rounded-2xl border border-line bg-slate-50 p-1.5 shadow-panel md:rounded-panel md:p-2">
                 <textarea
                   value={input}
@@ -1306,7 +1375,7 @@ export function AiView() {
 
       <AnimatePresence>
         {mobileSidebarOpen ? (
-          <div className="fixed inset-0 z-40 lg:hidden">
+          <div className={`fixed inset-0 z-40 ${isPanel ? '' : 'lg:hidden'}`}>
             <motion.button
               type="button"
               aria-label="关闭会话记录"
@@ -1385,6 +1454,58 @@ export function AiView() {
               <Button variant="danger" icon={deletingConversation ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} onClick={() => void confirmDeleteConversation()} disabled={deletingConversation}>
                 {deletingConversation ? '删除中' : '删除'}
               </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {knowledgeSyncOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="knowledge-sync-title" className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <div>
+                <h2 id="knowledge-sync-title" className="text-base font-semibold text-ink">同步工厂知识库</h2>
+                <div className="mt-1 text-xs text-muted">从当前业务数据库刷新 AI 检索条目</div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" title="关闭" onClick={() => setKnowledgeSyncOpen(false)} disabled={knowledgeSyncing} />
+            </div>
+            <div className="p-4">
+              {knowledgeSyncResult ? (
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                    <Check size={16} />
+                    同步完成，共 {knowledgeSyncResult.total} 条知识
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.inserted}</div><div className="mt-1 text-xs text-muted">新增</div></div>
+                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.updated}</div><div className="mt-1 text-xs text-muted">更新</div></div>
+                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.deleted}</div><div className="mt-1 text-xs text-muted">移除</div></div>
+                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.unchanged}</div><div className="mt-1 text-xs text-muted">未变化</div></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm leading-6 text-slate-700">
+                  同步会读取零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则，增量更新 AI 使用的知识索引，不会修改原始业务数据。
+                </div>
+              )}
+              {knowledgeSyncError ? (
+                <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  {knowledgeSyncError}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              {knowledgeSyncResult ? (
+                <Button variant="primary" onClick={() => setKnowledgeSyncOpen(false)}>完成</Button>
+              ) : (
+                <>
+                  <Button variant="ghost" onClick={() => setKnowledgeSyncOpen(false)} disabled={knowledgeSyncing}>取消</Button>
+                  <Button variant="primary" icon={knowledgeSyncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} onClick={() => void runKnowledgeSync()} disabled={knowledgeSyncing}>
+                    {knowledgeSyncing ? '同步中' : '确认同步'}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

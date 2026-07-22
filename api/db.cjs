@@ -206,6 +206,26 @@ db.exec(`
     );
     CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation
         ON ai_conversation_messages(conversation_id, id);
+
+    CREATE TABLE IF NOT EXISTS recipe_technical_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipe_id INTEGER NOT NULL,
+        original_name TEXT NOT NULL,
+        mime_type TEXT DEFAULT 'application/octet-stream',
+        file_size INTEGER DEFAULT 0,
+        file_sha256 TEXT NOT NULL,
+        file_blob BLOB NOT NULL,
+        report_type TEXT DEFAULT 'pump_performance_test',
+        summary_json TEXT DEFAULT '{}',
+        parsed_json TEXT DEFAULT '{}',
+        extracted_text TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT,
+        FOREIGN KEY(recipe_id) REFERENCES recipes(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_recipe
+        ON recipe_technical_files(recipe_id, deleted_at, id DESC);
 `);
 
 try {
@@ -524,6 +544,23 @@ function aiConversationMessageRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function recipeTechnicalFileRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        recipeId: r.recipe_id,
+        originalName: r.original_name,
+        mimeType: r.mime_type || 'application/octet-stream',
+        fileSize: Number(r.file_size || 0),
+        fileSha256: r.file_sha256 || '',
+        reportType: r.report_type || 'pump_performance_test',
+        summaryJson: r.summary_json || '{}',
+        parsedJson: r.parsed_json || '{}',
+        extractedText: r.extracted_text || '',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
 
 // ── 数据访问层 ──
 function dbGetAllParts() { return db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all().map(partRow); }
@@ -534,6 +571,15 @@ function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templ
 function dbGetAllModelVariants() { return db.prepare('SELECT * FROM pump_model_variants WHERE deleted_at IS NULL ORDER BY model_name').all().map(modelVariantRow); }
 function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY id DESC').all().map(customerRow); }
 function dbGetAllQuotations() { return db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all().map(quotationRow); }
+function dbGetAllRecipeTechnicalFiles() {
+    return db.prepare(`
+        SELECT id, recipe_id, original_name, mime_type, file_size, file_sha256,
+               report_type, summary_json, parsed_json, extracted_text, created_at, updated_at
+        FROM recipe_technical_files
+        WHERE deleted_at IS NULL
+        ORDER BY recipe_id, id DESC
+    `).all().map(recipeTechnicalFileRow);
+}
 
 function extractPartFields(body) {
     return {
@@ -585,8 +631,16 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'recipe_technical_files']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
+
+function auditJson(value) {
+    return JSON.stringify(value, (_key, item) => {
+        if (Buffer.isBuffer(item)) return `[binary ${item.length} bytes]`;
+        if (item?.type === 'Buffer' && Array.isArray(item.data)) return `[binary ${item.data.length} bytes]`;
+        return item;
+    });
+}
 
 function safeInsert(table, values) {
     if (!SAFE_TABLES.has(table)) throw new Error(`safeInsert: 非法表名 "${table}"`);
@@ -606,7 +660,7 @@ function safeInsert(table, values) {
         const newRow = Number.isInteger(recordId) && recordId > 0
             ? db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(recordId)
             : values;
-        writeAuditLog('INSERT', table, recordId || null, null, JSON.stringify(newRow || values));
+        writeAuditLog('INSERT', table, recordId || null, null, auditJson(newRow || values));
     } catch { /* 审计日志写入失败不应阻断业务 */ }
     return info;
 }
@@ -630,7 +684,7 @@ function safeUpdate(table, id, updates) {
     db.prepare(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
     // 异步写审计日志，不阻塞主逻辑
     try {
-        writeAuditLog('UPDATE', table, id, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(updates));
+        writeAuditLog('UPDATE', table, id, oldRow ? auditJson(oldRow) : null, auditJson(updates));
     } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
 
@@ -656,7 +710,7 @@ function softDelete(table, id) {
     if (!oldRow) throw new Error(`softDelete: 记录不存在 (${table}#${id})`);
     db.prepare(`UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE id = ?`).run(now, now, id);
     try {
-        writeAuditLog('SOFT_DELETE', table, id, JSON.stringify(oldRow), null);
+        writeAuditLog('SOFT_DELETE', table, id, auditJson(oldRow), null);
     } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
 
@@ -669,7 +723,7 @@ function hardDelete(table, id) {
     if (!oldRow) throw new Error(`hardDelete: 记录不存在 (${table}#${id})`);
     db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
     try {
-        writeAuditLog('DELETE', table, id, JSON.stringify(oldRow), null);
+        writeAuditLog('DELETE', table, id, auditJson(oldRow), null);
     } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
 
@@ -773,8 +827,8 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow,
-    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, recipeTechnicalFileRow,
+    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,
     updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,

@@ -400,6 +400,14 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     }
 });
 
+test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+
+    assert.match(chatRoute, /buildFreshLookupToolCalls/);
+    assert.match(chatRoute, /正在刷新.*易变业务数据/);
+    assert.match(chatRoute, /禁止直接复述历史会话里的数字/);
+});
+
 test('API 静态契约：知识库同步工具是受确认保护的写工具', () => {
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
@@ -453,6 +461,15 @@ test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接�
     assert.match(promptRoute, /所有业务写操作必须通过工具调用，由后端标准 API 执行/);
     assert.match(promptRoute, /优先使用配方保存成本作为订单锁价/);
     assert.doesNotMatch(promptRoute, /直接写入数据库/);
+});
+
+test('API 静态契约：AI 不得把性能测试报告标成参考图纸', () => {
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    assert.match(chat, /metadata\.testReports/);
+    assert.match(chat, /禁止称为“图纸”“参考图纸”或“工程图”/);
+    assert.match(tools, /性能测试报告附件，不是图纸/);
+    assert.match(chat, /“规定点、实测点、偏差”不作为有效技术结论/);
 });
 
 test('API 静态契约：DeepSeek 默认模型使用 V4 Flash', () => {

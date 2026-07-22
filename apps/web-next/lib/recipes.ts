@@ -1,5 +1,5 @@
 import type { ApiResponse } from './api';
-import { proxyRequest } from './api';
+import { proxyFetch, proxyRequest } from './api';
 
 export type RecipePart = {
   model: string;
@@ -126,11 +126,13 @@ export type TemplatePartInput = {
 export type ShellComponentInput = {
   name: string;
   model?: string;
+  supplier?: string;
   qty: number;
   unitCost: number;
   pricingMode: 'fixed' | 'lengthCm';
   included: boolean;
   optional?: boolean;
+  componentType?: 'standard' | 'stainlessStretchBarrel';
   note?: string;
 };
 
@@ -628,6 +630,7 @@ export async function previewRecipeCostDraft(input: {
   coilMaterial?: string;
   customBarrelLength?: number | string | null;
   longScrewExtraLength?: number | string;
+  enableLongScrewByBarrelLength?: boolean;
 }): Promise<RecipeCostDraftResult> {
   const result = await proxyRequest<ApiResponse<RecipeCostDraftResult>>('/api/recipes/cost-draft', {
     method: 'POST',
@@ -717,6 +720,61 @@ export type RecipeSaveInput = {
   surfaceTreatmentCost: number;
   managementFee: number;
 };
+
+export type RecipeTechnicalFileSummary = {
+  model?: string;
+  testReportNo?: string;
+  testDate?: string;
+  testPointCount?: number;
+};
+
+export type RecipeTechnicalFile = {
+  id: number;
+  recipeId: number;
+  originalName: string;
+  mimeType: string;
+  fileSize: number;
+  fileSha256: string;
+  reportType: string;
+  summary: RecipeTechnicalFileSummary;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function getRecipeTechnicalFiles(recipeId: number): Promise<RecipeTechnicalFile[]> {
+  const result = await proxyRequest<ApiResponse<RecipeTechnicalFile[]>>(`/api/recipes/${recipeId}/technical-files`);
+  if (!result.success) throw new Error(result.error || '测试报告加载失败');
+  return result.data || [];
+}
+
+export async function uploadRecipeTechnicalFile(recipeId: number, file: File): Promise<RecipeTechnicalFile> {
+  const body = new FormData();
+  body.append('file', file);
+  const result = await proxyRequest<ApiResponse<RecipeTechnicalFile>>(`/api/recipes/${recipeId}/technical-files`, {
+    method: 'POST',
+    body,
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '测试报告上传失败');
+  return result.data;
+}
+
+export async function downloadRecipeTechnicalFile(recipeId: number, file: RecipeTechnicalFile): Promise<void> {
+  const response = await proxyFetch(`/api/recipes/${recipeId}/technical-files/${file.id}/download`);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = file.originalName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function deleteRecipeTechnicalFile(recipeId: number, fileId: number): Promise<void> {
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/recipes/${recipeId}/technical-files/${fileId}`, {
+    method: 'DELETE',
+  });
+  if (!result.success) throw new Error(result.error || '测试报告删除失败');
+}
 
 export type RecipeSavePayloadDraftInput = {
   form: {

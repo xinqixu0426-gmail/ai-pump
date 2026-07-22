@@ -139,14 +139,34 @@ function templateEntry(template) {
     });
 }
 
-function recipeEntry(recipe) {
+function recipeEntry(recipe, technicalFiles = []) {
     const parts = parseJsonArray(recipe.partsJson);
     const packing = parseJsonArray(recipe.packingPartsJson);
+    const fileContent = technicalFiles
+        .map(file => {
+            const searchableReportText = normalizeText(file.extractedText)
+                .split(/\r?\n/)
+                .filter(line => !/^(规定点|实测点|偏差)[：:]/.test(line.trim()))
+                .join('\n');
+            return `性能测试报告附件（不是图纸）：${file.originalName || ''}\n${searchableReportText}`;
+        })
+        .join('\n');
+    const testReports = technicalFiles.map(file => ({
+        id: Number(file.id || 0) || null,
+        kind: file.reportType || 'pump_performance_test',
+        label: '性能测试报告',
+        fileName: file.originalName || '',
+    }));
+    const latestFileUpdatedAt = technicalFiles
+        .map(file => file.updatedAt || file.createdAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1);
     return createEntry({
         entryType: 'recipe',
         sourceTable: 'recipes',
         sourceId: recipe.id,
-        sourceUpdatedAt: recipe.updatedAt,
+        sourceUpdatedAt: [recipe.updatedAt, latestFileUpdatedAt].filter(Boolean).sort().at(-1),
         title: `配方：${recipe.name || recipe.id}`,
         summary: `${recipe.spec || '未填写规格'}，保存成本 ${Number(recipe.savedTotalCost || 0)} 元，线圈 ${recipe.coilSpec || '-'}-${recipe.coilSheets || '-'}`,
         content: [
@@ -161,14 +181,17 @@ function recipeEntry(recipe) {
             `人工和管理费：安装 ${Number(recipe.assemblyWage || 0)}，打包 ${Number(recipe.packingWage || 0)}，表面处理 ${recipe.surfaceTreatmentMode || 'none'} ${Number(recipe.surfaceTreatmentCost || 0)}，管理费 ${Number(recipe.managementFee || 0)}`,
             `BOM：${parts.map(item => `${item.model || item.name || '项目'} x ${item.qty || 1}`).join('；')}`,
             `技术档案：${recipe.technicalDataJson || '{}'}`,
+            fileContent,
         ],
-        tags: ['配方', recipe.name, recipe.spec, recipe.coilSpec, recipe.coilMaterial],
+        tags: ['配方', recipe.name, recipe.spec, recipe.coilSpec, recipe.coilMaterial, technicalFiles.length ? '性能测试报告' : '', ...technicalFiles.map(file => file.originalName)],
         metadata: {
             savedTotalCost: Number(recipe.savedTotalCost || 0),
             templateId: recipe.templateId || null,
             partsCount: parts.length,
             coilSpec: recipe.coilSpec || '',
             coilSheets: Number(recipe.coilSheets || 0),
+            technicalFileCount: technicalFiles.length,
+            testReports,
         },
     });
 }
@@ -365,6 +388,7 @@ function buildKnowledgeEntries(options = {}) {
     const parts = options.parts || getDb().dbGetAllParts();
     const templates = options.templates || getDb().dbGetAllTemplates();
     const recipes = options.recipes || getDb().dbGetAllRecipes();
+    const technicalFiles = options.technicalFiles || getDb().dbGetAllRecipeTechnicalFiles();
     const coils = options.coils || getDb().dbGetAllCoils();
     const customers = options.customers || getDb().dbGetAllCustomers();
     const quotations = options.quotations || getDb().dbGetAllQuotations();
@@ -380,11 +404,17 @@ function buildKnowledgeEntries(options = {}) {
         quotations,
     });
     const customerById = new Map(customers.map(customer => [Number(customer.id), customer]));
+    const technicalFilesByRecipe = new Map();
+    technicalFiles.forEach(file => {
+        const recipeId = Number(file.recipeId);
+        if (!technicalFilesByRecipe.has(recipeId)) technicalFilesByRecipe.set(recipeId, []);
+        technicalFilesByRecipe.get(recipeId).push(file);
+    });
 
     return [
         ...parts.map(partEntry),
         ...templates.map(templateEntry),
-        ...recipes.map(recipeEntry),
+        ...recipes.map(recipe => recipeEntry(recipe, technicalFilesByRecipe.get(Number(recipe.id)) || [])),
         ...coils.map(coilEntry),
         ...customers.map(customerEntry),
         ...quotations.map(quotation => quotationEntry(quotation, customerById)),

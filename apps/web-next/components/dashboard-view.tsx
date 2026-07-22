@@ -14,7 +14,12 @@ import { getWorkbenchSummary, severityClassName, type BusinessSummary } from '@/
 import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { QualityView } from '@/components/quality-view';
+import { getDataQualitySummary } from '@/lib/quality';
+
+type DashboardMode = 'overview' | 'quality';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -31,11 +36,15 @@ function statusTone(status: string): StatusBadgeTone {
   return 'amber';
 }
 
-export function DashboardView() {
+export function DashboardView({ initialMode = 'overview' }: { initialMode?: DashboardMode }) {
+  const [mode, setMode] = useState<DashboardMode>(initialMode);
   const [summary, setSummary] = useState<BusinessSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qualityScore, setQualityScore] = useState<number | null>(null);
+  const [qualityRefreshKey, setQualityRefreshKey] = useState(0);
+  const [qualityRefreshing, setQualityRefreshing] = useState(false);
 
   async function load(force = false) {
     setError(null);
@@ -54,41 +63,64 @@ export function DashboardView() {
 
   useEffect(() => {
     void load();
+    void getDataQualitySummary()
+      .then((quality) => setQualityScore(quality.score))
+      .catch(() => undefined);
   }, []);
+
+  const dashboardModeOptions: Array<{ value: DashboardMode; label: string; badge?: number }> = [
+    { value: 'overview', label: '经营概览' },
+    { value: 'quality', label: '数据质量', ...(qualityScore === null ? {} : { badge: qualityScore }) },
+  ];
+
+  function refreshCurrentView() {
+    if (mode === 'overview') void load(true);
+    else {
+      setQualityRefreshing(true);
+      setQualityRefreshKey((current) => current + 1);
+    }
+  }
 
   return (
     <div className="space-y-5">
       <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Dashboard</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">看板</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">管理看板</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            使用后端 `/api/workbench/summary` 权威汇总，前端只做展示和筛选入口。
+            集中查看经营进度、供应链状态和基础数据质量。
           </p>
         </div>
-        <Button
-          onClick={() => void load(true)}
-          disabled={refreshing}
-          icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}
-        >
-          刷新
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl value={mode} options={dashboardModeOptions} onChange={setMode} ariaLabel="看板内容" />
+          <Button
+            onClick={refreshCurrentView}
+            disabled={mode === 'overview' ? refreshing : qualityRefreshing}
+            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : qualityRefreshing) ? 'animate-spin' : ''} />}
+          >
+            刷新
+          </Button>
+        </div>
       </FadePanel>
 
-      {error && (
+      {mode === 'quality' ? (
+        <QualityView embedded refreshKey={qualityRefreshKey} onScoreChange={setQualityScore} onRefreshComplete={() => setQualityRefreshing(false)} />
+      ) : null}
+
+      {mode === 'overview' && error && (
         <div className="flex items-center gap-2 rounded-panel border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <CircleAlert size={16} />
           {error}
         </div>
       )}
 
-      {loading || !summary ? (
+      {mode === 'overview' && (loading || !summary) ? (
         <div className="grid gap-3 md:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
             <div key={index} className="h-28 animate-pulse rounded-panel bg-slate-100" />
           ))}
         </div>
-      ) : (
+      ) : mode === 'overview' && summary ? (
         <>
           <div className="grid gap-3 md:grid-cols-4">
             <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
@@ -241,7 +273,7 @@ export function DashboardView() {
             </div>
           </FadePanel>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
