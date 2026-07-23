@@ -8,7 +8,6 @@ const {
 const {
     DEFAULT_COIL_MATERIAL,
     calculateCoilCost,
-    getMaterialPriceMap,
     resolveWireFromCoils,
 } = require('./coilCost.cjs');
 
@@ -33,6 +32,21 @@ function getOverride(overrides, camelKey, snakeKey, fallback) {
     return fallback;
 }
 
+function inferPackingRole(part = {}) {
+    const explicit = String(part.packingRole || '').trim();
+    if (['container', 'foam', 'pearlCotton', 'fixed'].includes(explicit)) return explicit;
+    const model = `${part.model || ''} ${part.name || ''} ${part.supplier || ''}`;
+    if (model.includes('珍珠棉')) return 'pearlCotton';
+    if (model.includes('泡沫')) return 'foam';
+    if (model.includes('说明书') || model.includes('贴纸') || model.includes('商标')) return 'fixed';
+    if (model.includes('木箱') || model.includes('纸箱') || model.includes('外包装')) return 'container';
+    const material = String(part.packagingMaterial || '');
+    if (material.includes('珍珠棉')) return 'pearlCotton';
+    if (material.includes('泡沫')) return 'foam';
+    if (material.includes('木箱') || material.includes('纸箱')) return 'container';
+    return 'fixed';
+}
+
 function normalizePackingJsonText(value, boxType) {
     let list = [];
     try {
@@ -55,6 +69,7 @@ function normalizePackingJsonText(value, boxType) {
             if (part.snapshotPrice !== undefined) normalized.snapshotPrice = Number(part.snapshotPrice || 0);
             if (part.costSource === 'manual') normalized.costSource = 'manual';
             if (part.packagingMaterial) normalized.packagingMaterial = String(part.packagingMaterial);
+            normalized.packingRole = inferPackingRole(part);
             return normalized;
         }));
 }
@@ -68,7 +83,7 @@ function managedPartType(part) {
     if (name === '线圈转子') return 'coil';
     if (name.includes('浮球') || model.startsWith('浮球-')) return 'float';
     if (name.includes('电缆') || model.startsWith('电缆-') || model === '电缆配件费') return 'cable';
-    if (name.includes('木箱') || name.includes('纸箱') || model.includes('木箱') || model.includes('纸箱')) return 'box';
+    if (part?.packingRole || part?.packagingMaterial || name.includes('木箱') || name.includes('纸箱') || model.includes('木箱') || model.includes('纸箱')) return 'packing';
     return null;
 }
 
@@ -113,9 +128,9 @@ function calculatePackingPartsCost(packingPartsJson, getPrice) {
     }, 0);
 }
 
-function calculateCoilCostValue(spec, sheets, material = DEFAULT_COIL_MATERIAL, getCoils = () => [], getSetting = () => undefined) {
+function calculateCoilCostValue(spec, sheets, material = DEFAULT_COIL_MATERIAL, slotType = '小眼', getCoils = () => []) {
     if (!spec || !sheets) return 0;
-    const result = calculateCoilCost(getCoils(), { spec, sheets, material }, { materialPrices: getMaterialPriceMap(getSetting) });
+    const result = calculateCoilCost(getCoils(), { spec, sheets, material, slotType });
     return result.success ? Number(result.data.totalCost || 0) : 0;
 }
 
@@ -134,6 +149,7 @@ function buildRecipeData(row, overrides = {}) {
         coil_spec: getOverride(overrides, 'coilSpec', 'coil_spec', row.coil_spec),
         coil_sheets: Number(getOverride(overrides, 'coilSheets', 'coil_sheets', row.coil_sheets)),
         coil_material: getOverride(overrides, 'coilMaterial', 'coil_material', row.coil_material || DEFAULT_COIL_MATERIAL),
+        coil_slot_type: getOverride(overrides, 'coilSlotType', 'coil_slot_type', row.coil_slot_type || '小眼'),
         has_float: getOverride(overrides, 'hasFloat', 'has_float', row.has_float),
         float_wire: getOverride(overrides, 'floatWire', 'float_wire', row.float_wire),
         float_accessory_type: getOverride(overrides, 'floatAccessoryType', 'float_accessory_type', row.float_accessory_type || 'standard'),
@@ -151,8 +167,18 @@ function buildRecipeData(row, overrides = {}) {
         assembly_wage: row.assembly_wage,
         packing_wage: row.packing_wage,
         painting_wage: row.painting_wage,
-        surface_treatment_mode: row.surface_treatment_mode || (row.painting_wage != null ? 'painting' : 'none'),
-        surface_treatment_cost: row.surface_treatment_cost != null ? row.surface_treatment_cost : (row.painting_wage != null ? row.painting_wage : 0),
+        surface_treatment_mode: getOverride(
+            overrides,
+            'surfaceTreatmentMode',
+            'surface_treatment_mode',
+            row.surface_treatment_mode || (row.painting_wage != null ? 'painting' : 'none')
+        ),
+        surface_treatment_cost: Number(getOverride(
+            overrides,
+            'surfaceTreatmentCost',
+            'surface_treatment_cost',
+            row.surface_treatment_cost != null ? row.surface_treatment_cost : (row.painting_wage != null ? row.painting_wage : 0)
+        )),
         management_fee: row.management_fee
     };
 }
@@ -179,7 +205,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const pricedParts = refreshedPartsDraft.parts;
     const getPrice = createPartPriceGetter(partsByModel);
 
-    const managedTotals = { coil: 0, float: 0, cable: 0, box: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0 };
+    const managedTotals = { coil: 0, float: 0, cable: 0, packing: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0 };
     let longScrewTotal = 0;
     let stainlessShellBundleTotal = 0;
     const lengthPricedParts = [];
@@ -201,18 +227,25 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const hasSavedBase = savedBaseCost > 0;
     const partsResult = calculateRecipeCost(pricedParts, partsCache, partsByModel);
     let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
-    totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.box + managedTotals.barrelLength + managedTotals.longScrew + managedTotals.stainlessShellBundle;
+    totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.packing + managedTotals.barrelLength + managedTotals.longScrew + managedTotals.stainlessShellBundle;
 
-    const dbWire = resolveWireFromCoils(getCoils(), recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material);
+    const dbWire = resolveWireFromCoils(getCoils(), recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type);
     const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
 
-    const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets) || !sameText(recipeData.coil_material, row.coil_material || DEFAULT_COIL_MATERIAL);
+    const coilChanged = !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets) || !sameText(recipeData.coil_material, row.coil_material || DEFAULT_COIL_MATERIAL) || !sameText(recipeData.coil_slot_type, row.coil_slot_type || '小眼');
     const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire) || !sameText(recipeData.float_accessory_type, row.float_accessory_type || 'standard');
     const cableChanged = toBool(recipeData.has_cable) !== toBool(row.has_cable) || !sameNumber(recipeData.cable_length, row.cable_length) || !sameText(recipeData.cable_wire, row.cable_wire) || !sameText(recipeData.cable_accessory_type, row.cable_accessory_type || 'standard');
     const packingJsonChanged = normalizePackingJsonText(recipeData.packing_parts_json, recipeData.box_type) !== normalizePackingJsonText(row.packing_parts_json, row.box_type);
     const boxChanged = !sameText(recipeData.box_type, row.box_type) || packingJsonChanged;
+    const baseSurfaceMode = row.surface_treatment_mode || (row.painting_wage != null ? 'painting' : 'none');
+    const baseSurfaceCost = baseSurfaceMode === 'none'
+        ? 0
+        : Number(row.surface_treatment_cost != null ? row.surface_treatment_cost : (row.painting_wage || 0));
+    const effectiveSurfaceCost = recipeData.surface_treatment_mode === 'none' ? 0 : Number(recipeData.surface_treatment_cost || 0);
+    const surfaceChanged = !sameText(recipeData.surface_treatment_mode, baseSurfaceMode)
+        || !sameNumber(effectiveSurfaceCost, baseSurfaceCost);
 
-    totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, getCoils, getSetting) : managedTotals.coil;
+    totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, getCoils) : managedTotals.coil;
 
     if (!floatChanged) {
         totalCost += managedTotals.float;
@@ -230,16 +263,20 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
 
     totalCost += boxChanged
         ? (calculatePackingPartsCost(recipeData.packing_parts_json, getPrice) || findBoxPrice(recipeData.box_type, getPrice, partsCache))
-        : managedTotals.box;
+        : managedTotals.packing;
 
     totalCost += lengthPricedParts.reduce((sum, part) => sum + lengthPricedPartSubtotal(part, recipeData.custom_barrel_length), 0);
     totalCost += longScrewTotal;
     totalCost += stainlessShellBundleTotal;
 
+    if (hasSavedBase && surfaceChanged) {
+        totalCost += effectiveSurfaceCost - baseSurfaceCost;
+    }
+
     if (!hasSavedBase) {
         totalCost += Number(recipeData.assembly_wage || 0);
         totalCost += Number(recipeData.packing_wage || 0);
-        totalCost += Number(recipeData.surface_treatment_cost || recipeData.painting_wage || 0);
+        totalCost += effectiveSurfaceCost;
         totalCost += Number(recipeData.management_fee || Number(getSetting('management_fee')) || 0);
     }
 
@@ -254,4 +291,5 @@ module.exports = {
     DEFAULT_COIL_MATERIAL,
     buildRecipeData,
     calculateRecipeCostPreview,
+    inferPackingRole,
 };

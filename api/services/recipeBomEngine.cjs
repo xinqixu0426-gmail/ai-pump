@@ -74,13 +74,14 @@ function componentUnitPrice(partsCatalog, component) {
     return { price: Number(component?.unitCost || 0), costSource: 'manual' };
 }
 
-function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATERIAL, options = {}) {
-    const result = calculateCoilCost(coils, { spec, sheets, material, ...options });
+function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATERIAL, slotType = '小眼', options = {}) {
+    const result = calculateCoilCost(coils, { spec, sheets, material, slotType, ...options });
     if (!result.success) return null;
     const data = result.data;
     return {
         totalCost: roundMoney(data.totalCost),
         material: data.material || material || DEFAULT_COIL_MATERIAL,
+        slotType: data.slotType || slotType || '小眼',
         unitPrice: data.unitPrice,
         wireWeight: data.wireWeight,
         source: data.source,
@@ -122,6 +123,7 @@ function buildRecipeBomDraft(input, context) {
     const coilSpec = input.coilSpec ?? variant?.coilSpec ?? '';
     const coilSheets = input.coilSheets ?? variant?.coilSheets ?? '';
     const coilMaterial = input.coilMaterial ?? variant?.coilMaterial ?? DEFAULT_COIL_MATERIAL;
+    const coilSlotType = input.coilSlotType ?? variant?.coilSlotType ?? '小眼';
     const costMode = template?.costMode || 'components';
     const shellComponents = normalizeSelectionList(template?.shellComponentsJson);
     const hasStainlessStretchBarrelComponent = shellComponents.some(component => component?.included !== false && isStainlessStretchBarrelComponent(component));
@@ -209,7 +211,7 @@ function buildRecipeBomDraft(input, context) {
     const customWireWeight = input.coilWireWeight !== undefined && input.coilWireWeight !== null && input.coilWireWeight !== ''
         ? Number(input.coilWireWeight)
         : null;
-    const coilSnapshot = input.coilResult || calculateCoilSnapshot(coils, coilSpec, coilSheets, coilMaterial, {
+    const coilSnapshot = input.coilResult || calculateCoilSnapshot(coils, coilSpec, coilSheets, coilMaterial, coilSlotType, {
         ...(customWireWeight != null && Number.isFinite(customWireWeight) ? { wireWeight: customWireWeight } : {}),
     });
     const capacitorModel = resolveCapacitorModel(partsCatalog, input.capacitorModel, coilSnapshot);
@@ -224,6 +226,7 @@ function buildRecipeBomDraft(input, context) {
             qty: 1,
             snapshotPrice: Number(coilSnapshot.totalCost || 0),
             material: coilSnapshot.material || coilMaterial || DEFAULT_COIL_MATERIAL,
+            slotType: coilSnapshot.slotType || coilSlotType || '小眼',
             unitPrice: coilSnapshot.unitPrice,
             source: coilSnapshot.source,
             formula: coilSnapshot.formula,
@@ -284,6 +287,23 @@ function buildRecipeBomDraft(input, context) {
         if (!part.model) return;
         const isManual = part.costSource === 'manual';
         const packagingMaterial = inferPackingMaterial(part.model, part.packagingMaterial);
+        const packingIdentity = `${part.model} ${part.supplier || ''}`;
+        const packingRole = part.packingRole
+            || (packingIdentity.includes('珍珠棉')
+                ? 'pearlCotton'
+                : packingIdentity.includes('泡沫')
+                    ? 'foam'
+                    : (packingIdentity.includes('说明书') || packingIdentity.includes('贴纸') || packingIdentity.includes('商标'))
+                        ? 'fixed'
+                        : (packingIdentity.includes('木箱') || packingIdentity.includes('纸箱') || packingIdentity.includes('外包装'))
+                        ? 'container'
+                        : packagingMaterial.includes('珍珠棉')
+                            ? 'pearlCotton'
+                            : packagingMaterial.includes('泡沫')
+                                ? 'foam'
+                                : (packagingMaterial.includes('木箱') || packagingMaterial.includes('纸箱'))
+                                    ? 'container'
+                                    : 'fixed');
         bomParts.push({
             model: part.model,
             name: `${part.model}（${packagingMaterial}）`,
@@ -291,6 +311,7 @@ function buildRecipeBomDraft(input, context) {
             qty: Number(part.qty || 1),
             snapshotPrice: isManual || part.snapshotPrice !== undefined ? Number(part.snapshotPrice || 0) : getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
             packagingMaterial,
+            packingRole,
             ...(isManual ? { costSource: 'manual', source: 'manual', formula: `手输价 ${Number(part.snapshotPrice || 0)}` } : {}),
         });
     });

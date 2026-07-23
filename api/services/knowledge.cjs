@@ -174,7 +174,7 @@ function recipeEntry(recipe, technicalFiles = []) {
             `规格：${recipe.spec || ''}`,
             `保存成本：${Number(recipe.savedTotalCost || 0)} 元`,
             `泵壳模板ID：${recipe.templateId || ''}`,
-            `线圈：${recipe.coilMaterial || '钢带'} ${recipe.coilSpec || ''}-${recipe.coilSheets || ''}，客户指定线重 ${recipe.coilWireWeight ?? ''}`,
+            `线圈：${recipe.coilMaterial || '钢带'} ${recipe.coilSlotType || '小眼'} ${recipe.coilSpec || ''}-${recipe.coilSheets || ''}，客户指定线重 ${recipe.coilWireWeight ?? ''}`,
             `浮球：${recipe.hasFloat ? '是' : '否'}，线径 ${recipe.floatWire || ''}，铜套 ${recipe.floatAccessoryType || 'standard'}`,
             `成品电缆：${recipe.hasCable ? '是' : '否'}，长度 ${Number(recipe.cableLength || 0)}，线径 ${recipe.cableWire || ''}，插头/规格 ${recipe.cableAccessoryType || 'standard'}`,
             `包装：${packing.map(item => `${item.model || item.name || '包材'} x ${item.qty || 1}`).join('；')}`,
@@ -202,12 +202,15 @@ function coilEntry(coil) {
         sourceTable: 'coils',
         sourceId: coil.id,
         sourceUpdatedAt: coil.updatedAt,
-        title: `线圈：${coil.spec}-${coil.sheets} ${coil.material || '钢带'}`,
-        summary: `成本 ${Number(coil.cost || 0)} 元，线重 ${Number(coil.wireWeight || 0)}kg，默认线径 ${coil.defaultWireGauge || '-'}`,
+        title: `线圈：${coil.commonName || coil.spec}-${coil.sheets} ${coil.material || '钢带'} ${coil.slotType || '小眼'}`,
+        summary: `${coil.schemeStatus === 'testing' ? '测试' : coil.schemeStatus === 'disabled' ? '停用' : '正式'}方案，成本 ${Number(coil.cost || 0)} 元，线重 ${Number(coil.wireWeight || 0)}kg，默认线径 ${coil.defaultWireGauge || '-'}`,
         content: [
-            `规格：${coil.spec}`,
+            `规格俗称：${coil.commonName || coil.spec}`,
+            `定子直径：${coil.diameterMm || ''}mm`,
             `片数：${coil.sheets}`,
             `材质：${coil.material || '钢带'}`,
+            `槽眼：${coil.slotType || '小眼'}`,
+            `方案：${coil.schemeName || ''}（${coil.schemeStatus || 'official'}）`,
             `铁芯单价：${Number(coil.unitPrice || 0)}`,
             `铜重：${Number(coil.wireWeight || 0)}`,
             `铜价基数：${Number(coil.copperBase || 0)}`,
@@ -216,9 +219,17 @@ function coilEntry(coil) {
             `成本：${Number(coil.cost || 0)}`,
             `默认线径：${coil.defaultWireGauge || ''}`,
             `默认电容：${coil.defaultCapacitor || ''}`,
+            `主线线径：${coil.mainWireGauge || ''}`,
+            `主线数据：${coil.mainWireData || ''}`,
+            `副线线径：${coil.auxWireGauge || ''}`,
+            `副线数据：${coil.auxWireData || ''}`,
         ],
-        tags: ['线圈', coil.spec, String(coil.sheets), coil.material, coil.defaultWireGauge, coil.defaultCapacitor],
-        metadata: { spec: coil.spec, sheets: Number(coil.sheets || 0), material: coil.material || '钢带', cost: Number(coil.cost || 0) },
+        tags: [
+            '线圈', coil.spec, String(coil.diameterMm || ''), String(coil.sheets), coil.material, coil.slotType, coil.schemeName, coil.schemeStatus,
+            coil.defaultWireGauge, coil.defaultCapacitor,
+            coil.mainWireGauge, coil.mainWireData, coil.auxWireGauge, coil.auxWireData,
+        ],
+        metadata: { spec: coil.spec, diameterMm: Number(coil.diameterMm || 0), sheets: Number(coil.sheets || 0), material: coil.material || '钢带', slotType: coil.slotType || '小眼', schemeStatus: coil.schemeStatus || 'official', cost: Number(coil.cost || 0) },
     });
 }
 
@@ -333,13 +344,12 @@ function businessRuleEntries(settings) {
         {
             id: 'coil_cost_formula',
             title: '业务规则：线圈成本公式',
-            summary: '线圈成本 = 材质单价 × 片数 + 铜重 × 当前铜价 + 绕线加工费 + 转子加工费。',
+            summary: '线圈成本 = 线圈记录单片价 × 片数 + 铜重 × 当前铜价 + 绕线加工费 + 转子加工费。',
             content: [
-                `线圈材质单价配置：${settingMap.get('coil_material_prices') ?? '{}'}`,
                 `铝线价格基数：${settingMap.get('aluminum_wire_price_per_kg') ?? ''}`,
             ],
             tags: ['业务规则', '线圈', '铜价'],
-            metadata: { materialPrices: parseJsonObject(settingMap.get('coil_material_prices')) },
+            metadata: { aluminumWirePricePerKg: settingMap.get('aluminum_wire_price_per_kg') ?? null },
         },
         {
             id: 'dynamic_accessories',

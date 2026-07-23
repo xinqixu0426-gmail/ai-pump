@@ -4,9 +4,10 @@ const { buildLongScrewInventoryParts } = require('../services/longScrewInventory
 const { parsePositiveId, parseNonNegativeNumber, stringifyJsonArray } = require('../services/validation.cjs');
 
 const router = Router();
+const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 
 const VARIANT_FIELDS = [
-    'model_name', 'template_id', 'coil_spec', 'coil_sheets', 'coil_material',
+    'model_name', 'template_id', 'coil_spec', 'coil_sheets', 'coil_material', 'coil_slot_type',
     'barrel_length', 'long_screw_extra_length', 'impeller_model', 'impeller_thickness', 'impeller_diameter',
     'impeller_blade_count', 'note', 'custom_fields_json',
 ];
@@ -17,6 +18,7 @@ const VARIANT_ALIASES = {
     coilSpec: 'coil_spec',
     coilSheets: 'coil_sheets',
     coilMaterial: 'coil_material',
+    coilSlotType: 'coil_slot_type',
     barrelLength: 'barrel_length',
     longScrewExtraLength: 'long_screw_extra_length',
     impellerModel: 'impeller_model',
@@ -53,12 +55,15 @@ function normalizeVariant(body) {
         })).filter(item => item.label || item.value));
     }
 
+    const coilSlotType = String(b.coil_slot_type || '小眼').trim() || '小眼';
+    if (!COIL_SLOT_TYPES.has(coilSlotType)) throw new Error('线圈槽眼仅支持小眼或国标眼');
     return {
         model_name: modelName,
         template_id: templateId,
         coil_spec: String(b.coil_spec || '').trim(),
         coil_sheets: parseNonNegativeNumber(b.coil_sheets, 'coil_sheets'),
         coil_material: String(b.coil_material || '钢带').trim() || '钢带',
+        coil_slot_type: coilSlotType,
         barrel_length: b.barrel_length !== undefined && b.barrel_length !== null && b.barrel_length !== '' ? parseNonNegativeNumber(b.barrel_length, 'barrel_length') : null,
         long_screw_extra_length: parseNonNegativeNumber(b.long_screw_extra_length, 'long_screw_extra_length'),
         impeller_model: String(b.impeller_model || '').trim(),
@@ -120,6 +125,7 @@ router.post('/', (req, res) => {
                 coil_spec: b.coil_spec,
                 coil_sheets: b.coil_sheets,
                 coil_material: b.coil_material,
+                coil_slot_type: b.coil_slot_type,
                 barrel_length: b.barrel_length,
                 long_screw_extra_length: b.long_screw_extra_length,
                 impeller_model: b.impeller_model,

@@ -56,16 +56,15 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/coils` | 无 | 线圈列表 |
-| `POST` | `/api/coils` | `spec, sheets, material?, unitPrice?, wireWeight?, copperBase?, coilFee?, rotorFee?, defaultWireGauge?, defaultCapacitor?` | 新增线圈并计算 `cost` |
-| `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段 | 更新后自动重算 `cost` |
+| `GET` | `/api/coils` | 无 | 绕组方案列表，返回 `diameterMm/commonName/material/slotType/schemeName/schemeStatus` |
+| `GET` | `/api/coils/variants` | 无 | 定子组合列表；组合键为标准直径、材质和槽眼 |
+| `POST` | `/api/coils` | `spec, diameterMm, material, slotType, sheets, schemeName?, schemeStatus?, unitPrice, wireWeight?, copperBase?, coilFee?, rotorFee?, defaultWireGauge?, defaultCapacitor?, mainWireGauge?, mainWireData?, auxWireGauge?, auxWireData?` | 新增绕组方案并计算 `cost`；材质仅支持钢带/冷轧，槽眼仅支持小眼/国标眼；正式方案会替换同组合同片数的原正式方案 |
+| `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段 | 修改定子组合或绕组方案；成本字段变化时自动重算 `cost` |
 | `DELETE` | `/api/coils/:id` | 无 | 硬删除并审计 |
-| `GET` | `/api/coils/materials` | 无 | `{ defaultMaterial, materials, materialPrices }` |
-| `PUT` | `/api/coils/materials` | `{ materialPrices }` | 保存材质单价到 `system_settings.coil_material_prices` |
-| `POST` | `/api/coils/spec-draft` | `{ spec, material? }` | 新增线圈时生成同规格带入草稿；优先同规格同材质，否则同规格辅助字段 + 材质默认单价；不写库 |
-| `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material? }` | 按规格批量更新单价，可按材质过滤 |
-| `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, wireWeight?, copperPrice? }` | 线圈成本计算，支持精确匹配、插值和外推 |
-| `GET` | `/api/coils/specs` | 无 | 可用规格、材质和片数列表 |
+| `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | 按定子组合生成录入草稿；精确组合可带入单片价，其他组合只带辅助字段；不写库 |
+| `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType? }` | 按标准直径批量更新定子单片价，可按材质和槽眼过滤 |
+| `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, wireWeight?, copperPrice? }` | 只使用正式方案，在同标准直径、材质和槽眼内精确匹配、插值或外推 |
+| `GET` | `/api/coils/specs` | 无 | 正式方案可用的规格、标准直径、材质、槽眼和片数列表；`variants[]` 按材质+槽眼返回各自可用片数，供配方联动选择 |
 
 ## 6. 模板 Templates
 
@@ -110,7 +109,7 @@
 | `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 无 | 软删除测试报告 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 批量返回所有配方的当日完整成本；普通零件按当前零件库价格、线圈按当前铜价和线圈参数重算，并叠加人工、表面处理与管理费；同时返回相对保存成本的差额 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 报价/试算用，以配方快照为基线重算覆盖项 |
+| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 报价/试算用，以配方保存成本为基线替换被覆盖的动态项。包材按完整有效清单重算，`packingRole` 支持 `container/foam/pearlCotton/fixed`；表面处理替换原工艺成本，不重复累加 |
 | `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 比较两个配方的当前成本，返回总差额和主要差异驱动项；不写库 |
 
 ## 9. 成本 Cost
@@ -125,7 +124,7 @@
 | `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前检查完整 BOM 不含零价格项目并生成标准保存 payload；未定价时返回具体项目且不写库 |
 | `GET` | `/api/recipes/current-costs` | 无 | 配方列表批量重算当日完整成本并返回 `currentTotalCost/savedTotalCost/difference/partsCost/laborCost` |
 | `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价覆盖试算 |
+| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价页只提交浮球开关、电缆米数和组合包材覆盖，线圈、线径、铜套类型与表面处理沿用配方快照 |
 | `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | AI/N8N 一站式估算，组合配方、线圈和动态配置 |
 | `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 成本差异解释器，按金额差异输出主要驱动项 |
 
@@ -166,7 +165,7 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/quotations` | 无 | 报价列表；读取时自动把超过 1 个月的“报价中”标为“已过时” |
-| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 基于报价表单草稿生成标准保存 payload；统一明细、总成本和总报价；不写库 |
+| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 基于报价表单草稿生成标准保存 payload；统一明细、覆盖配置快照、总成本和总报价；不写库 |
 | `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；标准返回 `{ data: quotation }` |
 | `POST` | `/api/quotations/:id/order-draft` | 无 | 基于报价、客户、配方快照生成订单草稿、采购清单和待办；不创建订单，不改报价状态 |
 | `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价；返回 `{ data: quotation }` |
@@ -201,7 +200,6 @@
 允许的设置 key：
 
 - `management_fee`
-- `coil_material_prices`
 - `cable_accessories`
 - `float_accessory_delta`
 - `aluminum_wire_price_per_kg`

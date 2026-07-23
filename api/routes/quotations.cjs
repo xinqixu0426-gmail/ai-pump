@@ -17,6 +17,44 @@ function roundMoney(value) {
     return Math.round(value * 100) / 100;
 }
 
+function parseOptionalNonNegativeNumber(value, field) {
+    if (value === undefined || value === null || value === '') return '';
+    return parseNonNegativeNumber(value, field);
+}
+
+function normalizeAccessoryType(value) {
+    return value === 'xinjie' ? 'xinjie' : 'standard';
+}
+
+function normalizeSurfaceTreatmentMode(value) {
+    const allowed = new Set(['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom']);
+    return allowed.has(value) ? value : 'none';
+}
+
+function normalizeQuotationItemOverrides(overrides, index) {
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return {};
+    return {
+        hasFloat: Boolean(overrides.hasFloat),
+        floatWire: String(overrides.floatWire || ''),
+        floatAccessoryType: normalizeAccessoryType(overrides.floatAccessoryType),
+        hasCable: Boolean(overrides.hasCable),
+        cableLength: parseOptionalNonNegativeNumber(overrides.cableLength, `items[${index}].overrides.cableLength`),
+        cableWire: String(overrides.cableWire || ''),
+        cableAccessoryType: normalizeAccessoryType(overrides.cableAccessoryType),
+        coilSpec: String(overrides.coilSpec || ''),
+        coilSheets: parseOptionalNonNegativeNumber(overrides.coilSheets, `items[${index}].overrides.coilSheets`),
+        coilMaterial: String(overrides.coilMaterial || '钢带'),
+        coilSlotType: String(overrides.coilSlotType || '小眼'),
+        customBarrelLength: parseOptionalNonNegativeNumber(overrides.customBarrelLength, `items[${index}].overrides.customBarrelLength`),
+        boxType: String(overrides.boxType || ''),
+        packingPartsJson: JSON.stringify(parseJsonArray(overrides.packingPartsJson)),
+        surfaceTreatmentMode: normalizeSurfaceTreatmentMode(overrides.surfaceTreatmentMode),
+        surfaceTreatmentCost: normalizeSurfaceTreatmentMode(overrides.surfaceTreatmentMode) === 'none'
+            ? 0
+            : parseNonNegativeNumber(overrides.surfaceTreatmentCost, `items[${index}].overrides.surfaceTreatmentCost`, { defaultValue: 0 }),
+    };
+}
+
 function normalizeQuotationItems(items) {
     if (!Array.isArray(items)) return [];
     return items
@@ -38,6 +76,7 @@ function normalizeQuotationItems(items) {
                 margin: unitCost > 0 ? roundMoney(unitPrice / unitCost) : margin,
                 unitPrice,
                 totalPrice: roundMoney(unitPrice * qty),
+                overrides: normalizeQuotationItemOverrides(item.overrides, index),
             };
         });
 }

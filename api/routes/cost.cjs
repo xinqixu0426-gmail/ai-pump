@@ -21,7 +21,6 @@ const {
     calculateFullEstimateCoilCost,
     buildFullEstimateResult,
 } = require('../services/fullCostEstimate.cjs');
-const { getMaterialPriceMap } = require('../services/coilCost.cjs');
 const { calculateCurrentRecipeCost } = require('../services/currentRecipeCost.cjs');
 const router = Router();
 const costLogger = createLogger('cost');
@@ -136,7 +135,7 @@ router.post('/cost/overhead', (req, res) => {
 // ── POST /cost/dynamic ──
 router.post('/cost/dynamic', (req, res) => {
     try {
-        const { stator, statorSpec: rawSpec, statorSheets: rawSheets, hasFloat, floatWire, floatAccessoryType = 'standard', hasCable, cableWire, cableLength, cableAccessoryType = 'standard', boxType } = req.body;
+        const { stator, statorSpec: rawSpec, statorSheets: rawSheets, statorMaterial = DEFAULT_COIL_MATERIAL, statorSlotType = '小眼', hasFloat, floatWire, floatAccessoryType = 'standard', hasCable, cableWire, cableLength, cableAccessoryType = 'standard', boxType } = req.body;
         let statorSpec = rawSpec, statorSheets = rawSheets;
         if (stator && typeof stator === 'string' && stator.includes('-')) {
             const [s, sh] = stator.split('-');
@@ -145,7 +144,7 @@ router.post('/cost/dynamic', (req, res) => {
         }
         const { partsCache, partsByModel } = loadPartsData();
         const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
-        const dbWire = resolveWireFromCoils(dbGetAllCoils(), statorSpec, statorSheets);
+        const dbWire = resolveWireFromCoils(dbGetAllCoils(), statorSpec, statorSheets, statorMaterial, statorSlotType);
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
 
         const effectiveCableLength = (hasCable || (cableLength && Number(cableLength) > 0)) ? cableLength : 0;
@@ -186,6 +185,7 @@ router.post('/cost/full-estimate', (req, res) => {
     try {
         const { pumphousing_model, stator, cableLength = 0, floatAccessoryType = 'standard', cableAccessoryType = 'standard', boxType = '', hasFloat = false, floatWire, cableWire } = req.body;
         const statorMaterial = req.body.statorMaterial || req.body.material || DEFAULT_COIL_MATERIAL;
+        const statorSlotType = req.body.statorSlotType || req.body.slotType || '小眼';
         const { partsCache, partsByModel } = loadPartsData();
         const getPrice = (model) => { const s = partsByModel[model] || []; if (s.length === 0) return 0; return s.reduce((min, c) => c.price < min.price ? c : min, s[0]).price; };
         let recipeCost = null;
@@ -206,10 +206,10 @@ router.post('/cost/full-estimate', (req, res) => {
         // 步骤2: 线圈成本
         const { statorSpec, statorSheets } = parseStatorInput(stator);
         const allCoils = dbGetAllCoils();
-        const statorCost = calculateFullEstimateCoilCost(allCoils, statorSpec, statorSheets, statorMaterial, { materialPrices: getMaterialPriceMap(getSetting) });
+        const statorCost = calculateFullEstimateCoilCost(allCoils, statorSpec, statorSheets, statorMaterial, statorSlotType);
 
         // 步骤3: 动态配置成本（复用共享函数）
-        const dbWire = resolveWireFromCoils(allCoils, statorSpec, statorSheets, statorMaterial);
+        const dbWire = resolveWireFromCoils(allCoils, statorSpec, statorSheets, statorMaterial, statorSlotType);
         const resolvedWire = resolveWire(dbWire, cableWire || floatWire);
         const dynamic = calculateDynamicConfigCost(
             { hasFloat, floatWire, floatAccessoryType, cableLength, cableWire, cableAccessoryType, boxType, resolvedWire },

@@ -30,7 +30,7 @@ async function executeCostTool(toolName, args, internalFetch) {
         }
 
         case 'calculate_coil_cost': {
-            const data = await postJson(internalFetch, '/api/coils/calculate', { spec: args.spec, sheets: args.sheets, material: args.material || null, wireWeight: args.wireWeight || null }, '线圈成本计算失败');
+            const data = await postJson(internalFetch, '/api/coils/calculate', { spec: args.spec, sheets: args.sheets, material: args.material || null, slotType: args.slotType || '小眼', wireWeight: args.wireWeight || null }, '线圈成本计算失败');
             return { success: true, data };
         }
 

@@ -67,7 +67,8 @@ const AI_TOOLS = [
                     spec: { type: 'string', description: '定子规格' },
                     sheets: { type: 'number', description: '片数' },
                     wireWeight: { type: 'number', description: '自定义线重（可选）' },
-                    material: { type: 'string', description: '材质（可选），如钢带、冷轧800' }
+                    material: { type: 'string', enum: ['钢带', '冷轧'], description: '材质（可选）' },
+                    slotType: { type: 'string', enum: ['小眼', '国标眼'], description: '槽眼（可选，默认小眼）' }
                 },
                 required: ['spec', 'sheets']
             }
@@ -399,6 +400,7 @@ const AI_TOOLS = [
                     coilSpec: { type: 'string', description: '线圈规格，如12' },
                     coilSheets: { type: 'number', description: '线圈片数，如140' },
                     coilMaterial: { type: 'string', description: '线圈材质，可选' },
+                    coilSlotType: { type: 'string', enum: ['小眼', '国标眼'], description: '定子槽眼，可选，默认小眼' },
                     coilWireWeight: { type: 'number', description: '客户指定线重，可选' },
                     hasFloat: { type: 'boolean', description: '是否带浮球' },
                     floatWire: { type: 'string', description: '浮球线径，可选' },

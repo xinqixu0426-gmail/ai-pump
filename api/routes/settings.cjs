@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { getSetting, setSetting } = require('../db.cjs');
 const router = Router();
 
-const ALLOWED_SETTINGS = new Set(['management_fee', 'coil_material_prices', 'cable_accessories', 'float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate']);
+const ALLOWED_SETTINGS = new Set(['management_fee', 'cable_accessories', 'float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate']);
 
 router.get('/:key', (req, res) => {
     if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });

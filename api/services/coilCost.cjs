@@ -1,47 +1,11 @@
 const DEFAULT_COIL_MATERIAL = '钢带';
-const MATERIAL_UNIT_PRICE_DEFAULTS = { '钢带': 0.21, '冷轧800': 0.22, '其他材质': 0 };
-const SPEC_MATERIAL_UNIT_PRICE_DEFAULTS = {
-    '9': { '钢带': 0.18, '冷轧800': 0.2 },
-    '12': { '钢带': 0.21, '冷轧800': 0.22 },
-    '12.8': { '钢带': 0.234, '冷轧800': 0.244 },
-};
+const DEFAULT_COIL_SLOT_TYPE = '小眼';
+const COIL_MATERIALS = new Set(['钢带', '冷轧']);
+const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
+const COIL_SCHEME_STATUSES = new Set(['testing', 'official', 'disabled']);
 
 function coilValue(coil, key) {
     return coil?.[key] ?? coil?.[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)];
-}
-
-function getMaterialPriceMap(getSetting) {
-    try {
-        const parsed = JSON.parse(getSetting('coil_material_prices') || '{}');
-        return { ...MATERIAL_UNIT_PRICE_DEFAULTS, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
-    } catch {
-        return { ...MATERIAL_UNIT_PRICE_DEFAULTS };
-    }
-}
-
-function normalizeCoilSpec(spec) {
-    const raw = String(spec ?? '').trim();
-    if (!raw) return '';
-    const numeric = Number(raw);
-    return Number.isFinite(numeric) ? String(numeric) : raw;
-}
-
-function hasMaterialUnitPrice(spec, material, materialPrices = {}) {
-    const normalizedSpec = normalizeCoilSpec(spec);
-    const normalizedMaterial = String(material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
-    return SPEC_MATERIAL_UNIT_PRICE_DEFAULTS[normalizedSpec]?.[normalizedMaterial] !== undefined
-        || materialPrices[normalizedMaterial] !== undefined
-        || MATERIAL_UNIT_PRICE_DEFAULTS[normalizedMaterial] !== undefined;
-}
-
-function getMaterialUnitPrice(spec, material = DEFAULT_COIL_MATERIAL, materialPrices = {}) {
-    const normalizedSpec = normalizeCoilSpec(spec);
-    const normalizedMaterial = String(material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
-    const specPrice = SPEC_MATERIAL_UNIT_PRICE_DEFAULTS[normalizedSpec]?.[normalizedMaterial];
-    if (specPrice !== undefined) return specPrice;
-    if (materialPrices[normalizedMaterial] !== undefined) return Number(materialPrices[normalizedMaterial]) || 0;
-    if (MATERIAL_UNIT_PRICE_DEFAULTS[normalizedMaterial] !== undefined) return MATERIAL_UNIT_PRICE_DEFAULTS[normalizedMaterial];
-    return 0;
 }
 
 function parseStatorInput(stator) {
@@ -56,37 +20,66 @@ function sortBySheets(coils) {
     return [...(coils || [])].sort((a, b) => parseInt(coilValue(a, 'sheets')) - parseInt(coilValue(b, 'sheets')));
 }
 
-function selectSpecCoils(coils, spec, material, requestedMaterial, materialPrices = {}) {
-    const allSpecCoils = sortBySheets((coils || []).filter(c => String(coilValue(c, 'spec')).trim() === String(spec).trim()));
-    const materialCoils = allSpecCoils.filter(c => String(coilValue(c, 'material') || DEFAULT_COIL_MATERIAL).trim() === material);
-    const canUseMaterialPrice = requestedMaterial && hasMaterialUnitPrice(spec, material, materialPrices);
-    const useMaterialPriceFallback = canUseMaterialPrice && materialCoils.length === 0;
-    const specCoils = materialCoils.length > 0 ? materialCoils : ((!requestedMaterial || canUseMaterialPrice) ? allSpecCoils : []);
-    return { specCoils, useMaterialPriceFallback };
+function normalizeCoilSpec(spec) {
+    const text = String(spec || '').trim();
+    if (!text) return { commonName: '', diameterMm: 0 };
+    const diameterMm = text === '12' ? 120 : Number.parseInt(text, 10);
+    return {
+        commonName: text,
+        diameterMm: Number.isInteger(diameterMm) && diameterMm > 0 ? diameterMm : 0,
+    };
 }
 
-function calculateCoilCost(coils, input = {}, options = {}) {
+function normalizeCoilDimensions(input = {}) {
+    const spec = normalizeCoilSpec(input.spec ?? input.commonName ?? input.diameterMm);
+    const explicitDiameter = Number(input.diameterMm);
+    const rawMaterial = String(input.material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
+    const material = rawMaterial.includes('冷轧')
+        ? '冷轧'
+        : rawMaterial.includes('钢带') ? '钢带' : rawMaterial;
+    const rawSlotType = rawMaterial.includes('国标眼')
+        ? '国标眼'
+        : String(input.slotType || DEFAULT_COIL_SLOT_TYPE).trim() || DEFAULT_COIL_SLOT_TYPE;
+    return {
+        ...spec,
+        diameterMm: Number.isInteger(explicitDiameter) && explicitDiameter > 0 ? explicitDiameter : spec.diameterMm,
+        material,
+        slotType: rawSlotType,
+    };
+}
+
+function coilDiameterMm(coil) {
+    const stored = Number(coilValue(coil, 'diameterMm') || 0);
+    return stored > 0 ? stored : normalizeCoilSpec(coilValue(coil, 'spec')).diameterMm;
+}
+
+function selectSpecCoils(coils, dimensions, { includeTesting = false } = {}) {
+    return sortBySheets((coils || []).filter(coil => {
+        const status = String(coilValue(coil, 'schemeStatus') || 'official');
+        if (status === 'disabled' || (!includeTesting && status !== 'official')) return false;
+        return coilDiameterMm(coil) === dimensions.diameterMm
+            && String(coilValue(coil, 'material') || DEFAULT_COIL_MATERIAL).trim() === dimensions.material
+            && String(coilValue(coil, 'slotType') || DEFAULT_COIL_SLOT_TYPE).trim() === dimensions.slotType;
+    }));
+}
+
+function calculateCoilCost(coils, input = {}) {
     const { spec, sheets, wireWeight: customerWireWeight, copperPrice: customCopperPrice } = input;
-    const requestedMaterial = input.material ? String(input.material).trim() : '';
-    const material = requestedMaterial || DEFAULT_COIL_MATERIAL;
+    const dimensions = normalizeCoilDimensions(input);
+    const { material, slotType } = dimensions;
     if (!spec || !sheets) return { success: false, status: 400, error: '规格和片数为必填项' };
 
-    const materialPrices = options.materialPrices || {};
     const targetSheets = parseInt(sheets);
-    const { specCoils, useMaterialPriceFallback } = selectSpecCoils(coils, spec, material, requestedMaterial, materialPrices);
+    const specCoils = selectSpecCoils(coils, dimensions, { includeTesting: input.includeTesting === true });
     if (specCoils.length === 0) {
         return {
             success: false,
             status: 404,
-            error: requestedMaterial ? `未找到规格 "${spec}"、材质 "${material}" 的线圈数据` : `未找到规格 "${spec}" 的线圈数据`,
+            error: `未找到规格 "${spec}"、材质 "${material}"、槽眼 "${slotType}" 的正式线圈方案`,
         };
     }
 
-    const resolveUnitPrice = (coil) => {
-        if (useMaterialPriceFallback) return getMaterialUnitPrice(spec, material, materialPrices);
-        const unitPrice = coilValue(coil, 'unitPrice');
-        return unitPrice !== undefined && unitPrice !== null && unitPrice !== '' ? parseFloat(unitPrice) : getMaterialUnitPrice(spec, material, materialPrices);
-    };
+    const resolveUnitPrice = coil => Number(coilValue(coil, 'unitPrice') || 0);
     const exactMatch = specCoils.find(c => parseInt(coilValue(c, 'sheets')) === targetSheets);
     let unitPrice, wireWeight, copperBase, coilFee, rotorFee, wireGauge, capacitor, source;
 
@@ -147,6 +140,8 @@ function calculateCoilCost(coils, input = {}, options = {}) {
         data: {
             spec,
             material,
+            slotType,
+            diameterMm: dimensions.diameterMm,
             sheets: targetSheets,
             unitPrice,
             wireWeight,
@@ -163,65 +158,73 @@ function calculateCoilCost(coils, input = {}, options = {}) {
     };
 }
 
-function buildCoilSpecDraft(coils, input = {}, options = {}) {
-    const spec = String(input.spec || '').trim();
-    const material = String(input.material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
-    const materialPrices = options.materialPrices || {};
-    const allSpecCoils = sortBySheets((coils || []).filter(c => String(coilValue(c, 'spec')).trim() === spec));
-    const exactMaterialCoils = allSpecCoils.filter(c => String(coilValue(c, 'material') || DEFAULT_COIL_MATERIAL).trim() === material);
-    const reference = exactMaterialCoils[0] || allSpecCoils[0] || null;
+function buildCoilSpecDraft(coils, input = {}) {
+    const dimensions = normalizeCoilDimensions(input);
+    const { commonName: spec, material, slotType, diameterMm } = dimensions;
+    const activeCoils = (coils || []).filter(coil => String(coilValue(coil, 'schemeStatus') || 'official') !== 'disabled');
+    const allSpecCoils = sortBySheets(activeCoils.filter(coil => coilDiameterMm(coil) === diameterMm));
+    const exactVariantCoils = allSpecCoils.filter(coil => (
+        String(coilValue(coil, 'material') || DEFAULT_COIL_MATERIAL).trim() === material
+        && String(coilValue(coil, 'slotType') || DEFAULT_COIL_SLOT_TYPE).trim() === slotType
+    ));
+    const reference = exactVariantCoils[0] || allSpecCoils[0] || null;
     if (!reference) {
         return {
             spec,
+            diameterMm,
             material,
-            unitPrice: getMaterialUnitPrice(spec, material, materialPrices),
+            slotType,
+            unitPrice: 0,
             wireWeight: null,
             copperBase: null,
             coilFee: null,
             rotorFee: null,
             defaultWireGauge: '',
             defaultCapacitor: '',
-            source: 'material-default',
+            source: 'empty',
             referenceCoilId: null,
+            exactVariant: false,
             exactMaterial: false,
         };
     }
-    const exactMaterial = exactMaterialCoils.length > 0;
+    const exactVariant = exactVariantCoils.length > 0;
     return {
         spec,
-        material: coilValue(reference, 'material') || material,
-        unitPrice: exactMaterial
-            ? Number(coilValue(reference, 'unitPrice') || 0)
-            : getMaterialUnitPrice(spec, material, materialPrices) || Number(coilValue(reference, 'unitPrice') || 0),
+        diameterMm,
+        material: exactVariant ? (coilValue(reference, 'material') || material) : material,
+        slotType,
+        unitPrice: exactVariant ? Number(coilValue(reference, 'unitPrice') || 0) : 0,
         wireWeight: Number(coilValue(reference, 'wireWeight') || 0),
         copperBase: Number(coilValue(reference, 'copperBase') || 0),
         coilFee: Number(coilValue(reference, 'coilFee') || 0),
         rotorFee: Number(coilValue(reference, 'rotorFee') || 0),
         defaultWireGauge: coilValue(reference, 'defaultWireGauge') || '',
         defaultCapacitor: coilValue(reference, 'defaultCapacitor') || '',
-        source: exactMaterial ? 'same-spec-material' : 'same-spec',
+        source: exactVariant ? 'same-variant' : 'same-spec',
         referenceCoilId: Number(coilValue(reference, 'id') || 0) || null,
-        exactMaterial,
+        exactVariant,
+        exactMaterial: exactVariant,
     };
 }
 
-function resolveWireFromCoils(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL) {
+function resolveWireFromCoils(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, slotType = DEFAULT_COIL_SLOT_TYPE) {
     if (!statorSpec || !statorSheets) return null;
-    const requestedMaterial = material ? String(material).trim() : '';
-    const { specCoils } = selectSpecCoils(coils, statorSpec, requestedMaterial || DEFAULT_COIL_MATERIAL, requestedMaterial, {});
+    const dimensions = normalizeCoilDimensions({ spec: statorSpec, material, slotType });
+    const specCoils = selectSpecCoils(coils, dimensions);
     const targetSheets = Number(statorSheets);
     const exact = specCoils.find(coil => Number(coilValue(coil, 'sheets')) === targetSheets);
     return coilValue(exact, 'defaultWireGauge') || null;
 }
 
-function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, options = {}) {
+function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, slotType = DEFAULT_COIL_SLOT_TYPE) {
     if (!statorSpec || !statorSheets) return null;
-    const result = calculateCoilCost(coils, { spec: statorSpec, sheets: statorSheets, material }, options);
+    const result = calculateCoilCost(coils, { spec: statorSpec, sheets: statorSheets, material, slotType });
     if (!result.success) return { error: result.error };
     const data = result.data;
     return {
         spec: data.spec,
         material: data.material,
+        slotType: data.slotType,
         sheets: String(statorSheets),
         unitPrice: data.unitPrice,
         cost: data.totalCost.toFixed(2),
@@ -231,15 +234,79 @@ function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material
     };
 }
 
+function buildCoilSpecOptions(coils) {
+    const specsMap = new Map();
+    (coils || [])
+        .filter(coil => String(coilValue(coil, 'schemeStatus') || 'official') === 'official')
+        .forEach(coil => {
+            const spec = String(coilValue(coil, 'spec') || '').trim();
+            if (!spec) return;
+            const material = String(coilValue(coil, 'material') || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
+            const slotType = String(coilValue(coil, 'slotType') || DEFAULT_COIL_SLOT_TYPE).trim() || DEFAULT_COIL_SLOT_TYPE;
+            const sheets = Number(coilValue(coil, 'sheets') || 0);
+            let option = specsMap.get(spec);
+            if (!option) {
+                option = {
+                    spec,
+                    commonName: String(coilValue(coil, 'commonName') || spec),
+                    diameterMm: coilDiameterMm(coil),
+                    material,
+                    materials: [],
+                    slotTypes: [],
+                    variants: [],
+                    unitPrice: Number(coilValue(coil, 'unitPrice') || 0),
+                    sheets: [],
+                    count: 0,
+                };
+                specsMap.set(spec, option);
+            }
+            if (!option.materials.includes(material)) option.materials.push(material);
+            if (!option.slotTypes.includes(slotType)) option.slotTypes.push(slotType);
+            let variant = option.variants.find(item => item.material === material && item.slotType === slotType);
+            if (!variant) {
+                variant = { material, slotType, sheets: [] };
+                option.variants.push(variant);
+            }
+            if (sheets > 0 && !variant.sheets.includes(sheets)) variant.sheets.push(sheets);
+            if (sheets > 0 && !option.sheets.includes(sheets)) option.sheets.push(sheets);
+            if (material === DEFAULT_COIL_MATERIAL && slotType === DEFAULT_COIL_SLOT_TYPE) {
+                option.material = material;
+                option.unitPrice = Number(coilValue(coil, 'unitPrice') || 0);
+            }
+            option.count++;
+        });
+
+    return Array.from(specsMap.values())
+        .map(option => ({
+            ...option,
+            materials: option.materials.sort((left, right) => left.localeCompare(right, 'zh-Hans-CN')),
+            slotTypes: option.slotTypes.sort((left, right) => left.localeCompare(right, 'zh-Hans-CN')),
+            sheets: option.sheets.sort((left, right) => left - right),
+            variants: option.variants
+                .map(variant => ({ ...variant, sheets: variant.sheets.sort((left, right) => left - right) }))
+                .sort((left, right) => (
+                    left.material.localeCompare(right.material, 'zh-Hans-CN')
+                    || left.slotType.localeCompare(right.slotType, 'zh-Hans-CN')
+                )),
+        }))
+        .sort((left, right) => (
+            Number(left.diameterMm || 0) - Number(right.diameterMm || 0)
+            || left.spec.localeCompare(right.spec, 'zh-Hans-CN', { numeric: true })
+        ));
+}
+
 module.exports = {
     DEFAULT_COIL_MATERIAL,
-    MATERIAL_UNIT_PRICE_DEFAULTS,
-    SPEC_MATERIAL_UNIT_PRICE_DEFAULTS,
-    getMaterialPriceMap,
-    getMaterialUnitPrice,
+    DEFAULT_COIL_SLOT_TYPE,
+    COIL_MATERIALS,
+    COIL_SLOT_TYPES,
+    COIL_SCHEME_STATUSES,
+    normalizeCoilSpec,
+    normalizeCoilDimensions,
     parseStatorInput,
     calculateCoilCost,
     buildCoilSpecDraft,
     resolveWireFromCoils,
     calculateFullEstimateCoilCost,
+    buildCoilSpecOptions,
 };

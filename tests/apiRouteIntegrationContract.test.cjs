@@ -63,6 +63,18 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assertNoWrites(section);
 });
 
+test('报价动态试算契约：组合包材和表面处理按覆盖配置替换', () => {
+    const source = readUtf8('api/services/dynamicCostPreview.cjs');
+
+    assert.match(source, /function inferPackingRole/);
+    assert.match(source, /container/);
+    assert.match(source, /foam/);
+    assert.match(source, /pearlCotton/);
+    assert.match(source, /managedTotals\.packing/);
+    assert.match(source, /effectiveSurfaceCost - baseSurfaceCost/);
+    assert.match(source, /surfaceTreatmentMode/);
+});
+
 test('关键 API 集成契约：配方保存的草稿与正式写入口都拒绝零价格 BOM', () => {
     const source = readUtf8('api/routes/recipes.cjs');
     const saveDraft = sliceBetween(source, 'function buildRecipeSavePayloadDraft', 'function partsCatalogRows');
@@ -224,6 +236,7 @@ test('关键 API 集成契约：成本基础资料写入必须使用统一数字
     const templates = readUtf8('api/routes/templates.cjs');
     const variants = readUtf8('api/routes/modelVariants.cjs');
     const coils = readUtf8('api/routes/coils.cjs');
+    const db = readUtf8('api/db.cjs');
 
     assert.match(templates, /parseNonNegativeNumber/);
     assert.match(templates, /stringifyJsonArray/);
@@ -237,6 +250,15 @@ test('关键 API 集成契约：成本基础资料写入必须使用统一数字
 
     assert.match(coils, /function coilCostFromValues/);
     assert.match(coils, /parseNonNegativeNumber/);
+    for (const field of ['mainWireGauge', 'mainWireData', 'auxWireGauge', 'auxWireData']) {
+        assert.match(coils, new RegExp(field));
+    }
+    for (const column of ['main_wire_gauge', 'main_wire_data', 'aux_wire_gauge', 'aux_wire_data']) {
+        assert.match(db, new RegExp(`ALTER TABLE coils ADD COLUMN ${column}`));
+    }
+    for (const field of ['mainWireGauge', 'mainWireData', 'auxWireGauge', 'auxWireData']) {
+        assert.match(db, new RegExp(field));
+    }
     assert.doesNotMatch(coils, /parseFloat\(unitPriceInput\)|parseInt\(sheetsRaw\)|parseFloat\(b\.wireWeight/);
     assert.doesNotMatch(coils, /Number\.isFinite\(up\)/);
 });
@@ -265,6 +287,8 @@ test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字
     assert.match(quotations, /parseNonNegativeNumber\(item\.unitPrice, `items\[\$\{index\}\]\.unitPrice`\)/);
     assert.match(quotations, /parsePositiveNumber\(item\.qty, `items\[\$\{index\}\]\.qty`/);
     assert.match(quotations, /parsePositiveNumber\(item\.margin, `items\[\$\{index\}\]\.margin`/);
+    assert.match(quotations, /normalizeQuotationItemOverrides\(item\.overrides, index\)/);
+    assert.match(quotations, /overrides:\s*normalizeQuotationItemOverrides/);
     assert.doesNotMatch(quotations, /Number\(item\.(unitCost|unitPrice|qty|margin)\) \|\|/);
 });
 

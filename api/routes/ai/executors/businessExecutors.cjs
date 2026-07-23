@@ -48,6 +48,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 coilSpec: args.coilSpec,
                 coilSheets: args.coilSheets,
                 coilMaterial: args.coilMaterial,
+                coilSlotType: args.coilSlotType,
                 coilWireWeight: args.coilWireWeight,
                 hasFloat: args.hasFloat,
                 floatWire: args.floatWire,

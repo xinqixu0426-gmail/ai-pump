@@ -82,7 +82,9 @@ function buildDataQualitySummary(options = {}) {
         const key = `${normalize(part.category)}||${normalize(part.model)}`;
         partModelCategoryCount.set(key, (partModelCategoryCount.get(key) || 0) + 1);
     }
-    const coilKeySet = new Set(coils.map(coil => `${normalize(coil.spec)}||${Number(coil.sheets || 0)}||${normalize(coil.material || '钢带')}`));
+    const coilKeySet = new Set(coils
+        .filter(coil => (coil.schemeStatus || 'official') === 'official')
+        .map(coil => `${Number(coil.diameterMm || (String(coil.spec).trim() === '12' ? 120 : coil.spec))}||${Number(coil.sheets || 0)}||${normalize(coil.material || '钢带')}||${normalize(coil.slotType || '小眼')}`));
     const templateIdSet = new Set(templates.map(template => Number(template.id ?? template.Id)));
 
     const missingPriceParts = parts
@@ -118,9 +120,10 @@ function buildDataQualitySummary(options = {}) {
             recipeIssues.push(row('recipe', recipe.id, recipe.name || `配方 #${recipe.id}`, '引用的泵壳模板不存在。', '/recipes', { reason: 'missing_template', templateId: recipe.templateId }));
         }
         if (recipe.coilSpec && recipe.coilSheets) {
-            const key = `${normalize(recipe.coilSpec)}||${Number(recipe.coilSheets || 0)}||${normalize(recipe.coilMaterial || '钢带')}`;
+            const diameterMm = String(recipe.coilSpec).trim() === '12' ? 120 : Number(recipe.coilSpec);
+            const key = `${diameterMm}||${Number(recipe.coilSheets || 0)}||${normalize(recipe.coilMaterial || '钢带')}||${normalize(recipe.coilSlotType || '小眼')}`;
             if (!coilKeySet.has(key)) {
-                recipeIssues.push(row('recipe', recipe.id, recipe.name || `配方 #${recipe.id}`, '配方线圈规格/片数/材质没有精确匹配的线圈记录。', '/recipes', { reason: 'missing_coil', coilSpec: recipe.coilSpec, coilSheets: recipe.coilSheets, coilMaterial: recipe.coilMaterial }));
+                recipeIssues.push(row('recipe', recipe.id, recipe.name || `配方 #${recipe.id}`, '配方线圈直径/片数/材质/槽眼没有精确匹配的正式方案。', '/recipes', { reason: 'missing_coil', coilSpec: recipe.coilSpec, coilSheets: recipe.coilSheets, coilMaterial: recipe.coilMaterial, coilSlotType: recipe.coilSlotType || '小眼' }));
             }
         }
         for (const part of partsJson || []) {

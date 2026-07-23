@@ -16,6 +16,7 @@ const technicalFileUpload = multer({
 });
 
 const ALLOWED_TECHNICAL_FILE_EXTENSIONS = new Set(['.xls', '.xlsx']);
+const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 
 function uploadFileName(value) {
     const raw = String(value || '测试报告');
@@ -50,7 +51,7 @@ function parseJsonObject(value) {
 
 const RECIPE_FIELDS = [
     'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
-    'template_id', 'coil_spec', 'coil_sheets', 'coil_material', 'coil_wire_weight',
+    'template_id', 'coil_spec', 'coil_sheets', 'coil_material', 'coil_slot_type', 'coil_wire_weight',
     'has_float', 'float_wire', 'float_accessory_type', 'has_cable', 'cable_length', 'cable_wire', 'cable_accessory_type',
     'box_type', 'extra_parts_json', 'packing_parts_json',
     'assembly_wage', 'packing_wage', 'painting_wage',
@@ -68,6 +69,7 @@ const RECIPE_ALIASES = {
     coilSpec: 'coil_spec',
     coilSheets: 'coil_sheets',
     coilMaterial: 'coil_material',
+    coilSlotType: 'coil_slot_type',
     coilWireWeight: 'coil_wire_weight',
     hasFloat: 'has_float',
     floatWire: 'float_wire',
@@ -156,7 +158,12 @@ function recipeSelectionRows(parts, packaging = false) {
             model: String(part.model || '').trim(),
             supplier: String(part.supplier || '').trim(),
             qty: parsePositiveNumber(part.qty, `parts[${index}].qty`, { defaultValue: 1 }),
-            ...(packaging ? { packagingMaterial: String(part.packagingMaterial || '').trim() || '纸箱' } : {}),
+            ...(packaging ? {
+                packagingMaterial: String(part.packagingMaterial || '').trim() || '纸箱',
+                packingRole: ['container', 'foam', 'pearlCotton', 'fixed'].includes(part.packingRole)
+                    ? part.packingRole
+                    : undefined,
+            } : {}),
             ...(part.costSource === 'manual'
                 ? { snapshotPrice: parseNonNegativeNumber(part.snapshotPrice, `parts[${index}].snapshotPrice`), costSource: 'manual' }
                 : {}),
@@ -221,6 +228,8 @@ function buildRecipeSavePayloadDraft(body) {
     assertRecipeBomPrices(parts);
 
     const surfaceTreatmentMode = form.surfaceTreatmentMode || 'none';
+    const coilSlotType = String(form.coilSlotType || '').trim() || '小眼';
+    if (!COIL_SLOT_TYPES.has(coilSlotType)) throw new Error('form.coilSlotType 仅支持小眼或国标眼');
     return {
         name: String(form.name || '').trim(),
         spec: String(form.spec || '').trim(),
@@ -231,6 +240,7 @@ function buildRecipeSavePayloadDraft(body) {
         coilSpec: String(form.coilSpec || '').trim(),
         coilSheets: parseNonNegativeNumber(form.coilSheets, 'form.coilSheets'),
         coilMaterial: String(form.coilMaterial || '').trim() || '钢带',
+        coilSlotType,
         coilWireWeight: form.coilWireWeight === '' || form.coilWireWeight == null ? null : parseNonNegativeNumber(form.coilWireWeight, 'form.coilWireWeight'),
         hasFloat: form.hasFloat ? 1 : 0,
         floatWire: String(form.floatWire || '').trim(),
@@ -361,6 +371,7 @@ router.post('/model-variant-draft', (req, res) => {
             coilSpec: variant.coilSpec || '',
             coilSheets: variant.coilSheets || 0,
             coilMaterial: variant.coilMaterial || '钢带',
+            coilSlotType: variant.coilSlotType || '小眼',
             customBarrelLength: variant.barrelLength ?? null,
             longScrewExtraLength: variant.longScrewExtraLength || 0,
             impellerModel: variant.impellerModel || '',
@@ -523,6 +534,7 @@ router.post('/', (req, res) => {
                 coil_spec: b.coil_spec || '',
                 coil_sheets: b.coil_sheets || 0,
                 coil_material: b.coil_material || '钢带',
+                coil_slot_type: b.coil_slot_type || '小眼',
                 has_float: b.has_float || 0,
                 float_wire: b.float_wire || '',
                 float_accessory_type: b.float_accessory_type || 'standard',

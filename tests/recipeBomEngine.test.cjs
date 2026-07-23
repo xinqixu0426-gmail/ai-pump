@@ -237,3 +237,42 @@ test('后端 BOM draft 支持客户指定线重重算线圈成本', () => {
     assert.equal(coil.snapshotPrice, 45);
     assert.equal(coil.formula, '0.2×15 + 0.5×70 + 3.00 + 4.00');
 });
+
+test('后端 BOM draft 可精确获取 12 冷轧国标眼绕组并计入成本', () => {
+    const coldRolledCoils = [
+        {
+            spec: '12',
+            diameterMm: 120,
+            material: '冷轧',
+            slotType: '国标眼',
+            schemeStatus: 'official',
+            sheets: 220,
+            unitPrice: 0.23,
+            wireWeight: 0.82,
+            copperBase: 70,
+            coilFee: 8,
+            rotorFee: 5,
+            defaultWireGauge: '0.75',
+            defaultCapacitor: '20μF',
+        },
+    ];
+    const result = buildRecipeBomDraft({
+        coilSpec: '12',
+        coilSheets: 220,
+        coilMaterial: '冷轧',
+        coilSlotType: '国标眼',
+    }, {
+        partsCatalog,
+        coils: coldRolledCoils,
+    });
+
+    assert.equal(result.coilSnapshot.material, '冷轧');
+    assert.equal(result.coilSnapshot.slotType, '国标眼');
+    assert.equal(result.coilSnapshot.source, '精确匹配');
+    assert.equal(result.coilSnapshot.totalCost, 121);
+    const coil = result.parts.find(part => part.name === '线圈转子');
+    assert.equal(coil.model, '12-220');
+    assert.equal(coil.material, '冷轧');
+    assert.equal(coil.slotType, '国标眼');
+    assert.equal(coil.snapshotPrice, 121);
+});

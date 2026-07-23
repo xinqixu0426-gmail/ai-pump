@@ -29,6 +29,7 @@ export type RecipePart = {
   cableAccessoryName?: string;
   cableAccessoryFee?: number;
   inventoryQty?: number;
+  packingRole?: 'container' | 'foam' | 'pearlCotton' | 'fixed';
 };
 
 export type RecipeCurrentCostDetail = {
@@ -78,6 +79,7 @@ export type Recipe = {
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
+  coilSlotType?: '小眼' | '国标眼';
   coilWireWeight?: number | null;
   hasFloat?: number;
   floatWire?: string;
@@ -151,6 +153,7 @@ export type PumpModelVariant = {
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
+  coilSlotType?: '小眼' | '国标眼';
   barrelLength?: number | null;
   longScrewExtraLength?: number;
   impellerModel?: string;
@@ -163,7 +166,11 @@ export type PumpModelVariant = {
 
 export type CoilSpecOption = {
   spec: string;
+  commonName?: string;
+  diameterMm?: number;
   materials?: string[];
+  slotTypes?: string[];
+  variants?: Array<{ material: string; slotType: string; sheets: number[] }>;
 };
 
 export type RecipeBomDraftResult = {
@@ -213,6 +220,7 @@ export type RecipeSelectionDraft = {
   supplier?: string;
   qty?: number | string;
   packagingMaterial?: string;
+  packingRole?: 'container' | 'foam' | 'pearlCotton' | 'fixed';
   costSource?: '' | 'manual';
   snapshotPrice?: number | string;
 };
@@ -225,6 +233,7 @@ export type RecipeModelVariantDraft = {
   coilSpec: string;
   coilSheets: number;
   coilMaterial: string;
+  coilSlotType: '小眼' | '国标眼';
   coilWireWeight?: number | null;
   customBarrelLength: number | null;
   longScrewExtraLength: number;
@@ -315,6 +324,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     coilSpec: row.coilSpec || '',
     coilSheets: Number(row.coilSheets) || 0,
     coilMaterial: row.coilMaterial || '钢带',
+    coilSlotType: row.coilSlotType === '国标眼' ? '国标眼' : '小眼',
     coilWireWeight: row.coilWireWeight == null ? null : Number(row.coilWireWeight),
     hasFloat: Number(row.hasFloat) || 0,
     floatWire: row.floatWire || '',
@@ -372,6 +382,7 @@ export function rowToVariant(row: VariantRow): PumpModelVariant {
     coilSpec: row.coilSpec || '',
     coilSheets: Number(row.coilSheets) || 0,
     coilMaterial: row.coilMaterial || '钢带',
+    coilSlotType: row.coilSlotType === '国标眼' ? '国标眼' : '小眼',
     barrelLength: row.barrelLength == null ? null : Number(row.barrelLength),
     longScrewExtraLength: Number(row.longScrewExtraLength) || 0,
     impellerModel: row.impellerModel || '',
@@ -583,6 +594,7 @@ export async function previewRecipeBomDraft(input: {
   coilSpec?: string;
   coilSheets?: number | string;
   coilMaterial?: string;
+  coilSlotType?: '小眼' | '国标眼';
   coilWireWeight?: number | string | null;
   optionalParts?: RecipePart[];
   hasFloat?: boolean | number;
@@ -633,6 +645,7 @@ export async function previewRecipeCostDraft(input: {
   surfaceTreatmentCost?: number;
   managementFee?: number;
   coilMaterial?: string;
+  coilSlotType?: '小眼' | '国标眼';
   customBarrelLength?: number | string | null;
   longScrewExtraLength?: number | string;
   enableLongScrewByBarrelLength?: boolean;
@@ -687,6 +700,7 @@ export type RecipeSaveInput = {
   coilSpec: string;
   coilSheets: number;
   coilMaterial: string;
+  coilSlotType: '小眼' | '国标眼';
   hasFloat?: number;
   floatWire?: string;
   floatAccessoryType?: CableAccessoryType;
@@ -775,6 +789,7 @@ export type RecipeSavePayloadDraftInput = {
     coilSpec?: string;
     coilSheets?: number | string;
     coilMaterial?: string;
+    coilSlotType?: '小眼' | '国标眼';
     coilWireWeight?: number | string | null;
     hasFloat?: boolean;
     floatWire?: string;
@@ -842,6 +857,7 @@ export type ModelVariantInput = {
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
+  coilSlotType?: '小眼' | '国标眼';
   barrelLength?: number | null;
   longScrewExtraLength?: number;
   impellerModel?: string;

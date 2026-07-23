@@ -442,32 +442,42 @@ test('Next UI 契约：订单新增产品保存成本为空时必须后端兜底
     assert.doesNotMatch(ordersView, /保存成本为空时该产品成本为 0/);
 });
 
-test('Next UI 契约：线圈页必须保留材质默认单价和规格组批量改单价', () => {
+test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批量改单价', () => {
     const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
     const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
+    const coilsRoute = readUtf8('api/routes/coils.cjs');
+    const settingsRoute = readUtf8('api/routes/settings.cjs');
+    const db = readUtf8('api/db.cjs');
     const docsReadme = readUtf8('docs/README.md');
 
     assert.match(coilsView, /实时市场指标/);
     assert.match(coilsView, /同步市场指标/);
     assert.match(coilsView, /refreshMarketIndicators/);
     assert.match(coilsView, /syncMarketIndicators/);
-    assert.match(coilsView, /材质默认单价/);
-    assert.match(coilsView, /保存单价配置/);
-    assert.match(coilsView, /添加材质/);
+    assert.doesNotMatch(coilsView, /材质默认单价|保存单价配置|添加材质|saveMaterialConfig/);
+    assert.doesNotMatch(coilsLib, /saveCoilMaterialPrices|\/api\/coils\/materials/);
+    assert.doesNotMatch(coilsRoute, /router\.(get|put)\('\/materials'/);
+    assert.doesNotMatch(settingsRoute, /coil_material_prices/);
+    assert.match(db, /DELETE FROM system_settings WHERE key = \?/);
+    assert.match(db, /run\('coil_material_prices'\)/);
     assert.match(coilsView, /改单价/);
-    assert.match(coilsView, /saveMaterialConfig/);
     assert.match(coilsView, /saveGroupPrice/);
-    assert.match(coilsLib, /saveCoilMaterialPrices/);
-    assert.match(coilsLib, /\/api\/coils\/materials/);
     assert.match(coilsLib, /updateCoilSpecPrice/);
     assert.match(coilsLib, /\/api\/coils\/spec\/\$\{encodeURIComponent\(spec\)\}/);
     assert.match(coilsLib, /getMarketIndicators/);
     assert.match(coilsLib, /\/api\/market-indicators/);
     assert.match(coilsLib, /updateMarketIndicators/);
     assert.match(coilsLib, /\/api\/market-indicators\/update/);
+    for (const field of ['mainWireGauge', 'mainWireData', 'auxWireGauge', 'auxWireData']) {
+        assert.match(coilsLib, new RegExp(field));
+        assert.match(coilsView, new RegExp(field));
+    }
+    for (const label of ['绕组技术参数', '主线线径', '主线数据', '副线线径', '副线数据']) {
+        assert.match(coilsView, new RegExp(label));
+    }
     assert.match(docsReadme, /实时市场指标/);
-    assert.match(docsReadme, /材质默认单价/);
-    assert.match(docsReadme, /规格组批量改单价/);
+    assert.doesNotMatch(docsReadme, /材质默认单价配置/);
+    assert.match(docsReadme, /组合批量改单价/);
 });
 
 test('Next UI 契约：报价转订单必须先预览后确认', () => {
@@ -493,13 +503,42 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsLib, /buildRecipeDefaultQuotationOverrides/);
     assert.match(quotationsView, /previewQuotationItemCost/);
     assert.match(quotationsView, /updateDraftItemOverrides/);
+    assert.match(quotationsView, /hydrateQuotationItemsForEdit/);
+    assert.match(quotationsView, /overridePreviewSeqRef/);
+    assert.match(quotationsView, /overridePreviewSeqRef\.current\.get\(id\) !== requestSeq/);
     assert.match(quotationsView, /hasFloat/);
     assert.match(quotationsView, /hasCable/);
-    assert.match(quotationsView, /customBarrelLength/);
+    assert.doesNotMatch(quotationsView, /updateDraftItemOverrides\(item\.id,\s*\{\s*customBarrelLength/);
     assert.match(quotationsView, /packagingOptions/);
+    assert.match(quotationsView, /containerOptions/);
+    assert.match(quotationsView, /foamOptions/);
+    assert.match(quotationsView, /pearlCottonOptions/);
+    assert.match(quotationsView, /packingRole/);
+    assert.doesNotMatch(quotationsView, /coilOptions/);
+    assert.doesNotMatch(quotationsView, /floatWireOptions/);
+    assert.doesNotMatch(quotationsView, /cableWireOptions/);
+    assert.doesNotMatch(quotationsView, /浮球铜套/);
+    assert.doesNotMatch(quotationsView, /电缆铜套/);
+    assert.doesNotMatch(quotationsView, /表面处理费用/);
+    assert.match(quotationsView, /利润率/);
+    assert.doesNotMatch(quotationsView, /加价倍数/);
+    assert.match(quotationsView, /marginPercentToMultiplier/);
+    assert.match(quotationsView, /电缆长度（米）/);
+    assert.match(quotationsView, /inputMode="numeric"/);
+    assert.match(quotationsView, /maxLength=\{2\}/);
+    assert.match(quotationsView, /replace\(\/\\D\/g, ''\)\.slice\(0, 2\)/);
+    assert.match(quotationsView, /w-24 rounded-md[^"]+text-left/);
+    assert.match(quotationsView, /sm:grid-cols-\[7rem_minmax\(0,1fr\)\]/);
+    assert.match(quotationsView, /hasCable:\s*Number\(nextLength\) > 0/);
     assert.match(quotationsView, /packingPartsJson/);
     assert.match(quotationsView, /包装/);
+    assert.match(quotationsView, /报价配置/);
+    assert.match(quotationsView, /含税出厂价/);
+    assert.match(quotationsView, /quotationTaxIncludedFactoryPrice/);
+    assert.match(quotationsView, /surfaceTreatmentLabel/);
     assert.match(quotationsLib, /getAllParts/);
+    assert.doesNotMatch(quotationsLib, /getAllCoils/);
+    assert.match(quotationsLib, /surfaceTreatmentMode/);
     assert.doesNotMatch(quotationsView, /动态覆盖项稍后单独迁移/);
 });
 
@@ -517,7 +556,7 @@ test('Next UI 契约：客户详情可以带客户上下文新建报价', () => 
     assert.match(quotationsView, /prefillCustomerId/);
     assert.match(quotationsView, /shouldCreateFromQuery/);
     assert.match(quotationsView, /setDrawerOpen\(true\)/);
-    assert.match(quotationsView, /setItemMargin\(\(1 \+ Number\(customer\.defaultMargin/);
+    assert.match(quotationsView, /setItemMargin\(customerMarginPercent\(customer\)\)/);
     assert.match(quotationsPage, /Suspense/);
     assert.match(quotationsPage, /<QuotationsView \/>/);
 });
@@ -682,7 +721,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(db, /pump_shell_templates ADD COLUMN bundle_note/);
 });
 
-test('Next UI 契约：线圈新增必须保留同规格自动带入小操作', () => {
+test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和方案状态', () => {
     const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
     const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
     const coilsRoute = readUtf8('api/routes/coils.cjs');
@@ -700,9 +739,13 @@ test('Next UI 契约：线圈新增必须保留同规格自动带入小操作', 
     assert.match(coilsView, /defaultWireGauge:\s*draft\.defaultWireGauge/);
     assert.match(coilsView, /defaultCapacitor:\s*draft\.defaultCapacitor/);
     assert.match(coilsView, /disabled=\{Boolean\(editingCoil\)\}/);
-    assert.match(coilsView, /单片价请在规格组里批量修改/);
+    assert.match(coilsView, /单片价请在定子组合里批量修改/);
+    assert.match(coilsView, /定子直径 mm/);
+    assert.match(coilsView, /国标眼/);
+    assert.match(coilsView, /schemeStatus/);
     assert.match(coilsLib, /getCoilSpecDraft/);
     assert.match(coilsLib, /\/api\/coils\/spec-draft/);
     assert.match(coilsRoute, /router\.post\('\/spec-draft'/);
     assert.match(coilCostService, /function buildCoilSpecDraft/);
+    assert.match(coilCostService, /status !== 'official'/);
 });

@@ -1,5 +1,5 @@
 const { roundMoney } = require('./costEngine.cjs');
-const { calculateCoilCost, getMaterialPriceMap } = require('./coilCost.cjs');
+const { calculateCoilCost } = require('./coilCost.cjs');
 
 function parseParts(value) {
     if (Array.isArray(value)) return value;
@@ -22,14 +22,15 @@ function calculateLaborTotal(recipe, getSetting = () => undefined) {
     );
 }
 
-function refreshCoilSnapshot(parts, recipe, coils, getSetting = () => undefined) {
+function refreshCoilSnapshot(parts, recipe, coils) {
     if (!recipe.coilSpec || !Number(recipe.coilSheets || 0)) return parts;
     const result = calculateCoilCost(coils, {
         spec: recipe.coilSpec,
         sheets: recipe.coilSheets,
         material: recipe.coilMaterial,
+        slotType: recipe.coilSlotType || '小眼',
         wireWeight: recipe.coilWireWeight,
-    }, { materialPrices: getMaterialPriceMap(getSetting) });
+    });
     if (!result.success || !result.data) return parts;
 
     return parts.map(part => part?.name === '线圈转子'
@@ -53,7 +54,7 @@ function calculateCurrentRecipeCost(recipe, dependencies = {}) {
     } = dependencies;
     if (typeof calculateRecipeCost !== 'function') throw new Error('calculateRecipeCost dependency is required');
 
-    const parts = refreshCoilSnapshot(parseParts(recipe.partsJson), recipe, coils, getSetting);
+    const parts = refreshCoilSnapshot(parseParts(recipe.partsJson), recipe, coils);
     const partsResult = calculateRecipeCost(parts, partsCache, partsByModel, { getSetting });
     const partsCost = Number(partsResult.totalCost || 0);
     const laborCost = calculateLaborTotal(recipe, getSetting);

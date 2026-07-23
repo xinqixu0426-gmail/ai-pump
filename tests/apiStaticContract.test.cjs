@@ -206,6 +206,19 @@ test('API 静态契约：配方保存 payload 必须由后端生成草稿', () =
     assert.doesNotMatch(nextView, /partsJson: JSON\.stringify\(costDraft\.parts\)/);
 });
 
+test('API 静态契约：配方线圈材质切换必须从可用组合解析槽眼', () => {
+    const coilService = readUtf8(path.join(repoRoot, 'api/services/coilCost.cjs'));
+    const coilRoute = readUtf8(path.join(repoRoot, 'api/routes/coils.cjs'));
+    const recipeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+
+    assert.match(coilService, /function buildCoilSpecOptions/);
+    assert.match(coilRoute, /buildCoilSpecOptions\(dbGetAllCoils\(\)\)/);
+    assert.match(recipeView, /function resolveCoilVariantSelection/);
+    assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedFormCoilSpec,\s*event\.target\.value/);
+    assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedVariantCoil,\s*event\.target\.value/);
+    assert.doesNotMatch(recipeView, /coilMaterial:\s*event\.target\.value,\s*coilSlotType:\s*'小眼'/);
+});
+
 test('API 静态契约：配方详情只读库存状态且不保留生产扣库存入口', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));

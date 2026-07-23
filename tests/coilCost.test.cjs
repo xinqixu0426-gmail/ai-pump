@@ -2,8 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     calculateCoilCost,
-    getMaterialPriceMap,
-    getMaterialUnitPrice,
+    buildCoilSpecOptions,
     resolveWireFromCoils,
 } = require('../api/services/coilCost.cjs');
 
@@ -53,51 +52,49 @@ test('线圈成本服务非精确片数使用插值', () => {
     assert.equal(result.data.source, '插值(24片↔30片, ratio=0.500)');
 });
 
-test('线圈成本服务支持材质单价回退', () => {
-    const result = calculateCoilCost(coils, { spec: '750', sheets: 24, material: '冷轧800' }, {
-        materialPrices: { '冷轧800': 0.25 },
-    });
+test('线圈成本指定材质时不得借用其他材质记录或默认单价', () => {
+    const result = calculateCoilCost(coils, { spec: '750', sheets: 24, material: '冷轧' });
 
-    assert.equal(result.success, true);
-    assert.equal(result.data.material, '冷轧800');
-    assert.equal(result.data.unitPrice, 0.25);
-    assert.equal(result.data.totalCost, 27);
-});
-
-test('线圈材质单价读取兼容默认值和坏 JSON', () => {
-    const values = getMaterialPriceMap(() => '{bad json');
-
-    assert.equal(values['钢带'], 0.21);
-    assert.equal(values['冷轧800'], 0.22);
-});
-
-test('线圈定子单价按规格和材质取默认值', () => {
-    assert.equal(getMaterialUnitPrice('9', '钢带'), 0.18);
-    assert.equal(getMaterialUnitPrice('9', '冷轧800'), 0.2);
-    assert.equal(getMaterialUnitPrice('12.8', '钢带'), 0.234);
-    assert.equal(getMaterialUnitPrice('12.8', '冷轧800'), 0.244);
-});
-
-test('线圈成本材质回退使用规格材质单价', () => {
-    const specCoils = [
-        {
-            spec: '12.8',
-            material: '钢带',
-            sheets: 10,
-            unitPrice: 0.1,
-            wireWeight: 0,
-            copperBase: 0,
-            coilFee: 0,
-            rotorFee: 0,
-        },
-    ];
-    const result = calculateCoilCost(specCoils, { spec: '12.8', sheets: 10, material: '冷轧800' });
-
-    assert.equal(result.success, true);
-    assert.equal(result.data.unitPrice, 0.244);
-    assert.equal(result.data.totalCost, 2.44);
+    assert.equal(result.success, false);
+    assert.equal(result.status, 404);
+    assert.match(result.error, /冷轧/);
 });
 
 test('线圈服务按材质解析默认线径', () => {
     assert.equal(resolveWireFromCoils(coils, '750', 24, '钢带'), '0.55');
+});
+
+test('线圈成本严格隔离小眼和国标眼', () => {
+    const result = calculateCoilCost(coils, { spec: '750', sheets: 24, material: '钢带', slotType: '国标眼' });
+
+    assert.equal(result.success, false);
+    assert.match(result.error, /国标眼/);
+});
+
+test('测试方案不参与正式成本，12 与 120 按同一直径匹配', () => {
+    const domainCoils = [
+        { ...coils[0], spec: '12', diameterMm: 120, schemeStatus: 'testing', wireWeight: 9 },
+        { ...coils[0], spec: '12', diameterMm: 120, schemeStatus: 'official', wireWeight: 0.3 },
+    ];
+    const result = calculateCoilCost(domainCoils, { spec: '120', sheets: 24, material: '钢带', slotType: '小眼' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.diameterMm, 120);
+    assert.equal(result.data.wireWeight, 0.3);
+});
+
+test('线圈规格选项保留同规格下钢带小眼和冷轧国标眼两条正式链路', () => {
+    const options = buildCoilSpecOptions([
+        { ...coils[0], spec: '12', diameterMm: 120, sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official' },
+        { ...coils[0], spec: '12', diameterMm: 120, sheets: 220, material: '冷轧', slotType: '国标眼', schemeStatus: 'official' },
+        { ...coils[0], spec: '12', diameterMm: 120, sheets: 240, material: '冷轧', slotType: '国标眼', schemeStatus: 'testing' },
+    ]);
+
+    assert.equal(options.length, 1);
+    assert.equal(options[0].diameterMm, 120);
+    assert.deepEqual(options[0].materials, ['钢带', '冷轧']);
+    assert.deepEqual(options[0].variants, [
+        { material: '钢带', slotType: '小眼', sheets: [120] },
+        { material: '冷轧', slotType: '国标眼', sheets: [220] },
+    ]);
 });

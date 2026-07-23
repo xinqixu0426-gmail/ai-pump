@@ -63,11 +63,26 @@ db.exec(`
         updated_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS stator_variants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        diameter_mm INTEGER NOT NULL,
+        common_name TEXT DEFAULT '',
+        material TEXT NOT NULL,
+        slot_type TEXT NOT NULL DEFAULT '小眼',
+        created_at TEXT,
+        updated_at TEXT,
+        UNIQUE(diameter_mm, material, slot_type)
+    );
+
     CREATE TABLE IF NOT EXISTS coils (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stator_variant_id INTEGER,
         spec TEXT NOT NULL,
         material TEXT DEFAULT '钢带',
+        slot_type TEXT DEFAULT '小眼',
         sheets INTEGER NOT NULL,
+        scheme_name TEXT DEFAULT '',
+        scheme_status TEXT DEFAULT 'official',
         unit_price REAL DEFAULT 0,
         wire_weight REAL DEFAULT 0,
         copper_base REAL DEFAULT 0,
@@ -76,8 +91,13 @@ db.exec(`
         cost REAL DEFAULT 0,
         default_wire_gauge TEXT,
         default_capacitor TEXT,
+        main_wire_gauge TEXT DEFAULT '',
+        main_wire_data TEXT DEFAULT '',
+        aux_wire_gauge TEXT DEFAULT '',
+        aux_wire_data TEXT DEFAULT '',
         created_at TEXT,
-        updated_at TEXT
+        updated_at TEXT,
+        FOREIGN KEY(stator_variant_id) REFERENCES stator_variants(id)
     );
 
     CREATE TABLE IF NOT EXISTS rotor_drawings (
@@ -148,6 +168,7 @@ db.exec(`
         coil_spec TEXT DEFAULT '',
         coil_sheets INTEGER DEFAULT 0,
         coil_material TEXT DEFAULT '钢带',
+        coil_slot_type TEXT DEFAULT '小眼',
         barrel_length REAL,
         long_screw_extra_length REAL DEFAULT 0,
         impeller_model TEXT DEFAULT '',
@@ -251,10 +272,8 @@ const existing = db.prepare('SELECT key FROM system_settings WHERE key = ?').get
 if (!existing) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('management_fee', '5', new Date().toISOString());
 }
-const existingCoilMaterialPrices = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('coil_material_prices');
-if (!existingCoilMaterialPrices) {
-    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('coil_material_prices', JSON.stringify({ '钢带': 0.21, '冷轧800': 0.22, '其他材质': 0 }), new Date().toISOString());
-}
+// 已移除线圈材质默认单价配置，启动时清理历史设置。
+db.prepare('DELETE FROM system_settings WHERE key = ?').run('coil_material_prices');
 const existingCableAccessories = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('cable_accessories');
 if (!existingCableAccessories) {
     const legacyCableAccessoryPart = db.prepare(`SELECT price FROM parts WHERE model = '电缆配件费' ORDER BY price LIMIT 1`).get();
@@ -296,6 +315,7 @@ const recipeAlterColumns = [
     ['coil_spec', "TEXT DEFAULT ''"],
     ['coil_sheets', 'INTEGER DEFAULT 0'],
     ['coil_material', "TEXT DEFAULT '钢带'"],
+    ['coil_slot_type', "TEXT DEFAULT '小眼'"],
     ['coil_wire_weight', 'REAL'],
     ['has_float', 'INTEGER DEFAULT 0'],
     ['float_wire', "TEXT DEFAULT ''"],
@@ -363,10 +383,19 @@ try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_note TEXT DEFA
 try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN long_screw_extra_length REAL DEFAULT 0`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN custom_fields_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN coil_slot_type TEXT DEFAULT '小眼'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN drawing_name TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
 try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN main_wire_gauge TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN main_wire_data TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN aux_wire_gauge TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN aux_wire_data TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN stator_variant_id INTEGER`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN slot_type TEXT DEFAULT '小眼'`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN scheme_name TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE coils ADD COLUMN scheme_status TEXT DEFAULT 'official'`); } catch { /* already exists */ }
 
 try {
     const rows = db.prepare(`
@@ -425,6 +454,7 @@ function recipeRow(r) {
         savedCostDetails: r.saved_cost_details,
         templateId: r.template_id, coilSpec: r.coil_spec, coilSheets: r.coil_sheets,
         coilMaterial: r.coil_material || '钢带',
+        coilSlotType: r.coil_slot_type || '小眼',
         coilWireWeight: r.coil_wire_weight,
         hasFloat: r.has_float, floatWire: r.float_wire, floatAccessoryType: r.float_accessory_type || 'standard', hasCable: r.has_cable,
         cableLength: r.cable_length, cableWire: r.cable_wire, cableAccessoryType: r.cable_accessory_type || 'standard', boxType: r.box_type,
@@ -472,6 +502,7 @@ function modelVariantRow(r) {
         coilSpec: r.coil_spec || '',
         coilSheets: r.coil_sheets || 0,
         coilMaterial: r.coil_material || '钢带',
+        coilSlotType: r.coil_slot_type || '小眼',
         barrelLength: r.barrel_length,
         longScrewExtraLength: r.long_screw_extra_length || 0,
         impellerModel: r.impeller_model || '',
@@ -498,11 +529,22 @@ function orderRow(r) {
 }
 function coilRow(r) {
     if (!r) return r;
+    const variant = r.stator_variant_id
+        ? db.prepare('SELECT * FROM stator_variants WHERE id = ?').get(r.stator_variant_id)
+        : null;
     return {
         id: r.id, Id: r.id, spec: r.spec, material: r.material || '钢带', unitPrice: r.unit_price, sheets: r.sheets,
+        statorVariantId: r.stator_variant_id || null,
+        diameterMm: variant?.diameter_mm || (String(r.spec).trim() === '12' ? 120 : Number(r.spec) || 0),
+        commonName: variant?.common_name || r.spec || '',
+        slotType: variant?.slot_type || r.slot_type || '小眼',
+        schemeName: r.scheme_name || '',
+        schemeStatus: r.scheme_status || 'official',
         wireWeight: r.wire_weight, copperBase: r.copper_base,
         coilFee: r.coil_fee, rotorFee: r.rotor_fee,
         cost: r.cost, defaultCapacitor: r.default_capacitor, defaultWireGauge: r.default_wire_gauge,
+        mainWireGauge: r.main_wire_gauge || '', mainWireData: r.main_wire_data || '',
+        auxWireGauge: r.aux_wire_gauge || '', auxWireData: r.aux_wire_data || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
@@ -584,12 +626,25 @@ function recipeTechnicalFileRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function statorVariantRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        diameterMm: Number(r.diameter_mm || 0),
+        commonName: r.common_name || '',
+        material: r.material || '钢带',
+        slotType: r.slot_type || '小眼',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
 
 // ── 数据访问层 ──
 function dbGetAllParts() { return db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all().map(partRow); }
 function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes WHERE deleted_at IS NULL').all().map(recipeRow); }
 function dbGetAllOrders() { return db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all().map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
+function dbGetAllStatorVariants() { return db.prepare('SELECT * FROM stator_variants ORDER BY diameter_mm, material, slot_type').all().map(statorVariantRow); }
 function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all().map(templateRow); }
 function dbGetAllModelVariants() { return db.prepare('SELECT * FROM pump_model_variants WHERE deleted_at IS NULL ORDER BY model_name').all().map(modelVariantRow); }
 function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY id DESC').all().map(customerRow); }
@@ -654,7 +709,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'recipe_technical_files']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'recipe_technical_files']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -749,6 +804,59 @@ function hardDelete(table, id) {
         writeAuditLog('DELETE', table, id, auditJson(oldRow), null);
     } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
+
+function migrateCoilDomain() {
+    const rows = db.prepare('SELECT * FROM coils ORDER BY id').all();
+    const migrate = db.transaction(() => {
+        for (const row of rows) {
+            const rawSpec = String(row.spec || '').trim();
+            const rawMaterial = String(row.material || '钢带').trim() || '钢带';
+            const diameterMm = rawSpec === '12' ? 120 : Number.parseInt(rawSpec, 10);
+            if (!Number.isInteger(diameterMm) || diameterMm <= 0) continue;
+
+            const material = rawMaterial.includes('冷轧')
+                ? '冷轧'
+                : rawMaterial.includes('钢带') ? '钢带' : rawMaterial;
+            const slotType = rawMaterial.includes('国标眼')
+                ? '国标眼'
+                : (row.slot_type === '国标眼' ? '国标眼' : '小眼');
+            let variant = db.prepare(`
+                SELECT * FROM stator_variants
+                WHERE diameter_mm = ? AND material = ? AND slot_type = ?
+            `).get(diameterMm, material, slotType);
+            if (!variant) {
+                const now = new Date().toISOString();
+                const info = safeInsert('stator_variants', {
+                    diameter_mm: diameterMm,
+                    common_name: rawSpec,
+                    material,
+                    slot_type: slotType,
+                    created_at: now,
+                    updated_at: now,
+                });
+                variant = db.prepare('SELECT * FROM stator_variants WHERE id = ?').get(info.lastInsertRowid);
+            }
+
+            const updates = {};
+            if (row.stator_variant_id !== variant.id) updates.stator_variant_id = variant.id;
+            if (row.material !== material) updates.material = material;
+            if (row.slot_type !== slotType) updates.slot_type = slotType;
+            if (!row.scheme_status) updates.scheme_status = 'official';
+            if (!row.scheme_name) updates.scheme_name = '正式方案';
+            if (Object.keys(updates).length > 0) safeUpdate('coils', row.id, updates);
+        }
+    });
+    migrate();
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_coils_variant_sheets
+        ON coils(stator_variant_id, sheets);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme
+        ON coils(stator_variant_id, sheets)
+        WHERE scheme_status = 'official';
+    `);
+}
+
+migrateCoilDomain();
 
 // ── P1.7: loadPartsData 缓存 ──
 let _partsDataCache = null;
@@ -850,8 +958,8 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, recipeTechnicalFileRow,
-    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, recipeTechnicalFileRow,
+    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,
     updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,

@@ -3,9 +3,15 @@ import { proxyRequest } from './api';
 
 export type CoilRecord = {
   id: number;
+  statorVariantId?: number | null;
   spec: string;
+  diameterMm: number;
+  commonName: string;
   material: string;
+  slotType: '小眼' | '国标眼';
   sheets: number;
+  schemeName: string;
+  schemeStatus: 'testing' | 'official' | 'disabled';
   unitPrice: number;
   wireWeight: number;
   copperBase: number;
@@ -14,14 +20,22 @@ export type CoilRecord = {
   cost: number;
   defaultWireGauge?: string | null;
   defaultCapacitor?: string | null;
+  mainWireGauge?: string | null;
+  mainWireData?: string | null;
+  auxWireGauge?: string | null;
+  auxWireData?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type CoilInput = {
   spec: string;
+  diameterMm: number;
   material: string;
+  slotType: '小眼' | '国标眼';
   sheets: number;
+  schemeName: string;
+  schemeStatus: 'testing' | 'official' | 'disabled';
   unitPrice?: number;
   wireWeight: number;
   copperBase: number;
@@ -29,11 +43,16 @@ export type CoilInput = {
   rotorFee: number;
   defaultWireGauge?: string;
   defaultCapacitor?: string;
+  mainWireGauge?: string;
+  mainWireData?: string;
+  auxWireGauge?: string;
+  auxWireData?: string;
 };
 
 export type CoilCalcInput = {
   spec: string;
   material?: string;
+  slotType?: '小眼' | '国标眼';
   sheets: number;
   wireWeight?: number;
 };
@@ -41,6 +60,8 @@ export type CoilCalcInput = {
 export type CoilCalcResult = {
   spec: string;
   material: string;
+  slotType: '小眼' | '国标眼';
+  diameterMm: number;
   sheets: number;
   unitPrice: number;
   wireWeight: number;
@@ -57,7 +78,9 @@ export type CoilCalcResult = {
 
 export type CoilSpecDraft = {
   spec: string;
+  diameterMm: number;
   material: string;
+  slotType: '小眼' | '国标眼';
   unitPrice: number;
   wireWeight: number | null;
   copperBase: number | null;
@@ -68,6 +91,15 @@ export type CoilSpecDraft = {
   source: string;
   referenceCoilId: number | null;
   exactMaterial: boolean;
+  exactVariant: boolean;
+};
+
+export type StatorVariant = {
+  id: number;
+  diameterMm: number;
+  commonName: string;
+  material: string;
+  slotType: '小眼' | '国标眼';
 };
 
 export type MarketIndicators = {
@@ -116,8 +148,14 @@ export function rowToCoil(row: CoilRow): CoilRecord {
   return {
     id: rowId(row),
     spec: row.spec || '',
+    statorVariantId: row.statorVariantId || null,
+    diameterMm: Number(row.diameterMm) || (row.spec === '12' ? 120 : Number(row.spec) || 0),
+    commonName: row.commonName || row.spec || '',
     material: row.material || '钢带',
+    slotType: row.slotType === '国标眼' ? '国标眼' : '小眼',
     sheets: Number(row.sheets) || 0,
+    schemeName: row.schemeName || '',
+    schemeStatus: row.schemeStatus === 'testing' || row.schemeStatus === 'disabled' ? row.schemeStatus : 'official',
     unitPrice: Number(row.unitPrice) || 0,
     wireWeight: Number(row.wireWeight) || 0,
     copperBase: Number(row.copperBase) || 0,
@@ -126,6 +164,10 @@ export function rowToCoil(row: CoilRow): CoilRecord {
     cost: Number(row.cost) || 0,
     defaultWireGauge: row.defaultWireGauge || '',
     defaultCapacitor: row.defaultCapacitor || '',
+    mainWireGauge: row.mainWireGauge || '',
+    mainWireData: row.mainWireData || '',
+    auxWireGauge: row.auxWireGauge || '',
+    auxWireData: row.auxWireData || '',
     createdAt: row.createdAt || row.CreatedAt,
     updatedAt: row.updatedAt || row.UpdatedAt,
   };
@@ -137,25 +179,10 @@ export async function getAllCoils(): Promise<CoilRecord[]> {
   return (result.data || []).map(rowToCoil);
 }
 
-export async function getCoilMaterials(): Promise<{ defaultMaterial: string; materials: string[]; materialPrices: Record<string, number> }> {
-  const result = await proxyRequest<ApiResponse<{ defaultMaterial: string; materials: string[]; materialPrices: Record<string, number> }>>('/api/coils/materials');
-  if (!result.success || !result.data) throw new Error(result.error || '材质配置加载失败');
-  return result.data;
-}
-
-export async function saveCoilMaterialPrices(materialPrices: Record<string, number>): Promise<Record<string, number>> {
-  const result = await proxyRequest<ApiResponse<{ materialPrices: Record<string, number> }>>('/api/coils/materials', {
-    method: 'PUT',
-    body: JSON.stringify({ materialPrices }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '材质单价配置保存失败');
-  return result.data.materialPrices || {};
-}
-
-export async function updateCoilSpecPrice(spec: string, material: string, unitPrice: number): Promise<number> {
+export async function updateCoilSpecPrice(spec: string, material: string, slotType: string, unitPrice: number): Promise<number> {
   const result = await proxyRequest<ApiResponse<unknown> & { updated?: number }>(`/api/coils/spec/${encodeURIComponent(spec)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ material, unitPrice }),
+    body: JSON.stringify({ material, slotType, unitPrice }),
   });
   if (!result.success) throw new Error(result.error || '规格单价保存失败');
   return Number(result.updated) || 0;
@@ -184,13 +211,19 @@ export async function calculateCoilCost(input: CoilCalcInput): Promise<CoilCalcR
   return result.data;
 }
 
-export async function getCoilSpecDraft(spec: string, material: string): Promise<CoilSpecDraft> {
+export async function getCoilSpecDraft(spec: string, diameterMm: number, material: string, slotType: string): Promise<CoilSpecDraft> {
   const result = await proxyRequest<ApiResponse<CoilSpecDraft>>('/api/coils/spec-draft', {
     method: 'POST',
-    body: JSON.stringify({ spec, material }),
+    body: JSON.stringify({ spec, diameterMm, material, slotType }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '线圈规格草稿生成失败');
   return result.data;
+}
+
+export async function getStatorVariants(): Promise<StatorVariant[]> {
+  const result = await proxyRequest<ApiResponse<StatorVariant[]>>('/api/coils/variants');
+  if (!result.success) throw new Error(result.error || '定子组合加载失败');
+  return result.data || [];
 }
 
 export async function createCoil(input: CoilInput): Promise<CoilRecord> {

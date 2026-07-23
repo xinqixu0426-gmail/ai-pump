@@ -3,7 +3,7 @@ import { proxyRequest } from './api';
 import { getAllCustomers, getAllQuotations, rowToQuotation, type Customer, type Quotation } from './customers';
 import { createOrder, type OrderItem, type PurchaseItem, type TodoItem } from './orders';
 import { getAllParts, type Part } from './parts';
-import { getAllRecipes, type Recipe } from './recipes';
+import { getAllRecipes, type Recipe, type SurfaceTreatmentMode } from './recipes';
 
 export type QuotationStatus = '报价中' | '已接受' | '已拒绝' | '已转订单' | '已过时';
 export type QuotationFilter = QuotationStatus | '全部';
@@ -32,9 +32,24 @@ export type QuotationItemOverrides = {
   coilSpec?: string;
   coilSheets?: number | string;
   coilMaterial?: string;
+  coilSlotType?: '小眼' | '国标眼';
   customBarrelLength?: number | string;
   boxType?: string;
   packingPartsJson?: string;
+  surfaceTreatmentMode?: SurfaceTreatmentMode;
+  surfaceTreatmentCost?: number | string;
+};
+
+export type QuotationPackingRole = 'container' | 'foam' | 'pearlCotton' | 'fixed';
+
+export type QuotationPackingPart = {
+  model?: string;
+  supplier?: string;
+  qty?: number;
+  packagingMaterial?: string;
+  packingRole?: QuotationPackingRole;
+  snapshotPrice?: number;
+  costSource?: string;
 };
 
 type QuotationRow = {
@@ -171,9 +186,12 @@ export function buildRecipeDefaultQuotationOverrides(recipe: Recipe): QuotationI
     coilSpec: recipe.coilSpec || '',
     coilSheets: recipe.coilSheets || '',
     coilMaterial: recipe.coilMaterial || '钢带',
+    coilSlotType: recipe.coilSlotType || '小眼',
     customBarrelLength: recipe.customBarrelLength ?? '',
     boxType: recipe.boxType || '',
     packingPartsJson: recipe.packingPartsJson || '[]',
+    surfaceTreatmentMode: recipe.surfaceTreatmentMode || 'none',
+    surfaceTreatmentCost: recipe.surfaceTreatmentMode === 'none' ? 0 : Number(recipe.surfaceTreatmentCost || 0),
   };
 }
 
@@ -196,7 +214,12 @@ export function calculateQuotationTotals(items: QuotationItem[]) {
 }
 
 export async function getQuotationDataset(): Promise<QuotationDataset> {
-  const [customers, quotations, recipes, parts] = await Promise.all([getAllCustomers(), getAllQuotations(), getAllRecipes(), getAllParts()]);
+  const [customers, quotations, recipes, parts] = await Promise.all([
+    getAllCustomers(),
+    getAllQuotations(),
+    getAllRecipes(),
+    getAllParts(),
+  ]);
   return { customers, quotations, recipes, parts };
 }
 

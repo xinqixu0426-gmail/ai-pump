@@ -65,6 +65,48 @@ import { parseTechnicalDataJson, type RecipeTechnicalData } from '@/lib/technica
 
 type RecipeFilter = 'all' | 'risk' | 'missingCost' | 'float' | 'cable';
 type RecipeSection = 'recipes' | 'templates' | 'variants';
+type CoilSlotType = '小眼' | '国标眼';
+
+type CoilVariantSelection = {
+  material: string;
+  slotType: CoilSlotType;
+  sheets: number[];
+};
+
+function normalizeCoilSlotType(value: string | undefined): CoilSlotType {
+  return value === '国标眼' ? '国标眼' : '小眼';
+}
+
+function resolveCoilVariantSelection(
+  specOption: CoilSpecOption | undefined,
+  preferredMaterial = '',
+  preferredSlotType = ''
+): CoilVariantSelection {
+  const variants = specOption?.variants || [];
+  const selectedVariant = variants.find((variant) => (
+    variant.material === preferredMaterial && variant.slotType === preferredSlotType
+  ))
+    || variants.find((variant) => variant.material === preferredMaterial)
+    || variants[0];
+
+  if (selectedVariant) {
+    return {
+      material: selectedVariant.material,
+      slotType: normalizeCoilSlotType(selectedVariant.slotType),
+      sheets: selectedVariant.sheets || [],
+    };
+  }
+
+  const material = preferredMaterial || specOption?.materials?.[0] || '钢带';
+  const slotType = specOption?.slotTypes?.includes(preferredSlotType)
+    ? preferredSlotType
+    : specOption?.slotTypes?.[0] || preferredSlotType;
+  return {
+    material,
+    slotType: normalizeCoilSlotType(slotType),
+    sheets: [],
+  };
+}
 
 const quickFilters: Array<{ value: RecipeFilter; label: string }> = [
   { value: 'all', label: '全部' },
@@ -279,6 +321,7 @@ type RecipeFormState = {
   coilSpec: string;
   coilSheets: string;
   coilMaterial: string;
+  coilSlotType: CoilSlotType;
   coilWireWeight: string;
   hasFloat: boolean;
   floatWire: string;
@@ -400,6 +443,7 @@ type VariantFormState = {
   coilSpec: string;
   coilSheets: string;
   coilMaterial: string;
+  coilSlotType: CoilSlotType;
   barrelLength: string;
   longScrewExtraLength: string;
   impellerModel: string;
@@ -427,6 +471,7 @@ const emptyVariantForm: VariantFormState = {
   coilSpec: '',
   coilSheets: '',
   coilMaterial: '钢带',
+  coilSlotType: '小眼',
   barrelLength: '',
   longScrewExtraLength: '0',
   impellerModel: '',
@@ -495,6 +540,7 @@ const emptyForm: RecipeFormState = {
   coilSpec: '',
   coilSheets: '',
   coilMaterial: '钢带',
+  coilSlotType: '小眼',
   coilWireWeight: '',
   hasFloat: false,
   floatWire: '',
@@ -593,6 +639,7 @@ function variantFormFromVariant(variant: PumpModelVariant, modelName = variant.m
     coilSpec: variant.coilSpec || '',
     coilSheets: variant.coilSheets ? String(variant.coilSheets) : '',
     coilMaterial: variant.coilMaterial || '钢带',
+    coilSlotType: variant.coilSlotType || '小眼',
     barrelLength: variant.barrelLength ? String(variant.barrelLength) : '',
     longScrewExtraLength: variant.longScrewExtraLength == null ? '0' : String(variant.longScrewExtraLength),
     impellerModel: variant.impellerModel || '',
@@ -611,6 +658,7 @@ function variantFormToInput(form: VariantFormState): ModelVariantInput {
     coilSpec: form.coilSpec.trim(),
     coilSheets: numberValue(form.coilSheets),
     coilMaterial: form.coilMaterial.trim() || '钢带',
+    coilSlotType: form.coilSlotType,
     barrelLength: numberOrNull(form.barrelLength),
     longScrewExtraLength: numberValue(form.longScrewExtraLength),
     impellerModel: form.impellerModel.trim(),
@@ -1006,6 +1054,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     coilSpec: recipe.coilSpec || '',
     coilSheets: recipe.coilSheets ? String(recipe.coilSheets) : '',
     coilMaterial: recipe.coilMaterial || '钢带',
+    coilSlotType: recipe.coilSlotType || '小眼',
     coilWireWeight: savedCoilWireWeight(recipe),
     hasFloat: Boolean(recipe.hasFloat),
     floatWire: recipe.floatWire || '',
@@ -1284,6 +1333,10 @@ export function RecipesView() {
 
   const selectedVariantCoil = coilSpecs.find((spec) => spec.spec === variantForm.coilSpec);
   const variantMaterialOptions = selectedVariantCoil?.materials?.length ? selectedVariantCoil.materials : ['钢带'];
+  const variantSlotTypes = selectedVariantCoil?.variants
+    ?.filter((variant) => variant.material === variantForm.coilMaterial)
+    .map((variant) => variant.slotType);
+  const variantSlotTypeOptions = variantSlotTypes?.length ? variantSlotTypes : (selectedVariantCoil?.slotTypes?.length ? selectedVariantCoil.slotTypes : ['小眼']);
 
   const filteredVariants = useMemo(() => {
     const normalizedQuery = variantQuery.trim().toLowerCase();
@@ -1297,6 +1350,7 @@ export function RecipesView() {
         variant.coilSpec,
         variant.coilSheets,
         variant.coilMaterial,
+        variant.coilSlotType,
         variant.impellerModel,
         variant.note,
         customText,
@@ -1321,19 +1375,30 @@ export function RecipesView() {
   );
   const selectedFormCoilSpec = coilSpecs.find((spec) => spec.spec === form.coilSpec);
   const formMaterialOptions = selectedFormCoilSpec?.materials?.length ? selectedFormCoilSpec.materials : ['钢带'];
+  const formSlotTypes = selectedFormCoilSpec?.variants
+    ?.filter((variant) => variant.material === form.coilMaterial)
+    .map((variant) => variant.slotType);
+  const formSlotTypeOptions = formSlotTypes?.length ? formSlotTypes : (selectedFormCoilSpec?.slotTypes?.length ? selectedFormCoilSpec.slotTypes : ['小眼']);
   const coilSheetOptions = useMemo(() => (
     Array.from(new Set(coilRecords
-      .filter((coil) => (!form.coilSpec || coil.spec === form.coilSpec) && (!form.coilMaterial || coil.material === form.coilMaterial))
+      .filter((coil) => (
+        coil.schemeStatus === 'official'
+        && (!form.coilSpec || coil.spec === form.coilSpec)
+        && (!form.coilMaterial || coil.material === form.coilMaterial)
+        && (!form.coilSlotType || coil.slotType === form.coilSlotType)
+      ))
       .map((coil) => Number(coil.sheets || 0))
       .filter((sheets) => sheets > 0)))
       .sort((a, b) => a - b)
       .map(String)
-  ), [coilRecords, form.coilMaterial, form.coilSpec]);
+  ), [coilRecords, form.coilMaterial, form.coilSlotType, form.coilSpec]);
   const exactCoilRecord = useMemo(() => coilRecords.find((coil) => (
     coil.spec === form.coilSpec
     && coil.material === form.coilMaterial
+    && coil.slotType === form.coilSlotType
+    && coil.schemeStatus === 'official'
     && Number(coil.sheets) === Number(form.coilSheets)
-  )) || null, [coilRecords, form.coilMaterial, form.coilSheets, form.coilSpec]);
+  )) || null, [coilRecords, form.coilMaterial, form.coilSheets, form.coilSlotType, form.coilSpec]);
   const floatWireOptions = useMemo(() => wireOptions(parts, '浮球', '浮球-线径'), [parts]);
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
@@ -1553,6 +1618,8 @@ export function RecipesView() {
     form.cableWire,
     form.coilSheets,
     form.coilSpec,
+    form.coilMaterial,
+    form.coilSlotType,
     form.floatWire,
     form.hasCable,
     form.hasFloat,
@@ -1563,6 +1630,59 @@ export function RecipesView() {
     laborCostComplete,
     packingParts.length,
     relatedBomParts.length,
+  ]);
+
+  useEffect(() => {
+    if (!drawerOpen || !selectedFormCoilSpec) return;
+    setForm((current) => {
+      if (current.coilSpec !== selectedFormCoilSpec.spec) return current;
+      const selection = resolveCoilVariantSelection(
+        selectedFormCoilSpec,
+        current.coilMaterial,
+        current.coilSlotType
+      );
+      if (selection.material === current.coilMaterial && selection.slotType === current.coilSlotType) {
+        return current;
+      }
+      const currentSheets = Number(current.coilSheets);
+      const sheetsRemainValid = currentSheets > 0 && selection.sheets.includes(currentSheets);
+      return {
+        ...current,
+        coilMaterial: selection.material,
+        coilSlotType: selection.slotType,
+        coilSheets: sheetsRemainValid ? current.coilSheets : '',
+        coilWireWeight: '',
+      };
+    });
+  }, [drawerOpen, form.coilMaterial, form.coilSlotType, form.coilSpec, selectedFormCoilSpec]);
+
+  useEffect(() => {
+    if (!variantDrawerOpen || !selectedVariantCoil) return;
+    setVariantForm((current) => {
+      if (current.coilSpec !== selectedVariantCoil.spec) return current;
+      const selection = resolveCoilVariantSelection(
+        selectedVariantCoil,
+        current.coilMaterial,
+        current.coilSlotType
+      );
+      if (selection.material === current.coilMaterial && selection.slotType === current.coilSlotType) {
+        return current;
+      }
+      const currentSheets = Number(current.coilSheets);
+      const sheetsRemainValid = currentSheets > 0 && selection.sheets.includes(currentSheets);
+      return {
+        ...current,
+        coilMaterial: selection.material,
+        coilSlotType: selection.slotType,
+        coilSheets: sheetsRemainValid ? current.coilSheets : '',
+      };
+    });
+  }, [
+    selectedVariantCoil,
+    variantDrawerOpen,
+    variantForm.coilMaterial,
+    variantForm.coilSlotType,
+    variantForm.coilSpec,
   ]);
 
   useEffect(() => {
@@ -1585,6 +1705,7 @@ export function RecipesView() {
     form.coilSpec,
     form.coilSheets,
     form.coilMaterial,
+    form.coilSlotType,
     form.coilWireWeight,
     form.hasFloat,
     form.floatWire,
@@ -2160,6 +2281,7 @@ export function RecipesView() {
         coilSpec: form.coilSpec,
         coilSheets: form.coilSheets,
         coilMaterial: form.coilMaterial,
+        coilSlotType: form.coilSlotType,
         coilWireWeight: form.coilWireWeight || null,
         optionalParts: selectionToRecipeParts(optionalParts),
         hasFloat: form.hasFloat,
@@ -2212,6 +2334,7 @@ export function RecipesView() {
         surfaceTreatmentCost: form.surfaceTreatmentMode === 'none' ? 0 : numberValue(form.surfaceTreatmentCost),
         managementFee: numberValue(form.managementFee),
         coilMaterial: form.coilMaterial || '钢带',
+        coilSlotType: form.coilSlotType,
         customBarrelLength: (draft.customBarrelLength ?? form.customBarrelLength) || null,
         longScrewExtraLength: draft.longScrewExtraLength ?? numberValue(form.longScrewExtraLength),
         enableLongScrewByBarrelLength: draft.parts.some((part) => part.dynamicRule === 'longScrewByBarrelLength'),
@@ -2225,6 +2348,7 @@ export function RecipesView() {
           coilSpec: form.coilSpec,
           coilSheets: form.coilSheets,
           coilMaterial: form.coilMaterial,
+          coilSlotType: form.coilSlotType,
           coilWireWeight: form.coilWireWeight || null,
           hasFloat: form.hasFloat,
           floatWire: form.floatWire,
@@ -2431,7 +2555,7 @@ export function RecipesView() {
                       <td className="border-b border-line px-4 py-3">
                         <div className="text-ink">{row.templateName || '-'}</div>
                         <div className="mt-0.5 text-xs text-muted">
-                          {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial].filter(Boolean).join(' / ') || '无线圈快照'}
+                          {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
                         </div>
                       </td>
                       <td className="whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium text-ink">
@@ -2594,7 +2718,7 @@ export function RecipesView() {
                         <td className="border-b border-line px-4 py-3 font-medium text-ink">{variant.modelName || '-'}</td>
                         <td className="border-b border-line px-4 py-3 text-muted">{templateNameMap.get(variant.templateId) || '-'}</td>
                         <td className="border-b border-line px-4 py-3 text-muted">
-                          {variant.coilSpec ? `${variant.coilSpec} / ${variant.coilSheets || 0}片 / ${variant.coilMaterial || '钢带'}` : '-'}
+                          {variant.coilSpec ? `${variant.coilSpec} / ${variant.coilSheets || 0}片 / ${variant.coilMaterial || '钢带'} / ${variant.coilSlotType || '小眼'}` : '-'}
                         </td>
                         <td className="border-b border-line px-4 py-3 text-muted">
                           {variant.barrelLength ? `${variant.barrelLength}mm + ${variant.longScrewExtraLength || 0}mm` : '-'}
@@ -2698,7 +2822,7 @@ export function RecipesView() {
               <section className="rounded-panel border border-line">
                 <div className="border-b border-line p-4 text-sm font-semibold text-ink">关键参数</div>
                 <div className="grid gap-3 p-4 text-sm md:grid-cols-2">
-                  <div className="text-muted">线圈：<span className="text-ink">{[detailRecipe.coilSpec, detailRecipe.coilSheets ? `${detailRecipe.coilSheets}片` : '', detailRecipe.coilMaterial].filter(Boolean).join(' / ') || '-'}</span></div>
+                  <div className="text-muted">线圈：<span className="text-ink">{[detailRecipe.coilSpec, detailRecipe.coilSheets ? `${detailRecipe.coilSheets}片` : '', detailRecipe.coilMaterial, detailRecipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '-'}</span></div>
                   <div className="text-muted">机筒长度：<span className="text-ink">{detailRecipe.customBarrelLength ? `${detailRecipe.customBarrelLength} mm` : '-'}</span></div>
                   <div className="text-muted">叶轮：<span className="text-ink">{[detailRecipe.impellerModel, detailRecipe.impellerThickness ? `${detailRecipe.impellerThickness}厚` : '', detailRecipe.impellerDiameter ? `直径${detailRecipe.impellerDiameter}` : '', detailRecipe.impellerBladeCount ? `${detailRecipe.impellerBladeCount}片` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
                   <div className="text-muted">动态配置：<span className="text-ink">{[detailRecipe.hasFloat ? `浮球 ${detailRecipe.floatWire || '-'}` : '', detailRecipe.hasCable ? `电缆 ${detailRecipe.cableWire || '-'} ${detailRecipe.cableLength || 0}m` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
@@ -2863,7 +2987,7 @@ export function RecipesView() {
                           ['规格', compareRecipes[0].spec || '-', compareRecipes[1].spec || '-'],
                           ['泵壳模板', compareRecipes[0].templateId ? templateNameMap.get(compareRecipes[0].templateId) || '-' : '-', compareRecipes[1].templateId ? templateNameMap.get(compareRecipes[1].templateId) || '-' : '-'],
                           ['保存成本', money(compareRecipes[0].savedTotalCost || 0), money(compareRecipes[1].savedTotalCost || 0)],
-                          ['线圈', [compareRecipes[0].coilSpec, compareRecipes[0].coilSheets ? `${compareRecipes[0].coilSheets}片` : '', compareRecipes[0].coilMaterial].filter(Boolean).join(' / ') || '-', [compareRecipes[1].coilSpec, compareRecipes[1].coilSheets ? `${compareRecipes[1].coilSheets}片` : '', compareRecipes[1].coilMaterial].filter(Boolean).join(' / ') || '-'],
+                          ['线圈', [compareRecipes[0].coilSpec, compareRecipes[0].coilSheets ? `${compareRecipes[0].coilSheets}片` : '', compareRecipes[0].coilMaterial, compareRecipes[0].coilSlotType || '小眼'].filter(Boolean).join(' / ') || '-', [compareRecipes[1].coilSpec, compareRecipes[1].coilSheets ? `${compareRecipes[1].coilSheets}片` : '', compareRecipes[1].coilMaterial, compareRecipes[1].coilSlotType || '小眼'].filter(Boolean).join(' / ') || '-'],
                           ['机筒长度', compareRecipes[0].customBarrelLength ? `${compareRecipes[0].customBarrelLength} mm` : '-', compareRecipes[1].customBarrelLength ? `${compareRecipes[1].customBarrelLength} mm` : '-'],
                           ['叶轮', [compareRecipes[0].impellerModel, compareRecipes[0].impellerThickness ? `${compareRecipes[0].impellerThickness}厚` : '', compareRecipes[0].impellerDiameter ? `直径${compareRecipes[0].impellerDiameter}` : '', compareRecipes[0].impellerBladeCount ? `${compareRecipes[0].impellerBladeCount}片` : ''].filter(Boolean).join(' / ') || '-', [compareRecipes[1].impellerModel, compareRecipes[1].impellerThickness ? `${compareRecipes[1].impellerThickness}厚` : '', compareRecipes[1].impellerDiameter ? `直径${compareRecipes[1].impellerDiameter}` : '', compareRecipes[1].impellerBladeCount ? `${compareRecipes[1].impellerBladeCount}片` : ''].filter(Boolean).join(' / ') || '-'],
                           ['电缆', compareRecipes[0].hasCable ? `${compareRecipes[0].cableWire || '-'} / ${compareRecipes[0].cableLength || 0}m / ${compareRecipes[0].cableAccessoryType || 'standard'}` : '不带', compareRecipes[1].hasCable ? `${compareRecipes[1].cableWire || '-'} / ${compareRecipes[1].cableLength || 0}m / ${compareRecipes[1].cableAccessoryType || 'standard'}` : '不带'],
@@ -3323,12 +3447,27 @@ export function RecipesView() {
 
             <section className="rounded-panel border border-line p-4">
               <div className="text-sm font-semibold text-ink">线圈配置</div>
-              <div className="mt-3 grid gap-4 md:grid-cols-3">
+              <div className="mt-3 grid gap-4 md:grid-cols-4">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">线圈规格</span>
                   <select
                     value={variantForm.coilSpec}
-                    onChange={(event) => updateVariantForm({ coilSpec: event.target.value, coilSheets: '' })}
+                    onChange={(event) => {
+                      const coilSpec = event.target.value;
+                      const selection = coilSpec
+                        ? resolveCoilVariantSelection(
+                            coilSpecs.find((spec) => spec.spec === coilSpec),
+                            variantForm.coilMaterial,
+                            variantForm.coilSlotType
+                          )
+                        : { material: '钢带', slotType: '小眼' as const };
+                      updateVariantForm({
+                        coilSpec,
+                        coilSheets: '',
+                        coilMaterial: selection.material,
+                        coilSlotType: selection.slotType,
+                      });
+                    }}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     <option value="">不预设</option>
@@ -3339,10 +3478,31 @@ export function RecipesView() {
                   <span className="text-xs font-medium text-muted">材质</span>
                   <select
                     value={variantForm.coilMaterial}
-                    onChange={(event) => updateVariantForm({ coilMaterial: event.target.value })}
+                    onChange={(event) => {
+                      const selection = resolveCoilVariantSelection(
+                        selectedVariantCoil,
+                        event.target.value,
+                        variantForm.coilSlotType
+                      );
+                      updateVariantForm({
+                        coilMaterial: selection.material,
+                        coilSlotType: selection.slotType,
+                        coilSheets: '',
+                      });
+                    }}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {variantMaterialOptions.map((material) => <option key={material} value={material}>{material}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">槽眼</span>
+                  <select
+                    value={variantForm.coilSlotType}
+                    onChange={(event) => updateVariantForm({ coilSlotType: event.target.value as '小眼' | '国标眼' })}
+                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    {variantSlotTypeOptions.map((slotType) => <option key={slotType} value={slotType}>{slotType}</option>)}
                   </select>
                 </label>
                 <label className="block">
@@ -3591,12 +3751,28 @@ export function RecipesView() {
               badge="自动计算"
               badgeTone="blue"
             >
-              <div className="grid items-end gap-3 md:grid-cols-[1.2fr_0.55fr_0.7fr_0.85fr]">
+              <div className="grid items-end gap-3 md:grid-cols-2">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">线圈规格</span>
                   <select
                     value={form.coilSpec}
-                    onChange={(event) => updateForm({ coilSpec: event.target.value, coilSheets: '', coilWireWeight: '' })}
+                    onChange={(event) => {
+                      const coilSpec = event.target.value;
+                      const selection = coilSpec
+                        ? resolveCoilVariantSelection(
+                            coilSpecs.find((spec) => spec.spec === coilSpec),
+                            form.coilMaterial,
+                            form.coilSlotType
+                          )
+                        : { material: '钢带', slotType: '小眼' as const };
+                      updateForm({
+                        coilSpec,
+                        coilSheets: '',
+                        coilMaterial: selection.material,
+                        coilSlotType: selection.slotType,
+                        coilWireWeight: '',
+                      });
+                    }}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     <option value="">选择规格</option>
@@ -3616,10 +3792,32 @@ export function RecipesView() {
                   <span className="text-xs font-medium text-muted">材质</span>
                   <select
                     value={form.coilMaterial}
-                    onChange={(event) => updateForm({ coilMaterial: event.target.value, coilWireWeight: '' })}
+                    onChange={(event) => {
+                      const selection = resolveCoilVariantSelection(
+                        selectedFormCoilSpec,
+                        event.target.value,
+                        form.coilSlotType
+                      );
+                      updateForm({
+                        coilMaterial: selection.material,
+                        coilSlotType: selection.slotType,
+                        coilSheets: '',
+                        coilWireWeight: '',
+                      });
+                    }}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {formMaterialOptions.map((material) => <option key={material} value={material}>{material}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">槽眼</span>
+                  <select
+                    value={form.coilSlotType}
+                    onChange={(event) => updateForm({ coilSlotType: event.target.value as '小眼' | '国标眼', coilSheets: '', coilWireWeight: '' })}
+                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  >
+                    {formSlotTypeOptions.map((slotType) => <option key={slotType} value={slotType}>{slotType}</option>)}
                   </select>
                 </label>
                 <label className="block">

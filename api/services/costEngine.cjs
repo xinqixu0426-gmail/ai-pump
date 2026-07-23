@@ -494,7 +494,7 @@ function buildRecipeCostDraft(input, options = {}) {
             const qty = Number(part.qty || 1);
             const base = `${part.name || part.model}: ¥${price.toFixed(2)} × ${qty} = ¥${(price * qty).toFixed(2)}`;
             if (part.name === '线圈转子') {
-                return `${base}（材质: ${part.material || coilMaterial || '钢带'}，单价: ¥${Number(part.unitPrice || 0).toFixed(2)}，来源: ${part.source || '-'}，公式: ${part.formula || '-'}）`;
+                return `${base}（材质: ${part.material || coilMaterial || '钢带'}，槽眼: ${part.slotType || '小眼'}，单价: ¥${Number(part.unitPrice || 0).toFixed(2)}，来源: ${part.source || '-'}，公式: ${part.formula || '-'}）`;
             }
             if (part.dynamicRule === 'longScrewByBarrelLength') {
                 const pricingText = part.costSource === 'screw_pricing' || part.costSource === 'screw_formula'
