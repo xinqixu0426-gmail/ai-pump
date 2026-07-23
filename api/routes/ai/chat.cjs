@@ -23,6 +23,8 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户提到机筒长度、机筒高度、桶长或 180mm/170mm 这类长度，并询问泵壳本体成本时，必须使用 preview_pump_shell_cost；不要使用 query_recipe_cost_by_name 返回默认配方成本。
 - 用户询问整个配方、报价或订单在某个机筒长度下的总成本时，使用 preview_recipe_cost，并把长度放入 customBarrelLength 或 overrides.customBarrelLength。
 - 未提供泵壳型号时先追问型号；不要默认猜 V750 或任何模板。
+- 用户询问“12-220”这类线圈数据时，必须列出该规格片数下所有正式材质+槽眼方案；未指定材质或槽眼时禁止默认选择钢带小眼。
+- 线圈知识中的“默认搭配电缆线径”是成品电缆搭配参数，不是主线/副线漆包线线径；回答时必须按字段原义标注。
 `;
 
 function buildSystemPrompt(extra = '') {

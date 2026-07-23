@@ -34,7 +34,7 @@
 ### 基础数据
 
 - **零件**：按型号、分类、供应商记录价格和库存。同型号可以有多个供应商。
-- **线圈**：定子组合按标准直径、材质和槽眼建档；绕组方案再记录片数、铁芯单片价、铜重、加工费、默认线径/电容及主副绕组备忘。测试方案不进入正式成本。
+- **线圈**：定子组合按标准直径、材质和槽眼建档；绕组方案再记录片数、铁芯单片价、铜重、加工费、默认搭配电缆线径/电容及主副漆包线绕组备忘。测试方案不进入正式成本。
 - **系统设置**：白名单配置包括管理费、电缆铜套、浮球新界式差价、铝线价格基数和美元兑人民币汇率。
 
 ### 泵壳模板与历史常用配置
@@ -137,7 +137,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 场景 | 接口 | 说明 |
 |---|---|---|
 | 应用常用配置 | `POST /api/recipes/model-variant-draft` | 根据常用配置和关联泵壳模板生成配方表单草稿；不写库 |
-| 新增线圈同规格带入 | `POST /api/coils/spec-draft` | 根据规格和材质生成录入草稿，统一带入同规格的线重、铜价基数、加工费、默认线径和电容；不写库 |
+| 新增线圈同规格带入 | `POST /api/coils/spec-draft` | 根据规格和材质生成录入草稿，统一带入同规格的线重、铜价基数、加工费、默认搭配电缆线径和电容；不写库 |
 | 前端单次配件计算 | `POST /api/cost/parts` | Web 当前主入口，只计算传入配件 |
 | 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度、参数化计价及成品电缆合并规则；不写库 |
 | 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前检查完整 BOM 不含零价格项目，并统一序列化 JSON、数字、ID、表面处理和技术参数；不写库 |
@@ -241,7 +241,7 @@ POST /api/rotor/save
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary` 和 `get_business_alerts` 读取基础资料健康度、报价和订单经营异常；这些工具均为只读工具。
-- AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具。
+- AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；查询 `12-220` 这类线圈键会按材质和槽眼返回全部匹配方案。`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具。
 - AI 询问价格、成本、库存、订单状态、报价金额和铜价等易变数据时，首轮必须重新调用只读工具，不能直接复述同一会话中的旧数字；明确查询知识库时读取同步后的知识条目，实时业务值冲突时以业务系统当前值为准并提示重新同步。
 - AI 工作台会把会话和消息保存到 SQLite，支持查看、继续和删除历史会话；上下文仍只发送最近 10 条消息，历史存档数量不受上下文窗口影响。
 - Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。

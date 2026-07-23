@@ -1,5 +1,37 @@
 const { getJson, postJson } = require('../internalApiClient.cjs');
 
+function coilDiameter(spec, diameterMm) {
+    const stored = Number(diameterMm || 0);
+    if (stored > 0) return stored;
+    const text = String(spec || '').trim();
+    return text === '12' ? 120 : Number.parseInt(text, 10) || 0;
+}
+
+function coilCandidateData(coil) {
+    return {
+        id: coil.id ?? coil.Id,
+        spec: coil.commonName || coil.spec,
+        diameterMm: coilDiameter(coil.spec, coil.diameterMm),
+        sheets: Number(coil.sheets || 0),
+        material: coil.material || '钢带',
+        slotType: coil.slotType || '小眼',
+        schemeName: coil.schemeName || '',
+        schemeStatus: coil.schemeStatus || 'official',
+        unitPrice: Number(coil.unitPrice || 0),
+        wireWeight: Number(coil.wireWeight || 0),
+        copperBase: Number(coil.copperBase || 0),
+        coilFee: Number(coil.coilFee || 0),
+        rotorFee: Number(coil.rotorFee || 0),
+        cost: Number(coil.cost || 0),
+        pairedCableWireGauge: coil.defaultWireGauge || '',
+        defaultCapacitor: coil.defaultCapacitor || '',
+        mainWireGauge: coil.mainWireGauge || '',
+        mainWireData: coil.mainWireData || '',
+        auxWireGauge: coil.auxWireGauge || '',
+        auxWireData: coil.auxWireData || '',
+    };
+}
+
 /**
  * 成本计算与出图相关的 AI 工具执行器
  * @param {string} toolName
@@ -30,7 +62,45 @@ async function executeCostTool(toolName, args, internalFetch) {
         }
 
         case 'calculate_coil_cost': {
-            const data = await postJson(internalFetch, '/api/coils/calculate', { spec: args.spec, sheets: args.sheets, material: args.material || null, slotType: args.slotType || '小眼', wireWeight: args.wireWeight || null }, '线圈成本计算失败');
+            let material = args.material || '';
+            let slotType = args.slotType || '';
+            if (!material || !slotType) {
+                const targetDiameter = coilDiameter(args.spec);
+                const targetSheets = Number(args.sheets || 0);
+                const coils = await getJson(internalFetch, '/api/coils', '线圈记录读取失败');
+                const candidates = (Array.isArray(coils) ? coils : []).filter(coil => (
+                    (coil.schemeStatus || 'official') === 'official'
+                    && coilDiameter(coil.spec, coil.diameterMm) === targetDiameter
+                    && Number(coil.sheets || 0) === targetSheets
+                    && (!material || (coil.material || '钢带') === material)
+                    && (!slotType || (coil.slotType || '小眼') === slotType)
+                ));
+                if (candidates.length !== 1) {
+                    return {
+                        success: candidates.length > 0,
+                        intent: 'coil_variant_choices',
+                        summary: candidates.length > 0
+                            ? `${args.spec}-${args.sheets} 找到 ${candidates.length} 套正式方案，必须按材质和槽眼分别标注。`
+                            : `未找到 ${args.spec}-${args.sheets} 的正式线圈方案。`,
+                        data: {
+                            spec: String(args.spec || ''),
+                            sheets: targetSheets,
+                            requiresVariantSelection: candidates.length > 1,
+                            variants: candidates.map(coilCandidateData),
+                        },
+                        ...(candidates.length > 0 ? {} : { error: `未找到 ${args.spec}-${args.sheets} 的正式线圈方案` }),
+                    };
+                }
+                material = candidates[0].material || '钢带';
+                slotType = candidates[0].slotType || '小眼';
+            }
+            const data = await postJson(internalFetch, '/api/coils/calculate', {
+                spec: args.spec,
+                sheets: args.sheets,
+                material,
+                slotType,
+                wireWeight: args.wireWeight || null,
+            }, '线圈成本计算失败');
             return { success: true, data };
         }
 

@@ -125,8 +125,66 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     }
     assert.ok(entries.find(entry => entry.title.includes('V750 12-140')).searchText.includes('6202轴承'));
     const coilEntry = entries.find(entry => entry.entryType === 'coil');
-    assert.match(coilEntry.content, /主线线径：0\.55/);
+    assert.match(coilEntry.content, /默认搭配电缆线径：1\.0/);
+    assert.match(coilEntry.content, /主线漆包线线径：0\.55/);
     assert.match(coilEntry.content, /副线数据：副线 960 匝/);
+});
+
+test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈方案', () => {
+    const accessors = createMemoryAccessors();
+    enableFts(accessors);
+    syncKnowledgeEntries({
+        dbAccessors: accessors,
+        parts: [],
+        templates: [],
+        recipes: [],
+        coils: [
+            {
+                id: 6,
+                spec: '12',
+                commonName: '12',
+                diameterMm: 120,
+                sheets: 220,
+                material: '钢带',
+                slotType: '小眼',
+                schemeStatus: 'official',
+                cost: 149,
+                wireWeight: 0.824,
+                defaultWireGauge: '1.2',
+                mainWireGauge: '0.55',
+            },
+            {
+                id: 9,
+                spec: '12',
+                commonName: '12',
+                diameterMm: 120,
+                sheets: 220,
+                material: '冷轧',
+                slotType: '国标眼',
+                schemeStatus: 'official',
+                cost: 189,
+                wireWeight: 1.202,
+                defaultWireGauge: '2',
+                mainWireGauge: '0.62',
+            },
+        ],
+        customers: [],
+        quotations: [],
+        orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    });
+
+    const rows = searchKnowledgeEntries({ query: '12-220', entryType: 'coil', limit: 10 }, { dbAccessors: accessors });
+    assert.equal(rows.length, 2);
+    assert.deepEqual(new Set(rows.map(row => `${row.metadata.material}/${row.metadata.slotType}`)), new Set([
+        '钢带/小眼',
+        '冷轧/国标眼',
+    ]));
+    const coldRolled = getKnowledgeEntryDetail(rows.find(row => row.metadata.material === '冷轧').id, { dbAccessors: accessors });
+    assert.match(coldRolled.content, /默认搭配电缆线径：2/);
+    assert.match(coldRolled.content, /主线漆包线线径：0\.62/);
+    assert.doesNotMatch(coldRolled.content, /默认线径：/);
 });
 
 test('Knowledge service：配方测试报告进入可检索内容', () => {

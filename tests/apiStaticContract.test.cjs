@@ -414,10 +414,14 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
 
     assert.match(chatRoute, /buildFreshLookupToolCalls/);
     assert.match(chatRoute, /正在刷新.*易变业务数据/);
     assert.match(chatRoute, /禁止直接复述历史会话里的数字/);
+    assert.match(chatRoute, /所有正式材质\+槽眼方案/);
+    assert.match(freshness, /function coilSpecSheetKey/);
+    assert.match(freshness, /entryType: 'coil'/);
 });
 
 test('API 静态契约：知识库同步工具是受确认保护的写工具', () => {

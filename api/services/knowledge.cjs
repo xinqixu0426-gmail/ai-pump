@@ -197,14 +197,17 @@ function recipeEntry(recipe, technicalFiles = []) {
 }
 
 function coilEntry(coil) {
+    const coilKey = `${coil.commonName || coil.spec}-${coil.sheets}`;
+    const pairedCableWireGauge = coil.defaultWireGauge || '';
     return createEntry({
         entryType: 'coil',
         sourceTable: 'coils',
         sourceId: coil.id,
         sourceUpdatedAt: coil.updatedAt,
-        title: `线圈：${coil.commonName || coil.spec}-${coil.sheets} ${coil.material || '钢带'} ${coil.slotType || '小眼'}`,
-        summary: `${coil.schemeStatus === 'testing' ? '测试' : coil.schemeStatus === 'disabled' ? '停用' : '正式'}方案，成本 ${Number(coil.cost || 0)} 元，线重 ${Number(coil.wireWeight || 0)}kg，默认线径 ${coil.defaultWireGauge || '-'}`,
+        title: `线圈：${coilKey} ${coil.material || '钢带'} ${coil.slotType || '小眼'}`,
+        summary: `${coil.schemeStatus === 'testing' ? '测试' : coil.schemeStatus === 'disabled' ? '停用' : '正式'}方案，成本 ${Number(coil.cost || 0)} 元，线重 ${Number(coil.wireWeight || 0)}kg，默认搭配电缆线径 ${pairedCableWireGauge || '-'}`,
         content: [
+            `规格片数：${coilKey}`,
             `规格俗称：${coil.commonName || coil.spec}`,
             `定子直径：${coil.diameterMm || ''}mm`,
             `片数：${coil.sheets}`,
@@ -217,19 +220,30 @@ function coilEntry(coil) {
             `绕线费：${Number(coil.coilFee || 0)}`,
             `转子加工费：${Number(coil.rotorFee || 0)}`,
             `成本：${Number(coil.cost || 0)}`,
-            `默认线径：${coil.defaultWireGauge || ''}`,
+            `默认搭配电缆线径：${pairedCableWireGauge}`,
             `默认电容：${coil.defaultCapacitor || ''}`,
-            `主线线径：${coil.mainWireGauge || ''}`,
+            `主线漆包线线径：${coil.mainWireGauge || ''}`,
             `主线数据：${coil.mainWireData || ''}`,
-            `副线线径：${coil.auxWireGauge || ''}`,
+            `副线漆包线线径：${coil.auxWireGauge || ''}`,
             `副线数据：${coil.auxWireData || ''}`,
         ],
         tags: [
-            '线圈', coil.spec, String(coil.diameterMm || ''), String(coil.sheets), coil.material, coil.slotType, coil.schemeName, coil.schemeStatus,
-            coil.defaultWireGauge, coil.defaultCapacitor,
+            '线圈', coilKey, coil.spec, String(coil.diameterMm || ''), String(coil.sheets), coil.material, coil.slotType, coil.schemeName, coil.schemeStatus,
+            pairedCableWireGauge, coil.defaultCapacitor,
             coil.mainWireGauge, coil.mainWireData, coil.auxWireGauge, coil.auxWireData,
         ],
-        metadata: { spec: coil.spec, diameterMm: Number(coil.diameterMm || 0), sheets: Number(coil.sheets || 0), material: coil.material || '钢带', slotType: coil.slotType || '小眼', schemeStatus: coil.schemeStatus || 'official', cost: Number(coil.cost || 0) },
+        metadata: {
+            coilKey,
+            spec: coil.spec,
+            diameterMm: Number(coil.diameterMm || 0),
+            sheets: Number(coil.sheets || 0),
+            material: coil.material || '钢带',
+            slotType: coil.slotType || '小眼',
+            schemeStatus: coil.schemeStatus || 'official',
+            cost: Number(coil.cost || 0),
+            pairedCableWireGauge,
+            defaultCapacitor: coil.defaultCapacitor || '',
+        },
     });
 }
 

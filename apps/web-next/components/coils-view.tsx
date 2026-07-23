@@ -578,7 +578,7 @@ export function CoilsView() {
               <div className="mt-2 grid gap-1 text-xs text-muted">
                 <span>定子：{calcResult.diameterMm}mm / {calcResult.material} / {calcResult.slotType}</span>
                 <span>来源：{calcResult.source || '-'}</span>
-                <span>线径：{calcResult.wireGauge || '-'}</span>
+                <span>搭配电缆线径：{calcResult.wireGauge || '-'}</span>
                 <span>电容：{calcResult.capacitor ? `${calcResult.capacitor}μF` : '-'}</span>
               </div>
             </div>
@@ -594,7 +594,7 @@ export function CoilsView() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索规格、材质、槽眼、方案、片数、线径"
+              placeholder="搜索规格、材质、槽眼、方案、片数、电缆线径或绕组数据"
               className="h-8 flex-1 bg-transparent text-sm outline-none"
             />
           </div>
@@ -660,7 +660,7 @@ export function CoilsView() {
                           <th className="px-4 py-3 font-medium">铜价基数</th>
                           <th className="px-4 py-3 font-medium">加工费</th>
                           <th className="px-4 py-3 font-medium">总成本</th>
-                          <th className="px-4 py-3 font-medium">默认线径</th>
+                          <th className="px-4 py-3 font-medium">默认搭配电缆线径</th>
                           <th className="px-4 py-3 font-medium">绕组数据</th>
                           <th className="px-4 py-3 text-right font-medium">操作</th>
                         </tr>
@@ -816,7 +816,7 @@ export function CoilsView() {
                 <input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
               </label>
               <label className="block">
-                <span className="text-sm font-medium text-ink">默认线径</span>
+                <span className="text-sm font-medium text-ink">默认搭配电缆线径</span>
                 <input value={form.defaultWireGauge} onChange={(event) => updateForm({ defaultWireGauge: event.target.value })} className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
               </label>
               <label className="block">

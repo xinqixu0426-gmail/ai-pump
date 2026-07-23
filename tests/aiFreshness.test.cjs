@@ -35,3 +35,9 @@ test('AI 为铜价和订单状态预取对应实时工具', () => {
         { name: 'get_order_detail', args: { orderId: 12 } },
     ]);
 });
+
+test('AI 将规格片数简写精确路由到全部线圈知识方案', () => {
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '给我12-220的线圈数据' }]), [
+        { name: 'search_factory_knowledge', args: { query: '12-220', entryType: 'coil', limit: 10 } },
+    ]);
+});

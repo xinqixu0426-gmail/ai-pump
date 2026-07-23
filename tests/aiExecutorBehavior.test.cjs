@@ -347,6 +347,70 @@ test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', 
     ]);
 });
 
+test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详情', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/knowledge?query=12-220&entryType=coil&limit=10') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 6, title: '线圈：12-220 钢带 小眼' },
+                    { id: 9, title: '线圈：12-220 冷轧 国标眼' },
+                ],
+            });
+        }
+        if (call.url.endsWith('/api/knowledge/6') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: { id: 6, title: '线圈：12-220 钢带 小眼', content: '默认搭配电缆线径：1.2' } });
+        }
+        if (call.url.endsWith('/api/knowledge/9') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: { id: 9, title: '线圈：12-220 冷轧 国标眼', content: '默认搭配电缆线径：2' } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_factory_knowledge', {
+        query: '12-220',
+        entryType: 'coil',
+        limit: 10,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.length, 2);
+    assert.match(result.data[0].content, /默认搭配电缆线径/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/knowledge?query=12-220&entryType=coil&limit=10',
+        'GET /api/knowledge/6',
+        'GET /api/knowledge/9',
+    ]);
+});
+
+test('AI executor 行为：未指定材质槽眼时返回 12-220 全部正式方案', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 6, spec: '12', diameterMm: 120, sheets: 220, material: '钢带', slotType: '小眼', schemeStatus: 'official', defaultWireGauge: '1.2' },
+                    { id: 9, spec: '12', diameterMm: 120, sheets: 220, material: '冷轧', slotType: '国标眼', schemeStatus: 'official', defaultWireGauge: '2' },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('calculate_coil_cost', { spec: '12', sheets: 220 }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'coil_variant_choices');
+    assert.equal(result.data.requiresVariantSelection, true);
+    assert.deepEqual(result.data.variants.map(item => `${item.material}/${item.slotType}/${item.pairedCableWireGauge}`), [
+        '钢带/小眼/1.2',
+        '冷轧/国标眼/2',
+    ]);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/coils',
+    ]);
+});
+
 test('AI executor 行为：知识库同步未确认时返回确认卡片，确认后调用同步 API', async () => {
     const blockedCalls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
     const blocked = await executeToolCall('sync_factory_knowledge', {}, { allowWrite: false });

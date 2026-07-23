@@ -29,12 +29,21 @@ function freshLookupQuery(text) {
     return cleaned || String(text || '').trim();
 }
 
+function coilSpecSheetKey(text) {
+    const match = String(text || '').match(/(?:^|[^\d])(\d+)\s*[-－]\s*(\d+)(?:[^\d]|$)/);
+    return match ? `${match[1]}-${match[2]}` : '';
+}
+
 function buildFreshLookupToolCalls(messages = []) {
     if (!requiresFreshToolLookup(messages)) return [];
 
     const text = latestUserText(messages);
-    const query = freshLookupQuery(text);
-    const calls = [{ name: 'search_factory_knowledge', args: { query, limit: 10 } }];
+    const coilKey = /线圈/.test(text) ? coilSpecSheetKey(text) : '';
+    const query = coilKey || freshLookupQuery(text);
+    const calls = [{
+        name: 'search_factory_knowledge',
+        args: { query, ...(coilKey ? { entryType: 'coil' } : {}), limit: 10 },
+    }];
 
     if (/(价格|单价|库存|供应商|零件)/.test(text) || (/(成本)/.test(text) && !/(配方|订单|报价)/.test(text))) {
         calls.push({ name: 'search_parts', args: { keyword: query } });
@@ -51,4 +60,4 @@ function buildFreshLookupToolCalls(messages = []) {
     return calls;
 }
 
-module.exports = { requiresFreshToolLookup, buildFreshLookupToolCalls };
+module.exports = { requiresFreshToolLookup, buildFreshLookupToolCalls, coilSpecSheetKey };

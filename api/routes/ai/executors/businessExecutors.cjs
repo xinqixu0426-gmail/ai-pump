@@ -281,11 +281,17 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
         case 'search_factory_knowledge': {
             const query = new URLSearchParams();
-            if (args.query || args.keyword) query.set('query', args.query || args.keyword);
-            if (args.entryType || args.type) query.set('entryType', args.entryType || args.type);
+            const queryText = String(args.query || args.keyword || '').trim();
+            const entryType = args.entryType || args.type;
+            if (queryText) query.set('query', queryText);
+            if (entryType) query.set('entryType', entryType);
             if (args.sourceTable) query.set('sourceTable', args.sourceTable);
             if (args.limit) query.set('limit', String(args.limit));
-            const data = await getJson(internalFetch, `/api/knowledge${query.toString() ? `?${query.toString()}` : ''}`, '工厂知识库搜索失败');
+            const matches = await getJson(internalFetch, `/api/knowledge${query.toString() ? `?${query.toString()}` : ''}`, '工厂知识库搜索失败');
+            const isExactCoilLookup = entryType === 'coil' && /^\d+\s*[-－]\s*\d+$/.test(queryText);
+            const data = isExactCoilLookup && Array.isArray(matches)
+                ? await Promise.all(matches.map(item => getJson(internalFetch, `/api/knowledge/${item.id}`, '线圈知识详情读取失败')))
+                : matches;
             return {
                 success: true,
                 intent: 'factory_knowledge_search',

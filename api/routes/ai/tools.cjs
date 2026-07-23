@@ -60,7 +60,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'calculate_coil_cost',
-            description: '计算线圈转子成本（支持插值）。用户说"12-140的线圈成本"时，拆分为spec=12,sheets=140',
+            description: '查询或计算线圈转子数据与成本（支持插值）。未同时指定材质和槽眼时，会先返回该规格片数下全部正式方案，禁止默认选择小眼。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -68,7 +68,7 @@ const AI_TOOLS = [
                     sheets: { type: 'number', description: '片数' },
                     wireWeight: { type: 'number', description: '自定义线重（可选）' },
                     material: { type: 'string', enum: ['钢带', '冷轧'], description: '材质（可选）' },
-                    slotType: { type: 'string', enum: ['小眼', '国标眼'], description: '槽眼（可选，默认小眼）' }
+                    slotType: { type: 'string', enum: ['小眼', '国标眼'], description: '槽眼（可选；不填时列出全部匹配方案，不默认小眼）' }
                 },
                 required: ['spec', 'sheets']
             }
@@ -565,7 +565,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_knowledge',
-            description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题和业务规则。配方结果 metadata.testReports 是性能测试报告附件，不是图纸。适合用户问“系统里有没有关于XX的资料”“按知识库查一下XX”。只读。',
+            description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题和业务规则。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。配方结果 metadata.testReports 是性能测试报告附件，不是图纸。只读。',
             parameters: {
                 type: 'object',
                 properties: {

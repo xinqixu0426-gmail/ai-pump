@@ -743,6 +743,8 @@ test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和
     assert.match(coilsView, /定子直径 mm/);
     assert.match(coilsView, /国标眼/);
     assert.match(coilsView, /schemeStatus/);
+    assert.match(coilsView, /默认搭配电缆线径/);
+    assert.match(coilsView, /搭配电缆线径/);
     assert.match(coilsLib, /getCoilSpecDraft/);
     assert.match(coilsLib, /\/api\/coils\/spec-draft/);
     assert.match(coilsRoute, /router\.post\('\/spec-draft'/);
