@@ -26,6 +26,8 @@ export type Quotation = {
   totalCost: number;
   totalPrice: number;
   remark?: string;
+  convertedOrderId?: number | null;
+  convertedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -52,6 +54,8 @@ type QuotationRow = {
   totalCost?: number;
   totalPrice?: number;
   remark?: string;
+  convertedOrderId?: number | null;
+  convertedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   CreatedAt?: string;
@@ -89,6 +93,8 @@ export function rowToQuotation(row: QuotationRow): Quotation {
     totalCost: Number(row.totalCost) || 0,
     totalPrice: Number(row.totalPrice) || 0,
     remark: row.remark || '',
+    convertedOrderId: row.convertedOrderId || null,
+    convertedAt: row.convertedAt || null,
     createdAt: row.createdAt || row.CreatedAt,
     updatedAt: row.updatedAt || row.UpdatedAt,
   };

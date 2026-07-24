@@ -1,6 +1,7 @@
 const { Router } = require('express');
+const { randomUUID } = require('crypto');
 const { db, dbGetAllOrders, dbGetAllParts, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
-const { buildOrderPlan } = require('../services/orderPlanning.cjs');
+const { buildOrderPlan, buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
 const router = Router();
 
@@ -70,17 +71,37 @@ function buildOrderSavePayloadDraft(body) {
     const providedTodos = parseJsonArray(body?.todos);
     const plan = (providedPurchaseList.length > 0 || providedTodos.length > 0)
         ? { purchaseList: providedPurchaseList, todos: providedTodos }
-        : buildOrderPlan(items, dbGetAllParts());
+        : (() => {
+            const activeOrders = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ? ORDER BY created_at, id').all('已完成');
+            const draftOrder = { id: -1, created_at: new Date().toISOString(), items, purchase_list_json: '[]' };
+            return buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts()).get(-1);
+        })();
+    const status = body?.status || '待采购';
+    if (!ORDER_STATUSES.has(status)) throw new Error('非法订单状态');
 
     return {
         customerName,
         contractNo: String(body?.contractNo || '').trim(),
         remark: String(body?.remark || ''),
-        status: body?.status || '待采购',
+        status,
         itemsJson: JSON.stringify(items),
         purchaseListJson: JSON.stringify(plan.purchaseList || []),
         todosJson: JSON.stringify(plan.todos || []),
     };
+}
+
+function syncBalancedPurchasePlans() {
+    const records = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ? ORDER BY created_at, id').all('已完成');
+    const plans = buildBalancedOrderPlans(records, dbGetAllParts());
+    for (const record of records) {
+        const plan = plans.get(record.id);
+        if (!plan) continue;
+        const nextJson = JSON.stringify(plan.purchaseList);
+        if (nextJson !== String(record.purchase_list_json || '[]')) {
+            safeUpdate('orders', record.id, { purchase_list_json: nextJson });
+        }
+    }
+    return plans;
 }
 
 function updateOrderRecord(id, body) {
@@ -161,28 +182,48 @@ function toggleTodoItem(id, body) {
 function completePurchaseOrder(id) {
     const action = db.transaction((orderId) => {
         const record = getOrderRecord(orderId);
-        const purchaseList = parseOrderJsonArray(record, 'purchase_list_json');
+        if (record.purchase_completed_at || record.purchase_receipt_id || record.status === '已完成') {
+            const error = new Error('该订单采购已经入库，不能重复执行');
+            error.statusCode = 409;
+            throw error;
+        }
+        const plans = syncBalancedPurchasePlans();
+        const purchaseList = plans.get(orderId)?.purchaseList || parseOrderJsonArray(getOrderRecord(orderId), 'purchase_list_json');
+        const inboundItems = purchaseList.filter(item => Number(item.needToBuy || 0) > 0);
+        const invalidItems = inboundItems.filter(item => !parsePositiveId(item.partId));
+        if (invalidItems.length > 0) {
+            const error = new Error(`以下采购项没有对应零件，无法入库：${invalidItems.map(item => `${item.model}${item.supplier ? `（${item.supplier}）` : ''}`).join('、')}`);
+            error.statusCode = 400;
+            throw error;
+        }
         const additions = [];
 
-        for (const item of purchaseList) {
+        for (const item of inboundItems) {
             const partId = parsePositiveId(item.partId);
             const addQty = Number(item.needToBuy || 0);
-            if (!partId || addQty <= 0) continue;
-            const current = db.prepare('SELECT stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
-            if (!current) continue;
+            if (!Number.isFinite(addQty) || addQty <= 0) throw new Error(`采购项「${item.model}」入库数量无效`);
+            const current = db.prepare('SELECT model, supplier, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
+            if (!current) throw new Error(`采购项「${item.model}」对应零件不存在`);
+            if (String(current.model || '') !== String(item.model || '')) throw new Error(`采购项「${item.model}」与零件库记录不一致`);
             const stock = Math.max(0, Number(current.stock || 0) + addQty);
             safeUpdate('parts', partId, { stock });
             additions.push({ partId, addQty });
         }
 
+        const completedAt = new Date().toISOString();
+        const receiptId = randomUUID();
         safeUpdate('orders', orderId, {
             status: '已完成',
             purchase_list_json: JSON.stringify(purchaseList.map(item => ({ ...item, purchased: true }))),
+            purchase_completed_at: completedAt,
+            purchase_receipt_id: receiptId,
         });
 
         return {
             order: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)),
             additions,
+            receiptId,
+            completedAt,
         };
     });
     const result = action(id);
@@ -191,7 +232,10 @@ function completePurchaseOrder(id) {
 }
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: dbGetAllOrders() }); }
+    try {
+        syncBalancedPurchasePlans();
+        res.json({ success: true, data: dbGetAllOrders() });
+    }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -242,6 +286,7 @@ router.post('/save-payload-draft', (req, res) => {
 
 router.post('/purchase-items/batch', (req, res) => {
     try {
+        syncBalancedPurchasePlans();
         const updatedOrders = applyPurchaseItemsByTask(req.body || {});
         res.json({ success: true, data: { updatedCount: updatedOrders.length, updatedOrders } });
     } catch (error) {
@@ -255,7 +300,7 @@ router.post('/:id/status', (req, res) => {
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
         res.json({ success: true, data: setOrderStatus(id, req.body?.status) });
     } catch (error) {
-        const code = error.message === '订单不存在' ? 404 : 400;
+        const code = error.statusCode || (error.message === '订单不存在' ? 404 : 400);
         res.status(code).json({ success: false, error: error.message });
     }
 });
@@ -288,7 +333,7 @@ router.post('/:id/complete-purchase', (req, res) => {
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
         res.json({ success: true, data: completePurchaseOrder(id) });
     } catch (error) {
-        const code = error.message === '订单不存在' ? 404 : 400;
+        const code = error.statusCode || (error.message === '订单不存在' ? 404 : 400);
         res.status(code).json({ success: false, error: error.message });
     }
 });
@@ -297,6 +342,7 @@ router.get('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        syncBalancedPurchasePlans();
         const record = orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
         if (!record) return res.status(404).json({ success: false, error: '订单不存在' });
         res.json({ success: true, data: record });
@@ -305,16 +351,23 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
     try {
-        const b = orderBodyToDb(req.body);
+        const payload = buildOrderSavePayloadDraft({
+            ...req.body,
+            customerName: req.body.customerName ?? req.body.customer_name,
+            contractNo: req.body.contractNo ?? req.body.contract_no,
+            items: req.body.items ?? parseJsonArray(req.body.itemsJson ?? req.body.items_json),
+            purchaseList: req.body.purchaseList ?? parseJsonArray(req.body.purchaseListJson ?? req.body.purchase_list_json),
+            todos: req.body.todos ?? parseJsonArray(req.body.todosJson ?? req.body.todos_json),
+        });
         const now = new Date().toISOString();
         const info = safeInsert('orders', {
-            customer_name: b.customer_name || '',
-            contract_no: b.contract_no || '',
-            remark: b.remark || '',
-            status: b.status || '待采购',
-            items_json: b.items_json || '[]',
-            purchase_list_json: b.purchase_list_json || '[]',
-            todos_json: b.todos_json || '[]',
+            customer_name: payload.customerName,
+            contract_no: payload.contractNo,
+            remark: payload.remark,
+            status: payload.status,
+            items_json: payload.itemsJson,
+            purchase_list_json: payload.purchaseListJson,
+            todos_json: payload.todosJson,
             created_at: now,
             updated_at: now,
         });

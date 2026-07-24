@@ -27,9 +27,15 @@ function buildPartIndexes(partsCatalog) {
     return { partIndex, partByModel };
 }
 
-function buildPurchaseList(items, partsCatalog) {
+function purchaseIdentity(model, supplier = '', partId) {
+    if (partId) return `part:${partId}`;
+    return `model:${String(model || '').trim()}|supplier:${String(supplier || '').trim()}`;
+}
+
+function buildPurchaseList(items, partsCatalog, options = {}) {
     const { partIndex, partByModel } = buildPartIndexes(partsCatalog);
     const merged = new Map();
+    const reservedDemand = options.reservedDemand instanceof Map ? options.reservedDemand : new Map();
 
     for (const item of items || []) {
         const itemQty = Number(item.qty || 0);
@@ -39,12 +45,13 @@ function buildPurchaseList(items, partsCatalog) {
             if (!model) continue;
             const qty = Number(part.inventoryQty ?? part.qty ?? 0);
             if (qty <= 0) continue;
-            const existing = merged.get(model);
+            const supplier = String(part.supplier || '').trim();
+            const mergeKey = `${model}|${supplier}`;
+            const existing = merged.get(mergeKey);
             if (existing) {
                 existing.totalQty += qty * itemQty;
-                if (!existing.supplier && part.supplier) existing.supplier = part.supplier;
             } else {
-                merged.set(model, { part, totalQty: qty * itemQty, supplier: String(part.supplier || '').trim() });
+                merged.set(mergeKey, { part, totalQty: qty * itemQty, supplier });
             }
         }
     }
@@ -57,16 +64,22 @@ function buildPurchaseList(items, partsCatalog) {
             : null;
         const dbPart = exactPart || screwPricingPart;
         const currentStock = exactPart ? Number(exactPart.stock || 0) : 0;
-        const needToBuy = Math.max(0, totalQty - currentStock);
+        const partId = exactPart?.Id || exactPart?.id;
+        const identityKey = purchaseIdentity(part.model, supplier || dbPart?.supplier || '', partId);
+        const alreadyReserved = Number(reservedDemand.get(identityKey) || 0);
+        const availableStock = Math.max(0, currentStock - alreadyReserved);
+        const needToBuy = Math.max(0, totalQty - availableStock);
+        reservedDemand.set(identityKey, alreadyReserved + totalQty);
         purchaseList.push({
             model: part.model,
             name: part.name || part.model,
             supplier: supplier || dbPart?.supplier || '',
             totalQty,
-            currentStock,
+            currentStock: availableStock,
             needToBuy,
             purchased: false,
-            partId: exactPart?.Id || exactPart?.id,
+            partId,
+            identityKey,
         });
     }
 
@@ -92,9 +105,42 @@ function buildTodos(purchaseList) {
     return todos;
 }
 
-function buildOrderPlan(items, partsCatalog) {
-    const purchaseList = buildPurchaseList(items, partsCatalog);
+function buildOrderPlan(items, partsCatalog, options = {}) {
+    const purchaseList = buildPurchaseList(items, partsCatalog, options);
     return { purchaseList, todos: buildTodos(purchaseList) };
 }
 
-module.exports = { buildPurchaseList, buildTodos, buildOrderPlan };
+function buildBalancedOrderPlans(orders, partsCatalog) {
+    const reservedDemand = new Map();
+    const plans = new Map();
+    const ordered = [...(orders || [])].sort((a, b) => {
+        const dateCompare = String(a.created_at || a.createdAt || '').localeCompare(String(b.created_at || b.createdAt || ''));
+        return dateCompare || Number(a.id || a.Id || 0) - Number(b.id || b.Id || 0);
+    });
+
+    for (const order of ordered) {
+        const items = Array.isArray(order.items)
+            ? order.items
+            : parsePartsJson(order.items_json || order.itemsJson);
+        const plan = buildOrderPlan(items, partsCatalog, { reservedDemand });
+        const previous = parsePartsJson(order.purchase_list_json || order.purchaseListJson);
+        const purchasedByKey = new Map(previous.map(item => [
+            item.identityKey || purchaseIdentity(item.model, item.supplier, item.partId),
+            Boolean(item.purchased),
+        ]));
+        plan.purchaseList = plan.purchaseList.map(item => ({
+            ...item,
+            purchased: purchasedByKey.get(item.identityKey) || false,
+        }));
+        plans.set(Number(order.id || order.Id), plan);
+    }
+    return plans;
+}
+
+module.exports = {
+    purchaseIdentity,
+    buildPurchaseList,
+    buildTodos,
+    buildOrderPlan,
+    buildBalancedOrderPlans,
+};

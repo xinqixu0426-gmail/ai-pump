@@ -59,6 +59,8 @@ db.exec(`
         items_json TEXT DEFAULT '[]',
         purchase_list_json TEXT DEFAULT '[]',
         todos_json TEXT DEFAULT '[]',
+        purchase_completed_at TEXT,
+        purchase_receipt_id TEXT,
         created_at TEXT,
         updated_at TEXT
     );
@@ -156,6 +158,8 @@ db.exec(`
         total_cost REAL DEFAULT 0,
         total_price REAL DEFAULT 0,
         remark TEXT DEFAULT '',
+        converted_order_id INTEGER,
+        converted_at TEXT,
         created_at TEXT,
         updated_at TEXT,
         deleted_at TEXT
@@ -386,6 +390,10 @@ try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN custom_fields_json TEX
 try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN coil_slot_type TEXT DEFAULT '小眼'`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN drawing_name TEXT DEFAULT ''`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE orders ADD COLUMN purchase_completed_at TEXT`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE orders ADD COLUMN purchase_receipt_id TEXT`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE quotations ADD COLUMN converted_order_id INTEGER`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE quotations ADD COLUMN converted_at TEXT`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
 try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
 try { db.exec(`ALTER TABLE coils ADD COLUMN main_wire_gauge TEXT DEFAULT ''`); } catch { /* already exists */ }
@@ -523,6 +531,8 @@ function orderRow(r) {
         id: r.id, Id: r.id, customerName: r.customer_name, contractNo: r.contract_no,
         remark: r.remark, status: r.status, itemsJson: r.items_json,
         purchaseListJson: r.purchase_list_json, todosJson: r.todos_json,
+        purchaseCompletedAt: r.purchase_completed_at || null,
+        purchaseReceiptId: r.purchase_receipt_id || null,
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
@@ -562,6 +572,7 @@ function quotationRow(r) {
     return {
         id: r.id, Id: r.id, customerId: r.customer_id, status: r.status, itemsJson: r.items_json,
         totalCost: r.total_cost, totalPrice: r.total_price, remark: r.remark,
+        convertedOrderId: r.converted_order_id || null, convertedAt: r.converted_at || null,
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };

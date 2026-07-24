@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildOrderPlan, buildPurchaseList } = require('../api/services/orderPlanning.cjs');
+const { buildOrderPlan, buildPurchaseList, buildBalancedOrderPlans } = require('../api/services/orderPlanning.cjs');
 
 const partsCatalog = [
     { Id: 1, model: '201', name: '轴承', category: '轴承', supplier: '轴承供应商', stock: 3, price: 1.1 },
@@ -87,4 +87,40 @@ test('采购计划同时生成供应商待办', () => {
     assert.equal(plan.todos.length, 1);
     assert.equal(plan.todos[0].supplier, '轴承供应商');
     assert.match(plan.todos[0].description, /201×2/);
+});
+
+test('同型号不同供应商按独立物料采购', () => {
+    const catalog = [
+        { Id: 10, model: '轴承X', supplier: '供应商A', stock: 1, price: 1 },
+        { Id: 11, model: '轴承X', supplier: '供应商B', stock: 2, price: 1.2 },
+    ];
+    const purchaseList = buildPurchaseList([{
+        qty: 1,
+        partsJson: JSON.stringify([
+            { model: '轴承X', supplier: '供应商A', qty: 3 },
+            { model: '轴承X', supplier: '供应商B', qty: 4 },
+        ]),
+    }], catalog);
+
+    assert.equal(purchaseList.length, 2);
+    assert.deepEqual(purchaseList.map(item => [item.supplier, item.needToBuy]), [
+        ['供应商A', 2],
+        ['供应商B', 2],
+    ]);
+});
+
+test('多个活动订单按顺序共享库存且不会重复占用', () => {
+    const catalog = [{ Id: 20, model: '机械密封', supplier: '供应商A', stock: 10, price: 5 }];
+    const item = {
+        qty: 1,
+        partsJson: JSON.stringify([{ model: '机械密封', supplier: '供应商A', qty: 8 }]),
+    };
+    const plans = buildBalancedOrderPlans([
+        { id: 1, created_at: '2026-01-01', items: [item], purchase_list_json: '[]' },
+        { id: 2, created_at: '2026-01-02', items: [item], purchase_list_json: '[]' },
+    ], catalog);
+
+    assert.equal(plans.get(1).purchaseList[0].needToBuy, 0);
+    assert.equal(plans.get(2).purchaseList[0].currentStock, 2);
+    assert.equal(plans.get(2).purchaseList[0].needToBuy, 6);
 });

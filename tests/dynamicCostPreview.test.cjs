@@ -215,3 +215,41 @@ test('报价切换表面处理时替换配方原工艺成本', () => {
     assert.equal(removed.unitCost, 100);
     assert.equal(replaced.unitCost, 105);
 });
+
+test('报价电缆覆盖同时生成实际长度 BOM 快照', () => {
+    const cable = { id: 8, model: '电缆-线径0.75', supplier: '线缆厂', stock: 100, price: 2 };
+    const row = {
+        id: 6,
+        name: '电缆覆盖配方',
+        parts_json: JSON.stringify([
+            { name: '固定配件', model: '固定配件', qty: 1, snapshotPrice: 100 },
+        ]),
+        saved_total_cost: 100,
+        coil_material: '钢带',
+        has_float: 0,
+        has_cable: 0,
+        cable_length: 0,
+        cable_wire: '0.75',
+        cable_accessory_type: 'standard',
+    };
+
+    const result = calculateRecipeCostPreview(row, {
+        hasCable: true,
+        cableLength: 10,
+        cableWire: '0.75',
+        cableAccessoryType: 'standard',
+    }, {
+        partsCache: {},
+        partsByModel: { '电缆-线径0.75': [cable] },
+        partsCatalog: [cable],
+        calculateRecipeCost,
+        getSetting: key => key === 'cable_accessories' ? JSON.stringify({ standard: { name: '普通铜套', fee: 3 } }) : undefined,
+        getCoils: () => [],
+    });
+
+    const cableSnapshot = result.parts.find(part => part.cableAssembly);
+    assert.equal(result.unitCost, 123);
+    assert.equal(cableSnapshot.inventoryQty, 10);
+    assert.equal(cableSnapshot.snapshotPrice, 23);
+    assert.equal(result.costSnapshot.unitCost, 123);
+});

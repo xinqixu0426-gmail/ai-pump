@@ -1,10 +1,15 @@
 const {
     createPartPriceGetter,
     configuredWireModel,
+    findPartByModelAndSupplierFromCatalog,
     lengthPricedPartSubtotal,
     buildRecipeCostDraft,
     getCableAccessoryFee: getCableAccessoryFeeFromEngine,
 } = require('./costEngine.cjs');
+const {
+    buildCompleteCablePart,
+    getCableAccessoryNameFromCatalog,
+} = require('./cableAccessory.cjs');
 const {
     DEFAULT_COIL_MATERIAL,
     calculateCoilCost,
@@ -183,6 +188,28 @@ function buildRecipeData(row, overrides = {}) {
     };
 }
 
+function buildPackingSnapshotParts(packingPartsJson, partsCatalog) {
+    let packingParts = [];
+    try { packingParts = JSON.parse(packingPartsJson || '[]'); } catch { packingParts = []; }
+    return packingParts
+        .filter(part => part?.model)
+        .map(part => {
+            const matched = findPartByModelAndSupplierFromCatalog(partsCatalog, part.model, part.supplier || '');
+            const snapshotPrice = part.snapshotPrice !== undefined
+                ? Number(part.snapshotPrice || 0)
+                : Number(matched?.price || 0);
+            return {
+                ...part,
+                model: String(part.model),
+                name: String(part.name || part.model),
+                supplier: String(part.supplier || matched?.supplier || ''),
+                qty: Number(part.qty || 1),
+                snapshotPrice,
+                packingRole: inferPackingRole(part),
+            };
+        });
+}
+
 function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const {
         partsCache = {},
@@ -280,10 +307,92 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         totalCost += Number(recipeData.management_fee || Number(getSetting('management_fee')) || 0);
     }
 
+    const snapshotParts = pricedParts.filter(part => !['coil', 'float', 'cable', 'packing'].includes(managedPartType(part)));
+    if (!coilChanged) {
+        snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'coil'));
+    } else if (recipeData.coil_spec && recipeData.coil_sheets) {
+        const coilCost = calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, getCoils);
+        if (coilCost > 0) {
+            snapshotParts.push({
+                model: `${recipeData.coil_spec}-${recipeData.coil_sheets}`,
+                name: '线圈转子',
+                supplier: '',
+                qty: 1,
+                snapshotPrice: coilCost,
+                material: recipeData.coil_material,
+                slotType: recipeData.coil_slot_type,
+                source: 'quotation_override',
+            });
+        }
+    }
+
+    if (!floatChanged) {
+        snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'float'));
+    } else if (toBool(recipeData.has_float)) {
+        const floatModel = configuredWireModel('浮球', recipeData.float_wire, resolvedWire);
+        const matchedFloat = findPartByModelAndSupplierFromCatalog(partsCatalog, floatModel, '');
+        snapshotParts.push({
+            model: floatModel,
+            name: recipeData.float_accessory_type === 'xinjie' ? '浮球-新界式' : '浮球',
+            supplier: String(matchedFloat?.supplier || ''),
+            qty: 1,
+            snapshotPrice: getFloatPrice(floatModel, getPrice, getSetting, recipeData.float_accessory_type),
+            floatAccessoryType: recipeData.float_accessory_type,
+            source: 'quotation_override',
+        });
+    }
+
+    if (!cableChanged) {
+        snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'cable'));
+    } else if (toBool(recipeData.has_cable) && Number(recipeData.cable_length) > 0) {
+        const cableModel = configuredWireModel('电缆', recipeData.cable_wire, resolvedWire);
+        const matchedCable = findPartByModelAndSupplierFromCatalog(partsCatalog, cableModel, '');
+        const supplier = String(matchedCable?.supplier || '');
+        const accessoryType = recipeData.cable_accessory_type;
+        snapshotParts.push({
+            ...buildCompleteCablePart({
+                model: cableModel,
+                supplier,
+                cableLength: recipeData.cable_length,
+                cableUnitPrice: getPrice(cableModel),
+                accessoryType,
+                accessoryName: getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier, accessoryType),
+                accessoryFee: getCableAccessoryFee(partsByModel, cableModel, supplier, getSetting, accessoryType),
+            }),
+            cableAssembly: true,
+            source: 'quotation_override',
+        });
+    }
+
+    if (!boxChanged) {
+        snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'packing'));
+    } else {
+        snapshotParts.push(...buildPackingSnapshotParts(
+            normalizePackingJsonText(recipeData.packing_parts_json, recipeData.box_type),
+            partsCatalog
+        ));
+    }
+
+    const effectiveManagementFee = Number(recipeData.management_fee || Number(getSetting('management_fee')) || 0);
+    const costSnapshot = {
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        unitCost: Number(totalCost.toFixed(2)),
+        partsCost: Number(snapshotParts.reduce((sum, part) => sum + Number(part.snapshotPrice || 0) * Number(part.qty || 0), 0).toFixed(2)),
+        expenses: {
+            assemblyWage: Number(recipeData.assembly_wage || 0),
+            packingWage: Number(recipeData.packing_wage || 0),
+            surfaceTreatmentMode: recipeData.surface_treatment_mode,
+            surfaceTreatmentCost: effectiveSurfaceCost,
+            managementFee: effectiveManagementFee,
+        },
+    };
+
     return {
         recipeName: recipeData.name,
         unitCost: Number(totalCost.toFixed(2)),
-        parts: pricedParts,
+        parts: snapshotParts,
+        costSnapshot,
     };
 }
 

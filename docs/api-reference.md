@@ -109,7 +109,7 @@
 | `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 无 | 软删除测试报告 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 批量返回所有配方的当日完整成本；普通零件按当前零件库价格、线圈按当前铜价和线圈参数重算，并叠加人工、表面处理与管理费；同时返回相对保存成本的差额 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 报价/试算用，以配方保存成本为基线替换被覆盖的动态项。包材按完整有效清单重算，`packingRole` 支持 `container/foam/pearlCotton/fixed`；表面处理替换原工艺成本，不重复累加 |
+| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 报价/试算用，以配方保存成本为基线替换被覆盖的动态项；返回 `unitCost/parts/costSnapshot`，其中 `parts` 是应用覆盖后的可采购 BOM 快照。包材按完整有效清单重算，表面处理替换原工艺成本 |
 | `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 比较两个配方的当前成本，返回总差额和主要差异驱动项；不写库 |
 
 ## 9. 成本 Cost
@@ -165,19 +165,20 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/quotations` | 无 | 报价列表；读取时自动把超过 1 个月的“报价中”标为“已过时” |
-| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 基于报价表单草稿生成标准保存 payload；统一明细、覆盖配置快照、总成本和总报价；不写库 |
+| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 后端按每个有效 `baseRecipeId` 重新试算，生成覆盖配置、完整 `bomSnapshot`、`costSnapshot`、总成本和总报价；不信任前端单位成本，不写库 |
 
 `POST /api/quotations` 和带明细的 `PATCH /api/quotations/:id` 会再次解析 `itemsJson`、校验状态并重新汇总总成本和总报价，不信任调用方提交的合计金额；仅修改状态或备注时保留轻量更新路径。
 | `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；标准返回 `{ data: quotation }` |
-| `POST` | `/api/quotations/:id/order-draft` | 无 | 基于报价、客户、配方快照生成订单草稿、采购清单和待办；不创建订单，不改报价状态 |
-| `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价；返回 `{ data: quotation }` |
+| `POST` | `/api/quotations/:id/order-draft` | 无 | 从报价明细的 BOM 快照生成订单预览、采购清单和待办；旧报价缺少快照时临时回退配方 BOM 并标记 `legacy_recipe_fallback`；不写库 |
+| `POST` | `/api/quotations/:id/convert` | 无 | 在同一事务内创建订单、保存 `convertedOrderId/convertedAt` 并把报价标记为“已转订单”；重复转单返回 409 |
+| `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价；已转订单的报价返回 409，防止订单来源快照被改写 |
 | `DELETE` | `/api/quotations/:id` | 无 | 软删除 |
 
 ## 11. 订单 Orders
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/orders` | 无 | 订单列表，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/orders` | 无 | 订单列表；按创建顺序平衡全部活动订单的库存占用并刷新采购缺口，同一库存不会被多个订单重复使用 |
 | `GET` | `/api/orders/:id` | 无 | 单个订单，标准字段含 `id/createdAt/updatedAt` |
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
@@ -186,7 +187,7 @@
 | `POST` | `/api/orders/:id/status` | `{ status }` | 更新订单状态；`status` 只能是 `待采购/采购中/已完成` |
 | `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 切换或设置指定采购项的已采状态 |
 | `POST` | `/api/orders/:id/todos/toggle` | `{ todoId, done? }` | 切换或设置指定采购待办完成状态 |
-| `POST` | `/api/orders/:id/complete-purchase` | 无 | 确认采购完成并入库；在同一事务内更新零件库存和订单状态 |
+| `POST` | `/api/orders/:id/complete-purchase` | 无 | 确认采购完成并入库；先校验全部待入库项存在，再在同一事务内更新库存、订单状态及 `purchaseCompletedAt/purchaseReceiptId`；重复入库返回 409 |
 | `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, status?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单 |
 | `PATCH` | `/api/orders/:id` | 订单字段 | 更新入口 |
 | `DELETE` | `/api/orders/:id` | 无 | 软删除 |

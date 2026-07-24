@@ -58,7 +58,9 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assert.match(section, /calculateRecipeCostPreview\(row, overrides, \{/);
     assert.match(section, /loadPartsData\(\)/);
     assert.match(section, /getCoils: dbGetAllCoils/);
-    assert.match(section, /res\.json\(\{ success: true, data: \{ unitCost: result\.unitCost \} \}\)/);
+    assert.match(section, /unitCost: result\.unitCost/);
+    assert.match(section, /parts: result\.parts/);
+    assert.match(section, /costSnapshot: result\.costSnapshot/);
     assert.doesNotMatch(section, /response\.unitCost|const response/);
     assertNoWrites(section);
 });
@@ -283,12 +285,13 @@ test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字
     assert.match(orders, /parsePositiveNumber\(item\.profitMargin, `items\[\$\{index\}\]\.profitMargin`/);
     assert.doesNotMatch(orders, /Number\(item\.(unitCost|unitPrice|qty|profitMargin)\) \|\|/);
 
-    assert.match(quotations, /parseNonNegativeNumber\(item\.unitCost, `items\[\$\{index\}\]\.unitCost`\)/);
+    assert.match(quotations, /parseNonNegativeNumber\(preview\.unitCost, `items\[\$\{index\}\]\.unitCost`\)/);
     assert.match(quotations, /parseNonNegativeNumber\(item\.unitPrice, `items\[\$\{index\}\]\.unitPrice`\)/);
     assert.match(quotations, /parsePositiveNumber\(item\.qty, `items\[\$\{index\}\]\.qty`/);
     assert.match(quotations, /parsePositiveNumber\(item\.margin, `items\[\$\{index\}\]\.margin`/);
     assert.match(quotations, /normalizeQuotationItemOverrides\(item\.overrides, index\)/);
-    assert.match(quotations, /overrides:\s*normalizeQuotationItemOverrides/);
+    assert.match(quotations, /const overrides = normalizeQuotationItemOverrides\(item\.overrides, index\)/);
+    assert.match(quotations, /bomSnapshot: preview\.parts/);
     assert.match(quotations, /function parseQuotationItemsInput\(value\)/);
     assert.match(quotations, /const payload = buildQuotationSavePayloadDraft\(\{/);
     assert.match(quotations, /items:\s*req\.body\.items \?\? parseQuotationItemsInput\(req\.body\.itemsJson\)/);

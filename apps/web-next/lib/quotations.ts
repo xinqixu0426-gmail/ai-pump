@@ -1,7 +1,7 @@
 import type { ApiResponse } from './api';
 import { proxyRequest } from './api';
 import { getAllCustomers, getAllQuotations, rowToQuotation, type Customer, type Quotation } from './customers';
-import { createOrder, type OrderItem, type PurchaseItem, type TodoItem } from './orders';
+import type { OrderItem, PurchaseItem, TodoItem } from './orders';
 import { getAllParts, type Part } from './parts';
 import { getAllRecipes, type Recipe, type SurfaceTreatmentMode } from './recipes';
 
@@ -19,6 +19,16 @@ export type QuotationItem = {
   margin?: number;
   unitPrice?: number;
   totalPrice?: number;
+  snapshotVersion?: number;
+  snapshotAt?: string;
+  bomSnapshot?: Array<Record<string, unknown>>;
+  costSnapshot?: {
+    version?: number;
+    generatedAt?: string;
+    unitCost?: number;
+    partsCost?: number;
+    expenses?: Record<string, unknown>;
+  };
 };
 
 export type QuotationItemOverrides = {
@@ -298,14 +308,8 @@ export async function convertQuotationToOrder(input: {
   recipes?: Recipe[];
   draft?: QuotationOrderDraft;
 }): Promise<void> {
-  const draft = input.draft || await buildQuotationOrderDraft(input.quotation.id);
-  await createOrder({
-    customerName: draft.customerName,
-    contractNo: draft.contractNo,
-    remark: draft.remark,
-    items: draft.items,
-    purchaseList: draft.purchaseList,
-    todos: draft.todos,
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/quotations/${input.quotation.id}/convert`, {
+    method: 'POST',
   });
-  await updateQuotationStatus(input.quotation, '已转订单');
+  if (!result.success) throw new Error(result.error || '报价转订单失败');
 }

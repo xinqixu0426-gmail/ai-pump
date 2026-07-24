@@ -498,7 +498,7 @@ test('Next UI 契约：报价转订单必须先预览后确认', () => {
     assert.match(quotationsView, /采购计划预览/);
     assert.match(quotationsLib, /buildQuotationOrderDraft/);
     assert.match(quotationsLib, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
-    assert.match(quotationsLib, /input\.draft \|\| await buildQuotationOrderDraft\(input\.quotation\.id\)/);
+    assert.match(quotationsLib, /\/api\/quotations\/\$\{input\.quotation\.id\}\/convert/);
 });
 
 test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {

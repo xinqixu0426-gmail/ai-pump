@@ -173,7 +173,14 @@ router.post('/recipes/:id/cost-preview', (req, res) => {
             getSetting,
         });
         costLogger.info(`DynamicCalc recipe=${result.recipeName}, unitCost=${result.unitCost}`);
-        res.json({ success: true, data: { unitCost: result.unitCost } });
+        res.json({
+            success: true,
+            data: {
+                unitCost: result.unitCost,
+                parts: result.parts,
+                costSnapshot: result.costSnapshot,
+            },
+        });
     } catch (err) {
         costLogger.error(`DynamicCalc failed recipe=${baseRecipeId}: ${err.stack || err.message}`);
         res.status(500).json({ success: false, error: err.message });

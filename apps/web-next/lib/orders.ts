@@ -43,6 +43,8 @@ export type Order = {
   items: OrderItem[];
   purchaseList: PurchaseItem[];
   todos: TodoItem[];
+  purchaseCompletedAt?: string | null;
+  purchaseReceiptId?: string | null;
   totalCost: number;
   totalPrice: number;
   totalProfit: number;
@@ -60,6 +62,8 @@ type OrderRow = {
   itemsJson?: string;
   purchaseListJson?: string;
   todosJson?: string;
+  purchaseCompletedAt?: string | null;
+  purchaseReceiptId?: string | null;
   createdAt?: string;
   updatedAt?: string;
   CreatedAt?: string;
@@ -115,6 +119,8 @@ export function rowToOrder(row: OrderRow): Order {
     items,
     purchaseList: safeJsonParse<PurchaseItem[]>(row.purchaseListJson, []),
     todos: safeJsonParse<TodoItem[]>(row.todosJson, []),
+    purchaseCompletedAt: row.purchaseCompletedAt || null,
+    purchaseReceiptId: row.purchaseReceiptId || null,
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,

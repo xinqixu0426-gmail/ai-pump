@@ -1,6 +1,21 @@
 const express = require('express');
-const { db, dbGetAllParts, dbGetAllQuotations, quotationRow, safeInsert, safeUpdate, softDelete } = require('../db.cjs');
-const { buildOrderPlan } = require('../services/orderPlanning.cjs');
+const {
+    db,
+    dbGetAllParts,
+    dbGetAllQuotations,
+    dbGetAllCoils,
+    loadPartsData,
+    calculateRecipeCost,
+    getSetting,
+    quotationRow,
+    orderRow,
+    safeInsert,
+    safeUpdate,
+    softDelete,
+} = require('../db.cjs');
+const { buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
+const { calculateRecipeCostPreview } = require('../services/dynamicCostPreview.cjs');
+const { assertRecipeBomPrices } = require('../services/costEngine.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
 const router = express.Router();
 const QUOTATION_STATUSES = new Set(['报价中', '已接受', '已拒绝', '已转订单', '已过时']);
@@ -58,26 +73,46 @@ function normalizeQuotationItemOverrides(overrides, index) {
 
 function normalizeQuotationItems(items) {
     if (!Array.isArray(items)) return [];
+    const { partsCache, partsByModel } = loadPartsData();
+    const partsCatalog = Object.values(partsByModel).flat();
     return items
         .filter(item => item && (item.baseRecipeId || item.baseRecipeName))
         .map((item, index) => {
             const qty = parsePositiveNumber(item.qty, `items[${index}].qty`, { defaultValue: 1 });
-            const unitCost = parseNonNegativeNumber(item.unitCost, `items[${index}].unitCost`);
+            const recipeId = parsePositiveId(item.baseRecipeId);
+            if (!recipeId) throw new Error(`items[${index}].baseRecipeId 必须是有效配方ID`);
+            const recipe = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId);
+            if (!recipe) throw new Error(`报价明细配方不存在：${recipeId}`);
+            const overrides = normalizeQuotationItemOverrides(item.overrides, index);
+            const preview = calculateRecipeCostPreview(recipe, overrides, {
+                partsCache,
+                partsByModel,
+                partsCatalog,
+                calculateRecipeCost,
+                getCoils: dbGetAllCoils,
+                getSetting,
+            });
+            assertRecipeBomPrices(preview.parts);
+            const unitCost = parseNonNegativeNumber(preview.unitCost, `items[${index}].unitCost`);
             const margin = parsePositiveNumber(item.margin, `items[${index}].margin`, { defaultValue: 1.1 });
             const unitPrice = item.unitPrice == null
                 ? roundMoney(unitCost * margin)
                 : roundMoney(parseNonNegativeNumber(item.unitPrice, `items[${index}].unitPrice`));
             return {
                 id: String(item.id || `quotation-item-${Date.now()}-${index}`),
-                baseRecipeId: parsePositiveId(item.baseRecipeId) || '',
-                baseRecipeName: String(item.baseRecipeName || '未命名产品'),
-                spec: String(item.spec || ''),
+                baseRecipeId: recipeId,
+                baseRecipeName: String(item.baseRecipeName || recipe.name || '未命名产品'),
+                spec: String(item.spec || recipe.spec || ''),
                 qty,
                 unitCost: roundMoney(unitCost),
                 margin: unitCost > 0 ? roundMoney(unitPrice / unitCost) : margin,
                 unitPrice,
                 totalPrice: roundMoney(unitPrice * qty),
-                overrides: normalizeQuotationItemOverrides(item.overrides, index),
+                overrides,
+                snapshotVersion: 1,
+                snapshotAt: preview.costSnapshot.generatedAt,
+                bomSnapshot: preview.parts,
+                costSnapshot: preview.costSnapshot,
             };
         });
 }
@@ -133,6 +168,10 @@ function buildOrderDraftFromQuotation(quotationId) {
             ? roundMoney(unitCost * margin)
             : parseNonNegativeNumber(item.unitPrice, `quotationItems[${index}].unitPrice`);
         const qty = parsePositiveNumber(item.qty, `quotationItems[${index}].qty`, { defaultValue: 1 });
+        const bomSnapshot = Array.isArray(item.bomSnapshot) && item.bomSnapshot.length > 0
+            ? item.bomSnapshot
+            : parseJsonArray(item.partsJson || recipe?.parts_json);
+        if (bomSnapshot.length === 0) throw new Error(`报价明细「${item.baseRecipeName || index + 1}」缺少 BOM 快照`);
         return {
             id: String(item.id || `quotation-${quotationId}-${index}`),
             recipeId: recipe?.id || recipeId || undefined,
@@ -142,12 +181,18 @@ function buildOrderDraftFromQuotation(quotationId) {
             unitCost: roundMoney(unitCost),
             unitPrice: roundMoney(unitPrice),
             profitMargin: unitCost > 0 ? roundMoney(unitPrice / unitCost) : margin,
-            partsJson: recipe?.parts_json || '[]',
+            partsJson: JSON.stringify(bomSnapshot),
+            quotationItemId: item.id,
+            snapshotVersion: Number(item.snapshotVersion || 0),
+            snapshotSource: item.snapshotVersion ? 'quotation' : 'legacy_recipe_fallback',
+            costSnapshot: item.costSnapshot || null,
         };
     });
 
     if (orderItems.length === 0) throw new Error('报价没有可转订单的明细');
-    const plan = buildOrderPlan(orderItems, dbGetAllParts());
+    const activeOrders = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ? ORDER BY created_at, id').all('已完成');
+    const draftOrder = { id: -1, created_at: new Date().toISOString(), items: orderItems, purchase_list_json: '[]' };
+    const plan = buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts()).get(-1);
     return {
         customerName: customer.name || 'Unknown',
         contractNo: '',
@@ -157,6 +202,43 @@ function buildOrderDraftFromQuotation(quotationId) {
         purchaseList: plan.purchaseList,
         todos: plan.todos,
     };
+}
+
+function convertQuotationToOrder(quotationId) {
+    const convert = db.transaction((id) => {
+        const quotation = db.prepare('SELECT * FROM quotations WHERE id = ? AND deleted_at IS NULL').get(id);
+        if (!quotation) throw new Error('报价单不存在');
+        if (quotation.converted_order_id || quotation.status === '已转订单') {
+            const error = new Error('该报价已经转为订单，不能重复转单');
+            error.statusCode = 409;
+            throw error;
+        }
+
+        const draft = buildOrderDraftFromQuotation(id);
+        const now = new Date().toISOString();
+        const info = safeInsert('orders', {
+            customer_name: draft.customerName,
+            contract_no: draft.contractNo || '',
+            remark: draft.remark || '',
+            status: '待采购',
+            items_json: JSON.stringify(draft.items),
+            purchase_list_json: JSON.stringify(draft.purchaseList),
+            todos_json: JSON.stringify(draft.todos),
+            created_at: now,
+            updated_at: now,
+        });
+        const orderId = Number(info.lastInsertRowid);
+        safeUpdate('quotations', id, {
+            status: '已转订单',
+            converted_order_id: orderId,
+            converted_at: now,
+        });
+        return {
+            order: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)),
+            quotation: quotationRow(db.prepare('SELECT * FROM quotations WHERE id = ?').get(id)),
+        };
+    });
+    return convert(quotationId);
 }
 
 router.get('/', (req, res) => {
@@ -207,12 +289,25 @@ router.post('/:id/order-draft', (req, res) => {
     }
 });
 
+router.post('/:id/convert', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法报价ID' });
+        res.status(201).json({ success: true, data: convertQuotationToOrder(id) });
+    } catch (err) {
+        res.status(err.statusCode || (err.message === '报价单不存在' ? 404 : 400)).json({ success: false, error: err.message });
+    }
+});
+
 router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法报价ID' });
         const current = db.prepare('SELECT * FROM quotations WHERE id = ? AND deleted_at IS NULL').get(id);
         if (!current) return res.status(404).json({ success: false, error: '报价单不存在' });
+        if (current.converted_order_id || current.status === '已转订单') {
+            return res.status(409).json({ success: false, error: '已转订单的报价不能再修改' });
+        }
         const hasItems = req.body.items !== undefined || req.body.itemsJson !== undefined;
         if (hasItems) {
             const payload = buildQuotationSavePayloadDraft({

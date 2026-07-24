@@ -249,9 +249,12 @@ test('API 静态契约：报价转订单必须由后端生成订单草稿', () =
 
     assert.match(route, /router\.post\('\/:id\/order-draft'/);
     assert.match(route, /function buildOrderDraftFromQuotation/);
-    assert.match(route, /buildOrderPlan\(orderItems, dbGetAllParts\(\)\)/);
+    assert.match(route, /buildBalancedOrderPlans/);
+    assert.match(route, /router\.post\('\/:id\/convert'/);
+    assert.match(route, /converted_order_id/);
     assert.match(nextClient, /buildQuotationOrderDraft\(quotationId: number\)/);
     assert.match(nextClient, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
+    assert.match(nextClient, /\/api\/quotations\/\$\{input\.quotation\.id\}\/convert/);
     assert.doesNotMatch(nextClient, /generatePurchasePlan/);
 });
 
@@ -289,11 +292,26 @@ test('API 静态契约：订单详情动作必须由后端执行', () => {
     assert.match(route, /router\.post\('\/:id\/todos\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/complete-purchase'/);
     assert.match(route, /safeUpdate\('parts', partId, \{ stock \}\)/);
+    assert.match(route, /record\.purchase_completed_at \|\| record\.purchase_receipt_id/);
+    assert.match(route, /purchase_receipt_id: receiptId/);
+    assert.match(route, /const receiptId = randomUUID\(\)/);
+    assert.match(route, /db\.transaction\(\(orderId\) =>/);
     assert.match(nextClient, /setOrderStatus/);
     assert.match(nextClient, /toggleOrderPurchaseItem/);
     assert.match(nextClient, /toggleOrderTodoItem/);
     assert.match(nextClient, /completeOrderPurchase/);
     assert.doesNotMatch(detailDrawer, /saveOrder|batchAddStock/);
+});
+
+test('API 静态契约：报价确认转单必须事务化并防止重复转单', () => {
+    const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+
+    assert.match(route, /function convertQuotationToOrder/);
+    assert.match(route, /db\.transaction\(\(id\) =>/);
+    assert.match(route, /quotation\.converted_order_id \|\| quotation\.status === '已转订单'/);
+    assert.match(route, /safeInsert\('orders'/);
+    assert.match(route, /converted_order_id: orderId/);
+    assert.match(route, /statusCode = 409/);
 });
 
 test('API 静态契约：采购中心批量采购状态必须由后端执行', () => {
