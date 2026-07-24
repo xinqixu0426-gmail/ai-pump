@@ -16,7 +16,8 @@ const router = Router();
 
 function coilCostFromValues(values) {
     const unitPrice = parseNonNegativeNumber(values.unitPrice, 'unitPrice');
-    const sheets = parseNonNegativeNumber(values.sheets, 'sheets', { required: true });
+    const sheets = parsePositiveId(values.sheets);
+    if (!sheets) throw new Error('sheets 必须是正整数');
     const wireWeight = parseNonNegativeNumber(values.wireWeight, 'wireWeight');
     const copperBase = parseNonNegativeNumber(values.copperBase, 'copperBase');
     const coilFee = parseNonNegativeNumber(values.coilFee, 'coilFee');

@@ -109,7 +109,7 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
             auxWireGauge: '0.45',
             auxWireData: '副线 960 匝',
         }],
-        customers: [{ id: 5, name: '张三', defaultMargin: 1.15, contactInfo: '电话', remark: '' }],
+        customers: [{ id: 5, name: '张三', defaultMargin: 0.15, contactInfo: '电话', remark: '' }],
         quotations: [{ id: 6, customerId: 5, status: '报价中', itemsJson: JSON.stringify([{ baseRecipeName: 'V750 12-140', qty: 2 }]), totalCost: 240, totalPrice: 276 }],
         orders: [{ id: 7, customerName: '张三', contractNo: 'HT-1', status: '待采购', itemsJson: JSON.stringify([{ recipeName: 'V750 12-140', qty: 2 }]), purchaseListJson: '[]', todosJson: '[]' }],
         settings: [{ key: 'management_fee', value: '5' }],
@@ -128,6 +128,11 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     assert.match(coilEntry.content, /默认搭配电缆线径：1\.0/);
     assert.match(coilEntry.content, /主线漆包线线径：0\.55/);
     assert.match(coilEntry.content, /副线数据：副线 960 匝/);
+    const customerKnowledgeEntry = entries.find(entry => entry.entryType === 'customer');
+    assert.match(customerKnowledgeEntry.summary, /默认利润率 15%/);
+    assert.match(customerKnowledgeEntry.content, /默认利润率：15%/);
+    assert.equal(customerKnowledgeEntry.metadata.defaultMargin, 0.15);
+    assert.equal(customerKnowledgeEntry.metadata.defaultMarginPercent, 15);
 });
 
 test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈方案', () => {

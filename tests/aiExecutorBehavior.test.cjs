@@ -272,6 +272,39 @@ test('AI executor 行为：报价草稿工具复用客户、配方、成本预�
     ]);
 });
 
+test('AI executor 行为：客户默认利润率小数转换为报价倍率', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/customers') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 3, name: '张三', defaultMargin: 0.2 }] });
+        }
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 5, name: 'V750', spec: '12-140', savedTotalCost: 100 }] });
+        }
+        if (call.url.endsWith('/api/quotations/save-payload-draft') && call.method === 'POST') {
+            assert.equal(call.body.items[0].margin, 1.2);
+            return jsonResponse({
+                success: true,
+                data: {
+                    customerId: 3,
+                    itemsJson: JSON.stringify(call.body.items),
+                    totalCost: 100,
+                    totalPrice: 120,
+                    status: '报价中',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('build_quotation_draft', {
+        customerName: '张三',
+        items: [{ recipeName: 'V750', qty: 1 }],
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.items[0].margin, 1.2);
+});
+
 test('AI executor 行为：泵壳机筒长度成本试算复用 BOM 草稿 API', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/templates') && call.method === 'GET') {

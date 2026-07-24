@@ -3,6 +3,7 @@ const { db, dbGetAllParts, dbGetAllQuotations, quotationRow, safeInsert, safeUpd
 const { buildOrderPlan } = require('../services/orderPlanning.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
 const router = express.Router();
+const QUOTATION_STATUSES = new Set(['报价中', '已接受', '已拒绝', '已转订单', '已过时']);
 
 function expireOverdueQuotations() {
     const cutoff = new Date();
@@ -81,16 +82,30 @@ function normalizeQuotationItems(items) {
         });
 }
 
+function parseQuotationItemsInput(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return [];
+    try {
+        const parsed = JSON.parse(value);
+        if (!Array.isArray(parsed)) throw new Error('报价明细必须是数组');
+        return parsed;
+    } catch (error) {
+        throw new Error(error.message === '报价明细必须是数组' ? error.message : '报价明细必须是有效 JSON 数组');
+    }
+}
+
 function buildQuotationSavePayloadDraft(body) {
     const customerId = parsePositiveId(body?.customerId);
     if (!customerId) throw new Error('请选择客户');
     const items = normalizeQuotationItems(body?.items);
     if (items.length === 0) throw new Error('至少添加一个报价明细');
+    const status = String(body?.status || '报价中');
+    if (!QUOTATION_STATUSES.has(status)) throw new Error('报价状态无效');
     const totalCost = roundMoney(items.reduce((sum, item) => sum + item.unitCost * item.qty, 0));
     const totalPrice = roundMoney(items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0));
     return {
         customerId,
-        status: body?.status || '报价中',
+        status,
         itemsJson: JSON.stringify(items),
         totalCost,
         totalPrice,
@@ -153,14 +168,25 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-    const { customerId, status, itemsJson, totalCost, totalPrice, remark } = req.body;
-    if (!customerId) return res.status(400).json({ success: false, error: 'Missing customerId' });
-    const now = new Date().toISOString();
     try {
-        const info = safeInsert('quotations', { customer_id: customerId, status: status || '报价中', items_json: itemsJson || '[]', total_cost: totalCost || 0, total_price: totalPrice || 0, remark: remark || '', created_at: now, updated_at: now });
+        const payload = buildQuotationSavePayloadDraft({
+            ...req.body,
+            items: req.body.items ?? parseQuotationItemsInput(req.body.itemsJson),
+        });
+        const now = new Date().toISOString();
+        const info = safeInsert('quotations', {
+            customer_id: payload.customerId,
+            status: payload.status,
+            items_json: payload.itemsJson,
+            total_cost: payload.totalCost,
+            total_price: payload.totalPrice,
+            remark: payload.remark,
+            created_at: now,
+            updated_at: now,
+        });
         const record = quotationRow(db.prepare('SELECT * FROM quotations WHERE id = ?').get(info.lastInsertRowid));
         res.json({ success: true, data: record });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    } catch (err) { res.status(400).json({ success: false, error: err.message }); }
 });
 
 router.post('/save-payload-draft', (req, res) => {
@@ -185,16 +211,36 @@ router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法报价ID' });
-        safeUpdate('quotations', id, {
-            customer_id: req.body.customerId,
-            status: req.body.status,
-            items_json: req.body.itemsJson,
-            total_cost: req.body.totalCost,
-            total_price: req.body.totalPrice,
-            remark: req.body.remark
-        });
+        const current = db.prepare('SELECT * FROM quotations WHERE id = ? AND deleted_at IS NULL').get(id);
+        if (!current) return res.status(404).json({ success: false, error: '报价单不存在' });
+        const hasItems = req.body.items !== undefined || req.body.itemsJson !== undefined;
+        if (hasItems) {
+            const payload = buildQuotationSavePayloadDraft({
+                customerId: req.body.customerId ?? current.customer_id,
+                status: req.body.status ?? current.status,
+                items: req.body.items ?? parseQuotationItemsInput(req.body.itemsJson),
+                remark: req.body.remark ?? current.remark,
+            });
+            safeUpdate('quotations', id, {
+                customer_id: payload.customerId,
+                status: payload.status,
+                items_json: payload.itemsJson,
+                total_cost: payload.totalCost,
+                total_price: payload.totalPrice,
+                remark: payload.remark,
+            });
+        } else {
+            const updates = {};
+            if (req.body.status !== undefined) {
+                const status = String(req.body.status);
+                if (!QUOTATION_STATUSES.has(status)) throw new Error('报价状态无效');
+                updates.status = status;
+            }
+            if (req.body.remark !== undefined) updates.remark = String(req.body.remark || '');
+            safeUpdate('quotations', id, updates);
+        }
         res.json({ success: true, data: quotationRow(db.prepare('SELECT * FROM quotations WHERE id = ?').get(id)) });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    } catch (err) { res.status(400).json({ success: false, error: err.message }); }
 });
 
 router.delete('/:id', (req, res) => {

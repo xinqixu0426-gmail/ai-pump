@@ -248,21 +248,23 @@ function coilEntry(coil) {
 }
 
 function customerEntry(customer) {
+    const defaultMargin = Number(customer.defaultMargin || 0);
+    const defaultMarginPercent = Math.round(defaultMargin * 10000) / 100;
     return createEntry({
         entryType: 'customer',
         sourceTable: 'customers',
         sourceId: customer.id,
         sourceUpdatedAt: customer.updatedAt,
         title: `客户：${customer.name || customer.id}`,
-        summary: `默认利润率 ${Number(customer.defaultMargin || 0)}，联系方式 ${customer.contactInfo || '-'}`,
+        summary: `默认利润率 ${defaultMarginPercent}%，联系方式 ${customer.contactInfo || '-'}`,
         content: [
             `客户名称：${customer.name || ''}`,
             `联系方式：${customer.contactInfo || ''}`,
-            `默认利润率：${Number(customer.defaultMargin || 0)}`,
+            `默认利润率：${defaultMarginPercent}%`,
             `备注：${customer.remark || ''}`,
         ],
         tags: ['客户', customer.name],
-        metadata: { defaultMargin: Number(customer.defaultMargin || 0) },
+        metadata: { defaultMargin, defaultMarginPercent },
     });
 }
 

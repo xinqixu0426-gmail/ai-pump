@@ -1507,6 +1507,17 @@ export function RecipesView() {
     recommendedCableWire,
     recommendedFloatWire,
   ]);
+  const linkedChangeSummary = useMemo(
+    () => [
+      ...linkedChangeAnnotations.filter((item) => item.tone === 'amber'),
+      ...linkedChangeAnnotations.filter((item) => item.tone !== 'amber'),
+    ]
+      .slice(0, 3)
+      .map((item) => `${item.label} ${item.value}`)
+      .join(' · '),
+    [linkedChangeAnnotations]
+  );
+  const hasLinkedChangeWarning = linkedChangeAnnotations.some((item) => item.tone === 'amber');
   const partModelOptions = useMemo(
     () => Array.from(new Set(parts.filter((part) => part.category !== '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [parts]
@@ -3696,53 +3707,43 @@ export function RecipesView() {
                     </label>
                   </div>
                 ) : null}
+
+                <TemplateMatchSummary
+                  parts={relatedBomParts}
+                  total={relatedBomPartsCost}
+                  onOpenAll={() => setTemplateMatchDialogOpen(true)}
+                />
+
+                {linkedChangeAnnotations.length > 0 ? (
+                  <details className="group rounded-md border border-slate-200 bg-white">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2 marker:content-none">
+                      <div className="flex shrink-0 items-center gap-2">
+                        <CircleHelp size={15} className="text-slate-400" aria-hidden="true" />
+                        <span className="text-xs font-semibold text-slate-700">系统联动</span>
+                        <RecipeStatusBadge tone={hasLinkedChangeWarning ? 'amber' : 'blue'}>
+                          {linkedChangeAnnotations.length} 项
+                        </RecipeStatusBadge>
+                      </div>
+                      <span className="min-w-0 flex-1 truncate text-xs text-slate-500" title={linkedChangeSummary}>
+                        {linkedChangeSummary}
+                      </span>
+                      <ChevronDown size={15} className="shrink-0 text-slate-400 transition-transform duration-150 group-open:rotate-180" />
+                    </summary>
+                    <div className="grid gap-2 border-t border-line bg-slate-50/50 p-3 md:grid-cols-2">
+                      {linkedChangeAnnotations.map((item) => (
+                        <div key={`${item.label}-${item.value}`} className={`rounded-md border px-3 py-2 ${linkedChangeToneClass(item.tone)}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs font-medium opacity-80">{item.label}</span>
+                            <span className="text-sm font-semibold">{item.value}</span>
+                          </div>
+                          <div className="mt-1 text-xs leading-5 opacity-80">{item.note}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
               </div>
             </WorkspaceSection>
-
-            <div title="模板 / 型号零配件">
-              <TemplateMatchSummary
-                parts={relatedBomParts}
-                total={relatedBomPartsCost}
-                onOpenAll={() => setTemplateMatchDialogOpen(true)}
-                getSubtotal={recipePartSubtotal}
-                getSourceLabel={partCostSourceLabel}
-              />
-            </div>
-
-            {linkedChangeAnnotations.length > 0 ? (
-              <section className="rounded-panel border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="group min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-                      联动标注
-                      <button
-                        type="button"
-                        aria-label="联动标注说明"
-                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 outline-none transition-colors duration-150 hover:text-slate-700 focus-visible:text-slate-700 focus-visible:ring-2 focus-visible:ring-slate-300"
-                      >
-                        <CircleHelp size={15} />
-                      </button>
-                    </div>
-                    <div className="mt-1 text-xs text-muted">这些项目会随泵壳、机筒长度或线圈参数自动变化。</div>
-                    <div className="mt-2 hidden max-w-xl rounded-md border border-slate-200 bg-slate-50 p-3 text-xs font-normal leading-5 text-slate-600 shadow-sm group-focus-within:block group-hover:block">
-                      当泵体机筒是由不锈钢机筒构成且成本随机筒长度变化时。输入机筒长度可以自动计算整体泵壳的成本以及所需不锈钢长螺丝的长度。
-                    </div>
-                  </div>
-                  <RecipeStatusBadge tone="blue">系统联动</RecipeStatusBadge>
-                </div>
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {linkedChangeAnnotations.map((item) => (
-                    <div key={`${item.label}-${item.value}`} className={`rounded-md border p-3 ${linkedChangeToneClass(item.tone)}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-medium opacity-80">{item.label}</span>
-                        <span className="text-sm font-semibold">{item.value}</span>
-                      </div>
-                      <div className="mt-1 text-xs leading-5 opacity-80">{item.note}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
 
             <WorkspaceSection
               title="2. 线圈转子"

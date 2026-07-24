@@ -847,6 +847,26 @@ function migrateCoilDomain() {
         }
     });
     migrate();
+    const duplicateOfficials = db.prepare(`
+        SELECT stator_variant_id, sheets, MIN(id) AS keep_id
+        FROM coils
+        WHERE stator_variant_id IS NOT NULL AND scheme_status = 'official'
+        GROUP BY stator_variant_id, sheets
+        HAVING COUNT(*) > 1
+    `).all();
+    const demoteDuplicates = db.transaction(() => {
+        for (const duplicate of duplicateOfficials) {
+            const rowsToDemote = db.prepare(`
+                SELECT id FROM coils
+                WHERE stator_variant_id = ? AND sheets = ?
+                  AND scheme_status = 'official' AND id <> ?
+            `).all(duplicate.stator_variant_id, duplicate.sheets, duplicate.keep_id);
+            for (const row of rowsToDemote) {
+                safeUpdate('coils', row.id, { scheme_status: 'testing' });
+            }
+        }
+    });
+    demoteDuplicates();
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_coils_variant_sheets
         ON coils(stator_variant_id, sheets);

@@ -441,7 +441,6 @@ export function QuotationsView() {
       setItemQty('1');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '报价成本重算失败');
-      setDraftItems((current) => [...current, item]);
     } finally {
       setCalculatingItemId(null);
     }
@@ -487,6 +486,9 @@ export function QuotationsView() {
       )));
     } catch (err) {
       if (overridePreviewSeqRef.current.get(id) !== requestSeq) return;
+      setDraftItems((current) => current.map((item) => (
+        item.id === id ? { ...item, overrides: currentItem.overrides } : item
+      )));
       setFormError(err instanceof Error ? err.message : '报价覆盖成本重算失败');
     } finally {
       if (overridePreviewSeqRef.current.get(id) === requestSeq) setCalculatingItemId(null);

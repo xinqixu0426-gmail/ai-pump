@@ -30,6 +30,16 @@ function frontendSourceFiles() {
     );
 }
 
+test('API 静态契约：线圈正式方案迁移先去重再创建唯一索引', () => {
+    const dbSource = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const dedupeIndex = dbSource.indexOf('HAVING COUNT(*) > 1');
+    const uniqueIndex = dbSource.indexOf('CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme');
+
+    assert.ok(dedupeIndex >= 0);
+    assert.ok(uniqueIndex > dedupeIndex);
+    assert.match(dbSource, /safeUpdate\('coils', row\.id, \{ scheme_status: 'testing' \}\)/);
+});
+
 test('API 静态契约：旧 Vite 前端入口已移除', () => {
     const removedPaths = [
         'src',

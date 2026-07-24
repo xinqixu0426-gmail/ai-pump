@@ -354,6 +354,7 @@ test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式
 
 test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const templateMatchSummary = readUtf8('apps/web-next/components/recipe/TemplateMatchSummary.tsx');
     const technicalEditor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
 
     assert.match(recipesView, /1\. 泵壳与产品/);
@@ -368,7 +369,9 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(recipesView, /value=\{form\.coilWireWeight\}/);
     assert.match(recipesView, /系统默认 \/ 客户指定/);
     assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
-    assert.match(recipesView, /模板 \/ 型号零配件/);
+    assert.match(templateMatchSummary, /模板 \/ 型号零配件/);
+    assert.match(templateMatchSummary, /查看明细/);
+    assert.doesNotMatch(templateMatchSummary, /parts\.slice/);
     assert.match(recipesView, /relatedBomParts/);
     assert.match(recipesView, /自动关联电容/);
     assert.match(recipesView, /bomDraft\?\.coilSnapshot\?\.formula/);
@@ -535,6 +538,8 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /报价配置/);
     assert.match(quotationsView, /含税出厂价/);
     assert.match(quotationsView, /quotationTaxIncludedFactoryPrice/);
+    assert.doesNotMatch(quotationsView, /setDraftItems\(\(current\) => \[\.\.\.current, item\]\)/);
+    assert.match(quotationsView, /item\.id === id \? \{ \.\.\.item, overrides: currentItem\.overrides \} : item/);
     assert.match(quotationsView, /surfaceTreatmentLabel/);
     assert.match(quotationsLib, /getAllParts/);
     assert.doesNotMatch(quotationsLib, /getAllCoils/);
@@ -589,6 +594,7 @@ test('Next UI 契约：转子页只允许模板带入并支持历史关联', () 
 test('Next UI 契约：配方页必须保留模板入口并支持直接复制配方', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+    const templateMatchSummary = readUtf8('apps/web-next/components/recipe/TemplateMatchSummary.tsx');
 
     assert.match(recipesView, /sectionOptions/);
     assert.match(recipesView, /泵壳模板/);
@@ -645,10 +651,11 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /role="listbox"/);
     assert.match(recipesView, /options=\{coilSheetOptions\}/);
     assert.doesNotMatch(recipesView, /list="recipe-coil-sheet-options"/);
-    assert.match(recipesView, /联动标注/);
+    assert.match(recipesView, /系统联动/);
     assert.match(recipesView, /CircleHelp/);
-    assert.match(recipesView, /联动标注说明/);
-    assert.match(recipesView, /当泵体机筒是由不锈钢机筒构成且成本随机筒长度变化时/);
+    assert.match(recipesView, /linkedChangeSummary/);
+    assert.match(recipesView, /hasLinkedChangeWarning/);
+    assert.match(recipesView, /<details/);
     assert.match(recipesView, /linkedChangeAnnotations/);
     assert.match(recipesView, /泵壳整体成本/);
     assert.match(recipesView, /不锈钢长螺丝/);
@@ -658,6 +665,9 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /wireLinkNote/);
     assert.match(recipesView, /机筒 \/ 长螺丝/);
     assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
+    assert.doesNotMatch(templateMatchSummary, /getSubtotal/);
+    assert.doesNotMatch(templateMatchSummary, /getSourceLabel/);
+    assert.match(recipesView, /onOpenAll=\{\(\) => setTemplateMatchDialogOpen\(true\)\}/);
     assert.match(recipesView, /buildRecipeSavePayloadDraft/);
     assert.match(recipesView, /assemblyWage:\s*String\(recipeDraft\.assemblyWage/);
     assert.match(recipesLib, /createModelVariant/);

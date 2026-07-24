@@ -63,7 +63,7 @@
 | `DELETE` | `/api/coils/:id` | 无 | 硬删除并审计 |
 | `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | 按定子组合生成录入草稿；精确组合可带入单片价，其他组合只带辅助字段；不写库 |
 | `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType? }` | 按标准直径批量更新定子单片价，可按材质和槽眼过滤 |
-| `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, wireWeight?, copperPrice? }` | 只使用正式方案，在同标准直径、材质和槽眼内精确匹配、插值或外推 |
+| `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, wireWeight?, copperPrice? }` | `sheets` 必须为正整数，线重和铜价必须为非负数字；只使用正式方案，在同标准直径、材质和槽眼内精确匹配、插值或外推 |
 | `GET` | `/api/coils/specs` | 无 | 正式方案可用的规格、标准直径、材质、槽眼和片数列表；`variants[]` 按材质+槽眼返回各自可用片数，供配方联动选择 |
 
 ## 6. 模板 Templates
@@ -166,6 +166,8 @@
 |---|---|---|---|
 | `GET` | `/api/quotations` | 无 | 报价列表；读取时自动把超过 1 个月的“报价中”标为“已过时” |
 | `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 基于报价表单草稿生成标准保存 payload；统一明细、覆盖配置快照、总成本和总报价；不写库 |
+
+`POST /api/quotations` 和带明细的 `PATCH /api/quotations/:id` 会再次解析 `itemsJson`、校验状态并重新汇总总成本和总报价，不信任调用方提交的合计金额；仅修改状态或备注时保留轻量更新路径。
 | `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；标准返回 `{ data: quotation }` |
 | `POST` | `/api/quotations/:id/order-draft` | 无 | 基于报价、客户、配方快照生成订单草稿、采购清单和待办；不创建订单，不改报价状态 |
 | `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价；返回 `{ data: quotation }` |

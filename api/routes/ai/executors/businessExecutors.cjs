@@ -33,6 +33,11 @@ function roundMoney(value) {
     return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
 }
 
+function customerMarginMultiplier(value) {
+    const rate = Number(value);
+    return Number.isFinite(rate) && rate >= 0 ? 1 + rate : 1.1;
+}
+
 async function loadRecipes(internalFetch) {
     return getJson(internalFetch, '/api/recipes', '配方列表读取失败');
 }
@@ -163,7 +168,10 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                         unitCost = Number(recipe.savedTotalCost || 0);
                     }
                 }
-                const margin = Number(item.margin || args.margin || customer.defaultMargin || 1.1);
+                const explicitMargin = item.margin ?? args.margin;
+                const margin = explicitMargin == null
+                    ? customerMarginMultiplier(customer.defaultMargin)
+                    : Number(explicitMargin);
                 items.push({
                     id: item.id || `ai-quotation-${Date.now()}-${items.length}`,
                     baseRecipeId: recipeId,

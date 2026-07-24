@@ -67,9 +67,24 @@ function calculateCoilCost(coils, input = {}) {
     const { spec, sheets, wireWeight: customerWireWeight, copperPrice: customCopperPrice } = input;
     const dimensions = normalizeCoilDimensions(input);
     const { material, slotType } = dimensions;
-    if (!spec || !sheets) return { success: false, status: 400, error: '规格和片数为必填项' };
+    if (!String(spec || '').trim()) return { success: false, status: 400, error: '规格为必填项' };
 
-    const targetSheets = parseInt(sheets);
+    const targetSheets = Number(sheets);
+    if (!Number.isInteger(targetSheets) || targetSheets <= 0) {
+        return { success: false, status: 400, error: '片数必须是正整数' };
+    }
+    const parsedCustomerWireWeight = customerWireWeight === undefined || customerWireWeight === null || customerWireWeight === ''
+        ? null
+        : Number(customerWireWeight);
+    if (parsedCustomerWireWeight !== null && (!Number.isFinite(parsedCustomerWireWeight) || parsedCustomerWireWeight < 0)) {
+        return { success: false, status: 400, error: '自定义线重必须是非负数字' };
+    }
+    const parsedCopperPrice = customCopperPrice === undefined || customCopperPrice === null || customCopperPrice === ''
+        ? null
+        : Number(customCopperPrice);
+    if (parsedCopperPrice !== null && (!Number.isFinite(parsedCopperPrice) || parsedCopperPrice < 0)) {
+        return { success: false, status: 400, error: '铜价必须是非负数字' };
+    }
     const specCoils = selectSpecCoils(coils, dimensions, { includeTesting: input.includeTesting === true });
     if (specCoils.length === 0) {
         return {
@@ -85,8 +100,8 @@ function calculateCoilCost(coils, input = {}) {
 
     if (exactMatch) {
         unitPrice = resolveUnitPrice(exactMatch);
-        wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(coilValue(exactMatch, 'wireWeight') || 0);
-        copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(coilValue(exactMatch, 'copperBase') || 0);
+        wireWeight = parsedCustomerWireWeight ?? parseFloat(coilValue(exactMatch, 'wireWeight') || 0);
+        copperBase = parsedCopperPrice ?? parseFloat(coilValue(exactMatch, 'copperBase') || 0);
         coilFee = parseFloat(coilValue(exactMatch, 'coilFee') || 0);
         rotorFee = parseFloat(coilValue(exactMatch, 'rotorFee') || 0);
         wireGauge = coilValue(exactMatch, 'defaultWireGauge') || null;
@@ -106,8 +121,8 @@ function calculateCoilCost(coils, input = {}) {
             const ratio = (targetSheets - lS) / (uS - lS);
             unitPrice = resolveUnitPrice(lower);
             const iWW = parseFloat(coilValue(lower, 'wireWeight') || 0) + (parseFloat(coilValue(upper, 'wireWeight') || 0) - parseFloat(coilValue(lower, 'wireWeight') || 0)) * ratio;
-            wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(iWW.toFixed(4));
-            copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(coilValue(lower, 'copperBase') || 0);
+            wireWeight = parsedCustomerWireWeight ?? parseFloat(iWW.toFixed(4));
+            copperBase = parsedCopperPrice ?? parseFloat(coilValue(lower, 'copperBase') || 0);
             coilFee = parseFloat(coilValue(lower, 'coilFee') || 0) + (parseFloat(coilValue(upper, 'coilFee') || 0) - parseFloat(coilValue(lower, 'coilFee') || 0)) * ratio;
             rotorFee = parseFloat(coilValue(lower, 'rotorFee') || 0) + (parseFloat(coilValue(upper, 'rotorFee') || 0) - parseFloat(coilValue(lower, 'rotorFee') || 0)) * ratio;
             wireGauge = coilValue(lower, 'defaultWireGauge') || coilValue(upper, 'defaultWireGauge') || null;
@@ -115,8 +130,8 @@ function calculateCoilCost(coils, input = {}) {
             source = `插值(${lS}片↔${uS}片, ratio=${ratio.toFixed(3)})`;
         } else if (lower) {
             unitPrice = resolveUnitPrice(lower);
-            wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(coilValue(lower, 'wireWeight') || 0);
-            copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(coilValue(lower, 'copperBase') || 0);
+            wireWeight = parsedCustomerWireWeight ?? parseFloat(coilValue(lower, 'wireWeight') || 0);
+            copperBase = parsedCopperPrice ?? parseFloat(coilValue(lower, 'copperBase') || 0);
             coilFee = parseFloat(coilValue(lower, 'coilFee') || 0);
             rotorFee = parseFloat(coilValue(lower, 'rotorFee') || 0);
             wireGauge = coilValue(lower, 'defaultWireGauge') || null;
@@ -124,8 +139,8 @@ function calculateCoilCost(coils, input = {}) {
             source = `外推(基于${parseInt(coilValue(lower, 'sheets'))}片)`;
         } else if (upper) {
             unitPrice = resolveUnitPrice(upper);
-            wireWeight = customerWireWeight != null ? parseFloat(customerWireWeight) : parseFloat(coilValue(upper, 'wireWeight') || 0);
-            copperBase = customCopperPrice != null ? parseFloat(customCopperPrice) : parseFloat(coilValue(upper, 'copperBase') || 0);
+            wireWeight = parsedCustomerWireWeight ?? parseFloat(coilValue(upper, 'wireWeight') || 0);
+            copperBase = parsedCopperPrice ?? parseFloat(coilValue(upper, 'copperBase') || 0);
             coilFee = parseFloat(coilValue(upper, 'coilFee') || 0);
             rotorFee = parseFloat(coilValue(upper, 'rotorFee') || 0);
             wireGauge = coilValue(upper, 'defaultWireGauge') || null;
@@ -153,7 +168,7 @@ function calculateCoilCost(coils, input = {}) {
             totalCost: parseFloat(totalCost.toFixed(2)),
             formula: `${unitPrice}×${targetSheets} + ${wireWeight}×${copperBase} + ${coilFee.toFixed(2)} + ${rotorFee.toFixed(2)}`,
             source,
-            isCustomWireWeight: customerWireWeight != null,
+            isCustomWireWeight: parsedCustomerWireWeight !== null,
         },
     };
 }

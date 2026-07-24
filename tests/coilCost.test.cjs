@@ -52,6 +52,33 @@ test('线圈成本服务非精确片数使用插值', () => {
     assert.equal(result.data.source, '插值(24片↔30片, ratio=0.500)');
 });
 
+test('线圈成本拒绝非法片数和自定义成本参数', () => {
+    for (const sheets of [0, -1, 24.5, 'abc']) {
+        const result = calculateCoilCost(coils, { spec: '750', sheets, material: '钢带' });
+        assert.equal(result.success, false);
+        assert.equal(result.status, 400);
+        assert.match(result.error, /片数必须是正整数/);
+    }
+
+    const invalidWireWeight = calculateCoilCost(coils, {
+        spec: '750',
+        sheets: 24,
+        material: '钢带',
+        wireWeight: 'abc',
+    });
+    assert.equal(invalidWireWeight.success, false);
+    assert.match(invalidWireWeight.error, /自定义线重必须是非负数字/);
+
+    const invalidCopperPrice = calculateCoilCost(coils, {
+        spec: '750',
+        sheets: 24,
+        material: '钢带',
+        copperPrice: -1,
+    });
+    assert.equal(invalidCopperPrice.success, false);
+    assert.match(invalidCopperPrice.error, /铜价必须是非负数字/);
+});
+
 test('线圈成本指定材质时不得借用其他材质记录或默认单价', () => {
     const result = calculateCoilCost(coils, { spec: '750', sheets: 24, material: '冷轧' });
 

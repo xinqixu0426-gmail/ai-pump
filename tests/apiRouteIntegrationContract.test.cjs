@@ -289,6 +289,11 @@ test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字
     assert.match(quotations, /parsePositiveNumber\(item\.margin, `items\[\$\{index\}\]\.margin`/);
     assert.match(quotations, /normalizeQuotationItemOverrides\(item\.overrides, index\)/);
     assert.match(quotations, /overrides:\s*normalizeQuotationItemOverrides/);
+    assert.match(quotations, /function parseQuotationItemsInput\(value\)/);
+    assert.match(quotations, /const payload = buildQuotationSavePayloadDraft\(\{/);
+    assert.match(quotations, /items:\s*req\.body\.items \?\? parseQuotationItemsInput\(req\.body\.itemsJson\)/);
+    assert.doesNotMatch(quotations, /total_cost:\s*totalCost \|\| 0/);
+    assert.doesNotMatch(quotations, /total_price:\s*totalPrice \|\| 0/);
     assert.doesNotMatch(quotations, /Number\(item\.(unitCost|unitPrice|qty|margin)\) \|\|/);
 });
 
