@@ -7,7 +7,6 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { BomTableDialog } from '@/components/recipe/BomTableDialog';
-import { CostResultCard } from '@/components/recipe/CostResultCard';
 import { CostSummaryPanel } from '@/components/recipe/CostSummaryPanel';
 import { RecipeDataTable } from '@/components/recipe/RecipeDataTable';
 import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/components/recipe/RecipeSection';
@@ -202,6 +201,7 @@ function EditableValueSelect({
   min,
   step,
   disabled = false,
+  compact = false,
 }: {
   value: string;
   options: string[];
@@ -213,6 +213,7 @@ function EditableValueSelect({
   min?: string;
   step?: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -250,7 +251,7 @@ function EditableValueSelect({
         aria-expanded={open}
         aria-controls={listboxId}
         placeholder="选择或输入"
-        className="h-9 w-full rounded-md border border-line px-3 pr-10 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
+        className={`${compact ? 'h-8 px-2 pr-8' : 'h-9 px-3 pr-10'} w-full rounded-md border border-line text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60`}
       />
       <button
         type="button"
@@ -258,7 +259,7 @@ function EditableValueSelect({
         title={`展开${ariaLabel}选项`}
         onClick={() => setOpen((current) => !current)}
         disabled={disabled}
-        className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-r-md border-l border-line text-muted hover:bg-slate-50 hover:text-ink disabled:opacity-60"
+        className={`absolute right-0 top-0 flex items-center justify-center rounded-r-md border-l border-line text-muted hover:bg-slate-50 hover:text-ink disabled:opacity-60 ${compact ? 'h-8 w-8' : 'h-9 w-9'}`}
       >
         <ChevronDown size={15} />
       </button>
@@ -292,7 +293,7 @@ function EditableNumberSelect(props: {
   onChange: (value: string) => void;
   ariaLabel: string;
 }) {
-  return <EditableValueSelect {...props} listboxId="recipe-coil-sheet-listbox" inputType="number" inputMode="numeric" min="0" step="1" />;
+  return <EditableValueSelect {...props} listboxId="recipe-coil-sheet-listbox" inputType="number" inputMode="numeric" min="0" step="1" compact />;
 }
 
 function EditableWireSelect({
@@ -3752,7 +3753,7 @@ export function RecipesView() {
               badge="自动计算"
               badgeTone="blue"
             >
-              <div className="grid items-end gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
                 <label className="block">
                   <span className="text-xs font-medium text-muted">线圈规格</span>
                   <select
@@ -3774,7 +3775,7 @@ export function RecipesView() {
                         coilWireWeight: '',
                       });
                     }}
-                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     <option value="">选择规格</option>
                     {coilSpecs.map((spec) => <option key={spec.spec} value={spec.spec}>{spec.spec}</option>)}
@@ -3806,7 +3807,7 @@ export function RecipesView() {
                         coilWireWeight: '',
                       });
                     }}
-                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {formMaterialOptions.map((material) => <option key={material} value={material}>{material}</option>)}
                   </select>
@@ -3816,12 +3817,15 @@ export function RecipesView() {
                   <select
                     value={form.coilSlotType}
                     onChange={(event) => updateForm({ coilSlotType: event.target.value as '小眼' | '国标眼', coilSheets: '', coilWireWeight: '' })}
-                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {formSlotTypeOptions.map((slotType) => <option key={slotType} value={slotType}>{slotType}</option>)}
                   </select>
                 </label>
-                <label className="block">
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-[8.5rem_minmax(0,1fr)_7rem]">
+                <label className="block min-w-0">
                   <span className="text-xs font-medium text-muted">线重 kg</span>
                   <input
                     value={form.coilWireWeight}
@@ -3830,34 +3834,42 @@ export function RecipesView() {
                     min="0"
                     step="0.001"
                     placeholder="系统默认 / 客户指定"
-                    className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm tabular-nums text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    className="mt-1 h-8 w-full rounded-md border border-line px-2 text-sm tabular-nums text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   />
                 </label>
-                <CostResultCard
-                  className="md:col-span-2"
-                  label="线圈成本"
-                  tone="blue"
-                  badge="自动计算"
-                  badgeTone="blue"
-                  value={bomDraft?.coilSnapshot ? money(bomDraft.coilSnapshot.totalCost || 0) : '-'}
-                  note={bomDraft?.coilSnapshot
-                    ? `${bomDraft.coilSnapshot.source || '计算'}${bomDraft.coilSnapshot.wireWeight ? `，线重 ${bomDraft.coilSnapshot.wireWeight}kg` : ''}`
-                    : '填写规格和片数后自动计算'}
-                />
-                <CostResultCard
-                  label="计算过程"
-                  tone="slate"
-                  value={<span className="block break-all font-mono text-xs leading-5">{bomDraft?.coilSnapshot?.formula || '-'}</span>}
-                />
-                <CostResultCard
-                  label="自动关联电容（自动电容）"
-                  tone="green"
-                  badge="系统推荐"
-                  badgeTone="green"
-                  value={<span className="text-sm">{bomDraft?.capacitorModel || '-'}</span>}
-                  note={bomDraft?.coilSnapshot?.defaultCapacitor ? `线圈默认 ${bomDraft.coilSnapshot.defaultCapacitor}μF` : undefined}
-                />
+
+                <div className="order-3 col-span-2 flex min-w-0 items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50/80 px-3 py-2 sm:order-2 sm:col-span-1">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-500">线圈成本</div>
+                    <div className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">
+                      {bomDraft?.coilSnapshot ? money(bomDraft.coilSnapshot.totalCost || 0) : '-'}
+                    </div>
+                  </div>
+                  <RecipeStatusBadge tone="blue">自动计算</RecipeStatusBadge>
+                </div>
+
+                <div className="order-2 min-w-0 rounded-md border border-emerald-200 bg-emerald-50/80 px-3 py-2 sm:order-3">
+                  <div className="truncate text-xs font-medium text-slate-500" title="自动关联电容">自动电容</div>
+                  <div className="mt-0.5 truncate text-sm font-semibold text-slate-900" title={bomDraft?.capacitorModel || '-'}>
+                    {bomDraft?.capacitorModel || '-'}
+                  </div>
+                </div>
               </div>
+
+              <details className="group mt-2 rounded-md border border-line bg-slate-50/70">
+                <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-1.5 marker:content-none">
+                  <span className="shrink-0 text-xs font-medium text-slate-600">计算明细</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
+                    {bomDraft?.coilSnapshot
+                      ? `${bomDraft.coilSnapshot.source || '自动匹配'}${bomDraft.coilSnapshot.wireWeight ? ` · ${bomDraft.coilSnapshot.wireWeight}kg` : ''}`
+                      : '填写规格和片数后自动计算'}
+                  </span>
+                  <ChevronDown size={14} className="shrink-0 text-slate-400 transition-transform duration-150 group-open:rotate-180" />
+                </summary>
+                <div className="border-t border-line px-3 py-2 font-mono text-xs leading-5 text-slate-600">
+                  {bomDraft?.coilSnapshot?.formula || '-'}
+                </div>
+              </details>
             </WorkspaceSection>
 
             <WorkspaceSection

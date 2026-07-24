@@ -374,6 +374,10 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.doesNotMatch(templateMatchSummary, /parts\.slice/);
     assert.match(recipesView, /relatedBomParts/);
     assert.match(recipesView, /自动关联电容/);
+    assert.match(recipesView, /sm:grid-cols-4/);
+    assert.match(recipesView, /sm:grid-cols-\[8\.5rem_minmax\(0,1fr\)_7rem\]/);
+    assert.match(recipesView, /<details className="group mt-2 rounded-md border border-line bg-slate-50\/70">/);
+    assert.match(recipesView, /计算明细/);
     assert.match(recipesView, /bomDraft\?\.coilSnapshot\?\.formula/);
     assert.doesNotMatch(recipesView, /线圈与叶轮/);
     assert.match(technicalEditor, /叶轮参数/);
