@@ -32,6 +32,7 @@ import {
 } from '@/lib/parts';
 import {
   BUILTIN_CATEGORIES,
+  PACKAGING_SUBCATEGORIES,
   DEFAULT_FLOAT_ACCESSORY_DELTA,
   DEFAULT_STANDARD_CABLE_ACCESSORY_NAME,
   DEFAULT_XINJIE_CABLE_ACCESSORY_NAME,
@@ -68,6 +69,7 @@ const quickFilters: Array<{ value: QuickFilter; label: string }> = [
 type PartFormState = {
   model: string;
   category: string;
+  subcategory: string;
   supplier: string;
   price: string;
   stock: string;
@@ -98,6 +100,7 @@ type PartFormState = {
 const emptyForm: PartFormState = {
   model: '',
   category: '轴承',
+  subcategory: '',
   supplier: '',
   price: '0',
   stock: '0',
@@ -134,10 +137,10 @@ function statLabel(value: string, sub: string) {
   );
 }
 
-function categoryPill(category: string) {
+function categoryPill(category: string, subcategory?: string) {
   return (
     <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
-      {category || '未分类'}
+      {category || '未分类'}{subcategory ? ` / ${subcategory}` : ''}
     </span>
   );
 }
@@ -157,6 +160,7 @@ function formFromPart(part: Part): PartFormState {
     ...emptyForm,
     model: modelFields.model,
     category: part.category || '轴承',
+    subcategory: part.subcategory || '',
     supplier: part.supplier,
     price: String(part.price),
     stock: String(part.stock),
@@ -188,6 +192,7 @@ function resetAfterContinue(form: PartFormState): PartFormState {
   return {
     ...emptyForm,
     category: form.category,
+    subcategory: form.category === '包装' ? form.subcategory : '',
     supplier: form.supplier,
     standardCableAccessoryName: form.standardCableAccessoryName,
     xinjieCableAccessoryName: form.xinjieCableAccessoryName,
@@ -201,6 +206,7 @@ function formToInput(form: PartFormState, model: string, notes: string): PartInp
   return {
     model,
     category: form.category.trim() || '轴承',
+    subcategory: form.category === '包装' ? form.subcategory : '',
     supplier: form.supplier.trim(),
     price: Math.max(0, Number(form.price) || 0),
     stock: Math.max(0, Number(form.stock) || 0),
@@ -287,6 +293,7 @@ export function PartsView() {
   const isCapacitorMode = isCapacitorCategory(form.category);
   const isScrewMode = form.category === '螺丝';
   const isPumpShellMode = form.category === '泵壳';
+  const isPackagingMode = form.category === '包装';
   const wireOptions = useMemo(() => wireOptionsFromParts(parts, wirePrefix), [parts, wirePrefix]);
   const modelPreview = finalPartModel({
     isCapacitorMode,
@@ -343,7 +350,7 @@ export function PartsView() {
     const normalizedQuery = query.trim().toLowerCase();
     return parts.filter((part) => {
       const stock = partStockStatus(part).status;
-      const text = `${part.model} ${part.category} ${part.supplier}`.toLowerCase();
+      const text = `${part.model} ${part.category} ${part.subcategory || ''} ${part.supplier}`.toLowerCase();
       const matchesQuery = !normalizedQuery || text.includes(normalizedQuery);
       const matchesCategory = category === '全部' || part.category === category;
       const matchesQuick =
@@ -358,7 +365,9 @@ export function PartsView() {
   const groupedParts = useMemo(() => {
     const groups = new Map<string, Part[]>();
     for (const part of filteredParts) {
-      const key = part.category || '未分类';
+      const key = part.category === '包装'
+        ? `包装 / ${part.subcategory || '未分类'}`
+        : (part.category || '未分类');
       groups.set(key, [...(groups.get(key) || []), part]);
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b, 'zh-CN'));
@@ -454,7 +463,8 @@ export function PartsView() {
     const finalModel = modelPreview;
     const duplicated = !editingPart && parts.some((part) => (
       part.model.trim() === finalModel &&
-      part.category.trim() === form.category.trim()
+      part.category.trim() === form.category.trim() &&
+      (part.subcategory || '').trim() === (form.category === '包装' ? form.subcategory.trim() : '')
     ));
     if (duplicated && !window.confirm(`已存在同分类零件「${finalModel}」，仍然继续创建？`)) return;
 
@@ -530,11 +540,12 @@ export function PartsView() {
 
   function exportSelectedCsv() {
     if (selectedParts.length === 0) return;
-    const header = ['型号', '分类', '单价', '供应商', '库存', '备注'];
+    const header = ['型号', '分类', '二级分类', '单价', '供应商', '库存', '备注'];
     const escapeCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const rows = selectedParts.map((part) => [
       part.model,
       part.category,
+      part.subcategory || '',
       part.price,
       part.supplier,
       part.stock,
@@ -752,7 +763,7 @@ export function PartsView() {
                                     <span className="font-medium text-ink">{part.model || '-'}</span>
                                   </div>
                                 </td>
-                                <td className="border-b border-line px-4 py-3">{categoryPill(part.category)}</td>
+                                <td className="border-b border-line px-4 py-3">{categoryPill(part.category, part.subcategory)}</td>
                                 <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
                                 <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(part.price)}</td>
                                 <td className="border-b border-line px-4 py-3 text-right text-muted">{part.stock}</td>
@@ -838,7 +849,16 @@ export function PartsView() {
                 <span className="text-sm font-medium text-ink">分类</span>
                 <select
                   value={form.category}
-                  onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                  onChange={(event) => {
+                    const nextCategory = event.target.value;
+                    setForm((current) => ({
+                      ...current,
+                      category: nextCategory,
+                      subcategory: nextCategory === '包装'
+                        ? (current.subcategory || PACKAGING_SUBCATEGORIES[0])
+                        : '',
+                    }));
+                  }}
                   className={textInputClass()}
                 >
                   {categoryOptions.map((item) => (
@@ -846,6 +866,22 @@ export function PartsView() {
                   ))}
                 </select>
               </label>
+
+              {isPackagingMode ? (
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">包装二级分类</span>
+                  <select
+                    value={form.subcategory || PACKAGING_SUBCATEGORIES[0]}
+                    onChange={(event) => setForm((current) => ({ ...current, subcategory: event.target.value }))}
+                    className={textInputClass()}
+                  >
+                    {PACKAGING_SUBCATEGORIES.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                  {smallHelp('外包装：牛皮纸箱、彩印箱、木箱；内衬：泡沫、珍珠棉。')}
+                </label>
+              ) : null}
 
               <label className="block">
                 <span className="text-sm font-medium text-ink">供应商</span>

@@ -15,6 +15,7 @@ const {
     calculateCoilCost,
     resolveWireFromCoils,
 } = require('./coilCost.cjs');
+const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
 
 // 报价覆盖试算口径：以配方保存快照为基线，只重算 overrides 涉及的动态项。
 // 这里的结果用于报价/试算，不应反向改写配方 savedTotalCost。
@@ -38,18 +39,7 @@ function getOverride(overrides, camelKey, snakeKey, fallback) {
 }
 
 function inferPackingRole(part = {}) {
-    const explicit = String(part.packingRole || '').trim();
-    if (['container', 'foam', 'pearlCotton', 'fixed'].includes(explicit)) return explicit;
-    const model = `${part.model || ''} ${part.name || ''} ${part.supplier || ''}`;
-    if (model.includes('珍珠棉')) return 'pearlCotton';
-    if (model.includes('泡沫')) return 'foam';
-    if (model.includes('说明书') || model.includes('贴纸') || model.includes('商标')) return 'fixed';
-    if (model.includes('木箱') || model.includes('纸箱') || model.includes('外包装')) return 'container';
-    const material = String(part.packagingMaterial || '');
-    if (material.includes('珍珠棉')) return 'pearlCotton';
-    if (material.includes('泡沫')) return 'foam';
-    if (material.includes('木箱') || material.includes('纸箱')) return 'container';
-    return 'fixed';
+    return inferPackagingSemantics(part).packingRole;
 }
 
 function normalizePackingJsonText(value, boxType) {

@@ -413,6 +413,10 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     for (const category of ['电容', '电缆线', '浮球', '螺丝', '泵壳']) {
         assert.match(rules, new RegExp(category));
     }
+    for (const packagingCategory of ['包装二级分类', '外包装', '内衬', '固定包材']) {
+        assert.match(`${partsView}\n${rules}`, new RegExp(packagingCategory));
+    }
+    assert.match(partsLib, /subcategory/);
     assert.match(partsLib, /\/api\/settings\/\$\{key\}/);
     assert.match(partsLib, /export async function deleteParts/);
 });
@@ -424,14 +428,15 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
 
     assert.match(ordersView, /OrderDetailDrawer/);
     assert.match(ordersView, /createOrder/);
-    assert.match(detailDrawer, /toggleOrderPurchaseItem/);
+    assert.match(detailDrawer, /updateOrderPurchaseItem/);
     assert.match(detailDrawer, /toggleOrderTodoItem/);
     assert.match(detailDrawer, /setOrderStatus/);
     assert.match(detailDrawer, /completeOrderPurchase/);
-    assert.match(detailDrawer, /确认采购完成并入库/);
+    assert.match(detailDrawer, /全部到货并入库/);
     assert.match(detailDrawer, /purchaseAdditions/);
     assert.match(detailDrawer, /避免重复入库/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/status/);
+    assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/progress/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/toggle/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/todos\/toggle/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/complete-purchase/);
@@ -697,7 +702,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
     const partFormRules = readUtf8('apps/web-next/lib/part-form-rules.ts');
     const templatesRoute = readUtf8('api/routes/templates.cjs');
-    const db = readUtf8('api/db.cjs');
+    const schema = readUtf8('api/database/schema.cjs');
 
     assert.match(recipesView, /part\.category === '泵壳'/);
     assert.match(recipesView, /零件库泵壳型号/);
@@ -730,9 +735,9 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(templatesRoute, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);
     assert.match(templatesRoute, /validateShellComponents/);
     assert.match(templatesRoute, /category = \? AND deleted_at IS NULL/);
-    assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_mode/);
-    assert.match(db, /pump_shell_templates ADD COLUMN surface_treatment_cost/);
-    assert.match(db, /pump_shell_templates ADD COLUMN bundle_note/);
+    assert.match(schema, /\['surface_treatment_mode', "TEXT DEFAULT 'none'"\]/);
+    assert.match(schema, /\['surface_treatment_cost', 'REAL'\]/);
+    assert.match(schema, /\['bundle_note', "TEXT DEFAULT ''"\]/);
 });
 
 test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和方案状态', () => {

@@ -22,8 +22,8 @@ import type { Order } from '@/lib/orders';
 
 const filterOptions: Array<{ value: PurchaseFilter; label: string }> = [
   { value: 'pending', label: '待采购' },
-  { value: 'partial', label: '部分已采' },
-  { value: 'purchased', label: '已采购' },
+  { value: 'partial', label: '处理中' },
+  { value: 'purchased', label: '已入库' },
   { value: 'all', label: '全部' },
 ];
 
@@ -110,7 +110,7 @@ export function PurchaseView() {
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Purchase</div>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">采购中心</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            按供应商和型号汇总订单采购项，保存后硬刷新订单数据，保持采购状态和订单详情一致。
+            按供应商和型号汇总计划、下单、到货和入库数量；分批进度在订单详情中登记。
           </p>
         </div>
         <Button
@@ -130,7 +130,7 @@ export function PurchaseView() {
           <StatCard value={String(stats.supplierCount)} label="供应商" />
         </FadePanel>
         <FadePanel delay={0.06}>
-          <StatCard value={`${stats.purchasedNeed}/${stats.totalNeed || 0}`} label="采购进度" />
+          <StatCard value={`${stats.purchasedNeed}/${stats.totalNeed || 0}`} label="已下单/计划" />
         </FadePanel>
         <FadePanel delay={0.08}>
           <StatCard value={String(stats.pendingTaskCount)} label="待处理任务" />
@@ -181,8 +181,10 @@ export function PurchaseView() {
                   <th className="border-b border-line px-4 py-3">供应商</th>
                   <th className="border-b border-line px-4 py-3">物料</th>
                   <th className="border-b border-line px-4 py-3">状态</th>
-                  <th className="border-b border-line px-4 py-3 text-right">总需求</th>
-                  <th className="border-b border-line px-4 py-3 text-right">待采</th>
+                  <th className="border-b border-line px-4 py-3 text-right">计划</th>
+                  <th className="border-b border-line px-4 py-3 text-right">下单</th>
+                  <th className="border-b border-line px-4 py-3 text-right">到货</th>
+                  <th className="border-b border-line px-4 py-3 text-right">入库</th>
                   <th className="border-b border-line px-4 py-3 text-right">订单</th>
                   <th className="border-b border-line px-4 py-3 text-right">操作</th>
                 </tr>
@@ -209,18 +211,20 @@ export function PurchaseView() {
                           <TaskStatusBadge task={task} />
                         </td>
                         <td className="border-b border-line px-4 py-3 text-right text-muted">{task.totalNeed}</td>
-                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{task.pendingNeed}</td>
+                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{task.purchasedNeed}</td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.receivedNeed}</td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.stockedNeed}</td>
                         <td className="border-b border-line px-4 py-3 text-right text-muted">{task.orderCount}</td>
                         <td className="border-b border-line px-4 py-3">
                           <div className="flex justify-end">
                             <Button
                               size="sm"
-                              variant={completed ? 'ghost' : 'primary'}
-                              disabled={saving || Boolean(savingKey && savingKey !== task.key)}
-                              onClick={() => void saveTask(task, !completed)}
-                              icon={completed ? undefined : <PackageCheck size={14} />}
+                              variant="primary"
+                              disabled={completed || task.purchasedNeed >= task.totalNeed || saving || Boolean(savingKey && savingKey !== task.key)}
+                              onClick={() => void saveTask(task, true)}
+                              icon={<PackageCheck size={14} />}
                             >
-                              {saving ? '保存中' : completed ? '取消已采' : '标记已采'}
+                              {saving ? '保存中' : completed ? '已入库' : task.purchasedNeed >= task.totalNeed ? '已下单' : '全部下单'}
                             </Button>
                           </div>
                         </td>

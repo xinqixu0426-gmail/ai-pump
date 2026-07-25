@@ -31,13 +31,24 @@ function frontendSourceFiles() {
 }
 
 test('API 静态契约：线圈正式方案迁移先去重再创建唯一索引', () => {
-    const dbSource = readUtf8(path.join(repoRoot, 'api/db.cjs'));
-    const dedupeIndex = dbSource.indexOf('HAVING COUNT(*) > 1');
-    const uniqueIndex = dbSource.indexOf('CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme');
+    const migrationSource = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const schemaSource = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
 
-    assert.ok(dedupeIndex >= 0);
-    assert.ok(uniqueIndex > dedupeIndex);
-    assert.match(dbSource, /safeUpdate\('coils', row\.id, \{ scheme_status: 'testing' \}\)/);
+    assert.match(migrationSource, /HAVING COUNT\(\*\) > 1/);
+    assert.match(migrationSource, /UPDATE coils SET scheme_status = 'testing'/);
+    assert.match(schemaSource, /CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme/);
+});
+
+test('API 静态契约：数据库启动仅通过版本化迁移初始化 Schema', () => {
+    const dbSource = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const migrationSource = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+
+    assert.match(dbSource, /runMigrations\(db\)/);
+    assert.doesNotMatch(dbSource, /\bALTER TABLE\b/);
+    assert.doesNotMatch(dbSource, /\bCREATE TABLE IF NOT EXISTS\b/);
+    assert.match(migrationSource, /schema_migrations/);
+    assert.match(migrationSource, /transaction\(\(\) =>/);
+    assert.match(migrationSource, /\.immediate\(\)/);
 });
 
 test('API 静态契约：旧 Vite 前端入口已移除', () => {
@@ -288,19 +299,34 @@ test('API 静态契约：订单详情动作必须由后端执行', () => {
     const detailDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
 
     assert.match(route, /router\.post\('\/:id\/status'/);
+    assert.match(route, /router\.post\('\/:id\/purchase-items\/progress'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/todos\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/complete-purchase'/);
     assert.match(route, /safeUpdate\('parts', partId, \{ stock \}\)/);
-    assert.match(route, /record\.purchase_completed_at \|\| record\.purchase_receipt_id/);
+    assert.match(route, /record\.purchase_completed_at \|\| record\.status === '采购完成'/);
     assert.match(route, /purchase_receipt_id: receiptId/);
     assert.match(route, /const receiptId = randomUUID\(\)/);
     assert.match(route, /db\.transaction\(\(orderId\) =>/);
     assert.match(nextClient, /setOrderStatus/);
+    assert.match(nextClient, /updateOrderPurchaseItem/);
     assert.match(nextClient, /toggleOrderPurchaseItem/);
     assert.match(nextClient, /toggleOrderTodoItem/);
     assert.match(nextClient, /completeOrderPurchase/);
     assert.doesNotMatch(detailDrawer, /saveOrder|batchAddStock/);
+});
+
+test('API 静态契约：包装零件二级分类贯穿数据库、接口和标准 Adapter', () => {
+    const dbSource = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const schemaSource = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const migrationSource = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const routeSource = readUtf8(path.join(repoRoot, 'api/routes/parts.cjs'));
+
+    assert.match(schemaSource, /subcategory TEXT DEFAULT ''/);
+    assert.match(dbSource, /subcategory: r\.subcategory \|\| ''/);
+    assert.match(migrationSource, /partSubcategory/);
+    assert.match(routeSource, /updates\.subcategory = f\.subcategory/);
+    assert.match(routeSource, /subcategory: f\.subcategory/);
 });
 
 test('API 静态契约：报价确认转单必须事务化并防止重复转单', () => {
@@ -457,6 +483,7 @@ test('API 静态契约：知识库同步工具是受确认保护的写工具', (
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
 
     assert.match(tools, /name: 'sync_factory_knowledge'/);
     assert.match(tools, /'sync_factory_knowledge'/);
@@ -464,9 +491,8 @@ test('API 静态契约：知识库同步工具是受确认保护的写工具', (
     assert.match(tools, /name: 'get_factory_knowledge_detail'/);
     assert.match(businessExecutor, /\/api\/knowledge\/sync/);
     assert.match(businessExecutor, /\/api\/knowledge\$\{query\.toString\(\)/);
-    assert.match(db, /CREATE TABLE IF NOT EXISTS knowledge_entries/);
-    assert.match(db, /CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_entries_fts/);
-    assert.doesNotMatch(db, /DROP TABLE IF EXISTS knowledge_entries_fts/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS knowledge_entries/);
+    assert.match(schema, /CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_entries_fts/);
     assert.match(db, /'knowledge_entries'/);
 });
 
@@ -488,10 +514,11 @@ test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本'
 
 test('API 静态契约：AI 会话表进入安全写入白名单', () => {
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
     const service = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
 
-    assert.match(db, /CREATE TABLE IF NOT EXISTS ai_conversations/);
-    assert.match(db, /CREATE TABLE IF NOT EXISTS ai_conversation_messages/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_conversations/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_conversation_messages/);
     assert.match(db, /'ai_conversations'/);
     assert.match(db, /'ai_conversation_messages'/);
     assert.match(service, /safeInsert\('ai_conversations'/);

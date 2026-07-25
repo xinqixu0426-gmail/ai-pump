@@ -5,7 +5,7 @@ import type { OrderItem, PurchaseItem, TodoItem } from './orders';
 import { getAllParts, type Part } from './parts';
 import { getAllRecipes, type Recipe, type SurfaceTreatmentMode } from './recipes';
 
-export type QuotationStatus = '报价中' | '已接受' | '已拒绝' | '已转订单' | '已过时';
+export type QuotationStatus = '草稿' | '报价中' | '已接受' | '已拒绝' | '已转订单' | '已过时';
 export type QuotationFilter = QuotationStatus | '全部';
 
 export type QuotationItem = {
@@ -103,7 +103,20 @@ export type QuotationSavePayloadDraft = {
   remark: string;
 };
 
-export const quotationStatusOptions: QuotationStatus[] = ['报价中', '已接受', '已拒绝', '已转订单', '已过时'];
+export const quotationStatusOptions: QuotationStatus[] = ['草稿', '报价中', '已接受', '已拒绝', '已转订单', '已过时'];
+
+const quotationTransitions: Record<QuotationStatus, QuotationStatus[]> = {
+  草稿: ['报价中', '已拒绝'],
+  报价中: ['已接受', '已拒绝', '已过时'],
+  已接受: [],
+  已拒绝: [],
+  已转订单: [],
+  已过时: [],
+};
+
+export function quotationStatusChoices(status: QuotationStatus): QuotationStatus[] {
+  return [status, ...quotationTransitions[status]];
+}
 
 function genId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -279,8 +292,8 @@ export async function buildQuotationSavePayloadDraft(input: {
 }
 
 export async function updateQuotationStatus(quotation: Quotation, status: QuotationStatus): Promise<Quotation> {
-  const result = await proxyRequest<ApiResponse<QuotationRow>>(`/api/quotations/${quotation.id}`, {
-    method: 'PATCH',
+  const result = await proxyRequest<ApiResponse<QuotationRow>>(`/api/quotations/${quotation.id}/status`, {
+    method: 'POST',
     body: JSON.stringify({ status }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '报价状态保存失败');

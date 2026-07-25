@@ -5,6 +5,7 @@ export type Part = {
   id: number;
   model: string;
   category: string;
+  subcategory?: string;
   price: number;
   supplier: string;
   stock: number;
@@ -17,6 +18,7 @@ export type Part = {
 export type PartInput = {
   model: string;
   category: string;
+  subcategory?: string;
   price: number;
   supplier: string;
   stock: number;
@@ -28,6 +30,7 @@ type PartRow = {
   Id?: number;
   model?: string;
   category?: string;
+  subcategory?: string;
   price?: number;
   supplier?: string;
   stock?: number;
@@ -57,6 +60,7 @@ export function rowToPart(row: PartRow): Part {
     id,
     model: row.model || '',
     category: row.category || '未分类',
+    subcategory: row.subcategory || '',
     price: Number(row.price) || 0,
     supplier: row.supplier || '',
     stock: Number(row.stock) || 0,

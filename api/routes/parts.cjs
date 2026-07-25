@@ -3,11 +3,19 @@ const { db, dbGetAllParts, partRow, extractPartFields, safeInsert, safeUpdate, s
 const { parsePositiveId, parseFiniteNumber } = require('../services/validation.cjs');
 const router = Router();
 
-function partUpdatesFromBody(body) {
-    const f = extractPartFields(body);
+function partUpdatesFromBody(body, current) {
+    const f = extractPartFields({
+        ...body,
+        category: body.category ?? current.category,
+        subcategory: body.subcategory ?? current.subcategory,
+        model: body.model ?? current.model,
+        supplier: body.supplier ?? current.supplier,
+        notes: body.notes ?? body.remark ?? current.remark,
+    });
     const updates = {};
     if (body.model !== undefined) updates.model = f.model;
     if (body.category !== undefined) updates.category = f.category;
+    if (body.category !== undefined || body.subcategory !== undefined) updates.subcategory = f.subcategory;
     if (body.price !== undefined) updates.price = f.price;
     if (body.supplier !== undefined) updates.supplier = f.supplier;
     if (body.stock !== undefined) updates.stock = f.stock;
@@ -16,7 +24,9 @@ function partUpdatesFromBody(body) {
 }
 
 function updatePartRecord(id, body) {
-    const updates = partUpdatesFromBody(body || {});
+    const current = db.prepare('SELECT * FROM parts WHERE id = ? AND deleted_at IS NULL').get(id);
+    if (!current) throw new Error('零件不存在');
+    const updates = partUpdatesFromBody(body || {}, current);
     safeUpdate('parts', id, updates);
     invalidatePartsCache();
     return partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(id));
@@ -31,7 +41,7 @@ router.post('/', (req, res) => {
     try {
         const f = extractPartFields(req.body);
         const now = new Date().toISOString();
-        const info = safeInsert('parts', { model: f.model, category: f.category, price: f.price, supplier: f.supplier, stock: f.stock, remark: f.remark, created_at: now, updated_at: now });
+        const info = safeInsert('parts', { model: f.model, category: f.category, subcategory: f.subcategory, price: f.price, supplier: f.supplier, stock: f.stock, remark: f.remark, created_at: now, updated_at: now });
         invalidatePartsCache();
         res.json({ success: true, data: partRow(db.prepare('SELECT * FROM parts WHERE id = ?').get(info.lastInsertRowid)) });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }

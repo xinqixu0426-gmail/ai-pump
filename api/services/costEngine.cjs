@@ -4,6 +4,7 @@ const {
     getCableAccessoryFeeFromPartsByModel,
     collapseLegacyCableParts,
 } = require('./cableAccessory.cjs');
+const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
 
 // 成本口径边界：
 // - buildRecipeCostDraft：保存配方前生成锁定快照，写入 savedTotalCost / savedCostDetails / partsJson。
@@ -69,16 +70,12 @@ function configuredWireModel(prefix, wireOrModel, resolvedWire) {
     return wire ? wireModel(prefix, wire) : '';
 }
 
-function inferPackingMaterial(model = '', material) {
-    if (material) return material;
-    const normalized = String(model || '').trim();
-    if (normalized.includes('木箱')) return '木箱';
-    if (normalized.includes('彩')) return '彩印纸箱';
-    if (normalized.includes('泡沫')) return '泡沫';
-    if (normalized.includes('商标')) return '商标';
-    if (normalized.includes('说明书')) return '说明书';
-    if (normalized.includes('珍珠棉')) return '珍珠棉';
-    return DEFAULT_PACKAGING_MATERIAL;
+function inferPackingMaterial(model = '', material, supplier = '') {
+    return inferPackagingSemantics({
+        model,
+        supplier,
+        packagingMaterial: material || DEFAULT_PACKAGING_MATERIAL,
+    }).packagingMaterial;
 }
 
 function lengthPricedPartSubtotal(part, customBarrelLength) {
@@ -456,15 +453,7 @@ function applyScrewPricing(part, partsCatalog) {
     };
 }
 
-function buildRecipeCostDraft(input, options = {}) {
-    const barrelLength = input.customBarrelLength ?? input.barrelLength;
-    const longScrewExtraLength = input.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
-    const enableLongScrewByBarrelLength = input.enableLongScrewByBarrelLength !== false;
-    const partsCatalog = options.partsCatalog || input.partsCatalog || [];
-    const parts = collapseLegacyCableParts(normalizeRecipeParts(input.parts || []))
-        .map(part => enableLongScrewByBarrelLength ? applyLongScrewRule(part, barrelLength, longScrewExtraLength) : part)
-        .map(part => applyStainlessShellBundleRule(part, barrelLength))
-        .map(part => applyScrewPricing(part, partsCatalog));
+function renderRecipeCostSnapshot(parts, input = {}) {
     const assemblyWage = parseNonNegativeNumber(input.assemblyWage, 'assemblyWage');
     const packingWage = parseNonNegativeNumber(input.packingWage, 'packingWage');
     const surfaceTreatmentMode = input.surfaceTreatmentMode || 'none';
@@ -519,6 +508,18 @@ function buildRecipeCostDraft(input, options = {}) {
     };
 }
 
+function buildRecipeCostDraft(input, options = {}) {
+    const barrelLength = input.customBarrelLength ?? input.barrelLength;
+    const longScrewExtraLength = input.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
+    const enableLongScrewByBarrelLength = input.enableLongScrewByBarrelLength !== false;
+    const partsCatalog = options.partsCatalog || input.partsCatalog || [];
+    const parts = collapseLegacyCableParts(normalizeRecipeParts(input.parts || []))
+        .map(part => enableLongScrewByBarrelLength ? applyLongScrewRule(part, barrelLength, longScrewExtraLength) : part)
+        .map(part => applyStainlessShellBundleRule(part, barrelLength))
+        .map(part => applyScrewPricing(part, partsCatalog));
+    return renderRecipeCostSnapshot(parts, input);
+}
+
 module.exports = {
     DEFAULT_LONG_SCREW_EXTRA_LENGTH,
     LONG_SCREW_LENGTH_STEP_MM,
@@ -559,6 +560,7 @@ module.exports = {
     isFloatPart,
     partsCatalogFromPartsByModel,
     calculateRecipeCost,
+    renderRecipeCostSnapshot,
     buildRecipeCostDraft,
     findUnpricedRecipeParts,
     assertRecipeBomPrices,

@@ -67,11 +67,13 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
 
 test('报价动态试算契约：组合包材和表面处理按覆盖配置替换', () => {
     const source = readUtf8('api/services/dynamicCostPreview.cjs');
+    const semantics = readUtf8('api/services/packagingSemantics.cjs');
 
     assert.match(source, /function inferPackingRole/);
-    assert.match(source, /container/);
-    assert.match(source, /foam/);
-    assert.match(source, /pearlCotton/);
+    assert.match(source, /inferPackagingSemantics/);
+    assert.match(semantics, /container/);
+    assert.match(semantics, /foam/);
+    assert.match(semantics, /pearlCotton/);
     assert.match(source, /managedTotals\.packing/);
     assert.match(source, /effectiveSurfaceCost - baseSurfaceCost/);
     assert.match(source, /surfaceTreatmentMode/);
@@ -94,6 +96,7 @@ test('关键 API 集成契约：配方保存的草稿与正式写入口都拒绝
 test('关键 API 集成契约：配方测试报告支持上传、下载和软删除', () => {
     const source = readUtf8('api/routes/recipes.cjs');
     const db = readUtf8('api/db.cjs');
+    const schema = readUtf8('api/database/schema.cjs');
 
     assert.match(source, /router\.get\('\/:id\/technical-files'/);
     assert.match(source, /router\.post\('\/:id\/technical-files'/);
@@ -102,7 +105,7 @@ test('关键 API 集成契约：配方测试报告支持上传、下载和软删
     assert.match(source, /parsePumpTestReport\(req\.file\.buffer, originalName\)/);
     assert.match(source, /safeInsert\('recipe_technical_files'/);
     assert.match(source, /softDelete\('recipe_technical_files'/);
-    assert.match(db, /CREATE TABLE IF NOT EXISTS recipe_technical_files/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS recipe_technical_files/);
     assert.match(db, /'recipe_technical_files'/);
 });
 
@@ -239,6 +242,7 @@ test('关键 API 集成契约：成本基础资料写入必须使用统一数字
     const variants = readUtf8('api/routes/modelVariants.cjs');
     const coils = readUtf8('api/routes/coils.cjs');
     const db = readUtf8('api/db.cjs');
+    const schema = readUtf8('api/database/schema.cjs');
 
     assert.match(templates, /parseNonNegativeNumber/);
     assert.match(templates, /stringifyJsonArray/);
@@ -256,7 +260,7 @@ test('关键 API 集成契约：成本基础资料写入必须使用统一数字
         assert.match(coils, new RegExp(field));
     }
     for (const column of ['main_wire_gauge', 'main_wire_data', 'aux_wire_gauge', 'aux_wire_data']) {
-        assert.match(db, new RegExp(`ALTER TABLE coils ADD COLUMN ${column}`));
+        assert.match(schema, new RegExp(`${column}\\s+TEXT`));
     }
     for (const field of ['mainWireGauge', 'mainWireData', 'auxWireGauge', 'auxWireData']) {
         assert.match(db, new RegExp(field));

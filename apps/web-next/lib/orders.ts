@@ -2,7 +2,7 @@ import type { ApiResponse } from './api';
 import { proxyRequest } from './api';
 import type { Recipe } from './recipes';
 
-export type OrderStatus = '待采购' | '采购中' | '已完成';
+export type OrderStatus = '待确认' | '待采购' | '采购中' | '采购完成' | '已关闭' | '已取消';
 
 export type OrderItem = {
   id: string;
@@ -23,6 +23,17 @@ export type PurchaseItem = {
   totalQty: number;
   currentStock: number;
   needToBuy: number;
+  plannedQty?: number;
+  orderedQty?: number;
+  receivedQty?: number;
+  stockedQty?: number;
+  purchasePrice?: number;
+  actualSupplier?: string;
+  orderedAt?: string | null;
+  receivedAt?: string | null;
+  stockedAt?: string | null;
+  identityKey?: string;
+  stockInHistory?: Array<{ receiptId: string; qty: number; at: string }>;
   purchased?: boolean;
   partId?: number;
 };
@@ -45,6 +56,10 @@ export type Order = {
   todos: TodoItem[];
   purchaseCompletedAt?: string | null;
   purchaseReceiptId?: string | null;
+  statusReason?: string;
+  statusChangedAt?: string | null;
+  closedAt?: string | null;
+  cancelledAt?: string | null;
   totalCost: number;
   totalPrice: number;
   totalProfit: number;
@@ -64,6 +79,10 @@ type OrderRow = {
   todosJson?: string;
   purchaseCompletedAt?: string | null;
   purchaseReceiptId?: string | null;
+  statusReason?: string;
+  statusChangedAt?: string | null;
+  closedAt?: string | null;
+  cancelledAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   CreatedAt?: string;
@@ -115,12 +134,16 @@ export function rowToOrder(row: OrderRow): Order {
     customerName: row.customerName || '',
     contractNo: row.contractNo || undefined,
     remark: row.remark || undefined,
-    status: row.status || '待采购',
+    status: row.status || '待确认',
     items,
     purchaseList: safeJsonParse<PurchaseItem[]>(row.purchaseListJson, []),
     todos: safeJsonParse<TodoItem[]>(row.todosJson, []),
     purchaseCompletedAt: row.purchaseCompletedAt || null,
     purchaseReceiptId: row.purchaseReceiptId || null,
+    statusReason: row.statusReason || '',
+    statusChangedAt: row.statusChangedAt || null,
+    closedAt: row.closedAt || null,
+    cancelledAt: row.cancelledAt || null,
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,
@@ -187,7 +210,7 @@ export async function createOrder(input: {
     customerName: input.customerName,
     contractNo: input.contractNo,
     remark: input.remark,
-    status: '待采购',
+    status: '待确认',
     items: input.items,
     purchaseList: input.purchaseList,
     todos: input.todos,
@@ -237,19 +260,55 @@ export async function buildOrderSavePayloadDraft(input: {
   return result.data;
 }
 
-export async function setOrderStatus(order: Order, status: OrderStatus): Promise<Order> {
+export async function setOrderStatus(order: Order, status: OrderStatus, reason?: string): Promise<Order> {
   const result = await proxyRequest<ApiResponse<OrderRow>>(`/api/orders/${orderId(order)}/status`, {
     method: 'POST',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '订单状态更新失败');
   return rowToOrder(result.data);
 }
 
 export function orderPurchaseProgress(order: Order) {
-  const needCount = order.purchaseList.filter((item) => Number(item.needToBuy) > 0).length;
-  const purchasedCount = order.purchaseList.filter((item) => Number(item.needToBuy) > 0 && item.purchased).length;
-  return { needCount, purchasedCount };
+  const required = order.purchaseList.filter((item) => Number(item.plannedQty ?? item.needToBuy) > 0);
+  return required.reduce((result, item) => {
+    result.plannedQty += Number(item.plannedQty ?? item.needToBuy) || 0;
+    result.orderedQty += Number(item.orderedQty ?? (item.purchased ? item.needToBuy : 0)) || 0;
+    result.receivedQty += Number(item.receivedQty) || 0;
+    result.stockedQty += Number(item.stockedQty) || 0;
+    return result;
+  }, { needCount: required.length, plannedQty: 0, orderedQty: 0, receivedQty: 0, stockedQty: 0 });
+}
+
+export async function updateOrderPurchaseItem(
+  order: Order,
+  item: PurchaseItem,
+  progress: {
+    orderedQty: number;
+    receivedQty: number;
+    stockedQty: number;
+    purchasePrice?: number;
+    actualSupplier?: string;
+    allowOverPurchase?: boolean;
+  }
+): Promise<{ order: Order; stockAddition: { partId: number; addQty: number; receiptId: string } | null }> {
+  const result = await proxyRequest<ApiResponse<{
+    order: OrderRow;
+    stockAddition: { partId: number; addQty: number; receiptId: string } | null;
+  }>>(`/api/orders/${orderId(order)}/purchase-items/progress`, {
+    method: 'POST',
+    body: JSON.stringify({
+      identityKey: item.identityKey,
+      model: item.model,
+      supplier: item.supplier || '',
+      ...progress,
+    }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '采购进度保存失败');
+  return {
+    order: rowToOrder(result.data.order),
+    stockAddition: result.data.stockAddition || null,
+  };
 }
 
 export async function toggleOrderPurchaseItem(order: Order, item: Pick<PurchaseItem, 'model' | 'supplier'>, purchased?: boolean): Promise<Order> {

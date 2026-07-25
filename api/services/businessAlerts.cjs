@@ -94,20 +94,20 @@ function buildOrderAlerts(orders, now) {
         const ageDays = daysBetween(order.updatedAt || order.createdAt || order.CreatedAt, now);
         const titlePrefix = order.contractNo ? `${order.customerName || '未命名客户'} / ${order.contractNo}` : (order.customerName || `订单 #${id}`);
 
-        if (status !== '已完成' && ageDays >= 14) {
+        if (status !== '已关闭' && status !== '已取消' && ageDays >= 14) {
             alerts.push(issue(
                 ageDays >= 30 ? 'high' : 'medium',
                 'order',
                 id,
                 `订单 #${id} 已停留 ${ageDays} 天`,
                 `${titlePrefix} 仍未完成。`,
-                '核对采购、入库和生产待办是否卡住。',
+                '核对订单确认、采购、到货或入库是否卡住。',
                 '/orders'
             ));
         }
 
         if (items.length === 0) {
-            alerts.push(issue('high', 'order', id, `订单 #${id} 无产品明细`, `${titlePrefix} 没有可生产产品。`, '检查订单明细或重新由报价转订单。', '/orders'));
+            alerts.push(issue('high', 'order', id, `订单 #${id} 无产品明细`, `${titlePrefix} 没有产品明细。`, '检查订单明细或重新由报价转订单。', '/orders'));
         }
 
         items.forEach((item, index) => {
@@ -120,15 +120,23 @@ function buildOrderAlerts(orders, now) {
             }
         });
 
-        const blockedPurchases = purchaseList.filter(item => Number(item.needToBuy || 0) > 0 && !item.purchased);
-        if (status !== '已完成' && blockedPurchases.length > 0) {
-            const top = blockedPurchases.slice(0, 3).map(item => `${item.model || item.name} x${item.needToBuy}`).join('、');
+        const blockedPurchases = purchaseList.filter(item => {
+            const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+            const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
+            return plannedQty > orderedQty;
+        });
+        if (status !== '已关闭' && status !== '已取消' && blockedPurchases.length > 0) {
+            const top = blockedPurchases.slice(0, 3).map(item => {
+                const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+                const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
+                return `${item.model || item.name} x${plannedQty - orderedQty}`;
+            }).join('、');
             alerts.push(issue('medium', 'order', id, `订单 #${id} 有 ${blockedPurchases.length} 项待采购`, top || '存在未完成采购项。', '进入采购中心处理待采购物料。', '/purchase'));
         }
 
         const openTodos = todos.filter(item => !item.done);
-        if (status === '采购中' && blockedPurchases.length === 0 && openTodos.length === 0) {
-            alerts.push(issue('low', 'order', id, `订单 #${id} 可确认完成`, `${titlePrefix} 的采购项和待办已处理完。`, '检查实际入库和生产状态后确认完成。', '/orders'));
+        if (status === '采购完成' && openTodos.length === 0) {
+            alerts.push(issue('low', 'order', id, `订单 #${id} 可关闭`, `${titlePrefix} 的采购物料已全部入库。`, '确认业务事项无误后关闭订单。', '/orders'));
         }
     });
 

@@ -1,5 +1,6 @@
 const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
+const { mergePurchasePlanItem, normalizePurchaseItem } = require('./orderWorkflow.cjs');
 
 function makeId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -77,6 +78,12 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             totalQty,
             currentStock: availableStock,
             needToBuy,
+            plannedQty: needToBuy,
+            orderedQty: 0,
+            receivedQty: 0,
+            stockedQty: 0,
+            purchasePrice: 0,
+            actualSupplier: supplier || dbPart?.supplier || '',
             purchased: false,
             partId,
             identityKey,
@@ -124,14 +131,14 @@ function buildBalancedOrderPlans(orders, partsCatalog) {
             : parsePartsJson(order.items_json || order.itemsJson);
         const plan = buildOrderPlan(items, partsCatalog, { reservedDemand });
         const previous = parsePartsJson(order.purchase_list_json || order.purchaseListJson);
-        const purchasedByKey = new Map(previous.map(item => [
+        const previousByKey = new Map(previous.map(item => [
             item.identityKey || purchaseIdentity(item.model, item.supplier, item.partId),
-            Boolean(item.purchased),
+            normalizePurchaseItem(item),
         ]));
-        plan.purchaseList = plan.purchaseList.map(item => ({
-            ...item,
-            purchased: purchasedByKey.get(item.identityKey) || false,
-        }));
+        plan.purchaseList = plan.purchaseList.map(item => mergePurchasePlanItem(
+            item,
+            previousByKey.get(item.identityKey),
+        ));
         plans.set(Number(order.id || order.Id), plan);
     }
     return plans;

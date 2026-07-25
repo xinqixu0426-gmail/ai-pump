@@ -25,6 +25,7 @@ const { calculateCurrentRecipeCost } = require('../services/currentRecipeCost.cj
 const router = Router();
 const costLogger = createLogger('cost');
 const copperLogger = createLogger('copper');
+const { updateAllCoilsCopperPrice: applyCopperPriceUpdate } = require('../services/copperPriceUpdate.cjs');
 
 // ── 健康检查 ──
 router.get('/health', (req, res) => {
@@ -310,16 +311,7 @@ async function getMarketIndicators() {
 async function updateAllCoilsCopperPrice(copperPricePerTon) {
     const copperPricePerKg = (copperPricePerTon / 1000).toFixed(2);
     copperLogger.info(`获取铜价: ${copperPricePerTon} 元/吨 -> ${copperPricePerKg} 元/千克`);
-    const allCoils = db.prepare('SELECT * FROM coils').all();
-    const batchUpdate = db.transaction((coils) => {
-        for (const coil of coils) {
-            const newCost = coil.unit_price * coil.sheets + coil.wire_weight * parseFloat(copperPricePerKg) + coil.coil_fee + coil.rotor_fee;
-            safeUpdate('coils', coil.id, { copper_base: copperPricePerKg, cost: newCost.toFixed(5) });
-        }
-    });
-    batchUpdate(allCoils);
-    copperLogger.info(`已更新 ${allCoils.length} 条线圈记录的铜价基数为 ${copperPricePerKg}`);
-    return { copperPricePerTon, copperPricePerKg, updatedCount: allCoils.length };
+    return applyCopperPriceUpdate(db, safeUpdate, copperPricePerTon, copperLogger);
 }
 
 async function runCopperPriceUpdate() {

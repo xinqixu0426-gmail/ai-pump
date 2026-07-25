@@ -46,18 +46,19 @@ async function executeQueryTool(toolName, args, internalFetch) {
         }
 
         case 'create_part': {
-            const { model, category = '其他', price, supplier = '-', stock = 0 } = args;
+            const { model, category = '其他', subcategory = '', price, supplier = '-', stock = 0 } = args;
             if (!model || price === undefined) {
                 return { success: false, error: '缺少必要参数：型号或单价' };
             }
 
-            const saved = await postJson(internalFetch, '/api/parts', { model, category, price, supplier, stock }, '零件新建失败');
+            const saved = await postJson(internalFetch, '/api/parts', { model, category, subcategory, price, supplier, stock }, '零件新建失败');
             return {
                 success: true,
                 message: '零件新建成功（已通过标准 API 写入）',
                 part: {
                     model: saved.model || model,
                     category: saved.category || category,
+                    subcategory: saved.subcategory || subcategory,
                     price: saved.price ?? price,
                     supplier: saved.supplier || supplier,
                     stock: saved.stock ?? stock
@@ -67,7 +68,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
         }
 
         case 'update_part': {
-            const { model, price, stock, stockDelta, supplier, category } = args;
+            const { model, price, stock, stockDelta, supplier, category, subcategory } = args;
             if (!model) {
                 return { success: false, error: '缺少必要参数：零件型号' };
             }
@@ -101,6 +102,10 @@ async function executeQueryTool(toolName, args, internalFetch) {
                 updates.category = category;
                 changes.push(`类别: ${target.category || target.category} → ${category}`);
             }
+            if (subcategory !== undefined) {
+                updates.subcategory = subcategory;
+                changes.push(`二级分类: ${target.subcategory || '-'} → ${subcategory}`);
+            }
 
             if (changes.length === 0) {
                 return { success: false, error: '没有指定任何要修改的字段' };
@@ -115,6 +120,7 @@ async function executeQueryTool(toolName, args, internalFetch) {
                     id: saved.id || saved.Id || targetId,
                     model: saved.model || model,
                     category: saved.category,
+                    subcategory: saved.subcategory || '',
                     price: saved.price,
                     supplier: saved.supplier,
                     stock: saved.stock
@@ -127,12 +133,12 @@ async function executeQueryTool(toolName, args, internalFetch) {
             const { keyword, category } = args;
             const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
             let results = allParts;
-            if (keyword) { results = results.filter(p => (p.model || '').includes(keyword) || (p.category || '').includes(keyword) || (p.supplier || '').includes(keyword)); }
+            if (keyword) { results = results.filter(p => (p.model || '').includes(keyword) || (p.category || '').includes(keyword) || (p.subcategory || '').includes(keyword) || (p.supplier || '').includes(keyword)); }
             if (category) { results = results.filter(p => (p.category || '') === category || (p.category || '').includes(category)); }
             return {
                 success: true,
                 count: results.length,
-                parts: results.slice(0, 30).map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, price: p.price, supplier: p.supplier, stock: p.stock || 0 }))
+                parts: results.slice(0, 30).map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, subcategory: p.subcategory || '', price: p.price, supplier: p.supplier, stock: p.stock || 0 }))
             };
         }
 

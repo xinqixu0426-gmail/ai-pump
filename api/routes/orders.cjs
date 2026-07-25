@@ -2,10 +2,18 @@ const { Router } = require('express');
 const { randomUUID } = require('crypto');
 const { db, dbGetAllOrders, dbGetAllParts, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
 const { buildOrderPlan, buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
+const {
+    ORDER_STATUSES,
+    TERMINAL_ORDER_STATUSES,
+    normalizePurchaseItem,
+    validatePurchaseProgress,
+    deriveProcurementStatus,
+    assertOrderTransition,
+} = require('../services/orderWorkflow.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
 const router = Router();
 
-const ORDER_FIELDS = ['customer_name', 'contract_no', 'remark', 'status', 'items_json', 'purchase_list_json', 'todos_json'];
+const ORDER_FIELDS = ['customer_name', 'contract_no', 'remark', 'items_json', 'purchase_list_json', 'todos_json'];
 const ORDER_ALIASES = {
     customerName: 'customer_name',
     contractNo: 'contract_no',
@@ -13,7 +21,11 @@ const ORDER_ALIASES = {
     purchaseListJson: 'purchase_list_json',
     todosJson: 'todos_json',
 };
-const ORDER_STATUSES = new Set(['待采购', '采购中', '已完成']);
+const ACTIVE_ORDERS_SQL = `
+    SELECT * FROM orders
+    WHERE deleted_at IS NULL AND status NOT IN ('已关闭', '已取消')
+    ORDER BY created_at, id
+`;
 
 function orderBodyToDb(body) {
     const updates = {};
@@ -72,11 +84,11 @@ function buildOrderSavePayloadDraft(body) {
     const plan = (providedPurchaseList.length > 0 || providedTodos.length > 0)
         ? { purchaseList: providedPurchaseList, todos: providedTodos }
         : (() => {
-            const activeOrders = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ? ORDER BY created_at, id').all('已完成');
+            const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
             const draftOrder = { id: -1, created_at: new Date().toISOString(), items, purchase_list_json: '[]' };
             return buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts()).get(-1);
         })();
-    const status = body?.status || '待采购';
+    const status = body?.status || '待确认';
     if (!ORDER_STATUSES.has(status)) throw new Error('非法订单状态');
 
     return {
@@ -91,7 +103,7 @@ function buildOrderSavePayloadDraft(body) {
 }
 
 function syncBalancedPurchasePlans() {
-    const records = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ? ORDER BY created_at, id').all('已完成');
+    const records = db.prepare(ACTIVE_ORDERS_SQL).all();
     const plans = buildBalancedOrderPlans(records, dbGetAllParts());
     for (const record of records) {
         const plan = plans.get(record.id);
@@ -105,16 +117,111 @@ function syncBalancedPurchasePlans() {
 }
 
 function updateOrderRecord(id, body) {
+    const record = getOrderRecord(id);
+    if (record.status !== '待确认') {
+        const error = new Error('订单确认后不能修改核心明细，只能通过采购和状态动作继续处理');
+        error.statusCode = 409;
+        throw error;
+    }
     const updates = orderBodyToDb(body);
+    delete updates.status;
     safeUpdate('orders', id, updates);
     return orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
 }
 
-function setOrderStatus(id, status) {
-    if (!ORDER_STATUSES.has(status)) throw new Error('非法订单状态');
-    getOrderRecord(id);
-    safeUpdate('orders', id, { status });
+function setOrderStatus(id, status, reason = '') {
+    const record = getOrderRecord(id);
+    assertOrderTransition(record.status, status, { reason });
+    const now = new Date().toISOString();
+    const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(normalizePurchaseItem);
+    const nextStatus = status === '待采购'
+        ? deriveProcurementStatus('待采购', purchaseList)
+        : status;
+    safeUpdate('orders', id, {
+        status: nextStatus,
+        status_reason: String(reason || '').trim(),
+        status_changed_at: now,
+        closed_at: nextStatus === '已关闭' ? now : record.closed_at,
+        cancelled_at: nextStatus === '已取消' ? now : record.cancelled_at,
+        purchase_list_json: JSON.stringify(purchaseList),
+    });
     return orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
+}
+
+function purchaseItemMatches(item, body) {
+    const identityKey = String(body?.identityKey || '').trim();
+    if (identityKey) return String(item.identityKey || '') === identityKey;
+    const model = String(body?.model || '').trim();
+    const supplier = String(body?.supplier || '');
+    return item.model === model && String(item.supplier || '') === supplier;
+}
+
+function updatePurchaseItemProgress(id, body) {
+    const action = db.transaction((orderId) => {
+        const record = getOrderRecord(orderId);
+        if (record.status === '待确认') throw new Error('请先确认订单，再登记采购进度');
+        if (TERMINAL_ORDER_STATUSES.has(record.status) || record.status === '采购完成') {
+            const error = new Error('当前订单状态不允许修改采购进度');
+            error.statusCode = 409;
+            throw error;
+        }
+
+        const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(normalizePurchaseItem);
+        const index = purchaseList.findIndex(item => purchaseItemMatches(item, body));
+        if (index < 0) throw new Error('采购项不存在');
+        const currentItem = purchaseList[index];
+        const quantities = validatePurchaseProgress(currentItem, body);
+        const stockDelta = quantities.stockedQty - Number(currentItem.stockedQty || 0);
+        const now = new Date().toISOString();
+        let receiptId = null;
+
+        if (stockDelta > 0) {
+            const partId = parsePositiveId(currentItem.partId);
+            if (!partId) throw new Error(`采购项「${currentItem.model}」没有对应零件，无法入库`);
+            const part = db.prepare('SELECT model, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
+            if (!part || String(part.model || '') !== String(currentItem.model || '')) {
+                throw new Error(`采购项「${currentItem.model}」对应零件不存在或已变化`);
+            }
+            safeUpdate('parts', partId, { stock: Math.max(0, Number(part.stock || 0) + stockDelta) });
+            receiptId = randomUUID();
+        }
+
+        const nextItem = normalizePurchaseItem({
+            ...currentItem,
+            ...quantities,
+            purchasePrice: body.purchasePrice === undefined
+                ? currentItem.purchasePrice
+                : parseNonNegativeNumber(body.purchasePrice, 'purchasePrice'),
+            actualSupplier: body.actualSupplier === undefined
+                ? currentItem.actualSupplier
+                : String(body.actualSupplier || '').trim(),
+            orderedAt: quantities.orderedQty > 0 ? currentItem.orderedAt || now : null,
+            receivedAt: quantities.receivedQty > 0 ? currentItem.receivedAt || now : null,
+            stockedAt: quantities.stockedQty > 0 ? currentItem.stockedAt || now : null,
+            stockInHistory: stockDelta > 0
+                ? [...currentItem.stockInHistory, { receiptId, qty: stockDelta, at: now }]
+                : currentItem.stockInHistory,
+        });
+        purchaseList[index] = nextItem;
+
+        const nextStatus = deriveProcurementStatus(record.status, purchaseList);
+        const completedNow = nextStatus === '采购完成' && record.status !== '采购完成';
+        safeUpdate('orders', orderId, {
+            status: nextStatus,
+            status_changed_at: nextStatus !== record.status ? now : record.status_changed_at,
+            purchase_list_json: JSON.stringify(purchaseList),
+            purchase_completed_at: completedNow ? now : record.purchase_completed_at,
+            purchase_receipt_id: completedNow ? randomUUID() : record.purchase_receipt_id,
+        });
+
+        return {
+            order: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)),
+            stockAddition: stockDelta > 0 ? { partId: currentItem.partId, addQty: stockDelta, receiptId } : null,
+        };
+    });
+    const result = action(id);
+    if (result.stockAddition) invalidatePartsCache();
+    return result;
 }
 
 function togglePurchaseItem(id, body) {
@@ -122,14 +229,17 @@ function togglePurchaseItem(id, body) {
     const model = String(body?.model || '').trim();
     const supplier = String(body?.supplier || '');
     if (!model) throw new Error('采购型号不能为空');
-    const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(item => {
-        if (item.model === model && String(item.supplier || '') === supplier && Number(item.needToBuy || 0) > 0) {
-            return { ...item, purchased: body?.purchased === undefined ? !item.purchased : Boolean(body.purchased) };
-        }
-        return item;
-    });
-    safeUpdate('orders', id, { purchase_list_json: JSON.stringify(purchaseList) });
-    return orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
+    const item = parseOrderJsonArray(record, 'purchase_list_json')
+        .map(normalizePurchaseItem)
+        .find(candidate => candidate.model === model && String(candidate.supplier || '') === supplier);
+    if (!item) throw new Error('采购项不存在');
+    const purchased = body?.purchased === undefined ? !item.purchased : Boolean(body.purchased);
+    return updatePurchaseItemProgress(id, {
+        identityKey: item.identityKey,
+        model,
+        supplier,
+        orderedQty: purchased ? item.plannedQty : 0,
+    }).order;
 }
 
 function applyPurchaseItemsByTask(body) {
@@ -139,22 +249,32 @@ function applyPurchaseItemsByTask(body) {
     if (!model) throw new Error('采购型号不能为空');
 
     const action = db.transaction(() => {
-        const records = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ?').all('已完成');
+        const records = db.prepare(ACTIVE_ORDERS_SQL).all();
         const updatedOrders = [];
 
         for (const record of records) {
+            if (record.status === '待确认' || record.status === '采购完成') continue;
             let changed = false;
-            const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(item => {
-                if (item.model === model && String(item.supplier || '') === supplier && Number(item.needToBuy || 0) > 0) {
+            const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(normalizePurchaseItem).map(item => {
+                if (item.model === model && String(item.supplier || '') === supplier && item.plannedQty > 0) {
+                    if (!purchased && (item.receivedQty > 0 || item.stockedQty > 0)) {
+                        throw new Error(`采购项「${model}」已有到货或入库记录，不能取消下单`);
+                    }
                     changed = true;
-                    return { ...item, purchased };
+                    return normalizePurchaseItem({
+                        ...item,
+                        orderedQty: purchased ? item.plannedQty : 0,
+                        orderedAt: purchased ? item.orderedAt || new Date().toISOString() : null,
+                    });
                 }
                 return item;
             });
 
             if (!changed) continue;
+            const nextStatus = deriveProcurementStatus(record.status, purchaseList);
             safeUpdate('orders', record.id, {
-                status: purchased && record.status === '待采购' ? '采购中' : record.status,
+                status: nextStatus,
+                status_changed_at: nextStatus !== record.status ? new Date().toISOString() : record.status_changed_at,
                 purchase_list_json: JSON.stringify(purchaseList),
             });
             updatedOrders.push(orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(record.id)));
@@ -182,14 +302,20 @@ function toggleTodoItem(id, body) {
 function completePurchaseOrder(id) {
     const action = db.transaction((orderId) => {
         const record = getOrderRecord(orderId);
-        if (record.purchase_completed_at || record.purchase_receipt_id || record.status === '已完成') {
+        if (record.purchase_completed_at || record.status === '采购完成' || record.status === '已关闭') {
             const error = new Error('该订单采购已经入库，不能重复执行');
             error.statusCode = 409;
             throw error;
         }
         const plans = syncBalancedPurchasePlans();
-        const purchaseList = plans.get(orderId)?.purchaseList || parseOrderJsonArray(getOrderRecord(orderId), 'purchase_list_json');
-        const inboundItems = purchaseList.filter(item => Number(item.needToBuy || 0) > 0);
+        if (record.status === '待确认' || record.status === '已取消') {
+            const error = new Error('当前订单状态不允许采购入库');
+            error.statusCode = 409;
+            throw error;
+        }
+        const purchaseList = (plans.get(orderId)?.purchaseList || parseOrderJsonArray(getOrderRecord(orderId), 'purchase_list_json'))
+            .map(normalizePurchaseItem);
+        const inboundItems = purchaseList.filter(item => Math.max(item.plannedQty, item.orderedQty) > item.stockedQty);
         const invalidItems = inboundItems.filter(item => !parsePositiveId(item.partId));
         if (invalidItems.length > 0) {
             const error = new Error(`以下采购项没有对应零件，无法入库：${invalidItems.map(item => `${item.model}${item.supplier ? `（${item.supplier}）` : ''}`).join('、')}`);
@@ -200,7 +326,8 @@ function completePurchaseOrder(id) {
 
         for (const item of inboundItems) {
             const partId = parsePositiveId(item.partId);
-            const addQty = Number(item.needToBuy || 0);
+            const addQty = Math.max(Number(item.plannedQty || 0), Number(item.orderedQty || 0))
+                - Number(item.stockedQty || 0);
             if (!Number.isFinite(addQty) || addQty <= 0) throw new Error(`采购项「${item.model}」入库数量无效`);
             const current = db.prepare('SELECT model, supplier, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
             if (!current) throw new Error(`采购项「${item.model}」对应零件不存在`);
@@ -212,9 +339,27 @@ function completePurchaseOrder(id) {
 
         const completedAt = new Date().toISOString();
         const receiptId = randomUUID();
+        const completedPurchaseList = purchaseList.map(item => {
+            if (item.plannedQty <= 0) return item;
+            const targetQty = Math.max(item.plannedQty, item.orderedQty);
+            const delta = Math.max(0, targetQty - item.stockedQty);
+            return normalizePurchaseItem({
+                ...item,
+                orderedQty: targetQty,
+                receivedQty: Math.max(item.receivedQty, targetQty),
+                stockedQty: Math.max(item.stockedQty, targetQty),
+                orderedAt: item.orderedAt || completedAt,
+                receivedAt: item.receivedAt || completedAt,
+                stockedAt: item.stockedAt || completedAt,
+                stockInHistory: delta > 0
+                    ? [...item.stockInHistory, { receiptId, qty: delta, at: completedAt }]
+                    : item.stockInHistory,
+            });
+        });
         safeUpdate('orders', orderId, {
-            status: '已完成',
-            purchase_list_json: JSON.stringify(purchaseList.map(item => ({ ...item, purchased: true }))),
+            status: '采购完成',
+            status_changed_at: completedAt,
+            purchase_list_json: JSON.stringify(completedPurchaseList),
             purchase_completed_at: completedAt,
             purchase_receipt_id: receiptId,
         });
@@ -298,7 +443,19 @@ router.post('/:id/status', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
-        res.json({ success: true, data: setOrderStatus(id, req.body?.status) });
+        res.json({ success: true, data: setOrderStatus(id, req.body?.status, req.body?.reason) });
+    } catch (error) {
+        const code = error.statusCode || (error.message === '订单不存在' ? 404 : 400);
+        res.status(code).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/purchase-items/progress', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        syncBalancedPurchasePlans();
+        res.json({ success: true, data: updatePurchaseItemProgress(id, req.body || {}) });
     } catch (error) {
         const code = error.statusCode || (error.message === '订单不存在' ? 404 : 400);
         res.status(code).json({ success: false, error: error.message });
@@ -358,6 +515,7 @@ router.post('/', (req, res) => {
             items: req.body.items ?? parseJsonArray(req.body.itemsJson ?? req.body.items_json),
             purchaseList: req.body.purchaseList ?? parseJsonArray(req.body.purchaseListJson ?? req.body.purchase_list_json),
             todos: req.body.todos ?? parseJsonArray(req.body.todosJson ?? req.body.todos_json),
+            status: '待确认',
         });
         const now = new Date().toISOString();
         const info = safeInsert('orders', {
@@ -372,7 +530,7 @@ router.post('/', (req, res) => {
             updated_at: now,
         });
         res.json({ success: true, data: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(info.lastInsertRowid)) });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) { res.status(error.statusCode || 400).json({ success: false, error: error.message }); }
 });
 
 router.patch('/:id', (req, res) => {
@@ -380,13 +538,17 @@ router.patch('/:id', (req, res) => {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
         res.json({ success: true, data: updateOrderRecord(id, req.body) });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) { res.status(error.statusCode || (error.message === '订单不存在' ? 404 : 400)).json({ success: false, error: error.message }); }
 });
 
 router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        const record = getOrderRecord(id);
+        if (record.status !== '待确认' && record.status !== '已取消') {
+            return res.status(409).json({ success: false, error: '只有待确认或已取消订单可以删除' });
+        }
         softDelete('orders', id);
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }

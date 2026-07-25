@@ -9,6 +9,7 @@ const { buildRecipeBomDraft } = require('../services/recipeBomEngine.cjs');
 const { buildLongScrewInventoryPartsFromRecipe } = require('../services/longScrewInventory.cjs');
 const { parsePumpTestReport } = require('../services/pumpTestReport.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber, parseNonNegativeInteger } = require('../services/validation.cjs');
+const { inferPackagingSemantics } = require('../services/packagingSemantics.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -154,20 +155,18 @@ function recipeSelectionRows(parts, packaging = false) {
     if (!Array.isArray(parts)) return [];
     return parts
         .filter(part => String(part?.model || '').trim())
-        .map((part, index) => ({
-            model: String(part.model || '').trim(),
-            supplier: String(part.supplier || '').trim(),
-            qty: parsePositiveNumber(part.qty, `parts[${index}].qty`, { defaultValue: 1 }),
-            ...(packaging ? {
-                packagingMaterial: String(part.packagingMaterial || '').trim() || '纸箱',
-                packingRole: ['container', 'foam', 'pearlCotton', 'fixed'].includes(part.packingRole)
-                    ? part.packingRole
-                    : undefined,
-            } : {}),
-            ...(part.costSource === 'manual'
-                ? { snapshotPrice: parseNonNegativeNumber(part.snapshotPrice, `parts[${index}].snapshotPrice`), costSource: 'manual' }
-                : {}),
-        }));
+        .map((part, index) => {
+            const semantics = packaging ? inferPackagingSemantics(part) : null;
+            return {
+                model: String(part.model || '').trim(),
+                supplier: String(part.supplier || '').trim(),
+                qty: parsePositiveNumber(part.qty, `parts[${index}].qty`, { defaultValue: 1 }),
+                ...(semantics ? semantics : {}),
+                ...(part.costSource === 'manual'
+                    ? { snapshotPrice: parseNonNegativeNumber(part.snapshotPrice, `parts[${index}].snapshotPrice`), costSource: 'manual' }
+                    : {}),
+            };
+        });
 }
 
 const TECHNICAL_DATA_KEYS = [

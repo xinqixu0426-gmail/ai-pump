@@ -14,11 +14,11 @@ const {
     softDelete,
 } = require('../db.cjs');
 const { buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
+const { QUOTATION_STATUSES, assertQuotationTransition } = require('../services/orderWorkflow.cjs');
 const { calculateRecipeCostPreview } = require('../services/dynamicCostPreview.cjs');
 const { assertRecipeBomPrices } = require('../services/costEngine.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
 const router = express.Router();
-const QUOTATION_STATUSES = new Set(['报价中', '已接受', '已拒绝', '已转订单', '已过时']);
 
 function expireOverdueQuotations() {
     const cutoff = new Date();
@@ -190,7 +190,11 @@ function buildOrderDraftFromQuotation(quotationId) {
     });
 
     if (orderItems.length === 0) throw new Error('报价没有可转订单的明细');
-    const activeOrders = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND status != ? ORDER BY created_at, id').all('已完成');
+    const activeOrders = db.prepare(`
+        SELECT * FROM orders
+        WHERE deleted_at IS NULL AND status NOT IN ('已关闭', '已取消')
+        ORDER BY created_at, id
+    `).all();
     const draftOrder = { id: -1, created_at: new Date().toISOString(), items: orderItems, purchase_list_json: '[]' };
     const plan = buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts()).get(-1);
     return {
@@ -210,6 +214,11 @@ function convertQuotationToOrder(quotationId) {
         if (!quotation) throw new Error('报价单不存在');
         if (quotation.converted_order_id || quotation.status === '已转订单') {
             const error = new Error('该报价已经转为订单，不能重复转单');
+            error.statusCode = 409;
+            throw error;
+        }
+        if (quotation.status !== '已接受') {
+            const error = new Error('只有已接受的报价可以转为订单');
             error.statusCode = 409;
             throw error;
         }
@@ -255,6 +264,9 @@ router.post('/', (req, res) => {
             ...req.body,
             items: req.body.items ?? parseQuotationItemsInput(req.body.itemsJson),
         });
+        if (payload.status !== '草稿' && payload.status !== '报价中') {
+            throw new Error('新报价只能保存为草稿或报价中');
+        }
         const now = new Date().toISOString();
         const info = safeInsert('quotations', {
             customer_id: payload.customerId,
@@ -310,9 +322,12 @@ router.patch('/:id', (req, res) => {
         }
         const hasItems = req.body.items !== undefined || req.body.itemsJson !== undefined;
         if (hasItems) {
+            if (current.status !== '草稿' && current.status !== '报价中') {
+                return res.status(409).json({ success: false, error: '只有草稿或报价中的报价可以修改核心明细' });
+            }
             const payload = buildQuotationSavePayloadDraft({
                 customerId: req.body.customerId ?? current.customer_id,
-                status: req.body.status ?? current.status,
+                status: current.status,
                 items: req.body.items ?? parseQuotationItemsInput(req.body.itemsJson),
                 remark: req.body.remark ?? current.remark,
             });
@@ -328,7 +343,7 @@ router.patch('/:id', (req, res) => {
             const updates = {};
             if (req.body.status !== undefined) {
                 const status = String(req.body.status);
-                if (!QUOTATION_STATUSES.has(status)) throw new Error('报价状态无效');
+                assertQuotationTransition(current.status, status);
                 updates.status = status;
             }
             if (req.body.remark !== undefined) updates.remark = String(req.body.remark || '');
@@ -338,10 +353,30 @@ router.patch('/:id', (req, res) => {
     } catch (err) { res.status(400).json({ success: false, error: err.message }); }
 });
 
+router.post('/:id/status', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法报价ID' });
+        const current = db.prepare('SELECT * FROM quotations WHERE id = ? AND deleted_at IS NULL').get(id);
+        if (!current) return res.status(404).json({ success: false, error: '报价单不存在' });
+        const status = String(req.body?.status || '');
+        assertQuotationTransition(current.status, status);
+        safeUpdate('quotations', id, { status });
+        res.json({ success: true, data: quotationRow(db.prepare('SELECT * FROM quotations WHERE id = ?').get(id)) });
+    } catch (err) {
+        res.status(err.statusCode || 400).json({ success: false, error: err.message });
+    }
+});
+
 router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法报价ID' });
+        const current = db.prepare('SELECT * FROM quotations WHERE id = ? AND deleted_at IS NULL').get(id);
+        if (!current) return res.status(404).json({ success: false, error: '报价单不存在' });
+        if (current.status !== '草稿' && current.status !== '已拒绝' && current.status !== '已过时') {
+            return res.status(409).json({ success: false, error: '只有草稿、已拒绝或已过时报价可以删除' });
+        }
         softDelete('quotations', id);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }

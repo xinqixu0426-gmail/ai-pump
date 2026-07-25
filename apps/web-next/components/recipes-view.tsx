@@ -355,6 +355,17 @@ type RecipeSelection = {
   snapshotPrice: string;
 };
 
+function packagingMaterialForCatalogPart(part?: Part): string {
+  if (!part) return '';
+  const identity = `${part.model || ''} ${part.notes || ''}`;
+  if (identity.includes('珍珠棉')) return '珍珠棉';
+  if (identity.includes('泡沫') || part.subcategory === '内衬') return '泡沫';
+  if (identity.includes('木箱')) return '木箱';
+  if (identity.includes('彩印') || identity.includes('彩箱')) return '彩印箱';
+  if (identity.includes('纸箱') || part.subcategory === '外包装') return '牛皮纸箱';
+  return '其他包材';
+}
+
 type TemplatePartRow = {
   name?: string;
   model?: string;
@@ -1551,10 +1562,18 @@ export function RecipesView() {
     () => shellCatalogOptions.find((option) => option.model === templateForm.shellModel)?.rows || [],
     [shellCatalogOptions, templateForm.shellModel]
   );
-  const packingModelOptions = useMemo(
-    () => Array.from(new Set(parts.filter((part) => part.category === '包装').map((part) => part.model).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
-    [parts]
-  );
+  const packingModelOptions = useMemo(() => {
+    const byModel = new Map<string, Part>();
+    parts
+      .filter((part) => part.category === '包装' && part.model)
+      .forEach((part) => {
+        if (!byModel.has(part.model)) byModel.set(part.model, part);
+      });
+    return Array.from(byModel.values()).sort((left, right) => (
+      (left.subcategory || '').localeCompare(right.subcategory || '', 'zh-Hans-CN')
+      || left.model.localeCompare(right.model, 'zh-Hans-CN')
+    ));
+  }, [parts]);
   const optionalPartsKey = useMemo(() => JSON.stringify(optionalParts), [optionalParts]);
   const packingPartsKey = useMemo(() => JSON.stringify(packingParts), [packingParts]);
   const liveTotal = useMemo(() => liveRecipeTotal(bomDraft, form), [bomDraft, form]);
@@ -1941,7 +1960,11 @@ export function RecipesView() {
       if (part.id !== id) return part;
       const next = { ...part, ...patch };
       if (patch.model !== undefined && patch.supplier === undefined) {
-        next.supplier = defaultSupplierForModel(String(patch.model || ''), '包装');
+        const catalogPart = parts.find((candidate) => (
+          candidate.category === '包装' && candidate.model === String(patch.model || '')
+        ));
+        next.supplier = catalogPart?.supplier || defaultSupplierForModel(String(patch.model || ''), '包装');
+        next.packagingMaterial = packagingMaterialForCatalogPart(catalogPart);
         next.snapshotPrice = '';
         next.costSource = '';
       }
@@ -4073,7 +4096,13 @@ export function RecipesView() {
                 {partModelOptions.map((model) => <option key={model} value={model} />)}
               </datalist>
               <datalist id="recipe-packing-model-options">
-                {packingModelOptions.map((model) => <option key={model} value={model} />)}
+                {packingModelOptions.map((part) => (
+                  <option
+                    key={`${part.model}-${part.supplier}`}
+                    value={part.model}
+                    label={`${part.subcategory || '未分类'} · ${packagingMaterialForCatalogPart(part)}`}
+                  />
+                ))}
               </datalist>
             </WorkspaceSection>
 

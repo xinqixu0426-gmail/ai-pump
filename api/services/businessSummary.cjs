@@ -2,7 +2,8 @@ const { dbGetAllOrders, dbGetAllParts, dbGetAllRecipes } = require('../db.cjs');
 
 const STATUS_PENDING = '待采购';
 const STATUS_PURCHASING = '采购中';
-const STATUS_COMPLETED = '已完成';
+const STATUS_PURCHASED = '采购完成';
+const STATUS_CLOSED = '已关闭';
 
 function parseJsonArray(value) {
     if (Array.isArray(value)) return value;
@@ -56,8 +57,10 @@ function buildSupplierFocus(purchaseOrders) {
     const supplierMap = new Map();
     for (const order of purchaseOrders) {
         for (const item of order.purchaseList) {
-            const needToBuy = Number(item.needToBuy || 0);
-            if (needToBuy <= 0 || item.purchased) continue;
+            const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+            const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
+            const needToBuy = Math.max(0, plannedQty - orderedQty);
+            if (needToBuy <= 0) continue;
 
             const supplier = String(item.supplier || '').trim() || '未指定供应商';
             const current = supplierMap.get(supplier) || {
@@ -87,6 +90,7 @@ function summarizePart(part) {
         id: part.Id,
         model: part.model,
         category: part.category,
+        subcategory: part.subcategory || '',
         supplier: part.supplier,
         price: Number(part.price || 0),
         stock: Number(part.stock || 0),
@@ -100,8 +104,11 @@ function summarizeOrder(order) {
         contractNo: order.contractNo,
         status: order.status,
         itemCount: order.items.length,
-        purchaseItemCount: order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0).length,
-        purchasedItemCount: order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0 && item.purchased).length,
+        purchaseItemCount: order.purchaseList.filter(item => Number(item.plannedQty ?? item.needToBuy ?? 0) > 0).length,
+        purchasedItemCount: order.purchaseList.filter(item => {
+            const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+            return plannedQty > 0 && Number(item.stockedQty || 0) >= plannedQty;
+        }).length,
         totalPrice: order.totalPrice,
         createdAt: order.createdAt,
     };
@@ -111,8 +118,10 @@ function buildPendingPurchaseItems(purchaseOrders) {
     const map = new Map();
     for (const order of purchaseOrders) {
         for (const item of order.purchaseList) {
-            const needToBuy = Number(item.needToBuy || 0);
-            if (needToBuy <= 0 || item.purchased) continue;
+            const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+            const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
+            const needToBuy = Math.max(0, plannedQty - orderedQty);
+            if (needToBuy <= 0) continue;
 
             const supplier = String(item.supplier || '').trim() || '未指定供应商';
             const model = String(item.model || '').trim() || item.name || '未命名零件';
@@ -164,13 +173,18 @@ function buildBusinessSummary(options = {}) {
     const parts = options.parts || dbGetAllParts();
     const recipes = options.recipes || dbGetAllRecipes();
 
-    const activeOrders = orders.filter(order => order.status !== STATUS_COMPLETED);
+    const activeOrders = orders.filter(order => order.status !== STATUS_CLOSED && order.status !== '已取消');
     const purchaseOrders = activeOrders.filter(order =>
-        order.purchaseList.some(item => Number(item.needToBuy || 0) > 0 && !item.purchased)
+        order.purchaseList.some(item => {
+            const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+            return plannedQty > Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
+        })
     );
     const readyToReceiveOrders = activeOrders.filter(order => {
-        const needItems = order.purchaseList.filter(item => Number(item.needToBuy || 0) > 0);
-        return needItems.length > 0 && needItems.every(item => item.purchased);
+        const needItems = order.purchaseList.filter(item => Number(item.plannedQty ?? item.needToBuy ?? 0) > 0);
+        return needItems.length > 0 && needItems.some(item => (
+            Number(item.receivedQty || 0) > Number(item.stockedQty || 0)
+        ));
     });
     const todayOrders = orders.filter(order => sameLocalDay(order.createdAt, now));
     const outOfStockParts = parts.filter(part => Number(part.stock || 0) <= 0);
@@ -183,7 +197,8 @@ function buildBusinessSummary(options = {}) {
     const ordersByStatus = {
         [STATUS_PENDING]: orders.filter(order => order.status === STATUS_PENDING).length,
         [STATUS_PURCHASING]: orders.filter(order => order.status === STATUS_PURCHASING).length,
-        [STATUS_COMPLETED]: orders.filter(order => order.status === STATUS_COMPLETED).length,
+        [STATUS_PURCHASED]: orders.filter(order => order.status === STATUS_PURCHASED).length,
+        [STATUS_CLOSED]: orders.filter(order => order.status === STATUS_CLOSED).length,
     };
 
     return {
@@ -205,11 +220,12 @@ function buildBusinessSummary(options = {}) {
             active: activeOrders.length,
             pendingPurchase: ordersByStatus[STATUS_PENDING],
             purchasing: ordersByStatus[STATUS_PURCHASING],
-            completed: ordersByStatus[STATUS_COMPLETED],
+            completed: ordersByStatus[STATUS_CLOSED],
             today: todayOrders.length,
             [STATUS_PENDING]: ordersByStatus[STATUS_PENDING],
             [STATUS_PURCHASING]: ordersByStatus[STATUS_PURCHASING],
-            [STATUS_COMPLETED]: ordersByStatus[STATUS_COMPLETED],
+            [STATUS_PURCHASED]: ordersByStatus[STATUS_PURCHASED],
+            [STATUS_CLOSED]: ordersByStatus[STATUS_CLOSED],
             latest: orders.slice(0, 8).map(order => ({
                 id: order.numericId,
                 customerName: order.customerName,
@@ -246,9 +262,9 @@ function buildBusinessSummary(options = {}) {
                 },
                 {
                     key: 'ready_to_receive',
-                    label: '可确认入库',
+                    label: '待入库',
                     count: readyToReceiveOrders.length,
-                    desc: '采购项已标记完成，等待入库确认',
+                    desc: '已有到货数量等待分批入库',
                     path: '/orders',
                     severity: 'success',
                 },

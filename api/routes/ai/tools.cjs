@@ -140,6 +140,7 @@ const AI_TOOLS = [
                 properties: {
                     model: { type: 'string', description: '型号/名称' },
                     category: { type: 'string', description: '类别（如 轴承、螺丝、密封件、电容 等），默认"其他"' },
+                    subcategory: { type: 'string', description: '包装二级分类：外包装、内衬或固定包材；仅 category=包装 时使用' },
                     price: { type: 'number', description: '单价（元）' },
                     supplier: { type: 'string', description: '供应商名称，默认"-"' },
                     stock: { type: 'number', description: '初始库存数量，默认0' }
@@ -159,7 +160,7 @@ const AI_TOOLS = [
                     customerName: { type: 'string', description: '客户名称' },
                     contractNo: { type: 'string', description: '合同号（可选）' },
                     remark: { type: 'string', description: '备注（可选）' },
-                    status: { type: 'string', description: '订单状态：待采购/采购中/已完成，默认"待采购"' },
+                    status: { type: 'string', description: '新建订单固定为“待确认”，确认后再进入采购流程' },
                     items: {
                         type: 'array',
                         description: '要包含在订单中的产品配方列表（可选）',
@@ -206,7 +207,8 @@ const AI_TOOLS = [
                     stock: { type: 'number', description: '新的库存数量（可选）' },
                     stockDelta: { type: 'number', description: '库存增减数量，正数增加负数减少（可选，与stock二选一）' },
                     supplier: { type: 'string', description: '新的供应商（可选）' },
-                    category: { type: 'string', description: '新的类别（可选）' }
+                    category: { type: 'string', description: '新的类别（可选）' },
+                    subcategory: { type: 'string', description: '新的包装二级分类（可选）' }
                 },
                 required: ['model']
             }
@@ -231,12 +233,13 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'update_order_status',
-            description: '修改订单状态。当用户说"把订单5改成采购中""订单5完成了"时使用',
+            description: '执行允许的订单状态动作：确认订单、关闭订单或取消订单。采购中和采购完成由数量进度自动推导。',
             parameters: {
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单ID' },
-                    status: { type: 'string', description: '新状态：待采购/采购中/已完成' }
+                    status: { type: 'string', description: '新状态：待采购/已关闭/已取消' },
+                    reason: { type: 'string', description: '取消订单时必填原因' }
                 },
                 required: ['orderId', 'status']
             }

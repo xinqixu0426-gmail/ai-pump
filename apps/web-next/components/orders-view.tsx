@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { AnimatePresence } from 'motion/react';
 import { CircleAlert, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { getAllCustomers, type Customer } from '@/lib/customers';
@@ -24,20 +23,25 @@ import { OrderDetailDrawer } from '@/components/order-detail-drawer';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
-import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
 const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
   { value: '全部', label: '全部' },
+  { value: '待确认', label: '待确认' },
   { value: '待采购', label: '待采购' },
   { value: '采购中', label: '采购中' },
-  { value: '已完成', label: '已完成' },
+  { value: '采购完成', label: '采购完成' },
+  { value: '已关闭', label: '已关闭' },
+  { value: '已取消', label: '已取消' },
 ];
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
+  待确认: 'slate',
   待采购: 'amber',
   采购中: 'blue',
-  已完成: 'green',
+  采购完成: 'green',
+  已关闭: 'slate',
+  已取消: 'red',
 };
 
 function statLabel(value: string, sub: string) {
@@ -54,7 +58,6 @@ function customerMarginMultiplier(customer: Customer | undefined): number {
 }
 
 export function OrdersView() {
-  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -134,7 +137,7 @@ export function OrdersView() {
   }, [orders, query, status]);
 
   const stats = useMemo(() => {
-    const pending = orders.filter((order) => order.status === '待采购').length;
+    const pending = orders.filter((order) => order.status === '待确认' || order.status === '待采购').length;
     const purchasing = orders.filter((order) => order.status === '采购中').length;
     const totalPrice = orders.reduce((sum, order) => sum + order.totalPrice, 0);
     const totalProfit = orders.reduce((sum, order) => sum + order.totalProfit, 0);
@@ -217,10 +220,6 @@ export function OrdersView() {
       });
       await load(true);
       setDrawerOpen(false);
-      if (created.purchaseList.some((item) => Number(item.needToBuy || 0) > 0)) {
-        router.push('/purchase');
-        return;
-      }
       setSelectedOrder(created);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '订单创建失败');
@@ -284,12 +283,16 @@ export function OrdersView() {
 
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={16} className="text-muted" />
-            <SegmentedControl
+            <select
               value={status}
-              options={statusOptions}
-              onChange={setStatus}
-              ariaLabel="订单状态筛选"
-            />
+              onChange={(event) => setStatus(event.target.value as OrderStatus | '全部')}
+              aria-label="订单状态筛选"
+              className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-sky-400"
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 

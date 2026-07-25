@@ -6,6 +6,9 @@ const Database = require('better-sqlite3');
 const { createLogger } = require('./logger.cjs');
 const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./services/costEngine.cjs');
 const { collapseLegacyCableParts } = require('./services/cableAccessory.cjs');
+const { partSubcategory } = require('./services/packagingClassification.cjs');
+const { pruneAuditLog } = require('./services/auditRetention.cjs');
+const { runMigrations } = require('./database/migrations.cjs');
 const backupLogger = createLogger('backup');
 
 // ── SQLite 初始化 ──
@@ -15,261 +18,11 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('wal_checkpoint(TRUNCATE)'); // 启动时清理 WAL，避免 WAL 文件无限增长
 
-// ── 自动建表 & 迁移 ──
-db.exec(`
-    CREATE TABLE IF NOT EXISTS pump_shell_templates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        shell_model TEXT NOT NULL UNIQUE,
-        description TEXT DEFAULT '',
-        parts_json TEXT DEFAULT '[]',
-        created_at TEXT,
-        updated_at TEXT
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_pst_model ON pump_shell_templates(shell_model);
-
-    CREATE TABLE IF NOT EXISTS parts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        model TEXT NOT NULL,
-        category TEXT DEFAULT '其他',
-        price REAL DEFAULT 0,
-        supplier TEXT DEFAULT '-',
-        stock INTEGER DEFAULT 0,
-        remark TEXT DEFAULT '',
-        created_at TEXT,
-        updated_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS recipes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        spec TEXT,
-        parts_json TEXT DEFAULT '[]',
-        saved_total_cost REAL DEFAULT 0,
-        saved_cost_details TEXT DEFAULT '[]',
-        created_at TEXT,
-        updated_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_name TEXT NOT NULL,
-        contract_no TEXT DEFAULT '',
-        remark TEXT DEFAULT '',
-        status TEXT DEFAULT '待采购',
-        items_json TEXT DEFAULT '[]',
-        purchase_list_json TEXT DEFAULT '[]',
-        todos_json TEXT DEFAULT '[]',
-        purchase_completed_at TEXT,
-        purchase_receipt_id TEXT,
-        created_at TEXT,
-        updated_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS stator_variants (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        diameter_mm INTEGER NOT NULL,
-        common_name TEXT DEFAULT '',
-        material TEXT NOT NULL,
-        slot_type TEXT NOT NULL DEFAULT '小眼',
-        created_at TEXT,
-        updated_at TEXT,
-        UNIQUE(diameter_mm, material, slot_type)
-    );
-
-    CREATE TABLE IF NOT EXISTS coils (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        stator_variant_id INTEGER,
-        spec TEXT NOT NULL,
-        material TEXT DEFAULT '钢带',
-        slot_type TEXT DEFAULT '小眼',
-        sheets INTEGER NOT NULL,
-        scheme_name TEXT DEFAULT '',
-        scheme_status TEXT DEFAULT 'official',
-        unit_price REAL DEFAULT 0,
-        wire_weight REAL DEFAULT 0,
-        copper_base REAL DEFAULT 0,
-        coil_fee REAL DEFAULT 0,
-        rotor_fee REAL DEFAULT 0,
-        cost REAL DEFAULT 0,
-        default_wire_gauge TEXT,
-        default_capacitor TEXT,
-        main_wire_gauge TEXT DEFAULT '',
-        main_wire_data TEXT DEFAULT '',
-        aux_wire_gauge TEXT DEFAULT '',
-        aux_wire_data TEXT DEFAULT '',
-        created_at TEXT,
-        updated_at TEXT,
-        FOREIGN KEY(stator_variant_id) REFERENCES stator_variants(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS rotor_drawings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        job_id TEXT NOT NULL UNIQUE,
-        drawing_name TEXT DEFAULT '',
-        nl_input TEXT DEFAULT '',
-        params_json TEXT DEFAULT '{}',
-        fc_params_json TEXT DEFAULT '{}',
-        status TEXT DEFAULT 'processing',
-        file_url TEXT DEFAULT '',
-        error TEXT DEFAULT '',
-        linked_pump_model TEXT DEFAULT '',
-        created_at TEXT,
-        updated_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS system_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        updated_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS config (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action TEXT NOT NULL,
-        table_name TEXT,
-        record_id INTEGER,
-        old_value TEXT,
-        new_value TEXT,
-        user TEXT DEFAULT 'system',
-        created_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS customers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        contact_info TEXT DEFAULT '',
-        default_margin REAL DEFAULT 0,
-        remark TEXT DEFAULT '',
-        created_at TEXT,
-        updated_at TEXT,
-        deleted_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS quotations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id INTEGER NOT NULL,
-        status TEXT DEFAULT '报价中',
-        items_json TEXT DEFAULT '[]',
-        total_cost REAL DEFAULT 0,
-        total_price REAL DEFAULT 0,
-        remark TEXT DEFAULT '',
-        converted_order_id INTEGER,
-        converted_at TEXT,
-        created_at TEXT,
-        updated_at TEXT,
-        deleted_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS pump_model_variants (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        model_name TEXT NOT NULL UNIQUE,
-        template_id INTEGER NOT NULL,
-        coil_spec TEXT DEFAULT '',
-        coil_sheets INTEGER DEFAULT 0,
-        coil_material TEXT DEFAULT '钢带',
-        coil_slot_type TEXT DEFAULT '小眼',
-        barrel_length REAL,
-        long_screw_extra_length REAL DEFAULT 0,
-        impeller_model TEXT DEFAULT '',
-        impeller_thickness REAL,
-        impeller_diameter REAL,
-        impeller_blade_count INTEGER,
-        note TEXT DEFAULT '',
-        custom_fields_json TEXT DEFAULT '[]',
-        created_at TEXT,
-        updated_at TEXT,
-        deleted_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS knowledge_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        entry_type TEXT NOT NULL,
-        source_table TEXT NOT NULL,
-        source_id TEXT NOT NULL,
-        source_updated_at TEXT,
-        title TEXT NOT NULL,
-        summary TEXT DEFAULT '',
-        content TEXT DEFAULT '',
-        tags_json TEXT DEFAULT '[]',
-        metadata_json TEXT DEFAULT '{}',
-        search_text TEXT DEFAULT '',
-        content_hash TEXT DEFAULT '',
-        synced_at TEXT,
-        created_at TEXT,
-        updated_at TEXT,
-        UNIQUE(source_table, source_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_knowledge_entries_type ON knowledge_entries(entry_type);
-    CREATE INDEX IF NOT EXISTS idx_knowledge_entries_source ON knowledge_entries(source_table, source_id);
-
-    CREATE TABLE IF NOT EXISTS ai_conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        owner_key TEXT NOT NULL DEFAULT 'admin',
-        title TEXT NOT NULL,
-        message_count INTEGER DEFAULT 0,
-        last_message_preview TEXT DEFAULT '',
-        created_at TEXT,
-        updated_at TEXT,
-        deleted_at TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_ai_conversations_owner_updated
-        ON ai_conversations(owner_key, deleted_at, updated_at DESC);
-
-    CREATE TABLE IF NOT EXISTS ai_conversation_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id INTEGER NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        metadata_json TEXT DEFAULT '{}',
-        created_at TEXT,
-        updated_at TEXT,
-        FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation
-        ON ai_conversation_messages(conversation_id, id);
-
-    CREATE TABLE IF NOT EXISTS recipe_technical_files (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        recipe_id INTEGER NOT NULL,
-        original_name TEXT NOT NULL,
-        mime_type TEXT DEFAULT 'application/octet-stream',
-        file_size INTEGER DEFAULT 0,
-        file_sha256 TEXT NOT NULL,
-        file_blob BLOB NOT NULL,
-        report_type TEXT DEFAULT 'pump_performance_test',
-        summary_json TEXT DEFAULT '{}',
-        parsed_json TEXT DEFAULT '{}',
-        extracted_text TEXT DEFAULT '',
-        created_at TEXT,
-        updated_at TEXT,
-        deleted_at TEXT,
-        FOREIGN KEY(recipe_id) REFERENCES recipes(id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_recipe
-        ON recipe_technical_files(recipe_id, deleted_at, id DESC);
-`);
-
-try {
-    const existingFts = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_entries_fts'").get();
-    // 早期开发版本使用 external-content FTS，列映射与 knowledge_entries 不一致，需要一次性迁移。
-    if (existingFts?.sql && /\bcontent\s*=/i.test(existingFts.sql)) {
-        db.exec('DROP TABLE knowledge_entries_fts');
-    }
-    db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_entries_fts USING fts5(
-            entry_id UNINDEXED,
-            title,
-            summary,
-            content,
-            tags
-        );
-    `);
-} catch { /* FTS5 may be unavailable in some SQLite builds; LIKE search remains supported. */ }
+// ── 版本化数据库迁移 ──
+const migrationState = runMigrations(db);
+if (migrationState.appliedVersions.length > 0) {
+    backupLogger.info(`数据库迁移完成: ${migrationState.appliedVersions.join(', ')}，当前版本 ${migrationState.currentVersion}`);
+}
 
 // seed 默认管理费
 const existing = db.prepare('SELECT key FROM system_settings WHERE key = ?').get('management_fee');
@@ -313,131 +66,12 @@ if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('usd_cny_ra
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('usd_cny_rate', '0', new Date().toISOString());
 }
 
-// recipes 表新增结构化列（幂等 ALTER）
-const recipeAlterColumns = [
-    ['template_id', 'INTEGER'],
-    ['coil_spec', "TEXT DEFAULT ''"],
-    ['coil_sheets', 'INTEGER DEFAULT 0'],
-    ['coil_material', "TEXT DEFAULT '钢带'"],
-    ['coil_slot_type', "TEXT DEFAULT '小眼'"],
-    ['coil_wire_weight', 'REAL'],
-    ['has_float', 'INTEGER DEFAULT 0'],
-    ['float_wire', "TEXT DEFAULT ''"],
-    ['float_accessory_type', "TEXT DEFAULT 'standard'"],
-    ['has_cable', 'INTEGER DEFAULT 0'],
-    ['cable_length', 'REAL DEFAULT 0'],
-    ['cable_wire', "TEXT DEFAULT ''"],
-    ['cable_accessory_type', "TEXT DEFAULT 'standard'"],
-    ['box_type', "TEXT DEFAULT ''"],
-    ['extra_parts_json', "TEXT DEFAULT '[]'"],
-    ['packing_parts_json', "TEXT DEFAULT '[]'"],
-    ['assembly_wage', 'REAL DEFAULT 0'],
-    ['packing_wage', 'REAL DEFAULT 0'],
-    ['painting_wage', 'REAL'],
-    ['surface_treatment_mode', "TEXT DEFAULT 'none'"],
-    ['surface_treatment_cost', 'REAL DEFAULT 0'],
-    ['management_fee', 'REAL DEFAULT 0'],
-    ['custom_barrel_length', 'REAL'],
-    ['long_screw_extra_length', 'REAL DEFAULT 0'],
-    ['model_variant_id', 'INTEGER'],
-    ['impeller_model', "TEXT DEFAULT ''"],
-    ['impeller_thickness', 'REAL'],
-    ['impeller_diameter', 'REAL'],
-    ['impeller_blade_count', 'INTEGER'],
-    ['technical_data_json', "TEXT DEFAULT '{}'"],
-];
-for (const [col, type] of recipeAlterColumns) {
-    try { db.exec(`ALTER TABLE recipes ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
-}
-try {
-    db.exec(`
-        UPDATE recipes
-        SET long_screw_extra_length = COALESCE((
-            SELECT CAST(json_extract(item.value, '$.longScrewExtraLength') AS REAL)
-            FROM json_each(recipes.parts_json) AS item
-            WHERE json_extract(item.value, '$.dynamicRule') = 'longScrewByBarrelLength'
-              AND json_type(item.value, '$.longScrewExtraLength') IN ('integer', 'real')
-            LIMIT 1
-        ), long_screw_extra_length, 0)
-        WHERE (long_screw_extra_length IS NULL OR long_screw_extra_length = 0)
-          AND json_valid(parts_json)
-    `);
-} catch { /* legacy recipe long screw backfill is idempotent */ }
-try {
-    db.exec(`
-        UPDATE recipes
-        SET packing_parts_json = json_array(
-            json_object('model', box_type, 'supplier', '', 'qty', 1)
-        )
-        WHERE box_type IS NOT NULL
-          AND TRIM(box_type) <> ''
-          AND (packing_parts_json IS NULL OR packing_parts_json = '[]')
-    `);
-} catch { /* legacy packing migration is idempotent */ }
-try { db.exec(`ALTER TABLE parts ADD COLUMN remark TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN rotor_params_json TEXT DEFAULT '{}'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN assembly_wage REAL DEFAULT 0`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN packing_wage REAL DEFAULT 0`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN painting_wage REAL`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN surface_treatment_mode TEXT DEFAULT 'none'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN surface_treatment_cost REAL`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN cost_mode TEXT DEFAULT 'components'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_cost REAL DEFAULT 0`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN bundle_note TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN shell_components_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN long_screw_extra_length REAL DEFAULT 0`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN custom_fields_json TEXT DEFAULT '[]'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE pump_model_variants ADD COLUMN coil_slot_type TEXT DEFAULT '小眼'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN linked_pump_model TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE rotor_drawings ADD COLUMN drawing_name TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE orders ADD COLUMN purchase_completed_at TEXT`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE orders ADD COLUMN purchase_receipt_id TEXT`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE quotations ADD COLUMN converted_order_id INTEGER`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE quotations ADD COLUMN converted_at TEXT`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN material TEXT DEFAULT '钢带'`); } catch { /* already exists */ }
-try { db.exec(`UPDATE coils SET material = '钢带' WHERE material IS NULL OR TRIM(material) = ''`); } catch { /* ignore */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN main_wire_gauge TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN main_wire_data TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN aux_wire_gauge TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN aux_wire_data TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN stator_variant_id INTEGER`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN slot_type TEXT DEFAULT '小眼'`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN scheme_name TEXT DEFAULT ''`); } catch { /* already exists */ }
-try { db.exec(`ALTER TABLE coils ADD COLUMN scheme_status TEXT DEFAULT 'official'`); } catch { /* already exists */ }
-
-try {
-    const rows = db.prepare(`
-        SELECT id, remark FROM parts
-        WHERE remark LIKE '%"screwPricing"%'
-    `).all();
-    const updateRemark = db.prepare('UPDATE parts SET remark = ?, updated_at = ? WHERE id = ?');
-    const now = new Date().toISOString();
-    for (const row of rows) {
-        try {
-            const notes = JSON.parse(row.remark || '{}');
-            if (!notes?.screwPricing || typeof notes.screwPricing !== 'object') continue;
-            const diameter = Number(notes.screwPricing.diameter);
-            notes.screwPricing = {
-                enabled: Boolean(notes.screwPricing.enabled),
-                diameter: Number.isFinite(diameter) && diameter > 0 ? diameter : 6,
-                modelPrefix: typeof notes.screwPricing.modelPrefix === 'string' ? notes.screwPricing.modelPrefix : undefined,
-            };
-            updateRemark.run(JSON.stringify(notes), now, row.id);
-        } catch { /* skip invalid notes */ }
-    }
-} catch { /* ignore screw pricing cleanup */ }
-
-// P0-2: 软删除列迁移（幂等）
-for (const tbl of ['orders', 'recipes', 'parts']) {
-    try { db.exec(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT`); } catch { /* already exists */ }
-}
-
 // ── Row Adapters ──
 
 function partRow(r) {
     if (!r) return r;
     return {
-        id: r.id, Id: r.id, model: r.model, category: r.category, price: r.price,
+        id: r.id, Id: r.id, model: r.model, category: r.category, subcategory: r.subcategory || '', price: r.price,
         supplier: r.supplier, stock: r.stock, notes: r.remark || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
@@ -533,6 +167,10 @@ function orderRow(r) {
         purchaseListJson: r.purchase_list_json, todosJson: r.todos_json,
         purchaseCompletedAt: r.purchase_completed_at || null,
         purchaseReceiptId: r.purchase_receipt_id || null,
+        statusReason: r.status_reason || '',
+        statusChangedAt: r.status_changed_at || null,
+        closedAt: r.closed_at || null,
+        cancelledAt: r.cancelled_at || null,
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
@@ -671,9 +309,11 @@ function dbGetAllRecipeTechnicalFiles() {
 }
 
 function extractPartFields(body) {
+    const category = body.category || '其他';
     return {
         model: body.model || '',
-        category: body.category || '其他',
+        category,
+        subcategory: partSubcategory(category, body.subcategory, body),
         price: body.price ?? 0,
         supplier: body.supplier || '-',
         stock: body.stock ?? 0,
@@ -816,79 +456,6 @@ function hardDelete(table, id) {
     } catch { /* 审计日志写入失败不应阻断业务 */ }
 }
 
-function migrateCoilDomain() {
-    const rows = db.prepare('SELECT * FROM coils ORDER BY id').all();
-    const migrate = db.transaction(() => {
-        for (const row of rows) {
-            const rawSpec = String(row.spec || '').trim();
-            const rawMaterial = String(row.material || '钢带').trim() || '钢带';
-            const diameterMm = rawSpec === '12' ? 120 : Number.parseInt(rawSpec, 10);
-            if (!Number.isInteger(diameterMm) || diameterMm <= 0) continue;
-
-            const material = rawMaterial.includes('冷轧')
-                ? '冷轧'
-                : rawMaterial.includes('钢带') ? '钢带' : rawMaterial;
-            const slotType = rawMaterial.includes('国标眼')
-                ? '国标眼'
-                : (row.slot_type === '国标眼' ? '国标眼' : '小眼');
-            let variant = db.prepare(`
-                SELECT * FROM stator_variants
-                WHERE diameter_mm = ? AND material = ? AND slot_type = ?
-            `).get(diameterMm, material, slotType);
-            if (!variant) {
-                const now = new Date().toISOString();
-                const info = safeInsert('stator_variants', {
-                    diameter_mm: diameterMm,
-                    common_name: rawSpec,
-                    material,
-                    slot_type: slotType,
-                    created_at: now,
-                    updated_at: now,
-                });
-                variant = db.prepare('SELECT * FROM stator_variants WHERE id = ?').get(info.lastInsertRowid);
-            }
-
-            const updates = {};
-            if (row.stator_variant_id !== variant.id) updates.stator_variant_id = variant.id;
-            if (row.material !== material) updates.material = material;
-            if (row.slot_type !== slotType) updates.slot_type = slotType;
-            if (!row.scheme_status) updates.scheme_status = 'official';
-            if (!row.scheme_name) updates.scheme_name = '正式方案';
-            if (Object.keys(updates).length > 0) safeUpdate('coils', row.id, updates);
-        }
-    });
-    migrate();
-    const duplicateOfficials = db.prepare(`
-        SELECT stator_variant_id, sheets, MIN(id) AS keep_id
-        FROM coils
-        WHERE stator_variant_id IS NOT NULL AND scheme_status = 'official'
-        GROUP BY stator_variant_id, sheets
-        HAVING COUNT(*) > 1
-    `).all();
-    const demoteDuplicates = db.transaction(() => {
-        for (const duplicate of duplicateOfficials) {
-            const rowsToDemote = db.prepare(`
-                SELECT id FROM coils
-                WHERE stator_variant_id = ? AND sheets = ?
-                  AND scheme_status = 'official' AND id <> ?
-            `).all(duplicate.stator_variant_id, duplicate.sheets, duplicate.keep_id);
-            for (const row of rowsToDemote) {
-                safeUpdate('coils', row.id, { scheme_status: 'testing' });
-            }
-        }
-    });
-    demoteDuplicates();
-    db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_coils_variant_sheets
-        ON coils(stator_variant_id, sheets);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme
-        ON coils(stator_variant_id, sheets)
-        WHERE scheme_status = 'official';
-    `);
-}
-
-migrateCoilDomain();
-
 // ── P1.7: loadPartsData 缓存 ──
 let _partsDataCache = null;
 let _partsDataCacheTime = 0;
@@ -959,6 +526,12 @@ function runBackup() {
         db.backup(backupPath)
             .then(() => {
                 backupLogger.info(`数据库已备份到 ${backupPath}`);
+                const auditRetention = pruneAuditLog(db);
+                if (auditRetention.deletedCount > 0) {
+                    backupLogger.info(
+                        `已清理 ${auditRetention.deletedCount} 条超过 ${auditRetention.retentionDays} 天的审计日志`
+                    );
+                }
                 // 清理旧备份，只保留最近 MAX_BACKUPS 个
                 const files = fsDb.readdirSync(BACKUP_DIR)
                     .filter(f => f.startsWith('pump_') && f.endsWith('.db'))

@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { CheckCircle2, ClipboardList, PackageCheck, ShoppingCart, X } from 'lucide-react';
+import { ClipboardList, PackageCheck, Save, ShoppingCart, X } from 'lucide-react';
 import {
   completeOrderPurchase,
   orderPurchaseProgress,
   setOrderStatus,
-  toggleOrderPurchaseItem,
   toggleOrderTodoItem,
+  updateOrderPurchaseItem,
   type Order,
   type OrderStatus,
 } from '@/lib/orders';
@@ -28,10 +27,25 @@ type OrderDetailDrawerProps = {
 type TabKey = 'items' | 'purchase' | 'todos';
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
+  待确认: 'slate',
   待采购: 'amber',
   采购中: 'blue',
-  已完成: 'green',
+  采购完成: 'green',
+  已关闭: 'slate',
+  已取消: 'red',
 };
+
+type PurchaseProgressDraft = {
+  orderedQty: string;
+  receivedQty: string;
+  stockedQty: string;
+  purchasePrice: string;
+  actualSupplier: string;
+};
+
+function purchaseItemKey(item: { identityKey?: string; model: string; supplier: string }) {
+  return item.identityKey || `${item.model}|${item.supplier}`;
+}
 
 const tabOptions: Array<{ value: TabKey; label: string }> = [
   { value: 'items', label: '型号' },
@@ -40,13 +54,13 @@ const tabOptions: Array<{ value: TabKey; label: string }> = [
 ];
 
 export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetailDrawerProps) {
-  const router = useRouter();
   const [localOrder, setLocalOrder] = useState<Order | null>(order);
   const [tab, setTab] = useState<TabKey>('items');
   const [confirmingPurchase, setConfirmingPurchase] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [progressDrafts, setProgressDrafts] = useState<Record<string, PurchaseProgressDraft>>({});
   const previousOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +68,16 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
     const changedOrder = nextOrderId !== previousOrderIdRef.current;
     previousOrderIdRef.current = nextOrderId;
     setLocalOrder(order);
+    setProgressDrafts(Object.fromEntries((order?.purchaseList || []).map((item) => [
+      purchaseItemKey(item),
+      {
+        orderedQty: String(item.orderedQty ?? (item.purchased ? item.plannedQty ?? item.needToBuy : 0) ?? 0),
+        receivedQty: String(item.receivedQty ?? 0),
+        stockedQty: String(item.stockedQty ?? 0),
+        purchasePrice: String(item.purchasePrice ?? 0),
+        actualSupplier: item.actualSupplier || item.supplier || '',
+      },
+    ])));
     if (changedOrder) {
       setTab('items');
       setConfirmingPurchase(false);
@@ -63,12 +87,10 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
   }, [order]);
 
   const progress = useMemo(() => (
-    localOrder ? orderPurchaseProgress(localOrder) : { needCount: 0, purchasedCount: 0 }
+    localOrder
+      ? orderPurchaseProgress(localOrder)
+      : { needCount: 0, plannedQty: 0, orderedQty: 0, receivedQty: 0, stockedQty: 0 }
   ), [localOrder]);
-  const purchaseItemsToBuy = useMemo(() => (
-    localOrder ? localOrder.purchaseList.filter((item) => Number(item.needToBuy || 0) > 0) : []
-  ), [localOrder]);
-  const allPurchaseItemsPurchased = purchaseItemsToBuy.length > 0 && purchaseItemsToBuy.every((item) => item.purchased);
   const todoItems = localOrder?.todos || [];
   const allTodosDone = todoItems.length > 0 && todoItems.every((todo) => todo.done);
 
@@ -89,26 +111,44 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
     }
   }
 
-  async function handleStatus(status: OrderStatus) {
+  async function handleStatus(status: OrderStatus, reason?: string) {
     if (!localOrder) return;
-    const saved = await runAction(() => setOrderStatus(localOrder, status), `订单状态已更新为 ${status}`);
-    if (saved && status === '采购中') router.push('/purchase');
+    await runAction(() => setOrderStatus(localOrder, status, reason), `订单状态已更新为 ${status}`);
   }
 
-  async function handleTogglePurchase(model: string, supplier: string) {
+  async function handleSavePurchaseProgress(item: Order['purchaseList'][number]) {
     if (!localOrder) return;
-    await runAction(() => toggleOrderPurchaseItem(localOrder, { model, supplier }));
-  }
+    const key = purchaseItemKey(item);
+    const draft = progressDrafts[key];
+    if (!draft) return;
+    const plannedQty = Number(item.plannedQty ?? item.needToBuy) || 0;
+    const orderedQty = Number(draft.orderedQty) || 0;
+    const allowOverPurchase = orderedQty > plannedQty
+      ? window.confirm(`下单数量 ${orderedQty} 超过计划数量 ${plannedQty}，确认超采吗？`)
+      : false;
+    if (orderedQty > plannedQty && !allowOverPurchase) return;
 
-  async function handleSetAllPurchaseItems(purchased: boolean) {
-    if (!localOrder || purchaseItemsToBuy.length === 0) return;
-    await runAction(async () => {
-      let nextOrder = localOrder;
-      for (const item of purchaseItemsToBuy) {
-        nextOrder = await toggleOrderPurchaseItem(nextOrder, { model: item.model, supplier: item.supplier }, purchased);
-      }
-      return nextOrder;
-    }, purchased ? '已全选采购项' : '已取消全部采购项');
+    setSaving(true);
+    setError('');
+    try {
+      const result = await updateOrderPurchaseItem(localOrder, item, {
+        orderedQty,
+        receivedQty: Number(draft.receivedQty) || 0,
+        stockedQty: Number(draft.stockedQty) || 0,
+        purchasePrice: Number(draft.purchasePrice) || 0,
+        actualSupplier: draft.actualSupplier,
+        allowOverPurchase,
+      });
+      setLocalOrder(result.order);
+      setMessage(result.stockAddition
+        ? `已入库 ${result.stockAddition.addQty}，采购进度已保存`
+        : '采购进度已保存');
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '采购进度保存失败');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleToggleTodo(id: string) {
@@ -145,11 +185,22 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
 
   const purchaseAdditions = useMemo(() => {
     if (!localOrder) return [];
-    return localOrder.purchaseList.filter((item) => Number(item.needToBuy || 0) > 0 && item.partId);
+    return localOrder.purchaseList
+      .map((item) => ({
+        ...item,
+        remainingQty: Math.max(
+          0,
+          Math.max(
+            Number(item.plannedQty ?? item.needToBuy),
+            Number(item.orderedQty || 0)
+          ) - Number(item.stockedQty || 0)
+        ),
+      }))
+      .filter((item) => item.remainingQty > 0 && item.partId);
   }, [localOrder]);
 
   return (
-    <SlideOver open={open && Boolean(localOrder)} onClose={onClose}>
+    <SlideOver open={open && Boolean(localOrder)} onClose={onClose} size="workspace">
       {localOrder && (
         <div className="flex min-h-full flex-col">
           <header className="border-b border-line px-5 py-4">
@@ -184,7 +235,7 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
             />
             <div className="hidden items-center gap-3 text-xs text-muted md:flex">
               <span className="inline-flex items-center gap-1"><PackageCheck size={14} /> {localOrder.items.length}</span>
-              <span className="inline-flex items-center gap-1"><ShoppingCart size={14} /> {progress.purchasedCount}/{progress.needCount}</span>
+              <span className="inline-flex items-center gap-1"><ShoppingCart size={14} /> {progress.stockedQty}/{progress.plannedQty}</span>
               <span className="inline-flex items-center gap-1"><ClipboardList size={14} /> {localOrder.todos.length}</span>
             </div>
           </div>
@@ -220,73 +271,92 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
 
             {tab === 'purchase' && (
               <div className="space-y-3">
-                <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-3">
+                <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-4">
                   <div>
-                    <div className="text-xs text-muted">需采购项</div>
-                    <div className="mt-1 font-semibold text-ink">{progress.needCount}</div>
+                    <div className="text-xs text-muted">计划采购</div>
+                    <div className="mt-1 font-semibold text-ink">{progress.plannedQty}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted">已标记采购</div>
-                    <div className="mt-1 font-semibold text-ink">{progress.purchasedCount}</div>
+                    <div className="text-xs text-muted">已下单</div>
+                    <div className="mt-1 font-semibold text-ink">{progress.orderedQty}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted">确认入库项</div>
-                    <div className="mt-1 font-semibold text-ink">{purchaseAdditions.length}</div>
+                    <div className="text-xs text-muted">已到货</div>
+                    <div className="mt-1 font-semibold text-ink">{progress.receivedQty}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted">已入库</div>
+                    <div className="mt-1 font-semibold text-ink">{progress.stockedQty}</div>
                   </div>
                 </div>
 
                 <div className="overflow-x-auto rounded-panel border border-line">
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-[820px] text-left text-sm">
                     <thead className="bg-slate-50 text-xs text-muted">
                       <tr>
                         <th className="px-3 py-2">型号</th>
-                        <th className="px-3 py-2">名称</th>
-                        <th className="px-3 py-2">供应商</th>
-                        <th className="px-3 py-2 text-right">总量</th>
-                        <th className="px-3 py-2 text-right">库存</th>
-                        <th className="px-3 py-2 text-right">需采</th>
-                        <th className="px-3 py-2 text-center">
-                          <label className="inline-flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={allPurchaseItemsPurchased}
-                              disabled={saving || purchaseItemsToBuy.length === 0}
-                              onChange={(event) => void handleSetAllPurchaseItems(event.target.checked)}
-                              className="h-4 w-4 rounded border-line"
-                            />
-                            全选
-                          </label>
-                        </th>
+                        <th className="px-3 py-2 text-right">计划</th>
+                        <th className="px-3 py-2 text-right">下单</th>
+                        <th className="px-3 py-2 text-right">到货</th>
+                        <th className="px-3 py-2 text-right">入库</th>
+                        <th className="px-3 py-2 text-right">采购单价</th>
+                        <th className="px-3 py-2">实际供应商</th>
+                        <th className="px-3 py-2 text-right">操作</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {localOrder.purchaseList.map((item) => (
-                        <tr key={`${item.model}|${item.supplier}`} className="border-t border-line">
-                          <td className="px-3 py-2 font-medium text-ink">{item.model}</td>
-                          <td className="px-3 py-2 text-muted">{item.name}</td>
-                          <td className="px-3 py-2 text-muted">{item.supplier || '-'}</td>
-                          <td className="px-3 py-2 text-right">{item.totalQty}</td>
-                          <td className="px-3 py-2 text-right">{item.currentStock}</td>
-                          <td className="px-3 py-2 text-right">
-                            <span className={item.needToBuy > 0 ? 'font-semibold text-rose-600' : 'text-emerald-600'}>
-                              {item.needToBuy > 0 ? item.needToBuy : '充足'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {item.needToBuy > 0 ? (
+                      {localOrder.purchaseList.map((item) => {
+                        const key = purchaseItemKey(item);
+                        const draft = progressDrafts[key];
+                        const editable = localOrder.status === '待采购' || localOrder.status === '采购中';
+                        const setDraft = (field: keyof PurchaseProgressDraft, value: string) => {
+                          setProgressDrafts((current) => ({
+                            ...current,
+                            [key]: { ...current[key], [field]: value },
+                          }));
+                        };
+                        return (
+                          <tr key={key} className="border-t border-line">
+                            <td className="px-3 py-2">
+                              <div className="font-medium text-ink">{item.model}</div>
+                              <div className="mt-0.5 text-xs text-muted">{item.name} · {item.supplier || '-'}</div>
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium">{item.plannedQty ?? item.needToBuy}</td>
+                            {(['orderedQty', 'receivedQty', 'stockedQty', 'purchasePrice'] as const).map((field) => (
+                              <td key={field} className="px-1.5 py-2">
                               <input
-                                type="checkbox"
-                                checked={Boolean(item.purchased)}
-                                disabled={saving}
-                                onChange={() => void handleTogglePurchase(item.model, item.supplier)}
-                                className="h-4 w-4 rounded border-line"
+                                type="number"
+                                min="0"
+                                step={field === 'purchasePrice' ? '0.01' : '1'}
+                                value={draft?.[field] ?? '0'}
+                                disabled={saving || !editable}
+                                onChange={(event) => setDraft(field, event.target.value)}
+                                className="h-8 w-16 rounded-md border border-line px-2 text-right text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"
                               />
-                            ) : (
-                              <CheckCircle2 size={16} className="mx-auto text-emerald-500" />
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                              </td>
+                            ))}
+                            <td className="px-1.5 py-2">
+                              <input
+                                value={draft?.actualSupplier ?? ''}
+                                disabled={saving || !editable}
+                                onChange={(event) => setDraft('actualSupplier', event.target.value)}
+                                className="h-8 w-28 rounded-md border border-line px-2 text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={saving || !editable || Number(item.plannedQty ?? item.needToBuy) <= 0}
+                                onClick={() => void handleSavePurchaseProgress(item)}
+                                icon={<Save size={14} />}
+                              >
+                                保存
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -333,21 +403,42 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
           </main>
 
           <footer className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-4">
-            {localOrder.status === '待采购' && (
+            {localOrder.status === '待确认' && (
               <Button
                 disabled={saving}
-                onClick={() => void handleStatus('采购中')}
+                onClick={() => void handleStatus('待采购')}
               >
-                开始采购
+                确认订单
               </Button>
             )}
-            {localOrder.status === '采购中' && (
+            {(localOrder.status === '待采购' || localOrder.status === '采购中') && purchaseAdditions.length > 0 && (
               <Button
                 variant="primary"
                 disabled={saving}
                 onClick={() => setConfirmingPurchase(true)}
               >
-                确认采购完成并入库
+                全部到货并入库
+              </Button>
+            )}
+            {localOrder.status === '采购完成' && (
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={() => void handleStatus('已关闭')}
+              >
+                关闭订单
+              </Button>
+            )}
+            {(['待确认', '待采购', '采购中'] as OrderStatus[]).includes(localOrder.status) && (
+              <Button
+                variant="danger"
+                disabled={saving}
+                onClick={() => {
+                  const reason = window.prompt('请输入取消订单原因');
+                  if (reason?.trim()) void handleStatus('已取消', reason.trim());
+                }}
+              >
+                取消订单
               </Button>
             )}
             <div className="ml-auto text-xs text-muted">{saving ? '保存中...' : '更改会立即保存并刷新列表'}</div>
@@ -362,8 +453,8 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Stock In</div>
-                  <h3 className="mt-2 text-lg font-semibold tracking-tight text-ink">确认采购完成并入库</h3>
-                  <div className="mt-1 text-sm text-muted">将把需采购数量加入对应零件库存，并把订单状态改为已完成。</div>
+                  <h3 className="mt-2 text-lg font-semibold tracking-tight text-ink">全部到货并入库</h3>
+                  <div className="mt-1 text-sm text-muted">将剩余计划数量一次性登记为已下单、已到货和已入库，订单进入采购完成。</div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmingPurchase(false)} aria-label="关闭入库确认">
                   <X size={18} />
@@ -400,8 +491,8 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
                           <td className="px-3 py-2 text-muted">{item.name || '-'}</td>
                           <td className="px-3 py-2 text-muted">{item.supplier || '-'}</td>
                           <td className="px-3 py-2 text-right text-muted">{item.currentStock}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-ink">+{item.needToBuy}</td>
-                          <td className="px-3 py-2 text-right text-muted">{Number(item.currentStock || 0) + Number(item.needToBuy || 0)}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-ink">+{item.remainingQty}</td>
+                          <td className="px-3 py-2 text-right text-muted">{Number(item.currentStock || 0) + item.remainingQty}</td>
                         </tr>
                       ))}
                     </tbody>

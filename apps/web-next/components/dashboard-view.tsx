@@ -31,7 +31,9 @@ function statLabel(value: string, sub: string) {
 }
 
 function statusTone(status: string): StatusBadgeTone {
-  if (status === '已完成') return 'green';
+  if (status === '采购完成') return 'green';
+  if (status === '已关闭') return 'slate';
+  if (status === '已取消') return 'red';
   if (status === '采购中') return 'blue';
   return 'amber';
 }

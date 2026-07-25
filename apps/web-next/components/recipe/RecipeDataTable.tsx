@@ -121,7 +121,7 @@ export function RecipeDataTable({
                   <input
                     value={row.packagingMaterial}
                     onChange={(event) => onUpdate(row.id, { packagingMaterial: event.target.value })}
-                    placeholder="纸箱/泡沫"
+                    placeholder="牛皮纸箱/彩印箱/木箱/泡沫/珍珠棉"
                     className="h-8 w-full rounded-md border border-line px-2 text-sm text-slate-900 outline-none transition-colors duration-150 focus:border-slate-400"
                   />
                 </td>

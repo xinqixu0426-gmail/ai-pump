@@ -169,7 +169,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     customerName: row.customerName,
                     contractNo: row.contractNo || '',
                     remark: row.remark || '',
-                    status: row.status || '待采购',
+                    status: row.status || '待确认',
                     items,
                     purchaseList,
                     todos,
@@ -183,14 +183,14 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'update_order_status': {
-            const { orderId, status } = args;
-            const validStatuses = ['待采购', '采购中', '已完成'];
+            const { orderId, status, reason } = args;
+            const validStatuses = ['待采购', '已关闭', '已取消'];
             if (!validStatuses.includes(status)) return { success: false, error: `无效状态: ${status}，可选: ${validStatuses.join('/')}` };
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-            const oldStatus = row.status || '待采购';
+            const oldStatus = row.status || '待确认';
             try {
-                await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, { status }, '订单状态更新失败');
+                await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, { status, reason }, '订单状态更新失败');
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.customerName };
             } catch (error) {
                 return { success: false, error: error.message };

@@ -45,12 +45,14 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/parts` | 无 | 零件列表，Row Adapter 输出 camelCase，并临时保留 `Id/CreatedAt/UpdatedAt` |
-| `POST` | `/api/parts` | `model, category, price, supplier, stock, remark/notes` | 新增零件，返回新零件 |
+| `GET` | `/api/parts` | 无 | 零件列表，Row Adapter 输出 camelCase；包装零件额外返回 `subcategory`，并临时保留 `Id/CreatedAt/UpdatedAt` |
+| `POST` | `/api/parts` | `model, category, subcategory?, price, supplier, stock, remark/notes` | 新增零件；`category=包装` 时二级分类为 `外包装/内衬/固定包材`，未传时按型号和备注推断 |
 | `PATCH` | `/api/parts/:id` | 可更新字段 | 更新入口；动态更新必须走 `safeUpdate('parts', id, updates)` |
 | `DELETE` | `/api/parts/:id` | 无 | 软删除并返回 `{ deleted: 1 }` |
 | `PATCH` | `/api/parts/prices` | `{ updates: [{ partId, price }] }` | 批量更新零件价格；`partId` 必须为正整数，`price` 必须为非负有效数字 |
 | `POST` | `/api/parts/batch-stock` | `{ operations: [{ partId, delta }] }` | 批量库存增减，库存最低为 0；`partId` 必须为正整数，`delta` 必须为有效数字 |
+
+包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
 ## 5. 线圈 Coils
 
@@ -145,9 +147,9 @@
 |---|---|---|---|
 | `GET` | `/api/cost/recipe/by-name?name=xxx` | `name` 查询参数 | 按名称包含关系查配方并计算配件成本 |
 | `GET` | `/api/copper-price` | 无 | 实时铜价和数据库铜价基数 |
-| `POST` | `/api/copper-price/update` | 无 | 手动同步铜价，并更新所有线圈铜价基数 |
+| `POST` | `/api/copper-price/update` | 无 | 手动同步铜价；只更新铜价基数或成本发生变化的线圈，返回 `updatedCount/skippedCount/unchanged` |
 | `GET` | `/api/market-indicators` | 无 | 铜价、铝价、美元兑人民币汇率的实时值与数据库值 |
-| `POST` | `/api/market-indicators/update` | 无 | 同步铜价、铝线价格基数、美元汇率 |
+| `POST` | `/api/market-indicators/update` | 无 | 同步铜价、铝线价格基数、美元汇率；铜价未变化时跳过线圈写入 |
 
 ## 10. 客户与报价
 
@@ -167,12 +169,13 @@
 | `GET` | `/api/quotations` | 无 | 报价列表；读取时自动把超过 1 个月的“报价中”标为“已过时” |
 | `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 后端按每个有效 `baseRecipeId` 重新试算，生成覆盖配置、完整 `bomSnapshot`、`costSnapshot`、总成本和总报价；不信任前端单位成本，不写库 |
 
-`POST /api/quotations` 和带明细的 `PATCH /api/quotations/:id` 会再次解析 `itemsJson`、校验状态并重新汇总总成本和总报价，不信任调用方提交的合计金额；仅修改状态或备注时保留轻量更新路径。
-| `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；标准返回 `{ data: quotation }` |
+`POST /api/quotations` 和带明细的 `PATCH /api/quotations/:id` 会再次解析 `itemsJson` 并重新汇总总成本和总报价，不信任调用方提交的合计金额。新报价只能是“草稿”或“报价中”，只有这两个状态允许修改核心明细。
+| `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；状态只能是“草稿”或“报价中”；标准返回 `{ data: quotation }` |
 | `POST` | `/api/quotations/:id/order-draft` | 无 | 从报价明细的 BOM 快照生成订单预览、采购清单和待办；旧报价缺少快照时临时回退配方 BOM 并标记 `legacy_recipe_fallback`；不写库 |
-| `POST` | `/api/quotations/:id/convert` | 无 | 在同一事务内创建订单、保存 `convertedOrderId/convertedAt` 并把报价标记为“已转订单”；重复转单返回 409 |
-| `PATCH` | `/api/quotations/:id` | 报价字段 | 更新报价；已转订单的报价返回 409，防止订单来源快照被改写 |
-| `DELETE` | `/api/quotations/:id` | 无 | 软删除 |
+| `POST` | `/api/quotations/:id/convert` | 无 | 只有“已接受”报价可转单；在同一事务内创建订单、保存 `convertedOrderId/convertedAt` 并标记“已转订单”；重复或越级转单返回 409 |
+| `POST` | `/api/quotations/:id/status` | `{ status }` | 按 `草稿 → 报价中 → 已接受 → 已转订单` 状态机流转；报价中也可进入已拒绝/已过时，终态不能恢复 |
+| `PATCH` | `/api/quotations/:id` | 报价字段 | 只有“草稿”或“报价中”允许更新核心明细 |
+| `DELETE` | `/api/quotations/:id` | 无 | 只有草稿、已拒绝或已过时报价允许软删除 |
 
 ## 11. 订单 Orders
 
@@ -183,14 +186,17 @@
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
 | `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 基于订单表单草稿生成标准保存 payload；未传采购清单/待办时自动生成；不写库 |
-| `POST` | `/api/orders/purchase-items/batch` | `{ model, supplier?, purchased }` | 采购中心按供应商和型号批量设置未完成订单的采购项状态；不入库 |
-| `POST` | `/api/orders/:id/status` | `{ status }` | 更新订单状态；`status` 只能是 `待采购/采购中/已完成` |
-| `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 切换或设置指定采购项的已采状态 |
+| `POST` | `/api/orders/purchase-items/batch` | `{ model, supplier?, purchased }` | 兼容的整项下单动作；把匹配采购项的 `orderedQty` 设置为计划数量，不入库 |
+| `POST` | `/api/orders/:id/status` | `{ status, reason? }` | 人工动作只允许确认订单、关闭订单或取消订单；取消必须填写原因，采购中/采购完成由数量自动推导 |
+| `POST` | `/api/orders/:id/purchase-items/progress` | `{ identityKey?, model, supplier?, orderedQty, receivedQty, stockedQty, purchasePrice?, actualSupplier?, allowOverPurchase? }` | 保存单项采购进度；强制 `入库 ≤ 到货 ≤ 下单`，超采必须明确确认；`stockedQty` 增量在同一事务内加入库存并记录批次 |
+| `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 旧客户端兼容动作；映射为整项下单/取消下单，已有到货或入库时不能取消 |
 | `POST` | `/api/orders/:id/todos/toggle` | `{ todoId, done? }` | 切换或设置指定采购待办完成状态 |
-| `POST` | `/api/orders/:id/complete-purchase` | 无 | 确认采购完成并入库；先校验全部待入库项存在，再在同一事务内更新库存、订单状态及 `purchaseCompletedAt/purchaseReceiptId`；重复入库返回 409 |
-| `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, status?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单 |
-| `PATCH` | `/api/orders/:id` | 订单字段 | 更新入口 |
-| `DELETE` | `/api/orders/:id` | 无 | 软删除 |
+| `POST` | `/api/orders/:id/complete-purchase` | 无 | 一次性把全部剩余计划登记为已下单、已到货和已入库，订单进入“采购完成”而不是关闭；重复入库返回 409 |
+| `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单，固定进入“待确认” |
+| `PATCH` | `/api/orders/:id` | 订单字段 | 只有“待确认”订单允许修改核心明细 |
+| `DELETE` | `/api/orders/:id` | 无 | 只有待确认或已取消订单允许软删除 |
+
+采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory`。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
 
 ## 12. 工作台 Workbench
 

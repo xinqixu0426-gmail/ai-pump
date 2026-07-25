@@ -27,6 +27,7 @@ import {
   parseQuotationItems,
   previewQuotationItemCost,
   quotationItemSummary,
+  quotationStatusChoices,
   quotationStatusOptions,
   updateQuotation,
   updateQuotationStatus,
@@ -45,6 +46,7 @@ const filterOptions: Array<{ value: QuotationFilter; label: string }> = [
 ];
 
 function quotationStatusSelectClassName(status: string): string {
+  if (status === '草稿') return '!border-slate-200 !bg-white !text-slate-700';
   if (status === '已接受') return '!border-emerald-200 !bg-emerald-50 !text-emerald-700';
   if (status === '已转订单') return '!border-violet-200 !bg-violet-50 !text-violet-700';
   if (status === '已拒绝') return '!border-rose-200 !bg-rose-50 !text-rose-700';
@@ -73,7 +75,8 @@ function parseJsonArray<T>(value: unknown): T[] {
 
 function inferPackingMaterial(model: string): string {
   if (model.includes('木箱')) return '木箱';
-  if (model.includes('纸箱')) return '纸箱';
+  if (model.includes('彩印') || model.includes('彩箱')) return '彩印箱';
+  if (model.includes('牛皮') || model.includes('纸箱')) return '牛皮纸箱';
   if (model.includes('泡沫')) return '泡沫';
   if (model.includes('商标') || model.includes('贴纸')) return '商标';
   if (model.includes('说明书')) return '说明书';
@@ -290,11 +293,17 @@ export function QuotationsView() {
       const looksLikePacking = category === '包装' || model.includes('木箱') || model.includes('纸箱') || model.includes('包装');
       if (!looksLikePacking) return;
       const usage = packingUsage.get(`${model}||${part.supplier || ''}`);
+      const partIdentity = `${model} ${part.notes || ''}`;
+      const classifiedRole = part.subcategory === '外包装'
+        ? 'container'
+        : part.subcategory === '固定包材'
+          ? 'fixed'
+          : undefined;
       addOption({
         model,
         supplier: part.supplier || '',
-        packagingMaterial: usage?.packagingMaterial || inferPackingMaterial(model),
-        packingRole: usage ? inferPackingRole(usage) : undefined,
+        packagingMaterial: usage?.packagingMaterial || inferPackingMaterial(partIdentity),
+        packingRole: usage ? inferPackingRole(usage) : classifiedRole,
       }, Number(part.price || 0));
     });
 
@@ -754,7 +763,7 @@ export function QuotationsView() {
                             onChange={(event) => void saveStatus(quotation, event.target.value as QuotationStatus)}
                             className={`h-8 min-w-[5.25rem] whitespace-nowrap rounded-full border px-3 text-center text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${quotationStatusSelectClassName(quotation.status)}`}
                           >
-                            {quotationStatusOptions.map((option) => (
+                            {quotationStatusChoices(quotation.status as QuotationStatus).map((option) => (
                               <option key={option} value={option}>{option}</option>
                             ))}
                           </select>
@@ -779,12 +788,16 @@ export function QuotationsView() {
                             <Button size="sm" variant="ghost" disabled={Boolean(savingId)} onClick={() => setViewQuotation(quotation)} icon={<Eye size={14} />}>
                               查看
                             </Button>
-                            <Button size="sm" variant="ghost" disabled={Boolean(savingId)} onClick={() => openEditDrawer(quotation)} icon={<Pencil size={14} />}>
-                              编辑
-                            </Button>
-                            <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => void removeQuotation(quotation)} icon={<Trash2 size={14} />}>
-                              删除
-                            </Button>
+                            {(quotation.status === '草稿' || quotation.status === '报价中') ? (
+                              <Button size="sm" variant="ghost" disabled={Boolean(savingId)} onClick={() => openEditDrawer(quotation)} icon={<Pencil size={14} />}>
+                                编辑
+                              </Button>
+                            ) : null}
+                            {(['草稿', '已拒绝', '已过时'] as QuotationStatus[]).includes(quotation.status as QuotationStatus) ? (
+                              <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => void removeQuotation(quotation)} icon={<Trash2 size={14} />}>
+                                删除
+                              </Button>
+                            ) : null}
                           </div>
                         </td>
                       </PresenceRow>
@@ -1065,7 +1078,7 @@ export function QuotationsView() {
                   onChange={(event) => setFormStatus(event.target.value as QuotationStatus)}
                   className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 >
-                  {quotationStatusOptions.map((option) => (
+                  {(['草稿', '报价中'] as QuotationStatus[]).map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>

@@ -94,16 +94,16 @@ function partEntry(part) {
         sourceId: part.id,
         sourceUpdatedAt: part.updatedAt,
         title: `零件：${part.model || part.id}`,
-        summary: `${part.category || '其他'}，单价 ${Number(part.price || 0)} 元，库存 ${Number(part.stock || 0)}`,
+        summary: `${part.category || '其他'}${part.subcategory ? ` / ${part.subcategory}` : ''}，单价 ${Number(part.price || 0)} 元，库存 ${Number(part.stock || 0)}`,
         content: [
             `型号：${part.model || ''}`,
-            `分类：${part.category || '其他'}`,
+            `分类：${part.category || '其他'}${part.subcategory ? ` / ${part.subcategory}` : ''}`,
             `供应商：${part.supplier || '-'}`,
             `单价：${Number(part.price || 0)} 元`,
             `库存：${Number(part.stock || 0)}`,
             part.notes ? `备注：${part.notes}` : '',
         ],
-        tags: ['零件', part.category, part.model, part.supplier],
+        tags: ['零件', part.category, part.subcategory, part.model, part.supplier],
         metadata: { price: Number(part.price || 0), stock: Number(part.stock || 0), supplier: part.supplier || '-' },
     });
 }
@@ -390,7 +390,7 @@ function businessRuleEntries(settings) {
                 '报价保存前使用 /api/quotations/save-payload-draft。',
                 '报价转订单使用 /api/quotations/:id/order-draft。',
                 '订单保存前使用 /api/orders/save-payload-draft。',
-                '订单状态为 待采购/采购中/已完成。',
+                '订单状态为 待确认/待采购/采购中/采购完成/已关闭/已取消；采购中和采购完成由数量进度自动推导。',
             ],
             tags: ['业务规则', '报价', '订单', '采购'],
             metadata: {},

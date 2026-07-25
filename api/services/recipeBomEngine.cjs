@@ -286,7 +286,7 @@ function buildRecipeBomDraft(input, context) {
     normalizeSelectionList(input.packingParts || input.packingPartsJson).forEach(part => {
         if (!part.model) return;
         const isManual = part.costSource === 'manual';
-        const packagingMaterial = inferPackingMaterial(part.model, part.packagingMaterial);
+        const packagingMaterial = inferPackingMaterial(part.model, part.packagingMaterial, part.supplier);
         const packingIdentity = `${part.model} ${part.supplier || ''}`;
         const packingRole = part.packingRole
             || (packingIdentity.includes('珍珠棉')
