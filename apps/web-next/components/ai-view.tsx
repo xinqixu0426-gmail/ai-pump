@@ -18,6 +18,8 @@ import {
   History,
   Loader2,
   MessageSquareText,
+  Mic,
+  MicOff,
   PanelLeft,
   Pencil,
   Plus,
@@ -84,6 +86,32 @@ type ConfirmationResult = {
 
 type SampleCategory = '常用' | '成本' | '订单' | '质量';
 type AsideMode = 'history' | 'templates';
+
+type SpeechRecognitionResultEventLike = {
+  results: ArrayLike<{
+    0?: { transcript?: string };
+    length: number;
+  }>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
+type SpeechRecognitionInstance = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 const asideModeOptions: Array<{ value: AsideMode; label: string }> = [
   { value: 'history', label: '历史' },
@@ -164,6 +192,30 @@ function TextLoop({ words }: { words: string[] }) {
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === 'undefined') return null;
+  const speechWindow = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
+}
+
+function appendSpeechTranscript(base: string, transcript: string) {
+  const normalizedTranscript = transcript.trim();
+  if (!normalizedTranscript) return base;
+  const normalizedBase = base.trimEnd();
+  return normalizedBase ? `${normalizedBase} ${normalizedTranscript}` : normalizedTranscript;
+}
+
+function speechErrorMessage(error?: string) {
+  if (error === 'not-allowed' || error === 'service-not-allowed') return '无法使用麦克风，请在浏览器设置中允许麦克风权限。';
+  if (error === 'audio-capture') return '未检测到可用的麦克风。';
+  if (error === 'network') return '语音识别服务暂时无法连接，请稍后重试。';
+  if (error === 'no-speech') return '没有识别到语音，请靠近麦克风后重试。';
+  return '语音识别失败，请重试。';
 }
 
 function isConfirmationResult(value: unknown): value is ConfirmationResult {
@@ -836,7 +888,12 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
   const [knowledgeSyncing, setKnowledgeSyncing] = useState(false);
   const [knowledgeSyncResult, setKnowledgeSyncResult] = useState<KnowledgeSyncStats | null>(null);
   const [knowledgeSyncError, setKnowledgeSyncError] = useState('');
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const apiMessages = useMemo<AiChatMessage[]>(() => (
@@ -871,6 +928,71 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    setSpeechSupported(Boolean(getSpeechRecognitionConstructor()));
+    return () => {
+      const recognition = speechRecognitionRef.current;
+      if (recognition) {
+        recognition.onstart = null;
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition.abort();
+      }
+      speechRecognitionRef.current = null;
+    };
+  }, []);
+
+  function stopVoiceInput() {
+    speechRecognitionRef.current?.stop();
+  }
+
+  function toggleVoiceInput() {
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+
+    const Recognition = getSpeechRecognitionConstructor();
+    if (!Recognition) {
+      setSpeechError('当前浏览器不支持语音输入，请使用 Chrome、Edge 或 Safari。');
+      return;
+    }
+
+    const recognition = new Recognition();
+    speechRecognitionRef.current = recognition;
+    speechBaseInputRef.current = input;
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onstart = () => {
+      setSpeechError('');
+      setIsListening(true);
+    };
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let index = 0; index < event.results.length; index += 1) {
+        transcript += event.results[index]?.[0]?.transcript || '';
+      }
+      setInput(appendSpeechTranscript(speechBaseInputRef.current, transcript));
+    };
+    recognition.onerror = (event) => {
+      if (event.error !== 'aborted') setSpeechError(speechErrorMessage(event.error));
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      speechRecognitionRef.current = null;
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      speechRecognitionRef.current = null;
+      setIsListening(false);
+      setSpeechError('麦克风启动失败，请重试。');
+    }
+  }
+
   async function refreshConversationList() {
     try {
       setConversations(await listAiConversations());
@@ -883,6 +1005,7 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
   async function sendMessage(text: string) {
     const content = text.trim();
     if (!content || loading) return;
+    if (isListening) stopVoiceInput();
 
     const userItem: ChatItem = { id: makeId(), role: 'user', content };
     const assistantId = makeId();
@@ -991,6 +1114,7 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
 
   function startNewConversation() {
     if (loading) return;
+    if (isListening) stopVoiceInput();
     setActiveConversationId(null);
     setItems([]);
     setInput('');
@@ -1346,7 +1470,10 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
               <div className="flex items-end gap-2 rounded-2xl border border-line bg-slate-50 p-1.5 shadow-panel md:rounded-panel md:p-2">
                 <textarea
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    if (isListening) stopVoiceInput();
+                    setInput(event.target.value);
+                  }}
                   placeholder="输入要查询或处理的事情..."
                   rows={1}
                   className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none placeholder:text-slate-400 md:min-h-11 md:text-sm"
@@ -1358,6 +1485,17 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
                     }
                   }}
                 />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={`h-10 w-10 shrink-0 rounded-full px-0 md:h-9 md:w-9 ${isListening ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100' : ''}`}
+                  icon={isListening ? <MicOff size={17} /> : <Mic size={17} />}
+                  onClick={toggleVoiceInput}
+                  disabled={loading || !speechSupported}
+                  aria-label={isListening ? '停止语音输入' : '开始语音输入'}
+                  aria-pressed={isListening}
+                  title={speechSupported ? (isListening ? '停止语音输入' : '语音输入') : '当前浏览器不支持语音输入'}
+                />
                 {loading ? (
                   <Button variant="secondary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<X size={16} />} onClick={handleStop} aria-label="停止">
                     <span className="hidden md:inline">停止</span>
@@ -1368,6 +1506,11 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
                   </Button>
                 )}
               </div>
+              {isListening || speechError ? (
+                <div className="px-2 pt-1.5 text-xs text-rose-600">
+                  {speechError || '正在聆听…再次点击麦克风结束'}
+                </div>
+              ) : null}
             </form>
           </section>
         </div>

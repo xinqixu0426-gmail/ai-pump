@@ -6,7 +6,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort } from '@/lib/format';
-import { getAllTemplates, type PumpShellTemplate } from '@/lib/recipes';
+import { getAllRecipes, type Recipe } from '@/lib/recipes';
 import {
   bearingOptions,
   deleteRotorHistory,
@@ -15,7 +15,7 @@ import {
   getRotorLinkTargets,
   getRotorHistory,
   getRotorJobStatus,
-  getRotorTemplateDraft,
+  getRotorRecipeDraft,
   linkRotorHistory,
   parseRotorParams,
   printRotorDrawing,
@@ -59,9 +59,9 @@ export function RotorView() {
   const [drawingName, setDrawingName] = useState('');
   const [drawingText, setDrawingText] = useState('');
   const [history, setHistory] = useState<RotorHistoryRecord[]>([]);
-  const [templates, setTemplates] = useState<PumpShellTemplate[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [selectedShellMeta, setSelectedShellMeta] = useState<Record<string, unknown> | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [selectedRecipeId, setSelectedRecipeId] = useState('');
   const [templateHint, setTemplateHint] = useState('');
   const [ssBarrelLength, setSsBarrelLength] = useState('');
   const [loading, setLoading] = useState(true);
@@ -103,7 +103,7 @@ export function RotorView() {
 
   async function loadAuxiliaryData() {
     try {
-      setTemplates(await getAllTemplates());
+      setRecipes(await getAllRecipes());
     } catch {
       // The page can still draw manually when auxiliary template data is unavailable.
     }
@@ -145,9 +145,10 @@ export function RotorView() {
     });
   }
 
-  async function applyTemplate(template: PumpShellTemplate | null) {
-    if (!template) {
-      setSelectedTemplateId('');
+  async function applyRecipe(recipe: Recipe | null) {
+    setError(null);
+    if (!recipe) {
+      setSelectedRecipeId('');
       setTemplateHint('');
       setSsBarrelLength('');
       setSelectedShellMeta(null);
@@ -156,9 +157,9 @@ export function RotorView() {
     }
 
     try {
-      const templateId = Number(template.id);
-      if (!Number.isInteger(templateId) || templateId <= 0) throw new Error('泵壳模板 ID 无效');
-      const draft = await getRotorTemplateDraft(templateId);
+      const recipeId = Number(recipe.id);
+      if (!Number.isInteger(recipeId) || recipeId <= 0) throw new Error('配方 ID 无效');
+      const draft = await getRotorRecipeDraft(recipeId);
       setSelectedShellMeta(draft.meta);
       if (draft.barrelLength) {
         setSsBarrelLength(String(draft.barrelLength));
@@ -166,18 +167,18 @@ export function RotorView() {
       if (draft.drawingText) {
         applyAutoDrawingText(draft.drawingText);
       }
-      applyAutoDrawingName(template.shellModel || '');
+      applyAutoDrawingName(draft.drawingName || recipe.name || '');
       setForm((current) => ({ ...current, ...draft.patch }));
-      setTemplateHint(draft.hints.length > 0 ? `已从 ${template.shellModel} 带入：${draft.hints.join('、')}` : `已选择 ${template.shellModel}`);
+      setTemplateHint(draft.hints.length > 0 ? `已从配方 ${recipe.name} 带入：${draft.hints.join('、')}` : `已选择配方 ${recipe.name}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '转子模板草稿生成失败');
+      setError(err instanceof Error ? err.message : '转子配方草稿生成失败');
     }
   }
 
-  function onTemplateChange(nextTemplateId: string) {
-    setSelectedTemplateId(nextTemplateId);
-    const template = templates.find((item) => String(item.id) === nextTemplateId) || null;
-    void applyTemplate(template);
+  function onRecipeChange(nextRecipeId: string) {
+    setSelectedRecipeId(nextRecipeId);
+    const recipe = recipes.find((item) => String(item.id) === nextRecipeId) || null;
+    void applyRecipe(recipe);
   }
 
   function updateSsBarrelLength(value: string) {
@@ -344,7 +345,7 @@ export function RotorView() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-ink">出图参数</div>
-                <div className="mt-1 text-xs text-muted">先选泵壳模板，再补关键尺寸。历史记录已放到右侧辅助区。</div>
+                <div className="mt-1 text-xs text-muted">先选配方带入技术档案参数，再按需调整。历史记录已放到右侧辅助区。</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {activeStatus ? (
@@ -363,20 +364,20 @@ export function RotorView() {
             <div className="rounded-md border border-line bg-slate-50 p-3">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
                 <LinkIcon size={15} />
-                关联模板
+                关联配方
               </div>
               <div className="max-w-xl">
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">泵壳模板</span>
+                  <span className="text-xs font-medium text-muted">配方</span>
                   <select
-                    value={selectedTemplateId}
-                    onChange={(event) => onTemplateChange(event.target.value)}
+                    value={selectedRecipeId}
+                    onChange={(event) => onRecipeChange(event.target.value)}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
-                    <option value="">不使用模板</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={String(template.id)}>
-                        {template.shellModel}{template.description ? ` - ${template.description}` : ''}
+                    <option value="">不使用配方</option>
+                    {recipes.map((recipe) => (
+                      <option key={recipe.id} value={String(recipe.id)}>
+                        {recipe.name}{recipe.spec ? ` - ${recipe.spec}` : ''}
                       </option>
                     ))}
                   </select>
@@ -477,7 +478,7 @@ export function RotorView() {
             ) : null}
           </div>
           <div className="flex justify-end gap-2 border-t border-line p-4">
-            <Button type="button" variant="ghost" onClick={() => { setForm(emptyRotorForm); setDrawingName(''); autoDrawingNameRef.current = ''; setDrawingText(''); setSelectedTemplateId(''); setTemplateHint(''); setSsBarrelLength(''); }}>
+            <Button type="button" variant="ghost" onClick={() => { setForm(emptyRotorForm); setDrawingName(''); autoDrawingNameRef.current = ''; setDrawingText(''); setSelectedRecipeId(''); setTemplateHint(''); setSsBarrelLength(''); }}>
               清空
             </Button>
             <Button type="button" onClick={() => void saveOnly()} disabled={saving} icon={<Save size={15} />}>

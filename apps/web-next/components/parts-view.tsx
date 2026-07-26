@@ -1070,44 +1070,34 @@ export function PartsView() {
 
             {isPumpShellMode ? (
               <section className="rounded-md border border-line bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-ink">泵壳默认参数</div>
-                    <div className="mt-1 text-xs text-muted">这些字段会被转子出图、模板带入和成本流程复用。</div>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-ink">
-                    <input
-                      type="checkbox"
-                      checked={form.isStainless}
-                      onChange={(event) => setForm((current) => ({ ...current, isStainless: event.target.checked }))}
-                      className="h-4 w-4 rounded border-line"
-                    />
-                    不锈钢机筒
-                  </label>
+                <div>
+                  <div className="text-sm font-medium text-ink">泵壳参数</div>
+                  <div className="mt-1 text-xs text-muted">这里只维护泵壳基础属性，轴承、油封、叶轮和螺纹等参数请在配方中配置。</div>
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {[
-                    ['openOffset', '开档偏移'],
-                    ['defaultUpperBearing', '上轴承'],
-                    ['defaultLowerBearing', '下轴承'],
-                    ['defaultOilSealDia', '油封直径'],
-                    ['defaultBearingSpan', '轴承档距'],
-                    ['defaultImpellerDia', '叶轮外径'],
-                    ['defaultImpellerSpan', '叶轮档距'],
-                    ['defaultImpellerDepth', '叶轮深度'],
-                    ['defaultThreadLength', '螺纹长度'],
-                    ['defaultThreadDia', '螺纹直径'],
-                    ['defaultStackOffset', '叠高偏移'],
-                  ].map(([key, label]) => (
-                    <label key={key} className="block">
-                      <span className="text-xs font-medium text-muted">{label}</span>
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">机筒类型</span>
+                    <span className="mt-2 flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink">
                       <input
-                        value={String(form[key as keyof PartFormState])}
-                        onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                        className={textInputClass()}
+                        type="checkbox"
+                        checked={form.isStainless}
+                        onChange={(event) => setForm((current) => ({ ...current, isStainless: event.target.checked }))}
+                        className="h-4 w-4 rounded border-line"
                       />
-                    </label>
-                  ))}
+                      不锈钢机筒
+                    </span>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">开档系数</span>
+                    <input
+                      value={form.openOffset}
+                      onChange={(event) => setForm((current) => ({ ...current, openOffset: event.target.value }))}
+                      type="number"
+                      step="0.1"
+                      className={textInputClass()}
+                      placeholder="例如：15"
+                    />
+                  </label>
                 </div>
               </section>
             ) : null}

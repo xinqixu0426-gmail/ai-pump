@@ -178,10 +178,68 @@ function buildRotorTemplateDraft(input = {}) {
     };
 }
 
+const recipeTechnicalRotorMap = {
+    upperBearing: { key: 'upper_bearing', label: '上轴承' },
+    lowerBearing: { key: 'lower_bearing', label: '下轴承' },
+    pieceCount: { key: 'piece_count', label: '片数' },
+    rotorDiameter: { key: 'rotor_dia', label: '转子直径' },
+    bearingSpan: { key: 'bearing_span', label: '开档' },
+    stackOffset: { key: 'stack_offset', label: '定位' },
+    oilSealDiameter: { key: 'oil_seal_dia', label: '油封孔径' },
+    impellerBoreDiameter: { key: 'impeller_dia', label: '叶轮孔径' },
+    impellerSpan: { key: 'impeller_span', label: '叶轮开档' },
+    impellerDepth: { key: 'impeller_depth', label: '叶轮厚度' },
+    threadLength: { key: 'thread_length', label: '螺纹长度' },
+    threadDiameter: { key: 'thread_dia', label: '螺纹直径' },
+};
+
+function buildRotorRecipeDraft(input = {}) {
+    const { recipe, template, variant, parts = [] } = input;
+    if (!recipe) return { patch: {}, hints: [], meta: null, openOffset: null, barrelLength: null, drawingText: '' };
+
+    const draft = buildRotorTemplateDraft({ template, variant, parts });
+    const patch = { ...draft.patch };
+    const hints = [...draft.hints];
+    const barrelLengthValue = recipe.custom_barrel_length ?? recipe.customBarrelLength;
+    let barrelLength = draft.barrelLength;
+    let drawingText = draft.drawingText;
+
+    if (barrelLengthValue && draft.openOffset != null) {
+        const span = calculateBearingSpan(barrelLengthValue, draft.openOffset);
+        if (span) patch.bearing_span = span;
+        barrelLength = Number(barrelLengthValue);
+        if (draft.meta?.isStainless) drawingText = stainlessBarrelDrawingText(barrelLengthValue);
+    }
+
+    const technicalData = safeParseObject(recipe.technical_data_json ?? recipe.technicalDataJson);
+    Object.entries(recipeTechnicalRotorMap).forEach(([technicalKey, field]) => {
+        const value = technicalData[technicalKey];
+        if (value === undefined || value === null || value === '') return;
+        patch[field.key] = String(value);
+        hints.push(`${field.label}${value}`);
+    });
+
+    const impellerDepth = recipe.impeller_thickness ?? recipe.impellerThickness;
+    if (!patch.impeller_depth && impellerDepth != null && impellerDepth !== '') {
+        patch.impeller_depth = String(impellerDepth);
+        hints.push(`叶轮厚度${impellerDepth}mm`);
+    }
+
+    return {
+        ...draft,
+        patch,
+        hints,
+        barrelLength: Number.isFinite(barrelLength) ? barrelLength : null,
+        drawingText,
+        drawingName: String(recipe.name || '').trim(),
+    };
+}
+
 module.exports = {
     normalizeBearing,
     openOffsetFromMeta,
     calculateBearingSpan,
     stainlessBarrelDrawingText,
     buildRotorTemplateDraft,
+    buildRotorRecipeDraft,
 };

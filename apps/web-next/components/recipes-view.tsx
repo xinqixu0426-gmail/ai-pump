@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { ChevronDown, CircleAlert, CircleHelp, Copy, Eye, GitCompare, Layers3, Package, Pencil, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, CircleAlert, CircleHelp, Copy, Eye, GitCompare, Layers3, Package, Pencil, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -17,6 +17,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { dateShort, money } from '@/lib/format';
+import { parsePumpShellMeta } from '@/lib/part-form-rules';
 import { getAllParts, type Part } from '@/lib/parts';
 import {
   buildRecipeSavePayloadDraft,
@@ -59,7 +60,7 @@ import {
   type TemplateInput,
   type TemplatePartInput,
 } from '@/lib/recipes';
-import { buildTechnicalReferenceFields, findShellMetaForTemplate } from '@/lib/technical-references';
+import { buildTechnicalReferenceFields, calculateBearingSpan, findShellMetaForTemplate, openOffsetFromMeta } from '@/lib/technical-references';
 import { parseTechnicalDataJson, type RecipeTechnicalData } from '@/lib/technical-data';
 
 type RecipeFilter = 'all' | 'risk' | 'missingCost' | 'float' | 'cable';
@@ -411,11 +412,6 @@ type TemplateFormState = {
   rotorParams: TemplateRotorParamsState;
 };
 
-const templateCostModeOptions: Array<{ value: TemplateFormState['costMode']; label: string }> = [
-  { value: 'bundle', label: '泵壳套件' },
-  { value: 'components', label: '自由搭配' },
-];
-
 const templateSurfaceTreatmentOptions: Array<{ value: SurfaceTreatmentMode; label: string }> = [
   { value: 'none', label: '无' },
   { value: 'painting', label: '喷漆' },
@@ -520,6 +516,19 @@ function defaultShellComponents(): ShellComponentFormRow[] {
   }));
 }
 
+function defaultStainlessBarrelComponent(rows: ShellComponentFormRow[]): ShellComponentFormRow[] {
+  return rows.map((row) => {
+    if (!isBarrelComponentName(row.name)) return row;
+    return {
+      ...row,
+      name: STAINLESS_STRETCH_BARREL_NAME,
+      qty: Number(row.qty || 0) <= 1 ? 15 : row.qty,
+      pricingMode: 'lengthCm',
+      componentType: 'stainlessStretchBarrel',
+    };
+  });
+}
+
 function emptyTemplateRotorParams(): TemplateRotorParamsState {
   return templateRotorParamFields.reduce((params, field) => {
     params[field.key] = '';
@@ -535,7 +544,7 @@ function emptyTemplateForm(): TemplateFormState {
     packingWage: '0',
     surfaceTreatmentMode: 'none',
     surfaceTreatmentCost: '0',
-    costMode: 'components',
+    costMode: 'bundle',
     bundleCost: '0',
     bundleNote: '',
     partRows: defaultTemplateParts(),
@@ -1381,6 +1390,10 @@ export function RecipesView() {
   const hasStainlessBarrel = formTemplate?.costMode === 'components'
     ? hasStainlessStretchBarrelComponent
     : formShellMeta?.isStainless === true;
+  const shellOpenFactor = hasStainlessBarrel ? openOffsetFromMeta(formShellMeta) : null;
+  const linkedBearingSpan = hasStainlessBarrel && shellOpenFactor != null
+    ? calculateBearingSpan(form.customBarrelLength, shellOpenFactor)
+    : '';
   const technicalReferenceFields = useMemo(
     () => buildTechnicalReferenceFields({ shellMetaInfo: formShellMeta, selectedTemplate: formTemplate || null }),
     [formShellMeta, formTemplate]
@@ -1686,6 +1699,39 @@ export function RecipesView() {
       };
     });
   }, [drawerOpen, form.coilMaterial, form.coilSlotType, form.coilSpec, selectedFormCoilSpec]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    setForm((current) => {
+      const technicalData = { ...current.technicalData };
+      let changed = false;
+      const pieceCount = current.coilSheets.trim();
+
+      if (pieceCount) {
+        if (technicalData.pieceCount !== pieceCount) {
+          technicalData.pieceCount = pieceCount;
+          changed = true;
+        }
+      } else if (technicalData.pieceCount !== undefined) {
+        delete technicalData.pieceCount;
+        changed = true;
+      }
+
+      if (hasStainlessBarrel && shellOpenFactor != null) {
+        if (linkedBearingSpan) {
+          if (technicalData.bearingSpan !== linkedBearingSpan) {
+            technicalData.bearingSpan = linkedBearingSpan;
+            changed = true;
+          }
+        } else if (technicalData.bearingSpan !== undefined) {
+          delete technicalData.bearingSpan;
+          changed = true;
+        }
+      }
+
+      return changed ? { ...current, technicalData } : current;
+    });
+  }, [drawerOpen, form.coilSheets, hasStainlessBarrel, linkedBearingSpan, shellOpenFactor]);
 
   useEffect(() => {
     if (!variantDrawerOpen || !selectedVariantCoil) return;
@@ -2120,36 +2166,33 @@ export function RecipesView() {
   }
 
   function selectTemplateShell(shellModel: string) {
-    const referencePrice = shellCatalogOptions
-      .find((option) => option.model === shellModel)
-      ?.rows.find((part) => part.price > 0)?.price;
+    const shellOption = shellCatalogOptions.find((option) => option.model === shellModel);
+    const referencePrice = shellOption?.rows.find((part) => part.price > 0)?.price;
+    const isStainlessShell = shellOption?.rows.some((part) => parsePumpShellMeta(part.notes).isStainless) === true;
     setTemplateForm((current) => ({
       ...current,
       shellModel,
       bundleCost: current.costMode === 'bundle' && referencePrice != null
         ? String(referencePrice)
         : current.bundleCost,
+      componentRows: !editingTemplate && current.costMode === 'components' && isStainlessShell
+        ? defaultStainlessBarrelComponent(current.componentRows)
+        : current.componentRows,
     }));
   }
 
   function selectTemplateCostMode(costMode: TemplateFormState['costMode']) {
     const referencePrice = selectedTemplateShellParts.find((part) => part.price > 0)?.price;
+    const isStainlessShell = selectedTemplateShellParts.some((part) => parsePumpShellMeta(part.notes).isStainless);
     setTemplateForm((current) => ({
       ...current,
       costMode,
       bundleCost: costMode === 'bundle' && numberValue(current.bundleCost) <= 0 && referencePrice != null
         ? String(referencePrice)
         : current.bundleCost,
-    }));
-  }
-
-  function updateTemplateRotorParam(key: TemplateRotorParamKey, value: string) {
-    setTemplateForm((current) => ({
-      ...current,
-      rotorParams: {
-        ...current.rotorParams,
-        [key]: value,
-      },
+      componentRows: !editingTemplate && costMode === 'components' && isStainlessShell
+        ? defaultStainlessBarrelComponent(current.componentRows)
+        : current.componentRows,
     }));
   }
 
@@ -3124,7 +3167,87 @@ export function RecipesView() {
             ) : null}
 
             <section className="rounded-panel border border-line p-4">
-              <div className="text-sm font-semibold text-ink">泵壳模板</div>
+              <div>
+                <div className="text-sm font-semibold text-ink">1. 选择泵壳计价方式</div>
+                <div className="mt-1 text-xs text-muted">先确定成本口径，后续表单会自动切换为对应的配置内容。</div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2" role="radiogroup" aria-label="泵壳计价方式">
+                {([
+                  {
+                    value: 'bundle' as const,
+                    title: '泵壳套件',
+                    description: '选择零件库中的整套泵壳，按套件价格直接计入成本。',
+                    hint: '适合已有整套采购价',
+                    icon: Package,
+                  },
+                  {
+                    value: 'components' as const,
+                    title: '自由搭配',
+                    description: '逐项选择机筒、上帽、花板等真实组件并汇总成本。',
+                    hint: '适合按组件灵活组合',
+                    icon: Layers3,
+                  },
+                ]).map((option) => {
+                  const selected = templateForm.costMode === option.value;
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => selectTemplateCostMode(option.value)}
+                      className={`group relative overflow-hidden rounded-panel border p-4 text-left outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                        selected
+                          ? 'border-blue-700 bg-blue-600 text-white shadow-lg ring-2 ring-blue-200 ring-offset-1'
+                          : 'border-line bg-white text-ink hover:border-blue-400 hover:bg-blue-50 hover:shadow-panel active:bg-blue-100'
+                      }`}
+                    >
+                      <span className={`absolute inset-x-0 bottom-0 h-1 ${selected ? 'bg-blue-200' : 'bg-transparent'}`} />
+                      <span className="flex items-start gap-3">
+                        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                          selected
+                            ? 'border-white bg-white text-blue-700 shadow-sm'
+                            : 'border-line bg-slate-50 text-slate-600 group-hover:border-blue-200 group-hover:bg-white group-hover:text-blue-700'
+                        }`}>
+                          <Icon size={21} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="text-base font-semibold">{option.title}</span>
+                            <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
+                              selected
+                                ? 'border-white bg-white text-blue-700'
+                                : 'border-slate-300 bg-white text-slate-500 group-hover:border-blue-300 group-hover:text-blue-700'
+                            }`}>
+                              {selected ? <Check size={13} strokeWidth={3} /> : null}
+                              {selected ? '当前选择' : '点击选择'}
+                            </span>
+                          </span>
+                          <span className={`mt-1.5 block text-sm leading-5 ${selected ? 'text-blue-50' : 'text-muted'}`}>
+                            {option.description}
+                          </span>
+                          <span className={`mt-3 inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                            selected ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-white'
+                          }`}>
+                            {option.hint}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
+                <Check size={14} className="shrink-0 text-blue-600" />
+                {templateForm.costMode === 'bundle'
+                  ? '已选择泵壳套件：下一步从零件库选择整套泵壳型号。'
+                  : '已选择自由搭配：下一步填写组合名称，并逐项绑定泵壳组件。'}
+              </div>
+            </section>
+
+            <section className="rounded-panel border border-line p-4">
+              <div className="text-sm font-semibold text-ink">2. 泵壳模板</div>
               <div className="mt-1 text-xs text-muted">泵壳套件需要选择零件库整套型号；自由搭配可输入组合名称，也可从已有泵壳型号中选择，组件逐项绑定真实零件。</div>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <label className="block">
@@ -3193,7 +3316,7 @@ export function RecipesView() {
             <section className="rounded-panel border border-line p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-ink">固定配件</div>
+                  <div className="text-sm font-semibold text-ink">3. 固定配件</div>
                   <div className="mt-1 text-xs text-muted">轴承、油封、螺丝等固定装配件，保存到 partsJson。</div>
                 </div>
                 <Button type="button" size="sm" onClick={addTemplatePartRow} icon={<Plus size={14} />}>添加配件</Button>
@@ -3215,17 +3338,13 @@ export function RecipesView() {
             </section>
 
             <section className="rounded-panel border border-line p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-ink">泵壳计价方式</div>
-                  <div className="mt-1 text-xs text-muted">泵壳套件按整套价格计算；自由搭配按组件逐项汇总。</div>
-                </div>
-                <SegmentedControl
-                  value={templateForm.costMode}
-                  options={templateCostModeOptions}
-                  onChange={selectTemplateCostMode}
-                  ariaLabel="泵壳计价方式"
-                />
+              <div className="text-sm font-semibold text-ink">
+                {templateForm.costMode === 'bundle' ? '4. 泵壳套件计价' : '4. 自由搭配组件'}
+              </div>
+              <div className="mt-1 text-xs text-muted">
+                {templateForm.costMode === 'bundle'
+                  ? '套件价格默认读取零件库最低有效价格，模板中仍可覆盖。'
+                  : '组件型号绑定零件库“泵壳搭配”分类，并逐项计算成本。'}
               </div>
               {templateForm.costMode === 'bundle' ? (
                 <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -3285,29 +3404,6 @@ export function RecipesView() {
                   </div>
                 </div>
               )}
-            </section>
-
-            <section className="rounded-panel border border-line p-4">
-              <div className="text-sm font-semibold text-ink">转子出图备用参数</div>
-              <div className="mt-1 text-xs text-muted">选择该模板出图时自动带入；留空则继续读取泵壳零件默认参数。</div>
-              <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-                {templateRotorParamFields.map((field) => (
-                  <label key={field.key} className="block">
-                    <span className="text-xs font-medium text-muted">{field.label}</span>
-                    <div className="mt-1 flex rounded-md border border-line bg-white focus-within:border-slate-400">
-                      <input
-                        value={templateForm.rotorParams[field.key]}
-                        onChange={(event) => updateTemplateRotorParam(field.key, event.target.value)}
-                        type={field.type === 'text' ? 'text' : 'number'}
-                        min={field.type === 'text' ? undefined : '0'}
-                        step={field.type === 'text' ? undefined : '0.1'}
-                        className="h-9 min-w-0 flex-1 rounded-md border-0 px-3 text-sm text-ink outline-none"
-                      />
-                      {field.unit ? <span className="flex h-9 items-center border-l border-line bg-slate-50 px-2 text-xs text-muted">{field.unit}</span> : null}
-                    </div>
-                  </label>
-                ))}
-              </div>
             </section>
 
             <section className="rounded-panel border border-line p-4">
@@ -4200,6 +4296,12 @@ export function RecipesView() {
               impellerThickness={form.impellerThickness}
               impellerDiameter={form.impellerDiameter}
               impellerBladeCount={form.impellerBladeCount}
+              linkedRotorFields={{
+                pieceCount: '跟随线圈片数',
+                ...(hasStainlessBarrel && shellOpenFactor != null
+                  ? { bearingSpan: `机筒长度 - 开档系数 ${shellOpenFactor}` }
+                  : {}),
+              }}
               onImpellerChange={(patch) => updateForm(patch)}
             />
               </div>

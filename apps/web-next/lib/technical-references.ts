@@ -104,7 +104,7 @@ export function stainlessBarrelDrawingText(barrelLength: string | number | null 
 
 function addShellMetaReferences(refs: TechnicalReferenceField[], shellMetaInfo: PumpShellMeta | null) {
   if (!shellMetaInfo) return;
-  addReference(refs, 'openOffset', '开档偏移量', openOffsetFromMeta(shellMetaInfo), 'mm');
+  addReference(refs, 'openOffset', '开档系数', openOffsetFromMeta(shellMetaInfo), 'mm');
   addReference(refs, 'defaultBearingSpan', '默认开档', shellMetaInfo.defaultBearingSpan, 'mm');
   addReference(refs, 'defaultStackOffset', '默认定位', shellMetaInfo.defaultStackOffset, 'mm');
   addReference(refs, 'defaultUpperBearing', '默认上轴承', shellMetaInfo.defaultUpperBearing);

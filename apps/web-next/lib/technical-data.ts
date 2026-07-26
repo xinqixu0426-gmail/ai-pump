@@ -2,6 +2,17 @@ export type FixedTechnicalDataKey =
   | 'rotorLength'
   | 'rotorDiameter'
   | 'shaftDiameter'
+  | 'upperBearing'
+  | 'lowerBearing'
+  | 'pieceCount'
+  | 'bearingSpan'
+  | 'stackOffset'
+  | 'oilSealDiameter'
+  | 'impellerBoreDiameter'
+  | 'impellerSpan'
+  | 'impellerDepth'
+  | 'threadLength'
+  | 'threadDiameter'
   | 'power'
   | 'voltage'
   | 'current'
@@ -32,6 +43,17 @@ export const TECHNICAL_DATA_LABELS: Record<FixedTechnicalDataKey, string> = {
   rotorLength: '转子长度',
   rotorDiameter: '转子直径',
   shaftDiameter: '轴径',
+  upperBearing: '上轴承',
+  lowerBearing: '下轴承',
+  pieceCount: '转子片数',
+  bearingSpan: '开档',
+  stackOffset: '定位',
+  oilSealDiameter: '油封孔径',
+  impellerBoreDiameter: '叶轮孔径',
+  impellerSpan: '叶轮开档',
+  impellerDepth: '叶轮厚度',
+  threadLength: '螺纹长度',
+  threadDiameter: '螺纹直径',
   power: '功率',
   voltage: '电压',
   current: '电流',

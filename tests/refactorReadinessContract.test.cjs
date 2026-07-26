@@ -575,29 +575,29 @@ test('Next UI 契约：客户详情可以带客户上下文新建报价', () => 
     assert.match(quotationsPage, /<QuotationsView \/>/);
 });
 
-test('Next UI 契约：转子页只允许模板带入并支持历史关联', () => {
+test('Next UI 契约：转子页支持配方技术档案带入并支持历史关联', () => {
     const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
     const rotorLib = readUtf8('apps/web-next/lib/rotor.ts');
     const rotorRoute = readUtf8('api/routes/rotor.cjs');
     const rotorDraftService = readUtf8('api/services/rotorTemplateDraft.cjs');
 
-    assert.match(rotorView, /getAllTemplates/);
+    assert.match(rotorView, /getAllRecipes/);
     assert.doesNotMatch(rotorView, /getAllModelVariants/);
     assert.doesNotMatch(rotorView, /selectedVariantId/);
     assert.doesNotMatch(rotorView, /型号变体/);
     assert.match(rotorView, /target\.type !== 'variant'/);
     assert.match(rotorView, /calculateBearingSpan/);
-    assert.match(rotorView, /getRotorTemplateDraft/);
+    assert.match(rotorView, /getRotorRecipeDraft/);
     assert.doesNotMatch(rotorView, /function formPatchFromTemplate/);
     assert.doesNotMatch(rotorView, /findShellMetaForTemplate/);
     assert.match(rotorView, /getRotorLinkTargets/);
     assert.match(rotorView, /linkRotorHistory/);
-    assert.match(rotorLib, /\/api\/rotor\/template-draft/);
-    assert.match(rotorLib, /JSON\.stringify\(\{ templateId \}\)/);
+    assert.match(rotorLib, /\/api\/rotor\/recipe-draft/);
+    assert.match(rotorLib, /JSON\.stringify\(\{ recipeId \}\)/);
     assert.match(rotorLib, /\/api\/rotor\/link-targets/);
     assert.match(rotorLib, /\/api\/rotor\/history\/\$\{id\}\/link/);
-    assert.match(rotorRoute, /router\.post\('\/template-draft'/);
-    assert.match(rotorDraftService, /function buildRotorTemplateDraft/);
+    assert.match(rotorRoute, /router\.post\('\/recipe-draft'/);
+    assert.match(rotorDraftService, /function buildRotorRecipeDraft/);
 });
 
 test('Next UI 契约：配方页必须保留模板入口并支持直接复制配方', () => {
@@ -722,7 +722,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(recipesView, /selectTemplateShell/);
     assert.match(recipesView, /泵壳套件/);
     assert.match(recipesView, /自由搭配/);
-    assert.match(recipesView, /ariaLabel="泵壳计价方式"/);
+    assert.match(recipesView, /role="radiogroup" aria-label="泵壳计价方式"/);
     assert.match(recipesView, /templateForm\.costMode === 'bundle'/);
     assert.match(recipesView, /templateForm\.bundleNote/);
     assert.match(recipesView, /填写套件计价或配置说明/);

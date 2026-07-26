@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildRotorTemplateDraft } = require('../api/services/rotorTemplateDraft.cjs');
+const { buildRotorRecipeDraft, buildRotorTemplateDraft } = require('../api/services/rotorTemplateDraft.cjs');
 
 const template = {
     id: 1,
@@ -75,4 +75,47 @@ test('转子模板草稿兼容零件库 remark 字段', () => {
     assert.equal(draft.patch.lower_bearing, '6204');
     assert.equal(draft.patch.oil_seal_dia, '14');
     assert.equal(draft.openOffset, 15);
+});
+
+test('转子配方草稿优先读取技术档案中的出图参数', () => {
+    const draft = buildRotorRecipeDraft({
+        template,
+        parts,
+        recipe: {
+            name: 'V750 出图配方',
+            custom_barrel_length: 180,
+            impeller_thickness: 12,
+            technical_data_json: JSON.stringify({
+                upperBearing: '6203',
+                lowerBearing: '6205',
+                pieceCount: '180',
+                rotorDiameter: '96',
+                bearingSpan: '155',
+                stackOffset: '30',
+                oilSealDiameter: '16',
+                impellerBoreDiameter: '50',
+                impellerSpan: '18',
+                impellerDepth: '13',
+                threadLength: '22',
+                threadDiameter: '8',
+            }),
+        },
+    });
+
+    assert.deepEqual(draft.patch, {
+        upper_bearing: '6203',
+        lower_bearing: '6205',
+        oil_seal_dia: '16',
+        piece_count: '180',
+        stack_offset: '30',
+        impeller_dia: '50',
+        thread_dia: '8',
+        bearing_span: '155',
+        rotor_dia: '96',
+        impeller_span: '18',
+        impeller_depth: '13',
+        thread_length: '22',
+    });
+    assert.equal(draft.barrelLength, 180);
+    assert.equal(draft.drawingName, 'V750 出图配方');
 });

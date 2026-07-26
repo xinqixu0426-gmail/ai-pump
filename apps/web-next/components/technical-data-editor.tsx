@@ -23,7 +23,6 @@ import {
 
 const fixedFields: Array<{ key: FixedTechnicalDataKey; unit?: string; type?: string; wide?: boolean }> = [
   { key: 'rotorLength', unit: 'mm' },
-  { key: 'rotorDiameter', unit: 'mm' },
   { key: 'shaftDiameter', unit: 'mm' },
   { key: 'power', unit: 'W / kW' },
   { key: 'voltage', unit: 'V' },
@@ -32,6 +31,21 @@ const fixedFields: Array<{ key: FixedTechnicalDataKey; unit?: string; type?: str
   { key: 'testReportNo' },
   { key: 'testDate', type: 'date' },
   { key: 'testSummary', wide: true },
+];
+
+const bearingOptions = ['', '6201', '6202', '6203', '6204', '6205'];
+
+const rotorDrawingFields: Array<{ key: FixedTechnicalDataKey; unit?: string; integer?: boolean }> = [
+  { key: 'pieceCount', unit: '片', integer: true },
+  { key: 'rotorDiameter', unit: 'mm' },
+  { key: 'bearingSpan', unit: 'mm' },
+  { key: 'stackOffset', unit: 'mm' },
+  { key: 'oilSealDiameter', unit: 'mm' },
+  { key: 'impellerBoreDiameter', unit: 'mm' },
+  { key: 'impellerSpan', unit: 'mm' },
+  { key: 'impellerDepth', unit: 'mm' },
+  { key: 'threadLength', unit: 'mm' },
+  { key: 'threadDiameter', unit: 'mm' },
 ];
 
 type TechnicalDataEditorProps = {
@@ -43,6 +57,7 @@ type TechnicalDataEditorProps = {
   impellerThickness: string;
   impellerDiameter: string;
   impellerBladeCount: string;
+  linkedRotorFields?: Partial<Record<FixedTechnicalDataKey, string>>;
   onImpellerChange: (patch: {
     impellerModel?: string;
     impellerThickness?: string;
@@ -77,6 +92,7 @@ export function TechnicalDataEditor({
   impellerThickness,
   impellerDiameter,
   impellerBladeCount,
+  linkedRotorFields = {},
   onImpellerChange,
 }: TechnicalDataEditorProps) {
   const [expanded, setExpanded] = useState(false);
@@ -166,14 +182,14 @@ export function TechnicalDataEditor({
       >
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-ink">技术档案与叶轮参数</span>
+            <span className="text-sm font-semibold text-ink">技术档案</span>
             <span className="inline-flex h-6 items-center rounded-full border border-sky-200 bg-sky-50 px-2 text-xs font-medium text-sky-700">
               参考 {referenceFields.length}
             </span>
           </div>
           <div className="mt-1 text-xs text-muted">
             {expanded
-              ? '结构化保存到 technicalDataJson，可直接被报价、订单和出图流程复用。'
+              ? '技术档案结构化保存，叶轮与转子出图参数可直接被报价、订单和出图流程复用。'
               : `${filledCount > 0 ? `已填 ${filledCount} 项` : '未填写'}${technicalFiles.length > 0 ? `，报告 ${technicalFiles.length} 份` : ''}${referenceFields.length > 0 ? `，参考 ${referenceFields.length}` : ''}`}
           </div>
         </div>
@@ -259,6 +275,45 @@ export function TechnicalDataEditor({
             <FieldShell label="叶片数" unit="片">
               <input value={impellerBladeCount} onChange={(event) => onImpellerChange({ impellerBladeCount: event.target.value })} type="number" min="0" step="1" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
             </FieldShell>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-3">
+            <div className="text-xs font-semibold text-muted">转子出图参数</div>
+            <div className="mt-1 text-xs text-slate-400">保存到配方技术档案，转子出图时可直接带入。</div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            {(['upperBearing', 'lowerBearing'] as const).map((key) => (
+              <FieldShell key={key} label={TECHNICAL_DATA_LABELS[key]}>
+                <select
+                  value={value[key] || ''}
+                  onChange={(event) => updateFixed(key, event.target.value)}
+                  className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                >
+                  {bearingOptions.map((bearing) => (
+                    <option key={bearing || 'empty'} value={bearing}>{bearing || '未指定'}</option>
+                  ))}
+                </select>
+              </FieldShell>
+            ))}
+            {rotorDrawingFields.map((field) => (
+              <FieldShell key={field.key} label={TECHNICAL_DATA_LABELS[field.key]} unit={field.unit}>
+                <input
+                  value={value[field.key] || ''}
+                  onChange={(event) => updateFixed(field.key, event.target.value)}
+                  type="number"
+                  min="0"
+                  step={field.integer ? '1' : '0.1'}
+                  readOnly={Boolean(linkedRotorFields[field.key])}
+                  title={linkedRotorFields[field.key]}
+                  className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 read-only:cursor-not-allowed read-only:bg-slate-50 read-only:text-slate-500"
+                />
+                {linkedRotorFields[field.key] ? (
+                  <span className="mt-1 block text-xs text-sky-700">自动联动：{linkedRotorFields[field.key]}</span>
+                ) : null}
+              </FieldShell>
+            ))}
           </div>
         </div>
 

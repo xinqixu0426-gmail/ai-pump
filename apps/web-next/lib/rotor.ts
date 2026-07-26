@@ -56,6 +56,11 @@ export type RotorTemplateDraft = {
   drawingText: string;
 };
 
+export type RotorRecipeDraft = RotorTemplateDraft & {
+  recipeId: number;
+  drawingName: string;
+};
+
 export type RotorLinkTargetType = 'order' | 'variant' | 'recipe';
 
 export type RotorLinkTarget = {
@@ -242,6 +247,15 @@ export async function getRotorTemplateDraft(templateId: number): Promise<RotorTe
     body: JSON.stringify({ templateId }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '转子模板草稿生成失败');
+  return { ...result.data, patch: rotorPatchFromParams(result.data.patch as Record<string, unknown>) };
+}
+
+export async function getRotorRecipeDraft(recipeId: number): Promise<RotorRecipeDraft> {
+  const result = await proxyRequest<ApiResponse<RotorRecipeDraft>>('/api/rotor/recipe-draft', {
+    method: 'POST',
+    body: JSON.stringify({ recipeId }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '转子配方草稿生成失败');
   return { ...result.data, patch: rotorPatchFromParams(result.data.patch as Record<string, unknown>) };
 }
 

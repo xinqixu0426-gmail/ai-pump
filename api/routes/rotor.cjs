@@ -7,7 +7,7 @@ const fs = require('fs');
 const { db, safeInsert, safeUpdate, hardDelete } = require('../db.cjs');
 const { rotorHistoryRow } = require('../services/rotorHistory.cjs');
 const { parsePositiveId } = require('../services/validation.cjs');
-const { buildRotorTemplateDraft } = require('../services/rotorTemplateDraft.cjs');
+const { buildRotorRecipeDraft, buildRotorTemplateDraft } = require('../services/rotorTemplateDraft.cjs');
 
 const router = Router();
 
@@ -719,6 +719,38 @@ router.get('/order-pump-models', (req, res) => {
             } catch { /* skip parse errors */ }
         }
         res.json({ success: true, data: models });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════
+// POST /recipe-draft — 根据配方技术档案生成转子出图表单草稿，不写库
+// ═══════════════════════════════════════════════
+router.post('/recipe-draft', (req, res) => {
+    try {
+        const recipeId = parsePositiveId(req.body?.recipeId);
+        if (!recipeId) return res.status(400).json({ success: false, error: 'recipeId 为必填' });
+        const recipe = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId);
+        if (!recipe) return res.status(404).json({ success: false, error: '配方不存在' });
+
+        const template = recipe.template_id
+            ? db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(recipe.template_id)
+            : null;
+        const variant = recipe.model_variant_id
+            ? db.prepare('SELECT * FROM pump_model_variants WHERE id = ? AND deleted_at IS NULL').get(recipe.model_variant_id)
+            : null;
+        const parts = db.prepare('SELECT model, category, remark AS notes FROM parts WHERE deleted_at IS NULL').all();
+        const draft = buildRotorRecipeDraft({ recipe, template, variant, parts });
+        res.json({
+            success: true,
+            data: {
+                ...draft,
+                recipeId,
+                templateId: recipe.template_id || null,
+                variantId: recipe.model_variant_id || null,
+            },
+        });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }

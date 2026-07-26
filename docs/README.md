@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-23。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，线圈领域规则见 [coil-domain.md](./coil-domain.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。
+> 当前版本说明，更新于 2026-07-23。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，线圈领域规则见 [coil-domain.md](./coil-domain.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。产品化拆分讨论稿见 [通用内核与定制模块拆分设计](./modularization-design.md)。
 
 ## 1. 系统用途
 
@@ -59,7 +59,7 @@
 - 浮球线径/铜套类型、电缆长度/线径/铜套类型；
 - 包装材料；
 - 安装、打包、表面处理和管理费；
-- 机筒长度、叶轮参数和技术档案；已有配方可上传 `.xls/.xlsx` 水泵性能测试报告，原文件与解析结果保存在 SQLite。
+- 机筒长度、叶轮参数和技术档案；技术档案内集中维护上/下轴承、转子片数、转子直径、开档、定位、油封孔径、叶轮孔径/开档/厚度和螺纹尺寸，转子出图页选择配方后自动带入；已有配方可上传 `.xls/.xlsx` 水泵性能测试报告，原文件与解析结果保存在 SQLite。
 
 配方页以“泵壳模板 + 线圈配置 + 客户选配”为唯一可见主流程：泵壳模板提供结构成本包，线圈配置联动电容、电缆/浮球线径和叶轮参考，客户选配再覆盖电缆长度、浮球、包装材料、接轴和表面处理等 OEM 差异。需要复用时直接复制已有配方，不要求用户理解或维护额外的常用配置层级。
 
