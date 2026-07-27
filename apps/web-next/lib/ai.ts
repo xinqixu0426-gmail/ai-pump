@@ -123,6 +123,60 @@ export type AiAnswerFeedbackList = {
   };
 };
 
+export type AiEvaluationCase = {
+  id: number;
+  caseKey: string;
+  title: string;
+  category: string;
+  question: string;
+  evaluatorType: 'rules';
+  config: Record<string, unknown>;
+  enabled: boolean;
+  sortOrder: number;
+};
+
+export type AiEvaluationRun = {
+  id: number;
+  status: 'running' | 'completed' | 'failed';
+  totalCount: number;
+  passedCount: number;
+  failedCount: number;
+  reviewCount: number;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiEvaluationCheck = {
+  key: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
+export type AiEvaluationResult = {
+  id: number;
+  runId: number;
+  caseId: number;
+  caseTitle?: string;
+  caseCategory?: string;
+  status: 'passed' | 'failed' | 'review';
+  answerText: string;
+  toolResults: AiToolResult[];
+  sources: AiKnowledgeSource[];
+  checks: AiEvaluationCheck[];
+  errorText: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiEvaluationOverview = {
+  cases: AiEvaluationCase[];
+  latestRun: AiEvaluationRun | null;
+  results: AiEvaluationResult[];
+};
+
 export type AiToolPlanStep = {
   index: number;
   name: string;
@@ -318,6 +372,40 @@ export async function recordAiAnswerFeedbackRetest(
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答复测结果失败');
+  return result.data;
+}
+
+export async function getAiEvaluationOverview(): Promise<AiEvaluationOverview> {
+  const result = await proxyRequest<ApiResponse<AiEvaluationOverview>>('/api/ai/evaluations/overview');
+  if (!result.success || !result.data) throw new Error(result.error || '读取知识库检查结果失败');
+  return result.data;
+}
+
+export async function createAiEvaluationRun(): Promise<{ run: AiEvaluationRun; cases: AiEvaluationCase[] }> {
+  const result = await proxyRequest<ApiResponse<{ run: AiEvaluationRun; cases: AiEvaluationCase[] }>>('/api/ai/evaluations/runs', {
+    method: 'POST',
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '创建知识库检查失败');
+  return result.data;
+}
+
+export async function recordAiEvaluationResult(
+  runId: number,
+  input: { caseId: number; answerText?: string; toolResults?: AiToolResult[]; errorText?: string }
+): Promise<AiEvaluationResult> {
+  const result = await proxyRequest<ApiResponse<AiEvaluationResult>>(`/api/ai/evaluations/runs/${runId}/results`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '保存知识库检查结果失败');
+  return result.data;
+}
+
+export async function completeAiEvaluationRun(runId: number): Promise<AiEvaluationRun> {
+  const result = await proxyRequest<ApiResponse<AiEvaluationRun>>(`/api/ai/evaluations/runs/${runId}/complete`, {
+    method: 'POST',
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '完成知识库检查失败');
   return result.data;
 }
 

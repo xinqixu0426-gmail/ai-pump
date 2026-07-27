@@ -207,6 +207,20 @@ test('关键 API 集成契约：AI 回答反馈提供提交、查询和处理入
     assert.match(route, /recordAiAnswerFeedbackRetest/);
 });
 
+test('关键 API 集成契约：知识库回归检查提供运行、记录和汇总入口', () => {
+    const route = readUtf8('api/routes/ai/evaluations.cjs');
+    const aiRouter = readUtf8('api/routes/ai.cjs');
+
+    assert.match(aiRouter, /evaluationsRouter/);
+    assert.match(route, /router\.get\('\/api\/ai\/evaluations\/overview'/);
+    assert.match(route, /router\.post\('\/api\/ai\/evaluations\/runs'/);
+    assert.match(route, /router\.post\('\/api\/ai\/evaluations\/runs\/:id\/results'/);
+    assert.match(route, /router\.post\('\/api\/ai\/evaluations\/runs\/:id\/complete'/);
+    assert.match(route, /evaluationAuth/);
+    assert.match(route, /recordAiEvaluationResult/);
+    assert.match(route, /completeAiEvaluationRun/);
+});
+
 test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当日成本且不写库', () => {
     const source = readUtf8('api/routes/cost.cjs');
     const section = sliceBetween(source, "router.get('/recipes/current-costs'", 'function calculateRecipeByIdHandler');

@@ -270,7 +270,16 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const quoteRows = (quotations || [])
                 .filter((row) => (row.customerId ?? row.customer_id) === customerId)
                 .map((row) => ({ ...row, items: parseJsonArray(row.itemsJson || row.items_json) }))
-                .filter((row) => !keyword || row.items.some((item) => includesText(item.baseRecipeName || item.recipeName, keyword)));
+                .filter((row) => !keyword || row.items.some((item) => includesText(item.baseRecipeName || item.recipeName, keyword)))
+                .sort((left, right) => {
+                    const leftTime = Date.parse(left.createdAt || left.created_at || '') || 0;
+                    const rightTime = Date.parse(right.createdAt || right.created_at || '') || 0;
+                    return leftTime - rightTime || Number(left.id || left.Id || 0) - Number(right.id || right.Id || 0);
+                })
+                .map((row, index) => {
+                    const { id, Id, ...quotation } = row;
+                    return { ...quotation, displaySequence: index + 1 };
+                });
             const orderRows = (orders || [])
                 .filter((row) => normalizeText(row.customerName || row.customer_name) === normalizeText(customer.name))
                 .map((row) => ({ ...row, items: parseJsonArray(row.itemsJson || row.items_json) }))

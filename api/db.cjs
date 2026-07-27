@@ -298,6 +298,53 @@ function aiAnswerFeedbackRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function aiEvaluationCaseRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        caseKey: r.case_key,
+        title: r.title,
+        category: r.category,
+        question: r.question,
+        evaluatorType: r.evaluator_type,
+        configJson: r.config_json || '{}',
+        enabled: Boolean(r.enabled),
+        sortOrder: Number(r.sort_order || 0),
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function aiEvaluationRunRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        status: r.status,
+        totalCount: Number(r.total_count || 0),
+        passedCount: Number(r.passed_count || 0),
+        failedCount: Number(r.failed_count || 0),
+        reviewCount: Number(r.review_count || 0),
+        startedAt: r.started_at,
+        completedAt: r.completed_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function aiEvaluationResultRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        runId: r.run_id,
+        caseId: r.case_id,
+        status: r.status,
+        answerText: r.answer_text || '',
+        toolResultsJson: r.tool_results_json || '[]',
+        sourcesJson: r.sources_json || '[]',
+        checksJson: r.checks_json || '[]',
+        errorText: r.error_text || '',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
 function recipeAnalysisFeedbackRow(r) {
     if (!r) return r;
     return {
@@ -430,7 +477,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -632,7 +679,7 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,

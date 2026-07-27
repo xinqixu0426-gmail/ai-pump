@@ -9,10 +9,12 @@ import {
   FileClock,
   Loader2,
   MessageSquareWarning,
+  Play,
   RefreshCw,
   RotateCcw,
   Search,
   SearchCheck,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import {
@@ -29,12 +31,17 @@ import {
 } from '@/lib/knowledge';
 import {
   diagnoseAiAnswerFeedback,
+  completeAiEvaluationRun,
+  createAiEvaluationRun,
+  getAiEvaluationOverview,
   listAiAnswerFeedback,
+  recordAiEvaluationResult,
   recordAiAnswerFeedbackRetest,
   reviewAiAnswerFeedback,
   streamAiChat,
   type AiAnswerFeedback,
   type AiAnswerFeedbackList,
+  type AiEvaluationOverview,
   type AiToolResult,
 } from '@/lib/ai';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
@@ -151,6 +158,11 @@ export function KnowledgeView({
   const [diagnosingId, setDiagnosingId] = useState<number | null>(null);
   const [retesting, setRetesting] = useState(false);
   const [retestStatus, setRetestStatus] = useState('');
+  const [evaluation, setEvaluation] = useState<AiEvaluationOverview | null>(null);
+  const [evaluationLoading, setEvaluationLoading] = useState(true);
+  const [evaluationRunning, setEvaluationRunning] = useState(false);
+  const [evaluationProgress, setEvaluationProgress] = useState({ completed: 0, total: 0, title: '' });
+  const [evaluationError, setEvaluationError] = useState('');
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolving, setResolving] = useState(false);
   const openedInitialEntryRef = useRef(false);
@@ -192,6 +204,22 @@ export function KnowledgeView({
 
   useEffect(() => {
     void loadFeedback();
+  }, [refreshKey]);
+
+  async function loadEvaluation() {
+    setEvaluationLoading(true);
+    setEvaluationError('');
+    try {
+      setEvaluation(await getAiEvaluationOverview());
+    } catch (err) {
+      setEvaluationError(err instanceof Error ? err.message : '知识库检查结果加载失败');
+    } finally {
+      setEvaluationLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadEvaluation();
   }, [refreshKey]);
 
   const changeBySource = useMemo(
@@ -363,6 +391,48 @@ export function KnowledgeView({
     }
   }
 
+  async function runEvaluationSuite() {
+    if (evaluationRunning) return;
+    setEvaluationRunning(true);
+    setEvaluationError('');
+    setEvaluationProgress({ completed: 0, total: 0, title: '正在创建检查任务' });
+    try {
+      const created = await createAiEvaluationRun();
+      setEvaluationProgress({ completed: 0, total: created.cases.length, title: created.cases[0]?.title || '' });
+      for (let index = 0; index < created.cases.length; index += 1) {
+        const evaluationCase = created.cases[index];
+        let answerText = '';
+        let toolResults: AiToolResult[] = [];
+        let errorText = '';
+        setEvaluationProgress({ completed: index, total: created.cases.length, title: evaluationCase.title });
+        try {
+          await streamAiChat([{ role: 'user', content: evaluationCase.question }], event => {
+            if (event.type === 'content') answerText += event.content;
+            if (event.type === 'tool_result') toolResults = [...toolResults, { name: event.name, result: event.result }];
+            if (event.type === 'detail' && event.toolResults) toolResults = event.toolResults;
+            if (event.type === 'error') throw new Error(event.message);
+          });
+        } catch (err) {
+          errorText = err instanceof Error ? err.message : 'AI 查询失败';
+        }
+        await recordAiEvaluationResult(created.run.id, {
+          caseId: evaluationCase.id,
+          answerText,
+          toolResults,
+          errorText,
+        });
+        setEvaluationProgress({ completed: index + 1, total: created.cases.length, title: evaluationCase.title });
+      }
+      await completeAiEvaluationRun(created.run.id);
+      await loadEvaluation();
+    } catch (err) {
+      setEvaluationError(err instanceof Error ? err.message : '知识库检查运行失败');
+      await loadEvaluation();
+    } finally {
+      setEvaluationRunning(false);
+    }
+  }
+
   const sourcePath = selected ? SOURCE_PATHS[selected.sourceTable] : undefined;
 
   return (
@@ -435,6 +505,108 @@ export function KnowledgeView({
             );
           })}
         </div>
+      </FadePanel>
+
+      <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+        <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <ShieldCheck size={16} className="text-emerald-600" />
+              知识库回归检查
+              {evaluation?.latestRun?.status === 'completed' ? (
+                <StatusBadge tone={evaluation.latestRun.failedCount || evaluation.latestRun.reviewCount ? 'amber' : 'green'}>
+                  {evaluation.latestRun.passedCount}/{evaluation.latestRun.totalCount} 通过
+                </StatusBadge>
+              ) : null}
+            </div>
+            <div className="mt-1 text-xs text-muted">自动复查价格、来源、报告类型、线圈方案、报价序号和成品电缆语义。</div>
+          </div>
+          <Button
+            variant="primary"
+            icon={evaluationRunning ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
+            onClick={() => void runEvaluationSuite()}
+            disabled={evaluationRunning || evaluationLoading}
+          >
+            {evaluationRunning ? '检查中' : '运行知识库检查'}
+          </Button>
+        </div>
+        {evaluationError ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{evaluationError}</div>
+        ) : null}
+        {evaluationRunning ? (
+          <div className="border-b border-line bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="truncate font-medium text-ink">{evaluationProgress.title || '正在准备'}</span>
+              <span className="shrink-0 text-muted">{evaluationProgress.completed}/{evaluationProgress.total}</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full bg-ink transition-[width] duration-300"
+                style={{ width: `${evaluationProgress.total ? Math.round(evaluationProgress.completed / evaluationProgress.total * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+        {evaluationLoading ? (
+          <div className="flex min-h-28 items-center justify-center gap-2 text-sm text-muted">
+            <Loader2 size={16} className="animate-spin" />加载检查结果
+          </div>
+        ) : evaluation?.latestRun ? (
+          <div>
+            <div className="grid grid-cols-2 border-b border-line bg-slate-50 sm:grid-cols-4">
+              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">通过</div><div className="mt-1 text-lg font-semibold text-emerald-700">{evaluation.latestRun.passedCount}</div></div>
+              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">需要修复</div><div className="mt-1 text-lg font-semibold text-rose-700">{evaluation.latestRun.failedCount}</div></div>
+              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">需要确认</div><div className="mt-1 text-lg font-semibold text-amber-700">{evaluation.latestRun.reviewCount}</div></div>
+              <div className="px-4 py-3"><div className="text-xs text-muted">运行时间</div><div className="mt-1 text-sm font-medium text-ink">{dateTime(evaluation.latestRun.completedAt || evaluation.latestRun.startedAt)}</div></div>
+            </div>
+            <div className="divide-y divide-line">
+              {evaluation.results.map(result => {
+                const failedChecks = result.checks.filter(check => !check.passed);
+                return (
+                  <details key={result.id} className="group">
+                    <summary className="grid cursor-pointer list-none gap-2 px-4 py-3 hover:bg-slate-50 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-center">
+                      <div><StatusBadge tone={result.status === 'passed' ? 'green' : result.status === 'failed' ? 'red' : 'amber'}>{result.status === 'passed' ? '通过' : result.status === 'failed' ? '需要修复' : '需要确认'}</StatusBadge></div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-ink">{result.caseTitle}</div>
+                        <div className="mt-1 line-clamp-1 text-xs text-muted">
+                          {failedChecks[0]?.detail || `${result.checks.length} 项规则全部通过`}
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted group-open:hidden">查看详情</span>
+                    </summary>
+                    <div className="border-t border-line bg-slate-50 px-4 py-3">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
+                        <div>
+                          <div className="text-xs font-medium text-muted">自动判定</div>
+                          <div className="mt-2 space-y-1.5">
+                            {result.checks.map(check => (
+                              <div key={check.key} className={`rounded-md border px-2.5 py-2 text-xs ${check.passed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+                                <div className="font-medium">{check.passed ? '通过' : '失败'}：{check.label}</div>
+                                <div className="mt-1 leading-5">{check.detail}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-muted">AI 实际回答</div>
+                          <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-line bg-white p-3">
+                            {result.answerText ? <StreamingText id={`evaluation-${result.id}`} text={result.answerText} streaming={false} /> : <div className="text-sm text-rose-700">{result.errorText || '没有返回回答'}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-28 flex-col items-center justify-center px-4 text-center">
+            <ShieldCheck size={21} className="text-muted" />
+            <div className="mt-2 text-sm font-medium text-ink">尚未运行知识库检查</div>
+            <div className="mt-1 text-xs text-muted">点击运行后，系统会自动完成 {evaluation?.cases.length || 0} 个关键用例。</div>
+          </div>
+        )}
       </FadePanel>
 
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">

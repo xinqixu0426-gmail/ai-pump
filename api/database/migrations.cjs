@@ -554,6 +554,227 @@ const MIGRATIONS = Object.freeze([
             }
         },
     },
+    {
+        version: 12,
+        name: 'ai_knowledge_regression_suite',
+        signature: 'ai-knowledge-regression-suite-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS ai_evaluation_cases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_key TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    question TEXT NOT NULL,
+                    evaluator_type TEXT NOT NULL DEFAULT 'rules',
+                    config_json TEXT DEFAULT '{}',
+                    enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS ai_evaluation_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    owner_key TEXT NOT NULL DEFAULT 'admin',
+                    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed')),
+                    total_count INTEGER NOT NULL DEFAULT 0,
+                    passed_count INTEGER NOT NULL DEFAULT 0,
+                    failed_count INTEGER NOT NULL DEFAULT 0,
+                    review_count INTEGER NOT NULL DEFAULT 0,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS ai_evaluation_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id INTEGER NOT NULL,
+                    case_id INTEGER NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('passed', 'failed', 'review')),
+                    answer_text TEXT DEFAULT '',
+                    tool_results_json TEXT DEFAULT '[]',
+                    sources_json TEXT DEFAULT '[]',
+                    checks_json TEXT DEFAULT '[]',
+                    error_text TEXT DEFAULT '',
+                    created_at TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY(run_id) REFERENCES ai_evaluation_runs(id),
+                    FOREIGN KEY(case_id) REFERENCES ai_evaluation_cases(id),
+                    UNIQUE(run_id, case_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_ai_evaluation_runs_owner
+                    ON ai_evaluation_runs(owner_key, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_ai_evaluation_results_run
+                    ON ai_evaluation_results(run_id, case_id);
+            `);
+            const now = new Date().toISOString();
+            const insert = db.prepare(`
+                INSERT OR IGNORE INTO ai_evaluation_cases (
+                    case_key, title, category, question, evaluator_type,
+                    config_json, enabled, sort_order, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'rules', ?, 1, ?, ?, ?)
+            `);
+            const cases = [
+                ['part-current-price', '零件价格使用当前值', '价格', '查询800平刀切割泵壳目前的单价，并说明数据来源。', {
+                    expectedMode: 'live_business',
+                    requiredTools: ['search_parts'],
+                    fact: { type: 'part_price', model: '800平刀切割泵壳' },
+                }],
+                ['coil-all-official-variants', '线圈规格返回全部正式方案', '线圈', '查询12-220线圈的全部正式方案，列出材质、槽眼和成本。', {
+                    requiredTerms: [['钢带'], ['小眼'], ['冷轧'], ['国标眼']],
+                    requiredTools: ['search_factory_knowledge'],
+                    requiredSourceTables: ['coils'],
+                }],
+                ['test-report-file-type', '测试报告不能标成图纸', '技术档案', 'V1600-3”-12-180配方技术档案中的Excel附件是什么资料？', {
+                    requiredTerms: [['性能测试报告', '测试报告']],
+                    forbiddenTerms: ['参考图纸', '工程图'],
+                    requiredSourceTables: ['recipes'],
+                }],
+                ['test-report-ignore-template-points', '测试模板规定点不作为结论', '技术档案', '总结V1600-3”-12-180性能测试报告中的有效测试数据。', {
+                    forbiddenTerms: ['规定点', '实测点', '偏差'],
+                    requiredTerms: [['测试点'], ['流量'], ['扬程']],
+                    requiredSourceTables: ['recipes'],
+                }],
+                ['customer-quotation-display-order', '客户报价不暴露内部序号', '报价', '查询客户邱焕现有的全部报价，按第1份、第2份这样的展示顺序列出。', {
+                    requiredTools: ['search_customer_history'],
+                    fact: { type: 'customer_quotation_count', customerName: '邱焕', forbidInternalIds: true },
+                }],
+                ['complete-cable-semantics', '电缆按成品整体解释', '配方', '说明配方里的电缆线材、长度、插头和规格费用之间是什么关系。', {
+                    requiredTerms: [['成品电缆'], ['整体', '一体']],
+                    forbiddenTerms: ['电缆配件费单独', '拆开计算'],
+                }],
+            ];
+            cases.forEach((item, index) => insert.run(
+                item[0], item[1], item[2], item[3], JSON.stringify(item[4]), (index + 1) * 10, now, now
+            ));
+        },
+    },
+    {
+        version: 13,
+        name: 'refine_knowledge_regression_cases',
+        signature: 'remove-negated-drawing-false-positive-and-strengthen-cable-case',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'test-report-file-type'
+            `).run(JSON.stringify({
+                requiredTerms: [['性能测试报告', '测试报告']],
+                forbiddenTerms: ['参考图纸'],
+                requiredSourceTables: ['recipes'],
+            }), now);
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET question = ?, config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+            `).run(
+                '说明配方里的线材、长度、插头和规格费用如何共同组成成品电缆，是否应该拆成两个收费项目。',
+                JSON.stringify({
+                    requiredTerms: [
+                        ['成品电缆'],
+                        ['整体', '一体'],
+                        ['不拆分', '不能拆分', '不得拆分', '不应拆分', '不应该拆分', '不拆成', '不能拆成', '不得拆成'],
+                    ],
+                    requiredTools: ['search_factory_knowledge'],
+                    requiredSourceTables: ['business_rules'],
+                }),
+                now
+            );
+        },
+    },
+    {
+        version: 14,
+        name: 'strengthen_knowledge_regression_prompts',
+        signature: 'require-exact-cable-rule-search-and-hide-template-field-names',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET question = ?, updated_at = ?
+                WHERE case_key = 'test-report-ignore-template-points'
+            `).run(
+                '总结V1600-3”-12-180性能测试报告中的有效测试数据。只展示逐条测试点数据，不要提到被忽略的模板字段名称。',
+                now
+            );
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET question = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+            `).run(
+                '先使用 search_factory_knowledge 按“成品电缆”查询 business_rule，再说明线材、长度、插头和规格费用如何共同组成成品电缆，是否应该拆成两个收费项目。',
+                now
+            );
+        },
+    },
+    {
+        version: 15,
+        name: 'accept_equivalent_cable_wording',
+        signature: 'accept-not-should-split-into-wording',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'complete-cable-semantics'
+            `).get();
+            if (!row) return;
+            const config = JSON.parse(row.config_json || '{}');
+            const groups = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            if (Array.isArray(groups[2]) && !groups[2].includes('不应该拆成')) {
+                groups[2].push('不应该拆成');
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+            `).run(JSON.stringify({ ...config, requiredTerms: groups }), new Date().toISOString());
+        },
+    },
+    {
+        version: 16,
+        name: 'make_cable_evaluation_semantic',
+        signature: 'separate-negative-conclusion-from-single-item-wording',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'complete-cable-semantics'
+            `).get();
+            if (!row) return;
+            const config = JSON.parse(row.config_json || '{}');
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+            `).run(JSON.stringify({
+                ...config,
+                requiredTerms: [
+                    ['成品电缆'],
+                    ['整体', '一体'],
+                    ['不应该', '不宜', '不能', '不得', '不应'],
+                    ['一个业务项', '一个计费项目', '一项成品电缆', '一个收费项目'],
+                ],
+            }), new Date().toISOString());
+        },
+    },
+    {
+        version: 17,
+        name: 'accept_cable_single_item_relationship',
+        signature: 'match-single-item-relationship-with-intervening-subject',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'complete-cable-semantics'
+            `).get();
+            if (!row) return;
+            const config = JSON.parse(row.config_json || '{}');
+            const groups = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            groups[3] = ['共同组成一个', '同属一个', '属于一个', '作为一个', '一个计费项目', '一项成品电缆', '一个收费项目'];
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+            `).run(JSON.stringify({ ...config, requiredTerms: groups }), new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

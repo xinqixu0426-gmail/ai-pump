@@ -330,6 +330,51 @@ const CANONICAL_TABLES_SQL = `
         FOREIGN KEY(message_id) REFERENCES ai_conversation_messages(id)
     );
 
+    CREATE TABLE IF NOT EXISTS ai_evaluation_cases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        case_key TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        question TEXT NOT NULL,
+        evaluator_type TEXT NOT NULL DEFAULT 'rules',
+        config_json TEXT DEFAULT '{}',
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_evaluation_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_key TEXT NOT NULL DEFAULT 'admin',
+        status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed')),
+        total_count INTEGER NOT NULL DEFAULT 0,
+        passed_count INTEGER NOT NULL DEFAULT 0,
+        failed_count INTEGER NOT NULL DEFAULT 0,
+        review_count INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_evaluation_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL,
+        case_id INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('passed', 'failed', 'review')),
+        answer_text TEXT DEFAULT '',
+        tool_results_json TEXT DEFAULT '[]',
+        sources_json TEXT DEFAULT '[]',
+        checks_json TEXT DEFAULT '[]',
+        error_text TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT,
+        FOREIGN KEY(run_id) REFERENCES ai_evaluation_runs(id),
+        FOREIGN KEY(case_id) REFERENCES ai_evaluation_cases(id),
+        UNIQUE(run_id, case_id)
+    );
+
     CREATE TABLE IF NOT EXISTS recipe_technical_files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recipe_id INTEGER NOT NULL,
@@ -395,6 +440,10 @@ const CANONICAL_INDEXES_SQL = `
         ON ai_answer_feedback(status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_answer_feedback_conversation
         ON ai_answer_feedback(conversation_id, message_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_evaluation_runs_owner
+        ON ai_evaluation_runs(owner_key, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_evaluation_results_run
+        ON ai_evaluation_results(run_id, case_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_recipe
         ON recipe_technical_files(recipe_id, deleted_at, id DESC);
     CREATE INDEX IF NOT EXISTS idx_recipe_analysis_feedback_recipe
@@ -522,6 +571,9 @@ const APPLICATION_TABLES = Object.freeze([
     'ai_answer_feedback',
     'ai_conversation_messages',
     'ai_conversations',
+    'ai_evaluation_cases',
+    'ai_evaluation_results',
+    'ai_evaluation_runs',
     'audit_log',
     'coils',
     'config',

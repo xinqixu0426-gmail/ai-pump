@@ -607,6 +607,24 @@ test('API 静态契约：AI 回答反馈使用安全写入并保存来源快照'
     assert.match(service, /recordAiAnswerFeedbackRetest/);
 });
 
+test('API 静态契约：知识库回归检查由确定性规则判定并安全记录', () => {
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/aiEvaluations.cjs'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_evaluation_cases/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_evaluation_runs/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_evaluation_results/);
+    assert.match(db, /'ai_evaluation_cases'/);
+    assert.match(db, /'ai_evaluation_runs'/);
+    assert.match(db, /'ai_evaluation_results'/);
+    assert.match(service, /safeInsert\('ai_evaluation_runs'/);
+    assert.match(service, /safeInsert\('ai_evaluation_results'/);
+    assert.match(service, /safeUpdate\('ai_evaluation_runs'/);
+    assert.match(service, /fact:part_price/);
+    assert.match(service, /fact:no_internal_ids/);
+});
+
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {
     const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
 
@@ -622,6 +640,18 @@ test('API 静态契约：AI 不得把性能测试报告标成参考图纸', () =
     assert.match(chat, /禁止称为“图纸”“参考图纸”或“工程图”/);
     assert.match(tools, /性能测试报告附件，不是图纸/);
     assert.match(chat, /“规定点、实测点、偏差”不作为有效技术结论/);
+    assert.match(chat, /最终回答中也不要出现这三个模板字段名/);
+});
+
+test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () => {
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+
+    assert.match(chat, /displaySequence/);
+    assert.match(chat, /不得把数据库 id 写成/);
+    assert.match(chat, /共同组成一个“成品电缆”业务项/);
+    assert.match(executor, /displaySequence: index \+ 1/);
+    assert.match(executor, /const \{ id, Id, \.\.\.quotation \} = row/);
 });
 
 test('API 静态契约：DeepSeek 默认模型使用 V4 Flash', () => {

@@ -284,6 +284,21 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 诊断依据是反馈保存时的 `sourceTable + sourceId` 来源快照和 `/api/knowledge/overview` 当前内容哈希状态。无来源时会从原问题中的型号、编号或引号内容检索候选知识。管理界面的“重新验证”重新调用标准 AI 对话流并保存新回答，用户必须比较新旧内容后手工确认归档；系统不会根据模型自评自动判定正确。
 
+### 知识库回归检查
+
+回归检查使用项目内置用例重新调用标准 AI 对话流，再由确定性规则核对当前业务值、实际工具、来源类型、必需词和禁用词。AI 不参与给自己打分。首批用例覆盖零件当前价格、`12-220` 全部正式线圈方案、Excel 性能测试报告类型、测试模板无效字段、客户报价展示顺序和成品电缆语义。
+
+| 方法 | 路径 | 请求 | 说明 |
+|---|---|---|---|
+| `GET` | `/api/ai/evaluations/overview` | 无 | 返回启用用例、当前登录身份最近一次运行和逐项结果 |
+| `POST` | `/api/ai/evaluations/runs` | 无 | 创建一次检查运行并返回待执行用例；未完成旧运行会标为失败 |
+| `POST` | `/api/ai/evaluations/runs/:id/results` | `{ caseId, answerText?, toolResults?, errorText? }` | 保存单项 AI 回答并执行后端确定性判定 |
+| `POST` | `/api/ai/evaluations/runs/:id/complete` | 无 | 汇总通过、需修复和需确认数量并结束运行 |
+
+运行记录按登录身份隔离。`part_price` 规则直接读取当前 `parts.price`，不会把历史固定价格写入用例；客户报价规则读取当前有效报价数量，并检查回答是否把 `#3/#5` 这类数据库 ID 当成业务展示顺序。检查过程只读取业务数据，写入仅限 `ai_evaluation_runs/results` 审计记录。
+
+`search_customer_history` 会按创建时间为报价生成连续的 `displaySequence`，并从 AI 工具结果中移除内部报价 ID；面向用户统一展示为“第 1 份、第 2 份”。测试报告规则允许“不是工程图纸”这类正确否定说明，只禁止把附件直接标成“参考图纸”。成品电缆用例要求引用正式业务规则，并明确线材、长度、插头和规格属于一个整体业务项。
+
 AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认流程控制。`/api/ai/chat` 中普通工具结果会继续回流给模型用于多步编排；只有返回 `requiresConfirmation` 的写操作会暂停并等待 `/api/ai/confirm-tool`。
 
 `/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/done/error`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。

@@ -134,6 +134,12 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     assert.match(customerKnowledgeEntry.content, /默认利润率：15%/);
     assert.equal(customerKnowledgeEntry.metadata.defaultMargin, 0.15);
     assert.equal(customerKnowledgeEntry.metadata.defaultMarginPercent, 15);
+    const quotationKnowledgeEntry = entries.find(entry => entry.entryType === 'quotation');
+    assert.match(quotationKnowledgeEntry.title, /^报价：张三/);
+    assert.doesNotMatch(quotationKnowledgeEntry.title, /#6/);
+    const cableRule = entries.find(entry => entry.sourceTable === 'business_rules' && entry.sourceId === 'dynamic_accessories');
+    assert.match(cableRule.summary, /成品电缆业务项/);
+    assert.match(cableRule.content, /不把线材和插头\/规格拆成两个配件/);
 });
 
 test('Knowledge service：只把已批准候选规则同步成正式业务规则', () => {

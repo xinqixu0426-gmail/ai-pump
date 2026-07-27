@@ -87,6 +87,37 @@ test('AI executor 行为：查询零件列表通过标准 parts API', async () =
     assert.match(calls[0].url, /\/api\/parts$/);
 });
 
+test('AI executor 行为：客户报价使用连续展示顺序且不返回内部 ID', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/customers')) {
+            return jsonResponse({ success: true, data: [{ id: 7, name: '邱焕' }] });
+        }
+        if (call.url.endsWith('/api/quotations')) {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 5, customerId: 7, createdAt: '2026-07-25T00:00:00.000Z', itemsJson: '[]' },
+                    { id: 3, customerId: 7, createdAt: '2026-07-22T00:00:00.000Z', itemsJson: '[]' },
+                ],
+            });
+        }
+        if (call.url.endsWith('/api/orders')) {
+            return jsonResponse({ success: true, data: [] });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_customer_history', { customerName: '邱焕' }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.deepEqual(result.data.quotations.map(item => item.displaySequence), [1, 2]);
+    assert.deepEqual(result.data.quotations.map(item => item.createdAt), [
+        '2026-07-22T00:00:00.000Z',
+        '2026-07-25T00:00:00.000Z',
+    ]);
+    assert.equal(result.data.quotations.some(item => 'id' in item || 'Id' in item), false);
+});
+
 test('AI executor 行为：转子模板出图通过模板草稿 API 补全参数', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/templates') && call.method === 'GET') {

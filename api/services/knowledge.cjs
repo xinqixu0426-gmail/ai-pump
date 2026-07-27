@@ -271,12 +271,15 @@ function customerEntry(customer) {
 function quotationEntry(quotation, customerById) {
     const items = parseJsonArray(quotation.itemsJson);
     const customer = customerById.get(Number(quotation.customerId));
+    const createdLabel = normalizeText(quotation.createdAt || quotation.updatedAt)
+        .replace('T', ' ')
+        .slice(0, 16);
     return createEntry({
         entryType: 'quotation',
         sourceTable: 'quotations',
         sourceId: quotation.id,
         sourceUpdatedAt: quotation.updatedAt,
-        title: `报价：#${quotation.id} ${customer?.name || ''}`,
+        title: `报价：${customer?.name || '未命名客户'}${createdLabel ? ` ${createdLabel}` : ''}`,
         summary: `${quotation.status || '报价中'}，成本 ${Number(quotation.totalCost || 0)}，报价 ${Number(quotation.totalPrice || 0)}`,
         content: [
             `客户：${customer?.name || quotation.customerId || ''}`,
@@ -370,13 +373,15 @@ function businessRuleEntries(settings) {
         {
             id: 'dynamic_accessories',
             title: '业务规则：浮球、电缆和包装',
-            summary: '浮球和电缆铜套支持 standard/xinjie；包装材料按配方 standalone/grouped 配置。',
+            summary: '线材、长度、插头和规格共同组成一个成品电缆业务项；包装材料按配方 standalone/grouped 配置。',
             content: [
+                '成品电缆是一个整体业务项，不把线材和插头/规格拆成两个配件或两个独立收费项目。',
+                '成品电缆总成本由线材每米价格 × 长度，再加所选插头/规格成本共同构成。',
                 `电缆铜套配置：${settingMap.get('cable_accessories') ?? '{}'}`,
                 `浮球新界式差价：${settingMap.get('float_accessory_delta') ?? ''}`,
                 '包装材料明细存于配方 packingPartsJson，旧 boxType 仅兼容回退。',
             ],
-            tags: ['业务规则', '浮球', '电缆', '包装'],
+            tags: ['业务规则', '浮球', '电缆', '成品电缆', '线材', '长度', '插头', '规格', '包装'],
             metadata: {
                 cableAccessories: parseJsonObject(settingMap.get('cable_accessories')),
                 floatAccessoryDelta: settingMap.get('float_accessory_delta') ?? null,
