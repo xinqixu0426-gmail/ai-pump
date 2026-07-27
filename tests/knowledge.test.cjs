@@ -6,6 +6,7 @@ const {
     syncKnowledgeEntries,
     searchKnowledgeEntries,
     getKnowledgeEntryDetail,
+    inspectKnowledgeOverview,
 } = require('../api/services/knowledge.cjs');
 
 function createMemoryAccessors() {
@@ -135,6 +136,45 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     assert.equal(customerKnowledgeEntry.metadata.defaultMarginPercent, 15);
 });
 
+test('Knowledge service：只把已批准候选规则同步成正式业务规则', () => {
+    const entries = buildKnowledgeEntries({
+        dbAccessors: createMemoryAccessors(),
+        parts: [],
+        templates: [],
+        recipes: [],
+        technicalFiles: [],
+        coils: [],
+        customers: [],
+        quotations: [],
+        orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-01', issues: [] },
+        ruleCandidates: [
+            {
+                id: 21,
+                title: 'V750：通常包含说明书',
+                content: 'V750 同类配方应重点复核说明书。',
+                status: 'approved',
+                scopeRef: '7',
+                findingKey: 'peer_pattern:包装:fixed',
+                evidenceCount: 3,
+                reviewNote: '已审核',
+                approvedAt: '2026-01-02',
+            },
+            {
+                id: 22,
+                title: '待审核规则',
+                content: '不应进入知识库',
+                status: 'candidate',
+            },
+        ],
+    });
+    const learnedRules = entries.filter(entry => entry.sourceTable === 'factory_rule_candidates');
+    assert.equal(learnedRules.length, 1);
+    assert.equal(learnedRules[0].sourceId, '21');
+    assert.match(learnedRules[0].content, /证据配方数：3/);
+});
+
 test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈方案', () => {
     const accessors = createMemoryAccessors();
     enableFts(accessors);
@@ -262,6 +302,70 @@ test('Knowledge service：同步后可搜索并读取详情', () => {
     assert.deepEqual(detail.tags.slice(0, 2), ['零件', '轴承']);
     assert.equal(result.ftsEnabled, true);
     assert.equal(accessors.db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries_fts').get().count, result.stats.total);
+});
+
+test('Knowledge service：只读概况准确识别待新增、更新和移除条目', () => {
+    const accessors = createMemoryAccessors();
+    syncKnowledgeEntries({
+        dbAccessors: accessors,
+        parts: [
+            { id: 1, model: '待更新型号', category: '测试', price: 1, stock: 1 },
+            { id: 2, model: '待移除型号', category: '测试', price: 1, stock: 1 },
+        ],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    });
+    const beforeCount = accessors.db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries').get().count;
+    const overview = inspectKnowledgeOverview({
+        dbAccessors: accessors,
+        parts: [
+            { id: 1, model: '待更新型号', category: '测试', price: 3, stock: 1 },
+            { id: 3, model: '待新增型号', category: '测试', price: 1, stock: 1 },
+        ],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-03', issues: [] },
+    });
+
+    assert.equal(overview.stats.pendingInsert, 1);
+    assert.equal(overview.stats.pendingUpdate, 1);
+    assert.equal(overview.stats.pendingDelete, 1);
+    assert.equal(overview.stats.pendingTotal, 3);
+    assert.equal(overview.stats.storedTotal, beforeCount);
+    assert.ok(overview.lastSyncedAt);
+    assert.deepEqual(new Set(overview.changes.map(item => item.status)), new Set([
+        'pending_insert',
+        'pending_update',
+        'pending_delete',
+    ]));
+    assert.equal(
+        accessors.db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries').get().count,
+        beforeCount,
+        '概况检查不得写入知识表'
+    );
+});
+
+test('Knowledge service：内容未变化时概况保持最新，不受生成时间影响', () => {
+    const accessors = createMemoryAccessors();
+    const common = {
+        dbAccessors: accessors,
+        parts: [{ id: 1, model: '稳定型号', category: '测试', price: 1, stock: 1 }],
+        templates: [], recipes: [], coils: [], customers: [], quotations: [], orders: [],
+        settings: [],
+    };
+    syncKnowledgeEntries({
+        ...common,
+        qualitySummary: { generatedAt: '2026-01-02', issues: [] },
+    });
+    const overview = inspectKnowledgeOverview({
+        ...common,
+        qualitySummary: { generatedAt: '2026-02-02', issues: [] },
+    });
+
+    assert.equal(overview.stats.pendingTotal, 0);
+    assert.equal(overview.stats.fresh, overview.stats.currentTotal);
+    assert.equal(overview.changes.length, 0);
 });
 
 test('Knowledge service：异常 limit 使用默认值，LIKE 搜索按字面处理通配符', () => {

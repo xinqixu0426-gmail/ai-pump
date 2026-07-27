@@ -14,6 +14,28 @@ export type AiToolResult = {
   result: unknown;
 };
 
+export type AiKnowledgeSource = {
+  kind: 'knowledge_snapshot';
+  knowledgeEntryId: number;
+  entryType: string;
+  title: string;
+  sourceTable: string;
+  sourceId: string;
+  syncedAt: string | null;
+  sourceUpdatedAt: string | null;
+  freshness: 'fresh' | 'pending_insert' | 'pending_update' | 'pending_delete';
+  knowledgePath: string;
+  sourcePath: string;
+};
+
+export type AiResultProvenance = {
+  kind: 'live_business' | 'knowledge_snapshot';
+  label: string;
+  fetchedAt?: string;
+  checkedAt?: string | null;
+  hasPendingSources?: boolean;
+};
+
 export type AiConversationSummary = {
   id: number;
   title: string;
@@ -39,6 +61,66 @@ export type AiConversationMessage = {
 
 export type AiConversationDetail = AiConversationSummary & {
   messages: AiConversationMessage[];
+};
+
+export type AiAnswerFeedbackRating = 'helpful' | 'incorrect' | 'outdated' | 'missing_source';
+export type AiAnswerFeedbackStatus = 'open' | 'resolved';
+
+export type AiAnswerFeedbackDiagnosis = {
+  type: 'knowledge_outdated' | 'missing_citation' | 'knowledge_gap' | 'business_review';
+  summary: string;
+  checkedAt: string;
+  knowledgePendingTotal: number;
+  checkedSources: Array<AiKnowledgeSource & {
+    currentStatus: 'fresh' | 'pending_insert' | 'pending_update' | 'pending_delete';
+    currentTitle: string;
+    currentSummary: string;
+  }>;
+  candidateSources: Array<{
+    id: number;
+    entryType: string;
+    sourceTable: string;
+    sourceId: string;
+    title: string;
+    summary: string;
+  }>;
+  actions: Array<{
+    type: 'sync_knowledge' | 'review_candidates' | 'add_knowledge' | 'review_business_source' | 'retest';
+    label: string;
+  }>;
+};
+
+export type AiAnswerFeedback = {
+  id: number;
+  conversationId: number;
+  messageId: number;
+  rating: AiAnswerFeedbackRating;
+  note: string;
+  questionText: string;
+  answerText: string;
+  sources: AiKnowledgeSource[];
+  diagnosis: AiAnswerFeedbackDiagnosis | null;
+  diagnosedAt: string | null;
+  retestAnswerText: string;
+  retestSources: AiKnowledgeSource[];
+  retestedAt: string | null;
+  status: AiAnswerFeedbackStatus;
+  resolutionNote: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiAnswerFeedbackList = {
+  items: AiAnswerFeedback[];
+  stats: {
+    total: number;
+    open: number;
+    helpful: number;
+    incorrect: number;
+    outdated: number;
+    missingSource: number;
+  };
 };
 
 export type AiToolPlanStep = {
@@ -176,6 +258,67 @@ export async function updateAiConversationMessage(
 export async function deleteAiConversation(id: number): Promise<void> {
   const result = await proxyRequest<ApiResponse<{ id: number }>>(`/api/ai/conversations/${id}`, { method: 'DELETE' });
   if (!result.success) throw new Error(result.error || '删除会话失败');
+}
+
+export async function listAiAnswerFeedback(filters: {
+  conversationId?: number;
+  status?: AiAnswerFeedbackStatus;
+  rating?: AiAnswerFeedbackRating;
+  limit?: number;
+} = {}): Promise<AiAnswerFeedbackList> {
+  const params = new URLSearchParams();
+  if (filters.conversationId) params.set('conversationId', String(filters.conversationId));
+  if (filters.status) params.set('status', filters.status);
+  if (filters.rating) params.set('rating', filters.rating);
+  params.set('limit', String(filters.limit || 50));
+  const result = await proxyRequest<ApiResponse<AiAnswerFeedbackList>>(`/api/ai/feedback?${params}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取 AI 回答反馈失败');
+  return result.data;
+}
+
+export async function submitAiAnswerFeedback(input: {
+  messageId: number;
+  rating: AiAnswerFeedbackRating;
+  note?: string;
+}): Promise<AiAnswerFeedback> {
+  const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>('/api/ai/feedback', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答反馈失败');
+  return result.data;
+}
+
+export async function reviewAiAnswerFeedback(
+  id: number,
+  input: { status: AiAnswerFeedbackStatus; resolutionNote?: string }
+): Promise<AiAnswerFeedback> {
+  const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>(`/api/ai/feedback/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '处理 AI 回答反馈失败');
+  return result.data;
+}
+
+export async function diagnoseAiAnswerFeedback(id: number): Promise<AiAnswerFeedback> {
+  const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>(`/api/ai/feedback/${id}/diagnose`, {
+    method: 'POST',
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '诊断 AI 回答反馈失败');
+  return result.data;
+}
+
+export async function recordAiAnswerFeedbackRetest(
+  id: number,
+  input: { answerText: string; toolResults: AiToolResult[] }
+): Promise<AiAnswerFeedback> {
+  const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>(`/api/ai/feedback/${id}/retest`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答复测结果失败');
+  return result.data;
 }
 
 export async function confirmAiTool(toolName: string, args: unknown): Promise<AiToolResult> {

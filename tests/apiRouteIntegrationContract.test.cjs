@@ -136,11 +136,38 @@ test('关键 API 集成契约：/api/quality/business-alerts 只生成经营异�
     assertNoWrites(source);
 });
 
+test('关键 API 集成契约：/api/quality/recipe-analysis 只生成配方智能建议不写库', () => {
+    const source = readUtf8('api/routes/quality.cjs');
+
+    assert.match(source, /router\.post\('\/recipe-analysis'/);
+    assert.match(source, /analyzeRecipeConfiguration\(req\.body \|\| \{\}\)/);
+    assert.match(source, /res\.json\(\{ success: true, data:/);
+    assert.match(source, /error\.statusCode \|\| 500/);
+    assertNoWrites(source);
+});
+
+test('关键 API 集成契约：配方检查反馈使用统一反馈服务写入', () => {
+    const source = readUtf8('api/routes/quality.cjs');
+    assert.match(source, /router\.post\('\/recipes\/:recipeId\/feedback'/);
+    assert.match(source, /saveRecipeAnalysisFeedback\(req\.params\.recipeId, req\.body \|\| \{\}\)/);
+});
+
+test('关键 API 集成契约：候选规则提供归纳、列表和审核入口', () => {
+    const source = readUtf8('api/routes/quality.cjs');
+    assert.match(source, /router\.get\('\/rule-candidates'/);
+    assert.match(source, /router\.post\('\/rule-candidates\/refresh'/);
+    assert.match(source, /router\.patch\('\/rule-candidates\/:id'/);
+    assert.match(source, /refreshFactoryRuleCandidates/);
+    assert.match(source, /reviewFactoryRuleCandidate/);
+});
+
 test('关键 API 集成契约：/api/knowledge 提供搜索、详情和同步入口', () => {
     const source = readUtf8('api/routes/knowledge.cjs');
     const app = readUtf8('api.cjs');
 
     assert.match(app, /app\.use\('\/api\/knowledge', require\('\.\/api\/routes\/knowledge\.cjs'\)\)/);
+    assert.match(source, /router\.get\('\/overview'/);
+    assert.match(source, /inspectKnowledgeOverview\(\)/);
     assert.match(source, /router\.get\('\/'/);
     assert.match(source, /searchKnowledgeEntries\(\{/);
     assert.match(source, /router\.post\('\/sync'/);
@@ -161,6 +188,23 @@ test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保
     assert.match(route, /router\.delete\('\/api\/ai\/conversations\/:id'/);
     assert.match(route, /parsePositiveId/);
     assert.match(route, /conversationAuth/);
+});
+
+test('关键 API 集成契约：AI 回答反馈提供提交、查询和处理入口', () => {
+    const route = readUtf8('api/routes/ai/feedback.cjs');
+    const aiRouter = readUtf8('api/routes/ai.cjs');
+
+    assert.match(aiRouter, /feedbackRouter/);
+    assert.match(route, /router\.get\('\/api\/ai\/feedback'/);
+    assert.match(route, /router\.post\('\/api\/ai\/feedback'/);
+    assert.match(route, /router\.post\('\/api\/ai\/feedback\/:id\/diagnose'/);
+    assert.match(route, /router\.post\('\/api\/ai\/feedback\/:id\/retest'/);
+    assert.match(route, /router\.patch\('\/api\/ai\/feedback\/:id'/);
+    assert.match(route, /feedbackAuth/);
+    assert.match(route, /submitAiAnswerFeedback/);
+    assert.match(route, /reviewAiAnswerFeedback/);
+    assert.match(route, /diagnoseAiAnswerFeedback/);
+    assert.match(route, /recordAiAnswerFeedbackRetest/);
 });
 
 test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当日成本且不写库', () => {

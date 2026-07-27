@@ -1,4 +1,4 @@
-const { getJson, postJson } = require('../internalApiClient.cjs');
+const { getJson, postJson, patchJson } = require('../internalApiClient.cjs');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -36,6 +36,46 @@ function roundMoney(value) {
 function customerMarginMultiplier(value) {
     const rate = Number(value);
     return Number.isFinite(rate) && rate >= 0 ? 1 + rate : 1.1;
+}
+
+const KNOWLEDGE_SOURCE_PATHS = {
+    parts: '/parts',
+    pump_shell_templates: '/parts',
+    recipes: '/recipes',
+    coils: '/coils',
+    customers: '/customers',
+    quotations: '/quotations',
+    orders: '/orders',
+    quality_summary: '/dashboard?view=quality',
+    business_rules: '/dashboard?view=knowledge',
+    factory_rule_candidates: '/dashboard?view=quality',
+};
+
+function knowledgeSourceKey(item) {
+    return `${item?.sourceTable || ''}\u0000${item?.sourceId || ''}`;
+}
+
+function buildKnowledgeSources(items, overview) {
+    const changes = new Map((overview?.changes || []).map(item => [knowledgeSourceKey(item), item]));
+    return (Array.isArray(items) ? items : [items])
+        .filter(item => item && item.id)
+        .map(item => {
+            const change = changes.get(knowledgeSourceKey(item));
+            const freshness = change?.status || 'fresh';
+            return {
+                kind: 'knowledge_snapshot',
+                knowledgeEntryId: Number(item.id),
+                entryType: item.entryType || '',
+                title: change?.title || item.title || `知识条目 #${item.id}`,
+                sourceTable: item.sourceTable || '',
+                sourceId: String(item.sourceId || ''),
+                syncedAt: item.syncedAt || null,
+                sourceUpdatedAt: change?.sourceUpdatedAt || item.sourceUpdatedAt || null,
+                freshness,
+                knowledgePath: `/dashboard?view=knowledge&entry=${Number(item.id)}`,
+                sourcePath: KNOWLEDGE_SOURCE_PATHS[item.sourceTable] || '',
+            };
+        });
 }
 
 async function loadRecipes(internalFetch) {
@@ -276,6 +316,107 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'analyze_recipe_configuration': {
+            if (!args.recipeId && !normalizeText(args.recipeName)) {
+                return { success: false, error: '请提供配方ID或完整配方名称' };
+            }
+            const data = await postJson(internalFetch, '/api/quality/recipe-analysis', {
+                recipeId: args.recipeId,
+                recipeName: args.recipeName,
+                limit: args.limit,
+            }, '配方智能分析失败');
+            return {
+                success: true,
+                intent: 'recipe_configuration_analysis',
+                summary: `配方检查完成：确定问题 ${data.summary?.definiteIssueCount || 0} 项，复核建议 ${data.summary?.reviewSuggestionCount || 0} 项，价格提醒 ${data.summary?.priceAlertCount || 0} 项。`,
+                display: { mode: 'compact', title: '配方智能检查' },
+                data,
+            };
+        }
+
+        case 'set_recipe_analysis_feedback': {
+            if (!args.recipeId || !normalizeText(args.findingKey) || !normalizeText(args.findingType)) {
+                return { success: false, error: '请提供配方ID、findingKey 和 findingType' };
+            }
+            const data = await postJson(
+                internalFetch,
+                `/api/quality/recipes/${Number(args.recipeId)}/feedback`,
+                {
+                    findingKey: args.findingKey,
+                    findingType: args.findingType,
+                    decision: args.decision,
+                    note: args.note,
+                    findingSnapshot: args.findingSnapshot || {},
+                },
+                '配方检查反馈保存失败'
+            );
+            return {
+                success: true,
+                intent: 'recipe_analysis_feedback',
+                summary: '配方检查反馈已保存，后续智能检查会应用这条判断。',
+                display: { mode: 'compact', title: '检查反馈' },
+                data,
+            };
+        }
+
+        case 'get_factory_rule_candidates': {
+            const query = new URLSearchParams();
+            if (normalizeText(args.status)) query.set('status', args.status);
+            const suffix = query.toString() ? `?${query.toString()}` : '';
+            const data = await getJson(
+                internalFetch,
+                `/api/quality/rule-candidates${suffix}`,
+                '候选业务规则读取失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_candidates',
+                summary: `共读取 ${data.length || 0} 条候选业务规则。`,
+                display: { mode: 'compact', title: '候选业务规则' },
+                data,
+            };
+        }
+
+        case 'refresh_factory_rule_candidates': {
+            const data = await postJson(
+                internalFetch,
+                '/api/quality/rule-candidates/refresh',
+                {},
+                '候选业务规则归纳失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_candidates_refresh',
+                summary: `候选规则归纳完成：新增 ${data.stats?.created || 0} 条，当前有效 ${data.stats?.active || 0} 条。`,
+                display: { mode: 'compact', title: '候选规则归纳' },
+                data,
+            };
+        }
+
+        case 'review_factory_rule_candidate': {
+            if (!args.candidateId || !normalizeText(args.status)) {
+                return { success: false, error: '请提供候选规则ID和目标审核状态' };
+            }
+            const data = await patchJson(
+                internalFetch,
+                `/api/quality/rule-candidates/${Number(args.candidateId)}`,
+                {
+                    status: args.status,
+                    reviewNote: args.reviewNote,
+                },
+                '候选业务规则审核失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_candidate_review',
+                summary: args.status === 'approved'
+                    ? '候选规则已批准，下次同步知识库时生效。'
+                    : '候选规则审核状态已更新。',
+                display: { mode: 'compact', title: '候选规则审核' },
+                data,
+            };
+        }
+
         case 'get_business_alerts': {
             const data = await getJson(internalFetch, '/api/quality/business-alerts', '经营异常提醒读取失败');
             return {
@@ -300,11 +441,20 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const data = isExactCoilLookup && Array.isArray(matches)
                 ? await Promise.all(matches.map(item => getJson(internalFetch, `/api/knowledge/${item.id}`, '线圈知识详情读取失败')))
                 : matches;
+            const overview = await getJson(internalFetch, '/api/knowledge/overview', '知识库新鲜度读取失败');
+            const sources = buildKnowledgeSources(data, overview);
             return {
                 success: true,
                 intent: 'factory_knowledge_search',
                 summary: `工厂知识库找到 ${Array.isArray(data) ? data.length : 0} 条结果。`,
                 display: { mode: 'compact', title: '工厂知识库' },
+                provenance: {
+                    kind: 'knowledge_snapshot',
+                    label: '知识库快照',
+                    checkedAt: overview.generatedAt || null,
+                    hasPendingSources: sources.some(source => source.freshness !== 'fresh'),
+                },
+                sources,
                 data,
             };
         }
@@ -312,11 +462,20 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         case 'get_factory_knowledge_detail': {
             if (!args.id) return { success: false, error: '缺少知识条目ID' };
             const data = await getJson(internalFetch, `/api/knowledge/${args.id}`, '知识条目读取失败');
+            const overview = await getJson(internalFetch, '/api/knowledge/overview', '知识库新鲜度读取失败');
+            const sources = buildKnowledgeSources(data, overview);
             return {
                 success: true,
                 intent: 'factory_knowledge_detail',
                 summary: data.title || `知识条目 #${args.id}`,
                 display: { mode: 'compact', title: '知识详情' },
+                provenance: {
+                    kind: 'knowledge_snapshot',
+                    label: '知识库快照',
+                    checkedAt: overview.generatedAt || null,
+                    hasPendingSources: sources.some(source => source.freshness !== 'fresh'),
+                },
+                sources,
                 data,
             };
         }

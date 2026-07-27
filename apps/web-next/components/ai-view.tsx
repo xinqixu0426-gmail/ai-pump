@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
+  ArrowUpRight,
   Bot,
   Boxes,
   Check,
@@ -29,8 +30,10 @@ import {
   Send,
   ShieldAlert,
   Sparkles,
+  ThumbsUp,
   Trash2,
   UserRound,
+  MessageSquareWarning,
   Wrench,
   X,
   type LucideIcon,
@@ -47,14 +50,20 @@ import {
   getAiConversation,
   getAiSystemPrompt,
   listAiConversations,
+  listAiAnswerFeedback,
   streamAiChat,
+  submitAiAnswerFeedback,
   updateAiConversationMessage,
   updateAiSystemPrompt,
   type AiChatMessage,
+  type AiAnswerFeedback,
+  type AiAnswerFeedbackRating,
   type AiConversationSummary,
   type AiStreamEvent,
   type AiToolPlan,
   type AiToolResult,
+  type AiKnowledgeSource,
+  type AiResultProvenance,
 } from '@/lib/ai';
 import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
@@ -263,6 +272,110 @@ function dateText(value: unknown) {
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function isSafeInternalPath(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
+}
+
+function collectAnswerEvidence(toolResults: AiToolResult[] = []) {
+  const sourceById = new Map<number, AiKnowledgeSource>();
+  const provenances: AiResultProvenance[] = [];
+  for (const tool of toolResults) {
+    const result = asRecord(tool.result);
+    const provenance = asRecord(result.provenance);
+    if (provenance.kind === 'live_business' || provenance.kind === 'knowledge_snapshot') {
+      provenances.push({
+        kind: provenance.kind,
+        label: textValue(provenance.label, provenance.kind === 'live_business' ? '实时业务数据' : '知识库快照'),
+        fetchedAt: provenance.fetchedAt ? String(provenance.fetchedAt) : undefined,
+        checkedAt: provenance.checkedAt ? String(provenance.checkedAt) : null,
+        hasPendingSources: Boolean(provenance.hasPendingSources),
+      });
+    }
+    for (const source of arrayValue(result.sources)) {
+      const knowledgeEntryId = Number(source.knowledgeEntryId);
+      if (!Number.isInteger(knowledgeEntryId) || knowledgeEntryId <= 0) continue;
+      sourceById.set(knowledgeEntryId, {
+        kind: 'knowledge_snapshot',
+        knowledgeEntryId,
+        entryType: textValue(source.entryType, ''),
+        title: textValue(source.title, `知识条目 #${knowledgeEntryId}`),
+        sourceTable: textValue(source.sourceTable, ''),
+        sourceId: textValue(source.sourceId, ''),
+        syncedAt: source.syncedAt ? String(source.syncedAt) : null,
+        sourceUpdatedAt: source.sourceUpdatedAt ? String(source.sourceUpdatedAt) : null,
+        freshness: ['fresh', 'pending_insert', 'pending_update', 'pending_delete'].includes(String(source.freshness))
+          ? source.freshness as AiKnowledgeSource['freshness']
+          : 'fresh',
+        knowledgePath: isSafeInternalPath(source.knowledgePath)
+          ? source.knowledgePath
+          : `/dashboard?view=knowledge&entry=${knowledgeEntryId}`,
+        sourcePath: isSafeInternalPath(source.sourcePath) ? source.sourcePath : '',
+      });
+    }
+  }
+  return {
+    sources: [...sourceById.values()],
+    hasLiveBusiness: provenances.some(item => item.kind === 'live_business'),
+    hasKnowledgeSnapshot: provenances.some(item => item.kind === 'knowledge_snapshot'),
+  };
+}
+
+function AnswerEvidence({ toolResults }: { toolResults: AiToolResult[] }) {
+  const evidence = collectAnswerEvidence(toolResults);
+  if (!evidence.hasLiveBusiness && !evidence.hasKnowledgeSnapshot && evidence.sources.length === 0) return null;
+  const staleSources = evidence.sources.filter(source => source.freshness !== 'fresh');
+  const freshnessLabel: Record<AiKnowledgeSource['freshness'], string> = {
+    fresh: '最新',
+    pending_insert: '待新增',
+    pending_update: '待更新',
+    pending_delete: '待移除',
+  };
+
+  return (
+    <section className="mt-3 border-t border-slate-200 pt-3" aria-label="回答依据">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-xs font-semibold text-ink">回答依据</div>
+        {evidence.hasLiveBusiness ? <StatusBadge tone="green" className="h-5 min-w-0 px-2">实时业务数据</StatusBadge> : null}
+        {evidence.hasKnowledgeSnapshot ? <StatusBadge tone="blue" className="h-5 min-w-0 px-2">知识库快照</StatusBadge> : null}
+      </div>
+      {staleSources.length ? (
+        <div className="mt-2 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          <span>{staleSources.length} 条依据处于待同步状态，易变数据请以本轮实时业务查询为准。</span>
+        </div>
+      ) : null}
+      {evidence.sources.length ? (
+        <div className="mt-2 divide-y divide-slate-100 border-y border-slate-100">
+          {evidence.sources.slice(0, 8).map(source => (
+            <div key={source.knowledgeEntryId} className="flex min-w-0 items-center gap-3 py-2">
+              <a href={source.knowledgePath} className="min-w-0 flex-1 text-left hover:text-sky-700">
+                <span className="block truncate text-sm font-medium">{source.title}</span>
+                <span className="mt-0.5 block truncate text-xs text-muted">
+                  {source.sourceTable && source.sourceId ? `${source.sourceTable} #${source.sourceId} · ` : ''}
+                  同步于 {dateText(source.syncedAt)}
+                </span>
+              </a>
+              <StatusBadge tone={source.freshness === 'fresh' ? 'green' : 'amber'} className="h-5 min-w-0 px-2">
+                {freshnessLabel[source.freshness]}
+              </StatusBadge>
+              {source.sourcePath ? (
+                <a
+                  href={source.sourcePath}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-slate-100 hover:text-ink"
+                  aria-label={`查看${source.title}原数据`}
+                  title="查看原数据"
+                >
+                  <ArrowUpRight size={15} />
+                </a>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function percentText(value: unknown) {
@@ -879,6 +992,12 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
   const [openingConversationId, setOpeningConversationId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AiConversationSummary | null>(null);
   const [deletingConversation, setDeletingConversation] = useState(false);
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, AiAnswerFeedback>>({});
+  const [feedbackTarget, setFeedbackTarget] = useState<ChatItem | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<Exclude<AiAnswerFeedbackRating, 'helpful'>>('incorrect');
+  const [feedbackNote, setFeedbackNote] = useState('');
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
   const [promptLoading, setPromptLoading] = useState(false);
@@ -1117,6 +1236,7 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
     if (isListening) stopVoiceInput();
     setActiveConversationId(null);
     setItems([]);
+    setFeedbackByMessageId({});
     setInput('');
     setAsideMode('history');
     setMobileSidebarOpen(false);
@@ -1127,8 +1247,12 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
     setOpeningConversationId(id);
     setHistoryError('');
     try {
-      const conversation = await getAiConversation(id);
+      const [conversation, feedback] = await Promise.all([
+        getAiConversation(id),
+        listAiAnswerFeedback({ conversationId: id }),
+      ]);
       setActiveConversationId(conversation.id);
+      setFeedbackByMessageId(Object.fromEntries(feedback.items.map(item => [item.messageId, item])));
       setItems(conversation.messages.map((message) => ({
         id: `saved-${message.id}`,
         role: message.role,
@@ -1145,6 +1269,53 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
       setHistoryError((error as Error).message || '读取会话失败');
     } finally {
       setOpeningConversationId(null);
+    }
+  }
+
+  async function markAnswerHelpful(item: ChatItem) {
+    if (!item.persistedMessageId || feedbackSaving) return;
+    setFeedbackSaving(true);
+    setFeedbackError('');
+    try {
+      const feedback = await submitAiAnswerFeedback({
+        messageId: item.persistedMessageId,
+        rating: 'helpful',
+      });
+      setFeedbackByMessageId(current => ({ ...current, [feedback.messageId]: feedback }));
+    } catch (error) {
+      const message = (error as Error).message || '保存反馈失败';
+      setFeedbackError(message);
+      setHistoryError(message);
+    } finally {
+      setFeedbackSaving(false);
+    }
+  }
+
+  function openAnswerIssue(item: ChatItem) {
+    const existing = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
+    const issueRating = existing?.rating !== 'helpful' ? existing?.rating : undefined;
+    setFeedbackTarget(item);
+    setFeedbackRating(issueRating || 'incorrect');
+    setFeedbackNote(existing?.note || '');
+    setFeedbackError('');
+  }
+
+  async function saveAnswerIssue() {
+    if (!feedbackTarget?.persistedMessageId || feedbackSaving) return;
+    setFeedbackSaving(true);
+    setFeedbackError('');
+    try {
+      const feedback = await submitAiAnswerFeedback({
+        messageId: feedbackTarget.persistedMessageId,
+        rating: feedbackRating,
+        note: feedbackNote,
+      });
+      setFeedbackByMessageId(current => ({ ...current, [feedback.messageId]: feedback }));
+      setFeedbackTarget(null);
+    } catch (error) {
+      setFeedbackError((error as Error).message || '保存反馈失败');
+    } finally {
+      setFeedbackSaving(false);
     }
   }
 
@@ -1416,7 +1587,9 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
                 </div>
               ) : null}
 
-              {items.map((item) => (
+              {items.map((item) => {
+                const answerFeedback = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
+                return (
                 <div key={item.id} className={item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                   <div className={`text-ink ${isPanel ? 'max-w-[94%]' : 'max-w-[940px]'} ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
                     <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${item.role === 'user' ? 'text-muted md:text-slate-200' : 'text-muted'} ${item.role === 'user' ? 'hidden md:flex' : ''}`}>
@@ -1434,6 +1607,9 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
                       item.role === 'assistant'
                         ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
                         : <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div>
+                    ) : null}
+                    {item.role === 'assistant' && item.toolResults?.length ? (
+                      <AnswerEvidence toolResults={item.toolResults} />
                     ) : null}
                     {item.role === 'assistant' && loading && item.status !== 'done' && !item.content ? (
                       <div className="flex items-center gap-2 text-sm text-muted">
@@ -1461,9 +1637,35 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
                         ))}
                       </div>
                     ) : null}
+                    {item.role === 'assistant' && item.persistedMessageId && item.status !== 'error' ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2">
+                        <span className="text-xs text-muted">这条回答是否可靠？</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-8 px-2 text-xs ${answerFeedback?.rating === 'helpful' ? 'bg-emerald-50 text-emerald-700' : ''}`}
+                          icon={<ThumbsUp size={14} />}
+                          onClick={() => void markAnswerHelpful(item)}
+                          disabled={feedbackSaving}
+                        >
+                          {answerFeedback?.rating === 'helpful' ? '已标记准确' : '准确'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-8 px-2 text-xs ${answerFeedback && answerFeedback.rating !== 'helpful' ? 'bg-amber-50 text-amber-800' : ''}`}
+                          icon={<MessageSquareWarning size={14} />}
+                          onClick={() => openAnswerIssue(item)}
+                          disabled={feedbackSaving}
+                        >
+                          {answerFeedback && answerFeedback.rating !== 'helpful' ? '已报告问题' : '报告问题'}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <form onSubmit={handleSubmit} className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${isPanel ? 'px-3 pt-2 xl:p-3' : 'px-3 pt-2 md:p-4'}`}>
@@ -1582,6 +1784,66 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
           </div>
         ) : null}
       </AnimatePresence>
+
+      {feedbackTarget ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/25 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="answer-feedback-title" className="w-full max-w-lg rounded-panel border border-line bg-white shadow-panel">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <div>
+                <h2 id="answer-feedback-title" className="text-base font-semibold text-ink">报告回答问题</h2>
+                <div className="mt-1 text-xs text-muted">反馈会进入知识库管理中心，不会自动修改业务数据。</div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setFeedbackTarget(null)} disabled={feedbackSaving} />
+            </div>
+            <div className="space-y-4 p-4">
+              <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="问题类型">
+                {([
+                  ['incorrect', '内容错误'],
+                  ['outdated', '来源过期'],
+                  ['missing_source', '资料不足'],
+                ] as Array<[Exclude<AiAnswerFeedbackRating, 'helpful'>, string]>).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={feedbackRating === value}
+                    onClick={() => setFeedbackRating(value)}
+                    className={`h-10 rounded-md border px-3 text-sm font-medium ${
+                      feedbackRating === value ? 'border-ink bg-ink text-white' : 'border-line bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className="block">
+                <span className="text-xs font-medium text-muted">补充说明（可选）</span>
+                <textarea
+                  value={feedbackNote}
+                  onChange={event => setFeedbackNote(event.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  placeholder="例如：正确价格应为 93 元，业务数据已于今天更新。"
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
+                  disabled={feedbackSaving}
+                />
+              </label>
+              {feedbackError ? (
+                <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  {feedbackError}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setFeedbackTarget(null)} disabled={feedbackSaving}>取消</Button>
+              <Button variant="primary" icon={feedbackSaving ? <Loader2 size={15} className="animate-spin" /> : <MessageSquareWarning size={15} />} onClick={() => void saveAnswerIssue()} disabled={feedbackSaving}>
+                {feedbackSaving ? '提交中' : '提交反馈'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {deleteTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">

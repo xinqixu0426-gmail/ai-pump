@@ -452,6 +452,108 @@ const MIGRATIONS = Object.freeze([
             db.exec(CANONICAL_INDEXES_SQL);
         },
     },
+    {
+        version: 8,
+        name: 'recipe_analysis_feedback',
+        signature: 'recipe-analysis-feedback-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS recipe_analysis_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recipe_id INTEGER NOT NULL,
+                    finding_key TEXT NOT NULL,
+                    finding_type TEXT NOT NULL,
+                    decision TEXT NOT NULL CHECK(decision IN ('confirmed', 'ignored', 'special_case', 'review')),
+                    note TEXT DEFAULT '',
+                    finding_snapshot_json TEXT DEFAULT '{}',
+                    created_at TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY(recipe_id) REFERENCES recipes(id),
+                    UNIQUE(recipe_id, finding_key)
+                );
+                CREATE INDEX IF NOT EXISTS idx_recipe_analysis_feedback_recipe
+                    ON recipe_analysis_feedback(recipe_id, updated_at DESC);
+            `);
+        },
+    },
+    {
+        version: 9,
+        name: 'factory_rule_candidates',
+        signature: 'factory-rule-candidates-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factory_rule_candidates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule_key TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    scope_type TEXT NOT NULL DEFAULT 'pump_shell_template',
+                    scope_ref TEXT NOT NULL,
+                    finding_key TEXT NOT NULL,
+                    finding_type TEXT NOT NULL,
+                    evidence_count INTEGER NOT NULL DEFAULT 0,
+                    evidence_json TEXT DEFAULT '[]',
+                    status TEXT NOT NULL DEFAULT 'candidate' CHECK(status IN ('candidate', 'approved', 'rejected', 'stale')),
+                    review_note TEXT DEFAULT '',
+                    approved_at TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_factory_rule_candidates_status
+                    ON factory_rule_candidates(status, updated_at DESC);
+            `);
+        },
+    },
+    {
+        version: 10,
+        name: 'ai_answer_feedback',
+        signature: 'ai-answer-feedback-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS ai_answer_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    conversation_id INTEGER NOT NULL,
+                    message_id INTEGER NOT NULL UNIQUE,
+                    rating TEXT NOT NULL CHECK(rating IN ('helpful', 'incorrect', 'outdated', 'missing_source')),
+                    note TEXT DEFAULT '',
+                    question_text TEXT DEFAULT '',
+                    answer_text TEXT DEFAULT '',
+                    sources_json TEXT DEFAULT '[]',
+                    status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'resolved')),
+                    resolution_note TEXT DEFAULT '',
+                    resolved_at TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id),
+                    FOREIGN KEY(message_id) REFERENCES ai_conversation_messages(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_ai_answer_feedback_status
+                    ON ai_answer_feedback(status, updated_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_ai_answer_feedback_conversation
+                    ON ai_answer_feedback(conversation_id, message_id);
+            `);
+        },
+    },
+    {
+        version: 11,
+        name: 'ai_answer_feedback_diagnosis_retest',
+        signature: 'ai-answer-feedback-diagnosis-retest-v1',
+        up(db) {
+            const columns = new Set(db.pragma('table_info(ai_answer_feedback)').map(column => column.name));
+            const additions = [
+                ['diagnosis_json', "TEXT DEFAULT '{}'"],
+                ['diagnosed_at', 'TEXT'],
+                ['retest_answer_text', "TEXT DEFAULT ''"],
+                ['retest_sources_json', "TEXT DEFAULT '[]'"],
+                ['retested_at', 'TEXT'],
+            ];
+            for (const [column, definition] of additions) {
+                if (!columns.has(column)) {
+                    db.exec(`ALTER TABLE ai_answer_feedback ADD COLUMN ${column} ${definition}`);
+                }
+            }
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

@@ -275,6 +275,63 @@ function recipeTechnicalFileRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function aiAnswerFeedbackRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        conversationId: r.conversation_id,
+        messageId: r.message_id,
+        rating: r.rating,
+        note: r.note || '',
+        questionText: r.question_text || '',
+        answerText: r.answer_text || '',
+        sourcesJson: r.sources_json || '[]',
+        diagnosisJson: r.diagnosis_json || '{}',
+        diagnosedAt: r.diagnosed_at,
+        retestAnswerText: r.retest_answer_text || '',
+        retestSourcesJson: r.retest_sources_json || '[]',
+        retestedAt: r.retested_at,
+        status: r.status,
+        resolutionNote: r.resolution_note || '',
+        resolvedAt: r.resolved_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function recipeAnalysisFeedbackRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        recipeId: r.recipe_id,
+        findingKey: r.finding_key,
+        findingType: r.finding_type,
+        decision: r.decision,
+        note: r.note || '',
+        findingSnapshotJson: r.finding_snapshot_json || '{}',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function factoryRuleCandidateRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        ruleKey: r.rule_key,
+        title: r.title,
+        content: r.content,
+        scopeType: r.scope_type,
+        scopeRef: r.scope_ref,
+        findingKey: r.finding_key,
+        findingType: r.finding_type,
+        evidenceCount: Number(r.evidence_count || 0),
+        evidenceJson: r.evidence_json || '[]',
+        status: r.status,
+        reviewNote: r.review_note || '',
+        approvedAt: r.approved_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
 function statorVariantRow(r) {
     if (!r) return r;
     return {
@@ -306,6 +363,19 @@ function dbGetAllRecipeTechnicalFiles() {
         WHERE deleted_at IS NULL
         ORDER BY recipe_id, id DESC
     `).all().map(recipeTechnicalFileRow);
+}
+function dbGetRecipeAnalysisFeedback(recipeId) {
+    return db.prepare(`
+        SELECT * FROM recipe_analysis_feedback
+        WHERE recipe_id = ?
+        ORDER BY updated_at DESC, id DESC
+    `).all(recipeId).map(recipeAnalysisFeedbackRow);
+}
+function dbGetFactoryRuleCandidates(status) {
+    const rows = status
+        ? db.prepare('SELECT * FROM factory_rule_candidates WHERE status = ? ORDER BY updated_at DESC, id DESC').all(status)
+        : db.prepare('SELECT * FROM factory_rule_candidates ORDER BY updated_at DESC, id DESC').all();
+    return rows.map(factoryRuleCandidateRow);
 }
 
 function extractPartFields(body) {
@@ -360,7 +430,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'recipe_technical_files']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -562,8 +632,8 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, recipeTechnicalFileRow,
-    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
+    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,
     updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,

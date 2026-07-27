@@ -4,9 +4,19 @@ const {
     syncKnowledgeEntries,
     searchKnowledgeEntries,
     getKnowledgeEntryDetail,
+    inspectKnowledgeOverview,
 } = require('../services/knowledge.cjs');
 
 const router = Router();
+
+router.get('/overview', (req, res) => {
+    try {
+        const data = inspectKnowledgeOverview();
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 router.get('/', (req, res) => {
     try {

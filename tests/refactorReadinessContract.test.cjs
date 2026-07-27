@@ -265,6 +265,66 @@ test('Next UI 契约：启用导航必须有真实页面且只允许 NavItem 使
     assert.deepEqual(linkOffenders, []);
 });
 
+test('Next UI 契约：知识库管理中心融合进看板并保持同步确认', () => {
+    const dashboardView = readUtf8('apps/web-next/components/dashboard-view.tsx');
+    const dashboardPage = readUtf8('apps/web-next/app/dashboard/page.tsx');
+    const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const knowledgeLib = readUtf8('apps/web-next/lib/knowledge.ts');
+    const docs = readUtf8('docs/api-reference.md') + '\n' + readUtf8('docs/README.md');
+
+    assert.match(dashboardView, /<KnowledgeView/);
+    assert.match(dashboardView, /label: '知识库'/);
+    assert.match(dashboardPage, /params\.view === 'knowledge'/);
+    assert.match(dashboardPage, /params\.entry/);
+    assert.match(knowledgeView, /知识条目/);
+    assert.match(knowledgeView, /待同步/);
+    assert.match(knowledgeView, /当前已同步内容/);
+    assert.match(knowledgeView, /查看业务来源/);
+    assert.match(knowledgeView, /确认同步/);
+    assert.match(knowledgeLib, /\/api\/knowledge\/overview/);
+    assert.match(knowledgeLib, /proxyRequest/);
+    assert.match(docs, /只读内容哈希比较/);
+});
+
+test('Next UI 契约：AI 回复展示可点击依据并保留新鲜度警告', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const aiLib = readUtf8('apps/web-next/lib/ai.ts');
+
+    assert.match(aiLib, /AiKnowledgeSource/);
+    assert.match(aiLib, /knowledgePath/);
+    assert.match(aiView, /function AnswerEvidence/);
+    assert.match(aiView, /回答依据/);
+    assert.match(aiView, /实时业务数据/);
+    assert.match(aiView, /知识库快照/);
+    assert.match(aiView, /待同步状态/);
+    assert.match(aiView, /查看原数据/);
+});
+
+test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const aiLib = readUtf8('apps/web-next/lib/ai.ts');
+
+    assert.match(aiView, /这条回答是否可靠/);
+    assert.match(aiView, /报告回答问题/);
+    assert.match(aiView, /内容错误/);
+    assert.match(aiView, /来源过期/);
+    assert.match(aiView, /资料不足/);
+    assert.match(aiLib, /submitAiAnswerFeedback/);
+    assert.match(aiLib, /proxyRequest/);
+    assert.match(knowledgeView, /AI 回答反馈/);
+    assert.match(knowledgeView, /标记已处理/);
+    assert.match(knowledgeView, /reviewAiAnswerFeedback/);
+    assert.match(knowledgeView, /不会自动改写知识或业务数据/);
+    assert.match(knowledgeView, /回答诊断与复测/);
+    assert.match(knowledgeView, /重新验证/);
+    assert.match(knowledgeView, /原回答/);
+    assert.match(knowledgeView, /复测回答/);
+    assert.match(knowledgeView, /streamAiChat/);
+    assert.match(aiLib, /diagnoseAiAnswerFeedback/);
+    assert.match(aiLib, /recordAiAnswerFeedbackRetest/);
+});
+
 test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助手', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
@@ -381,6 +441,28 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(recipesView, /bomDraft\?\.coilSnapshot\?\.formula/);
     assert.doesNotMatch(recipesView, /线圈与叶轮/);
     assert.match(technicalEditor, /叶轮参数/);
+});
+
+test('Next UI 契约：配方保存前自动智能检查并允许明确覆盖', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const qualityLib = readUtf8('apps/web-next/lib/quality.ts');
+
+    assert.match(recipesView, /runRecipeAnalysis/);
+    assert.match(recipesView, /智能检查/);
+    assert.match(recipesView, /确定问题/);
+    assert.match(recipesView, /复核建议/);
+    assert.match(recipesView, /价格提醒/);
+    assert.match(recipesView, /相似配方依据/);
+    assert.match(recipesView, /parts: draft\.parts/);
+    assert.match(recipesView, /analyzeCurrentRecipeDraft\(draft\)/);
+    assert.match(recipesView, /analysis\.summary\.highConfidenceAlertCount > 0/);
+    assert.match(recipesView, /setAnalysisSaveGateOpen\(true\)/);
+    assert.match(recipesView, /skipIntelligenceCheck: true/);
+    assert.match(recipesView, /确认并继续保存/);
+    assert.match(recipesView, /普通复核建议不会阻止保存/);
+    assert.match(qualityLib, /\/api\/quality\/recipe-analysis/);
+    assert.match(qualityLib, /proxyRequest/);
+    assert.match(qualityLib, /advisoryOnly: true/);
 });
 
 test('Next UI 契约：浮球和电缆参数完成后展示后端 BOM 成本', () => {

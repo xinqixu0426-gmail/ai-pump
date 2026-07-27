@@ -559,6 +559,77 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'analyze_recipe_configuration',
+            description: '分析某个配方的相似配方、确定性漏项、同类高频项和固定件价格异常，不写库。适合用户问“这个配方有没有漏东西”“价格是否合理”“找相近配方”“帮我检查配置”。结果是带证据的复核建议，禁止描述为自动判定或自动修改。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeName: { type: 'string', description: '配方完整名称，未提供ID时使用' },
+                    limit: { type: 'number', description: '最多比较的相似配方数量，默认5，最大8' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'set_recipe_analysis_feedback',
+            description: '保存用户对配方智能检查某条提醒的判断。仅在用户明确要求确认问题、忽略提醒、标记特殊情况或恢复复核时使用，写库前必须确认。findingKey 必须来自最近一次 analyze_recipe_configuration 的结果，不得自行编造。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeId: { type: 'number', description: '配方ID' },
+                    findingKey: { type: 'string', description: '智能检查返回的精确 finding key' },
+                    findingType: { type: 'string', description: '智能检查返回的提醒类型' },
+                    decision: { type: 'string', enum: ['confirmed', 'ignored', 'special_case', 'review'], description: '确认问题、忽略、特殊情况或恢复复核' },
+                    note: { type: 'string', description: '用户说明，可选，最多500字' },
+                    findingSnapshot: { type: 'object', description: '本次提醒摘要，可选' }
+                },
+                required: ['recipeId', 'findingKey', 'findingType', 'decision']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_factory_rule_candidates',
+            description: '读取从配方检查人工反馈中归纳出的候选业务规则及证据配方，只读。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    status: { type: 'string', enum: ['candidate', 'approved', 'rejected', 'stale'], description: '按审核状态过滤，可选' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'refresh_factory_rule_candidates',
+            description: '根据已确认的同类配方高频项重新归纳候选业务规则。只生成候选项，不会自动批准，也不会直接同步知识库；写库前必须确认。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'review_factory_rule_candidate',
+            description: '批准、驳回或恢复某条候选业务规则。批准后该规则会在下一次知识库同步时成为正式业务规则；写库前必须确认。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    candidateId: { type: 'number', description: '候选规则ID' },
+                    status: { type: 'string', enum: ['candidate', 'approved', 'rejected'], description: '目标审核状态' },
+                    reviewNote: { type: 'string', description: '审核说明，可选，最多500字' }
+                },
+                required: ['candidateId', 'status']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_business_alerts',
             description: '获取报价和订单经营异常提醒，不写库。适合用户问“现在还有哪些报价订单风险”“有什么需要跟进”“哪些订单卡住了”。',
             parameters: { type: 'object', properties: {} }
@@ -733,6 +804,9 @@ const WRITE_TOOLS = new Set([
     'generate_purchase_list',
     'create_recipe', 'delete_recipe', 'update_recipe',
     'sync_factory_knowledge',
+    'set_recipe_analysis_feedback',
+    'refresh_factory_rule_candidates',
+    'review_factory_rule_candidate',
 ]);
 
 

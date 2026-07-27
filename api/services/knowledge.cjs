@@ -405,6 +405,32 @@ function businessRuleEntries(settings) {
     }));
 }
 
+function approvedFactoryRuleEntries(rows) {
+    return (rows || []).filter(row => row.status === 'approved').map(row => createEntry({
+        entryType: 'business_rule',
+        sourceTable: 'factory_rule_candidates',
+        sourceId: String(row.id),
+        sourceUpdatedAt: row.updatedAt || row.updated_at || row.approvedAt || row.approved_at,
+        title: `业务规则：${row.title}`,
+        summary: row.content,
+        content: [
+            row.content,
+            `适用范围：泵壳模板 #${row.scopeRef || row.scope_ref}`,
+            `证据配方数：${Number(row.evidenceCount || row.evidence_count || 0)}`,
+            row.reviewNote || row.review_note ? `审核说明：${row.reviewNote || row.review_note}` : '',
+        ],
+        tags: ['业务规则', '人工审核', '配方检查', row.findingKey || row.finding_key],
+        metadata: {
+            candidateId: row.id,
+            scopeType: row.scopeType || row.scope_type,
+            scopeRef: row.scopeRef || row.scope_ref,
+            findingKey: row.findingKey || row.finding_key,
+            evidenceCount: Number(row.evidenceCount || row.evidence_count || 0),
+            approvedAt: row.approvedAt || row.approved_at || null,
+        },
+    }));
+}
+
 function buildKnowledgeEntries(options = {}) {
     let dbAccessors = options.dbAccessors || null;
     const getDb = () => {
@@ -420,6 +446,14 @@ function buildKnowledgeEntries(options = {}) {
     const quotations = options.quotations || getDb().dbGetAllQuotations();
     const orders = options.orders || getDb().dbGetAllOrders();
     const settings = options.settings || getDb().db.prepare('SELECT key, value, updated_at FROM system_settings ORDER BY key').all();
+    let ruleCandidates = options.ruleCandidates;
+    if (!Object.prototype.hasOwnProperty.call(options, 'ruleCandidates')) {
+        try {
+            ruleCandidates = getDb().dbGetFactoryRuleCandidates('approved');
+        } catch {
+            ruleCandidates = [];
+        }
+    }
     const qualitySummary = options.qualitySummary || buildDataQualitySummary({
         dbAccessors: getDb(),
         parts,
@@ -447,6 +481,7 @@ function buildKnowledgeEntries(options = {}) {
         ...orders.map(orderEntry),
         ...qualityEntries(qualitySummary),
         ...businessRuleEntries(settings),
+        ...approvedFactoryRuleEntries(ruleCandidates),
     ].filter(entry => ENTRY_TYPES.has(entry.entryType) && entry.title);
 }
 
@@ -635,10 +670,126 @@ function getKnowledgeEntryDetail(id, options = {}) {
     };
 }
 
+function inspectKnowledgeOverview(options = {}) {
+    const dbAccessors = options.dbAccessors || loadDbAccessors();
+    const { db, knowledgeEntryRow } = dbAccessors;
+    const currentEntries = options.currentEntries || buildKnowledgeEntries({ ...options, dbAccessors });
+    const storedEntries = db.prepare('SELECT * FROM knowledge_entries ORDER BY updated_at DESC, id DESC')
+        .all()
+        .map(knowledgeEntryRow);
+    const currentBySource = new Map(currentEntries.map(entry => [`${entry.sourceTable}\u0000${entry.sourceId}`, entry]));
+    const storedBySource = new Map(storedEntries.map(entry => [`${entry.sourceTable}\u0000${entry.sourceId}`, entry]));
+    const byType = {};
+    const changes = [];
+    let fresh = 0;
+    let pendingInsert = 0;
+    let pendingUpdate = 0;
+    let pendingDelete = 0;
+
+    const typeStats = (entryType) => {
+        if (!byType[entryType]) {
+            byType[entryType] = { current: 0, stored: 0, fresh: 0, pending: 0 };
+        }
+        return byType[entryType];
+    };
+
+    for (const entry of currentEntries) {
+        const key = `${entry.sourceTable}\u0000${entry.sourceId}`;
+        const stored = storedBySource.get(key);
+        const stats = typeStats(entry.entryType);
+        stats.current += 1;
+        if (!stored) {
+            stats.pending += 1;
+            pendingInsert += 1;
+            changes.push({
+                status: 'pending_insert',
+                id: null,
+                entryType: entry.entryType,
+                sourceTable: entry.sourceTable,
+                sourceId: entry.sourceId,
+                title: entry.title,
+                summary: entry.summary,
+                sourceUpdatedAt: entry.sourceUpdatedAt,
+                syncedAt: null,
+            });
+        } else if (stored.contentHash !== entry.contentHash) {
+            stats.pending += 1;
+            pendingUpdate += 1;
+            changes.push({
+                status: 'pending_update',
+                id: stored.id,
+                entryType: entry.entryType,
+                sourceTable: entry.sourceTable,
+                sourceId: entry.sourceId,
+                title: entry.title,
+                summary: entry.summary,
+                sourceUpdatedAt: entry.sourceUpdatedAt,
+                syncedAt: stored.syncedAt,
+            });
+        } else {
+            stats.fresh += 1;
+            fresh += 1;
+        }
+    }
+
+    for (const stored of storedEntries) {
+        const stats = typeStats(stored.entryType);
+        stats.stored += 1;
+        const key = `${stored.sourceTable}\u0000${stored.sourceId}`;
+        if (currentBySource.has(key)) continue;
+        stats.pending += 1;
+        pendingDelete += 1;
+        changes.push({
+            status: 'pending_delete',
+            id: stored.id,
+            entryType: stored.entryType,
+            sourceTable: stored.sourceTable,
+            sourceId: stored.sourceId,
+            title: stored.title,
+            summary: stored.summary,
+            sourceUpdatedAt: stored.sourceUpdatedAt,
+            syncedAt: stored.syncedAt,
+        });
+    }
+
+    const lastSyncedAt = storedEntries
+        .map(entry => entry.syncedAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1) || null;
+    const ftsEnabled = Boolean(db.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_entries_fts'"
+    ).get());
+    const pendingTotal = pendingInsert + pendingUpdate + pendingDelete;
+
+    return {
+        generatedAt: new Date().toISOString(),
+        lastSyncedAt,
+        ftsEnabled,
+        stats: {
+            currentTotal: currentEntries.length,
+            storedTotal: storedEntries.length,
+            fresh,
+            pendingTotal,
+            pendingInsert,
+            pendingUpdate,
+            pendingDelete,
+        },
+        byType,
+        changes: changes.sort((left, right) => {
+            const priority = { pending_update: 0, pending_insert: 1, pending_delete: 2 };
+            return priority[left.status] - priority[right.status]
+                || left.entryType.localeCompare(right.entryType)
+                || left.title.localeCompare(right.title, 'zh-CN');
+        }),
+    };
+}
+
 module.exports = {
     ENTRY_TYPES,
     buildKnowledgeEntries,
     syncKnowledgeEntries,
     searchKnowledgeEntries,
     getKnowledgeEntryDetail,
+    inspectKnowledgeOverview,
 };

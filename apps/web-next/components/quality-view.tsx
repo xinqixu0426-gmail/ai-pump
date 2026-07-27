@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CircleAlert, DatabaseZap, RefreshCw } from 'lucide-react';
+import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -9,9 +9,13 @@ import {
   businessAlertClassName,
   getBusinessAlerts,
   getDataQualitySummary,
+  getFactoryRuleCandidates,
   qualitySeverityClassName,
+  refreshFactoryRuleCandidates,
+  reviewFactoryRuleCandidate,
   type BusinessAlertsSummary,
   type DataQualitySummary,
+  type FactoryRuleCandidate,
   type QualityIssueGroup,
   type QualitySeverity,
 } from '@/lib/quality';
@@ -38,19 +42,27 @@ type QualityViewProps = {
 export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, onRefreshComplete }: QualityViewProps) {
   const [summary, setSummary] = useState<DataQualitySummary | null>(null);
   const [businessAlerts, setBusinessAlerts] = useState<BusinessAlertsSummary | null>(null);
+  const [ruleCandidates, setRuleCandidates] = useState<FactoryRuleCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [activeKey, setActiveKey] = useState<string>('all');
+  const [ruleRefreshing, setRuleRefreshing] = useState(false);
+  const [ruleReviewingId, setRuleReviewingId] = useState<number | null>(null);
 
   async function load(force = false) {
     setError('');
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const [quality, alerts] = await Promise.all([getDataQualitySummary(), getBusinessAlerts()]);
+      const [quality, alerts, candidates] = await Promise.all([
+        getDataQualitySummary(),
+        getBusinessAlerts(),
+        getFactoryRuleCandidates(),
+      ]);
       setSummary(quality);
       setBusinessAlerts(alerts);
+      setRuleCandidates(candidates);
       onScoreChange?.(quality.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : '数据质量加载失败');
@@ -71,6 +83,36 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     return groups.filter((group) => group.key === activeKey);
   }, [activeKey, summary]);
   const topBusinessAlerts = businessAlerts?.topAlerts || [];
+  const activeRuleCandidates = ruleCandidates.filter((candidate) => candidate.status === 'candidate');
+  const approvedRuleCandidates = ruleCandidates.filter((candidate) => candidate.status === 'approved');
+
+  async function refreshRuleCandidates() {
+    setRuleRefreshing(true);
+    setError('');
+    try {
+      const result = await refreshFactoryRuleCandidates();
+      setRuleCandidates(result.candidates);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '候选规则归纳失败');
+    } finally {
+      setRuleRefreshing(false);
+    }
+  }
+
+  async function reviewRuleCandidate(candidate: FactoryRuleCandidate, status: 'approved' | 'rejected') {
+    const action = status === 'approved' ? '批准' : '驳回';
+    if (!window.confirm(`确定${action}候选规则「${candidate.title}」？`)) return;
+    setRuleReviewingId(candidate.id);
+    setError('');
+    try {
+      const updated = await reviewFactoryRuleCandidate(candidate.id, { status });
+      setRuleCandidates((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '候选规则审核失败');
+    } finally {
+      setRuleReviewingId(null);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -120,6 +162,86 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 <div className="mt-1 text-xs text-muted">经营提醒</div>
               </FadePanel>
           </div>
+
+          <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+            <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <BookCheck size={17} />
+                  候选业务规则
+                </div>
+                <div className="mt-1 text-xs leading-5 text-muted">
+                  同一泵壳模板下至少 2 个配方确认相同高频项后才会生成；批准后在下次同步知识库时生效。
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => void refreshRuleCandidates()}
+                disabled={ruleRefreshing}
+                icon={<Sparkles size={15} className={ruleRefreshing ? 'animate-pulse' : ''} />}
+              >
+                {ruleRefreshing ? '归纳中' : '归纳候选规则'}
+              </Button>
+            </div>
+            <div className="grid border-b border-line sm:grid-cols-3">
+              <div className="px-4 py-3">
+                <div className="text-lg font-semibold text-ink">{activeRuleCandidates.length}</div>
+                <div className="text-xs text-muted">待审核</div>
+              </div>
+              <div className="border-t border-line px-4 py-3 sm:border-l sm:border-t-0">
+                <div className="text-lg font-semibold text-emerald-700">{approvedRuleCandidates.length}</div>
+                <div className="text-xs text-muted">已批准</div>
+              </div>
+              <div className="border-t border-line px-4 py-3 sm:border-l sm:border-t-0">
+                <div className="text-lg font-semibold text-ink">{ruleCandidates.length}</div>
+                <div className="text-xs text-muted">累计规则</div>
+              </div>
+            </div>
+            {activeRuleCandidates.length === 0 ? (
+              <div className="px-4 py-5 text-sm text-muted">
+                暂无待审核规则。先在配方智能检查中确认同类高频项，积累到 2 个不同配方后再归纳。
+              </div>
+            ) : (
+              <div className="divide-y divide-line">
+                {activeRuleCandidates.map((candidate) => (
+                  <div key={candidate.id} className="p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="font-medium text-ink">{candidate.title}</div>
+                          <StatusBadge tone="amber">{candidate.evidenceCount} 个配方确认</StatusBadge>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-muted">{candidate.content}</div>
+                        <div className="mt-2 text-xs text-slate-600">
+                          证据：{candidate.evidence.map((item) => item.recipeName).join('、')}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={ruleReviewingId === candidate.id}
+                          icon={<XCircle size={14} />}
+                          onClick={() => void reviewRuleCandidate(candidate, 'rejected')}
+                        >
+                          驳回
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={ruleReviewingId === candidate.id}
+                          icon={<CheckCircle2 size={14} />}
+                          onClick={() => void reviewRuleCandidate(candidate, 'approved')}
+                        >
+                          批准
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </FadePanel>
 
           <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
             <div className="flex flex-wrap items-center gap-2">

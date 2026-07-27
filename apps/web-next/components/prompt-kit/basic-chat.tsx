@@ -3,6 +3,8 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, FormEvent, HTMLAttributes, KeyboardEvent, ReactNode, TextareaHTMLAttributes } from 'react';
 import clsx from 'clsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export function ChatContainer({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
@@ -51,75 +53,64 @@ export function MessageHeader({ children, muted = false }: { children: ReactNode
 }
 
 export function MarkdownContent({ id: _id, children, className }: { id: string; children: string; className?: string }) {
-  const blocks = parseMarkdown(children);
   return (
     <div className={clsx('space-y-2 text-sm leading-6', className)}>
-      {blocks.map((block, index) => {
-        if (block.type === 'code') {
-          return (
-            <pre key={index} className="max-w-full overflow-x-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-slate-100">
-              <code>{block.content}</code>
-            </pre>
-          );
-        }
-        if (block.type === 'list') {
-          return (
-            <ul key={index} className="list-disc space-y-1 pl-5">
-              {block.items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{renderInline(item, `${index}-${itemIndex}`)}</li>)}
-            </ul>
-          );
-        }
-        if (block.type === 'table') {
-          return (
-            <div key={index} className="max-w-full overflow-x-auto rounded-md border border-slate-200">
-              <table className="w-full min-w-[360px] border-collapse text-left text-sm">
-                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
-                  <tr>
-                    {block.headers.map((header, headerIndex) => (
-                      <th key={`${header}-${headerIndex}`} className="border-b border-slate-200 px-3 py-2">
-                        {renderInline(header, `${index}-header-${headerIndex}`)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {block.rows.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                      {block.headers.map((_, cellIndex) => (
-                        <td key={cellIndex} className="px-3 py-2 text-slate-700">
-                          {renderInline(row[cellIndex] || '', `${index}-${rowIndex}-${cellIndex}`)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        skipHtml
+        urlTransform={safeHref}
+        components={{
+          h1: ({ node: _node, ...props }) => <h1 className="pt-1 text-lg font-semibold text-ink" {...props} />,
+          h2: ({ node: _node, ...props }) => <h2 className="pt-1 text-base font-semibold text-ink" {...props} />,
+          h3: ({ node: _node, ...props }) => <h3 className="pt-1 text-sm font-semibold text-ink" {...props} />,
+          h4: ({ node: _node, ...props }) => <h4 className="pt-1 text-sm font-semibold text-ink" {...props} />,
+          h5: ({ node: _node, ...props }) => <h5 className="pt-1 text-sm font-semibold text-ink" {...props} />,
+          h6: ({ node: _node, ...props }) => <h6 className="pt-1 text-sm font-semibold text-ink" {...props} />,
+          p: ({ node: _node, ...props }) => <p className="break-words" {...props} />,
+          strong: ({ node: _node, ...props }) => <strong className="font-semibold text-ink" {...props} />,
+          em: ({ node: _node, ...props }) => <em className="italic" {...props} />,
+          del: ({ node: _node, ...props }) => <del className="text-slate-500" {...props} />,
+          ul: ({ node: _node, ...props }) => <ul className="list-disc space-y-1 pl-5 [&_ul]:mt-1" {...props} />,
+          ol: ({ node: _node, ...props }) => <ol className="list-decimal space-y-1 pl-5 [&_ol]:mt-1" {...props} />,
+          li: ({ node: _node, ...props }) => <li className="pl-0.5" {...props} />,
+          input: ({ node: _node, ...props }) => <input className="mr-1.5 align-middle accent-sky-700" {...props} />,
+          blockquote: ({ node: _node, ...props }) => (
+            <blockquote className="border-l-4 border-slate-200 bg-slate-50 px-3 py-2 text-slate-700" {...props} />
+          ),
+          hr: ({ node: _node, ...props }) => <hr className="border-slate-200" {...props} />,
+          table: ({ node: _node, ...props }) => (
+            <div className="max-w-full overflow-x-auto rounded-md border border-slate-200">
+              <table className="w-full min-w-[360px] border-collapse text-left text-sm" {...props} />
             </div>
-          );
-        }
-        if (block.type === 'ordered-list') {
-          return (
-            <ol key={index} className="list-decimal space-y-1 pl-5">
-              {block.items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{renderInline(item, `${index}-${itemIndex}`)}</li>)}
-            </ol>
-          );
-        }
-        if (block.type === 'heading') {
-          const headingClass = block.level <= 2 ? 'text-base' : 'text-sm';
-          return <div key={index} className={`pt-1 font-semibold text-ink ${headingClass}`}>{renderInline(block.content, `${index}`)}</div>;
-        }
-        if (block.type === 'blockquote') {
-          return (
-            <blockquote key={index} className="border-l-4 border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {renderInline(block.content, `${index}`)}
-            </blockquote>
-          );
-        }
-        if (block.type === 'rule') {
-          return <hr key={index} className="border-slate-200" />;
-        }
-        return <p key={index} className="whitespace-pre-wrap">{renderInline(block.content, `${index}`)}</p>;
-      })}
+          ),
+          thead: ({ node: _node, ...props }) => <thead className="bg-slate-100 text-xs font-semibold text-slate-600" {...props} />,
+          tbody: ({ node: _node, ...props }) => <tbody className="divide-y divide-slate-100 bg-white" {...props} />,
+          th: ({ node: _node, ...props }) => <th className="border-b border-slate-200 px-3 py-2" {...props} />,
+          td: ({ node: _node, ...props }) => <td className="px-3 py-2 text-slate-700" {...props} />,
+          pre: ({ node: _node, ...props }) => (
+            <pre
+              className="max-w-full overflow-x-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-slate-100 [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-inherit"
+              {...props}
+            />
+          ),
+          code: ({ node: _node, ...props }) => (
+            <code className="rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-800" {...props} />
+          ),
+          a: ({ node: _node, href, children: linkChildren, ...props }) => href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-sky-700 underline underline-offset-2"
+              {...props}
+            >
+              {linkChildren}
+            </a>
+          ) : <>{linkChildren}</>,
+        }}
+      >
+        {children}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -238,169 +229,8 @@ export function PromptSuggestion({ children, className, ...props }: ButtonHTMLAt
   );
 }
 
-type MarkdownBlock =
-  | { type: 'paragraph'; content: string }
-  | { type: 'heading'; content: string; level: number }
-  | { type: 'blockquote'; content: string }
-  | { type: 'rule' }
-  | { type: 'list'; items: string[] }
-  | { type: 'ordered-list'; items: string[] }
-  | { type: 'table'; headers: string[]; rows: string[][] }
-  | { type: 'code'; content: string };
-
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g).filter(Boolean);
-  return parts.map((part, index) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={`${keyPrefix}-code-${index}`} className="rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-800">{part.slice(1, -1)}</code>;
-    }
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={`${keyPrefix}-strong-${index}`} className="font-semibold text-ink">{part.slice(2, -2)}</strong>;
-    }
-    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (link) {
-      const href = safeHref(link[2]);
-      if (!href) return link[1];
-      return (
-        <a key={`${keyPrefix}-link-${index}`} href={href} target="_blank" rel="noreferrer" className="font-medium text-sky-700 underline underline-offset-2">
-          {link[1]}
-        </a>
-      );
-    }
-    return part;
-  });
-}
-
 function safeHref(value: string) {
   const href = value.trim();
   if (/^(https?:|mailto:|tel:|\/|#)/i.test(href)) return href;
   return '';
-}
-
-function parseMarkdown(markdown: string): MarkdownBlock[] {
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
-  const blocks: MarkdownBlock[] = [];
-  let paragraph: string[] = [];
-  let list: string[] = [];
-  let orderedList: string[] = [];
-  let tableRows: string[][] = [];
-  let code: string[] = [];
-  let inCode = false;
-
-  const flushParagraph = () => {
-    if (paragraph.length > 0) {
-      blocks.push({ type: 'paragraph', content: paragraph.join('\n').trim() });
-      paragraph = [];
-    }
-  };
-  const flushList = () => {
-    if (list.length > 0) {
-      blocks.push({ type: 'list', items: list });
-      list = [];
-    }
-  };
-  const flushOrderedList = () => {
-    if (orderedList.length > 0) {
-      blocks.push({ type: 'ordered-list', items: orderedList });
-      orderedList = [];
-    }
-  };
-  const flushTable = () => {
-    if (tableRows.length > 0) {
-      const meaningfulRows = tableRows.filter((row) => !row.every((cell) => /^:?-{3,}:?$/.test(cell.trim())));
-      if (meaningfulRows.length > 0) {
-        blocks.push({ type: 'table', headers: meaningfulRows[0], rows: meaningfulRows.slice(1) });
-      }
-      tableRows = [];
-    }
-  };
-  const parseTableLine = (line: string) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
-
-  for (const line of lines) {
-    if (line.trim().startsWith('```')) {
-      if (inCode) {
-        blocks.push({ type: 'code', content: code.join('\n') });
-        code = [];
-        inCode = false;
-      } else {
-        flushParagraph();
-        flushList();
-        flushOrderedList();
-        flushTable();
-        inCode = true;
-      }
-      continue;
-    }
-    if (inCode) {
-      code.push(line);
-      continue;
-    }
-    if (!line.trim()) {
-      flushParagraph();
-      flushList();
-      flushOrderedList();
-      flushTable();
-      continue;
-    }
-    if (line.includes('|') && /^\s*\|?.+\|.+\|?\s*$/.test(line)) {
-      flushParagraph();
-      flushList();
-      flushOrderedList();
-      tableRows.push(parseTableLine(line));
-      continue;
-    }
-    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-      flushParagraph();
-      flushList();
-      flushOrderedList();
-      flushTable();
-      blocks.push({ type: 'rule' });
-      continue;
-    }
-    const blockquote = line.match(/^\s*>\s+(.+)$/);
-    if (blockquote) {
-      flushParagraph();
-      flushList();
-      flushOrderedList();
-      flushTable();
-      blocks.push({ type: 'blockquote', content: blockquote[1] });
-      continue;
-    }
-    const heading = line.match(/^(#{1,6})\s+(.+)$/);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      flushOrderedList();
-      flushTable();
-      blocks.push({ type: 'heading', level: heading[1].length, content: heading[2] });
-      continue;
-    }
-    const listItem = line.match(/^\s*[-*+]\s+(.+)$/);
-    if (listItem) {
-      flushParagraph();
-      flushOrderedList();
-      flushTable();
-      list.push(listItem[1]);
-      continue;
-    }
-    const orderedListItem = line.match(/^\s*\d+[\.)]\s+(.+)$/);
-    if (orderedListItem) {
-      flushParagraph();
-      flushList();
-      flushTable();
-      orderedList.push(orderedListItem[1]);
-      continue;
-    }
-    flushList();
-    flushOrderedList();
-    flushTable();
-    paragraph.push(line);
-  }
-
-  if (inCode) blocks.push({ type: 'code', content: code.join('\n') });
-  flushParagraph();
-  flushList();
-  flushOrderedList();
-  flushTable();
-  return blocks.length > 0 ? blocks : [{ type: 'paragraph', content: markdown }];
 }

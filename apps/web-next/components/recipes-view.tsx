@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Check, ChevronDown, CircleAlert, CircleHelp, Copy, Eye, GitCompare, Layers3, Package, Pencil, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Check, CheckCircle2, ChevronDown, CircleAlert, CircleHelp, Copy, Eye, EyeOff, GitCompare, Info, Layers3, Package, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -19,6 +19,14 @@ import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { dateShort, money } from '@/lib/format';
 import { parsePumpShellMeta } from '@/lib/part-form-rules';
 import { getAllParts, type Part } from '@/lib/parts';
+import {
+  analyzeRecipeConfiguration,
+  saveRecipeAnalysisFeedback,
+  type RecipeConfigurationAnalysis,
+  type RecipeAnalysisFeedbackDecision,
+  type RecipeAnalysisFinding,
+  type RecipeAnalysisSeverity,
+} from '@/lib/quality';
 import {
   buildRecipeSavePayloadDraft,
   buildRecipeCopperRisk,
@@ -66,6 +74,24 @@ import { parseTechnicalDataJson, type RecipeTechnicalData } from '@/lib/technica
 type RecipeFilter = 'all' | 'risk' | 'missingCost' | 'float' | 'cable';
 type RecipeSection = 'recipes' | 'templates' | 'variants';
 type CoilSlotType = '小眼' | '国标眼';
+
+function recipeAnalysisTone(severity: RecipeAnalysisSeverity): StatusBadgeTone {
+  if (severity === 'danger') return 'red';
+  if (severity === 'warning') return 'amber';
+  return 'blue';
+}
+
+function recipeAnalysisSeverityLabel(severity: RecipeAnalysisSeverity): string {
+  if (severity === 'danger') return '确定问题';
+  if (severity === 'warning') return '重点复核';
+  return '建议复核';
+}
+
+function recipeAnalysisConfidenceLabel(confidence: 'high' | 'medium' | 'low'): string {
+  if (confidence === 'high') return '高置信度';
+  if (confidence === 'medium') return '中置信度';
+  return '低置信度';
+}
 
 type CoilVariantSelection = {
   material: string;
@@ -1132,6 +1158,16 @@ export function RecipesView() {
   const [bomDraft, setBomDraft] = useState<RecipeBomDraftResult | null>(null);
   const [bomDraftLoading, setBomDraftLoading] = useState(false);
   const [bomDraftError, setBomDraftError] = useState<string | null>(null);
+  const [recipeAnalysis, setRecipeAnalysis] = useState<RecipeConfigurationAnalysis | null>(null);
+  const [recipeAnalysisOpen, setRecipeAnalysisOpen] = useState(false);
+  const [recipeAnalysisLoading, setRecipeAnalysisLoading] = useState(false);
+  const [analysisSaveGateOpen, setAnalysisSaveGateOpen] = useState(false);
+  const [analysisFeedbackDraft, setAnalysisFeedbackDraft] = useState<{
+    finding: RecipeAnalysisFinding;
+    decision: RecipeAnalysisFeedbackDecision;
+    note: string;
+  } | null>(null);
+  const [analysisFeedbackSaving, setAnalysisFeedbackSaving] = useState(false);
   const [templateMatchDialogOpen, setTemplateMatchDialogOpen] = useState(false);
   const [bomDetailsOpen, setBomDetailsOpen] = useState(false);
   const [variantDrawerOpen, setVariantDrawerOpen] = useState(false);
@@ -1865,6 +1901,8 @@ export function RecipesView() {
     setBomDraftError(null);
     setTemplateMatchDialogOpen(false);
     setBomDetailsOpen(false);
+    setRecipeAnalysis(null);
+    setAnalysisSaveGateOpen(false);
     setFormError(null);
     setDrawerOpen(true);
   }
@@ -1888,6 +1926,8 @@ export function RecipesView() {
     setBomDraftError(null);
     setTemplateMatchDialogOpen(false);
     setBomDetailsOpen(false);
+    setRecipeAnalysis(null);
+    setAnalysisSaveGateOpen(false);
     setFormError(null);
     setDrawerOpen(true);
   }
@@ -1913,6 +1953,8 @@ export function RecipesView() {
       longScrewExtraLength: recipe.longScrewExtraLength || 0,
     });
     setBomDraftError(null);
+    setRecipeAnalysis(null);
+    setAnalysisSaveGateOpen(false);
     setTemplateMatchDialogOpen(false);
     setBomDetailsOpen(false);
     setFormError(null);
@@ -2387,8 +2429,78 @@ export function RecipesView() {
     }
   }
 
+  async function analyzeCurrentRecipeDraft(draft: RecipeBomDraftResult) {
+    return analyzeRecipeConfiguration({
+      recipeId: editingRecipe?.id,
+      limit: 5,
+      draft: {
+        id: editingRecipe?.id,
+        name: form.name.trim() || '未命名配方草稿',
+        spec: form.spec,
+        templateId: form.templateId ? Number(form.templateId) : null,
+        coilSpec: form.coilSpec,
+        coilSheets: numberValue(form.coilSheets),
+        coilMaterial: form.coilMaterial,
+        coilSlotType: form.coilSlotType,
+        hasFloat: form.hasFloat,
+        floatWire: form.floatWire,
+        hasCable: form.hasCable,
+        cableLength: numberValue(form.cableLength),
+        savedTotalCost: liveTotal,
+        parts: draft.parts,
+      },
+    });
+  }
+
+  async function runRecipeAnalysis(options: { preserveSaveGate?: boolean } = {}) {
+    setRecipeAnalysisLoading(true);
+    if (!options.preserveSaveGate) setAnalysisSaveGateOpen(false);
+    setFormError(null);
+    try {
+      const draft = await buildBomDraft();
+      if (!draft) return;
+      const analysis = await analyzeCurrentRecipeDraft(draft);
+      setRecipeAnalysis(analysis);
+      setRecipeAnalysisOpen(true);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '配方智能检查失败');
+    } finally {
+      setRecipeAnalysisLoading(false);
+    }
+  }
+
+  async function saveAnalysisFeedback() {
+    if (!analysisFeedbackDraft || !editingRecipe?.id) return;
+    setAnalysisFeedbackSaving(true);
+    setFormError(null);
+    try {
+      const { finding, decision, note } = analysisFeedbackDraft;
+      await saveRecipeAnalysisFeedback(editingRecipe.id, {
+        findingKey: finding.key,
+        findingType: finding.type,
+        decision,
+        note,
+        findingSnapshot: {
+          title: finding.title,
+          severity: finding.severity,
+          confidence: finding.confidence,
+        },
+      });
+      setAnalysisFeedbackDraft(null);
+      await runRecipeAnalysis({ preserveSaveGate: analysisSaveGateOpen });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '检查反馈保存失败');
+    } finally {
+      setAnalysisFeedbackSaving(false);
+    }
+  }
+
   async function submitRecipe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await saveRecipe();
+  }
+
+  async function saveRecipe(options: { skipIntelligenceCheck?: boolean } = {}) {
     if (!form.name.trim()) {
       setFormError('配方名称不能为空');
       return;
@@ -2404,6 +2516,17 @@ export function RecipesView() {
     try {
       const draft = await buildBomDraft();
       if (!draft) return;
+      if (!options.skipIntelligenceCheck) {
+        setRecipeAnalysisLoading(true);
+        const analysis = await analyzeCurrentRecipeDraft(draft);
+        setRecipeAnalysis(analysis);
+        if (analysis.summary.highConfidenceAlertCount > 0) {
+          setAnalysisSaveGateOpen(true);
+          setRecipeAnalysisOpen(true);
+          return;
+        }
+        setAnalysisSaveGateOpen(false);
+      }
       const costDraft = await previewRecipeCostDraft({
         parts: draft.parts,
         assemblyWage: numberValue(form.assemblyWage),
@@ -2457,10 +2580,13 @@ export function RecipesView() {
       if (editingRecipe) await updateRecipe(editingRecipe.id, payload);
       else await createRecipe(payload);
       await load(true);
+      setRecipeAnalysisOpen(false);
+      setAnalysisSaveGateOpen(false);
       setDrawerOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '配方保存失败');
     } finally {
+      setRecipeAnalysisLoading(false);
       setSaving(false);
     }
   }
@@ -2477,6 +2603,40 @@ export function RecipesView() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function feedbackActions(finding: RecipeAnalysisFinding) {
+    if (!editingRecipe?.id) {
+      return <div className="mt-3 text-xs text-muted">保存配方后可记录人工判断。</div>;
+    }
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={finding.feedback?.decision === 'confirmed' ? 'primary' : 'secondary'}
+          icon={<CheckCircle2 size={14} />}
+          onClick={() => setAnalysisFeedbackDraft({ finding, decision: 'confirmed', note: finding.feedback?.note || '' })}
+        >
+          确认问题
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<EyeOff size={14} />}
+          onClick={() => setAnalysisFeedbackDraft({ finding, decision: 'ignored', note: finding.feedback?.note || '' })}
+        >
+          忽略
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Info size={14} />}
+          onClick={() => setAnalysisFeedbackDraft({ finding, decision: 'special_case', note: finding.feedback?.note || '' })}
+        >
+          特殊情况
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -4335,6 +4495,14 @@ export function RecipesView() {
               取消
             </Button>
             <Button
+              type="button"
+              onClick={() => void runRecipeAnalysis()}
+              disabled={saving || recipeAnalysisLoading}
+              icon={<Sparkles size={15} />}
+            >
+              {recipeAnalysisLoading ? '检查中' : '智能检查'}
+            </Button>
+            <Button
               type="submit"
               variant="primary"
               disabled={saving || recipeSaveBlockedByWarnings}
@@ -4346,6 +4514,266 @@ export function RecipesView() {
           </div>
         </form>
       </SlideOver>
+
+      <SlideOver
+        open={recipeAnalysisOpen}
+        onClose={() => {
+          setRecipeAnalysisOpen(false);
+          setAnalysisSaveGateOpen(false);
+        }}
+        size="wide"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles size={18} className="text-sky-700" />
+              <h2 className="text-lg font-semibold text-ink">配方智能检查</h2>
+            </div>
+            <div className="mt-1 text-sm text-muted">{recipeAnalysis?.recipe.name || '当前配方草稿'}</div>
+          </div>
+          <Button
+            className="w-9 px-0"
+            variant="ghost"
+            aria-label="关闭配方智能检查"
+            title="关闭"
+            onClick={() => {
+              setRecipeAnalysisOpen(false);
+              setAnalysisSaveGateOpen(false);
+            }}
+            icon={<X size={16} />}
+          />
+        </div>
+
+        {recipeAnalysis && (
+          <div className="max-h-[calc(100vh-9rem)] overflow-y-auto">
+            <div className="grid border-b border-line sm:grid-cols-5">
+              {[
+                ['确定问题', recipeAnalysis.summary.definiteIssueCount],
+                ['复核建议', recipeAnalysis.summary.reviewSuggestionCount],
+                ['价格提醒', recipeAnalysis.summary.priceAlertCount],
+                ['已收纳', recipeAnalysis.summary.suppressedFindingCount],
+                ['相似配方', recipeAnalysis.summary.similarRecipeCount],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="border-b border-line px-5 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+                  <div className="text-xs text-muted">{label}</div>
+                  <div className="mt-1 text-xl font-semibold text-ink">{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-7 p-5">
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-ink">配置与漏项</h3>
+                  <span className="text-xs text-muted">只提供建议，不自动修改</span>
+                </div>
+                {recipeAnalysis.missingItems.length === 0 ? (
+                  <div className="border-y border-line py-4 text-sm text-muted">没有发现配置矛盾或高频漏项。</div>
+                ) : (
+                  <div className="divide-y divide-line border-y border-line">
+                    {recipeAnalysis.missingItems.map((item) => (
+                      <div key={item.key} className="py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge tone={recipeAnalysisTone(item.severity)}>{recipeAnalysisSeverityLabel(item.severity)}</StatusBadge>
+                          <StatusBadge tone="slate">{recipeAnalysisConfidenceLabel(item.confidence)}</StatusBadge>
+                          {item.feedback?.decision === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                          <div className="font-medium text-ink">{item.title}</div>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-muted">{item.explanation}</div>
+                        {item.suggestedModels && item.suggestedModels.length > 0 && (
+                          <div className="mt-2 text-xs text-slate-600">参考型号：{item.suggestedModels.join('、')}</div>
+                        )}
+                        {feedbackActions(item)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-ink">价格提醒</h3>
+                {recipeAnalysis.priceAlerts.length === 0 ? (
+                  <div className="border-y border-line py-4 text-sm text-muted">可比固定件中没有发现明显价格异常。</div>
+                ) : (
+                  <div className="divide-y divide-line border-y border-line">
+                    {recipeAnalysis.priceAlerts.map((alert) => (
+                      <div key={alert.key} className="py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge tone={recipeAnalysisTone(alert.severity)}>{recipeAnalysisSeverityLabel(alert.severity)}</StatusBadge>
+                          {alert.feedback?.decision === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                          <div className="font-medium text-ink">{alert.title}</div>
+                        </div>
+                        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+                          <div><span className="text-muted">当前：</span><span className="font-medium text-ink">{money(alert.currentPrice)}</span></div>
+                          <div><span className="text-muted">参考中位：</span><span className="font-medium text-ink">{money(alert.referenceMedian)}</span></div>
+                          <div><span className="text-muted">参考范围：</span><span className="font-medium text-ink">{money(alert.referenceMin)} - {money(alert.referenceMax)}</span></div>
+                          <div><span className="text-muted">偏差：</span><span className="font-medium text-ink">{alert.differencePercent > 0 ? '+' : ''}{alert.differencePercent}%</span></div>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-muted">{alert.explanation}</div>
+                        {feedbackActions(alert)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {recipeAnalysis.suppressedFindings.length > 0 && (
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-ink">已忽略与特殊情况</h3>
+                  <div className="divide-y divide-line border-y border-line">
+                    {recipeAnalysis.suppressedFindings.map((finding) => (
+                      <div key={finding.key} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge tone="slate">
+                              {finding.feedback?.decision === 'special_case' ? '特殊情况' : '已忽略'}
+                            </StatusBadge>
+                            <div className="font-medium text-ink">{finding.title}</div>
+                          </div>
+                          {finding.feedback?.note && <div className="mt-2 text-sm text-muted">{finding.feedback.note}</div>}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<RotateCcw size={14} />}
+                          onClick={() => setAnalysisFeedbackDraft({
+                            finding,
+                            decision: 'review',
+                            note: finding.feedback?.note || '',
+                          })}
+                        >
+                          恢复复核
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-ink">相似配方依据</h3>
+                {recipeAnalysis.similarRecipes.length === 0 ? (
+                  <div className="border-y border-line py-4 text-sm text-muted">当前没有足够接近的历史配方，复核建议会更保守。</div>
+                ) : (
+                  <div className="divide-y divide-line border-y border-line">
+                    {recipeAnalysis.similarRecipes.map((item) => (
+                      <div key={item.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_100px_140px] sm:items-center">
+                        <div>
+                          <div className="font-medium text-ink">{item.name}</div>
+                          <div className="mt-1 text-xs text-muted">{item.reasons.join('；') || 'BOM 结构相近'}</div>
+                        </div>
+                        <div className="text-sm text-muted">相似度 {Math.round(item.score * 100)}%</div>
+                        <div className="text-sm text-muted">保存成本 {money(item.savedTotalCost)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        )}
+        {analysisSaveGateOpen && recipeAnalysis && (
+          <div className="sticky bottom-0 border-t border-line bg-white px-5 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-medium text-ink">
+                  {recipeAnalysis.summary.highConfidenceAlertCount > 0
+                    ? `发现 ${recipeAnalysis.summary.highConfidenceAlertCount} 项高置信度问题`
+                    : '高置信度问题已经处理'}
+                </div>
+                <div className="mt-1 text-xs text-muted">
+                  {recipeAnalysis.summary.highConfidenceAlertCount > 0
+                    ? '建议先处理或记录特殊情况；继续保存不会自动修改当前配方。'
+                    : '普通复核建议不会阻止保存。'}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setRecipeAnalysisOpen(false);
+                    setAnalysisSaveGateOpen(false);
+                  }}
+                >
+                  返回修改
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={saving || analysisFeedbackSaving}
+                  icon={<Save size={15} />}
+                  onClick={() => {
+                    setRecipeAnalysisOpen(false);
+                    void saveRecipe({ skipIntelligenceCheck: true });
+                  }}
+                >
+                  {recipeAnalysis.summary.highConfidenceAlertCount > 0 ? '确认并继续保存' : '继续保存'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </SlideOver>
+
+      {analysisFeedbackDraft && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 p-4" role="presentation">
+          <div
+            className="w-full max-w-md rounded-md border border-line bg-white shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="analysis-feedback-title"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+              <div>
+                <h2 id="analysis-feedback-title" className="font-semibold text-ink">
+                  {analysisFeedbackDraft.decision === 'confirmed' && '确认这是一项问题'}
+                  {analysisFeedbackDraft.decision === 'ignored' && '忽略这条提醒'}
+                  {analysisFeedbackDraft.decision === 'special_case' && '标记为特殊情况'}
+                  {analysisFeedbackDraft.decision === 'review' && '恢复这条提醒'}
+                </h2>
+                <div className="mt-1 text-sm text-muted">{analysisFeedbackDraft.finding.title}</div>
+              </div>
+              <Button
+                className="w-9 px-0"
+                variant="ghost"
+                aria-label="关闭反馈窗口"
+                title="关闭"
+                onClick={() => setAnalysisFeedbackDraft(null)}
+                icon={<X size={16} />}
+              />
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <label className="block">
+                <span className="text-sm font-medium text-ink">说明（可选）</span>
+                <textarea
+                  value={analysisFeedbackDraft.note}
+                  maxLength={500}
+                  rows={4}
+                  onChange={(event) => setAnalysisFeedbackDraft({
+                    ...analysisFeedbackDraft,
+                    note: event.target.value,
+                  })}
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-slate-400"
+                  placeholder="例如：这是菲律宾客户指定配置，只对当前配方适用"
+                />
+              </label>
+              <div className="text-xs leading-5 text-muted">
+                该判断只对当前配方的这条提醒生效，不会自动修改配方，也不会改变其他配方的规则。
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
+              <Button variant="ghost" onClick={() => setAnalysisFeedbackDraft(null)}>取消</Button>
+              <Button
+                variant="primary"
+                disabled={analysisFeedbackSaving}
+                icon={analysisFeedbackDraft.decision === 'review' ? <RotateCcw size={15} /> : <Save size={15} />}
+                onClick={saveAnalysisFeedback}
+              >
+                {analysisFeedbackSaving ? '保存中' : '保存判断'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BomTableDialog
         open={bomDetailsOpen}

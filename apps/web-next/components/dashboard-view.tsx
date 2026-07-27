@@ -18,8 +18,9 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { QualityView } from '@/components/quality-view';
 import { getDataQualitySummary } from '@/lib/quality';
+import { KnowledgeView } from '@/components/knowledge-view';
 
-type DashboardMode = 'overview' | 'quality';
+type DashboardMode = 'overview' | 'quality' | 'knowledge';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -38,7 +39,13 @@ function statusTone(status: string): StatusBadgeTone {
   return 'amber';
 }
 
-export function DashboardView({ initialMode = 'overview' }: { initialMode?: DashboardMode }) {
+export function DashboardView({
+  initialMode = 'overview',
+  initialKnowledgeEntryId = null,
+}: {
+  initialMode?: DashboardMode;
+  initialKnowledgeEntryId?: number | null;
+}) {
   const [mode, setMode] = useState<DashboardMode>(initialMode);
   const [summary, setSummary] = useState<BusinessSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +54,8 @@ export function DashboardView({ initialMode = 'overview' }: { initialMode?: Dash
   const [qualityScore, setQualityScore] = useState<number | null>(null);
   const [qualityRefreshKey, setQualityRefreshKey] = useState(0);
   const [qualityRefreshing, setQualityRefreshing] = useState(false);
+  const [knowledgeRefreshKey, setKnowledgeRefreshKey] = useState(0);
+  const [knowledgeRefreshing, setKnowledgeRefreshing] = useState(false);
 
   async function load(force = false) {
     setError(null);
@@ -73,13 +82,17 @@ export function DashboardView({ initialMode = 'overview' }: { initialMode?: Dash
   const dashboardModeOptions: Array<{ value: DashboardMode; label: string; badge?: number }> = [
     { value: 'overview', label: '经营概览' },
     { value: 'quality', label: '数据质量', ...(qualityScore === null ? {} : { badge: qualityScore }) },
+    { value: 'knowledge', label: '知识库' },
   ];
 
   function refreshCurrentView() {
     if (mode === 'overview') void load(true);
-    else {
+    else if (mode === 'quality') {
       setQualityRefreshing(true);
       setQualityRefreshKey((current) => current + 1);
+    } else {
+      setKnowledgeRefreshing(true);
+      setKnowledgeRefreshKey((current) => current + 1);
     }
   }
 
@@ -97,8 +110,8 @@ export function DashboardView({ initialMode = 'overview' }: { initialMode?: Dash
           <SegmentedControl value={mode} options={dashboardModeOptions} onChange={setMode} ariaLabel="看板内容" />
           <Button
             onClick={refreshCurrentView}
-            disabled={mode === 'overview' ? refreshing : qualityRefreshing}
-            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : qualityRefreshing) ? 'animate-spin' : ''} />}
+            disabled={mode === 'overview' ? refreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
+            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
           >
             刷新
           </Button>
@@ -107,6 +120,10 @@ export function DashboardView({ initialMode = 'overview' }: { initialMode?: Dash
 
       {mode === 'quality' ? (
         <QualityView embedded refreshKey={qualityRefreshKey} onScoreChange={setQualityScore} onRefreshComplete={() => setQualityRefreshing(false)} />
+      ) : null}
+
+      {mode === 'knowledge' ? (
+        <KnowledgeView initialEntryId={initialKnowledgeEntryId} refreshKey={knowledgeRefreshKey} onRefreshComplete={() => setKnowledgeRefreshing(false)} />
       ) : null}
 
       {mode === 'overview' && error && (

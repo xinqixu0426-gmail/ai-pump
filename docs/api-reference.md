@@ -1,6 +1,6 @@
 # API 接口总表
 
-> 更新于 2026-07-21。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
+> 更新于 2026-07-27。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
 
 ## 1. 通用约定
 
@@ -268,6 +268,22 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | `PATCH` | `/api/ai/conversations/:id/messages/:messageId` | `{ metadata }` | 更新已保存消息的工具执行结果 |
 | `DELETE` | `/api/ai/conversations/:id` | 无 | 软删除会话；历史消息保留在数据库中但不再展示 |
 
+### AI 回答反馈
+
+用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。问题反馈进入知识库管理中心待处理队列，但不会自动修改知识条目、业务数据或规则。
+
+| 方法 | 路径 | 请求 | 说明 |
+|---|---|---|---|
+| `GET` | `/api/ai/feedback?conversationId=&status=&rating=&limit=50` | 无 | 按当前登录身份查询反馈和汇总；`status` 为 `open/resolved`，最大 100 条 |
+| `POST` | `/api/ai/feedback` | `{ messageId, rating, note? }` | 新增或改判指定 AI 回复；`rating` 为 `helpful/incorrect/outdated/missing_source` |
+| `POST` | `/api/ai/feedback/:id/diagnose` | 无 | 只读对照当前知识概况，识别知识待同步、缺少引用、知识缺口或需业务复核，并保存诊断快照 |
+| `POST` | `/api/ai/feedback/:id/retest` | `{ answerText, toolResults }` | 保存使用原问题重新查询所得的新回答和来源，供人工对比；不自动归档 |
+| `PATCH` | `/api/ai/feedback/:id` | `{ status, resolutionNote? }` | 将问题标记为待处理或已处理；处理说明最大 500 字符 |
+
+同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。反馈和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。
+
+诊断依据是反馈保存时的 `sourceTable + sourceId` 来源快照和 `/api/knowledge/overview` 当前内容哈希状态。无来源时会从原问题中的型号、编号或引号内容检索候选知识。管理界面的“重新验证”重新调用标准 AI 对话流并保存新回答，用户必须比较新旧内容后手工确认归档；系统不会根据模型自评自动判定正确。
+
 AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认流程控制。`/api/ai/chat` 中普通工具结果会继续回流给模型用于多步编排；只有返回 `requiresConfirmation` 的写操作会暂停并等待 `/api/ai/confirm-tool`。
 
 `/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/done/error`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。
@@ -282,9 +298,16 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `search_customer_history`：组合查询客户、报价和订单历史，供报价前参考。
 - `explain_cost_change`：调用 `/api/cost/recipe-difference` 解释两个配方的成本差异。
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
-- `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库。
-- `get_factory_knowledge_detail`：调用 `/api/knowledge/:id` 读取知识条目详情。
+- `analyze_recipe_configuration`：调用 `/api/quality/recipe-analysis`，只读分析相似配方、配置矛盾、同类高频项和固定件价格异常。
+- `set_recipe_analysis_feedback`：保存“确认问题/忽略/特殊情况/恢复复核”判断；必须使用智能检查返回的精确提醒键，并在用户确认后写入。
+- `get_factory_rule_candidates`：只读查询待审核、已批准、已驳回或已失效的候选业务规则。
+- `refresh_factory_rule_candidates`：从已确认的同类高频项中重新归纳候选规则；必须确认，不会自动批准。
+- `review_factory_rule_candidate`：批准、驳回或恢复候选规则；必须确认，批准后需再次同步知识库才进入检索。
+- `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库，并读取 `/api/knowledge/overview` 标记每条来源的新鲜度。
+- `get_factory_knowledge_detail`：调用 `/api/knowledge/:id` 读取知识条目详情，并返回可追溯的原业务来源。
 - `sync_factory_knowledge`：调用 `/api/knowledge/sync` 增量更新知识条目并刷新 FTS；该工具写入派生索引，位于写工具白名单，需确认后执行。
+
+知识查询工具结果包含 `provenance` 和 `sources`。`provenance.kind=knowledge_snapshot` 表示最近一次知识同步快照；每个 source 包含 `knowledgeEntryId/title/sourceTable/sourceId/syncedAt/sourceUpdatedAt/freshness/knowledgePath/sourcePath`。`freshness` 支持 `fresh/pending_insert/pending_update/pending_delete`。价格、库存、订单状态等实时业务查询使用 `provenance.kind=live_business`；实时结果与知识快照冲突时以实时业务结果为准。
 
 Next iPhone PWA `/ai` 复用本节接口：
 
@@ -327,10 +350,19 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 |---|---|---|---|
 | `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
 | `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
+| `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V2 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项和固定件价格异常；只读不写库 |
+| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；后续检查会保留已确认项，收纳忽略和特殊情况项，`review` 可恢复复核 |
+| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及证据配方；状态支持 `candidate/approved/rejected/stale` |
+| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板下至少 2 个不同配方已确认的 `peer_pattern` 提醒中归纳候选规则；价格提醒和确定性程序错误不参与学习 |
+| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`，证据不足 2 个配方时禁止批准 |
 
 数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
 
 经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
+
+配方智能检查返回 `version/mode/advisoryOnly/recipe/summary/similarRecipes/missingItems/priceAlerts/suppressedFindings/guidance`。相似度基于泵壳模板、BOM 角色、具体型号和线圈配置；`configuration_conflict` 是配置字段与 BOM 的高置信度矛盾，`peer_pattern` 只是同类配方高频模式，必须由人工结合客户要求复核。价格分析只比较普通固定件，会排除动态泵壳、线圈、浮球、成品电缆和公式/手输成本项。Web 保存配方前会调用该只读接口，高置信度问题要求用户返回修改或明确继续，普通建议不阻止保存；任何提醒都不会自动覆盖配方快照或零件价格。
+
+候选规则是“人工反馈的归纳结果”，不是自动成立的业务事实。系统仅统计已明确 `confirmed` 的 `peer_pattern`，按泵壳模板和提醒键分组，并要求至少两个不同配方作为证据。批准记录保存在 `factory_rule_candidates`；下一次执行知识库同步时，只有 `approved` 状态会生成 `business_rule` 条目。
 
 ## 17. 工厂知识库 Knowledge
 
@@ -340,11 +372,14 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
+| `GET` | `/api/knowledge/overview` | 无 | 只读生成当前业务知识快照，并用 `sourceTable + sourceId + contentHash` 与已同步条目比较；返回条目总量、分类覆盖、最近同步时间、FTS 状态和待新增/更新/移除清单，不写数据库 |
 | `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule`；默认最多 10 条，最大 50 条。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
 | `POST` | `/api/knowledge/sync` | 无 | 按来源增量新增、更新和移除 `knowledge_entries`，保留既有条目 ID，并在同一事务中刷新可选 FTS；不修改原业务资源 |
 
 同步响应的 `stats` 包含 `total/inserted/updated/unchanged/deleted/byType`。任一业务条目或 FTS 写入失败时，整个同步事务回滚，继续保留上一版完整知识库。
+
+概况响应的 `stats` 包含 `currentTotal/storedTotal/fresh/pendingTotal/pendingInsert/pendingUpdate/pendingDelete`，`byType` 按知识分类返回当前来源数、已同步数、最新数和待同步数。新鲜度以实际生成内容的哈希为准，不仅比较更新时间，因此不会因报告生成时间或质量检查时间变化产生虚假过期提示。
 
 AI 工具：
 

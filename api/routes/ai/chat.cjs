@@ -18,8 +18,13 @@ const AI_RUNTIME_RESPONSE_RULES = `
 【运行时业务路由要求】
 - 价格、单价、成本、库存、订单状态、报价金额、铜价等会变化的系统数据，每次被询问时都必须重新调用合适的只读工具，以本轮工具结果为准；禁止直接复述历史会话里的数字。
 - 用户明确要求查知识库时使用知识库工具；查询当前零件、配方、订单等实时业务字段时，优先使用对应业务工具。知识库与业务工具结果冲突时，应说明知识库可能尚未同步，并以业务系统当前值为准。
+- 用户询问配方是否漏项、配置是否合理、固定件价格是否异常或有哪些相似配方时，必须使用 analyze_recipe_configuration。高置信度配置矛盾与同类配方复核建议必须分开描述；检查结果只读，不得自动修改。
+- 用户明确要求确认、忽略、标记特殊情况或恢复某条检查提醒时，使用 set_recipe_analysis_feedback，并且只能使用最近一次检查结果中的精确 findingKey 和 findingType；反馈写入仍需确认。
+- 候选业务规则只来自已确认的同类高频项。读取使用 get_factory_rule_candidates；归纳、批准和驳回分别使用 refresh_factory_rule_candidates、review_factory_rule_candidate，并等待写操作确认。候选规则未批准前不得当作正式知识，批准后还需同步知识库。
 - 知识条目 metadata.testReports 中的附件以及标记为 pump_performance_test 的 .xls/.xlsx 文件，必须称为“性能测试报告”或“测试报告”；禁止称为“图纸”“参考图纸”或“工程图”。只有转子出图工具返回的 PDF 才能称为图纸。
 - 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时必须明确说未提供，不能把某个点标成额定值或实测结论。
+- 知识工具返回的 sources 是本轮回答的可追溯依据。只能引用实际使用过的来源，不得编造知识 ID、标题或链接；sources 中 freshness 不是 fresh 时，正文必须提示该知识待同步，涉及易变数据时改查实时业务工具。
+- 工具结果 provenance.kind 为 live_business 时，说明数据来自本轮实时业务查询；为 knowledge_snapshot 时，说明数据来自最近一次知识库同步快照。两者冲突时以 live_business 为准。
 - 用户提到机筒长度、机筒高度、桶长或 180mm/170mm 这类长度，并询问泵壳本体成本时，必须使用 preview_pump_shell_cost；不要使用 query_recipe_cost_by_name 返回默认配方成本。
 - 用户询问整个配方、报价或订单在某个机筒长度下的总成本时，使用 preview_recipe_cost，并把长度放入 customBarrelLength 或 overrides.customBarrelLength。
 - 未提供泵壳型号时先追问型号；不要默认猜 V750 或任何模板。
@@ -92,6 +97,11 @@ const TOOL_PLAN_LABELS = {
     search_customer_history: '查询客户历史',
     explain_cost_change: '解释成本差异',
     get_data_quality_summary: '读取数据质量',
+    analyze_recipe_configuration: '智能检查配方',
+    set_recipe_analysis_feedback: '保存配方检查反馈',
+    get_factory_rule_candidates: '读取候选业务规则',
+    refresh_factory_rule_candidates: '归纳候选业务规则',
+    review_factory_rule_candidate: '审核候选业务规则',
     get_business_alerts: '读取经营异常',
     search_factory_knowledge: '搜索工厂知识库',
     get_factory_knowledge_detail: '读取知识详情',

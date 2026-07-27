@@ -462,9 +462,56 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_rule_candidates', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
         assert.match(tools, new RegExp(name));
     }
+});
+
+test('API 静态契约：配方智能检查只读且必须区分确定问题与复核建议', () => {
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/recipeIntelligence.cjs'));
+
+    assert.match(tools, /name: 'analyze_recipe_configuration'/);
+    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /analyze_recipe_configuration/);
+    assert.match(businessExecutor, /\/api\/quality\/recipe-analysis/);
+    assert.match(chatRoute, /高置信度配置矛盾与同类配方复核建议必须分开描述/);
+    assert.match(promptRoute, /不得把建议说成确定错误/);
+    assert.match(service, /advisoryOnly: true/);
+    assert.match(service, /type: 'configuration_conflict'/);
+    assert.match(service, /type: 'peer_pattern'/);
+});
+
+test('API 静态契约：配方检查反馈按提醒键持久化且受确认保护', () => {
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+
+    assert.match(tools, /name: 'set_recipe_analysis_feedback'/);
+    assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /set_recipe_analysis_feedback/);
+    assert.match(route, /router\.post\('\/recipes\/:recipeId\/feedback'/);
+    assert.match(service, /safeInsert/);
+    assert.match(service, /safeUpdate/);
+    assert.match(schema, /UNIQUE\(recipe_id, finding_key\)/);
+});
+
+test('API 静态契约：候选业务规则需人工审核后才进入知识库', () => {
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+
+    assert.match(service, /finding_type = 'peer_pattern'/);
+    assert.match(service, /minimumEvidence \|\| 2/);
+    assert.match(service, /status === 'approved'/);
+    assert.match(knowledge, /approvedFactoryRuleEntries/);
+    assert.match(knowledge, /sourceTable: 'factory_rule_candidates'/);
+    assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /review_factory_rule_candidate/);
+    assert.match(qualityView, /候选业务规则/);
+    assert.match(qualityView, /批准后在下次同步知识库时生效/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
@@ -496,6 +543,21 @@ test('API 静态契约：知识库同步工具是受确认保护的写工具', (
     assert.match(db, /'knowledge_entries'/);
 });
 
+test('API 静态契约：AI 知识回答必须携带可追溯来源并区分实时数据', () => {
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
+    const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+
+    assert.match(businessExecutor, /buildKnowledgeSources/);
+    assert.match(businessExecutor, /\/api\/knowledge\/overview/);
+    assert.match(businessExecutor, /kind: 'knowledge_snapshot'/);
+    assert.match(businessExecutor, /knowledgePath: `\/dashboard\?view=knowledge&entry=/);
+    assert.match(executor, /kind: 'live_business'/);
+    assert.match(chatRoute, /sources 是本轮回答的可追溯依据/);
+    assert.match(promptRoute, /不得自行编造知识 ID/);
+});
+
 test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
@@ -525,6 +587,24 @@ test('API 静态契约：AI 会话表进入安全写入白名单', () => {
     assert.match(service, /safeInsert\('ai_conversation_messages'/);
     assert.match(service, /safeUpdate\('ai_conversations'/);
     assert.match(service, /safeUpdate\('ai_conversation_messages'/);
+});
+
+test('API 静态契约：AI 回答反馈使用安全写入并保存来源快照', () => {
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/aiAnswerFeedback.cjs'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_answer_feedback/);
+    assert.match(schema, /message_id INTEGER NOT NULL UNIQUE/);
+    assert.match(schema, /diagnosis_json TEXT DEFAULT '\{\}'/);
+    assert.match(schema, /retest_answer_text TEXT DEFAULT ''/);
+    assert.match(db, /'ai_answer_feedback'/);
+    assert.match(service, /safeInsert\('ai_answer_feedback'/);
+    assert.match(service, /safeUpdate\('ai_answer_feedback'/);
+    assert.match(service, /collectSources/);
+    assert.match(service, /conversation\.owner_key = \?/);
+    assert.match(service, /inspectKnowledgeOverview/);
+    assert.match(service, /recordAiAnswerFeedbackRetest/);
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {

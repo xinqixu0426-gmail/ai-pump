@@ -81,6 +81,8 @@ test('AI executor 行为：查询零件列表通过标准 parts API', async () =
 
     assert.equal(result.success, true);
     assert.deepEqual(result.data, [{ id: 1, model: '6202', category: '轴承', price: 1.5, supplier: 'S', stock: 8 }]);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.equal(result.provenance.label, '实时业务数据');
     assert.equal(calls.length, 1);
     assert.match(calls[0].url, /\/api\/parts$/);
 });
@@ -358,10 +360,19 @@ test('AI executor 行为：泵壳机筒长度成本试算复用 BOM 草稿 API',
 test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/knowledge?query=V750&entryType=recipe&limit=3') && call.method === 'GET') {
-            return jsonResponse({ success: true, data: [{ id: 9, entryType: 'recipe', title: '配方：V750', summary: '保存成本 90' }] });
+            return jsonResponse({ success: true, data: [{ id: 9, entryType: 'recipe', sourceTable: 'recipes', sourceId: '7', title: '配方：V750', summary: '保存成本 90', syncedAt: '2026-01-01' }] });
         }
         if (call.url.endsWith('/api/knowledge/9') && call.method === 'GET') {
-            return jsonResponse({ success: true, data: { id: 9, entryType: 'recipe', title: '配方：V750', content: 'BOM 明细' } });
+            return jsonResponse({ success: true, data: { id: 9, entryType: 'recipe', sourceTable: 'recipes', sourceId: '7', title: '配方：V750', content: 'BOM 明细', syncedAt: '2026-01-01' } });
+        }
+        if (call.url.endsWith('/api/knowledge/overview') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    generatedAt: '2026-01-03',
+                    changes: [{ status: 'pending_update', sourceTable: 'recipes', sourceId: '7', title: '配方：V750', sourceUpdatedAt: '2026-01-02' }],
+                },
+            });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
@@ -372,12 +383,107 @@ test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', 
     assert.equal(search.success, true);
     assert.equal(search.intent, 'factory_knowledge_search');
     assert.equal(search.data[0].id, 9);
+    assert.equal(search.provenance.kind, 'knowledge_snapshot');
+    assert.equal(search.provenance.hasPendingSources, true);
+    assert.equal(search.sources[0].freshness, 'pending_update');
+    assert.equal(search.sources[0].knowledgePath, '/dashboard?view=knowledge&entry=9');
+    assert.equal(search.sources[0].sourcePath, '/recipes');
     assert.equal(detail.success, true);
     assert.equal(detail.data.content, 'BOM 明细');
+    assert.equal(detail.sources[0].sourceUpdatedAt, '2026-01-02');
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/knowledge?query=V750&entryType=recipe&limit=3',
+        'GET /api/knowledge/overview',
         'GET /api/knowledge/9',
+        'GET /api/knowledge/overview',
     ]);
+});
+
+test('AI executor 行为：配方智能检查通过只读质量 API', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/quality/recipe-analysis') && call.method === 'POST') {
+            assert.deepEqual(call.body, { recipeId: 9, limit: 5 });
+            return jsonResponse({
+                success: true,
+                data: {
+                    summary: {
+                        definiteIssueCount: 1,
+                        reviewSuggestionCount: 2,
+                        priceAlertCount: 1,
+                    },
+                    similarRecipes: [{ id: 3, name: 'V750F', score: 0.82 }],
+                    missingItems: [{ title: '已启用电缆，但 BOM 中没有成品电缆', confidence: 'high' }],
+                    priceAlerts: [{ model: '202', currentPrice: 9, referenceMedian: 1.2 }],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('analyze_recipe_configuration', {
+        recipeId: 9,
+        limit: 5,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'recipe_configuration_analysis');
+    assert.match(result.summary, /确定问题 1 项/);
+    assert.match(result.summary, /复核建议 2 项/);
+    assert.match(result.summary, /价格提醒 1 项/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/quality/recipe-analysis',
+    ]);
+});
+
+test('AI executor 行为：配方检查反馈必须确认后写入质量 API', async () => {
+    const args = {
+        recipeId: 9,
+        findingKey: 'missing_cable',
+        findingType: 'configuration_conflict',
+        decision: 'special_case',
+        note: '客户自备电缆',
+    };
+    const blocked = await executeToolCall('set_recipe_analysis_feedback', args, { allowWrite: false });
+    assert.equal(blocked.requiresConfirmation, true);
+    assert.equal(blocked.confirmation.toolName, 'set_recipe_analysis_feedback');
+
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/quality/recipes/9/feedback') && call.method === 'POST') {
+            assert.equal(call.body.findingKey, 'missing_cable');
+            assert.equal(call.body.decision, 'special_case');
+            return jsonResponse({ success: true, data: { id: 12, ...call.body } });
+        }
+        return jsonResponse({ success: false, error: 'unexpected call' }, 500);
+    });
+    const result = await executeToolCall('set_recipe_analysis_feedback', args, { allowWrite: true });
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'recipe_analysis_feedback');
+    assert.equal(calls.length, 1);
+});
+
+test('AI executor 行为：候选规则可只读查询，审核必须确认后调用 PATCH API', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/quality/rule-candidates?status=candidate') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 5, title: 'V750：通常包含说明书' }] });
+        }
+        if (call.url.endsWith('/api/quality/rule-candidates/5') && call.method === 'PATCH') {
+            assert.deepEqual(call.body, { status: 'approved', reviewNote: '确认' });
+            return jsonResponse({ success: true, data: { id: 5, status: 'approved' } });
+        }
+        return jsonResponse({ success: false, error: 'unexpected call' }, 500);
+    });
+
+    const listed = await executeToolCall('get_factory_rule_candidates', { status: 'candidate' }, { allowWrite: false });
+    assert.equal(listed.success, true);
+    assert.equal(listed.data[0].id, 5);
+
+    const args = { candidateId: 5, status: 'approved', reviewNote: '确认' };
+    const blocked = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: false });
+    assert.equal(blocked.requiresConfirmation, true);
+    const approved = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: true });
+    assert.equal(approved.success, true);
+    assert.equal(approved.data.status, 'approved');
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'PATCH']);
 });
 
 test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详情', async () => {
@@ -397,6 +503,9 @@ test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详�
         if (call.url.endsWith('/api/knowledge/9') && call.method === 'GET') {
             return jsonResponse({ success: true, data: { id: 9, title: '线圈：12-220 冷轧 国标眼', content: '默认搭配电缆线径：2' } });
         }
+        if (call.url.endsWith('/api/knowledge/overview') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: { generatedAt: '2026-01-03', changes: [] } });
+        }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
 
@@ -413,6 +522,7 @@ test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详�
         'GET /api/knowledge?query=12-220&entryType=coil&limit=10',
         'GET /api/knowledge/6',
         'GET /api/knowledge/9',
+        'GET /api/knowledge/overview',
     ]);
 });
 

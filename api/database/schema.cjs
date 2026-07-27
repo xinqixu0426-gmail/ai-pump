@@ -307,6 +307,29 @@ const CANONICAL_TABLES_SQL = `
         FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id)
     );
 
+    CREATE TABLE IF NOT EXISTS ai_answer_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL UNIQUE,
+        rating TEXT NOT NULL CHECK(rating IN ('helpful', 'incorrect', 'outdated', 'missing_source')),
+        note TEXT DEFAULT '',
+        question_text TEXT DEFAULT '',
+        answer_text TEXT DEFAULT '',
+        sources_json TEXT DEFAULT '[]',
+        diagnosis_json TEXT DEFAULT '{}',
+        diagnosed_at TEXT,
+        retest_answer_text TEXT DEFAULT '',
+        retest_sources_json TEXT DEFAULT '[]',
+        retested_at TEXT,
+        status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'resolved')),
+        resolution_note TEXT DEFAULT '',
+        resolved_at TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id),
+        FOREIGN KEY(message_id) REFERENCES ai_conversation_messages(id)
+    );
+
     CREATE TABLE IF NOT EXISTS recipe_technical_files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recipe_id INTEGER NOT NULL,
@@ -324,6 +347,38 @@ const CANONICAL_TABLES_SQL = `
         deleted_at TEXT,
         FOREIGN KEY(recipe_id) REFERENCES recipes(id)
     );
+
+    CREATE TABLE IF NOT EXISTS recipe_analysis_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipe_id INTEGER NOT NULL,
+        finding_key TEXT NOT NULL,
+        finding_type TEXT NOT NULL,
+        decision TEXT NOT NULL CHECK(decision IN ('confirmed', 'ignored', 'special_case', 'review')),
+        note TEXT DEFAULT '',
+        finding_snapshot_json TEXT DEFAULT '{}',
+        created_at TEXT,
+        updated_at TEXT,
+        FOREIGN KEY(recipe_id) REFERENCES recipes(id),
+        UNIQUE(recipe_id, finding_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS factory_rule_candidates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_key TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        scope_type TEXT NOT NULL DEFAULT 'pump_shell_template',
+        scope_ref TEXT NOT NULL,
+        finding_key TEXT NOT NULL,
+        finding_type TEXT NOT NULL,
+        evidence_count INTEGER NOT NULL DEFAULT 0,
+        evidence_json TEXT DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'candidate' CHECK(status IN ('candidate', 'approved', 'rejected', 'stale')),
+        review_note TEXT DEFAULT '',
+        approved_at TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    );
 `;
 
 const CANONICAL_INDEXES_SQL = `
@@ -336,8 +391,16 @@ const CANONICAL_INDEXES_SQL = `
         ON ai_conversations(owner_key, deleted_at, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation
         ON ai_conversation_messages(conversation_id, id);
+    CREATE INDEX IF NOT EXISTS idx_ai_answer_feedback_status
+        ON ai_answer_feedback(status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_answer_feedback_conversation
+        ON ai_answer_feedback(conversation_id, message_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_recipe
         ON recipe_technical_files(recipe_id, deleted_at, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_recipe_analysis_feedback_recipe
+        ON recipe_analysis_feedback(recipe_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_factory_rule_candidates_status
+        ON factory_rule_candidates(status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_coils_variant_sheets
         ON coils(stator_variant_id, sheets);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme
@@ -456,18 +519,21 @@ const LEGACY_COLUMN_UPGRADES = {
 };
 
 const APPLICATION_TABLES = Object.freeze([
+    'ai_answer_feedback',
     'ai_conversation_messages',
     'ai_conversations',
     'audit_log',
     'coils',
     'config',
     'customers',
+    'factory_rule_candidates',
     'knowledge_entries',
     'orders',
     'parts',
     'pump_model_variants',
     'pump_shell_templates',
     'quotations',
+    'recipe_analysis_feedback',
     'recipe_technical_files',
     'recipes',
     'rotor_drawings',
