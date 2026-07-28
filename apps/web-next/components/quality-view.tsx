@@ -245,7 +245,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                   候选业务规则
                 </div>
                 <div className="mt-1 text-xs leading-5 text-muted">
-                  同类高频项反馈保存后会自动归纳；至少 2 个配方确认才生成候选，批准后参与配方检查。
+                  同类高频项反馈保存后会自动归纳；至少 2 个配方确认才生成候选，批准后参与配方检查并自动更新规则知识。
                 </div>
               </div>
               <Button

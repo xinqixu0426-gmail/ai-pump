@@ -473,7 +473,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 success: true,
                 intent: 'factory_rule_candidate_review',
                 summary: args.status === 'approved'
-                    ? '候选规则已批准，下次同步知识库时生效。'
+                    ? '候选规则已批准，对应规则知识已自动更新并立即生效。'
                     : '候选规则审核状态已更新。',
                 display: { mode: 'compact', title: '候选规则审核' },
                 data,

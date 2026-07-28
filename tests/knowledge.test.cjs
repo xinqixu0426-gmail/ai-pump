@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
     buildKnowledgeEntries,
+    syncFactoryRuleKnowledgeEntry,
     syncKnowledgeEntries,
     searchKnowledgeEntries,
     getKnowledgeEntryDetail,
@@ -30,6 +31,27 @@ function createMemoryAccessors() {
             updated_at TEXT,
             UNIQUE(source_table, source_id)
         );
+        CREATE TABLE factory_rule_candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_key TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            scope_type TEXT NOT NULL,
+            scope_ref TEXT NOT NULL,
+            finding_key TEXT NOT NULL,
+            finding_type TEXT NOT NULL,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            evidence_json TEXT DEFAULT '[]',
+            support_count INTEGER NOT NULL DEFAULT 0,
+            special_case_count INTEGER NOT NULL DEFAULT 0,
+            ignored_count INTEGER NOT NULL DEFAULT 0,
+            confidence_score REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'candidate',
+            review_note TEXT DEFAULT '',
+            approved_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
     `);
     const accessors = {
         db,
@@ -54,6 +76,10 @@ function createMemoryAccessors() {
             const sets = entries.map(([column]) => `${column} = ?`).join(', ');
             return db.prepare(`UPDATE knowledge_entries SET ${sets}, updated_at = ? WHERE id = ?`)
                 .run(...entries.map(([, value]) => value), new Date().toISOString(), id);
+        },
+        hardDelete(table, id) {
+            assert.equal(table, 'knowledge_entries');
+            return db.prepare('DELETE FROM knowledge_entries WHERE id = ?').run(id);
         },
         knowledgeEntryRow(row) {
             return {
@@ -89,6 +115,78 @@ function enableFts(accessors) {
         );
     `);
 }
+
+test('Knowledge service：单条已批准规则自动更新并在失效后移除', () => {
+    const accessors = createMemoryAccessors();
+    enableFts(accessors);
+    accessors.db.prepare(`
+        INSERT INTO factory_rule_candidates(
+            rule_key, title, content, scope_type, scope_ref, finding_key,
+            finding_type, evidence_count, support_count, confidence_score,
+            status, review_note, approved_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        'template:7:peer_pattern:包装:fixed',
+        'V750：通常包含说明书',
+        '同模板配方通常包含说明书',
+        'pump_shell_template',
+        '7',
+        'peer_pattern:包装:fixed',
+        'peer_pattern',
+        2,
+        2,
+        1,
+        'approved',
+        '确认',
+        '2026-01-02',
+        '2026-01-01',
+        '2026-01-02'
+    );
+    accessors.safeInsert('knowledge_entries', {
+        entry_type: 'part',
+        source_table: 'parts',
+        source_id: 'keep',
+        title: '保留知识',
+        summary: '',
+        content: '',
+        tags_json: '[]',
+        metadata_json: '{}',
+        search_text: '保留知识',
+        content_hash: 'keep',
+        synced_at: '2026-01-01',
+        created_at: '2026-01-01',
+        updated_at: '2026-01-01',
+    });
+
+    const inserted = syncFactoryRuleKnowledgeEntry(1, { dbAccessors: accessors });
+    assert.equal(inserted.action, 'inserted');
+    assert.match(inserted.knowledgeEntry.title, /V750/);
+    const knowledgeId = inserted.knowledgeEntry.id;
+
+    accessors.db.prepare(`
+        UPDATE factory_rule_candidates
+        SET content = '同模板配方必须复核说明书', support_count = 3, updated_at = '2026-01-03'
+        WHERE id = 1
+    `).run();
+    const updated = syncFactoryRuleKnowledgeEntry(1, { dbAccessors: accessors });
+    assert.equal(updated.action, 'updated');
+    assert.equal(updated.knowledgeEntry.id, knowledgeId);
+    assert.match(
+        accessors.db.prepare('SELECT content FROM knowledge_entries WHERE id = ?').get(knowledgeId).content,
+        /必须复核说明书/
+    );
+
+    accessors.db.prepare("UPDATE factory_rule_candidates SET status = 'stale' WHERE id = 1").run();
+    const deleted = syncFactoryRuleKnowledgeEntry(1, { dbAccessors: accessors });
+    assert.equal(deleted.action, 'deleted');
+    assert.equal(deleted.knowledgeEntry, null);
+    assert.equal(
+        accessors.db.prepare("SELECT COUNT(*) AS count FROM knowledge_entries WHERE source_table = 'parts'").get().count,
+        1
+    );
+    assert.equal(accessors.db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries_fts').get().count, 1);
+    accessors.db.close();
+});
 
 test('Knowledge service：从核心业务数据构建工厂知识条目', () => {
     const entries = buildKnowledgeEntries({

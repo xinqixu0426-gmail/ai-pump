@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { buildDataQualitySummary } = require('./qualitySummary.cjs');
+const { parsePositiveId } = require('./validation.cjs');
 
 const ENTRY_TYPES = new Set([
     'part',
@@ -512,6 +513,91 @@ function rebuildFts(db) {
     return true;
 }
 
+function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
+    const dbAccessors = options.dbAccessors || loadDbAccessors();
+    const { db, safeInsert, safeUpdate, hardDelete } = dbAccessors;
+    const candidateId = parsePositiveId(candidateIdValue);
+    if (!candidateId) {
+        const error = new Error('候选规则 ID 必须是正整数');
+        error.statusCode = 400;
+        throw error;
+    }
+    const candidate = db.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(candidateId);
+    if (!candidate) {
+        const error = new Error('候选规则不存在');
+        error.statusCode = 404;
+        throw error;
+    }
+    const existing = db.prepare(`
+        SELECT * FROM knowledge_entries
+        WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+    `).get(String(candidateId));
+    const entry = approvedFactoryRuleEntries([candidate])[0] || null;
+    const now = new Date().toISOString();
+    let action = 'unchanged';
+    let ftsEnabled = false;
+
+    const sync = db.transaction(() => {
+        if (!entry) {
+            if (existing) {
+                hardDelete('knowledge_entries', existing.id);
+                action = 'deleted';
+            } else {
+                action = 'absent';
+            }
+        } else {
+            const values = {
+                entry_type: entry.entryType,
+                source_table: entry.sourceTable,
+                source_id: entry.sourceId,
+                source_updated_at: entry.sourceUpdatedAt,
+                title: entry.title,
+                summary: entry.summary,
+                content: entry.content,
+                tags_json: json(entry.tags),
+                metadata_json: json(entry.metadata),
+                search_text: entry.searchText,
+                content_hash: entry.contentHash,
+                synced_at: now,
+            };
+            if (!existing) {
+                safeInsert('knowledge_entries', {
+                    ...values,
+                    created_at: now,
+                    updated_at: now,
+                });
+                action = 'inserted';
+            } else if (existing.content_hash !== entry.contentHash) {
+                safeUpdate('knowledge_entries', existing.id, values);
+                action = 'updated';
+            }
+        }
+        ftsEnabled = rebuildFts(db);
+    });
+    sync();
+
+    const knowledgeEntry = db.prepare(`
+        SELECT id, entry_type, source_table, source_id, title, content_hash, synced_at
+        FROM knowledge_entries
+        WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+    `).get(String(candidateId));
+    return {
+        candidateId,
+        candidateStatus: candidate.status,
+        action,
+        ftsEnabled,
+        knowledgeEntry: knowledgeEntry ? {
+            id: Number(knowledgeEntry.id),
+            entryType: knowledgeEntry.entry_type,
+            sourceTable: knowledgeEntry.source_table,
+            sourceId: knowledgeEntry.source_id,
+            title: knowledgeEntry.title,
+            contentHash: knowledgeEntry.content_hash,
+            syncedAt: knowledgeEntry.synced_at,
+        } : null,
+    };
+}
+
 function syncKnowledgeEntries(options = {}) {
     const dbAccessors = options.dbAccessors || loadDbAccessors();
     const { db, safeInsert, safeUpdate, knowledgeEntryRow } = dbAccessors;
@@ -802,6 +888,7 @@ function inspectKnowledgeOverview(options = {}) {
 module.exports = {
     ENTRY_TYPES,
     buildKnowledgeEntries,
+    syncFactoryRuleKnowledgeEntry,
     syncKnowledgeEntries,
     searchKnowledgeEntries,
     getKnowledgeEntryDetail,

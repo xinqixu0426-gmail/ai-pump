@@ -525,7 +525,14 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
         }
         if (call.url.endsWith('/api/quality/rule-candidates/5') && call.method === 'PATCH') {
             assert.deepEqual(call.body, { status: 'approved', reviewNote: '确认' });
-            return jsonResponse({ success: true, data: { id: 5, status: 'approved' } });
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 5,
+                    status: 'approved',
+                    knowledgeSync: { action: 'inserted' },
+                },
+            });
         }
         return jsonResponse({ success: false, error: 'unexpected call' }, 500);
     });
@@ -558,6 +565,7 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
     const approved = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: true });
     assert.equal(approved.success, true);
     assert.equal(approved.data.status, 'approved');
+    assert.match(approved.summary, /规则知识已自动更新/);
     assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'GET', 'GET', 'PATCH']);
 });
 

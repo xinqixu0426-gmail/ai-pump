@@ -322,7 +322,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `get_factory_rule_compliance`：只读汇总全部已批准规则的执行情况和受影响配方。
 - `get_factory_rule_history`：只读查询规则候选生成、证据变化、审核、失效和重新激活的生命周期记录。
 - `refresh_factory_rule_candidates`：从已确认的同类高频项中重新归纳候选规则；必须确认，不会自动批准。
-- `review_factory_rule_candidate`：批准、驳回或恢复候选规则；必须确认，批准后需再次同步知识库才进入检索。
+- `review_factory_rule_candidate`：批准、驳回或恢复候选规则；必须确认，审核状态与对应规则知识在同一事务内自动更新。
 - `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库，并读取 `/api/knowledge/overview` 标记每条来源的新鲜度。
 - `get_factory_knowledge_detail`：调用 `/api/knowledge/:id` 读取知识条目详情，并返回可追溯的原业务来源。
 - `sync_factory_knowledge`：调用 `/api/knowledge/sync` 增量更新知识条目并刷新 FTS；该工具写入派生索引，位于写工具白名单，需确认后执行。
@@ -377,7 +377,7 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 | `GET` | `/api/quality/rule-events` | 查询参数 `candidateId?`、`limit?` | 读取规则生命周期记录，按时间倒序返回 `eventType/previousStatus/newStatus/actor/note/snapshot/createdAt`；`candidateId` 可限定单条规则，`limit` 为 1-100、默认 30；只读不写库 |
 | `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，不会自动批准新规则 |
 | `GET` | `/api/quality/rule-candidates/:id/impact` | 无 | 只读计算规则对当前同模板配方的影响；按实时 BOM 和反馈分为 `compliant/needsReview/specialCases/ignored`，返回数量、配方清单和待复核占比，不修改配方 |
-| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`，证据不足 2 个配方时禁止批准 |
+| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`，证据不足 2 个配方时禁止批准。返回 `knowledgeSync`，批准自动新增或更新对应规则知识，驳回或恢复候选自动移除 |
 
 数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
 
@@ -389,7 +389,7 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 
 价格分析只比较普通固定件，会排除动态泵壳、线圈、浮球、成品电缆和公式/手输成本项。所有检查均为只读，任何提醒都不会自动覆盖配方、成本快照或零件价格。
 
-候选规则是“人工反馈的归纳结果”，不是自动成立的业务事实。V3 按泵壳模板和提醒键汇总 `confirmed/special_case/ignored`：确认是支持证据，特殊情况按半权重影响适用置信度，忽略是反向证据；`review` 不参与学习。置信度公式为 `确认数 / (确认数 + 忽略数 + 特殊情况数 × 0.5)`。至少两个不同配方确认才可成为候选；证据变化通过内容指纹识别，已批准规则出现新反例时进入复核队列，重新批准后才视为已复核当前证据。批准记录保存在 `factory_rule_candidates`；下一次执行知识库同步时，只有 `approved` 状态会生成 `business_rule` 条目。
+候选规则是“人工反馈的归纳结果”，不是自动成立的业务事实。V3 按泵壳模板和提醒键汇总 `confirmed/special_case/ignored`：确认是支持证据，特殊情况按半权重影响适用置信度，忽略是反向证据；`review` 不参与学习。置信度公式为 `确认数 / (确认数 + 忽略数 + 特殊情况数 × 0.5)`。至少两个不同配方确认才可成为候选；证据变化通过内容指纹识别，已批准规则出现新反例时进入复核队列，重新批准后才视为已复核当前证据。只有 `approved` 状态会生成 `business_rule` 条目。
 
 V3 第二阶段在批准前实时执行影响分析：以规则的泵壳模板和目标 BOM 角色为范围，已包含该角色的配方归为“已符合”，缺少且没有例外反馈的配方归为“需要复核”，`special_case/ignored` 分别保留为特殊情况和已忽略。影响分析不缓存、不写业务库，配方修改后再次查询即可获得最新结果；系统只展示影响，不会批量补件或自动修改成本。
 
@@ -398,6 +398,8 @@ V3 第三阶段把单条影响分析扩展为全局规则执行监控。系统�
 V3 第四阶段让同类高频项反馈保存后自动归纳候选规则。反馈写入与规则刷新使用同一个 SQLite 事务，确认、特殊情况、忽略或恢复复核会立即反映到候选状态、置信度和复审队列；手动“重新核对规则”仅作为运维兜底。自动归纳只更新候选及已批准规则的证据状态，不会自动批准规则。
 
 V3 第五阶段增加规则生命周期记录。`factory_rule_events` 以只追加方式保存候选生成、证据变化、批准、驳回、失效、重新激活和升级基线；事件保留变化前后状态、操作者、说明及当时规则快照。相同证据的重复核对不会生成重复事件，历史接口和 AI 工具均为只读，不提供自动回滚。
+
+V3 第六阶段让审核状态与规则知识保持事务一致。规则批准时只新增或更新该条 `factory_rule_candidates` 派生知识；驳回、恢复候选或自动失效时只移除该条知识；已批准规则证据变化时同步刷新内容和置信度。任一步骤失败会回滚规则状态、生命周期事件和规则知识。该增量机制不触碰零件、配方、客户等其他知识，其他业务来源仍按原有方式手动全量同步。
 
 ## 17. 工厂知识库 Knowledge
 

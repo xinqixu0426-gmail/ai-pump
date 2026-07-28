@@ -88,6 +88,24 @@ function createLearningFixture() {
             snapshot_json TEXT DEFAULT '{}',
             created_at TEXT NOT NULL
         );
+        CREATE TABLE knowledge_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_type TEXT NOT NULL,
+            source_table TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            source_updated_at TEXT,
+            title TEXT NOT NULL,
+            summary TEXT DEFAULT '',
+            content TEXT DEFAULT '',
+            tags_json TEXT DEFAULT '[]',
+            metadata_json TEXT DEFAULT '{}',
+            search_text TEXT DEFAULT '',
+            content_hash TEXT DEFAULT '',
+            synced_at TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(source_table, source_id)
+        );
         INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750');
         UPDATE recipes SET name = 'V750 A', template_id = 7 WHERE id = 1;
         INSERT INTO recipes(id, name, template_id, deleted_at) VALUES (2, 'V750 B', 7, NULL);

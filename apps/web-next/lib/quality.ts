@@ -176,6 +176,17 @@ export type FactoryRuleCandidate = {
   approvedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  knowledgeSync?: {
+    candidateId: number;
+    candidateStatus: FactoryRuleCandidateStatus;
+    action: 'inserted' | 'updated' | 'unchanged' | 'deleted' | 'absent';
+    ftsEnabled: boolean;
+    knowledgeEntry: {
+      id: number;
+      title: string;
+      syncedAt: string;
+    } | null;
+  };
 };
 
 export type FactoryRuleEvent = {

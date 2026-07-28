@@ -610,6 +610,23 @@ test('API 静态契约：Knowledge V3 规则生命周期记录可追溯且只读
     assert.doesNotMatch(qualityView, /恢复历史版本/);
 });
 
+test('API 静态契约：Knowledge V3 规则审核与派生知识保持事务一致', () => {
+    const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const feedback = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+
+    assert.match(knowledge, /function syncFactoryRuleKnowledgeEntry/);
+    assert.match(knowledge, /source_table = 'factory_rule_candidates'/);
+    assert.match(knowledge, /hardDelete\('knowledge_entries'/);
+    assert.match(service, /syncFactoryRuleKnowledgeEntry/);
+    assert.match(service, /knowledgeSync/);
+    assert.match(feedback, /hardDelete: remove/);
+    assert.match(prompt, /无需再全量同步知识库/);
+    assert.match(qualityView, /自动更新规则知识/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

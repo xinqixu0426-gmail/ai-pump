@@ -75,6 +75,24 @@ function createFixture() {
             snapshot_json TEXT DEFAULT '{}',
             created_at TEXT NOT NULL
         );
+        CREATE TABLE knowledge_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_type TEXT NOT NULL,
+            source_table TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            source_updated_at TEXT,
+            title TEXT NOT NULL,
+            summary TEXT DEFAULT '',
+            content TEXT DEFAULT '',
+            tags_json TEXT DEFAULT '[]',
+            metadata_json TEXT DEFAULT '{}',
+            search_text TEXT DEFAULT '',
+            content_hash TEXT DEFAULT '',
+            synced_at TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(source_table, source_id)
+        );
         INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750 大脚板 2寸');
         INSERT INTO recipes(id, name, spec, template_id, parts_json, updated_at, deleted_at) VALUES
             (1, 'V750 菲律宾', '50Hz', 7, '[]', '2026-01-01', NULL),
@@ -98,7 +116,8 @@ function createFixture() {
             WHERE id = ?
         `).run(...columns.map(column => values[column]), new Date().toISOString(), id);
     };
-    return { db, safeInsert, safeUpdate };
+    const hardDelete = (table, id) => db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+    return { db, safeInsert, safeUpdate, hardDelete };
 }
 
 function insertFeedback(db, recipeId, overrides = {}) {
@@ -172,6 +191,27 @@ test('候选规则可刷新、批准且保留证据', () => {
         assert.equal(approved.status, 'approved');
         assert.ok(approved.approvedAt);
         assert.equal(approved.reviewNote, '作为 V750 默认复核规则');
+        assert.equal(approved.knowledgeSync.action, 'inserted');
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            1
+        );
+        fixture.db.prepare(`
+            DELETE FROM knowledge_entries
+            WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+        `).run(String(approved.id));
+        refreshFactoryRuleCandidates(fixture);
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            1,
+            '重新核对规则应补齐历史已批准规则的知识条目'
+        );
         assert.deepEqual(
             listFactoryRuleEvents({ ...fixture, candidateId: approved.id }).map(event => event.eventType),
             ['approved', 'created']
@@ -244,6 +284,29 @@ test('规则状态与生命周期事件在写入失败时整体回滚', () => {
             fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
                 .get(refreshed.candidates[0].id).status,
             'candidate'
+        );
+        assert.throws(
+            () => reviewFactoryRuleCandidate(
+                refreshed.candidates[0].id,
+                { status: 'approved' },
+                {
+                    ...fixture,
+                    syncFactoryRuleKnowledgeEntry: () => {
+                        throw new Error('规则知识同步失败');
+                    },
+                }
+            ),
+            /规则知识同步失败/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
+                .get(refreshed.candidates[0].id).status,
+            'candidate'
+        );
+        assert.deepEqual(
+            listFactoryRuleEvents({ ...fixture, candidateId: refreshed.candidates[0].id })
+                .map(event => event.eventType),
+            ['created']
         );
     } finally {
         fixture.db.close();
@@ -332,6 +395,13 @@ test('已批准规则失去最低支持证据后自动转为失效', () => {
             listFactoryRuleEvents({ ...fixture, candidateId: approved.id })[0].eventType,
             'stale'
         );
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            0
+        );
     } finally {
         fixture.db.close();
     }
@@ -352,6 +422,13 @@ test('已批准规则出现新反例时进入复核队列，重新批准后完�
         assert.equal(needsReview.status, 'approved');
         assert.equal(needsReview.ignoredCount, 1);
         assert.equal(needsReview.needsReview, true);
+        assert.match(
+            fixture.db.prepare(`
+                SELECT content FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).content,
+            /忽略 1/
+        );
 
         const reviewed = reviewFactoryRuleCandidate(approved.id, {
             status: 'approved',

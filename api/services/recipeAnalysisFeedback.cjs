@@ -39,6 +39,7 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
     const database = options.db || accessors.db;
     const insert = options.safeInsert || accessors.safeInsert;
     const update = options.safeUpdate || accessors.safeUpdate;
+    const remove = options.hardDelete || accessors.hardDelete;
     const recipeId = parsePositiveId(recipeIdValue);
     if (!recipeId) throw inputError('recipeId 必须是正整数');
 
@@ -101,6 +102,7 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
             db: database,
             safeInsert: insert,
             safeUpdate: update,
+            hardDelete: remove,
             actor: options.actor,
         });
         return {

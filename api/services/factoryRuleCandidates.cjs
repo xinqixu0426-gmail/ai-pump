@@ -461,6 +461,9 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
     const database = options.db || accessors.db;
     const insert = options.safeInsert || accessors.safeInsert;
     const update = options.safeUpdate || accessors.safeUpdate;
+    const remove = options.hardDelete || accessors.hardDelete;
+    const syncRuleKnowledge = options.syncFactoryRuleKnowledgeEntry
+        || require('./knowledge.cjs').syncFactoryRuleKnowledgeEntry;
     const groups = buildRuleCandidateGroups(feedbackEvidenceRows(database), options.minimumEvidence || 2);
     const activeKeys = new Set(groups.map(group => group.ruleKey));
     const now = new Date().toISOString();
@@ -495,10 +498,10 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                 || Number(current.ignored_count || 0) !== group.ignoredCount;
             if (previousStatus === 'stale') values.status = 'candidate';
             update('factory_rule_candidates', current.id, values);
+            const updatedCandidate = candidateRow(
+                database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
+            );
             if (evidenceChanged || previousStatus === 'stale') {
-                const updatedCandidate = candidateRow(
-                    database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
-                );
                 recordFactoryRuleEvent(updatedCandidate, previousStatus === 'stale' ? 'reactivated' : 'evidence_changed', {
                     previousStatus,
                     newStatus: updatedCandidate.status,
@@ -507,6 +510,16 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                         ? '支持证据恢复到最低要求，规则重新进入候选状态'
                         : '人工反馈改变了规则证据或置信度',
                 }, { ...options, db: database, safeInsert: insert });
+            }
+            if (updatedCandidate.status === 'approved') {
+                syncRuleKnowledge(updatedCandidate.id, {
+                    dbAccessors: {
+                        db: database,
+                        safeInsert: insert,
+                        safeUpdate: update,
+                        hardDelete: remove,
+                    },
+                });
             }
             updated += 1;
         } else {
@@ -557,6 +570,14 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
             actor: options.actor,
             note: '支持证据不足，规则自动转为失效',
         }, { ...options, db: database, safeInsert: insert });
+        syncRuleKnowledge(staleCandidate.id, {
+            dbAccessors: {
+                db: database,
+                safeInsert: insert,
+                safeUpdate: update,
+                hardDelete: remove,
+            },
+        });
         stale += 1;
     }
 
@@ -576,6 +597,8 @@ function refreshFactoryRuleCandidates(options = {}) {
         db: database,
         safeInsert: options.safeInsert || accessors.safeInsert,
         safeUpdate: options.safeUpdate || accessors.safeUpdate,
+        hardDelete: options.hardDelete || accessors.hardDelete,
+        syncFactoryRuleKnowledgeEntry: options.syncFactoryRuleKnowledgeEntry,
     }));
     return transaction();
 }
@@ -585,6 +608,9 @@ function reviewFactoryRuleCandidateCore(idValue, input = {}, options = {}) {
     const database = options.db || accessors.db;
     const insert = options.safeInsert || accessors.safeInsert;
     const update = options.safeUpdate || accessors.safeUpdate;
+    const remove = options.hardDelete || accessors.hardDelete;
+    const syncRuleKnowledge = options.syncFactoryRuleKnowledgeEntry
+        || require('./knowledge.cjs').syncFactoryRuleKnowledgeEntry;
     const id = parsePositiveId(idValue);
     if (!id) throw inputError('候选规则 ID 必须是正整数');
     const status = String(input.status || '').trim();
@@ -613,7 +639,15 @@ function reviewFactoryRuleCandidateCore(idValue, input = {}, options = {}) {
         actor: options.actor,
         note: reviewNote,
     }, { ...options, db: database, safeInsert: insert });
-    return reviewed;
+    const knowledgeSync = syncRuleKnowledge(reviewed.id, {
+        dbAccessors: {
+            db: database,
+            safeInsert: insert,
+            safeUpdate: update,
+            hardDelete: remove,
+        },
+    });
+    return { ...reviewed, knowledgeSync };
 }
 
 function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
@@ -624,6 +658,8 @@ function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
         db: database,
         safeInsert: options.safeInsert || accessors.safeInsert,
         safeUpdate: options.safeUpdate || accessors.safeUpdate,
+        hardDelete: options.hardDelete || accessors.hardDelete,
+        syncFactoryRuleKnowledgeEntry: options.syncFactoryRuleKnowledgeEntry,
     }));
     return transaction();
 }

@@ -651,7 +651,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'review_factory_rule_candidate',
-            description: '批准、驳回或恢复某条候选业务规则。批准后该规则会在下一次知识库同步时成为正式业务规则；写库前必须确认。',
+            description: '批准、驳回或恢复某条候选业务规则。批准会自动写入对应规则知识，驳回或失效会自动移除，不需要再执行全量知识库同步；写库前必须确认。',
             parameters: {
                 type: 'object',
                 properties: {
