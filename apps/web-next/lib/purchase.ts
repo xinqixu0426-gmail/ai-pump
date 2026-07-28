@@ -15,6 +15,9 @@ export type PurchaseTask = {
   supplierLabel: string;
   model: string;
   name: string;
+  identityKey?: string;
+  purchaseUnit: string;
+  specification: string;
   totalNeed: number;
   purchasedNeed: number;
   receivedNeed: number;
@@ -66,7 +69,7 @@ export function buildPurchaseTasks(orders: Order[]): PurchaseTask[] {
       const stocked = Number(item.stockedQty) || 0;
 
       const supplier = item.supplier || '';
-      const key = `${supplier}||${item.model}`;
+      const key = item.identityKey || `${supplier}||${item.model}`;
       const existing = map.get(key);
 
       if (existing) {
@@ -84,6 +87,9 @@ export function buildPurchaseTasks(orders: Order[]): PurchaseTask[] {
           supplierLabel: supplierLabel(supplier),
           model: item.model,
           name: item.name || item.model,
+          identityKey: item.identityKey,
+          purchaseUnit: item.purchaseUnit || '',
+          specification: item.specification || '',
           totalNeed: need,
           purchasedNeed: ordered,
           receivedNeed: received,
@@ -139,6 +145,7 @@ export async function applyPurchaseTask(task: PurchaseTask, purchased: boolean):
     body: JSON.stringify({
       model: task.model,
       supplier: task.supplier,
+      identityKey: task.identityKey,
       purchased,
     }),
   });

@@ -58,7 +58,7 @@ test('参数化长螺丝采购项可使用基础螺丝供应商且不扣基础�
     assert.equal(purchaseList[0].partId, undefined);
 });
 
-test('采购清单将旧电缆两行合并并按实际米数计算', () => {
+test('采购清单将旧电缆两行合并为按根采购的成品电缆', () => {
     const purchaseList = buildPurchaseList([{
         qty: 2,
         partsJson: JSON.stringify([
@@ -69,8 +69,52 @@ test('采购清单将旧电缆两行合并并按实际米数计算', () => {
 
     assert.equal(purchaseList.length, 1);
     assert.equal(purchaseList[0].model, '电缆-线径0.75');
-    assert.equal(purchaseList[0].totalQty, 16);
-    assert.equal(purchaseList[0].needToBuy, 11);
+    assert.equal(purchaseList[0].totalQty, 2);
+    assert.equal(purchaseList[0].currentStock, 0);
+    assert.equal(purchaseList[0].needToBuy, 2);
+    assert.equal(purchaseList[0].purchaseUnit, '根');
+    assert.equal(purchaseList[0].stockQtyPerUnit, 8);
+    assert.equal(purchaseList[0].specification, '每根 8m + 新界式');
+});
+
+test('采购计划自动把历史电缆米数进度换算为成品电缆根数', () => {
+    const items = [{
+        qty: 30,
+        partsJson: JSON.stringify([{
+            model: '电缆-线径0.75',
+            name: '成品电缆（新界式）',
+            supplier: '线缆供应商',
+            qty: 1,
+            inventoryQty: 8,
+            cableLength: 8,
+            cableAccessoryType: 'xinjie',
+            cableAccessoryName: '新界式',
+            cableAssembly: true,
+        }]),
+    }];
+    const plans = buildBalancedOrderPlans([{
+        id: 1,
+        created_at: '2026-01-01',
+        items,
+        purchase_list_json: JSON.stringify([{
+            model: '电缆-线径0.75',
+            name: '成品电缆（新界式）',
+            supplier: '线缆供应商',
+            plannedQty: 240,
+            orderedQty: 240,
+            receivedQty: 0,
+            stockedQty: 0,
+            partId: 3,
+            identityKey: 'part:3',
+        }]),
+    }], partsCatalog);
+    const cable = plans.get(1).purchaseList[0];
+
+    assert.equal(cable.totalQty, 30);
+    assert.equal(cable.plannedQty, 30);
+    assert.equal(cable.orderedQty, 30);
+    assert.equal(cable.purchaseUnit, '根');
+    assert.equal(cable.stockQtyPerUnit, 8);
 });
 
 test('采购计划同时生成供应商待办', () => {

@@ -78,7 +78,7 @@ export type RecipeAnalysisFeedback = {
 
 export type RecipeAnalysisMissingItem = {
   key: string;
-  type: 'configuration_conflict' | 'peer_pattern';
+  type: 'configuration_conflict' | 'peer_pattern' | 'factory_rule';
   severity: RecipeAnalysisSeverity;
   confidence: RecipeAnalysisConfidence;
   title: string;
@@ -87,11 +87,28 @@ export type RecipeAnalysisMissingItem = {
   suggestedModels?: string[];
   prevalence?: number;
   evidence: Array<string | {
+    source?: string;
+    ruleId?: number;
+    ruleTitle?: string;
+    evidenceCount?: number;
+    approvedAt?: string | null;
+    reviewNote?: string;
     recipeId?: number;
     recipeName?: string;
     model?: string;
     score?: number;
   }>;
+  rule?: {
+    id: number;
+    ruleKey: string;
+    title: string;
+    content: string;
+    findingKey: string;
+    role: string;
+    evidenceCount: number;
+    approvedAt: string | null;
+    reviewNote: string;
+  };
   feedback?: RecipeAnalysisFeedback | null;
 };
 
@@ -160,6 +177,8 @@ export type RecipeConfigurationAnalysis = {
     similarRecipeCount: number;
     definiteIssueCount: number;
     reviewSuggestionCount: number;
+    appliedFactoryRuleCount: number;
+    factoryRuleAlertCount: number;
     priceAlertCount: number;
     highConfidenceAlertCount: number;
     suppressedFindingCount: number;
@@ -176,6 +195,7 @@ export type RecipeConfigurationAnalysis = {
     referenceOnlyRoles: string[];
     savedTotalCost: number;
   }>;
+  factoryRuleAlerts: RecipeAnalysisMissingItem[];
   missingItems: RecipeAnalysisMissingItem[];
   priceAlerts: RecipeAnalysisPriceAlert[];
   suppressedFindings: RecipeAnalysisFinding[];

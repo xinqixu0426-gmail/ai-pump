@@ -7,6 +7,7 @@ const {
     assertOrderTransition,
     assertQuotationTransition,
     mergePurchasePlanItem,
+    purchaseToInventoryQty,
 } = require('../api/services/orderWorkflow.cjs');
 
 test('旧采购布尔值兼容为完整已下单数量', () => {
@@ -102,4 +103,9 @@ test('采购计划重算保留已经发生的分批进度和原计划数量', ()
     assert.equal(merged.purchasePrice, 8.5);
     assert.equal(merged.currentStock, 3);
     assert.equal(merged.stockInHistory.length, 1);
+});
+
+test('成品电缆采购按根登记并按每根长度折算线材库存', () => {
+    assert.equal(purchaseToInventoryQty({ purchaseUnit: '根', stockQtyPerUnit: 8 }, 30), 240);
+    assert.equal(purchaseToInventoryQty({}, 30), 30);
 });

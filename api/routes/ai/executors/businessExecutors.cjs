@@ -337,7 +337,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             return {
                 success: true,
                 intent: 'recipe_configuration_analysis',
-                summary: `配方检查完成：确定问题 ${data.summary?.definiteIssueCount || 0} 项，复核建议 ${data.summary?.reviewSuggestionCount || 0} 项，价格提醒 ${data.summary?.priceAlertCount || 0} 项。`,
+                summary: `配方检查完成：确定问题 ${data.summary?.definiteIssueCount || 0} 项，工厂规则提醒 ${data.summary?.factoryRuleAlertCount || 0} 项，复核建议 ${data.summary?.reviewSuggestionCount || 0} 项，价格提醒 ${data.summary?.priceAlertCount || 0} 项。`,
                 display: { mode: 'compact', title: '配方智能检查' },
                 data,
             };

@@ -467,7 +467,7 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     }
 });
 
-test('API 静态契约：配方智能检查只读且必须区分确定问题与复核建议', () => {
+test('API 静态契约：配方智能检查只读且区分工厂规则、确定问题与复核建议', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
@@ -477,11 +477,14 @@ test('API 静态契约：配方智能检查只读且必须区分确定问题与�
     assert.match(tools, /name: 'analyze_recipe_configuration'/);
     assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /analyze_recipe_configuration/);
     assert.match(businessExecutor, /\/api\/quality\/recipe-analysis/);
-    assert.match(chatRoute, /高置信度配置矛盾与同类配方复核建议必须分开描述/);
+    assert.match(chatRoute, /已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述/);
     assert.match(promptRoute, /不得把建议说成确定错误/);
     assert.match(service, /advisoryOnly: true/);
     assert.match(service, /type: 'configuration_conflict'/);
     assert.match(service, /type: 'peer_pattern'/);
+    assert.match(service, /type: 'factory_rule'/);
+    assert.match(service, /dbGetFactoryRuleCandidates\('approved'\)/);
+    assert.match(service, /factoryRuleFeedback\.active\.length/);
 });
 
 test('API 静态契约：配方检查反馈按提醒键持久化且受确认保护', () => {
@@ -511,7 +514,7 @@ test('API 静态契约：候选业务规则需人工审核后才进入知识库'
     assert.match(knowledge, /sourceTable: 'factory_rule_candidates'/);
     assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /review_factory_rule_candidate/);
     assert.match(qualityView, /候选业务规则/);
-    assert.match(qualityView, /批准后在下次同步知识库时生效/);
+    assert.match(qualityView, /批准后立即参与配方检查，同步后也可被 AI 检索/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

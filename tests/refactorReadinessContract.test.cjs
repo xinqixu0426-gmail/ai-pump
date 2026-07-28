@@ -300,6 +300,17 @@ test('Next UI 契约：AI 回复展示可点击依据并保留新鲜度警告', 
     assert.match(aiView, /查看原数据/);
 });
 
+test('Next UI 契约：AI 回答依据和处理过程默认折叠且异常自动展开', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+
+    assert.match(aiView, /function AnswerProcess/);
+    assert.match(aiView, /回答依据与处理过程/);
+    assert.match(aiView, /open=\{open\}/);
+    assert.match(aiView, /if \(requiresAttention\) setOpen\(true\)/);
+    assert.match(aiView, /isConfirmationResult\(tool\.result\)/);
+    assert.match(aiView, /asRecord\(tool\.result\)\.success === false/);
+});
+
 test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
@@ -467,6 +478,9 @@ test('Next UI 契约：配方保存前自动智能检查并允许明确覆盖', 
     assert.match(recipesView, /runRecipeAnalysis/);
     assert.match(recipesView, /智能检查/);
     assert.match(recipesView, /确定问题/);
+    assert.match(recipesView, /已批准工厂规则/);
+    assert.match(recipesView, /factoryRuleAlerts/);
+    assert.match(recipesView, /appliedFactoryRuleCount/);
     assert.match(recipesView, /复核建议/);
     assert.match(recipesView, /价格提醒/);
     assert.match(recipesView, /相似配方依据/);

@@ -9,6 +9,7 @@ const {
     validatePurchaseProgress,
     deriveProcurementStatus,
     assertOrderTransition,
+    purchaseToInventoryQty,
 } = require('../services/orderWorkflow.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
 const router = Router();
@@ -182,7 +183,8 @@ function updatePurchaseItemProgress(id, body) {
             if (!part || String(part.model || '') !== String(currentItem.model || '')) {
                 throw new Error(`采购项「${currentItem.model}」对应零件不存在或已变化`);
             }
-            safeUpdate('parts', partId, { stock: Math.max(0, Number(part.stock || 0) + stockDelta) });
+            const inventoryStockDelta = purchaseToInventoryQty(currentItem, stockDelta);
+            safeUpdate('parts', partId, { stock: Math.max(0, Number(part.stock || 0) + inventoryStockDelta) });
             receiptId = randomUUID();
         }
 
@@ -216,7 +218,13 @@ function updatePurchaseItemProgress(id, body) {
 
         return {
             order: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)),
-            stockAddition: stockDelta > 0 ? { partId: currentItem.partId, addQty: stockDelta, receiptId } : null,
+            stockAddition: stockDelta > 0 ? {
+                partId: currentItem.partId,
+                addQty: stockDelta,
+                inventoryAddQty: purchaseToInventoryQty(currentItem, stockDelta),
+                purchaseUnit: currentItem.purchaseUnit || '',
+                receiptId,
+            } : null,
         };
     });
     const result = action(id);
@@ -243,6 +251,7 @@ function togglePurchaseItem(id, body) {
 }
 
 function applyPurchaseItemsByTask(body) {
+    const identityKey = String(body?.identityKey || '').trim();
     const model = String(body?.model || '').trim();
     const supplier = String(body?.supplier || '');
     const purchased = Boolean(body?.purchased);
@@ -256,7 +265,10 @@ function applyPurchaseItemsByTask(body) {
             if (record.status === '待确认' || record.status === '采购完成') continue;
             let changed = false;
             const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(normalizePurchaseItem).map(item => {
-                if (item.model === model && String(item.supplier || '') === supplier && item.plannedQty > 0) {
+                const matches = identityKey
+                    ? String(item.identityKey || '') === identityKey
+                    : item.model === model && String(item.supplier || '') === supplier;
+                if (matches && item.plannedQty > 0) {
                     if (!purchased && (item.receivedQty > 0 || item.stockedQty > 0)) {
                         throw new Error(`采购项「${model}」已有到货或入库记录，不能取消下单`);
                     }
@@ -332,9 +344,15 @@ function completePurchaseOrder(id) {
             const current = db.prepare('SELECT model, supplier, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
             if (!current) throw new Error(`采购项「${item.model}」对应零件不存在`);
             if (String(current.model || '') !== String(item.model || '')) throw new Error(`采购项「${item.model}」与零件库记录不一致`);
-            const stock = Math.max(0, Number(current.stock || 0) + addQty);
+            const inventoryAddQty = purchaseToInventoryQty(item, addQty);
+            const stock = Math.max(0, Number(current.stock || 0) + inventoryAddQty);
             safeUpdate('parts', partId, { stock });
-            additions.push({ partId, addQty });
+            additions.push({
+                partId,
+                addQty,
+                inventoryAddQty,
+                purchaseUnit: item.purchaseUnit || '',
+            });
         }
 
         const completedAt = new Date().toISOString();

@@ -971,6 +971,81 @@ function ToolResultCard({ item, onConfirmed, readOnly = false }: { item: AiToolR
   );
 }
 
+function AnswerProcess({
+  item,
+  onConfirmed,
+}: {
+  item: ChatItem;
+  onConfirmed: (index: number, next: AiToolResult) => void;
+}) {
+  const toolResults = item.toolResults || [];
+  const evidence = collectAnswerEvidence(toolResults);
+  const hasEvidence = evidence.hasLiveBusiness || evidence.hasKnowledgeSnapshot || evidence.sources.length > 0;
+  const hasProcess = Boolean(item.toolPlan || item.toolCalls?.length || toolResults.length);
+  const requiresAttention = toolResults.some(tool => {
+    if (isConfirmationResult(tool.result)) return true;
+    return asRecord(tool.result).success === false;
+  });
+  const [open, setOpen] = useState(requiresAttention);
+  useEffect(() => {
+    if (requiresAttention) setOpen(true);
+  }, [requiresAttention]);
+  if (!hasEvidence && !hasProcess) return null;
+
+  const processCount = Math.max(
+    item.toolPlan?.steps?.length || 0,
+    item.toolCalls?.length || 0,
+    toolResults.length,
+  );
+
+  return (
+    <details
+      className="group mt-3 rounded-md border border-slate-200 bg-slate-50/70"
+      open={open}
+      onToggle={event => setOpen(event.currentTarget.open)}
+    >
+      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <FileSearch size={15} className="shrink-0 text-slate-500" />
+          <span className="font-medium text-ink">回答依据与处理过程</span>
+          {evidence.sources.length ? <span className="text-xs text-muted">{evidence.sources.length} 条依据</span> : null}
+          {processCount ? <span className="text-xs text-muted">{processCount} 个步骤</span> : null}
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-2">
+          {requiresAttention ? <StatusBadge tone="amber">需要处理</StatusBadge> : null}
+          <ChevronDown size={15} className="text-slate-400 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-slate-200 bg-white px-3 pb-3">
+        {hasEvidence ? <AnswerEvidence toolResults={toolResults} /> : null}
+        {item.toolPlan ? <ToolPlanPanel plan={item.toolPlan} /> : null}
+        {item.toolCalls && item.toolCalls.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.toolCalls.map((call, index) => (
+              <span key={`${call.name}-${index}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
+                <Wrench size={12} />
+                {toolLabel(call.name)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {toolResults.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {toolResults.map((tool, index) => (
+              <ToolResultCard
+                key={`${tool.name}-${index}`}
+                item={tool}
+                readOnly={item.historical}
+                onConfirmed={(next) => onConfirmed(index, next)}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 type AiViewProps = {
   variant?: 'workspace' | 'panel';
   onClose?: () => void;
@@ -1608,34 +1683,17 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
                         ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
                         : <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div>
                     ) : null}
-                    {item.role === 'assistant' && item.toolResults?.length ? (
-                      <AnswerEvidence toolResults={item.toolResults} />
-                    ) : null}
                     {item.role === 'assistant' && loading && item.status !== 'done' && !item.content ? (
                       <div className="flex items-center gap-2 text-sm text-muted">
                         <Loader2 size={15} className="animate-spin" />
                         {item.statusMessage || '处理中...'}
                       </div>
                     ) : null}
-                    {item.role === 'assistant' && item.toolPlan ? (
-                      <ToolPlanPanel plan={item.toolPlan} />
-                    ) : null}
-                    {item.toolCalls && item.toolCalls.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {item.toolCalls.map((call, index) => (
-                          <span key={`${call.name}-${index}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
-                            <Wrench size={12} />
-                            {toolLabel(call.name)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    {item.toolResults && item.toolResults.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {item.toolResults.map((tool, index) => (
-                          <ToolResultCard key={`${tool.name}-${index}`} item={tool} readOnly={item.historical} onConfirmed={(next) => replaceToolResult(item.id, index, next)} />
-                        ))}
-                      </div>
+                    {item.role === 'assistant' ? (
+                      <AnswerProcess
+                        item={item}
+                        onConfirmed={(index, next) => replaceToolResult(item.id, index, next)}
+                      />
                     ) : null}
                     {item.role === 'assistant' && item.persistedMessageId && item.status !== 'error' ? (
                       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2">

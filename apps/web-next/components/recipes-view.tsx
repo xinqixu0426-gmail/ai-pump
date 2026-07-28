@@ -4546,9 +4546,10 @@ export function RecipesView() {
 
         {recipeAnalysis && (
           <div className="max-h-[calc(100vh-9rem)] overflow-y-auto">
-            <div className="grid border-b border-line sm:grid-cols-5">
+            <div className="grid border-b border-line sm:grid-cols-6">
               {[
                 ['确定问题', recipeAnalysis.summary.definiteIssueCount],
+                ['工厂规则', `${recipeAnalysis.summary.factoryRuleAlertCount}/${recipeAnalysis.summary.appliedFactoryRuleCount}`],
                 ['复核建议', recipeAnalysis.summary.reviewSuggestionCount],
                 ['价格提醒', recipeAnalysis.summary.priceAlertCount],
                 ['已收纳', recipeAnalysis.summary.suppressedFindingCount],
@@ -4562,6 +4563,39 @@ export function RecipesView() {
             </div>
 
             <div className="space-y-7 p-5">
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-ink">已批准工厂规则</h3>
+                  <span className="text-xs text-muted">仅应用当前泵壳模板范围内的规则</span>
+                </div>
+                {recipeAnalysis.factoryRuleAlerts.length === 0 ? (
+                  <div className="border-y border-line py-4 text-sm text-muted">
+                    已应用 {recipeAnalysis.summary.appliedFactoryRuleCount} 条规则，没有发现需要复核的缺项。
+                  </div>
+                ) : (
+                  <div className="divide-y divide-line border-y border-line">
+                    {recipeAnalysis.factoryRuleAlerts.map((item) => (
+                      <div key={item.key} className="py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge tone="amber">已批准规则</StatusBadge>
+                          <StatusBadge tone="slate">{recipeAnalysisConfidenceLabel(item.confidence)}</StatusBadge>
+                          {item.feedback?.decision === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                          <div className="font-medium text-ink">{item.title}</div>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-muted">{item.explanation}</div>
+                        {item.rule && (
+                          <div className="mt-2 text-xs text-slate-600">
+                            规则：{item.rule.title} · {item.rule.evidenceCount} 个证据配方
+                            {item.rule.approvedAt ? ` · 批准于 ${dateTimeShort(item.rule.approvedAt)}` : ''}
+                          </div>
+                        )}
+                        {feedbackActions(item)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <section>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h3 className="text-sm font-semibold text-ink">配置与漏项</h3>
@@ -4683,7 +4717,7 @@ export function RecipesView() {
                 </div>
                 <div className="mt-1 text-xs text-muted">
                   {recipeAnalysis.summary.highConfidenceAlertCount > 0
-                    ? '建议先处理或记录特殊情况；继续保存不会自动修改当前配方。'
+                    ? '建议先处理，或将客户定制记录为特殊情况；继续保存不会自动修改当前配方。'
                     : '普通复核建议不会阻止保存。'}
                 </div>
               </div>

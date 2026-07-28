@@ -36,6 +36,12 @@ export type PurchaseItem = {
   stockInHistory?: Array<{ receiptId: string; qty: number; at: string }>;
   purchased?: boolean;
   partId?: number;
+  purchaseUnit?: string;
+  stockQtyPerUnit?: number;
+  specification?: string;
+  cableLength?: number;
+  cableAccessoryType?: string;
+  cableAccessoryName?: string;
 };
 
 export type TodoItem = {

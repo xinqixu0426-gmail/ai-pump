@@ -33,6 +33,17 @@ function purchaseIdentity(model, supplier = '', partId) {
     return `model:${String(model || '').trim()}|supplier:${String(supplier || '').trim()}`;
 }
 
+function isCompleteCablePart(part) {
+    return part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆');
+}
+
+function completeCableIdentity(part, supplier, partId) {
+    const base = purchaseIdentity(part.model, supplier, partId);
+    const length = Number(part.cableLength ?? part.inventoryQty ?? 0);
+    const accessory = String(part.cableAccessoryType || part.cableAccessoryName || 'standard').trim();
+    return `${base}|cable:${length}m|accessory:${accessory}`;
+}
+
 function buildPurchaseList(items, partsCatalog, options = {}) {
     const { partIndex, partByModel } = buildPartIndexes(partsCatalog);
     const merged = new Map();
@@ -44,15 +55,27 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         for (const part of collapseLegacyCableParts(parsePartsJson(item.partsJson))) {
             const model = String(part.model || '').trim();
             if (!model) continue;
-            const qty = Number(part.inventoryQty ?? part.qty ?? 0);
+            const completeCable = isCompleteCablePart(part);
+            const cableLength = completeCable ? Number(part.cableLength ?? part.inventoryQty ?? 0) : 0;
+            const qty = completeCable ? Number(part.qty ?? 1) : Number(part.inventoryQty ?? part.qty ?? 0);
             if (qty <= 0) continue;
             const supplier = String(part.supplier || '').trim();
-            const mergeKey = `${model}|${supplier}`;
+            const mergeKey = completeCable
+                ? `${model}|${supplier}|${cableLength}|${part.cableAccessoryType || part.cableAccessoryName || 'standard'}`
+                : `${model}|${supplier}`;
+            const purchasePart = completeCable
+                ? {
+                    ...part,
+                    purchaseUnit: '根',
+                    stockQtyPerUnit: cableLength,
+                    specification: `每根 ${cableLength}m + ${part.cableAccessoryName || (part.cableAccessoryType === 'xinjie' ? '新界式' : '普通铜套')}`,
+                }
+                : part;
             const existing = merged.get(mergeKey);
             if (existing) {
                 existing.totalQty += qty * itemQty;
             } else {
-                merged.set(mergeKey, { part, totalQty: qty * itemQty, supplier });
+                merged.set(mergeKey, { part: purchasePart, totalQty: qty * itemQty, supplier });
             }
         }
     }
@@ -64,17 +87,23 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             ? findScrewPricingPart(partsCatalog, part.model, supplier)?.part || null
             : null;
         const dbPart = exactPart || screwPricingPart;
-        const currentStock = exactPart ? Number(exactPart.stock || 0) : 0;
+        const stockQtyPerUnit = Math.max(1, Number(part.stockQtyPerUnit || 1));
+        const currentInventoryStock = exactPart ? Number(exactPart.stock || 0) : 0;
         const partId = exactPart?.Id || exactPart?.id;
-        const identityKey = purchaseIdentity(part.model, supplier || dbPart?.supplier || '', partId);
-        const alreadyReserved = Number(reservedDemand.get(identityKey) || 0);
-        const availableStock = Math.max(0, currentStock - alreadyReserved);
+        const resolvedSupplier = supplier || dbPart?.supplier || '';
+        const stockIdentityKey = purchaseIdentity(part.model, resolvedSupplier, partId);
+        const identityKey = isCompleteCablePart(part)
+            ? completeCableIdentity(part, resolvedSupplier, partId)
+            : stockIdentityKey;
+        const alreadyReserved = Number(reservedDemand.get(stockIdentityKey) || 0);
+        const availableInventoryStock = Math.max(0, currentInventoryStock - alreadyReserved);
+        const availableStock = Math.floor(availableInventoryStock / stockQtyPerUnit);
         const needToBuy = Math.max(0, totalQty - availableStock);
-        reservedDemand.set(identityKey, alreadyReserved + totalQty);
+        reservedDemand.set(stockIdentityKey, alreadyReserved + totalQty * stockQtyPerUnit);
         purchaseList.push({
             model: part.model,
             name: part.name || part.model,
-            supplier: supplier || dbPart?.supplier || '',
+            supplier: resolvedSupplier,
             totalQty,
             currentStock: availableStock,
             needToBuy,
@@ -87,6 +116,12 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             purchased: false,
             partId,
             identityKey,
+            purchaseUnit: part.purchaseUnit || '',
+            stockQtyPerUnit,
+            specification: part.specification || '',
+            cableLength: part.cableLength,
+            cableAccessoryType: part.cableAccessoryType,
+            cableAccessoryName: part.cableAccessoryName,
         });
     }
 
@@ -106,7 +141,7 @@ function buildTodos(purchaseList) {
 
     const todos = [];
     for (const [supplier, parts] of bySupplier) {
-        const detail = parts.map(part => `${part.model}×${part.needToBuy}`).join(', ');
+        const detail = parts.map(part => `${part.model}×${part.needToBuy}${part.purchaseUnit || ''}`).join(', ');
         todos.push({ id: makeId(), supplier, description: `联系【${supplier}】采购：${detail}`, done: false });
     }
     return todos;
@@ -137,7 +172,14 @@ function buildBalancedOrderPlans(orders, partsCatalog) {
         ]));
         plan.purchaseList = plan.purchaseList.map(item => mergePurchasePlanItem(
             item,
-            previousByKey.get(item.identityKey),
+            previousByKey.get(item.identityKey)
+                || (item.purchaseUnit === '根'
+                    ? previous.find(previousItem => (
+                        !previousItem.purchaseUnit
+                        && previousItem.model === item.model
+                        && String(previousItem.supplier || '') === String(item.supplier || '')
+                    ))
+                    : undefined),
         ));
         plans.set(Number(order.id || order.Id), plan);
     }

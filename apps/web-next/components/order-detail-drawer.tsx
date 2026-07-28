@@ -319,9 +319,14 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
                           <tr key={key} className="border-t border-line">
                             <td className="px-3 py-2">
                               <div className="font-medium text-ink">{item.model}</div>
-                              <div className="mt-0.5 text-xs text-muted">{item.name} · {item.supplier || '-'}</div>
+                              <div className="mt-0.5 text-xs text-muted">
+                                {item.name} · {item.supplier || '-'}
+                                {item.specification ? ` · ${item.specification}` : ''}
+                              </div>
                             </td>
-                            <td className="px-3 py-2 text-right font-medium">{item.plannedQty ?? item.needToBuy}</td>
+                            <td className="px-3 py-2 text-right font-medium">
+                              {item.plannedQty ?? item.needToBuy}{item.purchaseUnit ? ` ${item.purchaseUnit}` : ''}
+                            </td>
                             {(['orderedQty', 'receivedQty', 'stockedQty', 'purchasePrice'] as const).map((field) => (
                               <td key={field} className="px-1.5 py-2">
                               <input

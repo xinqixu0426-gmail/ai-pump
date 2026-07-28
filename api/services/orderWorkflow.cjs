@@ -53,6 +53,11 @@ function hasPurchaseProgress(item) {
     return normalized.orderedQty > 0 || normalized.receivedQty > 0 || normalized.stockedQty > 0;
 }
 
+function purchaseToInventoryQty(item, purchaseQty) {
+    const factor = finiteNonNegative(item?.stockQtyPerUnit, 1) || 1;
+    return finiteNonNegative(purchaseQty) * factor;
+}
+
 function validatePurchaseProgress(item, input = {}) {
     const current = normalizePurchaseItem(item);
     const readQty = (field) => {
@@ -106,13 +111,36 @@ function assertQuotationTransition(currentStatus, nextStatus) {
 }
 
 function mergePurchasePlanItem(nextItem, previousItem) {
-    const previous = normalizePurchaseItem(previousItem || {});
+    const stockQtyPerUnit = finiteNonNegative(nextItem?.stockQtyPerUnit, 1) || 1;
+    const legacyCableProgress = nextItem?.purchaseUnit === '根'
+        && previousItem
+        && previousItem.purchaseUnit !== '根'
+        && stockQtyPerUnit > 1;
+    const convertedPrevious = legacyCableProgress
+        ? {
+            ...previousItem,
+            plannedQty: Math.ceil(finiteNonNegative(previousItem.plannedQty, finiteNonNegative(previousItem.needToBuy)) / stockQtyPerUnit),
+            needToBuy: Math.ceil(finiteNonNegative(previousItem.needToBuy) / stockQtyPerUnit),
+            orderedQty: Math.ceil(finiteNonNegative(previousItem.orderedQty) / stockQtyPerUnit),
+            receivedQty: Math.ceil(finiteNonNegative(previousItem.receivedQty) / stockQtyPerUnit),
+            stockedQty: Math.ceil(finiteNonNegative(previousItem.stockedQty) / stockQtyPerUnit),
+            stockInHistory: Array.isArray(previousItem.stockInHistory)
+                ? previousItem.stockInHistory.map(entry => ({
+                    ...entry,
+                    qty: Math.ceil(finiteNonNegative(entry.qty) / stockQtyPerUnit),
+                }))
+                : [],
+            purchaseUnit: '根',
+            stockQtyPerUnit,
+        }
+        : previousItem;
+    const previous = normalizePurchaseItem(convertedPrevious || {});
     const next = normalizePurchaseItem(nextItem);
     const progressStarted = hasPurchaseProgress(previous);
     const plannedQty = progressStarted ? previous.plannedQty : next.plannedQty;
     return normalizePurchaseItem({
         ...next,
-        ...(previousItem || {}),
+        ...(convertedPrevious || {}),
         model: next.model,
         name: next.name,
         supplier: next.supplier,
@@ -120,6 +148,12 @@ function mergePurchasePlanItem(nextItem, previousItem) {
         currentStock: next.currentStock,
         partId: next.partId,
         identityKey: next.identityKey,
+        purchaseUnit: next.purchaseUnit,
+        stockQtyPerUnit: next.stockQtyPerUnit,
+        specification: next.specification,
+        cableLength: next.cableLength,
+        cableAccessoryType: next.cableAccessoryType,
+        cableAccessoryName: next.cableAccessoryName,
         plannedQty,
         needToBuy: plannedQty,
     });
@@ -135,4 +169,5 @@ module.exports = {
     assertOrderTransition,
     assertQuotationTransition,
     mergePurchasePlanItem,
+    purchaseToInventoryQty,
 };

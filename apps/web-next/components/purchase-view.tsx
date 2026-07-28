@@ -205,15 +205,17 @@ export function PurchaseView() {
                         </td>
                         <td className="border-b border-line px-4 py-3">
                           <div className="font-medium text-ink">{task.model}</div>
-                          <div className="mt-0.5 text-xs text-muted">{task.name}</div>
+                          <div className="mt-0.5 text-xs text-muted">
+                            {task.name}{task.specification ? ` · ${task.specification}` : ''}
+                          </div>
                         </td>
                         <td className="border-b border-line px-4 py-3">
                           <TaskStatusBadge task={task} />
                         </td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.totalNeed}</td>
-                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{task.purchasedNeed}</td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.receivedNeed}</td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.stockedNeed}</td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.totalNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
+                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{task.purchasedNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.receivedNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
+                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.stockedNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
                         <td className="border-b border-line px-4 py-3 text-right text-muted">{task.orderCount}</td>
                         <td className="border-b border-line px-4 py-3">
                           <div className="flex justify-end">

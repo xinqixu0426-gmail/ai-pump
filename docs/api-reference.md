@@ -186,7 +186,7 @@
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
 | `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 基于订单表单草稿生成标准保存 payload；未传采购清单/待办时自动生成；不写库 |
-| `POST` | `/api/orders/purchase-items/batch` | `{ model, supplier?, purchased }` | 兼容的整项下单动作；把匹配采购项的 `orderedQty` 设置为计划数量，不入库 |
+| `POST` | `/api/orders/purchase-items/batch` | `{ identityKey?, model, supplier?, purchased }` | 兼容的整项下单动作；优先按采购规格身份匹配，把采购项的 `orderedQty` 设置为计划数量，不入库 |
 | `POST` | `/api/orders/:id/status` | `{ status, reason? }` | 人工动作只允许确认订单、关闭订单或取消订单；取消必须填写原因，采购中/采购完成由数量自动推导 |
 | `POST` | `/api/orders/:id/purchase-items/progress` | `{ identityKey?, model, supplier?, orderedQty, receivedQty, stockedQty, purchasePrice?, actualSupplier?, allowOverPurchase? }` | 保存单项采购进度；强制 `入库 ≤ 到货 ≤ 下单`，超采必须明确确认；`stockedQty` 增量在同一事务内加入库存并记录批次 |
 | `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 旧客户端兼容动作；映射为整项下单/取消下单，已有到货或入库时不能取消 |
@@ -196,7 +196,7 @@
 | `PATCH` | `/api/orders/:id` | 订单字段 | 只有“待确认”订单允许修改核心明细 |
 | `DELETE` | `/api/orders/:id` | 无 | 只有待确认或已取消订单允许软删除 |
 
-采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory`。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
+采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory`，并可通过 `purchaseUnit/stockQtyPerUnit/specification` 区分采购展示单位和底层库存单位。成品电缆按“根”计划，`specification` 标明每根长度与插头/规格，入库时按 `stockQtyPerUnit` 折算为线材米数；历史按米保存的活动订单会在采购计划重算时转换为根数。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
 
 ## 12. 工作台 Workbench
 
@@ -375,7 +375,11 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 
 经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
 
-配方智能检查返回 `version/mode/advisoryOnly/recipe/summary/similarRecipes/missingItems/priceAlerts/suppressedFindings/guidance`。相似度基于泵壳模板、BOM 角色、具体型号和线圈配置；`configuration_conflict` 是配置字段与 BOM 的高置信度矛盾，`peer_pattern` 只是同类配方高频模式，必须由人工结合客户要求复核。价格分析只比较普通固定件，会排除动态泵壳、线圈、浮球、成品电缆和公式/手输成本项。Web 保存配方前会调用该只读接口，高置信度问题要求用户返回修改或明确继续，普通建议不阻止保存；任何提醒都不会自动覆盖配方快照或零件价格。
+配方智能检查当前返回 `version: "knowledge-v2.3"`，核心字段为 `mode/advisoryOnly/recipe/summary/similarRecipes/factoryRuleAlerts/missingItems/priceAlerts/suppressedFindings/guidance`。相似度基于泵壳模板、BOM 角色、具体型号和线圈配置；线圈只有在规格、片数、材质和槽眼全部相同时才标记为完整配置一致，片数不同时仅作为定子规格接近并明确返回双方片数。`configuration_conflict` 是配置字段与 BOM 的高置信度矛盾，`peer_pattern` 只是同类配方高频模式，必须由人工结合客户要求复核。
+
+状态为 `approved` 的候选规则会按 `scopeType=pump_shell_template` 和 `scopeRef=templateId` 参与检查。规则对应的 BOM 角色缺失时返回 `factory_rule` 提醒，附带规则 ID、批准时间、审核说明、证据数量和证据配方；同一规则不再重复生成普通 `peer_pattern` 建议。`summary` 增加 `appliedFactoryRuleCount/factoryRuleAlertCount`，活动规则提醒计入 `highConfidenceAlertCount`，因此 Web 保存前要求用户返回修改或明确继续。已有配方可以把客户定制差异记录为 `special_case`，后续检查会收纳到 `suppressedFindings`。
+
+价格分析只比较普通固定件，会排除动态泵壳、线圈、浮球、成品电缆和公式/手输成本项。所有检查均为只读，任何提醒都不会自动覆盖配方、成本快照或零件价格。
 
 候选规则是“人工反馈的归纳结果”，不是自动成立的业务事实。系统仅统计已明确 `confirmed` 的 `peer_pattern`，按泵壳模板和提醒键分组，并要求至少两个不同配方作为证据。批准记录保存在 `factory_rule_candidates`；下一次执行知识库同步时，只有 `approved` 状态会生成 `business_rule` 条目。
 

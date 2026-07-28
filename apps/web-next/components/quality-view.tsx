@@ -171,7 +171,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                   候选业务规则
                 </div>
                 <div className="mt-1 text-xs leading-5 text-muted">
-                  同一泵壳模板下至少 2 个配方确认相同高频项后才会生成；批准后在下次同步知识库时生效。
+                  同一泵壳模板下至少 2 个配方确认相同高频项后才会生成；批准后立即参与配方检查，同步后也可被 AI 检索。
                 </div>
               </div>
               <Button

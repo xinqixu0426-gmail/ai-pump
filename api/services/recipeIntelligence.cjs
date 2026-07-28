@@ -91,11 +91,18 @@ function similarity(target, candidate) {
     const candidateModels = uniqueSet(candidateParts.map(partModel));
     const sameTemplate = Number(target.templateId || target.template_id || 0) > 0
         && Number(target.templateId || target.template_id) === Number(candidate.templateId || candidate.template_id);
-    const sameCoilSpec = normalize(target.coilSpec || target.coil_spec)
-        && normalize(target.coilSpec || target.coil_spec) === normalize(candidate.coilSpec || candidate.coil_spec);
+    const targetCoilSpec = normalize(target.coilSpec || target.coil_spec);
+    const candidateCoilSpec = normalize(candidate.coilSpec || candidate.coil_spec);
+    const targetCoilSheets = Number(target.coilSheets || target.coil_sheets || 0);
+    const candidateCoilSheets = Number(candidate.coilSheets || candidate.coil_sheets || 0);
+    const sameCoilSpec = targetCoilSpec && targetCoilSpec === candidateCoilSpec;
     const sameCoilVariant = sameCoilSpec
         && normalize(target.coilMaterial || target.coil_material || '钢带') === normalize(candidate.coilMaterial || candidate.coil_material || '钢带')
         && normalize(target.coilSlotType || target.coil_slot_type || '小眼') === normalize(candidate.coilSlotType || candidate.coil_slot_type || '小眼');
+    const sameCoilSheets = targetCoilSheets > 0
+        && candidateCoilSheets > 0
+        && targetCoilSheets === candidateCoilSheets;
+    const sameCoilConfiguration = sameCoilVariant && sameCoilSheets;
     const featureMatches = [
         boolValue(target.hasFloat ?? target.has_float) === boolValue(candidate.hasFloat ?? candidate.has_float),
         boolValue(target.hasCable ?? target.has_cable) === boolValue(candidate.hasCable ?? candidate.has_cable),
@@ -105,16 +112,24 @@ function similarity(target, candidate) {
     const score = (sameTemplate ? 0.35 : 0)
         + roleScore * 0.35
         + modelScore * 0.15
-        + (sameCoilSpec ? 0.05 : 0)
-        + (sameCoilVariant ? 0.04 : 0)
+        + (sameCoilSpec ? 0.03 : 0)
+        + (sameCoilVariant ? 0.03 : 0)
+        + (sameCoilConfiguration ? 0.03 : 0)
         + featureMatches / 2 * 0.06;
 
     const reasons = [];
     if (sameTemplate) reasons.push('使用同一泵壳模板');
     if (roleScore >= 0.8) reasons.push(`BOM 角色重合 ${Math.round(roleScore * 100)}%`);
     else if (roleScore >= 0.5) reasons.push(`BOM 角色重合 ${Math.round(roleScore * 100)}%`);
-    if (sameCoilVariant) reasons.push('线圈规格、材质和槽眼一致');
-    else if (sameCoilSpec) reasons.push('线圈规格一致');
+    if (sameCoilConfiguration) {
+        reasons.push('线圈规格、片数、材质和槽眼一致');
+    } else if (sameCoilVariant && targetCoilSheets > 0 && candidateCoilSheets > 0) {
+        reasons.push(`线圈定子规格、材质和槽眼一致，片数不同（${targetCoilSheets} / ${candidateCoilSheets}）`);
+    } else if (sameCoilVariant) {
+        reasons.push('线圈定子规格、材质和槽眼一致，片数信息不完整');
+    } else if (sameCoilSpec) {
+        reasons.push('线圈定子规格一致');
+    }
 
     return {
         score: round(Math.min(1, score), 3),
@@ -254,6 +269,66 @@ function inferredMissingItems(targetParts, similarRecipes) {
         });
     }
     return results.sort((left, right) => right.prevalence - left.prevalence || left.title.localeCompare(right.title, 'zh-CN'));
+}
+
+function approvedFactoryRuleAlerts(target, targetParts, rules) {
+    const templateId = Number(target.templateId || target.template_id || 0);
+    if (!templateId) return { appliedRules: [], alerts: [] };
+    const targetRoles = uniqueSet(targetParts.map(partRole));
+    const appliedRules = [];
+    const alerts = [];
+
+    for (const rule of rules || []) {
+        const status = rule.status;
+        const scopeType = rule.scopeType || rule.scope_type;
+        const scopeRef = String(rule.scopeRef || rule.scope_ref || '');
+        const findingKey = String(rule.findingKey || rule.finding_key || '');
+        if (status !== 'approved'
+            || scopeType !== 'pump_shell_template'
+            || scopeRef !== String(templateId)
+            || !findingKey.startsWith('peer_pattern:')) {
+            continue;
+        }
+        const role = findingKey.slice('peer_pattern:'.length);
+        if (!role) continue;
+        const evidence = parseJsonArray(rule.evidence || rule.evidenceJson || rule.evidence_json) || [];
+        const normalizedRule = {
+            id: Number(rule.id),
+            ruleKey: rule.ruleKey || rule.rule_key || '',
+            title: rule.title || `模板 ${templateId} 业务规则`,
+            content: rule.content || '',
+            findingKey,
+            role,
+            evidenceCount: Number(rule.evidenceCount || rule.evidence_count || evidence.length || 0),
+            approvedAt: rule.approvedAt || rule.approved_at || null,
+            reviewNote: rule.reviewNote || rule.review_note || '',
+            evidence,
+        };
+        appliedRules.push(normalizedRule);
+        if (targetRoles.has(role)) continue;
+
+        alerts.push({
+            key: `factory_rule:${normalizedRule.id}`,
+            type: 'factory_rule',
+            severity: 'warning',
+            confidence: 'high',
+            title: `已批准工厂规则要求复核「${role.replace(/^包装:/, '')}」`,
+            explanation: normalizedRule.content || '该项已经过人工批准，保存前应确认是否遗漏；客户定制差异可以标记为特殊情况。',
+            role,
+            suggestedModels: [],
+            evidence: [{
+                source: 'approved_factory_rule',
+                ruleId: normalizedRule.id,
+                ruleTitle: normalizedRule.title,
+                evidenceCount: normalizedRule.evidenceCount,
+                approvedAt: normalizedRule.approvedAt,
+                reviewNote: normalizedRule.reviewNote,
+            }, ...evidence.slice(0, 5)],
+            rule: normalizedRule,
+        });
+    }
+
+    return { appliedRules, alerts };
 }
 
 function buildPartCatalog(parts) {
@@ -418,7 +493,13 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
         .slice(0, Math.min(8, Math.max(2, Number(input.limit) || 5)));
 
     const definite = definiteMissingItems(target, targetParts);
-    const inferred = inferredMissingItems(targetParts, similar);
+    const approvedRules = Object.prototype.hasOwnProperty.call(options, 'approvedRules')
+        ? options.approvedRules
+        : (!options.recipes ? getDb().dbGetFactoryRuleCandidates('approved') : []);
+    const factoryRuleResult = approvedFactoryRuleAlerts(target, targetParts, approvedRules);
+    const approvedFindingKeys = new Set(factoryRuleResult.appliedRules.map(rule => rule.findingKey));
+    const inferred = inferredMissingItems(targetParts, similar)
+        .filter(item => !approvedFindingKeys.has(item.key));
     const prices = priceAlerts(targetParts, similar, catalogParts);
     const feedbackRows = options.feedback || (
         !options.recipes && Number.isFinite(targetId) && targetId > 0
@@ -426,15 +507,21 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
             : []
     );
     const missingFeedback = applyFeedback([...definite, ...inferred], feedbackRows);
+    const factoryRuleFeedback = applyFeedback(factoryRuleResult.alerts, feedbackRows);
     const priceFeedback = applyFeedback(prices, feedbackRows);
     const activeDefiniteCount = missingFeedback.active.filter(item => item.type !== 'peer_pattern').length;
     const activeInferredCount = missingFeedback.active.filter(item => item.type === 'peer_pattern').length;
     const highConfidenceAlertCount = activeDefiniteCount
+        + factoryRuleFeedback.active.length
         + priceFeedback.active.filter(item => item.confidence === 'high').length;
-    const suppressedFindings = [...missingFeedback.suppressed, ...priceFeedback.suppressed];
+    const suppressedFindings = [
+        ...missingFeedback.suppressed,
+        ...factoryRuleFeedback.suppressed,
+        ...priceFeedback.suppressed,
+    ];
 
     return {
-        version: 'knowledge-v2.2',
+        version: 'knowledge-v2.3',
         generatedAt: new Date().toISOString(),
         mode: input.draft ? 'draft' : 'saved_recipe',
         advisoryOnly: true,
@@ -450,6 +537,8 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
             similarRecipeCount: similar.length,
             definiteIssueCount: activeDefiniteCount,
             reviewSuggestionCount: activeInferredCount,
+            appliedFactoryRuleCount: factoryRuleResult.appliedRules.length,
+            factoryRuleAlertCount: factoryRuleFeedback.active.length,
             priceAlertCount: priceFeedback.active.length,
             highConfidenceAlertCount,
             suppressedFindingCount: suppressedFindings.length,
@@ -466,11 +555,13 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
             referenceOnlyRoles: item.similarity.candidateOnlyRoles,
             savedTotalCost: Number(item.recipe.savedTotalCost || item.recipe.saved_total_cost || 0),
         })),
+        factoryRuleAlerts: factoryRuleFeedback.active,
         missingItems: missingFeedback.active,
         priceAlerts: priceFeedback.active,
         suppressedFindings,
         guidance: [
             '高置信度配置矛盾应在保存前处理。',
+            '已批准工厂规则会参与保存前检查；客户定制差异可以标记为特殊情况。',
             '同类配方高频项只是复核建议，客户定制差异可以保留。',
             '价格提醒不会自动覆盖历史快照或当前零件价。',
         ],
@@ -479,6 +570,7 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
 
 module.exports = {
     analyzeRecipeConfiguration,
+    approvedFactoryRuleAlerts,
     partRole,
     similarity,
 };
