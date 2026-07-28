@@ -362,7 +362,9 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             return {
                 success: true,
                 intent: 'recipe_analysis_feedback',
-                summary: '配方检查反馈已保存，后续智能检查会应用这条判断。',
+                summary: data.ruleLearning?.refreshed
+                    ? '配方检查反馈已保存，候选业务规则已自动重新归纳。'
+                    : '配方检查反馈已保存，后续智能检查会应用这条判断。',
                 display: { mode: 'compact', title: '检查反馈' },
                 data,
             };

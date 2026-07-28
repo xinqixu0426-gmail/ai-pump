@@ -42,6 +42,47 @@ function createFixture() {
     return { db, safeInsert, safeUpdate };
 }
 
+function createLearningFixture() {
+    const fixture = createFixture();
+    fixture.db.exec(`
+        ALTER TABLE recipes ADD COLUMN name TEXT;
+        ALTER TABLE recipes ADD COLUMN template_id INTEGER;
+        CREATE TABLE pump_shell_templates (
+            id INTEGER PRIMARY KEY,
+            shell_model TEXT
+        );
+        CREATE TABLE factory_rule_candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_key TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            scope_type TEXT NOT NULL,
+            scope_ref TEXT NOT NULL,
+            finding_key TEXT NOT NULL,
+            finding_type TEXT NOT NULL,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            evidence_json TEXT DEFAULT '[]',
+            support_count INTEGER NOT NULL DEFAULT 0,
+            special_case_count INTEGER NOT NULL DEFAULT 0,
+            ignored_count INTEGER NOT NULL DEFAULT 0,
+            confidence_score REAL NOT NULL DEFAULT 0,
+            learning_evidence_json TEXT DEFAULT '{}',
+            learning_hash TEXT DEFAULT '',
+            reviewed_learning_hash TEXT DEFAULT '',
+            learning_updated_at TEXT,
+            status TEXT NOT NULL DEFAULT 'candidate',
+            review_note TEXT DEFAULT '',
+            approved_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750');
+        UPDATE recipes SET name = 'V750 A', template_id = 7 WHERE id = 1;
+        INSERT INTO recipes(id, name, template_id, deleted_at) VALUES (2, 'V750 B', 7, NULL);
+    `);
+    return fixture;
+}
+
 test('配方检查反馈按配方和提醒键新增后更新', () => {
     const fixture = createFixture();
     try {
@@ -87,6 +128,51 @@ test('配方检查反馈拒绝无效判断和不存在的配方', () => {
                 decision: 'ignored',
             }, fixture),
             /配方不存在/
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('同类高频项反馈保存后自动归纳候选规则且失败时整体回滚', () => {
+    const fixture = createLearningFixture();
+    try {
+        const first = saveRecipeAnalysisFeedback(1, {
+            findingKey: 'peer_pattern:包装:fixed',
+            findingType: 'peer_pattern',
+            decision: 'confirmed',
+            findingSnapshot: { title: '同类配方通常包含说明书' },
+        }, fixture);
+        assert.equal(first.ruleLearning.refreshed, true);
+        assert.equal(first.ruleLearning.stats.active, 0);
+
+        const second = saveRecipeAnalysisFeedback(2, {
+            findingKey: 'peer_pattern:包装:fixed',
+            findingType: 'peer_pattern',
+            decision: 'confirmed',
+            findingSnapshot: { title: '同类配方通常包含说明书' },
+        }, fixture);
+        assert.equal(second.ruleLearning.stats.created, 1);
+        assert.equal(second.ruleLearning.candidateCount, 1);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_rule_candidates').get().count, 1);
+
+        assert.throws(
+            () => saveRecipeAnalysisFeedback(1, {
+                findingKey: 'peer_pattern:包装:manual',
+                findingType: 'peer_pattern',
+                decision: 'confirmed',
+            }, {
+                ...fixture,
+                refreshFactoryRuleCandidates: () => {
+                    throw new Error('归纳失败');
+                },
+            }),
+            /归纳失败/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM recipe_analysis_feedback WHERE finding_key = ?')
+                .get('peer_pattern:包装:manual').count,
+            0
         );
     } finally {
         fixture.db.close();

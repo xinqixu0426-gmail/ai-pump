@@ -218,7 +218,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                   候选业务规则
                 </div>
                 <div className="mt-1 text-xs leading-5 text-muted">
-                  同一泵壳模板下至少 2 个配方确认相同高频项后才会生成；批准后立即参与配方检查，同步后也可被 AI 检索。
+                  同类高频项反馈保存后会自动归纳；至少 2 个配方确认才生成候选，批准后参与配方检查。
                 </div>
               </div>
               <Button
@@ -227,7 +227,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 disabled={ruleRefreshing}
                 icon={<Sparkles size={15} className={ruleRefreshing ? 'animate-pulse' : ''} />}
               >
-                {ruleRefreshing ? '归纳中' : '归纳候选规则'}
+                {ruleRefreshing ? '核对中' : '重新核对规则'}
               </Button>
             </div>
             <div className="grid border-b border-line sm:grid-cols-4">

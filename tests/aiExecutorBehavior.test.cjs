@@ -469,10 +469,10 @@ test('AI executor 行为：配方智能检查通过只读质量 API', async () =
 test('AI executor 行为：配方检查反馈必须确认后写入质量 API', async () => {
     const args = {
         recipeId: 9,
-        findingKey: 'missing_cable',
-        findingType: 'configuration_conflict',
+        findingKey: 'peer_pattern:包装:fixed',
+        findingType: 'peer_pattern',
         decision: 'special_case',
-        note: '客户自备电缆',
+        note: '客户不需要说明书',
     };
     const blocked = await executeToolCall('set_recipe_analysis_feedback', args, { allowWrite: false });
     assert.equal(blocked.requiresConfirmation, true);
@@ -480,15 +480,23 @@ test('AI executor 行为：配方检查反馈必须确认后写入质量 API', a
 
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/quality/recipes/9/feedback') && call.method === 'POST') {
-            assert.equal(call.body.findingKey, 'missing_cable');
+            assert.equal(call.body.findingKey, 'peer_pattern:包装:fixed');
             assert.equal(call.body.decision, 'special_case');
-            return jsonResponse({ success: true, data: { id: 12, ...call.body } });
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 12,
+                    ...call.body,
+                    ruleLearning: { refreshed: true, stats: { active: 1 } },
+                },
+            });
         }
         return jsonResponse({ success: false, error: 'unexpected call' }, 500);
     });
     const result = await executeToolCall('set_recipe_analysis_feedback', args, { allowWrite: true });
     assert.equal(result.success, true);
     assert.equal(result.intent, 'recipe_analysis_feedback');
+    assert.match(result.summary, /候选业务规则已自动重新归纳/);
     assert.equal(calls.length, 1);
 });
 

@@ -4791,7 +4791,7 @@ export function RecipesView() {
                 />
               </label>
               <div className="text-xs leading-5 text-muted">
-                该判断只对当前配方的这条提醒生效，不会自动修改配方，也不会改变其他配方的规则。
+                该判断只处理当前配方的这条提醒；同类高频项会自动计入候选规则证据，但不会自动批准或修改配方。
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-line px-5 py-4">

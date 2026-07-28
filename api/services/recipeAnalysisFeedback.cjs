@@ -63,35 +63,57 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
         throw inputError(error.message);
     }
 
-    const current = database.prepare(`
-        SELECT * FROM recipe_analysis_feedback
-        WHERE recipe_id = ? AND finding_key = ?
-    `).get(recipeId, findingKey);
-    const now = new Date().toISOString();
-    if (current) {
-        update('recipe_analysis_feedback', current.id, {
-            finding_type: findingType,
-            decision,
-            note,
-            finding_snapshot_json: findingSnapshotJson,
-        });
-    } else {
-        insert('recipe_analysis_feedback', {
-            recipe_id: recipeId,
-            finding_key: findingKey,
-            finding_type: findingType,
-            decision,
-            note,
-            finding_snapshot_json: findingSnapshotJson,
-            created_at: now,
-            updated_at: now,
-        });
-    }
+    const persistFeedback = database.transaction(() => {
+        const current = database.prepare(`
+            SELECT * FROM recipe_analysis_feedback
+            WHERE recipe_id = ? AND finding_key = ?
+        `).get(recipeId, findingKey);
+        const now = new Date().toISOString();
+        if (current) {
+            update('recipe_analysis_feedback', current.id, {
+                finding_type: findingType,
+                decision,
+                note,
+                finding_snapshot_json: findingSnapshotJson,
+            });
+        } else {
+            insert('recipe_analysis_feedback', {
+                recipe_id: recipeId,
+                finding_key: findingKey,
+                finding_type: findingType,
+                decision,
+                note,
+                finding_snapshot_json: findingSnapshotJson,
+                created_at: now,
+                updated_at: now,
+            });
+        }
 
-    return feedbackRow(database.prepare(`
-        SELECT * FROM recipe_analysis_feedback
-        WHERE recipe_id = ? AND finding_key = ?
-    `).get(recipeId, findingKey));
+        const saved = feedbackRow(database.prepare(`
+            SELECT * FROM recipe_analysis_feedback
+            WHERE recipe_id = ? AND finding_key = ?
+        `).get(recipeId, findingKey));
+        if (findingType !== 'peer_pattern') return saved;
+
+        const refreshCandidates = options.refreshFactoryRuleCandidates
+            || require('./factoryRuleCandidates.cjs').refreshFactoryRuleCandidates;
+        const learning = refreshCandidates({
+            db: database,
+            safeInsert: insert,
+            safeUpdate: update,
+        });
+        return {
+            ...saved,
+            ruleLearning: {
+                refreshed: true,
+                minimumEvidence: learning.minimumEvidence,
+                stats: learning.stats,
+                candidateCount: learning.candidates.length,
+            },
+        };
+    });
+
+    return persistFeedback();
 }
 
 module.exports = {

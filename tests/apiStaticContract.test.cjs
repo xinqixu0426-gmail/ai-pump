@@ -517,7 +517,7 @@ test('API 静态契约：候选业务规则需人工审核后才进入知识库'
     assert.match(knowledge, /sourceTable: 'factory_rule_candidates'/);
     assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /review_factory_rule_candidate/);
     assert.match(qualityView, /候选业务规则/);
-    assert.match(qualityView, /批准后立即参与配方检查，同步后也可被 AI 检索/);
+    assert.match(qualityView, /批准后参与配方检查/);
 });
 
 test('API 静态契约：Knowledge V3 使用正反反馈和证据指纹治理学习规则', () => {
@@ -572,6 +572,22 @@ test('API 静态契约：Knowledge V3 全局监控已批准规则执行情况', 
     assert.match(service, /ruleViolationCount/);
     assert.match(qualityView, /已批准规则执行情况/);
     assert.match(qualityView, /受影响配方/);
+});
+
+test('API 静态契约：Knowledge V3 同类反馈与候选规则归纳保持事务一致', () => {
+    const feedbackService = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+
+    assert.match(feedbackService, /database\.transaction/);
+    assert.match(feedbackService, /findingType !== 'peer_pattern'/);
+    assert.match(feedbackService, /refreshFactoryRuleCandidates/);
+    assert.match(feedbackService, /ruleLearning/);
+    assert.match(prompt, /无需再调用 refresh_factory_rule_candidates/);
+    assert.match(qualityView, /反馈保存后会自动归纳/);
+    assert.match(qualityView, /重新核对规则/);
+    assert.match(recipesView, /自动计入候选规则证据/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

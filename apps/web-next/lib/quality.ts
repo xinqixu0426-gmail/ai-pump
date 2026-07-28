@@ -74,6 +74,12 @@ export type RecipeAnalysisFeedback = {
   decision: RecipeAnalysisFeedbackDecision;
   note: string;
   updatedAt: string | null;
+  ruleLearning?: {
+    refreshed: true;
+    minimumEvidence: number;
+    stats: { created: number; updated: number; stale: number; active: number };
+    candidateCount: number;
+  };
 };
 
 export type RecipeAnalysisMissingItem = {

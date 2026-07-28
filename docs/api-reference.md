@@ -370,7 +370,7 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 | `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
 | `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
 | `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V3 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项、已批准规则的学习置信度和固定件价格异常；只读不写库 |
-| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；后续检查会保留已确认项，收纳忽略和特殊情况项，`review` 可恢复复核 |
+| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；`peer_pattern` 反馈会在同一事务中自动刷新候选规则并返回 `ruleLearning` 摘要，失败时反馈与归纳整体回滚；其他提醒不触发规则学习 |
 | `GET` | `/api/quality/rule-compliance` | 无 | 汇总全部已批准规则的当前执行情况，返回规则问题总数、受影响配方去重数量、例外数量以及各规则的实时影响明细；只读不写库 |
 | `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/confidenceScore/confidenceLevel/learningEvidence/needsReview` |
 | `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，不会自动批准新规则 |
@@ -392,6 +392,8 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 V3 第二阶段在批准前实时执行影响分析：以规则的泵壳模板和目标 BOM 角色为范围，已包含该角色的配方归为“已符合”，缺少且没有例外反馈的配方归为“需要复核”，`special_case/ignored` 分别保留为特殊情况和已忽略。影响分析不缓存、不写业务库，配方修改后再次查询即可获得最新结果；系统只展示影响，不会批量补件或自动修改成本。
 
 V3 第三阶段把单条影响分析扩展为全局规则执行监控。系统遍历所有 `approved` 规则，区分“规则问题次数”和去重后的“受影响配方数”，并在数据质量看板及 AI 工具中展示；同一配方违反多条规则时只计为一个受影响配方，但保留全部规则关联。该监控不会改变既有数据质量分数，也不会自动修改配方。
+
+V3 第四阶段让同类高频项反馈保存后自动归纳候选规则。反馈写入与规则刷新使用同一个 SQLite 事务，确认、特殊情况、忽略或恢复复核会立即反映到候选状态、置信度和复审队列；手动“重新核对规则”仅作为运维兜底。自动归纳只更新候选及已批准规则的证据状态，不会自动批准规则。
 
 ## 17. 工厂知识库 Knowledge
 
