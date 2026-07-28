@@ -580,6 +580,22 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'get_factory_knowledge_health': {
+            const data = await getJson(internalFetch, '/api/knowledge/health', '知识库健康状态读取失败');
+            const statusLabel = data.status === 'healthy'
+                ? '正常'
+                : data.status === 'critical'
+                    ? '异常'
+                    : '需要关注';
+            return {
+                success: true,
+                intent: 'factory_knowledge_health',
+                summary: `知识库同步状态${statusLabel}：${data.summary || '状态已检查'}。待同步 ${data.pendingTotal || 0} 条。`,
+                display: { mode: 'compact', title: '知识库健康状态' },
+                data,
+            };
+        }
+
         case 'sync_factory_knowledge': {
             const data = await postJson(internalFetch, '/api/knowledge/sync', {}, '工厂知识库同步失败');
             const total = data.stats?.total ?? data.stats?.inserted ?? 0;

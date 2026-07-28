@@ -47,6 +47,7 @@ const LIVE_BUSINESS_TOOLS = new Set([
     'get_business_alerts',
     'get_data_quality_summary',
     'analyze_recipe_configuration',
+    'get_factory_knowledge_health',
     'get_factory_rule_candidates',
     'get_factory_rule_impact',
     'get_factory_rule_compliance',

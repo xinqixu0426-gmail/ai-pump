@@ -732,6 +732,14 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_factory_knowledge_health',
+            description: '实时检查工厂知识库自动同步是否正常，返回健康级别、待同步数量、异常原因、最近同步记录以及是否建议人工恢复。适合用户问“知识库正常吗”“最近同步成功了吗”“为什么同步失败”“是否需要手动同步”。只读，不执行同步。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'sync_factory_knowledge',
             description: '把当前系统里的零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则增量同步成工厂知识条目，并刷新 SQLite FTS 索引。需要用户确认后执行。',
             parameters: { type: 'object', properties: {} }

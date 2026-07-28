@@ -465,7 +465,7 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_learning_health', 'get_factory_rule_candidates', 'get_factory_rule_impact', 'get_factory_rule_compliance', 'get_factory_rule_history', 'restore_factory_rule_event', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_learning_health', 'get_factory_rule_candidates', 'get_factory_rule_impact', 'get_factory_rule_compliance', 'get_factory_rule_history', 'restore_factory_rule_event', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'get_factory_knowledge_health', 'sync_factory_knowledge']) {
         assert.match(tools, new RegExp(name));
     }
 });
@@ -885,6 +885,22 @@ test('API 静态契约：Knowledge V4 健康告警只在真实异常时提供恢
     assert.match(knowledgeView, /setSyncOpen\(true\)/);
     assert.match(docs, /Knowledge Base V4 第三阶段/);
     assert.match(apiDocs, /\/api\/knowledge\/health/);
+});
+
+test('API 静态契约：Knowledge V4 AI 可只读诊断同步健康状态', () => {
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
+    const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+
+    assert.match(tools, /name: 'get_factory_knowledge_health'/);
+    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_knowledge_health/);
+    assert.match(executor, /'get_factory_knowledge_health'/);
+    assert.match(businessExecutor, /case 'get_factory_knowledge_health'/);
+    assert.match(businessExecutor, /\/api\/knowledge\/health/);
+    assert.match(chat, /get_factory_knowledge_health/);
+    assert.match(prompt, /get_factory_knowledge_health/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

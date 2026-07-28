@@ -430,6 +430,49 @@ test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', 
     ]);
 });
 
+test('AI executor 行为：知识库健康检查通过只读 health API', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/knowledge/health') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    status: 'attention',
+                    summary: '1 项知识同步状态需要关注',
+                    pendingTotal: 2,
+                    needsRecovery: true,
+                    issues: [{
+                        code: 'sync_failed',
+                        severity: 'attention',
+                        title: '自动同步失败',
+                        message: 'database is locked',
+                        action: 'manual_sync',
+                    }],
+                    latestRun: {
+                        mode: 'automatic',
+                        status: 'failed',
+                        attempt: 1,
+                    },
+                    checkedAt: '2026-07-28T00:00:00.000Z',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('get_factory_knowledge_health', {}, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'factory_knowledge_health');
+    assert.match(result.summary, /需要关注/);
+    assert.match(result.summary, /待同步 2 条/);
+    assert.equal(result.data.needsRecovery, true);
+    assert.equal(result.data.issues[0].code, 'sync_failed');
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/knowledge/health',
+    ]);
+});
+
 test('AI executor 行为：配方智能检查通过只读质量 API', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/quality/recipe-analysis') && call.method === 'POST') {
