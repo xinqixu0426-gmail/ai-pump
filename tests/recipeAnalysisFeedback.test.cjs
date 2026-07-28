@@ -76,6 +76,18 @@ function createLearningFixture() {
             created_at TEXT,
             updated_at TEXT
         );
+        CREATE TABLE factory_rule_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            candidate_id INTEGER NOT NULL,
+            rule_key TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            previous_status TEXT,
+            new_status TEXT,
+            actor TEXT NOT NULL DEFAULT 'system',
+            note TEXT DEFAULT '',
+            snapshot_json TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL
+        );
         INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750');
         UPDATE recipes SET name = 'V750 A', template_id = 7 WHERE id = 1;
         INSERT INTO recipes(id, name, template_id, deleted_at) VALUES (2, 'V750 B', 7, NULL);

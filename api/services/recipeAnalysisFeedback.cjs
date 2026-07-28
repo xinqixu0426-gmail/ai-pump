@@ -101,6 +101,7 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
             db: database,
             safeInsert: insert,
             safeUpdate: update,
+            actor: options.actor,
         });
         return {
             ...saved,

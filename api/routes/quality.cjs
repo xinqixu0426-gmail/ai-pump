@@ -6,6 +6,7 @@ const { saveRecipeAnalysisFeedback } = require('../services/recipeAnalysisFeedba
 const {
     buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
+    listFactoryRuleEvents,
     listFactoryRuleCandidates,
     refreshFactoryRuleCandidates,
     reviewFactoryRuleCandidate,
@@ -41,7 +42,9 @@ router.post('/recipes/:recipeId/feedback', (req, res) => {
     try {
         res.json({
             success: true,
-            data: saveRecipeAnalysisFeedback(req.params.recipeId, req.body || {}),
+            data: saveRecipeAnalysisFeedback(req.params.recipeId, req.body || {}, {
+                actor: req.user?.role || 'system',
+            }),
         });
     } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
@@ -67,9 +70,26 @@ router.get('/rule-candidates', (req, res) => {
     }
 });
 
+router.get('/rule-events', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: listFactoryRuleEvents({
+                candidateId: req.query.candidateId,
+                limit: req.query.limit,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
 router.post('/rule-candidates/refresh', (req, res) => {
     try {
-        res.json({ success: true, data: refreshFactoryRuleCandidates() });
+        res.json({
+            success: true,
+            data: refreshFactoryRuleCandidates({ actor: req.user?.role || 'system' }),
+        });
     } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }
@@ -90,7 +110,9 @@ router.patch('/rule-candidates/:id', (req, res) => {
     try {
         res.json({
             success: true,
-            data: reviewFactoryRuleCandidate(req.params.id, req.body || {}),
+            data: reviewFactoryRuleCandidate(req.params.id, req.body || {}, {
+                actor: req.user?.role || 'system',
+            }),
         });
     } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });

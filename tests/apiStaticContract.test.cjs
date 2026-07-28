@@ -465,7 +465,7 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_rule_candidates', 'get_factory_rule_impact', 'get_factory_rule_compliance', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_rule_candidates', 'get_factory_rule_impact', 'get_factory_rule_compliance', 'get_factory_rule_history', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
         assert.match(tools, new RegExp(name));
     }
 });
@@ -588,6 +588,26 @@ test('API 静态契约：Knowledge V3 同类反馈与候选规则归纳保持事
     assert.match(qualityView, /反馈保存后会自动归纳/);
     assert.match(qualityView, /重新核对规则/);
     assert.match(recipesView, /自动计入候选规则证据/);
+});
+
+test('API 静态契约：Knowledge V3 规则生命周期记录可追溯且只读', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_rule_events/);
+    assert.match(schema, /idx_factory_rule_events_candidate/);
+    assert.match(route, /router\.get\('\/rule-events'/);
+    assert.match(service, /function recordFactoryRuleEvent/);
+    assert.match(service, /function listFactoryRuleEvents/);
+    assert.match(tools, /name: 'get_factory_rule_history'/);
+    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_rule_history/);
+    assert.match(prompt, /使用 get_factory_rule_history/);
+    assert.match(qualityView, /规则变更记录/);
+    assert.doesNotMatch(qualityView, /恢复历史版本/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

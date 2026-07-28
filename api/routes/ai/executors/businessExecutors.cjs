@@ -421,6 +421,25 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'get_factory_rule_history': {
+            const query = new URLSearchParams();
+            if (args.candidateId) query.set('candidateId', String(Number(args.candidateId)));
+            if (args.limit) query.set('limit', String(Number(args.limit)));
+            const suffix = query.toString() ? `?${query.toString()}` : '';
+            const data = await getJson(
+                internalFetch,
+                `/api/quality/rule-events${suffix}`,
+                '规则变更记录读取失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_history',
+                summary: `共读取 ${data.length || 0} 条规则变更记录。`,
+                display: { mode: 'compact', title: '规则变更记录' },
+                data,
+            };
+        }
+
         case 'refresh_factory_rule_candidates': {
             const data = await postJson(
                 internalFetch,

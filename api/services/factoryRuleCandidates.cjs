@@ -121,6 +121,77 @@ function candidateRow(row) {
     };
 }
 
+function eventRow(row) {
+    if (!row) return row;
+    return {
+        id: Number(row.id),
+        candidateId: Number(row.candidate_id),
+        ruleKey: row.rule_key,
+        ruleTitle: row.rule_title || '',
+        eventType: row.event_type,
+        previousStatus: row.previous_status || null,
+        newStatus: row.new_status || null,
+        actor: row.actor || 'system',
+        note: row.note || '',
+        snapshot: parseObject(row.snapshot_json),
+        createdAt: row.created_at,
+    };
+}
+
+function recordFactoryRuleEvent(candidate, eventType, details = {}, options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const insert = options.safeInsert || accessors.safeInsert;
+    if (typeof insert !== 'function') throw new Error('规则事件写入器不可用');
+    const now = details.createdAt || new Date().toISOString();
+    insert('factory_rule_events', {
+        candidate_id: Number(candidate.id),
+        rule_key: candidate.ruleKey,
+        event_type: eventType,
+        previous_status: details.previousStatus || null,
+        new_status: details.newStatus || candidate.status || null,
+        actor: String(details.actor || options.actor || 'system').slice(0, 100),
+        note: String(details.note || '').slice(0, 500),
+        snapshot_json: JSON.stringify(details.snapshot || candidate),
+        created_at: now,
+    });
+}
+
+function listFactoryRuleEvents(options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const candidateId = options.candidateId === undefined || options.candidateId === ''
+        ? null
+        : parsePositiveId(options.candidateId);
+    if (options.candidateId !== undefined && options.candidateId !== '' && !candidateId) {
+        throw inputError('候选规则 ID 必须是正整数');
+    }
+    let limit = 30;
+    if (options.limit !== undefined && options.limit !== '') {
+        const parsedLimit = Number(options.limit);
+        if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+            throw inputError('limit 必须是 1 到 100 的整数');
+        }
+        limit = parsedLimit;
+    }
+    const rows = candidateId
+        ? database.prepare(`
+            SELECT event.*, candidate.title AS rule_title
+            FROM factory_rule_events event
+            LEFT JOIN factory_rule_candidates candidate ON candidate.id = event.candidate_id
+            WHERE event.candidate_id = ?
+            ORDER BY event.created_at DESC, event.id DESC
+            LIMIT ?
+        `).all(candidateId, limit)
+        : database.prepare(`
+            SELECT event.*, candidate.title AS rule_title
+            FROM factory_rule_events event
+            LEFT JOIN factory_rule_candidates candidate ON candidate.id = event.candidate_id
+            ORDER BY event.created_at DESC, event.id DESC
+            LIMIT ?
+        `).all(limit);
+    return rows.map(eventRow);
+}
+
 function buildRuleCandidateGroups(rows, minimumEvidence = 2) {
     const groups = new Map();
     for (const row of rows || []) {
@@ -385,7 +456,7 @@ function buildFactoryRuleCompliance(options = {}) {
     };
 }
 
-function refreshFactoryRuleCandidates(options = {}) {
+function refreshFactoryRuleCandidatesCore(options = {}) {
     const accessors = options.db ? options : loadDbAccessors();
     const database = options.db || accessors.db;
     const insert = options.safeInsert || accessors.safeInsert;
@@ -417,11 +488,29 @@ function refreshFactoryRuleCandidates(options = {}) {
             learning_updated_at: now,
         };
         if (current) {
-            if (current.status === 'stale') values.status = 'candidate';
+            const previousStatus = current.status;
+            const evidenceChanged = current.learning_hash !== group.learningHash
+                || Number(current.support_count || 0) !== group.supportCount
+                || Number(current.special_case_count || 0) !== group.specialCaseCount
+                || Number(current.ignored_count || 0) !== group.ignoredCount;
+            if (previousStatus === 'stale') values.status = 'candidate';
             update('factory_rule_candidates', current.id, values);
+            if (evidenceChanged || previousStatus === 'stale') {
+                const updatedCandidate = candidateRow(
+                    database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
+                );
+                recordFactoryRuleEvent(updatedCandidate, previousStatus === 'stale' ? 'reactivated' : 'evidence_changed', {
+                    previousStatus,
+                    newStatus: updatedCandidate.status,
+                    actor: options.actor,
+                    note: previousStatus === 'stale'
+                        ? '支持证据恢复到最低要求，规则重新进入候选状态'
+                        : '人工反馈改变了规则证据或置信度',
+                }, { ...options, db: database, safeInsert: insert });
+            }
             updated += 1;
         } else {
-            insert('factory_rule_candidates', {
+            const info = insert('factory_rule_candidates', {
                 rule_key: group.ruleKey,
                 ...values,
                 status: 'candidate',
@@ -429,6 +518,14 @@ function refreshFactoryRuleCandidates(options = {}) {
                 created_at: now,
                 updated_at: now,
             });
+            const createdCandidate = candidateRow(
+                database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(Number(info.lastInsertRowid))
+            );
+            recordFactoryRuleEvent(createdCandidate, 'created', {
+                newStatus: 'candidate',
+                actor: options.actor,
+                note: `达到 ${options.minimumEvidence || 2} 个配方确认，生成候选规则`,
+            }, { ...options, db: database, safeInsert: insert });
             created += 1;
         }
     }
@@ -451,6 +548,15 @@ function refreshFactoryRuleCandidates(options = {}) {
             reviewed_learning_hash: '',
             learning_updated_at: now,
         });
+        const staleCandidate = candidateRow(
+            database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(row.id)
+        );
+        recordFactoryRuleEvent(staleCandidate, 'stale', {
+            previousStatus: row.status,
+            newStatus: 'stale',
+            actor: options.actor,
+            note: '支持证据不足，规则自动转为失效',
+        }, { ...options, db: database, safeInsert: insert });
         stale += 1;
     }
 
@@ -462,9 +568,22 @@ function refreshFactoryRuleCandidates(options = {}) {
     };
 }
 
-function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
+function refreshFactoryRuleCandidates(options = {}) {
     const accessors = options.db ? options : loadDbAccessors();
     const database = options.db || accessors.db;
+    const transaction = database.transaction(() => refreshFactoryRuleCandidatesCore({
+        ...options,
+        db: database,
+        safeInsert: options.safeInsert || accessors.safeInsert,
+        safeUpdate: options.safeUpdate || accessors.safeUpdate,
+    }));
+    return transaction();
+}
+
+function reviewFactoryRuleCandidateCore(idValue, input = {}, options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const insert = options.safeInsert || accessors.safeInsert;
     const update = options.safeUpdate || accessors.safeUpdate;
     const id = parsePositiveId(idValue);
     if (!id) throw inputError('候选规则 ID 必须是正整数');
@@ -487,7 +606,26 @@ function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
         approved_at: status === 'approved' ? new Date().toISOString() : null,
         reviewed_learning_hash: status === 'approved' ? current.learning_hash || '' : '',
     });
-    return candidateRow(database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id));
+    const reviewed = candidateRow(database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id));
+    recordFactoryRuleEvent(reviewed, status === 'candidate' ? 'reopened' : status, {
+        previousStatus: current.status,
+        newStatus: status,
+        actor: options.actor,
+        note: reviewNote,
+    }, { ...options, db: database, safeInsert: insert });
+    return reviewed;
+}
+
+function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const transaction = database.transaction(() => reviewFactoryRuleCandidateCore(idValue, input, {
+        ...options,
+        db: database,
+        safeInsert: options.safeInsert || accessors.safeInsert,
+        safeUpdate: options.safeUpdate || accessors.safeUpdate,
+    }));
+    return transaction();
 }
 
 module.exports = {
@@ -496,7 +634,9 @@ module.exports = {
     buildFactoryRuleImpact,
     confidenceForEvidence,
     learningEvidenceHash,
+    listFactoryRuleEvents,
     listFactoryRuleCandidates,
+    recordFactoryRuleEvent,
     refreshFactoryRuleCandidates,
     reviewFactoryRuleCandidate,
 };

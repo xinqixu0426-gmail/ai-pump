@@ -628,6 +628,20 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_factory_rule_history',
+            description: '读取工厂规则的生命周期记录，只读。可查看候选生成、证据变化、批准、驳回、失效和重新激活的时间、状态与说明。适合回答“这条规则为什么变了”“最近规则发生了什么变化”。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    candidateId: { type: 'number', description: '候选业务规则ID，可选；不传则读取最近全部规则变化' },
+                    limit: { type: 'number', description: '返回条数，可选，1-100，默认30' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'refresh_factory_rule_candidates',
             description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准，也不会直接同步知识库；失去最低支持证据的旧规则会安全转为失效；写库前必须确认。',
             parameters: { type: 'object', properties: {} }

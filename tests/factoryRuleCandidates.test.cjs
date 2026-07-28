@@ -6,6 +6,7 @@ const {
     buildFactoryRuleImpact,
     buildRuleCandidateGroups,
     confidenceForEvidence,
+    listFactoryRuleEvents,
     refreshFactoryRuleCandidates,
     reviewFactoryRuleCandidate,
 } = require('../api/services/factoryRuleCandidates.cjs');
@@ -61,6 +62,18 @@ function createFixture() {
             approved_at TEXT,
             created_at TEXT,
             updated_at TEXT
+        );
+        CREATE TABLE factory_rule_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            candidate_id INTEGER NOT NULL,
+            rule_key TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            previous_status TEXT,
+            new_status TEXT,
+            actor TEXT NOT NULL DEFAULT 'system',
+            note TEXT DEFAULT '',
+            snapshot_json TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL
         );
         INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750 大脚板 2寸');
         INSERT INTO recipes(id, name, spec, template_id, parts_json, updated_at, deleted_at) VALUES
@@ -159,6 +172,79 @@ test('候选规则可刷新、批准且保留证据', () => {
         assert.equal(approved.status, 'approved');
         assert.ok(approved.approvedAt);
         assert.equal(approved.reviewNote, '作为 V750 默认复核规则');
+        assert.deepEqual(
+            listFactoryRuleEvents({ ...fixture, candidateId: approved.id }).map(event => event.eventType),
+            ['approved', 'created']
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则生命周期只记录真实证据变化并支持按规则过滤', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        const first = refreshFactoryRuleCandidates({ ...fixture, actor: 'admin' });
+        const candidateId = first.candidates[0].id;
+        refreshFactoryRuleCandidates({ ...fixture, actor: 'admin' });
+        assert.deepEqual(
+            listFactoryRuleEvents({ ...fixture, candidateId }).map(event => event.eventType),
+            ['created']
+        );
+
+        insertFeedback(fixture.db, 4, {
+            decision: 'special_case',
+            note: '客户不需要说明书',
+        });
+        refreshFactoryRuleCandidates({ ...fixture, actor: 'admin' });
+        const events = listFactoryRuleEvents({ ...fixture, candidateId, limit: 10 });
+        assert.deepEqual(events.map(event => event.eventType), ['evidence_changed', 'created']);
+        assert.equal(events[0].actor, 'admin');
+        assert.equal(events[0].snapshot.specialCaseCount, 1);
+        assert.equal(listFactoryRuleEvents({ ...fixture, candidateId: 999 }).length, 0);
+        assert.throws(
+            () => listFactoryRuleEvents({ ...fixture, candidateId: 'bad' }),
+            /必须是正整数/
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则状态与生命周期事件在写入失败时整体回滚', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        const failingInsert = (table, values) => {
+            if (table === 'factory_rule_events') throw new Error('事件写入失败');
+            return fixture.safeInsert(table, values);
+        };
+        assert.throws(
+            () => refreshFactoryRuleCandidates({ ...fixture, safeInsert: failingInsert }),
+            /事件写入失败/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_rule_candidates').get().count,
+            0
+        );
+
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        assert.throws(
+            () => reviewFactoryRuleCandidate(
+                refreshed.candidates[0].id,
+                { status: 'approved' },
+                { ...fixture, safeInsert: failingInsert }
+            ),
+            /事件写入失败/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
+                .get(refreshed.candidates[0].id).status,
+            'candidate'
+        );
     } finally {
         fixture.db.close();
     }
@@ -242,6 +328,10 @@ test('已批准规则失去最低支持证据后自动转为失效', () => {
         assert.equal(stale.status, 'stale');
         assert.equal(stale.supportCount, 0);
         assert.equal(relearned.stats.stale, 1);
+        assert.equal(
+            listFactoryRuleEvents({ ...fixture, candidateId: approved.id })[0].eventType,
+            'stale'
+        );
     } finally {
         fixture.db.close();
     }

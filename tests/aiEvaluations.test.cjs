@@ -134,6 +134,33 @@ test('AI 评测：规则检查当前零件价格、工具和实时来源', () =>
     fixture.db.close();
 });
 
+test('AI 评测：禁用词允许明确否定，但拒绝反转后的肯定结论', () => {
+    const fixture = createFixture();
+    const caseItem = {
+        config: {
+            requiredTerms: [['性能测试报告']],
+            forbiddenTerms: ['参考图纸'],
+        },
+    };
+    const correct = evaluateRuleCase(
+        caseItem,
+        '附件是性能测试报告，不是工程图纸或参考图纸。',
+        [],
+        fixture.db
+    );
+    assert.equal(correct.status, 'passed');
+
+    const wrong = evaluateRuleCase(
+        caseItem,
+        '附件不是性能测试报告，而是参考图纸。',
+        [],
+        fixture.db
+    );
+    assert.equal(wrong.status, 'failed');
+    assert.equal(wrong.checks.find(check => check.key === 'forbidden:参考图纸').passed, false);
+    fixture.db.close();
+});
+
 test('AI 评测：客户报价检查识别错误数量和内部数据库编号', () => {
     const fixture = createFixture();
     const result = evaluateRuleCase({

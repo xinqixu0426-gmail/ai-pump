@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, ListChecks, RefreshCw, Sparkles, XCircle } from 'lucide-react';
+import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, History, ListChecks, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -11,6 +11,7 @@ import {
   getDataQualitySummary,
   getFactoryRuleCompliance,
   getFactoryRuleCandidates,
+  getFactoryRuleEvents,
   getFactoryRuleImpact,
   qualitySeverityClassName,
   refreshFactoryRuleCandidates,
@@ -19,6 +20,7 @@ import {
   type DataQualitySummary,
   type FactoryRuleCandidate,
   type FactoryRuleCompliance,
+  type FactoryRuleEvent,
   type FactoryRuleImpact,
   type QualityIssueGroup,
   type QualitySeverity,
@@ -36,6 +38,17 @@ function issueIcon(group: QualityIssueGroup) {
   return <CheckCircle2 size={16} />;
 }
 
+const ruleEventLabels: Record<string, string> = {
+  baseline: '建立历史基线',
+  created: '生成候选规则',
+  evidence_changed: '证据发生变化',
+  approved: '批准规则',
+  rejected: '驳回规则',
+  reopened: '恢复候选审核',
+  stale: '规则自动失效',
+  reactivated: '规则重新激活',
+};
+
 type QualityViewProps = {
   embedded?: boolean;
   refreshKey?: number;
@@ -48,6 +61,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [businessAlerts, setBusinessAlerts] = useState<BusinessAlertsSummary | null>(null);
   const [ruleCandidates, setRuleCandidates] = useState<FactoryRuleCandidate[]>([]);
   const [ruleCompliance, setRuleCompliance] = useState<FactoryRuleCompliance | null>(null);
+  const [ruleEvents, setRuleEvents] = useState<FactoryRuleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -63,16 +77,18 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const [quality, alerts, candidates, compliance] = await Promise.all([
+      const [quality, alerts, candidates, compliance, events] = await Promise.all([
         getDataQualitySummary(),
         getBusinessAlerts(),
         getFactoryRuleCandidates(),
         getFactoryRuleCompliance(),
+        getFactoryRuleEvents({ limit: 20 }),
       ]);
       setSummary(quality);
       setBusinessAlerts(alerts);
       setRuleCandidates(candidates);
       setRuleCompliance(compliance);
+      setRuleEvents(events);
       onScoreChange?.(quality.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : '数据质量加载失败');
@@ -104,7 +120,12 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     try {
       const result = await refreshFactoryRuleCandidates();
       setRuleCandidates(result.candidates);
-      setRuleCompliance(await getFactoryRuleCompliance());
+      const [compliance, events] = await Promise.all([
+        getFactoryRuleCompliance(),
+        getFactoryRuleEvents({ limit: 20 }),
+      ]);
+      setRuleCompliance(compliance);
+      setRuleEvents(events);
       setRuleImpacts({});
       setExpandedRuleImpactId(null);
     } catch (err) {
@@ -152,8 +173,14 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
       if (!window.confirm(`确定${action}候选规则「${candidate.title}」？${impactSummary}`)) return;
       setRuleReviewingId(candidate.id);
       const updated = await reviewFactoryRuleCandidate(candidate.id, { status });
-      setRuleCandidates((current) => current.map((item) => item.id === updated.id ? updated : item));
-      setRuleCompliance(await getFactoryRuleCompliance());
+      const [candidates, compliance, events] = await Promise.all([
+        getFactoryRuleCandidates(),
+        getFactoryRuleCompliance(),
+        getFactoryRuleEvents({ limit: 20 }),
+      ]);
+      setRuleCandidates(candidates);
+      setRuleCompliance(compliance);
+      setRuleEvents(events);
     } catch (err) {
       setError(err instanceof Error ? err.message : '候选规则审核失败');
     } finally {
@@ -346,6 +373,54 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 {ruleCandidatesNeedingReview.length} 条已批准规则出现忽略证据或置信度下降，继续作为复核建议，但应重新审核后再长期使用。
               </div>
             ) : null}
+          </FadePanel>
+
+          <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+            <div className="border-b border-line p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <History size={17} />
+                规则变更记录
+              </div>
+              <div className="mt-1 text-xs leading-5 text-muted">
+                保留候选生成、证据变化、审核和失效记录，用于追溯规则为什么变成当前状态。
+              </div>
+            </div>
+            {ruleEvents.length === 0 ? (
+              <div className="px-4 py-5 text-sm text-muted">暂无规则变更记录。</div>
+            ) : (
+              <div className="divide-y divide-line">
+                {ruleEvents.map((event) => (
+                  <div key={event.id} className="px-4 py-3">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-ink">
+                            {event.ruleTitle || event.ruleKey}
+                          </span>
+                          <StatusBadge tone={event.eventType === 'approved' || event.eventType === 'reactivated'
+                            ? 'green'
+                            : event.eventType === 'stale' || event.eventType === 'rejected'
+                              ? 'red'
+                              : 'blue'}
+                          >
+                            {ruleEventLabels[event.eventType] || event.eventType}
+                          </StatusBadge>
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-muted">
+                          {event.previousStatus && event.newStatus && event.previousStatus !== event.newStatus
+                            ? `${event.previousStatus} → ${event.newStatus} · `
+                            : ''}
+                          {event.note || '系统记录规则状态变化'}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-xs text-slate-500">
+                        {new Date(event.createdAt).toLocaleString('zh-CN')} · {event.actor}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </FadePanel>
 
           <FadePanel className="rounded-panel border border-line bg-white shadow-panel">

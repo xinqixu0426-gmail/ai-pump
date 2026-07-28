@@ -20,7 +20,7 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户明确要求查知识库时使用知识库工具；查询当前零件、配方、订单等实时业务字段时，优先使用对应业务工具。知识库与业务工具结果冲突时，应说明知识库可能尚未同步，并以业务系统当前值为准。
 - 用户询问配方是否漏项、配置是否合理、固定件价格是否异常或有哪些相似配方时，必须使用 analyze_recipe_configuration。已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述；检查结果只读，不得自动修改。
 - 用户明确要求确认、忽略、标记特殊情况或恢复某条检查提醒时，使用 set_recipe_analysis_feedback，并且只能使用最近一次检查结果中的精确 findingKey 和 findingType；反馈写入仍需确认。同类高频项反馈保存后会自动刷新候选规则，不要重复要求用户手动归纳。
-- 候选业务规则至少需要两个配方确认相同高频项，同时使用特殊情况和忽略反馈计算置信度。读取使用 get_factory_rule_candidates；询问单条规则影响范围或批准前使用 get_factory_rule_impact；询问全部规则执行情况或不符合规则的配方时使用 get_factory_rule_compliance。归纳、批准和驳回分别使用 refresh_factory_rule_candidates、review_factory_rule_candidate，并等待写操作确认。候选规则未批准前不得当作正式规则；批准后立即参与相同泵壳模板的配方智能检查，如需进入 AI 知识检索还要同步知识库。
+- 候选业务规则至少需要两个配方确认相同高频项，同时使用特殊情况和忽略反馈计算置信度。读取使用 get_factory_rule_candidates；询问单条规则影响范围或批准前使用 get_factory_rule_impact；询问全部规则执行情况或不符合规则的配方时使用 get_factory_rule_compliance；询问规则变化原因、审核时间或最近变化时使用 get_factory_rule_history。归纳、批准和驳回分别使用 refresh_factory_rule_candidates、review_factory_rule_candidate，并等待写操作确认。候选规则未批准前不得当作正式规则；批准后立即参与相同泵壳模板的配方智能检查，如需进入 AI 知识检索还要同步知识库。
 - 知识条目 metadata.testReports 中的附件以及标记为 pump_performance_test 的 .xls/.xlsx 文件，必须称为“性能测试报告”或“测试报告”；禁止称为“图纸”“参考图纸”或“工程图”。只有转子出图工具返回的 PDF 才能称为图纸。
 - 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标；最终回答中也不要出现这三个模板字段名，即使是为了说明忽略它们。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时只说“未提供可靠额定参数”，不能把某个点标成额定值或实测结论。
 - 知识工具返回的 sources 是本轮回答的可追溯依据。只能引用实际使用过的来源，不得编造知识 ID、标题或链接；sources 中 freshness 不是 fresh 时，正文必须提示该知识待同步，涉及易变数据时改查实时业务工具。
@@ -104,6 +104,7 @@ const TOOL_PLAN_LABELS = {
     get_factory_rule_candidates: '读取候选业务规则',
     get_factory_rule_impact: '分析规则影响范围',
     get_factory_rule_compliance: '检查规则执行情况',
+    get_factory_rule_history: '读取规则变更记录',
     refresh_factory_rule_candidates: '归纳候选业务规则',
     review_factory_rule_candidate: '审核候选业务规则',
     get_business_alerts: '读取经营异常',

@@ -178,6 +178,20 @@ export type FactoryRuleCandidate = {
   updatedAt: string | null;
 };
 
+export type FactoryRuleEvent = {
+  id: number;
+  candidateId: number;
+  ruleKey: string;
+  ruleTitle: string;
+  eventType: 'baseline' | 'created' | 'evidence_changed' | 'approved' | 'rejected' | 'reopened' | 'stale' | 'reactivated' | string;
+  previousStatus: FactoryRuleCandidateStatus | null;
+  newStatus: FactoryRuleCandidateStatus | null;
+  actor: string;
+  note: string;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type FactoryRuleImpactItem = {
   recipeId: number;
   recipeName: string;
@@ -349,6 +363,19 @@ export async function saveRecipeAnalysisFeedback(
 export async function getFactoryRuleCandidates(): Promise<FactoryRuleCandidate[]> {
   const result = await proxyRequest<ApiResponse<FactoryRuleCandidate[]>>('/api/quality/rule-candidates');
   if (!result.success || !result.data) throw new Error(result.error || '候选规则加载失败');
+  return result.data;
+}
+
+export async function getFactoryRuleEvents(input: {
+  candidateId?: number;
+  limit?: number;
+} = {}): Promise<FactoryRuleEvent[]> {
+  const query = new URLSearchParams();
+  if (input.candidateId) query.set('candidateId', String(input.candidateId));
+  if (input.limit) query.set('limit', String(input.limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const result = await proxyRequest<ApiResponse<FactoryRuleEvent[]>>(`/api/quality/rule-events${suffix}`);
+  if (!result.success || !result.data) throw new Error(result.error || '规则变更记录加载失败');
   return result.data;
 }
 

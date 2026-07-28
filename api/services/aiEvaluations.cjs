@@ -76,6 +76,26 @@ function containsAny(answer, terms) {
     return terms.some(term => answer.includes(String(term)));
 }
 
+function containsForbiddenAssertion(answer, termValue) {
+    const term = String(termValue);
+    let index = answer.indexOf(term);
+    while (index >= 0) {
+        const sentenceStart = Math.max(
+            answer.lastIndexOf('。', index - 1),
+            answer.lastIndexOf('！', index - 1),
+            answer.lastIndexOf('？', index - 1),
+            answer.lastIndexOf('\n', index - 1)
+        ) + 1;
+        const prefix = answer.slice(sentenceStart, index);
+        const negation = /(?:不是|并非|不属于|不应(?:该)?|不能|不可|不得|不宜)([^。！？\n]{0,24})$/.exec(prefix);
+        const reversedByPivot = negation
+            && /(?:而是|却是|实际(?:上)?是|反而是|应是|属于)/.test(negation[1]);
+        if (!negation || reversedByPivot) return true;
+        index = answer.indexOf(term, index + term.length);
+    }
+    return false;
+}
+
 function numberPattern(value) {
     const escaped = String(Number(value)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`(^|[^\\d.])${escaped}(?:\\.0+)?([^\\d.]|$)`);
@@ -93,7 +113,14 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
         addCheck(checks, `required:${group.join('|')}`, `包含 ${group.join(' 或 ')}`, containsAny(answer, group), '回答必须包含至少一个指定词');
     }
     for (const term of Array.isArray(config.forbiddenTerms) ? config.forbiddenTerms : []) {
-        addCheck(checks, `forbidden:${term}`, `不得出现 ${term}`, !answer.includes(String(term)), answer.includes(String(term)) ? `发现禁用表述：${term}` : '未发现');
+        const forbiddenAssertion = containsForbiddenAssertion(answer, term);
+        addCheck(
+            checks,
+            `forbidden:${term}`,
+            `不得把 ${term} 作为肯定结论`,
+            !forbiddenAssertion,
+            forbiddenAssertion ? `发现禁用结论：${term}` : '未发现肯定性禁用结论'
+        );
     }
     for (const toolName of Array.isArray(config.requiredTools) ? config.requiredTools : []) {
         addCheck(checks, `tool:${toolName}`, `调用 ${toolName}`, toolNames.has(toolName), toolNames.has(toolName) ? '已调用' : '未调用要求的工具');

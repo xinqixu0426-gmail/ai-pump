@@ -432,6 +432,20 @@ const CANONICAL_TABLES_SQL = `
         created_at TEXT,
         updated_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS factory_rule_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        candidate_id INTEGER NOT NULL,
+        rule_key TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        previous_status TEXT,
+        new_status TEXT,
+        actor TEXT NOT NULL DEFAULT 'system',
+        note TEXT DEFAULT '',
+        snapshot_json TEXT DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(candidate_id) REFERENCES factory_rule_candidates(id)
+    );
 `;
 
 const CANONICAL_INDEXES_SQL = `
@@ -458,6 +472,10 @@ const CANONICAL_INDEXES_SQL = `
         ON recipe_analysis_feedback(recipe_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_factory_rule_candidates_status
         ON factory_rule_candidates(status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_factory_rule_events_candidate
+        ON factory_rule_events(candidate_id, created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_factory_rule_events_created
+        ON factory_rule_events(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_coils_variant_sheets
         ON coils(stator_variant_id, sheets);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme
@@ -608,6 +626,7 @@ const APPLICATION_TABLES = Object.freeze([
     'config',
     'customers',
     'factory_rule_candidates',
+    'factory_rule_events',
     'knowledge_entries',
     'orders',
     'parts',

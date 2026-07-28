@@ -320,6 +320,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `get_factory_rule_candidates`：只读查询待审核、已批准、已驳回或已失效的候选业务规则。
 - `get_factory_rule_impact`：只读分析某条规则对当前同模板配方的影响，区分已符合、需要复核、特殊情况和已忽略。
 - `get_factory_rule_compliance`：只读汇总全部已批准规则的执行情况和受影响配方。
+- `get_factory_rule_history`：只读查询规则候选生成、证据变化、审核、失效和重新激活的生命周期记录。
 - `refresh_factory_rule_candidates`：从已确认的同类高频项中重新归纳候选规则；必须确认，不会自动批准。
 - `review_factory_rule_candidate`：批准、驳回或恢复候选规则；必须确认，批准后需再次同步知识库才进入检索。
 - `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库，并读取 `/api/knowledge/overview` 标记每条来源的新鲜度。
@@ -373,6 +374,7 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 | `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；`peer_pattern` 反馈会在同一事务中自动刷新候选规则并返回 `ruleLearning` 摘要，失败时反馈与归纳整体回滚；其他提醒不触发规则学习 |
 | `GET` | `/api/quality/rule-compliance` | 无 | 汇总全部已批准规则的当前执行情况，返回规则问题总数、受影响配方去重数量、例外数量以及各规则的实时影响明细；只读不写库 |
 | `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/confidenceScore/confidenceLevel/learningEvidence/needsReview` |
+| `GET` | `/api/quality/rule-events` | 查询参数 `candidateId?`、`limit?` | 读取规则生命周期记录，按时间倒序返回 `eventType/previousStatus/newStatus/actor/note/snapshot/createdAt`；`candidateId` 可限定单条规则，`limit` 为 1-100、默认 30；只读不写库 |
 | `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，不会自动批准新规则 |
 | `GET` | `/api/quality/rule-candidates/:id/impact` | 无 | 只读计算规则对当前同模板配方的影响；按实时 BOM 和反馈分为 `compliant/needsReview/specialCases/ignored`，返回数量、配方清单和待复核占比，不修改配方 |
 | `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`，证据不足 2 个配方时禁止批准 |
@@ -394,6 +396,8 @@ V3 第二阶段在批准前实时执行影响分析：以规则的泵壳模板�
 V3 第三阶段把单条影响分析扩展为全局规则执行监控。系统遍历所有 `approved` 规则，区分“规则问题次数”和去重后的“受影响配方数”，并在数据质量看板及 AI 工具中展示；同一配方违反多条规则时只计为一个受影响配方，但保留全部规则关联。该监控不会改变既有数据质量分数，也不会自动修改配方。
 
 V3 第四阶段让同类高频项反馈保存后自动归纳候选规则。反馈写入与规则刷新使用同一个 SQLite 事务，确认、特殊情况、忽略或恢复复核会立即反映到候选状态、置信度和复审队列；手动“重新核对规则”仅作为运维兜底。自动归纳只更新候选及已批准规则的证据状态，不会自动批准规则。
+
+V3 第五阶段增加规则生命周期记录。`factory_rule_events` 以只追加方式保存候选生成、证据变化、批准、驳回、失效、重新激活和升级基线；事件保留变化前后状态、操作者、说明及当时规则快照。相同证据的重复核对不会生成重复事件，历史接口和 AI 工具均为只读，不提供自动回滚。
 
 ## 17. 工厂知识库 Knowledge
 

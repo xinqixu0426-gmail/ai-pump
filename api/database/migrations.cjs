@@ -817,6 +817,44 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 20,
+        name: 'factory_rule_lifecycle_events',
+        signature: 'factory-rule-lifecycle-events-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factory_rule_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    candidate_id INTEGER NOT NULL,
+                    rule_key TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    previous_status TEXT,
+                    new_status TEXT,
+                    actor TEXT NOT NULL DEFAULT 'system',
+                    note TEXT DEFAULT '',
+                    snapshot_json TEXT DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(candidate_id) REFERENCES factory_rule_candidates(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_factory_rule_events_candidate
+                    ON factory_rule_events(candidate_id, created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_factory_rule_events_created
+                    ON factory_rule_events(created_at DESC, id DESC);
+                INSERT INTO factory_rule_events(
+                    candidate_id, rule_key, event_type, previous_status,
+                    new_status, actor, note, snapshot_json, created_at
+                )
+                SELECT candidate.id, candidate.rule_key, 'baseline', NULL,
+                       candidate.status, 'system', '升级时记录当前规则状态', '{}',
+                       COALESCE(candidate.updated_at, candidate.created_at, CURRENT_TIMESTAMP)
+                FROM factory_rule_candidates candidate
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM factory_rule_events event
+                    WHERE event.candidate_id = candidate.id
+                );
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
