@@ -426,6 +426,7 @@ function approvedFactoryRuleEntries(rows) {
             row.content,
             `适用范围：泵壳模板 #${row.scopeRef || row.scope_ref}`,
             `证据配方数：${Number(row.evidenceCount || row.evidence_count || 0)}`,
+            `学习证据：确认 ${Number(row.supportCount ?? row.support_count ?? row.evidenceCount ?? row.evidence_count ?? 0)}，特殊情况 ${Number(row.specialCaseCount || row.special_case_count || 0)}，忽略 ${Number(row.ignoredCount || row.ignored_count || 0)}，置信度 ${Math.round(Number(row.confidenceScore || row.confidence_score || 0) * 100)}%`,
             row.reviewNote || row.review_note ? `审核说明：${row.reviewNote || row.review_note}` : '',
         ],
         tags: ['业务规则', '人工审核', '配方检查', row.findingKey || row.finding_key],
@@ -435,6 +436,10 @@ function approvedFactoryRuleEntries(rows) {
             scopeRef: row.scopeRef || row.scope_ref,
             findingKey: row.findingKey || row.finding_key,
             evidenceCount: Number(row.evidenceCount || row.evidence_count || 0),
+            supportCount: Number(row.supportCount ?? row.support_count ?? row.evidenceCount ?? row.evidence_count ?? 0),
+            specialCaseCount: Number(row.specialCaseCount || row.special_case_count || 0),
+            ignoredCount: Number(row.ignoredCount || row.ignored_count || 0),
+            confidenceScore: Number(row.confidenceScore || row.confidence_score || 0),
             approvedAt: row.approvedAt || row.approved_at || null,
         },
     }));

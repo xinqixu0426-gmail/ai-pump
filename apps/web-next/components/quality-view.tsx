@@ -83,8 +83,10 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     return groups.filter((group) => group.key === activeKey);
   }, [activeKey, summary]);
   const topBusinessAlerts = businessAlerts?.topAlerts || [];
-  const activeRuleCandidates = ruleCandidates.filter((candidate) => candidate.status === 'candidate');
   const approvedRuleCandidates = ruleCandidates.filter((candidate) => candidate.status === 'approved');
+  const ruleCandidatesNeedingReview = ruleCandidates.filter((candidate) => candidate.needsReview);
+  const ruleReviewQueue = ruleCandidates.filter((candidate) => candidate.status === 'candidate' || candidate.needsReview);
+  const learnedSpecialCaseCount = ruleCandidates.reduce((total, candidate) => total + candidate.specialCaseCount, 0);
 
   async function refreshRuleCandidates() {
     setRuleRefreshing(true);
@@ -183,9 +185,9 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 {ruleRefreshing ? '归纳中' : '归纳候选规则'}
               </Button>
             </div>
-            <div className="grid border-b border-line sm:grid-cols-3">
+            <div className="grid border-b border-line sm:grid-cols-4">
               <div className="px-4 py-3">
-                <div className="text-lg font-semibold text-ink">{activeRuleCandidates.length}</div>
+                <div className="text-lg font-semibold text-ink">{ruleReviewQueue.length}</div>
                 <div className="text-xs text-muted">待审核</div>
               </div>
               <div className="border-t border-line px-4 py-3 sm:border-l sm:border-t-0">
@@ -196,20 +198,30 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 <div className="text-lg font-semibold text-ink">{ruleCandidates.length}</div>
                 <div className="text-xs text-muted">累计规则</div>
               </div>
+              <div className="border-t border-line px-4 py-3 sm:border-l sm:border-t-0">
+                <div className="text-lg font-semibold text-orange-700">{learnedSpecialCaseCount}</div>
+                <div className="text-xs text-muted">特殊情况证据</div>
+              </div>
             </div>
-            {activeRuleCandidates.length === 0 ? (
+            {ruleReviewQueue.length === 0 ? (
               <div className="px-4 py-5 text-sm text-muted">
                 暂无待审核规则。先在配方智能检查中确认同类高频项，积累到 2 个不同配方后再归纳。
               </div>
             ) : (
               <div className="divide-y divide-line">
-                {activeRuleCandidates.map((candidate) => (
+                {ruleReviewQueue.map((candidate) => (
                   <div key={candidate.id} className="p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="font-medium text-ink">{candidate.title}</div>
-                          <StatusBadge tone="amber">{candidate.evidenceCount} 个配方确认</StatusBadge>
+                          <StatusBadge tone="green">确认 {candidate.supportCount}</StatusBadge>
+                          <StatusBadge tone="blue">特殊 {candidate.specialCaseCount}</StatusBadge>
+                          <StatusBadge tone="slate">忽略 {candidate.ignoredCount}</StatusBadge>
+                          <StatusBadge tone={candidate.confidenceLevel === 'high' ? 'green' : candidate.confidenceLevel === 'medium' ? 'amber' : 'orange'}>
+                            置信度 {Math.round(candidate.confidenceScore * 100)}%
+                          </StatusBadge>
+                          {candidate.needsReview ? <StatusBadge tone="red">需重新审核</StatusBadge> : null}
                         </div>
                         <div className="mt-2 text-sm leading-6 text-muted">{candidate.content}</div>
                         <div className="mt-2 text-xs text-slate-600">
@@ -241,6 +253,11 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 ))}
               </div>
             )}
+            {ruleCandidatesNeedingReview.length > 0 ? (
+              <div className="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                {ruleCandidatesNeedingReview.length} 条已批准规则出现忽略证据或置信度下降，继续作为复核建议，但应重新审核后再长期使用。
+              </div>
+            ) : null}
           </FadePanel>
 
           <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">

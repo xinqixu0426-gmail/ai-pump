@@ -520,6 +520,24 @@ test('API 静态契约：候选业务规则需人工审核后才进入知识库'
     assert.match(qualityView, /批准后立即参与配方检查，同步后也可被 AI 检索/);
 });
 
+test('API 静态契约：Knowledge V3 使用正反反馈和证据指纹治理学习规则', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const intelligence = readUtf8(path.join(repoRoot, 'api/services/recipeIntelligence.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+
+    for (const column of ['support_count', 'special_case_count', 'ignored_count', 'confidence_score', 'learning_hash', 'reviewed_learning_hash']) {
+        assert.match(schema, new RegExp(column));
+    }
+    assert.match(service, /confidenceForEvidence/);
+    assert.match(service, /learningEvidenceHash/);
+    assert.match(service, /decision IN \('confirmed', 'special_case', 'ignored'\)/);
+    assert.match(service, /status: 'stale'/);
+    assert.match(intelligence, /version: 'knowledge-v3\.0'/);
+    assert.match(qualityView, /置信度/);
+    assert.match(qualityView, /特殊情况证据/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

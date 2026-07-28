@@ -594,7 +594,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_rule_candidates',
-            description: '读取从配方检查人工反馈中归纳出的候选业务规则及证据配方，只读。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”。',
+            description: '读取从配方检查人工反馈中归纳出的候选业务规则、确认/特殊情况/忽略证据和置信度，只读。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”“某条规则有多少反例”。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -607,7 +607,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'refresh_factory_rule_candidates',
-            description: '根据已确认的同类配方高频项重新归纳候选业务规则。只生成候选项，不会自动批准，也不会直接同步知识库；写库前必须确认。',
+            description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准，也不会直接同步知识库；失去最低支持证据的旧规则会安全转为失效；写库前必须确认。',
             parameters: { type: 'object', properties: {} }
         }
     },

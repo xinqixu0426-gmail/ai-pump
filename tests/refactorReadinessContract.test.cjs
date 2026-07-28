@@ -339,6 +339,8 @@ test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => 
 test('Next UI 契约：知识库回归检查支持一键运行和失败明细', () => {
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');
+    const liveRunner = readUtf8('scripts/run-knowledge-evaluation.cjs');
+    const packageJson = readUtf8('package.json');
 
     assert.match(knowledgeView, /知识库回归检查/);
     assert.match(knowledgeView, /运行知识库检查/);
@@ -351,6 +353,10 @@ test('Next UI 契约：知识库回归检查支持一键运行和失败明细', 
     assert.match(aiLib, /createAiEvaluationRun/);
     assert.match(aiLib, /recordAiEvaluationResult/);
     assert.match(aiLib, /completeAiEvaluationRun/);
+    assert.match(liveRunner, /\/api\/ai\/evaluations\/runs/);
+    assert.match(liveRunner, /\/api\/ai\/chat/);
+    assert.match(liveRunner, /process\.exitCode = 1/);
+    assert.match(packageJson, /"test:knowledge-live"/);
 });
 
 test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助手', () => {

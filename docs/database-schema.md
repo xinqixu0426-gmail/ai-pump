@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `18`：
+当前版本为 `19`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -38,11 +38,13 @@
 | 12 | `ai_knowledge_regression_suite` | 增加知识库回归用例和运行结果 |
 | 13-17 | 知识回归规则修订 | 修订测试报告、线圈和成品电缆的回归语义 |
 | 18 | `add_coil_inventory_ledger` | 为正式线圈方案增加成品库存，并建立可追溯库存流水 |
+| 19 | `factory_rule_learning_evidence` | 为候选规则增加确认、特殊情况、忽略、置信度、证据指纹和复核状态 |
 
 ## 数据治理
 
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
+- `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。

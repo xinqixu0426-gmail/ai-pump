@@ -367,23 +367,23 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 |---|---|---|---|
 | `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
 | `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
-| `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V2 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项和固定件价格异常；只读不写库 |
+| `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V3 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项、已批准规则的学习置信度和固定件价格异常；只读不写库 |
 | `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；后续检查会保留已确认项，收纳忽略和特殊情况项，`review` 可恢复复核 |
-| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及证据配方；状态支持 `candidate/approved/rejected/stale` |
-| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板下至少 2 个不同配方已确认的 `peer_pattern` 提醒中归纳候选规则；价格提醒和确定性程序错误不参与学习 |
+| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/confidenceScore/confidenceLevel/learningEvidence/needsReview` |
+| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，不会自动批准新规则 |
 | `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`，证据不足 2 个配方时禁止批准 |
 
 数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
 
 经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
 
-配方智能检查当前返回 `version: "knowledge-v2.3"`，核心字段为 `mode/advisoryOnly/recipe/summary/similarRecipes/factoryRuleAlerts/missingItems/priceAlerts/suppressedFindings/guidance`。相似度基于泵壳模板、BOM 角色、具体型号和线圈配置；线圈只有在规格、片数、材质和槽眼全部相同时才标记为完整配置一致，片数不同时仅作为定子规格接近并明确返回双方片数。`configuration_conflict` 是配置字段与 BOM 的高置信度矛盾，`peer_pattern` 只是同类配方高频模式，必须由人工结合客户要求复核。
+配方智能检查当前返回 `version: "knowledge-v3.0"`，核心字段为 `mode/advisoryOnly/recipe/summary/similarRecipes/factoryRuleAlerts/missingItems/priceAlerts/suppressedFindings/guidance`。相似度基于泵壳模板、BOM 角色、具体型号和线圈配置；线圈只有在规格、片数、材质和槽眼全部相同时才标记为完整配置一致，片数不同时仅作为定子规格接近并明确返回双方片数。`configuration_conflict` 是配置字段与 BOM 的高置信度矛盾，`peer_pattern` 只是同类配方高频模式，必须由人工结合客户要求复核。
 
 状态为 `approved` 的候选规则会按 `scopeType=pump_shell_template` 和 `scopeRef=templateId` 参与检查。规则对应的 BOM 角色缺失时返回 `factory_rule` 提醒，附带规则 ID、批准时间、审核说明、证据数量和证据配方；同一规则不再重复生成普通 `peer_pattern` 建议。`summary` 增加 `appliedFactoryRuleCount/factoryRuleAlertCount`，活动规则提醒计入 `highConfidenceAlertCount`，因此 Web 保存前要求用户返回修改或明确继续。已有配方可以把客户定制差异记录为 `special_case`，后续检查会收纳到 `suppressedFindings`。
 
 价格分析只比较普通固定件，会排除动态泵壳、线圈、浮球、成品电缆和公式/手输成本项。所有检查均为只读，任何提醒都不会自动覆盖配方、成本快照或零件价格。
 
-候选规则是“人工反馈的归纳结果”，不是自动成立的业务事实。系统仅统计已明确 `confirmed` 的 `peer_pattern`，按泵壳模板和提醒键分组，并要求至少两个不同配方作为证据。批准记录保存在 `factory_rule_candidates`；下一次执行知识库同步时，只有 `approved` 状态会生成 `business_rule` 条目。
+候选规则是“人工反馈的归纳结果”，不是自动成立的业务事实。V3 按泵壳模板和提醒键汇总 `confirmed/special_case/ignored`：确认是支持证据，特殊情况按半权重影响适用置信度，忽略是反向证据；`review` 不参与学习。置信度公式为 `确认数 / (确认数 + 忽略数 + 特殊情况数 × 0.5)`。至少两个不同配方确认才可成为候选；证据变化通过内容指纹识别，已批准规则出现新反例时进入复核队列，重新批准后才视为已复核当前证据。批准记录保存在 `factory_rule_candidates`；下一次执行知识库同步时，只有 `approved` 状态会生成 `business_rule` 条目。
 
 ## 17. 工厂知识库 Knowledge
 

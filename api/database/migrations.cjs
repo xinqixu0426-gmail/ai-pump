@@ -788,6 +788,35 @@ const MIGRATIONS = Object.freeze([
             db.exec(COIL_INVENTORY_SCHEMA_SQL);
         },
     },
+    {
+        version: 19,
+        name: 'factory_rule_learning_evidence',
+        signature: 'factory-rule-learning-evidence-v3',
+        up(db) {
+            const columns = columnNames(db, 'factory_rule_candidates');
+            const additions = [
+                ['support_count', 'INTEGER NOT NULL DEFAULT 0'],
+                ['special_case_count', 'INTEGER NOT NULL DEFAULT 0'],
+                ['ignored_count', 'INTEGER NOT NULL DEFAULT 0'],
+                ['confidence_score', 'REAL NOT NULL DEFAULT 0'],
+                ['learning_evidence_json', "TEXT DEFAULT '{}'"],
+                ['learning_hash', "TEXT DEFAULT ''"],
+                ['reviewed_learning_hash', "TEXT DEFAULT ''"],
+                ['learning_updated_at', 'TEXT'],
+            ];
+            for (const [column, definition] of additions) {
+                if (!columns.has(column)) {
+                    db.exec(`ALTER TABLE factory_rule_candidates ADD COLUMN ${column} ${definition}`);
+                }
+            }
+            db.exec(`
+                UPDATE factory_rule_candidates
+                SET support_count = evidence_count,
+                    confidence_score = CASE WHEN evidence_count >= 2 THEN 1 ELSE 0 END
+                WHERE support_count = 0 AND evidence_count > 0
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

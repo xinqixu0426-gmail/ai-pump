@@ -292,6 +292,22 @@ function approvedFactoryRuleAlerts(target, targetParts, rules) {
         const role = findingKey.slice('peer_pattern:'.length);
         if (!role) continue;
         const evidence = parseJsonArray(rule.evidence || rule.evidenceJson || rule.evidence_json) || [];
+        const supportCount = Number(rule.supportCount ?? rule.support_count ?? rule.evidenceCount ?? rule.evidence_count ?? evidence.length ?? 0);
+        const specialCaseCount = Number(rule.specialCaseCount || rule.special_case_count || 0);
+        const ignoredCount = Number(rule.ignoredCount || rule.ignored_count || 0);
+        const storedConfidenceScore = Number(rule.confidenceScore || rule.confidence_score || 0);
+        const confidenceScore = storedConfidenceScore > 0
+            ? storedConfidenceScore
+            : supportCount > 0
+                ? 1
+                : 0;
+        const confidenceLevel = rule.confidenceLevel || rule.confidence_level || (
+            supportCount >= 3 && confidenceScore >= 0.8
+                ? 'high'
+                : supportCount >= 2 && confidenceScore >= 0.65
+                    ? 'medium'
+                    : 'low'
+        );
         const normalizedRule = {
             id: Number(rule.id),
             ruleKey: rule.ruleKey || rule.rule_key || '',
@@ -300,6 +316,11 @@ function approvedFactoryRuleAlerts(target, targetParts, rules) {
             findingKey,
             role,
             evidenceCount: Number(rule.evidenceCount || rule.evidence_count || evidence.length || 0),
+            supportCount,
+            specialCaseCount,
+            ignoredCount,
+            confidenceScore,
+            confidenceLevel,
             approvedAt: rule.approvedAt || rule.approved_at || null,
             reviewNote: rule.reviewNote || rule.review_note || '',
             evidence,
@@ -311,7 +332,7 @@ function approvedFactoryRuleAlerts(target, targetParts, rules) {
             key: `factory_rule:${normalizedRule.id}`,
             type: 'factory_rule',
             severity: 'warning',
-            confidence: 'high',
+            confidence: normalizedRule.confidenceLevel === 'high' ? 'high' : 'medium',
             title: `已批准工厂规则要求复核「${role.replace(/^包装:/, '')}」`,
             explanation: normalizedRule.content || '该项已经过人工批准，保存前应确认是否遗漏；客户定制差异可以标记为特殊情况。',
             role,
@@ -321,6 +342,10 @@ function approvedFactoryRuleAlerts(target, targetParts, rules) {
                 ruleId: normalizedRule.id,
                 ruleTitle: normalizedRule.title,
                 evidenceCount: normalizedRule.evidenceCount,
+                supportCount: normalizedRule.supportCount,
+                specialCaseCount: normalizedRule.specialCaseCount,
+                ignoredCount: normalizedRule.ignoredCount,
+                confidenceScore: normalizedRule.confidenceScore,
                 approvedAt: normalizedRule.approvedAt,
                 reviewNote: normalizedRule.reviewNote,
             }, ...evidence.slice(0, 5)],
@@ -521,7 +546,7 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
     ];
 
     return {
-        version: 'knowledge-v2.3',
+        version: 'knowledge-v3.0',
         generatedAt: new Date().toISOString(),
         mode: input.draft ? 'draft' : 'saved_recipe',
         advisoryOnly: true,

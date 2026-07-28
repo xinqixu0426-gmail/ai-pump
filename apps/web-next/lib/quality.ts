@@ -153,7 +153,19 @@ export type FactoryRuleCandidate = {
     findingTitle: string;
     confirmedAt: string | null;
   }>;
+  supportCount: number;
+  specialCaseCount: number;
+  ignoredCount: number;
+  confidenceScore: number;
+  confidenceLevel: RecipeAnalysisConfidence;
+  learningEvidence: {
+    supporting: Array<Record<string, unknown>>;
+    specialCases: Array<Record<string, unknown>>;
+    ignored: Array<Record<string, unknown>>;
+  };
   status: FactoryRuleCandidateStatus;
+  needsReview: boolean;
+  learningUpdatedAt: string | null;
   reviewNote: string;
   approvedAt: string | null;
   createdAt: string | null;

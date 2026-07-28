@@ -55,7 +55,7 @@ test('配方智能分析按模板、BOM 角色和线圈配置排序相似配方'
         recipes: [target, distant, close],
         parts: [],
     });
-    assert.equal(result.version, 'knowledge-v2.3');
+    assert.equal(result.version, 'knowledge-v3.0');
     assert.equal(result.advisoryOnly, true);
     assert.equal(result.similarRecipes[0].id, 2);
     assert.equal(result.similarRecipes[0].confidence, 'high');
