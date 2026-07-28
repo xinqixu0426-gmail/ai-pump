@@ -321,6 +321,39 @@ test('Next UI 契约：AI 回答依据和处理过程默认折叠且异常自动
     assert.match(aiView, /asRecord\(tool\.result\)\.success === false/);
 });
 
+test('Next UI 契约：订单生产准备检查展示结论、六步状态和缺料清单', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    assert.match(aiView, /function OrderReadinessResult/);
+    assert.match(aiView, /check_order_readiness/);
+    assert.match(aiView, /可生产/);
+    assert.match(aiView, /待补料/);
+    assert.match(aiView, /数据阻塞/);
+    assert.match(aiView, /procurementStage/);
+    assert.match(aiView, /recommendedActions/);
+});
+
+test('Next UI 契约：订单处理方案展示顺序、负责人、依赖和执行方式', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    assert.match(aiView, /function OrderReadinessPlanResult/);
+    assert.match(aiView, /plan_order_readiness_actions/);
+    assert.match(aiView, /AI可确认/);
+    assert.match(aiView, /人工处理/);
+    assert.match(aiView, /等待跟进/);
+    assert.match(aiView, /dependsOn/);
+    assert.match(aiView, /Array\.isArray\(item\.dependsOn\)/);
+    assert.match(aiView, /完成标准/);
+    assert.match(aiView, /负责人/);
+    assert.match(aiView, /前置阻塞/);
+});
+
+test('Next UI 契约：订单方案动作执行后展示结果和重验后的方案', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    assert.match(aiView, /function OrderReadinessActionResult/);
+    assert.match(aiView, /execute_order_readiness_action/);
+    assert.match(aiView, /重新检查后的处理方案/);
+    assert.match(aiView, /<OrderReadinessPlanResult result=\{\{ data: nextPlan \}\}/);
+});
+
 test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');

@@ -702,6 +702,53 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'check_order_readiness',
+            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID，已知时优先使用' },
+                    orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'plan_order_readiness_actions',
+            description: '根据订单实时生产准备检查结果生成按依赖排序的处理方案。区分AI可发起确认、人工补资料、采购跟进和等待状态；本工具只生成方案，不执行写操作。用户问“这个订单的问题怎么处理”“给出处理方案”“下一步做什么”时使用。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID，已知时优先使用' },
+                    orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'execute_order_readiness_action',
+            description: '执行订单处理方案中当前已解锁的AI可确认步骤。只能在本轮先读取 plan_order_readiness_actions、用户明确要求执行具体步骤后调用；调用后仍会显示确认卡片，用户确认时后端重新校验实时方案。人工、等待或有前置阻塞的步骤不能执行。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '当前处理方案中的订单ID' },
+                    actionId: {
+                        type: 'string',
+                        enum: ['confirm_order', 'generate_purchase_plan'],
+                        description: '当前处理方案中 status=available 且 mode=confirmable 的步骤ID'
+                    }
+                },
+                required: ['orderId', 'actionId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'search_factory_knowledge',
             description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示只能使用标题、说明和标签，不得推断文件正文。只读。',
             parameters: {
@@ -874,6 +921,7 @@ const WRITE_TOOLS = new Set([
     'create_order', 'delete_order', 'update_order_status',
     'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list',
+    'execute_order_readiness_action',
     'create_recipe', 'delete_recipe', 'update_recipe',
     'sync_factory_knowledge',
     'set_recipe_analysis_feedback',

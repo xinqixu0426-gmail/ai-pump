@@ -403,6 +403,9 @@ function toolLabel(name: string) {
     update_recipe: '修改配方',
     get_recent_orders: '最近订单',
     get_order_detail: '订单详情',
+    check_order_readiness: '生产准备检查',
+    plan_order_readiness_actions: '订单处理方案',
+    execute_order_readiness_action: '执行订单处理步骤',
     create_order: '新增订单',
     add_recipe_to_order: '追加型号',
     update_order_status: '订单状态',
@@ -689,6 +692,215 @@ function OrderResult({ name, result }: { name: string; result: Record<string, un
   );
 }
 
+function OrderReadinessResult({ result }: { result: Record<string, unknown> }) {
+  const data = asRecord(result.data);
+  const order = asRecord(data.order);
+  const metrics = asRecord(data.metrics);
+  const steps = arrayValue(data.steps);
+  const shortages = arrayValue(data.shortages);
+  const actions = arrayValue(data.recommendedActions);
+  const verdict = textValue(data.verdict);
+  const verdictMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
+    ready: { label: '可生产', tone: 'green' },
+    waiting_materials: { label: '待补料', tone: 'amber' },
+    needs_review: { label: '待复核', tone: 'orange' },
+    blocked: { label: '数据阻塞', tone: 'red' },
+    not_applicable: { label: '不适用', tone: 'slate' },
+  };
+  const currentVerdict = verdictMeta[verdict] || { label: verdict || '未知', tone: 'slate' as StatusBadgeTone };
+  const stepTone = (status: unknown): StatusBadgeTone => {
+    if (status === 'pass') return 'green';
+    if (status === 'warning') return 'amber';
+    if (status === 'fail') return 'red';
+    return 'slate';
+  };
+  const stepLabel = (status: unknown) => {
+    if (status === 'pass') return '通过';
+    if (status === 'warning') return '注意';
+    if (status === 'fail') return '阻塞';
+    return '未执行';
+  };
+
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ink">
+            订单 #{textValue(order.id)} · {textValue(order.customerName, '未命名客户')}
+          </div>
+          <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
+        </div>
+        <StatusBadge tone={currentVerdict.tone}>{currentVerdict.label}</StatusBadge>
+      </div>
+      <KeyValueRows rows={[
+        { label: '订单状态', value: order.status },
+        { label: '合同号', value: order.contractNo || '-' },
+        { label: '产品数量', value: `${textValue(order.totalUnits, '0')} 台` },
+        { label: '物料行', value: metrics.materialLineCount },
+        { label: '缺料项', value: metrics.shortageLineCount },
+        { label: '锁定成本', value: money(metrics.totalLockedCost) },
+        { label: '订单金额', value: money(metrics.totalOrderPrice) },
+        { label: '毛利', value: money(metrics.grossProfit) },
+      ]} />
+      <div className="mt-3 divide-y divide-slate-100 border-y border-slate-100">
+        {steps.map((item, index) => (
+          <div key={textValue(item.key, String(index))} className="flex min-w-0 items-start gap-3 py-2.5">
+            <StatusBadge tone={stepTone(item.status)} className="h-5 min-w-12 px-2">
+              {stepLabel(item.status)}
+            </StatusBadge>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-ink">{textValue(item.label)}</div>
+              <div className="mt-0.5 text-xs leading-5 text-muted">{textValue(item.summary)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {shortages.length > 0 ? (
+        <DataTable
+          rows={shortages}
+          columns={[
+            { key: 'model', label: '缺料' },
+            { key: 'requiredQty', label: '需求' },
+            { key: 'availableQty', label: '可用库存' },
+            { key: 'shortageQty', label: '缺口' },
+            { key: 'procurementStage', label: '当前阶段' },
+          ]}
+        />
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {actions.map((item, index) => {
+            const path = textValue(item.path);
+            return path.startsWith('/') ? (
+              <a
+                key={`${textValue(item.key)}-${index}`}
+                href={path}
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {textValue(item.label)}
+                <ArrowUpRight size={13} />
+              </a>
+            ) : null;
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function OrderReadinessPlanResult({ result }: { result: Record<string, unknown> }) {
+  const data = asRecord(result.data);
+  const order = asRecord(data.order);
+  const metrics = asRecord(data.metrics);
+  const steps = arrayValue(data.steps);
+  const status = textValue(data.planStatus);
+  const statusMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
+    complete: { label: '无需处理', tone: 'green' },
+    ready_for_confirmation: { label: '可发起确认', tone: 'blue' },
+    action_required: { label: '待处理', tone: 'amber' },
+    needs_resolution: { label: '先修复数据', tone: 'red' },
+    waiting: { label: '等待跟进', tone: 'slate' },
+    not_applicable: { label: '不适用', tone: 'slate' },
+  };
+  const modeMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
+    confirmable: { label: 'AI可确认', tone: 'blue' },
+    manual: { label: '人工处理', tone: 'amber' },
+    needs_input: { label: '需要决定', tone: 'orange' },
+    monitor: { label: '等待跟进', tone: 'slate' },
+  };
+  const currentStatus = statusMeta[status] || { label: status || '未知', tone: 'slate' as StatusBadgeTone };
+  const stepTitles = new Map(steps.map((item) => [textValue(item.id), textValue(item.title)]));
+
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ink">
+            订单 #{textValue(order.id)} · {textValue(order.customerName, '未命名客户')}
+          </div>
+          <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
+        </div>
+        <StatusBadge tone={currentStatus.tone}>{currentStatus.label}</StatusBadge>
+      </div>
+      <KeyValueRows rows={[
+        { label: '总步骤', value: metrics.totalSteps },
+        { label: 'AI可确认', value: metrics.confirmableSteps },
+        { label: '人工处理', value: metrics.manualSteps },
+        { label: '等待跟进', value: metrics.waitingSteps },
+        { label: '前置阻塞', value: metrics.blockedSteps },
+      ]} />
+      {steps.length > 0 ? (
+        <div className="mt-3 divide-y divide-slate-100 border-y border-slate-100">
+          {steps.map((item, index) => {
+            const mode = textValue(item.mode);
+            const currentMode = modeMeta[mode] || { label: mode || '处理', tone: 'slate' as StatusBadgeTone };
+            const dependencies = (Array.isArray(item.dependsOn) ? item.dependsOn : [])
+              .map((dependency) => stepTitles.get(String(dependency)) || String(dependency))
+              .filter(Boolean);
+            return (
+              <div key={textValue(item.id, String(index))} className="flex min-w-0 gap-3 py-3">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-xs font-semibold text-white">
+                  {textValue(item.sequence, String(index + 1))}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-sm font-semibold text-ink">{textValue(item.title)}</div>
+                    <StatusBadge tone={currentMode.tone}>{currentMode.label}</StatusBadge>
+                    {textValue(item.status) === 'blocked' ? <StatusBadge tone="red">有前置步骤</StatusBadge> : null}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-muted">{textValue(item.reason)}</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-700">
+                    完成标准：{textValue(item.expectedResult)}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                    <span>负责人：{textValue(item.owner, '管理员')}</span>
+                    {dependencies.length > 0 ? <span>前置：{dependencies.join('、')}</span> : null}
+                    {textValue(item.path).startsWith('/') ? (
+                      <a href={textValue(item.path)} className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-950">
+                        打开处理页面
+                        <ArrowUpRight size={12} />
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function OrderReadinessActionResult({ result }: { result: Record<string, unknown> }) {
+  const data = asRecord(result.data);
+  const action = asRecord(data.action);
+  const order = asRecord(data.order);
+  const nextPlan = asRecord(data.nextPlan);
+
+  return (
+    <>
+      <div className="mt-3 flex items-start gap-3 border-b border-emerald-100 pb-3">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
+          <Check size={15} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ink">{textValue(action.title, '处理步骤已执行')}</div>
+          <div className="mt-1 text-xs leading-5 text-muted">
+            订单 #{textValue(order.id)} · 当前状态 {textValue(order.status)}
+          </div>
+        </div>
+      </div>
+      {Object.keys(nextPlan).length > 0 ? (
+        <>
+          <div className="mt-3 text-xs font-semibold text-slate-700">重新检查后的处理方案</div>
+          <OrderReadinessPlanResult result={{ data: nextPlan }} />
+        </>
+      ) : null}
+    </>
+  );
+}
+
 function CompareResult({ result }: { result: Record<string, unknown> }) {
   const recipe1 = asRecord(result.recipe1);
   const recipe2 = asRecord(result.recipe2);
@@ -827,6 +1039,9 @@ function BusinessResult({ item }: { item: AiToolResult }) {
     return <CostResult result={result} />;
   }
   if (item.name === 'compare_recipes') return <CompareResult result={result} />;
+  if (item.name === 'check_order_readiness') return <OrderReadinessResult result={result} />;
+  if (item.name === 'plan_order_readiness_actions') return <OrderReadinessPlanResult result={result} />;
+  if (item.name === 'execute_order_readiness_action') return <OrderReadinessActionResult result={result} />;
   if (item.name.includes('order') || item.name === 'generate_purchase_list') return <OrderResult name={item.name} result={result} />;
   if (item.name.includes('rotor') || item.name.includes('drawing') || item.name.includes('print')) return <RotorResult result={result} />;
   return <GenericResult result={result} />;

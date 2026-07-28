@@ -492,6 +492,102 @@ async function testCrossModuleWriteFlow(baseResources) {
         'GET',
         `/api/orders/${converted.order.id}`
     )).payload.data;
+    const readiness = (await request(
+        '订单生产准备检查',
+        'GET',
+        `/api/orders/${order.id}/readiness`
+    )).payload.data;
+    assert(
+        ['ready', 'waiting_materials', 'needs_review', 'blocked'].includes(readiness.verdict),
+        `订单生产准备结论无效: ${readiness.verdict}`
+    );
+    assert(readiness.steps.length === 6, '订单生产准备检查没有返回完整六步结果');
+    assert(readiness.steps.some(item => item.key === 'parts'), '订单生产准备检查缺少零件库存步骤');
+    assert(readiness.steps.some(item => item.key === 'coils'), '订单生产准备检查缺少线圈库存步骤');
+    const readinessPlan = (await request(
+        '订单生产准备处理方案',
+        'GET',
+        `/api/orders/${order.id}/readiness-plan`
+    )).payload.data;
+    assert(
+        ['complete', 'ready_for_confirmation', 'action_required', 'needs_resolution', 'waiting'].includes(readinessPlan.planStatus),
+        `订单处理方案状态无效: ${readinessPlan.planStatus}`
+    );
+    assert(Array.isArray(readinessPlan.steps), '订单处理方案没有返回步骤数组');
+    assert(
+        readinessPlan.steps.every((item, index) => Number(item.sequence) === index + 1),
+        '订单处理方案步骤顺序不连续'
+    );
+    const lookupOrders = (await request(
+        '订单只读查询',
+        'GET',
+        `/api/orders/lookup?query=${encodeURIComponent(order.customerName)}`
+    )).payload.data;
+    assert(lookupOrders.some(item => Number(item.id) === Number(order.id)), '订单只读查询未返回目标订单');
+    const pendingOrder = (await request(
+        '新增待确认订单用于方案执行',
+        'POST',
+        '/api/orders',
+        {
+            customerName: `${order.customerName}-方案执行`,
+            contractNo: `${unique}-ACTION`,
+            remark: '订单方案执行自动验收',
+            items: [{
+                recipeId: recipe.id,
+                recipeName: recipe.name,
+                qty: 1,
+                unitCost: 14.56,
+                unitPrice: 20,
+                partsJson: JSON.stringify([{
+                    name: '深度验收零件',
+                    model: part.model,
+                    supplier: part.supplier,
+                    qty: 1,
+                    price: 14.56,
+                }]),
+            }],
+        }
+    )).payload.data;
+    const pendingPlan = (await request(
+        '待确认订单处理方案',
+        'GET',
+        `/api/orders/${pendingOrder.id}/readiness-plan`
+    )).payload.data;
+    const confirmStep = pendingPlan.steps.find(item => item.id === 'confirm_order');
+    assert(
+        confirmStep?.mode === 'confirmable' && confirmStep?.status === 'available',
+        `待确认订单没有可执行的确认步骤: ${JSON.stringify(confirmStep)}`
+    );
+    const actionResult = (await request(
+        '执行订单确认步骤',
+        'POST',
+        `/api/orders/${pendingOrder.id}/readiness-actions/confirm_order`,
+        {}
+    )).payload.data;
+    assert(actionResult.action?.id === 'confirm_order', '订单方案动作返回了错误的步骤');
+    assert(
+        ['待采购', '采购中', '采购完成'].includes(actionResult.order?.status),
+        `订单确认步骤没有进入采购流程: ${actionResult.order?.status}`
+    );
+    assert(
+        !actionResult.nextPlan?.steps?.some(item => item.id === 'confirm_order'),
+        '订单确认后重新检查仍返回确认步骤'
+    );
+    await request(
+        '重复执行已过期订单步骤',
+        'POST',
+        `/api/orders/${pendingOrder.id}/readiness-actions/confirm_order`,
+        {},
+        [409]
+    );
+    await request(
+        '结束方案执行测试订单',
+        'POST',
+        `/api/orders/${pendingOrder.id}/status`,
+        actionResult.order?.status === '采购完成'
+            ? { status: '已关闭' }
+            : { status: '已取消', reason: '隔离方案执行验收结束' }
+    );
     const purchaseList = JSON.parse(order.purchaseListJson || '[]');
     const purchaseItem = purchaseList.find(
         item => Number(item.plannedQty || item.needToBuy || 0) > 0
@@ -516,6 +612,18 @@ async function testCrossModuleWriteFlow(baseResources) {
         status: '已取消',
         reason: '隔离深度验收结束',
     });
+    const cancelledReadiness = (await request(
+        '已取消订单不再执行生产准备检查',
+        'GET',
+        `/api/orders/${order.id}/readiness`
+    )).payload.data;
+    assert(cancelledReadiness.verdict === 'not_applicable', '已取消订单仍被判定为可生产');
+    const cancelledPlan = (await request(
+        '已取消订单不生成处理方案',
+        'GET',
+        `/api/orders/${order.id}/readiness-plan`
+    )).payload.data;
+    assert(cancelledPlan.planStatus === 'not_applicable', '已取消订单仍生成了处理方案');
 
     const coilInput = {
         spec: baseCoil.spec,

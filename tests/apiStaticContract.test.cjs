@@ -937,6 +937,65 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     assert.match(knowledgeView, /删除资料/);
 });
 
+test('API 静态契约：V5.2 订单生产准备检查复用库存计划且保持只读', () => {
+    const service = readUtf8(path.join(repoRoot, 'api/services/orderReadiness.cjs'));
+    const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    assert.match(service, /waiting_materials/);
+    assert.match(service, /needs_review/);
+    assert.match(service, /currentStock/);
+    assert.match(service, /inventoryType === 'none'/);
+    assert.match(service, /price_below_cost/);
+    assert.match(ordersRoute, /router\.get\('\/:id\/readiness'/);
+    assert.match(ordersRoute, /buildBalancedOrderPlans/);
+    assert.match(tools, /name:\s*'check_order_readiness'/);
+    assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/readiness/);
+    assert.match(prompt, /已下单或已到货不等于已经入库/);
+    const writeTools = tools.split('const WRITE_TOOLS')[1];
+    assert.doesNotMatch(writeTools, /check_order_readiness/);
+});
+
+test('API 静态契约：V5.3 订单处理方案有依赖顺序且只生成不执行', () => {
+    const service = readUtf8(path.join(repoRoot, 'api/services/orderReadinessPlan.cjs'));
+    const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    assert.match(service, /dependsOn/);
+    assert.match(service, /mode:\s*'confirmable'/);
+    assert.match(service, /mode:\s*'needs_input'/);
+    assert.match(service, /'track_purchase_arrival', 'monitor'/);
+    assert.match(service, /toolCall/);
+    assert.doesNotMatch(service, /safeInsert|safeUpdate|softDelete|hardDelete/);
+    assert.match(ordersRoute, /router\.get\('\/:id\/readiness-plan'/);
+    assert.match(ordersRoute, /router\.get\('\/lookup'/);
+    assert.match(tools, /name:\s*'plan_order_readiness_actions'/);
+    assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/readiness-plan/);
+    assert.match(executor, /\/api\/orders\/lookup\?query=/);
+    assert.match(prompt, /confirmable 只表示AI以后可以发起确认/);
+    const writeTools = tools.split('const WRITE_TOOLS')[1];
+    assert.doesNotMatch(writeTools, /plan_order_readiness_actions/);
+});
+
+test('API 静态契约：V5.4 订单方案执行受确认和实时重验双重保护', () => {
+    const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const confirmation = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    assert.match(ordersRoute, /router\.post\('\/:id\/readiness-actions\/:actionId'/);
+    assert.match(ordersRoute, /action\.mode !== 'confirmable'/);
+    assert.match(ordersRoute, /action\.status !== 'available'/);
+    assert.match(tools, /name:\s*'execute_order_readiness_action'/);
+    assert.match(tools.split('const WRITE_TOOLS')[1], /execute_order_readiness_action/);
+    assert.match(executor, /readiness-actions\/\$\{encodeURIComponent\(actionId\)\}/);
+    assert.match(confirmation, /case 'execute_order_readiness_action'/);
+    assert.match(prompt, /确认时后端会再次重验/);
+    assert.match(prompt, /禁止执行 manual、needs_input、monitor 或 blocked/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

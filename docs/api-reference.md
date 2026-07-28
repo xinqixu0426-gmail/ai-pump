@@ -184,7 +184,11 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/orders` | 无 | 订单列表；按创建顺序平衡全部活动订单的库存占用并刷新采购缺口，同一库存不会被多个订单重复使用 |
+| `GET` | `/api/orders/lookup` | `query=订单ID/客户名称/合同号` | 只读查找订单候选，不刷新采购计划；AI 按客户或合同解析订单时使用 |
 | `GET` | `/api/orders/:id` | 无 | 单个订单，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/orders/:id/readiness` | 无 | 只读生产准备检查；按订单状态、配方与BOM、零件库存、线圈库存、采购进度、成本与价格六步返回 `ready/waiting_materials/needs_review/blocked/not_applicable`，不写订单和库存 |
+| `GET` | `/api/orders/:id/readiness-plan` | 无 | 基于实时生产准备结果生成处理步骤；返回 `sequence/dependsOn/mode/status/owner/path/toolCall`，只生成方案不执行 |
+| `POST` | `/api/orders/:id/readiness-actions/:actionId` | 路径动作仅支持 `confirm_order/generate_purchase_plan` | 执行前重新生成实时检查和方案；仅执行仍为 `confirmable + available` 的步骤，过期、已完成或受前置步骤阻塞时返回 `409`；成功返回动作、更新后的订单和 `nextPlan` |
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
 | `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 基于订单表单草稿生成标准保存 payload；未传采购清单/待办时自动生成；不写库 |
@@ -199,6 +203,12 @@
 | `DELETE` | `/api/orders/:id` | 无 | 只有待确认或已取消订单允许软删除 |
 
 采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory/inventoryType`。普通零件使用 `inventoryType=part + partId`；精确匹配正式线圈方案的线圈转子使用 `inventoryType=coil + coilId`，按套占用和增加 `coils.stock`；插值或外推产生、没有正式方案的计算型线圈使用 `inventoryType=none`，可完成采购进度但不写库存。`purchaseUnit/stockQtyPerUnit/specification` 区分采购展示单位和底层库存单位。成品电缆按“根”计划，入库时按 `stockQtyPerUnit` 折算为线材米数；历史按米保存的活动订单会在采购计划重算时转换为根数。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
+
+生产准备检查以本轮实时库存为准：`totalQty - currentStock` 才是当前缺口，不能因采购项已经下单或到货就判定可生产。`inventoryType=none` 的计算型线圈、没有 `partId` 的普通采购项、缺少BOM快照或未确认订单会形成数据阻塞；库存满足但成本为 0、售价低于成本或来源配方不可追溯时返回待复核。AI 工具 `check_order_readiness` 通过该接口读取结论，匹配多个客户订单时必须要求明确订单ID或合同号。
+
+处理方案状态为 `complete/ready_for_confirmation/action_required/needs_resolution/waiting/not_applicable`。步骤模式 `confirmable` 表示存在可映射的标准写工具，但仍需后续用户确认；`manual` 表示需要人员在业务页面处理，`needs_input` 表示缺少价格等业务决定，`monitor` 表示等待到货等外部状态。存在缺BOM或库存映射等前置问题时，后续确认和采购步骤通过 `dependsOn` 标记为阻塞。AI 工具 `plan_order_readiness_actions` 只读取该接口，不属于 `WRITE_TOOLS`；`execute_order_readiness_action` 属于 `WRITE_TOOLS`，确认后调用动作接口，并以服务端重验结果为准。
+
+订单动作接口不接受客户端提交的状态、采购数量或采购清单，只接受动作 ID 并在服务端映射到现有订单状态和采购计划逻辑。`confirm_order` 使订单离开待确认，并按实时采购数量进度进入待采购、采购中或采购完成；`generate_purchase_plan` 保存本轮实时生成的采购清单，并仅在原待办为空时补充待办。两者都通过安全写入和审计日志，不提供生产确认或自动扣库存能力。
 
 ## 12. 工作台 Workbench
 

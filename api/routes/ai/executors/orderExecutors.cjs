@@ -65,6 +65,44 @@ async function loadOrder(internalFetch, orderId) {
     }
 }
 
+async function resolveOrderForReadiness(internalFetch, args = {}) {
+    const explicitId = Number.parseInt(args.orderId, 10);
+    if (Number.isInteger(explicitId) && explicitId > 0) {
+        return { orderId: explicitId };
+    }
+
+    const query = String(args.orderQuery || '').trim();
+    if (!query) return { error: '请提供订单ID、客户名称或合同号' };
+    const orders = await getJson(
+        internalFetch,
+        `/api/orders/lookup?query=${encodeURIComponent(query)}`,
+        '订单只读查询失败'
+    );
+    const normalized = query.toLowerCase();
+    const exact = (orders || []).filter(order => (
+        String(order.id || '') === query
+        || String(order.contractNo || '').trim().toLowerCase() === normalized
+        || String(order.customerName || '').trim().toLowerCase() === normalized
+    ));
+    const partial = exact.length > 0 ? exact : (orders || []).filter(order => (
+        String(order.contractNo || '').toLowerCase().includes(normalized)
+        || String(order.customerName || '').toLowerCase().includes(normalized)
+    ));
+    if (partial.length === 0) return { error: `未找到匹配订单：${query}` };
+    if (partial.length > 1) {
+        return {
+            error: `匹配到 ${partial.length} 个订单，请明确订单ID或合同号`,
+            candidates: partial.slice(0, 5).map(order => ({
+                id: order.id,
+                customerName: order.customerName,
+                contractNo: order.contractNo || '',
+                status: order.status,
+            })),
+        };
+    }
+    return { orderId: Number(partial[0].id) };
+}
+
 async function saveExistingOrder(internalFetch, order, items, options = {}) {
     const payload = await buildOrderSavePayload(internalFetch, {
         customerName: order.customerName,
@@ -179,6 +217,76 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     createdAt: row.createdAt ?? row.CreatedAt,
                     updatedAt: row.updatedAt ?? row.UpdatedAt
                 }
+            };
+        }
+
+        case 'check_order_readiness': {
+            const resolved = await resolveOrderForReadiness(internalFetch, args);
+            if (resolved.error) {
+                return {
+                    success: false,
+                    error: resolved.error,
+                    candidates: resolved.candidates || [],
+                };
+            }
+            const data = await getJson(
+                internalFetch,
+                `/api/orders/${resolved.orderId}/readiness`,
+                '订单生产准备检查失败'
+            );
+            return {
+                success: true,
+                intent: 'order_readiness',
+                summary: data.summary,
+                display: { mode: 'compact', title: '订单生产准备' },
+                data,
+            };
+        }
+
+        case 'plan_order_readiness_actions': {
+            const resolved = await resolveOrderForReadiness(internalFetch, args);
+            if (resolved.error) {
+                return {
+                    success: false,
+                    error: resolved.error,
+                    candidates: resolved.candidates || [],
+                };
+            }
+            const data = await getJson(
+                internalFetch,
+                `/api/orders/${resolved.orderId}/readiness-plan`,
+                '订单生产准备处理方案生成失败'
+            );
+            return {
+                success: true,
+                intent: 'order_readiness_plan',
+                summary: data.summary,
+                display: { mode: 'compact', title: '订单处理方案' },
+                data,
+            };
+        }
+
+        case 'execute_order_readiness_action': {
+            const orderId = Number.parseInt(args.orderId, 10);
+            const actionId = String(args.actionId || '').trim();
+            if (!Number.isInteger(orderId) || orderId <= 0) {
+                return { success: false, error: '订单ID无效' };
+            }
+            if (!['confirm_order', 'generate_purchase_plan'].includes(actionId)) {
+                return { success: false, error: `不支持的订单处理步骤：${actionId}` };
+            }
+            const data = await postJson(
+                internalFetch,
+                `/api/orders/${orderId}/readiness-actions/${encodeURIComponent(actionId)}`,
+                {},
+                '订单处理步骤执行失败'
+            );
+            return {
+                success: true,
+                intent: 'order_readiness_action',
+                message: `已执行：${data.action?.title || actionId}`,
+                display: { mode: 'compact', title: '订单处理结果' },
+                data,
             };
         }
 

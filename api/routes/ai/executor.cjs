@@ -18,6 +18,7 @@ const TOOL_LABELS = {
     remove_recipe_from_order: '订单移除产品',
     update_order_item: '修改订单产品',
     generate_purchase_list: '生成采购清单',
+    execute_order_readiness_action: '执行订单处理步骤',
     create_recipe: '新建配方',
     delete_recipe: '删除配方',
     update_recipe: '修改配方',
@@ -42,6 +43,8 @@ const LIVE_BUSINESS_TOOLS = new Set([
     'get_copper_price',
     'get_recent_orders',
     'get_order_detail',
+    'check_order_readiness',
+    'plan_order_readiness_actions',
     'search_customer_history',
     'get_dashboard_summary',
     'get_business_alerts',
@@ -114,6 +117,14 @@ function buildConfirmationRows(toolName, args = {}) {
         case 'delete_order':
         case 'generate_purchase_list':
             addRow(rows, '订单ID', args.orderId);
+            break;
+        case 'execute_order_readiness_action':
+            addRow(rows, '订单ID', args.orderId);
+            addRow(rows, '处理步骤', args.actionId === 'confirm_order'
+                ? '确认订单并进入采购流程'
+                : args.actionId === 'generate_purchase_plan'
+                    ? '生成采购清单'
+                    : args.actionId);
             break;
         case 'update_order_status':
             addRow(rows, '订单ID', args.orderId);

@@ -20,6 +20,9 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户明确要求查知识库时使用知识库工具；查询当前零件、配方、订单等实时业务字段时，优先使用对应业务工具。知识库与业务工具结果冲突时，应说明知识库可能尚未同步，并以业务系统当前值为准。
 - 用户询问知识库是否正常、最近是否同步成功、同步为什么失败或是否需要手动同步时，必须使用 get_factory_knowledge_health。该工具只诊断，不执行同步；只有健康结果建议恢复且用户明确同意时，才调用需确认的 sync_factory_knowledge。
 - 用户询问配方是否漏项、配置是否合理、固定件价格是否异常或有哪些相似配方时，必须使用 analyze_recipe_configuration。已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述；检查结果只读，不得自动修改。
+- 用户询问某个订单能否生产、是否齐料、缺什么物料或生产准备情况时，必须使用 check_order_readiness。按工具 verdict 区分可生产、待补料、待复核、数据阻塞和不适用；已下单或已到货不等于已经入库，只有当前可用库存覆盖需求时才能回答可生产。该检查只读，不得自动确认订单、采购或调整库存。
+- 用户在生产准备检查后询问问题怎么处理、下一步做什么或要求处理方案时，必须使用 plan_order_readiness_actions。按方案 sequence 和 dependsOn 说明先后关系；confirmable 只表示AI以后可以发起确认，不代表已经执行，manual/needs_input/monitor 必须如实区分。
+- 用户明确要求执行订单处理方案中的某一步时，先读取本轮最新 plan_order_readiness_actions；只有该步骤 mode=confirmable 且 status=available 才能调用 execute_order_readiness_action，并使用精确 orderId/actionId。工具仍会暂停等待确认，确认时后端会再次重验；禁止执行 manual、needs_input、monitor 或 blocked 步骤。
 - 用户明确要求确认、忽略、标记特殊情况或恢复某条检查提醒时，使用 set_recipe_analysis_feedback，并且只能使用最近一次检查结果中的精确 findingKey 和 findingType；反馈写入仍需确认。同类高频项反馈保存后会自动刷新候选规则，不要重复要求用户手动归纳。
 - 候选业务规则至少需要两个配方确认相同高频项，同时使用特殊情况和忽略反馈计算置信度；反馈绑定生成时的泵壳模板和配方版本。反馈后更换模板标为范围漂移，修改配方标为内容过期，这些旧证据都不计入支持数，应建议按当前配方重新智能检查并确认。用户询问哪些学习反馈过期、哪些配方需要重新检查或学习证据是否健康时，使用 get_factory_learning_health；该工具覆盖尚未形成候选规则的反馈。只有置信度不低于65%才允许批准，低于门槛不得建议绕过，已批准规则跌破门槛会自动撤回批准并移除规则知识。读取使用 get_factory_rule_candidates；询问单条规则影响范围或批准前使用 get_factory_rule_impact；询问全部规则执行情况或不符合规则的配方时使用 get_factory_rule_compliance；询问规则变化原因、审核时间或最近变化时使用 get_factory_rule_history。归纳、批准和驳回分别使用 refresh_factory_rule_candidates、review_factory_rule_candidate；恢复历史审核状态必须先查询历史并使用真实 eventId 调用 restore_factory_rule_event。恢复只改变审核状态并保留当前证据，不得说成配方或证据回滚；所有规则写操作都要等待确认。候选规则未批准前不得当作正式规则；批准、驳回、失效、恢复和已批准规则证据变化会自动更新对应规则知识，无需再全量同步知识库。
 - 知识条目 metadata.testReports 中的附件以及标记为 pump_performance_test 的 .xls/.xlsx 文件，必须称为“性能测试报告”或“测试报告”；禁止称为“图纸”“参考图纸”或“工程图”。只有转子出图工具返回的 PDF 才能称为图纸。
@@ -56,6 +59,7 @@ function buildPendingWriteReply(toolResults) {
         delete_part: '好的，我来帮你删除这个零件，请核对下面的确认卡片。',
         create_order: '好的，我来帮你新建这个订单，请核对下面的确认卡片。',
         update_order_status: '好的，我来帮你修改订单状态，请核对下面的确认卡片。',
+        execute_order_readiness_action: '处理步骤当前可以执行，请核对下面的确认卡片。',
         create_recipe: '好的，我来帮你新建这个配方，请核对下面的确认卡片。',
         update_recipe: '好的，我来帮你修改这个配方，请核对下面的确认卡片。',
         delete_recipe: '好的，我来帮你删除这个配方，请核对下面的确认卡片。',
@@ -85,6 +89,9 @@ const TOOL_PLAN_LABELS = {
     add_recipe_to_order: '订单追加产品',
     update_part: '修改零件',
     get_order_detail: '读取订单详情',
+    check_order_readiness: '检查订单生产准备',
+    plan_order_readiness_actions: '生成订单处理方案',
+    execute_order_readiness_action: '执行订单处理步骤',
     update_order_status: '修改订单状态',
     remove_recipe_from_order: '订单移除产品',
     update_order_item: '修改订单产品',
@@ -414,7 +421,10 @@ async function processAiChat(text, options = {}) {
 
     const VIEW_TYPE_MAP = {
         get_order_detail: 'order_detail',
-        generate_purchase_list: 'purchase_list'
+        generate_purchase_list: 'purchase_list',
+        check_order_readiness: 'order_readiness',
+        plan_order_readiness_actions: 'order_readiness_plan',
+        execute_order_readiness_action: 'order_readiness_action',
     };
 
     for (const call of buildFreshLookupToolCalls(messages)) {

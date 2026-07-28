@@ -701,24 +701,9 @@ function writeAuditLog(action, tableName, recordId, oldValue, newValue, user = '
 
 // ── P4.20: 数据库自动备份 ──
 const fsDb = require('fs');
+const { nextBjtTime } = require('./services/scheduleTime.cjs');
 const BACKUP_DIR = path.join(__dirname, '..', 'backups');
 const MAX_BACKUPS = 7;
-
-function nextBjtTime(hour, minute = 0) {
-    const now = new Date();
-    const utcMs = Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        hour - 8,
-        minute,
-        0,
-        0
-    );
-    let target = new Date(utcMs);
-    if (target <= now) target = new Date(target.getTime() + 24 * 3600 * 1000);
-    return target;
-}
 
 function runBackup() {
     try {

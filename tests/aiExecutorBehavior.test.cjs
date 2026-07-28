@@ -118,6 +118,151 @@ test('AI executor 行为：客户报价使用连续展示顺序且不返回内�
     assert.equal(result.data.quotations.some(item => 'id' in item || 'Id' in item), false);
 });
 
+test('AI executor 行为：订单生产准备通过只读标准 API 并返回实时结论', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders/12/readiness') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    order: { id: 12, customerName: '测试客户', status: '采购中' },
+                    verdict: 'waiting_materials',
+                    canProduce: false,
+                    summary: '订单 #12 当前不能直接生产：仍有 2 项物料库存不足。',
+                    steps: [
+                        { key: 'order', status: 'pass' },
+                        { key: 'recipe', status: 'pass' },
+                        { key: 'parts', status: 'warning' },
+                        { key: 'coils', status: 'warning' },
+                        { key: 'procurement', status: 'warning' },
+                        { key: 'cost', status: 'pass' },
+                    ],
+                    shortages: [{ model: '轴承', shortageQty: 3 }],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('check_order_readiness', { orderId: 12 }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'order_readiness');
+    assert.equal(result.data.verdict, 'waiting_materials');
+    assert.equal(result.data.canProduce, false);
+    assert.equal(result.data.steps.length, 6);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/orders/12/readiness',
+    ]);
+});
+
+test('AI executor 行为：客户名匹配多个订单时要求明确而不猜测', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders/lookup?query=%E6%B5%8B%E8%AF%95%E5%AE%A2%E6%88%B7') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 12, customerName: '测试客户', contractNo: 'A', status: '采购中' },
+                    { id: 13, customerName: '测试客户', contractNo: 'B', status: '待采购' },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('check_order_readiness', { orderQuery: '测试客户' }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.match(result.error, /匹配到 2 个订单/);
+    assert.deepEqual(result.candidates.map(item => item.id), [12, 13]);
+    assert.equal(calls.length, 1);
+});
+
+test('AI executor 行为：订单问题处理方案通过只读标准 API 生成', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders/12/readiness-plan') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    order: { id: 12, customerName: '测试客户', status: '待确认' },
+                    readinessVerdict: 'blocked',
+                    planStatus: 'ready_for_confirmation',
+                    summary: '订单 #12 生成 1 个处理步骤。',
+                    metrics: { totalSteps: 1, confirmableSteps: 1, manualSteps: 0, waitingSteps: 0 },
+                    steps: [{
+                        id: 'confirm_order',
+                        sequence: 1,
+                        mode: 'confirmable',
+                        status: 'available',
+                        toolCall: { name: 'update_order_status', args: { orderId: 12, status: '待采购' } },
+                    }],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('plan_order_readiness_actions', { orderId: 12 }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'order_readiness_plan');
+    assert.equal(result.data.planStatus, 'ready_for_confirmation');
+    assert.equal(result.data.steps[0].mode, 'confirmable');
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/orders/12/readiness-plan',
+    ]);
+});
+
+test('AI executor 行为：订单方案步骤未确认时只返回确认卡片', async () => {
+    const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用 API' }, 500));
+
+    const result = await executeToolCall('execute_order_readiness_action', {
+        orderId: 12,
+        actionId: 'confirm_order',
+    }, { allowWrite: false });
+
+    assert.equal(result.requiresConfirmation, true);
+    assert.equal(result.confirmation.toolName, 'execute_order_readiness_action');
+    assert.equal(result.confirmation.args.actionId, 'confirm_order');
+    assert.equal(result.confirmation.rows.some(item => item.label === '处理步骤'), true);
+    assert.equal(calls.length, 0);
+});
+
+test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders/12/readiness-actions/confirm_order') && call.method === 'POST') {
+            assert.deepEqual(call.body, {});
+            return jsonResponse({
+                success: true,
+                data: {
+                    action: { id: 'confirm_order', title: '确认订单进入采购' },
+                    order: { id: 12, status: '待采购' },
+                    nextPlan: {
+                        order: { id: 12, status: '待采购' },
+                        planStatus: 'action_required',
+                        steps: [{ id: 'place_purchase_orders', mode: 'manual', status: 'available' }],
+                    },
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('execute_order_readiness_action', {
+        orderId: 12,
+        actionId: 'confirm_order',
+    }, { allowWrite: true });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'order_readiness_action');
+    assert.equal(result.data.action.id, 'confirm_order');
+    assert.equal(result.data.order.status, '待采购');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/orders/12/readiness-actions/confirm_order',
+    ]);
+});
+
 test('AI executor 行为：转子模板出图通过模板草稿 API 补全参数', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/templates') && call.method === 'GET') {

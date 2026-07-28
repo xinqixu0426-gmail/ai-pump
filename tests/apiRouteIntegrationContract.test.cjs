@@ -114,7 +114,7 @@ test('关键 API 集成契约：/api/cost/recipe-difference 只生成成本差�
     const section = sliceBetween(source, "router.post('/cost/recipe-difference'", '// ── 市场指标 ──');
 
     assert.match(section, /buildCostDifference\(req\.body \|\| \{\}\)/);
-    assert.match(section, /res\.json\(\{ success: true, data:/);
+    assert.match(section, /res\.json\(\{\s*success:\s*true,\s*data:/);
     assert.match(section, /res\.status\(400\)\.json\(\{ success: false, error: error\.message \}\)/);
     assertNoWrites(section);
 });
@@ -253,13 +253,57 @@ test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当
 
 test('关键 API 集成契约：/api/orders/purchase-plan 只生成采购计划草稿不写库', () => {
     const source = readUtf8('api/routes/orders.cjs');
-    const section = sliceBetween(source, "router.post('/purchase-plan'", "router.get('/:id'");
+    const section = sliceBetween(source, "router.post('/purchase-plan'", 'function buildReadinessContextForOrderRecord');
 
     assert.match(section, /const items = Array\.isArray\(req\.body\?\.items\) \? req\.body\.items : \[\]/);
     assert.match(section, /buildOrderPlan\(items, dbGetAllParts\(\), \{ coilsCatalog: dbGetAllCoils\(\) \}\)/);
-    assert.match(section, /res\.json\(\{ success: true, data:/);
+    assert.match(section, /res\.json\(\{\s*success:\s*true,\s*data:/);
     assert.match(section, /res\.status\(400\)\.json\(\{ success: false, error: error\.message \}\)/);
     assertNoWrites(section);
+});
+
+test('关键 API 集成契约：/api/orders/:id/readiness 只读编排生产准备检查', () => {
+    const source = readUtf8('api/routes/orders.cjs');
+    const helper = sliceBetween(source, 'function buildReadinessContextForOrderRecord', 'function buildReadinessForOrderRecord');
+    const section = sliceBetween(source, "router.get('/:id/readiness'", "router.post('/save-payload-draft'");
+    assert.match(helper, /buildBalancedOrderPlans/);
+    assert.match(helper, /buildOrderReadiness/);
+    assert.match(helper, /dbGetAllParts\(\)/);
+    assert.match(helper, /dbGetAllCoils\(\)/);
+    assert.match(helper, /dbGetAllRecipes\(\)/);
+    assert.match(section, /buildReadinessForOrderRecord/);
+    assertNoWrites(helper);
+    assert.doesNotMatch(section, /safeInsert|safeUpdate|softDelete|hardDelete/);
+    assert.match(section, /success:\s*true,\s*data:/);
+});
+
+test('关键 API 集成契约：订单只读查询和处理方案不刷新采购计划', () => {
+    const source = readUtf8('api/routes/orders.cjs');
+    const lookup = sliceBetween(source, "router.get('/lookup'", "router.get('/:id/readiness-plan'");
+    const plan = sliceBetween(source, "router.get('/:id/readiness-plan'", "router.get('/:id/readiness'");
+
+    assert.match(lookup, /SELECT id, customer_name, contract_no, status, updated_at/);
+    assert.doesNotMatch(lookup, /syncBalancedPurchasePlans/);
+    assertNoWrites(lookup);
+    assert.match(plan, /buildReadinessForOrderRecord/);
+    assert.match(plan, /buildOrderReadinessPlan/);
+    assertNoWrites(plan);
+});
+
+test('关键 API 集成契约：订单方案动作执行前实时重验并限制可确认步骤', () => {
+    const source = readUtf8('api/routes/orders.cjs');
+    const helper = sliceBetween(source, 'function executeReadinessAction', "router.get('/lookup'");
+    const route = sliceBetween(source, "router.post('/:id/readiness-actions/:actionId'", "router.get('/:id/readiness'");
+
+    assert.match(helper, /buildReadinessContextForOrderRecord/);
+    assert.match(helper, /buildOrderReadinessPlan/);
+    assert.match(helper, /action\.mode !== 'confirmable'/);
+    assert.match(helper, /action\.status !== 'available'/);
+    assert.match(helper, /setOrderStatus\(id, '待采购'/);
+    assert.match(helper, /safeUpdate\('orders'/);
+    assert.match(helper, /buildReadinessForOrderRecord\(nextRecord\)/);
+    assert.match(route, /\['confirm_order', 'generate_purchase_plan'\]/);
+    assert.match(route, /executeReadinessAction\(id, actionId\)/);
 });
 
 test('关键 API 集成契约：/api/parts/batch-stock 是唯一标准库存增减入口', () => {

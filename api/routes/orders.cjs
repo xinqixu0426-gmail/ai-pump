@@ -1,7 +1,9 @@
 const { Router } = require('express');
 const { randomUUID } = require('crypto');
-const { db, dbGetAllOrders, dbGetAllParts, dbGetAllCoils, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
+const { db, dbGetAllOrders, dbGetAllParts, dbGetAllCoils, dbGetAllRecipes, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
 const { buildOrderPlan, buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
+const { buildOrderReadiness } = require('../services/orderReadiness.cjs');
+const { buildOrderReadinessPlan } = require('../services/orderReadinessPlan.cjs');
 const { adjustCoilStock } = require('../services/coilInventory.cjs');
 const {
     ORDER_STATUSES,
@@ -135,11 +137,13 @@ function updateOrderRecord(id, body) {
     return orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
 }
 
-function setOrderStatus(id, status, reason = '') {
+function setOrderStatus(id, status, reason = '', options = {}) {
     const record = getOrderRecord(id);
     assertOrderTransition(record.status, status, { reason });
     const now = new Date().toISOString();
-    const purchaseList = parseOrderJsonArray(record, 'purchase_list_json').map(normalizePurchaseItem);
+    const purchaseList = (Array.isArray(options.purchaseList)
+        ? options.purchaseList
+        : parseOrderJsonArray(record, 'purchase_list_json')).map(normalizePurchaseItem);
     const nextStatus = status === '待采购'
         ? deriveProcurementStatus('待采购', purchaseList)
         : status;
@@ -488,6 +492,168 @@ router.post('/purchase-plan', (req, res) => {
         });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+function buildReadinessContextForOrderRecord(record) {
+    const id = Number(record.id);
+    const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
+    const parts = dbGetAllParts();
+    const plans = buildBalancedOrderPlans(activeOrders, parts, {
+        coilsCatalog: dbGetAllCoils(),
+    });
+    const plan = plans.get(id) || buildOrderPlan(parseOrderJsonArray(record, 'items_json'), parts, {
+        coilsCatalog: dbGetAllCoils(),
+    });
+    const readiness = buildOrderReadiness({
+        order: orderRow(record),
+        plan,
+        recipes: dbGetAllRecipes(),
+    });
+    return { plan, readiness };
+}
+
+function buildReadinessForOrderRecord(record) {
+    return buildReadinessContextForOrderRecord(record).readiness;
+}
+
+function executeReadinessAction(id, actionId) {
+    const record = getOrderRecord(id);
+    const context = buildReadinessContextForOrderRecord(record);
+    const actionPlan = buildOrderReadinessPlan(context.readiness);
+    const action = actionPlan.steps.find(item => item.id === actionId);
+    if (!action) {
+        const error = new Error(`当前处理方案中不存在步骤：${actionId}`);
+        error.statusCode = 409;
+        throw error;
+    }
+    if (action.mode !== 'confirmable' || action.status !== 'available') {
+        const reason = action.status === 'blocked'
+            ? `该步骤仍受前置步骤阻塞：${action.dependsOn.join('、')}`
+            : '该步骤不是可由AI确认执行的操作';
+        const error = new Error(reason);
+        error.statusCode = 409;
+        throw error;
+    }
+
+    const execute = db.transaction(() => {
+        if (actionId === 'confirm_order') {
+            return setOrderStatus(id, '待采购', '', {
+                purchaseList: context.plan.purchaseList,
+            });
+        }
+        if (actionId === 'generate_purchase_plan') {
+            const updates = {
+                purchase_list_json: JSON.stringify(context.plan.purchaseList || []),
+            };
+            if (parseOrderJsonArray(record, 'todos_json').length === 0) {
+                updates.todos_json = JSON.stringify(context.plan.todos || []);
+            }
+            safeUpdate('orders', id, updates);
+            return orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
+        }
+        const error = new Error(`不支持执行处理步骤：${actionId}`);
+        error.statusCode = 400;
+        throw error;
+    });
+
+    const order = execute();
+    const nextRecord = getOrderRecord(id);
+    const nextReadiness = buildReadinessForOrderRecord(nextRecord);
+    return {
+        action: {
+            id: action.id,
+            title: action.title,
+            executedAt: new Date().toISOString(),
+        },
+        order,
+        previousPlanStatus: actionPlan.planStatus,
+        nextPlan: {
+            ...buildOrderReadinessPlan(nextReadiness),
+            readiness: nextReadiness,
+        },
+    };
+}
+
+router.get('/lookup', (req, res) => {
+    try {
+        const query = String(req.query.query || '').trim();
+        if (!query) return res.status(400).json({ success: false, error: '请提供订单ID、客户名称或合同号' });
+        const normalized = query.toLowerCase();
+        const orders = db.prepare(`
+            SELECT id, customer_name, contract_no, status, updated_at
+            FROM orders
+            WHERE deleted_at IS NULL
+            ORDER BY updated_at DESC, id DESC
+        `).all();
+        const candidates = orders.map(row => ({
+            id: row.id,
+            customerName: row.customer_name,
+            contractNo: row.contract_no || '',
+            status: row.status,
+            updatedAt: row.updated_at,
+        }));
+        const exact = candidates.filter(order => (
+            String(order.id) === query
+            || order.contractNo.trim().toLowerCase() === normalized
+            || String(order.customerName || '').trim().toLowerCase() === normalized
+        ));
+        const matches = exact.length > 0 ? exact : candidates.filter(order => (
+            order.contractNo.toLowerCase().includes(normalized)
+            || String(order.customerName || '').toLowerCase().includes(normalized)
+        ));
+        res.json({ success: true, data: matches.slice(0, 20) });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/:id/readiness-plan', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        const record = db.prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL').get(id);
+        if (!record) return res.status(404).json({ success: false, error: '订单不存在' });
+        const readiness = buildReadinessForOrderRecord(record);
+        res.json({
+            success: true,
+            data: {
+                ...buildOrderReadinessPlan(readiness),
+                readiness,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/readiness-actions/:actionId', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        const actionId = String(req.params.actionId || '').trim();
+        if (!['confirm_order', 'generate_purchase_plan'].includes(actionId)) {
+            return res.status(400).json({ success: false, error: '不支持的处理步骤' });
+        }
+        res.json({ success: true, data: executeReadinessAction(id, actionId) });
+    } catch (error) {
+        const code = error.statusCode || (error.message === '订单不存在' ? 404 : 400);
+        res.status(code).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/:id/readiness', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        const record = db.prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL').get(id);
+        if (!record) return res.status(404).json({ success: false, error: '订单不存在' });
+        res.json({
+            success: true,
+            data: buildReadinessForOrderRecord(record),
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

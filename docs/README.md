@@ -82,6 +82,9 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 - 采购项记录计划、下单、到货、入库数量、采购单价、实际供应商和时间；数量必须满足 `入库 ≤ 到货 ≤ 下单`，超采需要明确确认。
 - `POST /api/orders/:id/purchase-items/progress` 支持部分采购、部分到货和分批入库；只有入库增量会在同一事务内增加对应库存，并写入采购项批次历史。
 - `POST /api/orders/:id/complete-purchase` 保留为一次性全部到货入库动作，执行后只进入“采购完成”，不会直接关闭订单。
+- `GET /api/orders/:id/readiness` 只读执行订单生产准备检查；复用活动订单库存平衡结果，依次核对订单、BOM、零件、线圈、采购和成本价格。已下单或到货不能替代入库库存，只有当前可用库存覆盖需求时才返回可生产。
+- `GET /api/orders/:id/readiness-plan` 把检查结果转换成有顺序和前置依赖的处理方案；区分 AI 可发起确认、人工补资料、业务决定和采购等待，但不直接执行订单或库存写入。按客户名或合同号解析订单使用只读 `/api/orders/lookup`，不会触发采购计划刷新。
+- `POST /api/orders/:id/readiness-actions/:actionId` 只执行实时方案中仍为 `confirmable + available` 的白名单步骤。当前支持确认订单和生成采购清单，执行前重新检查，过期或受阻步骤返回 `409`，成功后返回更新订单和新方案。
 - 采购中心按供应商和型号聚合数量进度，可批量整项下单；采购中心本身不执行到货或入库。
 - 订单保存产品、数量、单位成本、售价、采购清单和待办快照。
 - 采购清单中普通零件按 `partId` 或“型号 + 供应商”汇总，线圈转子按正式方案 `coilId` 汇总，并在全部活动订单间顺序分配当前库存。线圈不进入零件库：精确正式方案按套进入 `coils.stock`，没有正式方案的插值/外推线圈标记为非库存计算项。
@@ -248,6 +251,9 @@ POST /api/rotor/save
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary`、`analyze_recipe_configuration` 和 `get_business_alerts` 读取基础资料健康度、配方配置风险、报价和订单经营异常；这些工具均为只读工具。对配方检查结果可通过 `set_recipe_analysis_feedback` 保存“确认问题、忽略、特殊情况、恢复复核”判断，该写操作必须经用户确认。
+- AI 可调用 `check_order_readiness` 检查某个订单当前能否生产。工具返回六步检查过程、实时缺料、采购阶段、阻塞原因和建议入口；它只读标准订单 API，不会自动确认订单、补采购或调整库存。
+- AI 可调用 `plan_order_readiness_actions` 把检查问题整理成处理方案。每一步包含顺序、负责人、完成标准、前置步骤和执行方式；`confirmable` 仅表示后续可以由 AI 发起确认，本轮不会自动执行。
+- AI 可在用户明确要求执行方案步骤时调用 `execute_order_readiness_action`。该工具属于 `WRITE_TOOLS`，先显示确认卡片；确认后仅调用订单标准动作 API，由服务端实时重验步骤，不能执行人工、等待、需补充输入或已阻塞步骤。
 - AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；查询 `12-220` 这类线圈键会按材质和槽眼返回全部匹配方案。`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具。
 - AI 询问价格、成本、库存、订单状态、报价金额和铜价等易变数据时，首轮必须重新调用只读工具，不能直接复述同一会话中的旧数字；明确查询知识库时读取同步后的知识条目，实时业务值冲突时以业务系统当前值为准并提示重新同步。
 - AI 知识回答在正文下方提供可追溯的“回答依据与处理过程”，普通回答默认折叠，需要时可展开查看工具计划、调用结果和知识来源；待确认写操作或执行失败会自动展开，避免遗漏必须处理的事项。来源随会话消息一同保存，历史会话也能回看。知识来源可以打开知识详情或原业务页面；待同步条目会显示警告。普通价格、库存、订单和成本查询标记为“实时业务数据”，与“知识库快照”明确区分。
