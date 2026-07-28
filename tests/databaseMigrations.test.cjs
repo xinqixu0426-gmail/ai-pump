@@ -165,6 +165,9 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
         assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'knowledge_entries_fts'
         `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'knowledge_sync_runs'
+        `).get());
         assert.equal(db.prepare(`
             SELECT COUNT(*) AS count FROM sqlite_schema WHERE name = 'idx_pst_model'
         `).get().count, 0);

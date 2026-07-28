@@ -49,6 +49,8 @@ function createKnowledgeAutoSyncController(options = {}) {
     const setTimer = options.setTimer || setTimeout;
     const clearTimer = options.clearTimer || clearTimeout;
     const now = options.now || (() => new Date().toISOString());
+    const clockMs = options.clockMs || Date.now;
+    const recordRun = typeof options.recordRun === 'function' ? options.recordRun : null;
 
     const pendingSources = new Set();
     let timer = null;
@@ -94,6 +96,15 @@ function createKnowledgeAutoSyncController(options = {}) {
         timer?.unref?.();
     }
 
+    function persistRun(input) {
+        if (!recordRun) return;
+        try {
+            recordRun(input);
+        } catch (error) {
+            logger.warn(`同步结果记录失败：${error?.message || error}`);
+        }
+    }
+
     function request(change = {}) {
         if (!enabled) return false;
         const sourceTable = String(change.sourceTable || '').trim();
@@ -125,12 +136,25 @@ function createKnowledgeAutoSyncController(options = {}) {
         state.running = true;
         state.lastMode = mode;
         state.lastStartedAt = now();
+        const startedAt = state.lastStartedAt;
+        const startedMs = clockMs();
+        const attempt = state.consecutiveFailures + 1;
         rerunRequested = false;
 
         try {
             const result = syncKnowledge();
             retryIndex = 0;
             state.lastCompletedAt = now();
+            persistRun({
+                mode,
+                status: 'success',
+                sources,
+                attempt,
+                result,
+                startedAt,
+                completedAt: state.lastCompletedAt,
+                durationMs: Math.max(0, clockMs() - startedMs),
+            });
             state.lastFailedAt = null;
             state.lastError = '';
             state.consecutiveFailures = 0;
@@ -143,6 +167,16 @@ function createKnowledgeAutoSyncController(options = {}) {
             state.lastError = error?.message || String(error);
             state.consecutiveFailures += 1;
             state.lastResult = null;
+            persistRun({
+                mode,
+                status: 'failed',
+                sources,
+                attempt,
+                error: state.lastError,
+                startedAt,
+                completedAt: state.lastFailedAt,
+                durationMs: Math.max(0, clockMs() - startedMs),
+            });
             if (retryIndex < retryDelaysMs.length) {
                 const retryDelay = retryDelaysMs[retryIndex];
                 retryIndex += 1;
@@ -156,18 +190,47 @@ function createKnowledgeAutoSyncController(options = {}) {
         }
     }
 
-    function recordExternalSuccess(result, mode = 'manual') {
+    function recordExternalSuccess(result, mode = 'manual', details = {}) {
         cancelTimer();
         pendingSources.clear();
         retryIndex = 0;
         rerunRequested = false;
         state.lastMode = mode;
-        state.lastStartedAt = now();
+        state.lastStartedAt = details.startedAt || now();
         state.lastCompletedAt = now();
         state.lastFailedAt = null;
         state.lastError = '';
         state.consecutiveFailures = 0;
         state.lastResult = summarizeResult(result);
+        persistRun({
+            mode,
+            status: 'success',
+            sources: details.sources || [],
+            attempt: details.attempt || 1,
+            result,
+            startedAt: state.lastStartedAt,
+            completedAt: state.lastCompletedAt,
+            durationMs: details.durationMs || 0,
+        });
+    }
+
+    function recordExternalFailure(error, mode = 'manual', details = {}) {
+        state.lastMode = mode;
+        state.lastStartedAt = details.startedAt || now();
+        state.lastFailedAt = now();
+        state.lastError = error?.message || String(error);
+        state.consecutiveFailures += 1;
+        state.lastResult = null;
+        persistRun({
+            mode,
+            status: 'failed',
+            sources: details.sources || [],
+            attempt: details.attempt || 1,
+            error: state.lastError,
+            startedAt: state.lastStartedAt,
+            completedAt: state.lastFailedAt,
+            durationMs: details.durationMs || 0,
+        });
     }
 
     function dispose() {
@@ -180,6 +243,7 @@ function createKnowledgeAutoSyncController(options = {}) {
         flush: () => run('flush'),
         getStatus: snapshot,
         recordExternalSuccess,
+        recordExternalFailure,
         dispose,
     };
 }
@@ -191,6 +255,7 @@ function getController() {
         singleton = createKnowledgeAutoSyncController({
             enabled: envEnabled(),
             syncKnowledge: () => require('./knowledge.cjs').syncKnowledgeEntries(),
+            recordRun: input => require('./knowledgeSyncHistory.cjs').recordKnowledgeSyncRun(input),
         });
     }
     return singleton;
@@ -212,8 +277,12 @@ function flushAutoKnowledgeSync() {
     return getController().flush();
 }
 
-function recordKnowledgeSyncSuccess(result, mode = 'manual') {
-    getController().recordExternalSuccess(result, mode);
+function recordKnowledgeSyncSuccess(result, mode = 'manual', details = {}) {
+    getController().recordExternalSuccess(result, mode, details);
+}
+
+function recordKnowledgeSyncFailure(error, mode = 'manual', details = {}) {
+    getController().recordExternalFailure(error, mode, details);
 }
 
 module.exports = {
@@ -224,4 +293,5 @@ module.exports = {
     getAutoKnowledgeSyncStatus,
     flushAutoKnowledgeSync,
     recordKnowledgeSyncSuccess,
+    recordKnowledgeSyncFailure,
 };

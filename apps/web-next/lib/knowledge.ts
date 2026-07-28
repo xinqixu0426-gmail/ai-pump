@@ -80,6 +80,39 @@ export type KnowledgeAutoSyncStatus = {
   lastResult: (KnowledgeSyncStats & { ftsEnabled: boolean }) | null;
 };
 
+export type KnowledgeSyncRun = {
+  id: number;
+  mode: 'automatic' | 'flush' | 'manual';
+  status: 'success' | 'failed';
+  triggerSourcesJson: string;
+  triggerSources: string[];
+  sourceCount: number;
+  attempt: number;
+  totalCount: number;
+  insertedCount: number;
+  updatedCount: number;
+  unchangedCount: number;
+  deletedCount: number;
+  ftsEnabled: boolean;
+  durationMs: number;
+  errorText: string;
+  startedAt: string;
+  completedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeSyncHistory = {
+  items: KnowledgeSyncRun[];
+  stats: {
+    totalRetained: number;
+    successCount: number;
+    failedCount: number;
+    lastSuccessAt: string | null;
+    lastFailureAt: string | null;
+  };
+};
+
 export type KnowledgeOverview = {
   generatedAt: string;
   lastSyncedAt: string | null;
@@ -105,6 +138,14 @@ type KnowledgeSyncResult = {
 export async function getKnowledgeOverview(): Promise<KnowledgeOverview> {
   const result = await proxyRequest<ApiResponse<KnowledgeOverview>>('/api/knowledge/overview');
   if (!result.success || !result.data) throw new Error(result.error || '知识库概况加载失败');
+  return result.data;
+}
+
+export async function getKnowledgeSyncRuns(limit = 8): Promise<KnowledgeSyncHistory> {
+  const result = await proxyRequest<ApiResponse<KnowledgeSyncHistory>>(
+    `/api/knowledge/sync-runs?limit=${Math.max(1, Math.min(limit, 100))}`
+  );
+  if (!result.success || !result.data) throw new Error(result.error || '同步记录加载失败');
   return result.data;
 }
 

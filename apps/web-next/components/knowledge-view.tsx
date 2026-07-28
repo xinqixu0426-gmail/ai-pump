@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Database,
   FileClock,
+  History,
   Loader2,
   MessageSquareWarning,
   Play,
@@ -20,6 +21,7 @@ import {
 import {
   getKnowledgeEntryDetail,
   getKnowledgeOverview,
+  getKnowledgeSyncRuns,
   searchKnowledgeEntries,
   syncFactoryKnowledge,
   type KnowledgeChange,
@@ -28,6 +30,7 @@ import {
   type KnowledgeEntryType,
   type KnowledgeListItem,
   type KnowledgeOverview,
+  type KnowledgeSyncHistory,
 } from '@/lib/knowledge';
 import {
   diagnoseAiAnswerFeedback,
@@ -87,6 +90,12 @@ const STATUS_META: Record<'fresh' | KnowledgeChangeStatus, { label: string; tone
   pending_delete: { label: '待移除', tone: 'red' },
 };
 
+const SYNC_MODE_LABELS = {
+  automatic: '自动同步',
+  flush: '即时同步',
+  manual: '手动同步',
+} as const;
+
 const FEEDBACK_LABELS: Record<Exclude<AiAnswerFeedback['rating'], 'helpful'>, string> = {
   incorrect: '内容错误',
   outdated: '来源过期',
@@ -138,6 +147,7 @@ export function KnowledgeView({
   onRefreshComplete?: () => void;
 }) {
   const [overview, setOverview] = useState<KnowledgeOverview | null>(null);
+  const [syncHistory, setSyncHistory] = useState<KnowledgeSyncHistory | null>(null);
   const [entries, setEntries] = useState<KnowledgeListItem[]>([]);
   const [query, setQuery] = useState('');
   const [entryType, setEntryType] = useState<KnowledgeEntryType | ''>('');
@@ -171,12 +181,14 @@ export function KnowledgeView({
     setLoading(true);
     setError('');
     try {
-      const [nextOverview, nextEntries] = await Promise.all([
+      const [nextOverview, nextEntries, nextSyncHistory] = await Promise.all([
         getKnowledgeOverview(),
         searchKnowledgeEntries({ query, entryType, limit: 50 }),
+        getKnowledgeSyncRuns(8),
       ]);
       setOverview(nextOverview);
       setEntries(nextEntries);
+      setSyncHistory(nextSyncHistory);
     } catch (err) {
       setError(err instanceof Error ? err.message : '知识库加载失败');
     } finally {
@@ -529,6 +541,64 @@ export function KnowledgeView({
             );
           })}
         </div>
+      </FadePanel>
+
+      <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+        <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <History size={16} className="text-sky-700" />
+              同步记录
+            </div>
+            <div className="mt-1 text-xs text-muted">保留最近 200 次自动与手动同步结果，失败和重试可追溯。</div>
+          </div>
+          {syncHistory ? (
+            <StatusBadge tone={overview?.autoSync.lastError ? 'red' : 'green'}>
+              {overview?.autoSync.lastError
+                ? `${syncHistory.stats.failedCount} 次失败`
+                : `最近 ${syncHistory.stats.totalRetained} 次有记录`}
+            </StatusBadge>
+          ) : null}
+        </div>
+        {syncHistory?.items.length ? (
+          <div className="divide-y divide-line">
+            {syncHistory.items.map(run => {
+              const changed = run.insertedCount + run.updatedCount + run.deletedCount;
+              return (
+                <div key={run.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge tone={run.status === 'success' ? 'green' : 'red'}>
+                        {run.status === 'success' ? '成功' : '失败'}
+                      </StatusBadge>
+                      <span className="text-sm font-medium text-ink">{SYNC_MODE_LABELS[run.mode]}</span>
+                      {run.attempt > 1 ? <span className="text-xs text-amber-700">第 {run.attempt} 次尝试</span> : null}
+                      <span className="text-xs text-muted">{dateTime(run.completedAt)}</span>
+                    </div>
+                    {run.status === 'success' ? (
+                      <div className="mt-1 text-xs text-muted">
+                        {changed
+                          ? `新增 ${run.insertedCount} · 更新 ${run.updatedCount} · 移除 ${run.deletedCount}`
+                          : '知识内容无变化'}
+                        {run.sourceCount ? ` · ${run.sourceCount} 个触发来源` : ''}
+                      </div>
+                    ) : (
+                      <div className="mt-1 line-clamp-2 text-xs text-rose-700">{run.errorText || '同步执行失败'}</div>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted sm:text-right">
+                    <div>{run.durationMs} ms</div>
+                    <div className="mt-1">
+                      {run.status === 'failed' ? '未完成' : run.ftsEnabled ? 'FTS' : '普通检索'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="px-4 py-8 text-center text-sm text-muted">首次自动或手动同步后会显示运行记录。</div>
+        )}
       </FadePanel>
 
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">

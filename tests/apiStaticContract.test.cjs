@@ -831,11 +831,38 @@ test('API 静态契约：Knowledge V4 核心业务变更自动合并同步并保
     assert.match(autoSync, /recordExternalSuccess/);
     assert.match(app, /requestFullAutoKnowledgeSync\('api_startup'\)/);
     assert.match(knowledgeService, /autoSync: options\.autoSyncStatus \|\| getAutoKnowledgeSyncStatus\(\)/);
-    assert.match(knowledgeRoute, /recordKnowledgeSyncSuccess\(data, 'manual'\)/);
+    assert.match(knowledgeRoute, /recordKnowledgeSyncSuccess\(data, 'manual', \{/);
     assert.match(knowledgeView, /自动同步正常/);
     assert.match(knowledgeView, /手动同步用于全量核对和故障恢复/);
     assert.match(docs, /Knowledge Base V4 第一阶段/);
     assert.match(apiDocs, /autoSync/);
+});
+
+test('API 静态契约：Knowledge V4 同步成功、失败和重试历史可追溯', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const autoSync = readUtf8(path.join(repoRoot, 'api/services/knowledgeAutoSync.cjs'));
+    const history = readUtf8(path.join(repoRoot, 'api/services/knowledgeSyncHistory.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
+    const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+    const knowledgeLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/knowledge.ts'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS knowledge_sync_runs/);
+    assert.match(migrations, /version: 21/);
+    assert.match(db, /function knowledgeSyncRunRow/);
+    assert.match(db, /'knowledge_sync_runs'/);
+    assert.match(autoSync, /persistRun/);
+    assert.match(autoSync, /recordExternalFailure/);
+    assert.match(history, /MAX_RETAINED_RUNS = 200/);
+    assert.match(history, /recordKnowledgeSyncRun/);
+    assert.match(route, /router\.get\('\/sync-runs'/);
+    assert.match(route, /recordKnowledgeSyncFailure/);
+    assert.match(knowledgeLib, /getKnowledgeSyncRuns/);
+    assert.match(knowledgeView, /同步记录/);
+    assert.match(knowledgeView, /第 \{run\.attempt\} 次尝试/);
+    assert.match(docs, /Knowledge Base V4 第二阶段/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

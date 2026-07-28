@@ -855,6 +855,39 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 21,
+        name: 'knowledge_sync_run_history',
+        signature: 'knowledge-sync-run-history-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS knowledge_sync_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    mode TEXT NOT NULL CHECK(mode IN ('automatic', 'flush', 'manual')),
+                    status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
+                    trigger_sources_json TEXT DEFAULT '[]',
+                    source_count INTEGER NOT NULL DEFAULT 0 CHECK(source_count >= 0),
+                    attempt INTEGER NOT NULL DEFAULT 1 CHECK(attempt >= 1),
+                    total_count INTEGER NOT NULL DEFAULT 0 CHECK(total_count >= 0),
+                    inserted_count INTEGER NOT NULL DEFAULT 0 CHECK(inserted_count >= 0),
+                    updated_count INTEGER NOT NULL DEFAULT 0 CHECK(updated_count >= 0),
+                    unchanged_count INTEGER NOT NULL DEFAULT 0 CHECK(unchanged_count >= 0),
+                    deleted_count INTEGER NOT NULL DEFAULT 0 CHECK(deleted_count >= 0),
+                    fts_enabled INTEGER NOT NULL DEFAULT 0 CHECK(fts_enabled IN (0, 1)),
+                    duration_ms INTEGER NOT NULL DEFAULT 0 CHECK(duration_ms >= 0),
+                    error_text TEXT DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_knowledge_sync_runs_created
+                    ON knowledge_sync_runs(created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_knowledge_sync_runs_status
+                    ON knowledge_sync_runs(status, created_at DESC, id DESC);
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

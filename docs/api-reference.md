@@ -433,6 +433,7 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/knowledge/overview` | 无 | 只读生成当前业务知识快照，并用 `sourceTable + sourceId + contentHash` 与已同步条目比较；返回条目总量、分类覆盖、最近同步时间、FTS 状态、待新增/更新/移除清单和 `autoSync` 运行状态，不写数据库 |
+| `GET` | `/api/knowledge/sync-runs` | 查询参数 `limit?`, `status?=success/failed` | 读取最近同步运行历史和汇总；返回自动/即时/手动模式、成功或失败、触发来源、尝试次数、耗时、变更统计和错误原因，最多保留最近 200 次 |
 | `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule`；默认最多 10 条，最大 50 条。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
 | `POST` | `/api/knowledge/sync` | 无 | 人工全量核对当前来源，按内容哈希新增、更新和移除 `knowledge_entries`，保留既有条目 ID，并在同一事务中刷新可选 FTS；用于故障恢复，不修改原业务资源 |
@@ -442,6 +443,8 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 概况响应的 `stats` 包含 `currentTotal/storedTotal/fresh/pendingTotal/pendingInsert/pendingUpdate/pendingDelete`，`byType` 按知识分类返回当前来源数、已同步数、最新数和待同步数。新鲜度以实际生成内容的哈希为准，不仅比较更新时间，因此不会因报告生成时间或质量检查时间变化产生虚假过期提示。
 
 V4 自动同步监听标准写入 helper 中的核心来源变更，300ms 内的连续写入会合并为一次同步。`autoSync` 返回 `enabled/running/pending/pendingSources/lastRequestedAt/lastStartedAt/lastCompletedAt/lastFailedAt/lastError/consecutiveFailures/retryScheduled/lastResult`。失败会保留待同步来源并按 1 秒、5 秒、15 秒自动重试；人工 `/api/knowledge/sync` 成功后会清除失败和等待状态。可通过 `KNOWLEDGE_AUTO_SYNC_ENABLED=false` 临时关闭自动同步，人工同步不受影响。
+
+V4 第二阶段使用 SQLite `knowledge_sync_runs` 保存同步运行历史。每次自动重试是独立记录，`attempt` 表示同一轮同步的尝试次数；人工同步失败也会记录后再返回错误。历史写入失败不会反向破坏已经成功生成的知识索引，系统只保留最近 200 次运行，避免运行日志无限增长。
 
 AI 工具：
 

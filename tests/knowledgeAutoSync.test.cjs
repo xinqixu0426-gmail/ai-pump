@@ -29,6 +29,7 @@ const silentLogger = {
 
 test('Knowledge V4：连续业务变更合并为一次自动增量同步', () => {
     const timers = createTimerHarness();
+    const runs = [];
     let syncCount = 0;
     const controller = createKnowledgeAutoSyncController({
         enabled: true,
@@ -37,6 +38,9 @@ test('Knowledge V4：连续业务变更合并为一次自动增量同步', () =>
         setTimer: timers.setTimer,
         clearTimer: timers.clearTimer,
         logger: silentLogger,
+        recordRun(run) {
+            runs.push(run);
+        },
         syncKnowledge() {
             syncCount += 1;
             return {
@@ -58,11 +62,16 @@ test('Knowledge V4：连续业务变更合并为一次自动增量同步', () =>
     assert.equal(controller.getStatus().pending, false);
     assert.equal(controller.getStatus().lastResult.updated, 2);
     assert.equal(controller.getStatus().lastResult.ftsEnabled, true);
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, 'success');
+    assert.deepEqual(runs[0].sources.sort(), ['parts:1', 'recipes:2']);
+    assert.equal(runs[0].attempt, 1);
     controller.dispose();
 });
 
 test('Knowledge V4：自动同步失败后保留来源并按计划重试', () => {
     const timers = createTimerHarness();
+    const runs = [];
     let syncCount = 0;
     const controller = createKnowledgeAutoSyncController({
         enabled: true,
@@ -71,6 +80,9 @@ test('Knowledge V4：自动同步失败后保留来源并按计划重试', () =>
         setTimer: timers.setTimer,
         clearTimer: timers.clearTimer,
         logger: silentLogger,
+        recordRun(run) {
+            runs.push(run);
+        },
         syncKnowledge() {
             syncCount += 1;
             if (syncCount === 1) throw new Error('模拟同步失败');
@@ -94,6 +106,39 @@ test('Knowledge V4：自动同步失败后保留来源并按计划重试', () =>
     assert.equal(controller.getStatus().pending, false);
     assert.equal(controller.getStatus().lastError, '');
     assert.equal(controller.getStatus().consecutiveFailures, 0);
+    assert.deepEqual(runs.map(run => run.status), ['failed', 'success']);
+    assert.deepEqual(runs.map(run => run.attempt), [1, 2]);
+    controller.dispose();
+});
+
+test('Knowledge V4：人工同步成功和失败都进入统一历史记录', () => {
+    const runs = [];
+    const controller = createKnowledgeAutoSyncController({
+        enabled: true,
+        logger: silentLogger,
+        recordRun(run) {
+            runs.push(run);
+        },
+        syncKnowledge() {
+            return { stats: {} };
+        },
+    });
+    controller.recordExternalSuccess({
+        ftsEnabled: true,
+        stats: { total: 5, inserted: 0, updated: 1, unchanged: 4, deleted: 0 },
+    }, 'manual', {
+        startedAt: '2026-07-28T00:00:00.000Z',
+        durationMs: 12,
+    });
+    controller.recordExternalFailure(new Error('人工同步失败'), 'manual', {
+        startedAt: '2026-07-28T00:01:00.000Z',
+        durationMs: 8,
+    });
+
+    assert.deepEqual(runs.map(run => run.status), ['success', 'failed']);
+    assert.equal(runs[0].durationMs, 12);
+    assert.match(runs[1].error, /人工同步失败/);
+    assert.match(controller.getStatus().lastError, /人工同步失败/);
     controller.dispose();
 });
 

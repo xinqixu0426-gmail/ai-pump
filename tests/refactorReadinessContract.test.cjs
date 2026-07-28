@@ -281,7 +281,10 @@ test('Next UI 契约：知识库管理中心融合进看板并保持同步确认
     assert.match(knowledgeView, /当前已同步内容/);
     assert.match(knowledgeView, /查看业务来源/);
     assert.match(knowledgeView, /确认同步/);
+    assert.match(knowledgeView, /同步记录/);
+    assert.match(knowledgeView, /失败和重试可追溯/);
     assert.match(knowledgeLib, /\/api\/knowledge\/overview/);
+    assert.match(knowledgeLib, /\/api\/knowledge\/sync-runs/);
     assert.match(knowledgeLib, /proxyRequest/);
     assert.match(docs, /只读内容哈希比较/);
 });

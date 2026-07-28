@@ -267,6 +267,15 @@ async function testCrossModuleWriteFlow(baseResources) {
         operations: [{ partId: part.id, delta: 2 }],
     });
     await waitForAutomaticKnowledgeUpdate(part, 14.56);
+    const automaticHistory = (await request(
+        '自动知识同步历史',
+        'GET',
+        '/api/knowledge/sync-runs?limit=10'
+    )).payload.data;
+    assert(
+        automaticHistory.items.some(run => run.mode === 'automatic' && run.status === 'success'),
+        '业务变更后没有生成自动知识同步历史'
+    );
 
     const template = await createBundleTemplate(unique);
     await request('修改模板', 'PATCH', `/api/templates/${template.id}`, {
@@ -532,6 +541,15 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('删除 AI 会话', 'DELETE', `/api/ai/conversations/${conversation.id}`);
 
     await request('知识增量同步', 'POST', '/api/knowledge/sync', {});
+    const syncHistory = (await request(
+        '手动知识同步历史',
+        'GET',
+        '/api/knowledge/sync-runs?limit=10'
+    )).payload.data;
+    assert(
+        syncHistory.items.some(run => run.mode === 'manual' && run.status === 'success'),
+        '人工同步成功后没有生成同步历史'
+    );
     const overview = (await request(
         '同步后知识概况',
         'GET',

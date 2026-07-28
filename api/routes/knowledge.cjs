@@ -6,7 +6,11 @@ const {
     getKnowledgeEntryDetail,
     inspectKnowledgeOverview,
 } = require('../services/knowledge.cjs');
-const { recordKnowledgeSyncSuccess } = require('../services/knowledgeAutoSync.cjs');
+const {
+    recordKnowledgeSyncFailure,
+    recordKnowledgeSyncSuccess,
+} = require('../services/knowledgeAutoSync.cjs');
+const { listKnowledgeSyncRuns } = require('../services/knowledgeSyncHistory.cjs');
 
 const router = Router();
 
@@ -35,12 +39,33 @@ router.get('/', (req, res) => {
     }
 });
 
-router.post('/sync', (req, res) => {
+router.get('/sync-runs', (req, res) => {
     try {
-        const data = syncKnowledgeEntries();
-        recordKnowledgeSyncSuccess(data, 'manual');
+        const data = listKnowledgeSyncRuns({
+            limit: req.query.limit,
+            status: req.query.status,
+        });
         res.json({ success: true, data });
     } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/sync', (req, res) => {
+    const startedAt = new Date().toISOString();
+    const startedMs = Date.now();
+    try {
+        const data = syncKnowledgeEntries();
+        recordKnowledgeSyncSuccess(data, 'manual', {
+            startedAt,
+            durationMs: Date.now() - startedMs,
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        recordKnowledgeSyncFailure(error, 'manual', {
+            startedAt,
+            durationMs: Date.now() - startedMs,
+        });
         res.status(500).json({ success: false, error: error.message });
     }
 });
