@@ -8,6 +8,7 @@ const {
     confidenceForEvidence,
     listFactoryRuleEvents,
     refreshFactoryRuleCandidates,
+    restoreFactoryRuleEvent,
     reviewFactoryRuleCandidate,
 } = require('../api/services/factoryRuleCandidates.cjs');
 
@@ -247,6 +248,122 @@ test('规则生命周期只记录真实证据变化并支持按规则过滤', ()
         assert.throws(
             () => listFactoryRuleEvents({ ...fixture, candidateId: 'bad' }),
             /必须是正整数/
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则可恢复历史审核状态但保留当前学习证据', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const approved = reviewFactoryRuleCandidate(refreshed.candidates[0].id, {
+            status: 'approved',
+            reviewNote: '初次批准',
+        }, fixture);
+        const approvedEvent = listFactoryRuleEvents({
+            ...fixture,
+            candidateId: approved.id,
+        }).find(event => event.eventType === 'approved');
+
+        insertFeedback(fixture.db, 5, {
+            decision: 'ignored',
+            note: '当前客户不放说明书',
+        });
+        const relearned = refreshFactoryRuleCandidates(fixture).candidates
+            .find(candidate => candidate.id === approved.id);
+        const currentLearningHash = relearned.learningHash;
+        reviewFactoryRuleCandidate(approved.id, {
+            status: 'rejected',
+            reviewNote: '误操作驳回',
+        }, fixture);
+
+        const restored = restoreFactoryRuleEvent(approvedEvent.id, {
+            restoreNote: '恢复误驳前的批准状态',
+        }, fixture);
+        assert.equal(restored.candidate.status, 'approved');
+        assert.equal(restored.candidate.reviewNote, '恢复误驳前的批准状态');
+        assert.equal(restored.candidate.ignoredCount, 1);
+        assert.equal(restored.candidate.learningHash, currentLearningHash);
+        assert.equal(restored.candidate.reviewedLearningHash, currentLearningHash);
+        assert.equal(restored.knowledgeSync.action, 'inserted');
+        assert.match(
+            fixture.db.prepare(`
+                SELECT content FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).content,
+            /忽略 1/
+        );
+        assert.deepEqual(
+            listFactoryRuleEvents({ ...fixture, candidateId: approved.id })
+                .slice(0, 3)
+                .map(event => event.eventType),
+            ['restored', 'rejected', 'evidence_changed']
+        );
+        assert.throws(
+            () => restoreFactoryRuleEvent(approvedEvent.id, {}, fixture),
+            /当前已经是 approved 状态/
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则历史恢复重新校验证据且失败时整体回滚', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const approved = reviewFactoryRuleCandidate(refreshed.candidates[0].id, {
+            status: 'approved',
+        }, fixture);
+        const approvedEvent = listFactoryRuleEvents({
+            ...fixture,
+            candidateId: approved.id,
+        }).find(event => event.eventType === 'approved');
+        reviewFactoryRuleCandidate(approved.id, { status: 'rejected' }, fixture);
+        const eventCountBeforeFailure = listFactoryRuleEvents({
+            ...fixture,
+            candidateId: approved.id,
+        }).length;
+
+        assert.throws(
+            () => restoreFactoryRuleEvent(approvedEvent.id, {}, {
+                ...fixture,
+                syncFactoryRuleKnowledgeEntry: () => {
+                    throw new Error('恢复知识同步失败');
+                },
+            }),
+            /恢复知识同步失败/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
+                .get(approved.id).status,
+            'rejected'
+        );
+        assert.equal(
+            listFactoryRuleEvents({ ...fixture, candidateId: approved.id }).length,
+            eventCountBeforeFailure
+        );
+
+        fixture.db.prepare(`
+            UPDATE recipe_analysis_feedback
+            SET decision = 'review', updated_at = '2026-02-01'
+            WHERE recipe_id = 2
+        `).run();
+        refreshFactoryRuleCandidates(fixture);
+        assert.throws(
+            () => restoreFactoryRuleEvent(approvedEvent.id, {}, fixture),
+            /当前证据不足/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
+                .get(approved.id).status,
+            'rejected'
         );
     } finally {
         fixture.db.close();

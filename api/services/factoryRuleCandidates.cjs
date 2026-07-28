@@ -664,6 +664,128 @@ function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
     return transaction();
 }
 
+function restoreFactoryRuleEventCore(eventIdValue, input = {}, options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const insert = options.safeInsert || accessors.safeInsert;
+    const update = options.safeUpdate || accessors.safeUpdate;
+    const remove = options.hardDelete || accessors.hardDelete;
+    const syncRuleKnowledge = options.syncFactoryRuleKnowledgeEntry
+        || require('./knowledge.cjs').syncFactoryRuleKnowledgeEntry;
+    const eventId = parsePositiveId(eventIdValue);
+    if (!eventId) throw inputError('规则事件 ID 必须是正整数');
+
+    const eventRecord = database.prepare('SELECT * FROM factory_rule_events WHERE id = ?').get(eventId);
+    if (!eventRecord) {
+        const error = new Error('规则事件不存在');
+        error.statusCode = 404;
+        throw error;
+    }
+    const sourceEvent = eventRow(eventRecord);
+    const targetStatus = String(sourceEvent.snapshot?.status || '');
+    if (!REVIEW_STATUSES.has(targetStatus) || sourceEvent.newStatus !== targetStatus) {
+        throw inputError('该历史事件不包含可恢复的审核状态');
+    }
+
+    const currentRecord = database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?')
+        .get(sourceEvent.candidateId);
+    if (!currentRecord || currentRecord.rule_key !== sourceEvent.ruleKey) {
+        const error = new Error('历史事件对应的候选规则不存在');
+        error.statusCode = 404;
+        throw error;
+    }
+    const current = candidateRow(currentRecord);
+    if (current.status === targetStatus) {
+        const error = new Error(`规则当前已经是 ${targetStatus} 状态`);
+        error.statusCode = 409;
+        throw error;
+    }
+    const currentGroup = buildRuleCandidateGroups(feedbackEvidenceRows(database), 0)
+        .find(group => group.ruleKey === current.ruleKey);
+    const currentSupportCount = currentGroup?.supportCount || 0;
+    if (targetStatus === 'approved' && currentSupportCount < 2) {
+        throw inputError('当前证据不足，至少需要 2 个不同配方的确认才能恢复为已批准');
+    }
+
+    const restoreNote = String(input.restoreNote || '').trim();
+    if (restoreNote.length > 500) throw inputError('restoreNote 不能超过 500 个字符');
+    const sourceReviewNote = String(sourceEvent.snapshot?.reviewNote || '').trim();
+    const reviewNote = restoreNote || sourceReviewNote || `恢复自规则事件 #${sourceEvent.id}`;
+    const now = new Date().toISOString();
+    const learningUpdates = currentGroup
+        ? {
+            title: currentGroup.title,
+            content: currentGroup.content,
+            scope_type: currentGroup.scopeType,
+            scope_ref: currentGroup.scopeRef,
+            finding_key: currentGroup.findingKey,
+            finding_type: currentGroup.findingType,
+            evidence_count: currentGroup.evidenceCount,
+            evidence_json: JSON.stringify(currentGroup.evidence),
+            support_count: currentGroup.supportCount,
+            special_case_count: currentGroup.specialCaseCount,
+            ignored_count: currentGroup.ignoredCount,
+            confidence_score: currentGroup.confidenceScore,
+            learning_evidence_json: JSON.stringify(currentGroup.learningEvidence),
+            learning_hash: currentGroup.learningHash,
+            learning_updated_at: now,
+        }
+        : {
+            evidence_count: 0,
+            evidence_json: '[]',
+            support_count: 0,
+            special_case_count: 0,
+            ignored_count: 0,
+            confidence_score: 0,
+            learning_evidence_json: '{}',
+            learning_hash: '',
+            learning_updated_at: now,
+        };
+    update('factory_rule_candidates', current.id, {
+        ...learningUpdates,
+        status: targetStatus,
+        review_note: reviewNote,
+        approved_at: targetStatus === 'approved' ? now : null,
+        reviewed_learning_hash: targetStatus === 'approved' ? currentGroup.learningHash : '',
+    });
+    const restored = candidateRow(
+        database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
+    );
+    recordFactoryRuleEvent(restored, 'restored', {
+        previousStatus: current.status,
+        newStatus: targetStatus,
+        actor: options.actor,
+        note: `从事件 #${sourceEvent.id} 恢复审核状态；保留当前规则内容和学习证据。${restoreNote ? ` ${restoreNote}` : ''}`,
+    }, { ...options, db: database, safeInsert: insert });
+    const knowledgeSync = syncRuleKnowledge(restored.id, {
+        dbAccessors: {
+            db: database,
+            safeInsert: insert,
+            safeUpdate: update,
+            hardDelete: remove,
+        },
+    });
+    return {
+        candidate: restored,
+        restoredFromEvent: sourceEvent,
+        knowledgeSync,
+    };
+}
+
+function restoreFactoryRuleEvent(eventIdValue, input = {}, options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const transaction = database.transaction(() => restoreFactoryRuleEventCore(eventIdValue, input, {
+        ...options,
+        db: database,
+        safeInsert: options.safeInsert || accessors.safeInsert,
+        safeUpdate: options.safeUpdate || accessors.safeUpdate,
+        hardDelete: options.hardDelete || accessors.hardDelete,
+        syncFactoryRuleKnowledgeEntry: options.syncFactoryRuleKnowledgeEntry,
+    }));
+    return transaction();
+}
+
 module.exports = {
     buildRuleCandidateGroups,
     buildFactoryRuleCompliance,
@@ -674,5 +796,6 @@ module.exports = {
     listFactoryRuleCandidates,
     recordFactoryRuleEvent,
     refreshFactoryRuleCandidates,
+    restoreFactoryRuleEvent,
     reviewFactoryRuleCandidate,
 };

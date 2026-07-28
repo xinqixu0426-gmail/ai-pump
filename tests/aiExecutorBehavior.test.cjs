@@ -523,6 +523,17 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
                 data: [{ id: 8, candidateId: 5, eventType: 'approved' }],
             });
         }
+        if (call.url.endsWith('/api/quality/rule-events/8/restore') && call.method === 'POST') {
+            assert.deepEqual(call.body, { restoreNote: '恢复误驳前状态' });
+            return jsonResponse({
+                success: true,
+                data: {
+                    candidate: { id: 5, status: 'approved' },
+                    restoredFromEvent: { id: 8, eventType: 'approved' },
+                    knowledgeSync: { action: 'inserted' },
+                },
+            });
+        }
         if (call.url.endsWith('/api/quality/rule-candidates/5') && call.method === 'PATCH') {
             assert.deepEqual(call.body, { status: 'approved', reviewNote: '确认' });
             return jsonResponse({
@@ -559,6 +570,14 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
     assert.match(history.summary, /1 条规则变更记录/);
     assert.equal(history.data[0].eventType, 'approved');
 
+    const restoreArgs = { eventId: 8, restoreNote: '恢复误驳前状态' };
+    const restoreBlocked = await executeToolCall('restore_factory_rule_event', restoreArgs, { allowWrite: false });
+    assert.equal(restoreBlocked.requiresConfirmation, true);
+    const restored = await executeToolCall('restore_factory_rule_event', restoreArgs, { allowWrite: true });
+    assert.equal(restored.success, true);
+    assert.equal(restored.data.candidate.status, 'approved');
+    assert.match(restored.summary, /当前学习证据保持不变/);
+
     const args = { candidateId: 5, status: 'approved', reviewNote: '确认' };
     const blocked = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: false });
     assert.equal(blocked.requiresConfirmation, true);
@@ -566,7 +585,7 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
     assert.equal(approved.success, true);
     assert.equal(approved.data.status, 'approved');
     assert.match(approved.summary, /规则知识已自动更新/);
-    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'GET', 'GET', 'PATCH']);
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'GET', 'GET', 'POST', 'PATCH']);
 });
 
 test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详情', async () => {

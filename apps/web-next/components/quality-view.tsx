@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, History, ListChecks, RefreshCw, Sparkles, XCircle } from 'lucide-react';
+import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, History, ListChecks, RefreshCw, RotateCcw, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -15,12 +15,14 @@ import {
   getFactoryRuleImpact,
   qualitySeverityClassName,
   refreshFactoryRuleCandidates,
+  restoreFactoryRuleEvent,
   reviewFactoryRuleCandidate,
   type BusinessAlertsSummary,
   type DataQualitySummary,
   type FactoryRuleCandidate,
   type FactoryRuleCompliance,
   type FactoryRuleEvent,
+  type FactoryRuleCandidateStatus,
   type FactoryRuleImpact,
   type QualityIssueGroup,
   type QualitySeverity,
@@ -47,7 +49,15 @@ const ruleEventLabels: Record<string, string> = {
   reopened: '恢复候选审核',
   stale: '规则自动失效',
   reactivated: '规则重新激活',
+  restored: '恢复审核状态',
 };
+
+function restorableRuleStatus(event: FactoryRuleEvent): FactoryRuleCandidateStatus | null {
+  const status = event.snapshot.status;
+  return status === 'candidate' || status === 'approved' || status === 'rejected'
+    ? status
+    : null;
+}
 
 type QualityViewProps = {
   embedded?: boolean;
@@ -68,6 +78,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [activeKey, setActiveKey] = useState<string>('all');
   const [ruleRefreshing, setRuleRefreshing] = useState(false);
   const [ruleReviewingId, setRuleReviewingId] = useState<number | null>(null);
+  const [ruleRestoringEventId, setRuleRestoringEventId] = useState<number | null>(null);
   const [ruleImpactLoadingId, setRuleImpactLoadingId] = useState<number | null>(null);
   const [expandedRuleImpactId, setExpandedRuleImpactId] = useState<number | null>(null);
   const [ruleImpacts, setRuleImpacts] = useState<Record<number, FactoryRuleImpact>>({});
@@ -185,6 +196,36 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
       setError(err instanceof Error ? err.message : '候选规则审核失败');
     } finally {
       setRuleReviewingId(null);
+    }
+  }
+
+  async function restoreRuleEvent(event: FactoryRuleEvent) {
+    const targetStatus = restorableRuleStatus(event);
+    const current = ruleCandidates.find((candidate) => candidate.id === event.candidateId);
+    if (!targetStatus || !current || current.status === targetStatus) return;
+    const targetLabel = targetStatus === 'approved' ? '已批准' : targetStatus === 'rejected' ? '已驳回' : '待审核';
+    const eventTime = new Date(event.createdAt).toLocaleString('zh-CN');
+    if (!window.confirm(
+      `确定把规则「${event.ruleTitle || event.ruleKey}」恢复为 ${eventTime} 记录的“${targetLabel}”状态？\n系统会保留当前学习证据，并重新校验批准条件。`
+    )) return;
+    setRuleRestoringEventId(event.id);
+    setError('');
+    try {
+      await restoreFactoryRuleEvent(event.id);
+      const [candidates, compliance, events] = await Promise.all([
+        getFactoryRuleCandidates(),
+        getFactoryRuleCompliance(),
+        getFactoryRuleEvents({ limit: 20 }),
+      ]);
+      setRuleCandidates(candidates);
+      setRuleCompliance(compliance);
+      setRuleEvents(events);
+      setRuleImpacts({});
+      setExpandedRuleImpactId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '规则审核状态恢复失败');
+    } finally {
+      setRuleRestoringEventId(null);
     }
   }
 
@@ -382,14 +423,18 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 规则变更记录
               </div>
               <div className="mt-1 text-xs leading-5 text-muted">
-                保留候选生成、证据变化、审核和失效记录，用于追溯规则为什么变成当前状态。
+                保留候选生成、证据变化、审核和失效记录；可恢复历史审核状态，但不会覆盖当前学习证据。
               </div>
             </div>
             {ruleEvents.length === 0 ? (
               <div className="px-4 py-5 text-sm text-muted">暂无规则变更记录。</div>
             ) : (
               <div className="divide-y divide-line">
-                {ruleEvents.map((event) => (
+                {ruleEvents.map((event) => {
+                  const targetStatus = restorableRuleStatus(event);
+                  const currentStatus = ruleCandidates.find((candidate) => candidate.id === event.candidateId)?.status;
+                  const canRestore = Boolean(targetStatus && currentStatus && targetStatus !== currentStatus);
+                  return (
                   <div key={event.id} className="px-4 py-3">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
@@ -413,12 +458,26 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                           {event.note || '系统记录规则状态变化'}
                         </div>
                       </div>
-                      <div className="shrink-0 text-xs text-slate-500">
-                        {new Date(event.createdAt).toLocaleString('zh-CN')} · {event.actor}
+                      <div className="flex shrink-0 items-center gap-2">
+                        <div className="text-xs text-slate-500">
+                          {new Date(event.createdAt).toLocaleString('zh-CN')} · {event.actor}
+                        </div>
+                        {canRestore ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={ruleRestoringEventId === event.id}
+                            icon={<RotateCcw size={14} />}
+                            onClick={() => void restoreRuleEvent(event)}
+                          >
+                            {ruleRestoringEventId === event.id ? '恢复中' : '恢复此状态'}
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </FadePanel>

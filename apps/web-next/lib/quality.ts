@@ -194,13 +194,19 @@ export type FactoryRuleEvent = {
   candidateId: number;
   ruleKey: string;
   ruleTitle: string;
-  eventType: 'baseline' | 'created' | 'evidence_changed' | 'approved' | 'rejected' | 'reopened' | 'stale' | 'reactivated' | string;
+  eventType: 'baseline' | 'created' | 'evidence_changed' | 'approved' | 'rejected' | 'reopened' | 'stale' | 'reactivated' | 'restored' | string;
   previousStatus: FactoryRuleCandidateStatus | null;
   newStatus: FactoryRuleCandidateStatus | null;
   actor: string;
   note: string;
   snapshot: Record<string, unknown>;
   createdAt: string;
+};
+
+export type FactoryRuleRestoreResult = {
+  candidate: FactoryRuleCandidate;
+  restoredFromEvent: FactoryRuleEvent;
+  knowledgeSync: NonNullable<FactoryRuleCandidate['knowledgeSync']>;
 };
 
 export type FactoryRuleImpactItem = {
@@ -387,6 +393,18 @@ export async function getFactoryRuleEvents(input: {
   const suffix = query.toString() ? `?${query.toString()}` : '';
   const result = await proxyRequest<ApiResponse<FactoryRuleEvent[]>>(`/api/quality/rule-events${suffix}`);
   if (!result.success || !result.data) throw new Error(result.error || '规则变更记录加载失败');
+  return result.data;
+}
+
+export async function restoreFactoryRuleEvent(
+  eventId: number,
+  input: { restoreNote?: string } = {}
+): Promise<FactoryRuleRestoreResult> {
+  const result = await proxyRequest<ApiResponse<FactoryRuleRestoreResult>>(`/api/quality/rule-events/${eventId}/restore`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '规则审核状态恢复失败');
   return result.data;
 }
 

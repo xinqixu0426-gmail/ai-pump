@@ -642,6 +642,21 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'restore_factory_rule_event',
+            description: '把规则恢复到某条历史事件中的审核状态。只恢复候选、批准或驳回状态，保留当前规则内容和学习证据；恢复批准时会重新校验证据并自动同步规则知识。写库前必须确认。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    eventId: { type: 'number', description: '要恢复的规则历史事件ID；应先用 get_factory_rule_history 查询' },
+                    restoreNote: { type: 'string', description: '本次恢复说明，可选，最多500字' }
+                },
+                required: ['eventId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'refresh_factory_rule_candidates',
             description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准，也不会直接同步知识库；失去最低支持证据的旧规则会安全转为失效；写库前必须确认。',
             parameters: { type: 'object', properties: {} }
@@ -843,6 +858,7 @@ const WRITE_TOOLS = new Set([
     'set_recipe_analysis_feedback',
     'refresh_factory_rule_candidates',
     'review_factory_rule_candidate',
+    'restore_factory_rule_event',
 ]);
 
 

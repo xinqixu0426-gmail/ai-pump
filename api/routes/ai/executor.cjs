@@ -25,6 +25,7 @@ const TOOL_LABELS = {
     set_recipe_analysis_feedback: '保存配方检查反馈',
     refresh_factory_rule_candidates: '归纳候选业务规则',
     review_factory_rule_candidate: '审核候选业务规则',
+    restore_factory_rule_event: '恢复规则审核状态',
 };
 
 const LIVE_BUSINESS_TOOLS = new Set([
@@ -145,6 +146,10 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '候选规则ID', args.candidateId);
             addRow(rows, '审核状态', args.status);
             addRow(rows, '审核说明', args.reviewNote);
+            break;
+        case 'restore_factory_rule_event':
+            addRow(rows, '历史事件ID', args.eventId);
+            addRow(rows, '恢复说明', args.restoreNote);
             break;
         default:
             Object.entries(args || {}).slice(0, 6).forEach(([key, value]) => addRow(rows, key, value));

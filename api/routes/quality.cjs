@@ -9,6 +9,7 @@ const {
     listFactoryRuleEvents,
     listFactoryRuleCandidates,
     refreshFactoryRuleCandidates,
+    restoreFactoryRuleEvent,
     reviewFactoryRuleCandidate,
 } = require('../services/factoryRuleCandidates.cjs');
 
@@ -77,6 +78,19 @@ router.get('/rule-events', (req, res) => {
             data: listFactoryRuleEvents({
                 candidateId: req.query.candidateId,
                 limit: req.query.limit,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/rule-events/:id/restore', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: restoreFactoryRuleEvent(req.params.id, req.body || {}, {
+                actor: req.user?.role || 'system',
             }),
         });
     } catch (error) {

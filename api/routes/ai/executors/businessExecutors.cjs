@@ -440,6 +440,25 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'restore_factory_rule_event': {
+            if (!args.eventId) {
+                return { success: false, error: '请提供要恢复的规则历史事件ID' };
+            }
+            const data = await postJson(
+                internalFetch,
+                `/api/quality/rule-events/${Number(args.eventId)}/restore`,
+                { restoreNote: args.restoreNote },
+                '规则审核状态恢复失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_event_restore',
+                summary: `规则已恢复为 ${data.candidate?.status || '历史审核'} 状态；当前学习证据保持不变，规则知识已同步。`,
+                display: { mode: 'compact', title: '规则状态恢复' },
+                data,
+            };
+        }
+
         case 'refresh_factory_rule_candidates': {
             const data = await postJson(
                 internalFetch,
