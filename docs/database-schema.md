@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `7`：
+当前版本为 `18`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -31,10 +31,18 @@
 | 5 | `core_constraints_and_foreign_keys` | 重建核心表，补齐业务外键、状态/枚举 CHECK 和非负数约束 |
 | 6 | `repair_packaging_snapshot_semantics` | 修正历史包装材料及角色，并用原快照单价重建成本明细 |
 | 7 | `operational_and_audit_indexes` | 增加活动数据、关系字段和审计日志查询索引 |
+| 8 | `recipe_analysis_feedback` | 保存配方智能检查的人工处理反馈 |
+| 9 | `factory_rule_candidates` | 保存候选、批准和拒绝的工厂规则 |
+| 10 | `ai_answer_feedback` | 保存 AI 回答反馈 |
+| 11 | `ai_answer_feedback_diagnosis_retest` | 增加回答诊断和复测字段 |
+| 12 | `ai_knowledge_regression_suite` | 增加知识库回归用例和运行结果 |
+| 13-17 | 知识回归规则修订 | 修订测试报告、线圈和成品电缆的回归语义 |
+| 18 | `add_coil_inventory_ledger` | 为正式线圈方案增加成品库存，并建立可追溯库存流水 |
 
 ## 数据治理
 
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
+- `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。

@@ -18,6 +18,7 @@ export type CoilRecord = {
   coilFee: number;
   rotorFee: number;
   cost: number;
+  stock: number;
   defaultWireGauge?: string | null;
   defaultCapacitor?: string | null;
   mainWireGauge?: string | null;
@@ -58,6 +59,7 @@ export type CoilCalcInput = {
 };
 
 export type CoilCalcResult = {
+  coilId?: number | null;
   spec: string;
   material: string;
   slotType: '小眼' | '国标眼';
@@ -74,6 +76,18 @@ export type CoilCalcResult = {
   formula: string;
   source: string;
   isCustomWireWeight?: boolean;
+};
+
+export type CoilStockMovement = {
+  id: number;
+  coilId: number;
+  changeQty: number;
+  balanceAfter: number;
+  movementType: string;
+  referenceType: string;
+  referenceId: string;
+  note: string;
+  createdAt: string;
 };
 
 export type CoilSpecDraft = {
@@ -162,6 +176,7 @@ export function rowToCoil(row: CoilRow): CoilRecord {
     coilFee: Number(row.coilFee) || 0,
     rotorFee: Number(row.rotorFee) || 0,
     cost: Number(row.cost) || 0,
+    stock: Number(row.stock) || 0,
     defaultWireGauge: row.defaultWireGauge || '',
     defaultCapacitor: row.defaultCapacitor || '',
     mainWireGauge: row.mainWireGauge || '',
@@ -249,4 +264,19 @@ export async function deleteCoil(id: number): Promise<void> {
     method: 'DELETE',
   });
   if (!result.success) throw new Error(result.error || '线圈记录删除失败');
+}
+
+export async function getCoilStockMovements(id: number, limit = 20): Promise<CoilStockMovement[]> {
+  const result = await proxyRequest<ApiResponse<CoilStockMovement[]>>(`/api/coils/${id}/stock-movements?limit=${limit}`);
+  if (!result.success) throw new Error(result.error || '线圈库存流水加载失败');
+  return result.data || [];
+}
+
+export async function adjustCoilStock(id: number, changeQty: number, note = ''): Promise<CoilRecord> {
+  const result = await proxyRequest<ApiResponse<{ coil: CoilRow }>>(`/api/coils/${id}/stock-adjustment`, {
+    method: 'POST',
+    body: JSON.stringify({ changeQty, note }),
+  });
+  if (!result.success || !result.data?.coil) throw new Error(result.error || '线圈库存调整失败');
+  return rowToCoil(result.data.coil);
 }

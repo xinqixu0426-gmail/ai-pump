@@ -28,9 +28,51 @@ function buildPartIndexes(partsCatalog) {
     return { partIndex, partByModel };
 }
 
+function buildCoilIndexes(coilsCatalog) {
+    const byId = new Map();
+    const byDimensions = new Map();
+    for (const coil of coilsCatalog || []) {
+        const id = Number(coil.id || coil.Id || 0);
+        if (id > 0) byId.set(id, coil);
+        if (String(coil.schemeStatus || coil.scheme_status || 'official') !== 'official') continue;
+        const key = [
+            String(coil.spec || '').trim(),
+            Number(coil.sheets || 0),
+            String(coil.material || '钢带').trim(),
+            String(coil.slotType || coil.slot_type || '小眼').trim(),
+        ].join('|');
+        byDimensions.set(key, coil);
+    }
+    return { byId, byDimensions };
+}
+
 function purchaseIdentity(model, supplier = '', partId) {
     if (partId) return `part:${partId}`;
     return `model:${String(model || '').trim()}|supplier:${String(supplier || '').trim()}`;
+}
+
+function isCoilAssemblyPart(part) {
+    return part?.inventoryType === 'coil'
+        || part?.costSource === 'coil'
+        || String(part?.name || '').trim() === '线圈转子';
+}
+
+function resolveCoilForPart(part, coilIndexes) {
+    const explicitId = Number(part?.coilId || 0);
+    if (explicitId > 0 && coilIndexes.byId.has(explicitId)) return coilIndexes.byId.get(explicitId);
+    const model = String(part?.model || '').trim();
+    const separator = model.lastIndexOf('-');
+    if (separator <= 0) return null;
+    const spec = model.slice(0, separator);
+    const sheets = Number(model.slice(separator + 1));
+    if (!Number.isInteger(sheets) || sheets <= 0) return null;
+    const key = [
+        spec,
+        sheets,
+        String(part?.material || '钢带').trim(),
+        String(part?.slotType || '小眼').trim(),
+    ].join('|');
+    return coilIndexes.byDimensions.get(key) || null;
 }
 
 function isCompleteCablePart(part) {
@@ -46,6 +88,7 @@ function completeCableIdentity(part, supplier, partId) {
 
 function buildPurchaseList(items, partsCatalog, options = {}) {
     const { partIndex, partByModel } = buildPartIndexes(partsCatalog);
+    const coilIndexes = buildCoilIndexes(options.coilsCatalog);
     const merged = new Map();
     const reservedDemand = options.reservedDemand instanceof Map ? options.reservedDemand : new Map();
 
@@ -60,7 +103,9 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             const qty = completeCable ? Number(part.qty ?? 1) : Number(part.inventoryQty ?? part.qty ?? 0);
             if (qty <= 0) continue;
             const supplier = String(part.supplier || '').trim();
-            const mergeKey = completeCable
+            const mergeKey = isCoilAssemblyPart(part)
+                ? `${model}|${part.material || '钢带'}|${part.slotType || '小眼'}`
+                : completeCable
                 ? `${model}|${supplier}|${cableLength}|${part.cableAccessoryType || part.cableAccessoryName || 'standard'}`
                 : `${model}|${supplier}`;
             const purchasePart = completeCable
@@ -82,16 +127,24 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
 
     const purchaseList = [];
     for (const [, { part, totalQty, supplier }] of merged) {
+        const coilPart = isCoilAssemblyPart(part);
+        const exactCoil = coilPart ? resolveCoilForPart(part, coilIndexes) : null;
+        const coilId = Number(exactCoil?.id || exactCoil?.Id || 0) || undefined;
         const exactPart = partIndex.get(`${part.model}|${supplier}`) || partByModel.get(part.model) || null;
         const screwPricingPart = !exactPart && isLongScrewPart(part)
             ? findScrewPricingPart(partsCatalog, part.model, supplier)?.part || null
             : null;
         const dbPart = exactPart || screwPricingPart;
         const stockQtyPerUnit = Math.max(1, Number(part.stockQtyPerUnit || 1));
-        const currentInventoryStock = exactPart ? Number(exactPart.stock || 0) : 0;
+        const currentInventoryStock = coilId
+            ? Number(exactCoil.stock || 0)
+            : exactPart ? Number(exactPart.stock || 0) : 0;
         const partId = exactPart?.Id || exactPart?.id;
         const resolvedSupplier = supplier || dbPart?.supplier || '';
-        const stockIdentityKey = purchaseIdentity(part.model, resolvedSupplier, partId);
+        const inventoryType = coilPart ? (coilId ? 'coil' : 'none') : 'part';
+        const stockIdentityKey = coilId
+            ? `coil:${coilId}`
+            : purchaseIdentity(part.model, resolvedSupplier, partId);
         const identityKey = isCompleteCablePart(part)
             ? completeCableIdentity(part, resolvedSupplier, partId)
             : stockIdentityKey;
@@ -115,8 +168,10 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             actualSupplier: supplier || dbPart?.supplier || '',
             purchased: false,
             partId,
+            coilId,
+            inventoryType,
             identityKey,
-            purchaseUnit: part.purchaseUnit || '',
+            purchaseUnit: coilPart ? '套' : part.purchaseUnit || '',
             stockQtyPerUnit,
             specification: part.specification || '',
             cableLength: part.cableLength,
@@ -152,7 +207,7 @@ function buildOrderPlan(items, partsCatalog, options = {}) {
     return { purchaseList, todos: buildTodos(purchaseList) };
 }
 
-function buildBalancedOrderPlans(orders, partsCatalog) {
+function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
     const reservedDemand = new Map();
     const plans = new Map();
     const ordered = [...(orders || [])].sort((a, b) => {
@@ -164,7 +219,10 @@ function buildBalancedOrderPlans(orders, partsCatalog) {
         const items = Array.isArray(order.items)
             ? order.items
             : parsePartsJson(order.items_json || order.itemsJson);
-        const plan = buildOrderPlan(items, partsCatalog, { reservedDemand });
+        const plan = buildOrderPlan(items, partsCatalog, {
+            ...options,
+            reservedDemand,
+        });
         const previous = parsePartsJson(order.purchase_list_json || order.purchaseListJson);
         const previousByKey = new Map(previous.map(item => [
             item.identityKey || purchaseIdentity(item.model, item.supplier, item.partId),
@@ -173,6 +231,13 @@ function buildBalancedOrderPlans(orders, partsCatalog) {
         plan.purchaseList = plan.purchaseList.map(item => mergePurchasePlanItem(
             item,
             previousByKey.get(item.identityKey)
+                || (item.inventoryType === 'coil'
+                    ? previous.find(previousItem => (
+                        !previousItem.inventoryType
+                        && previousItem.model === item.model
+                        && String(previousItem.supplier || '') === String(item.supplier || '')
+                    ))
+                    : undefined)
                 || (item.purchaseUnit === '根'
                     ? previous.find(previousItem => (
                         !previousItem.purchaseUnit

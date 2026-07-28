@@ -190,7 +190,8 @@ function coilRow(r) {
         schemeStatus: r.scheme_status || 'official',
         wireWeight: r.wire_weight, copperBase: r.copper_base,
         coilFee: r.coil_fee, rotorFee: r.rotor_fee,
-        cost: r.cost, defaultCapacitor: r.default_capacitor, defaultWireGauge: r.default_wire_gauge,
+        cost: r.cost, stock: Number(r.stock || 0),
+        defaultCapacitor: r.default_capacitor, defaultWireGauge: r.default_wire_gauge,
         mainWireGauge: r.main_wire_gauge || '', mainWireData: r.main_wire_data || '',
         auxWireGauge: r.aux_wire_gauge || '', auxWireData: r.aux_wire_data || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
@@ -477,7 +478,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {

@@ -31,6 +31,7 @@ const template = {
 
 const coils = [
     {
+        id: 77,
         spec: 'Y90',
         material: '钢带',
         sheets: 10,
@@ -114,6 +115,8 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
 
     const coil = result.parts.find(part => part.name === '线圈转子');
     assert.equal(coil.model, 'Y90-10');
+    assert.equal(coil.coilId, 77);
+    assert.equal(coil.inventoryType, 'coil');
     assert.equal(coil.snapshotPrice, 21.1);
     assert.equal(coil.formula, '0.21×10 + 0.2×70 + 2.00 + 3.00');
 

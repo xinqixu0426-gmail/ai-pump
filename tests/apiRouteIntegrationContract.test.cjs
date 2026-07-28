@@ -238,7 +238,7 @@ test('关键 API 集成契约：/api/orders/purchase-plan 只生成采购计划�
     const section = sliceBetween(source, "router.post('/purchase-plan'", "router.get('/:id'");
 
     assert.match(section, /const items = Array\.isArray\(req\.body\?\.items\) \? req\.body\.items : \[\]/);
-    assert.match(section, /buildOrderPlan\(items, dbGetAllParts\(\)\)/);
+    assert.match(section, /buildOrderPlan\(items, dbGetAllParts\(\), \{ coilsCatalog: dbGetAllCoils\(\) \}\)/);
     assert.match(section, /res\.json\(\{ success: true, data:/);
     assert.match(section, /res\.status\(400\)\.json\(\{ success: false, error: error\.message \}\)/);
     assertNoWrites(section);

@@ -168,3 +168,59 @@ test('多个活动订单按顺序共享库存且不会重复占用', () => {
     assert.equal(plans.get(2).purchaseList[0].currentStock, 2);
     assert.equal(plans.get(2).purchaseList[0].needToBuy, 6);
 });
+
+test('线圈转子按正式线圈方案分配库存，不要求写入零件库', () => {
+    const coilsCatalog = [{
+        id: 31,
+        spec: '12',
+        sheets: 180,
+        material: '钢带',
+        slotType: '小眼',
+        schemeStatus: 'official',
+        stock: 8,
+    }];
+    const item = {
+        qty: 6,
+        partsJson: JSON.stringify([{
+            model: '12-180',
+            name: '线圈转子',
+            material: '钢带',
+            slotType: '小眼',
+            qty: 1,
+            costSource: 'coil',
+        }]),
+    };
+    const plans = buildBalancedOrderPlans([
+        { id: 1, created_at: '2026-01-01', items: [item], purchase_list_json: '[]' },
+        { id: 2, created_at: '2026-01-02', items: [item], purchase_list_json: '[]' },
+    ], partsCatalog, { coilsCatalog });
+    const first = plans.get(1).purchaseList[0];
+    const second = plans.get(2).purchaseList[0];
+
+    assert.equal(first.inventoryType, 'coil');
+    assert.equal(first.coilId, 31);
+    assert.equal(first.partId, undefined);
+    assert.equal(first.purchaseUnit, '套');
+    assert.equal(first.currentStock, 8);
+    assert.equal(first.needToBuy, 0);
+    assert.equal(second.currentStock, 2);
+    assert.equal(second.needToBuy, 4);
+});
+
+test('没有正式方案的计算型线圈保持非库存项', () => {
+    const purchaseList = buildPurchaseList([{
+        qty: 3,
+        partsJson: JSON.stringify([{
+            model: '12-190',
+            name: '线圈转子',
+            material: '钢带',
+            slotType: '小眼',
+            qty: 1,
+            costSource: 'coil',
+        }]),
+    }], partsCatalog, { coilsCatalog: [] });
+
+    assert.equal(purchaseList[0].inventoryType, 'none');
+    assert.equal(purchaseList[0].coilId, undefined);
+    assert.equal(purchaseList[0].plannedQty, 3);
+});

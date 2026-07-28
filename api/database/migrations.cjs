@@ -2,6 +2,8 @@ const crypto = require('node:crypto');
 const {
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
+    COIL_INVENTORY_SCHEMA_SQL,
+    COIL_STOCK_COLUMN_DEFINITION,
     CORE_CONSTRAINED_TABLES,
     LEGACY_COLUMN_UPGRADES,
     canonicalCreateTableSql,
@@ -773,6 +775,17 @@ const MIGRATIONS = Object.freeze([
                 SET config_json = ?, updated_at = ?
                 WHERE case_key = 'complete-cable-semantics'
             `).run(JSON.stringify({ ...config, requiredTerms: groups }), new Date().toISOString());
+        },
+    },
+    {
+        version: 18,
+        name: 'add_coil_inventory_ledger',
+        signature: 'add-coil-stock-and-traceable-movements',
+        up(db) {
+            if (!columnNames(db, 'coils').has('stock')) {
+                db.exec(`ALTER TABLE coils ADD COLUMN stock ${COIL_STOCK_COLUMN_DEFINITION}`);
+            }
+            db.exec(COIL_INVENTORY_SCHEMA_SQL);
         },
     },
 ]);

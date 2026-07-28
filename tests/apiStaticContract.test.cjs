@@ -303,7 +303,10 @@ test('API 静态契约：订单详情动作必须由后端执行', () => {
     assert.match(route, /router\.post\('\/:id\/purchase-items\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/todos\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/complete-purchase'/);
-    assert.match(route, /safeUpdate\('parts', partId, \{ stock \}\)/);
+    assert.match(route, /function applyPurchaseInventory/);
+    assert.match(route, /safeUpdate\('parts', partId, \{ stock:/);
+    assert.match(route, /adjustCoilStock/);
+    assert.match(route, /movementType: 'purchase_inbound'/);
     assert.match(route, /record\.purchase_completed_at \|\| record\.status === '采购完成'/);
     assert.match(route, /purchase_receipt_id: receiptId/);
     assert.match(route, /const receiptId = randomUUID\(\)/);

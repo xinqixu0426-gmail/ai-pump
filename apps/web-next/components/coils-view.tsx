@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Calculator, CircleAlert, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { Boxes, Calculator, CircleAlert, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -10,16 +10,19 @@ import { Button } from '@/components/ui/button';
 import { money } from '@/lib/format';
 import {
   calculateCoilCost,
+  adjustCoilStock,
   createCoil,
   deleteCoil,
   getAllCoils,
   getCoilSpecDraft,
+  getCoilStockMovements,
   getMarketIndicators,
   updateCoil,
   updateCoilSpecPrice,
   updateMarketIndicators,
   type CoilCalcResult,
   type CoilRecord,
+  type CoilStockMovement,
   type MarketIndicators,
 } from '@/lib/coils';
 
@@ -140,6 +143,12 @@ export function CoilsView() {
   const [calcLoading, setCalcLoading] = useState(false);
   const [editingGroupKey, setEditingGroupKey] = useState<string | null>(null);
   const [editingGroupPrice, setEditingGroupPrice] = useState('');
+  const [stockCoil, setStockCoil] = useState<CoilRecord | null>(null);
+  const [stockDirection, setStockDirection] = useState<'in' | 'out'>('in');
+  const [stockQty, setStockQty] = useState('');
+  const [stockNote, setStockNote] = useState('');
+  const [stockMovements, setStockMovements] = useState<CoilStockMovement[]>([]);
+  const [stockLoading, setStockLoading] = useState(false);
 
   async function load(force = false) {
     setError(null);
@@ -188,6 +197,7 @@ export function CoilsView() {
           coil.mainWireData,
           coil.auxWireGauge,
           coil.auxWireData,
+          coil.stock,
         ]
           .join(' ')
           .toLowerCase()
@@ -407,13 +417,58 @@ export function CoilsView() {
     }
   }
 
+  async function openStockDrawer(coil: CoilRecord) {
+    setStockCoil(coil);
+    setStockDirection('in');
+    setStockQty('');
+    setStockNote('');
+    setStockMovements([]);
+    setStockLoading(true);
+    setError(null);
+    try {
+      setStockMovements(await getCoilStockMovements(coil.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '线圈库存流水加载失败');
+    } finally {
+      setStockLoading(false);
+    }
+  }
+
+  async function submitStockAdjustment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stockCoil) return;
+    const quantity = Number(stockQty);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setError('库存数量必须是正整数');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await adjustCoilStock(
+        stockCoil.id,
+        stockDirection === 'in' ? quantity : -quantity,
+        stockNote.trim()
+      );
+      setStockCoil(updated);
+      setStockQty('');
+      setStockNote('');
+      setStockMovements(await getCoilStockMovements(updated.id));
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '线圈库存调整失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Coils</div>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">线圈转子</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">维护定子组合、绕组方案和线圈成本。</p>
+          <p className="mt-2 max-w-2xl text-sm text-muted">维护定子组合、绕组方案、线圈成本和成品库存。</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
@@ -650,7 +705,7 @@ export function CoilsView() {
                     )}
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1220px] border-collapse text-left text-sm">
                       <thead className="bg-slate-50 text-xs text-muted">
                         <tr>
                           <th className="px-4 py-3 font-medium">片数</th>
@@ -660,6 +715,7 @@ export function CoilsView() {
                           <th className="px-4 py-3 font-medium">铜价基数</th>
                           <th className="px-4 py-3 font-medium">加工费</th>
                           <th className="px-4 py-3 font-medium">总成本</th>
+                          <th className="px-4 py-3 font-medium">库存</th>
                           <th className="px-4 py-3 font-medium">默认搭配电缆线径</th>
                           <th className="px-4 py-3 font-medium">绕组数据</th>
                           <th className="px-4 py-3 text-right font-medium">操作</th>
@@ -687,6 +743,12 @@ export function CoilsView() {
                               <td className="border-b border-line px-4 py-3 text-muted">{money(coil.copperBase)}</td>
                               <td className="border-b border-line px-4 py-3 text-muted">{money(coil.coilFee + coil.rotorFee)}</td>
                               <td className="border-b border-line px-4 py-3 font-medium text-ink">{money(coil.cost)}</td>
+                              <td className="border-b border-line px-4 py-3">
+                                <div className="font-medium text-ink">{coil.stock} 套</div>
+                                <div className={`mt-1 text-xs ${coil.stock > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                  {coil.stock > 0 ? '有库存' : '待补充'}
+                                </div>
+                              </td>
                               <td className="border-b border-line px-4 py-3 text-muted">{coil.defaultWireGauge || '-'}</td>
                               <td className="border-b border-line px-4 py-3 text-xs text-muted">
                                 <div>主：{[coil.mainWireGauge, coil.mainWireData].filter(Boolean).join(' · ') || '-'}</div>
@@ -694,6 +756,9 @@ export function CoilsView() {
                               </td>
                               <td className="border-b border-line px-4 py-3">
                                 <div className="flex justify-end gap-2">
+                                  <Button size="sm" variant="ghost" disabled={saving} onClick={() => void openStockDrawer(coil)} icon={<Boxes size={14} />}>
+                                    库存
+                                  </Button>
                                   <Button size="sm" variant="ghost" disabled={saving} onClick={() => openEditDrawer(coil)} icon={<Pencil size={14} />}>
                                     编辑
                                   </Button>
@@ -854,6 +919,101 @@ export function CoilsView() {
             </Button>
           </div>
         </form>
+      </SlideOver>
+
+      <SlideOver open={Boolean(stockCoil)} onClose={() => !saving && setStockCoil(null)}>
+        {stockCoil ? (
+          <form onSubmit={submitStockAdjustment} className="flex min-h-full flex-col">
+            <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Inventory</div>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">线圈库存</h2>
+                <p className="mt-1 text-sm text-muted">
+                  {stockCoil.spec}-{stockCoil.sheets} · {stockCoil.material} · {stockCoil.slotType}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭"
+                disabled={saving}
+                onClick={() => setStockCoil(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-6 p-5">
+              <div className="border-b border-line pb-5">
+                <div className="text-sm text-muted">当前库存</div>
+                <div className="mt-2 text-3xl font-semibold text-ink">{stockCoil.stock} 套</div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-ink">变动方向</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Button type="button" variant={stockDirection === 'in' ? 'primary' : 'ghost'} onClick={() => setStockDirection('in')}>
+                      入库
+                    </Button>
+                    <Button type="button" variant={stockDirection === 'out' ? 'primary' : 'ghost'} onClick={() => setStockDirection('out')}>
+                      出库
+                    </Button>
+                  </div>
+                </div>
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">数量（套）</span>
+                  <input
+                    value={stockQty}
+                    onChange={(event) => setStockQty(event.target.value)}
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">备注</span>
+                  <input
+                    value={stockNote}
+                    onChange={(event) => setStockNote(event.target.value)}
+                    placeholder="例如 盘点调整、样机领用"
+                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  />
+                </label>
+                <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
+                  {saving ? '保存中' : '保存库存变动'}
+                </Button>
+              </div>
+
+              <div className="border-t border-line pt-5">
+                <div className="text-sm font-semibold text-ink">最近流水</div>
+                {stockLoading ? (
+                  <div className="mt-3 text-sm text-muted">加载中...</div>
+                ) : stockMovements.length === 0 ? (
+                  <div className="mt-3 text-sm text-muted">暂无库存流水</div>
+                ) : (
+                  <div className="mt-3 divide-y divide-line border-y border-line">
+                    {stockMovements.map((movement) => (
+                      <div key={movement.id} className="flex items-start justify-between gap-3 py-3 text-sm">
+                        <div className="min-w-0">
+                          <div className="text-ink">{movement.note || (movement.movementType === 'purchase_inbound' ? '订单采购入库' : '手工调整')}</div>
+                          <div className="mt-1 text-xs text-muted">{new Date(movement.createdAt).toLocaleString('zh-CN')}</div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className={movement.changeQty > 0 ? 'font-medium text-emerald-700' : 'font-medium text-rose-700'}>
+                            {movement.changeQty > 0 ? '+' : ''}{movement.changeQty}
+                          </div>
+                          <div className="mt-1 text-xs text-muted">结存 {movement.balanceAfter}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </form>
+        ) : null}
       </SlideOver>
     </div>
   );

@@ -15,6 +15,7 @@ function testWorkbook() {
         ['', 'V', 'A', '', 'kW', 'r/min', 'm3/h', 'kPa', 'kPa', 'm3/h', 'm', 'kW', '%'],
         [1, 220.1, 5.14, 0.97, 1.098, 2865, 0, 0, 320, 0, 36.04, 1.098, 0],
         [2, 220, 5.51, 0.98, 1.188, 2845, 1.07, 0, 313, 1.07, 34.33, 1.188, 8.42],
+        [11, '', '', '55K'],
         [],
         ['规定点', '', '流量：', '', '15m3/h', '', '扬程：', '', '10m', '', '机组效率：', '', '15%'],
         ['实测点', '', '流量：', '', '11.6m3/h', '', '扬程：', '', '7.8m', '', '机组效率：', '', '14.6%'],
@@ -36,6 +37,7 @@ test('测试报告解析：保留原始模板字段但公开文本只使用逐�
     assert.equal(result.parsed.testPoints.length, 2);
     assert.equal(result.parsed.testPoints[1].flow, 1.07);
     assert.match(result.extractedText, /测试点2：电压 220V/);
+    assert.doesNotMatch(result.extractedText, /测试点11/);
     assert.doesNotMatch(result.extractedText, /规定点：|实测点：|偏差：/);
     assert.equal('specified' in result.summary, false);
     assert.equal('measured' in result.summary, false);

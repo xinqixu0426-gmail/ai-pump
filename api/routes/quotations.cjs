@@ -196,7 +196,9 @@ function buildOrderDraftFromQuotation(quotationId) {
         ORDER BY created_at, id
     `).all();
     const draftOrder = { id: -1, created_at: new Date().toISOString(), items: orderItems, purchase_list_json: '[]' };
-    const plan = buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts()).get(-1);
+    const plan = buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts(), {
+        coilsCatalog: dbGetAllCoils(),
+    }).get(-1);
     return {
         customerName: customer.name || 'Unknown',
         contractNo: '',

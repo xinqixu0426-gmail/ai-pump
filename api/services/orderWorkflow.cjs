@@ -147,6 +147,8 @@ function mergePurchasePlanItem(nextItem, previousItem) {
         totalQty: next.totalQty,
         currentStock: next.currentStock,
         partId: next.partId,
+        coilId: next.coilId,
+        inventoryType: next.inventoryType,
         identityKey: next.identityKey,
         purchaseUnit: next.purchaseUnit,
         stockQtyPerUnit: next.stockQtyPerUnit,

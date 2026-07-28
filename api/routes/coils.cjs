@@ -12,6 +12,7 @@ const {
     buildCoilSpecOptions,
 } = require('../services/coilCost.cjs');
 const { parsePositiveId, parseNonNegativeNumber } = require('../services/validation.cjs');
+const { adjustCoilStock, coilStockMovementRow, parseStockChange } = require('../services/coilInventory.cjs');
 const router = Router();
 
 function coilCostFromValues(values) {
@@ -183,6 +184,52 @@ router.patch('/spec/:spec', (req, res) => {
         updateAll();
         res.json({ success: true, updated: rows.length });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.get('/:id/stock-movements', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
+        if (!db.prepare('SELECT id FROM coils WHERE id = ?').get(id)) {
+            return res.status(404).json({ success: false, error: '线圈记录不存在' });
+        }
+        const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+        const rows = db.prepare(`
+            SELECT * FROM coil_stock_movements
+            WHERE coil_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+        `).all(id, limit);
+        res.json({ success: true, data: rows.map(coilStockMovementRow) });
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.post('/:id/stock-adjustment', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
+        const changeQty = parseStockChange(req.body?.changeQty);
+        const applyAdjustment = db.transaction(() => adjustCoilStock(
+            { db, safeUpdate, safeInsert },
+            {
+                coilId: id,
+                changeQty,
+                movementType: changeQty > 0 ? 'manual_in' : 'manual_out',
+                note: req.body?.note,
+            }
+        ));
+        const adjustment = applyAdjustment();
+        res.json({
+            success: true,
+            data: {
+                coil: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id)),
+                adjustment,
+            },
+        });
+    } catch (error) {
+        const status = error.message === '线圈记录不存在' ? 404 : 400;
+        res.status(status).json({ success: false, error: error.message });
+    }
 });
 
 router.patch('/:id', (req, res) => {

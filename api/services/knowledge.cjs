@@ -147,6 +147,10 @@ function recipeEntry(recipe, technicalFiles = []) {
             const searchableReportText = normalizeText(file.extractedText)
                 .split(/\r?\n/)
                 .filter(line => !/^(规定点|实测点|偏差)[：:]/.test(line.trim()))
+                .filter(line => {
+                    const point = line.trim().match(/^测试点\d+[：:].*流量\s+([^，]+)m3\/h，扬程\s+([^，]+)m/);
+                    return !point || (Number.isFinite(Number(point[1])) && Number.isFinite(Number(point[2])));
+                })
                 .join('\n');
             return `性能测试报告附件（不是图纸）：${file.originalName || ''}\n${searchableReportText}`;
         })

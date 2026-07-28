@@ -83,7 +83,9 @@ function extractTestPoints(rows) {
         }
         const values = row.slice(0, TEST_POINT_FIELDS.length).map(numberOrText);
         if (values.slice(1).every(value => value === null)) continue;
-        points.push(Object.fromEntries(TEST_POINT_FIELDS.map((field, index) => [field, values[index]])));
+        const point = Object.fromEntries(TEST_POINT_FIELDS.map((field, index) => [field, values[index]]));
+        if (!Number.isFinite(point.flow) || !Number.isFinite(point.head)) continue;
+        points.push(point);
     }
     return points;
 }

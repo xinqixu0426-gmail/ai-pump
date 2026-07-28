@@ -150,9 +150,16 @@ function calculateCoilCost(coils, input = {}) {
     }
 
     const totalCost = unitPrice * targetSheets + wireWeight * copperBase + coilFee + rotorFee;
+    const exactInventoryMatch = exactMatch && (
+        parsedCustomerWireWeight === null
+        || Math.abs(parsedCustomerWireWeight - Number(coilValue(exactMatch, 'wireWeight') || 0)) < 0.000001
+    );
     return {
         success: true,
         data: {
+            coilId: exactInventoryMatch
+                ? Number(coilValue(exactMatch, 'id') || coilValue(exactMatch, 'Id') || 0) || null
+                : null,
             spec,
             material,
             slotType,

@@ -1,7 +1,8 @@
 const { Router } = require('express');
 const { randomUUID } = require('crypto');
-const { db, dbGetAllOrders, dbGetAllParts, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
+const { db, dbGetAllOrders, dbGetAllParts, dbGetAllCoils, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
 const { buildOrderPlan, buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
+const { adjustCoilStock } = require('../services/coilInventory.cjs');
 const {
     ORDER_STATUSES,
     TERMINAL_ORDER_STATUSES,
@@ -87,7 +88,9 @@ function buildOrderSavePayloadDraft(body) {
         : (() => {
             const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
             const draftOrder = { id: -1, created_at: new Date().toISOString(), items, purchase_list_json: '[]' };
-            return buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts()).get(-1);
+            return buildBalancedOrderPlans([...activeOrders, draftOrder], dbGetAllParts(), {
+                coilsCatalog: dbGetAllCoils(),
+            }).get(-1);
         })();
     const status = body?.status || '待确认';
     if (!ORDER_STATUSES.has(status)) throw new Error('非法订单状态');
@@ -105,7 +108,9 @@ function buildOrderSavePayloadDraft(body) {
 
 function syncBalancedPurchasePlans() {
     const records = db.prepare(ACTIVE_ORDERS_SQL).all();
-    const plans = buildBalancedOrderPlans(records, dbGetAllParts());
+    const plans = buildBalancedOrderPlans(records, dbGetAllParts(), {
+        coilsCatalog: dbGetAllCoils(),
+    });
     for (const record of records) {
         const plan = plans.get(record.id);
         if (!plan) continue;
@@ -157,6 +162,46 @@ function purchaseItemMatches(item, body) {
     return item.model === model && String(item.supplier || '') === supplier;
 }
 
+function purchaseInventoryType(item) {
+    if (item?.inventoryType === 'none') return 'none';
+    if (item?.inventoryType === 'coil' || parsePositiveId(item?.coilId)) return 'coil';
+    return 'part';
+}
+
+function applyPurchaseInventory(item, purchaseQty, context) {
+    const inventoryType = purchaseInventoryType(item);
+    if (inventoryType === 'none') {
+        return { inventoryType, inventoryAddQty: 0, resourceId: null };
+    }
+    if (inventoryType === 'coil') {
+        const coilId = parsePositiveId(item.coilId);
+        if (!coilId) throw new Error(`采购项「${item.model}」没有对应正式线圈方案，无法入库`);
+        const result = adjustCoilStock(
+            { db, safeUpdate, safeInsert },
+            {
+                coilId,
+                changeQty: purchaseQty,
+                movementType: 'purchase_inbound',
+                referenceType: 'order',
+                referenceId: String(context.orderId),
+                note: `订单采购入库：${item.model}`,
+                createdAt: context.createdAt,
+            }
+        );
+        return { inventoryType, inventoryAddQty: result.changeQty, resourceId: coilId };
+    }
+
+    const partId = parsePositiveId(item.partId);
+    if (!partId) throw new Error(`采购项「${item.model}」没有对应零件，无法入库`);
+    const part = db.prepare('SELECT model, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
+    if (!part || String(part.model || '') !== String(item.model || '')) {
+        throw new Error(`采购项「${item.model}」对应零件不存在或已变化`);
+    }
+    const inventoryAddQty = purchaseToInventoryQty(item, purchaseQty);
+    safeUpdate('parts', partId, { stock: Math.max(0, Number(part.stock || 0) + inventoryAddQty) });
+    return { inventoryType, inventoryAddQty, resourceId: partId };
+}
+
 function updatePurchaseItemProgress(id, body) {
     const action = db.transaction((orderId) => {
         const record = getOrderRecord(orderId);
@@ -175,17 +220,21 @@ function updatePurchaseItemProgress(id, body) {
         const stockDelta = quantities.stockedQty - Number(currentItem.stockedQty || 0);
         const now = new Date().toISOString();
         let receiptId = null;
+        let stockAddition = null;
 
         if (stockDelta > 0) {
-            const partId = parsePositiveId(currentItem.partId);
-            if (!partId) throw new Error(`采购项「${currentItem.model}」没有对应零件，无法入库`);
-            const part = db.prepare('SELECT model, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
-            if (!part || String(part.model || '') !== String(currentItem.model || '')) {
-                throw new Error(`采购项「${currentItem.model}」对应零件不存在或已变化`);
-            }
-            const inventoryStockDelta = purchaseToInventoryQty(currentItem, stockDelta);
-            safeUpdate('parts', partId, { stock: Math.max(0, Number(part.stock || 0) + inventoryStockDelta) });
             receiptId = randomUUID();
+            const inventory = applyPurchaseInventory(currentItem, stockDelta, { orderId, createdAt: now });
+            stockAddition = {
+                inventoryType: inventory.inventoryType,
+                resourceId: inventory.resourceId,
+                partId: inventory.inventoryType === 'part' ? inventory.resourceId : null,
+                coilId: inventory.inventoryType === 'coil' ? inventory.resourceId : null,
+                addQty: stockDelta,
+                inventoryAddQty: inventory.inventoryAddQty,
+                purchaseUnit: currentItem.purchaseUnit || '',
+                receiptId,
+            };
         }
 
         const nextItem = normalizePurchaseItem({
@@ -218,17 +267,11 @@ function updatePurchaseItemProgress(id, body) {
 
         return {
             order: orderRow(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)),
-            stockAddition: stockDelta > 0 ? {
-                partId: currentItem.partId,
-                addQty: stockDelta,
-                inventoryAddQty: purchaseToInventoryQty(currentItem, stockDelta),
-                purchaseUnit: currentItem.purchaseUnit || '',
-                receiptId,
-            } : null,
+            stockAddition,
         };
     });
     const result = action(id);
-    if (result.stockAddition) invalidatePartsCache();
+    if (result.stockAddition?.inventoryType === 'part') invalidatePartsCache();
     return result;
 }
 
@@ -328,29 +371,35 @@ function completePurchaseOrder(id) {
         const purchaseList = (plans.get(orderId)?.purchaseList || parseOrderJsonArray(getOrderRecord(orderId), 'purchase_list_json'))
             .map(normalizePurchaseItem);
         const inboundItems = purchaseList.filter(item => Math.max(item.plannedQty, item.orderedQty) > item.stockedQty);
-        const invalidItems = inboundItems.filter(item => !parsePositiveId(item.partId));
+        const invalidItems = inboundItems.filter(item => {
+            const inventoryType = purchaseInventoryType(item);
+            if (inventoryType === 'none') return false;
+            return inventoryType === 'coil'
+                ? !parsePositiveId(item.coilId)
+                : !parsePositiveId(item.partId);
+        });
         if (invalidItems.length > 0) {
-            const error = new Error(`以下采购项没有对应零件，无法入库：${invalidItems.map(item => `${item.model}${item.supplier ? `（${item.supplier}）` : ''}`).join('、')}`);
+            const error = new Error(`以下采购项没有对应库存档案，无法入库：${invalidItems.map(item => `${item.model}${item.supplier ? `（${item.supplier}）` : ''}`).join('、')}`);
             error.statusCode = 400;
             throw error;
         }
         const additions = [];
 
         for (const item of inboundItems) {
-            const partId = parsePositiveId(item.partId);
             const addQty = Math.max(Number(item.plannedQty || 0), Number(item.orderedQty || 0))
                 - Number(item.stockedQty || 0);
             if (!Number.isFinite(addQty) || addQty <= 0) throw new Error(`采购项「${item.model}」入库数量无效`);
-            const current = db.prepare('SELECT model, supplier, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(partId);
-            if (!current) throw new Error(`采购项「${item.model}」对应零件不存在`);
-            if (String(current.model || '') !== String(item.model || '')) throw new Error(`采购项「${item.model}」与零件库记录不一致`);
-            const inventoryAddQty = purchaseToInventoryQty(item, addQty);
-            const stock = Math.max(0, Number(current.stock || 0) + inventoryAddQty);
-            safeUpdate('parts', partId, { stock });
+            const inventory = applyPurchaseInventory(item, addQty, {
+                orderId,
+                createdAt: new Date().toISOString(),
+            });
             additions.push({
-                partId,
+                inventoryType: inventory.inventoryType,
+                resourceId: inventory.resourceId,
+                partId: inventory.inventoryType === 'part' ? inventory.resourceId : null,
+                coilId: inventory.inventoryType === 'coil' ? inventory.resourceId : null,
                 addQty,
-                inventoryAddQty,
+                inventoryAddQty: inventory.inventoryAddQty,
                 purchaseUnit: item.purchaseUnit || '',
             });
         }
@@ -390,7 +439,7 @@ function completePurchaseOrder(id) {
         };
     });
     const result = action(id);
-    invalidatePartsCache();
+    if (result.additions.some(item => item.inventoryType === 'part')) invalidatePartsCache();
     return result;
 }
 
@@ -433,7 +482,10 @@ router.get('/history-price/:recipeName', (req, res) => {
 router.post('/purchase-plan', (req, res) => {
     try {
         const items = Array.isArray(req.body?.items) ? req.body.items : [];
-        res.json({ success: true, data: buildOrderPlan(items, dbGetAllParts()) });
+        res.json({
+            success: true,
+            data: buildOrderPlan(items, dbGetAllParts(), { coilsCatalog: dbGetAllCoils() }),
+        });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }

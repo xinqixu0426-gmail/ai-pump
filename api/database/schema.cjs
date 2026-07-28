@@ -567,6 +567,26 @@ const LEGACY_COLUMN_UPGRADES = {
     ],
 };
 
+const COIL_STOCK_COLUMN_DEFINITION = 'INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0)';
+const COIL_INVENTORY_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS coil_stock_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        coil_id INTEGER NOT NULL,
+        change_qty INTEGER NOT NULL,
+        balance_after INTEGER NOT NULL,
+        movement_type TEXT NOT NULL,
+        reference_type TEXT DEFAULT '',
+        reference_id TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(coil_id) REFERENCES coils(id),
+        CHECK(change_qty <> 0),
+        CHECK(balance_after >= 0)
+    );
+    CREATE INDEX IF NOT EXISTS idx_coil_stock_movements_coil_created
+        ON coil_stock_movements(coil_id, created_at DESC);
+`;
+
 const APPLICATION_TABLES = Object.freeze([
     'ai_answer_feedback',
     'ai_conversation_messages',
@@ -575,6 +595,7 @@ const APPLICATION_TABLES = Object.freeze([
     'ai_evaluation_results',
     'ai_evaluation_runs',
     'audit_log',
+    'coil_stock_movements',
     'coils',
     'config',
     'customers',
@@ -644,6 +665,8 @@ module.exports = {
     APPLICATION_TABLES,
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
+    COIL_INVENTORY_SCHEMA_SQL,
+    COIL_STOCK_COLUMN_DEFINITION,
     CORE_CONSTRAINED_TABLES,
     LEGACY_COLUMN_UPGRADES,
     canonicalCreateTableSql,

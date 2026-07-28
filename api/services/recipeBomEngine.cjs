@@ -79,6 +79,7 @@ function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATE
     if (!result.success) return null;
     const data = result.data;
     return {
+        coilId: data.coilId || null,
         totalCost: roundMoney(data.totalCost),
         material: data.material || material || DEFAULT_COIL_MATERIAL,
         slotType: data.slotType || slotType || '小眼',
@@ -224,6 +225,8 @@ function buildRecipeBomDraft(input, context) {
             name: '线圈转子',
             supplier: '',
             qty: 1,
+            coilId: coilSnapshot.coilId || null,
+            inventoryType: coilSnapshot.coilId ? 'coil' : 'none',
             snapshotPrice: Number(coilSnapshot.totalCost || 0),
             material: coilSnapshot.material || coilMaterial || DEFAULT_COIL_MATERIAL,
             slotType: coilSnapshot.slotType || coilSlotType || '小眼',

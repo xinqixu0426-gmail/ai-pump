@@ -249,7 +249,7 @@ test('Knowledge service：配方测试报告进入可检索内容', () => {
             recipeId: 3,
             originalName: 'QDX1.5-38-12-180.xls',
             reportType: 'pump_performance_test',
-            extractedText: '规定点：流量 15m3/h，扬程 10m，效率 15%\n实测点：流量 11.6m3/h，扬程 7.8m，效率 14.6%\n偏差：流量 -22.4%，扬程 -22.4%，效率 -2.4%\n测试点2：流量 1.07m3/h，扬程 34.33m，机组效率 8.42%',
+            extractedText: '规定点：流量 15m3/h，扬程 10m，效率 15%\n实测点：流量 11.6m3/h，扬程 7.8m，效率 14.6%\n偏差：流量 -22.4%，扬程 -22.4%，效率 -2.4%\n测试点2：流量 1.07m3/h，扬程 34.33m，机组效率 8.42%\n测试点11：电压 -V，电流 -A，功率因数 55K，输入功率 -kW，转速 -r/min，流量 -m3/h，扬程 -m，机组效率 -%',
             updatedAt: '2026-02-01',
         }],
         coils: [],
@@ -262,6 +262,7 @@ test('Knowledge service：配方测试报告进入可检索内容', () => {
 
     const recipe = entries.find(entry => entry.entryType === 'recipe');
     assert.match(recipe.content, /测试点2：流量 1\.07m3\/h/);
+    assert.doesNotMatch(recipe.content, /测试点11/);
     assert.doesNotMatch(recipe.content, /规定点：|实测点：|偏差：/);
     assert.match(recipe.content, /性能测试报告附件（不是图纸）/);
     assert.ok(recipe.tags.includes('性能测试报告'));
