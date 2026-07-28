@@ -63,10 +63,28 @@ export type KnowledgeTypeStats = {
   pending: number;
 };
 
+export type KnowledgeAutoSyncStatus = {
+  enabled: boolean;
+  running: boolean;
+  pending: boolean;
+  pendingCount: number;
+  pendingSources: string[];
+  lastMode: 'automatic' | 'flush' | 'manual' | null;
+  lastRequestedAt: string | null;
+  lastStartedAt: string | null;
+  lastCompletedAt: string | null;
+  lastFailedAt: string | null;
+  lastError: string;
+  consecutiveFailures: number;
+  retryScheduled: boolean;
+  lastResult: (KnowledgeSyncStats & { ftsEnabled: boolean }) | null;
+};
+
 export type KnowledgeOverview = {
   generatedAt: string;
   lastSyncedAt: string | null;
   ftsEnabled: boolean;
+  autoSync: KnowledgeAutoSyncStatus;
   stats: {
     currentTotal: number;
     storedTotal: number;

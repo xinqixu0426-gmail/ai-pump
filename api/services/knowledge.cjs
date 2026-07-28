@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { buildDataQualitySummary } = require('./qualitySummary.cjs');
+const { getAutoKnowledgeSyncStatus } = require('./knowledgeAutoSync.cjs');
 const { parsePositiveId } = require('./validation.cjs');
 
 const ENTRY_TYPES = new Set([
@@ -866,6 +867,7 @@ function inspectKnowledgeOverview(options = {}) {
         generatedAt: new Date().toISOString(),
         lastSyncedAt,
         ftsEnabled,
+        autoSync: options.autoSyncStatus || getAutoKnowledgeSyncStatus(),
         stats: {
             currentTotal: currentEntries.length,
             storedTotal: storedEntries.length,

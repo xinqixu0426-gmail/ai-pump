@@ -474,7 +474,31 @@ export function KnowledgeView({
             <RefreshCw size={17} className="text-violet-600" />
           </div>
           <div className="mt-2 text-sm font-semibold text-ink">{dateTime(overview?.lastSyncedAt)}</div>
-          <div className="mt-2 text-xs text-muted">{overview?.ftsEnabled ? 'FTS 全文检索已启用' : '当前使用普通文本检索'}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <StatusBadge
+              tone={!overview?.autoSync.enabled
+                ? 'slate'
+                : overview.autoSync.lastError
+                  ? 'red'
+                  : overview.autoSync.running || overview.autoSync.pending
+                    ? 'amber'
+                    : 'green'}
+            >
+              {!overview?.autoSync.enabled
+                ? '自动同步已关闭'
+                : overview.autoSync.lastError
+                  ? '自动同步异常'
+                  : overview.autoSync.running
+                    ? '自动同步中'
+                    : overview.autoSync.pending
+                      ? '等待自动同步'
+                      : '自动同步正常'}
+            </StatusBadge>
+            <span>{overview?.ftsEnabled ? 'FTS 全文检索已启用' : '普通文本检索'}</span>
+          </div>
+          {overview?.autoSync.lastError ? (
+            <div className="mt-2 line-clamp-2 text-xs text-rose-700">{overview.autoSync.lastError}</div>
+          ) : null}
         </FadePanel>
       </div>
 
@@ -691,7 +715,7 @@ export function KnowledgeView({
         <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-sm font-semibold text-ink">知识条目</div>
-            <div className="mt-1 text-xs text-muted">检索 AI 当前可读取的内容，并核对业务来源。</div>
+            <div className="mt-1 text-xs text-muted">业务数据变更后自动刷新；手动同步用于全量核对和故障恢复。</div>
           </div>
           <Button variant="primary" icon={<RefreshCw size={15} />} onClick={() => { setSyncMessage(''); setSyncOpen(true); }}>
             同步知识库

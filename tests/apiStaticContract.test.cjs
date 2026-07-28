@@ -813,6 +813,31 @@ test('API 静态契约：Knowledge V3 待复核工作台展示规则影响并完
     assert.match(businessFlow, /暂时跳过只改变当前页面的处理顺序/);
 });
 
+test('API 静态契约：Knowledge V4 核心业务变更自动合并同步并保留人工兜底', () => {
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const app = readUtf8(path.join(repoRoot, 'api.cjs'));
+    const autoSync = readUtf8(path.join(repoRoot, 'api/services/knowledgeAutoSync.cjs'));
+    const knowledgeService = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
+    const knowledgeRoute = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
+    const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
+    const apiDocs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(db, /notifyKnowledgeSourceChange/);
+    assert.match(db, /requestAutoKnowledgeSync/);
+    assert.match(autoSync, /AUTO_SYNC_SOURCE_TABLES/);
+    assert.match(autoSync, /DEFAULT_RETRY_DELAYS_MS/);
+    assert.match(autoSync, /pendingSources/);
+    assert.match(autoSync, /recordExternalSuccess/);
+    assert.match(app, /requestFullAutoKnowledgeSync\('api_startup'\)/);
+    assert.match(knowledgeService, /autoSync: options\.autoSyncStatus \|\| getAutoKnowledgeSyncStatus\(\)/);
+    assert.match(knowledgeRoute, /recordKnowledgeSyncSuccess\(data, 'manual'\)/);
+    assert.match(knowledgeView, /自动同步正常/);
+    assert.match(knowledgeView, /手动同步用于全量核对和故障恢复/);
+    assert.match(docs, /Knowledge Base V4 第一阶段/);
+    assert.match(apiDocs, /autoSync/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

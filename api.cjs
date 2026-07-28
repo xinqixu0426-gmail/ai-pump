@@ -99,6 +99,7 @@ app.get('/api/health', (req, res, next) => {
 
 // AI 路由内部按端点鉴权；Siri 使用独立的 SIRI_API_TOKEN 验证
 const aiRouter = require('./api/routes/ai.cjs');
+const { requestFullAutoKnowledgeSync } = require('./api/services/knowledgeAutoSync.cjs');
 app.use('/', aiRouter);
 
 // ══════════════════════════════════════════════
@@ -199,4 +200,7 @@ app.listen(PORT, '0.0.0.0', () => {
     // 加载 AI System Prompt
     console.log('[启动] 正在加载 AI System Prompt...');
     aiRouter.loadSystemPromptFromDB();
+
+    // 启动后自动核对派生知识；内容哈希确保只写入真实变化。
+    requestFullAutoKnowledgeSync('api_startup');
 });

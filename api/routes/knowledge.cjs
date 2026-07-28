@@ -6,6 +6,7 @@ const {
     getKnowledgeEntryDetail,
     inspectKnowledgeOverview,
 } = require('../services/knowledge.cjs');
+const { recordKnowledgeSyncSuccess } = require('../services/knowledgeAutoSync.cjs');
 
 const router = Router();
 
@@ -37,6 +38,7 @@ router.get('/', (req, res) => {
 router.post('/sync', (req, res) => {
     try {
         const data = syncKnowledgeEntries();
+        recordKnowledgeSyncSuccess(data, 'manual');
         res.json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

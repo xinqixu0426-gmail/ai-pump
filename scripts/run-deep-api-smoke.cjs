@@ -71,6 +71,52 @@ async function request(label, method, pathname, body, expectedStatuses = [200]) 
     return { response, payload };
 }
 
+async function waitForAutomaticKnowledgeUpdate(part, expectedPrice) {
+    let lastStatus = null;
+    for (let index = 0; index < 40; index += 1) {
+        await new Promise(resolve => setTimeout(resolve, 250));
+        const overviewResponse = await fetch(`${baseUrl}/api/knowledge/overview`, {
+            headers: { Cookie: cookie },
+            signal: AbortSignal.timeout(5000),
+        });
+        const overview = (await overviewResponse.json()).data;
+        lastStatus = overview?.autoSync;
+        if (
+            !lastStatus?.enabled
+            || lastStatus.running
+            || lastStatus.pending
+            || lastStatus.lastMode !== 'automatic'
+            || !lastStatus.lastCompletedAt
+        ) {
+            continue;
+        }
+
+        const params = new URLSearchParams({
+            query: part.model,
+            sourceTable: 'parts',
+            limit: '10',
+        });
+        const searchResponse = await fetch(`${baseUrl}/api/knowledge?${params}`, {
+            headers: { Cookie: cookie },
+            signal: AbortSignal.timeout(5000),
+        });
+        const entries = (await searchResponse.json()).data || [];
+        const entry = entries.find(item => String(item.sourceId) === String(part.id));
+        if (!entry) continue;
+
+        const detailResponse = await fetch(`${baseUrl}/api/knowledge/${entry.id}`, {
+            headers: { Cookie: cookie },
+            signal: AbortSignal.timeout(5000),
+        });
+        const detail = (await detailResponse.json()).data;
+        if (detail?.content?.includes(String(expectedPrice))) {
+            results.push({ label: '业务变更自动刷新知识', status: 200, ms: 0 });
+            return;
+        }
+    }
+    throw new Error(`知识自动刷新超时: ${JSON.stringify(lastStatus)}`);
+}
+
 async function readCoreResources() {
     const paths = [
         ['零件列表', '/api/parts'],
@@ -220,6 +266,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('批量库存', 'POST', '/api/parts/batch-stock', {
         operations: [{ partId: part.id, delta: 2 }],
     });
+    await waitForAutomaticKnowledgeUpdate(part, 14.56);
 
     const template = await createBundleTemplate(unique);
     await request('修改模板', 'PATCH', `/api/templates/${template.id}`, {

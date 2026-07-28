@@ -8,8 +8,13 @@ const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./servic
 const { collapseLegacyCableParts } = require('./services/cableAccessory.cjs');
 const { partSubcategory } = require('./services/packagingClassification.cjs');
 const { pruneAuditLog } = require('./services/auditRetention.cjs');
+const {
+    AUTO_SYNC_SOURCE_TABLES,
+    requestAutoKnowledgeSync,
+} = require('./services/knowledgeAutoSync.cjs');
 const { runMigrations } = require('./database/migrations.cjs');
 const backupLogger = createLogger('backup');
+const knowledgeSyncLogger = createLogger('knowledge-auto-sync');
 
 // ── SQLite 初始化 ──
 const DB_PATH = path.join(__dirname, '..', 'pump.db');
@@ -464,6 +469,7 @@ function setSetting(key, value) {
         const newRow = { key, value: String(value), updated_at: now };
         writeAuditLog(oldRow ? 'SETTING_UPDATE' : 'SETTING_INSERT', 'system_settings', null, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(newRow));
     } catch { /* 审计日志写入失败不应阻断业务 */ }
+    notifyKnowledgeSourceChange('system_settings', key, oldRow ? 'update' : 'insert');
 }
 
 function getConfig(key) {
@@ -497,6 +503,19 @@ function auditJson(value) {
     });
 }
 
+function notifyKnowledgeSourceChange(table, id, operation) {
+    if (!AUTO_SYNC_SOURCE_TABLES.has(table)) return;
+    try {
+        requestAutoKnowledgeSync({
+            sourceTable: table,
+            sourceId: id ?? '*',
+            reason: operation,
+        });
+    } catch (error) {
+        knowledgeSyncLogger.warn(`无法提交 ${table}#${id ?? '*'} 的自动同步请求：${error.message}`);
+    }
+}
+
 function safeInsert(table, values) {
     if (!SAFE_TABLES.has(table)) throw new Error(`safeInsert: 非法表名 "${table}"`);
     const cols = [];
@@ -517,6 +536,7 @@ function safeInsert(table, values) {
             : values;
         writeAuditLog('INSERT', table, recordId || null, null, auditJson(newRow || values));
     } catch { /* 审计日志写入失败不应阻断业务 */ }
+    notifyKnowledgeSourceChange(table, Number(info.lastInsertRowid) || '*', 'insert');
     return info;
 }
 
@@ -541,6 +561,7 @@ function safeUpdate(table, id, updates) {
     try {
         writeAuditLog('UPDATE', table, id, oldRow ? auditJson(oldRow) : null, auditJson(updates));
     } catch { /* 审计日志写入失败不应阻断业务 */ }
+    notifyKnowledgeSourceChange(table, id, 'update');
 }
 
 /**
@@ -567,6 +588,7 @@ function softDelete(table, id) {
     try {
         writeAuditLog('SOFT_DELETE', table, id, auditJson(oldRow), null);
     } catch { /* 审计日志写入失败不应阻断业务 */ }
+    notifyKnowledgeSourceChange(table, id, 'soft_delete');
 }
 
 /**
@@ -580,6 +602,7 @@ function hardDelete(table, id) {
     try {
         writeAuditLog('DELETE', table, id, auditJson(oldRow), null);
     } catch { /* 审计日志写入失败不应阻断业务 */ }
+    notifyKnowledgeSourceChange(table, id, 'delete');
 }
 
 // ── P1.7: loadPartsData 缓存 ──
