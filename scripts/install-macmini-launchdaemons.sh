@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR=${0:A:h}
-PROJECT_DIR=/Users/dan/Documents/pump-cost-accounting-system
+PROJECT_DIR=/Users/dan/pump-cost-accounting-system
 USER_ID=$(/usr/bin/id -u dan)
 
 if [[ $EUID -ne 0 ]]; then

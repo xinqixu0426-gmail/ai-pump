@@ -1,13 +1,15 @@
 # 生产发布检查清单
 
-> 更新于 2026-07-21。
+> 更新于 2026-07-28。
 
 本文用于 Mac Mini 生产环境发布前后的固定检查。发布命令以项目根目录为准：
 
 ```bash
-cd ~/Documents/pump-cost-accounting-system
+cd ~/pump-cost-accounting-system
 export PATH=/opt/homebrew/bin:$PATH
 ```
+
+生产运行目录不要放在 `~/Documents`。macOS 的 TCC 隐私保护会阻止 LaunchDaemon 读取该目录，导致服务反复启动失败。
 
 ## 1. 发布前
 
@@ -18,7 +20,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 拉取代码后安装依赖：
 
 ```bash
-git pull origin master
+git pull --ff-only origin master
 npm install
 npm --prefix apps/web-next install
 ```
@@ -54,8 +56,8 @@ sudo ./scripts/install-macmini-launchdaemons.sh
 ```bash
 pkill -f 'node api.cjs'
 pkill -f 'next start -p 3000'
-nohup node api.cjs > api.out.log 2>&1 &
-nohup npm run web-next:start:primary > web-next.out.log 2>&1 &
+nohup node api.cjs > logs/api.log 2>&1 &
+nohup npm run web-next:start:primary > logs/web.log 2>&1 &
 ```
 
 ## 4. 发布后检查
@@ -86,7 +88,7 @@ tail -n 80 logs/web-launchd.error.log
 ```bash
 git log --oneline -5
 git switch master
-git pull origin master
+git pull --ff-only origin master
 ```
 
 选择上一个已知可用提交或标签后，再执行：

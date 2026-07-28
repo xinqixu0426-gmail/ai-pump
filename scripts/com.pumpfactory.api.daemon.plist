@@ -14,7 +14,7 @@
     <string>api.cjs</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/dan/Documents/pump-cost-accounting-system</string>
+  <string>/Users/dan/pump-cost-accounting-system</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>NODE_ENV</key>
@@ -29,8 +29,8 @@
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>/Users/dan/Documents/pump-cost-accounting-system/logs/api-launchd.log</string>
+  <string>/Users/dan/pump-cost-accounting-system/logs/api-launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/dan/Documents/pump-cost-accounting-system/logs/api-launchd.error.log</string>
+  <string>/Users/dan/pump-cost-accounting-system/logs/api-launchd.error.log</string>
 </dict>
 </plist>

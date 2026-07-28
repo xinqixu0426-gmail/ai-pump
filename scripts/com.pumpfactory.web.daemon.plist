@@ -11,13 +11,13 @@
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/node</string>
-    <string>/Users/dan/Documents/pump-cost-accounting-system/apps/web-next/node_modules/next/dist/bin/next</string>
+    <string>/Users/dan/pump-cost-accounting-system/apps/web-next/node_modules/next/dist/bin/next</string>
     <string>start</string>
     <string>-p</string>
     <string>3000</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/dan/Documents/pump-cost-accounting-system/apps/web-next</string>
+  <string>/Users/dan/pump-cost-accounting-system/apps/web-next</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>NODE_ENV</key>
@@ -32,8 +32,8 @@
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>/Users/dan/Documents/pump-cost-accounting-system/logs/web-launchd.log</string>
+  <string>/Users/dan/pump-cost-accounting-system/logs/web-launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/dan/Documents/pump-cost-accounting-system/logs/web-launchd.error.log</string>
+  <string>/Users/dan/pump-cost-accounting-system/logs/web-launchd.error.log</string>
 </dict>
 </plist>

@@ -62,8 +62,8 @@
 ## 6. 部署
 
 - 生产服务器：Mac Mini (192.168.31.216)
-- 路径：`~/Documents/pump-cost-accounting-system`
-- 进程管理：裸 node 进程（`nohup node api.cjs &`）
+- 路径：`~/pump-cost-accounting-system`（不要放在 `Documents`，避免 macOS 后台服务被 TCC 权限拦截）
+- 进程管理：系统级 LaunchDaemon（`sudo ./scripts/install-macmini-launchdaemons.sh`）
 - SSH 需要手动 export PATH 才能用 npm：`export PATH=/opt/homebrew/bin:$PATH`
 
 ## 7. 代码风格
