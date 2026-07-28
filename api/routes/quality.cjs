@@ -4,6 +4,7 @@ const { buildBusinessAlerts } = require('../services/businessAlerts.cjs');
 const { analyzeRecipeConfiguration } = require('../services/recipeIntelligence.cjs');
 const { saveRecipeAnalysisFeedback } = require('../services/recipeAnalysisFeedback.cjs');
 const {
+    buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
     listFactoryRuleCandidates,
     refreshFactoryRuleCandidates,
@@ -42,6 +43,14 @@ router.post('/recipes/:recipeId/feedback', (req, res) => {
             success: true,
             data: saveRecipeAnalysisFeedback(req.params.recipeId, req.body || {}),
         });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/rule-compliance', (req, res) => {
+    try {
+        res.json({ success: true, data: buildFactoryRuleCompliance() });
     } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }

@@ -9,6 +9,7 @@ import {
   businessAlertClassName,
   getBusinessAlerts,
   getDataQualitySummary,
+  getFactoryRuleCompliance,
   getFactoryRuleCandidates,
   getFactoryRuleImpact,
   qualitySeverityClassName,
@@ -17,6 +18,7 @@ import {
   type BusinessAlertsSummary,
   type DataQualitySummary,
   type FactoryRuleCandidate,
+  type FactoryRuleCompliance,
   type FactoryRuleImpact,
   type QualityIssueGroup,
   type QualitySeverity,
@@ -45,6 +47,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [summary, setSummary] = useState<DataQualitySummary | null>(null);
   const [businessAlerts, setBusinessAlerts] = useState<BusinessAlertsSummary | null>(null);
   const [ruleCandidates, setRuleCandidates] = useState<FactoryRuleCandidate[]>([]);
+  const [ruleCompliance, setRuleCompliance] = useState<FactoryRuleCompliance | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -60,14 +63,16 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const [quality, alerts, candidates] = await Promise.all([
+      const [quality, alerts, candidates, compliance] = await Promise.all([
         getDataQualitySummary(),
         getBusinessAlerts(),
         getFactoryRuleCandidates(),
+        getFactoryRuleCompliance(),
       ]);
       setSummary(quality);
       setBusinessAlerts(alerts);
       setRuleCandidates(candidates);
+      setRuleCompliance(compliance);
       onScoreChange?.(quality.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : '数据质量加载失败');
@@ -99,6 +104,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     try {
       const result = await refreshFactoryRuleCandidates();
       setRuleCandidates(result.candidates);
+      setRuleCompliance(await getFactoryRuleCompliance());
       setRuleImpacts({});
       setExpandedRuleImpactId(null);
     } catch (err) {
@@ -147,6 +153,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
       setRuleReviewingId(candidate.id);
       const updated = await reviewFactoryRuleCandidate(candidate.id, { status });
       setRuleCandidates((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setRuleCompliance(await getFactoryRuleCompliance());
     } catch (err) {
       setError(err instanceof Error ? err.message : '候选规则审核失败');
     } finally {
@@ -339,6 +346,55 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 {ruleCandidatesNeedingReview.length} 条已批准规则出现忽略证据或置信度下降，继续作为复核建议，但应重新审核后再长期使用。
               </div>
             ) : null}
+          </FadePanel>
+
+          <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+            <div className="border-b border-line p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <ListChecks size={17} />
+                已批准规则执行情况
+              </div>
+              <div className="mt-1 text-xs leading-5 text-muted">
+                自动扫描当前配方是否符合已批准规则，只提示待复核项，不会自动修改配方。
+              </div>
+            </div>
+            <div className="grid border-b border-line sm:grid-cols-4">
+              {[
+                ['已批准规则', ruleCompliance?.summary.approvedRuleCount || 0, 'text-ink'],
+                ['涉及规则问题', ruleCompliance?.summary.ruleViolationCount || 0, 'text-amber-700'],
+                ['受影响配方', ruleCompliance?.summary.affectedRecipeCount || 0, 'text-rose-700'],
+                ['已记录例外', ruleCompliance?.summary.exceptionCount || 0, 'text-sky-700'],
+              ].map(([label, value, tone]) => (
+                <div key={String(label)} className="border-t border-line px-4 py-3 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0">
+                  <div className={`text-lg font-semibold ${tone}`}>{value}</div>
+                  <div className="text-xs text-muted">{label}</div>
+                </div>
+              ))}
+            </div>
+            {!ruleCompliance || ruleCompliance.summary.approvedRuleCount === 0 ? (
+              <div className="px-4 py-5 text-sm text-muted">
+                暂无已批准规则。候选规则批准后，系统会在这里持续监控执行情况。
+              </div>
+            ) : ruleCompliance.summary.ruleViolationCount === 0 ? (
+              <div className="px-4 py-5 text-sm text-emerald-700">
+                当前已批准规则没有发现未处理的配方缺项。
+              </div>
+            ) : (
+              <div className="divide-y divide-line">
+                {ruleCompliance.rules.filter((rule) => rule.summary.needsReviewCount > 0).map((rule) => (
+                  <div key={rule.candidate.id} className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-sm font-medium text-ink">{rule.candidate.title}</div>
+                      <StatusBadge tone="amber">待复核 {rule.summary.needsReviewCount}</StatusBadge>
+                      {rule.candidate.needsReview ? <StatusBadge tone="red">证据需复审</StatusBadge> : null}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-muted">
+                      需要复核：{rule.groups.needsReview.map((item) => item.recipeName).join('、')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </FadePanel>
 
           <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">

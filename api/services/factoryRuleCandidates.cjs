@@ -321,6 +321,70 @@ function buildFactoryRuleImpact(idValue, options = {}) {
     };
 }
 
+function buildFactoryRuleCompliance(options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const approvedCandidates = listFactoryRuleCandidates({ db: database, status: 'approved' });
+    const rules = approvedCandidates.map(candidate => {
+        const impact = buildFactoryRuleImpact(candidate.id, { db: database });
+        return {
+            candidate,
+            scope: impact.scope,
+            summary: impact.summary,
+            groups: impact.groups,
+            status: impact.summary.needsReviewCount > 0 ? 'attention' : 'compliant',
+            guidance: impact.guidance,
+        };
+    });
+    const affectedRecipes = new Map();
+    for (const rule of rules) {
+        for (const recipe of rule.groups.needsReview) {
+            const current = affectedRecipes.get(recipe.recipeId) || {
+                recipeId: recipe.recipeId,
+                recipeName: recipe.recipeName,
+                spec: recipe.spec,
+                ruleIds: [],
+                ruleTitles: [],
+            };
+            current.ruleIds.push(rule.candidate.id);
+            current.ruleTitles.push(rule.candidate.title);
+            affectedRecipes.set(recipe.recipeId, current);
+        }
+    }
+
+    const ruleViolationCount = rules.reduce(
+        (total, rule) => total + rule.summary.needsReviewCount,
+        0
+    );
+    const exceptionCount = rules.reduce(
+        (total, rule) => total + rule.summary.specialCaseCount + rule.summary.ignoredCount,
+        0
+    );
+    return {
+        generatedAt: new Date().toISOString(),
+        summary: {
+            approvedRuleCount: rules.length,
+            rulesWithViolations: rules.filter(rule => rule.summary.needsReviewCount > 0).length,
+            rulesNeedingEvidenceReview: rules.filter(rule => rule.candidate.needsReview).length,
+            affectedRecipeCount: affectedRecipes.size,
+            ruleViolationCount,
+            exceptionCount,
+            checkedRecipeRulePairs: rules.reduce(
+                (total, rule) => total + rule.summary.totalRecipes,
+                0
+            ),
+        },
+        affectedRecipes: [...affectedRecipes.values()]
+            .sort((left, right) => right.ruleIds.length - left.ruleIds.length
+                || left.recipeName.localeCompare(right.recipeName, 'zh-CN')),
+        rules: rules.sort((left, right) => right.summary.needsReviewCount - left.summary.needsReviewCount
+            || left.candidate.title.localeCompare(right.candidate.title, 'zh-CN')),
+        guidance: ruleViolationCount > 0
+            ? `发现 ${affectedRecipes.size} 个配方涉及 ${ruleViolationCount} 条已批准规则待复核；请逐条确认遗漏或记录客户特殊情况。`
+            : '当前已批准规则没有发现未处理的配方缺项。',
+    };
+}
+
 function refreshFactoryRuleCandidates(options = {}) {
     const accessors = options.db ? options : loadDbAccessors();
     const database = options.db || accessors.db;
@@ -428,6 +492,7 @@ function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
 
 module.exports = {
     buildRuleCandidateGroups,
+    buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
     confidenceForEvidence,
     learningEvidenceHash,

@@ -208,6 +208,35 @@ export type FactoryRuleImpact = {
   guidance: string;
 };
 
+export type FactoryRuleCompliance = {
+  generatedAt: string;
+  summary: {
+    approvedRuleCount: number;
+    rulesWithViolations: number;
+    rulesNeedingEvidenceReview: number;
+    affectedRecipeCount: number;
+    ruleViolationCount: number;
+    exceptionCount: number;
+    checkedRecipeRulePairs: number;
+  };
+  affectedRecipes: Array<{
+    recipeId: number;
+    recipeName: string;
+    spec: string;
+    ruleIds: number[];
+    ruleTitles: string[];
+  }>;
+  rules: Array<{
+    candidate: FactoryRuleCandidate;
+    scope: FactoryRuleImpact['scope'];
+    summary: FactoryRuleImpact['summary'];
+    groups: FactoryRuleImpact['groups'];
+    status: 'attention' | 'compliant';
+    guidance: string;
+  }>;
+  guidance: string;
+};
+
 export type RecipeConfigurationAnalysis = {
   version: string;
   generatedAt: string;
@@ -334,6 +363,12 @@ export async function refreshFactoryRuleCandidates(): Promise<{
 export async function getFactoryRuleImpact(id: number): Promise<FactoryRuleImpact> {
   const result = await proxyRequest<ApiResponse<FactoryRuleImpact>>(`/api/quality/rule-candidates/${id}/impact`);
   if (!result.success || !result.data) throw new Error(result.error || '规则影响分析失败');
+  return result.data;
+}
+
+export async function getFactoryRuleCompliance(): Promise<FactoryRuleCompliance> {
+  const result = await proxyRequest<ApiResponse<FactoryRuleCompliance>>('/api/quality/rule-compliance');
+  if (!result.success || !result.data) throw new Error(result.error || '规则执行情况加载失败');
   return result.data;
 }
 

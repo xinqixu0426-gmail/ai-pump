@@ -404,6 +404,21 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'get_factory_rule_compliance': {
+            const data = await getJson(
+                internalFetch,
+                '/api/quality/rule-compliance',
+                '规则执行情况读取失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_compliance',
+                summary: `当前有 ${data.summary?.approvedRuleCount || 0} 条已批准规则，${data.summary?.affectedRecipeCount || 0} 个配方需要复核。`,
+                display: { mode: 'compact', title: '规则执行情况' },
+                data,
+            };
+        }
+
         case 'refresh_factory_rule_candidates': {
             const data = await postJson(
                 internalFetch,

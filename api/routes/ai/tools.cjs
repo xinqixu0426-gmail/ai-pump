@@ -620,6 +620,14 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_factory_rule_compliance',
+            description: '汇总全部已批准工厂规则的当前执行情况，只读。返回存在问题的规则、受影响配方、规则问题总数和已记录例外。适合用户问“哪些配方不符合工厂规则”“批准的规则执行得怎么样”。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'refresh_factory_rule_candidates',
             description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准，也不会直接同步知识库；失去最低支持证据的旧规则会安全转为失效；写库前必须确认。',
             parameters: { type: 'object', properties: {} }

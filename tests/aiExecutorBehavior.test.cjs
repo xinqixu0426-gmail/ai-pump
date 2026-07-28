@@ -503,6 +503,12 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
                 data: { summary: { totalRecipes: 4, needsReviewCount: 1 } },
             });
         }
+        if (call.url.endsWith('/api/quality/rule-compliance') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: { summary: { approvedRuleCount: 2, affectedRecipeCount: 3 } },
+            });
+        }
         if (call.url.endsWith('/api/quality/rule-candidates/5') && call.method === 'PATCH') {
             assert.deepEqual(call.body, { status: 'approved', reviewNote: '确认' });
             return jsonResponse({ success: true, data: { id: 5, status: 'approved' } });
@@ -518,13 +524,18 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
     assert.equal(impact.success, true);
     assert.match(impact.summary, /4 个同模板配方/);
 
+    const compliance = await executeToolCall('get_factory_rule_compliance', {}, { allowWrite: false });
+    assert.equal(compliance.success, true);
+    assert.match(compliance.summary, /2 条已批准规则/);
+    assert.match(compliance.summary, /3 个配方需要复核/);
+
     const args = { candidateId: 5, status: 'approved', reviewNote: '确认' };
     const blocked = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: false });
     assert.equal(blocked.requiresConfirmation, true);
     const approved = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: true });
     assert.equal(approved.success, true);
     assert.equal(approved.data.status, 'approved');
-    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'PATCH']);
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'GET', 'PATCH']);
 });
 
 test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详情', async () => {

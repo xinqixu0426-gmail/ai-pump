@@ -152,10 +152,12 @@ test('关键 API 集成契约：配方检查反馈使用统一反馈服务写入
     assert.match(source, /saveRecipeAnalysisFeedback\(req\.params\.recipeId, req\.body \|\| \{\}\)/);
 });
 
-test('关键 API 集成契约：候选规则提供归纳、列表和审核入口', () => {
+test('关键 API 集成契约：候选规则提供归纳、影响、执行监控和审核入口', () => {
     const source = readUtf8('api/routes/quality.cjs');
+    assert.match(source, /router\.get\('\/rule-compliance'/);
     assert.match(source, /router\.get\('\/rule-candidates'/);
     assert.match(source, /router\.post\('\/rule-candidates\/refresh'/);
+    assert.match(source, /router\.get\('\/rule-candidates\/:id\/impact'/);
     assert.match(source, /router\.patch\('\/rule-candidates\/:id'/);
     assert.match(source, /refreshFactoryRuleCandidates/);
     assert.match(source, /reviewFactoryRuleCandidate/);

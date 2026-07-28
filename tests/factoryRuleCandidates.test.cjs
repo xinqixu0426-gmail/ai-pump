@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
+    buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
     buildRuleCandidateGroups,
     confidenceForEvidence,
@@ -188,6 +189,35 @@ test('规则影响分析区分已符合、待复核、特殊情况和忽略配�
         assert.equal(impact.groups.specialCases[0].recipeName, 'V750 特殊');
         assert.equal(impact.groups.ignored[0].recipeName, 'V750 忽略');
         assert.match(impact.guidance, /1 个现有配方需要复核/);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则执行监控汇总全部已批准规则和受影响配方', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        insertFeedback(fixture.db, 4, { decision: 'special_case' });
+        insertFeedback(fixture.db, 5, { decision: 'ignored' });
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        reviewFactoryRuleCandidate(refreshed.candidates[0].id, { status: 'approved' }, fixture);
+
+        const compliance = buildFactoryRuleCompliance(fixture);
+        assert.deepEqual(compliance.summary, {
+            approvedRuleCount: 1,
+            rulesWithViolations: 1,
+            rulesNeedingEvidenceReview: 0,
+            affectedRecipeCount: 1,
+            ruleViolationCount: 1,
+            exceptionCount: 2,
+            checkedRecipeRulePairs: 4,
+        });
+        assert.equal(compliance.rules[0].status, 'attention');
+        assert.equal(compliance.affectedRecipes[0].recipeName, 'V750 菲律宾');
+        assert.deepEqual(compliance.affectedRecipes[0].ruleIds, [refreshed.candidates[0].id]);
+        assert.match(compliance.guidance, /1 个配方涉及 1 条已批准规则/);
     } finally {
         fixture.db.close();
     }

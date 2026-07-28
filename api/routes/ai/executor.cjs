@@ -48,6 +48,7 @@ const LIVE_BUSINESS_TOOLS = new Set([
     'analyze_recipe_configuration',
     'get_factory_rule_candidates',
     'get_factory_rule_impact',
+    'get_factory_rule_compliance',
 ]);
 
 function attachReadProvenance(toolName, result) {
