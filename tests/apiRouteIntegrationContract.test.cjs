@@ -182,6 +182,8 @@ test('关键 API 集成契约：/api/knowledge 提供搜索、详情和同步入
     assert.match(source, /searchKnowledgeEntries\(\{/);
     assert.match(source, /router\.get\('\/sync-runs'/);
     assert.match(source, /listKnowledgeSyncRuns\(\{/);
+    assert.match(source, /router\.get\('\/health'/);
+    assert.match(source, /buildKnowledgeSyncHealth\(\{/);
     assert.match(source, /router\.post\('\/sync'/);
     assert.match(source, /syncKnowledgeEntries\(\)/);
     assert.match(source, /router\.get\('\/:id'/);

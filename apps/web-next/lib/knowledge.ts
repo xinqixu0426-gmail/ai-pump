@@ -113,6 +113,32 @@ export type KnowledgeSyncHistory = {
   };
 };
 
+export type KnowledgeSyncHealthIssue = {
+  code:
+    | 'auto_sync_disabled'
+    | 'sync_running_too_long'
+    | 'sync_pending_too_long'
+    | 'unscheduled_changes'
+    | 'sync_failed'
+    | 'last_run_failed';
+  severity: 'attention' | 'critical';
+  title: string;
+  message: string;
+  action: 'manual_sync';
+};
+
+export type KnowledgeSyncHealth = {
+  status: 'healthy' | 'attention' | 'critical';
+  summary: string;
+  issues: KnowledgeSyncHealthIssue[];
+  needsRecovery: boolean;
+  pendingTotal: number;
+  latestRun: KnowledgeSyncRun | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  checkedAt: string;
+};
+
 export type KnowledgeOverview = {
   generatedAt: string;
   lastSyncedAt: string | null;
@@ -146,6 +172,12 @@ export async function getKnowledgeSyncRuns(limit = 8): Promise<KnowledgeSyncHist
     `/api/knowledge/sync-runs?limit=${Math.max(1, Math.min(limit, 100))}`
   );
   if (!result.success || !result.data) throw new Error(result.error || '同步记录加载失败');
+  return result.data;
+}
+
+export async function getKnowledgeSyncHealth(): Promise<KnowledgeSyncHealth> {
+  const result = await proxyRequest<ApiResponse<KnowledgeSyncHealth>>('/api/knowledge/health');
+  if (!result.success || !result.data) throw new Error(result.error || '知识同步健康状态加载失败');
   return result.data;
 }
 

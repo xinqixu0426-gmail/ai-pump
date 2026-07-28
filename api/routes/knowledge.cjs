@@ -11,6 +11,7 @@ const {
     recordKnowledgeSyncSuccess,
 } = require('../services/knowledgeAutoSync.cjs');
 const { listKnowledgeSyncRuns } = require('../services/knowledgeSyncHistory.cjs');
+const { buildKnowledgeSyncHealth } = require('../services/knowledgeSyncHealth.cjs');
 
 const router = Router();
 
@@ -44,6 +45,21 @@ router.get('/sync-runs', (req, res) => {
         const data = listKnowledgeSyncRuns({
             limit: req.query.limit,
             status: req.query.status,
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/health', (req, res) => {
+    try {
+        const overview = inspectKnowledgeOverview();
+        const history = listKnowledgeSyncRuns({ limit: 10 });
+        const data = buildKnowledgeSyncHealth({
+            autoSync: overview.autoSync,
+            pendingTotal: overview.stats.pendingTotal,
+            history,
         });
         res.json({ success: true, data });
     } catch (error) {

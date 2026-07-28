@@ -865,6 +865,28 @@ test('API 静态契约：Knowledge V4 同步成功、失败和重试历史可追
     assert.match(docs, /Knowledge Base V4 第二阶段/);
 });
 
+test('API 静态契约：Knowledge V4 健康告警只在真实异常时提供恢复入口', () => {
+    const health = readUtf8(path.join(repoRoot, 'api/services/knowledgeSyncHealth.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
+    const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+    const knowledgeLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/knowledge.ts'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
+    const apiDocs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(health, /unscheduled_changes/);
+    assert.match(health, /sync_pending_too_long/);
+    assert.match(health, /sync_running_too_long/);
+    assert.match(health, /sync_failed/);
+    assert.match(health, /pendingTotal > 0/);
+    assert.match(route, /router\.get\('\/health'/);
+    assert.match(knowledgeLib, /getKnowledgeSyncHealth/);
+    assert.match(knowledgeView, /syncHealth\.status !== 'healthy'/);
+    assert.match(knowledgeView, /检查并恢复/);
+    assert.match(knowledgeView, /setSyncOpen\(true\)/);
+    assert.match(docs, /Knowledge Base V4 第三阶段/);
+    assert.match(apiDocs, /\/api\/knowledge\/health/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

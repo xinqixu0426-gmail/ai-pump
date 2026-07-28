@@ -276,6 +276,15 @@ async function testCrossModuleWriteFlow(baseResources) {
         automaticHistory.items.some(run => run.mode === 'automatic' && run.status === 'success'),
         '业务变更后没有生成自动知识同步历史'
     );
+    const automaticHealth = (await request(
+        '自动知识同步健康',
+        'GET',
+        '/api/knowledge/health'
+    )).payload.data;
+    assert(
+        automaticHealth.status === 'healthy' && automaticHealth.issues.length === 0,
+        `自动同步完成后健康状态异常: ${JSON.stringify(automaticHealth)}`
+    );
 
     const template = await createBundleTemplate(unique);
     await request('修改模板', 'PATCH', `/api/templates/${template.id}`, {
@@ -549,6 +558,15 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(
         syncHistory.items.some(run => run.mode === 'manual' && run.status === 'success'),
         '人工同步成功后没有生成同步历史'
+    );
+    const recoveredHealth = (await request(
+        '人工恢复后知识健康',
+        'GET',
+        '/api/knowledge/health'
+    )).payload.data;
+    assert(
+        recoveredHealth.status === 'healthy' && recoveredHealth.needsRecovery === false,
+        `人工同步后健康状态未恢复: ${JSON.stringify(recoveredHealth)}`
     );
     const overview = (await request(
         '同步后知识概况',

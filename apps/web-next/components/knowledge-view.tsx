@@ -21,6 +21,7 @@ import {
 import {
   getKnowledgeEntryDetail,
   getKnowledgeOverview,
+  getKnowledgeSyncHealth,
   getKnowledgeSyncRuns,
   searchKnowledgeEntries,
   syncFactoryKnowledge,
@@ -30,6 +31,7 @@ import {
   type KnowledgeEntryType,
   type KnowledgeListItem,
   type KnowledgeOverview,
+  type KnowledgeSyncHealth,
   type KnowledgeSyncHistory,
 } from '@/lib/knowledge';
 import {
@@ -147,6 +149,7 @@ export function KnowledgeView({
   onRefreshComplete?: () => void;
 }) {
   const [overview, setOverview] = useState<KnowledgeOverview | null>(null);
+  const [syncHealth, setSyncHealth] = useState<KnowledgeSyncHealth | null>(null);
   const [syncHistory, setSyncHistory] = useState<KnowledgeSyncHistory | null>(null);
   const [entries, setEntries] = useState<KnowledgeListItem[]>([]);
   const [query, setQuery] = useState('');
@@ -181,14 +184,16 @@ export function KnowledgeView({
     setLoading(true);
     setError('');
     try {
-      const [nextOverview, nextEntries, nextSyncHistory] = await Promise.all([
+      const [nextOverview, nextEntries, nextSyncHistory, nextSyncHealth] = await Promise.all([
         getKnowledgeOverview(),
         searchKnowledgeEntries({ query, entryType, limit: 50 }),
         getKnowledgeSyncRuns(8),
+        getKnowledgeSyncHealth(),
       ]);
       setOverview(nextOverview);
       setEntries(nextEntries);
       setSyncHistory(nextSyncHistory);
+      setSyncHealth(nextSyncHealth);
     } catch (err) {
       setError(err instanceof Error ? err.message : '知识库加载失败');
     } finally {
@@ -513,6 +518,57 @@ export function KnowledgeView({
           ) : null}
         </FadePanel>
       </div>
+
+      {syncHealth && syncHealth.status !== 'healthy' ? (
+        <FadePanel
+          className={`overflow-hidden rounded-panel border shadow-panel ${
+            syncHealth.status === 'critical'
+              ? 'border-rose-200 bg-rose-50'
+              : 'border-amber-200 bg-amber-50'
+          }`}
+        >
+          <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <MessageSquareWarning
+                  size={17}
+                  className={syncHealth.status === 'critical' ? 'text-rose-700' : 'text-amber-700'}
+                />
+                <div className="text-sm font-semibold text-ink">{syncHealth.summary}</div>
+                <StatusBadge tone={syncHealth.status === 'critical' ? 'red' : 'amber'}>
+                  {syncHealth.status === 'critical' ? '需要处理' : '需要关注'}
+                </StatusBadge>
+              </div>
+              <div className="mt-2 divide-y divide-black/5">
+                {syncHealth.issues.map(issue => (
+                  <div key={issue.code} className="py-2 first:pt-0 last:pb-0">
+                    <div className="text-sm font-medium text-ink">{issue.title}</div>
+                    <div className={`mt-0.5 text-xs leading-5 ${
+                      issue.severity === 'critical' ? 'text-rose-800' : 'text-amber-800'
+                    }`}>
+                      {issue.message}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {syncHealth.needsRecovery ? (
+              <Button
+                variant="secondary"
+                icon={<RefreshCw size={15} />}
+                onClick={() => {
+                  setSyncMessage('');
+                  setSyncOpen(true);
+                }}
+              >
+                {syncHealth.issues.every(issue => issue.code === 'auto_sync_disabled')
+                  ? '手动核对'
+                  : '检查并恢复'}
+              </Button>
+            ) : null}
+          </div>
+        </FadePanel>
+      ) : null}
 
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
         <div className="border-b border-line px-4 py-3">
