@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
+    buildFactoryRuleImpact,
     buildRuleCandidateGroups,
     confidenceForEvidence,
     refreshFactoryRuleCandidates,
@@ -14,7 +15,10 @@ function createFixture() {
         CREATE TABLE recipes (
             id INTEGER PRIMARY KEY,
             name TEXT,
+            spec TEXT,
             template_id INTEGER,
+            parts_json TEXT DEFAULT '[]',
+            updated_at TEXT,
             deleted_at TEXT
         );
         CREATE TABLE pump_shell_templates (
@@ -58,12 +62,12 @@ function createFixture() {
             updated_at TEXT
         );
         INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750 大脚板 2寸');
-        INSERT INTO recipes(id, name, template_id, deleted_at) VALUES
-            (1, 'V750 菲律宾', 7, NULL),
-            (2, 'V750 越南', 7, NULL),
-            (3, 'V750 删除', 7, '2026-01-01'),
-            (4, 'V750 特殊', 7, NULL),
-            (5, 'V750 忽略', 7, NULL);
+        INSERT INTO recipes(id, name, spec, template_id, parts_json, updated_at, deleted_at) VALUES
+            (1, 'V750 菲律宾', '50Hz', 7, '[]', '2026-01-01', NULL),
+            (2, 'V750 越南', '60Hz', 7, '[{"name":"说明书","packingRole":"fixed"}]', '2026-01-01', NULL),
+            (3, 'V750 删除', '', 7, '[]', '2026-01-01', '2026-01-01'),
+            (4, 'V750 特殊', '', 7, '[]', '2026-01-01', NULL),
+            (5, 'V750 忽略', '', 7, '[]', '2026-01-01', NULL);
     `);
     const safeInsert = (table, values) => {
         const columns = Object.keys(values);
@@ -154,6 +158,36 @@ test('候选规则可刷新、批准且保留证据', () => {
         assert.equal(approved.status, 'approved');
         assert.ok(approved.approvedAt);
         assert.equal(approved.reviewNote, '作为 V750 默认复核规则');
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则影响分析区分已符合、待复核、特殊情况和忽略配方', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        insertFeedback(fixture.db, 4, { decision: 'special_case', note: '出口客户不放说明书' });
+        insertFeedback(fixture.db, 5, { decision: 'ignored', note: '暂不处理' });
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const impact = buildFactoryRuleImpact(refreshed.candidates[0].id, fixture);
+
+        assert.equal(impact.scope.templateId, 7);
+        assert.equal(impact.scope.requiredRole, '包装:fixed');
+        assert.deepEqual(impact.summary, {
+            totalRecipes: 4,
+            compliantCount: 1,
+            needsReviewCount: 1,
+            specialCaseCount: 1,
+            ignoredCount: 1,
+            attentionRate: 0.25,
+        });
+        assert.equal(impact.groups.compliant[0].recipeName, 'V750 越南');
+        assert.equal(impact.groups.needsReview[0].recipeName, 'V750 菲律宾');
+        assert.equal(impact.groups.specialCases[0].recipeName, 'V750 特殊');
+        assert.equal(impact.groups.ignored[0].recipeName, 'V750 忽略');
+        assert.match(impact.guidance, /1 个现有配方需要复核/);
     } finally {
         fixture.db.close();
     }

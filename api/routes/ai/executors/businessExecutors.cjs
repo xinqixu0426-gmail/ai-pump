@@ -386,6 +386,24 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'get_factory_rule_impact': {
+            if (!args.candidateId) {
+                return { success: false, error: '请提供候选规则ID' };
+            }
+            const data = await getJson(
+                internalFetch,
+                `/api/quality/rule-candidates/${Number(args.candidateId)}/impact`,
+                '规则影响分析失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_rule_impact',
+                summary: `该规则覆盖 ${data.summary?.totalRecipes || 0} 个同模板配方，其中 ${data.summary?.needsReviewCount || 0} 个需要复核。`,
+                display: { mode: 'compact', title: '规则影响分析' },
+                data,
+            };
+        }
+
         case 'refresh_factory_rule_candidates': {
             const data = await postJson(
                 internalFetch,

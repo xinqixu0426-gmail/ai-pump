@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, RefreshCw, Sparkles, XCircle } from 'lucide-react';
+import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, ListChecks, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -10,12 +10,14 @@ import {
   getBusinessAlerts,
   getDataQualitySummary,
   getFactoryRuleCandidates,
+  getFactoryRuleImpact,
   qualitySeverityClassName,
   refreshFactoryRuleCandidates,
   reviewFactoryRuleCandidate,
   type BusinessAlertsSummary,
   type DataQualitySummary,
   type FactoryRuleCandidate,
+  type FactoryRuleImpact,
   type QualityIssueGroup,
   type QualitySeverity,
 } from '@/lib/quality';
@@ -49,6 +51,9 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [activeKey, setActiveKey] = useState<string>('all');
   const [ruleRefreshing, setRuleRefreshing] = useState(false);
   const [ruleReviewingId, setRuleReviewingId] = useState<number | null>(null);
+  const [ruleImpactLoadingId, setRuleImpactLoadingId] = useState<number | null>(null);
+  const [expandedRuleImpactId, setExpandedRuleImpactId] = useState<number | null>(null);
+  const [ruleImpacts, setRuleImpacts] = useState<Record<number, FactoryRuleImpact>>({});
 
   async function load(force = false) {
     setError('');
@@ -94,6 +99,8 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     try {
       const result = await refreshFactoryRuleCandidates();
       setRuleCandidates(result.candidates);
+      setRuleImpacts({});
+      setExpandedRuleImpactId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '候选规则归纳失败');
     } finally {
@@ -101,12 +108,43 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     }
   }
 
-  async function reviewRuleCandidate(candidate: FactoryRuleCandidate, status: 'approved' | 'rejected') {
-    const action = status === 'approved' ? '批准' : '驳回';
-    if (!window.confirm(`确定${action}候选规则「${candidate.title}」？`)) return;
-    setRuleReviewingId(candidate.id);
+  async function loadRuleImpact(candidate: FactoryRuleCandidate): Promise<FactoryRuleImpact> {
+    const existing = ruleImpacts[candidate.id];
+    if (existing) return existing;
+    setRuleImpactLoadingId(candidate.id);
+    try {
+      const impact = await getFactoryRuleImpact(candidate.id);
+      setRuleImpacts((current) => ({ ...current, [candidate.id]: impact }));
+      return impact;
+    } finally {
+      setRuleImpactLoadingId(null);
+    }
+  }
+
+  async function toggleRuleImpact(candidate: FactoryRuleCandidate) {
+    if (expandedRuleImpactId === candidate.id) {
+      setExpandedRuleImpactId(null);
+      return;
+    }
     setError('');
     try {
+      await loadRuleImpact(candidate);
+      setExpandedRuleImpactId(candidate.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '规则影响分析失败');
+    }
+  }
+
+  async function reviewRuleCandidate(candidate: FactoryRuleCandidate, status: 'approved' | 'rejected') {
+    const action = status === 'approved' ? '批准' : '驳回';
+    setError('');
+    try {
+      const impact = status === 'approved' ? await loadRuleImpact(candidate) : null;
+      const impactSummary = impact
+        ? `\n影响范围：同模板 ${impact.summary.totalRecipes} 个配方，其中 ${impact.summary.needsReviewCount} 个需要复核，${impact.summary.specialCaseCount} 个特殊情况。`
+        : '';
+      if (!window.confirm(`确定${action}候选规则「${candidate.title}」？${impactSummary}`)) return;
+      setRuleReviewingId(candidate.id);
       const updated = await reviewFactoryRuleCandidate(candidate.id, { status });
       setRuleCandidates((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (err) {
@@ -232,6 +270,19 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={ruleImpactLoadingId === candidate.id}
+                          icon={<ListChecks size={14} />}
+                          onClick={() => void toggleRuleImpact(candidate)}
+                        >
+                          {ruleImpactLoadingId === candidate.id
+                            ? '分析中'
+                            : expandedRuleImpactId === candidate.id
+                              ? '收起影响'
+                              : '查看影响'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           disabled={ruleReviewingId === candidate.id}
                           icon={<XCircle size={14} />}
                           onClick={() => void reviewRuleCandidate(candidate, 'rejected')}
@@ -249,6 +300,36 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                         </Button>
                       </div>
                     </div>
+                    {expandedRuleImpactId === candidate.id && ruleImpacts[candidate.id] ? (
+                      <div className="mt-4 border-t border-line pt-4">
+                        <div className="grid gap-3 sm:grid-cols-4">
+                          {[
+                            ['已符合', ruleImpacts[candidate.id].summary.compliantCount, 'text-emerald-700'],
+                            ['需要复核', ruleImpacts[candidate.id].summary.needsReviewCount, 'text-amber-700'],
+                            ['特殊情况', ruleImpacts[candidate.id].summary.specialCaseCount, 'text-sky-700'],
+                            ['已忽略', ruleImpacts[candidate.id].summary.ignoredCount, 'text-slate-700'],
+                          ].map(([label, value, tone]) => (
+                            <div key={String(label)}>
+                              <div className={`text-lg font-semibold ${tone}`}>{value}</div>
+                              <div className="text-xs text-muted">{label}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 text-xs leading-5 text-muted">
+                          {ruleImpacts[candidate.id].guidance}
+                        </div>
+                        {ruleImpacts[candidate.id].groups.needsReview.length > 0 ? (
+                          <div className="mt-2 text-xs leading-5 text-amber-800">
+                            需要复核：{ruleImpacts[candidate.id].groups.needsReview.map((item) => item.recipeName).join('、')}
+                          </div>
+                        ) : null}
+                        {ruleImpacts[candidate.id].groups.specialCases.length > 0 ? (
+                          <div className="mt-1 text-xs leading-5 text-sky-800">
+                            特殊情况：{ruleImpacts[candidate.id].groups.specialCases.map((item) => item.recipeName).join('、')}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

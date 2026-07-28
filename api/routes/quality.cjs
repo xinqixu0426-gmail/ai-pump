@@ -4,6 +4,7 @@ const { buildBusinessAlerts } = require('../services/businessAlerts.cjs');
 const { analyzeRecipeConfiguration } = require('../services/recipeIntelligence.cjs');
 const { saveRecipeAnalysisFeedback } = require('../services/recipeAnalysisFeedback.cjs');
 const {
+    buildFactoryRuleImpact,
     listFactoryRuleCandidates,
     refreshFactoryRuleCandidates,
     reviewFactoryRuleCandidate,
@@ -60,6 +61,17 @@ router.get('/rule-candidates', (req, res) => {
 router.post('/rule-candidates/refresh', (req, res) => {
     try {
         res.json({ success: true, data: refreshFactoryRuleCandidates() });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/rule-candidates/:id/impact', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: buildFactoryRuleImpact(req.params.id),
+        });
     } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }

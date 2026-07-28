@@ -606,6 +606,20 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_factory_rule_impact',
+            description: '分析某条候选或已批准工厂规则对当前配方的实际影响，只读。返回同模板配方中已符合、需要复核、特殊情况和已忽略的数量及清单。适合在批准规则前确认影响范围，或回答“这条规则会影响哪些配方”。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    candidateId: { type: 'number', description: '候选业务规则ID' }
+                },
+                required: ['candidateId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'refresh_factory_rule_candidates',
             description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准，也不会直接同步知识库；失去最低支持证据的旧规则会安全转为失效；写库前必须确认。',
             parameters: { type: 'object', properties: {} }

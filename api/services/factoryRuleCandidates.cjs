@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { parsePositiveId } = require('./validation.cjs');
+const { partRole } = require('./recipeIntelligence.cjs');
 
 const REVIEW_STATUSES = new Set(['candidate', 'approved', 'rejected']);
 
@@ -219,6 +220,107 @@ function listFactoryRuleCandidates(options = {}) {
     return rows.map(candidateRow);
 }
 
+function buildFactoryRuleImpact(idValue, options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    const id = parsePositiveId(idValue);
+    if (!id) throw inputError('候选规则 ID 必须是正整数');
+
+    const row = database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id);
+    if (!row) {
+        const error = new Error('候选规则不存在');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const candidate = candidateRow(row);
+    const templateId = Number(candidate.scopeRef || 0);
+    const role = candidate.findingKey.startsWith('peer_pattern:')
+        ? candidate.findingKey.slice('peer_pattern:'.length)
+        : '';
+    if (candidate.scopeType !== 'pump_shell_template' || !templateId || !role) {
+        throw inputError('当前规则不支持配方影响分析');
+    }
+
+    const recipes = database.prepare(`
+        SELECT id, name, spec, parts_json, updated_at
+        FROM recipes
+        WHERE template_id = ? AND deleted_at IS NULL
+        ORDER BY name, id
+    `).all(templateId);
+    const feedbackRows = database.prepare(`
+        SELECT feedback.recipe_id, feedback.decision, feedback.note, feedback.updated_at
+        FROM recipe_analysis_feedback feedback
+        JOIN recipes ON recipes.id = feedback.recipe_id
+        WHERE recipes.template_id = ?
+          AND recipes.deleted_at IS NULL
+          AND feedback.finding_key = ?
+        ORDER BY feedback.updated_at DESC, feedback.id DESC
+    `).all(templateId, candidate.findingKey);
+    const feedbackByRecipe = new Map();
+    for (const feedback of feedbackRows) {
+        const recipeId = Number(feedback.recipe_id);
+        if (!feedbackByRecipe.has(recipeId)) feedbackByRecipe.set(recipeId, feedback);
+    }
+
+    const groups = {
+        compliant: [],
+        needsReview: [],
+        specialCases: [],
+        ignored: [],
+    };
+    for (const recipe of recipes) {
+        const recipeRoles = new Set(parseArray(recipe.parts_json).map(partRole).filter(Boolean));
+        const hasRequiredRole = recipeRoles.has(role);
+        const feedback = feedbackByRecipe.get(Number(recipe.id));
+        const item = {
+            recipeId: Number(recipe.id),
+            recipeName: recipe.name || `配方 #${recipe.id}`,
+            spec: recipe.spec || '',
+            hasRequiredRole,
+            decision: feedback?.decision || 'review',
+            note: feedback?.note || '',
+            feedbackUpdatedAt: feedback?.updated_at || null,
+            recipeUpdatedAt: recipe.updated_at || null,
+        };
+        if (hasRequiredRole) {
+            groups.compliant.push(item);
+        } else if (feedback?.decision === 'special_case') {
+            groups.specialCases.push(item);
+        } else if (feedback?.decision === 'ignored') {
+            groups.ignored.push(item);
+        } else {
+            groups.needsReview.push(item);
+        }
+    }
+
+    const totalRecipes = recipes.length;
+    const needsReviewCount = groups.needsReview.length;
+    return {
+        generatedAt: new Date().toISOString(),
+        candidate,
+        scope: {
+            templateId,
+            templateName: candidate.title.split('：')[0] || `模板 #${templateId}`,
+            requiredRole: role,
+        },
+        summary: {
+            totalRecipes,
+            compliantCount: groups.compliant.length,
+            needsReviewCount,
+            specialCaseCount: groups.specialCases.length,
+            ignoredCount: groups.ignored.length,
+            attentionRate: totalRecipes > 0
+                ? Math.round(needsReviewCount / totalRecipes * 1000) / 1000
+                : 0,
+        },
+        groups,
+        guidance: needsReviewCount > 0
+            ? `批准后将有 ${needsReviewCount} 个现有配方需要复核“${role.replace(/^包装:/, '')}”，系统不会自动修改这些配方。`
+            : `当前同模板配方均已符合或已有明确例外，批准后不会产生新的待复核配方。`,
+    };
+}
+
 function refreshFactoryRuleCandidates(options = {}) {
     const accessors = options.db ? options : loadDbAccessors();
     const database = options.db || accessors.db;
@@ -326,6 +428,7 @@ function reviewFactoryRuleCandidate(idValue, input = {}, options = {}) {
 
 module.exports = {
     buildRuleCandidateGroups,
+    buildFactoryRuleImpact,
     confidenceForEvidence,
     learningEvidenceHash,
     listFactoryRuleCandidates,

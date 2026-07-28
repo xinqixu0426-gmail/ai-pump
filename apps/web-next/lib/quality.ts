@@ -172,6 +172,42 @@ export type FactoryRuleCandidate = {
   updatedAt: string | null;
 };
 
+export type FactoryRuleImpactItem = {
+  recipeId: number;
+  recipeName: string;
+  spec: string;
+  hasRequiredRole: boolean;
+  decision: RecipeAnalysisFeedbackDecision;
+  note: string;
+  feedbackUpdatedAt: string | null;
+  recipeUpdatedAt: string | null;
+};
+
+export type FactoryRuleImpact = {
+  generatedAt: string;
+  candidate: FactoryRuleCandidate;
+  scope: {
+    templateId: number;
+    templateName: string;
+    requiredRole: string;
+  };
+  summary: {
+    totalRecipes: number;
+    compliantCount: number;
+    needsReviewCount: number;
+    specialCaseCount: number;
+    ignoredCount: number;
+    attentionRate: number;
+  };
+  groups: {
+    compliant: FactoryRuleImpactItem[];
+    needsReview: FactoryRuleImpactItem[];
+    specialCases: FactoryRuleImpactItem[];
+    ignored: FactoryRuleImpactItem[];
+  };
+  guidance: string;
+};
+
 export type RecipeConfigurationAnalysis = {
   version: string;
   generatedAt: string;
@@ -292,6 +328,12 @@ export async function refreshFactoryRuleCandidates(): Promise<{
     candidates: FactoryRuleCandidate[];
   }>>('/api/quality/rule-candidates/refresh', { method: 'POST' });
   if (!result.success || !result.data) throw new Error(result.error || '候选规则归纳失败');
+  return result.data;
+}
+
+export async function getFactoryRuleImpact(id: number): Promise<FactoryRuleImpact> {
+  const result = await proxyRequest<ApiResponse<FactoryRuleImpact>>(`/api/quality/rule-candidates/${id}/impact`);
+  if (!result.success || !result.data) throw new Error(result.error || '规则影响分析失败');
   return result.data;
 }
 

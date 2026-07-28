@@ -497,6 +497,12 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
         if (call.url.endsWith('/api/quality/rule-candidates?status=candidate') && call.method === 'GET') {
             return jsonResponse({ success: true, data: [{ id: 5, title: 'V750：通常包含说明书' }] });
         }
+        if (call.url.endsWith('/api/quality/rule-candidates/5/impact') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: { summary: { totalRecipes: 4, needsReviewCount: 1 } },
+            });
+        }
         if (call.url.endsWith('/api/quality/rule-candidates/5') && call.method === 'PATCH') {
             assert.deepEqual(call.body, { status: 'approved', reviewNote: '确认' });
             return jsonResponse({ success: true, data: { id: 5, status: 'approved' } });
@@ -508,13 +514,17 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
     assert.equal(listed.success, true);
     assert.equal(listed.data[0].id, 5);
 
+    const impact = await executeToolCall('get_factory_rule_impact', { candidateId: 5 }, { allowWrite: false });
+    assert.equal(impact.success, true);
+    assert.match(impact.summary, /4 个同模板配方/);
+
     const args = { candidateId: 5, status: 'approved', reviewNote: '确认' };
     const blocked = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: false });
     assert.equal(blocked.requiresConfirmation, true);
     const approved = await executeToolCall('review_factory_rule_candidate', args, { allowWrite: true });
     assert.equal(approved.success, true);
     assert.equal(approved.data.status, 'approved');
-    assert.deepEqual(calls.map(call => call.method), ['GET', 'PATCH']);
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'PATCH']);
 });
 
 test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详情', async () => {
