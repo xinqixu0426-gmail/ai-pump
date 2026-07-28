@@ -185,6 +185,7 @@
 |---|---|---|---|
 | `GET` | `/api/orders` | 无 | 订单列表；按创建顺序平衡全部活动订单的库存占用并刷新采购缺口，同一库存不会被多个订单重复使用 |
 | `GET` | `/api/orders/lookup` | `query=订单ID/客户名称/合同号` | 只读查找订单候选，不刷新采购计划；AI 按客户或合同解析订单时使用 |
+| `GET` | `/api/orders/readiness-overview` | 无 | 一次计算全部活动订单的库存平衡和生产准备结论；返回分类汇总、主要问题、缺料和第一个未阻塞处理步骤，只读不写库 |
 | `GET` | `/api/orders/:id` | 无 | 单个订单，标准字段含 `id/createdAt/updatedAt` |
 | `GET` | `/api/orders/:id/readiness` | 无 | 只读生产准备检查；按订单状态、配方与BOM、零件库存、线圈库存、采购进度、成本与价格六步返回 `ready/waiting_materials/needs_review/blocked/not_applicable`，不写订单和库存 |
 | `GET` | `/api/orders/:id/readiness-plan` | 无 | 基于实时生产准备结果生成处理步骤；返回 `sequence/dependsOn/mode/status/owner/path/toolCall`，只生成方案不执行 |
@@ -205,6 +206,8 @@
 采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory/inventoryType`。普通零件使用 `inventoryType=part + partId`；精确匹配正式线圈方案的线圈转子使用 `inventoryType=coil + coilId`，按套占用和增加 `coils.stock`；插值或外推产生、没有正式方案的计算型线圈使用 `inventoryType=none`，可完成采购进度但不写库存。`purchaseUnit/stockQtyPerUnit/specification` 区分采购展示单位和底层库存单位。成品电缆按“根”计划，入库时按 `stockQtyPerUnit` 折算为线材米数；历史按米保存的活动订单会在采购计划重算时转换为根数。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
 
 生产准备检查以本轮实时库存为准：`totalQty - currentStock` 才是当前缺口，不能因采购项已经下单或到货就判定可生产。`inventoryType=none` 的计算型线圈、没有 `partId` 的普通采购项、缺少BOM快照或未确认订单会形成数据阻塞；库存满足但成本为 0、售价低于成本或来源配方不可追溯时返回待复核。AI 工具 `check_order_readiness` 通过该接口读取结论，匹配多个客户订单时必须要求明确订单ID或合同号。
+
+订单准备总览只读取未关闭且未取消的活动订单，并且每次请求只运行一次 `buildBalancedOrderPlans`，避免逐单重复平衡库存。总览按 `blocked → waiting_materials → needs_review → ready` 排序，`attentionRequired` 是前三类之和。AI 工具 `get_order_readiness_overview` 和管理看板“订单准备”页签使用同一接口，均不属于生产执行或库存写入。
 
 处理方案状态为 `complete/ready_for_confirmation/action_required/needs_resolution/waiting/not_applicable`。步骤模式 `confirmable` 表示存在可映射的标准写工具，但仍需后续用户确认；`manual` 表示需要人员在业务页面处理，`needs_input` 表示缺少价格等业务决定，`monitor` 表示等待到货等外部状态。存在缺BOM或库存映射等前置问题时，后续确认和采购步骤通过 `dependsOn` 标记为阻塞。AI 工具 `plan_order_readiness_actions` 只读取该接口，不属于 `WRITE_TOOLS`；`execute_order_readiness_action` 属于 `WRITE_TOOLS`，确认后调用动作接口，并以服务端重验结果为准。
 
@@ -258,12 +261,14 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/ai/chat` | `{ messages }` | SSE 流式对话；事件数据形如 `data: { type, ...payload }` |
+| `POST` | `/api/ai/chat` | `{ messages, pageContext? }` | SSE 流式对话；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`，事件数据形如 `data: { type, ...payload }` |
 | `POST` | `/api/ai/confirm-tool` | `{ toolName, args? }` | 用户确认后执行写工具；调用 `executeToolCall(..., { allowWrite: true })` |
 | `GET` | `/api/ai/system-prompt` | 无 | 读取当前 System Prompt |
 | `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 更新内存和 SQLite `config.ai-system-prompt`；不能为空，最大 50000 字符 |
 
 AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。
+
+业务页右侧 AI 可额外发送 `pageContext: { resourceType: "order", resourceId, path: "/orders", view }`。后端只保留合法订单 ID，并将 `view` 限制为 `readiness/items/purchase/todos`；客户端标签、指令或业务数值都会被丢弃。页面上下文只用于解析“这个订单”“下一步怎么处理”等指代，不写入会话消息，也不替代实时业务工具查询；明确指定其他订单或询问全部订单时，以用户文字为准。
 
 价格、成本、库存、订单状态、报价金额和铜价等易变业务数据查询会在首轮强制调用至少一个只读工具，避免模型从会话上下文复述已过期数值。明确查询知识库时使用知识库结果；若知识条目与实时业务 API 冲突，以实时业务值为准并提示同步知识库。
 

@@ -996,16 +996,39 @@ test('API 静态契约：V5.4 订单方案执行受确认和实时重验双重�
     assert.match(prompt, /禁止执行 manual、needs_input、monitor 或 blocked/);
 });
 
+test('API 静态契约：V5.5 订单准备总览对 API、AI 和只读边界保持一致', () => {
+    const service = readUtf8(path.join(repoRoot, 'api/services/orderReadinessOverview.cjs'));
+    const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+
+    assert.match(service, /attentionRequired/);
+    assert.match(service, /waiting_materials/);
+    assert.match(service, /nextAction/);
+    assert.doesNotMatch(service, /safeInsert|safeUpdate|softDelete|hardDelete/);
+    assert.match(ordersRoute, /router\.get\('\/readiness-overview'/);
+    assert.match(tools, /name:\s*'get_order_readiness_overview'/);
+    assert.match(executor, /\/api\/orders\/readiness-overview/);
+    assert.match(prompt, /哪些订单不能生产/);
+    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_readiness_overview/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
+    const pageContext = readUtf8(path.join(repoRoot, 'api/services/aiPageContext.cjs'));
 
     assert.match(chatRoute, /buildFreshLookupToolCalls/);
+    assert.match(chatRoute, /normalizeAiPageContext\(req\.body\?\.pageContext\)/);
+    assert.match(chatRoute, /resolveMessagesWithPageContext/);
     assert.match(chatRoute, /正在刷新.*易变业务数据/);
     assert.match(chatRoute, /禁止直接复述历史会话里的数字/);
     assert.match(chatRoute, /所有正式材质\+槽眼方案/);
     assert.match(freshness, /function coilSpecSheetKey/);
     assert.match(freshness, /entryType: 'coil'/);
+    assert.match(pageContext, /仅用于理解/);
+    assert.match(pageContext, /不得替代工具查询/);
 });
 
 test('API 静态契约：知识库同步工具是受确认保护的写工具', () => {

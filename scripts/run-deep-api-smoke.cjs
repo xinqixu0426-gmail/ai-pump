@@ -518,6 +518,26 @@ async function testCrossModuleWriteFlow(baseResources) {
         readinessPlan.steps.every((item, index) => Number(item.sequence) === index + 1),
         '订单处理方案步骤顺序不连续'
     );
+    const readinessOverview = (await request(
+        '订单生产准备总览',
+        'GET',
+        '/api/orders/readiness-overview'
+    )).payload.data;
+    assert(
+        readinessOverview.metrics.totalActiveOrders === readinessOverview.items.length,
+        '订单准备总览汇总数量与明细不一致'
+    );
+    assert(
+        readinessOverview.items.some(item => Number(item.order?.id) === Number(order.id)),
+        '订单准备总览没有包含当前活动订单'
+    );
+    assert(
+        readinessOverview.metrics.attentionRequired
+            === readinessOverview.metrics.blocked
+                + readinessOverview.metrics.waitingMaterials
+                + readinessOverview.metrics.needsReview,
+        '订单准备总览关注数量计算错误'
+    );
     const lookupOrders = (await request(
         '订单只读查询',
         'GET',

@@ -83,6 +83,9 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 - `POST /api/orders/:id/purchase-items/progress` 支持部分采购、部分到货和分批入库；只有入库增量会在同一事务内增加对应库存，并写入采购项批次历史。
 - `POST /api/orders/:id/complete-purchase` 保留为一次性全部到货入库动作，执行后只进入“采购完成”，不会直接关闭订单。
 - `GET /api/orders/:id/readiness` 只读执行订单生产准备检查；复用活动订单库存平衡结果，依次核对订单、BOM、零件、线圈、采购和成本价格。已下单或到货不能替代入库库存，只有当前可用库存覆盖需求时才返回可生产。
+- `GET /api/orders/readiness-overview` 一次计算全部活动订单的库存平衡和生产准备结论，汇总数据阻塞、待补料、待复核、可生产数量，并返回各订单主要问题和下一步；管理看板“订单准备”页签使用该接口。
+- 总览中的订单链接使用 `/orders?orderId=:id&view=readiness` 精确打开订单详情“生产准备”页签。详情并行读取单订单检查和处理方案，展示完整六步依据、问题、实时缺料、负责人和依赖；页签本身只读，写操作继续走订单详情原有确认按钮。
+- 订单详情会把当前订单 ID 和页签作为独立页面上下文交给右侧 AI，用户可直接询问“这个订单为什么不能生产”或“下一步怎么处理”。上下文不写入会话消息，后端会忽略客户端业务数值并重新调用实时工具。
 - `GET /api/orders/:id/readiness-plan` 把检查结果转换成有顺序和前置依赖的处理方案；区分 AI 可发起确认、人工补资料、业务决定和采购等待，但不直接执行订单或库存写入。按客户名或合同号解析订单使用只读 `/api/orders/lookup`，不会触发采购计划刷新。
 - `POST /api/orders/:id/readiness-actions/:actionId` 只执行实时方案中仍为 `confirmable + available` 的白名单步骤。当前支持确认订单和生成采购清单，执行前重新检查，过期或受阻步骤返回 `409`，成功后返回更新订单和新方案。
 - 采购中心按供应商和型号聚合数量进度，可批量整项下单；采购中心本身不执行到货或入库。
@@ -190,7 +193,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 型号变体 | `/api/model-variants` | CRUD；保存时可自动沉淀变体使用到的长螺丝规格到零件库 |
 | 配方 | `/api/recipes` | CRUD、BOM 草稿、保存成本快照、成本与覆盖试算 |
 | 客户/报价 | `/api/customers`、`/api/quotations` | CRUD |
-| 订单 | `/api/orders` | CRUD、历史售价、采购清单生成 |
+| 订单 | `/api/orders` | CRUD、历史售价、采购清单、单订单准备检查和全部活动订单准备总览 |
 | 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
 | 转子 | `/api/rotor` | 模板草稿、出图、参数暂存、状态、历史、关联、打印 |
 | 质量与经营异常 | `/api/quality` | 基础资料健康度、报价和订单经营异常提醒，以及配方智能检查 |
@@ -252,6 +255,7 @@ POST /api/rotor/save
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary`、`analyze_recipe_configuration` 和 `get_business_alerts` 读取基础资料健康度、配方配置风险、报价和订单经营异常；这些工具均为只读工具。对配方检查结果可通过 `set_recipe_analysis_feedback` 保存“确认问题、忽略、特殊情况、恢复复核”判断，该写操作必须经用户确认。
 - AI 可调用 `check_order_readiness` 检查某个订单当前能否生产。工具返回六步检查过程、实时缺料、采购阶段、阻塞原因和建议入口；它只读标准订单 API，不会自动确认订单、补采购或调整库存。
+- AI 可调用 `get_order_readiness_overview` 回答哪些订单不能生产、多少订单缺料或全部订单准备情况。该工具读取实时总览，先返回分类数量，再列出重点订单、主要问题和下一步，不属于写工具。
 - AI 可调用 `plan_order_readiness_actions` 把检查问题整理成处理方案。每一步包含顺序、负责人、完成标准、前置步骤和执行方式；`confirmable` 仅表示后续可以由 AI 发起确认，本轮不会自动执行。
 - AI 可在用户明确要求执行方案步骤时调用 `execute_order_readiness_action`。该工具属于 `WRITE_TOOLS`，先显示确认卡片；确认后仅调用订单标准动作 API，由服务端实时重验步骤，不能执行人工、等待、需补充输入或已阻塞步骤。
 - AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；查询 `12-220` 这类线圈键会按材质和槽眼返回全部匹配方案。`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具。

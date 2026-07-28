@@ -156,6 +156,43 @@ test('AI executor 行为：订单生产准备通过只读标准 API 并返回实
     ]);
 });
 
+test('AI executor 行为：订单准备总览通过只读标准 API 返回全部活动订单结论', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders/readiness-overview') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    summary: '共检查 2 个活动订单。',
+                    metrics: {
+                        totalActiveOrders: 2,
+                        ready: 1,
+                        waitingMaterials: 1,
+                        needsReview: 0,
+                        blocked: 0,
+                        attentionRequired: 1,
+                    },
+                    items: [
+                        { order: { id: 12 }, verdict: 'waiting_materials' },
+                        { order: { id: 13 }, verdict: 'ready' },
+                    ],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('get_order_readiness_overview', {}, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'order_readiness_overview');
+    assert.equal(result.data.metrics.attentionRequired, 1);
+    assert.equal(result.data.items.length, 2);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/orders/readiness-overview',
+    ]);
+});
+
 test('AI executor 行为：客户名匹配多个订单时要求明确而不猜测', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/orders/lookup?query=%E6%B5%8B%E8%AF%95%E5%AE%A2%E6%88%B7') && call.method === 'GET') {

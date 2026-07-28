@@ -47,6 +47,17 @@ test('AI 将订单生产和齐料问题直接路由到生产准备检查', () =>
     ]);
 });
 
+test('AI 将多订单生产准备问题路由到实时订单总览', () => {
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '哪些订单目前不能生产' }]), [
+        { name: 'search_factory_knowledge', args: { query: '哪些订单目前不能生产', limit: 10 } },
+        { name: 'get_order_readiness_overview', args: {} },
+    ]);
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '全部订单生产准备总览' }]), [
+        { name: 'search_factory_knowledge', args: { query: '全部订单生产准备总览', limit: 10 } },
+        { name: 'get_order_readiness_overview', args: {} },
+    ]);
+});
+
 test('AI 将订单问题处理请求优先路由到生产准备处理方案', () => {
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '订单 #12 不能生产，下一步怎么处理' }]), [
         { name: 'search_factory_knowledge', args: { query: '订单 #12 不能生产 下一步怎么处理', limit: 10 } },

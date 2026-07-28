@@ -279,7 +279,7 @@ test('关键 API 集成契约：/api/orders/:id/readiness 只读编排生产准�
 
 test('关键 API 集成契约：订单只读查询和处理方案不刷新采购计划', () => {
     const source = readUtf8('api/routes/orders.cjs');
-    const lookup = sliceBetween(source, "router.get('/lookup'", "router.get('/:id/readiness-plan'");
+    const lookup = sliceBetween(source, "router.get('/lookup'", "router.get('/readiness-overview'");
     const plan = sliceBetween(source, "router.get('/:id/readiness-plan'", "router.get('/:id/readiness'");
 
     assert.match(lookup, /SELECT id, customer_name, contract_no, status, updated_at/);
@@ -288,6 +288,22 @@ test('关键 API 集成契约：订单只读查询和处理方案不刷新采购
     assert.match(plan, /buildReadinessForOrderRecord/);
     assert.match(plan, /buildOrderReadinessPlan/);
     assertNoWrites(plan);
+});
+
+test('关键 API 集成契约：订单准备总览只计算一次平衡计划且不写库', () => {
+    const source = readUtf8('api/routes/orders.cjs');
+    const helper = sliceBetween(source, 'function buildActiveOrdersReadinessOverview', 'function executeReadinessAction');
+    const route = sliceBetween(source, "router.get('/readiness-overview'", "router.get('/:id/readiness-plan'");
+
+    assert.match(helper, /const plans = buildBalancedOrderPlans\(records, parts/);
+    assert.equal((helper.match(/buildBalancedOrderPlans/g) || []).length, 1);
+    assert.match(helper, /records\.map/);
+    assert.match(helper, /buildOrderReadiness/);
+    assert.match(helper, /buildOrderReadinessPlan/);
+    assert.match(helper, /buildOrderReadinessOverview/);
+    assertNoWrites(helper);
+    assert.match(route, /buildActiveOrdersReadinessOverview\(\)/);
+    assertNoWrites(route);
 });
 
 test('关键 API 集成契约：订单方案动作执行前实时重验并限制可确认步骤', () => {

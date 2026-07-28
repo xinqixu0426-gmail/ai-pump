@@ -354,6 +354,46 @@ test('Next UI 契约：订单方案动作执行后展示结果和重验后的方
     assert.match(aiView, /<OrderReadinessPlanResult result=\{\{ data: nextPlan \}\}/);
 });
 
+test('Next UI 契约：管理看板和 AI 均展示订单准备总览', () => {
+    const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
+    const overview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
+    const readinessLib = readUtf8('apps/web-next/lib/order-readiness.ts');
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+
+    assert.match(dashboard, /value: 'readiness', label: '订单准备'/);
+    assert.match(dashboard, /attentionRequired/);
+    assert.match(dashboard, /OrderReadinessOverviewView/);
+    assert.match(overview, /订单生产准备/);
+    assert.match(overview, /待补物料/);
+    assert.match(overview, /SegmentedControl/);
+    assert.match(readinessLib, /proxyRequest<ApiResponse<OrderReadinessOverview>>\('\/api\/orders\/readiness-overview'\)/);
+    assert.match(aiView, /function OrderReadinessOverviewResult/);
+    assert.match(aiView, /get_order_readiness_overview/);
+    assert.match(aiView, /\/dashboard\?view=readiness/);
+});
+
+test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {
+    const dashboardOverview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
+    const ordersPage = readUtf8('apps/web-next/app/orders/page.tsx');
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const drawer = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+    const readinessLib = readUtf8('apps/web-next/lib/order-readiness.ts');
+
+    assert.match(dashboardOverview, /\/orders\?orderId=\$\{item\.order\.id\}&view=readiness/);
+    assert.match(ordersPage, /params\.orderId/);
+    assert.match(ordersPage, /initialDetailTab/);
+    assert.match(ordersView, /initialOrderHandledRef/);
+    assert.match(ordersView, /setSelectedOrder\(target\)/);
+    assert.match(drawer, /value: 'readiness', label: '生产准备'/);
+    assert.match(drawer, /getOrderReadiness\(orderId\)/);
+    assert.match(drawer, /getOrderReadinessPlan\(orderId\)/);
+    assert.match(drawer, /六步检查依据/);
+    assert.match(drawer, /实时缺料/);
+    assert.match(drawer, /处理方案/);
+    assert.match(readinessLib, /proxyRequest<ApiResponse<OrderReadinessDetail>>\(`\/api\/orders\/\$\{id\}\/readiness`\)/);
+    assert.match(readinessLib, /proxyRequest<ApiResponse<OrderReadinessPlan>>\(`\/api\/orders\/\$\{id\}\/readiness-plan`\)/);
+});
+
 test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
@@ -408,7 +448,7 @@ test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助�
 
     assert.match(shell, /aria-label="主导航"/);
     assert.match(shell, /xl:grid-cols-\[minmax\(0,1fr\)_460px\]/);
-    assert.match(shell, /<AiView variant="panel"/);
+    assert.match(shell, /<AiView\s+variant="panel"/);
     assert.match(shell, /<NavMenu/);
     assert.match(shell, /label="业务"/);
     assert.doesNotMatch(shell, /fixed inset-y-0 left-0/);
@@ -416,6 +456,26 @@ test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助�
     assert.match(aiView, /进入 AI 工作台/);
     assert.match(aiView, /同步知识库/);
     assert.match(aiView, /syncFactoryKnowledge/);
+});
+
+test('Next UI 契约：订单详情上下文独立传给业务 AI 助手', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const aiLib = readUtf8('apps/web-next/lib/ai.ts');
+    const pageContext = readUtf8('apps/web-next/lib/page-context.ts');
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const orderDrawer = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+
+    assert.match(shell, /readCurrentAiPageContext/);
+    assert.match(shell, /pageContext=\{pageContext\}/);
+    assert.match(aiView, /aria-label="AI 页面上下文"/);
+    assert.match(aiView, /controller\.signal, pageContext/);
+    assert.match(aiLib, /resourceId: pageContext\.resourceId/);
+    assert.doesNotMatch(aiLib, /pageContext: \{[\s\S]{0,200}label:/);
+    assert.match(pageContext, /resourceType: 'order'/);
+    assert.match(pageContext, /AI_PAGE_CONTEXT_EVENT/);
+    assert.match(ordersView, /replacePageLocation\(`\/orders\?orderId=/);
+    assert.match(orderDrawer, /replacePageLocation\(`\/orders\?orderId=/);
 });
 
 test('Next API 契约：页面组件不得直接请求 API', () => {

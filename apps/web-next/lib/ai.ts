@@ -1,6 +1,7 @@
 'use client';
 
 import { proxyRequest, proxyStreamFetch, type ApiResponse } from './api';
+import type { AiPageContext } from './page-context';
 
 export type AiRole = 'user' | 'assistant';
 
@@ -215,11 +216,22 @@ function resolveAiStreamUrl(): string {
 export async function streamAiChat(
   messages: AiChatMessage[],
   onEvent: (event: AiStreamEvent) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  pageContext?: AiPageContext | null
 ): Promise<void> {
   const response = await proxyStreamFetch(resolveAiStreamUrl(), {
     method: 'POST',
-    body: JSON.stringify({ messages: messages.slice(-AI_CONTEXT_MESSAGE_LIMIT) }),
+    body: JSON.stringify({
+      messages: messages.slice(-AI_CONTEXT_MESSAGE_LIMIT),
+      ...(pageContext ? {
+        pageContext: {
+          resourceType: pageContext.resourceType,
+          resourceId: pageContext.resourceId,
+          path: pageContext.path,
+          view: pageContext.view,
+        },
+      } : {}),
+    }),
     signal,
   });
 

@@ -243,6 +243,21 @@ async function executeOrderTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'get_order_readiness_overview': {
+            const data = await getJson(
+                internalFetch,
+                '/api/orders/readiness-overview',
+                '订单生产准备总览读取失败'
+            );
+            return {
+                success: true,
+                intent: 'order_readiness_overview',
+                summary: data.summary,
+                display: { mode: 'compact', title: '订单准备总览' },
+                data,
+            };
+        }
+
         case 'plan_order_readiness_actions': {
             const resolved = await resolveOrderForReadiness(internalFetch, args);
             if (resolved.error) {
@@ -392,7 +407,8 @@ async function executeOrderTool(toolName, args, internalFetch) {
 const ORDER_TOOLS = new Set([
     'create_order', 'add_recipe_to_order', 'get_order_detail',
     'update_order_status', 'remove_recipe_from_order', 'update_order_item',
-    'generate_purchase_list', 'delete_order'
+    'generate_purchase_list', 'delete_order', 'get_order_readiness_overview',
+    'check_order_readiness', 'plan_order_readiness_actions', 'execute_order_readiness_action'
 ]);
 
 module.exports = { executeOrderTool, ORDER_TOOLS };

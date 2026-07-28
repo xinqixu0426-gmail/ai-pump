@@ -1,5 +1,5 @@
 const FACT_FIELD_RE = /价格|单价|成本|库存|铜价|铝价|汇率|状态|进度|金额|利润|报价|订单|供应商|客户|配方|零件|线圈|模板|质量问题|业务规则/;
-const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
+const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|汇总|总览|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
 
 /**
  * Dynamic factory data may have changed since an earlier conversation turn.
@@ -52,9 +52,12 @@ function buildFreshLookupToolCalls(messages = []) {
 
     const orderId = text.match(/订单\s*[#＃]?\s*(\d+)/)?.[1];
     if (/订单/.test(text)) {
-        const readinessIntent = /能不能生产|是否能生产|可以生产|可否生产|生产准备|是否齐料|齐料了吗|还缺什么|缺(?:哪|哪些)?料/.test(text);
+        const readinessIntent = /能不能生产|是否能生产|可以生产|可否生产|不能生产|生产准备|是否齐料|齐料了吗|还缺什么|缺(?:哪|哪些)?料/.test(text);
         const readinessPlanIntent = /怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/.test(text);
-        calls.push(orderId && readinessPlanIntent
+        const readinessOverviewIntent = /哪些订单|所有订单|全部订单|订单准备总览|订单生产准备总览|不能生产的订单|可以生产的订单|多少订单.*(?:缺料|能生产|不能生产)|订单.*(?:汇总|总览)/.test(text);
+        calls.push(!orderId && readinessOverviewIntent
+            ? { name: 'get_order_readiness_overview', args: {} }
+            : orderId && readinessPlanIntent
             ? { name: 'plan_order_readiness_actions', args: { orderId: Number(orderId) } }
             : orderId && readinessIntent
                 ? { name: 'check_order_readiness', args: { orderId: Number(orderId) } }

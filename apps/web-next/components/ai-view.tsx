@@ -66,6 +66,7 @@ import {
   type AiResultProvenance,
 } from '@/lib/ai';
 import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
+import type { AiPageContext } from '@/lib/page-context';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 
 type ChatItem = {
@@ -403,6 +404,7 @@ function toolLabel(name: string) {
     update_recipe: '修改配方',
     get_recent_orders: '最近订单',
     get_order_detail: '订单详情',
+    get_order_readiness_overview: '订单准备总览',
     check_order_readiness: '生产准备检查',
     plan_order_readiness_actions: '订单处理方案',
     execute_order_readiness_action: '执行订单处理步骤',
@@ -788,6 +790,87 @@ function OrderReadinessResult({ result }: { result: Record<string, unknown> }) {
   );
 }
 
+function OrderReadinessOverviewResult({ result }: { result: Record<string, unknown> }) {
+  const data = asRecord(result.data);
+  const metrics = asRecord(data.metrics);
+  const items = arrayValue(data.items);
+  const verdictMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
+    ready: { label: '可生产', tone: 'green' },
+    waiting_materials: { label: '待补料', tone: 'amber' },
+    needs_review: { label: '待复核', tone: 'orange' },
+    blocked: { label: '数据阻塞', tone: 'red' },
+    not_applicable: { label: '不适用', tone: 'slate' },
+  };
+
+  return (
+    <>
+      <div className="mt-3 border-b border-slate-100 pb-3">
+        <div className="text-sm font-semibold text-ink">订单准备总览</div>
+        <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
+      </div>
+      <KeyValueRows rows={[
+        { label: '活动订单', value: metrics.totalActiveOrders },
+        { label: '需关注', value: metrics.attentionRequired },
+        { label: '数据阻塞', value: metrics.blocked },
+        { label: '待补料', value: metrics.waitingMaterials },
+        { label: '待复核', value: metrics.needsReview },
+        { label: '可生产', value: metrics.ready },
+      ]} />
+      {items.length > 0 ? (
+        <DataTable
+          rows={items.slice(0, 12)}
+          columns={[
+            {
+              key: 'order',
+              label: '订单',
+              render: (row) => {
+                const order = asRecord(row.order);
+                return `#${textValue(order.id)} · ${textValue(order.customerName, '未命名客户')}`;
+              },
+            },
+            {
+              key: 'verdict',
+              label: '结论',
+              render: (row) => {
+                const verdict = textValue(row.verdict, '');
+                const meta = verdictMeta[verdict] || { label: verdict || '未知', tone: 'slate' as StatusBadgeTone };
+                return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
+              },
+            },
+            {
+              key: 'issue',
+              label: '主要问题',
+              render: (row) => {
+                const blocker = arrayValue(row.blockers)[0];
+                const shortage = arrayValue(row.shortages)[0];
+                const warning = arrayValue(row.warnings)[0];
+                if (blocker) return textValue(blocker.title);
+                if (shortage) return `${textValue(shortage.model)} 缺 ${textValue(shortage.shortageQty)}${textValue(shortage.purchaseUnit, '')}`;
+                if (warning) return textValue(warning.title);
+                return '检查通过';
+              },
+            },
+            {
+              key: 'nextAction',
+              label: '下一步',
+              render: (row) => textValue(asRecord(row.nextAction).title, '无需处理'),
+            },
+          ]}
+        />
+      ) : null}
+      <div className="mt-3">
+        <a
+          href="/dashboard?view=readiness"
+          className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        >
+          打开订单准备总览
+          <ArrowUpRight size={13} />
+        </a>
+      </div>
+    </>
+  );
+}
+
 function OrderReadinessPlanResult({ result }: { result: Record<string, unknown> }) {
   const data = asRecord(result.data);
   const order = asRecord(data.order);
@@ -1039,6 +1122,7 @@ function BusinessResult({ item }: { item: AiToolResult }) {
     return <CostResult result={result} />;
   }
   if (item.name === 'compare_recipes') return <CompareResult result={result} />;
+  if (item.name === 'get_order_readiness_overview') return <OrderReadinessOverviewResult result={result} />;
   if (item.name === 'check_order_readiness') return <OrderReadinessResult result={result} />;
   if (item.name === 'plan_order_readiness_actions') return <OrderReadinessPlanResult result={result} />;
   if (item.name === 'execute_order_readiness_action') return <OrderReadinessActionResult result={result} />;
@@ -1264,9 +1348,10 @@ function AnswerProcess({
 type AiViewProps = {
   variant?: 'workspace' | 'panel';
   onClose?: () => void;
+  pageContext?: AiPageContext | null;
 };
 
-export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
+export function AiView({ variant = 'workspace', onClose, pageContext = null }: AiViewProps = {}) {
   const isPanel = variant === 'panel';
   const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -1459,7 +1544,7 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
       await streamAiChat(nextMessages, (event) => {
         finalAssistantItem = applyStreamEvent(finalAssistantItem, event);
         updateAssistant(assistantId, (item) => applyStreamEvent(item, event));
-      }, controller.signal);
+      }, controller.signal, pageContext);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         finalAssistantItem = {
@@ -1942,6 +2027,13 @@ export function AiView({ variant = 'workspace', onClose }: AiViewProps = {}) {
             </div>
 
             <form onSubmit={handleSubmit} className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${isPanel ? 'px-3 pt-2 xl:p-3' : 'px-3 pt-2 md:p-4'}`}>
+              {isPanel && pageContext ? (
+                <div className="mb-2 flex min-w-0 items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs text-sky-900" aria-label="AI 页面上下文">
+                  <ReceiptText size={14} className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{pageContext.label}</span>
+                  <span className="shrink-0 text-sky-700">实时查询</span>
+                </div>
+              ) : null}
               <div className="flex items-end gap-2 rounded-2xl border border-line bg-slate-50 p-1.5 shadow-panel md:rounded-panel md:p-2">
                 <textarea
                   value={input}

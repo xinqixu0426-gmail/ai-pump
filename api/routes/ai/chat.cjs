@@ -5,6 +5,11 @@ const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const { trimAiContext } = require('../../services/aiContext.cjs');
 const { buildFreshLookupToolCalls } = require('../../services/aiFreshness.cjs');
+const {
+    normalizeAiPageContext,
+    buildAiPageContextNote,
+    resolveMessagesWithPageContext,
+} = require('../../services/aiPageContext.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 
 const AI_RUNTIME_RESPONSE_RULES = `
@@ -21,6 +26,7 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户询问知识库是否正常、最近是否同步成功、同步为什么失败或是否需要手动同步时，必须使用 get_factory_knowledge_health。该工具只诊断，不执行同步；只有健康结果建议恢复且用户明确同意时，才调用需确认的 sync_factory_knowledge。
 - 用户询问配方是否漏项、配置是否合理、固定件价格是否异常或有哪些相似配方时，必须使用 analyze_recipe_configuration。已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述；检查结果只读，不得自动修改。
 - 用户询问某个订单能否生产、是否齐料、缺什么物料或生产准备情况时，必须使用 check_order_readiness。按工具 verdict 区分可生产、待补料、待复核、数据阻塞和不适用；已下单或已到货不等于已经入库，只有当前可用库存覆盖需求时才能回答可生产。该检查只读，不得自动确认订单、采购或调整库存。
+- 用户询问全部或多个订单的生产准备总览、哪些订单不能生产、多少订单缺料时，必须使用 get_order_readiness_overview。先回答汇总数量，再按数据阻塞、待补料、待复核、可生产说明重点订单；不得用最近订单列表代替实时准备总览。
 - 用户在生产准备检查后询问问题怎么处理、下一步做什么或要求处理方案时，必须使用 plan_order_readiness_actions。按方案 sequence 和 dependsOn 说明先后关系；confirmable 只表示AI以后可以发起确认，不代表已经执行，manual/needs_input/monitor 必须如实区分。
 - 用户明确要求执行订单处理方案中的某一步时，先读取本轮最新 plan_order_readiness_actions；只有该步骤 mode=confirmable 且 status=available 才能调用 execute_order_readiness_action，并使用精确 orderId/actionId。工具仍会暂停等待确认，确认时后端会再次重验；禁止执行 manual、needs_input、monitor 或 blocked 步骤。
 - 用户明确要求确认、忽略、标记特殊情况或恢复某条检查提醒时，使用 set_recipe_analysis_feedback，并且只能使用最近一次检查结果中的精确 findingKey 和 findingType；反馈写入仍需确认。同类高频项反馈保存后会自动刷新候选规则，不要重复要求用户手动归纳。
@@ -89,6 +95,7 @@ const TOOL_PLAN_LABELS = {
     add_recipe_to_order: '订单追加产品',
     update_part: '修改零件',
     get_order_detail: '读取订单详情',
+    get_order_readiness_overview: '读取订单准备总览',
     check_order_readiness: '检查订单生产准备',
     plan_order_readiness_actions: '生成订单处理方案',
     execute_order_readiness_action: '执行订单处理步骤',
@@ -211,10 +218,13 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
 
     try {
         const messages = trimAiContext(req.body?.messages);
+        const pageContext = normalizeAiPageContext(req.body?.pageContext);
+        const routingMessages = resolveMessagesWithPageContext(messages, pageContext);
+        const pageContextNote = buildAiPageContextNote(pageContext);
         send('status', { status: 'thinking', message: '正在理解您的问题...' });
 
         let currentMessages = [
-            { role: 'system', content: buildSystemPrompt() },
+            { role: 'system', content: `${buildSystemPrompt()}${pageContextNote ? `\n\n${pageContextNote}` : ''}` },
             ...messages
         ];
 
@@ -222,7 +232,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         let done = false;
         let allToolResults = [];
 
-        const freshLookupCalls = buildFreshLookupToolCalls(messages);
+        const freshLookupCalls = buildFreshLookupToolCalls(routingMessages);
         if (freshLookupCalls.length > 0) {
             send('tool_plan', {
                 ...buildToolPlan(freshLookupCalls.map((call, index) => ({
@@ -402,7 +412,7 @@ router.post('/api/ai/confirm-tool', confirmAuth, async (req, res) => {
  * 通用 AI 对话处理函数
  */
 async function processAiChat(text, options = {}) {
-    const { context = [], promptSuffix = '', allowWrite = false } = options;
+    const { context = [], promptSuffix = '', allowWrite = false, pageContext: rawPageContext = null } = options;
     const toolResults = [];
 
     const messages = trimAiContext([
@@ -410,8 +420,12 @@ async function processAiChat(text, options = {}) {
         { role: 'user', content: text },
     ]);
 
+    const pageContext = normalizeAiPageContext(rawPageContext);
+    const routingMessages = resolveMessagesWithPageContext(messages, pageContext);
+    const pageContextNote = buildAiPageContextNote(pageContext);
+
     let currentMessages = [
-        { role: 'system', content: buildSystemPrompt(promptSuffix) },
+        { role: 'system', content: `${buildSystemPrompt(promptSuffix)}${pageContextNote ? `\n\n${pageContextNote}` : ''}` },
         ...messages
     ];
 
@@ -422,12 +436,13 @@ async function processAiChat(text, options = {}) {
     const VIEW_TYPE_MAP = {
         get_order_detail: 'order_detail',
         generate_purchase_list: 'purchase_list',
+        get_order_readiness_overview: 'order_readiness_overview',
         check_order_readiness: 'order_readiness',
         plan_order_readiness_actions: 'order_readiness_plan',
         execute_order_readiness_action: 'order_readiness_action',
     };
 
-    for (const call of buildFreshLookupToolCalls(messages)) {
+    for (const call of buildFreshLookupToolCalls(routingMessages)) {
         const result = await executeToolCall(call.name, call.args, { allowWrite: false });
         toolResults.push({ name: call.name, view_type: VIEW_TYPE_MAP[call.name] || 'action_result', result });
     }

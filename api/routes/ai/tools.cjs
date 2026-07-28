@@ -702,6 +702,14 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_order_readiness_overview',
+            description: '实时汇总全部活动订单的生产准备情况，按数据阻塞、待补料、待复核、可生产分类，并返回每个订单的主要问题和下一步。只读，不修改订单、采购和库存。用户问“哪些订单不能生产”“所有订单准备情况”“目前有多少订单缺料”时使用。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'check_order_readiness',
             description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
             parameters: {

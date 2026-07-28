@@ -4,6 +4,7 @@ const { db, dbGetAllOrders, dbGetAllParts, dbGetAllCoils, dbGetAllRecipes, order
 const { buildOrderPlan, buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
 const { buildOrderReadiness } = require('../services/orderReadiness.cjs');
 const { buildOrderReadinessPlan } = require('../services/orderReadinessPlan.cjs');
+const { buildOrderReadinessOverview } = require('../services/orderReadinessOverview.cjs');
 const { adjustCoilStock } = require('../services/coilInventory.cjs');
 const {
     ORDER_STATUSES,
@@ -517,6 +518,29 @@ function buildReadinessForOrderRecord(record) {
     return buildReadinessContextForOrderRecord(record).readiness;
 }
 
+function buildActiveOrdersReadinessOverview() {
+    const records = db.prepare(ACTIVE_ORDERS_SQL).all();
+    const parts = dbGetAllParts();
+    const coils = dbGetAllCoils();
+    const recipes = dbGetAllRecipes();
+    const plans = buildBalancedOrderPlans(records, parts, { coilsCatalog: coils });
+    const entries = records.map(record => {
+        const plan = plans.get(Number(record.id)) || buildOrderPlan(parseOrderJsonArray(record, 'items_json'), parts, {
+            coilsCatalog: coils,
+        });
+        const readiness = buildOrderReadiness({
+            order: orderRow(record),
+            plan,
+            recipes,
+        });
+        return {
+            readiness,
+            actionPlan: buildOrderReadinessPlan(readiness),
+        };
+    });
+    return buildOrderReadinessOverview(entries);
+}
+
 function executeReadinessAction(id, actionId) {
     const record = getOrderRecord(id);
     const context = buildReadinessContextForOrderRecord(record);
@@ -603,6 +627,17 @@ router.get('/lookup', (req, res) => {
             || String(order.customerName || '').toLowerCase().includes(normalized)
         ));
         res.json({ success: true, data: matches.slice(0, 20) });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/readiness-overview', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: buildActiveOrdersReadinessOverview(),
+        });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

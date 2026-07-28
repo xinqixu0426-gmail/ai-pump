@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { CircleAlert, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { getAllCustomers, type Customer } from '@/lib/customers';
@@ -24,6 +24,7 @@ import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { replacePageLocation } from '@/lib/page-context';
 
 const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
   { value: '全部', label: '全部' },
@@ -57,7 +58,13 @@ function customerMarginMultiplier(customer: Customer | undefined): number {
   return 1 + Math.max(0, Number(customer?.defaultMargin) || 0);
 }
 
-export function OrdersView() {
+export function OrdersView({
+  initialOrderId = null,
+  initialDetailTab = 'items',
+}: {
+  initialOrderId?: number | null;
+  initialDetailTab?: 'readiness' | 'items' | 'purchase' | 'todos';
+}) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -78,6 +85,7 @@ export function OrdersView() {
   const [itemQty, setItemQty] = useState('1');
   const [itemMargin, setItemMargin] = useState('1.10');
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
+  const initialOrderHandledRef = useRef(false);
 
   async function load(force = false) {
     setError(null);
@@ -87,6 +95,12 @@ export function OrdersView() {
     try {
       const data = await getAllOrders();
       setOrders(data);
+      if (!initialOrderHandledRef.current && initialOrderId) {
+        initialOrderHandledRef.current = true;
+        const target = data.find((order) => Number(order.id) === initialOrderId);
+        if (target) setSelectedOrder(target);
+        else setError(`没有找到订单 #${initialOrderId}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '订单加载失败');
     } finally {
@@ -125,6 +139,16 @@ export function OrdersView() {
     setDraftItems([]);
     setDrawerOpen(true);
     void loadAuxiliary();
+  }
+
+  function openOrder(order: Order, detailTab: 'readiness' | 'items' | 'purchase' | 'todos' = 'items') {
+    setSelectedOrder(order);
+    replacePageLocation(`/orders?orderId=${order.id}&view=${detailTab}`);
+  }
+
+  function closeOrder() {
+    setSelectedOrder(null);
+    replacePageLocation('/orders');
   }
 
   const filteredOrders = useMemo(() => {
@@ -332,7 +356,7 @@ export function OrdersView() {
                     <PresenceRow
                       key={order.id}
                       className="group cursor-pointer transition hover:bg-slate-50"
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => openOrder(order)}
                     >
                       <td className="border-b border-line px-4 py-3">
                         <div className="font-medium text-ink">{order.customerName || '未命名客户'}</div>
@@ -358,7 +382,8 @@ export function OrdersView() {
       <OrderDetailDrawer
         order={selectedFreshOrder}
         open={Boolean(selectedOrder)}
-        onClose={() => setSelectedOrder(null)}
+        initialTab={initialOrderId && selectedOrder && Number(selectedOrder.id) === initialOrderId ? initialDetailTab : 'items'}
+        onClose={closeOrder}
         onSaved={() => void load(true)}
       />
 

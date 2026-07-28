@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, PackageCheck, Save, ShoppingCart, X } from 'lucide-react';
+import { ArrowUpRight, ClipboardList, PackageCheck, RefreshCw, Save, ShoppingCart, X } from 'lucide-react';
 import {
   completeOrderPurchase,
   orderPurchaseProgress,
@@ -16,15 +16,24 @@ import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import {
+  getOrderReadiness,
+  getOrderReadinessPlan,
+  type OrderReadinessDetail,
+  type OrderReadinessPlan,
+  type OrderReadinessVerdict,
+} from '@/lib/order-readiness';
+import { replacePageLocation } from '@/lib/page-context';
 
 type OrderDetailDrawerProps = {
   order: Order | null;
   open: boolean;
+  initialTab?: TabKey;
   onClose: () => void;
   onSaved: () => void;
 };
 
-type TabKey = 'items' | 'purchase' | 'todos';
+type TabKey = 'readiness' | 'items' | 'purchase' | 'todos';
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   待确认: 'slate',
@@ -48,12 +57,220 @@ function purchaseItemKey(item: { identityKey?: string; model: string; supplier: 
 }
 
 const tabOptions: Array<{ value: TabKey; label: string }> = [
+  { value: 'readiness', label: '生产准备' },
   { value: 'items', label: '型号' },
   { value: 'purchase', label: '采购' },
   { value: 'todos', label: '待办' },
 ];
 
-export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetailDrawerProps) {
+const verdictMeta: Record<OrderReadinessVerdict, { label: string; tone: StatusBadgeTone }> = {
+  ready: { label: '可生产', tone: 'green' },
+  waiting_materials: { label: '待补料', tone: 'amber' },
+  needs_review: { label: '待复核', tone: 'orange' },
+  blocked: { label: '数据阻塞', tone: 'red' },
+  not_applicable: { label: '不适用', tone: 'slate' },
+};
+
+function stepTone(status: string): StatusBadgeTone {
+  if (status === 'pass' || status === 'available') return 'green';
+  if (status === 'warning' || status === 'waiting' || status === 'needs_input') return 'amber';
+  if (status === 'fail' || status === 'blocked') return 'red';
+  return 'slate';
+}
+
+function modeLabel(mode: string) {
+  if (mode === 'confirmable') return 'AI可确认';
+  if (mode === 'manual') return '人工处理';
+  if (mode === 'needs_input') return '需要决定';
+  if (mode === 'monitor') return '等待跟进';
+  return mode || '处理';
+}
+
+function ReadinessPanel({
+  readiness,
+  plan,
+  loading,
+  error,
+  onRefresh,
+}: {
+  readiness: OrderReadinessDetail | null;
+  plan: OrderReadinessPlan | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  if (loading && !readiness) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-md bg-slate-100" />)}
+      </div>
+    );
+  }
+
+  if (error && !readiness) {
+    return (
+      <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  }
+
+  if (!readiness) return null;
+  const verdict = verdictMeta[readiness.verdict] || verdictMeta.not_applicable;
+  const stepTitles = new Map((plan?.steps || []).map((item) => [item.id, item.title]));
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-panel border border-line bg-white">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line p-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-sm font-semibold text-ink">实时生产准备结论</div>
+              <StatusBadge tone={verdict.tone}>{verdict.label}</StatusBadge>
+            </div>
+            <div className="mt-2 text-sm leading-6 text-muted">{readiness.summary}</div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRefresh}
+            disabled={loading}
+            aria-label="刷新生产准备检查"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </Button>
+        </div>
+        <div className="grid gap-3 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <div><div className="text-xs text-muted">产品数量</div><div className="mt-1 font-semibold text-ink">{readiness.metrics.totalUnits} 台</div></div>
+          <div><div className="text-xs text-muted">物料行</div><div className="mt-1 font-semibold text-ink">{readiness.metrics.materialLineCount}</div></div>
+          <div><div className="text-xs text-muted">缺料项</div><div className="mt-1 font-semibold text-ink">{readiness.metrics.shortageLineCount}</div></div>
+          <div><div className="text-xs text-muted">毛利</div><div className="mt-1 font-semibold text-ink">{money(readiness.metrics.grossProfit)}</div></div>
+        </div>
+      </section>
+
+      {error ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</div> : null}
+
+      <section>
+        <div className="mb-2 text-sm font-semibold text-ink">六步检查依据</div>
+        <div className="divide-y divide-line border-y border-line">
+          {readiness.steps.map((item) => (
+            <div key={item.key} className="flex items-start gap-3 py-3">
+              <StatusBadge tone={stepTone(item.status)} className="h-5 min-w-12 px-2">
+                {item.status === 'pass' ? '通过' : item.status === 'warning' ? '注意' : item.status === 'fail' ? '阻塞' : '跳过'}
+              </StatusBadge>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-ink">{item.label}</div>
+                <div className="mt-1 text-xs leading-5 text-muted">{item.summary}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {(readiness.blockers.length > 0 || readiness.warnings.length > 0) ? (
+        <section>
+          <div className="mb-2 text-sm font-semibold text-ink">问题明细</div>
+          <div className="divide-y divide-line border-y border-line">
+            {[...readiness.blockers, ...readiness.warnings].map((item, index) => (
+              <div key={`${item.code}-${index}`} className="py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge tone={index < readiness.blockers.length ? 'red' : 'amber'} className="h-5 min-w-12 px-2">
+                    {index < readiness.blockers.length ? '阻塞' : '复核'}
+                  </StatusBadge>
+                  <div className="text-sm font-medium text-ink">{item.title}</div>
+                </div>
+                <div className="mt-1 text-xs leading-5 text-muted">{item.detail}</div>
+                <div className="mt-1 text-xs text-slate-700">建议：{item.action}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {readiness.shortages.length > 0 ? (
+        <section>
+          <div className="mb-2 text-sm font-semibold text-ink">实时缺料</div>
+          <div className="overflow-x-auto rounded-panel border border-line">
+            <table className="min-w-[720px] w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs text-muted">
+                <tr>
+                  <th className="px-3 py-2">物料</th>
+                  <th className="px-3 py-2 text-right">需求</th>
+                  <th className="px-3 py-2 text-right">可用库存</th>
+                  <th className="px-3 py-2 text-right">缺口</th>
+                  <th className="px-3 py-2">采购阶段</th>
+                </tr>
+              </thead>
+              <tbody>
+                {readiness.shortages.map((item) => (
+                  <tr key={item.identityKey || `${item.model}|${item.supplier}`} className="border-t border-line">
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-ink">{item.model}</div>
+                      <div className="mt-0.5 text-xs text-muted">{item.supplier || '-'}</div>
+                    </td>
+                    <td className="px-3 py-2 text-right">{item.requiredQty}</td>
+                    <td className="px-3 py-2 text-right">{item.availableQty}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-rose-700">{item.shortageQty}{item.purchaseUnit}</td>
+                    <td className="px-3 py-2 text-muted">{item.procurementStage}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      <section>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-ink">处理方案</div>
+            <div className="mt-1 text-xs text-muted">{plan?.summary || '当前没有需要处理的步骤。'}</div>
+          </div>
+          <StatusBadge tone={plan?.planStatus === 'complete' ? 'green' : plan?.planStatus === 'needs_resolution' ? 'red' : 'amber'}>
+            {plan?.steps.length || 0} 步
+          </StatusBadge>
+        </div>
+        {plan?.steps.length ? (
+          <div className="divide-y divide-line border-y border-line">
+            {plan.steps.map((item) => {
+              const dependencies = item.dependsOn.map((id) => stepTitles.get(id) || id);
+              return (
+                <div key={item.id} className="flex gap-3 py-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-xs font-semibold text-white">
+                    {item.sequence}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-sm font-semibold text-ink">{item.title}</div>
+                      <StatusBadge tone={stepTone(item.status)} className="h-5 min-w-0 px-2">{modeLabel(item.mode)}</StatusBadge>
+                      {item.status === 'blocked' ? <StatusBadge tone="red" className="h-5 min-w-0 px-2">有前置步骤</StatusBadge> : null}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-muted">{item.reason}</div>
+                    <div className="mt-1 text-xs text-slate-700">完成标准：{item.expectedResult}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                      <span>负责人：{item.owner}</span>
+                      {dependencies.length > 0 ? <span>前置：{dependencies.join('、')}</span> : null}
+                      {item.path && item.path !== '/orders' ? (
+                        <a href={item.path} className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-950">
+                          打开处理页面
+                          <ArrowUpRight size={12} />
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="border-y border-line py-6 text-center text-sm text-muted">无需新增处理步骤</div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, onSaved }: OrderDetailDrawerProps) {
   const [localOrder, setLocalOrder] = useState<Order | null>(order);
   const [tab, setTab] = useState<TabKey>('items');
   const [confirmingPurchase, setConfirmingPurchase] = useState(false);
@@ -61,7 +278,32 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [progressDrafts, setProgressDrafts] = useState<Record<string, PurchaseProgressDraft>>({});
+  const [readiness, setReadiness] = useState<OrderReadinessDetail | null>(null);
+  const [readinessPlan, setReadinessPlan] = useState<OrderReadinessPlan | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState('');
   const previousOrderIdRef = useRef<string | null>(null);
+  const readinessRequestRef = useRef(0);
+
+  async function loadReadiness(orderId: string) {
+    const requestId = ++readinessRequestRef.current;
+    setReadinessLoading(true);
+    setReadinessError('');
+    try {
+      const [nextReadiness, nextPlan] = await Promise.all([
+        getOrderReadiness(orderId),
+        getOrderReadinessPlan(orderId),
+      ]);
+      if (requestId !== readinessRequestRef.current) return;
+      setReadiness(nextReadiness);
+      setReadinessPlan(nextPlan);
+    } catch (err) {
+      if (requestId !== readinessRequestRef.current) return;
+      setReadinessError(err instanceof Error ? err.message : '生产准备检查加载失败');
+    } finally {
+      if (requestId === readinessRequestRef.current) setReadinessLoading(false);
+    }
+  }
 
   useEffect(() => {
     const nextOrderId = order?.id ?? null;
@@ -79,12 +321,27 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
       },
     ])));
     if (changedOrder) {
-      setTab('items');
+      setTab(initialTab);
       setConfirmingPurchase(false);
+      setReadiness(null);
+      setReadinessPlan(null);
+    }
+    if (order?.id) {
+      void loadReadiness(order.id);
+    } else {
+      readinessRequestRef.current += 1;
+      setReadinessLoading(false);
     }
     setMessage('');
     setError('');
-  }, [order]);
+  }, [order, initialTab]);
+
+  function selectTab(nextTab: TabKey) {
+    setTab(nextTab);
+    if (localOrder) {
+      replacePageLocation(`/orders?orderId=${localOrder.id}&view=${nextTab}`);
+    }
+  }
 
   const progress = useMemo(() => (
     localOrder
@@ -230,7 +487,7 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
             <SegmentedControl
               value={tab}
               options={tabOptions}
-              onChange={setTab}
+              onChange={selectTab}
               ariaLabel="订单详情分区"
             />
             <div className="hidden items-center gap-3 text-xs text-muted md:flex">
@@ -243,6 +500,18 @@ export function OrderDetailDrawer({ order, open, onClose, onSaved }: OrderDetail
           <main className="flex-1 space-y-4 p-5">
             {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
             {message && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div>}
+
+            {tab === 'readiness' && (
+              <ReadinessPanel
+                readiness={readiness}
+                plan={readinessPlan}
+                loading={readinessLoading}
+                error={readinessError}
+                onRefresh={() => {
+                  if (localOrder) void loadReadiness(localOrder.id);
+                }}
+              />
+            )}
 
             {tab === 'items' && (
               <div className="space-y-3">

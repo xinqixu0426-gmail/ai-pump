@@ -6,6 +6,11 @@ import { BarChart3, Bot, Boxes, BriefcaseBusiness, Cable, FileText, MessageSquar
 import { AiView } from '@/components/ai-view';
 import { NavItem, NavMenu } from '@/components/ui/nav-item';
 import { Button } from '@/components/ui/button';
+import {
+  AI_PAGE_CONTEXT_EVENT,
+  readCurrentAiPageContext,
+  type AiPageContext,
+} from '@/lib/page-context';
 
 const navItems = [
   { href: '/ai', label: 'AI', icon: Bot, enabled: true },
@@ -27,6 +32,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAiWorkspace = pathname === '/ai';
   const [mobileAiOpen, setMobileAiOpen] = useState(false);
+  const [pageContext, setPageContext] = useState<AiPageContext | null>(null);
+
+  useEffect(() => {
+    const syncPageContext = () => setPageContext(readCurrentAiPageContext());
+    syncPageContext();
+    window.addEventListener('popstate', syncPageContext);
+    window.addEventListener(AI_PAGE_CONTEXT_EVENT, syncPageContext);
+    return () => {
+      window.removeEventListener('popstate', syncPageContext);
+      window.removeEventListener(AI_PAGE_CONTEXT_EVENT, syncPageContext);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (!mobileAiOpen) return;
@@ -113,7 +130,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               role={mobileAiOpen ? 'dialog' : undefined}
               aria-modal={mobileAiOpen ? true : undefined}
             >
-              <AiView variant="panel" onClose={() => setMobileAiOpen(false)} />
+              <AiView
+                variant="panel"
+                pageContext={pageContext}
+                onClose={() => setMobileAiOpen(false)}
+              />
             </aside>
           </div>
         )}

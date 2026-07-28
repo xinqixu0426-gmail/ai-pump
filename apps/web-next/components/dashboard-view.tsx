@@ -19,8 +19,10 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 import { QualityView } from '@/components/quality-view';
 import { getDataQualitySummary } from '@/lib/quality';
 import { KnowledgeView } from '@/components/knowledge-view';
+import { OrderReadinessOverviewView } from '@/components/order-readiness-overview';
+import { getOrderReadinessOverview, type OrderReadinessOverview } from '@/lib/order-readiness';
 
-type DashboardMode = 'overview' | 'quality' | 'knowledge';
+type DashboardMode = 'overview' | 'readiness' | 'quality' | 'knowledge';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -56,6 +58,10 @@ export function DashboardView({
   const [qualityRefreshing, setQualityRefreshing] = useState(false);
   const [knowledgeRefreshKey, setKnowledgeRefreshKey] = useState(0);
   const [knowledgeRefreshing, setKnowledgeRefreshing] = useState(false);
+  const [readinessOverview, setReadinessOverview] = useState<OrderReadinessOverview | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [readinessRefreshing, setReadinessRefreshing] = useState(false);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
 
   async function load(force = false) {
     setError(null);
@@ -72,8 +78,23 @@ export function DashboardView({
     }
   }
 
+  async function loadReadiness(force = false) {
+    setReadinessError(null);
+    if (force) setReadinessRefreshing(true);
+    else setReadinessLoading(true);
+    try {
+      setReadinessOverview(await getOrderReadinessOverview());
+    } catch (err) {
+      setReadinessError(err instanceof Error ? err.message : '订单准备总览加载失败');
+    } finally {
+      setReadinessLoading(false);
+      setReadinessRefreshing(false);
+    }
+  }
+
   useEffect(() => {
     void load();
+    void loadReadiness();
     void getDataQualitySummary()
       .then((quality) => setQualityScore(quality.score))
       .catch(() => undefined);
@@ -81,12 +102,14 @@ export function DashboardView({
 
   const dashboardModeOptions: Array<{ value: DashboardMode; label: string; badge?: number }> = [
     { value: 'overview', label: '经营概览' },
+    { value: 'readiness', label: '订单准备', ...(readinessOverview ? { badge: readinessOverview.metrics.attentionRequired } : {}) },
     { value: 'quality', label: '数据质量', ...(qualityScore === null ? {} : { badge: qualityScore }) },
     { value: 'knowledge', label: '知识库' },
   ];
 
   function refreshCurrentView() {
     if (mode === 'overview') void load(true);
+    else if (mode === 'readiness') void loadReadiness(true);
     else if (mode === 'quality') {
       setQualityRefreshing(true);
       setQualityRefreshKey((current) => current + 1);
@@ -110,8 +133,8 @@ export function DashboardView({
           <SegmentedControl value={mode} options={dashboardModeOptions} onChange={setMode} ariaLabel="看板内容" />
           <Button
             onClick={refreshCurrentView}
-            disabled={mode === 'overview' ? refreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
-            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
+            disabled={mode === 'overview' ? refreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
+            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
           >
             刷新
           </Button>
@@ -124,6 +147,10 @@ export function DashboardView({
 
       {mode === 'knowledge' ? (
         <KnowledgeView initialEntryId={initialKnowledgeEntryId} refreshKey={knowledgeRefreshKey} onRefreshComplete={() => setKnowledgeRefreshing(false)} />
+      ) : null}
+
+      {mode === 'readiness' ? (
+        <OrderReadinessOverviewView overview={readinessOverview} loading={readinessLoading} error={readinessError} />
       ) : null}
 
       {mode === 'overview' && error && (
