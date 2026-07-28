@@ -77,7 +77,8 @@ export type RecipeAnalysisFeedback = {
   ruleLearning?: {
     refreshed: true;
     minimumEvidence: number;
-    stats: { created: number; updated: number; stale: number; active: number };
+    minimumConfidence: number;
+    stats: { created: number; updated: number; stale: number; suspended: number; active: number };
     candidateCount: number;
   };
 };
@@ -164,6 +165,12 @@ export type FactoryRuleCandidate = {
   ignoredCount: number;
   confidenceScore: number;
   confidenceLevel: RecipeAnalysisConfidence;
+  approvalEligible: boolean;
+  approvalBlockers: string[];
+  approvalRequirements: {
+    minimumSupport: number;
+    minimumConfidence: number;
+  };
   learningEvidence: {
     supporting: Array<Record<string, unknown>>;
     specialCases: Array<Record<string, unknown>>;
@@ -410,12 +417,14 @@ export async function restoreFactoryRuleEvent(
 
 export async function refreshFactoryRuleCandidates(): Promise<{
   minimumEvidence: number;
-  stats: { created: number; updated: number; stale: number; active: number };
+  minimumConfidence: number;
+  stats: { created: number; updated: number; stale: number; suspended: number; active: number };
   candidates: FactoryRuleCandidate[];
 }> {
   const result = await proxyRequest<ApiResponse<{
     minimumEvidence: number;
-    stats: { created: number; updated: number; stale: number; active: number };
+    minimumConfidence: number;
+    stats: { created: number; updated: number; stale: number; suspended: number; active: number };
     candidates: FactoryRuleCandidate[];
   }>>('/api/quality/rule-candidates/refresh', { method: 'POST' });
   if (!result.success || !result.data) throw new Error(result.error || '候选规则归纳失败');

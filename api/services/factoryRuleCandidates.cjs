@@ -3,6 +3,8 @@ const { parsePositiveId } = require('./validation.cjs');
 const { partRole } = require('./recipeIntelligence.cjs');
 
 const REVIEW_STATUSES = new Set(['candidate', 'approved', 'rejected']);
+const MINIMUM_APPROVAL_SUPPORT = 2;
+const MINIMUM_APPROVAL_CONFIDENCE = 0.65;
 
 function inputError(message) {
     const error = new Error(message);
@@ -47,6 +49,24 @@ function confidenceForEvidence(supportCount, specialCaseCount, ignoredCount) {
     return { score: roundedScore, level };
 }
 
+function factoryRuleApprovalGate(supportCountValue, confidenceScoreValue) {
+    const supportCount = Number(supportCountValue || 0);
+    const confidenceScore = Number(confidenceScoreValue || 0);
+    const blockers = [];
+    if (supportCount < MINIMUM_APPROVAL_SUPPORT) {
+        blockers.push(`至少需要 ${MINIMUM_APPROVAL_SUPPORT} 个不同配方确认`);
+    }
+    if (confidenceScore < MINIMUM_APPROVAL_CONFIDENCE) {
+        blockers.push(`当前置信度 ${Math.round(confidenceScore * 100)}%，低于 ${Math.round(MINIMUM_APPROVAL_CONFIDENCE * 100)}%`);
+    }
+    return {
+        eligible: blockers.length === 0,
+        blockers,
+        minimumSupport: MINIMUM_APPROVAL_SUPPORT,
+        minimumConfidence: MINIMUM_APPROVAL_CONFIDENCE,
+    };
+}
+
 function learningEvidenceHash(learningEvidence) {
     const signatures = ['supporting', 'specialCases', 'ignored']
         .flatMap(bucket => parseArray(learningEvidence?.[bucket]).map(item => ({
@@ -80,6 +100,7 @@ function candidateRow(row) {
     const learningHash = row.learning_hash || '';
     const reviewedLearningHash = row.reviewed_learning_hash || '';
     const reviewedLatestEvidence = learningHash && reviewedLearningHash === learningHash;
+    const approvalGate = factoryRuleApprovalGate(supportCount, confidenceScore);
     return {
         id: row.id,
         ruleKey: row.rule_key,
@@ -100,6 +121,12 @@ function candidateRow(row) {
             specialCaseCount,
             ignoredCount
         ).level,
+        approvalEligible: approvalGate.eligible,
+        approvalBlockers: approvalGate.blockers,
+        approvalRequirements: {
+            minimumSupport: approvalGate.minimumSupport,
+            minimumConfidence: approvalGate.minimumConfidence,
+        },
         learningEvidence: {
             supporting: parseArray(learningEvidence.supporting).length
                 ? parseArray(learningEvidence.supporting)
@@ -109,7 +136,7 @@ function candidateRow(row) {
         },
         status: row.status,
         needsReview: row.status === 'approved'
-            && (ignoredCount > 0 || confidenceScore < 0.65)
+            && ignoredCount > 0
             && !reviewedLatestEvidence,
         reviewNote: row.review_note || '',
         approvedAt,
@@ -276,6 +303,44 @@ function feedbackEvidenceRows(database) {
           AND feedback.finding_type = 'peer_pattern'
         ORDER BY feedback.updated_at DESC, feedback.id DESC
     `).all();
+}
+
+function currentRuleLearningGroup(database, ruleKey) {
+    return buildRuleCandidateGroups(feedbackEvidenceRows(database), 0)
+        .find(group => group.ruleKey === ruleKey) || null;
+}
+
+function ruleLearningValues(group, now) {
+    if (!group) {
+        return {
+            evidence_count: 0,
+            evidence_json: '[]',
+            support_count: 0,
+            special_case_count: 0,
+            ignored_count: 0,
+            confidence_score: 0,
+            learning_evidence_json: '{}',
+            learning_hash: '',
+            learning_updated_at: now,
+        };
+    }
+    return {
+        title: group.title,
+        content: group.content,
+        scope_type: group.scopeType,
+        scope_ref: group.scopeRef,
+        finding_key: group.findingKey,
+        finding_type: group.findingType,
+        evidence_count: group.evidenceCount,
+        evidence_json: JSON.stringify(group.evidence),
+        support_count: group.supportCount,
+        special_case_count: group.specialCaseCount,
+        ignored_count: group.ignoredCount,
+        confidence_score: group.confidenceScore,
+        learning_evidence_json: JSON.stringify(group.learningEvidence),
+        learning_hash: group.learningHash,
+        learning_updated_at: now,
+    };
 }
 
 function listFactoryRuleCandidates(options = {}) {
@@ -464,54 +529,55 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
     const remove = options.hardDelete || accessors.hardDelete;
     const syncRuleKnowledge = options.syncFactoryRuleKnowledgeEntry
         || require('./knowledge.cjs').syncFactoryRuleKnowledgeEntry;
-    const groups = buildRuleCandidateGroups(feedbackEvidenceRows(database), options.minimumEvidence || 2);
+    const minimumEvidence = options.minimumEvidence || MINIMUM_APPROVAL_SUPPORT;
+    const groups = buildRuleCandidateGroups(feedbackEvidenceRows(database), minimumEvidence);
     const activeKeys = new Set(groups.map(group => group.ruleKey));
     const now = new Date().toISOString();
     let created = 0;
     let updated = 0;
     let stale = 0;
+    let suspended = 0;
 
     for (const group of groups) {
         const current = database.prepare('SELECT * FROM factory_rule_candidates WHERE rule_key = ?').get(group.ruleKey);
-        const values = {
-            title: group.title,
-            content: group.content,
-            scope_type: group.scopeType,
-            scope_ref: group.scopeRef,
-            finding_key: group.findingKey,
-            finding_type: group.findingType,
-            evidence_count: group.evidenceCount,
-            evidence_json: JSON.stringify(group.evidence),
-            support_count: group.supportCount,
-            special_case_count: group.specialCaseCount,
-            ignored_count: group.ignoredCount,
-            confidence_score: group.confidenceScore,
-            learning_evidence_json: JSON.stringify(group.learningEvidence),
-            learning_hash: group.learningHash,
-            learning_updated_at: now,
-        };
+        const values = ruleLearningValues(group, now);
         if (current) {
             const previousStatus = current.status;
             const evidenceChanged = current.learning_hash !== group.learningHash
                 || Number(current.support_count || 0) !== group.supportCount
                 || Number(current.special_case_count || 0) !== group.specialCaseCount
                 || Number(current.ignored_count || 0) !== group.ignoredCount;
+            const approvalGate = factoryRuleApprovalGate(group.supportCount, group.confidenceScore);
+            const approvalSuspended = previousStatus === 'approved' && !approvalGate.eligible;
             if (previousStatus === 'stale') values.status = 'candidate';
+            if (approvalSuspended) {
+                values.status = 'candidate';
+                values.approved_at = null;
+                values.reviewed_learning_hash = '';
+            }
             update('factory_rule_candidates', current.id, values);
             const updatedCandidate = candidateRow(
                 database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
             );
-            if (evidenceChanged || previousStatus === 'stale') {
-                recordFactoryRuleEvent(updatedCandidate, previousStatus === 'stale' ? 'reactivated' : 'evidence_changed', {
+            if (evidenceChanged || previousStatus === 'stale' || approvalSuspended) {
+                const eventType = previousStatus === 'stale'
+                    ? 'reactivated'
+                    : approvalSuspended
+                        ? 'approval_suspended'
+                        : 'evidence_changed';
+                const note = previousStatus === 'stale'
+                    ? '支持证据恢复到最低要求，规则重新进入候选状态'
+                    : approvalSuspended
+                        ? `置信度降至 ${Math.round(group.confidenceScore * 100)}%，低于批准门槛，系统自动撤回批准`
+                        : '人工反馈改变了规则证据或置信度';
+                recordFactoryRuleEvent(updatedCandidate, eventType, {
                     previousStatus,
                     newStatus: updatedCandidate.status,
                     actor: options.actor,
-                    note: previousStatus === 'stale'
-                        ? '支持证据恢复到最低要求，规则重新进入候选状态'
-                        : '人工反馈改变了规则证据或置信度',
+                    note,
                 }, { ...options, db: database, safeInsert: insert });
             }
-            if (updatedCandidate.status === 'approved') {
+            if (updatedCandidate.status === 'approved' || approvalSuspended) {
                 syncRuleKnowledge(updatedCandidate.id, {
                     dbAccessors: {
                         db: database,
@@ -521,6 +587,7 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                     },
                 });
             }
+            if (approvalSuspended) suspended += 1;
             updated += 1;
         } else {
             const info = insert('factory_rule_candidates', {
@@ -537,7 +604,7 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
             recordFactoryRuleEvent(createdCandidate, 'created', {
                 newStatus: 'candidate',
                 actor: options.actor,
-                note: `达到 ${options.minimumEvidence || 2} 个配方确认，生成候选规则`,
+                note: `达到 ${minimumEvidence} 个配方确认，生成候选规则`,
             }, { ...options, db: database, safeInsert: insert });
             created += 1;
         }
@@ -583,8 +650,9 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
 
     return {
         generatedAt: now,
-        minimumEvidence: options.minimumEvidence || 2,
-        stats: { created, updated, stale, active: groups.length },
+        minimumEvidence,
+        minimumConfidence: MINIMUM_APPROVAL_CONFIDENCE,
+        stats: { created, updated, stale, suspended, active: groups.length },
         candidates: listFactoryRuleCandidates({ db: database }),
     };
 }
@@ -617,20 +685,29 @@ function reviewFactoryRuleCandidateCore(idValue, input = {}, options = {}) {
     if (!REVIEW_STATUSES.has(status)) throw inputError('status 必须是 candidate、approved 或 rejected');
     const reviewNote = String(input.reviewNote || '').trim();
     if (reviewNote.length > 500) throw inputError('reviewNote 不能超过 500 个字符');
-    const current = database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id);
-    if (!current) {
+    const currentRecord = database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id);
+    if (!currentRecord) {
         const error = new Error('候选规则不存在');
         error.statusCode = 404;
         throw error;
     }
-    if (status === 'approved' && Number(current.support_count ?? current.evidence_count ?? 0) < 2) {
-        throw inputError('证据不足，至少需要 2 个不同配方的确认');
+    const current = candidateRow(currentRecord);
+    const currentGroup = status === 'approved'
+        ? currentRuleLearningGroup(database, current.ruleKey)
+        : null;
+    const approvalGate = status === 'approved'
+        ? factoryRuleApprovalGate(currentGroup?.supportCount, currentGroup?.confidenceScore)
+        : null;
+    if (approvalGate && !approvalGate.eligible) {
+        throw inputError(`规则不满足批准门槛：${approvalGate.blockers.join('；')}`);
     }
+    const now = new Date().toISOString();
     update('factory_rule_candidates', id, {
+        ...(status === 'approved' ? ruleLearningValues(currentGroup, now) : {}),
         status,
         review_note: reviewNote,
-        approved_at: status === 'approved' ? new Date().toISOString() : null,
-        reviewed_learning_hash: status === 'approved' ? current.learning_hash || '' : '',
+        approved_at: status === 'approved' ? now : null,
+        reviewed_learning_hash: status === 'approved' ? currentGroup.learningHash : '',
     });
     const reviewed = candidateRow(database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id));
     recordFactoryRuleEvent(reviewed, status === 'candidate' ? 'reopened' : status, {
@@ -700,11 +777,12 @@ function restoreFactoryRuleEventCore(eventIdValue, input = {}, options = {}) {
         error.statusCode = 409;
         throw error;
     }
-    const currentGroup = buildRuleCandidateGroups(feedbackEvidenceRows(database), 0)
-        .find(group => group.ruleKey === current.ruleKey);
-    const currentSupportCount = currentGroup?.supportCount || 0;
-    if (targetStatus === 'approved' && currentSupportCount < 2) {
-        throw inputError('当前证据不足，至少需要 2 个不同配方的确认才能恢复为已批准');
+    const currentGroup = currentRuleLearningGroup(database, current.ruleKey);
+    const approvalGate = targetStatus === 'approved'
+        ? factoryRuleApprovalGate(currentGroup?.supportCount, currentGroup?.confidenceScore)
+        : null;
+    if (approvalGate && !approvalGate.eligible) {
+        throw inputError(`当前规则不满足批准门槛：${approvalGate.blockers.join('；')}`);
     }
 
     const restoreNote = String(input.restoreNote || '').trim();
@@ -712,35 +790,7 @@ function restoreFactoryRuleEventCore(eventIdValue, input = {}, options = {}) {
     const sourceReviewNote = String(sourceEvent.snapshot?.reviewNote || '').trim();
     const reviewNote = restoreNote || sourceReviewNote || `恢复自规则事件 #${sourceEvent.id}`;
     const now = new Date().toISOString();
-    const learningUpdates = currentGroup
-        ? {
-            title: currentGroup.title,
-            content: currentGroup.content,
-            scope_type: currentGroup.scopeType,
-            scope_ref: currentGroup.scopeRef,
-            finding_key: currentGroup.findingKey,
-            finding_type: currentGroup.findingType,
-            evidence_count: currentGroup.evidenceCount,
-            evidence_json: JSON.stringify(currentGroup.evidence),
-            support_count: currentGroup.supportCount,
-            special_case_count: currentGroup.specialCaseCount,
-            ignored_count: currentGroup.ignoredCount,
-            confidence_score: currentGroup.confidenceScore,
-            learning_evidence_json: JSON.stringify(currentGroup.learningEvidence),
-            learning_hash: currentGroup.learningHash,
-            learning_updated_at: now,
-        }
-        : {
-            evidence_count: 0,
-            evidence_json: '[]',
-            support_count: 0,
-            special_case_count: 0,
-            ignored_count: 0,
-            confidence_score: 0,
-            learning_evidence_json: '{}',
-            learning_hash: '',
-            learning_updated_at: now,
-        };
+    const learningUpdates = ruleLearningValues(currentGroup, now);
     update('factory_rule_candidates', current.id, {
         ...learningUpdates,
         status: targetStatus,
@@ -791,6 +841,7 @@ module.exports = {
     buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
     confidenceForEvidence,
+    factoryRuleApprovalGate,
     learningEvidenceHash,
     listFactoryRuleEvents,
     listFactoryRuleCandidates,

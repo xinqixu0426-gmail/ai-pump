@@ -50,6 +50,7 @@ const ruleEventLabels: Record<string, string> = {
   stale: '规则自动失效',
   reactivated: '规则重新激活',
   restored: '恢复审核状态',
+  approval_suspended: '批准自动撤回',
 };
 
 function restorableRuleStatus(event: FactoryRuleEvent): FactoryRuleCandidateStatus | null {
@@ -286,7 +287,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                   候选业务规则
                 </div>
                 <div className="mt-1 text-xs leading-5 text-muted">
-                  同类高频项反馈保存后会自动归纳；至少 2 个配方确认才生成候选，批准后参与配方检查并自动更新规则知识。
+                  同类高频项反馈保存后会自动归纳；至少 2 个配方确认且置信度达到 65% 才能批准，批准后参与配方检查并自动更新规则知识，低于门槛会自动撤回批准。
                 </div>
               </div>
               <Button
@@ -340,6 +341,11 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                         <div className="mt-2 text-xs text-slate-600">
                           证据：{candidate.evidence.map((item) => item.recipeName).join('、')}
                         </div>
+                        {!candidate.approvalEligible ? (
+                          <div className="mt-2 text-xs leading-5 text-rose-700">
+                            暂不能批准：{candidate.approvalBlockers.join('；')}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <Button
@@ -367,7 +373,8 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                         <Button
                           size="sm"
                           variant="primary"
-                          disabled={ruleReviewingId === candidate.id}
+                          disabled={ruleReviewingId === candidate.id || !candidate.approvalEligible}
+                          title={candidate.approvalEligible ? '批准候选规则' : candidate.approvalBlockers.join('；')}
                           icon={<CheckCircle2 size={14} />}
                           onClick={() => void reviewRuleCandidate(candidate, 'approved')}
                         >
@@ -444,7 +451,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                           </span>
                           <StatusBadge tone={event.eventType === 'approved' || event.eventType === 'reactivated'
                             ? 'green'
-                            : event.eventType === 'stale' || event.eventType === 'rejected'
+                            : event.eventType === 'stale' || event.eventType === 'rejected' || event.eventType === 'approval_suspended'
                               ? 'red'
                               : 'blue'}
                           >

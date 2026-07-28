@@ -6,6 +6,7 @@ const {
     buildFactoryRuleImpact,
     buildRuleCandidateGroups,
     confidenceForEvidence,
+    factoryRuleApprovalGate,
     listFactoryRuleEvents,
     refreshFactoryRuleCandidates,
     restoreFactoryRuleEvent,
@@ -169,6 +170,11 @@ test('候选规则同时统计确认、特殊情况和忽略证据并计算置�
     assert.equal(groups[0].learningEvidence.specialCases[0].recipeId, 4);
     assert.match(groups[0].content, /置信度 57%/);
     assert.deepEqual(confidenceForEvidence(3, 0, 0), { score: 1, level: 'high' });
+    assert.equal(factoryRuleApprovalGate(2, 0.65).eligible, true);
+    assert.deepEqual(factoryRuleApprovalGate(1, 0.5).blockers, [
+        '至少需要 2 个不同配方确认',
+        '当前置信度 50%，低于 65%',
+    ]);
 });
 
 test('候选规则可刷新、批准且保留证据', () => {
@@ -358,7 +364,7 @@ test('规则历史恢复重新校验证据且失败时整体回滚', () => {
         refreshFactoryRuleCandidates(fixture);
         assert.throws(
             () => restoreFactoryRuleEvent(approvedEvent.id, {}, fixture),
-            /当前证据不足/
+            /不满足批准门槛/
         );
         assert.equal(
             fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
@@ -463,8 +469,13 @@ test('规则影响分析区分已符合、待复核、特殊情况和忽略配�
 test('规则执行监控汇总全部已批准规则和受影响配方', () => {
     const fixture = createFixture();
     try {
+        fixture.db.prepare(`
+            INSERT INTO recipes(id, name, spec, template_id, parts_json, updated_at, deleted_at)
+            VALUES (6, 'V750 支持', '', 7, '[{"name":"说明书","packingRole":"fixed"}]', '2026-01-01', NULL)
+        `).run();
         insertFeedback(fixture.db, 1);
         insertFeedback(fixture.db, 2);
+        insertFeedback(fixture.db, 6);
         insertFeedback(fixture.db, 4, { decision: 'special_case' });
         insertFeedback(fixture.db, 5, { decision: 'ignored' });
         const refreshed = refreshFactoryRuleCandidates(fixture);
@@ -478,7 +489,7 @@ test('规则执行监控汇总全部已批准规则和受影响配方', () => {
             affectedRecipeCount: 1,
             ruleViolationCount: 1,
             exceptionCount: 2,
-            checkedRecipeRulePairs: 4,
+            checkedRecipeRulePairs: 5,
         });
         assert.equal(compliance.rules[0].status, 'attention');
         assert.equal(compliance.affectedRecipes[0].recipeName, 'V750 菲律宾');
@@ -552,6 +563,72 @@ test('已批准规则出现新反例时进入复核队列，重新批准后完�
             reviewNote: '已确认该规则允许客户例外',
         }, fixture);
         assert.equal(reviewed.needsReview, false);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('低置信度候选不能批准，已批准规则跌破门槛后自动撤回', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const approved = reviewFactoryRuleCandidate(refreshed.candidates[0].id, {
+            status: 'approved',
+        }, fixture);
+        assert.equal(approved.approvalEligible, true);
+
+        insertFeedback(fixture.db, 4, { decision: 'ignored', note: '特殊订单不放说明书' });
+        insertFeedback(fixture.db, 5, { decision: 'ignored', note: '客户明确不需要' });
+        assert.throws(
+            () => refreshFactoryRuleCandidates({
+                ...fixture,
+                syncFactoryRuleKnowledgeEntry: () => {
+                    throw new Error('自动撤回知识同步失败');
+                },
+            }),
+            /自动撤回知识同步失败/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT status FROM factory_rule_candidates WHERE id = ?')
+                .get(approved.id).status,
+            'approved'
+        );
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            1
+        );
+        assert.equal(
+            listFactoryRuleEvents({ ...fixture, candidateId: approved.id })[0].eventType,
+            'approved'
+        );
+
+        const relearned = refreshFactoryRuleCandidates(fixture);
+        const suspended = relearned.candidates.find(candidate => candidate.id === approved.id);
+        assert.equal(relearned.stats.suspended, 1);
+        assert.equal(suspended.status, 'candidate');
+        assert.equal(suspended.confidenceScore, 0.5);
+        assert.equal(suspended.approvalEligible, false);
+        assert.match(suspended.approvalBlockers[0], /低于 65%/);
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            0
+        );
+        assert.equal(
+            listFactoryRuleEvents({ ...fixture, candidateId: approved.id })[0].eventType,
+            'approval_suspended'
+        );
+        assert.throws(
+            () => reviewFactoryRuleCandidate(approved.id, { status: 'approved' }, fixture),
+            /置信度 50%，低于 65%/
+        );
     } finally {
         fixture.db.close();
     }

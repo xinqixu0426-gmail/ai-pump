@@ -511,7 +511,7 @@ test('API 静态契约：候选业务规则需人工审核后才进入知识库'
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
 
     assert.match(service, /finding_type = 'peer_pattern'/);
-    assert.match(service, /minimumEvidence \|\| 2/);
+    assert.match(service, /minimumEvidence \|\| MINIMUM_APPROVAL_SUPPORT/);
     assert.match(service, /status === 'approved'/);
     assert.match(knowledge, /approvedFactoryRuleEntries/);
     assert.match(knowledge, /sourceTable: 'factory_rule_candidates'/);
@@ -637,7 +637,8 @@ test('API 静态契约：Knowledge V3 历史恢复只改变审核状态并保留
 
     assert.match(route, /router\.post\('\/rule-events\/:id\/restore'/);
     assert.match(service, /function restoreFactoryRuleEvent/);
-    assert.match(service, /currentSupportCount < 2/);
+    assert.match(service, /currentRuleLearningGroup\(database, current\.ruleKey\)/);
+    assert.match(service, /factoryRuleApprovalGate\(currentGroup\?\.supportCount/);
     assert.match(service, /recordFactoryRuleEvent\(restored, 'restored'/);
     assert.match(service, /syncRuleKnowledge\(restored\.id/);
     assert.match(tools, /name: 'restore_factory_rule_event'/);
@@ -645,6 +646,27 @@ test('API 静态契约：Knowledge V3 历史恢复只改变审核状态并保留
     assert.match(prompt, /恢复只改变审核状态，保留当前证据/);
     assert.match(executor, /\/api\/quality\/rule-events\/\$\{Number\(args\.eventId\)\}\/restore/);
     assert.match(qualityView, /恢复此状态/);
+});
+
+test('API 静态契约：Knowledge V3 低置信度规则禁止批准并自动撤回', () => {
+    const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(service, /MINIMUM_APPROVAL_SUPPORT = 2/);
+    assert.match(service, /MINIMUM_APPROVAL_CONFIDENCE = 0\.65/);
+    assert.match(service, /function factoryRuleApprovalGate/);
+    assert.match(service, /approval_suspended/);
+    assert.match(service, /updatedCandidate\.status === 'approved' \|\| approvalSuspended/);
+    assert.match(tools, /置信度不低于65%/);
+    assert.match(prompt, /低于门槛不得建议强制批准/);
+    assert.match(qualityClient, /approvalEligible: boolean/);
+    assert.match(qualityView, /暂不能批准/);
+    assert.match(qualityView, /低于门槛会自动撤回批准/);
+    assert.match(docs, /V3 第八阶段/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

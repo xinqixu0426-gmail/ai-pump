@@ -594,7 +594,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_rule_candidates',
-            description: '读取从配方检查人工反馈中归纳出的候选业务规则、确认/特殊情况/忽略证据和置信度，只读。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”“某条规则有多少反例”。',
+            description: '读取从配方检查人工反馈中归纳出的候选业务规则、确认/特殊情况/忽略证据、置信度和批准门槛，只读。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”“某条规则为什么不能批准”。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -629,7 +629,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_rule_history',
-            description: '读取工厂规则的生命周期记录，只读。可查看候选生成、证据变化、批准、驳回、失效和重新激活的时间、状态与说明。适合回答“这条规则为什么变了”“最近规则发生了什么变化”。',
+            description: '读取工厂规则的生命周期记录，只读。可查看候选生成、证据变化、批准、批准自动撤回、驳回、失效和重新激活的时间、状态与说明。适合回答“这条规则为什么变了”“最近规则发生了什么变化”。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -658,7 +658,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'refresh_factory_rule_candidates',
-            description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准，也不会直接同步知识库；失去最低支持证据的旧规则会安全转为失效；写库前必须确认。',
+            description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准；失去最低支持证据的旧规则会失效，已批准规则低于65%置信度时会自动撤回批准并移除规则知识；写库前必须确认。',
             parameters: { type: 'object', properties: {} }
         }
     },
@@ -666,7 +666,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'review_factory_rule_candidate',
-            description: '批准、驳回或恢复某条候选业务规则。批准会自动写入对应规则知识，驳回或失效会自动移除，不需要再执行全量知识库同步；写库前必须确认。',
+            description: '批准、驳回或恢复某条候选业务规则。批准要求至少2个不同配方确认且置信度不低于65%；批准会自动写入对应规则知识，驳回或失效会自动移除，不需要再执行全量知识库同步；写库前必须确认。',
             parameters: {
                 type: 'object',
                 properties: {

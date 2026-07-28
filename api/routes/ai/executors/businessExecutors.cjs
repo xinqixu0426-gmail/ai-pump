@@ -469,7 +469,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             return {
                 success: true,
                 intent: 'factory_rule_candidates_refresh',
-                summary: `候选规则归纳完成：新增 ${data.stats?.created || 0} 条，当前有效 ${data.stats?.active || 0} 条。`,
+                summary: `候选规则归纳完成：新增 ${data.stats?.created || 0} 条，当前有效 ${data.stats?.active || 0} 条，自动撤回批准 ${data.stats?.suspended || 0} 条。`,
                 display: { mode: 'compact', title: '候选规则归纳' },
                 data,
             };

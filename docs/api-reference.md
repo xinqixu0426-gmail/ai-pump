@@ -374,12 +374,12 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 | `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V3 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项、已批准规则的学习置信度和固定件价格异常；只读不写库 |
 | `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；`peer_pattern` 反馈会在同一事务中自动刷新候选规则并返回 `ruleLearning` 摘要，失败时反馈与归纳整体回滚；其他提醒不触发规则学习 |
 | `GET` | `/api/quality/rule-compliance` | 无 | 汇总全部已批准规则的当前执行情况，返回规则问题总数、受影响配方去重数量、例外数量以及各规则的实时影响明细；只读不写库 |
-| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/confidenceScore/confidenceLevel/learningEvidence/needsReview` |
+| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/confidenceScore/confidenceLevel/learningEvidence/needsReview/approvalEligible/approvalBlockers/approvalRequirements` |
 | `GET` | `/api/quality/rule-events` | 查询参数 `candidateId?`、`limit?` | 读取规则生命周期记录，按时间倒序返回 `eventType/previousStatus/newStatus/actor/note/snapshot/createdAt`；`candidateId` 可限定单条规则，`limit` 为 1-100、默认 30；只读不写库 |
 | `POST` | `/api/quality/rule-events/:id/restore` | `{ restoreNote? }` | 恢复该历史事件记录的 `candidate/approved/rejected` 审核状态，但保留规则当前内容、证据和置信度；批准会按当前证据重新校验并同步规则知识 |
-| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，不会自动批准新规则 |
+| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，置信度跌破 65% 时撤回为 `candidate`；返回 `minimumEvidence/minimumConfidence` 及含 `suspended` 的统计，不会自动批准新规则 |
 | `GET` | `/api/quality/rule-candidates/:id/impact` | 无 | 只读计算规则对当前同模板配方的影响；按实时 BOM 和反馈分为 `compliant/needsReview/specialCases/ignored`，返回数量、配方清单和待复核占比，不修改配方 |
-| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`，证据不足 2 个配方时禁止批准。返回 `knowledgeSync`，批准自动新增或更新对应规则知识，驳回或恢复候选自动移除 |
+| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`。批准要求当前至少 2 个不同配方确认且置信度不低于 65%。返回 `knowledgeSync`，批准自动新增或更新对应规则知识，驳回或恢复候选自动移除 |
 
 数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
 
@@ -406,6 +406,8 @@ V3 第六阶段让审核状态与规则知识保持事务一致。规则批准�
 V3 第七阶段增加规则审核状态恢复。管理看板和 AI 可以选择一条包含有效快照的历史事件，将规则恢复为当时的候选、批准或驳回状态；恢复不会回写配方，也不会用旧快照覆盖当前规则内容、证据、置信度或学习指纹。恢复批准时仍按当前数据要求至少两个不同配方确认，并把当前证据标记为已复核。规则更新、新增 `restored` 生命周期事件和知识条目同步处于同一事务，任一步失败会整体回滚；自动失效状态不能从历史强制恢复。
 
 恢复成功返回 `{ success: true, data: { candidate, restoredFromEvent, knowledgeSync } }`。事件不存在或规则不存在返回 `404`，事件不含可恢复审核快照、批准证据不足或 `restoreNote` 超过 500 字返回 `400`，目标状态与当前状态相同返回 `409`。
+
+V3 第八阶段增加规则准入门槛。候选规则只有在当前支持证据不少于 2 个不同配方且置信度达到 65% 时才允许批准或恢复为批准；`approvalEligible` 表示是否满足门槛，`approvalBlockers` 给出具体原因。已批准规则在后续反馈刷新后若置信度跌破 65%，系统会自动把状态撤回为 `candidate`，记录 `approval_suspended` 生命周期事件并移除对应规则知识；置信度恢复后仍需人工重新批准，不会自动恢复正式规则。撤回动作与反馈、候选刷新、事件和知识更新保持同一事务。
 
 ## 17. 工厂知识库 Knowledge
 
