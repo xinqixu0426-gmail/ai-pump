@@ -13,6 +13,7 @@ const ENTRY_TYPES = new Set([
     'order',
     'quality_issue',
     'business_rule',
+    'document',
 ]);
 
 function loadDbAccessors() {
@@ -198,6 +199,54 @@ function recipeEntry(recipe, technicalFiles = []) {
             coilSheets: Number(recipe.coilSheets || 0),
             technicalFileCount: technicalFiles.length,
             testReports,
+        },
+    });
+}
+
+const DOCUMENT_TYPE_LABELS = {
+    technical_note: '技术说明',
+    pump_performance_test: '性能测试报告',
+    drawing: '图纸',
+    spreadsheet: 'Excel 资料',
+    other: '其他资料',
+};
+
+function documentEntry(document) {
+    const tags = parseJsonArray(document.tagsJson);
+    const metadata = parseJsonObject(document.metadataJson);
+    const typeLabel = DOCUMENT_TYPE_LABELS[document.documentType] || '工厂资料';
+    const metadataOnly = document.parserStatus === 'metadata_only';
+    return createEntry({
+        entryType: 'document',
+        sourceTable: 'knowledge_documents',
+        sourceId: document.id,
+        sourceUpdatedAt: document.updatedAt,
+        title: `${typeLabel}：${document.title || document.originalName || document.id}`,
+        summary: compact([
+            document.description,
+            document.originalName,
+            metadataOnly ? '文件正文尚未解析，仅可检索资料说明' : '',
+        ]).join('；'),
+        content: [
+            `资料类型：${typeLabel}`,
+            `标题：${document.title || ''}`,
+            document.description ? `说明：${document.description}` : '',
+            document.contentText ? `技术内容：\n${document.contentText}` : '',
+            document.originalName ? `原始文件：${document.originalName}` : '',
+            document.extractedText ? `文件提取内容：\n${document.extractedText}` : '',
+            metadataOnly ? '解析状态：文件正文尚未解析，不得据此推断图纸尺寸、材料或技术参数。' : '',
+        ],
+        tags: ['工厂资料', typeLabel, document.title, document.originalName, ...tags],
+        metadata: {
+            documentId: Number(document.id),
+            documentType: document.documentType,
+            parserStatus: document.parserStatus,
+            fileName: document.originalName || '',
+            fileSize: Number(document.fileSize || 0),
+            downloadPath: document.originalName
+                ? `/api/knowledge/documents/${Number(document.id)}/download`
+                : '',
+            extractionNote: metadata.extractionNote || '',
         },
     });
 }
@@ -458,6 +507,9 @@ function buildKnowledgeEntries(options = {}) {
     const recipes = options.recipes || getDb().dbGetAllRecipes();
     const technicalFiles = options.technicalFiles || getDb().dbGetAllRecipeTechnicalFiles();
     const coils = options.coils || getDb().dbGetAllCoils();
+    const documents = Object.prototype.hasOwnProperty.call(options, 'documents')
+        ? options.documents
+        : (getDb().dbGetAllKnowledgeDocuments?.() || []);
     const customers = options.customers || getDb().dbGetAllCustomers();
     const quotations = options.quotations || getDb().dbGetAllQuotations();
     const orders = options.orders || getDb().dbGetAllOrders();
@@ -498,6 +550,7 @@ function buildKnowledgeEntries(options = {}) {
         ...qualityEntries(qualitySummary),
         ...businessRuleEntries(settings),
         ...approvedFactoryRuleEntries(ruleCandidates),
+        ...documents.map(documentEntry),
     ].filter(entry => ENTRY_TYPES.has(entry.entryType) && entry.title);
 }
 
@@ -890,6 +943,7 @@ function inspectKnowledgeOverview(options = {}) {
 module.exports = {
     ENTRY_TYPES,
     buildKnowledgeEntries,
+    documentEntry,
     syncFactoryRuleKnowledgeEntry,
     syncKnowledgeEntries,
     searchKnowledgeEntries,

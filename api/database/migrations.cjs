@@ -888,6 +888,38 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 22,
+        name: 'knowledge_external_documents',
+        signature: 'knowledge-external-documents-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS knowledge_documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_type TEXT NOT NULL DEFAULT 'technical_note'
+                        CHECK(document_type IN ('technical_note', 'pump_performance_test', 'drawing', 'spreadsheet', 'other')),
+                    title TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    content_text TEXT DEFAULT '',
+                    tags_json TEXT DEFAULT '[]',
+                    original_name TEXT DEFAULT '',
+                    mime_type TEXT DEFAULT 'application/octet-stream',
+                    file_size INTEGER NOT NULL DEFAULT 0 CHECK(file_size >= 0),
+                    file_sha256 TEXT DEFAULT '',
+                    file_blob BLOB,
+                    parser_status TEXT NOT NULL DEFAULT 'not_applicable'
+                        CHECK(parser_status IN ('not_applicable', 'parsed', 'metadata_only')),
+                    extracted_text TEXT DEFAULT '',
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type
+                    ON knowledge_documents(document_type, deleted_at, updated_at DESC);
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

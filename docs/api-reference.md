@@ -429,14 +429,18 @@ V3 第十五阶段补齐待复核工作台的操作闭环。反馈保存和已�
 
 Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识条目，并在 SQLite 支持 FTS5 时启用 `knowledge_entries_fts`；如果当前 SQLite 构建不支持 FTS5，搜索自动回退到 `LIKE`。
 
-同步来源覆盖：零件、泵壳模板、配方、线圈、客户、报价、订单、数据质量问题和业务规则。配方知识条目会合并其性能测试报告解析文本，因此 AI 可检索报告型号、测试结论和每个性能点；上传或删除报告后由 V4 自动同步对应派生知识。配方条目的 `metadata.testReports` 以 `{ id, kind: "pump_performance_test", label: "性能测试报告", fileName }` 明确标识附件类型，测试报告不得作为图纸展示。知识条目字段统一为 camelCase 响应，核心字段包括 `id/entryType/sourceTable/sourceId/title/summary/content/tags/metadata/syncedAt/updatedAt`。
+同步来源覆盖：零件、泵壳模板、配方、线圈、客户、报价、订单、数据质量问题、业务规则和独立工厂资料。配方知识条目会合并其性能测试报告解析文本，因此 AI 可检索报告型号、测试结论和每个性能点；上传或删除报告后由 V4 自动同步对应派生知识。配方条目的 `metadata.testReports` 以 `{ id, kind: "pump_performance_test", label: "性能测试报告", fileName }` 明确标识附件类型，测试报告不得作为图纸展示。知识条目字段统一为 camelCase 响应，核心字段包括 `id/entryType/sourceTable/sourceId/title/summary/content/tags/metadata/syncedAt/updatedAt`。
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/knowledge/overview` | 无 | 只读生成当前业务知识快照，并用 `sourceTable + sourceId + contentHash` 与已同步条目比较；返回条目总量、分类覆盖、最近同步时间、FTS 状态、待新增/更新/移除清单和 `autoSync` 运行状态，不写数据库 |
 | `GET` | `/api/knowledge/sync-runs` | 查询参数 `limit?`, `status?=success/failed` | 读取最近同步运行历史和汇总；返回自动/即时/手动模式、成功或失败、触发来源、尝试次数、耗时、变更统计和错误原因，最多保留最近 200 次 |
 | `GET` | `/api/knowledge/health` | 无 | 只读检查自动同步关闭、等待或运行超时、未安排的知识变化和最近失败；返回 `healthy/attention/critical`、问题明细及是否建议人工恢复 |
-| `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule`；默认最多 10 条，最大 50 条。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
+| `GET` | `/api/knowledge/documents` | 无 | 列出未删除的独立工厂资料元数据，不返回文件二进制和提取全文 |
+| `POST` | `/api/knowledge/documents` | `multipart/form-data`: `documentType`, `title`, `description?`, `contentText?`, `tags?`, `file?` | 导入独立工厂资料；必须填写技术内容或上传文件，文件最大 10MB，支持 `.txt/.md/.csv/.xls/.xlsx/.pdf` |
+| `GET` | `/api/knowledge/documents/:id/download` | 无 | 下载独立工厂资料原文件 |
+| `DELETE` | `/api/knowledge/documents/:id` | 无 | 软删除原始资料，自动移除对应派生知识 |
+| `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
 | `POST` | `/api/knowledge/sync` | 无 | 人工全量核对当前来源，按内容哈希新增、更新和移除 `knowledge_entries`，保留既有条目 ID，并在同一事务中刷新可选 FTS；用于故障恢复，不修改原业务资源 |
 
@@ -449,6 +453,8 @@ V4 自动同步监听标准写入 helper 中的核心来源变更，300ms 内的
 V4 第二阶段使用 SQLite `knowledge_sync_runs` 保存同步运行历史。每次自动重试是独立记录，`attempt` 表示同一轮同步的尝试次数；人工同步失败也会记录后再返回错误。历史写入失败不会反向破坏已经成功生成的知识索引，系统只保留最近 200 次运行，避免运行日志无限增长。
 
 V4 第三阶段通过 `/api/knowledge/health` 汇总运行态、内容哈希差异和最近历史。待同步超过 60 秒、运行超过 120 秒、存在未安排变化或同步失败时产生告警；自动同步关闭只标记为需要关注。没有业务变化时，即使很久没有产生新同步记录也保持健康，避免时间型假告警。看板恢复动作继续使用受确认保护的人工同步入口。
+
+V5.1 使用 SQLite `knowledge_documents` 保存系统外资料及可选原文件。`technical_note/pump_performance_test/drawing/spreadsheet/other` 是当前资料类型；文本和 Excel 提取正文进入 `document` 知识条目，性能测试报告继续复用水泵测试报告解析器。PDF 原件保存在 SQLite，但 `parserStatus=metadata_only`，当前只检索标题、说明、标签和文件信息；AI 不得据此推断图纸尺寸、材料、结构或其他正文参数。资料新增和软删除均自动触发知识同步。
 
 AI 工具：
 

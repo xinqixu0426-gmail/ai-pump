@@ -285,7 +285,11 @@ test('Next UI 契约：知识库管理中心融合进看板并保持同步确认
     assert.match(knowledgeView, /失败和重试可追溯/);
     assert.match(knowledgeView, /syncHealth\.status !== 'healthy'/);
     assert.match(knowledgeView, /检查并恢复/);
+    assert.match(knowledgeView, /导入工厂资料/);
+    assert.match(knowledgeView, /下载原文件/);
+    assert.match(knowledgeView, /删除资料/);
     assert.match(knowledgeLib, /\/api\/knowledge\/overview/);
+    assert.match(knowledgeLib, /\/api\/knowledge\/documents/);
     assert.match(knowledgeLib, /\/api\/knowledge\/sync-runs/);
     assert.match(knowledgeLib, /\/api\/knowledge\/health/);
     assert.match(knowledgeLib, /proxyRequest/);

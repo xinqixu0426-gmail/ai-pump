@@ -98,9 +98,9 @@ PYTHONPATH=
 
 PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/ai`。
 
-## 工厂知识库 V1
+## 工厂知识库
 
-知识库使用 SQLite `knowledge_entries` 保存由业务数据生成的知识条目，并在当前 SQLite 支持 FTS5 时使用全文索引。V1 不依赖外部向量库，也不导入外部文件。
+知识库使用 SQLite `knowledge_entries` 保存派生知识条目，并在当前 SQLite 支持 FTS5 时使用全文索引。当前不依赖外部向量库；V5 支持把独立技术说明、文本、Excel、性能测试报告和 PDF 图纸原件保存为工厂资料。
 
 同步来源：
 
@@ -108,6 +108,7 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 - 客户、报价和订单
 - 数据质量问题
 - 当前系统业务规则
+- 独立工厂资料
 
 同步采用按 `sourceTable + sourceId` 的增量更新，保留既有知识条目 ID，并删除已经失效的来源；业务条目和 FTS 在同一事务中更新。
 
@@ -118,9 +119,13 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 - “在知识库里查一下 V750。”
 - “查某个客户最近的报价和订单。”
 - “读取刚才第 1 条知识的详细内容。”
+- “查一下工厂资料里的 V750 泵壳图纸。”
+- “知识库现在正常吗？”
 - “同步工厂知识库。”
 
-对应工具：`search_factory_knowledge`、`get_factory_knowledge_detail`、`sync_factory_knowledge`。
+对应工具：`search_factory_knowledge`、`get_factory_knowledge_detail`、`get_factory_knowledge_health`、`sync_factory_knowledge`。
+
+独立资料从管理看板“知识库”视图导入。`.txt/.md/.csv/.xls/.xlsx` 会提取可检索文本；PDF 在 V5.1 仅检索标题、说明、标签和文件信息，AI 不得声称已经读取图纸正文。
 
 ## 核心规则
 

@@ -903,6 +903,40 @@ test('API 静态契约：Knowledge V4 AI 可只读诊断同步健康状态', () 
     assert.match(prompt, /get_factory_knowledge_health/);
 });
 
+test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追溯', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const parser = readUtf8(path.join(repoRoot, 'api/services/knowledgeDocumentParser.cjs'));
+    const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const knowledgeLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/knowledge.ts'));
+    const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS knowledge_documents/);
+    assert.match(migrations, /version: 22/);
+    assert.match(db, /function knowledgeDocumentRow/);
+    assert.match(db, /dbGetAllKnowledgeDocuments/);
+    assert.match(db, /'knowledge_documents'/);
+    assert.match(parser, /metadata_only/);
+    assert.match(parser, /parsePumpTestReport/);
+    assert.match(knowledge, /entryType: 'document'/);
+    assert.match(knowledge, /sourceTable: 'knowledge_documents'/);
+    assert.match(knowledge, /不得据此推断图纸尺寸、材料或技术参数/);
+    assert.match(route, /safeInsert\('knowledge_documents'/);
+    assert.match(route, /softDelete\('knowledge_documents'/);
+    assert.match(route, /router\.get\('\/documents\/:id\/download'/);
+    assert.match(tools, /'document'/);
+    assert.match(chat, /parserStatus=metadata_only/);
+    assert.match(knowledgeLib, /uploadKnowledgeDocument/);
+    assert.match(knowledgeLib, /deleteKnowledgeDocument/);
+    assert.match(knowledgeView, /导入工厂资料/);
+    assert.match(knowledgeView, /下载原文件/);
+    assert.match(knowledgeView, /删除资料/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

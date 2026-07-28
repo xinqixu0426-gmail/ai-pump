@@ -374,6 +374,45 @@ test('Knowledge service：配方测试报告进入可检索内容', () => {
     assert.equal(recipe.sourceUpdatedAt, '2026-02-01');
 });
 
+test('Knowledge V5：独立工厂资料生成可追溯知识且限制未解析 PDF', () => {
+    const entries = buildKnowledgeEntries({
+        dbAccessors: createMemoryAccessors(),
+        parts: [],
+        templates: [],
+        recipes: [],
+        technicalFiles: [],
+        coils: [],
+        customers: [],
+        quotations: [],
+        orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-02-01', issues: [] },
+        documents: [{
+            id: 12,
+            documentType: 'drawing',
+            title: 'V750 泵壳总装图',
+            description: '供应商确认版，用于核对外形',
+            contentText: '',
+            tagsJson: '["V750","泵壳"]',
+            originalName: 'V750-shell.pdf',
+            fileSize: 1024,
+            parserStatus: 'metadata_only',
+            extractedText: '',
+            metadataJson: '{"extractionNote":"仅元数据"}',
+            updatedAt: '2026-02-03',
+        }],
+    });
+
+    const document = entries.find(entry => entry.entryType === 'document');
+    assert.equal(document.sourceTable, 'knowledge_documents');
+    assert.equal(document.sourceId, '12');
+    assert.match(document.title, /图纸：V750 泵壳总装图/);
+    assert.match(document.content, /不得据此推断图纸尺寸、材料或技术参数/);
+    assert.equal(document.metadata.parserStatus, 'metadata_only');
+    assert.equal(document.metadata.downloadPath, '/api/knowledge/documents/12/download');
+    assert.ok(document.tags.includes('V750'));
+});
+
 test('Knowledge service：同步后可搜索并读取详情', () => {
     const accessors = createMemoryAccessors();
     enableFts(accessors);

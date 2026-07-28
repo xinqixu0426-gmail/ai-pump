@@ -5,6 +5,7 @@ const AUTO_SYNC_SOURCE_TABLES = new Set([
     'pump_shell_templates',
     'recipes',
     'recipe_technical_files',
+    'knowledge_documents',
     'coils',
     'stator_variants',
     'customers',

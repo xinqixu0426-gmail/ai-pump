@@ -148,6 +148,7 @@ test('Knowledge V4：自动同步覆盖全部核心知识来源', () => {
         'pump_shell_templates',
         'recipes',
         'recipe_technical_files',
+        'knowledge_documents',
         'coils',
         'stator_variants',
         'customers',

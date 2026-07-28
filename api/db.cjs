@@ -264,6 +264,27 @@ function knowledgeSyncRunRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function knowledgeDocumentRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        documentType: r.document_type || 'technical_note',
+        title: r.title || '',
+        description: r.description || '',
+        contentText: r.content_text || '',
+        tagsJson: r.tags_json || '[]',
+        originalName: r.original_name || '',
+        mimeType: r.mime_type || 'application/octet-stream',
+        fileSize: Number(r.file_size || 0),
+        fileSha256: r.file_sha256 || '',
+        parserStatus: r.parser_status || 'not_applicable',
+        extractedText: r.extracted_text || '',
+        metadataJson: r.metadata_json || '{}',
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        deletedAt: r.deleted_at,
+    };
+}
 function aiConversationRow(r) {
     if (!r) return r;
     return {
@@ -448,6 +469,16 @@ function dbGetAllRecipeTechnicalFiles() {
         ORDER BY recipe_id, id DESC
     `).all().map(recipeTechnicalFileRow);
 }
+function dbGetAllKnowledgeDocuments() {
+    return db.prepare(`
+        SELECT id, document_type, title, description, content_text, tags_json,
+               original_name, mime_type, file_size, file_sha256, parser_status,
+               extracted_text, metadata_json, created_at, updated_at
+        FROM knowledge_documents
+        WHERE deleted_at IS NULL
+        ORDER BY updated_at DESC, id DESC
+    `).all().map(knowledgeDocumentRow);
+}
 function dbGetRecipeAnalysisFeedback(recipeId) {
     return db.prepare(`
         SELECT * FROM recipe_analysis_feedback
@@ -515,7 +546,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'knowledge_sync_runs', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'knowledge_documents', 'knowledge_sync_runs', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -734,8 +765,8 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, knowledgeSyncRunRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
-    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, knowledgeDocumentRow, knowledgeSyncRunRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
+    dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetAllKnowledgeDocuments, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,
     updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,

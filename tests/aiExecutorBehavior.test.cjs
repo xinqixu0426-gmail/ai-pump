@@ -430,6 +430,53 @@ test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', 
     ]);
 });
 
+test('AI executor 行为：外部资料搜索返回原文件下载来源', async () => {
+    const calls = installFetchStub((call) => {
+        const url = new URL(call.url);
+        if (
+            url.pathname === '/api/knowledge'
+            && url.searchParams.get('query') === '试验报告'
+            && url.searchParams.get('entryType') === 'document'
+            && url.searchParams.get('limit') === '3'
+            && call.method === 'GET'
+        ) {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 12,
+                    entryType: 'document',
+                    sourceTable: 'knowledge_documents',
+                    sourceId: '4',
+                    title: '资料：V750 试验报告',
+                    summary: '实测性能数据',
+                    metadata: {
+                        parserStatus: 'parsed',
+                        downloadPath: '/api/knowledge/documents/4/download',
+                    },
+                    syncedAt: '2026-01-01',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/knowledge/overview') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: { generatedAt: '2026-01-03', changes: [] } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_factory_knowledge', {
+        query: '试验报告',
+        entryType: 'document',
+        limit: 3,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data[0].entryType, 'document');
+    assert.equal(result.sources[0].sourceTable, 'knowledge_documents');
+    assert.equal(result.sources[0].sourcePath, '/api/knowledge/documents/4/download');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].url.replace(/^http:\/\/localhost:\d+/, ''), '/api/knowledge/overview');
+});
+
 test('AI executor 行为：知识库健康检查通过只读 health API', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/knowledge/health') && call.method === 'GET') {

@@ -49,6 +49,7 @@ const KNOWLEDGE_SOURCE_PATHS = {
     quality_summary: '/dashboard?view=quality',
     business_rules: '/dashboard?view=knowledge',
     factory_rule_candidates: '/dashboard?view=quality',
+    knowledge_documents: '/dashboard?view=knowledge',
 };
 
 function knowledgeSourceKey(item) {
@@ -73,7 +74,7 @@ function buildKnowledgeSources(items, overview) {
                 sourceUpdatedAt: change?.sourceUpdatedAt || item.sourceUpdatedAt || null,
                 freshness,
                 knowledgePath: `/dashboard?view=knowledge&entry=${Number(item.id)}`,
-                sourcePath: KNOWLEDGE_SOURCE_PATHS[item.sourceTable] || '',
+                sourcePath: item.metadata?.downloadPath || KNOWLEDGE_SOURCE_PATHS[item.sourceTable] || '',
             };
         });
 }

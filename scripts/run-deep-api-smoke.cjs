@@ -71,6 +71,44 @@ async function request(label, method, pathname, body, expectedStatuses = [200]) 
     return { response, payload };
 }
 
+async function requestForm(label, pathname, form, expectedStatuses = [200]) {
+    const startedAt = Date.now();
+    const headers = {};
+    if (cookie) headers.Cookie = cookie;
+    const response = await fetch(`${baseUrl}${pathname}`, {
+        method: 'POST',
+        headers,
+        body: form,
+        signal: AbortSignal.timeout(20000),
+    });
+    const text = await response.text();
+    let payload = null;
+    try {
+        payload = text ? JSON.parse(text) : null;
+    } catch {
+        payload = text;
+    }
+    if (!expectedStatuses.includes(response.status)) {
+        throw new Error(`${label} POST ${pathname} -> ${response.status}: ${text.slice(0, 300)}`);
+    }
+    results.push({ label, status: response.status, ms: Date.now() - startedAt });
+    return { response, payload };
+}
+
+async function requestDownload(label, pathname) {
+    const startedAt = Date.now();
+    const response = await fetch(`${baseUrl}${pathname}`, {
+        headers: cookie ? { Cookie: cookie } : {},
+        signal: AbortSignal.timeout(20000),
+    });
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!response.ok) {
+        throw new Error(`${label} GET ${pathname} -> ${response.status}: ${bytes.toString('utf8').slice(0, 300)}`);
+    }
+    results.push({ label, status: response.status, ms: Date.now() - startedAt });
+    return bytes;
+}
+
 async function waitForAutomaticKnowledgeUpdate(part, expectedPrice) {
     let lastStatus = null;
     for (let index = 0; index < 40; index += 1) {
@@ -549,6 +587,29 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('读取 AI 会话', 'GET', `/api/ai/conversations/${conversation.id}`);
     await request('删除 AI 会话', 'DELETE', `/api/ai/conversations/${conversation.id}`);
 
+    const documentText = `型号 ${unique}\n泵壳材料 304\n叶轮直径 120mm`;
+    const documentForm = new FormData();
+    documentForm.set('documentType', 'technical_note');
+    documentForm.set('title', `${unique} 技术资料`);
+    documentForm.set('description', '深度 API 自动验收');
+    documentForm.set('contentText', '技术参数由自动验收生成');
+    documentForm.set('tags', JSON.stringify([unique, '技术资料']));
+    documentForm.set('file', new Blob([documentText], { type: 'text/markdown' }), `${unique}.md`);
+    const document = (await requestForm(
+        '导入工厂资料',
+        '/api/knowledge/documents',
+        documentForm,
+        [201]
+    )).payload.data;
+    assert(document.parserStatus === 'parsed', '文本资料没有完成解析');
+    assert(document.downloadPath, '工厂资料没有下载地址');
+    const documents = (await request(
+        '工厂资料列表',
+        'GET',
+        '/api/knowledge/documents'
+    )).payload.data;
+    assert(documents.some(item => item.id === document.id), '工厂资料列表缺少新资料');
+
     await request('知识增量同步', 'POST', '/api/knowledge/sync', {});
     const syncHistory = (await request(
         '手动知识同步历史',
@@ -577,6 +638,28 @@ async function testCrossModuleWriteFlow(baseResources) {
         overview.stats.pendingTotal === 0,
         `同步后仍有 ${overview.stats.pendingTotal} 条知识待处理`
     );
+    const documentKnowledge = (await request(
+        '检索工厂资料知识',
+        'GET',
+        `/api/knowledge?query=${encodeURIComponent(unique)}&entryType=document&limit=10`
+    )).payload.data;
+    assert(documentKnowledge.length === 1, '独立工厂资料没有生成唯一知识条目');
+    const documentDetail = (await request(
+        '工厂资料知识详情',
+        'GET',
+        `/api/knowledge/${documentKnowledge[0].id}`
+    )).payload.data;
+    assert(documentDetail.content.includes('泵壳材料 304'), '工厂资料提取文本没有进入知识详情');
+    const downloaded = await requestDownload('下载工厂资料原件', document.downloadPath);
+    assert(downloaded.equals(Buffer.from(documentText)), '工厂资料下载内容与上传内容不一致');
+    await request('删除工厂资料', 'DELETE', `/api/knowledge/documents/${document.id}`);
+    await request('删除资料后同步知识', 'POST', '/api/knowledge/sync', {});
+    const removedDocumentKnowledge = (await request(
+        '确认工厂资料知识移除',
+        'GET',
+        `/api/knowledge?query=${encodeURIComponent(unique)}&entryType=document&limit=10`
+    )).payload.data;
+    assert(removedDocumentKnowledge.length === 0, '删除资料后对应知识仍然存在');
 
     await request('删除测试配方', 'DELETE', `/api/recipes/${recipe.id}`);
     await request('删除型号配置', 'DELETE', `/api/model-variants/${variant.id}`);

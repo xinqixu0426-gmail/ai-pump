@@ -6,7 +6,9 @@ import {
   BookOpen,
   CheckCircle2,
   Database,
+  Download,
   FileClock,
+  FileUp,
   History,
   Loader2,
   MessageSquareWarning,
@@ -16,18 +18,22 @@ import {
   Search,
   SearchCheck,
   ShieldCheck,
+  Trash2,
   X,
 } from 'lucide-react';
 import {
+  deleteKnowledgeDocument,
   getKnowledgeEntryDetail,
   getKnowledgeOverview,
   getKnowledgeSyncHealth,
   getKnowledgeSyncRuns,
   searchKnowledgeEntries,
   syncFactoryKnowledge,
+  uploadKnowledgeDocument,
   type KnowledgeChange,
   type KnowledgeChangeStatus,
   type KnowledgeDetail,
+  type KnowledgeDocumentType,
   type KnowledgeEntryType,
   type KnowledgeListItem,
   type KnowledgeOverview,
@@ -79,6 +85,7 @@ const ENTRY_TYPE_OPTIONS: Array<{ value: KnowledgeEntryType | ''; label: string 
   { value: 'order', label: '订单' },
   { value: 'quality_issue', label: '质量问题' },
   { value: 'business_rule', label: '业务规则' },
+  { value: 'document', label: '工厂资料' },
 ];
 
 const ENTRY_TYPE_LABELS = Object.fromEntries(
@@ -97,6 +104,14 @@ const SYNC_MODE_LABELS = {
   flush: '即时同步',
   manual: '手动同步',
 } as const;
+
+const DOCUMENT_TYPE_OPTIONS: Array<{ value: KnowledgeDocumentType; label: string }> = [
+  { value: 'technical_note', label: '技术说明' },
+  { value: 'pump_performance_test', label: '性能测试报告' },
+  { value: 'drawing', label: '图纸' },
+  { value: 'spreadsheet', label: 'Excel 资料' },
+  { value: 'other', label: '其他资料' },
+];
 
 const FEEDBACK_LABELS: Record<Exclude<AiAnswerFeedback['rating'], 'helpful'>, string> = {
   incorrect: '内容错误',
@@ -163,6 +178,17 @@ export function KnowledgeView({
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [documentOpen, setDocumentOpen] = useState(false);
+  const [documentType, setDocumentType] = useState<KnowledgeDocumentType>('technical_note');
+  const [documentTitle, setDocumentTitle] = useState('');
+  const [documentDescription, setDocumentDescription] = useState('');
+  const [documentContent, setDocumentContent] = useState('');
+  const [documentTags, setDocumentTags] = useState('');
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentSaving, setDocumentSaving] = useState(false);
+  const [documentError, setDocumentError] = useState('');
+  const [deleteDocumentId, setDeleteDocumentId] = useState<number | null>(null);
+  const [documentDeleting, setDocumentDeleting] = useState(false);
   const [feedback, setFeedback] = useState<AiAnswerFeedbackList | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [feedbackError, setFeedbackError] = useState('');
@@ -338,6 +364,57 @@ export function KnowledgeView({
     }
   }
 
+  function resetDocumentForm() {
+    setDocumentType('technical_note');
+    setDocumentTitle('');
+    setDocumentDescription('');
+    setDocumentContent('');
+    setDocumentTags('');
+    setDocumentFile(null);
+    setDocumentError('');
+  }
+
+  async function saveDocument() {
+    setDocumentSaving(true);
+    setDocumentError('');
+    try {
+      await uploadKnowledgeDocument({
+        documentType,
+        title: documentTitle.trim(),
+        description: documentDescription.trim(),
+        contentText: documentContent.trim(),
+        tags: documentTags.split(/[,，\n]/).map(tag => tag.trim()).filter(Boolean),
+        file: documentFile,
+      });
+      setDocumentOpen(false);
+      resetDocumentForm();
+      await new Promise(resolve => window.setTimeout(resolve, 450));
+      await load();
+    } catch (err) {
+      setDocumentError(err instanceof Error ? err.message : '工厂资料导入失败');
+    } finally {
+      setDocumentSaving(false);
+    }
+  }
+
+  async function removeDocument() {
+    if (!deleteDocumentId) return;
+    setDocumentDeleting(true);
+    setDocumentError('');
+    try {
+      await deleteKnowledgeDocument(deleteDocumentId);
+      setDeleteDocumentId(null);
+      setSelected(null);
+      setDetail(null);
+      await new Promise(resolve => window.setTimeout(resolve, 450));
+      await load();
+    } catch (err) {
+      setDocumentError(err instanceof Error ? err.message : '工厂资料删除失败');
+    } finally {
+      setDocumentDeleting(false);
+    }
+  }
+
   async function resolveFeedback() {
     if (!resolveTarget) return;
     setResolving(true);
@@ -450,6 +527,10 @@ export function KnowledgeView({
     }
   }
 
+  const documentDownloadPath = selected?.sourceTable === 'knowledge_documents'
+    && typeof detail?.metadata?.downloadPath === 'string'
+    ? detail.metadata.downloadPath
+    : '';
   const sourcePath = selected ? SOURCE_PATHS[selected.sourceTable] : undefined;
 
   return (
@@ -843,9 +924,14 @@ export function KnowledgeView({
             <div className="text-sm font-semibold text-ink">知识条目</div>
             <div className="mt-1 text-xs text-muted">业务数据变更后自动刷新；手动同步用于全量核对和故障恢复。</div>
           </div>
-          <Button variant="primary" icon={<RefreshCw size={15} />} onClick={() => { setSyncMessage(''); setSyncOpen(true); }}>
-            同步知识库
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" icon={<FileUp size={15} />} onClick={() => { resetDocumentForm(); setDocumentOpen(true); }}>
+              导入资料
+            </Button>
+            <Button variant="secondary" icon={<RefreshCw size={15} />} onClick={() => { setSyncMessage(''); setSyncOpen(true); }}>
+              同步知识库
+            </Button>
+          </div>
         </div>
         <div className="grid gap-3 border-b border-line bg-slate-50 p-3 md:grid-cols-[minmax(220px,1fr)_180px_auto]">
           <label className="relative block">
@@ -941,6 +1027,123 @@ export function KnowledgeView({
               <Button variant="ghost" onClick={() => setSyncOpen(false)} disabled={syncing}>关闭</Button>
               <Button variant="primary" icon={syncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} onClick={() => void runSync()} disabled={syncing}>
                 {syncing ? '同步中' : '确认同步'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {documentOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="knowledge-document-title">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h2 id="knowledge-document-title" className="text-base font-semibold text-ink">导入工厂资料</h2>
+              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setDocumentOpen(false)} disabled={documentSaving} />
+            </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">资料类型</span>
+                  <select
+                    value={documentType}
+                    onChange={event => setDocumentType(event.target.value as KnowledgeDocumentType)}
+                    className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                    disabled={documentSaving}
+                  >
+                    {DOCUMENT_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">标题</span>
+                  <input
+                    value={documentTitle}
+                    onChange={event => setDocumentTitle(event.target.value)}
+                    maxLength={200}
+                    className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                    disabled={documentSaving}
+                  />
+                </label>
+              </div>
+              <label className="block">
+                <span className="text-xs font-medium text-muted">说明</span>
+                <textarea
+                  value={documentDescription}
+                  onChange={event => setDocumentDescription(event.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
+                  disabled={documentSaving}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-muted">技术内容</span>
+                <textarea
+                  value={documentContent}
+                  onChange={event => setDocumentContent(event.target.value)}
+                  maxLength={200000}
+                  rows={6}
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
+                  disabled={documentSaving}
+                />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">标签</span>
+                  <input
+                    value={documentTags}
+                    onChange={event => setDocumentTags(event.target.value)}
+                    placeholder="型号、类别、用途"
+                    className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                    disabled={documentSaving}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">文件</span>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.csv,.xls,.xlsx,.pdf"
+                    onChange={event => setDocumentFile(event.target.files?.[0] || null)}
+                    className="mt-2 block h-9 w-full rounded-md border border-line bg-white text-xs text-muted file:mr-3 file:h-full file:border-0 file:border-r file:border-line file:bg-slate-50 file:px-3 file:text-xs file:font-medium file:text-ink"
+                    disabled={documentSaving}
+                  />
+                </label>
+              </div>
+              {documentType === 'drawing' && documentFile?.name.toLowerCase().endsWith('.pdf') ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                  当前版本保存原始 PDF，并检索标题、说明和标签；图纸正文解析将在后续版本加入。
+                </div>
+              ) : null}
+              {documentError ? <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{documentError}</div> : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setDocumentOpen(false)} disabled={documentSaving}>取消</Button>
+              <Button
+                variant="primary"
+                icon={documentSaving ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />}
+                onClick={() => void saveDocument()}
+                disabled={documentSaving || !documentTitle.trim() || (!documentFile && !documentContent.trim())}
+              >
+                {documentSaving ? '导入中' : '确认导入'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteDocumentId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+          <div className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="knowledge-document-delete-title">
+            <div className="border-b border-line px-4 py-3">
+              <h2 id="knowledge-document-delete-title" className="text-base font-semibold text-ink">删除工厂资料</h2>
+            </div>
+            <div className="space-y-3 p-4 text-sm leading-6 text-muted">
+              <p>原始文件和对应知识条目将被移除，操作会进入审计记录。</p>
+              {documentError ? <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{documentError}</div> : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setDeleteDocumentId(null)} disabled={documentDeleting}>取消</Button>
+              <Button variant="danger" icon={documentDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} onClick={() => void removeDocument()} disabled={documentDeleting}>
+                {documentDeleting ? '删除中' : '确认删除'}
               </Button>
             </div>
           </div>
@@ -1136,7 +1339,22 @@ export function KnowledgeView({
                 </div>
               )}
             </div>
-            {sourcePath ? (
+            {selected.sourceTable === 'knowledge_documents' ? (
+              <div className="flex gap-2 border-t border-line p-4">
+                <Button variant="danger" className="flex-1" icon={<Trash2 size={15} />} onClick={() => {
+                  setDocumentError('');
+                  setDeleteDocumentId(Number(selected.sourceId));
+                  setSelected(null);
+                }}>
+                  删除资料
+                </Button>
+                {documentDownloadPath ? (
+                  <Button className="flex-1" icon={<Download size={15} />} onClick={() => { window.location.href = documentDownloadPath; }}>
+                    下载原文件
+                  </Button>
+                ) : null}
+              </div>
+            ) : sourcePath ? (
               <div className="border-t border-line p-4">
                 <Button className="w-full" icon={<ArrowUpRight size={15} />} onClick={() => { window.location.href = sourcePath; }}>
                   查看业务来源

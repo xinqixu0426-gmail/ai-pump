@@ -703,12 +703,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_knowledge',
-            description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题和业务规则。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。配方结果 metadata.testReports 是性能测试报告附件，不是图纸。只读。',
+            description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示只能使用标题、说明和标签，不得推断文件正文。只读。',
             parameters: {
                 type: 'object',
                 properties: {
                     query: { type: 'string', description: '搜索关键词' },
-                    entryType: { type: 'string', enum: ['part', 'template', 'recipe', 'coil', 'customer', 'quotation', 'order', 'quality_issue', 'business_rule'], description: '知识类型过滤，可选' },
+                    entryType: { type: 'string', enum: ['part', 'template', 'recipe', 'coil', 'customer', 'quotation', 'order', 'quality_issue', 'business_rule', 'document'], description: '知识类型过滤，可选' },
                     sourceTable: { type: 'string', description: '来源表过滤，可选' },
                     limit: { type: 'number', description: '最多返回条数，默认10，最大50' }
                 }
@@ -719,7 +719,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_knowledge_detail',
-            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。',
+            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。独立资料 metadata.parserStatus=metadata_only 时只能说明文件存在及其人工填写信息，不能推断文件正文。',
             parameters: {
                 type: 'object',
                 properties: {

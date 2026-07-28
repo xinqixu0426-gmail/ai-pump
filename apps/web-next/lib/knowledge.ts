@@ -20,7 +20,33 @@ export type KnowledgeEntryType =
   | 'quotation'
   | 'order'
   | 'quality_issue'
-  | 'business_rule';
+  | 'business_rule'
+  | 'document';
+
+export type KnowledgeDocumentType =
+  | 'technical_note'
+  | 'pump_performance_test'
+  | 'drawing'
+  | 'spreadsheet'
+  | 'other';
+
+export type KnowledgeDocument = {
+  id: number;
+  documentType: KnowledgeDocumentType;
+  title: string;
+  description: string;
+  contentText: string;
+  tags: string[];
+  originalName: string;
+  mimeType: string;
+  fileSize: number;
+  fileSha256: string;
+  parserStatus: 'not_applicable' | 'parsed' | 'metadata_only';
+  metadata: Record<string, unknown>;
+  downloadPath: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type KnowledgeChangeStatus = 'pending_insert' | 'pending_update' | 'pending_delete';
 
@@ -207,4 +233,34 @@ export async function syncFactoryKnowledge(): Promise<KnowledgeSyncStats> {
   });
   if (!result.success || !result.data?.stats) throw new Error(result.error || '知识库同步失败');
   return result.data.stats;
+}
+
+export async function uploadKnowledgeDocument(input: {
+  documentType: KnowledgeDocumentType;
+  title: string;
+  description?: string;
+  contentText?: string;
+  tags?: string[];
+  file?: File | null;
+}): Promise<KnowledgeDocument> {
+  const form = new FormData();
+  form.set('documentType', input.documentType);
+  form.set('title', input.title);
+  form.set('description', input.description || '');
+  form.set('contentText', input.contentText || '');
+  form.set('tags', JSON.stringify(input.tags || []));
+  if (input.file) form.set('file', input.file);
+  const result = await proxyRequest<ApiResponse<KnowledgeDocument>>('/api/knowledge/documents', {
+    method: 'POST',
+    body: form,
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '工厂资料导入失败');
+  return result.data;
+}
+
+export async function deleteKnowledgeDocument(id: number): Promise<void> {
+  const result = await proxyRequest<ApiResponse<never>>(`/api/knowledge/documents/${id}`, {
+    method: 'DELETE',
+  });
+  if (!result.success) throw new Error(result.error || '工厂资料删除失败');
 }
