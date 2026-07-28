@@ -21,6 +21,15 @@ function parseJsonArray(value) {
     }
 }
 
+function parseJsonObject(value) {
+    try {
+        const parsed = typeof value === 'string' ? JSON.parse(value || '{}') : value;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
 function median(values) {
     const sorted = values
         .map(Number)
@@ -470,7 +479,7 @@ function confidenceForScore(score) {
     return 'low';
 }
 
-function applyFeedback(findings, feedbackRows) {
+function applyFeedback(findings, feedbackRows, context = {}) {
     const feedbackByKey = new Map((feedbackRows || []).map(item => [
         item.findingKey || item.finding_key,
         item,
@@ -480,14 +489,32 @@ function applyFeedback(findings, feedbackRows) {
 
     for (const finding of findings) {
         const saved = feedbackByKey.get(finding.key);
+        const snapshot = parseJsonObject(saved?.findingSnapshotJson || saved?.finding_snapshot_json);
+        const evidenceContext = parseJsonObject(snapshot.evidenceContext);
+        const recipeUpdatedAtAtDecision = String(evidenceContext.recipeUpdatedAt || '').trim();
+        const currentRecipeUpdatedAt = String(context.recipeUpdatedAt || '').trim();
+        const outdated = Boolean(
+            recipeUpdatedAtAtDecision
+            && (context.draft || (
+                currentRecipeUpdatedAt
+                && recipeUpdatedAtAtDecision !== currentRecipeUpdatedAt
+            ))
+        );
         const feedback = saved ? {
             id: saved.id,
             decision: saved.decision,
             note: saved.note || '',
             updatedAt: saved.updatedAt || saved.updated_at || null,
+            outdated,
+            outdatedReason: outdated
+                ? context.draft
+                    ? '当前配方草稿可能已改变，历史反馈需要重新确认'
+                    : '配方内容在反馈后已修改，历史反馈需要重新确认'
+                : '',
         } : null;
         const enriched = { ...finding, feedback };
-        if (feedback && (feedback.decision === 'ignored' || feedback.decision === 'special_case')) {
+        if (feedback && !feedback.outdated
+            && (feedback.decision === 'ignored' || feedback.decision === 'special_case')) {
             suppressed.push(enriched);
         } else {
             active.push(enriched);
@@ -531,9 +558,13 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
             ? getDb().dbGetRecipeAnalysisFeedback(targetId)
             : []
     );
-    const missingFeedback = applyFeedback([...definite, ...inferred], feedbackRows);
-    const factoryRuleFeedback = applyFeedback(factoryRuleResult.alerts, feedbackRows);
-    const priceFeedback = applyFeedback(prices, feedbackRows);
+    const feedbackContext = {
+        draft: Boolean(input.draft),
+        recipeUpdatedAt: target.updatedAt || target.updated_at || '',
+    };
+    const missingFeedback = applyFeedback([...definite, ...inferred], feedbackRows, feedbackContext);
+    const factoryRuleFeedback = applyFeedback(factoryRuleResult.alerts, feedbackRows, feedbackContext);
+    const priceFeedback = applyFeedback(prices, feedbackRows, feedbackContext);
     const activeDefiniteCount = missingFeedback.active.filter(item => item.type !== 'peer_pattern').length;
     const activeInferredCount = missingFeedback.active.filter(item => item.type === 'peer_pattern').length;
     const highConfidenceAlertCount = activeDefiniteCount
@@ -544,6 +575,11 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
         ...factoryRuleFeedback.suppressed,
         ...priceFeedback.suppressed,
     ];
+    const outdatedFeedbackCount = [
+        ...missingFeedback.active,
+        ...factoryRuleFeedback.active,
+        ...priceFeedback.active,
+    ].filter(item => item.feedback?.outdated).length;
 
     return {
         version: 'knowledge-v3.0',
@@ -567,6 +603,7 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
             priceAlertCount: priceFeedback.active.length,
             highConfidenceAlertCount,
             suppressedFindingCount: suppressedFindings.length,
+            outdatedFeedbackCount,
         },
         similarRecipes: similar.map(item => ({
             id: recipeId(item.recipe),
@@ -589,6 +626,9 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
             '已批准工厂规则会参与保存前检查；客户定制差异可以标记为特殊情况。',
             '同类配方高频项只是复核建议，客户定制差异可以保留。',
             '价格提醒不会自动覆盖历史快照或当前零件价。',
+            ...(outdatedFeedbackCount > 0
+                ? ['配方内容已变化，历史反馈不再抑制提醒；请按当前配置重新确认。']
+                : []),
         ],
     };
 }

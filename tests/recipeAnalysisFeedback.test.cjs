@@ -1,14 +1,24 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
-const { saveRecipeAnalysisFeedback } = require('../api/services/recipeAnalysisFeedback.cjs');
+const {
+    resolveRecipeAnalysisFeedback,
+    saveRecipeAnalysisFeedback,
+} = require('../api/services/recipeAnalysisFeedback.cjs');
 
 function createFixture() {
     const db = new Database(':memory:');
     db.exec(`
         CREATE TABLE recipes (
             id INTEGER PRIMARY KEY,
+            name TEXT,
+            template_id INTEGER,
+            updated_at TEXT,
             deleted_at TEXT
+        );
+        CREATE TABLE pump_shell_templates (
+            id INTEGER PRIMARY KEY,
+            shell_model TEXT
         );
         CREATE TABLE recipe_analysis_feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +32,9 @@ function createFixture() {
             updated_at TEXT,
             UNIQUE(recipe_id, finding_key)
         );
-        INSERT INTO recipes(id, deleted_at) VALUES (1, NULL);
+        INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750');
+        INSERT INTO recipes(id, name, template_id, updated_at, deleted_at)
+        VALUES (1, 'V750 A', 7, '2026-01-01', NULL);
     `);
     const safeInsert = (table, values) => {
         const columns = Object.keys(values);
@@ -45,12 +57,6 @@ function createFixture() {
 function createLearningFixture() {
     const fixture = createFixture();
     fixture.db.exec(`
-        ALTER TABLE recipes ADD COLUMN name TEXT;
-        ALTER TABLE recipes ADD COLUMN template_id INTEGER;
-        CREATE TABLE pump_shell_templates (
-            id INTEGER PRIMARY KEY,
-            shell_model TEXT
-        );
         CREATE TABLE factory_rule_candidates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             rule_key TEXT NOT NULL UNIQUE,
@@ -106,9 +112,8 @@ function createLearningFixture() {
             updated_at TEXT,
             UNIQUE(source_table, source_id)
         );
-        INSERT INTO pump_shell_templates(id, shell_model) VALUES (7, 'V750');
-        UPDATE recipes SET name = 'V750 A', template_id = 7 WHERE id = 1;
-        INSERT INTO recipes(id, name, template_id, deleted_at) VALUES (2, 'V750 B', 7, NULL);
+        INSERT INTO recipes(id, name, template_id, updated_at, deleted_at)
+        VALUES (2, 'V750 B', 7, '2026-01-01', NULL);
     `);
     return fixture;
 }
@@ -164,6 +169,38 @@ test('配方检查反馈拒绝无效判断和不存在的配方', () => {
     }
 });
 
+test('配方检查反馈由服务端固化证据来源并覆盖客户端伪造上下文', () => {
+    const fixture = createFixture();
+    try {
+        const saved = saveRecipeAnalysisFeedback(1, {
+            findingKey: 'peer_pattern:包装:fixed',
+            findingType: 'configuration_conflict',
+            decision: 'confirmed',
+            findingSnapshot: {
+                title: '同类配方通常包含说明书',
+                evidenceContext: {
+                    recipeId: 999,
+                    templateId: 999,
+                    templateName: '伪造模板',
+                },
+            },
+        }, fixture);
+        const snapshot = JSON.parse(saved.findingSnapshotJson);
+        assert.equal(snapshot.title, '同类配方通常包含说明书');
+        assert.deepEqual(snapshot.evidenceContext, {
+            recipeId: 1,
+            recipeName: 'V750 A',
+            templateId: 7,
+            templateName: 'V750',
+            recipeUpdatedAt: '2026-01-01',
+            recordedAt: snapshot.evidenceContext.recordedAt,
+        });
+        assert.match(snapshot.evidenceContext.recordedAt, /^\d{4}-\d{2}-\d{2}T/);
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('同类高频项反馈保存后自动归纳候选规则且失败时整体回滚', () => {
     const fixture = createLearningFixture();
     try {
@@ -204,6 +241,61 @@ test('同类高频项反馈保存后自动归纳候选规则且失败时整体�
                 .get('peer_pattern:包装:manual').count,
             0
         );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('过期学习反馈在原提醒消失后可确认解决并保留原始证据', () => {
+    const fixture = createLearningFixture();
+    try {
+        const saved = saveRecipeAnalysisFeedback(1, {
+            findingKey: 'peer_pattern:包装:fixed',
+            findingType: 'peer_pattern',
+            decision: 'confirmed',
+            note: '原判断',
+            findingSnapshot: { title: '同类配方通常包含说明书' },
+        }, fixture);
+        const originalSnapshot = saved.findingSnapshotJson;
+
+        assert.throws(
+            () => resolveRecipeAnalysisFeedback(saved.id, {}, fixture),
+            /仍对应当前配方版本/
+        );
+
+        fixture.db.prepare('UPDATE recipes SET updated_at = ? WHERE id = ?')
+            .run('2026-02-01', 1);
+        assert.throws(
+            () => resolveRecipeAnalysisFeedback(saved.id, {}, {
+                ...fixture,
+                analyzeRecipeConfiguration: () => ({
+                    missingItems: [{ key: 'peer_pattern:包装:fixed' }],
+                }),
+            }),
+            /原提醒在当前配方智能检查中仍然存在/
+        );
+
+        const resolved = resolveRecipeAnalysisFeedback(saved.id, {}, {
+            ...fixture,
+            analyzeRecipeConfiguration: () => ({
+                factoryRuleAlerts: [],
+                missingItems: [],
+                priceAlerts: [],
+                suppressedFindings: [],
+            }),
+        });
+        assert.equal(resolved.resolved, true);
+        assert.equal(resolved.previousDecision, 'confirmed');
+        assert.equal(resolved.resolutionReason, 'content_outdated');
+        assert.equal(resolved.decision, 'review');
+        assert.match(resolved.note, /原判断/);
+        assert.match(resolved.note, /确认已解决/);
+        assert.equal(resolved.findingSnapshotJson, originalSnapshot);
+
+        const health = require('../api/services/factoryRuleCandidates.cjs')
+            .buildFactoryLearningHealth(fixture);
+        assert.equal(health.summary.totalEvidenceCount, 0);
+        assert.equal(health.summary.recheckEvidenceCount, 0);
     } finally {
         fixture.db.close();
     }

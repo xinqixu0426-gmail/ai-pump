@@ -9,6 +9,7 @@ import {
   businessAlertClassName,
   getBusinessAlerts,
   getDataQualitySummary,
+  getFactoryLearningHealth,
   getFactoryRuleCompliance,
   getFactoryRuleCandidates,
   getFactoryRuleEvents,
@@ -19,6 +20,7 @@ import {
   reviewFactoryRuleCandidate,
   type BusinessAlertsSummary,
   type DataQualitySummary,
+  type FactoryLearningHealth,
   type FactoryRuleCandidate,
   type FactoryRuleCompliance,
   type FactoryRuleEvent,
@@ -71,6 +73,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [summary, setSummary] = useState<DataQualitySummary | null>(null);
   const [businessAlerts, setBusinessAlerts] = useState<BusinessAlertsSummary | null>(null);
   const [ruleCandidates, setRuleCandidates] = useState<FactoryRuleCandidate[]>([]);
+  const [learningHealth, setLearningHealth] = useState<FactoryLearningHealth | null>(null);
   const [ruleCompliance, setRuleCompliance] = useState<FactoryRuleCompliance | null>(null);
   const [ruleEvents, setRuleEvents] = useState<FactoryRuleEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,18 +92,20 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const [quality, alerts, candidates, compliance, events] = await Promise.all([
+      const [quality, alerts, candidates, compliance, events, health] = await Promise.all([
         getDataQualitySummary(),
         getBusinessAlerts(),
         getFactoryRuleCandidates(),
         getFactoryRuleCompliance(),
         getFactoryRuleEvents({ limit: 20 }),
+        getFactoryLearningHealth(),
       ]);
       setSummary(quality);
       setBusinessAlerts(alerts);
       setRuleCandidates(candidates);
       setRuleCompliance(compliance);
       setRuleEvents(events);
+      setLearningHealth(health);
       onScoreChange?.(quality.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : '数据质量加载失败');
@@ -125,6 +130,24 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const ruleCandidatesNeedingReview = ruleCandidates.filter((candidate) => candidate.needsReview);
   const ruleReviewQueue = ruleCandidates.filter((candidate) => candidate.status === 'candidate' || candidate.needsReview);
   const learnedSpecialCaseCount = ruleCandidates.reduce((total, candidate) => total + candidate.specialCaseCount, 0);
+  const evidenceRecheckItems = (learningHealth?.items || []).filter((item) => item.needsRecheck);
+  const evidenceRecheckGroups = useMemo(() => {
+    const groups = new Map<number, {
+      recipeId: number;
+      recipeName: string;
+      items: typeof evidenceRecheckItems;
+    }>();
+    for (const item of evidenceRecheckItems) {
+      const current = groups.get(item.recipeId);
+      if (current) current.items.push(item);
+      else groups.set(item.recipeId, {
+        recipeId: item.recipeId,
+        recipeName: item.recipeName,
+        items: [item],
+      });
+    }
+    return Array.from(groups.values());
+  }, [evidenceRecheckItems]);
 
   async function refreshRuleCandidates() {
     setRuleRefreshing(true);
@@ -132,12 +155,14 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     try {
       const result = await refreshFactoryRuleCandidates();
       setRuleCandidates(result.candidates);
-      const [compliance, events] = await Promise.all([
+      const [compliance, events, health] = await Promise.all([
         getFactoryRuleCompliance(),
         getFactoryRuleEvents({ limit: 20 }),
+        getFactoryLearningHealth(),
       ]);
       setRuleCompliance(compliance);
       setRuleEvents(events);
+      setLearningHealth(health);
       setRuleImpacts({});
       setExpandedRuleImpactId(null);
     } catch (err) {
@@ -287,7 +312,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                   候选业务规则
                 </div>
                 <div className="mt-1 text-xs leading-5 text-muted">
-                  同类高频项反馈保存后会自动归纳；至少 2 个配方确认且置信度达到 65% 才能批准，批准后参与配方检查并自动更新规则知识，低于门槛会自动撤回批准。
+                  同类高频项反馈保存后会自动归纳；学习证据健康检查也覆盖尚未形成候选规则的单条反馈。至少 2 个配方确认且置信度达到 65% 才能批准，批准后参与配方检查并自动更新规则知识，低于门槛会自动撤回批准。历史反馈绑定生成时的泵壳模板和配方版本，换模板或修改配方后都需要重新检查确认。
                 </div>
               </div>
               <Button
@@ -317,6 +342,74 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 <div className="text-xs text-muted">特殊情况证据</div>
               </div>
             </div>
+            {learningHealth && learningHealth.summary.recheckEvidenceCount > 0 ? (
+              <div className="border-b border-amber-200 bg-amber-50">
+                <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-amber-900">
+                      <AlertTriangle size={16} />
+                      学习证据待重新检查
+                      <StatusBadge tone="orange">{learningHealth.summary.affectedRecipeCount} 个配方</StatusBadge>
+                      <StatusBadge tone="orange">{learningHealth.summary.recheckEvidenceCount} 条反馈</StatusBadge>
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-amber-800">{learningHealth.guidance}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0"
+                    onClick={() => { window.location.href = '/recipes'; }}
+                  >
+                    打开配方列表
+                  </Button>
+                </div>
+                <div className="divide-y divide-amber-200 border-t border-amber-200">
+                  {evidenceRecheckGroups.slice(0, 8).map((group) => {
+                    const outdatedCount = group.items.filter((item) => item.status === 'outdated').length;
+                    const driftedCount = group.items.filter((item) => item.status === 'drifted').length;
+                    return (
+                    <div key={group.recipeId} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-amber-950">{group.recipeName}</span>
+                          <StatusBadge tone="orange">{group.items.length} 条反馈</StatusBadge>
+                          {outdatedCount > 0 ? <StatusBadge tone="orange">内容变化 {outdatedCount}</StatusBadge> : null}
+                          {driftedCount > 0 ? <StatusBadge tone="red">模板变化 {driftedCount}</StatusBadge> : null}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-amber-800">
+                          {group.items.slice(0, 3).map((item) => item.findingTitle).join('、')}
+                          {group.items.length > 3 ? ` 等 ${group.items.length} 条` : ''}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="shrink-0"
+                        icon={<Sparkles size={14} />}
+                        onClick={() => {
+                          const feedbackIds = group.items.map((item) => item.feedbackId).join(',');
+                          window.location.href = `/recipes?recipeId=${group.recipeId}&feedbackIds=${feedbackIds}&action=smart-check`;
+                        }}
+                      >
+                        处理 {group.items.length} 条
+                      </Button>
+                    </div>
+                  )})}
+                  {evidenceRecheckGroups.length > 8 ? (
+                    <div className="px-4 py-3 text-xs text-amber-800">
+                      仅显示前 8 个配方，共 {learningHealth.summary.affectedRecipeCount} 个配方待重新检查
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : learningHealth ? (
+              <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
+                学习证据健康：{learningHealth.summary.activeEvidenceCount} 条反馈仍对应当前配方版本，无待重新检查项。
+                {learningHealth.summary.archivedEvidenceCount > 0
+                  ? ` 另有 ${learningHealth.summary.archivedEvidenceCount} 条归档配方历史反馈仅保留追溯。`
+                  : ''}
+              </div>
+            ) : null}
             {ruleReviewQueue.length === 0 ? (
               <div className="px-4 py-5 text-sm text-muted">
                 暂无待审核规则。先在配方智能检查中确认同类高频项，积累到 2 个不同配方后再归纳。
@@ -332,6 +425,8 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                           <StatusBadge tone="green">确认 {candidate.supportCount}</StatusBadge>
                           <StatusBadge tone="blue">特殊 {candidate.specialCaseCount}</StatusBadge>
                           <StatusBadge tone="slate">忽略 {candidate.ignoredCount}</StatusBadge>
+                          {candidate.driftedCount > 0 ? <StatusBadge tone="red">范围漂移 {candidate.driftedCount}</StatusBadge> : null}
+                          {candidate.outdatedCount > 0 ? <StatusBadge tone="orange">内容过期 {candidate.outdatedCount}</StatusBadge> : null}
                           <StatusBadge tone={candidate.confidenceLevel === 'high' ? 'green' : candidate.confidenceLevel === 'medium' ? 'amber' : 'orange'}>
                             置信度 {Math.round(candidate.confidenceScore * 100)}%
                           </StatusBadge>
@@ -402,7 +497,9 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                         </div>
                         {ruleImpacts[candidate.id].groups.needsReview.length > 0 ? (
                           <div className="mt-2 text-xs leading-5 text-amber-800">
-                            需要复核：{ruleImpacts[candidate.id].groups.needsReview.map((item) => item.recipeName).join('、')}
+                            需要复核：{ruleImpacts[candidate.id].groups.needsReview
+                              .map((item) => `${item.recipeName}${item.feedbackOutdated ? '（旧反馈过期）' : ''}`)
+                              .join('、')}
                           </div>
                         ) : null}
                         {ruleImpacts[candidate.id].groups.specialCases.length > 0 ? (
@@ -418,7 +515,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
             )}
             {ruleCandidatesNeedingReview.length > 0 ? (
               <div className="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
-                {ruleCandidatesNeedingReview.length} 条已批准规则出现忽略证据或置信度下降，继续作为复核建议，但应重新审核后再长期使用。
+                {ruleCandidatesNeedingReview.length} 条已批准规则出现反向、漂移或过期证据，继续作为复核建议，但应重新审核后再长期使用。
               </div>
             ) : null}
           </FadePanel>

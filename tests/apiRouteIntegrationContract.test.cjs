@@ -150,12 +150,15 @@ test('关键 API 集成契约：配方检查反馈使用统一反馈服务写入
     const source = readUtf8('api/routes/quality.cjs');
     assert.match(source, /router\.post\('\/recipes\/:recipeId\/feedback'/);
     assert.match(source, /saveRecipeAnalysisFeedback\(req\.params\.recipeId, req\.body \|\| \{\}, \{/);
+    assert.match(source, /router\.post\('\/recipe-feedback\/:id\/resolve'/);
+    assert.match(source, /resolveRecipeAnalysisFeedback\(req\.params\.id, req\.body \|\| \{\}, \{/);
     assert.match(source, /actor: req\.user\?\.role \|\| 'system'/);
 });
 
 test('关键 API 集成契约：候选规则提供归纳、影响、执行监控、历史、审核和恢复入口', () => {
     const source = readUtf8('api/routes/quality.cjs');
     assert.match(source, /router\.get\('\/rule-compliance'/);
+    assert.match(source, /router\.get\('\/rule-learning-health'/);
     assert.match(source, /router\.get\('\/rule-candidates'/);
     assert.match(source, /router\.get\('\/rule-events'/);
     assert.match(source, /router\.post\('\/rule-events\/:id\/restore'/);
@@ -163,6 +166,7 @@ test('关键 API 集成契约：候选规则提供归纳、影响、执行监控
     assert.match(source, /router\.get\('\/rule-candidates\/:id\/impact'/);
     assert.match(source, /router\.patch\('\/rule-candidates\/:id'/);
     assert.match(source, /refreshFactoryRuleCandidates/);
+    assert.match(source, /buildFactoryLearningHealth/);
     assert.match(source, /reviewFactoryRuleCandidate/);
     assert.match(source, /restoreFactoryRuleEvent/);
 });

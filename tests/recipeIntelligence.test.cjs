@@ -260,3 +260,33 @@ test('配方智能分析应用人工反馈并保留恢复入口', () => {
         'confirmed'
     );
 });
+
+test('配方修改后历史反馈不再压住当前智能检查提醒', () => {
+    const target = recipe({
+        updatedAt: '2026-02-01',
+        partsJson: JSON.stringify([{ name: '花板轴承', model: '202', snapshotPrice: 1.2 }]),
+    });
+    const result = analyzeRecipeConfiguration({ recipeId: 1 }, {
+        recipes: [target],
+        parts: [{ id: 5, model: '202', price: 1.2 }],
+        feedback: [{
+            id: 9,
+            findingKey: 'missing_shell',
+            decision: 'special_case',
+            note: '历史特殊情况',
+            findingSnapshotJson: JSON.stringify({
+                title: '缺少泵壳',
+                evidenceContext: {
+                    recipeUpdatedAt: '2026-01-01',
+                },
+            }),
+        }],
+    });
+
+    assert.equal(result.summary.suppressedFindingCount, 0);
+    assert.equal(result.summary.outdatedFeedbackCount, 1);
+    const finding = result.missingItems.find(item => item.key === 'missing_shell');
+    assert.equal(finding.feedback.outdated, true);
+    assert.match(finding.feedback.outdatedReason, /配方内容在反馈后已修改/);
+    assert.match(result.guidance.at(-1), /历史反馈不再抑制提醒/);
+});

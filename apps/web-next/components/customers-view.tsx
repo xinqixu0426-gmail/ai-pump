@@ -250,8 +250,8 @@ export function CustomersView() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
-        <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+        <FadePanel className="min-w-0 rounded-panel border border-line bg-white shadow-panel">
           <div className="flex items-center justify-between gap-3 border-b border-line p-4">
             <div>
               <div className="text-sm font-semibold text-ink">客户列表</div>
@@ -318,7 +318,7 @@ export function CustomersView() {
           )}
         </FadePanel>
 
-        <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+        <FadePanel className="min-w-0 rounded-panel border border-line bg-white shadow-panel">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line p-4">
             <div>
               <div className="text-sm font-semibold text-ink">{selectedCustomer ? selectedCustomer.name : '选择客户'}</div>

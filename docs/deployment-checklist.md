@@ -35,6 +35,7 @@ npm run verify:release
 
 - `npm audit`
 - `npm test`
+- `npm run test:deep-api`，在临时数据库副本上执行跨模块 API 冒烟测试
 - `npm run build`
 - `npm run verify:prod-env`
 

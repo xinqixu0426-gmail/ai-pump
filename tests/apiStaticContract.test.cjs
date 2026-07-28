@@ -465,7 +465,7 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
-    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_rule_candidates', 'get_factory_rule_impact', 'get_factory_rule_compliance', 'get_factory_rule_history', 'restore_factory_rule_event', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
+    for (const name of ['build_recipe_bom_draft', 'preview_recipe_cost', 'preview_pump_shell_cost', 'build_quotation_draft', 'build_order_draft', 'search_customer_history', 'explain_cost_change', 'get_data_quality_summary', 'analyze_recipe_configuration', 'set_recipe_analysis_feedback', 'get_factory_learning_health', 'get_factory_rule_candidates', 'get_factory_rule_impact', 'get_factory_rule_compliance', 'get_factory_rule_history', 'restore_factory_rule_event', 'refresh_factory_rule_candidates', 'review_factory_rule_candidate', 'get_business_alerts', 'search_factory_knowledge', 'get_factory_knowledge_detail', 'sync_factory_knowledge']) {
         assert.match(tools, new RegExp(name));
     }
 });
@@ -667,6 +667,150 @@ test('API 静态契约：Knowledge V3 低置信度规则禁止批准并自动撤
     assert.match(qualityView, /暂不能批准/);
     assert.match(qualityView, /低于门槛会自动撤回批准/);
     assert.match(docs, /V3 第八阶段/);
+});
+
+test('API 静态契约：Knowledge V3 固化反馈证据来源并隔离范围漂移', () => {
+    const feedbackService = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
+    const ruleService = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(feedbackService, /findingSnapshot\.evidenceContext/);
+    assert.match(feedbackService, /templateId: Number\(recipe\.template_id/);
+    assert.match(ruleService, /scopeDrift/);
+    assert.match(ruleService, /\['supporting', 'specialCases', 'ignored', 'drifted', 'outdated'\]/);
+    assert.match(ruleService, /driftedEvidence/);
+    assert.match(tools, /范围漂移/);
+    assert.match(prompt, /不计入支持数/);
+    assert.match(qualityClient, /driftedCount: number/);
+    assert.match(qualityView, /换模板或修改配方后都需要重新检查确认/);
+    assert.match(docs, /V3 第九阶段/);
+});
+
+test('API 静态契约：Knowledge V3 隔离配方修改后的过期反馈', () => {
+    const intelligence = readUtf8(path.join(repoRoot, 'api/services/recipeIntelligence.cjs'));
+    const ruleService = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const recipesRoute = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(intelligence, /outdatedFeedbackCount/);
+    assert.match(intelligence, /历史反馈不再抑制提醒/);
+    assert.match(ruleService, /contentOutdated/);
+    assert.match(ruleService, /outdatedEvidence/);
+    assert.match(recipesRoute, /refreshRecipeRuleLearningIfNeeded/);
+    assert.match(recipesRoute, /decision IN \('confirmed', 'special_case', 'ignored'\)/);
+    assert.match(recipesRoute, /refreshFactoryRuleCandidates\(\{ actor \}\)/);
+    assert.match(recipesRoute, /softDelete\('recipes', id\);\s+refreshRecipeRuleLearningIfNeeded\(id,/);
+    assert.match(tools, /内容过期/);
+    assert.match(qualityClient, /outdatedCount: number/);
+    assert.match(qualityView, /内容过期/);
+    assert.match(recipesView, /反馈已过期/);
+    assert.match(docs, /V3 第十阶段/);
+});
+
+test('API 静态契约：Knowledge V3 扫描全部学习反馈并形成待复核队列', () => {
+    const ruleService = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(ruleService, /function buildFactoryLearningHealth/);
+    assert.match(ruleService, /LEFT JOIN recipes ON recipes\.id = feedback\.recipe_id/);
+    assert.match(ruleService, /recheckEvidenceCount/);
+    assert.match(ruleService, /archivedEvidenceCount/);
+    assert.match(route, /router\.get\('\/rule-learning-health'/);
+    assert.match(tools, /name: 'get_factory_learning_health'/);
+    assert.match(executor, /case 'get_factory_learning_health'/);
+    assert.match(qualityClient, /getFactoryLearningHealth/);
+    assert.match(qualityView, /学习证据待重新检查/);
+    assert.match(qualityView, /尚未形成候选规则/);
+    assert.match(docs, /V3 第十一阶段/);
+});
+
+test('API 静态契约：Knowledge V3 待复核证据可直达配方并自动智能检查', () => {
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
+    const businessFlow = readUtf8(path.join(repoRoot, 'docs/business-flow.md'));
+
+    assert.match(qualityView, /`\/recipes\?recipeId=\$\{group\.recipeId\}&feedbackIds=\$\{feedbackIds\}&action=smart-check`/);
+    assert.match(qualityView, /重新检查/);
+    assert.match(recipesView, /function parseRecipeReviewTarget/);
+    assert.match(recipesView, /params\.get\('action'\) === 'smart-check'/);
+    assert.match(recipesView, /openEditDrawer\(recipe\)/);
+    assert.match(recipesView, /setAutoAnalyzeRecipeId\(recipe\.id\)/);
+    assert.match(recipesView, /nextUrl\.searchParams\.delete\('action'\)/);
+    assert.match(recipesView, /void runRecipeAnalysis\(\)/);
+    assert.match(docs, /V3 第十二阶段/);
+    assert.match(businessFlow, /自动执行一次智能检查/);
+});
+
+test('API 静态契约：Knowledge V3 已消失的待复核提醒可确认解决', () => {
+    const feedbackService = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
+    const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
+    const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(feedbackService, /function resolveRecipeAnalysisFeedback/);
+    assert.match(feedbackService, /decision: 'review'/);
+    assert.match(feedbackService, /这条反馈仍对应当前配方版本/);
+    assert.match(feedbackService, /analysisContainsFinding/);
+    assert.match(feedbackService, /原提醒在当前配方智能检查中仍然存在/);
+    assert.match(route, /router\.post\('\/recipe-feedback\/:id\/resolve'/);
+    assert.match(qualityClient, /resolveRecipeAnalysisFeedback/);
+    assert.match(qualityView, /feedbackIds=\$\{feedbackIds\}/);
+    assert.match(recipesView, /data-review-target/);
+    assert.match(recipesView, /确认已解决/);
+    assert.match(recipesView, /原待复核提醒/);
+    assert.match(docs, /V3 第十三阶段/);
+});
+
+test('API 静态契约：Knowledge V3 同一配方待复核反馈按任务聚合并顺序处理', () => {
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
+    const businessFlow = readUtf8(path.join(repoRoot, 'docs/business-flow.md'));
+
+    assert.match(qualityView, /const evidenceRecheckGroups = useMemo/);
+    assert.match(qualityView, /group\.items\.map\(\(item\) => item\.feedbackId\)\.join\(','\)/);
+    assert.match(qualityView, /处理 \{group\.items\.length\} 条/);
+    assert.match(recipesView, /params\.get\('feedbackIds'\)/);
+    assert.match(recipesView, /setReviewEvidenceTargets\(evidence\)/);
+    assert.match(recipesView, /function completeCurrentReviewEvidence/);
+    assert.match(recipesView, /继续处理下一条/);
+    assert.match(recipesView, /待复核进度：第/);
+    assert.match(docs, /V3 第十四阶段/);
+    assert.match(businessFlow, /按配方聚合/);
+});
+
+test('API 静态契约：Knowledge V3 待复核工作台展示规则影响并完成闭环', () => {
+    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
+    const apiDocs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+    const businessFlow = readUtf8(path.join(repoRoot, 'docs/business-flow.md'));
+
+    assert.match(recipesView, /setReviewRuleLearning\(result\.ruleLearning \|\| null\)/);
+    assert.match(recipesView, /规则学习已按本次判断刷新/);
+    assert.match(recipesView, /function skipCurrentReviewEvidence/);
+    assert.match(recipesView, /原反馈状态没有改变/);
+    assert.match(recipesView, /nextUrl\.searchParams\.delete\('feedbackIds'\)/);
+    assert.match(recipesView, /window\.location\.assign\('\/dashboard\?view=quality'\)/);
+    assert.match(recipesView, /返回数据质量/);
+    assert.match(docs, /V3 第十五阶段/);
+    assert.match(apiDocs, /暂时跳过只调整本地处理顺序/);
+    assert.match(businessFlow, /暂时跳过只改变当前页面的处理顺序/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

@@ -74,11 +74,13 @@ export type RecipeAnalysisFeedback = {
   decision: RecipeAnalysisFeedbackDecision;
   note: string;
   updatedAt: string | null;
+  outdated?: boolean;
+  outdatedReason?: string;
   ruleLearning?: {
     refreshed: true;
     minimumEvidence: number;
     minimumConfidence: number;
-    stats: { created: number; updated: number; stale: number; suspended: number; active: number };
+    stats: { created: number; updated: number; stale: number; suspended: number; active: number; driftedEvidence: number; outdatedEvidence: number };
     candidateCount: number;
   };
 };
@@ -163,6 +165,8 @@ export type FactoryRuleCandidate = {
   supportCount: number;
   specialCaseCount: number;
   ignoredCount: number;
+  driftedCount: number;
+  outdatedCount: number;
   confidenceScore: number;
   confidenceLevel: RecipeAnalysisConfidence;
   approvalEligible: boolean;
@@ -175,6 +179,8 @@ export type FactoryRuleCandidate = {
     supporting: Array<Record<string, unknown>>;
     specialCases: Array<Record<string, unknown>>;
     ignored: Array<Record<string, unknown>>;
+    drifted: Array<Record<string, unknown>>;
+    outdated: Array<Record<string, unknown>>;
   };
   status: FactoryRuleCandidateStatus;
   needsReview: boolean;
@@ -222,9 +228,11 @@ export type FactoryRuleImpactItem = {
   spec: string;
   hasRequiredRole: boolean;
   decision: RecipeAnalysisFeedbackDecision;
+  originalDecision: RecipeAnalysisFeedbackDecision;
   note: string;
   feedbackUpdatedAt: string | null;
   recipeUpdatedAt: string | null;
+  feedbackOutdated: boolean;
 };
 
 export type FactoryRuleImpact = {
@@ -241,6 +249,7 @@ export type FactoryRuleImpact = {
     needsReviewCount: number;
     specialCaseCount: number;
     ignoredCount: number;
+    outdatedFeedbackCount: number;
     attentionRate: number;
   };
   groups: {
@@ -281,6 +290,46 @@ export type FactoryRuleCompliance = {
   guidance: string;
 };
 
+export type FactoryLearningHealthStatus = 'active' | 'outdated' | 'drifted' | 'archived';
+
+export type FactoryLearningHealth = {
+  generatedAt: string;
+  summary: {
+    totalEvidenceCount: number;
+    activeEvidenceCount: number;
+    recheckEvidenceCount: number;
+    outdatedEvidenceCount: number;
+    driftedEvidenceCount: number;
+    archivedEvidenceCount: number;
+    affectedRecipeCount: number;
+    confirmedCount: number;
+    specialCaseCount: number;
+    ignoredCount: number;
+  };
+  items: Array<{
+    feedbackId: number;
+    recipeId: number;
+    recipeName: string;
+    findingKey: string;
+    findingType: string;
+    findingTitle: string;
+    decision: Exclude<RecipeAnalysisFeedbackDecision, 'review'>;
+    note: string;
+    status: FactoryLearningHealthStatus;
+    reason: string;
+    needsRecheck: boolean;
+    templateIdAtDecision: number | null;
+    templateNameAtDecision: string;
+    currentTemplateId: number | null;
+    currentTemplateName: string;
+    recipeUpdatedAtAtDecision: string | null;
+    currentRecipeUpdatedAt: string | null;
+    legacyContext: boolean;
+    decidedAt: string | null;
+  }>;
+  guidance: string;
+};
+
 export type RecipeConfigurationAnalysis = {
   version: string;
   generatedAt: string;
@@ -303,6 +352,7 @@ export type RecipeConfigurationAnalysis = {
     priceAlertCount: number;
     highConfidenceAlertCount: number;
     suppressedFindingCount: number;
+    outdatedFeedbackCount: number;
   };
   similarRecipes: Array<{
     id: number;
@@ -384,9 +434,35 @@ export async function saveRecipeAnalysisFeedback(
   return result.data;
 }
 
+export async function resolveRecipeAnalysisFeedback(
+  feedbackId: number,
+  input: { note?: string } = {}
+): Promise<RecipeAnalysisFeedback & {
+  resolved: true;
+  previousDecision: Exclude<RecipeAnalysisFeedbackDecision, 'review'>;
+  resolutionReason: 'template_drift' | 'content_outdated';
+}> {
+  const result = await proxyRequest<ApiResponse<RecipeAnalysisFeedback & {
+    resolved: true;
+    previousDecision: Exclude<RecipeAnalysisFeedbackDecision, 'review'>;
+    resolutionReason: 'template_drift' | 'content_outdated';
+  }>>(`/api/quality/recipe-feedback/${feedbackId}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '待复核反馈处理失败');
+  return result.data;
+}
+
 export async function getFactoryRuleCandidates(): Promise<FactoryRuleCandidate[]> {
   const result = await proxyRequest<ApiResponse<FactoryRuleCandidate[]>>('/api/quality/rule-candidates');
   if (!result.success || !result.data) throw new Error(result.error || '候选规则加载失败');
+  return result.data;
+}
+
+export async function getFactoryLearningHealth(limit = 100): Promise<FactoryLearningHealth> {
+  const result = await proxyRequest<ApiResponse<FactoryLearningHealth>>(`/api/quality/rule-learning-health?limit=${limit}`);
+  if (!result.success || !result.data) throw new Error(result.error || '学习证据健康状态加载失败');
   return result.data;
 }
 
@@ -418,13 +494,13 @@ export async function restoreFactoryRuleEvent(
 export async function refreshFactoryRuleCandidates(): Promise<{
   minimumEvidence: number;
   minimumConfidence: number;
-  stats: { created: number; updated: number; stale: number; suspended: number; active: number };
+  stats: { created: number; updated: number; stale: number; suspended: number; active: number; driftedEvidence: number; outdatedEvidence: number };
   candidates: FactoryRuleCandidate[];
 }> {
   const result = await proxyRequest<ApiResponse<{
     minimumEvidence: number;
     minimumConfidence: number;
-    stats: { created: number; updated: number; stale: number; suspended: number; active: number };
+    stats: { created: number; updated: number; stale: number; suspended: number; active: number; driftedEvidence: number; outdatedEvidence: number };
     candidates: FactoryRuleCandidate[];
   }>>('/api/quality/rule-candidates/refresh', { method: 'POST' });
   if (!result.success || !result.data) throw new Error(result.error || '候选规则归纳失败');

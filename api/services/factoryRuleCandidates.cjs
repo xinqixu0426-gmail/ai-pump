@@ -68,13 +68,19 @@ function factoryRuleApprovalGate(supportCountValue, confidenceScoreValue) {
 }
 
 function learningEvidenceHash(learningEvidence) {
-    const signatures = ['supporting', 'specialCases', 'ignored']
+    const signatures = ['supporting', 'specialCases', 'ignored', 'drifted', 'outdated']
         .flatMap(bucket => parseArray(learningEvidence?.[bucket]).map(item => ({
             bucket,
             recipeId: Number(item.recipeId || 0),
             feedbackId: Number(item.feedbackId || 0),
             decision: item.decision || '',
             note: item.note || '',
+            templateIdAtDecision: Number(item.templateIdAtDecision || 0),
+            currentTemplateId: Number(item.currentTemplateId || 0),
+            scopeDrift: Boolean(item.scopeDrift),
+            recipeUpdatedAtAtDecision: item.recipeUpdatedAtAtDecision || null,
+            currentRecipeUpdatedAt: item.currentRecipeUpdatedAt || null,
+            contentOutdated: Boolean(item.contentOutdated),
             decidedAt: item.decidedAt || item.confirmedAt || null,
         })))
         .sort((left, right) => left.bucket.localeCompare(right.bucket)
@@ -90,6 +96,8 @@ function candidateRow(row) {
     const supportCount = Number(row.support_count ?? row.evidence_count ?? evidence.length);
     const specialCaseCount = Number(row.special_case_count || 0);
     const ignoredCount = Number(row.ignored_count || 0);
+    const driftedCount = parseArray(learningEvidence.drifted).length;
+    const outdatedCount = parseArray(learningEvidence.outdated).length;
     const storedScore = Number(row.confidence_score);
     const confidence = confidenceForEvidence(supportCount, specialCaseCount, ignoredCount);
     const confidenceScore = Number.isFinite(storedScore) && storedScore > 0
@@ -115,6 +123,8 @@ function candidateRow(row) {
         supportCount,
         specialCaseCount,
         ignoredCount,
+        driftedCount,
+        outdatedCount,
         confidenceScore,
         confidenceLevel: confidenceForEvidence(
             supportCount,
@@ -133,10 +143,12 @@ function candidateRow(row) {
                 : evidence,
             specialCases: parseArray(learningEvidence.specialCases),
             ignored: parseArray(learningEvidence.ignored),
+            drifted: parseArray(learningEvidence.drifted),
+            outdated: parseArray(learningEvidence.outdated),
         },
         status: row.status,
         needsReview: row.status === 'approved'
-            && ignoredCount > 0
+            && (ignoredCount > 0 || driftedCount > 0 || outdatedCount > 0)
             && !reviewedLatestEvidence,
         reviewNote: row.review_note || '',
         approvedAt,
@@ -224,34 +236,60 @@ function buildRuleCandidateGroups(rows, minimumEvidence = 2) {
     for (const row of rows || []) {
         if (!['confirmed', 'special_case', 'ignored'].includes(row.decision)
             || row.finding_type !== 'peer_pattern') continue;
-        const templateId = Number(row.template_id || 0);
+        const snapshot = parseObject(row.finding_snapshot_json);
+        const evidenceContext = parseObject(snapshot.evidenceContext);
+        const currentTemplateId = Number(row.template_id || 0);
+        const templateIdAtDecision = Number(evidenceContext.templateId || 0);
+        const templateId = templateIdAtDecision || currentTemplateId;
         if (!templateId || !row.finding_key) continue;
         const key = `template:${templateId}:${row.finding_key}`;
         if (!groups.has(key)) {
             groups.set(key, {
                 ruleKey: key,
                 templateId,
-                templateName: row.template_name || `模板 #${templateId}`,
+                templateName: evidenceContext.templateName || row.template_name || `模板 #${templateId}`,
                 findingKey: row.finding_key,
                 findingType: row.finding_type,
                 supporting: new Map(),
                 specialCases: new Map(),
                 ignored: new Map(),
+                drifted: new Map(),
+                outdated: new Map(),
             });
         }
-        const snapshot = parseObject(row.finding_snapshot_json);
-        const bucket = row.decision === 'confirmed'
+        const scopeDrift = Boolean(templateIdAtDecision && templateIdAtDecision !== currentTemplateId);
+        const recipeUpdatedAtAtDecision = String(evidenceContext.recipeUpdatedAt || '').trim();
+        const currentRecipeUpdatedAt = String(row.recipe_updated_at || '').trim();
+        const contentOutdated = Boolean(
+            !scopeDrift
+            && recipeUpdatedAtAtDecision
+            && currentRecipeUpdatedAt
+            && recipeUpdatedAtAtDecision !== currentRecipeUpdatedAt
+        );
+        const bucket = scopeDrift
+            ? 'drifted'
+            : contentOutdated
+                ? 'outdated'
+            : row.decision === 'confirmed'
             ? 'supporting'
             : row.decision === 'special_case'
                 ? 'specialCases'
                 : 'ignored';
         groups.get(key)[bucket].set(Number(row.recipe_id), {
             recipeId: Number(row.recipe_id),
-            recipeName: row.recipe_name || `配方 #${row.recipe_id}`,
+            recipeName: evidenceContext.recipeName || row.recipe_name || `配方 #${row.recipe_id}`,
             feedbackId: Number(row.id),
             decision: row.decision,
             note: row.note || '',
             findingTitle: snapshot.title || '',
+            templateIdAtDecision: templateIdAtDecision || currentTemplateId,
+            templateNameAtDecision: evidenceContext.templateName || row.template_name || '',
+            currentTemplateId,
+            currentTemplateName: row.template_name || '',
+            scopeDrift,
+            recipeUpdatedAtAtDecision: recipeUpdatedAtAtDecision || null,
+            currentRecipeUpdatedAt: currentRecipeUpdatedAt || null,
+            contentOutdated,
             decidedAt: row.updated_at || row.created_at || null,
             confirmedAt: row.decision === 'confirmed'
                 ? row.updated_at || row.created_at || null
@@ -264,15 +302,23 @@ function buildRuleCandidateGroups(rows, minimumEvidence = 2) {
             const evidence = [...group.supporting.values()];
             const specialCases = [...group.specialCases.values()];
             const ignored = [...group.ignored.values()];
-            const findingTitle = [...evidence, ...specialCases, ...ignored]
+            const drifted = [...group.drifted.values()];
+            const outdated = [...group.outdated.values()];
+            const findingTitle = [...evidence, ...specialCases, ...ignored, ...drifted, ...outdated]
                 .find(item => item.findingTitle)?.findingTitle
                 || group.findingKey.replace(/^peer_pattern:/, '');
             const confidence = confidenceForEvidence(evidence.length, specialCases.length, ignored.length);
-            const learningEvidence = { supporting: evidence, specialCases, ignored };
+            const learningEvidence = { supporting: evidence, specialCases, ignored, drifted, outdated };
+            const driftSummary = drifted.length > 0
+                ? `另有 ${drifted.length} 条历史证据因配方已更换泵壳模板而不计入当前规则。`
+                : '';
+            const outdatedSummary = outdated.length > 0
+                ? `另有 ${outdated.length} 条历史证据因配方内容已修改而过期，需重新智能检查。`
+                : '';
             return {
                 ruleKey: group.ruleKey,
                 title: `${group.templateName}：${findingTitle}`,
-                content: `在泵壳模板「${group.templateName}」下，已有 ${evidence.length} 个不同配方确认“${findingTitle}”，${specialCases.length} 个标记为特殊情况，${ignored.length} 个选择忽略。当前置信度 ${Math.round(confidence.score * 100)}%；创建或编辑同类配方时只作为有证据的复核建议。`,
+                content: `在泵壳模板「${group.templateName}」下，已有 ${evidence.length} 个不同配方确认“${findingTitle}”，${specialCases.length} 个标记为特殊情况，${ignored.length} 个选择忽略。${driftSummary}${outdatedSummary}当前置信度 ${Math.round(confidence.score * 100)}%；创建或编辑同类配方时只作为有证据的复核建议。`,
                 scopeType: 'pump_shell_template',
                 scopeRef: String(group.templateId),
                 findingKey: group.findingKey,
@@ -282,6 +328,8 @@ function buildRuleCandidateGroups(rows, minimumEvidence = 2) {
                 supportCount: evidence.length,
                 specialCaseCount: specialCases.length,
                 ignoredCount: ignored.length,
+                driftedCount: drifted.length,
+                outdatedCount: outdated.length,
                 confidenceScore: confidence.score,
                 confidenceLevel: confidence.level,
                 learningEvidence,
@@ -295,6 +343,7 @@ function buildRuleCandidateGroups(rows, minimumEvidence = 2) {
 function feedbackEvidenceRows(database) {
     return database.prepare(`
         SELECT feedback.*, recipes.name AS recipe_name, recipes.template_id,
+               recipes.updated_at AS recipe_updated_at,
                templates.shell_model AS template_name
         FROM recipe_analysis_feedback feedback
         JOIN recipes ON recipes.id = feedback.recipe_id AND recipes.deleted_at IS NULL
@@ -303,6 +352,120 @@ function feedbackEvidenceRows(database) {
           AND feedback.finding_type = 'peer_pattern'
         ORDER BY feedback.updated_at DESC, feedback.id DESC
     `).all();
+}
+
+function buildFactoryLearningHealth(options = {}) {
+    const accessors = options.db ? options : loadDbAccessors();
+    const database = options.db || accessors.db;
+    let limit = 100;
+    if (options.limit !== undefined && options.limit !== '') {
+        const parsedLimit = Number(options.limit);
+        if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
+            throw inputError('limit 必须是 1 到 200 的整数');
+        }
+        limit = parsedLimit;
+    }
+    const rows = database.prepare(`
+        SELECT feedback.*,
+               recipes.id AS current_recipe_id,
+               recipes.name AS recipe_name,
+               recipes.template_id AS current_template_id,
+               recipes.updated_at AS current_recipe_updated_at,
+               recipes.deleted_at AS recipe_deleted_at,
+               templates.shell_model AS current_template_name
+        FROM recipe_analysis_feedback feedback
+        LEFT JOIN recipes ON recipes.id = feedback.recipe_id
+        LEFT JOIN pump_shell_templates templates ON templates.id = recipes.template_id
+        WHERE feedback.decision IN ('confirmed', 'special_case', 'ignored')
+          AND feedback.finding_type = 'peer_pattern'
+        ORDER BY feedback.updated_at DESC, feedback.id DESC
+    `).all();
+
+    const items = rows.map(row => {
+        const snapshot = parseObject(row.finding_snapshot_json);
+        const evidenceContext = parseObject(snapshot.evidenceContext);
+        const templateIdAtDecision = Number(evidenceContext.templateId || 0) || null;
+        const currentTemplateId = Number(row.current_template_id || 0) || null;
+        const recipeUpdatedAtAtDecision = String(evidenceContext.recipeUpdatedAt || '').trim() || null;
+        const currentRecipeUpdatedAt = String(row.current_recipe_updated_at || '').trim() || null;
+        const archived = Boolean(row.recipe_deleted_at || !row.current_recipe_id);
+        const scopeDrift = Boolean(
+            !archived
+            && templateIdAtDecision
+            && templateIdAtDecision !== currentTemplateId
+        );
+        const contentOutdated = Boolean(
+            !archived
+            && !scopeDrift
+            && recipeUpdatedAtAtDecision
+            && currentRecipeUpdatedAt
+            && recipeUpdatedAtAtDecision !== currentRecipeUpdatedAt
+        );
+        const status = archived
+            ? 'archived'
+            : scopeDrift
+                ? 'drifted'
+                : contentOutdated
+                    ? 'outdated'
+                    : 'active';
+        const reason = status === 'archived'
+            ? '配方已归档，这条历史反馈不再参与当前规则学习'
+            : status === 'drifted'
+                ? '配方已更换泵壳模板，需要按当前模板重新智能检查'
+                : status === 'outdated'
+                    ? '配方内容在反馈后被修改，需要按当前配置重新智能检查'
+                    : '反馈仍对应当前配方版本';
+        return {
+            feedbackId: Number(row.id),
+            recipeId: Number(row.recipe_id),
+            recipeName: row.recipe_name || evidenceContext.recipeName || `配方 #${row.recipe_id}`,
+            findingKey: row.finding_key,
+            findingType: row.finding_type,
+            findingTitle: snapshot.title || row.finding_key.replace(/^peer_pattern:/, ''),
+            decision: row.decision,
+            note: row.note || '',
+            status,
+            reason,
+            needsRecheck: status === 'drifted' || status === 'outdated',
+            templateIdAtDecision,
+            templateNameAtDecision: evidenceContext.templateName || '',
+            currentTemplateId,
+            currentTemplateName: row.current_template_name || '',
+            recipeUpdatedAtAtDecision,
+            currentRecipeUpdatedAt,
+            legacyContext: !templateIdAtDecision || !recipeUpdatedAtAtDecision,
+            decidedAt: row.updated_at || row.created_at || null,
+        };
+    });
+    const statusRank = { outdated: 0, drifted: 1, archived: 2, active: 3 };
+    items.sort((left, right) => {
+        const rankDifference = statusRank[left.status] - statusRank[right.status];
+        if (rankDifference !== 0) return rankDifference;
+        return String(right.decidedAt || '').localeCompare(String(left.decidedAt || ''));
+    });
+    const needsRecheck = items.filter(item => item.needsRecheck);
+    const statusCount = status => items.filter(item => item.status === status).length;
+    const affectedRecipeIds = new Set(needsRecheck.map(item => item.recipeId));
+
+    return {
+        generatedAt: new Date().toISOString(),
+        summary: {
+            totalEvidenceCount: items.length,
+            activeEvidenceCount: statusCount('active'),
+            recheckEvidenceCount: needsRecheck.length,
+            outdatedEvidenceCount: statusCount('outdated'),
+            driftedEvidenceCount: statusCount('drifted'),
+            archivedEvidenceCount: statusCount('archived'),
+            affectedRecipeCount: affectedRecipeIds.size,
+            confirmedCount: items.filter(item => item.decision === 'confirmed').length,
+            specialCaseCount: items.filter(item => item.decision === 'special_case').length,
+            ignoredCount: items.filter(item => item.decision === 'ignored').length,
+        },
+        items: items.slice(0, limit),
+        guidance: needsRecheck.length > 0
+            ? `有 ${affectedRecipeIds.size} 个配方的 ${needsRecheck.length} 条学习反馈需要重新检查；旧反馈已停止影响规则，不会自动修改配方。`
+            : '当前学习反馈均对应有效配方版本，没有需要重新检查的证据。',
+    };
 }
 
 function currentRuleLearningGroup(database, ruleKey) {
@@ -385,7 +548,8 @@ function buildFactoryRuleImpact(idValue, options = {}) {
         ORDER BY name, id
     `).all(templateId);
     const feedbackRows = database.prepare(`
-        SELECT feedback.recipe_id, feedback.decision, feedback.note, feedback.updated_at
+        SELECT feedback.recipe_id, feedback.decision, feedback.note, feedback.updated_at,
+               feedback.finding_snapshot_json, recipes.updated_at AS recipe_updated_at
         FROM recipe_analysis_feedback feedback
         JOIN recipes ON recipes.id = feedback.recipe_id
         WHERE recipes.template_id = ?
@@ -409,21 +573,33 @@ function buildFactoryRuleImpact(idValue, options = {}) {
         const recipeRoles = new Set(parseArray(recipe.parts_json).map(partRole).filter(Boolean));
         const hasRequiredRole = recipeRoles.has(role);
         const feedback = feedbackByRecipe.get(Number(recipe.id));
+        const feedbackSnapshot = parseObject(feedback?.finding_snapshot_json);
+        const feedbackContext = parseObject(feedbackSnapshot.evidenceContext);
+        const feedbackRecipeUpdatedAt = String(feedbackContext.recipeUpdatedAt || '').trim();
+        const currentRecipeUpdatedAt = String(recipe.updated_at || '').trim();
+        const feedbackOutdated = Boolean(
+            feedbackRecipeUpdatedAt
+            && currentRecipeUpdatedAt
+            && feedbackRecipeUpdatedAt !== currentRecipeUpdatedAt
+        );
+        const effectiveDecision = feedbackOutdated ? 'review' : feedback?.decision || 'review';
         const item = {
             recipeId: Number(recipe.id),
             recipeName: recipe.name || `配方 #${recipe.id}`,
             spec: recipe.spec || '',
             hasRequiredRole,
-            decision: feedback?.decision || 'review',
+            decision: effectiveDecision,
+            originalDecision: feedback?.decision || 'review',
             note: feedback?.note || '',
             feedbackUpdatedAt: feedback?.updated_at || null,
             recipeUpdatedAt: recipe.updated_at || null,
+            feedbackOutdated,
         };
         if (hasRequiredRole) {
             groups.compliant.push(item);
-        } else if (feedback?.decision === 'special_case') {
+        } else if (effectiveDecision === 'special_case') {
             groups.specialCases.push(item);
-        } else if (feedback?.decision === 'ignored') {
+        } else if (effectiveDecision === 'ignored') {
             groups.ignored.push(item);
         } else {
             groups.needsReview.push(item);
@@ -446,6 +622,7 @@ function buildFactoryRuleImpact(idValue, options = {}) {
             needsReviewCount,
             specialCaseCount: groups.specialCases.length,
             ignoredCount: groups.ignored.length,
+            outdatedFeedbackCount: groups.needsReview.filter(item => item.feedbackOutdated).length,
             attentionRate: totalRecipes > 0
                 ? Math.round(needsReviewCount / totalRecipes * 1000) / 1000
                 : 0,
@@ -530,13 +707,17 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
     const syncRuleKnowledge = options.syncFactoryRuleKnowledgeEntry
         || require('./knowledge.cjs').syncFactoryRuleKnowledgeEntry;
     const minimumEvidence = options.minimumEvidence || MINIMUM_APPROVAL_SUPPORT;
-    const groups = buildRuleCandidateGroups(feedbackEvidenceRows(database), minimumEvidence);
+    const allGroups = buildRuleCandidateGroups(feedbackEvidenceRows(database), 0);
+    const groups = allGroups.filter(group => group.evidenceCount >= minimumEvidence);
+    const allGroupsByKey = new Map(allGroups.map(group => [group.ruleKey, group]));
     const activeKeys = new Set(groups.map(group => group.ruleKey));
     const now = new Date().toISOString();
     let created = 0;
     let updated = 0;
     let stale = 0;
     let suspended = 0;
+    const driftedEvidence = allGroups.reduce((total, group) => total + group.driftedCount, 0);
+    const outdatedEvidence = allGroups.reduce((total, group) => total + group.outdatedCount, 0);
 
     for (const group of groups) {
         const current = database.prepare('SELECT * FROM factory_rule_candidates WHERE rule_key = ?').get(group.ruleKey);
@@ -614,19 +795,19 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
         SELECT * FROM factory_rule_candidates WHERE status IN ('candidate', 'approved', 'stale')
     `).all();
     for (const row of unmatched) {
-        if (activeKeys.has(row.rule_key) || row.status === 'stale') continue;
+        if (activeKeys.has(row.rule_key)) continue;
+        const historicalGroup = allGroupsByKey.get(row.rule_key);
+        const preservedGroup = historicalGroup?.driftedCount || historicalGroup?.outdatedCount
+            ? historicalGroup
+            : null;
+        const learningValues = ruleLearningValues(preservedGroup, now);
+        const evidenceChanged = row.learning_hash !== learningValues.learning_hash
+            || Number(row.support_count || 0) !== Number(learningValues.support_count || 0);
+        if (row.status === 'stale' && !evidenceChanged) continue;
         update('factory_rule_candidates', row.id, {
+            ...learningValues,
             status: 'stale',
-            evidence_count: 0,
-            support_count: 0,
-            special_case_count: 0,
-            ignored_count: 0,
-            confidence_score: 0,
-            evidence_json: '[]',
-            learning_evidence_json: '{}',
-            learning_hash: '',
             reviewed_learning_hash: '',
-            learning_updated_at: now,
         });
         const staleCandidate = candidateRow(
             database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(row.id)
@@ -635,7 +816,9 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
             previousStatus: row.status,
             newStatus: 'stale',
             actor: options.actor,
-            note: '支持证据不足，规则自动转为失效',
+            note: preservedGroup
+                ? `支持证据不足，规则自动转为失效；${preservedGroup.driftedCount} 条范围漂移证据、${preservedGroup.outdatedCount} 条内容过期证据未计入`
+                : '支持证据不足，规则自动转为失效',
         }, { ...options, db: database, safeInsert: insert });
         syncRuleKnowledge(staleCandidate.id, {
             dbAccessors: {
@@ -652,7 +835,15 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
         generatedAt: now,
         minimumEvidence,
         minimumConfidence: MINIMUM_APPROVAL_CONFIDENCE,
-        stats: { created, updated, stale, suspended, active: groups.length },
+        stats: {
+            created,
+            updated,
+            stale,
+            suspended,
+            active: groups.length,
+            driftedEvidence,
+            outdatedEvidence,
+        },
         candidates: listFactoryRuleCandidates({ db: database }),
     };
 }
@@ -837,6 +1028,7 @@ function restoreFactoryRuleEvent(eventIdValue, input = {}, options = {}) {
 }
 
 module.exports = {
+    buildFactoryLearningHealth,
     buildRuleCandidateGroups,
     buildFactoryRuleCompliance,
     buildFactoryRuleImpact,

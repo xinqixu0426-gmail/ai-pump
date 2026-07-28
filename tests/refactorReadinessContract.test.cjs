@@ -736,7 +736,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /当日完整成本/);
     assert.doesNotMatch(recipesView, /detailCurrentCost \? Number\(detailCurrentCost\.totalCost/);
     assert.match(recipesView, /getRecipeInventoryStatus/);
-    assert.match(recipesView, /配件库存/);
+    assert.match(recipesView, /配件与线圈库存/);
     assert.doesNotMatch(recipesView, /确认生产|生产数量|预检库存|produceRecipe/);
     assert.match(recipesView, /新建模板/);
     assert.match(recipesView, /submitTemplate/);

@@ -1,7 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
-const { adjustCoilStock, coilStockMovementRow } = require('../api/services/coilInventory.cjs');
+const {
+    adjustCoilStock,
+    assertCoilCanBeDeleted,
+    coilStockMovementRow,
+} = require('../api/services/coilInventory.cjs');
 
 function createInventoryDb() {
     const db = new Database(':memory:');
@@ -95,5 +99,43 @@ test('线圈库存不能扣成负数且数量必须为整数', () => {
     );
     assert.equal(dependencies.db.prepare('SELECT stock FROM coils WHERE id = 1').get().stock, 5);
     assert.equal(dependencies.db.prepare('SELECT COUNT(*) AS count FROM coil_stock_movements').get().count, 0);
+    dependencies.db.close();
+});
+
+test('只有零库存且没有库存流水的线圈方案可以删除', () => {
+    const dependencies = createInventoryDb();
+    dependencies.db.prepare(
+        'INSERT INTO coils (id, spec, sheets, stock) VALUES (?, ?, ?, ?)'
+    ).run(2, '12', 200, 0);
+
+    assert.equal(assertCoilCanBeDeleted(dependencies.db, 2), true);
+
+    assert.throws(
+        () => assertCoilCanBeDeleted(dependencies.db, 1),
+        error => {
+            assert.match(error.message, /已有库存或库存流水/);
+            assert.equal(error.statusCode, 409);
+            return true;
+        }
+    );
+
+    adjustCoilStock(dependencies, {
+        coilId: 2,
+        changeQty: 1,
+        createdAt: '2026-07-28T08:00:00.000Z',
+    });
+    adjustCoilStock(dependencies, {
+        coilId: 2,
+        changeQty: -1,
+        createdAt: '2026-07-28T08:01:00.000Z',
+    });
+    assert.throws(
+        () => assertCoilCanBeDeleted(dependencies.db, 2),
+        error => {
+            assert.match(error.message, /已有库存或库存流水/);
+            assert.equal(error.statusCode, 409);
+            return true;
+        }
+    );
     dependencies.db.close();
 });

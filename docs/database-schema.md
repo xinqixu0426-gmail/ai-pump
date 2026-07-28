@@ -44,7 +44,8 @@
 
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
-- `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
+- `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
+- `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。

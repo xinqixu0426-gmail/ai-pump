@@ -589,12 +589,25 @@ const AI_TOOLS = [
                 required: ['recipeId', 'findingKey', 'findingType', 'decision']
             }
         }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'get_factory_rule_candidates',
-            description: '读取从配方检查人工反馈中归纳出的候选业务规则、确认/特殊情况/忽略证据、置信度和批准门槛，只读。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”“某条规则为什么不能批准”。',
+      },
+      {
+          type: 'function',
+          function: {
+              name: 'get_factory_learning_health',
+              description: '检查配方智能检查学习反馈的健康状态，只读。覆盖所有已确认、特殊情况和忽略的同类高频项反馈，包括尚未形成候选规则的记录；区分仍有效、内容过期、模板漂移和配方已归档，并返回需要重新检查的配方。适合用户问“哪些学习反馈过期了”“哪些配方需要重新智能检查”“知识学习证据是否健康”。',
+              parameters: {
+                  type: 'object',
+                  properties: {
+                      limit: { type: 'number', description: '返回明细条数，可选，1-200，默认100' }
+                  }
+              }
+          }
+      },
+      {
+          type: 'function',
+          function: {
+              name: 'get_factory_rule_candidates',
+            description: '读取从配方检查人工反馈中归纳出的候选业务规则、确认/特殊情况/忽略/范围漂移/内容过期证据、置信度和批准门槛，只读。范围漂移表示配方已更换泵壳模板；内容过期表示配方在反馈后又被修改，这些历史证据都不会计入当前规则。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”“某条规则为什么不能批准”。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -629,7 +642,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_rule_history',
-            description: '读取工厂规则的生命周期记录，只读。可查看候选生成、证据变化、批准、批准自动撤回、驳回、失效和重新激活的时间、状态与说明。适合回答“这条规则为什么变了”“最近规则发生了什么变化”。',
+            description: '读取工厂规则的生命周期记录，只读。可查看候选生成、证据变化、范围漂移或内容过期导致的失效、批准、批准自动撤回、驳回和重新激活的时间、状态与说明。适合回答“这条规则为什么变了”“最近规则发生了什么变化”。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -658,7 +671,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'refresh_factory_rule_candidates',
-            description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。只生成候选项，不会自动批准；失去最低支持证据的旧规则会失效，已批准规则低于65%置信度时会自动撤回批准并移除规则知识；写库前必须确认。',
+            description: '根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。反馈绑定生成时的泵壳模板和配方版本；更换模板标为范围漂移，修改配方标为内容过期，两者都不计入规则。只生成候选项，不会自动批准；失去最低支持证据的旧规则会失效，已批准规则低于65%置信度时会自动撤回批准并移除规则知识；写库前必须确认。',
             parameters: { type: 'object', properties: {} }
         }
     },

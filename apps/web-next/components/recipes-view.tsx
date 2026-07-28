@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Check, CheckCircle2, ChevronDown, CircleAlert, CircleHelp, Copy, Eye, EyeOff, GitCompare, Info, Layers3, Package, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ChevronDown, CircleAlert, CircleHelp, Copy, Eye, EyeOff, GitCompare, Info, Layers3, Package, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, SkipForward, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -21,8 +21,12 @@ import { parsePumpShellMeta } from '@/lib/part-form-rules';
 import { getAllParts, type Part } from '@/lib/parts';
 import {
   analyzeRecipeConfiguration,
+  getFactoryLearningHealth,
+  resolveRecipeAnalysisFeedback,
   saveRecipeAnalysisFeedback,
+  type FactoryLearningHealth,
   type RecipeConfigurationAnalysis,
+  type RecipeAnalysisFeedback,
   type RecipeAnalysisFeedbackDecision,
   type RecipeAnalysisFinding,
   type RecipeAnalysisSeverity,
@@ -74,6 +78,7 @@ import { parseTechnicalDataJson, type RecipeTechnicalData } from '@/lib/technica
 type RecipeFilter = 'all' | 'risk' | 'missingCost' | 'float' | 'cable';
 type RecipeSection = 'recipes' | 'templates' | 'variants';
 type CoilSlotType = '小眼' | '国标眼';
+type RuleLearningImpact = NonNullable<RecipeAnalysisFeedback['ruleLearning']>;
 
 function recipeAnalysisTone(severity: RecipeAnalysisSeverity): StatusBadgeTone {
   if (severity === 'danger') return 'red';
@@ -91,6 +96,28 @@ function recipeAnalysisConfidenceLabel(confidence: 'high' | 'medium' | 'low'): s
   if (confidence === 'high') return '高置信度';
   if (confidence === 'medium') return '中置信度';
   return '低置信度';
+}
+
+function parseRecipeReviewTarget(search: string): {
+  recipeId: number;
+  feedbackIds: number[];
+  autoAnalyze: boolean;
+} | null {
+  const params = new URLSearchParams(search);
+  const recipeId = Number(params.get('recipeId'));
+  if (!Number.isInteger(recipeId) || recipeId <= 0) return null;
+  const feedbackIds = Array.from(new Set(
+    [params.get('feedbackIds'), params.get('feedbackId')]
+      .filter(Boolean)
+      .flatMap((value) => String(value).split(','))
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  ));
+  return {
+    recipeId,
+    feedbackIds,
+    autoAnalyze: params.get('action') === 'smart-check',
+  };
 }
 
 type CoilVariantSelection = {
@@ -1181,8 +1208,20 @@ export function RecipesView() {
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<PumpShellTemplate | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
+  const [autoAnalyzeRecipeId, setAutoAnalyzeRecipeId] = useState<number | null>(null);
+  const [reviewEvidenceTargets, setReviewEvidenceTargets] = useState<FactoryLearningHealth['items']>([]);
+  const [reviewEvidenceBatchTotal, setReviewEvidenceBatchTotal] = useState(0);
+  const [reviewEvidenceLoading, setReviewEvidenceLoading] = useState(false);
+  const [reviewEvidenceResolving, setReviewEvidenceResolving] = useState(false);
+  const [reviewEvidenceNotice, setReviewEvidenceNotice] = useState<string | null>(null);
+  const [reviewEvidenceBatchCompleted, setReviewEvidenceBatchCompleted] = useState(false);
+  const [reviewRuleLearning, setReviewRuleLearning] = useState<RuleLearningImpact | null>(null);
   const bomDraftRequestRef = useRef(0);
   const autoWireSelectionRef = useRef({ floatWire: '', cableWire: '' });
+  const autoAnalysisStartedRef = useRef<number | null>(null);
+  const deepLinkHandledRef = useRef(false);
+  const reviewEvidenceTarget = reviewEvidenceTargets[0] || null;
+  const reviewEvidenceCompletedCount = Math.max(0, reviewEvidenceBatchTotal - reviewEvidenceTargets.length);
 
   async function load(force = false) {
     setError(null);
@@ -1211,8 +1250,95 @@ export function RecipesView() {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (loading || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    const target = parseRecipeReviewTarget(window.location.search);
+    if (!target) return;
+
+    const recipe = recipes.find((item) => item.id === target.recipeId);
+    if (!recipe) {
+      setError(`未找到配方 #${target.recipeId}，该配方可能已归档或删除`);
+      return;
+    }
+
+    setActiveSection('recipes');
+    setDetailRecipe(null);
+    openEditDrawer(recipe);
+    if (target.feedbackIds.length > 0) {
+      setReviewEvidenceBatchCompleted(false);
+      setReviewRuleLearning(null);
+      setReviewEvidenceLoading(true);
+      void getFactoryLearningHealth(200)
+        .then((health) => {
+          const requestedOrder = new Map(target.feedbackIds.map((feedbackId, index) => [feedbackId, index]));
+          const evidence = health.items.filter((item) => (
+            requestedOrder.has(item.feedbackId)
+            && item.recipeId === recipe.id
+            && item.needsRecheck
+          )).sort((left, right) => (
+            (requestedOrder.get(left.feedbackId) || 0) - (requestedOrder.get(right.feedbackId) || 0)
+          ));
+          setReviewEvidenceTargets(evidence);
+          setReviewEvidenceBatchTotal(evidence.length);
+          if (evidence.length === 0) {
+            clearReviewTaskSearchParams();
+            setReviewEvidenceNotice('这组待复核任务已经处理，或不再属于当前配方。');
+          } else if (evidence.length < target.feedbackIds.length) {
+            setReviewEvidenceNotice(`其中 ${target.feedbackIds.length - evidence.length} 条反馈已经处理，继续处理剩余 ${evidence.length} 条。`);
+          } else {
+            setReviewEvidenceNotice(null);
+          }
+        })
+        .catch((err) => {
+          setReviewEvidenceNotice(null);
+          setFormError(err instanceof Error ? err.message : '待复核证据读取失败');
+        })
+        .finally(() => setReviewEvidenceLoading(false));
+    }
+    if (target.autoAnalyze) setAutoAnalyzeRecipeId(recipe.id);
+  }, [loading, recipes]);
+
+  useEffect(() => {
+    if (
+      !autoAnalyzeRecipeId
+      || !drawerOpen
+      || editingRecipe?.id !== autoAnalyzeRecipeId
+      || autoAnalysisStartedRef.current === autoAnalyzeRecipeId
+    ) return;
+    autoAnalysisStartedRef.current = autoAnalyzeRecipeId;
+    setAutoAnalyzeRecipeId(null);
+
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete('action');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+    );
+    void runRecipeAnalysis();
+  }, [autoAnalyzeRecipeId, drawerOpen, editingRecipe?.id]);
+
   const templateNameMap = useMemo(() => buildTemplateNameMap(templates), [templates]);
   const currentCostMap = useMemo(() => new Map(currentCosts.map((item) => [item.recipeId, item])), [currentCosts]);
+  const reviewTargetFinding = useMemo(() => {
+    if (!recipeAnalysis || !reviewEvidenceTarget) return null;
+    return [
+      ...recipeAnalysis.factoryRuleAlerts,
+      ...recipeAnalysis.missingItems,
+      ...recipeAnalysis.priceAlerts,
+      ...recipeAnalysis.suppressedFindings,
+    ].find((finding) => finding.key === reviewEvidenceTarget.findingKey) || null;
+  }, [recipeAnalysis, reviewEvidenceTarget]);
+
+  useEffect(() => {
+    if (!recipeAnalysisOpen || !reviewTargetFinding) return;
+    const timer = window.setTimeout(() => {
+      document.querySelector('[data-review-target="true"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [recipeAnalysisOpen, reviewTargetFinding]);
 
   const recipeRows = useMemo(() => {
     return recipes.map((recipe) => {
@@ -1893,6 +2019,12 @@ export function RecipesView() {
 
   function openCreateDrawer() {
     setEditingRecipe(null);
+    setReviewEvidenceTargets([]);
+    setReviewEvidenceBatchTotal(0);
+    setReviewEvidenceNotice(null);
+    setReviewEvidenceBatchCompleted(false);
+    setReviewRuleLearning(null);
+    setReviewEvidenceLoading(false);
     autoWireSelectionRef.current = { floatWire: '', cableWire: '' };
     setForm(emptyForm);
     setOptionalParts([]);
@@ -1909,6 +2041,12 @@ export function RecipesView() {
 
   function openEditDrawer(recipe: Recipe) {
     setEditingRecipe(recipe);
+    setReviewEvidenceTargets([]);
+    setReviewEvidenceBatchTotal(0);
+    setReviewEvidenceNotice(null);
+    setReviewEvidenceBatchCompleted(false);
+    setReviewRuleLearning(null);
+    setReviewEvidenceLoading(false);
     autoWireSelectionRef.current = { floatWire: '', cableWire: '' };
     setForm(formFromRecipe(recipe));
     setOptionalParts(parseSelections(recipe.extraPartsJson));
@@ -1934,6 +2072,12 @@ export function RecipesView() {
 
   function openCloneRecipe(recipe: Recipe) {
     setEditingRecipe(null);
+    setReviewEvidenceTargets([]);
+    setReviewEvidenceBatchTotal(0);
+    setReviewEvidenceNotice(null);
+    setReviewEvidenceBatchCompleted(false);
+    setReviewRuleLearning(null);
+    setReviewEvidenceLoading(false);
     autoWireSelectionRef.current = { floatWire: '', cableWire: '' };
     setForm({
       ...formFromRecipe(recipe),
@@ -2469,13 +2613,48 @@ export function RecipesView() {
     }
   }
 
+  function completeCurrentReviewEvidence(message: string) {
+    if (!reviewEvidenceTarget) return;
+    const remaining = reviewEvidenceTargets.filter(
+      (item) => item.feedbackId !== reviewEvidenceTarget.feedbackId
+    );
+    setReviewEvidenceTargets(remaining);
+    if (remaining.length === 0) {
+      setReviewEvidenceBatchCompleted(true);
+      clearReviewTaskSearchParams();
+    }
+    setReviewEvidenceNotice(
+      remaining.length > 0
+        ? `${message}，继续处理下一条（剩余 ${remaining.length} 条）。`
+        : `${message}，本配方的待复核任务已全部完成。`
+    );
+  }
+
+  function clearReviewTaskSearchParams() {
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete('feedbackIds');
+    nextUrl.searchParams.delete('feedbackId');
+    nextUrl.searchParams.delete('action');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+    );
+  }
+
+  function skipCurrentReviewEvidence() {
+    if (reviewEvidenceTargets.length < 2 || !reviewEvidenceTarget) return;
+    setReviewEvidenceTargets((current) => [...current.slice(1), current[0]]);
+    setReviewEvidenceNotice('已暂时跳过当前提醒，继续处理下一条；原反馈状态没有改变。');
+  }
+
   async function saveAnalysisFeedback() {
     if (!analysisFeedbackDraft || !editingRecipe?.id) return;
     setAnalysisFeedbackSaving(true);
     setFormError(null);
     try {
       const { finding, decision, note } = analysisFeedbackDraft;
-      await saveRecipeAnalysisFeedback(editingRecipe.id, {
+      const result = await saveRecipeAnalysisFeedback(editingRecipe.id, {
         findingKey: finding.key,
         findingType: finding.type,
         decision,
@@ -2486,12 +2665,31 @@ export function RecipesView() {
           confidence: finding.confidence,
         },
       });
+      setReviewRuleLearning(result.ruleLearning || null);
+      if (reviewEvidenceTarget?.findingKey === finding.key && decision !== 'review') {
+        completeCurrentReviewEvidence('已按当前配方重新确认当前提醒');
+      }
       setAnalysisFeedbackDraft(null);
       await runRecipeAnalysis({ preserveSaveGate: analysisSaveGateOpen });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '检查反馈保存失败');
     } finally {
       setAnalysisFeedbackSaving(false);
+    }
+  }
+
+  async function resolveMissingReviewEvidence() {
+    if (!reviewEvidenceTarget) return;
+    setReviewEvidenceResolving(true);
+    setFormError(null);
+    try {
+      const result = await resolveRecipeAnalysisFeedback(reviewEvidenceTarget.feedbackId);
+      setReviewRuleLearning(result.ruleLearning || null);
+      completeCurrentReviewEvidence('已确认当前原提醒不再出现');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '待复核反馈处理失败');
+    } finally {
+      setReviewEvidenceResolving(false);
     }
   }
 
@@ -3135,8 +3333,8 @@ export function RecipesView() {
               <section className="rounded-panel border border-line">
                 <div className="flex items-center justify-between gap-3 border-b border-line p-4">
                   <div>
-                    <div className="text-sm font-semibold text-ink">配件库存</div>
-                    <div className="mt-1 text-xs text-muted">当前零件库库存状态</div>
+                    <div className="text-sm font-semibold text-ink">配件与线圈库存</div>
+                    <div className="mt-1 text-xs text-muted">分别读取零件库和线圈库存</div>
                   </div>
                   <button
                     type="button"
@@ -3169,10 +3367,16 @@ export function RecipesView() {
                                 <div className="font-medium text-ink">{item.name || item.model || '-'}</div>
                                 <div className="text-xs text-muted">{item.model || '-'}{item.supplier ? ` / ${item.supplier}` : ''}</div>
                               </td>
-                              <td className="border-b border-line px-3 py-2 text-right text-muted">{item.partId ? item.currentStock : '未找到'}</td>
+                              <td className="border-b border-line px-3 py-2 text-right text-muted">{item.partId || item.coilId ? item.currentStock : '未找到'}</td>
                               <td className="border-b border-line px-3 py-2">
                                 <StatusBadge tone={item.status === 'in_stock' ? 'green' : 'red'}>
-                                  {item.status === 'in_stock' ? '有库存' : item.status === 'out_of_stock' ? '缺货' : '零件缺失'}
+                                  {item.status === 'in_stock'
+                                    ? '有库存'
+                                    : item.status === 'out_of_stock'
+                                      ? '缺货'
+                                      : item.inventoryType === 'coil'
+                                        ? '线圈方案缺失'
+                                        : '零件缺失'}
                                 </StatusBadge>
                               </td>
                             </tr>
@@ -4561,6 +4765,120 @@ export function RecipesView() {
                 </div>
               ))}
             </div>
+            {recipeAnalysis.summary.outdatedFeedbackCount > 0 ? (
+              <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs leading-5 text-amber-800">
+                有 {recipeAnalysis.summary.outdatedFeedbackCount} 条历史反馈对应的配方内容已经变化，本次不再压住提醒。请按当前配置重新确认。
+              </div>
+            ) : null}
+            {reviewEvidenceLoading ? (
+              <div className="border-b border-sky-200 bg-sky-50 px-5 py-3 text-xs leading-5 text-sky-800">
+                正在读取这次待复核任务的原始证据。
+              </div>
+            ) : null}
+            {reviewEvidenceNotice ? (
+              <div className="border-b border-emerald-200 bg-emerald-50 px-5 py-3 text-xs leading-5 text-emerald-800">
+                {reviewEvidenceNotice}
+              </div>
+            ) : null}
+            {reviewRuleLearning ? (
+              <div className="border-b border-sky-200 bg-sky-50 px-5 py-3 text-xs leading-5 text-sky-900">
+                <div className="font-medium">规则学习已按本次判断刷新</div>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  <span>当前活跃候选 {reviewRuleLearning.stats.active} 条</span>
+                  <span>新生成 {reviewRuleLearning.stats.created} 条</span>
+                  <span>重算现有候选 {reviewRuleLearning.stats.updated} 条</span>
+                  <span>转为失效 {reviewRuleLearning.stats.stale} 条</span>
+                  <span>撤回批准 {reviewRuleLearning.stats.suspended} 条</span>
+                  <span>
+                    仍隔离过期/漂移证据 {reviewRuleLearning.stats.outdatedEvidence}/{reviewRuleLearning.stats.driftedEvidence} 条
+                  </span>
+                </div>
+                <div className="mt-1 text-sky-700">
+                  这里只更新学习证据和候选规则，不会自动批准规则或修改配方。
+                </div>
+              </div>
+            ) : null}
+            {reviewEvidenceTarget && reviewEvidenceBatchTotal > 0 ? (
+              <div className="border-b border-line bg-white px-5 py-3">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-medium text-ink">
+                    待复核进度：第 {reviewEvidenceCompletedCount + 1} / {reviewEvidenceBatchTotal} 条
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted">已完成 {reviewEvidenceCompletedCount} 条</span>
+                    {reviewEvidenceTargets.length > 1 ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={<SkipForward size={14} />}
+                        onClick={skipCurrentReviewEvidence}
+                      >
+                        暂时跳过
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full bg-emerald-500 transition-[width] duration-200"
+                    style={{
+                      width: `${Math.round(reviewEvidenceCompletedCount / reviewEvidenceBatchTotal * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
+            {reviewEvidenceBatchCompleted && reviewEvidenceBatchTotal > 0 ? (
+              <div className="flex flex-col gap-3 border-b border-emerald-200 bg-emerald-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-medium text-emerald-900">
+                    本配方 {reviewEvidenceBatchTotal} 条待复核任务已全部完成
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-emerald-800">
+                    任务参数已从地址中清除。返回数据质量看板后会重新读取最新健康状态。
+                  </div>
+                  <div className="mt-2 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-emerald-200">
+                    <div className="h-full w-full bg-emerald-600" />
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0"
+                  icon={<ArrowLeft size={14} />}
+                  onClick={() => window.location.assign('/dashboard?view=quality')}
+                >
+                  返回数据质量
+                </Button>
+              </div>
+            ) : null}
+            {reviewEvidenceTarget ? (
+              recipeAnalysisLoading ? (
+                <div className="border-b border-sky-200 bg-sky-50 px-5 py-3 text-xs leading-5 text-sky-800">
+                  正在按当前配方重新检查“{reviewEvidenceTarget.findingTitle}”。
+                </div>
+              ) : reviewTargetFinding ? (
+                <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs leading-5 text-amber-900">
+                  已定位原待复核提醒“{reviewEvidenceTarget.findingTitle}”。请根据当前配方重新选择确认问题、忽略或特殊情况。
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 border-b border-emerald-200 bg-emerald-50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-xs leading-5 text-emerald-900">
+                    原待复核提醒“{reviewEvidenceTarget.findingTitle}”在本次智能检查中已不再出现。确认后会保留历史记录，并将它移出学习证据待复核队列。
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={reviewEvidenceResolving}
+                    icon={<Check size={14} />}
+                    onClick={() => void resolveMissingReviewEvidence()}
+                  >
+                    {reviewEvidenceResolving ? '处理中' : '确认已解决'}
+                  </Button>
+                </div>
+              )
+            ) : null}
 
             <div className="space-y-7 p-5">
               <section>
@@ -4575,14 +4893,22 @@ export function RecipesView() {
                 ) : (
                   <div className="divide-y divide-line border-y border-line">
                     {recipeAnalysis.factoryRuleAlerts.map((item) => (
-                      <div key={item.key} className="py-4">
+                      <div
+                        key={item.key}
+                        data-review-target={reviewEvidenceTarget?.findingKey === item.key ? 'true' : undefined}
+                        className={`py-4 ${reviewEvidenceTarget?.findingKey === item.key ? 'rounded-md bg-amber-50 px-3 ring-1 ring-amber-200' : ''}`}
+                      >
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge tone="amber">已批准规则</StatusBadge>
                           <StatusBadge tone="slate">{recipeAnalysisConfidenceLabel(item.confidence)}</StatusBadge>
                           {item.feedback?.decision === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                          {item.feedback?.outdated && <StatusBadge tone="orange">反馈已过期</StatusBadge>}
                           <div className="font-medium text-ink">{item.title}</div>
                         </div>
                         <div className="mt-2 text-sm leading-6 text-muted">{item.explanation}</div>
+                        {item.feedback?.outdatedReason ? (
+                          <div className="mt-2 text-xs leading-5 text-amber-800">{item.feedback.outdatedReason}</div>
+                        ) : null}
                         {item.rule && (
                           <div className="mt-2 text-xs text-slate-600">
                             规则：{item.rule.title} · {item.rule.evidenceCount} 个证据配方
@@ -4606,14 +4932,22 @@ export function RecipesView() {
                 ) : (
                   <div className="divide-y divide-line border-y border-line">
                     {recipeAnalysis.missingItems.map((item) => (
-                      <div key={item.key} className="py-4">
+                      <div
+                        key={item.key}
+                        data-review-target={reviewEvidenceTarget?.findingKey === item.key ? 'true' : undefined}
+                        className={`py-4 ${reviewEvidenceTarget?.findingKey === item.key ? 'rounded-md bg-amber-50 px-3 ring-1 ring-amber-200' : ''}`}
+                      >
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge tone={recipeAnalysisTone(item.severity)}>{recipeAnalysisSeverityLabel(item.severity)}</StatusBadge>
                           <StatusBadge tone="slate">{recipeAnalysisConfidenceLabel(item.confidence)}</StatusBadge>
                           {item.feedback?.decision === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                          {item.feedback?.outdated && <StatusBadge tone="orange">反馈已过期</StatusBadge>}
                           <div className="font-medium text-ink">{item.title}</div>
                         </div>
                         <div className="mt-2 text-sm leading-6 text-muted">{item.explanation}</div>
+                        {item.feedback?.outdatedReason ? (
+                          <div className="mt-2 text-xs leading-5 text-amber-800">{item.feedback.outdatedReason}</div>
+                        ) : null}
                         {item.suggestedModels && item.suggestedModels.length > 0 && (
                           <div className="mt-2 text-xs text-slate-600">参考型号：{item.suggestedModels.join('、')}</div>
                         )}
@@ -4631,10 +4965,15 @@ export function RecipesView() {
                 ) : (
                   <div className="divide-y divide-line border-y border-line">
                     {recipeAnalysis.priceAlerts.map((alert) => (
-                      <div key={alert.key} className="py-4">
+                      <div
+                        key={alert.key}
+                        data-review-target={reviewEvidenceTarget?.findingKey === alert.key ? 'true' : undefined}
+                        className={`py-4 ${reviewEvidenceTarget?.findingKey === alert.key ? 'rounded-md bg-amber-50 px-3 ring-1 ring-amber-200' : ''}`}
+                      >
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge tone={recipeAnalysisTone(alert.severity)}>{recipeAnalysisSeverityLabel(alert.severity)}</StatusBadge>
                           {alert.feedback?.decision === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
+                          {alert.feedback?.outdated && <StatusBadge tone="orange">反馈已过期</StatusBadge>}
                           <div className="font-medium text-ink">{alert.title}</div>
                         </div>
                         <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
@@ -4644,6 +4983,9 @@ export function RecipesView() {
                           <div><span className="text-muted">偏差：</span><span className="font-medium text-ink">{alert.differencePercent > 0 ? '+' : ''}{alert.differencePercent}%</span></div>
                         </div>
                         <div className="mt-2 text-sm leading-6 text-muted">{alert.explanation}</div>
+                        {alert.feedback?.outdatedReason ? (
+                          <div className="mt-2 text-xs leading-5 text-amber-800">{alert.feedback.outdatedReason}</div>
+                        ) : null}
                         {feedbackActions(alert)}
                       </div>
                     ))}
@@ -4656,7 +4998,11 @@ export function RecipesView() {
                   <h3 className="mb-3 text-sm font-semibold text-ink">已忽略与特殊情况</h3>
                   <div className="divide-y divide-line border-y border-line">
                     {recipeAnalysis.suppressedFindings.map((finding) => (
-                      <div key={finding.key} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div
+                        key={finding.key}
+                        data-review-target={reviewEvidenceTarget?.findingKey === finding.key ? 'true' : undefined}
+                        className={`flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between ${reviewEvidenceTarget?.findingKey === finding.key ? 'rounded-md bg-amber-50 px-3 ring-1 ring-amber-200' : ''}`}
+                      >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge tone="slate">

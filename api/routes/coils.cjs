@@ -12,7 +12,12 @@ const {
     buildCoilSpecOptions,
 } = require('../services/coilCost.cjs');
 const { parsePositiveId, parseNonNegativeNumber } = require('../services/validation.cjs');
-const { adjustCoilStock, coilStockMovementRow, parseStockChange } = require('../services/coilInventory.cjs');
+const {
+    adjustCoilStock,
+    assertCoilCanBeDeleted,
+    coilStockMovementRow,
+    parseStockChange,
+} = require('../services/coilInventory.cjs');
 const router = Router();
 
 function coilCostFromValues(values) {
@@ -313,9 +318,12 @@ router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
+        assertCoilCanBeDeleted(db, id);
         hardDelete('coils', id);
         res.json({ success: true });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
 });
 
 // ── 成本计算（支持插值）──

@@ -370,6 +370,24 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'get_factory_learning_health': {
+            const query = new URLSearchParams();
+            if (args.limit) query.set('limit', String(Number(args.limit)));
+            const suffix = query.toString() ? `?${query.toString()}` : '';
+            const data = await getJson(
+                internalFetch,
+                `/api/quality/rule-learning-health${suffix}`,
+                '学习证据健康状态读取失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_learning_health',
+                summary: `当前有 ${data.summary?.affectedRecipeCount || 0} 个配方、${data.summary?.recheckEvidenceCount || 0} 条学习反馈需要重新检查。`,
+                display: { mode: 'compact', title: '学习证据健康' },
+                data,
+            };
+        }
+
         case 'get_factory_rule_candidates': {
             const query = new URLSearchParams();
             if (normalizeText(args.status)) query.set('status', args.status);
@@ -469,7 +487,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             return {
                 success: true,
                 intent: 'factory_rule_candidates_refresh',
-                summary: `候选规则归纳完成：新增 ${data.stats?.created || 0} 条，当前有效 ${data.stats?.active || 0} 条，自动撤回批准 ${data.stats?.suspended || 0} 条。`,
+                summary: `候选规则归纳完成：新增 ${data.stats?.created || 0} 条，当前有效 ${data.stats?.active || 0} 条，自动撤回批准 ${data.stats?.suspended || 0} 条，排除范围漂移证据 ${data.stats?.driftedEvidence || 0} 条、内容过期证据 ${data.stats?.outdatedEvidence || 0} 条。`,
                 display: { mode: 'compact', title: '候选规则归纳' },
                 data,
             };

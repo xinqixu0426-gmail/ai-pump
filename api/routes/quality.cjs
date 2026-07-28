@@ -2,8 +2,12 @@ const { Router } = require('express');
 const { buildDataQualitySummary } = require('../services/qualitySummary.cjs');
 const { buildBusinessAlerts } = require('../services/businessAlerts.cjs');
 const { analyzeRecipeConfiguration } = require('../services/recipeIntelligence.cjs');
-const { saveRecipeAnalysisFeedback } = require('../services/recipeAnalysisFeedback.cjs');
 const {
+    resolveRecipeAnalysisFeedback,
+    saveRecipeAnalysisFeedback,
+} = require('../services/recipeAnalysisFeedback.cjs');
+const {
+    buildFactoryLearningHealth,
     buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
     listFactoryRuleEvents,
@@ -52,9 +56,33 @@ router.post('/recipes/:recipeId/feedback', (req, res) => {
     }
 });
 
+router.post('/recipe-feedback/:id/resolve', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: resolveRecipeAnalysisFeedback(req.params.id, req.body || {}, {
+                actor: req.user?.role || 'system',
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
 router.get('/rule-compliance', (req, res) => {
     try {
         res.json({ success: true, data: buildFactoryRuleCompliance() });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/rule-learning-health', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: buildFactoryLearningHealth({ limit: req.query.limit }),
+        });
     } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }

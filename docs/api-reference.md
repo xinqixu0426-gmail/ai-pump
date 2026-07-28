@@ -62,7 +62,7 @@
 | `GET` | `/api/coils/variants` | 无 | 定子组合列表；组合键为标准直径、材质和槽眼 |
 | `POST` | `/api/coils` | `spec, diameterMm, material, slotType, sheets, schemeName?, schemeStatus?, unitPrice, wireWeight?, copperBase?, coilFee?, rotorFee?, defaultWireGauge?, defaultCapacitor?, mainWireGauge?, mainWireData?, auxWireGauge?, auxWireData?` | 新增绕组方案并计算 `cost`；材质仅支持钢带/冷轧，槽眼仅支持小眼/国标眼；正式方案会替换同组合同片数的原正式方案 |
 | `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段 | 修改定子组合或绕组方案；成本字段变化时自动重算 `cost` |
-| `DELETE` | `/api/coils/:id` | 无 | 硬删除并审计 |
+| `DELETE` | `/api/coils/:id` | 无 | 仅允许删除库存为 0 且从未产生库存流水的线圈方案；已有库存或流水时返回 `409`，避免破坏库存追溯 |
 | `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | 按定子组合生成录入草稿；精确组合可带入单片价，其他组合只带辅助字段；不写库 |
 | `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType? }` | 按标准直径批量更新定子单片价，可按材质和槽眼过滤 |
 | `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, wireWeight?, copperPrice? }` | `sheets` 必须为正整数，线重和铜价必须为非负数字；只使用正式方案，在同标准直径、材质和槽眼内精确匹配、插值或外推 |
@@ -103,7 +103,7 @@
 | `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。自由组合模板中只有 `componentType=stainlessStretchBarrel` 的“不锈钢拉伸筒”组件会用 `customBarrelLength/modelVariant.barrelLength` 换算 cm 数量，并触发长螺丝长度联动；铝机筒、铁机筒按普通固定组件处理。历史 `isStainlessStretchBarrel=true` 数据继续兼容。自由组合组件取价只读取“泵壳搭配”分类。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写。配方正式保存时 `customBarrelLength` 和 `longScrewExtraLength` 都会持久化，重新编辑可恢复原值 |
 | `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`technicalData` 支持 `upperBearing/lowerBearing/pieceCount/rotorDiameter/bearingSpan/stackOffset/oilSealDiameter/impellerBoreDiameter/impellerSpan/impellerDepth/threadLength/threadDiameter` 转子出图参数；逐项检查 `costDraft.parts[].snapshotPrice`，缺失、无效或小于等于 0 时返回 400 并列出未定价 BOM 项目；`form.coilWireWeight` 会保存为客户指定线重，`form.longScrewExtraLength` 会作为非负数进入正式配方保存；不写库 |
-| `GET` | `/api/recipes/:id/inventory-status` | 无 | 按配方 BOM 返回配件、当前库存和状态；只读，不执行生产或扣减库存 |
+| `GET` | `/api/recipes/:id/inventory-status` | 无 | 按配方 BOM 返回库存状态；普通配件读取零件库，线圈转子按规格、片数、材质和槽眼读取正式线圈方案库存；只读，不执行生产或扣减库存 |
 | `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；`partsJson` 中任一 BOM 项目的 `snapshotPrice` 缺失、无效或小于等于 0 时返回 400；若含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
 | `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；提交 `partsJson` 时执行相同的 BOM 单价检查，同样可能返回 `createdLongScrewParts` |
 | `DELETE` | `/api/recipes/:id` | 无 | 软删除 |
@@ -317,6 +317,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
 - `analyze_recipe_configuration`：调用 `/api/quality/recipe-analysis`，只读分析相似配方、配置矛盾、同类高频项和固定件价格异常。
 - `set_recipe_analysis_feedback`：保存“确认问题/忽略/特殊情况/恢复复核”判断；必须使用智能检查返回的精确提醒键，并在用户确认后写入。
+- `get_factory_learning_health`：只读扫描全部同类高频项学习反馈，包含尚未形成候选规则的证据，返回仍有效、内容过期、模板漂移、配方已归档及待重新检查配方。
 - `get_factory_rule_candidates`：只读查询待审核、已批准、已驳回或已失效的候选业务规则。
 - `get_factory_rule_impact`：只读分析某条规则对当前同模板配方的影响，区分已符合、需要复核、特殊情况和已忽略。
 - `get_factory_rule_compliance`：只读汇总全部已批准规则的执行情况和受影响配方。
@@ -371,14 +372,16 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 |---|---|---|---|
 | `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
 | `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
-| `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V3 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项、已批准规则的学习置信度和固定件价格异常；只读不写库 |
-| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。`decision` 支持 `confirmed/ignored/special_case/review`；`peer_pattern` 反馈会在同一事务中自动刷新候选规则并返回 `ruleLearning` 摘要，失败时反馈与归纳整体回滚；其他提醒不触发规则学习 |
+| `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V3 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项、已批准规则的学习置信度和固定件价格异常；反馈后配方已修改时返回 `feedback.outdated=true`，旧“忽略/特殊情况”不再抑制当前提醒；只读不写库 |
+| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。服务端会覆盖并写入 `findingSnapshot.evidenceContext`，固化反馈时的配方、泵壳模板和时间，客户端不能指定证据归属。`decision` 支持 `confirmed/ignored/special_case/review`；`peer_pattern` 反馈会在同一事务中自动刷新候选规则并返回 `ruleLearning` 摘要，失败时反馈与归纳整体回滚 |
+| `POST` | `/api/quality/recipe-feedback/:id/resolve` | `{ note? }` | 处理重新智能检查后已不再出现的待复核学习反馈。仅允许当前确实处于内容过期或模板漂移状态的 `peer_pattern` 反馈；保留原始证据快照，把判断恢复为 `review`，并在同一事务内刷新候选规则。当前仍有效、已处理或归档配方反馈返回 409 |
 | `GET` | `/api/quality/rule-compliance` | 无 | 汇总全部已批准规则的当前执行情况，返回规则问题总数、受影响配方去重数量、例外数量以及各规则的实时影响明细；只读不写库 |
-| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/confidenceScore/confidenceLevel/learningEvidence/needsReview/approvalEligible/approvalBlockers/approvalRequirements` |
+| `GET` | `/api/quality/rule-learning-health` | 查询参数 `limit?` | 扫描全部 `confirmed/special_case/ignored` 的 `peer_pattern` 反馈，包括尚未达到候选规则门槛的证据。返回 `active/outdated/drifted/archived` 状态、待重新检查配方和汇总；`limit` 为 1-200、默认 100；只读不写库 |
+| `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/driftedCount/outdatedCount/confidenceScore/confidenceLevel/learningEvidence/needsReview/approvalEligible/approvalBlockers/approvalRequirements`；`learningEvidence.drifted/outdated` 仅追溯历史，不计入支持数 |
 | `GET` | `/api/quality/rule-events` | 查询参数 `candidateId?`、`limit?` | 读取规则生命周期记录，按时间倒序返回 `eventType/previousStatus/newStatus/actor/note/snapshot/createdAt`；`candidateId` 可限定单条规则，`limit` 为 1-100、默认 30；只读不写库 |
 | `POST` | `/api/quality/rule-events/:id/restore` | `{ restoreNote? }` | 恢复该历史事件记录的 `candidate/approved/rejected` 审核状态，但保留规则当前内容、证据和置信度；批准会按当前证据重新校验并同步规则知识 |
-| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；至少 2 个不同配方确认才会进入候选，同时统计特殊情况和忽略证据并计算置信度。已批准规则失去最低支持时转为 `stale`，置信度跌破 65% 时撤回为 `candidate`；返回 `minimumEvidence/minimumConfidence` 及含 `suspended` 的统计，不会自动批准新规则 |
-| `GET` | `/api/quality/rule-candidates/:id/impact` | 无 | 只读计算规则对当前同模板配方的影响；按实时 BOM 和反馈分为 `compliant/needsReview/specialCases/ignored`，返回数量、配方清单和待复核占比，不修改配方 |
+| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；反馈按生成时的模板和配方版本归属，后来更换模板标记为范围漂移，修改配方标记为内容过期并排除。至少 2 个不同配方确认才会进入候选；已批准规则失去最低支持时转为 `stale`，置信度跌破 65% 时撤回为 `candidate`。返回 `minimumEvidence/minimumConfidence` 及含 `suspended/driftedEvidence/outdatedEvidence` 的统计，不会自动批准新规则 |
+| `GET` | `/api/quality/rule-candidates/:id/impact` | 无 | 只读计算规则对当前同模板配方的影响；按实时 BOM 和有效反馈分为 `compliant/needsReview/specialCases/ignored`。配方在反馈后修改时，旧例外以 `feedbackOutdated=true` 回到 `needsReview`；返回数量、配方清单和待复核占比，不修改配方 |
 | `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`。批准要求当前至少 2 个不同配方确认且置信度不低于 65%。返回 `knowledgeSync`，批准自动新增或更新对应规则知识，驳回或恢复候选自动移除 |
 
 数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
@@ -408,6 +411,18 @@ V3 第七阶段增加规则审核状态恢复。管理看板和 AI 可以选择�
 恢复成功返回 `{ success: true, data: { candidate, restoredFromEvent, knowledgeSync } }`。事件不存在或规则不存在返回 `404`，事件不含可恢复审核快照、批准证据不足或 `restoreNote` 超过 500 字返回 `400`，目标状态与当前状态相同返回 `409`。
 
 V3 第八阶段增加规则准入门槛。候选规则只有在当前支持证据不少于 2 个不同配方且置信度达到 65% 时才允许批准或恢复为批准；`approvalEligible` 表示是否满足门槛，`approvalBlockers` 给出具体原因。已批准规则在后续反馈刷新后若置信度跌破 65%，系统会自动把状态撤回为 `candidate`，记录 `approval_suspended` 生命周期事件并移除对应规则知识；置信度恢复后仍需人工重新批准，不会自动恢复正式规则。撤回动作与反馈、候选刷新、事件和知识更新保持同一事务。
+
+V3 第九阶段增加证据来源快照和范围漂移隔离。保存反馈时，服务端从当前配方读取 `recipeId/recipeName/templateId/templateName/recipeUpdatedAt`，连同 `recordedAt` 写入 `finding_snapshot_json.evidenceContext`，并覆盖客户端传入的同名字段。规则归纳以该历史模板为证据归属；如果配方后来更换泵壳模板，旧反馈进入 `learningEvidence.drifted`，不计入确认、特殊情况、忽略、置信度或新模板规则。规则因漂移失去最低支持时自动转为 `stale` 并移除规则知识，看板和 AI 会提示在当前模板下重新智能检查并确认。旧版本未带上下文的反馈继续按当前模板兼容处理，不批量猜测历史归属。
+
+V3 第十阶段增加同模板内的过期证据隔离。规则归纳会比较反馈快照中的 `recipeUpdatedAt` 与配方当前 `updated_at`；模板未变但配方后来被编辑时，旧反馈进入 `learningEvidence.outdated`，不再计入支持、反例或置信度。配方智能检查也会把对应反馈标记为 `outdated`，旧“忽略/特殊情况”不再压住当前提醒；用户按当前配方重新确认后，同一反馈记录会更新为当前版本的新证据。已批准规则因过期证据失去准入条件时自动失效或进入复审，规则知识同步更新。`PATCH /api/recipes/:id` 编辑或 `DELETE /api/recipes/:id` 归档存在规则学习反馈的配方时，会在同一事务内自动刷新候选规则与已批准规则知识条目，无需再手动点击“重新核对规则”。旧反馈保留用于追溯，不自动删除，也不会修改配方。
+
+V3 第十一阶段增加学习证据健康检查。`GET /api/quality/rule-learning-health` 不依赖候选规则是否已经生成，直接扫描全部有效学习决策，因此单个配方反馈或尚未达到两个确认的反馈也不会成为管理盲区。服务按当前配方状态区分仍有效、内容过期、模板漂移和配方已归档；内容过期与模板漂移进入待重新检查队列，归档证据只保留追溯。管理看板和 AI 使用同一只读结果，系统不会自动恢复反馈、修改配方或批准规则。
+
+V3 第十三阶段补齐待复核任务的处理结论。看板直达配方时携带具体反馈 ID；重新智能检查后，仍存在的提醒会被精确高亮并要求按当前配置重新判断。原提醒已不再出现时，`POST /api/quality/recipe-feedback/:id/resolve` 允许用户确认已解决；服务端会重新校验反馈确实处于内容过期或模板漂移状态，并再次执行当前配方智能检查，只有同一提醒确实不再出现时才允许处理。服务保留原始证据快照，将判断恢复为 `review` 并事务化刷新候选规则。当前有效、仍有同一提醒、已处理及归档反馈不能通过该入口清理。
+
+V3 第十四阶段在 Web 端把健康检查返回的待复核反馈按配方聚合。看板使用同一配方的反馈 ID 集合打开一次智能检查，配方页按集合顺序逐条定位并显示处理进度；每次重新判断或确认已解决后，从本地任务队列移除当前项并自动切换下一条。该阶段不改变 API 数据含义，也不提供批量确认。
+
+V3 第十五阶段补齐待复核工作台的操作闭环。反馈保存和已消失提醒确认继续使用原有 API 返回的 `ruleLearning`，Web 端展示候选规则的新生成、重算、失效、撤回批准及剩余隔离证据数量；暂时跳过只调整本地处理顺序，不写数据库。整组完成后清除 `feedbackIds/feedbackId/action` 参数，并通过 `/dashboard?view=quality` 完整导航重新拉取学习证据健康状态。本阶段未新增 API，也不改变反馈或规则的数据语义。
 
 ## 17. 工厂知识库 Knowledge
 

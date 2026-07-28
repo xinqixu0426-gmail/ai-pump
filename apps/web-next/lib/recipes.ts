@@ -207,6 +207,8 @@ export type RecipeInventoryItem = {
   supplier?: string;
   currentStock: number;
   partId?: number;
+  coilId?: number;
+  inventoryType: 'part' | 'coil';
   status: 'in_stock' | 'out_of_stock' | 'missing';
 };
 

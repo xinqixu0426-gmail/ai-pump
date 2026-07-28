@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
+    buildFactoryLearningHealth,
     buildFactoryRuleCompliance,
     buildFactoryRuleImpact,
     buildRuleCandidateGroups,
@@ -123,6 +124,10 @@ function createFixture() {
 }
 
 function insertFeedback(db, recipeId, overrides = {}) {
+    const findingSnapshot = {
+        title: overrides.title || '同类配方通常包含「说明书」',
+        ...(overrides.evidenceContext ? { evidenceContext: overrides.evidenceContext } : {}),
+    };
     db.prepare(`
         INSERT INTO recipe_analysis_feedback(
             recipe_id, finding_key, finding_type, decision, note,
@@ -134,7 +139,7 @@ function insertFeedback(db, recipeId, overrides = {}) {
         overrides.findingType || 'peer_pattern',
         overrides.decision || 'confirmed',
         overrides.note || '',
-        JSON.stringify({ title: overrides.title || '同类配方通常包含「说明书」' }),
+        JSON.stringify(findingSnapshot),
         '2026-01-01',
         '2026-01-02'
     );
@@ -175,6 +180,75 @@ test('候选规则同时统计确认、特殊情况和忽略证据并计算置�
         '至少需要 2 个不同配方确认',
         '当前置信度 50%，低于 65%',
     ]);
+});
+
+test('配方更换模板后旧反馈标为范围漂移且不转移到新模板', () => {
+    const rows = [
+        {
+            id: 1,
+            recipe_id: 1,
+            recipe_name: 'A 当前',
+            template_id: 8,
+            template_name: 'V1600',
+            finding_key: 'peer_pattern:包装:fixed',
+            finding_type: 'peer_pattern',
+            decision: 'confirmed',
+            finding_snapshot_json: JSON.stringify({
+                title: '通常有说明书',
+                evidenceContext: {
+                    recipeId: 1,
+                    recipeName: 'A 历史',
+                    templateId: 7,
+                    templateName: 'V750',
+                },
+            }),
+        },
+    ];
+    const groups = buildRuleCandidateGroups(rows, 0);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].ruleKey, 'template:7:peer_pattern:包装:fixed');
+    assert.equal(groups[0].supportCount, 0);
+    assert.equal(groups[0].driftedCount, 1);
+    assert.equal(groups[0].learningEvidence.drifted[0].recipeName, 'A 历史');
+    assert.equal(groups[0].learningEvidence.drifted[0].currentTemplateId, 8);
+    assert.equal(groups[0].learningEvidence.drifted[0].scopeDrift, true);
+    assert.match(groups[0].content, /不计入当前规则/);
+    assert.equal(buildRuleCandidateGroups(rows).length, 0);
+});
+
+test('同模板配方修改后旧反馈标为内容过期且不计入规则', () => {
+    const rows = [
+        {
+            id: 1,
+            recipe_id: 1,
+            recipe_name: 'A 当前',
+            template_id: 7,
+            template_name: 'V750',
+            recipe_updated_at: '2026-02-01',
+            finding_key: 'peer_pattern:包装:fixed',
+            finding_type: 'peer_pattern',
+            decision: 'confirmed',
+            finding_snapshot_json: JSON.stringify({
+                title: '通常有说明书',
+                evidenceContext: {
+                    recipeId: 1,
+                    recipeName: 'A 历史',
+                    templateId: 7,
+                    templateName: 'V750',
+                    recipeUpdatedAt: '2026-01-01',
+                },
+            }),
+        },
+    ];
+    const groups = buildRuleCandidateGroups(rows, 0);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].supportCount, 0);
+    assert.equal(groups[0].outdatedCount, 1);
+    assert.equal(groups[0].driftedCount, 0);
+    assert.equal(groups[0].learningEvidence.outdated[0].recipeName, 'A 历史');
+    assert.equal(groups[0].learningEvidence.outdated[0].contentOutdated, true);
+    assert.match(groups[0].content, /配方内容已修改而过期/);
+    assert.equal(buildRuleCandidateGroups(rows).length, 0);
 });
 
 test('候选规则可刷新、批准且保留证据', () => {
@@ -454,6 +528,7 @@ test('规则影响分析区分已符合、待复核、特殊情况和忽略配�
             needsReviewCount: 1,
             specialCaseCount: 1,
             ignoredCount: 1,
+            outdatedFeedbackCount: 0,
             attentionRate: 0.25,
         });
         assert.equal(impact.groups.compliant[0].recipeName, 'V750 越南');
@@ -461,6 +536,39 @@ test('规则影响分析区分已符合、待复核、特殊情况和忽略配�
         assert.equal(impact.groups.specialCases[0].recipeName, 'V750 特殊');
         assert.equal(impact.groups.ignored[0].recipeName, 'V750 忽略');
         assert.match(impact.guidance, /1 个现有配方需要复核/);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('规则影响分析把配方修改后的旧例外恢复为待复核', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        insertFeedback(fixture.db, 4, {
+            decision: 'special_case',
+            note: '历史特殊情况',
+            evidenceContext: {
+                recipeId: 4,
+                recipeName: 'V750 特殊',
+                templateId: 7,
+                templateName: 'V750 大脚板 2寸',
+                recipeUpdatedAt: '2026-01-01',
+            },
+        });
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        fixture.db.prepare(`
+            UPDATE recipes SET updated_at = '2026-02-01' WHERE id = 4
+        `).run();
+
+        const impact = buildFactoryRuleImpact(refreshed.candidates[0].id, fixture);
+        assert.equal(impact.summary.specialCaseCount, 0);
+        assert.equal(impact.summary.outdatedFeedbackCount, 1);
+        const outdated = impact.groups.needsReview.find(item => item.recipeId === 4);
+        assert.equal(outdated.feedbackOutdated, true);
+        assert.equal(outdated.originalDecision, 'special_case');
+        assert.equal(outdated.decision, 'review');
     } finally {
         fixture.db.close();
     }
@@ -628,6 +736,210 @@ test('低置信度候选不能批准，已批准规则跌破门槛后自动撤�
         assert.throws(
             () => reviewFactoryRuleCandidate(approved.id, { status: 'approved' }, fixture),
             /置信度 50%，低于 65%/
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方换模板后已批准规则因证据范围漂移而失效且知识同步移除', () => {
+    const fixture = createFixture();
+    try {
+        const evidenceContext = {
+            templateId: 7,
+            templateName: 'V750 大脚板 2寸',
+            recordedAt: '2026-01-02',
+        };
+        insertFeedback(fixture.db, 1, {
+            evidenceContext: { ...evidenceContext, recipeId: 1, recipeName: 'V750 菲律宾' },
+        });
+        insertFeedback(fixture.db, 2, {
+            evidenceContext: { ...evidenceContext, recipeId: 2, recipeName: 'V750 越南' },
+        });
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const approved = reviewFactoryRuleCandidate(
+            refreshed.candidates[0].id,
+            { status: 'approved' },
+            fixture
+        );
+        assert.equal(approved.status, 'approved');
+
+        fixture.db.exec(`
+            INSERT INTO pump_shell_templates(id, shell_model) VALUES (8, 'V1600');
+            UPDATE recipes SET template_id = 8, updated_at = '2026-02-01' WHERE id = 1;
+        `);
+        const relearned = refreshFactoryRuleCandidates(fixture);
+        const staleRule = relearned.candidates.find(candidate => candidate.id === approved.id);
+        assert.equal(relearned.stats.driftedEvidence, 1);
+        assert.equal(relearned.stats.stale, 1);
+        assert.equal(staleRule.status, 'stale');
+        assert.equal(staleRule.supportCount, 1);
+        assert.equal(staleRule.driftedCount, 1);
+        assert.equal(staleRule.learningEvidence.drifted[0].currentTemplateId, 8);
+        assert.equal(
+            relearned.candidates.some(candidate => candidate.ruleKey.startsWith('template:8:')),
+            false
+        );
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            0
+        );
+        const latestEvent = listFactoryRuleEvents({ ...fixture, candidateId: approved.id })[0];
+        assert.equal(latestEvent.eventType, 'stale');
+        assert.match(latestEvent.note, /1 条范围漂移证据/);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方内容修改后已批准规则因旧证据过期而失效', () => {
+    const fixture = createFixture();
+    try {
+        const evidenceContext = {
+            templateId: 7,
+            templateName: 'V750 大脚板 2寸',
+            recipeUpdatedAt: '2026-01-01',
+            recordedAt: '2026-01-02',
+        };
+        insertFeedback(fixture.db, 1, {
+            evidenceContext: { ...evidenceContext, recipeId: 1, recipeName: 'V750 菲律宾' },
+        });
+        insertFeedback(fixture.db, 2, {
+            evidenceContext: { ...evidenceContext, recipeId: 2, recipeName: 'V750 越南' },
+        });
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const approved = reviewFactoryRuleCandidate(
+            refreshed.candidates[0].id,
+            { status: 'approved' },
+            fixture
+        );
+        assert.equal(approved.status, 'approved');
+
+        fixture.db.prepare(`
+            UPDATE recipes
+            SET parts_json = ?, updated_at = ?
+            WHERE id = 1
+        `).run('[{"name":"新配置"}]', '2026-02-01');
+        const relearned = refreshFactoryRuleCandidates(fixture);
+        const staleRule = relearned.candidates.find(candidate => candidate.id === approved.id);
+        assert.equal(relearned.stats.outdatedEvidence, 1);
+        assert.equal(relearned.stats.stale, 1);
+        assert.equal(staleRule.status, 'stale');
+        assert.equal(staleRule.supportCount, 1);
+        assert.equal(staleRule.outdatedCount, 1);
+        assert.equal(staleRule.learningEvidence.outdated[0].currentRecipeUpdatedAt, '2026-02-01');
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            0
+        );
+        const latestEvent = listFactoryRuleEvents({ ...fixture, candidateId: approved.id })[0];
+        assert.equal(latestEvent.eventType, 'stale');
+        assert.match(latestEvent.note, /1 条内容过期证据/);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方归档后已批准规则立即失效并移除规则知识', () => {
+    const fixture = createFixture();
+    try {
+        insertFeedback(fixture.db, 1);
+        insertFeedback(fixture.db, 2);
+        const refreshed = refreshFactoryRuleCandidates(fixture);
+        const approved = reviewFactoryRuleCandidate(
+            refreshed.candidates[0].id,
+            { status: 'approved' },
+            fixture
+        );
+        assert.equal(approved.status, 'approved');
+
+        fixture.db.prepare(`
+            UPDATE recipes
+            SET deleted_at = '2026-02-01', updated_at = '2026-02-01'
+            WHERE id = 1
+        `).run();
+        const relearned = refreshFactoryRuleCandidates(fixture);
+        const staleRule = relearned.candidates.find(candidate => candidate.id === approved.id);
+        assert.equal(relearned.stats.stale, 1);
+        assert.equal(staleRule.status, 'stale');
+        assert.equal(staleRule.supportCount, 0);
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM knowledge_entries
+                WHERE source_table = 'factory_rule_candidates' AND source_id = ?
+            `).get(String(approved.id)).count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('学习证据健康检查覆盖未形成候选规则的过期、漂移和归档反馈', () => {
+    const fixture = createFixture();
+    try {
+        const evidenceContext = {
+            templateId: 7,
+            templateName: 'V750 大脚板 2寸',
+            recipeUpdatedAt: '2026-01-01',
+            recordedAt: '2026-01-02',
+        };
+        insertFeedback(fixture.db, 1, {
+            findingKey: 'peer_pattern:包装:active',
+            evidenceContext: { ...evidenceContext, recipeId: 1, recipeName: 'V750 菲律宾' },
+        });
+        insertFeedback(fixture.db, 2, {
+            findingKey: 'peer_pattern:包装:outdated',
+            evidenceContext: { ...evidenceContext, recipeId: 2, recipeName: 'V750 越南' },
+        });
+        insertFeedback(fixture.db, 3, {
+            findingKey: 'peer_pattern:包装:archived',
+            evidenceContext: { ...evidenceContext, recipeId: 3, recipeName: 'V750 删除' },
+        });
+        insertFeedback(fixture.db, 4, {
+            findingKey: 'peer_pattern:包装:drifted',
+            evidenceContext: { ...evidenceContext, recipeId: 4, recipeName: 'V750 特殊' },
+        });
+        fixture.db.exec(`
+            INSERT INTO pump_shell_templates(id, shell_model) VALUES (8, 'V1600-3寸');
+            UPDATE recipes SET name = '' WHERE id = 1;
+            UPDATE recipes SET updated_at = '2026-02-01' WHERE id = 2;
+            UPDATE recipes SET template_id = 8, updated_at = '2026-02-01' WHERE id = 4;
+        `);
+
+        const health = buildFactoryLearningHealth(fixture);
+        assert.deepEqual(health.summary, {
+            totalEvidenceCount: 4,
+            activeEvidenceCount: 1,
+            recheckEvidenceCount: 2,
+            outdatedEvidenceCount: 1,
+            driftedEvidenceCount: 1,
+            archivedEvidenceCount: 1,
+            affectedRecipeCount: 2,
+            confirmedCount: 4,
+            specialCaseCount: 0,
+            ignoredCount: 0,
+        });
+        assert.deepEqual(health.items.map(item => item.status), [
+            'outdated',
+            'drifted',
+            'archived',
+            'active',
+        ]);
+        assert.equal(health.items[0].recipeName, 'V750 越南');
+        assert.equal(health.items[0].needsRecheck, true);
+        assert.equal(health.items[1].currentTemplateName, 'V1600-3寸');
+        assert.equal(health.items[3].recipeName, 'V750 菲律宾');
+        assert.match(health.guidance, /2 个配方/);
+        assert.throws(
+            () => buildFactoryLearningHealth({ ...fixture, limit: 201 }),
+            /1 到 200/
         );
     } finally {
         fixture.db.close();

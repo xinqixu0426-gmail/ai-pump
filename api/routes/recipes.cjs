@@ -10,6 +10,7 @@ const { buildLongScrewInventoryPartsFromRecipe } = require('../services/longScre
 const { parsePumpTestReport } = require('../services/pumpTestReport.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber, parseNonNegativeInteger } = require('../services/validation.cjs');
 const { inferPackagingSemantics } = require('../services/packagingSemantics.cjs');
+const { refreshFactoryRuleCandidates } = require('../services/factoryRuleCandidates.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -121,6 +122,34 @@ function buildRecipeInventoryStatus(id) {
     const items = recipeParts.map(recipePart => {
         const model = String(recipePart?.model || '').trim();
         const supplier = String(recipePart?.supplier || '').trim();
+        if (String(recipePart?.name || '').trim() === '线圈转子') {
+            const coil = db.prepare(`
+                SELECT id, stock
+                FROM coils
+                WHERE spec = ?
+                  AND sheets = ?
+                  AND material = ?
+                  AND slot_type = ?
+                  AND scheme_status = 'official'
+                ORDER BY id DESC
+                LIMIT 1
+            `).get(
+                String(recipeRecord.coil_spec || '').trim(),
+                Number(recipeRecord.coil_sheets || 0),
+                String(recipeRecord.coil_material || '钢带').trim() || '钢带',
+                String(recipeRecord.coil_slot_type || '小眼').trim() || '小眼'
+            );
+            const currentStock = coil ? Number(coil.stock || 0) : 0;
+            return {
+                name: '线圈转子',
+                model,
+                supplier: '',
+                currentStock,
+                coilId: coil?.id,
+                inventoryType: 'coil',
+                status: !coil ? 'missing' : currentStock > 0 ? 'in_stock' : 'out_of_stock',
+            };
+        }
         const matchedPart = allParts.find(part => part.model === model && String(part.supplier || '') === supplier)
             || allParts.find(part => part.model === model);
         const currentStock = matchedPart ? Number(matchedPart.stock || 0) : 0;
@@ -131,6 +160,7 @@ function buildRecipeInventoryStatus(id) {
             supplier,
             currentStock,
             partId: matchedPart?.id,
+            inventoryType: 'part',
             status: !matchedPart ? 'missing' : currentStock > 0 ? 'in_stock' : 'out_of_stock',
         };
     });
@@ -307,12 +337,26 @@ function autoCreateRecipeLongScrews(recipeLike) {
     return created;
 }
 
-function updateRecipeRecord(id, body) {
+function refreshRecipeRuleLearningIfNeeded(recipeId, actor) {
+    const hasLearningFeedback = db.prepare(`
+        SELECT 1
+        FROM recipe_analysis_feedback
+        WHERE recipe_id = ?
+          AND finding_type = 'peer_pattern'
+          AND decision IN ('confirmed', 'special_case', 'ignored')
+        LIMIT 1
+    `).get(recipeId);
+    if (!hasLearningFeedback) return;
+    refreshFactoryRuleCandidates({ actor });
+}
+
+function updateRecipeRecord(id, body, actor) {
     const updates = recipeBodyToDb(body);
     if (updates.parts_json !== undefined) assertRecipeBomPrices(parseJsonArray(updates.parts_json));
     safeUpdate('recipes', id, updates);
     const record = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
     const createdLongScrewParts = autoCreateRecipeLongScrews(record);
+    refreshRecipeRuleLearningIfNeeded(id, actor);
     return { recipe: recipeRow(record), createdLongScrewParts };
 }
 
@@ -585,7 +629,10 @@ router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
-        softDelete('recipes', id);
+        db.transaction(() => {
+            softDelete('recipes', id);
+            refreshRecipeRuleLearningIfNeeded(id, req.user?.role || 'system');
+        })();
         res.json({ success: true });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -594,7 +641,7 @@ router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
-        const result = db.transaction(() => updateRecipeRecord(id, req.body))();
+        const result = db.transaction(() => updateRecipeRecord(id, req.body, req.user?.role || 'system'))();
         res.json({ success: true, data: result.recipe, createdLongScrewParts: result.createdLongScrewParts });
     } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });

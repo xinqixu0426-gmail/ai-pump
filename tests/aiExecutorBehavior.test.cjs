@@ -502,6 +502,15 @@ test('AI executor 行为：配方检查反馈必须确认后写入质量 API', a
 
 test('AI executor 行为：候选规则可只读查询，审核必须确认后调用 PATCH API', async () => {
     const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/quality/rule-learning-health?limit=20') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    summary: { affectedRecipeCount: 2, recheckEvidenceCount: 3 },
+                    items: [{ feedbackId: 7, recipeId: 9, status: 'outdated' }],
+                },
+            });
+        }
         if (call.url.endsWith('/api/quality/rule-candidates?status=candidate') && call.method === 'GET') {
             return jsonResponse({ success: true, data: [{ id: 5, title: 'V750：通常包含说明书' }] });
         }
@@ -548,6 +557,11 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
         return jsonResponse({ success: false, error: 'unexpected call' }, 500);
     });
 
+    const health = await executeToolCall('get_factory_learning_health', { limit: 20 }, { allowWrite: false });
+    assert.equal(health.success, true);
+    assert.match(health.summary, /2 个配方/);
+    assert.match(health.summary, /3 条学习反馈/);
+
     const listed = await executeToolCall('get_factory_rule_candidates', { status: 'candidate' }, { allowWrite: false });
     assert.equal(listed.success, true);
     assert.equal(listed.data[0].id, 5);
@@ -585,7 +599,7 @@ test('AI executor 行为：候选规则可只读查询，审核必须确认后�
     assert.equal(approved.success, true);
     assert.equal(approved.data.status, 'approved');
     assert.match(approved.summary, /规则知识已自动更新/);
-    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'GET', 'GET', 'POST', 'PATCH']);
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'GET', 'GET', 'GET', 'POST', 'PATCH']);
 });
 
 test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详情', async () => {
