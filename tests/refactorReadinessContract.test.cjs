@@ -396,6 +396,73 @@ test('Next UI 契约：订单处理方案展示顺序、负责人、依赖和执
     assert.match(aiView, /前置阻塞/);
 });
 
+test('Next UI 契约：V8 工厂执行计划展示统一步骤、边界和执行保护', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+
+    assert.match(aiView, /function FactoryExecutionPlanResult/);
+    assert.match(aiView, /plan_factory_workflow/);
+    assert.match(aiView, /已有安全执行器/);
+    assert.match(aiView, /执行保护/);
+    assert.doesNotMatch(
+        aiView.slice(
+            aiView.indexOf('function FactoryExecutionPlanResult'),
+            aiView.indexOf('function OrderReadinessPlanResult')
+        ),
+        /item\.owner/
+    );
+    assert.match(tools, /quotation_to_order/);
+    assert.match(tools, /canExecute=true/);
+});
+
+test('Next UI 契约：V8.2 跨模块执行后展示转单结果和新订单复查', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+
+    assert.match(aiView, /function FactoryWorkflowActionResult/);
+    assert.match(aiView, /execute_factory_workflow_step/);
+    assert.match(aiView, /新订单生产准备/);
+    assert.match(aiView, /原报价流程复查/);
+    assert.match(tools, /计划过期、报价未接受、已转单、资料不完整或步骤受阻时立即停止/);
+});
+
+test('Next UI 契约：V8.3 执行计划提供精确业务入口和受保护确认捷径', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const factoryPlanStart = aiView.indexOf('function FactoryExecutionPlanResult');
+    const orderPlanStart = aiView.indexOf('function OrderReadinessPlanResult');
+    const factoryPlan = aiView.slice(factoryPlanStart, orderPlanStart);
+
+    assert.match(aiView, /function buildFactoryWorkflowShortcutPrompt/);
+    assert.match(aiView, /重新生成最新报价转订单执行计划/);
+    assert.match(aiView, /重新检查最新生产准备计划/);
+    assert.match(factoryPlan, /打开当前业务/);
+    assert.match(factoryPlan, /发起确认/);
+    assert.match(factoryPlan, /isSafeInternalPath\(subject\.path\)/);
+    assert.match(factoryPlan, /isSafeInternalPath\(item\.path\)/);
+    assert.match(factoryPlan, /onRequestAction\(actionPrompt\)/);
+    assert.match(aiView, /onSendPrompt=\{readOnly \? undefined : onSendPrompt\}/);
+    assert.match(aiView, /shortcutDisabled=\{loading\}/);
+    assert.doesNotMatch(factoryPlan, /confirmAiTool/);
+    assert.match(quotationsView, /searchParams\.get\('quotationId'\)/);
+    assert.match(quotationsView, /consumedViewQuotationRef/);
+    assert.match(quotationsView, /setViewQuotation\(target\)/);
+});
+
+test('Next UI 契约：V8.4 展示执行结果、失败原因和可恢复步骤', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+
+    assert.match(aiView, /function WorkflowExecutionRunSummary/);
+    assert.match(aiView, /最近执行/);
+    assert.match(aiView, /latestRecheck/);
+    assert.match(aiView, /最新复查/);
+    assert.match(aiView, /recovery\.message/);
+    assert.match(aiView, /recoverableActionIds/);
+    assert.match(aiView, /重新发起确认/);
+    assert.match(aiView, /执行记录 #/);
+    assert.match(aiView, /historyWarning/);
+});
+
 test('Next UI 契约：订单方案动作执行后展示结果和重验后的方案', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
     assert.match(aiView, /function OrderReadinessActionResult/);

@@ -151,6 +151,38 @@ test('关键 API 集成契约：/api/workbench/action-center 只聚合现有检�
     assertNoWrites(service);
 });
 
+test('关键 API 集成契约：V8 工厂执行计划统一现有业务检查且保持只读', () => {
+    const route = readUtf8('api/routes/workbench.cjs');
+    const service = readUtf8('api/services/factoryExecutionPlan.cjs');
+
+    assert.match(route, /router\.post\('\/execution-plan'/);
+    assert.match(route, /buildFactoryExecutionPlan\(req\.body \|\| \{\}\)/);
+    assert.match(service, /order_readiness/);
+    assert.match(service, /quotation_to_order/);
+    assert.match(service, /management_action/);
+    assert.match(service, /execute_order_readiness_action/);
+    assert.match(service, /canExecute/);
+    assertNoWrites(route);
+    assertNoWrites(service);
+});
+
+test('关键 API 集成契约：V8.4 执行历史独立记录结果并按实时计划恢复', () => {
+    const route = readUtf8('api/routes/workbench.cjs');
+    const history = readUtf8('api/services/factoryWorkflowHistory.cjs');
+    const recorder = readUtf8('api/routes/ai/executors/workflowRunRecorder.cjs');
+
+    assert.match(route, /router\.get\('\/execution-runs'/);
+    assert.match(route, /router\.post\('\/execution-runs'/);
+    assert.match(route, /recordFactoryWorkflowRun\(req\.body \|\| \{\}\)/);
+    assert.match(route, /decorateFactoryExecutionPlanWithHistory\(plan\)/);
+    assert.match(history, /safeInsert\('factory_workflow_runs'/);
+    assert.match(history, /fingerprintFactoryExecutionPlan/);
+    assert.match(history, /retry_available/);
+    assert.match(history, /该计划版本的步骤已有成功执行记录，不会重复执行/);
+    assert.match(recorder, /\/api\/workbench\/execution-runs/);
+    assert.doesNotMatch(history, /safeUpdate\('(?:orders|quotations|parts|recipes)'/);
+});
+
 test('关键 API 集成契约：/api/quality/recipe-analysis 只生成配方智能建议不写库', () => {
     const source = readUtf8('api/routes/quality.cjs');
 
@@ -286,14 +318,17 @@ test('关键 API 集成契约：/api/orders/purchase-plan 只生成采购计划�
 test('关键 API 集成契约：/api/orders/:id/readiness 只读编排生产准备检查', () => {
     const source = readUtf8('api/routes/orders.cjs');
     const helper = sliceBetween(source, 'function buildReadinessContextForOrderRecord', 'function buildReadinessForOrderRecord');
+    const shared = readUtf8('api/services/activeOrderReadiness.cjs');
     const section = sliceBetween(source, "router.get('/:id/readiness'", "router.post('/save-payload-draft'");
-    assert.match(helper, /buildBalancedOrderPlans/);
-    assert.match(helper, /buildOrderReadiness/);
-    assert.match(helper, /dbGetAllParts\(\)/);
-    assert.match(helper, /dbGetAllCoils\(\)/);
-    assert.match(helper, /dbGetAllRecipes\(\)/);
+    assert.match(helper, /buildOrderReadinessContext\(record\)/);
+    assert.match(shared, /buildBalancedOrderPlans/);
+    assert.match(shared, /buildOrderReadiness/);
+    assert.match(shared, /dbGetAllParts\(\)/);
+    assert.match(shared, /dbGetAllCoils\(\)/);
+    assert.match(shared, /dbGetAllRecipes\(\)/);
     assert.match(section, /buildReadinessForOrderRecord/);
     assertNoWrites(helper);
+    assertNoWrites(shared);
     assert.doesNotMatch(section, /safeInsert|safeUpdate|softDelete|hardDelete/);
     assert.match(section, /success:\s*true,\s*data:/);
 });

@@ -1,4 +1,5 @@
 const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
+const { recordWorkflowRun } = require('./workflowRunRecorder.cjs');
 
 function parseJsonArray(value) {
     try {
@@ -290,19 +291,87 @@ async function executeOrderTool(toolName, args, internalFetch) {
             if (!['confirm_order', 'generate_purchase_plan'].includes(actionId)) {
                 return { success: false, error: `不支持的订单处理步骤：${actionId}` };
             }
-            const data = await postJson(
-                internalFetch,
-                `/api/orders/${orderId}/readiness-actions/${encodeURIComponent(actionId)}`,
-                {},
-                '订单处理步骤执行失败'
-            );
-            return {
-                success: true,
-                intent: 'order_readiness_action',
-                message: `已执行：${data.action?.title || actionId}`,
-                display: { mode: 'compact', title: '订单处理结果' },
-                data,
-            };
+            const startedAt = new Date().toISOString();
+            let currentPlan = null;
+            try {
+                currentPlan = await postJson(
+                    internalFetch,
+                    '/api/workbench/execution-plan',
+                    {
+                        workflowType: 'order_readiness',
+                        orderId,
+                        goal: `处理订单 #${orderId} 的生产准备问题`,
+                    },
+                    '执行前刷新订单计划失败'
+                );
+                const step = (Array.isArray(currentPlan.steps) ? currentPlan.steps : [])
+                    .find(item => item.id === actionId);
+                if (!step || step.status !== 'available' || step.canExecute !== true) {
+                    throw new Error(`当前计划中的“${actionId}”步骤已不可执行，请按最新状态处理。`);
+                }
+                const data = await postJson(
+                    internalFetch,
+                    `/api/orders/${orderId}/readiness-actions/${encodeURIComponent(actionId)}`,
+                    {},
+                    '订单处理步骤执行失败'
+                );
+                const recorded = await recordWorkflowRun(internalFetch, {
+                    workflowType: 'order_readiness',
+                    subjectType: 'order',
+                    subjectId: orderId,
+                    actionId,
+                    toolName: 'execute_order_readiness_action',
+                    status: 'completed',
+                    plan: currentPlan,
+                    result: {
+                        orderId,
+                        orderStatus: data.order?.status || '',
+                        nextPlanStatus: data.nextPlan?.planStatus || '',
+                    },
+                    recheck: data.nextPlan || {},
+                    outcomeSummary: `订单 #${orderId} 已执行“${data.action?.title || actionId}”`,
+                    startedAt,
+                });
+                return {
+                    success: true,
+                    intent: 'order_readiness_action',
+                    message: `已执行：${data.action?.title || actionId}`,
+                    display: { mode: 'compact', title: '订单处理结果' },
+                    data: {
+                        ...data,
+                        executionRun: recorded.run,
+                        historyWarning: recorded.warning,
+                    },
+                };
+            } catch (error) {
+                const fallbackPlan = currentPlan || {
+                    workflowType: 'order_readiness',
+                    subject: { type: 'order', id: orderId },
+                    steps: [],
+                };
+                const recorded = await recordWorkflowRun(internalFetch, {
+                    workflowType: 'order_readiness',
+                    subjectType: 'order',
+                    subjectId: orderId,
+                    actionId,
+                    toolName: 'execute_order_readiness_action',
+                    status: 'failed',
+                    plan: fallbackPlan,
+                    recheck: currentPlan || {},
+                    outcomeSummary: '订单处理步骤执行失败',
+                    error: error.message,
+                    startedAt,
+                });
+                return {
+                    success: false,
+                    error: error.message,
+                    data: {
+                        currentPlan,
+                        executionRun: recorded.run,
+                        historyWarning: recorded.warning,
+                    },
+                };
+            }
         }
 
         case 'update_order_status': {

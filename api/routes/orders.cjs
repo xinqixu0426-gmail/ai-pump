@@ -1,10 +1,12 @@
 const { Router } = require('express');
 const { randomUUID } = require('crypto');
-const { db, dbGetAllOrders, dbGetAllParts, dbGetAllCoils, dbGetAllRecipes, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
+const { db, dbGetAllOrders, dbGetAllParts, dbGetAllCoils, orderRow, safeInsert, safeUpdate, softDelete, invalidatePartsCache } = require('../db.cjs');
 const { buildOrderPlan, buildBalancedOrderPlans } = require('../services/orderPlanning.cjs');
-const { buildOrderReadiness } = require('../services/orderReadiness.cjs');
 const { buildOrderReadinessPlan } = require('../services/orderReadinessPlan.cjs');
-const { buildActiveOrdersReadinessOverview } = require('../services/activeOrderReadiness.cjs');
+const {
+    buildActiveOrdersReadinessOverview,
+    buildOrderReadinessContext,
+} = require('../services/activeOrderReadiness.cjs');
 const { adjustCoilStock } = require('../services/coilInventory.cjs');
 const {
     ORDER_STATUSES,
@@ -497,21 +499,7 @@ router.post('/purchase-plan', (req, res) => {
 });
 
 function buildReadinessContextForOrderRecord(record) {
-    const id = Number(record.id);
-    const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
-    const parts = dbGetAllParts();
-    const plans = buildBalancedOrderPlans(activeOrders, parts, {
-        coilsCatalog: dbGetAllCoils(),
-    });
-    const plan = plans.get(id) || buildOrderPlan(parseOrderJsonArray(record, 'items_json'), parts, {
-        coilsCatalog: dbGetAllCoils(),
-    });
-    const readiness = buildOrderReadiness({
-        order: orderRow(record),
-        plan,
-        recipes: dbGetAllRecipes(),
-    });
-    return { plan, readiness };
+    return buildOrderReadinessContext(record);
 }
 
 function buildReadinessForOrderRecord(record) {

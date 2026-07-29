@@ -200,6 +200,7 @@ function packingSummary(value: unknown): string {
 export function QuotationsView() {
   const searchParams = useSearchParams();
   const consumedPrefillRef = useRef('');
+  const consumedViewQuotationRef = useRef('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -259,6 +260,7 @@ export function QuotationsView() {
   const prefillCustomerId = searchParams.get('customerId') || '';
   const shouldCreateFromQuery = searchParams.get('create') === '1';
   const prefillKey = `${shouldCreateFromQuery}:${prefillCustomerId}`;
+  const viewQuotationId = searchParams.get('quotationId') || '';
   const packagingOptions = useMemo(() => {
     const options = new Map<string, PackingOption>();
     const packingUsageCounts = new Map<string, Map<string, { count: number; part: QuotationPackingPart }>>();
@@ -358,6 +360,28 @@ export function QuotationsView() {
     setFormError(null);
     setDrawerOpen(true);
   }, [customers, loading, prefillCustomerId, prefillKey, shouldCreateFromQuery]);
+
+  useEffect(() => {
+    if (loading || !viewQuotationId || consumedViewQuotationRef.current === viewQuotationId) return;
+    const numericId = Number(viewQuotationId);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      consumedViewQuotationRef.current = viewQuotationId;
+      return;
+    }
+    const target = quotations.find((quotation) => quotation.id === numericId);
+    if (!target) {
+      consumedViewQuotationRef.current = viewQuotationId;
+      setError(`报价 #${numericId} 不存在或已删除`);
+      return;
+    }
+
+    consumedViewQuotationRef.current = viewQuotationId;
+    setDrawerOpen(false);
+    setEditingQuotation(null);
+    setConvertTarget(null);
+    setConvertDraft(null);
+    setViewQuotation(target);
+  }, [loading, quotations, viewQuotationId]);
 
   async function saveStatus(quotation: Quotation, nextStatus: QuotationStatus) {
     if (quotation.status === nextStatus) return;

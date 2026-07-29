@@ -14,6 +14,27 @@ function loadDbAccessors() {
     return require('../db.cjs');
 }
 
+function buildOrderReadinessContext(record, options = {}) {
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const database = options.db || accessors.db;
+    const records = options.records || database.prepare(ACTIVE_ORDERS_SQL).all();
+    const parts = options.parts || accessors.dbGetAllParts();
+    const coils = options.coils || accessors.dbGetAllCoils();
+    const recipes = options.recipes || accessors.dbGetAllRecipes();
+    const plans = options.plans || buildBalancedOrderPlans(records, parts, { coilsCatalog: coils });
+    const plan = plans.get(Number(record.id)) || buildOrderPlan(
+        parseJsonArray(record.items_json),
+        parts,
+        { coilsCatalog: coils }
+    );
+    const readiness = buildOrderReadiness({
+        order: accessors.orderRow(record),
+        plan,
+        recipes,
+    });
+    return { plan, readiness };
+}
+
 function buildActiveOrdersReadinessOverview(options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const database = options.db || accessors.db;
@@ -23,15 +44,14 @@ function buildActiveOrdersReadinessOverview(options = {}) {
     const recipes = options.recipes || accessors.dbGetAllRecipes();
     const plans = buildBalancedOrderPlans(records, parts, { coilsCatalog: coils });
     const entries = records.map(record => {
-        const plan = plans.get(Number(record.id)) || buildOrderPlan(
-            parseJsonArray(record.items_json),
+        const { readiness } = buildOrderReadinessContext(record, {
+            dbAccessors: accessors,
+            db: database,
+            records,
             parts,
-            { coilsCatalog: coils }
-        );
-        const readiness = buildOrderReadiness({
-            order: accessors.orderRow(record),
-            plan,
+            coils,
             recipes,
+            plans,
         });
         return {
             readiness,
@@ -41,4 +61,8 @@ function buildActiveOrdersReadinessOverview(options = {}) {
     return buildOrderReadinessOverview(entries, { now: options.now });
 }
 
-module.exports = { ACTIVE_ORDERS_SQL, buildActiveOrdersReadinessOverview };
+module.exports = {
+    ACTIVE_ORDERS_SQL,
+    buildActiveOrdersReadinessOverview,
+    buildOrderReadinessContext,
+};

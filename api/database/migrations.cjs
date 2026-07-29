@@ -1170,6 +1170,44 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 30,
+        name: 'factory_workflow_execution_history',
+        signature: 'factory-workflow-execution-history-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factory_workflow_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workflow_type TEXT NOT NULL
+                        CHECK(workflow_type IN ('order_readiness', 'quotation_to_order', 'management_action')),
+                    subject_type TEXT NOT NULL,
+                    subject_id TEXT NOT NULL,
+                    action_id TEXT NOT NULL,
+                    tool_name TEXT NOT NULL
+                        CHECK(tool_name IN ('execute_order_readiness_action', 'execute_factory_workflow_step')),
+                    status TEXT NOT NULL
+                        CHECK(status IN ('completed', 'failed')),
+                    attempt_number INTEGER NOT NULL DEFAULT 1 CHECK(attempt_number >= 1),
+                    plan_fingerprint TEXT NOT NULL,
+                    plan_json TEXT NOT NULL DEFAULT '{}',
+                    result_json TEXT NOT NULL DEFAULT '{}',
+                    recheck_json TEXT NOT NULL DEFAULT '{}',
+                    outcome_summary TEXT DEFAULT '',
+                    error_text TEXT DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_factory_workflow_runs_subject
+                    ON factory_workflow_runs(workflow_type, subject_id, created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_factory_workflow_runs_action
+                    ON factory_workflow_runs(workflow_type, subject_id, action_id, created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_factory_workflow_runs_status
+                    ON factory_workflow_runs(status, created_at DESC, id DESC);
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

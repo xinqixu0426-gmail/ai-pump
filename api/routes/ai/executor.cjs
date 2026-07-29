@@ -21,6 +21,7 @@ const TOOL_LABELS = {
     get_management_action_center: '读取管理待办',
     get_order_readiness_overview: '读取订单准备总览',
     execute_order_readiness_action: '执行订单处理步骤',
+    execute_factory_workflow_step: '执行工厂工作流步骤',
     create_recipe: '新建配方',
     delete_recipe: '删除配方',
     update_recipe: '修改配方',
@@ -129,6 +130,11 @@ function buildConfirmationRows(toolName, args = {}) {
                 : args.actionId === 'generate_purchase_plan'
                     ? '生成采购清单'
                     : args.actionId);
+            break;
+        case 'execute_factory_workflow_step':
+            addRow(rows, '工作流', args.workflowType === 'quotation_to_order' ? '报价转订单' : args.workflowType);
+            addRow(rows, '报价ID', args.quotationId);
+            addRow(rows, '处理步骤', args.actionId === 'convert_quotation' ? '确认转单并检查新订单' : args.actionId);
             break;
         case 'update_order_status':
             addRow(rows, '订单ID', args.orderId);

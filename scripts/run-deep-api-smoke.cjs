@@ -483,6 +483,56 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('报价接受', 'POST', `/api/quotations/${quotation.id}/status`, {
         status: '已接受',
     });
+    const workflowBeforeConvert = (await request(
+        'V8报价转单计划',
+        'POST',
+        '/api/workbench/execution-plan',
+        {
+            workflowType: 'quotation_to_order',
+            quotationId: quotation.id,
+        }
+    )).payload.data;
+    const conversionStep = workflowBeforeConvert.steps.find(item => item.id === 'convert_quotation');
+    assert(workflowBeforeConvert.status === 'ready', '已接受报价未进入可执行计划状态');
+    assert(
+        conversionStep?.status === 'available'
+        && conversionStep?.canExecute === true
+        && conversionStep?.confirmation?.toolName === 'execute_factory_workflow_step',
+        '报价转单计划没有返回受保护的跨模块执行步骤'
+    );
+    const failedWorkflowRun = (await request(
+        'V8.4记录失败执行',
+        'POST',
+        '/api/workbench/execution-runs',
+        {
+            workflowType: 'quotation_to_order',
+            subjectType: 'quotation',
+            subjectId: quotation.id,
+            actionId: 'convert_quotation',
+            toolName: 'execute_factory_workflow_step',
+            status: 'failed',
+            plan: workflowBeforeConvert,
+            recheck: workflowBeforeConvert,
+            outcomeSummary: '隔离验收模拟失败',
+            error: '隔离验收模拟错误',
+        },
+        [201]
+    )).payload.data;
+    assert(failedWorkflowRun.status === 'failed', '失败执行记录状态错误');
+    const retryPlan = (await request(
+        'V8.4失败后恢复计划',
+        'POST',
+        '/api/workbench/execution-plan',
+        {
+            workflowType: 'quotation_to_order',
+            quotationId: quotation.id,
+        }
+    )).payload.data;
+    assert(
+        retryPlan.executionHistory?.recovery?.state === 'retry_available'
+        && retryPlan.executionHistory.recovery.recoverableActionIds.includes('convert_quotation'),
+        '失败步骤在当前计划仍可执行时没有提供安全恢复'
+    );
     const converted = (await request(
         '报价转订单',
         'POST',
@@ -490,6 +540,64 @@ async function testCrossModuleWriteFlow(baseResources) {
         {},
         [201]
     )).payload.data;
+    const workflowAfterConvert = (await request(
+        'V8转单后计划复查',
+        'POST',
+        '/api/workbench/execution-plan',
+        {
+            workflowType: 'quotation_to_order',
+            quotationId: quotation.id,
+        }
+    )).payload.data;
+    assert(workflowAfterConvert.status === 'complete', '报价转单后执行计划没有自动完成');
+    assert(
+        workflowAfterConvert.steps.some(item => item.id === 'quotation_already_converted' && item.status === 'complete'),
+        '报价转单后计划缺少防重复完成状态'
+    );
+    const completedWorkflowRun = (await request(
+        'V8.4记录成功执行',
+        'POST',
+        '/api/workbench/execution-runs',
+        {
+            workflowType: 'quotation_to_order',
+            subjectType: 'quotation',
+            subjectId: quotation.id,
+            actionId: 'convert_quotation',
+            toolName: 'execute_factory_workflow_step',
+            status: 'completed',
+            plan: workflowBeforeConvert,
+            result: { orderId: converted.order.id },
+            recheck: workflowAfterConvert,
+            outcomeSummary: `报价已转为订单 #${converted.order.id}`,
+        },
+        [201]
+    )).payload.data;
+    assert(completedWorkflowRun.attemptNumber === 2, '执行历史尝试次数没有递增');
+    const workflowHistory = (await request(
+        'V8.4读取执行历史',
+        'GET',
+        `/api/workbench/execution-runs?workflowType=quotation_to_order&subjectId=${quotation.id}`
+    )).payload.data;
+    assert(
+        workflowHistory.metrics.completedCount === 1
+        && workflowHistory.metrics.failedCount === 1
+        && workflowHistory.items[0].status === 'completed',
+        '执行历史没有正确汇总成功和失败'
+    );
+    const completedRecoveryPlan = (await request(
+        'V8.4完成后防重复计划',
+        'POST',
+        '/api/workbench/execution-plan',
+        {
+            workflowType: 'quotation_to_order',
+            quotationId: quotation.id,
+        }
+    )).payload.data;
+    assert(
+        completedRecoveryPlan.executionHistory?.recovery?.state === 'complete'
+        && completedRecoveryPlan.metrics.executableSteps === 0,
+        '已完成写操作仍被计划标记为可重复执行'
+    );
     const order = (await request(
         '新订单详情',
         'GET',

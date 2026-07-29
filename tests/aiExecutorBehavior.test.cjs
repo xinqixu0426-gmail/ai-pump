@@ -250,6 +250,214 @@ test('AI executor 行为：统一管理待办通过只读标准 API 返回实时
     ]);
 });
 
+test('AI executor 行为：V8 工厂执行计划通过只读工作台 API 生成', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/workbench/execution-plan') && call.method === 'POST') {
+            assert.deepEqual(call.body, {
+                workflowType: 'quotation_to_order',
+                goal: '转单后检查生产准备',
+                quotationId: 5,
+            });
+            return jsonResponse({
+                success: true,
+                data: {
+                    workflowType: 'quotation_to_order',
+                    generatedAt: '2026-07-29T00:00:00.000Z',
+                    status: 'needs_input',
+                    summary: '报价 #5 需先确认客户是否接受，再进入转单。',
+                    metrics: { totalSteps: 4, executableSteps: 0 },
+                    steps: [],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('plan_factory_workflow', {
+        workflowType: 'quotation_to_order',
+        goal: '转单后检查生产准备',
+        quotationId: 5,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'factory_execution_plan');
+    assert.equal(result.data.status, 'needs_input');
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/workbench/execution-plan',
+    ]);
+});
+
+test('AI executor 行为：V8.2 跨模块执行步骤未确认时只返回确认卡片', async () => {
+    const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用 API' }, 500));
+    const args = {
+        workflowType: 'quotation_to_order',
+        quotationId: 5,
+        actionId: 'convert_quotation',
+    };
+
+    const result = await executeToolCall('execute_factory_workflow_step', args, { allowWrite: false });
+
+    assert.equal(result.requiresConfirmation, true);
+    assert.equal(result.confirmation.toolName, 'execute_factory_workflow_step');
+    assert.equal(result.confirmation.args.quotationId, 5);
+    assert.equal(result.confirmation.rows.some(item => item.label === '工作流' && item.value === '报价转订单'), true);
+    assert.equal(calls.length, 0);
+});
+
+test('AI executor 行为：V8.2 确认后重验计划、事务转单并检查新订单', async () => {
+    let planReads = 0;
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/workbench/execution-plan') && call.method === 'POST') {
+            planReads += 1;
+            assert.deepEqual(call.body, {
+                workflowType: 'quotation_to_order',
+                quotationId: 5,
+                goal: '将报价 #5 转为订单并检查生产准备',
+            });
+            if (planReads === 1) {
+                return jsonResponse({
+                    success: true,
+                    data: {
+                        status: 'ready',
+                        steps: [{
+                            id: 'convert_quotation',
+                            mode: 'confirmable',
+                            status: 'available',
+                            canExecute: true,
+                            confirmation: {
+                                toolName: 'execute_factory_workflow_step',
+                                args: {
+                                    workflowType: 'quotation_to_order',
+                                    quotationId: 5,
+                                    actionId: 'convert_quotation',
+                                },
+                            },
+                        }],
+                    },
+                });
+            }
+            return jsonResponse({
+                success: true,
+                data: {
+                    status: 'complete',
+                    summary: '报价 #5 已转为订单 #21，不会重复转单。',
+                    steps: [{ id: 'quotation_already_converted', status: 'complete' }],
+                },
+            });
+        }
+        if (call.url.endsWith('/api/quotations/5/order-draft') && call.method === 'POST') {
+            return jsonResponse({ success: true, data: { customerName: '测试客户', items: [{ id: 'item-1' }] } });
+        }
+        if (call.url.endsWith('/api/quotations/5/convert') && call.method === 'POST') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    quotation: { id: 5, status: '已转订单', convertedOrderId: 21 },
+                    order: { id: 21, customerName: '测试客户', status: '待采购' },
+                },
+            }, 201);
+        }
+        if (call.url.endsWith('/api/orders/21/readiness-plan') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    order: { id: 21, customerName: '测试客户', status: '待采购' },
+                    planStatus: 'waiting',
+                    summary: '订单 #21 等待采购到货。',
+                    steps: [{ id: 'track_purchase_arrival', status: 'waiting', mode: 'monitor' }],
+                },
+            });
+        }
+        if (call.url.endsWith('/api/workbench/execution-runs') && call.method === 'POST') {
+            assert.equal(call.body.status, 'completed');
+            assert.equal(call.body.actionId, 'convert_quotation');
+            assert.equal(call.body.result.orderId, 21);
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 31,
+                    status: 'completed',
+                    attemptNumber: 1,
+                    actionId: 'convert_quotation',
+                    outcomeSummary: '报价 #5 已转为订单 #21',
+                },
+            }, 201);
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('execute_factory_workflow_step', {
+        workflowType: 'quotation_to_order',
+        quotationId: 5,
+        actionId: 'convert_quotation',
+    }, { allowWrite: true });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'factory_workflow_action');
+    assert.equal(result.data.order.id, 21);
+    assert.equal(result.data.nextPlan.planStatus, 'waiting');
+    assert.equal(result.data.workflowPlan.status, 'complete');
+    assert.equal(result.data.executionRun.id, 31);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/workbench/execution-plan',
+        'POST /api/quotations/5/order-draft',
+        'POST /api/quotations/5/convert',
+        'GET /api/orders/21/readiness-plan',
+        'POST /api/workbench/execution-plan',
+        'POST /api/workbench/execution-runs',
+    ]);
+});
+
+test('AI executor 行为：V8.2 计划过期时停止且不调用转单接口', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/workbench/execution-plan') && call.method === 'POST') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    status: 'needs_input',
+                    steps: [{
+                        id: 'convert_quotation',
+                        mode: 'confirmable',
+                        status: 'blocked',
+                        canExecute: false,
+                        confirmation: null,
+                    }],
+                },
+            });
+        }
+        if (call.url.endsWith('/api/workbench/execution-runs') && call.method === 'POST') {
+            assert.equal(call.body.status, 'failed');
+            assert.match(call.body.error, /已不可执行/);
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 32,
+                    status: 'failed',
+                    attemptNumber: 1,
+                    actionId: 'convert_quotation',
+                    errorText: call.body.error,
+                },
+            }, 201);
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('execute_factory_workflow_step', {
+        workflowType: 'quotation_to_order',
+        quotationId: 5,
+        actionId: 'convert_quotation',
+    }, { allowWrite: true });
+
+    assert.equal(result.success, false);
+    assert.match(result.error, /已不可执行/);
+    assert.equal(result.data.executionRun.id, 32);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/workbench/execution-plan',
+        'POST /api/workbench/execution-runs',
+    ]);
+});
+
 test('AI executor 行为：客户名匹配多个订单时要求明确而不猜测', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/orders/lookup?query=%E6%B5%8B%E8%AF%95%E5%AE%A2%E6%88%B7') && call.method === 'GET') {
@@ -325,6 +533,27 @@ test('AI executor 行为：订单方案步骤未确认时只返回确认卡片',
 
 test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', async () => {
     const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/workbench/execution-plan') && call.method === 'POST') {
+            assert.deepEqual(call.body, {
+                workflowType: 'order_readiness',
+                orderId: 12,
+                goal: '处理订单 #12 的生产准备问题',
+            });
+            return jsonResponse({
+                success: true,
+                data: {
+                    workflowType: 'order_readiness',
+                    status: 'ready',
+                    subject: { type: 'order', id: 12 },
+                    steps: [{
+                        id: 'confirm_order',
+                        mode: 'confirmable',
+                        status: 'available',
+                        canExecute: true,
+                    }],
+                },
+            });
+        }
         if (call.url.endsWith('/api/orders/12/readiness-actions/confirm_order') && call.method === 'POST') {
             assert.deepEqual(call.body, {});
             return jsonResponse({
@@ -340,6 +569,20 @@ test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', 
                 },
             });
         }
+        if (call.url.endsWith('/api/workbench/execution-runs') && call.method === 'POST') {
+            assert.equal(call.body.status, 'completed');
+            assert.equal(call.body.actionId, 'confirm_order');
+            assert.equal(call.body.result.orderStatus, '待采购');
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 33,
+                    status: 'completed',
+                    attemptNumber: 1,
+                    actionId: 'confirm_order',
+                },
+            }, 201);
+        }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
 
@@ -352,8 +595,11 @@ test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', 
     assert.equal(result.intent, 'order_readiness_action');
     assert.equal(result.data.action.id, 'confirm_order');
     assert.equal(result.data.order.status, '待采购');
+    assert.equal(result.data.executionRun.id, 33);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/workbench/execution-plan',
         'POST /api/orders/12/readiness-actions/confirm_order',
+        'POST /api/workbench/execution-runs',
     ]);
 });
 

@@ -758,6 +758,7 @@ const APPLICATION_TABLES = Object.freeze([
     'customers',
     'factory_rule_candidates',
     'factory_rule_events',
+    'factory_workflow_runs',
     'knowledge_embeddings',
     'knowledge_entries',
     'knowledge_documents',

@@ -1124,6 +1124,45 @@ test('API 静态契约：V7.4 业务写入后自动复查并统一汇总处理�
     assert.match(dashboard, /自动归档记录/);
 });
 
+test('API 静态契约：V8.2 报价转单只复用确认、事务接口和实时复查', () => {
+    const plan = readUtf8(path.join(repoRoot, 'api/services/factoryExecutionPlan.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const quotationRoute = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+
+    assert.match(plan, /toolName: 'execute_factory_workflow_step'/);
+    assert.match(plan, /actionId: 'convert_quotation'/);
+    assert.match(tools, /'execute_factory_workflow_step'/);
+    assert.match(executor, /执行前刷新工厂计划失败/);
+    assert.match(executor, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
+    assert.match(executor, /\/api\/quotations\/\$\{quotationId\}\/convert/);
+    assert.match(executor, /\/api\/orders\/\$\{orderId\}\/readiness-plan/);
+    assert.match(quotationRoute, /const convert = db\.transaction/);
+    assert.match(quotationRoute, /该报价已经转为订单，不能重复转单/);
+});
+
+test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复边界', () => {
+    const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const history = readUtf8(path.join(repoRoot, 'api/services/factoryWorkflowHistory.cjs'));
+    const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
+    const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const orderExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+
+    assert.match(migrations, /version: 30/);
+    assert.match(migrations, /CREATE TABLE IF NOT EXISTS factory_workflow_runs/);
+    assert.match(schema, /'factory_workflow_runs'/);
+    assert.match(db, /'factory_workflow_runs'/);
+    assert.match(history, /plan_fingerprint/);
+    assert.match(history, /latestRecheck/);
+    assert.match(history, /recoverableActionIds/);
+    assert.match(workbench, /\/execution-runs/);
+    assert.match(businessExecutor, /status: writeCompleted \? 'completed' : 'failed'/);
+    assert.match(orderExecutor, /status: 'failed'/);
+    assert.match(orderExecutor, /执行前刷新订单计划失败/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

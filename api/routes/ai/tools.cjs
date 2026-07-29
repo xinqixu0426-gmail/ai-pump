@@ -702,6 +702,52 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'plan_factory_workflow',
+            description: 'V8 统一执行计划：把订单生产准备、报价转订单或当前管理待办拆成按依赖排序的结构化步骤，明确自动检查、需要业务判断、需要确认、人工处理、等待和阻塞状态，并返回最近执行记录、失败原因、最新复查和可恢复步骤。工具本身只读。只有返回 canExecute=true 且带 confirmation 的步骤才表示已有安全执行器；恢复时还必须是 recovery.state=retry_available。canExecute=false 的确认步骤必须进入返回的业务页面处理。用户问“帮我规划处理流程”“一步步怎么做”“继续上次失败的操作”“把报价转订单后继续检查”“按顺序处理这些待办”时使用。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    workflowType: {
+                        type: 'string',
+                        enum: ['order_readiness', 'quotation_to_order', 'management_action'],
+                        description: '订单准备、报价转订单或管理待办'
+                    },
+                    goal: { type: 'string', description: '用户想完成的业务目标，可选' },
+                    orderId: { type: 'number', description: 'order_readiness 必填的订单ID' },
+                    quotationId: { type: 'number', description: 'quotation_to_order 必填的报价ID' },
+                    actionId: { type: 'string', description: 'management_action 可选的稳定待办ID；不传时规划当前前三项' }
+                },
+                required: ['workflowType']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'execute_factory_workflow_step',
+            description: '执行 V8 工厂执行计划中当前已解锁的跨模块写步骤。当前仅支持 quotation_to_order 的 convert_quotation：必须先在本轮调用 plan_factory_workflow，使用其返回的精确 quotationId/actionId；调用后显示确认卡片。用户确认时会重新生成实时计划、预检订单草稿、调用事务转单接口，并自动检查新订单生产准备。计划过期、报价未接受、已转单、资料不完整或步骤受阻时立即停止。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    workflowType: {
+                        type: 'string',
+                        enum: ['quotation_to_order'],
+                        description: '当前执行工作流类型'
+                    },
+                    quotationId: { type: 'number', description: '当前执行计划中的报价ID' },
+                    actionId: {
+                        type: 'string',
+                        enum: ['convert_quotation'],
+                        description: '当前计划中 status=available、canExecute=true 的步骤ID'
+                    }
+                },
+                required: ['workflowType', 'quotationId', 'actionId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_business_alerts',
             description: '获取报价和订单经营异常提醒，不写库。适合用户问“现在还有哪些报价订单风险”“有什么需要跟进”“哪些订单卡住了”。',
             parameters: { type: 'object', properties: {} }
@@ -938,6 +984,7 @@ const WRITE_TOOLS = new Set([
     'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list',
     'execute_order_readiness_action',
+    'execute_factory_workflow_step',
     'create_recipe', 'delete_recipe', 'update_recipe',
     'sync_factory_knowledge',
     'set_recipe_analysis_feedback',
