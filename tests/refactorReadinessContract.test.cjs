@@ -296,6 +296,56 @@ test('Next UI 契约：知识库管理中心融合进看板并保持同步确认
     assert.match(docs, /只读内容哈希比较/);
 });
 
+test('API 静态契约：Knowledge V6.3 增量向量与混合检索均保留 FTS 回退', () => {
+    const knowledge = readUtf8('api/services/knowledge.cjs');
+    const hybridSearch = readUtf8('api/services/knowledgeHybridSearch.cjs');
+    const vectorSync = readUtf8('api/services/knowledgeVectorSync.cjs');
+    const autoSync = readUtf8('api/services/knowledgeVectorAutoSync.cjs');
+    const vectorStore = readUtf8('api/services/knowledgeVectorStore.cjs');
+    const docs = readUtf8('docs/api-reference.md');
+
+    assert.match(knowledge, /requestKnowledgeVectorRefresh/);
+    assert.match(vectorSync, /entry\.content_hash/);
+    assert.match(vectorSync, /provider\.embedPassages/);
+    assert.match(vectorSync, /stats\.failed/);
+    assert.match(vectorSync, /model <> \?/);
+    assert.match(autoSync, /DEFAULT_RETRY_DELAYS_MS/);
+    assert.match(autoSync, /void run\(\)/);
+    assert.match(hybridSearch, /searchKnowledgeEntries/);
+    assert.match(hybridSearch, /provider\.embedQuery/);
+    assert.match(hybridSearch, /matchMode/);
+    assert.match(hybridSearch, /回退到 FTS\/LIKE/);
+    assert.match(vectorStore, /searchMode = operational && hybridEnabled \? 'hybrid' : 'fts'/);
+    assert.match(docs, /knowledge_vector_sync_runs/);
+    assert.match(docs, /V6\.3/);
+});
+
+test('API 静态契约：Knowledge V6.4 检索评测和备份恢复可无人值守执行', () => {
+    const evaluation = readUtf8('api/services/knowledgeRetrievalEvaluation.cjs');
+    const runner = readUtf8('scripts/run-knowledge-retrieval-evaluation.cjs');
+    const backupCheck = readUtf8('scripts/check-knowledge-vector-backup.cjs');
+    const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const knowledgeLib = readUtf8('apps/web-next/lib/knowledge.ts');
+    const packageJson = readUtf8('package.json');
+    const docs = readUtf8('docs/api-reference.md');
+
+    assert.match(evaluation, /FIXED_RETRIEVAL_CASES/);
+    assert.match(evaluation, /metrics/);
+    assert.match(evaluation, /keyword/);
+    assert.match(evaluation, /vector/);
+    assert.match(evaluation, /hybrid/);
+    assert.match(runner, /retrieval-evaluation/);
+    assert.match(backupCheck, /source\.backup/);
+    assert.match(backupCheck, /integrity_check/);
+    assert.match(backupCheck, /searchStoredEmbeddings/);
+    assert.match(knowledgeView, /向量检索/);
+    assert.match(knowledgeView, /coveragePercent/);
+    assert.match(knowledgeLib, /\/api\/knowledge\/vector-health/);
+    assert.match(packageJson, /"test:knowledge-retrieval"/);
+    assert.match(packageJson, /"knowledge:backup-check"/);
+    assert.match(docs, /retrieval-evaluation/);
+});
+
 test('Next UI 契约：AI 回复展示可点击依据并保留新鲜度警告', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');

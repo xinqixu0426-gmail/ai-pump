@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `19`：
+当前版本为 `28`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -39,6 +39,15 @@
 | 13-17 | 知识回归规则修订 | 修订测试报告、线圈和成品电缆的回归语义 |
 | 18 | `add_coil_inventory_ledger` | 为正式线圈方案增加成品库存，并建立可追溯库存流水 |
 | 19 | `factory_rule_learning_evidence` | 为候选规则增加确认、特殊情况、忽略、置信度、证据指纹和复核状态 |
+| 20 | `factory_rule_lifecycle_events` | 保存工厂规则候选、审核、失效和恢复的不可覆盖生命周期事件 |
+| 21 | `knowledge_sync_run_history` | 保存知识同步模式、结果、变更统计、耗时和错误原因 |
+| 22 | `knowledge_external_documents` | 保存独立工厂资料、解析状态、提取文本和可选原文件 |
+| 23 | `knowledge_vector_storage` | 保存按知识条目和 embedding 模型唯一的本地向量、维度及内容哈希 |
+| 24 | `knowledge_vector_sync_history` | 保存向量同步模型、维度、增删改跳过失败统计、待处理数量和耗时 |
+| 25 | `cutting_shell_evidence_regression` | 增加切割用途必须采用明确来源的 AI 回归案例 |
+| 26 | `strengthen_cutting_shell_regression` | 补充切割泵壳、长螺丝和刀片业务语义约束 |
+| 27 | `accept_equivalent_regression_phrasing` | 允许等价安全表述并保持错误结论禁用词 |
+| 28 | `align_cutting_regression_with_rule_authority` | 将切割用途回归来源对齐到正式业务规则知识 |
 
 ## 数据治理
 
@@ -46,6 +55,8 @@
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
+- `knowledge_embeddings` 是可重建的派生索引，使用 `entry_id + model` 唯一约束并通过外键级联删除；只有 `content_hash` 与当前 `knowledge_entries` 一致的向量才可参与检索。
+- `knowledge_vector_sync_runs` 只记录派生向量任务结果，最多保留最近 200 次；记录失败不能反向破坏已生成向量。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。

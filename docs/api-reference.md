@@ -454,11 +454,14 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 | `GET` | `/api/knowledge/overview` | 无 | 只读生成当前业务知识快照，并用 `sourceTable + sourceId + contentHash` 与已同步条目比较；返回条目总量、分类覆盖、最近同步时间、FTS 状态、待新增/更新/移除清单和 `autoSync` 运行状态，不写数据库 |
 | `GET` | `/api/knowledge/sync-runs` | 查询参数 `limit?`, `status?=success/failed` | 读取最近同步运行历史和汇总；返回自动/即时/手动模式、成功或失败、触发来源、尝试次数、耗时、变更统计和错误原因，最多保留最近 200 次 |
 | `GET` | `/api/knowledge/health` | 无 | 只读检查自动同步关闭、等待或运行超时、未安排的知识变化和最近失败；返回 `healthy/attention/critical`、问题明细及是否建议人工恢复 |
+| `GET` | `/api/knowledge/vector-health` | 无 | 只读返回向量扩展、embedding 模型、缓存目录、后台队列、覆盖率及最近运行；组件可用且混合检索开关开启时 `searchMode=hybrid`，否则为 `fts` |
+| `GET` | `/api/knowledge/vector-sync-runs` | 查询参数 `limit?`, `status?=success/failed` | 读取最近向量同步历史和汇总，包含模型、维度、新增、更新、跳过、删除、失败、待处理和耗时，最多保留最近 200 次 |
+| `GET` | `/api/knowledge/retrieval-evaluation` | 无 | 只读运行固定中文检索评测，对比 FTS/BM25、纯向量和混合检索的 Top 1/Top 3；返回逐项期望、名次、前三标题及验收结论，不调用外部 AI、不写数据库 |
 | `GET` | `/api/knowledge/documents` | 无 | 列出未删除的独立工厂资料元数据，不返回文件二进制和提取全文 |
 | `POST` | `/api/knowledge/documents` | `multipart/form-data`: `documentType`, `title`, `description?`, `contentText?`, `tags?`, `file?` | 导入独立工厂资料；必须填写技术内容或上传文件，文件最大 10MB，支持 `.txt/.md/.csv/.xls/.xlsx/.pdf` |
 | `GET` | `/api/knowledge/documents/:id/download` | 无 | 下载独立工厂资料原文件 |
 | `DELETE` | `/api/knowledge/documents/:id` | 无 | 软删除原始资料，自动移除对应派生知识 |
-| `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
+| `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 使用 FTS/BM25 + 向量混合搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。每项附带 `matchMode/evidenceLevel/exactMatch/keywordRank/vectorDistance/finalScore`；`evidenceLevel=semantic_candidate` 表示纯语义候选，不能单独证明用途、兼容性或专用配件关系。型号、规格、客户名和合同号等精确命中优先。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
 | `POST` | `/api/knowledge/sync` | 无 | 人工全量核对当前来源，按内容哈希新增、更新和移除 `knowledge_entries`，保留既有条目 ID，并在同一事务中刷新可选 FTS；用于故障恢复，不修改原业务资源 |
 
@@ -473,6 +476,18 @@ V4 第二阶段使用 SQLite `knowledge_sync_runs` 保存同步运行历史。�
 V4 第三阶段通过 `/api/knowledge/health` 汇总运行态、内容哈希差异和最近历史。待同步超过 60 秒、运行超过 120 秒、存在未安排变化或同步失败时产生告警；自动同步关闭只标记为需要关注。没有业务变化时，即使很久没有产生新同步记录也保持健康，避免时间型假告警。看板恢复动作继续使用受确认保护的人工同步入口。
 
 V5.1 使用 SQLite `knowledge_documents` 保存系统外资料及可选原文件。`technical_note/pump_performance_test/drawing/spreadsheet/other` 是当前资料类型；文本和 Excel 提取正文进入 `document` 知识条目，性能测试报告继续复用水泵测试报告解析器。PDF 原件保存在 SQLite，但 `parserStatus=metadata_only`，当前只检索标题、说明、标签和文件信息；AI 不得据此推断图纸尺寸、材料、结构或其他正文参数。资料新增和软删除均自动触发知识同步。
+
+V6.1 增加本地向量底座，但不改变现有搜索结果。`knowledge_embeddings` 以 `entryId + model` 唯一保存 384 维 Float32 BLOB、内容哈希和更新时间；`sqlite-vec v0.1.9` 负责余弦距离计算，`@huggingface/transformers v4.2.0` 按需加载 `Xenova/multilingual-e5-small`。模型默认缓存到当前用户的 `.cache/pump-knowledge-models`，可用 `KNOWLEDGE_MODEL_CACHE_DIR` 指定目录；生产机联网时先运行 `npm run knowledge:model-prepare` 完成首次缓存和真实 embedding 检查，再设置 `KNOWLEDGE_MODEL_OFFLINE=true` 并重启。`npm run knowledge:vector-check` 只检查扩展与运行时，不下载模型。
+
+V6.2 在每次文字知识成功提交后请求独立后台队列，按 `knowledge_entries.content_hash` 分批生成新增或变化向量。每批成功即提交，模型加载或单批失败不会回滚业务数据、文字知识和其他成功批次；失败任务自动重试，来源删除通过外键立即级联删除向量。模型或维度变化时，新模型可断点生成，全部当前向量新鲜后才清理旧模型，检索链路不会混用模型。`knowledge_vector_sync_runs` 持久化新增、更新、跳过、删除、失败、待处理和耗时；可用 `KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED=false` 关闭后台生成，`KNOWLEDGE_VECTOR_BATCH_SIZE` 默认 16、最大 64。
+
+V6.3 的搜索先分别取得 FTS/BM25 与当前模型的新鲜向量候选，再使用稳定 RRF 融合。标题、来源标识和型号、规格、客户名、合同号等结构化元数据包含完整查询词时增加确定性优先级，不会被语义近似项挤出；已有精确关键词命中时不追加纯向量近似项，避免把相邻型号或规格混入回答。两条链路共同使用 `entryType/sourceTable` 过滤；查询 embedding、sqlite-vec 或模型加载失败时返回原 FTS/LIKE 结果，并将结果标记为 `keyword/exact` 而非伪造 `vector/hybrid`。`KNOWLEDGE_HYBRID_SEARCH_ENABLED=false` 可临时关闭混合检索，AI 仍使用原 `search_factory_knowledge` 工具入口。
+
+V6.4 使用 11 条固定中文样例验收检索层，覆盖精确泵壳型号、用途口语、错别字、菲律宾配方、线圈材质与槽眼、成品电缆、完整成本、客户报价和测试报告别名。`npm run test:knowledge-retrieval` 复用运行中 API 的本地 embedding 模型执行，不调用外部 AI；混合检索不得降低 FTS 的 Top 1/Top 3，精确样例必须保持 Top 1，且语义样例的 Top 3 必须得到提升。`npm run knowledge:backup-check` 使用 SQLite 在线备份创建临时恢复库，并自动验证完整性、外键、条目/向量数量和实际余弦查询，结束后删除临时文件。
+
+向量结果只负责召回候选，不自动成为业务事实。搜索结果中的 `exact_text/text_match` 表示存在可核对的文本命中，`semantic_candidate` 表示仅语义相近；AI 只有在条目标题、摘要、正文或结构化元数据明确写出用途、兼容性或配件关系时，才能使用“适合、专用、自带、配套”等肯定表述。知识库内置“切割泵壳与配件识别”正式规则，区分 800平刀切割泵壳、SPA 清水泵壳、外六角切边长螺丝和不配刀泵壳；回归检查覆盖这些结论，防止普通螺丝或 SPA 被误称为切割专用，也禁止在来源未写明时声称“全套含刀”。
+
+AI 工具层采用证据优先门控：同一次搜索已有 `exact_text/text_match` 结果时，不把其余纯 `semantic_candidate` 候选交给回答模型；只有完全没有文本证据时才保留语义候选用于继续核对。产品用途、适用型号和专用配件问题会由服务端强制发起本轮知识查询，得到工具结果后移除历史 assistant 结论，仅保留用户上下文和本轮工具链，避免旧会话中的错误回答覆盖新证据。
 
 AI 工具：
 

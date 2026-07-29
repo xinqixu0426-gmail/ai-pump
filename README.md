@@ -10,7 +10,7 @@
 |---|---|
 | Web | Next.js 15、React 18、Tailwind CSS |
 | API | Node.js、Express 5 |
-| 数据 | SQLite、better-sqlite3、可选 FTS5 |
+| 数据 | SQLite、better-sqlite3、可选 FTS5、sqlite-vec |
 | AI | DeepSeek Chat API、SSE、Function Calling |
 | 出图 | FreeCAD Python Worker、PDF |
 | 移动入口 | `/ai` PWA、微信小程序、Siri 快捷指令 |
@@ -57,6 +57,8 @@ npm run web-next:full       # API + :3001 并行预览
 npm test                    # 运行全部测试
 npm run build               # 构建 Next
 npm run verify:release      # 发布前完整校验
+npm run knowledge:vector-check # 检查本机向量扩展与模型运行时，不下载模型
+npm run knowledge:model-prepare # 首次下载模型并执行一条真实 embedding
 ```
 
 ## 环境变量
@@ -75,6 +77,16 @@ NEXT_ORIGIN=
 
 DEEPSEEK_API_KEY=sk-xxx
 DEEPSEEK_MODEL=deepseek-v4-flash
+
+KNOWLEDGE_VECTOR_ENABLED=true
+KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED=true
+KNOWLEDGE_HYBRID_SEARCH_ENABLED=true
+KNOWLEDGE_VECTOR_BATCH_SIZE=16
+KNOWLEDGE_EMBEDDING_MODEL=Xenova/multilingual-e5-small
+KNOWLEDGE_EMBEDDING_DIMENSIONS=384
+KNOWLEDGE_EMBEDDING_DTYPE=q8
+KNOWLEDGE_MODEL_CACHE_DIR=
+KNOWLEDGE_MODEL_OFFLINE=false
 
 ALI_ACCESS_KEY_ID=xxx
 ALI_ACCESS_KEY_SECRET=xxx
@@ -109,7 +121,7 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 
 ## 工厂知识库
 
-知识库使用 SQLite `knowledge_entries` 保存派生知识条目，并在当前 SQLite 支持 FTS5 时使用全文索引。当前不依赖外部向量库；V5 支持把独立技术说明、文本、Excel、性能测试报告和 PDF 图纸原件保存为工厂资料。
+知识库使用 SQLite `knowledge_entries` 保存派生知识条目，并在当前 SQLite 支持 FTS5 时使用全文索引。V6 使用本地 `sqlite-vec`、`knowledge_embeddings` 和 `multilingual-e5-small` 在文字知识提交后自动增量生成向量，并默认启用 FTS/BM25 + 向量混合检索，仍不依赖外部向量服务；扩展或模型异常时自动回退 FTS/LIKE。V5 支持把独立技术说明、文本、Excel、性能测试报告和 PDF 图纸原件保存为工厂资料。
 
 同步来源：
 
@@ -119,9 +131,9 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 - 当前系统业务规则
 - 独立工厂资料
 
-同步采用按 `sourceTable + sourceId` 的增量更新，保留既有知识条目 ID，并删除已经失效的来源；业务条目和 FTS 在同一事务中更新。
+文字知识同步采用按 `sourceTable + sourceId` 的增量更新，保留既有知识条目 ID，并删除已经失效的来源；业务条目和 FTS 在同一事务中更新。提交成功后，后台向量队列按 `contentHash` 只生成新增或变化条目，失败不会回滚文字知识或业务数据，并会自动重试。
 
-首次部署后，在 AI 工作台输入“同步工厂知识库”，核对确认卡片后执行。以后在基础业务数据有较大变化、需要重新测试 AI 检索时再同步。
+核心业务变化和服务启动都会自动核对文字知识及向量。AI 的“同步工厂知识库”保留为故障恢复和人工全量核对入口，不需要日常执行。
 
 可以通过 AI 使用：
 
@@ -135,6 +147,10 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 对应工具：`search_factory_knowledge`、`get_factory_knowledge_detail`、`get_factory_knowledge_health`、`sync_factory_knowledge`。
 
 独立资料从管理看板“知识库”视图导入。`.txt/.md/.csv/.xls/.xlsx` 会提取可检索文本；PDF 在 V5.1 仅检索标题、说明、标签和文件信息，AI 不得声称已经读取图纸正文。
+
+`GET /api/knowledge/vector-health` 可检查向量扩展、模型、后台队列、覆盖率和最近记录，`GET /api/knowledge/vector-sync-runs` 读取持久化运行历史。V6.3 默认将 FTS/BM25 与向量结果做稳定融合，型号、规格、客户名和合同号等精确命中优先；模型或扩展异常时自动回退 FTS/LIKE。模型默认按需下载到用户目录下的 `.cache/pump-knowledge-models`；生产机联网时先运行 `npm run knowledge:model-prepare` 完成缓存和真实 embedding 检查，再设置 `KNOWLEDGE_MODEL_OFFLINE=true` 并重启服务。`KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED=false` 可只关闭后台生成，`KNOWLEDGE_HYBRID_SEARCH_ENABLED=false` 可临时关闭混合检索。
+
+V6.4 提供不依赖外部 AI 的固定检索验收：服务运行时执行 `npm run test:knowledge-retrieval`，自动对比 FTS、纯向量和混合检索 Top 1/Top 3；执行 `npm run knowledge:backup-check` 可验证 SQLite 在线备份恢复后的知识向量和检索能力。知识库看板直接展示当前向量覆盖率、混合/回退模式、待生成数量及模型异常。
 
 ## 核心规则
 
@@ -170,14 +186,17 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 
 ```bash
 ssh dan@192.168.31.216
-cd ~/Documents/pump-cost-accounting-system
+cd ~/pump-cost-accounting-system
 export PATH=/opt/homebrew/bin:$PATH
 
-git pull origin master
-npm install
-npm --prefix apps/web-next install
+git pull --ff-only origin master
+npm ci
+npm --prefix apps/web-next ci
+npm run knowledge:model-prepare
 npm run verify:release
 sudo ./scripts/install-macmini-launchdaemons.sh
+npm run knowledge:backup-check
+npm run test:knowledge-retrieval
 ```
 
 发布后检查：

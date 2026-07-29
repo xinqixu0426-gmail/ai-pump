@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { AI_CONTEXT_MESSAGE_LIMIT, trimAiContext } = require('../api/services/aiContext.cjs');
+const {
+    AI_CONTEXT_MESSAGE_LIMIT,
+    trimAiContext,
+    prioritizeCurrentEvidence,
+} = require('../api/services/aiContext.cjs');
 
 test('AI 上下文只保留最近 10 条有效对话消息', () => {
     const messages = Array.from({ length: 14 }, (_, index) => ({
@@ -25,4 +29,23 @@ test('AI 上下文兼容空值和无效消息', () => {
         { role: 'tool', content: 'ignored' },
         { role: 'user', content: '保留' },
     ]), [{ role: 'user', content: '保留' }]);
+});
+
+test('AI 获得本轮工具证据后移除历史助手结论但保留当前工具链', () => {
+    const currentMessages = [
+        { role: 'system', content: '系统规则' },
+        { role: 'user', content: '切割杂草用哪个泵壳' },
+        { role: 'assistant', content: '旧错误答案：SPA' },
+        { role: 'user', content: '再查一次' },
+        { role: 'assistant', content: '', tool_calls: [{ id: 'call-1' }] },
+        { role: 'tool', tool_call_id: 'call-1', content: '800平刀切割泵壳' },
+    ];
+
+    const prioritized = prioritizeCurrentEvidence(currentMessages, 3);
+
+    assert.deepEqual(prioritized.map(message => message.role), [
+        'system', 'user', 'user', 'assistant', 'tool',
+    ]);
+    assert.equal(prioritized.some(message => message.content === '旧错误答案：SPA'), false);
+    assert.equal(prioritized.at(-1).content, '800平刀切割泵壳');
 });

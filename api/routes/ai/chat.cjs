@@ -3,7 +3,7 @@ const router = express.Router();
 const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
 const { getSystemPrompt } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
-const { trimAiContext } = require('../../services/aiContext.cjs');
+const { trimAiContext, prioritizeCurrentEvidence } = require('../../services/aiContext.cjs');
 const { buildFreshLookupToolCalls } = require('../../services/aiFreshness.cjs');
 const {
     normalizeAiPageContext,
@@ -36,6 +36,9 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 独立工厂资料 metadata.parserStatus=metadata_only 表示系统只保存并检索了标题、说明、标签和文件信息，尚未解析文件正文。回答时可以说明该资料存在并提供下载来源，但不得推断 PDF 图纸中的尺寸、材料、结构或其他技术参数。
 - 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标；最终回答中也不要出现这三个模板字段名，即使是为了说明忽略它们。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时只说“未提供可靠额定参数”，不能把某个点标成额定值或实测结论。
 - 知识工具返回的 sources 是本轮回答的可追溯依据。只能引用实际使用过的来源，不得编造知识 ID、标题或链接；sources 中 freshness 不是 fresh 时，正文必须提示该知识待同步，涉及易变数据时改查实时业务工具。
+- 知识搜索结果的 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义相近的候选，不是用途、兼容性、组成关系或“专用配件”的事实证据。只有条目的标题、摘要、正文或结构化 metadata 明确写出相同用途/关系时，才能回答“适合”“专用”“自带”“配套”；不得根据向量名次、相似名称、叶片数量或普通螺丝等通用 BOM 自行推断。明确文本命中与纯语义候选冲突时采用明确文本；数据库没有明确标注的专用配件时，应回答“系统未记录/无法确认”，禁止把普通配件改称为专用配件。不得为了补充对比而把其他纯语义候选归类为“不适合、没有此功能或属于某用途”，除非来源也明确写出该排除结论。
+- 用户询问产品用途、专用配件或名称可能存在歧义时，应同时检索 business_rule 并以明确业务规则消歧。切割场景中，800平刀切割泵壳是系统明确标注的选择；SPA 是清水泵壳，没有切割刀片；“切边6mm长螺丝”是外六角螺丝，不是刀片；“v800平刀-不配刀”不能作为带刀的完整切割方案。来源没有明确写明是否随泵壳附带刀片时，不得自行回答“全套含刀”。
+- 用户只问适用型号或“哪一个”时，先直接回答已确认型号；不要主动补充来源未明确的内部组成、是否附带配件、性能强弱或使用范围。特别是“800平刀切割泵壳”只能确认切割用途，不能据名称推断随泵壳配有、自带或包含切割刀片。
 - 工具结果 provenance.kind 为 live_business 时，说明数据来自本轮实时业务查询；为 knowledge_snapshot 时，说明数据来自最近一次知识库同步快照。两者冲突时以 live_business 为准。
 - 用户提到机筒长度、机筒高度、桶长或 180mm/170mm 这类长度，并询问泵壳本体成本时，必须使用 preview_pump_shell_cost；不要使用 query_recipe_cost_by_name 返回默认配方成本。
 - 用户询问整个配方、报价或订单在某个机筒长度下的总成本时，使用 preview_recipe_cost，并把长度放入 customBarrelLength 或 overrides.customBarrelLength。
@@ -233,6 +236,13 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         let maxRounds = 5;
         let done = false;
         let allToolResults = [];
+        let evidenceContextPrioritized = false;
+        const prioritizeEvidence = () => {
+            if (evidenceContextPrioritized) return;
+            currentMessages = prioritizeCurrentEvidence(currentMessages, messages.length);
+            currentMessages[0].content += '\n\n【本轮证据优先】已经获得本轮工具结果。历史 assistant 回答仅是旧回复，不是事实来源，不得用于补充、反转或解释本轮工具证据。最终结论只能来自本轮工具结果和明确业务规则。';
+            evidenceContextPrioritized = true;
+        };
 
         const freshLookupCalls = buildFreshLookupToolCalls(routingMessages);
         if (freshLookupCalls.length > 0) {
@@ -252,6 +262,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                 allToolResults.push({ name: call.name, result });
             }
             currentMessages[0].content += `\n\n【本轮服务端已刷新数据】\n${JSON.stringify(allToolResults)}\n必须以这些本轮查询结果为准，不得复述历史数字。`;
+            prioritizeEvidence();
             send('status', { status: 'analyzing', message: '已刷新当前数据，正在分析...' });
         }
 
@@ -356,6 +367,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                         content: JSON.stringify(result)
                     });
                 }
+                prioritizeEvidence();
 
                 if (hasPendingWriteConfirmation(allToolResults)) {
                     const directReply = buildPendingWriteReply(allToolResults);
@@ -434,6 +446,13 @@ async function processAiChat(text, options = {}) {
     let maxRounds = 5;
     let done = false;
     let finalContent = '';
+    let evidenceContextPrioritized = false;
+    const prioritizeEvidence = () => {
+        if (evidenceContextPrioritized) return;
+        currentMessages = prioritizeCurrentEvidence(currentMessages, messages.length);
+        currentMessages[0].content += '\n\n【本轮证据优先】已经获得本轮工具结果。历史 assistant 回答仅是旧回复，不是事实来源，不得用于补充、反转或解释本轮工具证据。最终结论只能来自本轮工具结果和明确业务规则。';
+        evidenceContextPrioritized = true;
+    };
 
     const VIEW_TYPE_MAP = {
         get_order_detail: 'order_detail',
@@ -451,6 +470,7 @@ async function processAiChat(text, options = {}) {
     }
     if (toolResults.length > 0) {
         currentMessages[0].content += `\n\n【本轮服务端已刷新数据】\n${JSON.stringify(toolResults)}\n必须以这些本轮查询结果为准，不得复述历史数字。`;
+        prioritizeEvidence();
     }
 
     while (!done && maxRounds-- > 0) {
@@ -488,6 +508,7 @@ async function processAiChat(text, options = {}) {
                     content: JSON.stringify(result)
                 });
             }
+            prioritizeEvidence();
         } else {
             finalContent = msg.content || '';
             done = true;

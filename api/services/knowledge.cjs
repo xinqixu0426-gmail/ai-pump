@@ -455,6 +455,25 @@ function businessRuleEntries(settings) {
             tags: ['业务规则', '报价', '订单', '采购'],
             metadata: {},
         },
+        {
+            id: 'cutting_shell_semantics',
+            title: '业务规则：切割泵壳与配件识别',
+            summary: '明确用于切割杂草的泵壳是 800平刀切割泵壳；SPA 是清水泵壳，切边长螺丝是外六角螺丝；是否随泵壳附带刀片未明确，不得推断含刀。',
+            content: [
+                '零件名称“800平刀切割泵壳”明确标注切割用途，可用于回答切割杂草泵壳的查询。',
+                'SPA 2叶和 SPA 3叶属于清水泵壳，没有切割刀片，不得称为切割泵壳或切割专用方案。',
+                '“切边6mm长螺丝”中的“切边”是螺丝名称，该零件属于外六角螺丝，不是刀片，也不是切割杂草的专用配件。',
+                '“v800平刀-不配刀”明确表示不配刀，不得作为带刀的完整切割方案推荐；只有用户明确询问不配刀泵壳本体时才作为备选说明。',
+                '现有来源没有明确记录 800平刀切割泵壳是否随泵壳附带刀片，不得自行回答“全套含刀”。',
+            ],
+            tags: ['业务规则', '切割', '杂草', '泵壳', '刀片', 'SPA', '切边长螺丝', '外六角螺丝'],
+            metadata: {
+                confirmedCuttingShell: '800平刀切割泵壳',
+                excludedShells: ['SPA 2叶', 'SPA 3叶'],
+                excludedAccessory: '切边6mm长螺丝',
+                bladeInclusionStatus: 'unconfirmed',
+            },
+        },
     ];
     return rules.map(rule => createEntry({
         entryType: 'business_rule',
@@ -567,6 +586,27 @@ function rebuildFts(db) {
     return true;
 }
 
+function countKnowledgeEntryEmbeddings(db, entryId) {
+    try {
+        return Number(db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM knowledge_embeddings
+            WHERE entry_id = ?
+        `).get(entryId)?.count || 0);
+    } catch {
+        return 0;
+    }
+}
+
+function requestKnowledgeVectorRefresh(details = {}) {
+    try {
+        return require('./knowledgeVectorAutoSync.cjs')
+            .requestKnowledgeVectorSync(details);
+    } catch {
+        return false;
+    }
+}
+
 function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
     const dbAccessors = options.dbAccessors || loadDbAccessors();
     const { db, safeInsert, safeUpdate, hardDelete } = dbAccessors;
@@ -590,10 +630,12 @@ function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
     const now = new Date().toISOString();
     let action = 'unchanged';
     let ftsEnabled = false;
+    let deletedEmbeddings = 0;
 
     const sync = db.transaction(() => {
         if (!entry) {
             if (existing) {
+                deletedEmbeddings = countKnowledgeEntryEmbeddings(db, existing.id);
                 hardDelete('knowledge_entries', existing.id);
                 action = 'deleted';
             } else {
@@ -629,6 +671,12 @@ function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
         ftsEnabled = rebuildFts(db);
     });
     sync();
+    const vectorSyncScheduled = ['inserted', 'updated', 'deleted'].includes(action)
+        ? requestKnowledgeVectorRefresh({
+            reason: `factory_rule:${candidateId}`,
+            deletedCount: deletedEmbeddings,
+        })
+        : false;
 
     const knowledgeEntry = db.prepare(`
         SELECT id, entry_type, source_table, source_id, title, content_hash, synced_at
@@ -640,6 +688,7 @@ function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
         candidateStatus: candidate.status,
         action,
         ftsEnabled,
+        vectorSyncScheduled,
         knowledgeEntry: knowledgeEntry ? {
             id: Number(knowledgeEntry.id),
             entryType: knowledgeEntry.entry_type,
@@ -658,6 +707,7 @@ function syncKnowledgeEntries(options = {}) {
     const entries = buildKnowledgeEntries({ ...options, dbAccessors });
     const now = new Date().toISOString();
     const stats = { total: entries.length, inserted: 0, updated: 0, unchanged: 0, deleted: 0, byType: {} };
+    let deletedEmbeddings = 0;
     let ftsEnabled = false;
     const sync = db.transaction((rows) => {
         const existingRows = db.prepare('SELECT * FROM knowledge_entries').all();
@@ -705,6 +755,7 @@ function syncKnowledgeEntries(options = {}) {
         const remove = db.prepare('DELETE FROM knowledge_entries WHERE id = ?');
         for (const existing of existingRows) {
             if (retainedIds.has(existing.id)) continue;
+            deletedEmbeddings += countKnowledgeEntryEmbeddings(db, existing.id);
             remove.run(existing.id);
             stats.deleted += 1;
         }
@@ -712,9 +763,14 @@ function syncKnowledgeEntries(options = {}) {
         ftsEnabled = rebuildFts(db);
     });
     sync(entries);
+    const vectorSyncScheduled = requestKnowledgeVectorRefresh({
+        reason: 'knowledge_sync',
+        deletedCount: deletedEmbeddings,
+    });
     return {
         syncedAt: now,
         ftsEnabled,
+        vectorSyncScheduled,
         stats,
         sample: db.prepare('SELECT * FROM knowledge_entries ORDER BY updated_at DESC, id DESC LIMIT 5').all().map(knowledgeEntryRow),
     };

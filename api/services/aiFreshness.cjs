@@ -1,4 +1,4 @@
-const FACT_FIELD_RE = /价格|单价|成本|库存|铜价|铝价|汇率|状态|进度|金额|利润|报价|订单|供应商|客户|配方|零件|线圈|模板|质量问题|业务规则/;
+const FACT_FIELD_RE = /价格|单价|成本|库存|铜价|铝价|汇率|状态|进度|金额|利润|报价|订单|供应商|客户|配方|零件|线圈|模板|泵壳|用途|适用|专用|配件|刀片|型号|材料|材质|参数|图纸|测试报告|技术档案|质量问题|业务规则/;
 const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|汇总|总览|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
 const MANAGEMENT_ACTION_INTENT_RE = /管理待办|待办中心|最优先|今天.*(?:先做什么|先.*处理|待办|风险|异常)|(?:当前|现在|全部|工厂).*(?:待办|优先事项|风险.*(?:处理|跟进)|异常.*处理|先做什么)/;
 
@@ -33,6 +33,18 @@ function freshLookupQuery(text) {
     return cleaned || String(text || '').trim();
 }
 
+function purposeLookupQuery(text) {
+    const source = String(text || '').trim();
+    const beforeObject = source.match(/(.{2,40}?)(?:用的|使用的|用途的)(?:泵壳|配件|零件|型号)/);
+    if (beforeObject?.[1]) {
+        return beforeObject[1]
+            .replace(/^(?:哪个|哪些|什么|哪种)/, '')
+            .trim();
+    }
+    const afterIntent = source.match(/(?:适合|适用于|用于|用来)(.{2,40}?)(?:的)?(?:泵壳|配件|零件|型号)?(?:是哪个|是哪一个|有哪些|哪个好|是什么)?[？?]?$/);
+    return afterIntent?.[1]?.trim() || '';
+}
+
 function coilSpecSheetKey(text) {
     const match = String(text || '').match(/(?:^|[^\d])(\d+)\s*[-－]\s*(\d+)(?:[^\d]|$)/);
     return match ? `${match[1]}-${match[2]}` : '';
@@ -46,7 +58,7 @@ function buildFreshLookupToolCalls(messages = []) {
         return [{ name: 'get_management_action_center', args: {} }];
     }
     const coilKey = /线圈/.test(text) ? coilSpecSheetKey(text) : '';
-    const query = coilKey || freshLookupQuery(text);
+    const query = coilKey || purposeLookupQuery(text) || freshLookupQuery(text);
     const calls = [{
         name: 'search_factory_knowledge',
         args: { query, ...(coilKey ? { entryType: 'coil' } : {}), limit: 10 },
@@ -80,5 +92,6 @@ module.exports = {
     requiresFreshToolLookup,
     buildFreshLookupToolCalls,
     coilSpecSheetKey,
+    purposeLookupQuery,
     MANAGEMENT_ACTION_INTENT_RE,
 };

@@ -920,6 +920,208 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 23,
+        name: 'knowledge_vector_storage',
+        signature: 'knowledge-vector-storage-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS knowledge_embeddings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entry_id INTEGER NOT NULL,
+                    model TEXT NOT NULL,
+                    dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+                    content_hash TEXT NOT NULL,
+                    embedding BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(entry_id, model),
+                    FOREIGN KEY(entry_id) REFERENCES knowledge_entries(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_model
+                    ON knowledge_embeddings(model, dimensions);
+                CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_hash
+                    ON knowledge_embeddings(model, content_hash);
+            `);
+        },
+    },
+    {
+        version: 24,
+        name: 'knowledge_vector_sync_history',
+        signature: 'knowledge-vector-sync-history-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS knowledge_vector_sync_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
+                    model TEXT NOT NULL,
+                    dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+                    total_count INTEGER NOT NULL DEFAULT 0 CHECK(total_count >= 0),
+                    inserted_count INTEGER NOT NULL DEFAULT 0 CHECK(inserted_count >= 0),
+                    updated_count INTEGER NOT NULL DEFAULT 0 CHECK(updated_count >= 0),
+                    unchanged_count INTEGER NOT NULL DEFAULT 0 CHECK(unchanged_count >= 0),
+                    deleted_count INTEGER NOT NULL DEFAULT 0 CHECK(deleted_count >= 0),
+                    failed_count INTEGER NOT NULL DEFAULT 0 CHECK(failed_count >= 0),
+                    pending_count INTEGER NOT NULL DEFAULT 0 CHECK(pending_count >= 0),
+                    duration_ms INTEGER NOT NULL DEFAULT 0 CHECK(duration_ms >= 0),
+                    error_text TEXT DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_knowledge_vector_sync_runs_created
+                    ON knowledge_vector_sync_runs(created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_knowledge_vector_sync_runs_status
+                    ON knowledge_vector_sync_runs(status, created_at DESC, id DESC);
+            `);
+        },
+    },
+    {
+        version: 25,
+        name: 'cutting_shell_evidence_regression',
+        signature: 'cutting-shell-purpose-must-use-explicit-evidence-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                INSERT OR IGNORE INTO ai_evaluation_cases (
+                    case_key, title, category, question, evaluator_type,
+                    config_json, enabled, sort_order, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'rules', ?, 1, ?, ?, ?)
+            `).run(
+                'cutting-shell-purpose-evidence',
+                '切割用途不得由语义候选推断',
+                '知识检索',
+                '切割杂草用的泵壳是哪一个？系统中有哪些明确标注的切割专用配件？',
+                JSON.stringify({
+                    requiredTerms: [
+                        ['800平刀切割泵壳'],
+                        ['系统未记录', '没有记录', '未明确标注', '无法确认'],
+                    ],
+                    forbiddenTerms: [
+                        'SPA系列切割泵壳',
+                        'SPA 2叶切割泵壳',
+                        'SPA 3叶切割泵壳',
+                        '专门为切割工况设计',
+                    ],
+                    requiredTools: ['search_factory_knowledge'],
+                    requiredSourceTables: ['parts'],
+                }),
+                70,
+                now,
+                now
+            );
+        },
+    },
+    {
+        version: 26,
+        name: 'strengthen_cutting_shell_regression',
+        signature: 'cutting-shell-rule-and-fastener-semantics-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['800平刀切割泵壳'],
+                    ['系统未记录', '没有记录', '未明确标注', '无法确认'],
+                    ['切边6mm长螺丝'],
+                    ['外六角', '外六角螺丝'],
+                ],
+                forbiddenTerms: [
+                    'SPA系列切割泵壳',
+                    'SPA 2叶切割泵壳',
+                    'SPA 3叶切割泵壳',
+                    '专门为切割工况设计',
+                    '全套含刀',
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['parts', 'business_rules'],
+            }), new Date().toISOString());
+        },
+    },
+    {
+        version: 27,
+        name: 'accept_equivalent_regression_phrasing',
+        signature: 'knowledge-regression-equivalent-phrasing-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['成品电缆'],
+                    ['整体', '一体'],
+                    ['不应该', '不宜', '不能', '不得', '不应'],
+                    [
+                        '共同组成一个',
+                        '共同构成',
+                        '一个整体业务项',
+                        '同属一个',
+                        '属于一个',
+                        '作为一个',
+                        '一个计费项目',
+                        '一项成品电缆',
+                        '一个收费项目',
+                    ],
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['business_rules'],
+            }), now);
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['800平刀切割泵壳'],
+                    ['系统未记录', '系统未明确记录', '没有记录', '未明确标注', '无法确认'],
+                    ['切边6mm长螺丝'],
+                    ['外六角', '外六角螺丝'],
+                ],
+                forbiddenTerms: [
+                    'SPA系列切割泵壳',
+                    'SPA 2叶切割泵壳',
+                    'SPA 3叶切割泵壳',
+                    '专门为切割工况设计',
+                    '全套含刀',
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['parts', 'business_rules'],
+            }), now);
+        },
+    },
+    {
+        version: 28,
+        name: 'align_cutting_regression_with_rule_authority',
+        signature: 'cutting-regression-business-rule-authority-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['800平刀切割泵壳'],
+                    ['系统未记录', '系统未明确记录', '没有记录', '没有明确记录', '未明确标注', '无法确认'],
+                    ['切边6mm长螺丝'],
+                    ['外六角', '外六角螺丝'],
+                ],
+                forbiddenTerms: [
+                    'SPA系列切割泵壳',
+                    'SPA 2叶切割泵壳',
+                    'SPA 3叶切割泵壳',
+                    '专门为切割工况设计',
+                    '全套含刀',
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['business_rules'],
+            }), new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

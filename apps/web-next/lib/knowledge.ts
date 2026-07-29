@@ -61,6 +61,12 @@ export type KnowledgeListItem = {
   metadata: Record<string, unknown>;
   syncedAt: string | null;
   updatedAt: string | null;
+  matchMode?: 'exact' | 'hybrid' | 'keyword' | 'vector';
+  evidenceLevel?: 'exact_text' | 'text_match' | 'semantic_candidate';
+  exactMatch?: boolean;
+  keywordRank?: number | null;
+  vectorDistance?: number | null;
+  finalScore?: number;
 };
 
 export type KnowledgeDetail = KnowledgeListItem & {
@@ -165,6 +171,38 @@ export type KnowledgeSyncHealth = {
   checkedAt: string;
 };
 
+export type KnowledgeVectorHealth = {
+  enabled: boolean;
+  operational: boolean;
+  searchMode: 'hybrid' | 'fts';
+  phase: string;
+  message: string;
+  extension: {
+    available: boolean;
+    version: string;
+    error: string;
+  };
+  embedding: {
+    model: string;
+    dimensions: number;
+    loaded: boolean;
+    lastError: string;
+  };
+  coverage: {
+    totalEntries: number;
+    embeddedEntries: number;
+    freshEntries: number;
+    staleEntries: number;
+    pendingEntries: number;
+    coveragePercent: number;
+  };
+  sync: {
+    running?: boolean;
+    pending?: boolean;
+    lastError?: string;
+  } | null;
+};
+
 export type KnowledgeOverview = {
   generatedAt: string;
   lastSyncedAt: string | null;
@@ -204,6 +242,12 @@ export async function getKnowledgeSyncRuns(limit = 8): Promise<KnowledgeSyncHist
 export async function getKnowledgeSyncHealth(): Promise<KnowledgeSyncHealth> {
   const result = await proxyRequest<ApiResponse<KnowledgeSyncHealth>>('/api/knowledge/health');
   if (!result.success || !result.data) throw new Error(result.error || '知识同步健康状态加载失败');
+  return result.data;
+}
+
+export async function getKnowledgeVectorHealth(): Promise<KnowledgeVectorHealth> {
+  const result = await proxyRequest<ApiResponse<KnowledgeVectorHealth>>('/api/knowledge/vector-health');
+  if (!result.success || !result.data) throw new Error(result.error || '向量检索状态加载失败');
   return result.data;
 }
 

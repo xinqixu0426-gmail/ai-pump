@@ -194,11 +194,17 @@ test('关键 API 集成契约：/api/knowledge 提供搜索、详情和同步入
     assert.match(source, /router\.get\('\/overview'/);
     assert.match(source, /inspectKnowledgeOverview\(\)/);
     assert.match(source, /router\.get\('\/'/);
-    assert.match(source, /searchKnowledgeEntries\(\{/);
+    assert.match(source, /await searchFactoryKnowledge\(\{/);
     assert.match(source, /router\.get\('\/sync-runs'/);
     assert.match(source, /listKnowledgeSyncRuns\(\{/);
     assert.match(source, /router\.get\('\/health'/);
     assert.match(source, /buildKnowledgeSyncHealth\(\{/);
+    assert.match(source, /router\.get\('\/vector-health'/);
+    assert.match(source, /buildKnowledgeVectorHealth\(db, embeddingProvider/);
+    assert.match(source, /router\.get\('\/vector-sync-runs'/);
+    assert.match(source, /listKnowledgeVectorSyncRuns\(\{/);
+    assert.match(source, /router\.get\('\/retrieval-evaluation'/);
+    assert.match(source, /runKnowledgeRetrievalEvaluation\(\)/);
     assert.match(source, /router\.get\('\/documents'/);
     assert.match(source, /router\.post\('\/documents'/);
     assert.match(source, /router\.get\('\/documents\/:id\/download'/);

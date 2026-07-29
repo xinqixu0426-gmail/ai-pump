@@ -766,7 +766,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_knowledge',
-            description: '搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示只能使用标题、说明和标签，不得推断文件正文。只读。',
+            description: '使用精确关键词和语义表达统一搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。结果 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义候选，不能单独证明用途、兼容性或专用配件关系；必须由标题、摘要、正文或 metadata 的明确文字证实后才能下结论。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示只能使用标题、说明和标签，不得推断文件正文。只读。',
             parameters: {
                 type: 'object',
                 properties: {

@@ -11,16 +11,23 @@ const {
 } = require('../db.cjs');
 const {
     syncKnowledgeEntries,
-    searchKnowledgeEntries,
     getKnowledgeEntryDetail,
     inspectKnowledgeOverview,
 } = require('../services/knowledge.cjs');
+const { searchFactoryKnowledge } = require('../services/knowledgeHybridSearch.cjs');
 const {
     recordKnowledgeSyncFailure,
     recordKnowledgeSyncSuccess,
 } = require('../services/knowledgeAutoSync.cjs');
 const { listKnowledgeSyncRuns } = require('../services/knowledgeSyncHistory.cjs');
 const { buildKnowledgeSyncHealth } = require('../services/knowledgeSyncHealth.cjs');
+const { embeddingProvider } = require('../services/embeddingProvider.cjs');
+const { buildKnowledgeVectorHealth } = require('../services/knowledgeVectorStore.cjs');
+const { getKnowledgeVectorSyncStatus } = require('../services/knowledgeVectorAutoSync.cjs');
+const { listKnowledgeVectorSyncRuns } = require('../services/knowledgeVectorSyncHistory.cjs');
+const {
+    runKnowledgeRetrievalEvaluation,
+} = require('../services/knowledgeRetrievalEvaluation.cjs');
 const {
     ALLOWED_DOCUMENT_EXTENSIONS,
     parseKnowledgeDocumentFile,
@@ -94,9 +101,9 @@ router.get('/overview', (req, res) => {
     }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const data = searchKnowledgeEntries({
+        const data = await searchFactoryKnowledge({
             query: req.query.query,
             keyword: req.query.keyword,
             entryType: req.query.entryType,
@@ -131,6 +138,40 @@ router.get('/health', (req, res) => {
             pendingTotal: overview.stats.pendingTotal,
             history,
         });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/vector-health', (req, res) => {
+    try {
+        const history = listKnowledgeVectorSyncRuns({ limit: 5 });
+        const data = buildKnowledgeVectorHealth(db, embeddingProvider, {
+            syncStatus: getKnowledgeVectorSyncStatus(),
+            history,
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/vector-sync-runs', (req, res) => {
+    try {
+        const data = listKnowledgeVectorSyncRuns({
+            limit: req.query.limit,
+            status: req.query.status,
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/retrieval-evaluation', async (req, res) => {
+    try {
+        const data = await runKnowledgeRetrievalEvaluation();
         res.json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

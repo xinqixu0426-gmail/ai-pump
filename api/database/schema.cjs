@@ -285,6 +285,19 @@ const CANONICAL_TABLES_SQL = `
         UNIQUE(source_table, source_id)
     );
 
+    CREATE TABLE IF NOT EXISTS knowledge_embeddings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+        content_hash TEXT NOT NULL,
+        embedding BLOB NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(entry_id, model),
+        FOREIGN KEY(entry_id) REFERENCES knowledge_entries(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS knowledge_sync_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         mode TEXT NOT NULL CHECK(mode IN ('automatic', 'flush', 'manual')),
@@ -298,6 +311,26 @@ const CANONICAL_TABLES_SQL = `
         unchanged_count INTEGER NOT NULL DEFAULT 0 CHECK(unchanged_count >= 0),
         deleted_count INTEGER NOT NULL DEFAULT 0 CHECK(deleted_count >= 0),
         fts_enabled INTEGER NOT NULL DEFAULT 0 CHECK(fts_enabled IN (0, 1)),
+        duration_ms INTEGER NOT NULL DEFAULT 0 CHECK(duration_ms >= 0),
+        error_text TEXT DEFAULT '',
+        started_at TEXT NOT NULL,
+        completed_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS knowledge_vector_sync_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
+        model TEXT NOT NULL,
+        dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+        total_count INTEGER NOT NULL DEFAULT 0 CHECK(total_count >= 0),
+        inserted_count INTEGER NOT NULL DEFAULT 0 CHECK(inserted_count >= 0),
+        updated_count INTEGER NOT NULL DEFAULT 0 CHECK(updated_count >= 0),
+        unchanged_count INTEGER NOT NULL DEFAULT 0 CHECK(unchanged_count >= 0),
+        deleted_count INTEGER NOT NULL DEFAULT 0 CHECK(deleted_count >= 0),
+        failed_count INTEGER NOT NULL DEFAULT 0 CHECK(failed_count >= 0),
+        pending_count INTEGER NOT NULL DEFAULT 0 CHECK(pending_count >= 0),
         duration_ms INTEGER NOT NULL DEFAULT 0 CHECK(duration_ms >= 0),
         error_text TEXT DEFAULT '',
         started_at TEXT NOT NULL,
@@ -497,12 +530,20 @@ const CANONICAL_INDEXES_SQL = `
         ON knowledge_entries(entry_type);
     CREATE INDEX IF NOT EXISTS idx_knowledge_entries_source
         ON knowledge_entries(source_table, source_id);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_model
+        ON knowledge_embeddings(model, dimensions);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_hash
+        ON knowledge_embeddings(model, content_hash);
     CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type
         ON knowledge_documents(document_type, deleted_at, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_knowledge_sync_runs_created
         ON knowledge_sync_runs(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_knowledge_sync_runs_status
         ON knowledge_sync_runs(status, created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_vector_sync_runs_created
+        ON knowledge_vector_sync_runs(created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_vector_sync_runs_status
+        ON knowledge_vector_sync_runs(status, created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_conversations_owner_updated
         ON ai_conversations(owner_key, deleted_at, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation
@@ -676,9 +717,11 @@ const APPLICATION_TABLES = Object.freeze([
     'customers',
     'factory_rule_candidates',
     'factory_rule_events',
+    'knowledge_embeddings',
     'knowledge_entries',
     'knowledge_documents',
     'knowledge_sync_runs',
+    'knowledge_vector_sync_runs',
     'orders',
     'parts',
     'pump_model_variants',

@@ -238,6 +238,12 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     const cableRule = entries.find(entry => entry.sourceTable === 'business_rules' && entry.sourceId === 'dynamic_accessories');
     assert.match(cableRule.summary, /成品电缆业务项/);
     assert.match(cableRule.content, /不把线材和插头\/规格拆成两个配件/);
+    const cuttingRule = entries.find(entry => entry.sourceTable === 'business_rules' && entry.sourceId === 'cutting_shell_semantics');
+    assert.match(cuttingRule.summary, /800平刀切割泵壳/);
+    assert.match(cuttingRule.summary, /是否随泵壳附带刀片未明确/);
+    assert.match(cuttingRule.content, /SPA 2叶和 SPA 3叶属于清水泵壳/);
+    assert.match(cuttingRule.content, /外六角螺丝，不是刀片/);
+    assert.equal(cuttingRule.metadata.bladeInclusionStatus, 'unconfirmed');
 });
 
 test('Knowledge service：只把已批准候选规则同步成正式业务规则', () => {
@@ -430,8 +436,8 @@ test('Knowledge service：同步后可搜索并读取详情', () => {
     });
 
     assert.equal(result.stats.byType.part, 1);
-    assert.equal(result.stats.byType.business_rule, 4);
-    assert.equal(result.stats.inserted, 5);
+    assert.equal(result.stats.byType.business_rule, 5);
+    assert.equal(result.stats.inserted, 6);
     assert.equal(result.stats.updated, 0);
     assert.equal(result.stats.deleted, 0);
 
@@ -563,7 +569,7 @@ test('Knowledge service：增量同步保留条目 ID 并移除过期来源', ()
     assert.equal(result.stats.inserted, 1);
     assert.equal(result.stats.updated, 1);
     assert.equal(result.stats.deleted, 1);
-    assert.equal(result.stats.unchanged, 4);
+    assert.equal(result.stats.unchanged, 5);
     assert.equal(accessors.db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries_fts').get().count, result.stats.total);
 });
 

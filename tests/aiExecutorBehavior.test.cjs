@@ -608,7 +608,7 @@ test('AI executor 行为：泵壳机筒长度成本试算复用 BOM 草稿 API',
 test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/knowledge?query=V750&entryType=recipe&limit=3') && call.method === 'GET') {
-            return jsonResponse({ success: true, data: [{ id: 9, entryType: 'recipe', sourceTable: 'recipes', sourceId: '7', title: '配方：V750', summary: '保存成本 90', syncedAt: '2026-01-01' }] });
+            return jsonResponse({ success: true, data: [{ id: 9, entryType: 'recipe', sourceTable: 'recipes', sourceId: '7', title: '配方：V750', summary: '保存成本 90', matchMode: 'vector', evidenceLevel: 'semantic_candidate', syncedAt: '2026-01-01' }] });
         }
         if (call.url.endsWith('/api/knowledge/9') && call.method === 'GET') {
             return jsonResponse({ success: true, data: { id: 9, entryType: 'recipe', sourceTable: 'recipes', sourceId: '7', title: '配方：V750', content: 'BOM 明细', syncedAt: '2026-01-01' } });
@@ -632,6 +632,9 @@ test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', 
     assert.equal(search.intent, 'factory_knowledge_search');
     assert.equal(search.data[0].id, 9);
     assert.equal(search.provenance.kind, 'knowledge_snapshot');
+    assert.equal(search.retrievalGuidance.semanticCandidatesAreEvidence, false);
+    assert.equal(search.retrievalGuidance.semanticCandidateCount, 1);
+    assert.match(search.summary, /仅为语义候选/);
     assert.equal(search.provenance.hasPendingSources, true);
     assert.equal(search.sources[0].freshness, 'pending_update');
     assert.equal(search.sources[0].knowledgePath, '/dashboard?view=knowledge&entry=9');
@@ -645,6 +648,67 @@ test('AI executor 行为：知识库搜索和详情通过标准 knowledge API', 
         'GET /api/knowledge/9',
         'GET /api/knowledge/overview',
     ]);
+});
+
+test('AI executor 行为：已有文本证据时不把纯向量候选交给回答模型', async () => {
+    installFetchStub((call) => {
+        if (call.url.includes('/api/knowledge?query=') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    {
+                        id: 130,
+                        entryType: 'business_rule',
+                        sourceTable: 'business_rules',
+                        sourceId: 'cutting_shell_semantics',
+                        title: '业务规则：切割泵壳与配件识别',
+                        matchMode: 'hybrid',
+                        evidenceLevel: 'text_match',
+                    },
+                    {
+                        id: 114,
+                        entryType: 'template',
+                        sourceTable: 'pump_shell_templates',
+                        sourceId: '6',
+                        title: '泵壳模板：SPA 3 叶',
+                        matchMode: 'vector',
+                        evidenceLevel: 'semantic_candidate',
+                    },
+                ],
+            });
+        }
+        if (call.url.endsWith('/api/knowledge/130') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 130,
+                    entryType: 'business_rule',
+                    sourceTable: 'business_rules',
+                    sourceId: 'cutting_shell_semantics',
+                    title: '业务规则：切割泵壳与配件识别',
+                    summary: '是否随泵壳附带刀片未明确，不得推断含刀。',
+                    content: '现有来源没有明确记录是否随泵壳附带刀片。',
+                    metadata: { bladeInclusionStatus: 'unconfirmed' },
+                },
+            });
+        }
+        if (call.url.endsWith('/api/knowledge/overview') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: { generatedAt: '2026-01-03', changes: [] } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_factory_knowledge', {
+        query: '切割杂草用的泵壳是哪一个',
+        limit: 10,
+    }, { allowWrite: false });
+
+    assert.deepEqual(result.data.map(item => item.title), ['业务规则：切割泵壳与配件识别']);
+    assert.match(result.data[0].content, /没有明确记录是否随泵壳附带刀片/);
+    assert.equal(result.data[0].metadata.bladeInclusionStatus, 'unconfirmed');
+    assert.equal(result.retrievalGuidance.omittedSemanticCandidateCount, 1);
+    assert.equal(result.sources.some(source => /SPA/.test(source.title)), false);
+    assert.match(result.summary, /纯语义候选因已有文本证据而未提供/);
 });
 
 test('AI executor 行为：外部资料搜索返回原文件下载来源', async () => {

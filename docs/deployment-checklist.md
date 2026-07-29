@@ -1,6 +1,6 @@
 # 生产发布检查清单
 
-> 更新于 2026-07-28。
+> 更新于 2026-07-29。
 
 本文用于 Mac Mini 生产环境发布前后的固定检查。发布命令以项目根目录为准：
 
@@ -21,9 +21,17 @@ export PATH=/opt/homebrew/bin:$PATH
 
 ```bash
 git pull --ff-only origin master
-npm install
-npm --prefix apps/web-next install
+npm ci
+npm --prefix apps/web-next ci
 ```
+
+首次部署 Knowledge V6 或更换模型时，联网准备本地模型缓存：
+
+```bash
+npm run knowledge:model-prepare
+```
+
+成功后在 `.env` 设置 `KNOWLEDGE_MODEL_OFFLINE=true`。后续重启只读取本地缓存，不依赖外网；模型准备失败时不要删除现有 FTS 数据。
 
 ## 2. 发布验证
 
@@ -77,6 +85,9 @@ tail -n 80 logs/web-launchd.error.log
 ```
 
 - 确认 `backups/` 目录有数据库备份；服务启动时会立即备份一次，之后每天 03:00 BJT 自动备份。
+- 执行 `npm run knowledge:backup-check`，确认临时恢复库完整性、外键、向量数量和余弦查询全部正常。
+- 执行 `npm run test:knowledge-retrieval`，确认固定检索评测通过；该命令复用已启动 API，不调用外部 AI。
+- 在管理看板“知识库”确认向量覆盖率、混合检索模式和待生成数量；模型异常时系统应自动显示 FTS 回退。
 - 确认审计保留期：默认 `AUDIT_RETENTION_DAYS=365`，清理只在成功备份后执行；设为 `0` 表示禁用。
 - 首次部署知识库版本后，在 `/ai` 输入“同步工厂知识库”并确认执行；核对同步总数、新增/更新/删除数量和 FTS 状态。
 - 用真实型号、客户、报价和订单各提问一次，确认 AI 能返回正确来源；知识库同步失败时先检查 API 日志，不要反复清库。
@@ -94,8 +105,8 @@ git pull --ff-only origin master
 选择上一个已知可用提交或标签后，再执行：
 
 ```bash
-npm install
-npm --prefix apps/web-next install
+npm ci
+npm --prefix apps/web-next ci
 npm run verify:release
 sudo ./scripts/install-macmini-launchdaemons.sh
 ```

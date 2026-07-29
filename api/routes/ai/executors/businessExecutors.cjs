@@ -551,17 +551,49 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             if (args.sourceTable) query.set('sourceTable', args.sourceTable);
             if (args.limit) query.set('limit', String(args.limit));
             const matches = await getJson(internalFetch, `/api/knowledge${query.toString() ? `?${query.toString()}` : ''}`, '工厂知识库搜索失败');
+            const textEvidenceMatches = Array.isArray(matches)
+                ? matches.filter(item => item?.evidenceLevel !== 'semantic_candidate' && item?.matchMode !== 'vector')
+                : [];
+            const omittedSemanticCandidateCount = textEvidenceMatches.length > 0 && Array.isArray(matches)
+                ? matches.length - textEvidenceMatches.length
+                : 0;
+            const safeMatches = textEvidenceMatches.length > 0 ? textEvidenceMatches : matches;
             const isExactCoilLookup = entryType === 'coil' && /^\d+\s*[-－]\s*\d+$/.test(queryText);
-            const data = isExactCoilLookup && Array.isArray(matches)
-                ? await Promise.all(matches.map(item => getJson(internalFetch, `/api/knowledge/${item.id}`, '线圈知识详情读取失败')))
-                : matches;
+            const data = Array.isArray(safeMatches)
+                ? await Promise.all(safeMatches.map(async item => {
+                    if (!isExactCoilLookup && item?.entryType !== 'business_rule') return item;
+                    const detail = await getJson(
+                        internalFetch,
+                        `/api/knowledge/${item.id}`,
+                        item?.entryType === 'business_rule' ? '业务规则知识详情读取失败' : '线圈知识详情读取失败'
+                    );
+                    return {
+                        ...detail,
+                        matchMode: item.matchMode,
+                        evidenceLevel: item.evidenceLevel,
+                        exactMatch: item.exactMatch,
+                        keywordRank: item.keywordRank,
+                        vectorDistance: item.vectorDistance,
+                        finalScore: item.finalScore,
+                    };
+                }))
+                : safeMatches;
             const overview = await getJson(internalFetch, '/api/knowledge/overview', '知识库新鲜度读取失败');
             const sources = buildKnowledgeSources(data, overview);
+            const semanticCandidateCount = Array.isArray(data)
+                ? data.filter(item => item?.evidenceLevel === 'semantic_candidate' || item?.matchMode === 'vector').length
+                : 0;
             return {
                 success: true,
                 intent: 'factory_knowledge_search',
-                summary: `工厂知识库找到 ${Array.isArray(data) ? data.length : 0} 条结果。`,
+                summary: `工厂知识库返回 ${Array.isArray(data) ? data.length : 0} 条可用结果${semanticCandidateCount > 0 ? `，其中 ${semanticCandidateCount} 条仅为语义候选，不能单独作为业务结论` : ''}${omittedSemanticCandidateCount > 0 ? `；另有 ${omittedSemanticCandidateCount} 条纯语义候选因已有文本证据而未提供给回答模型` : ''}。`,
                 display: { mode: 'compact', title: '工厂知识库' },
+                retrievalGuidance: {
+                    semanticCandidatesAreEvidence: false,
+                    semanticCandidateCount,
+                    omittedSemanticCandidateCount,
+                    message: '仅当标题、摘要、正文或 metadata 明确写出用途、兼容性或配件关系时才能据此下结论；纯向量候选只用于继续核对。',
+                },
                 provenance: {
                     kind: 'knowledge_snapshot',
                     label: '知识库快照',

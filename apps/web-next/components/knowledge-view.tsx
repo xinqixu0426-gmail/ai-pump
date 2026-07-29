@@ -27,6 +27,7 @@ import {
   getKnowledgeOverview,
   getKnowledgeSyncHealth,
   getKnowledgeSyncRuns,
+  getKnowledgeVectorHealth,
   searchKnowledgeEntries,
   syncFactoryKnowledge,
   uploadKnowledgeDocument,
@@ -39,6 +40,7 @@ import {
   type KnowledgeOverview,
   type KnowledgeSyncHealth,
   type KnowledgeSyncHistory,
+  type KnowledgeVectorHealth,
 } from '@/lib/knowledge';
 import {
   diagnoseAiAnswerFeedback,
@@ -166,6 +168,8 @@ export function KnowledgeView({
   const [overview, setOverview] = useState<KnowledgeOverview | null>(null);
   const [syncHealth, setSyncHealth] = useState<KnowledgeSyncHealth | null>(null);
   const [syncHistory, setSyncHistory] = useState<KnowledgeSyncHistory | null>(null);
+  const [vectorHealth, setVectorHealth] = useState<KnowledgeVectorHealth | null>(null);
+  const [vectorHealthError, setVectorHealthError] = useState('');
   const [entries, setEntries] = useState<KnowledgeListItem[]>([]);
   const [query, setQuery] = useState('');
   const [entryType, setEntryType] = useState<KnowledgeEntryType | ''>('');
@@ -210,16 +214,24 @@ export function KnowledgeView({
     setLoading(true);
     setError('');
     try {
-      const [nextOverview, nextEntries, nextSyncHistory, nextSyncHealth] = await Promise.all([
+      const [nextOverview, nextEntries, nextSyncHistory, nextSyncHealth, nextVectorHealth] = await Promise.all([
         getKnowledgeOverview(),
         searchKnowledgeEntries({ query, entryType, limit: 50 }),
         getKnowledgeSyncRuns(8),
         getKnowledgeSyncHealth(),
+        getKnowledgeVectorHealth()
+          .then(data => ({ data, error: '' }))
+          .catch(err => ({
+            data: null,
+            error: err instanceof Error ? err.message : '向量检索状态加载失败',
+          })),
       ]);
       setOverview(nextOverview);
       setEntries(nextEntries);
       setSyncHistory(nextSyncHistory);
       setSyncHealth(nextSyncHealth);
+      setVectorHealth(nextVectorHealth.data);
+      setVectorHealthError(nextVectorHealth.error);
     } catch (err) {
       setError(err instanceof Error ? err.message : '知识库加载失败');
     } finally {
@@ -539,7 +551,7 @@ export function KnowledgeView({
         <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted">已同步知识</div>
@@ -597,6 +609,48 @@ export function KnowledgeView({
           {overview?.autoSync.lastError ? (
             <div className="mt-2 line-clamp-2 text-xs text-rose-700">{overview.autoSync.lastError}</div>
           ) : null}
+        </FadePanel>
+        <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-muted">向量检索</div>
+            <SearchCheck size={17} className="text-cyan-700" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-ink">
+            {vectorHealth ? `${vectorHealth.coverage.coveragePercent}%` : '-'}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <StatusBadge
+              tone={vectorHealthError || vectorHealth?.embedding.lastError || vectorHealth?.extension.error
+                ? 'red'
+                : !vectorHealth?.enabled
+                  ? 'slate'
+                  : vectorHealth.coverage.pendingEntries > 0
+                    ? 'amber'
+                    : vectorHealth.searchMode === 'hybrid'
+                      ? 'green'
+                      : 'blue'}
+            >
+              {vectorHealthError
+                ? '状态异常'
+                : !vectorHealth?.enabled
+                  ? '已关闭'
+                  : vectorHealth.coverage.pendingEntries > 0
+                    ? `${vectorHealth.coverage.pendingEntries} 条待生成`
+                    : vectorHealth.searchMode === 'hybrid'
+                      ? '混合检索'
+                      : 'FTS 回退'}
+            </StatusBadge>
+            {vectorHealth ? (
+              <span>{vectorHealth.coverage.freshEntries}/{vectorHealth.coverage.totalEntries} 条</span>
+            ) : null}
+          </div>
+          {vectorHealthError || vectorHealth?.embedding.lastError || vectorHealth?.extension.error ? (
+            <div className="mt-2 line-clamp-2 text-xs text-rose-700">
+              {vectorHealthError || vectorHealth?.embedding.lastError || vectorHealth?.extension.error}
+            </div>
+          ) : (
+            <div className="mt-2 line-clamp-2 text-xs text-muted">{vectorHealth?.message || '正在读取向量状态'}</div>
+          )}
         </FadePanel>
       </div>
 

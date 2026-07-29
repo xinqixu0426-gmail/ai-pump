@@ -161,6 +161,63 @@ test('AI 评测：禁用词允许明确否定，但拒绝反转后的肯定结�
     fixture.db.close();
 });
 
+test('AI 评测：切割泵壳必须使用明确证据且不得把 SPA 语义候选当结论', () => {
+    const fixture = createFixture();
+    const caseItem = {
+        config: {
+            requiredTerms: [
+                ['800平刀切割泵壳'],
+                ['系统未记录', '系统未明确记录', '没有记录', '没有明确记录', '未明确标注', '无法确认'],
+                ['切边6mm长螺丝'],
+                ['外六角', '外六角螺丝'],
+            ],
+            forbiddenTerms: [
+                'SPA系列切割泵壳',
+                'SPA 2叶切割泵壳',
+                '专门为切割工况设计',
+                '全套含刀',
+            ],
+            requiredTools: ['search_factory_knowledge'],
+            requiredSourceTables: ['business_rules'],
+        },
+    };
+    const toolResults = [{
+        name: 'search_factory_knowledge',
+        result: {
+            sources: [{
+                knowledgeEntryId: 13,
+                title: '零件：800平刀切割泵壳',
+                sourceTable: 'parts',
+                sourceId: '13',
+                freshness: 'fresh',
+            }, {
+                knowledgeEntryId: 127,
+                title: '业务规则：切割泵壳与配件识别',
+                sourceTable: 'business_rules',
+                sourceId: 'cutting_shell_semantics',
+                freshness: 'fresh',
+            }],
+        },
+    }];
+
+    const correct = evaluateRuleCase(
+        caseItem,
+        '明确记录的选择是 **800平刀切割泵壳**；系统未记录其他明确标注的切割专用配件。“切边6mm长螺丝”是外六角螺丝，不是刀片。',
+        toolResults,
+        fixture.db
+    );
+    const incorrect = evaluateRuleCase(
+        caseItem,
+        '推荐 SPA 2叶切割泵壳，它专门为切割工况设计。',
+        toolResults,
+        fixture.db
+    );
+
+    assert.equal(correct.status, 'passed');
+    assert.equal(incorrect.status, 'failed');
+    fixture.db.close();
+});
+
 test('AI 评测：客户报价检查识别错误数量和内部数据库编号', () => {
     const fixture = createFixture();
     const result = evaluateRuleCase({

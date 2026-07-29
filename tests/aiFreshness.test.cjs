@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { requiresFreshToolLookup, buildFreshLookupToolCalls } = require('../api/services/aiFreshness.cjs');
+const {
+    requiresFreshToolLookup,
+    buildFreshLookupToolCalls,
+    purposeLookupQuery,
+} = require('../api/services/aiFreshness.cjs');
 
 test('AI 实时数据查询必须重新调用工具', () => {
     const messages = [
@@ -23,6 +27,20 @@ test('AI 普通闲聊不强制调用业务工具', () => {
     assert.equal(requiresFreshToolLookup([{ role: 'user', content: '谢谢' }]), false);
     assert.equal(requiresFreshToolLookup([]), false);
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '你好' }]), []);
+});
+
+test('AI 产品用途选择必须重新查询知识而不能复述旧会话答案', () => {
+    const messages = [
+        { role: 'assistant', content: '旧回答错误推荐了 SPA。' },
+        { role: 'user', content: '切割杂草用的泵壳是哪一个' },
+    ];
+
+    assert.equal(requiresFreshToolLookup(messages), true);
+    assert.deepEqual(buildFreshLookupToolCalls(messages), [{
+        name: 'search_factory_knowledge',
+        args: { query: '切割杂草', limit: 10 },
+    }]);
+    assert.equal(purposeLookupQuery('切割杂草用的泵壳是哪一个'), '切割杂草');
 });
 
 test('AI 为铜价和订单状态预取对应实时工具', () => {
