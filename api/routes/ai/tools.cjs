@@ -694,6 +694,14 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_management_action_center',
+            description: '实时读取统一管理待办中心，汇总订单准备、经营风险、数据质量、规则学习和知识健康，并按优先级返回处理入口。只读，不创建任务、不修改业务数据。用户问“今天先处理什么”“现在最重要的待办”“工厂有哪些风险需要优先跟进”时使用。',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_business_alerts',
             description: '获取报价和订单经营异常提醒，不写库。适合用户问“现在还有哪些报价订单风险”“有什么需要跟进”“哪些订单卡住了”。',
             parameters: { type: 'object', properties: {} }

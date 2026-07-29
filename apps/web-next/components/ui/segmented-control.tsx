@@ -13,6 +13,7 @@ type SegmentedControlProps<T extends string> = {
   options: Array<SegmentedOption<T>>;
   onChange: (value: T) => void;
   ariaLabel: string;
+  className?: string;
 };
 
 export function SegmentedControl<T extends string>({
@@ -20,16 +21,17 @@ export function SegmentedControl<T extends string>({
   options,
   onChange,
   ariaLabel,
+  className,
 }: SegmentedControlProps<T>) {
   return (
-    <div className="flex rounded-md border border-line bg-slate-50 p-0.5" role="group" aria-label={ariaLabel}>
+    <div className={clsx('flex rounded-md border border-line bg-slate-50 p-0.5', className)} role="group" aria-label={ariaLabel}>
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
           className={clsx(
-            'relative h-8 rounded px-3 text-sm transition-colors duration-150',
+            'relative h-8 shrink-0 whitespace-nowrap rounded px-3 text-sm transition-colors duration-150',
             value === option.value
               ? 'bg-white text-ink shadow-panel'
               : 'text-muted hover:text-ink'

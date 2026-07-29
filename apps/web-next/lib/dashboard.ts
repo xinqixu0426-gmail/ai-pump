@@ -92,9 +92,54 @@ export type BusinessSummary = {
   };
 };
 
+export type ManagementActionPriority = 'critical' | 'high' | 'medium' | 'low';
+export type ManagementActionCategory =
+  | 'order_readiness'
+  | 'business_risk'
+  | 'data_quality'
+  | 'rule_learning'
+  | 'knowledge_health';
+
+export type ManagementActionItem = {
+  id: string;
+  priority: ManagementActionPriority;
+  category: ManagementActionCategory;
+  categoryLabel: string;
+  title: string;
+  detail: string;
+  action: string;
+  owner: string;
+  path: string;
+  count: number;
+  entityType: string;
+  entityId: string;
+  sourceType: string;
+};
+
+export type ManagementActionCenter = {
+  generatedAt: string;
+  summary: string;
+  metrics: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    attentionRequired: number;
+    categoryCounts: Record<ManagementActionCategory, number>;
+  };
+  items: ManagementActionItem[];
+};
+
 export async function getWorkbenchSummary(): Promise<BusinessSummary> {
   const result = await proxyRequest<ApiResponse<BusinessSummary>>('/api/workbench/summary');
   if (!result.success || !result.data) throw new Error(result.error || '看板加载失败');
+  return result.data;
+}
+
+export async function getManagementActionCenter(): Promise<ManagementActionCenter> {
+  const result = await proxyRequest<ApiResponse<ManagementActionCenter>>('/api/workbench/action-center');
+  if (!result.success || !result.data) throw new Error(result.error || '管理待办加载失败');
   return result.data;
 }
 

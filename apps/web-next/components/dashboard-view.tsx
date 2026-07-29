@@ -10,7 +10,13 @@ import {
   Store,
   TrendingUp,
 } from 'lucide-react';
-import { getWorkbenchSummary, severityClassName, type BusinessSummary } from '@/lib/dashboard';
+import {
+  getManagementActionCenter,
+  getWorkbenchSummary,
+  severityClassName,
+  type BusinessSummary,
+  type ManagementActionCenter,
+} from '@/lib/dashboard';
 import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
@@ -21,8 +27,9 @@ import { getDataQualitySummary } from '@/lib/quality';
 import { KnowledgeView } from '@/components/knowledge-view';
 import { OrderReadinessOverviewView } from '@/components/order-readiness-overview';
 import { getOrderReadinessOverview, type OrderReadinessOverview } from '@/lib/order-readiness';
+import { ManagementActionCenterView } from '@/components/management-action-center';
 
-type DashboardMode = 'overview' | 'readiness' | 'quality' | 'knowledge';
+type DashboardMode = 'overview' | 'actions' | 'readiness' | 'quality' | 'knowledge';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -59,9 +66,13 @@ export function DashboardView({
   const [knowledgeRefreshKey, setKnowledgeRefreshKey] = useState(0);
   const [knowledgeRefreshing, setKnowledgeRefreshing] = useState(false);
   const [readinessOverview, setReadinessOverview] = useState<OrderReadinessOverview | null>(null);
-  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [readinessLoading, setReadinessLoading] = useState(initialMode === 'readiness');
   const [readinessRefreshing, setReadinessRefreshing] = useState(false);
   const [readinessError, setReadinessError] = useState<string | null>(null);
+  const [actionCenter, setActionCenter] = useState<ManagementActionCenter | null>(null);
+  const [actionLoading, setActionLoading] = useState(true);
+  const [actionRefreshing, setActionRefreshing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function load(force = false) {
     setError(null);
@@ -92,23 +103,49 @@ export function DashboardView({
     }
   }
 
+  async function loadActionCenter(force = false) {
+    setActionError(null);
+    if (force) setActionRefreshing(true);
+    else setActionLoading(true);
+    try {
+      setActionCenter(await getManagementActionCenter());
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : '管理待办加载失败');
+    } finally {
+      setActionLoading(false);
+      setActionRefreshing(false);
+    }
+  }
+
   useEffect(() => {
     void load();
-    void loadReadiness();
+    void loadActionCenter();
+    if (initialMode === 'readiness') void loadReadiness();
     void getDataQualitySummary()
       .then((quality) => setQualityScore(quality.score))
       .catch(() => undefined);
   }, []);
 
+  const readinessAttention = readinessOverview?.metrics.attentionRequired
+    ?? actionCenter?.metrics.categoryCounts.order_readiness;
   const dashboardModeOptions: Array<{ value: DashboardMode; label: string; badge?: number }> = [
     { value: 'overview', label: '经营概览' },
-    { value: 'readiness', label: '订单准备', ...(readinessOverview ? { badge: readinessOverview.metrics.attentionRequired } : {}) },
+    { value: 'actions', label: '今日待办', ...(actionCenter ? { badge: actionCenter.metrics.attentionRequired } : {}) },
+    { value: 'readiness', label: '订单准备', ...(readinessAttention === undefined ? {} : { badge: readinessAttention }) },
     { value: 'quality', label: '数据质量', ...(qualityScore === null ? {} : { badge: qualityScore }) },
     { value: 'knowledge', label: '知识库' },
   ];
 
+  function changeMode(nextMode: DashboardMode) {
+    setMode(nextMode);
+    if (nextMode === 'readiness' && !readinessOverview && !readinessLoading) {
+      void loadReadiness();
+    }
+  }
+
   function refreshCurrentView() {
     if (mode === 'overview') void load(true);
+    else if (mode === 'actions') void loadActionCenter(true);
     else if (mode === 'readiness') void loadReadiness(true);
     else if (mode === 'quality') {
       setQualityRefreshing(true);
@@ -130,11 +167,11 @@ export function DashboardView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl value={mode} options={dashboardModeOptions} onChange={setMode} ariaLabel="看板内容" />
+          <SegmentedControl value={mode} options={dashboardModeOptions} onChange={changeMode} ariaLabel="看板内容" />
           <Button
             onClick={refreshCurrentView}
-            disabled={mode === 'overview' ? refreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
-            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
+            disabled={mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
+            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
           >
             刷新
           </Button>
@@ -147,6 +184,10 @@ export function DashboardView({
 
       {mode === 'knowledge' ? (
         <KnowledgeView initialEntryId={initialKnowledgeEntryId} refreshKey={knowledgeRefreshKey} onRefreshComplete={() => setKnowledgeRefreshing(false)} />
+      ) : null}
+
+      {mode === 'actions' ? (
+        <ManagementActionCenterView center={actionCenter} loading={actionLoading} error={actionError} />
       ) : null}
 
       {mode === 'readiness' ? (

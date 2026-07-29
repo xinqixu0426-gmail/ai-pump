@@ -172,6 +172,7 @@ async function readCoreResources() {
         ['客户列表', '/api/customers'],
         ['报价列表', '/api/quotations'],
         ['工作台汇总', '/api/workbench/summary'],
+        ['管理待办', '/api/workbench/action-center'],
         ['数据质量', '/api/quality/summary'],
         ['经营提醒', '/api/quality/business-alerts'],
         ['规则执行', '/api/quality/rule-compliance'],

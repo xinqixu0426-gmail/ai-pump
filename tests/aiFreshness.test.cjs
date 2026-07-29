@@ -58,6 +58,15 @@ test('AI 将多订单生产准备问题路由到实时订单总览', () => {
     ]);
 });
 
+test('AI 将今日优先事项路由到统一管理待办', () => {
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '今天最先需要处理什么' }]), [
+        { name: 'get_management_action_center', args: {} },
+    ]);
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '现在工厂有哪些风险需要优先跟进' }]), [
+        { name: 'get_management_action_center', args: {} },
+    ]);
+});
+
 test('AI 将订单问题处理请求优先路由到生产准备处理方案', () => {
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '订单 #12 不能生产，下一步怎么处理' }]), [
         { name: 'search_factory_knowledge', args: { query: '订单 #12 不能生产 下一步怎么处理', limit: 10 } },

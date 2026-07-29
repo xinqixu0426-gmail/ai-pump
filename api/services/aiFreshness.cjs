@@ -1,5 +1,6 @@
 const FACT_FIELD_RE = /价格|单价|成本|库存|铜价|铝价|汇率|状态|进度|金额|利润|报价|订单|供应商|客户|配方|零件|线圈|模板|质量问题|业务规则/;
 const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|汇总|总览|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
+const MANAGEMENT_ACTION_INTENT_RE = /管理待办|待办中心|最优先|今天.*(?:先做什么|先.*处理|待办|风险|异常)|(?:当前|现在|全部|工厂).*(?:待办|优先事项|风险.*(?:处理|跟进)|异常.*处理|先做什么)/;
 
 /**
  * Dynamic factory data may have changed since an earlier conversation turn.
@@ -8,7 +9,10 @@ const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|
 function requiresFreshToolLookup(messages = []) {
     const text = latestUserText(messages);
 
-    return Boolean(text && FACT_FIELD_RE.test(text) && LOOKUP_INTENT_RE.test(text));
+    return Boolean(text && (
+        MANAGEMENT_ACTION_INTENT_RE.test(text)
+        || (FACT_FIELD_RE.test(text) && LOOKUP_INTENT_RE.test(text))
+    ));
 }
 
 function latestUserText(messages = []) {
@@ -38,6 +42,9 @@ function buildFreshLookupToolCalls(messages = []) {
     if (!requiresFreshToolLookup(messages)) return [];
 
     const text = latestUserText(messages);
+    if (MANAGEMENT_ACTION_INTENT_RE.test(text)) {
+        return [{ name: 'get_management_action_center', args: {} }];
+    }
     const coilKey = /线圈/.test(text) ? coilSpecSheetKey(text) : '';
     const query = coilKey || freshLookupQuery(text);
     const calls = [{
@@ -69,4 +76,9 @@ function buildFreshLookupToolCalls(messages = []) {
     return calls;
 }
 
-module.exports = { requiresFreshToolLookup, buildFreshLookupToolCalls, coilSpecSheetKey };
+module.exports = {
+    requiresFreshToolLookup,
+    buildFreshLookupToolCalls,
+    coilSpecSheetKey,
+    MANAGEMENT_ACTION_INTENT_RE,
+};

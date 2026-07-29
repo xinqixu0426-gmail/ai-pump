@@ -136,6 +136,21 @@ test('关键 API 集成契约：/api/quality/business-alerts 只生成经营异�
     assertNoWrites(source);
 });
 
+test('关键 API 集成契约：/api/workbench/action-center 只聚合现有检查不写库', () => {
+    const route = readUtf8('api/routes/workbench.cjs');
+    const service = readUtf8('api/services/managementActionCenter.cjs');
+
+    assert.match(route, /router\.get\('\/action-center'/);
+    assert.match(route, /buildManagementActionCenter\(\)/);
+    assert.match(service, /buildActiveOrdersReadinessOverview\(\)/);
+    assert.match(service, /buildBusinessAlerts\(\)/);
+    assert.match(service, /buildDataQualitySummary\(\)/);
+    assert.match(service, /buildFactoryLearningHealth\(\{ limit: 200 \}\)/);
+    assert.match(service, /buildKnowledgeSyncHealth/);
+    assertNoWrites(route);
+    assertNoWrites(service);
+});
+
 test('关键 API 集成契约：/api/quality/recipe-analysis 只生成配方智能建议不写库', () => {
     const source = readUtf8('api/routes/quality.cjs');
 
@@ -292,11 +307,11 @@ test('关键 API 集成契约：订单只读查询和处理方案不刷新采购
 
 test('关键 API 集成契约：订单准备总览只计算一次平衡计划且不写库', () => {
     const source = readUtf8('api/routes/orders.cjs');
-    const helper = sliceBetween(source, 'function buildActiveOrdersReadinessOverview', 'function executeReadinessAction');
+    const helper = readUtf8('api/services/activeOrderReadiness.cjs');
     const route = sliceBetween(source, "router.get('/readiness-overview'", "router.get('/:id/readiness-plan'");
 
     assert.match(helper, /const plans = buildBalancedOrderPlans\(records, parts/);
-    assert.equal((helper.match(/buildBalancedOrderPlans/g) || []).length, 1);
+    assert.equal((helper.match(/const plans = buildBalancedOrderPlans\(/g) || []).length, 1);
     assert.match(helper, /records\.map/);
     assert.match(helper, /buildOrderReadiness/);
     assert.match(helper, /buildOrderReadinessPlan/);

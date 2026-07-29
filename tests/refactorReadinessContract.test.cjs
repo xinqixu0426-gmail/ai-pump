@@ -372,6 +372,27 @@ test('Next UI 契约：管理看板和 AI 均展示订单准备总览', () => {
     assert.match(aiView, /\/dashboard\?view=readiness/);
 });
 
+test('Next UI 契约：管理看板和 AI 使用同一管理待办中心', () => {
+    const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
+    const actionCenter = readUtf8('apps/web-next/components/management-action-center.tsx');
+    const dashboardLib = readUtf8('apps/web-next/lib/dashboard.ts');
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+
+    assert.match(dashboard, /value: 'actions', label: '今日待办'/);
+    assert.match(dashboard, /ManagementActionCenterView/);
+    assert.match(dashboard, /categoryCounts\.order_readiness/);
+    assert.match(dashboard, /if \(initialMode === 'readiness'\) void loadReadiness\(\)/);
+    assert.match(dashboard, /nextMode === 'readiness' && !readinessOverview/);
+    assert.match(actionCenter, /待办优先级筛选/);
+    assert.match(actionCenter, /待办来源筛选/);
+    assert.match(actionCenter, /item\.owner/);
+    assert.match(actionCenter, /item\.path/);
+    assert.match(dashboardLib, /\/api\/workbench\/action-center/);
+    assert.match(aiView, /function ManagementActionCenterResult/);
+    assert.match(aiView, /get_management_action_center/);
+    assert.match(aiView, /\/dashboard\?view=actions/);
+});
+
 test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {
     const dashboardOverview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
     const ordersPage = readUtf8('apps/web-next/app/orders/page.tsx');

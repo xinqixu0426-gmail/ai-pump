@@ -1014,6 +1014,28 @@ test('API 静态契约：V5.5 订单准备总览对 API、AI 和只读边界保�
     assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_readiness_overview/);
 });
 
+test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
+    const service = readUtf8(path.join(repoRoot, 'api/services/managementActionCenter.cjs'));
+    const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
+
+    assert.match(service, /order_readiness/);
+    assert.match(service, /business_risk/);
+    assert.match(service, /data_quality/);
+    assert.match(service, /rule_learning/);
+    assert.match(service, /knowledge_health/);
+    assert.doesNotMatch(service, /safeInsert|safeUpdate|softDelete|hardDelete/);
+    assert.match(workbench, /router\.get\('\/action-center'/);
+    assert.match(tools, /name:\s*'get_management_action_center'/);
+    assert.match(executor, /\/api\/workbench\/action-center/);
+    assert.match(prompt, /今天先做什么/);
+    assert.match(freshness, /MANAGEMENT_ACTION_INTENT_RE/);
+    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_management_action_center/);
+});
+
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));

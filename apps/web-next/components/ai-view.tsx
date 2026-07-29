@@ -143,7 +143,7 @@ const samples: Array<{ category: SampleCategory; icon: LucideIcon; label: string
   { category: '成本', icon: Coins, label: '差异解释', prompt: '为什么 12-140 比 12-120 贵' },
   { category: '订单', icon: ClipboardList, label: '订单流转', prompt: '把订单 5 改成采购中', mode: 'write' },
   { category: '订单', icon: ReceiptText, label: '待采购', prompt: '现在有哪些订单卡在待采购' },
-  { category: '质量', icon: ShieldAlert, label: '经营异常', prompt: '现在有什么报价订单风险需要跟进' },
+  { category: '质量', icon: ShieldAlert, label: '今日待办', prompt: '今天最先需要处理什么' },
   { category: '质量', icon: Database, label: '数据质量', prompt: '系统资料还有什么问题会影响 AI 准确性' },
   { category: '质量', icon: FileSearch, label: '零件检索', prompt: '找所有螺丝零件' },
 ];
@@ -871,6 +871,63 @@ function OrderReadinessOverviewResult({ result }: { result: Record<string, unkno
   );
 }
 
+function ManagementActionCenterResult({ result }: { result: Record<string, unknown> }) {
+  const data = asRecord(result.data);
+  const metrics = asRecord(data.metrics);
+  const items = arrayValue(data.items);
+  const priorityMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
+    critical: { label: '紧急', tone: 'red' },
+    high: { label: '高优先级', tone: 'orange' },
+    medium: { label: '普通', tone: 'amber' },
+    low: { label: '低', tone: 'slate' },
+  };
+
+  return (
+    <>
+      <div className="mt-3 border-b border-slate-100 pb-3">
+        <div className="text-sm font-semibold text-ink">管理待办</div>
+        <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
+      </div>
+      <KeyValueRows rows={[
+        { label: '待办总数', value: metrics.total },
+        { label: '紧急', value: metrics.critical },
+        { label: '高优先级', value: metrics.high },
+        { label: '普通', value: metrics.medium },
+        { label: '低优先级', value: metrics.low },
+      ]} />
+      {items.length > 0 ? (
+        <DataTable
+          rows={items.slice(0, 12)}
+          columns={[
+            {
+              key: 'priority',
+              label: '优先级',
+              render: row => {
+                const priority = textValue(row.priority);
+                const meta = priorityMeta[priority] || { label: priority || '未知', tone: 'slate' as StatusBadgeTone };
+                return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
+              },
+            },
+            { key: 'categoryLabel', label: '来源' },
+            { key: 'title', label: '待办' },
+            { key: 'owner', label: '负责人' },
+            { key: 'action', label: '下一步' },
+          ]}
+        />
+      ) : null}
+      <div className="mt-3">
+        <a
+          href="/dashboard?view=actions"
+          className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        >
+          打开管理待办
+          <ArrowUpRight size={13} />
+        </a>
+      </div>
+    </>
+  );
+}
+
 function OrderReadinessPlanResult({ result }: { result: Record<string, unknown> }) {
   const data = asRecord(result.data);
   const order = asRecord(data.order);
@@ -1122,6 +1179,7 @@ function BusinessResult({ item }: { item: AiToolResult }) {
     return <CostResult result={result} />;
   }
   if (item.name === 'compare_recipes') return <CompareResult result={result} />;
+  if (item.name === 'get_management_action_center') return <ManagementActionCenterResult result={result} />;
   if (item.name === 'get_order_readiness_overview') return <OrderReadinessOverviewResult result={result} />;
   if (item.name === 'check_order_readiness') return <OrderReadinessResult result={result} />;
   if (item.name === 'plan_order_readiness_actions') return <OrderReadinessPlanResult result={result} />;

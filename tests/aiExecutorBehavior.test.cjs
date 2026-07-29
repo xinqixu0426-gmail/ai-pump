@@ -193,6 +193,41 @@ test('AI executor 行为：订单准备总览通过只读标准 API 返回全部
     ]);
 });
 
+test('AI executor 行为：统一管理待办通过只读标准 API 返回实时优先级', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/workbench/action-center') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    summary: '当前有 2 项管理待办。',
+                    metrics: {
+                        total: 2,
+                        critical: 1,
+                        high: 1,
+                        medium: 0,
+                        low: 0,
+                    },
+                    items: [
+                        { id: 'order-readiness:12', priority: 'critical', title: '订单 #12 数据阻塞' },
+                        { id: 'business-risk:quotation:5', priority: 'high', title: '报价 #5 低于成本' },
+                    ],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('get_management_action_center', {}, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'management_action_center');
+    assert.equal(result.data.metrics.critical, 1);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/workbench/action-center',
+    ]);
+});
+
 test('AI executor 行为：客户名匹配多个订单时要求明确而不猜测', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/orders/lookup?query=%E6%B5%8B%E8%AF%95%E5%AE%A2%E6%88%B7') && call.method === 'GET') {

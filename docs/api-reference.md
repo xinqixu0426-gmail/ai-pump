@@ -218,6 +218,9 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/workbench/summary` | 无 | 经营、库存、采购和待办汇总 |
+| `GET` | `/api/workbench/action-center` | 无 | 聚合订单准备、经营风险、数据质量、规则学习和知识库健康检查，按优先级返回今日管理待办；只读不写库 |
+
+管理待办中心复用各业务域的实时检查结果，不复制成本、库存或知识同步规则。优先级为 `critical/high/medium/low`，类别为 `order_readiness/business_risk/data_quality/rule_learning/knowledge_health`；同一订单的采购提醒由订单准备结论统一呈现，避免与经营风险重复计数。返回项包含负责人、来源、数量和可执行页面路径，但不包含写工具或自动执行动作。AI 工具 `get_management_action_center` 和管理看板“今日待办”页签使用同一接口。
 
 ## 13. 设置 Settings
 
@@ -476,6 +479,7 @@ AI 工具：
 - `search_factory_knowledge`：只读搜索知识库。
 - `get_factory_knowledge_detail`：只读读取详情。
 - `get_factory_knowledge_health`：只读诊断自动同步状态、失败原因和人工恢复建议。
+- `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
 
 ## 18. 当前兼容边界

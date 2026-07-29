@@ -1,6 +1,6 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-07-23。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，线圈领域规则见 [coil-domain.md](./coil-domain.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。产品化拆分讨论稿见 [通用内核与定制模块拆分设计](./modularization-design.md)。
+> 当前版本说明，更新于 2026-07-29。本文只描述现行功能与规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)，完整 API 总表见 [api-reference.md](./api-reference.md)，API 开发约束见 [api-sop.md](./api-sop.md)，业务流程基准见 [business-flow.md](./business-flow.md)，线圈领域规则见 [coil-domain.md](./coil-domain.md)，前端状态边界见 [frontend-state-boundary.md](./frontend-state-boundary.md)，UI/交互约束见 [ui-refactor-guidelines.md](./ui-refactor-guidelines.md)。当前开发主线和延期事项见 [开发待办与向量检索主线](./development-backlog.md)，产品化拆分讨论稿见 [通用内核与定制模块拆分设计](./modularization-design.md)。
 
 ## 1. 系统用途
 
@@ -85,6 +85,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 - `GET /api/orders/:id/readiness` 只读执行订单生产准备检查；复用活动订单库存平衡结果，依次核对订单、BOM、零件、线圈、采购和成本价格。已下单或到货不能替代入库库存，只有当前可用库存覆盖需求时才返回可生产。
 - `GET /api/orders/readiness-overview` 一次计算全部活动订单的库存平衡和生产准备结论，汇总数据阻塞、待补料、待复核、可生产数量，并返回各订单主要问题和下一步；管理看板“订单准备”页签使用该接口。
 - 总览中的订单链接使用 `/orders?orderId=:id&view=readiness` 精确打开订单详情“生产准备”页签。详情并行读取单订单检查和处理方案，展示完整六步依据、问题、实时缺料、负责人和依赖；页签本身只读，写操作继续走订单详情原有确认按钮。
+- `GET /api/workbench/action-center` 把订单准备、经营风险、数据质量、规则学习和知识库健康合并为统一“今日待办”，按优先级给出负责人和业务页面入口；看板与 AI 共用该只读结果，不自动执行任何处理动作。
 - 订单详情会把当前订单 ID 和页签作为独立页面上下文交给右侧 AI，用户可直接询问“这个订单为什么不能生产”或“下一步怎么处理”。上下文不写入会话消息，后端会忽略客户端业务数值并重新调用实时工具。
 - `GET /api/orders/:id/readiness-plan` 把检查结果转换成有顺序和前置依赖的处理方案；区分 AI 可发起确认、人工补资料、业务决定和采购等待，但不直接执行订单或库存写入。按客户名或合同号解析订单使用只读 `/api/orders/lookup`，不会触发采购计划刷新。
 - `POST /api/orders/:id/readiness-actions/:actionId` 只执行实时方案中仍为 `confirmable + available` 的白名单步骤。当前支持确认订单和生成采购清单，执行前重新检查，过期或受阻步骤返回 `409`，成功后返回更新订单和新方案。
@@ -194,7 +195,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。前端展示零件时
 | 配方 | `/api/recipes` | CRUD、BOM 草稿、保存成本快照、成本与覆盖试算 |
 | 客户/报价 | `/api/customers`、`/api/quotations` | CRUD |
 | 订单 | `/api/orders` | CRUD、历史售价、采购清单、单订单准备检查和全部活动订单准备总览 |
-| 工作台 | `/api/workbench/summary` | 经营、库存和采购汇总 |
+| 工作台 | `/api/workbench/summary`、`/api/workbench/action-center` | 经营、库存、采购汇总及统一管理待办 |
 | 转子 | `/api/rotor` | 模板草稿、出图、参数暂存、状态、历史、关联、打印 |
 | 质量与经营异常 | `/api/quality` | 基础资料健康度、报价和订单经营异常提醒，以及配方智能检查 |
 | 工厂知识库 | `/api/knowledge` | SQLite 知识条目同步、独立资料导入、搜索和详情读取，供 AI 检索 |
