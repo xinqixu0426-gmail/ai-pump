@@ -435,7 +435,11 @@ test('Next UI 契约：管理看板和 AI 使用同一管理待办中心', () =>
     assert.match(dashboard, /nextMode === 'readiness' && !readinessOverview/);
     assert.match(actionCenter, /待办优先级筛选/);
     assert.match(actionCenter, /待办来源筛选/);
-    assert.match(actionCenter, /item\.owner/);
+    assert.match(actionCenter, /今日执行队列/);
+    assert.match(actionCenter, /executionQueue\.items/);
+    assert.match(actionCenter, /itemResolution/);
+    assert.match(actionCenter, /交给 AI/);
+    assert.doesNotMatch(actionCenter, /item\.owner/);
     assert.match(actionCenter, /item\.path/);
     assert.match(dashboardLib, /\/api\/workbench\/action-center/);
     assert.match(aiView, /function ManagementActionCenterResult/);

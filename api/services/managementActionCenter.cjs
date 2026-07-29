@@ -1,3 +1,5 @@
+const crypto = require('node:crypto');
+
 const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 const CATEGORY_RANK = {
     order_readiness: 0,
@@ -6,6 +8,7 @@ const CATEGORY_RANK = {
     rule_learning: 3,
     knowledge_health: 4,
 };
+const RESOLUTION_MODES = new Set(['navigate', 'confirmable', 'needs_input', 'monitor']);
 
 function list(value) {
     return Array.isArray(value) ? value : [];
@@ -20,7 +23,45 @@ function positiveCount(value, fallback = 1) {
     return Number.isFinite(count) && count > 0 ? count : fallback;
 }
 
+function stableAlertKey(alert) {
+    const explicit = text(alert?.key);
+    if (explicit) return explicit;
+    return crypto
+        .createHash('sha256')
+        .update(text(alert?.title).replace(/\d+/g, '#'))
+        .digest('hex')
+        .slice(0, 12);
+}
+
+function actionResolution(input = {}) {
+    const mode = RESOLUTION_MODES.has(input.mode) ? input.mode : 'navigate';
+    const confirmation = mode === 'confirmable' && input.confirmation
+        ? {
+            toolName: text(input.confirmation.toolName),
+            args: input.confirmation.args && typeof input.confirmation.args === 'object'
+                ? input.confirmation.args
+                : {},
+        }
+        : null;
+    const instructionByMode = {
+        navigate: '打开对应业务页面，按当前问题完成处理。',
+        confirmable: '可交给 AI 发起确认，确认后由服务端实时重验并执行。',
+        needs_input: '需要你先完成业务判断，再决定是否修改。',
+        monitor: '当前依赖外部状态变化，暂不执行写操作。',
+    };
+    return {
+        mode,
+        title: text(input.title) || '查看并处理',
+        instruction: text(input.instruction) || instructionByMode[mode],
+        expectedResult: text(input.expectedResult),
+        path: text(input.path),
+        canAiConfirm: Boolean(confirmation?.toolName),
+        confirmation,
+    };
+}
+
 function actionItem(input) {
+    const path = text(input.path);
     return {
         id: text(input.id),
         priority: PRIORITY_RANK[input.priority] === undefined ? 'low' : input.priority,
@@ -30,11 +71,16 @@ function actionItem(input) {
         detail: text(input.detail),
         action: text(input.action),
         owner: text(input.owner),
-        path: text(input.path),
+        path,
         count: positiveCount(input.count),
         entityType: text(input.entityType),
         entityId: text(input.entityId),
         sourceType: text(input.sourceType),
+        resolution: actionResolution({
+            title: input.action,
+            path,
+            ...(input.resolution || {}),
+        }),
     };
 }
 
@@ -52,6 +98,14 @@ function readinessItems(readiness = {}) {
             const customer = text(item.order?.customerName) || '未命名客户';
             const nextAction = item.nextAction || {};
             const firstIssue = list(item.blockers)[0] || list(item.warnings)[0] || {};
+            const path = `/orders?orderId=${orderId}&view=readiness`;
+            const nextMode = nextAction.mode === 'confirmable' && nextAction.status === 'available'
+                ? 'confirmable'
+                : nextAction.mode === 'needs_input'
+                    ? 'needs_input'
+                    : nextAction.mode === 'monitor'
+                        ? 'monitor'
+                        : 'navigate';
             return actionItem({
                 id: `order-readiness:${orderId}`,
                 priority: meta.priority,
@@ -61,11 +115,26 @@ function readinessItems(readiness = {}) {
                 detail: text(item.summary) || `${customer} 的订单需要处理。`,
                 action: text(nextAction.title) || text(firstIssue.action) || '查看生产准备详情',
                 owner: text(nextAction.owner) || (item.verdict === 'waiting_materials' ? '采购人员' : '业务负责人'),
-                path: `/orders?orderId=${orderId}&view=readiness`,
+                path,
                 count: positiveCount(item.blockerCount || item.shortageCount || item.warningCount),
                 entityType: 'order',
                 entityId: orderId,
                 sourceType: 'order_readiness',
+                resolution: {
+                    mode: nextMode,
+                    title: text(nextAction.title) || text(firstIssue.action) || '查看生产准备详情',
+                    expectedResult: nextAction.expectedResult,
+                    path,
+                    ...(nextMode === 'confirmable' ? {
+                        confirmation: {
+                            toolName: 'execute_order_readiness_action',
+                            args: {
+                                orderId,
+                                actionId: text(nextAction.id),
+                            },
+                        },
+                    } : {}),
+                },
             });
         });
 }
@@ -76,11 +145,11 @@ function businessRiskItems(businessAlerts = {}) {
             alert.scope === 'order'
             && /有\s*\d+\s*项待采购/.test(text(alert.title))
         ))
-        .map((alert, index) => {
+        .map((alert) => {
             const entityId = text(alert.entityId);
             const isOrder = alert.scope === 'order';
             return actionItem({
-                id: `business-risk:${text(alert.scope) || 'general'}:${entityId || index}:${index}`,
+                id: `business-risk:${text(alert.scope) || 'general'}:${entityId || 'general'}:${stableAlertKey(alert)}`,
                 priority: alert.severity === 'high' ? 'high' : alert.severity === 'medium' ? 'medium' : 'low',
                 category: 'business_risk',
                 categoryLabel: '经营风险',
@@ -281,4 +350,6 @@ module.exports = {
     dataQualityItems,
     ruleLearningItems,
     knowledgeHealthItems,
+    actionResolution,
+    stableAlertKey,
 };

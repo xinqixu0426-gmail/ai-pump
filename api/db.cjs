@@ -286,6 +286,39 @@ function knowledgeVectorSyncRunRow(r) {
         updatedAt: r.updated_at,
     };
 }
+function managementActionLifecycleRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        actionKey: r.action_key,
+        status: r.status,
+        category: r.category,
+        sourceType: r.source_type,
+        entityType: r.entity_type,
+        entityId: r.entity_id,
+        title: r.title,
+        priority: r.priority,
+        occurrenceCount: Number(r.occurrence_count || 0),
+        firstSeenAt: r.first_seen_at,
+        activeSince: r.active_since,
+        resolvedAt: r.resolved_at,
+        lastReopenedAt: r.last_reopened_at,
+        snapshotJson: r.snapshot_json,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+    };
+}
+function managementActionEventRow(r) {
+    if (!r) return r;
+    return {
+        id: r.id,
+        lifecycleId: r.lifecycle_id,
+        eventType: r.event_type,
+        occurredAt: r.occurred_at,
+        snapshotJson: r.snapshot_json,
+        createdAt: r.created_at,
+    };
+}
 function knowledgeDocumentRow(r) {
     if (!r) return r;
     return {
@@ -568,7 +601,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -772,7 +805,7 @@ scheduleBackup();
 
 module.exports = {
     db,
-    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, knowledgeDocumentRow, knowledgeSyncRunRow, knowledgeVectorSyncRunRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
+    partRow, recipeRow, templateRow, modelVariantRow, orderRow, coilRow, statorVariantRow, customerRow, quotationRow, knowledgeEntryRow, knowledgeDocumentRow, knowledgeSyncRunRow, knowledgeVectorSyncRunRow, managementActionLifecycleRow, managementActionEventRow, aiConversationRow, aiConversationMessageRow, aiAnswerFeedbackRow, aiEvaluationCaseRow, aiEvaluationRunRow, aiEvaluationResultRow, recipeTechnicalFileRow, recipeAnalysisFeedbackRow, factoryRuleCandidateRow,
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetAllKnowledgeDocuments, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,

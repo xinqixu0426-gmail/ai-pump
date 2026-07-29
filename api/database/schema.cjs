@@ -339,6 +339,39 @@ const CANONICAL_TABLES_SQL = `
         updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS management_action_lifecycles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action_key TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'active'
+            CHECK(status IN ('active', 'resolved')),
+        category TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        entity_type TEXT DEFAULT '',
+        entity_id TEXT DEFAULT '',
+        title TEXT NOT NULL,
+        priority TEXT NOT NULL
+            CHECK(priority IN ('critical', 'high', 'medium', 'low')),
+        occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK(occurrence_count >= 1),
+        first_seen_at TEXT NOT NULL,
+        active_since TEXT NOT NULL,
+        resolved_at TEXT,
+        last_reopened_at TEXT,
+        snapshot_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS management_action_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lifecycle_id INTEGER NOT NULL,
+        event_type TEXT NOT NULL
+            CHECK(event_type IN ('appeared', 'resolved', 'reopened')),
+        occurred_at TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(lifecycle_id) REFERENCES management_action_lifecycles(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS knowledge_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         document_type TEXT NOT NULL DEFAULT 'technical_note'
@@ -544,6 +577,14 @@ const CANONICAL_INDEXES_SQL = `
         ON knowledge_vector_sync_runs(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_knowledge_vector_sync_runs_status
         ON knowledge_vector_sync_runs(status, created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_management_action_lifecycles_status
+        ON management_action_lifecycles(status, updated_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_management_action_lifecycles_category
+        ON management_action_lifecycles(category, status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_management_action_events_lifecycle
+        ON management_action_events(lifecycle_id, occurred_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_management_action_events_occurred
+        ON management_action_events(occurred_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_conversations_owner_updated
         ON ai_conversations(owner_key, deleted_at, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_conversation_messages_conversation
@@ -722,6 +763,8 @@ const APPLICATION_TABLES = Object.freeze([
     'knowledge_documents',
     'knowledge_sync_runs',
     'knowledge_vector_sync_runs',
+    'management_action_events',
+    'management_action_lifecycles',
     'orders',
     'parts',
     'pump_model_variants',

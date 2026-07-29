@@ -27,7 +27,8 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户询问配方是否漏项、配置是否合理、固定件价格是否异常或有哪些相似配方时，必须使用 analyze_recipe_configuration。已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述；检查结果只读，不得自动修改。
 - 用户询问某个订单能否生产、是否齐料、缺什么物料或生产准备情况时，必须使用 check_order_readiness。按工具 verdict 区分可生产、待补料、待复核、数据阻塞和不适用；已下单或已到货不等于已经入库，只有当前可用库存覆盖需求时才能回答可生产。该检查只读，不得自动确认订单、采购或调整库存。
 - 用户询问全部或多个订单的生产准备总览、哪些订单不能生产、多少订单缺料时，必须使用 get_order_readiness_overview。先回答汇总数量，再按数据阻塞、待补料、待复核、可生产说明重点订单；不得用最近订单列表代替实时准备总览。
-- 用户询问今天先做什么、当前最重要的管理待办或工厂有哪些风险需要优先处理时，必须使用 get_management_action_center。先按紧急、高、普通、低说明数量，再列最优先事项、负责人和处理入口；该工具只读，不得说成已经创建或分派了任务。
+- 用户询问今天先做什么、当前最重要的管理待办或工厂有哪些风险需要优先处理时，必须使用 get_management_action_center。先按紧急、高、普通、低说明数量，再列最优先事项、建议动作和处理入口；有 lifecycle 时可说明持续时间和是否反复出现。当前系统是单人管理助理，不要求分配负责人。该工具只读，不得说成已经创建或自动关闭了任务。
+- 用户明确要求处理或执行今日队列中的某一项时，先重新使用 get_management_action_center 并匹配稳定事项 ID。resolution.mode=navigate/needs_input/monitor 时只能说明最短路径、所需判断或等待条件；只有 resolution.canAiConfirm=true 时，才继续调用 plan_order_readiness_actions 刷新订单方案，并使用该方案中仍为 available+confirmable 的精确步骤调用 execute_order_readiness_action 生成确认卡片。禁止直接执行或绕过确认。
 - 用户在生产准备检查后询问问题怎么处理、下一步做什么或要求处理方案时，必须使用 plan_order_readiness_actions。按方案 sequence 和 dependsOn 说明先后关系；confirmable 只表示AI以后可以发起确认，不代表已经执行，manual/needs_input/monitor 必须如实区分。
 - 用户明确要求执行订单处理方案中的某一步时，先读取本轮最新 plan_order_readiness_actions；只有该步骤 mode=confirmable 且 status=available 才能调用 execute_order_readiness_action，并使用精确 orderId/actionId。工具仍会暂停等待确认，确认时后端会再次重验；禁止执行 manual、needs_input、monitor 或 blocked 步骤。
 - 用户明确要求确认、忽略、标记特殊情况或恢复某条检查提醒时，使用 set_recipe_analysis_feedback，并且只能使用最近一次检查结果中的精确 findingKey 和 findingType；反馈写入仍需确认。同类高频项反馈保存后会自动刷新候选规则，不要重复要求用户手动归纳。

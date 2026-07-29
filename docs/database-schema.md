@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `28`：
+当前版本为 `29`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -48,6 +48,7 @@
 | 26 | `strengthen_cutting_shell_regression` | 补充切割泵壳、长螺丝和刀片业务语义约束 |
 | 27 | `accept_equivalent_regression_phrasing` | 允许等价安全表述并保持错误结论禁用词 |
 | 28 | `align_cutting_regression_with_rule_authority` | 将切割用途回归来源对齐到正式业务规则知识 |
+| 29 | `management_action_lifecycle` | 保存管理事项当前生命周期及出现、消失、再次出现事件 |
 
 ## 数据治理
 
@@ -57,6 +58,8 @@
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
 - `knowledge_embeddings` 是可重建的派生索引，使用 `entry_id + model` 唯一约束并通过外键级联删除；只有 `content_hash` 与当前 `knowledge_entries` 一致的向量才可参与检索。
 - `knowledge_vector_sync_runs` 只记录派生向量任务结果，最多保留最近 200 次；记录失败不能反向破坏已生成向量。
+- `management_action_lifecycles` 以稳定 `action_key` 保存首次出现、当前连续出现起点、消失时间和累计出现次数；状态只允许 `active/resolved`。
+- `management_action_events` 追加保存 `appeared/resolved/reopened`，用于追溯事项反复发生；生命周期只记录检查结果变化，不替代原业务事实和人工处理记录。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。

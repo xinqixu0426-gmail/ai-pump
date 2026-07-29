@@ -66,7 +66,7 @@ test('订单准备总览：保留主要问题、缺料和第一个未阻塞步�
             warnings: [{ code: 'margin_too_low', title: '利润偏薄' }],
             shortages: [{ model: '轴承', shortageQty: 30, purchaseUnit: '个', procurementStage: '待下单', inventoryType: 'part' }],
             steps: [
-                { id: 'repair_order_data', sequence: 1, title: '修正订单产品与BOM', mode: 'manual', status: 'available', owner: '订单管理员', path: '/orders' },
+                { id: 'repair_order_data', sequence: 1, title: '修正订单产品与BOM', mode: 'manual', status: 'available', owner: '订单管理员', path: '/orders', expectedResult: '订单BOM完整。' },
                 { id: 'confirm_order', sequence: 2, title: '确认订单', mode: 'confirmable', status: 'blocked', owner: 'AI', path: '/orders' },
             ],
         }),
@@ -86,6 +86,7 @@ test('订单准备总览：保留主要问题、缺料和第一个未阻塞步�
         status: 'available',
         owner: '订单管理员',
         path: '/orders',
+        expectedResult: '订单BOM完整。',
     });
 });
 

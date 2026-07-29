@@ -523,9 +523,11 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             return {
                 success: true,
                 intent: 'management_action_center',
-                summary: data.metrics?.total
-                    ? `当前有 ${data.metrics.total} 项管理待办，其中 ${data.metrics.critical || 0} 项紧急、${data.metrics.high || 0} 项高优先级。`
-                    : '当前没有需要处理的管理待办。',
+                summary: data.executionQueue?.summary || (
+                    data.metrics?.total
+                        ? `当前有 ${data.metrics.total} 项管理待办，其中 ${data.metrics.critical || 0} 项紧急、${data.metrics.high || 0} 项高优先级。`
+                        : '当前没有需要处理的管理待办。'
+                ),
                 display: { mode: 'compact', title: '管理待办' },
                 data,
             };

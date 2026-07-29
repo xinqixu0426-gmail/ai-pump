@@ -874,7 +874,9 @@ function OrderReadinessOverviewResult({ result }: { result: Record<string, unkno
 function ManagementActionCenterResult({ result }: { result: Record<string, unknown> }) {
   const data = asRecord(result.data);
   const metrics = asRecord(data.metrics);
-  const items = arrayValue(data.items);
+  const executionQueue = asRecord(data.executionQueue);
+  const executionItems = arrayValue(executionQueue.items);
+  const items = executionItems.length > 0 ? executionItems : arrayValue(data.items).slice(0, 3);
   const priorityMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
     critical: { label: '紧急', tone: 'red' },
     high: { label: '高优先级', tone: 'orange' },
@@ -885,8 +887,10 @@ function ManagementActionCenterResult({ result }: { result: Record<string, unkno
   return (
     <>
       <div className="mt-3 border-b border-slate-100 pb-3">
-        <div className="text-sm font-semibold text-ink">管理待办</div>
-        <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
+        <div className="text-sm font-semibold text-ink">今日执行队列</div>
+        <div className="mt-1 text-xs leading-5 text-muted">
+          {textValue(executionQueue.summary, textValue(data.summary))}
+        </div>
       </div>
       <KeyValueRows rows={[
         { label: '待办总数', value: metrics.total },
@@ -910,8 +914,16 @@ function ManagementActionCenterResult({ result }: { result: Record<string, unkno
             },
             { key: 'categoryLabel', label: '来源' },
             { key: 'title', label: '待办' },
-            { key: 'owner', label: '负责人' },
-            { key: 'action', label: '下一步' },
+            {
+              key: 'reasons',
+              label: '排序依据',
+              render: row => arrayValue(row.reasons).map(value => textValue(value)).filter(Boolean).join(' · '),
+            },
+            {
+              key: 'resolution',
+              label: '最短处理路径',
+              render: row => textValue(asRecord(row.resolution).title, textValue(row.action)),
+            },
           ]}
         />
       ) : null}
@@ -1407,9 +1419,10 @@ type AiViewProps = {
   variant?: 'workspace' | 'panel';
   onClose?: () => void;
   pageContext?: AiPageContext | null;
+  initialPrompt?: string;
 };
 
-export function AiView({ variant = 'workspace', onClose, pageContext = null }: AiViewProps = {}) {
+export function AiView({ variant = 'workspace', onClose, pageContext = null, initialPrompt = '' }: AiViewProps = {}) {
   const isPanel = variant === 'panel';
   const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -1447,6 +1460,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null }: A
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const initialPromptAppliedRef = useRef(false);
 
   const apiMessages = useMemo<AiChatMessage[]>(() => (
     items
@@ -1494,6 +1508,13 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null }: A
       speechRecognitionRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const prompt = initialPrompt.trim();
+    if (!prompt || initialPromptAppliedRef.current) return;
+    initialPromptAppliedRef.current = true;
+    setInput(prompt);
+  }, [initialPrompt]);
 
   function stopVoiceInput() {
     speechRecognitionRef.current?.stop();

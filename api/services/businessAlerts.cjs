@@ -22,8 +22,17 @@ function daysBetween(dateText, now = new Date()) {
     return Math.floor((now.getTime() - date.getTime()) / 86400000);
 }
 
-function issue(severity, scope, entityId, title, detail, action, path) {
-    return { severity, scope, entityId: entityId == null ? '' : String(entityId), title, detail, action, path };
+function issue(severity, scope, entityId, title, detail, action, path, key) {
+    return {
+        severity,
+        scope,
+        entityId: entityId == null ? '' : String(entityId),
+        title,
+        detail,
+        action,
+        path,
+        key: String(key || '').trim(),
+    };
 }
 
 function customerName(customersById, id) {
@@ -57,12 +66,13 @@ function buildQuotationAlerts(quotations, customers, now) {
                 `报价 #${id} 已停留 ${ageDays} 天`,
                 `${name} 的报价仍处于报价中，可能需要跟进、转为已过时或转订单。`,
                 '跟进客户状态，避免有效报价长期悬空。',
-                '/quotations'
+                '/quotations',
+                'stale'
             ));
         }
 
         if (items.length === 0 || Number(quotation.totalPrice || 0) <= 0) {
-            alerts.push(issue('high', 'quotation', id, `报价 #${id} 金额异常`, `${name} 的报价没有有效明细或总价为 0。`, '检查报价明细和保存成本。', '/quotations'));
+            alerts.push(issue('high', 'quotation', id, `报价 #${id} 金额异常`, `${name} 的报价没有有效明细或总价为 0。`, '检查报价明细和保存成本。', '/quotations', 'amount-invalid'));
         }
 
         items.forEach((item, index) => {
@@ -70,11 +80,11 @@ function buildQuotationAlerts(quotations, customers, now) {
             const unitCost = Number(item.unitCost || 0);
             const unitPrice = Number(item.unitPrice || 0);
             if (unitCost <= 0) {
-                alerts.push(issue('high', 'quotation', id, `报价 #${id} 明细缺成本`, `${item.baseRecipeName || `第 ${index + 1} 行`} 的单位成本为 0。`, '重新试算或检查配方保存成本。', '/quotations'));
+                alerts.push(issue('high', 'quotation', id, `报价 #${id} 明细缺成本`, `${item.baseRecipeName || `第 ${index + 1} 行`} 的单位成本为 0。`, '重新试算或检查配方保存成本。', '/quotations', `item-${index}-missing-cost`));
             } else if (unitPrice < unitCost) {
-                alerts.push(issue('high', 'quotation', id, `报价 #${id} 低于成本`, `${item.baseRecipeName || `第 ${index + 1} 行`} 单价 ${roundMoney(unitPrice)} 低于成本 ${roundMoney(unitCost)}。`, '确认是否特殊让利，否则调整报价单价。', '/quotations'));
+                alerts.push(issue('high', 'quotation', id, `报价 #${id} 低于成本`, `${item.baseRecipeName || `第 ${index + 1} 行`} 单价 ${roundMoney(unitPrice)} 低于成本 ${roundMoney(unitCost)}。`, '确认是否特殊让利，否则调整报价单价。', '/quotations', `item-${index}-below-cost`));
             } else if (margin > 0 && margin < 1.05) {
-                alerts.push(issue('medium', 'quotation', id, `报价 #${id} 利润偏薄`, `${item.baseRecipeName || `第 ${index + 1} 行`} 加价倍数为 ${roundMoney(margin)}。`, '确认客户折扣和最低利润要求。', '/quotations'));
+                alerts.push(issue('medium', 'quotation', id, `报价 #${id} 利润偏薄`, `${item.baseRecipeName || `第 ${index + 1} 行`} 加价倍数为 ${roundMoney(margin)}。`, '确认客户折扣和最低利润要求。', '/quotations', `item-${index}-thin-margin`));
             }
         });
     });
@@ -102,21 +112,22 @@ function buildOrderAlerts(orders, now) {
                 `订单 #${id} 已停留 ${ageDays} 天`,
                 `${titlePrefix} 仍未完成。`,
                 '核对订单确认、采购、到货或入库是否卡住。',
-                '/orders'
+                '/orders',
+                'stale'
             ));
         }
 
         if (items.length === 0) {
-            alerts.push(issue('high', 'order', id, `订单 #${id} 无产品明细`, `${titlePrefix} 没有产品明细。`, '检查订单明细或重新由报价转订单。', '/orders'));
+            alerts.push(issue('high', 'order', id, `订单 #${id} 无产品明细`, `${titlePrefix} 没有产品明细。`, '检查订单明细或重新由报价转订单。', '/orders', 'empty-items'));
         }
 
         items.forEach((item, index) => {
             const unitCost = Number(item.unitCost || 0);
             const unitPrice = Number(item.unitPrice || 0);
             if (unitCost <= 0) {
-                alerts.push(issue('high', 'order', id, `订单 #${id} 成本为 0`, `${item.recipeName || `第 ${index + 1} 行`} 的锁定成本为 0。`, '检查配方成本快照，避免利润统计失真。', '/orders'));
+                alerts.push(issue('high', 'order', id, `订单 #${id} 成本为 0`, `${item.recipeName || `第 ${index + 1} 行`} 的锁定成本为 0。`, '检查配方成本快照，避免利润统计失真。', '/orders', `item-${index}-missing-cost`));
             } else if (unitPrice < unitCost) {
-                alerts.push(issue('high', 'order', id, `订单 #${id} 低于成本`, `${item.recipeName || `第 ${index + 1} 行`} 单价 ${roundMoney(unitPrice)} 低于成本 ${roundMoney(unitCost)}。`, '确认合同是否允许亏损交付。', '/orders'));
+                alerts.push(issue('high', 'order', id, `订单 #${id} 低于成本`, `${item.recipeName || `第 ${index + 1} 行`} 单价 ${roundMoney(unitPrice)} 低于成本 ${roundMoney(unitCost)}。`, '确认合同是否允许亏损交付。', '/orders', `item-${index}-below-cost`));
             }
         });
 
@@ -131,12 +142,12 @@ function buildOrderAlerts(orders, now) {
                 const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
                 return `${item.model || item.name} x${plannedQty - orderedQty}`;
             }).join('、');
-            alerts.push(issue('medium', 'order', id, `订单 #${id} 有 ${blockedPurchases.length} 项待采购`, top || '存在未完成采购项。', '进入采购中心处理待采购物料。', '/purchase'));
+            alerts.push(issue('medium', 'order', id, `订单 #${id} 有 ${blockedPurchases.length} 项待采购`, top || '存在未完成采购项。', '进入采购中心处理待采购物料。', '/purchase', 'purchase-pending'));
         }
 
         const openTodos = todos.filter(item => !item.done);
         if (status === '采购完成' && openTodos.length === 0) {
-            alerts.push(issue('low', 'order', id, `订单 #${id} 可关闭`, `${titlePrefix} 的采购物料已全部入库。`, '确认业务事项无误后关闭订单。', '/orders'));
+            alerts.push(issue('low', 'order', id, `订单 #${id} 可关闭`, `${titlePrefix} 的采购物料已全部入库。`, '确认业务事项无误后关闭订单。', '/orders', 'closable'));
         }
     });
 

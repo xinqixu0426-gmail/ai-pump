@@ -100,6 +100,33 @@ export type ManagementActionCategory =
   | 'rule_learning'
   | 'knowledge_health';
 
+export type ManagementActionLifecycleRecord = {
+  id: number;
+  actionKey: string;
+  status: 'active' | 'resolved';
+  category: ManagementActionCategory;
+  sourceType: string;
+  entityType: string;
+  entityId: string;
+  title: string;
+  priority: ManagementActionPriority;
+  occurrenceCount: number;
+  firstSeenAt: string;
+  activeSince: string;
+  resolvedAt: string | null;
+  lastReopenedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  snapshot: {
+    categoryLabel?: string;
+    detail?: string;
+    action?: string;
+    owner?: string;
+    path?: string;
+    count?: number;
+  };
+};
+
 export type ManagementActionItem = {
   id: string;
   priority: ManagementActionPriority;
@@ -108,12 +135,38 @@ export type ManagementActionItem = {
   title: string;
   detail: string;
   action: string;
-  owner: string;
   path: string;
   count: number;
   entityType: string;
   entityId: string;
   sourceType: string;
+  lifecycle: ManagementActionLifecycleRecord | null;
+  resolution?: {
+    mode: 'navigate' | 'confirmable' | 'needs_input' | 'monitor';
+    title: string;
+    instruction: string;
+    expectedResult: string;
+    path: string;
+    canAiConfirm: boolean;
+    confirmation: {
+      toolName: string;
+      args: Record<string, string | number | boolean>;
+    } | null;
+  };
+};
+
+export type ManagementExecutionQueueItem = ManagementActionItem & {
+  rank: number;
+  score: number;
+  scoreBreakdown: {
+    priority: number;
+    duration: number;
+    recurrence: number;
+    impact: number;
+  };
+  reasons: string[];
+  queueLevel: 'now' | 'next';
+  queueLabel: string;
 };
 
 export type ManagementActionCenter = {
@@ -129,6 +182,23 @@ export type ManagementActionCenter = {
     categoryCounts: Record<ManagementActionCategory, number>;
   };
   items: ManagementActionItem[];
+  executionQueue?: {
+    generatedAt: string;
+    limit: number;
+    totalCount: number;
+    remainingCount: number;
+    summary: string;
+    items: ManagementExecutionQueueItem[];
+  };
+  lifecycle: {
+    totalCount: number;
+    activeCount: number;
+    resolvedCount: number;
+    reopenedCount: number;
+    lastSyncedAt: string | null;
+    lastError: string;
+    recentResolved: ManagementActionLifecycleRecord[];
+  };
 };
 
 export async function getWorkbenchSummary(): Promise<BusinessSummary> {

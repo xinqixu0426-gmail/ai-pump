@@ -44,6 +44,7 @@ function nextPlanStep(actionPlan = {}) {
         status: String(step.status || ''),
         owner: String(step.owner || ''),
         path: String(step.path || ''),
+        expectedResult: String(step.expectedResult || ''),
     };
 }
 

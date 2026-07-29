@@ -15,7 +15,14 @@ function sources() {
                     shortageCount: 0,
                     blockers: [{ action: '补齐 BOM' }],
                     warnings: [],
-                    nextAction: { title: '修复 BOM', owner: '配方管理员' },
+                    nextAction: {
+                        id: 'repair_order_data',
+                        title: '修复 BOM',
+                        mode: 'manual',
+                        status: 'available',
+                        owner: '配方管理员',
+                        expectedResult: '订单BOM完整。',
+                    },
                 },
                 {
                     order: { id: 9, customerName: '正常客户' },
@@ -120,9 +127,51 @@ test('管理待办中心提供可执行入口但不生成写动作', () => {
 
     assert.equal(order.path, '/orders?orderId=8&view=readiness');
     assert.equal(order.owner, '配方管理员');
+    assert.equal(order.resolution.mode, 'navigate');
+    assert.equal(order.resolution.title, '修复 BOM');
+    assert.equal(order.resolution.expectedResult, '订单BOM完整。');
+    assert.equal(order.resolution.canAiConfirm, false);
     assert.equal(learning.count, 2);
     assert.equal(learning.path, '/recipes?recipeId=3&feedbackIds=21,22&action=smart-check');
     assert.equal(Object.prototype.hasOwnProperty.call(order, 'toolCall'), false);
+});
+
+test('V7.3：只有可用的订单确认步骤暴露受保护的 AI 确认参数', () => {
+    const input = sources();
+    input.readiness.items[0].nextAction = {
+        id: 'confirm_order',
+        title: '确认订单并进入采购流程',
+        mode: 'confirmable',
+        status: 'available',
+        expectedResult: '订单进入待采购。',
+    };
+
+    const result = buildManagementActionCenter({ sources: input });
+    const order = result.items.find(item => item.id === 'order-readiness:8');
+
+    assert.equal(order.resolution.mode, 'confirmable');
+    assert.equal(order.resolution.canAiConfirm, true);
+    assert.deepEqual(order.resolution.confirmation, {
+        toolName: 'execute_order_readiness_action',
+        args: { orderId: 8, actionId: 'confirm_order' },
+    });
+});
+
+test('V7.3：受阻的可确认步骤只提供导航，不生成确认参数', () => {
+    const input = sources();
+    input.readiness.items[0].nextAction = {
+        id: 'confirm_order',
+        title: '确认订单并进入采购流程',
+        mode: 'confirmable',
+        status: 'blocked',
+    };
+
+    const result = buildManagementActionCenter({ sources: input });
+    const order = result.items.find(item => item.id === 'order-readiness:8');
+
+    assert.equal(order.resolution.mode, 'navigate');
+    assert.equal(order.resolution.canAiConfirm, false);
+    assert.equal(order.resolution.confirmation, null);
 });
 
 test('管理待办中心在各来源健康时返回空结果', () => {
@@ -141,4 +190,50 @@ test('管理待办中心在各来源健康时返回空结果', () => {
     assert.equal(result.metrics.attentionRequired, 0);
     assert.deepEqual(result.items, []);
     assert.match(result.summary, /没有需要处理/);
+});
+
+test('管理待办中心经营风险使用稳定业务键，不受列表顺序影响', () => {
+    const businessAlerts = {
+        alerts: [
+            {
+                key: 'item-0-below-cost',
+                severity: 'high',
+                scope: 'quotation',
+                entityId: '5',
+                title: '报价 #5 低于成本',
+            },
+            {
+                key: 'stale',
+                severity: 'medium',
+                scope: 'quotation',
+                entityId: '6',
+                title: '报价 #6 已停留 20 天',
+            },
+        ],
+    };
+    const first = buildManagementActionCenter({
+        sources: {
+            readiness: { items: [] },
+            businessAlerts,
+            quality: { issues: [] },
+            learningHealth: { items: [] },
+            candidates: [],
+            knowledgeHealth: { issues: [] },
+        },
+    });
+    const second = buildManagementActionCenter({
+        sources: {
+            readiness: { items: [] },
+            businessAlerts: { alerts: [...businessAlerts.alerts].reverse() },
+            quality: { issues: [] },
+            learningHealth: { items: [] },
+            candidates: [],
+            knowledgeHealth: { issues: [] },
+        },
+    });
+
+    assert.deepEqual(
+        first.items.map(entry => entry.id).sort(),
+        second.items.map(entry => entry.id).sort()
+    );
 });

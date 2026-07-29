@@ -167,7 +167,15 @@ export function DashboardView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl value={mode} options={dashboardModeOptions} onChange={changeMode} ariaLabel="看板内容" />
+          <div className="max-w-full overflow-x-auto pb-1">
+            <SegmentedControl
+              value={mode}
+              options={dashboardModeOptions}
+              onChange={changeMode}
+              ariaLabel="看板内容"
+              className="w-max"
+            />
+          </div>
           <Button
             onClick={refreshCurrentView}
             disabled={mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
