@@ -21,6 +21,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 
 function statLabel(value: string, sub: string) {
   return (
@@ -391,6 +392,17 @@ export function CustomersView() {
               </table>
             </div>
           )}
+          {selectedCustomer ? (
+            <div className="border-t border-line">
+              <FactoryFileAttachments
+                targetType="customer"
+                targetId={selectedCustomer.id}
+                title="客户附件"
+                description="保存客户提供的资料、图片和往来文件。上传后会与当前客户建立可追溯关联。"
+                embedded
+              />
+            </div>
+          ) : null}
         </FadePanel>
       </div>
 

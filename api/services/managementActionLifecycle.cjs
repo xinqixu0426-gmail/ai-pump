@@ -28,6 +28,7 @@ const NON_MUTATING_POST_PATHS = Object.freeze([
     /^\/api\/rotor\/(?:recipe-draft|template-draft)$/,
     /^\/api\/quotations\/save-payload-draft$/,
     /^\/api\/quotations\/\d+\/order-draft$/,
+    /^\/api\/files\/\d+\/(?:parse|quotation-draft)$/,
     /^\/api\/quality\/recipe-analysis$/,
 ]);
 

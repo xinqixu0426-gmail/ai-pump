@@ -25,6 +25,7 @@ const TOOL_LABELS = {
     create_recipe: '新建配方',
     delete_recipe: '删除配方',
     update_recipe: '修改配方',
+    archive_factory_file: '归档工厂文件',
     sync_factory_knowledge: '同步工厂知识库',
     set_recipe_analysis_feedback: '保存配方检查反馈',
     refresh_factory_rule_candidates: '归纳候选业务规则',
@@ -50,11 +51,13 @@ const LIVE_BUSINESS_TOOLS = new Set([
     'check_order_readiness',
     'plan_order_readiness_actions',
     'search_customer_history',
+    'inspect_quotation_file',
     'get_dashboard_summary',
     'get_management_action_center',
     'get_business_alerts',
     'get_data_quality_summary',
     'analyze_recipe_configuration',
+    'search_factory_file_archive_targets',
     'get_factory_knowledge_health',
     'get_factory_rule_candidates',
     'get_factory_rule_impact',
@@ -158,6 +161,23 @@ function buildConfirmationRows(toolName, args = {}) {
         case 'delete_recipe':
             addRow(rows, '删除配方', args.name);
             break;
+        case 'archive_factory_file': {
+            const targetLabels = {
+                customer: '客户',
+                quotation: '报价',
+                recipe: '配方',
+                recipe_analysis_feedback: '质量问题（配方检查）',
+                ai_answer_feedback: '质量问题（AI回答）',
+                knowledge_document: '知识库资料',
+            };
+            addRow(rows, '文件ID', args.fileId);
+            addRow(rows, '归档到', targetLabels[args.targetType] || args.targetType);
+            addRow(rows, '业务对象ID', args.targetId);
+            addRow(rows, '标题', args.title);
+            addRow(rows, '资料类型', args.documentType);
+            addRow(rows, '说明', args.note);
+            break;
+        }
         case 'set_recipe_analysis_feedback':
             addRow(rows, '配方ID', args.recipeId);
             addRow(rows, '提醒', args.findingKey);

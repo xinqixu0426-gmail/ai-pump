@@ -11,7 +11,7 @@
 | Web | Next.js 15、React 18、Tailwind CSS |
 | API | Node.js、Express 5 |
 | 数据 | SQLite、better-sqlite3、可选 FTS5、sqlite-vec |
-| AI | DeepSeek Chat API、SSE、Function Calling |
+| AI | DeepSeek/Kimi Chat API、SSE、Function Calling、多模态附件 |
 | 出图 | FreeCAD Python Worker、PDF |
 | 移动入口 | `/ai` PWA、微信小程序、Siri 快捷指令 |
 
@@ -75,8 +75,14 @@ NODE_ENV=development
 PORT=3002
 NEXT_ORIGIN=
 
+AI_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-xxx
 DEEPSEEK_MODEL=deepseek-v4-flash
+
+# 可选：切换为支持图片输入的 Kimi 开放平台
+# AI_PROVIDER=kimi
+# KIMI_API_KEY=sk-xxx
+# KIMI_MODEL=kimi-k2.7-code
 
 KNOWLEDGE_VECTOR_ENABLED=true
 KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED=true
@@ -98,6 +104,8 @@ PYTHONPATH=
 
 生产环境必须配置 `ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN` 和 `SIRI_API_TOKEN`。
 
+登录后可从顶部导航进入 `/setup` 系统初始化页，维护 AI 提供商、模型、API Key 和知识检索运行参数。网页保存的 API Key 使用 `JWT_SECRET` 派生密钥加密，接口只返回“已配置”状态。管理密码、JWT、CORS、端口等部署安全项保持只读，仍由 `.env` 或进程环境提供。Kimi Coding 会员订阅凭证不能替代 Kimi 开放平台 API Key。
+
 ## AI 工作台
 
 桌面端和移动端统一使用 `/ai`：
@@ -114,6 +122,7 @@ PYTHONPATH=
 - 继续询问“怎么处理”或“下一步做什么”时，AI 会生成按依赖排序的处理方案，标明 AI 可发起确认、人工处理、需要业务决定和等待跟进；方案本身不执行写操作。
 - 对方案中当前可执行的 AI 步骤，可以继续要求执行并在确认卡片中批准。服务端会重新生成实时方案，只执行仍为 `confirmable + available` 的步骤，完成后返回新的检查结果；不会自动执行生产或扣减库存。
 - 手机端使用全屏会话、历史抽屉和安全区输入框。
+- 输入框可附加 PDF、Excel、CSV、文本和图片；文件分析、业务附件关联与知识入库是三个不同动作，具体见 [V9 文件智能处理使用大纲](./docs/v9-user-guide.md)。
 
 旧 `/voice` 页面只保留跳转到 `/ai`。旧 Web 语音组件已经删除；`POST /api/voice/asr` 仍供微信小程序兼容使用。
 
@@ -146,7 +155,13 @@ PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/
 
 对应工具：`search_factory_knowledge`、`get_factory_knowledge_detail`、`get_factory_knowledge_health`、`sync_factory_knowledge`。
 
-独立资料从管理看板“知识库”视图导入。`.txt/.md/.csv/.xls/.xlsx` 会提取可检索文本；PDF 在 V5.1 仅检索标题、说明、标签和文件信息，AI 不得声称已经读取图纸正文。
+独立资料从管理看板“知识库”视图导入。`.txt/.md/.csv/.xls/.xlsx` 会提取可检索文本；该知识资料入口的 PDF 仍只检索标题、说明、标签和文件信息，AI 不得声称已经读取图纸正文。AI 聊天直接上传的文字型 PDF 按页解析，图片和扫描 PDF 使用随项目安装的中英文离线 OCR；OCR 参数只作为带来源位置和置信度的候选，聊天附件不会自动成为知识条目。
+
+AI 聊天直接上传的 Excel/CSV 由 V9.3 保存工作表、行列和单元格定位。询问“分析这份报价”时，AI 使用 `inspect_quotation_file` 对照当前客户和配方生成只读映射草稿；只有全部精确匹配时才可继续生成标准报价草稿，任何文件解析步骤都不会自动创建客户、配方或正式报价。
+
+V9.4 为 AI 聊天附件增加本地图片 OCR 和扫描 PDF OCR。DeepSeek 可读取 OCR 文字但不直接接收图片二进制；配置支持视觉输入的 Kimi 开放平台模型时，会同时传入原图。图纸中的直径、尺寸、螺纹、轴承、电压、频率、功率、电流和转速仅生成候选值，低置信度必须复核，系统不会自动写入配方或技术档案。
+
+V9 已完成业务入口收口：客户详情、报价详情和数据质量页可直接维护对应附件，知识管理页的 AI 回答反馈可保存问题证据。业务附件不会自动进入长期知识检索；需要以后由 AI 查到的文件，必须明确归档到知识库。
 
 `GET /api/knowledge/vector-health` 可检查向量扩展、模型、后台队列、覆盖率和最近记录，`GET /api/knowledge/vector-sync-runs` 读取持久化运行历史。V6.3 默认将 FTS/BM25 与向量结果做稳定融合，型号、规格、客户名和合同号等精确命中优先；模型或扩展异常时自动回退 FTS/LIKE。模型默认按需下载到用户目录下的 `.cache/pump-knowledge-models`；生产机联网时先运行 `npm run knowledge:model-prepare` 完成缓存和真实 embedding 检查，再设置 `KNOWLEDGE_MODEL_OFFLINE=true` 并重启服务。`KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED=false` 可只关闭后台生成，`KNOWLEDGE_HYBRID_SEARCH_ENABLED=false` 可临时关闭混合检索。
 

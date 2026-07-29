@@ -63,6 +63,9 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// 网页保存的运行设置覆盖 .env 默认值；部署鉴权密钥仍只允许来自环境变量。
+require('./api/services/runtimeConfig.cjs').initializeRuntimeSettings();
+
 // 静态文件服务 — 转子出图 PDF 下载
 const path = require('path');
 app.use('/drawings', express.static(path.join(__dirname, 'public/drawings')));
@@ -154,6 +157,7 @@ app.use('/api/customers', require('./api/routes/customers.cjs'));
 app.use('/api/quotations', require('./api/routes/quotations.cjs'));
 app.use('/api/workbench', require('./api/routes/workbench.cjs'));
 app.use('/api/quality', require('./api/routes/quality.cjs'));
+app.use('/api/files', require('./api/routes/files.cjs'));
 app.use('/api/knowledge', require('./api/routes/knowledge.cjs'));
 
 // ── 生产模式：Cloudflare Tunnel 仍指向 API 端口时，将页面请求转发到 Next 前端 ──

@@ -5,6 +5,7 @@ import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, Histo
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
+import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import {
   businessAlertClassName,
   getBusinessAlerts,
@@ -86,6 +87,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [ruleImpactLoadingId, setRuleImpactLoadingId] = useState<number | null>(null);
   const [expandedRuleImpactId, setExpandedRuleImpactId] = useState<number | null>(null);
   const [ruleImpacts, setRuleImpacts] = useState<Record<number, FactoryRuleImpact>>({});
+  const [qualityAttachmentTargetId, setQualityAttachmentTargetId] = useState<number | null>(null);
 
   async function load(force = false) {
     setError('');
@@ -131,6 +133,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const ruleReviewQueue = ruleCandidates.filter((candidate) => candidate.status === 'candidate' || candidate.needsReview);
   const learnedSpecialCaseCount = ruleCandidates.reduce((total, candidate) => total + candidate.specialCaseCount, 0);
   const evidenceRecheckItems = (learningHealth?.items || []).filter((item) => item.needsRecheck);
+  const qualityEvidenceItems = (learningHealth?.items || []).slice(0, 50);
   const evidenceRecheckGroups = useMemo(() => {
     const groups = new Map<number, {
       recipeId: number;
@@ -148,6 +151,16 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     }
     return Array.from(groups.values());
   }, [evidenceRecheckItems]);
+
+  useEffect(() => {
+    if (qualityEvidenceItems.length === 0) {
+      setQualityAttachmentTargetId(null);
+      return;
+    }
+    if (!qualityEvidenceItems.some((item) => item.feedbackId === qualityAttachmentTargetId)) {
+      setQualityAttachmentTargetId(qualityEvidenceItems[0].feedbackId);
+    }
+  }, [learningHealth, qualityAttachmentTargetId]);
 
   async function refreshRuleCandidates() {
     setRuleRefreshing(true);
@@ -303,6 +316,44 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 <div className="mt-1 text-xs text-muted">经营提醒</div>
               </FadePanel>
           </div>
+
+          <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+            <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-ink">质量证据附件</div>
+                <div className="mt-1 text-xs leading-5 text-muted">
+                  把检测照片、测试表和说明文件挂到具体的配方检查反馈，作为后续复核依据。
+                </div>
+              </div>
+              {qualityEvidenceItems.length > 0 ? (
+                <label className="block min-w-0 lg:w-[420px]">
+                  <span className="mb-1 block text-xs text-muted">选择质量反馈</span>
+                  <select
+                    value={qualityAttachmentTargetId || ''}
+                    onChange={(event) => setQualityAttachmentTargetId(Number(event.target.value) || null)}
+                    className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                  >
+                    {qualityEvidenceItems.map((item) => (
+                      <option key={item.feedbackId} value={item.feedbackId}>
+                        {item.recipeName} · {item.findingTitle}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+            {qualityAttachmentTargetId ? (
+              <FactoryFileAttachments
+                targetType="recipe_analysis_feedback"
+                targetId={qualityAttachmentTargetId}
+                title="反馈证据"
+                description="附件只作为这条质量反馈的证据，不会自动改写配方或批准业务规则。"
+                embedded
+              />
+            ) : (
+              <div className="px-4 py-5 text-sm text-muted">暂无可关联的配方检查反馈，请先在配方智能检查中确认或标记问题。</div>
+            )}
+          </FadePanel>
 
           <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
             <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">

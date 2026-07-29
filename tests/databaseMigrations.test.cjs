@@ -177,6 +177,25 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
         assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'factory_workflow_runs'
         `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'factory_files'
+        `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'factory_file_links'
+        `).get());
+        assert.equal(
+            db.pragma('index_list(factory_file_links)')
+                .find(index => index.name === 'idx_factory_file_links_active_unique')?.partial,
+            1
+        );
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'runtime_settings'
+        `).get());
+        for (const column of ['parsed_text', 'parsed_json', 'parser_error', 'parsed_at']) {
+            assert.ok(db.pragma('table_info(factory_files)').some(item => item.name === column), column);
+        }
+        assert.ok(db.pragma('table_info(knowledge_documents)').some(column => column.name === 'file_id'));
+        assert.ok(db.pragma('table_info(recipe_technical_files)').some(column => column.name === 'file_id'));
         assert.equal(db.prepare(`
             SELECT COUNT(*) AS count FROM sqlite_schema WHERE name = 'idx_pst_model'
         `).get().count, 0);

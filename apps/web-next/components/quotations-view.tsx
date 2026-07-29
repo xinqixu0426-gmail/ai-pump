@@ -9,6 +9,7 @@ import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
+import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { dateShort, money } from '@/lib/format';
 import type { Customer, Quotation } from '@/lib/customers';
@@ -928,6 +929,13 @@ export function QuotationsView() {
               <div className="rounded-panel border border-line bg-slate-50 p-4 text-sm text-muted">
                 浮球：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasFloat))}；电缆：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasCable))}；备注：{viewQuotation.remark || '-'}
               </div>
+
+              <FactoryFileAttachments
+                targetType="quotation"
+                targetId={viewQuotation.id}
+                title="报价附件"
+                description="保存客户原始报价文件、价格表、图片和补充说明；不会自动修改正式报价。"
+              />
             </div>
           </div>
         ) : null}

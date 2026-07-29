@@ -28,6 +28,40 @@ function normalizeContent(value) {
     return value;
 }
 
+function resolveMessageAttachments(db, role, metadata) {
+    const requested = Array.isArray(metadata.attachments) ? metadata.attachments : [];
+    if (requested.length === 0) return [];
+    if (role !== 'user') throw new Error('只有用户消息可以包含附件');
+
+    const ids = [];
+    for (const attachment of requested) {
+        const id = Number(attachment?.id ?? attachment?.fileId);
+        if (!Number.isSafeInteger(id) || id <= 0) throw new Error('附件ID不合法');
+        if (!ids.includes(id)) ids.push(id);
+    }
+    if (ids.length > 4) throw new Error('每条消息最多上传 4 个附件');
+
+    const placeholders = ids.map(() => '?').join(', ');
+    const rows = db.prepare(`
+        SELECT id, original_name, detected_type, mime_type, file_size
+        FROM factory_files
+        WHERE id IN (${placeholders}) AND deleted_at IS NULL
+    `).all(...ids);
+    if (rows.length !== ids.length) throw new Error('附件不存在或已删除');
+    const byId = new Map(rows.map(row => [Number(row.id), row]));
+    return ids.map(id => {
+        const row = byId.get(id);
+        return {
+            id,
+            originalName: row.original_name,
+            detectedType: row.detected_type,
+            mimeType: row.mime_type,
+            fileSize: Number(row.file_size || 0),
+            downloadPath: `/api/files/${id}/download`,
+        };
+    });
+}
+
 function conversationForOwner(db, id, ownerKey) {
     return db.prepare(`
         SELECT * FROM ai_conversations
@@ -86,6 +120,9 @@ function appendAiConversationMessage(ownerKey, id, input, options = {}) {
     if (role !== 'user' && role !== 'assistant') throw new Error('消息角色不合法');
     const content = normalizeContent(input.content);
     const metadata = parseMetadata(input.metadata);
+    const attachments = resolveMessageAttachments(db, role, metadata);
+    if (attachments.length > 0) metadata.attachments = attachments;
+    else delete metadata.attachments;
     const metadataJson = JSON.stringify(metadata);
     if (metadataJson.length > 200000) throw new Error('消息附加数据过大');
     const now = new Date().toISOString();

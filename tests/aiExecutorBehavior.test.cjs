@@ -790,6 +790,46 @@ test('AI executor 行为：报价草稿工具复用客户、配方、成本预�
     ]);
 });
 
+test('AI executor 行为：报价文件识别只调用统一文件草稿接口且保持只读', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/files/12/quotation-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body, { customerName: '菲律宾客户' });
+            return jsonResponse({
+                success: true,
+                data: {
+                    summary: {
+                        totalItems: 2,
+                        exactMatchedItems: 1,
+                        unmatchedItems: 1,
+                        readyForSaveDraft: false,
+                    },
+                    items: [
+                        { source: { rowNumber: 4, model: 'V750' }, recipeMatch: { status: 'matched' } },
+                        { source: { rowNumber: 5, model: 'UNKNOWN' }, recipeMatch: { status: 'unmatched' } },
+                    ],
+                    quotationDraftInput: null,
+                    boundary: '只读解析和映射草稿；未创建或修改客户、配方、报价。',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('inspect_quotation_file', {
+        fileId: 12,
+        customerName: '菲律宾客户',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'quotation_file_draft');
+    assert.match(result.summary, /待确认/);
+    assert.equal(result.data.quotationDraftInput, null);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/files/12/quotation-draft',
+    ]);
+});
+
 test('AI executor 行为：客户默认利润率小数转换为报价倍率', async () => {
     installFetchStub((call) => {
         if (call.url.endsWith('/api/customers') && call.method === 'GET') {
@@ -1331,5 +1371,65 @@ test('AI executor 行为：知识库同步未确认时返回确认卡片，确�
     assert.match(confirmed.summary, /已同步 8 条/);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'POST /api/knowledge/sync',
+    ]);
+});
+
+test('AI executor 行为：文件归档先查真实目标且写入必须确认', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/files/archive-targets?targetType=recipe&query=V1600&limit=10') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 18, targetType: 'recipe', label: 'V1600-12-180', detail: '60Hz' }],
+            });
+        }
+        if (call.url.endsWith('/api/files/41/archive') && call.method === 'POST') {
+            assert.equal(call.body.targetType, 'recipe');
+            assert.equal(call.body.targetId, 18);
+            assert.equal(call.body.note, '客户确认参数');
+            assert.equal(call.body.source, 'ai_chat');
+            return jsonResponse({
+                success: true,
+                data: {
+                    link: {
+                        id: 3,
+                        fileId: 41,
+                        targetType: 'recipe',
+                        targetId: 18,
+                        target: { id: 18, label: 'V1600-12-180' },
+                    },
+                    knowledgeDocument: null,
+                    deduplicated: false,
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const targets = await executeToolCall('search_factory_file_archive_targets', {
+        targetType: 'recipe',
+        query: 'V1600',
+        limit: 10,
+    }, { allowWrite: false });
+    assert.equal(targets.success, true);
+    assert.equal(targets.data[0].id, 18);
+    assert.equal(targets.provenance.kind, 'live_business');
+
+    const archiveArgs = {
+        fileId: 41,
+        targetType: 'recipe',
+        targetId: 18,
+        note: '客户确认参数',
+    };
+    const blocked = await executeToolCall('archive_factory_file', archiveArgs, { allowWrite: false });
+    assert.equal(blocked.requiresConfirmation, true);
+    assert.equal(blocked.confirmation.title, '归档工厂文件');
+    assert.equal(calls.length, 1);
+
+    const archived = await executeToolCall('archive_factory_file', archiveArgs, { allowWrite: true });
+    assert.equal(archived.success, true);
+    assert.match(archived.summary, /V1600-12-180/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/files/archive-targets?targetType=recipe&query=V1600&limit=10',
+        'POST /api/files/41/archive',
     ]);
 });

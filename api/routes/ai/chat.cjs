@@ -6,6 +6,10 @@ const { executeToolCall } = require('./executor.cjs');
 const { trimAiContext, prioritizeCurrentEvidence } = require('../../services/aiContext.cjs');
 const { buildFreshLookupToolCalls } = require('../../services/aiFreshness.cjs');
 const {
+    aiProviderCapabilities,
+    fetchAiProvider,
+} = require('../../services/aiProvider.cjs');
+const {
     normalizeAiPageContext,
     buildAiPageContextNote,
     resolveMessagesWithPageContext,
@@ -34,7 +38,11 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户明确要求确认、忽略、标记特殊情况或恢复某条检查提醒时，使用 set_recipe_analysis_feedback，并且只能使用最近一次检查结果中的精确 findingKey 和 findingType；反馈写入仍需确认。同类高频项反馈保存后会自动刷新候选规则，不要重复要求用户手动归纳。
 - 候选业务规则至少需要两个配方确认相同高频项，同时使用特殊情况和忽略反馈计算置信度；反馈绑定生成时的泵壳模板和配方版本。反馈后更换模板标为范围漂移，修改配方标为内容过期，这些旧证据都不计入支持数，应建议按当前配方重新智能检查并确认。用户询问哪些学习反馈过期、哪些配方需要重新检查或学习证据是否健康时，使用 get_factory_learning_health；该工具覆盖尚未形成候选规则的反馈。只有置信度不低于65%才允许批准，低于门槛不得建议绕过，已批准规则跌破门槛会自动撤回批准并移除规则知识。读取使用 get_factory_rule_candidates；询问单条规则影响范围或批准前使用 get_factory_rule_impact；询问全部规则执行情况或不符合规则的配方时使用 get_factory_rule_compliance；询问规则变化原因、审核时间或最近变化时使用 get_factory_rule_history。归纳、批准和驳回分别使用 refresh_factory_rule_candidates、review_factory_rule_candidate；恢复历史审核状态必须先查询历史并使用真实 eventId 调用 restore_factory_rule_event。恢复只改变审核状态并保留当前证据，不得说成配方或证据回滚；所有规则写操作都要等待确认。候选规则未批准前不得当作正式规则；批准、驳回、失效、恢复和已批准规则证据变化会自动更新对应规则知识，无需再全量同步知识库。
 - 知识条目 metadata.testReports 中的附件以及标记为 pump_performance_test 的 .xls/.xlsx 文件，必须称为“性能测试报告”或“测试报告”；禁止称为“图纸”“参考图纸”或“工程图”。只有转子出图工具返回的 PDF 才能称为图纸。
-- 独立工厂资料 metadata.parserStatus=metadata_only 表示系统只保存并检索了标题、说明、标签和文件信息，尚未解析文件正文。回答时可以说明该资料存在并提供下载来源，但不得推断 PDF 图纸中的尺寸、材料、结构或其他技术参数。
+- AI 聊天中直接上传的 PDF 或图片只有 parserStatus=parsed 时才允许使用附件上下文中的按页 OCR/文字层内容；引用结论时标明页码或图片。OCR 技术参数候选必须保留来源位置和置信度，needsReview=true 的候选必须请用户核对，任何 OCR 候选都不得自动写入配方、报价或技术档案。parserStatus=metadata_only 且 ocrApplied=true 表示 OCR 未识别到可靠文字，不得推断图片中的尺寸、材料、结构或其他技术参数。
+- 用户要求分析 Excel/CSV 报价附件时，必须使用附件上下文中的统一文件ID调用 inspect_quotation_file。先按工具结果列出客户匹配、每行配方、数量、文件单价和待确认项；不能仅凭模型阅读表格就声称匹配完成。只有 readyForSaveDraft=true 时才可继续调用 build_quotation_draft 生成标准报价保存草稿；两者都不写数据库，不得说成已创建报价。
+- 报价文件中的金额和单价是客户文件内容，不是系统成本事实。正式报价草稿必须继续由 /api/quotations/save-payload-draft 依据当前配方重新试算成本；客户、配方未找到或匹配多个候选时必须停止并请用户确认，不得自动新增或猜选。
+- 用户明确要求把聊天附件保存、归档或关联到业务资料时，使用附件上下文中的精确 fileId。归档到客户、报价、配方或质量问题前，必须先调用 search_factory_file_archive_targets 核对真实目标；多条候选时先让用户选择，禁止猜 targetId。归档到知识库使用 targetType=knowledge_document，不传 targetId，并明确资料类型、标题和必要标签。只有用户明确要求归档时才调用 archive_factory_file，且必须等待确认卡片；分析或读取附件不等于归档。OCR 技术参数候选即使随文件归档也仍是候选，不得变成已确认业务事实。
+- 独立工厂资料 metadata.parserStatus=metadata_only 表示知识条目仍只保存并检索标题、说明、标签和文件信息。回答时可以说明该资料存在并提供下载来源，但不得推断 PDF 图纸中的正文参数。
 - 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标；最终回答中也不要出现这三个模板字段名，即使是为了说明忽略它们。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时只说“未提供可靠额定参数”，不能把某个点标成额定值或实测结论。
 - 知识工具返回的 sources 是本轮回答的可追溯依据。只能引用实际使用过的来源，不得编造知识 ID、标题或链接；sources 中 freshness 不是 fresh 时，正文必须提示该知识待同步，涉及易变数据时改查实时业务工具。
 - 知识搜索结果的 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义相近的候选，不是用途、兼容性、组成关系或“专用配件”的事实证据。只有条目的标题、摘要、正文或结构化 metadata 明确写出相同用途/关系时，才能回答“适合”“专用”“自带”“配套”；不得根据向量名次、相似名称、叶片数量或普通螺丝等通用 BOM 自行推断。明确文本命中与纯语义候选冲突时采用明确文本；数据库没有明确标注的专用配件时，应回答“系统未记录/无法确认”，禁止把普通配件改称为专用配件。不得为了补充对比而把其他纯语义候选归类为“不适合、没有此功能或属于某用途”，除非来源也明确写出该排除结论。
@@ -113,9 +121,12 @@ const TOOL_PLAN_LABELS = {
     create_recipe: '新建配方',
     delete_recipe: '删除配方',
     update_recipe: '修改配方',
+    search_factory_file_archive_targets: '查找文件归档目标',
+    archive_factory_file: '归档工厂文件',
     build_recipe_bom_draft: '生成 BOM 草稿',
     preview_recipe_cost: '配方成本试算',
     preview_pump_shell_cost: '泵壳成本试算',
+    inspect_quotation_file: '识别报价文件',
     build_quotation_draft: '生成报价草稿',
     build_order_draft: '生成订单草稿',
     search_customer_history: '查询客户历史',
@@ -184,31 +195,13 @@ function buildToolPlan(toolCalls = []) {
     };
 }
 
-// ── 工具函数: 调用 DeepSeek API ──
-async function fetchDeepSeek(messages, stream = false) {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) throw new Error('未配置 DEEPSEEK_API_KEY');
-    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-            model,
-            messages,
-            tools: AI_TOOLS,
-            stream
-        })
-    });
-
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`DeepSeek API 错误: ${res.status} ${text.slice(0, 200)}`);
+router.get('/api/ai/capabilities', confirmAuth, (req, res) => {
+    try {
+        res.json({ success: true, data: aiProviderCapabilities() });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
     }
-    return res;
-}
+});
 
 // ── AI Chat SSE 端点 ──
 router.post('/api/ai/chat', confirmAuth, async (req, res) => {
@@ -270,7 +263,10 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         while (!done && maxRounds-- > 0) {
             let aiRes;
             try {
-                aiRes = await fetchDeepSeek(currentMessages, true);
+                aiRes = await fetchAiProvider(currentMessages, {
+                    tools: AI_TOOLS,
+                    stream: true,
+                });
             } catch (err) {
                 send('error', { message: err.message });
                 return res.end();
@@ -475,7 +471,10 @@ async function processAiChat(text, options = {}) {
     }
 
     while (!done && maxRounds-- > 0) {
-        const aiRes = await fetchDeepSeek(currentMessages, false);
+        const aiRes = await fetchAiProvider(currentMessages, {
+            tools: AI_TOOLS,
+            stream: false,
+        });
 
         const data = await aiRes.json();
         if (data.error) {

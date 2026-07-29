@@ -12,6 +12,7 @@ import {
   History,
   Loader2,
   MessageSquareWarning,
+  Paperclip,
   Play,
   RefreshCw,
   RotateCcw,
@@ -21,6 +22,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import {
   deleteKnowledgeDocument,
   getKnowledgeEntryDetail,
@@ -208,6 +210,7 @@ export function KnowledgeView({
   const [evaluationError, setEvaluationError] = useState('');
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolving, setResolving] = useState(false);
+  const [feedbackAttachmentId, setFeedbackAttachmentId] = useState<number | null>(null);
   const openedInitialEntryRef = useRef(false);
 
   async function load() {
@@ -920,46 +923,67 @@ export function KnowledgeView({
         ) : feedback?.items.length ? (
           <div className="divide-y divide-line">
             {feedback.items.map(item => (
-              <div key={item.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-start">
-                <div><StatusBadge tone="amber">{item.rating === 'helpful' ? '准确' : FEEDBACK_LABELS[item.rating]}</StatusBadge></div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink">{item.questionText || '未保存用户问题'}</div>
-                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">AI：{item.answerText || '未保存回答内容'}</div>
-                  {item.note ? <div className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900">反馈：{item.note}</div> : null}
-                  {item.sources.length ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {item.sources.map((source, index) => (
-                        <a
-                          key={`${source.knowledgeEntryId || source.sourceId}-${index}`}
-                          href={source.knowledgePath || source.sourcePath}
-                          className="inline-flex items-center gap-1 rounded-md border border-line bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:text-ink"
-                        >
-                          {source.title || `${source.sourceTable}#${source.sourceId}`}
-                          <ArrowUpRight size={11} />
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
+              <div key={item.id}>
+                <div className="grid gap-3 px-4 py-3 lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-start">
+                  <div><StatusBadge tone="amber">{item.rating === 'helpful' ? '准确' : FEEDBACK_LABELS[item.rating]}</StatusBadge></div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-ink">{item.questionText || '未保存用户问题'}</div>
+                    <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">AI：{item.answerText || '未保存回答内容'}</div>
+                    {item.note ? <div className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900">反馈：{item.note}</div> : null}
+                    {item.sources.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {item.sources.map((source, index) => (
+                          <a
+                            key={`${source.knowledgeEntryId || source.sourceId}-${index}`}
+                            href={source.knowledgePath || source.sourcePath}
+                            className="inline-flex items-center gap-1 rounded-md border border-line bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:text-ink"
+                          >
+                            {source.title || `${source.sourceTable}#${source.sourceId}`}
+                            <ArrowUpRight size={11} />
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Paperclip size={14} />}
+                      onClick={() => setFeedbackAttachmentId(current => current === item.id ? null : item.id)}
+                    >
+                      附件
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={diagnosingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <SearchCheck size={14} />}
+                      onClick={() => item.diagnosis ? setDiagnosticTarget(item) : void diagnoseFeedback(item)}
+                      disabled={diagnosingId !== null}
+                    >
+                      {item.diagnosis ? '查看诊断' : diagnosingId === item.id ? '诊断中' : '诊断'}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<CheckCircle2 size={14} />}
+                      onClick={() => { setResolveTarget(item); setResolutionNote(''); setFeedbackError(''); }}
+                    >
+                      标记已处理
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={diagnosingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <SearchCheck size={14} />}
-                    onClick={() => item.diagnosis ? setDiagnosticTarget(item) : void diagnoseFeedback(item)}
-                    disabled={diagnosingId !== null}
-                  >
-                    {item.diagnosis ? '查看诊断' : diagnosingId === item.id ? '诊断中' : '诊断'}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<CheckCircle2 size={14} />}
-                    onClick={() => { setResolveTarget(item); setResolutionNote(''); setFeedbackError(''); }}
-                  >
-                    标记已处理
-                  </Button>
-                </div>
+                {feedbackAttachmentId === item.id ? (
+                  <div className="border-t border-line bg-slate-50">
+                    <FactoryFileAttachments
+                      targetType="ai_answer_feedback"
+                      targetId={item.id}
+                      title="问题证据"
+                      description="可上传截图、原始资料或核对表，帮助后续诊断这条 AI 回答。"
+                      embedded
+                    />
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

@@ -190,6 +190,29 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'inspect_quotation_file': {
+            const fileId = Number(args.fileId);
+            if (!Number.isInteger(fileId) || fileId <= 0) {
+                return { success: false, error: '请提供附件上下文中的有效统一文件ID' };
+            }
+            const draft = await postJson(
+                internalFetch,
+                `/api/files/${fileId}/quotation-draft`,
+                { customerName: args.customerName || '' },
+                '报价文件解析失败'
+            );
+            const summary = draft.summary || {};
+            return {
+                success: true,
+                intent: 'quotation_file_draft',
+                summary: summary.readyForSaveDraft
+                    ? `报价文件已识别 ${summary.totalItems || 0} 项，客户和配方均精确匹配，可继续生成正式报价草稿。`
+                    : `报价文件已识别 ${summary.totalItems || 0} 项，其中 ${summary.exactMatchedItems || 0} 项精确匹配，仍有待确认内容。`,
+                display: { mode: 'compact', title: '报价文件识别草稿' },
+                data: draft,
+            };
+        }
+
         case 'build_quotation_draft': {
             const customers = await getJson(internalFetch, '/api/customers', '客户列表读取失败');
             const recipes = await loadRecipes(internalFetch);
@@ -765,6 +788,50 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 intent: 'business_alerts',
                 summary: `经营异常提醒 ${data.totals?.all || 0} 条，其中高风险 ${data.totals?.high || 0} 条。`,
                 display: { mode: 'compact', title: '经营异常' },
+                data,
+            };
+        }
+
+        case 'search_factory_file_archive_targets': {
+            const query = new URLSearchParams();
+            query.set('targetType', String(args.targetType || ''));
+            if (args.query) query.set('query', String(args.query));
+            if (args.limit) query.set('limit', String(args.limit));
+            const data = await getJson(
+                internalFetch,
+                `/api/files/archive-targets?${query.toString()}`,
+                '文件归档目标读取失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_file_archive_targets',
+                summary: `找到 ${Array.isArray(data) ? data.length : 0} 个可归档目标。`,
+                display: { mode: 'compact', title: '文件归档目标' },
+                data,
+            };
+        }
+
+        case 'archive_factory_file': {
+            if (!args.fileId) return { success: false, error: '缺少附件文件ID' };
+            const data = await postJson(
+                internalFetch,
+                `/api/files/${args.fileId}/archive`,
+                {
+                    targetType: args.targetType,
+                    targetId: args.targetId,
+                    title: args.title,
+                    note: args.note,
+                    documentType: args.documentType,
+                    tags: args.tags,
+                    source: 'ai_chat',
+                },
+                '工厂文件归档失败'
+            );
+            return {
+                success: true,
+                intent: 'factory_file_archived',
+                summary: `文件已归档到${data.link?.target?.label || '指定业务对象'}。`,
+                display: { mode: 'compact', title: '文件归档结果' },
                 data,
             };
         }

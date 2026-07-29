@@ -103,10 +103,73 @@ test('关键 API 集成契约：配方测试报告支持上传、下载和软删
     assert.match(source, /router\.get\('\/:id\/technical-files\/:fileId\/download'/);
     assert.match(source, /router\.delete\('\/:id\/technical-files\/:fileId'/);
     assert.match(source, /parsePumpTestReport\(req\.file\.buffer, originalName\)/);
+    assert.match(source, /storeFactoryFile\(\{/);
+    assert.match(source, /file_id: stored\.file\.id/);
     assert.match(source, /safeInsert\('recipe_technical_files'/);
     assert.match(source, /softDelete\('recipe_technical_files'/);
     assert.match(schema, /CREATE TABLE IF NOT EXISTS recipe_technical_files/);
     assert.match(db, /'recipe_technical_files'/);
+});
+
+test('关键 API 集成契约：V9.1 统一文件上传执行真实类型校验和哈希去重', () => {
+    const entry = readUtf8('api.cjs');
+    const route = readUtf8('api/routes/files.cjs');
+    const service = readUtf8('api/services/factoryFileStore.cjs');
+    const schema = readUtf8('api/database/schema.cjs');
+    const knowledgeRoute = readUtf8('api/routes/knowledge.cjs');
+    const recipeRoute = readUtf8('api/routes/recipes.cjs');
+
+    assert.match(entry, /app\.use\('\/api\/files', require\('\.\/api\/routes\/files\.cjs'\)\)/);
+    assert.match(route, /router\.post\('\/'/);
+    assert.match(route, /router\.get\('\/:id\/download'/);
+    assert.match(route, /router\.delete\('\/:id'/);
+    assert.match(route, /storeFactoryFile\(\{/);
+    assert.match(service, /inspectFactoryFile/);
+    assert.match(service, /fileSha256: crypto\.createHash\('sha256'\)/);
+    assert.match(service, /SELECT \* FROM factory_files WHERE file_sha256 = \?/);
+    assert.match(service, /文件扩展名与实际/);
+    assert.match(service, /MAX_FACTORY_FILE_SIZE = 10 \* 1024 \* 1024/);
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_files/);
+    assert.match(schema, /file_sha256 TEXT NOT NULL UNIQUE/);
+    assert.match(knowledgeRoute, /sourceType: 'knowledge_document'/);
+    assert.match(recipeRoute, /sourceType: 'recipe_technical_file'/);
+});
+
+test('关键 API 集成契约：V9.2 PDF 上传自动解析并提供重试和全文读取', () => {
+    const route = readUtf8('api/routes/files.cjs');
+    const parser = readUtf8('api/services/factoryFileParser.cjs');
+    const pdfParser = readUtf8('api/services/factoryPdfParser.cjs');
+    const store = readUtf8('api/services/factoryFileStore.cjs');
+
+    assert.match(route, /await parseFactoryFile\(result\.file\.id\)/);
+    assert.match(route, /router\.post\('\/:id\/parse'/);
+    assert.match(route, /router\.get\('\/:id\/content'/);
+    assert.match(route, /getFactoryFileContent\(id\)/);
+    assert.match(parser, /parser_status: 'processing'/);
+    assert.match(parser, /parser_status: result\.parserStatus/);
+    assert.match(parser, /parser_status: 'failed'/);
+    assert.match(pdfParser, /MAX_PDF_PAGES = 100/);
+    assert.match(pdfParser, /MAX_PDF_TEXT_CHARS = 300_000/);
+    assert.match(store, /parsedTextPreview/);
+    assert.match(store, /parserSummary/);
+});
+
+test('关键 API 集成契约：V9.3 报价文件草稿复用当前客户配方且不写正式报价', () => {
+    const route = readUtf8('api/routes/files.cjs');
+    const parser = readUtf8('api/services/factorySpreadsheetParser.cjs');
+    const mapper = readUtf8('api/services/factoryQuotationDraft.cjs');
+    const executor = readUtf8('api/routes/ai/executors/businessExecutors.cjs');
+
+    assert.match(route, /needsFactoryFileParsing\(result\.file\)/);
+    assert.match(route, /buildQuotationFileDraft\(id/);
+    assert.match(parser, /MAX_SPREADSHEET_ROWS = 5_000/);
+    assert.match(parser, /MAX_SPREADSHEET_CELLS = 50_000/);
+    assert.match(mapper, /SELECT id, name, default_margin/);
+    assert.match(mapper, /SELECT id, name, spec, saved_total_cost/);
+    assert.match(mapper, /status: 'ambiguous'/);
+    assert.match(mapper, /quotationDraftInput = readyForSaveDraft/);
+    assert.doesNotMatch(mapper, /INSERT|UPDATE|DELETE FROM quotations/);
+    assert.match(executor, /\/api\/files\/\$\{fileId\}\/quotation-draft/);
 });
 
 test('关键 API 集成契约：/api/cost/recipe-difference 只生成成本差异解释不写库', () => {
@@ -251,6 +314,7 @@ test('关键 API 集成契约：/api/knowledge 提供搜索、详情和同步入
 
 test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保存和删除入口', () => {
     const route = readUtf8('api/routes/ai/conversations.cjs');
+    const service = readUtf8('api/services/aiConversations.cjs');
     assert.match(route, /router\.get\('\/api\/ai\/conversations'/);
     assert.match(route, /router\.post\('\/api\/ai\/conversations'/);
     assert.match(route, /router\.get\('\/api\/ai\/conversations\/:id'/);
@@ -259,6 +323,8 @@ test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保
     assert.match(route, /router\.delete\('\/api\/ai\/conversations\/:id'/);
     assert.match(route, /parsePositiveId/);
     assert.match(route, /conversationAuth/);
+    assert.match(service, /metadata\.attachments/);
+    assert.match(service, /附件不存在或已删除/);
 });
 
 test('关键 API 集成契约：AI 回答反馈提供提交、查询和处理入口', () => {
@@ -531,4 +597,26 @@ test('关键 API 集成契约：转子出图入口使用标准响应并保留兼
     assert.match(chatSection, /if \(hasWarning\) return rotorSuccess\(res, warningPayload\)/);
     assert.match(chatSection, /return rotorSuccess\(res, \{/);
     assert.match(chatSection, /return rotorError\(res, 500,/);
+});
+
+test('关键 API 集成契约：V9.5 文件归档统一校验目标并保护写入边界', () => {
+    const route = readUtf8('api/routes/files.cjs');
+    const service = readUtf8('api/services/factoryFileArchive.cjs');
+    const executor = readUtf8('api/routes/ai/executors/businessExecutors.cjs');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+    const store = readUtf8('api/services/factoryFileStore.cjs');
+
+    const searchPosition = route.indexOf("router.get('/archive-targets'");
+    const idPosition = route.indexOf("router.get('/:id'");
+    assert.notEqual(searchPosition, -1);
+    assert.notEqual(idPosition, -1);
+    assert.ok(searchPosition < idPosition, 'archive-targets must be registered before /:id');
+    assert.match(route, /archiveFactoryFile\(id, \{/);
+    assert.match(service, /targetSummary\(targetType, targetId, accessors\)/);
+    assert.match(service, /parser_status/);
+    assert.match(service, /db\.transaction\(execute\)\.immediate\(\)/);
+    assert.match(executor, /\/api\/files\/\$\{args\.fileId\}\/archive/);
+    assert.match(executor, /source: 'ai_chat'/);
+    assert.match(tools, /const WRITE_TOOLS = new Set/);
+    assert.match(store, /SELECT id FROM factory_file_links/);
 });

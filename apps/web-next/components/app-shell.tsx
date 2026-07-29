@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Bot, Boxes, BriefcaseBusiness, Cable, FileText, MessageSquareText, Package, ReceiptText, RotateCcwSquare, ShoppingCart, UsersRound } from 'lucide-react';
+import { BarChart3, Bot, Boxes, BriefcaseBusiness, Cable, FileText, MessageSquareText, Package, ReceiptText, RotateCcwSquare, Settings2, ShoppingCart, UsersRound } from 'lucide-react';
 import { AiView } from '@/components/ai-view';
 import { NavItem, NavMenu } from '@/components/ui/nav-item';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ const navItems = [
   { href: '/purchase', label: '采购', icon: ShoppingCart, enabled: true },
   { href: '/coils', label: '线圈', icon: Cable, enabled: true },
   { href: '/rotor', label: '出图', icon: RotateCcwSquare, enabled: true },
+  { href: '/setup', label: '初始化', icon: Settings2, enabled: true },
 ];
 
 const businessNavItems = [
@@ -31,6 +32,8 @@ const businessNavItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAiWorkspace = pathname === '/ai';
+  const isSetupWorkspace = pathname === '/setup';
+  const isFullWorkspace = isAiWorkspace || isSetupWorkspace;
   const [mobileAiOpen, setMobileAiOpen] = useState(false);
   const [pageContext, setPageContext] = useState<AiPageContext | null>(null);
 
@@ -119,8 +122,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className={isAiWorkspace ? 'p-0 md:px-5 md:py-5' : 'px-3 py-4 md:px-5 md:py-5'}>
-        {isAiWorkspace ? (
-          <div className="mx-auto w-full max-w-[1720px]">{children}</div>
+        {isFullWorkspace ? (
+          <div className={`mx-auto w-full ${isAiWorkspace ? 'max-w-[1720px]' : 'max-w-[1480px]'}`}>{children}</div>
         ) : (
           <div className="mx-auto grid w-full max-w-[1920px] min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
             <div className="min-w-0">{children}</div>

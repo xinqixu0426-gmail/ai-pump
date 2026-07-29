@@ -937,6 +937,125 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     assert.match(knowledgeView, /删除资料/);
 });
 
+test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业务来源', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const store = readUtf8(path.join(repoRoot, 'api/services/factoryFileStore.cjs'));
+    const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
+    const knowledgeRoute = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
+    const recipesRoute = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_files/);
+    assert.match(schema, /detected_type TEXT NOT NULL/);
+    assert.match(schema, /file_sha256 TEXT NOT NULL UNIQUE/);
+    assert.match(schema, /source_type TEXT NOT NULL DEFAULT 'direct_upload'/);
+    assert.match(migrations, /version: 31/);
+    assert.match(migrations, /unified_factory_file_objects/);
+    assert.match(db, /'factory_files'/);
+    assert.match(store, /DANGEROUS_NAME_SEGMENT_RE/);
+    assert.match(store, /isUtf8/);
+    assert.match(store, /validateSpreadsheet/);
+    assert.match(filesRoute, /multer\.memoryStorage/);
+    assert.match(filesRoute, /MAX_FACTORY_FILE_SIZE/);
+    assert.match(knowledgeRoute, /file_id: stored\?\.file\.id \|\| null/);
+    assert.match(recipesRoute, /file_id: stored\.file\.id/);
+    assert.match(knowledgeRoute, /LEFT JOIN factory_files/);
+    assert.match(recipesRoute, /LEFT JOIN factory_files/);
+});
+
+test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型能力传递', () => {
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
+    const conversations = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+
+    assert.match(chat, /router\.get\('\/api\/ai\/capabilities'/);
+    assert.match(chat, /fetchAiProvider/);
+    assert.match(provider, /AI_PROVIDER/);
+    assert.match(provider, /KIMI_API_KEY/);
+    assert.match(provider, /type: 'image_url'/);
+    assert.match(provider, /不支持直接识图/);
+    assert.match(conversations, /resolveMessageAttachments/);
+    assert.match(conversations, /FROM factory_files/);
+    assert.match(aiView, /uploadFactoryFile/);
+    assert.match(aiView, /Paperclip/);
+    assert.match(aiView, /pendingAttachments/);
+});
+
+test('API 静态契约：V9.2 PDF 解析保留页码定位并按状态进入 AI 上下文', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const parser = readUtf8(path.join(repoRoot, 'api/services/factoryPdfParser.cjs'));
+    const fileParser = readUtf8(path.join(repoRoot, 'api/services/factoryFileParser.cjs'));
+    const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
+    const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+
+    assert.match(schema, /parsed_text TEXT NOT NULL DEFAULT ''/);
+    assert.match(schema, /parsed_json TEXT NOT NULL DEFAULT '\{\}'/);
+    assert.match(migrations, /version: 33/);
+    assert.match(migrations, /factory_file_parsed_content/);
+    assert.match(parser, /pdfjs-dist\/legacy\/build\/pdf\.mjs/);
+    assert.match(parser, /pageNumber/);
+    assert.match(parser, /detectTables/);
+    assert.match(parser, /requiresOcr/);
+    assert.match(fileParser, /safeUpdate\('factory_files'/);
+    assert.match(filesRoute, /router\.post\('\/:id\/parse'/);
+    assert.match(filesRoute, /router\.get\('\/:id\/content'/);
+    assert.match(provider, /解析内容（含 OCR）/);
+    assert.match(provider, /本轮不能推断扫描图片中的内容/);
+    assert.match(aiView, /attachmentParserText/);
+});
+
+test('API 静态契约：V9.3 表格解析和报价映射保持只读业务边界', () => {
+    const parser = readUtf8(path.join(repoRoot, 'api/services/factorySpreadsheetParser.cjs'));
+    const mapper = readUtf8(path.join(repoRoot, 'api/services/factoryQuotationDraft.cjs'));
+    const fileParser = readUtf8(path.join(repoRoot, 'api/services/factoryFileParser.cjs'));
+    const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
+    const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const lifecycle = readUtf8(path.join(repoRoot, 'api/services/managementActionLifecycle.cjs'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+
+    assert.match(parser, /version: 'spreadsheet-v1'/);
+    assert.match(parser, /cellRef/);
+    assert.match(parser, /formulaCount/);
+    assert.match(mapper, /readyForSaveDraft/);
+    assert.match(mapper, /quotationDraftInput/);
+    assert.match(mapper, /只读解析和映射草稿/);
+    assert.doesNotMatch(mapper, /safeInsert|safeUpdate|INSERT INTO quotations/);
+    assert.match(fileParser, /parseSpreadsheetBuffer/);
+    assert.match(filesRoute, /router\.post\('\/:id\/quotation-draft'/);
+    assert.match(provider, /inspect_quotation_file/);
+    assert.match(tools, /name: 'inspect_quotation_file'/);
+    assert.match(chat, /readyForSaveDraft=true/);
+    assert.match(lifecycle, /quotation-draft/);
+    assert.match(aiView, /已读取 \$\{sheets\} 个表/);
+});
+
+test('API 静态契约：V9.4 图片和扫描 PDF 使用本地 OCR 且候选参数只读', () => {
+    const ocr = readUtf8(path.join(repoRoot, 'api/services/factoryOcrParser.cjs'));
+    const candidates = readUtf8(path.join(repoRoot, 'api/services/factoryDrawingCandidates.cjs'));
+    const fileParser = readUtf8(path.join(repoRoot, 'api/services/factoryFileParser.cjs'));
+    const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+
+    assert.match(ocr, /@tesseract\.js-data\/chi_sim/);
+    assert.match(ocr, /@tesseract\.js-data\/eng/);
+    assert.match(ocr, /renderPdfPages/);
+    assert.match(ocr, /drawingCandidates/);
+    assert.match(candidates, /needsReview/);
+    assert.match(candidates, /pageNumber/);
+    assert.match(fileParser, /parseScannedPdfBuffer/);
+    assert.match(fileParser, /detected_type === 'image'/);
+    assert.match(provider, /本地 OCR 结果/);
+    assert.match(chat, /任何 OCR 候选都不得自动写入/);
+    assert.match(aiView, /OCR 未识别到文字/);
+});
+
 test('API 静态契约：V5.2 订单生产准备检查复用库存计划且保持只读', () => {
     const service = readUtf8(path.join(repoRoot, 'api/services/orderReadiness.cjs'));
     const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
@@ -1308,13 +1427,14 @@ test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () =
     assert.match(executor, /const \{ id, Id, \.\.\.quotation \} = row/);
 });
 
-test('API 静态契约：DeepSeek 默认模型使用 V4 Flash', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+test('API 静态契约：AI 默认保持 DeepSeek V4 Flash 并允许模型适配', () => {
+    const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const rotorRoute = readUtf8(path.join(repoRoot, 'api/routes/rotor.cjs'));
 
-    assert.match(chatRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
+    assert.match(provider, /text\(env\.DEEPSEEK_MODEL\) \|\| 'deepseek-v4-flash'/);
+    assert.match(provider, /provider: 'deepseek'/);
     assert.match(rotorRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
-    assert.doesNotMatch(chatRoute, /deepseek-chat/);
+    assert.doesNotMatch(provider, /deepseek-chat/);
     assert.doesNotMatch(rotorRoute, /model:\s*'deepseek-chat'/);
 });
 
@@ -1399,4 +1519,52 @@ test('文档契约：业务流程文档必须存在并被 README 引用', () => 
     assert.match(flow, /成本快照规则/);
     assert.match(flow, /报价转订单必须保存展开后的 BOM 快照/);
     assert.match(flow, /采购中心不入库/);
+});
+
+test('API 静态契约：V9.5 文件归档关联业务对象且知识写入需要确认', () => {
+    const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
+    const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
+    const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
+    const archive = readUtf8(path.join(repoRoot, 'api/services/factoryFileArchive.cjs'));
+    const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const fileLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/files.ts'));
+    const attachmentPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/factory-file-attachments.tsx'));
+    const customersView = readUtf8(path.join(repoRoot, 'apps/web-next/components/customers-view.tsx'));
+    const quotationsView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quotations-view.tsx'));
+    const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
+    const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+
+    assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_file_links/);
+    assert.match(schema, /idx_factory_file_links_active_unique/);
+    assert.match(migrations, /version: 34/);
+    assert.match(migrations, /factory_file_business_links/);
+    assert.match(db, /'factory_file_links'/);
+    assert.match(archive, /searchFactoryFileArchiveTargets/);
+    assert.match(archive, /safeInsert\('knowledge_documents'/);
+    assert.match(archive, /safeInsert\('factory_file_links'/);
+    assert.match(archive, /safeUpdate\('factory_file_links'/);
+    assert.match(archive, /softDelete\('factory_file_links'/);
+    assert.match(filesRoute, /router\.get\('\/archive-targets'/);
+    assert.match(filesRoute, /router\.post\('\/:id\/archive'/);
+    assert.match(filesRoute, /router\.get\('\/:id\/links'/);
+    assert.match(tools, /name: 'search_factory_file_archive_targets'/);
+    assert.match(tools, /name: 'archive_factory_file'/);
+    assert.match(tools, /'archive_factory_file'/);
+    assert.match(chat, /禁止猜 targetId/);
+    assert.match(fileLib, /archiveFactoryFile/);
+    assert.match(fileLib, /listFactoryFileLinksForTarget/);
+    assert.match(fileLib, /deleteFactoryFileLink/);
+    assert.match(aiView, /归档附件/);
+    assert.match(aiView, /已有归档/);
+    assert.match(attachmentPanel, /source: 'business_page'/);
+    assert.match(attachmentPanel, /uploadFactoryFile/);
+    assert.match(attachmentPanel, /archiveFactoryFile/);
+    assert.match(attachmentPanel, /deleteFactoryFileLink/);
+    assert.match(customersView, /targetType="customer"/);
+    assert.match(quotationsView, /targetType="quotation"/);
+    assert.match(qualityView, /targetType="recipe_analysis_feedback"/);
+    assert.match(knowledgeView, /targetType="ai_answer_feedback"/);
 });

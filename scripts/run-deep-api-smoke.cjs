@@ -4,6 +4,13 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const Database = require('better-sqlite3');
+const XLSX = require('@e965/xlsx');
+const {
+    createCanvas,
+    loadImage,
+    PDFDocument,
+} = require('@napi-rs/canvas');
+const { buildPdfBuffer } = require('../tests/helpers/pdfFixture.cjs');
 
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
@@ -169,6 +176,7 @@ async function readCoreResources() {
         ['转子订单型号', '/api/rotor/order-pump-models'],
         ['转子关联目标', '/api/rotor/link-targets'],
         ['系统设置', '/api/settings'],
+        ['系统初始化设置', '/api/settings/runtime'],
         ['客户列表', '/api/customers'],
         ['报价列表', '/api/quotations'],
         ['工作台汇总', '/api/workbench/summary'],
@@ -184,6 +192,7 @@ async function readCoreResources() {
         ['知识向量同步记录', '/api/knowledge/vector-sync-runs?limit=5'],
         ['知识搜索', '/api/knowledge?query=V750&limit=5'],
         ['AI 会话列表', '/api/ai/conversations?limit=5'],
+        ['AI 模型能力', '/api/ai/capabilities'],
         ['AI 问题反馈', '/api/ai/feedback?limit=5'],
         ['AI 回归概况', '/api/ai/evaluations/overview'],
     ];
@@ -827,6 +836,346 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('删除 AI 会话', 'DELETE', `/api/ai/conversations/${conversation.id}`);
 
     const documentText = `型号 ${unique}\n泵壳材料 304\n叶轮直径 120mm`;
+    const factoryFileForm = new FormData();
+    factoryFileForm.set('file', new Blob([documentText], { type: 'text/markdown' }), `${unique}.md`);
+    const factoryFile = (await requestForm(
+        'V9.1统一文件上传',
+        '/api/files',
+        factoryFileForm,
+        [201]
+    )).payload.data;
+    assert(factoryFile.detectedType === 'text', '统一文件没有识别为文本');
+    assert(factoryFile.parserStatus === 'pending', '统一文件不应伪装成已解析');
+
+    const duplicateFileForm = new FormData();
+    duplicateFileForm.set('file', new Blob([documentText], { type: 'application/octet-stream' }), `${unique}-副本.md`);
+    const duplicateFileResponse = (await requestForm(
+        'V9.1统一文件哈希去重',
+        '/api/files',
+        duplicateFileForm,
+        [200]
+    )).payload;
+    assert(
+        duplicateFileResponse.deduplicated === true
+            && duplicateFileResponse.data.id === factoryFile.id
+            && duplicateFileResponse.data.duplicateCount === 2,
+        '相同文件没有复用统一文件对象'
+    );
+    const factoryFiles = (await request(
+        'V9.1统一文件列表',
+        'GET',
+        '/api/files?detectedType=text&limit=100'
+    )).payload.data;
+    assert(factoryFiles.some(item => item.id === factoryFile.id), '统一文件列表缺少上传文件');
+    const unifiedDownload = await requestDownload(
+        'V9.1下载统一原文件',
+        `/api/files/${factoryFile.id}/download`
+    );
+    assert(unifiedDownload.equals(Buffer.from(documentText)), '统一文件下载内容不一致');
+
+    const disguisedPdfForm = new FormData();
+    disguisedPdfForm.set('file', new Blob(['not a pdf'], { type: 'application/pdf' }), `${unique}.pdf`);
+    await requestForm('V9.1拒绝扩展名伪装', '/api/files', disguisedPdfForm, [400]);
+
+    const pdfBuffer = buildPdfBuffer([
+        [
+            { text: `Pump ${unique}`, x: 72, y: 740 },
+            { text: 'Flow', x: 72, y: 700 },
+            { text: 'Head', x: 220, y: 700 },
+            { text: '10', x: 72, y: 680 },
+            { text: '35', x: 220, y: 680 },
+        ],
+        [
+            { text: 'Result PASS', x: 72, y: 740 },
+        ],
+    ]);
+    const pdfForm = new FormData();
+    pdfForm.set('file', new Blob([pdfBuffer], { type: 'application/pdf' }), `${unique}-report.pdf`);
+    const pdfUploadResponse = (await requestForm(
+        'V9.2 PDF上传自动解析',
+        '/api/files',
+        pdfForm,
+        [201]
+    )).payload;
+    const pdfFile = pdfUploadResponse.data;
+    assert(pdfFile.detectedType === 'pdf', 'PDF 没有识别为 PDF');
+    assert(
+        pdfFile.parserStatus === 'parsed',
+        `PDF 上传后没有完成文字层解析: ${JSON.stringify({
+            parserStatus: pdfFile.parserStatus,
+            parserError: pdfFile.parserError,
+            parseWarning: pdfUploadResponse.parseWarning,
+        })}`
+    );
+    assert(pdfFile.parserSummary?.pageCount === 2, 'PDF 页数摘要不正确');
+    const pdfContent = (await request(
+        'V9.2 PDF按页读取解析结果',
+        'GET',
+        `/api/files/${pdfFile.id}/content`
+    )).payload.data;
+    assert(pdfContent.parsedText.includes('【第 1 页】'), 'PDF 全文缺少第 1 页定位');
+    assert(pdfContent.parsedText.includes('【第 2 页】'), 'PDF 全文缺少第 2 页定位');
+    assert(pdfContent.parsed.pages[0].tables[0].rows.length === 2, 'PDF 表格行没有保留');
+    const reparsedPdf = (await request(
+        'V9.2 PDF手动重试解析',
+        'POST',
+        `/api/files/${pdfFile.id}/parse`,
+        {}
+    )).payload.data;
+    assert(reparsedPdf.parserStatus === 'parsed', 'PDF 手动重试后状态不正确');
+
+    const imageCanvas = createCanvas(1600, 600);
+    const imageContext = imageCanvas.getContext('2d');
+    imageContext.fillStyle = '#ffffff';
+    imageContext.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
+    imageContext.fillStyle = '#111111';
+    imageContext.font = 'bold 72px sans-serif';
+    imageContext.fillText('PUMP DRAWING', 70, 120);
+    imageContext.font = '60px sans-serif';
+    imageContext.fillText('Voltage: 220V  Frequency: 60Hz', 70, 270);
+    imageContext.fillText('Diameter: 35 mm', 70, 410);
+    const imageBuffer = imageCanvas.toBuffer('image/png');
+    const imageForm = new FormData();
+    imageForm.set('file', new Blob([imageBuffer], { type: 'image/png' }), `${unique}-drawing.png`);
+    const imageFile = (await requestForm(
+        'V9.4 图片上传自动 OCR',
+        '/api/files',
+        imageForm,
+        [201]
+    )).payload.data;
+    assert(imageFile.parserStatus === 'parsed', '图片上传后没有完成 OCR');
+    assert(imageFile.parserSummary.ocrApplied === true, '图片没有记录 OCR 状态');
+    assert(imageFile.parserSummary.drawingCandidateCount >= 2, '图片没有生成技术参数候选');
+    const imageContent = (await request(
+        'V9.4 图片读取 OCR 结果',
+        'GET',
+        `/api/files/${imageFile.id}/content`
+    )).payload.data;
+    assert(imageContent.parsedText.includes('220V'), '图片 OCR 缺少电压文字');
+    assert(
+        imageContent.parsed.drawingCandidates.some(
+            candidate => candidate.type === 'diameter' && candidate.value === '35'
+        ),
+        '图片 OCR 没有保留直径候选'
+    );
+
+    const rasterImage = await loadImage(imageBuffer);
+    const scannedDocument = new PDFDocument();
+    const scannedPage = scannedDocument.beginPage(800, 300);
+    scannedPage.drawImage(rasterImage, 0, 0, 800, 300);
+    scannedDocument.endPage();
+    const scannedPdfBuffer = scannedDocument.close();
+    const scannedPdfForm = new FormData();
+    scannedPdfForm.set(
+        'file',
+        new Blob([scannedPdfBuffer], { type: 'application/pdf' }),
+        `${unique}-scanned.pdf`
+    );
+    const scannedPdfFile = (await requestForm(
+        'V9.4 扫描 PDF 自动 OCR',
+        '/api/files',
+        scannedPdfForm,
+        [201]
+    )).payload.data;
+    assert(scannedPdfFile.parserStatus === 'parsed', '扫描 PDF 上传后没有完成 OCR');
+    assert(scannedPdfFile.parserSummary.ocrApplied === true, '扫描 PDF 没有记录 OCR 状态');
+    const scannedPdfContent = (await request(
+        'V9.4 扫描 PDF 按页读取 OCR',
+        'GET',
+        `/api/files/${scannedPdfFile.id}/content`
+    )).payload.data;
+    assert(scannedPdfContent.parsedText.includes('【第 1 页 OCR】'), '扫描 PDF 缺少 OCR 页码');
+    assert(scannedPdfContent.parsedText.includes('60Hz'), '扫描 PDF OCR 缺少频率文字');
+
+    const quotationWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+        quotationWorkbook,
+        XLSX.utils.aoa_to_sheet([
+            ['客户名称', customer.name],
+            ['报价编号', `${unique}-QUOTE-FILE`],
+            ['产品型号', '规格', '数量', '单价', '金额'],
+            [recipe.name, recipe.spec || '', 30, 295, 8_850],
+        ]),
+        '客户报价'
+    );
+    const quotationWorkbookBuffer = XLSX.write(
+        quotationWorkbook,
+        { type: 'buffer', bookType: 'xlsx' }
+    );
+    const spreadsheetForm = new FormData();
+    spreadsheetForm.set(
+        'file',
+        new Blob([quotationWorkbookBuffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+        `${unique}-quotation.xlsx`
+    );
+    const spreadsheetFile = (await requestForm(
+        'V9.3 Excel上传自动解析',
+        '/api/files',
+        spreadsheetForm,
+        [201]
+    )).payload.data;
+    assert(spreadsheetFile.parserStatus === 'parsed', 'Excel 上传后没有完成表格解析');
+    assert(spreadsheetFile.parserSummary.sheetCount === 1, 'Excel 工作表摘要不正确');
+    assert(spreadsheetFile.parserSummary.rowCount === 4, 'Excel 行数摘要不正确');
+    const spreadsheetContent = (await request(
+        'V9.3 Excel读取解析结果',
+        'GET',
+        `/api/files/${spreadsheetFile.id}/content`
+    )).payload.data;
+    assert(spreadsheetContent.parsedText.includes('【工作表：客户报价】'), 'Excel 全文缺少工作表定位');
+    assert(spreadsheetContent.parsedText.includes('[第 4 行]'), 'Excel 全文缺少行号定位');
+    const quotationCountBeforeFileDraft = (await request(
+        'V9.3 报价文件草稿前读取报价',
+        'GET',
+        '/api/quotations'
+    )).payload.data.length;
+    const quotationFileDraft = (await request(
+        'V9.3 报价文件生成映射草稿',
+        'POST',
+        `/api/files/${spreadsheetFile.id}/quotation-draft`,
+        {}
+    )).payload.data;
+    assert(quotationFileDraft.customerMatch.status === 'matched', '报价文件客户没有精确匹配');
+    assert(quotationFileDraft.items[0].recipeMatch.status === 'matched', '报价文件配方没有精确匹配');
+    assert(quotationFileDraft.items[0].source.rowNumber === 4, '报价文件没有保留原始行号');
+    assert(quotationFileDraft.summary.readyForSaveDraft === true, '报价文件未生成可复核草稿输入');
+    assert(quotationFileDraft.quotationDraftInput.items[0].qty === 30, '报价文件数量映射错误');
+    const quotationCountAfterFileDraft = (await request(
+        'V9.3 报价文件草稿后读取报价',
+        'GET',
+        '/api/quotations'
+    )).payload.data.length;
+    assert(
+        quotationCountAfterFileDraft === quotationCountBeforeFileDraft,
+        '报价文件草稿不应创建正式报价'
+    );
+
+    const archiveTargets = (await request(
+        'V9.5查找配方归档目标',
+        'GET',
+        `/api/files/archive-targets?targetType=recipe&query=${encodeURIComponent(recipe.name)}`
+    )).payload.data;
+    assert(
+        archiveTargets.length === 1 && archiveTargets[0].id === recipe.id,
+        '文件归档没有找到唯一真实配方'
+    );
+    const recipeArchive = (await request(
+        'V9.5归档报价文件到配方',
+        'POST',
+        `/api/files/${spreadsheetFile.id}/archive`,
+        {
+            targetType: 'recipe',
+            targetId: recipe.id,
+            note: '深度 API 归档验收',
+            source: 'manual',
+        },
+        [201]
+    )).payload.data;
+    assert(recipeArchive.link.relationRole === 'technical_reference', '配方文件关联角色不正确');
+    const recipeFileLinks = (await request(
+        'V9.5按配方读取文件关联',
+        'GET',
+        `/api/files/links?targetType=recipe&targetId=${recipe.id}`
+    )).payload.data;
+    assert(
+        recipeFileLinks.some(link => link.id === recipeArchive.link.id && link.file.id === spreadsheetFile.id),
+        '配方没有返回归档文件'
+    );
+    const customerArchive = (await request(
+        'V9业务页归档文件到客户',
+        'POST',
+        `/api/files/${spreadsheetFile.id}/archive`,
+        {
+            targetType: 'customer',
+            targetId: customer.id,
+            title: `${unique}-客户附件`,
+            source: 'business_page',
+        },
+        [201]
+    )).payload.data;
+    assert(
+        customerArchive.link.relationRole === 'attachment'
+            && customerArchive.link.source === 'business_page',
+        '客户业务页文件关联属性不正确'
+    );
+    const quotationArchive = (await request(
+        'V9业务页归档文件到报价',
+        'POST',
+        `/api/files/${spreadsheetFile.id}/archive`,
+        {
+            targetType: 'quotation',
+            targetId: quotation.id,
+            title: `${unique}-报价附件`,
+            source: 'business_page',
+        },
+        [201]
+    )).payload.data;
+    assert(
+        quotationArchive.link.relationRole === 'quotation_source'
+            && quotationArchive.link.source === 'business_page',
+        '报价业务页文件关联属性不正确'
+    );
+    const customerFileLinks = (await request(
+        'V9按客户读取业务附件',
+        'GET',
+        `/api/files/links?targetType=customer&targetId=${customer.id}`
+    )).payload.data;
+    assert(
+        customerFileLinks.some(link => link.id === customerArchive.link.id && link.file.id === spreadsheetFile.id),
+        '客户业务页没有返回归档文件'
+    );
+    const quotationFileLinks = (await request(
+        'V9按报价读取业务附件',
+        'GET',
+        `/api/files/links?targetType=quotation&targetId=${quotation.id}`
+    )).payload.data;
+    assert(
+        quotationFileLinks.some(link => link.id === quotationArchive.link.id && link.file.id === spreadsheetFile.id),
+        '报价业务页没有返回归档文件'
+    );
+    await request(
+        'V9.5阻止删除仍有关联的文件',
+        'DELETE',
+        `/api/files/${spreadsheetFile.id}`,
+        undefined,
+        [409]
+    );
+
+    const knowledgeArchiveTitle = `${unique}-归档PDF资料`;
+    const knowledgeArchive = (await request(
+        'V9.5归档 PDF 到知识库',
+        'POST',
+        `/api/files/${pdfFile.id}/archive`,
+        {
+            targetType: 'knowledge_document',
+            title: knowledgeArchiveTitle,
+            documentType: 'other',
+            tags: [unique, '归档验收'],
+            note: '统一文件归档生成',
+            source: 'manual',
+        },
+        [201]
+    )).payload.data;
+    assert(knowledgeArchive.knowledgeDocument?.id > 0, '知识库归档没有创建知识资料');
+    const duplicateKnowledgeArchive = (await request(
+        'V9.5知识库归档去重',
+        'POST',
+        `/api/files/${pdfFile.id}/archive`,
+        {
+            targetType: 'knowledge_document',
+            title: `${knowledgeArchiveTitle}-重复`,
+            source: 'manual',
+        },
+        [200]
+    )).payload;
+    assert(
+        duplicateKnowledgeArchive.deduplicated === true
+            && duplicateKnowledgeArchive.data.knowledgeDocument.id === knowledgeArchive.knowledgeDocument.id,
+        '同一文件重复归档没有复用知识资料'
+    );
+
     const documentForm = new FormData();
     documentForm.set('documentType', 'technical_note');
     documentForm.set('title', `${unique} 技术资料`);
@@ -842,6 +1191,13 @@ async function testCrossModuleWriteFlow(baseResources) {
     )).payload.data;
     assert(document.parserStatus === 'parsed', '文本资料没有完成解析');
     assert(document.downloadPath, '工厂资料没有下载地址');
+    assert(document.fileId === factoryFile.id, '知识资料没有复用统一文件对象');
+    const linkedFactoryFile = (await request(
+        'V9.1统一文件解析状态升级',
+        'GET',
+        `/api/files/${factoryFile.id}`
+    )).payload.data;
+    assert(linkedFactoryFile.parserStatus === 'parsed', '统一文件没有同步已完成的解析状态');
     const documents = (await request(
         '工厂资料列表',
         'GET',
@@ -882,7 +1238,21 @@ async function testCrossModuleWriteFlow(baseResources) {
         'GET',
         `/api/knowledge?query=${encodeURIComponent(unique)}&entryType=document&limit=10`
     )).payload.data;
-    assert(documentKnowledge.length === 1, '独立工厂资料没有生成唯一知识条目');
+    assert(
+        documentKnowledge.some(item => String(item.sourceId) === String(document.id)),
+        '独立工厂资料没有生成知识条目'
+    );
+    const archivedFileKnowledge = (await request(
+        'V9.5检索归档文件知识',
+        'GET',
+        `/api/knowledge?query=${encodeURIComponent(knowledgeArchiveTitle)}&entryType=document&limit=10`
+    )).payload.data;
+    assert(
+        archivedFileKnowledge.some(
+            item => String(item.sourceId) === String(knowledgeArchive.knowledgeDocument.id)
+        ),
+        '归档文件没有进入知识检索'
+    );
     const documentDetail = (await request(
         '工厂资料知识详情',
         'GET',
@@ -891,7 +1261,37 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(documentDetail.content.includes('泵壳材料 304'), '工厂资料提取文本没有进入知识详情');
     const downloaded = await requestDownload('下载工厂资料原件', document.downloadPath);
     assert(downloaded.equals(Buffer.from(documentText)), '工厂资料下载内容与上传内容不一致');
+    await request(
+        'V9.5解除配方文件关联',
+        'DELETE',
+        `/api/files/${spreadsheetFile.id}/links/${recipeArchive.link.id}`
+    );
+    await request(
+        'V9解除客户文件关联',
+        'DELETE',
+        `/api/files/${spreadsheetFile.id}/links/${customerArchive.link.id}`
+    );
+    await request(
+        'V9解除报价文件关联',
+        'DELETE',
+        `/api/files/${spreadsheetFile.id}/links/${quotationArchive.link.id}`
+    );
+    await request(
+        'V9.5解除知识资料文件关联',
+        'DELETE',
+        `/api/files/${pdfFile.id}/links/${knowledgeArchive.link.id}`
+    );
+    await request(
+        'V9.5删除归档知识资料',
+        'DELETE',
+        `/api/knowledge/documents/${knowledgeArchive.knowledgeDocument.id}`
+    );
     await request('删除工厂资料', 'DELETE', `/api/knowledge/documents/${document.id}`);
+    await request('删除未引用统一文件', 'DELETE', `/api/files/${factoryFile.id}`);
+    await request('删除 PDF 验收文件', 'DELETE', `/api/files/${pdfFile.id}`);
+    await request('删除图片 OCR 验收文件', 'DELETE', `/api/files/${imageFile.id}`);
+    await request('删除扫描 PDF OCR 验收文件', 'DELETE', `/api/files/${scannedPdfFile.id}`);
+    await request('删除 Excel 验收文件', 'DELETE', `/api/files/${spreadsheetFile.id}`);
     await request('删除资料后同步知识', 'POST', '/api/knowledge/sync', {});
     const removedDocumentKnowledge = (await request(
         '确认工厂资料知识移除',

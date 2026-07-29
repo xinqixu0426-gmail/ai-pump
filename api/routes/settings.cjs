@@ -1,8 +1,64 @@
 const { Router } = require('express');
 const { getSetting, setSetting } = require('../db.cjs');
+const {
+    buildCandidateAiEnvironment,
+    publicSnapshot,
+    updateRuntimeSettings,
+} = require('../services/runtimeConfig.cjs');
+const {
+    fetchAiProvider,
+    resolveAiProviderConfig,
+} = require('../services/aiProvider.cjs');
 const router = Router();
 
 const ALLOWED_SETTINGS = new Set(['management_fee', 'cable_accessories', 'float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate']);
+
+function runtimeError(res, error, fallback = '运行设置操作失败') {
+    const message = String(error?.message || fallback)
+        .replace(/sk-[a-zA-Z0-9_-]{12,}/g, '[已隐藏密钥]');
+    return res.status(400).json({ success: false, error: message });
+}
+
+router.get('/runtime', (_req, res) => {
+    try {
+        res.json({ success: true, data: publicSnapshot() });
+    } catch (error) {
+        runtimeError(res, error, '运行设置读取失败');
+    }
+});
+
+router.put('/runtime', (req, res) => {
+    try {
+        const result = updateRuntimeSettings(req.body);
+        res.json({ success: true, data: result.config, changed: result.changed });
+    } catch (error) {
+        runtimeError(res, error, '运行设置保存失败');
+    }
+});
+
+router.post('/runtime/test-ai', async (req, res) => {
+    const startedAt = Date.now();
+    try {
+        const env = buildCandidateAiEnvironment(req.body);
+        const config = resolveAiProviderConfig(env);
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '只回复“连接正常”。',
+        }], { config });
+        await response.arrayBuffer();
+        res.json({
+            success: true,
+            data: {
+                provider: config.provider,
+                displayName: config.displayName,
+                model: config.model,
+                latencyMs: Date.now() - startedAt,
+            },
+        });
+    } catch (error) {
+        runtimeError(res, error, 'AI 连接测试失败');
+    }
+});
 
 router.get('/:key', (req, res) => {
     if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
@@ -41,7 +97,11 @@ router.put('/:key', (req, res) => {
 
 router.get('/', (req, res) => {
     const { db } = require('../db.cjs');
-    const rows = db.prepare('SELECT key, value, updated_at FROM system_settings').all();
+    const rows = db.prepare(`
+        SELECT key, value, updated_at
+        FROM system_settings
+        WHERE key IN (${[...ALLOWED_SETTINGS].map(() => '?').join(', ')})
+    `).all(...ALLOWED_SETTINGS);
     const data = {};
     rows.forEach(r => { data[r.key] = r.value; });
     res.json({ success: true, data });

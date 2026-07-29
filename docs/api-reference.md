@@ -1,6 +1,6 @@
 # API 接口总表
 
-> 更新于 2026-07-27。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
+> 更新于 2026-07-29。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
 
 ## 1. 通用约定
 
@@ -257,6 +257,13 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 | `GET` | `/api/settings` | 无 | 所有系统设置，返回 key-value 对象 |
 | `GET` | `/api/settings/:key` | 白名单 key | 单个设置值 |
 | `PUT` | `/api/settings/:key` | `{ value }` | 更新设置；数值类必须非负，`cable_accessories` 必须含 `standard/xinjie` 的 `name` 和 `fee` |
+| `GET` | `/api/settings/runtime` | 无 | 读取系统初始化页运行配置、密钥配置状态、待重启项和只读部署环境状态；永不返回 API Key 原文或密文 |
+| `PUT` | `/api/settings/runtime` | camelCase 运行设置对象 | 保存白名单内的 AI 与知识检索设置；空密钥表示保留原值，API Key 使用 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密 |
+| `POST` | `/api/settings/runtime/test-ai` | AI 提供商、模型、地址及可选新 API Key | 不保存配置，使用当前或本次输入的凭证执行最小连接测试，返回提供商、模型和耗时 |
+
+`/setup` 系统初始化页只开放业务运行参数。AI 提供商、模型、API Key 和图片输入设置保存后供 AI 工作台即时读取；混合检索和向量批量大小即时读取。知识自动同步、向量开关、向量自动生成、Embedding 模型/维度/精度、缓存目录和离线模式涉及已初始化的后台控制器或模型实例，保存后会返回 `restartRequired=true`，重启 API 服务后生效。管理密码、JWT、内部接口密钥、CORS、端口和生产模式只显示配置状态，仍必须由部署环境提供，不能在网页中读取或修改。
+
+Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k2.7-code`。
 
 ## 14. 转子 Rotor
 
@@ -284,12 +291,13 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/ai/chat` | `{ messages, pageContext? }` | SSE 流式对话；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`，事件数据形如 `data: { type, ...payload }` |
+| `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制 |
+| `POST` | `/api/ai/chat` | `{ messages, pageContext? }` | SSE 流式对话；消息可带 `attachments: [{ id }]`；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view` |
 | `POST` | `/api/ai/confirm-tool` | `{ toolName, args? }` | 用户确认后执行写工具；调用 `executeToolCall(..., { allowWrite: true })` |
 | `GET` | `/api/ai/system-prompt` | 无 | 读取当前 System Prompt |
 | `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 更新内存和 SQLite `config.ai-system-prompt`；不能为空，最大 50000 字符 |
 
-AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。DeepSeek 不接收图片二进制，但可以使用本地 OCR 文字；系统初始化页选择 Kimi 开放平台且模型支持视觉输入时，图片还会按 OpenAI 兼容的 `image_url` 数据格式传入。
 
 业务页右侧 AI 可额外发送 `pageContext: { resourceType: "order", resourceId, path: "/orders", view }`。后端只保留合法订单 ID，并将 `view` 限制为 `readiness/items/purchase/todos`；客户端标签、指令或业务数值都会被丢弃。页面上下文只用于解析“这个订单”“下一步怎么处理”等指代，不写入会话消息，也不替代实时业务工具查询；明确指定其他订单或询问全部订单时，以用户文字为准。
 
@@ -304,7 +312,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | `GET` | `/api/ai/conversations?limit=50` | 无 | 获取最近会话，默认 50 条，最大 100 条 |
 | `POST` | `/api/ai/conversations` | `{ title }` | 创建会话，标题最大 80 字符 |
 | `GET` | `/api/ai/conversations/:id` | 无 | 获取会话及按时间排序的全部消息 |
-| `POST` | `/api/ai/conversations/:id/messages` | `{ role, content, metadata? }` | 追加 `user/assistant` 消息及工具展示数据 |
+| `POST` | `/api/ai/conversations/:id/messages` | `{ role, content, metadata? }` | 追加消息；用户附件放在 `metadata.attachments: [{ id }]`，服务端重新读取文件名、类型、大小和下载路径后保存 |
 | `PATCH` | `/api/ai/conversations/:id/messages/:messageId` | `{ metadata }` | 更新已保存消息的工具执行结果 |
 | `DELETE` | `/api/ai/conversations/:id` | 无 | 软删除会话；历史消息保留在数据库中但不再展示 |
 
@@ -463,7 +471,35 @@ V3 第十四阶段在 Web 端把健康检查返回的待复核反馈按配方聚
 
 V3 第十五阶段补齐待复核工作台的操作闭环。反馈保存和已消失提醒确认继续使用原有 API 返回的 `ruleLearning`，Web 端展示候选规则的新生成、重算、失效、撤回批准及剩余隔离证据数量；暂时跳过只调整本地处理顺序，不写数据库。整组完成后清除 `feedbackIds/feedbackId/action` 参数，并通过 `/dashboard?view=quality` 完整导航重新拉取学习证据健康状态。本阶段未新增 API，也不改变反馈或规则的数据语义。
 
-## 17. 工厂知识库 Knowledge
+## 17. 统一文件 Files
+
+V9.1 使用 `factory_files` 作为 PDF、Excel、文本和图片的统一原文件对象。上传时以后端检测出的真实内容类型为准，不信任浏览器提交的 MIME；文件最大 10MB，只允许 `.pdf/.xls/.xlsx/.csv/.txt/.md/.png/.jpg/.jpeg/.webp`。扩展名与文件签名不一致、无效 UTF-8 文本、损坏 Excel、危险可执行扩展名或空文件会在写库前拒绝。V9.2 对 PDF 提取文字层、页码、行坐标和连续表格行；V9.3 对 Excel/CSV 提取工作表、行列、单元格、公式和表格块；V9.4 对图片和无文字层 PDF 执行本地中英文 OCR；V9.5 使用 `factory_file_links` 把同一文件可追溯地关联到客户、报价、配方、质量问题或知识资料，不复制原文件。
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `GET` | `/api/files` | 查询参数 `detectedType?=pdf/spreadsheet/image/text`, `sourceType?`, `limit?` | 列出统一文件元数据，不返回二进制；默认 30 条，最大 100 条 |
+| `POST` | `/api/files` | `multipart/form-data`: `file` | 标准上传入口；按 SHA-256 去重，新文件返回 `201`，重复文件复用原对象并返回 `200 + deduplicated=true` |
+| `GET` | `/api/files/archive-targets` | 查询参数 `targetType=customer/quotation/recipe/recipe_analysis_feedback/ai_answer_feedback`, `query?`, `limit?` | 只读查找真实归档目标；返回业务标签和说明，供界面或 AI 消歧，不接受知识资料类型 |
+| `GET` | `/api/files/links` | 查询参数 `targetType`, `targetId` | 按业务对象列出有效文件关联及文件元数据 |
+| `GET` | `/api/files/:id` | 无 | 读取单个文件对象的类型、大小、哈希、解析状态和来源 |
+| `GET` | `/api/files/:id/links` | 无 | 列出该文件当前关联的业务对象 |
+| `POST` | `/api/files/:id/archive` | `{ targetType, targetId?, title?, note?, documentType?, tags?, source? }` | 归档文件；客户、报价、配方和质量问题必须传真实 `targetId`；知识资料使用 `targetType=knowledge_document` 且由系统创建或复用同文件资料；重复关联返回 `deduplicated=true` |
+| `DELETE` | `/api/files/:id/links/:linkId` | 无 | 软删除指定文件关联，不删除原文件或目标业务记录 |
+| `POST` | `/api/files/:id/parse` | 无 | 重新解析 PDF、Excel、CSV 或图片；成功返回更新后的文件对象，其他类型或解析失败返回 `400` |
+| `POST` | `/api/files/:id/quotation-draft` | `{ customerName? }` | 只读把 Excel/CSV 报价文件映射为客户、配方、数量、文件单价和待确认项；只有全部精确匹配时返回 `quotationDraftInput`，不创建客户、配方或报价 |
+| `GET` | `/api/files/:id/content` | 无 | 读取完整解析结果；PDF 包含逐页 `lines/tables`，表格包含逐工作表 `rows/cells/tables`，均保留原文定位且不返回原二进制 |
+| `GET` | `/api/files/:id/download` | 无 | 下载原文件 |
+| `DELETE` | `/api/files/:id` | 无 | 软删除未被业务资料引用的文件；仍被知识资料、配方测试报告、聊天历史或 `factory_file_links` 引用时返回 `409` |
+
+PDF 上传时同步完成解析：有文字层的页面使用 `【第 N 页】`，无文字层页面自动渲染并使用 `【第 N 页 OCR】`；混合 PDF 按页面合并。PDF 文字层最多处理 100 页和 30 万字符，OCR 最多处理 12 个扫描页、单页最多约 700 万渲染像素。图片 OCR 支持 PNG、JPG 和 WebP，原图超过 4000 万像素会拒绝解析。OCR 结果保存逐页/逐行文字框与置信度，并生成只读 `drawingCandidates`；低于 85% 标记 `needsReview`。未识别到文字时为 `metadata_only + ocrApplied=true`，AI 不得猜测原图内容。表格最多处理 20 个工作表、5000 个非空行、100 列、5 万个非空单元格和 30 万字符；保留工作表名、行号、列号、单元格引用、公式与合并区域，超出部分通过 `truncated=true` 明示。
+
+报价映射使用当前未归档客户和配方，只把精确名称/型号命中标记为可继续；近似匹配、多个候选、数量无效、金额不一致和未找到记录都进入待确认项。`quotationDraftInput` 只是现有 `/api/quotations/save-payload-draft` 的候选入参，文件单价不等于系统成本，正式报价草稿仍必须由标准报价 API 按当前配方重新试算。该链路不自动新增客户或配方，也不写正式报价。
+
+V9.5 归档使用多态目标校验：客户、报价、配方和知识资料必须仍处于有效状态；“质量问题”映射到现有 `recipe_analysis_feedback` 或 `ai_answer_feedback`，不虚构第三套质量表。归档到知识库只允许已经 `parsed/metadata_only` 的文件，系统创建的 `knowledge_documents` 复用 `factory_files.file_id`，并通过现有知识自动同步进入检索。AI 工具 `search_factory_file_archive_targets` 只读查目标，`archive_factory_file` 属于写工具，必须显示确认卡片。聊天附件卡片也提供同一归档入口并显示已有归档。OCR 参数候选即使随文件归档也不升级为已确认事实。
+
+V9 收口后，客户详情、报价详情和质量反馈入口通过 `POST /api/files` 上传，再以 `source=business_page` 调用归档接口；列表统一读取 `GET /api/files/links`，解除关联使用软删除接口。AI 回答反馈也可在知识管理页关联问题截图或原始资料。业务页上传不会自动创建知识资料；需要长期检索时必须另行归档到 `knowledge_document`。
+
+## 18. 工厂知识库 Knowledge
 
 Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识条目，并在 SQLite 支持 FTS5 时启用 `knowledge_entries_fts`；如果当前 SQLite 构建不支持 FTS5，搜索自动回退到 `LIKE`。
 
@@ -517,7 +553,7 @@ AI 工具：
 - `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
 
-## 18. 当前兼容边界
+## 19. 当前兼容边界
 
 - 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是历史兼容字段，Web 页面必须使用标准字段。
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。

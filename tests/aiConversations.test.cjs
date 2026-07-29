@@ -32,6 +32,14 @@ function createMemoryAccessors() {
             created_at TEXT,
             updated_at TEXT
         );
+        CREATE TABLE factory_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_name TEXT NOT NULL,
+            detected_type TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            deleted_at TEXT
+        );
     `);
     const accessors = {
         db,
@@ -126,4 +134,34 @@ test('AI 会话：摘要更新失败时不留下孤立消息', () => {
     }, { dbAccessors }), /模拟摘要更新失败/);
     const count = dbAccessors.db.prepare('SELECT COUNT(*) AS count FROM ai_conversation_messages').get().count;
     assert.equal(count, 0);
+});
+
+test('V9.1 AI 会话：附件由服务端校验并保存规范文件信息', () => {
+    const dbAccessors = createMemoryAccessors();
+    const conversation = createAiConversation('admin', '查看图片', { dbAccessors });
+    const fileId = Number(dbAccessors.db.prepare(`
+        INSERT INTO factory_files (
+            original_name, detected_type, mime_type, file_size
+        ) VALUES (?, ?, ?, ?)
+    `).run('泵壳照片.png', 'image', 'image/png', 128).lastInsertRowid);
+
+    const message = appendAiConversationMessage('admin', conversation.id, {
+        role: 'user',
+        content: '这是什么泵壳？',
+        metadata: { attachments: [{ id: fileId, originalName: '伪造名称.exe' }] },
+    }, { dbAccessors });
+
+    assert.deepEqual(message.metadata.attachments, [{
+        id: fileId,
+        originalName: '泵壳照片.png',
+        detectedType: 'image',
+        mimeType: 'image/png',
+        fileSize: 128,
+        downloadPath: `/api/files/${fileId}/download`,
+    }]);
+    assert.throws(() => appendAiConversationMessage('admin', conversation.id, {
+        role: 'user',
+        content: '不存在的附件',
+        metadata: { attachments: [{ id: 999 }] },
+    }, { dbAccessors }), /附件不存在/);
 });

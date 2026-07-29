@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
+  Archive,
   ArrowUpRight,
   Bot,
   Boxes,
@@ -15,6 +16,7 @@ import {
   Database,
   FileSearch,
   FileText,
+  Image as ImageIcon,
   Maximize2,
   History,
   Loader2,
@@ -22,6 +24,7 @@ import {
   Mic,
   MicOff,
   PanelLeft,
+  Paperclip,
   Pencil,
   Plus,
   ReceiptText,
@@ -47,6 +50,7 @@ import {
   confirmAiTool,
   createAiConversation,
   deleteAiConversation,
+  getAiCapabilities,
   getAiConversation,
   getAiSystemPrompt,
   listAiConversations,
@@ -58,6 +62,8 @@ import {
   type AiChatMessage,
   type AiAnswerFeedback,
   type AiAnswerFeedbackRating,
+  type AiAttachment,
+  type AiCapabilities,
   type AiConversationSummary,
   type AiStreamEvent,
   type AiToolPlan,
@@ -65,6 +71,16 @@ import {
   type AiKnowledgeSource,
   type AiResultProvenance,
 } from '@/lib/ai';
+import {
+  archiveFactoryFile,
+  deleteFactoryFile,
+  listFactoryFileLinks,
+  searchFactoryFileArchiveTargets,
+  uploadFactoryFile,
+  type FactoryFileArchiveTarget,
+  type FactoryFileArchiveTargetType,
+  type FactoryFileLink,
+} from '@/lib/files';
 import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
 import type { AiPageContext } from '@/lib/page-context';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
@@ -80,6 +96,7 @@ type ChatItem = {
   toolResults?: AiToolResult[];
   persistedMessageId?: number;
   historical?: boolean;
+  attachments?: AiAttachment[];
 };
 
 type ConfirmationResult = {
@@ -273,6 +290,78 @@ function dateText(value: unknown) {
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function fileSizeText(value: number) {
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.ceil(value / 1024))} KB`;
+}
+
+function attachmentParserText(attachment: AiAttachment) {
+  if (attachment.detectedType === 'image') {
+    if (attachment.parserStatus === 'parsed') {
+      const confidence = Math.round(attachment.parserSummary?.confidence || 0);
+      const candidates = attachment.parserSummary?.drawingCandidateCount || 0;
+      const suffix = candidates > 0 ? `，${candidates} 个参数候选` : '';
+      return `OCR ${confidence}%${suffix}`;
+    }
+    if (attachment.parserStatus === 'metadata_only' && attachment.parserSummary?.ocrApplied) return 'OCR 未识别到文字';
+    if (attachment.parserStatus === 'failed') return 'OCR 失败';
+    if (attachment.parserStatus === 'processing') return '正在 OCR';
+    return '等待 OCR';
+  }
+  if (attachment.detectedType === 'spreadsheet') {
+    if (attachment.parserStatus === 'parsed') {
+      const sheets = attachment.parserSummary?.parsedSheetCount || attachment.parserSummary?.sheetCount || 0;
+      const rows = attachment.parserSummary?.rowCount || 0;
+      if (sheets > 0) return `已读取 ${sheets} 个表，${rows} 行`;
+      return '已读取表格';
+    }
+    if (attachment.parserStatus === 'failed') return '解析失败';
+    if (attachment.parserStatus === 'processing') return '正在解析';
+    return '等待解析';
+  }
+  if (attachment.detectedType !== 'pdf') return fileSizeText(attachment.fileSize);
+  if (attachment.parserStatus === 'parsed') {
+    const pages = attachment.parserSummary?.parsedPageCount || attachment.parserSummary?.pageCount || 0;
+    const ocr = attachment.parserSummary?.ocrApplied ? '（含 OCR）' : '';
+    const candidates = attachment.parserSummary?.drawingCandidateCount || 0;
+    const suffix = candidates > 0 ? `，${candidates} 个参数候选` : '';
+    return pages > 0 ? `已读取 ${pages} 页${ocr}${suffix}` : `已读取文字层${ocr}${suffix}`;
+  }
+  if (attachment.parserStatus === 'metadata_only' && attachment.parserSummary?.ocrApplied) return 'OCR 未识别到文字';
+  if (attachment.parserStatus === 'metadata_only' && attachment.parserSummary?.requiresOcr) return '扫描件，等待 OCR';
+  if (attachment.parserStatus === 'failed') return '解析失败';
+  if (attachment.parserStatus === 'processing') return '正在解析';
+  return '等待解析';
+}
+
+const archiveTargetOptions: Array<{ value: FactoryFileArchiveTargetType; label: string }> = [
+  { value: 'knowledge_document', label: '知识库资料' },
+  { value: 'recipe', label: '配方' },
+  { value: 'customer', label: '客户' },
+  { value: 'quotation', label: '报价' },
+  { value: 'recipe_analysis_feedback', label: '质量问题（配方检查）' },
+  { value: 'ai_answer_feedback', label: '质量问题（AI回答）' },
+];
+
+const documentTypeOptions = [
+  { value: 'technical_note', label: '技术说明' },
+  { value: 'pump_performance_test', label: '性能测试报告' },
+  { value: 'drawing', label: '图纸' },
+  { value: 'spreadsheet', label: '电子表格' },
+  { value: 'other', label: '其他资料' },
+] as const;
+
+function defaultArchiveDocumentType(attachment: AiAttachment): typeof documentTypeOptions[number]['value'] {
+  if (attachment.detectedType === 'spreadsheet') return 'spreadsheet';
+  if (attachment.detectedType === 'image') return 'drawing';
+  if (attachment.detectedType === 'text') return 'technical_note';
+  return 'other';
+}
+
+function archiveTargetLabel(value: FactoryFileArchiveTargetType) {
+  return archiveTargetOptions.find(option => option.value === value)?.label || value;
 }
 
 function isSafeInternalPath(value: unknown): value is string {
@@ -1805,7 +1894,27 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechError, setSpeechError] = useState('');
+  const [aiCapabilities, setAiCapabilities] = useState<AiCapabilities | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<AiAttachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
+  const [archiveTargetType, setArchiveTargetType] = useState<FactoryFileArchiveTargetType>('knowledge_document');
+  const [archiveQuery, setArchiveQuery] = useState('');
+  const [archiveTargets, setArchiveTargets] = useState<FactoryFileArchiveTarget[]>([]);
+  const [archiveTargetId, setArchiveTargetId] = useState('');
+  const [archiveTitle, setArchiveTitle] = useState('');
+  const [archiveNote, setArchiveNote] = useState('');
+  const [archiveTags, setArchiveTags] = useState('');
+  const [archiveDocumentType, setArchiveDocumentType] = useState<typeof documentTypeOptions[number]['value']>('other');
+  const [archiveLinks, setArchiveLinks] = useState<FactoryFileLink[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveSearching, setArchiveSearching] = useState(false);
+  const [archiveSaving, setArchiveSaving] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+  const [archiveSuccess, setArchiveSuccess] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -1814,7 +1923,11 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const apiMessages = useMemo<AiChatMessage[]>(() => (
     items
       .filter((item) => item.role === 'user' || (item.role === 'assistant' && item.content.trim()))
-      .map((item) => ({ role: item.role, content: item.content }))
+      .map((item) => ({
+        role: item.role,
+        content: item.content,
+        ...(item.attachments?.length ? { attachments: item.attachments } : {}),
+      }))
   ), [items]);
   const visibleSamples = useMemo(() => (
     samples.filter((sample) => sample.category === activeSampleCategory)
@@ -1823,6 +1936,12 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   function updateAssistant(id: string, updater: (item: ChatItem) => ChatItem) {
     setItems((current) => current.map((item) => (item.id === id ? updater(item) : item)));
   }
+
+  useEffect(() => {
+    void getAiCapabilities()
+      .then(setAiCapabilities)
+      .catch((error) => setAttachmentError((error as Error).message || '读取模型能力失败'));
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -1925,11 +2044,12 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   }
 
   async function sendMessage(text: string) {
-    const content = text.trim();
-    if (!content || loading) return;
+    const attachments = pendingAttachments;
+    const content = text.trim() || (attachments.length > 0 ? '请查看我上传的附件。' : '');
+    if (!content || loading || uploadingAttachment) return;
     if (isListening) stopVoiceInput();
 
-    const userItem: ChatItem = { id: makeId(), role: 'user', content };
+    const userItem: ChatItem = { id: makeId(), role: 'user', content, attachments };
     const assistantId = makeId();
     const assistantItem: ChatItem = {
       id: assistantId,
@@ -1941,9 +2061,15 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
       toolResults: [],
     };
 
-    const nextMessages = [...apiMessages, { role: 'user' as const, content }];
+    const nextMessages = [...apiMessages, {
+      role: 'user' as const,
+      content,
+      ...(attachments.length > 0 ? { attachments } : {}),
+    }];
     setItems((current) => [...current, userItem, assistantItem]);
     setInput('');
+    setPendingAttachments([]);
+    setAttachmentError('');
     setLoading(true);
 
     let conversationId = activeConversationId;
@@ -1956,12 +2082,17 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
         setActiveConversationId(conversation.id);
         setConversations((current) => [conversation, ...current]);
       }
-      await appendAiConversationMessage(conversationId, { role: 'user', content });
+      await appendAiConversationMessage(conversationId, {
+        role: 'user',
+        content,
+        metadata: attachments.length > 0 ? { attachments } : undefined,
+      });
       setHistoryError('');
     } catch (error) {
       const message = (error as Error).message || '保存会话失败';
       updateAssistant(assistantId, (item) => ({ ...item, status: 'error', statusMessage: message, content: message }));
       setHistoryError(message);
+      setPendingAttachments(attachments);
       setLoading(false);
       return;
     }
@@ -2021,6 +2152,127 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     setLoading(false);
   }
 
+  async function handleAttachmentSelection(files: FileList | null) {
+    if (!files?.length || uploadingAttachment) return;
+    const maximum = aiCapabilities?.maxAttachments || 4;
+    const selected = Array.from(files).slice(0, Math.max(0, maximum - pendingAttachments.length));
+    if (selected.length === 0) {
+      setAttachmentError(`每条消息最多上传 ${maximum} 个附件`);
+      return;
+    }
+    setUploadingAttachment(true);
+    setAttachmentError('');
+    const uploaded: AiAttachment[] = [];
+    try {
+      for (const file of selected) {
+        const stored = await uploadFactoryFile(file);
+        uploaded.push({
+          id: stored.id,
+          originalName: stored.originalName,
+          detectedType: stored.detectedType,
+          mimeType: stored.mimeType,
+          fileSize: stored.fileSize,
+          downloadPath: stored.downloadPath,
+          parserStatus: stored.parserStatus,
+          parserSummary: stored.parserSummary,
+        });
+      }
+      setPendingAttachments(current => {
+        const merged = new Map([...current, ...uploaded].map(attachment => [attachment.id, attachment]));
+        return Array.from(merged.values()).slice(0, maximum);
+      });
+    } catch (error) {
+      for (const attachment of uploaded) {
+        void deleteFactoryFile(attachment.id).catch(() => {});
+      }
+      setAttachmentError((error as Error).message || '上传附件失败');
+    } finally {
+      setUploadingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  function discardPendingAttachment(attachment: AiAttachment) {
+    setPendingAttachments(current => current.filter(item => item.id !== attachment.id));
+    void deleteFactoryFile(attachment.id).catch(() => {
+      // A deduplicated file may already be referenced by business data or another conversation.
+    });
+  }
+
+  async function openArchiveDialog(attachment: AiAttachment) {
+    setArchiveAttachment(attachment);
+    setArchiveTargetType('knowledge_document');
+    setArchiveQuery('');
+    setArchiveTargets([]);
+    setArchiveTargetId('');
+    setArchiveTitle(attachment.originalName.replace(/\.[^.]+$/, ''));
+    setArchiveNote('');
+    setArchiveTags('');
+    setArchiveDocumentType(defaultArchiveDocumentType(attachment));
+    setArchiveLinks([]);
+    setArchiveError('');
+    setArchiveSuccess('');
+    setArchiveLoading(true);
+    try {
+      setArchiveLinks(await listFactoryFileLinks(attachment.id));
+    } catch (error) {
+      setArchiveError((error as Error).message || '读取归档记录失败');
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
+
+  async function searchArchiveTargets() {
+    if (archiveTargetType === 'knowledge_document') return;
+    setArchiveSearching(true);
+    setArchiveError('');
+    setArchiveSuccess('');
+    try {
+      const targets = await searchFactoryFileArchiveTargets(archiveTargetType, archiveQuery);
+      setArchiveTargets(targets);
+      setArchiveTargetId(targets.length === 1 ? String(targets[0].id) : '');
+      if (targets.length === 0) setArchiveError('没有找到匹配的业务对象');
+    } catch (error) {
+      setArchiveTargets([]);
+      setArchiveTargetId('');
+      setArchiveError((error as Error).message || '查找归档目标失败');
+    } finally {
+      setArchiveSearching(false);
+    }
+  }
+
+  async function saveFileArchive() {
+    if (!archiveAttachment || archiveSaving) return;
+    if (archiveTargetType !== 'knowledge_document' && !Number(archiveTargetId)) {
+      setArchiveError('请先搜索并选择一个归档目标');
+      return;
+    }
+    setArchiveSaving(true);
+    setArchiveError('');
+    setArchiveSuccess('');
+    try {
+      const result = await archiveFactoryFile(archiveAttachment.id, {
+        targetType: archiveTargetType,
+        ...(archiveTargetType === 'knowledge_document' ? {} : { targetId: Number(archiveTargetId) }),
+        title: archiveTitle,
+        note: archiveNote,
+        documentType: archiveDocumentType,
+        tags: archiveTags.split(/[,，\n]/).map(item => item.trim()).filter(Boolean),
+        source: 'manual',
+      });
+      setArchiveSuccess(
+        result.deduplicated
+          ? `这个文件已经归档到 ${result.link.target?.label || archiveTargetLabel(archiveTargetType)}`
+          : `已归档到 ${result.link.target?.label || archiveTargetLabel(archiveTargetType)}`
+      );
+      setArchiveLinks(await listFactoryFileLinks(archiveAttachment.id));
+    } catch (error) {
+      setArchiveError((error as Error).message || '归档文件失败');
+    } finally {
+      setArchiveSaving(false);
+    }
+  }
+
   function replaceToolResult(messageId: string, oldIndex: number, next: AiToolResult) {
     const currentItem = items.find((item) => item.id === messageId);
     const toolResults = (currentItem?.toolResults || []).map((tool, index) => (index === oldIndex ? next : tool));
@@ -2037,10 +2289,15 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   function startNewConversation() {
     if (loading) return;
     if (isListening) stopVoiceInput();
+    for (const attachment of pendingAttachments) {
+      void deleteFactoryFile(attachment.id).catch(() => {});
+    }
     setActiveConversationId(null);
     setItems([]);
     setFeedbackByMessageId({});
     setInput('');
+    setPendingAttachments([]);
+    setAttachmentError('');
     setAsideMode('history');
     setMobileSidebarOpen(false);
   }
@@ -2064,6 +2321,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
         toolPlan: message.metadata?.toolPlan,
         toolCalls: message.metadata?.toolCalls || [],
         toolResults: message.metadata?.toolResults || [],
+        attachments: message.metadata?.attachments || [],
         persistedMessageId: message.id,
         historical: true,
       })));
@@ -2206,7 +2464,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
             </div>
             <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              DeepSeek
+              {aiCapabilities?.displayName || 'DeepSeek'}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -2264,7 +2522,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted">
-                <span>DeepSeek V4 Flash</span>
+                <span>{aiCapabilities ? `${aiCapabilities.displayName} · ${aiCapabilities.model}` : 'DeepSeek V4 Flash'}</span>
                 <span className="h-1 w-1 rounded-full bg-emerald-500" />
                 <span>AI Executor</span>
               </div>
@@ -2406,6 +2664,48 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                         </StatusBadge>
                       ) : null}
                     </div>
+                    {item.attachments?.length ? (
+                      <div className="mb-2 grid gap-2 sm:grid-cols-2">
+                        {item.attachments.map((attachment) => (
+                          <div
+                            key={attachment.id}
+                            className={`min-w-0 overflow-hidden rounded-md border ${item.role === 'user' ? 'border-slate-200 bg-white text-ink md:border-white/20 md:bg-white/10 md:text-white' : 'border-line bg-slate-50'}`}
+                          >
+                            {attachment.detectedType === 'image' ? (
+                              <a href={attachment.downloadPath} target="_blank" rel="noreferrer" className="block">
+                                <img
+                                  src={`${attachment.downloadPath}?inline=1`}
+                                  alt={attachment.originalName}
+                                  className="max-h-64 w-full bg-slate-100 object-contain"
+                                />
+                              </a>
+                            ) : null}
+                            <span className="flex min-w-0 items-center gap-1 px-1.5 py-1.5">
+                              <a href={attachment.downloadPath} target="_blank" rel="noreferrer" className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-0.5 hover:bg-black/5">
+                                {attachment.detectedType === 'image'
+                                  ? <ImageIcon size={15} className="shrink-0" />
+                                  : <FileText size={15} className="shrink-0" />}
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-xs font-medium">{attachment.originalName}</span>
+                                  <span className={`mt-0.5 block text-[11px] ${item.role === 'user' ? 'text-muted md:text-slate-300' : 'text-muted'}`}>
+                                    {fileSizeText(attachment.fileSize)}
+                                  </span>
+                                </span>
+                              </a>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-8 w-8 px-0 ${item.role === 'user' ? 'md:text-slate-200 md:hover:bg-white/10 md:hover:text-white' : ''}`}
+                                icon={<Archive size={14} />}
+                                aria-label={`归档 ${attachment.originalName}`}
+                                title="归档到业务资料"
+                                onClick={() => void openArchiveDialog(attachment)}
+                              />
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {item.content ? (
                       item.role === 'assistant'
                         ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
@@ -2464,7 +2764,53 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                   <span className="shrink-0 text-sky-700">实时查询</span>
                 </div>
               ) : null}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp"
+                className="hidden"
+                onChange={(event) => void handleAttachmentSelection(event.target.files)}
+              />
+              {pendingAttachments.length > 0 ? (
+                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                  {pendingAttachments.map((attachment) => (
+                    <div key={`pending-${attachment.id}`} className="relative w-32 shrink-0 overflow-hidden rounded-md border border-line bg-slate-50">
+                      {attachment.detectedType === 'image' ? (
+                        <img src={`${attachment.downloadPath}?inline=1`} alt="" className="h-20 w-full bg-slate-100 object-cover" />
+                      ) : (
+                        <span className="flex h-20 items-center justify-center text-slate-500"><FileText size={24} /></span>
+                      )}
+                      <div className="px-2 py-1.5 pr-7">
+                        <div className="truncate text-xs text-ink">{attachment.originalName}</div>
+                        <div className="mt-0.5 truncate text-[11px] text-muted">{attachmentParserText(attachment)}</div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1 h-7 w-7 bg-white/90 px-0 text-slate-600 shadow-sm"
+                        icon={<X size={14} />}
+                        aria-label={`移除 ${attachment.originalName}`}
+                        title="移除附件"
+                        onClick={() => discardPendingAttachment(attachment)}
+                        disabled={loading}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <div className="flex items-end gap-2 rounded-2xl border border-line bg-slate-50 p-1.5 shadow-panel md:rounded-panel md:p-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 w-10 shrink-0 rounded-full px-0 md:h-9 md:w-9"
+                  icon={uploadingAttachment ? <Loader2 size={17} className="animate-spin" /> : <Paperclip size={17} />}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading || uploadingAttachment || pendingAttachments.length >= (aiCapabilities?.maxAttachments || 4)}
+                  aria-label="上传文件或图片"
+                  title="上传文件或图片"
+                />
                 <textarea
                   value={input}
                   onChange={(event) => {
@@ -2498,7 +2844,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                     <span className="hidden md:inline">停止</span>
                   </Button>
                 ) : (
-                  <Button type="submit" variant="primary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<Send size={16} />} disabled={!input.trim()} aria-label="发送">
+                  <Button type="submit" variant="primary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<Send size={16} />} disabled={(!input.trim() && pendingAttachments.length === 0) || uploadingAttachment} aria-label="发送">
                     <span className="hidden md:inline">发送</span>
                   </Button>
                 )}
@@ -2506,6 +2852,11 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
               {isListening || speechError ? (
                 <div className="px-2 pt-1.5 text-xs text-rose-600">
                   {speechError || '正在聆听…再次点击麦克风结束'}
+                </div>
+              ) : null}
+              {attachmentError || (pendingAttachments.some(item => item.detectedType === 'image') && aiCapabilities && !aiCapabilities.supportsImages) ? (
+                <div className={`px-2 pt-1.5 text-xs ${attachmentError ? 'text-rose-600' : 'text-amber-700'}`}>
+                  {attachmentError || `图片会保存在会话中，但当前 ${aiCapabilities?.displayName} 模型不支持识图。`}
                 </div>
               ) : null}
             </form>
@@ -2579,6 +2930,198 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
           </div>
         ) : null}
       </AnimatePresence>
+
+      {archiveAttachment ? (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/25 p-3 md:p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="file-archive-title" className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-panel border border-line bg-white shadow-panel">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <div className="min-w-0">
+                <h2 id="file-archive-title" className="text-base font-semibold text-ink">归档附件</h2>
+                <div className="mt-1 truncate text-xs text-muted">{archiveAttachment.originalName}</div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 px-0"
+                icon={<X size={16} />}
+                aria-label="关闭"
+                title="关闭"
+                onClick={() => setArchiveAttachment(null)}
+                disabled={archiveSaving}
+              />
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              <label className="block">
+                <span className="text-xs font-medium text-muted">归档位置</span>
+                <select
+                  value={archiveTargetType}
+                  onChange={event => {
+                    setArchiveTargetType(event.target.value as FactoryFileArchiveTargetType);
+                    setArchiveTargets([]);
+                    setArchiveTargetId('');
+                    setArchiveError('');
+                    setArchiveSuccess('');
+                  }}
+                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                  disabled={archiveSaving}
+                >
+                  {archiveTargetOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              {archiveTargetType === 'knowledge_document' ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-muted">资料标题</span>
+                    <input
+                      value={archiveTitle}
+                      onChange={event => setArchiveTitle(event.target.value)}
+                      maxLength={160}
+                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                      disabled={archiveSaving}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">资料类型</span>
+                    <select
+                      value={archiveDocumentType}
+                      onChange={event => setArchiveDocumentType(event.target.value as typeof archiveDocumentType)}
+                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                      disabled={archiveSaving}
+                    >
+                      {documentTypeOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">标签</span>
+                    <input
+                      value={archiveTags}
+                      onChange={event => setArchiveTags(event.target.value)}
+                      placeholder="型号、客户、用途"
+                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                      disabled={archiveSaving}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-xs font-medium text-muted">查找{archiveTargetLabel(archiveTargetType)}</span>
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        value={archiveQuery}
+                        onChange={event => setArchiveQuery(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void searchArchiveTargets();
+                          }
+                        }}
+                        placeholder="输入名称或关键词"
+                        className="h-10 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                        disabled={archiveSearching || archiveSaving}
+                      />
+                      <Button
+                        variant="secondary"
+                        className="h-10"
+                        icon={archiveSearching ? <Loader2 size={15} className="animate-spin" /> : <FileSearch size={15} />}
+                        onClick={() => void searchArchiveTargets()}
+                        disabled={archiveSearching || archiveSaving}
+                      >
+                        搜索
+                      </Button>
+                    </div>
+                  </div>
+                  {archiveTargets.length > 0 ? (
+                    <label className="block">
+                      <span className="text-xs font-medium text-muted">选择准确对象</span>
+                      <select
+                        value={archiveTargetId}
+                        onChange={event => setArchiveTargetId(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
+                        disabled={archiveSaving}
+                      >
+                        <option value="">请选择</option>
+                        {archiveTargets.map(target => (
+                          <option key={target.id} value={target.id}>
+                            {target.label}{target.detail ? ` · ${target.detail}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
+              )}
+
+              <label className="block">
+                <span className="text-xs font-medium text-muted">归档说明（可选）</span>
+                <textarea
+                  value={archiveNote}
+                  onChange={event => setArchiveNote(event.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
+                  disabled={archiveSaving}
+                />
+              </label>
+
+              <div className="rounded-md border border-line bg-slate-50 p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                  <Archive size={14} />
+                  已有归档
+                </div>
+                {archiveLoading ? (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-muted">
+                    <Loader2 size={13} className="animate-spin" />
+                    正在读取
+                  </div>
+                ) : archiveLinks.length > 0 ? (
+                  <div className="mt-2 space-y-1.5">
+                    {archiveLinks.map(link => (
+                      <div key={link.id} className="flex items-start justify-between gap-3 text-xs">
+                        <span className="min-w-0 truncate text-slate-700">{link.target?.label || `已删除对象 ${link.targetId}`}</span>
+                        <span className="shrink-0 text-muted">{archiveTargetLabel(link.targetType)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 text-xs text-muted">尚未归档</div>
+                )}
+              </div>
+
+              {archiveSuccess ? (
+                <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                  <Check size={15} className="mt-0.5 shrink-0" />
+                  {archiveSuccess}
+                </div>
+              ) : null}
+              {archiveError ? (
+                <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  {archiveError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setArchiveAttachment(null)} disabled={archiveSaving}>关闭</Button>
+              <Button
+                variant="primary"
+                icon={archiveSaving ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />}
+                onClick={() => void saveFileArchive()}
+                disabled={archiveLoading || archiveSaving}
+              >
+                {archiveSaving ? '归档中' : '确认归档'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {feedbackTarget ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/25 p-4">

@@ -323,6 +323,7 @@ function knowledgeDocumentRow(r) {
     if (!r) return r;
     return {
         id: r.id,
+        fileId: r.file_id ? Number(r.file_id) : null,
         documentType: r.document_type || 'technical_note',
         title: r.title || '',
         description: r.description || '',
@@ -368,6 +369,7 @@ function recipeTechnicalFileRow(r) {
     return {
         id: r.id,
         recipeId: r.recipe_id,
+        fileId: r.file_id ? Number(r.file_id) : null,
         originalName: r.original_name,
         mimeType: r.mime_type || 'application/octet-stream',
         fileSize: Number(r.file_size || 0),
@@ -517,7 +519,7 @@ function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE 
 function dbGetAllQuotations() { return db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all().map(quotationRow); }
 function dbGetAllRecipeTechnicalFiles() {
     return db.prepare(`
-        SELECT id, recipe_id, original_name, mime_type, file_size, file_sha256,
+        SELECT id, recipe_id, file_id, original_name, mime_type, file_size, file_sha256,
                report_type, summary_json, parsed_json, extracted_text, created_at, updated_at
         FROM recipe_technical_files
         WHERE deleted_at IS NULL
@@ -526,7 +528,7 @@ function dbGetAllRecipeTechnicalFiles() {
 }
 function dbGetAllKnowledgeDocuments() {
     return db.prepare(`
-        SELECT id, document_type, title, description, content_text, tags_json,
+        SELECT id, file_id, document_type, title, description, content_text, tags_json,
                original_name, mime_type, file_size, file_sha256, parser_status,
                extracted_text, metadata_json, created_at, updated_at
         FROM knowledge_documents
@@ -601,7 +603,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'rotor_drawings', 'customers', 'quotations', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {

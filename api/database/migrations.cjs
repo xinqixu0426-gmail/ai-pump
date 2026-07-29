@@ -1208,6 +1208,227 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 31,
+        name: 'unified_factory_file_objects',
+        signature: 'unified-factory-file-objects-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factory_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_name TEXT NOT NULL,
+                    extension TEXT NOT NULL,
+                    detected_type TEXT NOT NULL
+                        CHECK(detected_type IN ('pdf', 'spreadsheet', 'image', 'text')),
+                    mime_type TEXT NOT NULL,
+                    file_size INTEGER NOT NULL CHECK(file_size > 0),
+                    file_sha256 TEXT NOT NULL UNIQUE,
+                    file_blob BLOB NOT NULL,
+                    parser_status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(parser_status IN ('pending', 'processing', 'parsed', 'metadata_only', 'failed')),
+                    source_type TEXT NOT NULL DEFAULT 'direct_upload'
+                        CHECK(source_type IN ('direct_upload', 'knowledge_document', 'recipe_technical_file')),
+                    duplicate_count INTEGER NOT NULL DEFAULT 1 CHECK(duplicate_count >= 1),
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT
+                );
+            `);
+
+            if (!columnNames(db, 'knowledge_documents').has('file_id')) {
+                db.exec('ALTER TABLE knowledge_documents ADD COLUMN file_id INTEGER REFERENCES factory_files(id)');
+            }
+            if (!columnNames(db, 'recipe_technical_files').has('file_id')) {
+                db.exec('ALTER TABLE recipe_technical_files ADD COLUMN file_id INTEGER REFERENCES factory_files(id)');
+            }
+
+            const insertFile = db.prepare(`
+                INSERT OR IGNORE INTO factory_files (
+                    original_name, extension, detected_type, mime_type,
+                    file_size, file_sha256, file_blob, parser_status,
+                    source_type, duplicate_count, metadata_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+            `);
+            const findFile = db.prepare('SELECT id FROM factory_files WHERE file_sha256 = ?');
+            const updateKnowledgeDocument = db.prepare(
+                'UPDATE knowledge_documents SET file_id = ? WHERE id = ?'
+            );
+            const updateRecipeFile = db.prepare(
+                'UPDATE recipe_technical_files SET file_id = ? WHERE id = ?'
+            );
+            const fileShape = (originalName, mimeType) => {
+                const match = String(originalName || '').toLowerCase().match(/(\.[a-z0-9]+)$/);
+                const extension = match?.[1] || '';
+                if (extension === '.pdf') return { extension, detectedType: 'pdf', mimeType: 'application/pdf' };
+                if (['.xls', '.xlsx', '.csv'].includes(extension)) {
+                    return {
+                        extension,
+                        detectedType: 'spreadsheet',
+                        mimeType: mimeType || (extension === '.csv'
+                            ? 'text/csv'
+                            : extension === '.xls'
+                                ? 'application/vnd.ms-excel'
+                                : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                    };
+                }
+                if (['.png', '.jpg', '.jpeg', '.webp'].includes(extension)) {
+                    return { extension, detectedType: 'image', mimeType: mimeType || 'application/octet-stream' };
+                }
+                return { extension: extension || '.txt', detectedType: 'text', mimeType: mimeType || 'text/plain' };
+            };
+            const migrateRows = ({
+                rows,
+                sourceType,
+                update,
+                parserStatus,
+            }) => {
+                for (const row of rows) {
+                    if (!Buffer.isBuffer(row.file_blob) || row.file_blob.length === 0) continue;
+                    const sha256 = crypto.createHash('sha256').update(row.file_blob).digest('hex');
+                    const shape = fileShape(row.original_name, row.mime_type);
+                    const createdAt = row.created_at || new Date().toISOString();
+                    const updatedAt = row.updated_at || createdAt;
+                    insertFile.run(
+                        row.original_name || `历史文件-${row.id}${shape.extension}`,
+                        shape.extension,
+                        shape.detectedType,
+                        shape.mimeType,
+                        row.file_blob.length,
+                        sha256,
+                        row.file_blob,
+                        parserStatus(row),
+                        sourceType,
+                        JSON.stringify({ migratedFrom: sourceType, legacyId: row.id }),
+                        createdAt,
+                        updatedAt
+                    );
+                    const file = findFile.get(sha256);
+                    if (file) update.run(file.id, row.id);
+                }
+            };
+
+            migrateRows({
+                rows: db.prepare(`
+                    SELECT id, original_name, mime_type, file_blob, parser_status, created_at, updated_at
+                    FROM knowledge_documents
+                    WHERE file_blob IS NOT NULL AND length(file_blob) > 0
+                `).all(),
+                sourceType: 'knowledge_document',
+                update: updateKnowledgeDocument,
+                parserStatus: row => ['parsed', 'metadata_only'].includes(row.parser_status)
+                    ? row.parser_status
+                    : 'pending',
+            });
+            migrateRows({
+                rows: db.prepare(`
+                    SELECT id, original_name, mime_type, file_blob, created_at, updated_at
+                    FROM recipe_technical_files
+                    WHERE file_blob IS NOT NULL AND length(file_blob) > 0
+                `).all(),
+                sourceType: 'recipe_technical_file',
+                update: updateRecipeFile,
+                parserStatus: () => 'parsed',
+            });
+
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_factory_files_type
+                    ON factory_files(detected_type, deleted_at, updated_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_factory_files_hash
+                    ON factory_files(file_sha256);
+                CREATE INDEX IF NOT EXISTS idx_knowledge_documents_file
+                    ON knowledge_documents(file_id);
+                CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_file
+                    ON recipe_technical_files(file_id);
+            `);
+        },
+    },
+    {
+        version: 32,
+        name: 'runtime_system_settings',
+        signature: 'runtime-system-settings-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS runtime_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    setting_key TEXT NOT NULL UNIQUE,
+                    setting_value TEXT NOT NULL,
+                    is_secret INTEGER NOT NULL DEFAULT 0 CHECK(is_secret IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_settings_updated
+                    ON runtime_settings(updated_at DESC, id DESC);
+            `);
+        },
+    },
+    {
+        version: 33,
+        name: 'factory_file_parsed_content',
+        signature: 'factory-file-parsed-content-v1',
+        up(db) {
+            const columns = columnNames(db, 'factory_files');
+            if (!columns.has('parsed_text')) {
+                db.exec(`ALTER TABLE factory_files ADD COLUMN parsed_text TEXT NOT NULL DEFAULT ''`);
+            }
+            if (!columns.has('parsed_json')) {
+                db.exec(`ALTER TABLE factory_files ADD COLUMN parsed_json TEXT NOT NULL DEFAULT '{}'`);
+            }
+            if (!columns.has('parser_error')) {
+                db.exec(`ALTER TABLE factory_files ADD COLUMN parser_error TEXT NOT NULL DEFAULT ''`);
+            }
+            if (!columns.has('parsed_at')) {
+                db.exec('ALTER TABLE factory_files ADD COLUMN parsed_at TEXT');
+            }
+        },
+    },
+    {
+        version: 34,
+        name: 'factory_file_business_links',
+        signature: 'factory-file-business-links-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factory_file_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    target_type TEXT NOT NULL
+                        CHECK(target_type IN (
+                            'customer',
+                            'quotation',
+                            'recipe',
+                            'recipe_analysis_feedback',
+                            'ai_answer_feedback',
+                            'knowledge_document'
+                        )),
+                    target_id INTEGER NOT NULL,
+                    relation_role TEXT NOT NULL DEFAULT 'attachment'
+                        CHECK(relation_role IN (
+                            'attachment',
+                            'technical_reference',
+                            'quotation_source',
+                            'quality_evidence',
+                            'knowledge_source'
+                        )),
+                    title TEXT NOT NULL DEFAULT '',
+                    note TEXT NOT NULL DEFAULT '',
+                    source TEXT NOT NULL DEFAULT 'manual'
+                        CHECK(source IN ('manual', 'ai_chat', 'business_page')),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT,
+                    FOREIGN KEY(file_id) REFERENCES factory_files(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_factory_file_links_file
+                    ON factory_file_links(file_id, deleted_at, updated_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_factory_file_links_target
+                    ON factory_file_links(target_type, target_id, deleted_at, updated_at DESC);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_factory_file_links_active_unique
+                    ON factory_file_links(file_id, target_type, target_id, relation_role)
+                    WHERE deleted_at IS NULL;
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

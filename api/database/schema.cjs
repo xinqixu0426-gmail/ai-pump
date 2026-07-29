@@ -193,6 +193,15 @@ const CANONICAL_TABLES_SQL = `
         updated_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS runtime_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        setting_key TEXT NOT NULL UNIQUE,
+        setting_value TEXT NOT NULL,
+        is_secret INTEGER NOT NULL DEFAULT 0 CHECK(is_secret IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
         value TEXT
@@ -372,8 +381,34 @@ const CANONICAL_TABLES_SQL = `
         FOREIGN KEY(lifecycle_id) REFERENCES management_action_lifecycles(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS factory_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_name TEXT NOT NULL,
+        extension TEXT NOT NULL,
+        detected_type TEXT NOT NULL
+            CHECK(detected_type IN ('pdf', 'spreadsheet', 'image', 'text')),
+        mime_type TEXT NOT NULL,
+        file_size INTEGER NOT NULL CHECK(file_size > 0),
+        file_sha256 TEXT NOT NULL UNIQUE,
+        file_blob BLOB NOT NULL,
+        parser_status TEXT NOT NULL DEFAULT 'pending'
+            CHECK(parser_status IN ('pending', 'processing', 'parsed', 'metadata_only', 'failed')),
+        source_type TEXT NOT NULL DEFAULT 'direct_upload'
+            CHECK(source_type IN ('direct_upload', 'knowledge_document', 'recipe_technical_file')),
+        duplicate_count INTEGER NOT NULL DEFAULT 1 CHECK(duplicate_count >= 1),
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        parsed_text TEXT NOT NULL DEFAULT '',
+        parsed_json TEXT NOT NULL DEFAULT '{}',
+        parser_error TEXT NOT NULL DEFAULT '',
+        parsed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS knowledge_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER,
         document_type TEXT NOT NULL DEFAULT 'technical_note'
             CHECK(document_type IN ('technical_note', 'pump_performance_test', 'drawing', 'spreadsheet', 'other')),
         title TEXT NOT NULL,
@@ -391,7 +426,39 @@ const CANONICAL_TABLES_SQL = `
         metadata_json TEXT DEFAULT '{}',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        deleted_at TEXT
+        deleted_at TEXT,
+        FOREIGN KEY(file_id) REFERENCES factory_files(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS factory_file_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER NOT NULL,
+        target_type TEXT NOT NULL
+            CHECK(target_type IN (
+                'customer',
+                'quotation',
+                'recipe',
+                'recipe_analysis_feedback',
+                'ai_answer_feedback',
+                'knowledge_document'
+            )),
+        target_id INTEGER NOT NULL,
+        relation_role TEXT NOT NULL DEFAULT 'attachment'
+            CHECK(relation_role IN (
+                'attachment',
+                'technical_reference',
+                'quotation_source',
+                'quality_evidence',
+                'knowledge_source'
+            )),
+        title TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'manual'
+            CHECK(source IN ('manual', 'ai_chat', 'business_page')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY(file_id) REFERENCES factory_files(id)
     );
 
     CREATE TABLE IF NOT EXISTS ai_conversations (
@@ -487,6 +554,7 @@ const CANONICAL_TABLES_SQL = `
     CREATE TABLE IF NOT EXISTS recipe_technical_files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recipe_id INTEGER NOT NULL,
+        file_id INTEGER,
         original_name TEXT NOT NULL,
         mime_type TEXT DEFAULT 'application/octet-stream',
         file_size INTEGER DEFAULT 0,
@@ -499,7 +567,8 @@ const CANONICAL_TABLES_SQL = `
         created_at TEXT,
         updated_at TEXT,
         deleted_at TEXT,
-        FOREIGN KEY(recipe_id) REFERENCES recipes(id)
+        FOREIGN KEY(recipe_id) REFERENCES recipes(id),
+        FOREIGN KEY(file_id) REFERENCES factory_files(id)
     );
 
     CREATE TABLE IF NOT EXISTS recipe_analysis_feedback (
@@ -569,6 +638,19 @@ const CANONICAL_INDEXES_SQL = `
         ON knowledge_embeddings(model, content_hash);
     CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type
         ON knowledge_documents(document_type, deleted_at, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_documents_file
+        ON knowledge_documents(file_id);
+    CREATE INDEX IF NOT EXISTS idx_factory_files_type
+        ON factory_files(detected_type, deleted_at, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_factory_files_hash
+        ON factory_files(file_sha256);
+    CREATE INDEX IF NOT EXISTS idx_factory_file_links_file
+        ON factory_file_links(file_id, deleted_at, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_factory_file_links_target
+        ON factory_file_links(target_type, target_id, deleted_at, updated_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_factory_file_links_active_unique
+        ON factory_file_links(file_id, target_type, target_id, relation_role)
+        WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_knowledge_sync_runs_created
         ON knowledge_sync_runs(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_knowledge_sync_runs_status
@@ -599,6 +681,8 @@ const CANONICAL_INDEXES_SQL = `
         ON ai_evaluation_results(run_id, case_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_recipe
         ON recipe_technical_files(recipe_id, deleted_at, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_recipe_technical_files_file
+        ON recipe_technical_files(file_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_analysis_feedback_recipe
         ON recipe_analysis_feedback(recipe_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_factory_rule_candidates_status
@@ -756,6 +840,8 @@ const APPLICATION_TABLES = Object.freeze([
     'coils',
     'config',
     'customers',
+    'factory_file_links',
+    'factory_files',
     'factory_rule_candidates',
     'factory_rule_events',
     'factory_workflow_runs',
@@ -775,6 +861,7 @@ const APPLICATION_TABLES = Object.freeze([
     'recipe_technical_files',
     'recipes',
     'rotor_drawings',
+    'runtime_settings',
     'stator_variants',
     'system_settings',
 ]);

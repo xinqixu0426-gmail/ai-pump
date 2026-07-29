@@ -460,6 +460,21 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'inspect_quotation_file',
+            description: '只读解析已上传的 Excel/CSV 报价文件，并用当前客户与配方数据核对字段映射。返回原表工作表/行号、客户匹配、每行配方匹配、数量、文件单价、歧义、警告和可选 quotationDraftInput；不创建客户、配方或报价。只有 readyForSaveDraft=true 才表示全部客户和配方均精确匹配，仍需调用 build_quotation_draft 重新计算正式报价草稿。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    fileId: { type: 'number', description: '附件上下文中标注的统一文件ID' },
+                    customerName: { type: 'string', description: '可选；文件未填写客户时用于临时匹配，不写入文件或数据库' }
+                },
+                required: ['fileId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'build_quotation_draft',
             description: '生成客户报价保存草稿，不写库。适合 AI 先试算成本后，为客户组装报价明细，确认后再调用正式写操作。',
             parameters: {
@@ -811,8 +826,60 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'search_factory_file_archive_targets',
+            description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    targetType: {
+                        type: 'string',
+                        enum: ['customer', 'quotation', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback'],
+                        description: '归档目标类型'
+                    },
+                    query: { type: 'string', description: '客户名、配方名、报价客户名或问题关键词，可为空以读取最近对象' },
+                    limit: { type: 'number', description: '最多返回条数，默认20，最大50' }
+                },
+                required: ['targetType']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'archive_factory_file',
+            description: '把聊天中已经上传的工厂文件正式归档到知识库、客户、报价、配方或质量问题。只能使用附件上下文中的精确 fileId；客户、报价、配方和质量问题必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    fileId: { type: 'number', description: '附件上下文中的统一文件ID' },
+                    targetType: {
+                        type: 'string',
+                        enum: ['customer', 'quotation', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback', 'knowledge_document'],
+                        description: '归档目标类型'
+                    },
+                    targetId: { type: 'number', description: '业务对象ID；归档到知识库时省略' },
+                    title: { type: 'string', description: '归档标题，归档到知识库时建议明确填写' },
+                    note: { type: 'string', description: '归档说明，可选' },
+                    documentType: {
+                        type: 'string',
+                        enum: ['technical_note', 'pump_performance_test', 'drawing', 'spreadsheet', 'other'],
+                        description: '知识资料类型，仅归档到知识库时使用'
+                    },
+                    tags: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: '知识资料标签，仅归档到知识库时使用'
+                    }
+                },
+                required: ['fileId', 'targetType']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'search_factory_knowledge',
-            description: '使用精确关键词和语义表达统一搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。结果 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义候选，不能单独证明用途、兼容性或专用配件关系；必须由标题、摘要、正文或 metadata 的明确文字证实后才能下结论。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示只能使用标题、说明和标签，不得推断文件正文。只读。',
+            description: '使用精确关键词和语义表达统一搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。结果 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义候选，不能单独证明用途、兼容性或专用配件关系；必须由标题、摘要、正文或 metadata 的明确文字证实后才能下结论。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示知识条目只能使用标题、说明和标签，不得把聊天附件的解析能力误认为该资料正文已进入知识库。只读。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -828,7 +895,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_factory_knowledge_detail',
-            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。独立资料 metadata.parserStatus=metadata_only 时只能说明文件存在及其人工填写信息，不能推断文件正文。',
+            description: '读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。独立资料 metadata.parserStatus=metadata_only 时只能说明文件存在及其人工填写信息；即使聊天直接上传的 PDF 已支持文字层解析，也不能据此推断该知识资料正文。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -986,6 +1053,7 @@ const WRITE_TOOLS = new Set([
     'execute_order_readiness_action',
     'execute_factory_workflow_step',
     'create_recipe', 'delete_recipe', 'update_recipe',
+    'archive_factory_file',
     'sync_factory_knowledge',
     'set_recipe_analysis_feedback',
     'refresh_factory_rule_candidates',

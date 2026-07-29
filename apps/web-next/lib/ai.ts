@@ -2,12 +2,33 @@
 
 import { proxyRequest, proxyStreamFetch, type ApiResponse } from './api';
 import type { AiPageContext } from './page-context';
+import type { FactoryFile } from './files';
 
 export type AiRole = 'user' | 'assistant';
 
 export type AiChatMessage = {
   role: AiRole;
   content: string;
+  attachments?: AiAttachment[];
+};
+
+export type AiAttachment = Pick<
+  FactoryFile,
+  'id' | 'originalName' | 'detectedType' | 'mimeType' | 'fileSize' | 'downloadPath'
+> & Partial<Pick<
+  FactoryFile,
+  'parserStatus' | 'parserSummary'
+>>;
+
+export type AiCapabilities = {
+  provider: 'deepseek' | 'kimi';
+  displayName: string;
+  model: string;
+  supportsImages: boolean;
+  supportsFiles: boolean;
+  acceptedFileTypes: Array<'pdf' | 'spreadsheet' | 'image' | 'text'>;
+  maxAttachments: number;
+  maxFileSize: number;
 };
 
 export type AiToolResult = {
@@ -55,6 +76,7 @@ export type AiConversationMessage = {
     toolPlan?: AiToolPlan;
     toolCalls?: Array<{ name: string; args: unknown }>;
     toolResults?: AiToolResult[];
+    attachments?: AiAttachment[];
   };
   createdAt: string;
   updatedAt: string;
@@ -324,6 +346,12 @@ export async function updateAiConversationMessage(
 export async function deleteAiConversation(id: number): Promise<void> {
   const result = await proxyRequest<ApiResponse<{ id: number }>>(`/api/ai/conversations/${id}`, { method: 'DELETE' });
   if (!result.success) throw new Error(result.error || '删除会话失败');
+}
+
+export async function getAiCapabilities(): Promise<AiCapabilities> {
+  const result = await proxyRequest<ApiResponse<AiCapabilities>>('/api/ai/capabilities');
+  if (!result.success || !result.data) throw new Error(result.error || '读取 AI 模型能力失败');
+  return result.data;
 }
 
 export async function listAiAnswerFeedback(filters: {

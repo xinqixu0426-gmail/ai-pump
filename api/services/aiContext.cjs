@@ -9,7 +9,18 @@ function trimAiContext(messages) {
             && typeof message.content === 'string'
         ))
         .slice(-AI_CONTEXT_MESSAGE_LIMIT)
-        .map(message => ({ role: message.role, content: message.content }));
+        .map(message => ({
+            role: message.role,
+            content: message.content,
+            ...(Array.isArray(message.attachments) && message.attachments.length > 0
+                ? {
+                    attachments: message.attachments
+                        .map(attachment => ({ id: Number(attachment?.id ?? attachment?.fileId) }))
+                        .filter(attachment => Number.isSafeInteger(attachment.id) && attachment.id > 0)
+                        .slice(0, 4),
+                }
+                : {}),
+        }));
 }
 
 function prioritizeCurrentEvidence(currentMessages, historyMessageCount) {

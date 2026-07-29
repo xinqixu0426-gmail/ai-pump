@@ -1,5 +1,4 @@
 const { Router } = require('express');
-const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, recipeTechnicalFileRow, safeInsert, safeUpdate, softDelete, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
@@ -11,6 +10,7 @@ const { parsePumpTestReport } = require('../services/pumpTestReport.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber, parseNonNegativeInteger } = require('../services/validation.cjs');
 const { inferPackagingSemantics } = require('../services/packagingSemantics.cjs');
 const { refreshFactoryRuleCandidates } = require('../services/factoryRuleCandidates.cjs');
+const { inspectFactoryFile, storeFactoryFile } = require('../services/factoryFileStore.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -20,17 +20,12 @@ const technicalFileUpload = multer({
 const ALLOWED_TECHNICAL_FILE_EXTENSIONS = new Set(['.xls', '.xlsx']);
 const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 
-function uploadFileName(value) {
-    const raw = String(value || '测试报告');
-    const decoded = Buffer.from(raw, 'latin1').toString('utf8');
-    return path.basename(decoded.includes('\uFFFD') ? raw : decoded);
-}
-
 function technicalFileResponse(row) {
     const file = recipeTechnicalFileRow(row);
     return {
         id: file.id,
         recipeId: file.recipeId,
+        fileId: file.fileId,
         originalName: file.originalName,
         mimeType: file.mimeType,
         fileSize: file.fileSize,
@@ -473,7 +468,7 @@ router.get('/:id/technical-files', (req, res) => {
             return res.status(404).json({ success: false, error: '配方不存在' });
         }
         const rows = db.prepare(`
-            SELECT id, recipe_id, original_name, mime_type, file_size, file_sha256,
+            SELECT id, recipe_id, file_id, original_name, mime_type, file_size, file_sha256,
                    report_type, summary_json, parsed_json, extracted_text, created_at, updated_at
             FROM recipe_technical_files
             WHERE recipe_id = ? AND deleted_at IS NULL
@@ -498,7 +493,12 @@ router.post('/:id/technical-files', (req, res) => {
                 return res.status(404).json({ success: false, error: '配方不存在' });
             }
             if (!req.file?.buffer?.length) return res.status(400).json({ success: false, error: '请选择测试报告文件' });
-            const originalName = uploadFileName(req.file.originalname);
+            const inspectedFile = inspectFactoryFile({
+                buffer: req.file.buffer,
+                originalName: req.file.originalname,
+                mimeType: req.file.mimetype,
+            });
+            const originalName = inspectedFile.originalName;
             const extension = path.extname(originalName).toLowerCase();
             if (!ALLOWED_TECHNICAL_FILE_EXTENSIONS.has(extension)) {
                 return res.status(400).json({ success: false, error: '只支持 .xls 和 .xlsx 测试报告' });
@@ -506,21 +506,34 @@ router.post('/:id/technical-files', (req, res) => {
 
             const report = parsePumpTestReport(req.file.buffer, originalName);
             const now = new Date().toISOString();
-            const info = safeInsert('recipe_technical_files', {
-                recipe_id: recipeId,
-                original_name: originalName,
-                mime_type: req.file.mimetype || 'application/vnd.ms-excel',
-                file_size: req.file.size,
-                file_sha256: crypto.createHash('sha256').update(req.file.buffer).digest('hex'),
-                file_blob: req.file.buffer,
-                report_type: 'pump_performance_test',
-                summary_json: JSON.stringify(report.summary),
-                parsed_json: JSON.stringify(report.parsed),
-                extracted_text: report.extractedText,
-                created_at: now,
-                updated_at: now,
+            const saveTechnicalFile = db.transaction(() => {
+                const stored = storeFactoryFile({
+                    buffer: req.file.buffer,
+                    originalName,
+                    mimeType: req.file.mimetype,
+                    sourceType: 'recipe_technical_file',
+                    parserStatus: 'parsed',
+                    now,
+                });
+                const info = safeInsert('recipe_technical_files', {
+                    recipe_id: recipeId,
+                    file_id: stored.file.id,
+                    original_name: originalName,
+                    mime_type: stored.file.mimeType,
+                    file_size: stored.file.fileSize,
+                    file_sha256: stored.file.fileSha256,
+                    file_blob: req.file.buffer,
+                    report_type: 'pump_performance_test',
+                    summary_json: JSON.stringify(report.summary),
+                    parsed_json: JSON.stringify(report.parsed),
+                    extracted_text: report.extractedText,
+                    created_at: now,
+                    updated_at: now,
+                });
+                return db.prepare('SELECT * FROM recipe_technical_files WHERE id = ?')
+                    .get(info.lastInsertRowid);
             });
-            const row = db.prepare('SELECT * FROM recipe_technical_files WHERE id = ?').get(info.lastInsertRowid);
+            const row = saveTechnicalFile();
             res.json({ success: true, data: technicalFileResponse(row) });
         } catch (parseError) {
             res.status(400).json({ success: false, error: parseError.message });
@@ -534,9 +547,12 @@ router.get('/:id/technical-files/:fileId/download', (req, res) => {
         const fileId = parsePositiveId(req.params.fileId);
         if (!recipeId || !fileId) return res.status(400).json({ success: false, error: '非法配方或文件ID' });
         const row = db.prepare(`
-            SELECT original_name, mime_type, file_blob
-            FROM recipe_technical_files
-            WHERE id = ? AND recipe_id = ? AND deleted_at IS NULL
+            SELECT r.original_name,
+                   COALESCE(f.mime_type, r.mime_type) AS mime_type,
+                   COALESCE(f.file_blob, r.file_blob) AS file_blob
+            FROM recipe_technical_files r
+            LEFT JOIN factory_files f ON f.id = r.file_id AND f.deleted_at IS NULL
+            WHERE r.id = ? AND r.recipe_id = ? AND r.deleted_at IS NULL
         `).get(fileId, recipeId);
         if (!row) return res.status(404).json({ success: false, error: '测试报告不存在' });
         res.setHeader('Content-Type', row.mime_type || 'application/octet-stream');

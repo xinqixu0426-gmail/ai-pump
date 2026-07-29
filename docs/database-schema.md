@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `29`：
+当前版本为 `33`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -49,6 +49,11 @@
 | 27 | `accept_equivalent_regression_phrasing` | 允许等价安全表述并保持错误结论禁用词 |
 | 28 | `align_cutting_regression_with_rule_authority` | 将切割用途回归来源对齐到正式业务规则知识 |
 | 29 | `management_action_lifecycle` | 保存管理事项当前生命周期及出现、消失、再次出现事件 |
+| 30 | `factory_workflow_execution_history` | 保存 V8 工厂执行计划的尝试结果、错误、计划快照和复查结论 |
+| 31 | `unified_factory_file_objects` | 建立 V9.1 统一原文件对象，回填知识资料和配方测试报告关联 |
+| 32 | `runtime_system_settings` | 建立系统初始化运行配置表，普通参数与加密 API Key 独立于业务设置保存 |
+| 33 | `factory_file_parsed_content` | 为统一文件保存 PDF 分页文本、结构化定位、解析错误和完成时间 |
+| 34 | `factory_file_business_links` | 建立统一文件与客户、报价、配方、质量问题和知识资料的可追溯软删除关联 |
 
 ## 数据治理
 
@@ -60,6 +65,10 @@
 - `knowledge_vector_sync_runs` 只记录派生向量任务结果，最多保留最近 200 次；记录失败不能反向破坏已生成向量。
 - `management_action_lifecycles` 以稳定 `action_key` 保存首次出现、当前连续出现起点、消失时间和累计出现次数；状态只允许 `active/resolved`。
 - `management_action_events` 追加保存 `appeared/resolved/reopened`，用于追溯事项反复发生；生命周期只记录检查结果变化，不替代原业务事实和人工处理记录。
+- `factory_files` 按 SHA-256 唯一保存 PDF、Excel、文本和图片原件；`parsed_text/parsed_json/parser_error/parsed_at` 保存 PDF 文字层与逐页定位、Excel/CSV 的工作表/行列/单元格/公式/表格块，或图片与扫描 PDF 的 OCR 页码、文字框、置信度和只读技术参数候选，以及失败原因和完成时间。报价文件字段映射是从这些解析结果实时生成的只读草稿，不增加报价写入或复制一份解析表。`knowledge_documents.file_id` 与 `recipe_technical_files.file_id` 复用同一文件对象。AI 会话消息在 `metadata_json.attachments` 保存经过服务端校验的文件引用，聊天历史可继续预览和下载；被会话引用的文件不能直接删除。
+- `factory_file_links` 保存文件与客户、报价、配方、配方检查反馈、AI 回答反馈或知识资料的逻辑关联。业务目标由归档服务按固定类型查询校验，不使用动态表名；同一有效文件、目标和关系角色唯一，解除关联使用 `deleted_at`，被有效关联的文件不能直接删除。归档到知识库时只创建或复用 `knowledge_documents` 引用，不复制 `file_blob`。
+- `runtime_settings` 只保存系统初始化页白名单内的 AI 与知识检索运行参数，不参与工厂知识同步；API Key 通过 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密，接口不返回原文或密文。
+- 文件上传必须在写库前完成大小、文件名、允许扩展名、真实内容签名和 UTF-8/Excel 结构检查；只有 `parser_status=parsed` 的 PDF 文字层或 OCR 文字可以进入 AI 上下文。OCR 无可靠文字时保存为 `metadata_only + ocrApplied=true`，不得推断原图参数。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。
