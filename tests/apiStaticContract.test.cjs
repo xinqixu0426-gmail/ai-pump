@@ -1057,7 +1057,7 @@ test('API 静态契约：V7.1 管理事项生命周期后台追踪且查看接�
     assert.doesNotMatch(workbench, /safeInsert|safeUpdate|softDelete|hardDelete/);
     assert.match(api, /startManagementActionLifecycleMonitor\(\)/);
     assert.match(dashboard, /occurrenceCount/);
-    assert.match(dashboard, /最近消失/);
+    assert.match(dashboard, /自动归档记录/);
 });
 
 test('API 静态契约：V7.2 今日执行队列可解释排序且保持只读', () => {
@@ -1096,6 +1096,32 @@ test('API 静态契约：V7.3 最短处理路径只复用受保护的现有写�
     assert.match(dashboard, /交给 AI/);
     assert.match(dashboard, /完成后：/);
     assert.match(aiPage, /initialPrompt/);
+});
+
+test('API 静态契约：V7.4 业务写入后自动复查并统一汇总处理进展', () => {
+    const api = readUtf8(path.join(repoRoot, 'api.cjs'));
+    const lifecycle = readUtf8(path.join(repoRoot, 'api/services/managementActionLifecycle.cjs'));
+    const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const dashboard = readUtf8(path.join(repoRoot, 'apps/web-next/components/management-action-center.tsx'));
+
+    assert.match(api, /res\.once\('finish'/);
+    assert.match(api, /shouldRecheckManagementActions/);
+    assert.match(api, /requestManagementActionLifecycleRecheck/);
+    assert.match(lifecycle, /DEFAULT_RECHECK_DELAY_MS/);
+    assert.match(lifecycle, /status:\s*'resolved'/);
+    assert.match(lifecycle, /buildManagementActionProgress/);
+    assert.match(lifecycle, /resolvedCount/);
+    assert.match(lifecycle, /unresolvedCount/);
+    assert.match(lifecycle, /blockedCount/);
+    assert.match(lifecycle, /recurringCount/);
+    assert.match(workbench, /router\.get\('\/action-center'/);
+    assert.doesNotMatch(workbench, /router\.(?:post|patch|delete)\('\/action-center'/);
+    assert.match(tools, /自动归档/);
+    assert.match(prompt, /progress\.resolvedItems/);
+    assert.match(dashboard, /自动复查进展/);
+    assert.match(dashboard, /自动归档记录/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {

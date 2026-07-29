@@ -2,10 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
+    buildManagementActionProgress,
     createManagementActionLifecycleMonitor,
     decorateManagementActionCenter,
     lifecycleOverview,
     listManagementActionLifecycles,
+    shouldRecheckManagementActions,
     syncManagementActionLifecycles,
 } = require('../api/services/managementActionLifecycle.cjs');
 
@@ -185,10 +187,102 @@ test('V7.1：当前待办只读附加持续时间，最近消失记录仍可追�
         assert.equal(center.lifecycle.recentResolved[0].title, '知识同步失败');
         assert.equal(center.executionQueue.items[0].id, 'data-quality:missing-price');
         assert.match(center.executionQueue.summary, /当前最先处理/);
+        assert.equal(center.progress.resolvedCount, 1);
+        assert.equal(center.progress.unresolvedCount, 1);
+        assert.match(center.progress.summary, /自动归档 1 项/);
         assert.equal(lifecycleOverview({ dbAccessors }).totalCount, 2);
     } finally {
         dbAccessors.db.close();
     }
+});
+
+test('V7.4：进展汇总区分仍待处理、暂时受阻和反复出现', () => {
+    const dbAccessors = createAccessors();
+    try {
+        const recurringItem = item({
+            resolution: {
+                mode: 'needs_input',
+                title: '确认合理价格',
+            },
+        });
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [recurringItem],
+            now: new Date('2026-07-28T01:00:00.000Z'),
+        });
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [],
+            now: new Date('2026-07-28T02:00:00.000Z'),
+        });
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [recurringItem],
+            now: new Date('2026-07-29T01:00:00.000Z'),
+        });
+        const lifecycle = listManagementActionLifecycles(
+            { status: 'active' },
+            { dbAccessors }
+        )[0];
+        const center = {
+            generatedAt: '2026-07-29T03:00:00.000Z',
+            items: [{ ...recurringItem, lifecycle }],
+        };
+        const progress = buildManagementActionProgress(center, { dbAccessors });
+
+        assert.equal(progress.resolvedCount, 0);
+        assert.equal(progress.unresolvedCount, 1);
+        assert.equal(progress.blockedCount, 1);
+        assert.equal(progress.recurringCount, 1);
+        assert.equal(progress.recurringItems[0].occurrenceCount, 2);
+        assert.match(progress.summary, /1 项暂时受阻/);
+        assert.match(progress.summary, /1 项曾反复出现/);
+    } finally {
+        dbAccessors.db.close();
+    }
+});
+
+test('V7.4：只有成功的核心业务写请求触发自动复查', () => {
+    assert.equal(shouldRecheckManagementActions({
+        method: 'PATCH',
+        path: '/api/orders/12',
+        statusCode: 200,
+    }), true);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'POST',
+        path: '/api/recipes/8?preview=false',
+        statusCode: 201,
+    }), true);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'GET',
+        path: '/api/orders/12',
+        statusCode: 200,
+    }), false);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'POST',
+        path: '/api/orders/12',
+        statusCode: 400,
+    }), false);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'POST',
+        path: '/api/ai/chat',
+        statusCode: 200,
+    }), false);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'POST',
+        path: '/api/recipes/bom-draft',
+        statusCode: 200,
+    }), false);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'POST',
+        path: '/api/orders/purchase-plan',
+        statusCode: 200,
+    }), false);
+    assert.equal(shouldRecheckManagementActions({
+        method: 'POST',
+        path: '/api/quality/recipe-analysis',
+        statusCode: 200,
+    }), false);
 });
 
 test('V7.1：后台监控失败可诊断且仍安排下一次核对', async () => {
@@ -213,4 +307,35 @@ test('V7.1：后台监控失败可诊断且仍安排下一次核对', async () =
     assert.match(status.lastError, /测试失败/);
     assert.equal(status.scheduled, true);
     assert.equal(timers.at(-1).delay, 1000);
+});
+
+test('V7.4：连续业务操作合并为一次短延迟复查', () => {
+    const timers = [];
+    let clearCount = 0;
+    const monitor = createManagementActionLifecycleMonitor({
+        intervalMs: 5000,
+        recheckDelayMs: 250,
+        setTimer(callback, delay) {
+            const timer = { callback, delay, unref() {} };
+            timers.push(timer);
+            return timer;
+        },
+        clearTimer() {
+            clearCount += 1;
+        },
+        sync() {
+            return { syncedAt: '2026-07-29T03:00:00.000Z', stats: {} };
+        },
+        logger: { info() {}, error() {} },
+    });
+
+    monitor.start();
+    monitor.request('patch:/api/orders/1');
+    monitor.request('patch:/api/orders/1');
+    const status = monitor.getStatus();
+
+    assert.equal(timers.at(-1).delay, 250);
+    assert.equal(clearCount, 2);
+    assert.equal(status.lastRequestReason, 'patch:/api/orders/1');
+    assert.equal(status.scheduled, true);
 });

@@ -2,7 +2,34 @@ const { createLogger } = require('../logger.cjs');
 const { buildManagementExecutionQueue } = require('./managementExecutionQueue.cjs');
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_RECHECK_DELAY_MS = 500;
+const PROGRESS_WINDOW_HOURS = 24;
 const VALID_STATUSES = new Set(['active', 'resolved']);
+const BUSINESS_MUTATION_PREFIXES = Object.freeze([
+    '/api/parts',
+    '/api/recipes',
+    '/api/templates',
+    '/api/model-variants',
+    '/api/orders',
+    '/api/coils',
+    '/api/rotor',
+    '/api/settings',
+    '/api/customers',
+    '/api/quotations',
+    '/api/quality',
+    '/api/knowledge',
+]);
+const NON_MUTATING_POST_PATHS = Object.freeze([
+    /^\/api\/templates\/\d+\/apply$/,
+    /^\/api\/recipes\/(?:cost-draft|bom-draft|model-variant-draft|save-payload-draft)$/,
+    /^\/api\/recipes\/\d+\/cost-preview$/,
+    /^\/api\/orders\/(?:purchase-plan|save-payload-draft)$/,
+    /^\/api\/coils\/(?:spec-draft|calculate)$/,
+    /^\/api\/rotor\/(?:recipe-draft|template-draft)$/,
+    /^\/api\/quotations\/save-payload-draft$/,
+    /^\/api\/quotations\/\d+\/order-draft$/,
+    /^\/api\/quality\/recipe-analysis$/,
+]);
 
 function loadDbAccessors() {
     return require('../db.cjs');
@@ -15,6 +42,21 @@ function parseObject(value) {
     } catch {
         return {};
     }
+}
+
+function shouldRecheckManagementActions(input = {}) {
+    const method = String(input.method || '').toUpperCase();
+    const statusCode = Number(input.statusCode || 0);
+    const pathname = String(input.path || '').split('?')[0];
+    const isNonMutatingPost = method === 'POST'
+        && NON_MUTATING_POST_PATHS.some(pattern => pattern.test(pathname));
+    return !isNonMutatingPost
+        && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+        && statusCode >= 200
+        && statusCode < 300
+        && BUSINESS_MUTATION_PREFIXES.some(prefix => (
+            pathname === prefix || pathname.startsWith(`${prefix}/`)
+        ));
 }
 
 function lifecycleSnapshot(item) {
@@ -225,6 +267,83 @@ function lifecycleOverview(options = {}) {
     };
 }
 
+function listRecentlyResolved(options = {}) {
+    const dbAccessors = options.dbAccessors || loadDbAccessors();
+    const { db, managementActionLifecycleRow } = dbAccessors;
+    const now = new Date(options.now || new Date());
+    const windowHours = Number.isFinite(Number(options.windowHours))
+        ? Math.max(1, Number(options.windowHours))
+        : PROGRESS_WINDOW_HOURS;
+    const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000).toISOString();
+    return db.prepare(`
+        SELECT * FROM management_action_lifecycles
+        WHERE status = 'resolved' AND resolved_at >= ?
+        ORDER BY resolved_at DESC, id DESC
+        LIMIT 20
+    `).all(since).map(row => lifecycleResponse(row, managementActionLifecycleRow));
+}
+
+function buildManagementActionProgress(center, options = {}) {
+    const dbAccessors = options.dbAccessors || loadDbAccessors();
+    const { db } = dbAccessors;
+    const now = new Date(options.now || center.generatedAt || new Date());
+    const windowHours = Number.isFinite(Number(options.windowHours))
+        ? Math.max(1, Number(options.windowHours))
+        : PROGRESS_WINDOW_HOURS;
+    const resolvedItems = listRecentlyResolved({
+        ...options,
+        dbAccessors,
+        now,
+        windowHours,
+    });
+    const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000).toISOString();
+    const resolvedCount = Number(db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM management_action_lifecycles
+        WHERE status = 'resolved' AND resolved_at >= ?
+    `).get(since).count || 0);
+    const unresolvedItems = Array.isArray(center.items) ? center.items : [];
+    const blockedItems = unresolvedItems.filter(item => (
+        item.resolution?.mode === 'needs_input'
+        || item.resolution?.mode === 'monitor'
+    ));
+    const recurringByKey = new Map();
+    for (const item of unresolvedItems) {
+        if (Number(item.lifecycle?.occurrenceCount || 0) > 1) {
+            recurringByKey.set(item.lifecycle.actionKey, item.lifecycle);
+        }
+    }
+    for (const item of resolvedItems) {
+        if (Number(item.occurrenceCount || 0) > 1) {
+            recurringByKey.set(item.actionKey, item);
+        }
+    }
+    const recurringItems = [...recurringByKey.values()]
+        .sort((left, right) => (
+            Number(right.occurrenceCount || 0) - Number(left.occurrenceCount || 0)
+            || String(right.updatedAt || '').localeCompare(String(left.updatedAt || ''))
+        ))
+        .slice(0, 10);
+    const summary = [
+        `最近 ${windowHours} 小时自动归档 ${resolvedCount} 项`,
+        `当前仍待处理 ${unresolvedItems.length} 项`,
+        blockedItems.length > 0 ? `其中 ${blockedItems.length} 项暂时受阻` : '',
+        recurringItems.length > 0 ? `${recurringItems.length} 项曾反复出现` : '',
+    ].filter(Boolean).join('；') + '。';
+    return {
+        generatedAt: now.toISOString(),
+        windowHours,
+        resolvedCount,
+        unresolvedCount: unresolvedItems.length,
+        blockedCount: blockedItems.length,
+        recurringCount: recurringItems.length,
+        summary,
+        resolvedItems,
+        blockedItems: blockedItems.slice(0, 10),
+        recurringItems,
+    };
+}
+
 function decorateManagementActionCenter(center, options = {}) {
     const dbAccessors = options.dbAccessors || loadDbAccessors();
     const { db, managementActionLifecycleRow } = dbAccessors;
@@ -257,6 +376,10 @@ function decorateManagementActionCenter(center, options = {}) {
     return {
         ...decorated,
         executionQueue: buildManagementExecutionQueue(decorated),
+        progress: buildManagementActionProgress(decorated, {
+            dbAccessors,
+            now: center.generatedAt,
+        }),
     };
 }
 
@@ -266,16 +389,23 @@ function createManagementActionLifecycleMonitor(options = {}) {
     const intervalMs = Number.isFinite(Number(options.intervalMs))
         ? Math.max(1000, Number(options.intervalMs))
         : DEFAULT_INTERVAL_MS;
+    const recheckDelayMs = Number.isFinite(Number(options.recheckDelayMs))
+        ? Math.max(0, Number(options.recheckDelayMs))
+        : DEFAULT_RECHECK_DELAY_MS;
     const setTimer = options.setTimer || setTimeout;
     const clearTimer = options.clearTimer || clearTimeout;
     let timer = null;
     let running = false;
+    let pendingReason = '';
     const state = {
         lastStartedAt: null,
         lastCompletedAt: null,
         lastFailedAt: null,
         lastError: '',
         lastResult: null,
+        lastRequestedAt: null,
+        lastRequestReason: '',
+        lastRunReason: '',
     };
 
     function schedule(delay = intervalMs) {
@@ -287,10 +417,18 @@ function createManagementActionLifecycleMonitor(options = {}) {
         timer?.unref?.();
     }
 
-    async function run() {
-        if (running) return { skipped: true, reason: 'running' };
+    async function run(reason = '') {
+        if (running) {
+            request(reason || 'while_running');
+            return { skipped: true, reason: 'running' };
+        }
+        if (timer) clearTimer(timer);
+        timer = null;
         running = true;
+        const runReason = String(reason || pendingReason || 'scheduled').trim();
+        pendingReason = '';
         state.lastStartedAt = new Date().toISOString();
+        state.lastRunReason = runReason;
         try {
             const result = await Promise.resolve(sync());
             state.lastCompletedAt = result.syncedAt || new Date().toISOString();
@@ -306,8 +444,20 @@ function createManagementActionLifecycleMonitor(options = {}) {
             return { success: false, error: state.lastError };
         } finally {
             running = false;
-            schedule();
+            schedule(pendingReason ? recheckDelayMs : intervalMs);
         }
+    }
+
+    function request(reason = 'business_write') {
+        pendingReason = String(reason || 'business_write').trim();
+        state.lastRequestedAt = new Date().toISOString();
+        state.lastRequestReason = pendingReason;
+        if (!running) schedule(recheckDelayMs);
+        return {
+            queued: true,
+            reason: pendingReason,
+            delayMs: recheckDelayMs,
+        };
     }
 
     function start() {
@@ -323,7 +473,7 @@ function createManagementActionLifecycleMonitor(options = {}) {
         return { ...state, running, scheduled: Boolean(timer) };
     }
 
-    return { start, stop, run, getStatus };
+    return { start, stop, run, request, getStatus };
 }
 
 let monitorSingleton = null;
@@ -337,18 +487,28 @@ function startManagementActionLifecycleMonitor() {
     getMonitor().start();
 }
 
+function requestManagementActionLifecycleRecheck(reason = 'business_write') {
+    return getMonitor().request(reason);
+}
+
 function getManagementActionLifecycleMonitorStatus() {
     return getMonitor().getStatus();
 }
 
 module.exports = {
     DEFAULT_INTERVAL_MS,
+    DEFAULT_RECHECK_DELAY_MS,
+    PROGRESS_WINDOW_HOURS,
+    buildManagementActionProgress,
     createManagementActionLifecycleMonitor,
     decorateManagementActionCenter,
     getManagementActionLifecycleMonitorStatus,
     lifecycleOverview,
     lifecycleSnapshot,
     listManagementActionLifecycles,
+    listRecentlyResolved,
+    requestManagementActionLifecycleRecheck,
+    shouldRecheckManagementActions,
     startManagementActionLifecycleMonitor,
     syncManagementActionLifecycles,
 };

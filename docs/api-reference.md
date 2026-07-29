@@ -218,7 +218,7 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/workbench/summary` | 无 | 经营、库存、采购和待办汇总 |
-| `GET` | `/api/workbench/action-center` | 无 | 聚合订单准备、经营风险、数据质量、规则学习和知识库健康检查，返回完整待办、今日执行队列，并只读附加首次出现、当前持续时间、累计出现次数和最近消失记录 |
+| `GET` | `/api/workbench/action-center` | 无 | 聚合订单准备、经营风险、数据质量、规则学习和知识库健康检查，返回完整待办、今日执行队列、生命周期和最近 24 小时处理进展 |
 | `GET` | `/api/workbench/action-history` | 查询参数 `status?=active/resolved`, `limit?` | 只读查询管理事项生命周期历史和汇总，默认最近 20 条、最多 100 条 |
 
 管理待办中心复用各业务域的实时检查结果，不复制成本、库存或知识同步规则。优先级为 `critical/high/medium/low`，类别为 `order_readiness/business_risk/data_quality/rule_learning/knowledge_health`；同一订单的采购提醒由订单准备结论统一呈现，避免与经营风险重复计数。返回项包含来源、数量、建议动作和可执行页面路径，但不包含写工具或自动执行动作。当前按单人管理助理设计，界面和 AI 不要求分配负责人。AI 工具 `get_management_action_center` 和管理看板“今日待办”页签使用同一接口。
@@ -228,6 +228,8 @@ V7.1 使用后台监控把稳定待办键与 `management_action_lifecycles` 对�
 V7.2 在返回结果中增加 `executionQueue`。队列最多突出 3 项，业务优先级是不可跨越的第一排序条件，同级事项再按持续时间、累计出现次数和影响数量评分。每项返回 `rank/queueLabel/score/scoreBreakdown/reasons`，便于看板和 AI 解释为什么先处理；`remainingCount` 表示仍保留在完整待办中的其余事项。该排序是纯计算，不新增任务、状态或查看写入。
 
 V7.3 为每条待办增加 `resolution`：`mode` 为 `navigate/confirmable/needs_input/monitor`，并返回最短动作、说明、完成标准和业务页面路径。只有订单处理方案中仍为 `available + confirmable` 的步骤才返回 `canAiConfirm=true` 及受保护的 `execute_order_readiness_action` 参数；看板跳转 AI 后仍需刷新订单方案并显示确认卡片，普通页面跳转、业务判断和等待事项不会生成写动作。
+
+V7.4 在成功的核心业务 `POST/PUT/PATCH/DELETE` 响应结束后，请求一次 500ms 防抖的生命周期复查；连续操作合并执行，失败响应、GET、草稿/试算类 POST 和 AI 对话本身不触发。复查仍以五类实时检查为准，不再出现的稳定事项键自动写为 `resolved` 并追加事件。`GET /api/workbench/action-center` 保持只读，新增 `progress`：`resolvedCount/unresolvedCount/blockedCount/recurringCount` 以及最近已解决、暂时受阻和反复出现明细，窗口默认最近 24 小时。看板和 AI 只消费该统一结果，不需要人工维护完成状态。
 
 ## 13. 设置 Settings
 

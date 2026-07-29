@@ -124,6 +124,7 @@ export type ManagementActionLifecycleRecord = {
     owner?: string;
     path?: string;
     count?: number;
+    resolution?: ManagementActionItem['resolution'];
   };
 };
 
@@ -198,6 +199,18 @@ export type ManagementActionCenter = {
     lastSyncedAt: string | null;
     lastError: string;
     recentResolved: ManagementActionLifecycleRecord[];
+  };
+  progress?: {
+    generatedAt: string;
+    windowHours: number;
+    resolvedCount: number;
+    unresolvedCount: number;
+    blockedCount: number;
+    recurringCount: number;
+    summary: string;
+    resolvedItems: ManagementActionLifecycleRecord[];
+    blockedItems: ManagementActionItem[];
+    recurringItems: ManagementActionLifecycleRecord[];
   };
 };
 

@@ -86,6 +86,9 @@ test('AI 将今日优先事项路由到统一管理待办', () => {
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '请处理管理待办“订单数据阻塞”' }]), [
         { name: 'get_management_action_center', args: {} },
     ]);
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '最近解决了哪些问题，还有哪些反复出现' }]), [
+        { name: 'get_management_action_center', args: {} },
+    ]);
 });
 
 test('AI 将订单问题处理请求优先路由到生产准备处理方案', () => {

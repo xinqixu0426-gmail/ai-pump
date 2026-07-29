@@ -520,10 +520,12 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
         case 'get_management_action_center': {
             const data = await getJson(internalFetch, '/api/workbench/action-center', '管理待办读取失败');
+            const progressSummary = String(data.progress?.summary || '').trim();
+            const queueSummary = String(data.executionQueue?.summary || '').trim();
             return {
                 success: true,
                 intent: 'management_action_center',
-                summary: data.executionQueue?.summary || (
+                summary: [progressSummary, queueSummary].filter(Boolean).join(' ') || (
                     data.metrics?.total
                         ? `当前有 ${data.metrics.total} 项管理待办，其中 ${data.metrics.critical || 0} 项紧急、${data.metrics.high || 0} 项高优先级。`
                         : '当前没有需要处理的管理待办。'

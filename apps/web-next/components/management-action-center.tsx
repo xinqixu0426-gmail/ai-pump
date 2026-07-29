@@ -97,6 +97,7 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
     ))
   ), [center, priority, category]);
   const executionQueue = center?.executionQueue;
+  const progress = center?.progress;
 
   if (loading && !center) {
     return (
@@ -136,6 +137,34 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
           ))}
         </div>
       </section>
+
+      {progress ? (
+        <section className="border-y border-line bg-white">
+          <div className="border-b border-line px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <CheckCircle2 size={16} />
+              自动复查进展
+            </div>
+            <div className="mt-1 text-xs leading-5 text-muted">{progress.summary}</div>
+          </div>
+          <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="px-4 py-3">
+              <div className="text-xl font-semibold text-emerald-700">{progress.resolvedCount}</div>
+              <div className="mt-1 text-xs text-muted">最近 {progress.windowHours} 小时自动归档</div>
+            </div>
+            <div className="px-4 py-3">
+              <div className="text-xl font-semibold text-ink">{progress.unresolvedCount}</div>
+              <div className="mt-1 text-xs text-muted">
+                当前仍待处理{progress.blockedCount > 0 ? `，${progress.blockedCount} 项暂时受阻` : ''}
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <div className="text-xl font-semibold text-amber-700">{progress.recurringCount}</div>
+              <div className="mt-1 text-xs text-muted">当前或近期反复出现</div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {executionQueue && executionQueue.items.length > 0 ? (
         <section className="border-y border-line bg-white">
@@ -287,17 +316,21 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
         </div>
       )}
 
-      {center.lifecycle.recentResolved.length > 0 ? (
+      {(progress?.resolvedItems || center.lifecycle.recentResolved).length > 0 ? (
         <section className="border-y border-line bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <History size={16} />
-              最近消失
+              自动归档记录
             </div>
-            <div className="text-xs text-muted">累计已消失 {center.lifecycle.resolvedCount} 项</div>
+            <div className="text-xs text-muted">
+              {progress
+                ? `最近 ${progress.windowHours} 小时已解决 ${progress.resolvedCount} 项`
+                : `累计已消失 ${center.lifecycle.resolvedCount} 项`}
+            </div>
           </div>
           <div className="divide-y divide-line">
-            {center.lifecycle.recentResolved.map(item => (
+            {(progress?.resolvedItems || center.lifecycle.recentResolved).map(item => (
               <div key={item.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="truncate font-medium text-ink">{item.title}</div>

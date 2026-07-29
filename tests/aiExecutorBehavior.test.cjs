@@ -221,6 +221,13 @@ test('AI executor 行为：统一管理待办通过只读标准 API 返回实时
                             },
                         }],
                     },
+                    progress: {
+                        summary: '最近 24 小时自动归档 1 项；当前仍待处理 2 项；1 项曾反复出现。',
+                        resolvedCount: 1,
+                        unresolvedCount: 2,
+                        blockedCount: 0,
+                        recurringCount: 1,
+                    },
                 },
             });
         }
@@ -232,7 +239,10 @@ test('AI executor 行为：统一管理待办通过只读标准 API 返回实时
     assert.equal(result.success, true);
     assert.equal(result.intent, 'management_action_center');
     assert.equal(result.data.metrics.critical, 1);
-    assert.equal(result.summary, '当前最先处理：订单 #12 数据阻塞。');
+    assert.equal(
+        result.summary,
+        '最近 24 小时自动归档 1 项；当前仍待处理 2 项；1 项曾反复出现。 当前最先处理：订单 #12 数据阻塞。'
+    );
     assert.equal(result.data.executionQueue.items[0].resolution.mode, 'navigate');
     assert.equal(result.provenance.kind, 'live_business');
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [

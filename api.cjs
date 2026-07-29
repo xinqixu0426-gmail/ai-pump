@@ -101,6 +101,8 @@ app.get('/api/health', (req, res, next) => {
 const aiRouter = require('./api/routes/ai.cjs');
 const { requestFullAutoKnowledgeSync } = require('./api/services/knowledgeAutoSync.cjs');
 const {
+    requestManagementActionLifecycleRecheck,
+    shouldRecheckManagementActions,
     startManagementActionLifecycleMonitor,
 } = require('./api/services/managementActionLifecycle.cjs');
 app.use('/', aiRouter);
@@ -120,6 +122,21 @@ app.use('/api', (req, res, next) => {
   }
   // 其余所有接口需要认证
   authMiddleware(req, res, next);
+});
+
+// 核心业务写入成功后触发一次防抖复查，生命周期状态无需人工维护。
+app.use('/api', (req, res, next) => {
+  res.once('finish', () => {
+    if (!shouldRecheckManagementActions({
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+    })) return;
+    requestManagementActionLifecycleRecheck(
+      `${req.method.toLowerCase()}:${req.originalUrl.split('?')[0]}`
+    );
+  });
+  next();
 });
 
 // 注意：cost 路由包含 /api/health, /api/cost/*, /api/copper-price/*

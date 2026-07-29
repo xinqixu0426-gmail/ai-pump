@@ -874,6 +874,7 @@ function OrderReadinessOverviewResult({ result }: { result: Record<string, unkno
 function ManagementActionCenterResult({ result }: { result: Record<string, unknown> }) {
   const data = asRecord(result.data);
   const metrics = asRecord(data.metrics);
+  const progress = asRecord(data.progress);
   const executionQueue = asRecord(data.executionQueue);
   const executionItems = arrayValue(executionQueue.items);
   const items = executionItems.length > 0 ? executionItems : arrayValue(data.items).slice(0, 3);
@@ -899,6 +900,18 @@ function ManagementActionCenterResult({ result }: { result: Record<string, unkno
         { label: '普通', value: metrics.medium },
         { label: '低优先级', value: metrics.low },
       ]} />
+      {Object.keys(progress).length > 0 ? (
+        <>
+          <div className="mt-3 text-sm font-semibold text-ink">自动复查进展</div>
+          <div className="mt-1 text-xs leading-5 text-muted">{textValue(progress.summary)}</div>
+          <KeyValueRows rows={[
+            { label: '近期已解决', value: progress.resolvedCount },
+            { label: '仍待处理', value: progress.unresolvedCount },
+            { label: '暂时受阻', value: progress.blockedCount },
+            { label: '反复出现', value: progress.recurringCount },
+          ]} />
+        </>
+      ) : null}
       {items.length > 0 ? (
         <DataTable
           rows={items.slice(0, 12)}
