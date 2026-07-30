@@ -1433,3 +1433,37 @@ test('AI executor 行为：文件归档先查真实目标且写入必须确认',
         'POST /api/files/41/archive',
     ]);
 });
+
+test('V10.2 AI executor：客户要求只能保存草稿且必须先确认', async () => {
+    const calls = installFetchStub((call) => {
+        assert.equal(call.method, 'PUT');
+        assert.match(call.url, /\/api\/orders\/27\/requirements\/draft$/);
+        assert.equal(call.body.summaryText, '客户明确要求：线圈规格 12x180mm。');
+        assert.deepEqual(call.body.sourceFileIds, [41]);
+        return jsonResponse({
+            success: true,
+            data: {
+                orderId: 27,
+                draftText: call.body.summaryText,
+                sourceFileIds: call.body.sourceFileIds,
+                knowledgeStatus: 'not_confirmed',
+            },
+        });
+    });
+    const args = {
+        orderId: 27,
+        summaryText: '客户明确要求：线圈规格 12x180mm。',
+        sourceFileIds: [41],
+    };
+
+    const blocked = await executeToolCall('save_order_requirement_draft', args, { allowWrite: false });
+    assert.equal(blocked.requiresConfirmation, true);
+    assert.equal(blocked.confirmation.title, '保存客户要求草稿');
+    assert.match(blocked.confirmation.warning, /确认/);
+    assert.equal(calls.length, 0);
+
+    const saved = await executeToolCall('save_order_requirement_draft', args, { allowWrite: true });
+    assert.equal(saved.success, true);
+    assert.match(saved.message, /仍需在订单页面人工确认/);
+    assert.equal(calls.length, 1);
+});

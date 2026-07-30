@@ -18,6 +18,7 @@ const TOOL_LABELS = {
     remove_recipe_from_order: '订单移除产品',
     update_order_item: '修改订单产品',
     generate_purchase_list: '生成采购清单',
+    save_order_requirement_draft: '保存客户要求草稿',
     get_management_action_center: '读取管理待办',
     get_order_readiness_overview: '读取订单准备总览',
     execute_order_readiness_action: '执行订单处理步骤',
@@ -125,6 +126,11 @@ function buildConfirmationRows(toolName, args = {}) {
         case 'delete_order':
         case 'generate_purchase_list':
             addRow(rows, '订单ID', args.orderId);
+            break;
+        case 'save_order_requirement_draft':
+            addRow(rows, '订单ID', args.orderId);
+            addRow(rows, '依据文件', Array.isArray(args.sourceFileIds) ? args.sourceFileIds.join('，') : '');
+            addRow(rows, '客户要求草稿', args.summaryText);
             break;
         case 'execute_order_readiness_action':
             addRow(rows, '订单ID', args.orderId);

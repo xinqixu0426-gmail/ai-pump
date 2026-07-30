@@ -18,6 +18,12 @@ const {
     purchaseToInventoryQty,
 } = require('../services/orderWorkflow.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
+const {
+    confirmOrderRequirementSummary,
+    getOrderRequirementSummary,
+    revokeOrderRequirementConfirmation,
+    saveOrderRequirementDraft,
+} = require('../services/orderRequirements.cjs');
 const router = Router();
 
 const ORDER_FIELDS = ['customer_name', 'contract_no', 'remark', 'items_json', 'purchase_list_json', 'todos_json'];
@@ -654,6 +660,58 @@ router.get('/:id/readiness', (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/:id/requirements', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: getOrderRequirementSummary(id) });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.put('/:id/requirements/draft', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({
+            success: true,
+            data: saveOrderRequirementDraft(id, {
+                summaryText: req.body?.summaryText,
+                sourceFileIds: req.body?.sourceFileIds,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/requirements/confirm', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({
+            success: true,
+            data: confirmOrderRequirementSummary(id, {
+                summaryText: req.body?.summaryText,
+                sourceFileIds: req.body?.sourceFileIds,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/requirements/revoke', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: revokeOrderRequirementConfirmation(id) });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
     }
 });
 

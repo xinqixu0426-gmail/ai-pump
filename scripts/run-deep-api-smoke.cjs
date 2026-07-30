@@ -924,6 +924,142 @@ async function testCrossModuleWriteFlow(baseResources) {
     )).payload.data;
     assert(reparsedPdf.parserStatus === 'parsed', 'PDF 手动重试后状态不正确');
 
+    const orderRequirementArchive = (await request(
+        'V10.2订单绑定客户要求文件',
+        'POST',
+        `/api/files/${pdfFile.id}/archive`,
+        {
+            targetType: 'order',
+            targetId: order.id,
+            source: 'business_page',
+        },
+        [201]
+    )).payload.data;
+    assert(
+        orderRequirementArchive.link.relationRole === 'customer_requirement',
+        '订单客户要求文件关联角色不正确'
+    );
+    const emptyRequirement = (await request(
+        'V10.2读取空客户要求',
+        'GET',
+        `/api/orders/${order.id}/requirements`
+    )).payload.data;
+    assert(emptyRequirement.knowledgeStatus === 'not_confirmed', '空客户要求知识状态不正确');
+    assert(
+        emptyRequirement.availableFiles.some(file => file.id === pdfFile.id),
+        '客户要求接口没有返回当前订单附件'
+    );
+    const firstRequirementText = `客户明确要求：${unique}-REQ-A 包装标签。`;
+    const secondRequirementText = `客户明确要求：${unique}-REQ-B 包装标签。`;
+    const requirementDraft = (await request(
+        'V10.2保存客户要求草稿',
+        'PUT',
+        `/api/orders/${order.id}/requirements/draft`,
+        {
+            summaryText: firstRequirementText,
+            sourceFileIds: [pdfFile.id],
+        }
+    )).payload.data;
+    assert(requirementDraft.knowledgeStatus === 'not_confirmed', '草稿被错误标记为正式知识');
+    const confirmedRequirement = (await request(
+        'V10.2人工确认客户要求',
+        'POST',
+        `/api/orders/${order.id}/requirements/confirm`,
+        {}
+    )).payload.data;
+    assert(confirmedRequirement.knowledgeStatus === 'confirmed', '客户要求确认状态不正确');
+    await request('V10.2同步确认客户要求知识', 'POST', '/api/knowledge/sync', {});
+    const requirementKnowledge = (await request(
+        'V10.2检索确认客户要求',
+        'GET',
+        `/api/knowledge?query=${encodeURIComponent(`${unique}-REQ-A`)}&entryType=order&limit=10`
+    )).payload.data;
+    assert(requirementKnowledge.length === 1, '确认的客户要求没有进入订单知识');
+    const requirementKnowledgeDetail = (await request(
+        'V10.2读取客户要求知识详情',
+        'GET',
+        `/api/knowledge/${requirementKnowledge[0].id}`
+    )).payload.data;
+    assert(
+        requirementKnowledgeDetail.content.includes(`${unique}-REQ-A`),
+        '订单知识详情缺少人工确认客户要求'
+    );
+    const changedRequirement = (await request(
+        'V10.2修改已确认后的草稿',
+        'PUT',
+        `/api/orders/${order.id}/requirements/draft`,
+        {
+            summaryText: secondRequirementText,
+            sourceFileIds: [pdfFile.id],
+        }
+    )).payload.data;
+    assert(
+        changedRequirement.knowledgeStatus === 'confirmed_with_draft',
+        '修改草稿后没有保留上次确认状态'
+    );
+    await request('V10.2同步待确认草稿', 'POST', '/api/knowledge/sync', {});
+    const knowledgeBeforeReconfirm = (await request(
+        'V10.2复核待确认草稿未覆盖知识',
+        'GET',
+        `/api/knowledge/${requirementKnowledge[0].id}`
+    )).payload.data;
+    assert(
+        knowledgeBeforeReconfirm.content.includes(`${unique}-REQ-A`)
+            && !knowledgeBeforeReconfirm.content.includes(`${unique}-REQ-B`),
+        '待确认草稿错误覆盖了上次确认知识'
+    );
+    await request(
+        'V10.2重新确认客户要求',
+        'POST',
+        `/api/orders/${order.id}/requirements/confirm`,
+        {}
+    );
+    await request('V10.2同步新确认客户要求', 'POST', '/api/knowledge/sync', {});
+    const knowledgeAfterReconfirm = (await request(
+        'V10.2复核新确认客户要求',
+        'GET',
+        `/api/knowledge/${requirementKnowledge[0].id}`
+    )).payload.data;
+    assert(
+        knowledgeAfterReconfirm.content.includes(`${unique}-REQ-B`)
+            && !knowledgeAfterReconfirm.content.includes(`${unique}-REQ-A`),
+        '重新确认后订单知识没有替换旧客户要求'
+    );
+    await request(
+        'V10.2阻止解除已确认来源文件',
+        'DELETE',
+        `/api/files/${pdfFile.id}/links/${orderRequirementArchive.link.id}`,
+        undefined,
+        [409]
+    );
+    const revokedRequirement = (await request(
+        'V10.2撤销客户要求知识确认',
+        'POST',
+        `/api/orders/${order.id}/requirements/revoke`,
+        {}
+    )).payload.data;
+    assert(
+        revokedRequirement.knowledgeStatus === 'not_confirmed'
+            && revokedRequirement.draftText === secondRequirementText,
+        '撤销确认后没有保留客户要求草稿'
+    );
+    await request('V10.2同步撤销客户要求知识', 'POST', '/api/knowledge/sync', {});
+    const knowledgeAfterRevoke = (await request(
+        'V10.2复核撤销后移除客户要求',
+        'GET',
+        `/api/knowledge/${requirementKnowledge[0].id}`
+    )).payload.data;
+    assert(
+        !knowledgeAfterRevoke.content.includes(`${unique}-REQ-A`)
+            && !knowledgeAfterRevoke.content.includes(`${unique}-REQ-B`),
+        '撤销确认后订单知识仍保留客户要求'
+    );
+    await request(
+        'V10.2撤销后解除订单文件关联',
+        'DELETE',
+        `/api/files/${pdfFile.id}/links/${orderRequirementArchive.link.id}`
+    );
+
     const imageCanvas = createCanvas(1600, 600);
     const imageContext = imageCanvas.getContext('2d');
     imageContext.fillStyle = '#ffffff';

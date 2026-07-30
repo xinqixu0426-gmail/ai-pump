@@ -1521,7 +1521,7 @@ test('文档契约：业务流程文档必须存在并被 README 引用', () => 
     assert.match(flow, /采购中心不入库/);
 });
 
-test('API 静态契约：V9.5/V10.1 文件归档关联业务对象且知识写入需要确认', () => {
+test('API 静态契约：V9.5-V10.2 文件归档关联业务对象且知识写入需要确认', () => {
     const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
     const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
@@ -1537,6 +1537,7 @@ test('API 静态契约：V9.5/V10.1 文件归档关联业务对象且知识写�
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
     const orderDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
+    const orderRequirements = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-requirements-panel.tsx'));
     const aiPage = readUtf8(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx'));
 
     assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_file_links/);
@@ -1572,8 +1573,10 @@ test('API 静态契约：V9.5/V10.1 文件归档关联业务对象且知识写�
     assert.match(quotationsView, /targetType="quotation"/);
     assert.match(qualityView, /targetType="recipe_analysis_feedback"/);
     assert.match(knowledgeView, /targetType="ai_answer_feedback"/);
-    assert.match(orderDrawer, /targetType="order"/);
-    assert.match(orderDrawer, /AI 只负责按原文归纳草稿/);
+    assert.match(orderDrawer, /OrderRequirementsPanel/);
+    assert.match(orderRequirements, /targetType="order"/);
+    assert.match(orderRequirements, /AI 可以归纳草稿/);
+    assert.match(orderRequirements, /确认进入知识库/);
     assert.match(attachmentPanel, /AI 归纳/);
     assert.match(aiPage, /initialAttachmentId/);
 });

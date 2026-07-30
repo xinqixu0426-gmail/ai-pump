@@ -602,6 +602,67 @@ function addOrderFactoryFileLinks(db) {
     `);
 }
 
+function createOrderRequirementSummariesTable(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS order_requirement_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL UNIQUE,
+            draft_text TEXT NOT NULL DEFAULT '',
+            confirmed_text TEXT NOT NULL DEFAULT '',
+            source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+            confirmed_source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'draft'
+                CHECK(status IN ('draft', 'confirmed')),
+            confirmed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(order_id) REFERENCES orders(id)
+        )
+    `);
+}
+
+function repairOrderRequirementSummariesForeignKey(db) {
+    if (!tableExists(db, 'order_requirement_summaries')) {
+        createOrderRequirementSummariesTable(db);
+        return;
+    }
+    const foreignKeys = db.pragma('foreign_key_list(order_requirement_summaries)');
+    if (foreignKeys.some(item => item.from === 'order_id' && item.table === 'orders')) return;
+
+    db.exec(`
+        DROP TABLE IF EXISTS order_requirement_summaries_v10;
+        ALTER TABLE order_requirement_summaries RENAME TO order_requirement_summaries_v10;
+    `);
+    createOrderRequirementSummariesTable(db);
+    db.exec(`
+        INSERT INTO order_requirement_summaries (
+            id,
+            order_id,
+            draft_text,
+            confirmed_text,
+            source_file_ids_json,
+            confirmed_source_file_ids_json,
+            status,
+            confirmed_at,
+            created_at,
+            updated_at
+        )
+        SELECT
+            id,
+            order_id,
+            draft_text,
+            confirmed_text,
+            source_file_ids_json,
+            confirmed_source_file_ids_json,
+            status,
+            confirmed_at,
+            created_at,
+            updated_at
+        FROM order_requirement_summaries_v10;
+        DROP TABLE order_requirement_summaries_v10;
+    `);
+}
+
 const MIGRATIONS = Object.freeze([
     {
         version: 1,
@@ -1667,6 +1728,38 @@ const MIGRATIONS = Object.freeze([
             addOrderFactoryFileLinks(db);
         },
     },
+    {
+        version: 37,
+        name: 'order_requirement_summaries',
+        signature: 'order-requirement-draft-confirmed-knowledge-boundary-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS order_requirement_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id INTEGER NOT NULL UNIQUE,
+                    draft_text TEXT NOT NULL DEFAULT '',
+                    confirmed_text TEXT NOT NULL DEFAULT '',
+                    source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+                    confirmed_source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+                    status TEXT NOT NULL DEFAULT 'draft'
+                        CHECK(status IN ('draft', 'confirmed')),
+                    confirmed_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(order_id) REFERENCES orders(id)
+                );
+            `);
+        },
+    },
+    {
+        version: 38,
+        name: 'repair_order_requirement_summary_order_fk',
+        signature: 'repair-order-requirement-summary-order-foreign-key-v1',
+        foreignKeysOff: true,
+        up(db) {
+            repairOrderRequirementSummariesForeignKey(db);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
@@ -1735,6 +1828,7 @@ module.exports = {
     MIGRATION_TABLE_SQL,
     addOrderFactoryFileLinks,
     migrationChecksum,
+    repairOrderRequirementSummariesForeignKey,
     repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,
     runMigrations,

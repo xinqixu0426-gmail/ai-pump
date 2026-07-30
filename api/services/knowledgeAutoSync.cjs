@@ -11,6 +11,7 @@ const AUTO_SYNC_SOURCE_TABLES = new Set([
     'customers',
     'quotations',
     'orders',
+    'order_requirement_summaries',
     'system_settings',
 ]);
 

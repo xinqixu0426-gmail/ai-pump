@@ -185,6 +185,22 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
         assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'factory_file_links'
         `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'order_requirement_summaries'
+        `).get());
+        const requirementSql = db.prepare(`
+            SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'order_requirement_summaries'
+        `).get().sql;
+        assert.match(requirementSql, /CHECK\(status IN \('draft', 'confirmed'\)\)/);
+        const requirementUniqueIndexes = db.pragma('index_list(order_requirement_summaries)')
+            .filter(index => index.unique)
+            .map(index => db.pragma(`index_info("${index.name}")`).map(column => column.name));
+        assert.ok(requirementUniqueIndexes.some(columns => columns.length === 1 && columns[0] === 'order_id'));
+        assert.equal(
+            db.pragma('foreign_key_list(order_requirement_summaries)')
+                .find(item => item.from === 'order_id')?.table,
+            'orders'
+        );
         assert.equal(
             db.pragma('index_list(factory_file_links)')
                 .find(index => index.name === 'idx_factory_file_links_active_unique')?.partial,

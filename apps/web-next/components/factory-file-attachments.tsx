@@ -19,6 +19,7 @@ type FactoryFileAttachmentsProps = {
   description?: string;
   embedded?: boolean;
   aiSummaryPrompt?: string;
+  onChanged?: () => void;
 };
 
 const ACCEPTED_FILE_TYPES = '.pdf,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
@@ -49,6 +50,7 @@ export function FactoryFileAttachments({
   description = '支持 PDF、Excel、CSV、文本和图片，单个文件不超过 10MB。',
   embedded = false,
   aiSummaryPrompt = '',
+  onChanged,
 }: FactoryFileAttachmentsProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [links, setLinks] = useState<FactoryFileLink[]>([]);
@@ -90,6 +92,7 @@ export function FactoryFileAttachments({
         source: 'business_page',
       });
       await load();
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传附件失败');
     } finally {
@@ -107,6 +110,7 @@ export function FactoryFileAttachments({
     try {
       await deleteFactoryFileLink(link.fileId, link.id);
       await load();
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : '解除附件关联失败');
     } finally {

@@ -38,6 +38,10 @@ function postJson(internalFetch, url, body, fallbackError) {
     return requestJson(internalFetch, 'POST', url, body, fallbackError);
 }
 
+function putJson(internalFetch, url, body, fallbackError) {
+    return requestJson(internalFetch, 'PUT', url, body, fallbackError);
+}
+
 function patchJson(internalFetch, url, body, fallbackError) {
     return requestJson(internalFetch, 'PATCH', url, body, fallbackError);
 }
@@ -46,4 +50,4 @@ function deleteJson(internalFetch, url, fallbackError) {
     return requestJson(internalFetch, 'DELETE', url, undefined, fallbackError);
 }
 
-module.exports = { createInternalFetch, readApiJson, getJson, postJson, patchJson, deleteJson };
+module.exports = { createInternalFetch, readApiJson, getJson, postJson, putJson, patchJson, deleteJson };

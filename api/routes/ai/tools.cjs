@@ -826,6 +826,26 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'save_order_requirement_draft',
+            description: '把已经根据订单附件整理好的客户要求保存为可编辑草稿。仅保存草稿，不确认知识、不修改订单明细、配方、采购或库存。只能在用户明确要求保存草稿后调用，并且必须使用真实订单ID和附件上下文中的精确 fileId；需要用户确认卡片。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '客户要求所属订单ID' },
+                    summaryText: { type: 'string', description: '忠于附件原文的客户要求摘要；缺失项和冲突项必须明确标注' },
+                    sourceFileIds: {
+                        type: 'array',
+                        items: { type: 'number' },
+                        description: '本摘要依据的订单附件 fileId；只能使用当前附件上下文中的精确ID'
+                    }
+                },
+                required: ['orderId', 'summaryText']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'search_factory_file_archive_targets',
             description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、订单、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
             parameters: {
@@ -1050,6 +1070,7 @@ const WRITE_TOOLS = new Set([
     'create_order', 'delete_order', 'update_order_status',
     'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list',
+    'save_order_requirement_draft',
     'execute_order_readiness_action',
     'execute_factory_workflow_step',
     'create_recipe', 'delete_recipe', 'update_recipe',

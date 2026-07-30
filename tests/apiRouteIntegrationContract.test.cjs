@@ -620,3 +620,20 @@ test('关键 API 集成契约：V9.5 文件归档统一校验目标并保护写�
     assert.match(tools, /const WRITE_TOOLS = new Set/);
     assert.match(store, /SELECT id FROM factory_file_links/);
 });
+
+test('V10.2 客户要求契约：草稿与人工知识确认使用独立入口', () => {
+    const routes = readUtf8('api/routes/orders.cjs');
+    const service = readUtf8('api/services/orderRequirements.cjs');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+    const panel = readUtf8('apps/web-next/components/order-requirements-panel.tsx');
+
+    assert.match(routes, /router\.put\('\/:id\/requirements\/draft'/);
+    assert.match(routes, /router\.post\('\/:id\/requirements\/confirm'/);
+    assert.match(routes, /router\.post\('\/:id\/requirements\/revoke'/);
+    assert.match(service, /confirmed_text/);
+    assert.match(service, /confirmed_source_file_ids_json/);
+    assert.match(tools, /name: 'save_order_requirement_draft'/);
+    assert.doesNotMatch(tools, /name: 'confirm_order_requirement/);
+    assert.match(panel, /确认进入知识库/);
+    assert.match(panel, /保存草稿/);
+});

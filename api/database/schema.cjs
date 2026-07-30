@@ -122,6 +122,21 @@ const CANONICAL_TABLES_SQL = `
         CHECK(status IN ('待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消'))
     );
 
+    CREATE TABLE IF NOT EXISTS order_requirement_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL UNIQUE,
+        draft_text TEXT NOT NULL DEFAULT '',
+        confirmed_text TEXT NOT NULL DEFAULT '',
+        source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        confirmed_source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'draft'
+            CHECK(status IN ('draft', 'confirmed')),
+        confirmed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(order_id) REFERENCES orders(id)
+    );
+
     CREATE TABLE IF NOT EXISTS stator_variants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         diameter_mm INTEGER NOT NULL,
@@ -854,6 +869,7 @@ const APPLICATION_TABLES = Object.freeze([
     'knowledge_vector_sync_runs',
     'management_action_events',
     'management_action_lifecycles',
+    'order_requirement_summaries',
     'orders',
     'parts',
     'pump_model_variants',

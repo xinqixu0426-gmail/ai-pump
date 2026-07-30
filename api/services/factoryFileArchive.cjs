@@ -461,11 +461,24 @@ function deleteFactoryFileLink(fileIdValue, linkIdValue, options = {}) {
     const fileId = positiveId(fileIdValue, '文件ID');
     const linkId = positiveId(linkIdValue, '关联ID');
     const link = accessors.db.prepare(`
-        SELECT id
+        SELECT id, target_type, target_id
         FROM factory_file_links
         WHERE id = ? AND file_id = ? AND deleted_at IS NULL
     `).get(linkId, fileId);
     if (!link) throw notFound('文件关联不存在');
+    if (link.target_type === 'order') {
+        const requirement = accessors.db.prepare(`
+            SELECT confirmed_text, confirmed_source_file_ids_json
+            FROM order_requirement_summaries
+            WHERE order_id = ?
+        `).get(link.target_id);
+        const confirmedFileIds = parseJson(requirement?.confirmed_source_file_ids_json, []);
+        if (requirement?.confirmed_text && Array.isArray(confirmedFileIds) && confirmedFileIds.map(Number).includes(fileId)) {
+            const error = new Error('该文件已被确认的客户要求引用，请先撤销确认或重新确认不引用该文件的版本');
+            error.statusCode = 409;
+            throw error;
+        }
+    }
     accessors.softDelete('factory_file_links', linkId);
 }
 

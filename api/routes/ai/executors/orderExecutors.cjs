@@ -1,4 +1,4 @@
-const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
+const { getJson, postJson, putJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
 const { recordWorkflowRun } = require('./workflowRunRecorder.cjs');
 
 function parseJsonArray(value) {
@@ -119,6 +119,25 @@ async function saveExistingOrder(internalFetch, order, items, options = {}) {
 
 async function executeOrderTool(toolName, args, internalFetch) {
     switch (toolName) {
+        case 'save_order_requirement_draft': {
+            if (!args.orderId) return { success: false, error: '缺少订单ID' };
+            if (!String(args.summaryText || '').trim()) return { success: false, error: '客户要求摘要不能为空' };
+            const data = await putJson(
+                internalFetch,
+                `/api/orders/${args.orderId}/requirements/draft`,
+                {
+                    summaryText: args.summaryText,
+                    sourceFileIds: args.sourceFileIds,
+                },
+                '客户要求草稿保存失败'
+            );
+            return {
+                success: true,
+                message: '客户要求草稿已保存，仍需在订单页面人工确认后才进入知识库。',
+                requirement: data,
+            };
+        }
+
         case 'create_order': {
             const { customerName, contractNo = '', remark = '', status = '待采购', items = [] } = args;
             if (!customerName) {
