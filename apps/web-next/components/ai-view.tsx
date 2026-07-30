@@ -30,6 +30,7 @@ import {
   ReceiptText,
   RefreshCw,
   Save,
+  Search,
   Send,
   ShieldAlert,
   Sparkles,
@@ -165,57 +166,9 @@ const samples: Array<{ category: SampleCategory; icon: LucideIcon; label: string
   { category: '质量', icon: FileSearch, label: '零件检索', prompt: '找所有螺丝零件' },
 ];
 
-const textLoopWords = ['订单', '成本', '零件', '出图', '报价', '采购'];
-
-const textLoopVariants = {
-  enter: (direction: number) => ({
-    y: direction > 0 ? 14 : -14,
-    opacity: 0,
-    filter: 'blur(4px)',
-  }),
-  center: {
-    y: 0,
-    opacity: 1,
-    filter: 'blur(0px)',
-  },
-  exit: (direction: number) => ({
-    y: direction > 0 ? -14 : 14,
-    opacity: 0,
-    filter: 'blur(4px)',
-  }),
-};
-
-function TextLoop({ words }: { words: string[] }) {
-  const [[index, direction], setIndex] = useState<[number, number]>([0, 1]);
-  const word = words[index % words.length] || '';
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setIndex(([current]) => [current + 1, 1]);
-    }, 1800);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  return (
-    <span className="relative inline-flex h-8 min-w-[3.5rem] items-center justify-center overflow-hidden align-middle">
-      <AnimatePresence mode="popLayout" initial={false} custom={direction}>
-        <motion.span
-          key={word}
-          custom={direction}
-          variants={textLoopVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
-          className="absolute inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700"
-        >
-          {word}
-        </motion.span>
-      </AnimatePresence>
-    </span>
-  );
-}
+const starterSamples = samples.filter((sample) => (
+  ['最近订单', '成本查询', '待采购', '今日待办'].includes(sample.label)
+));
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1869,6 +1822,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const [asideMode, setAsideMode] = useState<AsideMode>('history');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeSampleCategory, setActiveSampleCategory] = useState<SampleCategory>('常用');
+  const [historyQuery, setHistoryQuery] = useState('');
   const [conversations, setConversations] = useState<AiConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -1915,6 +1869,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const [archiveSuccess, setArchiveSuccess] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -1932,6 +1887,11 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const visibleSamples = useMemo(() => (
     samples.filter((sample) => sample.category === activeSampleCategory)
   ), [activeSampleCategory]);
+  const filteredConversations = useMemo(() => {
+    const query = historyQuery.trim().toLocaleLowerCase();
+    if (!query) return conversations;
+    return conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(query));
+  }, [conversations, historyQuery]);
 
   function updateAssistant(id: string, updater: (item: ChatItem) => ChatItem) {
     setItems((current) => current.map((item) => (item.id === id ? updater(item) : item)));
@@ -2300,6 +2260,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     setAttachmentError('');
     setAsideMode('history');
     setMobileSidebarOpen(false);
+    window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
   async function openConversation(id: number) {
@@ -2505,7 +2466,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 w-9 px-0 xl:hidden"
+                className="h-9 w-9 px-0"
                 icon={<X size={18} />}
                 aria-label="关闭 AI 助手"
                 title="关闭"
@@ -2521,19 +2482,12 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
               <Sparkles size={20} />
             </span>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted">
-                <span>{aiCapabilities ? `${aiCapabilities.displayName} · ${aiCapabilities.model}` : 'DeepSeek V4 Flash'}</span>
-                <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                <span>AI Executor</span>
-              </div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-normal text-ink">AI 工作台</h1>
+              <h1 className="text-2xl font-semibold tracking-normal text-ink">AI 工作台</h1>
+              <p className="mt-1 text-sm text-muted">查询成本、订单、库存与工厂知识</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" icon={<Pencil size={15} />} onClick={() => void openPromptEditor()} disabled={promptLoading || promptSaving}>
-              提示词
-            </Button>
-            <Button variant="ghost" size="sm" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
+            <Button variant="secondary" size="sm" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
               新会话
             </Button>
           </div>
@@ -2550,22 +2504,32 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
             </div>
 
             {asideMode === 'history' ? (
-              <div className="min-h-0">
-                <Button variant="secondary" size="sm" className="mb-2 w-full" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
-                  新建会话
-                </Button>
+              <div className="flex min-h-0 flex-1 flex-col">
+                <label className="relative mb-2 block">
+                  <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    type="search"
+                    value={historyQuery}
+                    onChange={(event) => setHistoryQuery(event.target.value)}
+                    placeholder="搜索会话"
+                    aria-label="搜索会话"
+                    className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                  />
+                </label>
                 {historyError ? (
                   <div className="mb-2 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
                     <span>{historyError}</span>
                   </div>
                 ) : null}
-                <div className="max-h-48 space-y-1 overflow-y-auto pr-1 lg:max-h-[calc(100vh-19rem)]">
+                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                   {historyLoading ? (
                     <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>
                   ) : conversations.length === 0 ? (
                     <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-sm text-muted">暂无历史会话</div>
-                  ) : conversations.map((conversation) => (
+                  ) : filteredConversations.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-sm text-muted">没有匹配的会话</div>
+                  ) : filteredConversations.map((conversation) => (
                     <div key={conversation.id} className={`group flex items-center gap-1 rounded-md border p-1 ${activeConversationId === conversation.id ? 'border-slate-300 bg-slate-100' : 'border-transparent hover:bg-slate-50'}`}>
                       <button
                         type="button"
@@ -2582,7 +2546,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-8 px-0 text-slate-400 hover:text-rose-600"
+                        className="w-8 px-0 text-slate-400 opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
                         icon={<Trash2 size={14} />}
                         aria-label={`删除会话 ${conversation.title}`}
                         title="删除会话"
@@ -2594,7 +2558,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                 </div>
               </div>
             ) : (
-              <div className="min-h-0">
+              <div className="min-h-0 flex-1">
                 <SegmentedControl value={activeSampleCategory} options={sampleCategoryOptions} onChange={setActiveSampleCategory} ariaLabel="AI 任务模板分类" />
                 <div className="-mx-1 mt-3 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:max-h-[calc(100vh-21rem)] lg:grid-cols-1 lg:overflow-y-auto lg:px-0 lg:pb-0">
                   {visibleSamples.map((sample) => {
@@ -2621,28 +2585,44 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                 </div>
               </div>
             )}
+            <div className="mt-3 border-t border-line pt-2">
+              <Button variant="ghost" size="sm" className="w-full justify-start text-muted" icon={<Pencil size={15} />} onClick={() => void openPromptEditor()} disabled={promptLoading || promptSaving}>
+                提示词设置
+              </Button>
+            </div>
           </aside>
 
           <section className="flex min-h-0 min-w-0 flex-col bg-white md:bg-slate-50">
             <div ref={scrollRef} className={`flex-1 overflow-y-auto ${isPanel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
               {items.length === 0 ? (
                 <div className={`flex h-full items-center justify-center ${isPanel ? 'min-h-[220px]' : 'min-h-[220px] md:min-h-[360px]'}`}>
-                  <div className={`w-full max-w-lg px-2 py-7 text-center ${isPanel ? '' : 'md:rounded-panel md:border md:border-dashed md:border-slate-300 md:bg-white md:px-6 md:shadow-panel'}`}>
+                  <div className={`w-full px-2 py-7 text-center ${isPanel ? 'max-w-lg' : 'max-w-2xl md:rounded-panel md:border md:border-line md:bg-white md:px-7 md:shadow-panel'}`}>
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-ink text-white">
                       <Bot size={22} />
                     </div>
-                    <div className="mt-4 text-lg font-semibold text-ink">有什么可以帮你？</div>
-                    <div className={`${isPanel ? 'flex' : 'hidden md:flex'} mt-2 items-center justify-center gap-2 text-sm leading-6 text-muted`}>
-                      <span>可以先从</span>
-                      <TextLoop words={textLoopWords} />
-                      <span>开始</span>
-                    </div>
-                    <div className={`mx-auto mt-6 max-w-sm gap-2 ${isPanel ? 'grid' : 'grid md:hidden'}`}>
-                      {samples.filter((sample) => sample.category === '常用').slice(0, 2).map((sample) => (
-                        <button key={sample.prompt} type="button" onClick={() => void sendMessage(sample.prompt)} disabled={loading} className="min-h-11 rounded-md border border-line bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-panel disabled:opacity-60">
-                          {sample.prompt}
-                        </button>
-                      ))}
+                    <div className="mt-4 text-lg font-semibold text-ink">今天想先处理什么？</div>
+                    <p className="mt-1 text-sm leading-6 text-muted">直接描述任务，或从常用操作开始</p>
+                    <div className={`mx-auto mt-5 grid max-w-xl gap-2 ${isPanel ? '' : 'sm:grid-cols-2'}`}>
+                      {(isPanel ? starterSamples.slice(0, 2) : starterSamples).map((sample) => {
+                        const Icon = sample.icon;
+                        return (
+                          <button
+                            key={sample.prompt}
+                            type="button"
+                            onClick={() => void sendMessage(sample.prompt)}
+                            disabled={loading}
+                            className="group flex min-h-16 items-center gap-3 rounded-md border border-line bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-slate-300 hover:bg-white disabled:opacity-60"
+                          >
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600 group-hover:text-ink">
+                              <Icon size={17} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-ink">{sample.label}</span>
+                              <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -2651,7 +2631,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
               {items.map((item) => {
                 const answerFeedback = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
                 return (
-                <div key={item.id} className={item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+                <div key={item.id} className={`mx-auto w-full max-w-4xl ${item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}>
                   <div className={`text-ink ${isPanel ? 'max-w-[94%]' : 'max-w-[940px]'} ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
                     <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${item.role === 'user' ? 'text-muted md:text-slate-200' : 'text-muted'} ${item.role === 'user' ? 'hidden md:flex' : ''}`}>
                       <span className={`hidden h-6 w-6 items-center justify-center rounded-md md:inline-flex ${item.role === 'user' ? 'bg-white/10' : 'bg-slate-100 text-slate-600'}`}>
@@ -2812,6 +2792,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                   title="上传文件或图片"
                 />
                 <textarea
+                  ref={composerRef}
                   value={input}
                   onChange={(event) => {
                     if (isListening) stopVoiceInput();
@@ -2819,7 +2800,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                   }}
                   placeholder="输入要查询或处理的事情..."
                   rows={1}
-                  className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none placeholder:text-slate-400 md:min-h-11 md:text-sm"
+                  className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-slate-400 md:min-h-11 md:text-sm"
                   disabled={loading}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
@@ -2895,6 +2876,18 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                 新建会话
               </Button>
 
+              <label className="relative mt-3 block">
+                <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                <input
+                  type="search"
+                  value={historyQuery}
+                  onChange={(event) => setHistoryQuery(event.target.value)}
+                  placeholder="搜索会话"
+                  aria-label="搜索会话"
+                  className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                />
+              </label>
+
               {historyError ? (
                 <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
                   <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -2907,7 +2900,9 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                   <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>
                 ) : conversations.length === 0 ? (
                   <div className="px-3 py-8 text-center text-sm text-muted">暂无历史会话</div>
-                ) : conversations.map((conversation) => (
+                ) : filteredConversations.length === 0 ? (
+                  <div className="px-3 py-8 text-center text-sm text-muted">没有匹配的会话</div>
+                ) : filteredConversations.map((conversation) => (
                   <div key={`mobile-${conversation.id}`} className={`flex items-center gap-1 rounded-md p-1 ${activeConversationId === conversation.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
                     <button type="button" onClick={() => void openConversation(conversation.id)} disabled={loading || openingConversationId !== null} className="min-w-0 flex-1 rounded px-2 py-2 text-left disabled:opacity-60">
                       <span className="flex items-center gap-2">

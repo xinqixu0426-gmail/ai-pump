@@ -119,6 +119,34 @@ test('订单生产准备：按当前可用库存判断缺料，不把已下单�
     assert.equal(result.recommendedActions.some(item => item.path === '/purchase'), true);
 });
 
+test('订单生产准备：外包装估算占位项阻止订单进入正式采购', () => {
+    const input = order({ status: '待确认' });
+    const items = JSON.parse(input.itemsJson);
+    items[0].partsJson = JSON.stringify([
+        ...JSON.parse(items[0].partsJson),
+        {
+            model: '外包装估算',
+            name: '外包装估算（牛皮纸箱）',
+            qty: 1,
+            snapshotPrice: 4,
+            packagingMaterial: '牛皮纸箱',
+            costSource: 'manual',
+        },
+    ]);
+    input.itemsJson = JSON.stringify(items);
+
+    const result = buildOrderReadiness({
+        order: input,
+        recipes: [recipe],
+        plan: { purchaseList: [purchase()] },
+        now,
+    });
+
+    assert.equal(result.verdict, 'blocked');
+    assert.equal(result.blockers.some(item => item.code === 'packaging_estimate_unresolved'), true);
+    assert.match(result.blockers.find(item => item.code === 'packaging_estimate_unresolved').detail, /不能生成正式采购/);
+});
+
 test('订单生产准备：未确认、缺BOM和无正式库存映射形成数据阻塞', () => {
     const result = buildOrderReadiness({
         order: order({

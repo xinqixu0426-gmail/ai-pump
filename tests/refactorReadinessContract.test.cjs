@@ -156,9 +156,9 @@ test('文档契约：数据质量必须融合进看板并保留标准 API', () =
     const docs = readUtf8('docs/api-reference.md') + '\n' + readUtf8('docs/README.md');
 
     assert.doesNotMatch(shell, /href: '\/quality'/);
-    assert.match(dashboardView, /<QualityView embedded/);
+    assert.match(dashboardView, /<QualityView\s+embedded/);
     assert.match(dashboardView, /数据质量/);
-    assert.match(dashboardView, /badge: qualityScore/);
+    assert.match(dashboardView, /qualityScore\}分/);
     assert.doesNotMatch(qualityView, />健康分</);
     assert.match(qualityPage, /redirect\('\/dashboard\?view=quality'\)/);
     assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/app/quality/page.tsx')), 'quality page should exist');
@@ -232,7 +232,7 @@ test('Next UI 契约：详情编辑面板必须居中显示，不使用右侧抽
     const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
 
     assert.match(slideOver, /items-center justify-center/);
-    assert.match(slideOver, /xl:right-\[500px\]/);
+    assert.match(slideOver, /min-\[1600px\]:right-\[500px\]/);
     assert.match(slideOver, /max-h-\[calc\(100vh-2rem\)\]/);
     assert.match(slideOver, /rounded-panel/);
     assert.doesNotMatch(slideOver, /right-0/);
@@ -371,6 +371,20 @@ test('Next UI 契约：AI 回答依据和处理过程默认折叠且异常自动
     assert.match(aiView, /asRecord\(tool\.result\)\.success === false/);
 });
 
+test('Next UI 契约：AI 工作台提供可执行首屏、历史搜索和稳定阅读宽度', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+
+    assert.match(aiView, /查询成本、订单、库存与工厂知识/);
+    assert.match(aiView, /aria-label="搜索会话"/);
+    assert.match(aiView, /filteredConversations/);
+    assert.match(aiView, /今天想先处理什么/);
+    assert.match(aiView, /starterSamples/);
+    assert.match(aiView, /group-hover:opacity-100/);
+    assert.match(aiView, /max-w-4xl/);
+    assert.match(aiView, /\[field-sizing:content\]/);
+    assert.doesNotMatch(aiView, /AI Executor/);
+});
+
 test('Next UI 契约：订单生产准备检查展示结论、六步状态和缺料清单', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
     assert.match(aiView, /function OrderReadinessResult/);
@@ -502,7 +516,7 @@ test('Next UI 契约：管理看板和 AI 使用同一管理待办中心', () =>
     assert.match(dashboard, /nextMode === 'readiness' && !readinessOverview/);
     assert.match(actionCenter, /待办优先级筛选/);
     assert.match(actionCenter, /待办来源筛选/);
-    assert.match(actionCenter, /今日执行队列/);
+    assert.match(actionCenter, /当前最优先/);
     assert.match(actionCenter, /executionQueue\.items/);
     assert.match(actionCenter, /itemResolution/);
     assert.match(actionCenter, /交给 AI/);
@@ -512,6 +526,50 @@ test('Next UI 契约：管理看板和 AI 使用同一管理待办中心', () =>
     assert.match(aiView, /function ManagementActionCenterResult/);
     assert.match(aiView, /get_management_action_center/);
     assert.match(aiView, /\/dashboard\?view=actions/);
+});
+
+test('Next UI 契约：管理看板压缩零状态并优先展示可处理内容', () => {
+    const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
+    const actionCenter = readUtf8('apps/web-next/components/management-action-center.tsx');
+    const readiness = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
+    const quality = readUtf8('apps/web-next/components/quality-view.tsx');
+    const knowledge = readUtf8('apps/web-next/components/knowledge-view.tsx');
+
+    assert.match(dashboard, /item\.count > 0/);
+    assert.match(dashboard, /供应商采购无需关注/);
+    assert.match(dashboard, /当前没有待采购物料/);
+    assert.match(dashboard, /最近刷新/);
+    assert.match(actionCenter, /executionQueue\.items\.slice\(0, 1\)/);
+    assert.match(actionCenter, /完整待办/);
+    assert.match(readiness, /min-w-\[680px\]/);
+    assert.match(readiness, /问题与下一步/);
+    assert.match(quality, /<details className="order-4/);
+    assert.match(quality, /规则与质量治理/);
+    assert.match(knowledge, /grid gap-3 lg:grid-cols-3/);
+    assert.match(knowledge, /2xl:grid-cols-5/);
+});
+
+test('Next UI 契约：管理看板释放主区宽度并提供可追溯下钻', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
+    const segmented = readUtf8('apps/web-next/components/ui/segmented-control.tsx');
+    const partsPage = readUtf8('apps/web-next/app/parts/page.tsx');
+    const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
+
+    assert.match(shell, /pump\.ai-panel-open/);
+    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+    assert.match(shell, /aiPanelOpen \? '收起 AI' : '问 AI'/);
+    assert.match(aiView, /aria-label="关闭 AI 助手"/);
+    assert.match(dashboard, /累计销售额/);
+    assert.match(dashboard, /累计利润/);
+    assert.match(dashboard, /router\.push\(nextMode === 'overview'/);
+    assert.match(dashboard, /\/parts\?stock=attention/);
+    assert.match(dashboard, /\/orders\?orderId=\$\{order\.id\}/);
+    assert.match(segmented, /aria-pressed/);
+    assert.doesNotMatch(segmented, /absolute -right/);
+    assert.match(partsPage, /searchParams/);
+    assert.match(partsView, /quickFilter === 'attention'/);
 });
 
 test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {
@@ -589,7 +647,7 @@ test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助�
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
 
     assert.match(shell, /aria-label="主导航"/);
-    assert.match(shell, /xl:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_460px\]/);
     assert.match(shell, /<AiView\s+variant="panel"/);
     assert.match(shell, /<NavMenu/);
     assert.match(shell, /label="业务"/);
@@ -785,6 +843,21 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     assert.match(partsLib, /export async function deleteParts/);
 });
 
+test('Next UI 契约：零件页默认压缩分类并提供清晰筛选反馈', () => {
+    const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
+
+    assert.match(partsView, /维护零件价格、供应商与库存基础数据/);
+    assert.match(partsView, /collapseInitializedRef/);
+    assert.match(partsView, /setCollapsedCategories\(new Set\(groupedParts\.map/);
+    assert.match(partsView, /aria-label="搜索零件"/);
+    assert.match(partsView, /aria-label="按分类筛选"/);
+    assert.match(partsView, /hasActiveFilters/);
+    assert.match(partsView, /清除筛选/);
+    assert.match(partsView, /查看缺货零件/);
+    assert.match(partsView, /group-hover:opacity-100/);
+    assert.match(partsView, /全部状态/);
+});
+
 test('Next UI 契约：订单详情必须保留后端动作和入库确认', () => {
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const detailDrawer = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
@@ -798,7 +871,13 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
     assert.match(detailDrawer, /completeOrderPurchase/);
     assert.match(detailDrawer, /全部到货并入库/);
     assert.match(detailDrawer, /purchaseAdditions/);
-    assert.match(detailDrawer, /避免重复入库/);
+    assert.match(detailDrawer, /item\.inventoryType === 'coil'/);
+    assert.match(detailDrawer, /非库存项/);
+    assert.match(detailDrawer, /种物料库存/);
+    assert.doesNotMatch(detailDrawer, /种零件库存/);
+    assert.match(detailDrawer, /生产领用不会自动扣减库存/);
+    assert.match(ordersLib, /coilId\?: number/);
+    assert.match(ordersLib, /inventoryType\?: 'part' \| 'coil' \| 'none'/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/status/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/progress/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/toggle/);
@@ -1059,6 +1138,31 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesLib, /\/api\/templates/);
     assert.match(recipesLib, /\/api\/model-variants/);
     assert.match(recipesLib, /\/api\/coils\/specs/);
+});
+
+test('Next UI 契约：配方页必须压缩成本信息并给工作台足够空间', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const costSummary = readUtf8('apps/web-next/components/recipe/CostSummaryPanel.tsx');
+    const recipeSection = readUtf8('apps/web-next/components/recipe/RecipeSection.tsx');
+    const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
+
+    assert.match(recipesView, /成本（当日 \/ 保存）/);
+    assert.match(recipesView, /成本状态正常/);
+    assert.match(recipesView, /className="flex items-baseline justify-end gap-2"/);
+    assert.match(recipesView, /className="h-7"/);
+    assert.match(recipesView, /px-4 py-2/);
+    assert.match(recipesView, /defaultOpen=\{false\}/);
+    assert.doesNotMatch(recipesView, />Recipes</);
+    assert.doesNotMatch(recipesView, /variant="danger" aria-label=\{`删除\$\{row\.recipe/);
+    assert.match(costSummary, /pendingHints = Array\.from\(new Set/);
+    assert.match(costSummary, /查看模块状态/);
+    assert.doesNotMatch(costSummary, /成本完整性提示/);
+    assert.match(recipeSection, /aria-expanded=\{open\}/);
+    assert.match(recipesView, /button\[aria-expanded\]/);
+    assert.match(recipesView, /requestAnimationFrame/);
+    assert.match(slideOver, /min-\[1600px\]:right-\[500px\]/);
+    assert.doesNotMatch(slideOver, /\sp-4 xl:right-\[500px\]/);
+    assert.match(slideOver, /aria-modal="true"/);
 });
 
 test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () => {

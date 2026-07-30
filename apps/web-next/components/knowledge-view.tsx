@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Database,
   Download,
-  FileClock,
   FileUp,
   History,
   Loader2,
@@ -554,31 +553,21 @@ export function KnowledgeView({
         <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 lg:grid-cols-3">
         <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-muted">已同步知识</div>
+            <div className="text-xs text-muted">知识内容</div>
             <Database size={17} className="text-sky-600" />
           </div>
           <div className="mt-2 text-2xl font-semibold text-ink">{overview?.stats.storedTotal ?? '-'}</div>
-          <div className="mt-1 text-xs text-muted">当前知识条目</div>
-        </FadePanel>
-        <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-muted">最新状态</div>
-            <CheckCircle2 size={17} className="text-emerald-600" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-ink">{overview?.stats.fresh ?? '-'}</div>
-          <div className="mt-1 text-xs text-muted">内容与业务来源一致</div>
-        </FadePanel>
-        <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-muted">待同步</div>
-            <FileClock size={17} className="text-amber-600" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-ink">{overview?.stats.pendingTotal ?? '-'}</div>
-          <div className="mt-1 text-xs text-muted">
-            新增 {overview?.stats.pendingInsert ?? 0} · 更新 {overview?.stats.pendingUpdate ?? 0} · 移除 {overview?.stats.pendingDelete ?? 0}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <StatusBadge tone="green">最新 {overview?.stats.fresh ?? '-'}</StatusBadge>
+            <StatusBadge tone={(overview?.stats.pendingTotal || 0) > 0 ? 'amber' : 'slate'}>
+              待同步 {overview?.stats.pendingTotal ?? '-'}
+            </StatusBadge>
+            {(overview?.stats.pendingTotal || 0) > 0 ? (
+              <span>新增 {overview?.stats.pendingInsert ?? 0} · 更新 {overview?.stats.pendingUpdate ?? 0} · 移除 {overview?.stats.pendingDelete ?? 0}</span>
+            ) : null}
           </div>
         </FadePanel>
         <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
@@ -586,7 +575,7 @@ export function KnowledgeView({
             <div className="text-xs text-muted">最近同步</div>
             <RefreshCw size={17} className="text-violet-600" />
           </div>
-          <div className="mt-2 text-sm font-semibold text-ink">{dateTime(overview?.lastSyncedAt)}</div>
+          <div className="mt-2 text-lg font-semibold text-ink">{dateTime(overview?.lastSyncedAt)}</div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
             <StatusBadge
               tone={!overview?.autoSync.enabled
@@ -713,7 +702,7 @@ export function KnowledgeView({
           <div className="text-sm font-semibold text-ink">来源覆盖</div>
           <div className="mt-1 text-xs text-muted">按业务类型核对当前来源与已同步知识。</div>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
           {ENTRY_TYPE_OPTIONS.filter(option => option.value).map(option => {
             const type = option.value as KnowledgeEntryType;
             const stats = overview?.byType[type];

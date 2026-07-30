@@ -117,15 +117,13 @@ export function OrderReadinessOverviewView({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[920px] w-full text-left text-sm">
+          <table className="min-w-[680px] w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs text-muted">
               <tr>
                 <th className="border-b border-line px-4 py-3">订单</th>
                 <th className="border-b border-line px-4 py-3">状态</th>
-                <th className="border-b border-line px-4 py-3">主要问题</th>
-                <th className="border-b border-line px-4 py-3">问题数</th>
-                <th className="border-b border-line px-4 py-3">下一步</th>
-                <th className="border-b border-line px-4 py-3 text-right">查看</th>
+                <th className="border-b border-line px-4 py-3">问题与下一步</th>
+                <th className="border-b border-line px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -141,21 +139,24 @@ export function OrderReadinessOverviewView({
                       <StatusBadge tone={verdict.tone}>{verdict.label}</StatusBadge>
                       <div className="mt-1 text-xs text-muted">{item.order.status}</div>
                     </td>
-                    <td className="max-w-[300px] border-b border-line px-4 py-3 text-slate-700">{primaryIssue(item)}</td>
-                    <td className="border-b border-line px-4 py-3 text-muted">
-                      阻塞 {item.blockerCount} · 缺料 {item.shortageCount} · 复核 {item.warningCount}
-                    </td>
                     <td className="border-b border-line px-4 py-3">
-                      <div className="font-medium text-ink">{item.nextAction?.title || '无需处理'}</div>
-                      {item.nextAction ? <div className="mt-1 text-xs text-muted">{item.nextAction.owner}</div> : null}
+                      <div className="font-medium text-slate-700">{primaryIssue(item)}</div>
+                      <div className="mt-1 text-xs text-muted">
+                        阻塞 {item.blockerCount} · 缺料 {item.shortageCount} · 复核 {item.warningCount}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-700">
+                        下一步：{item.nextAction?.title || '无需处理'}
+                        {item.nextAction ? ` · ${item.nextAction.owner}` : ''}
+                      </div>
                     </td>
                     <td className="border-b border-line px-4 py-3 text-right">
                       <a
                         href={`/orders?orderId=${item.order.id}&view=readiness`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-slate-100 hover:text-ink"
+                        className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-line bg-white px-3 text-sm font-medium text-ink transition hover:bg-slate-50"
                         aria-label={`查看订单 ${item.order.id}`}
                         title="查看订单"
                       >
+                        查看订单
                         <ArrowUpRight size={15} />
                       </a>
                     </td>
@@ -164,7 +165,7 @@ export function OrderReadinessOverviewView({
               })}
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-10 text-center text-sm text-muted">当前分类没有订单</td>
+                  <td colSpan={4} className="p-10 text-center text-sm text-muted">当前分类没有订单</td>
                 </tr>
               ) : null}
             </tbody>

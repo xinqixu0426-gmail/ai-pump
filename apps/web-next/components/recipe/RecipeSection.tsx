@@ -48,7 +48,13 @@ export function RecipeSection({
       )}
     >
       <div className={clsx('flex items-center justify-between gap-3 px-4 py-3', open && 'border-b border-line')}>
-        <button type="button" onClick={() => setOpen((next) => !next)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={id ? `${id}-content` : undefined}
+          onClick={() => setOpen((next) => !next)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+        >
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold text-slate-900">{title}</span>
@@ -61,7 +67,7 @@ export function RecipeSection({
         </button>
         {action}
       </div>
-      {open ? <div className="p-4">{children}</div> : null}
+      {open ? <div id={id ? `${id}-content` : undefined} className="p-4">{children}</div> : null}
     </section>
   );
 }

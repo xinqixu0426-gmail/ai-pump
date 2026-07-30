@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
+  CheckCircle2,
   CircleAlert,
   ClipboardList,
   PackageMinus,
@@ -31,11 +33,12 @@ import { ManagementActionCenterView } from '@/components/management-action-cente
 
 type DashboardMode = 'overview' | 'actions' | 'readiness' | 'quality' | 'knowledge';
 
-function statLabel(value: string, sub: string) {
+function statLabel(value: string, label: string, note?: string) {
   return (
     <div>
       <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{sub}</div>
+      <div className="mt-1 text-xs text-muted">{label}</div>
+      {note ? <div className="mt-1 text-xs text-slate-500">{note}</div> : null}
     </div>
   );
 }
@@ -55,6 +58,7 @@ export function DashboardView({
   initialMode?: DashboardMode;
   initialKnowledgeEntryId?: number | null;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<DashboardMode>(initialMode);
   const [summary, setSummary] = useState<BusinessSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +77,7 @@ export function DashboardView({
   const [actionLoading, setActionLoading] = useState(true);
   const [actionRefreshing, setActionRefreshing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   async function load(force = false) {
     setError(null);
@@ -81,6 +86,7 @@ export function DashboardView({
 
     try {
       setSummary(await getWorkbenchSummary());
+      setLastUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : '看板加载失败');
     } finally {
@@ -95,6 +101,7 @@ export function DashboardView({
     else setReadinessLoading(true);
     try {
       setReadinessOverview(await getOrderReadinessOverview());
+      setLastUpdatedAt(new Date());
     } catch (err) {
       setReadinessError(err instanceof Error ? err.message : '订单准备总览加载失败');
     } finally {
@@ -109,6 +116,7 @@ export function DashboardView({
     else setActionLoading(true);
     try {
       setActionCenter(await getManagementActionCenter());
+      setLastUpdatedAt(new Date());
     } catch (err) {
       setActionError(err instanceof Error ? err.message : '管理待办加载失败');
     } finally {
@@ -126,18 +134,24 @@ export function DashboardView({
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
+
   const readinessAttention = readinessOverview?.metrics.attentionRequired
     ?? actionCenter?.metrics.categoryCounts.order_readiness;
-  const dashboardModeOptions: Array<{ value: DashboardMode; label: string; badge?: number }> = [
+  const dashboardModeOptions: Array<{ value: DashboardMode; label: string; badge?: string | number }> = [
     { value: 'overview', label: '经营概览' },
-    { value: 'actions', label: '今日待办', ...(actionCenter ? { badge: actionCenter.metrics.attentionRequired } : {}) },
-    { value: 'readiness', label: '订单准备', ...(readinessAttention === undefined ? {} : { badge: readinessAttention }) },
-    { value: 'quality', label: '数据质量', ...(qualityScore === null ? {} : { badge: qualityScore }) },
+    { value: 'actions', label: '今日待办', ...(actionCenter ? { badge: `${actionCenter.metrics.attentionRequired}项` } : {}) },
+    { value: 'readiness', label: '订单准备', ...(readinessAttention === undefined ? {} : { badge: `${readinessAttention}单` }) },
+    { value: 'quality', label: '数据质量', ...(qualityScore === null ? {} : { badge: `${qualityScore}分` }) },
     { value: 'knowledge', label: '知识库' },
   ];
+  const actionableWorkbenchItems = summary?.workbench.items.filter((item) => item.count > 0) || [];
 
   function changeMode(nextMode: DashboardMode) {
     setMode(nextMode);
+    router.push(nextMode === 'overview' ? '/dashboard' : `/dashboard?view=${nextMode}`, { scroll: false });
     if (nextMode === 'readiness' && !readinessOverview && !readinessLoading) {
       void loadReadiness();
     }
@@ -176,22 +190,44 @@ export function DashboardView({
               className="w-max"
             />
           </div>
-          <Button
-            onClick={refreshCurrentView}
-            disabled={mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
-            icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
-          >
-            刷新
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={refreshCurrentView}
+              disabled={mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing}
+              icon={<RefreshCw size={15} className={(mode === 'overview' ? refreshing : mode === 'actions' ? actionRefreshing : mode === 'readiness' ? readinessRefreshing : mode === 'quality' ? qualityRefreshing : knowledgeRefreshing) ? 'animate-spin' : ''} />}
+            >
+              刷新
+            </Button>
+            <span className="whitespace-nowrap text-xs text-muted">
+              {lastUpdatedAt
+                ? `最近刷新 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                : '正在读取最新数据'}
+            </span>
+          </div>
         </div>
       </FadePanel>
 
       {mode === 'quality' ? (
-        <QualityView embedded refreshKey={qualityRefreshKey} onScoreChange={setQualityScore} onRefreshComplete={() => setQualityRefreshing(false)} />
+        <QualityView
+          embedded
+          refreshKey={qualityRefreshKey}
+          onScoreChange={setQualityScore}
+          onRefreshComplete={() => {
+            setQualityRefreshing(false);
+            setLastUpdatedAt(new Date());
+          }}
+        />
       ) : null}
 
       {mode === 'knowledge' ? (
-        <KnowledgeView initialEntryId={initialKnowledgeEntryId} refreshKey={knowledgeRefreshKey} onRefreshComplete={() => setKnowledgeRefreshing(false)} />
+        <KnowledgeView
+          initialEntryId={initialKnowledgeEntryId}
+          refreshKey={knowledgeRefreshKey}
+          onRefreshComplete={() => {
+            setKnowledgeRefreshing(false);
+            setLastUpdatedAt(new Date());
+          }}
+        />
       ) : null}
 
       {mode === 'actions' ? (
@@ -218,21 +254,29 @@ export function DashboardView({
       ) : mode === 'overview' && summary ? (
         <>
           <div className="grid gap-3 md:grid-cols-4">
-            <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-              {statLabel(money(summary.financials.totalRevenue), '总销售额')}
-            </FadePanel>
-            <FadePanel delay={0.04} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-              {statLabel(money(summary.financials.totalProfit), `利润率 ${summary.financials.profitRate}%`)}
-            </FadePanel>
-            <FadePanel delay={0.06} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-              {statLabel(String(summary.orders.active), '未完成订单')}
-            </FadePanel>
-            <FadePanel delay={0.08} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-              {statLabel(String(summary.kpis.lowStockPartCount + summary.kpis.outOfStockPartCount), '库存预警')}
-            </FadePanel>
+            <a href="/orders" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看累计销售额对应订单">
+              <FadePanel delay={0.02} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
+                {statLabel(money(summary.financials.totalRevenue), '累计销售额')}
+              </FadePanel>
+            </a>
+            <a href="/orders" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看累计利润对应订单">
+              <FadePanel delay={0.04} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
+                {statLabel(money(summary.financials.totalProfit), '累计利润', `利润率 ${summary.financials.profitRate}%`)}
+              </FadePanel>
+            </a>
+            <a href="/orders" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看未完成订单">
+              <FadePanel delay={0.06} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
+                {statLabel(String(summary.orders.active), '未完成订单')}
+              </FadePanel>
+            </a>
+            <a href="/parts?stock=attention" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看库存预警零件">
+              <FadePanel delay={0.08} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
+                {statLabel(String(summary.kpis.lowStockPartCount + summary.kpis.outOfStockPartCount), '库存预警')}
+              </FadePanel>
+            </a>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
+          <div className={`grid gap-4 ${summary.workbench.supplierFocus.length > 0 ? 'xl:grid-cols-[1fr_420px]' : ''}`}>
             <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
               <div className="flex items-center justify-between gap-3 border-b border-line p-4">
                 <div>
@@ -242,8 +286,12 @@ export function DashboardView({
                 <ClipboardList size={18} className="text-muted" />
               </div>
               <div className="grid gap-3 p-4 md:grid-cols-2">
-                {summary.workbench.items.map((item) => (
-                  <div key={item.key} className={`rounded-panel border p-4 ${severityClassName(item.severity)}`}>
+                {actionableWorkbenchItems.map((item) => (
+                  <a
+                    key={item.key}
+                    href={item.path}
+                    className={`block rounded-panel border p-4 transition hover:brightness-[0.98] focus:outline-none focus:ring-2 focus:ring-slate-400 ${severityClassName(item.severity)}`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold">{item.label}</div>
@@ -251,25 +299,40 @@ export function DashboardView({
                       </div>
                       <div className="text-2xl font-semibold">{item.count}</div>
                     </div>
-                  </div>
+                  </a>
                 ))}
+                {actionableWorkbenchItems.length === 0 ? (
+                  <div className="col-span-full flex items-center gap-3 rounded-panel border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                    <CheckCircle2 size={18} className="shrink-0" />
+                    <div>
+                      <div className="text-sm font-semibold">当前没有待处理业务状态</div>
+                      <div className="mt-1 text-xs">待采购、待入库、缺货和今日新增订单均无需处理。</div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </FadePanel>
 
-            <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
-              <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+            {summary.workbench.supplierFocus.length === 0 ? (
+              <FadePanel className="flex items-center gap-3 rounded-panel border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                <CheckCircle2 size={18} className="shrink-0" />
                 <div>
-                  <div className="text-sm font-semibold text-ink">供应商关注</div>
-                  <div className="mt-1 text-xs text-muted">按未采购数量排序</div>
+                  <div className="text-sm font-semibold">供应商采购无需关注</div>
+                  <div className="mt-1 text-xs">当前没有按供应商聚合的待采购事项。</div>
                 </div>
-                <Store size={18} className="text-muted" />
-              </div>
-              <div className="divide-y divide-line">
-                {summary.workbench.supplierFocus.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-muted">暂无供应商待采购事项</div>
-                ) : (
-                  summary.workbench.supplierFocus.slice(0, 6).map((supplier) => (
-                    <div key={supplier.supplier} className="flex items-center justify-between gap-3 px-4 py-3">
+              </FadePanel>
+            ) : (
+              <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+                <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+                  <div>
+                    <div className="text-sm font-semibold text-ink">供应商关注</div>
+                    <div className="mt-1 text-xs text-muted">按未采购数量排序</div>
+                  </div>
+                  <Store size={18} className="text-muted" />
+                </div>
+                <div className="divide-y divide-line">
+                  {summary.workbench.supplierFocus.slice(0, 6).map((supplier) => (
+                    <a key={supplier.supplier} href="/purchase" className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-slate-50">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-ink">{supplier.supplier}</div>
                         <div className="mt-1 text-xs text-muted">{supplier.orderCount} 个订单</div>
@@ -277,48 +340,57 @@ export function DashboardView({
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                         {supplier.pendingQty}
                       </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </FadePanel>
+                    </a>
+                  ))}
+                </div>
+              </FadePanel>
+            )}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
-              <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+          <div className={`grid gap-4 ${summary.workbench.pendingPurchaseItems.length > 0 ? 'xl:grid-cols-2' : ''}`}>
+            {summary.workbench.pendingPurchaseItems.length === 0 ? (
+              <FadePanel className="flex items-center gap-3 rounded-panel border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                <CheckCircle2 size={18} className="shrink-0" />
                 <div>
-                  <div className="text-sm font-semibold text-ink">待采购物料</div>
-                  <div className="mt-1 text-xs text-muted">前 10 项</div>
+                  <div className="text-sm font-semibold">当前没有待采购物料</div>
+                  <div className="mt-1 text-xs">订单物料暂时不需要新增采购。</div>
                 </div>
-                <ShoppingCart size={18} className="text-muted" />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs text-muted">
-                    <tr>
-                      <th className="border-b border-line px-4 py-3">型号</th>
-                      <th className="border-b border-line px-4 py-3">供应商</th>
-                      <th className="border-b border-line px-4 py-3 text-right">需采</th>
-                      <th className="border-b border-line px-4 py-3 text-right">订单</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.workbench.pendingPurchaseItems.slice(0, 10).map((item) => (
-                      <tr key={item.key} className="transition-colors duration-150 hover:bg-slate-50">
-                        <td className="border-b border-line px-4 py-3 font-medium text-ink">{item.model}</td>
-                        <td className="border-b border-line px-4 py-3 text-muted">{item.supplier}</td>
-                        <td className="border-b border-line px-4 py-3 text-right text-rose-600">{item.needToBuy}</td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{item.orderCount}</td>
+              </FadePanel>
+            ) : (
+              <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+                <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+                  <div>
+                    <div className="text-sm font-semibold text-ink">待采购物料</div>
+                    <div className="mt-1 text-xs text-muted">前 10 项</div>
+                  </div>
+                  <ShoppingCart size={18} className="text-muted" />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs text-muted">
+                      <tr>
+                        <th className="border-b border-line px-4 py-3">型号</th>
+                        <th className="border-b border-line px-4 py-3">供应商</th>
+                        <th className="border-b border-line px-4 py-3 text-right">需采</th>
+                        <th className="border-b border-line px-4 py-3 text-right">订单</th>
                       </tr>
-                    ))}
-                    {summary.workbench.pendingPurchaseItems.length === 0 && (
-                      <tr><td colSpan={4} className="p-8 text-center text-sm text-muted">暂无待采购物料</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </FadePanel>
+                    </thead>
+                    <tbody>
+                      {summary.workbench.pendingPurchaseItems.slice(0, 10).map((item) => (
+                        <tr key={item.key} className="transition-colors duration-150 hover:bg-slate-50">
+                          <td className="border-b border-line px-4 py-3 font-medium text-ink">
+                            <a href="/purchase" className="hover:underline">{item.model}</a>
+                          </td>
+                          <td className="border-b border-line px-4 py-3 text-muted">{item.supplier}</td>
+                          <td className="border-b border-line px-4 py-3 text-right text-rose-600">{item.needToBuy}</td>
+                          <td className="border-b border-line px-4 py-3 text-right text-muted">{item.orderCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </FadePanel>
+            )}
 
             <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
               <div className="flex items-center justify-between gap-3 border-b border-line p-4">
@@ -330,7 +402,7 @@ export function DashboardView({
               </div>
               <div className="divide-y divide-line">
                 {(summary.orders.latest || summary.workbench.todayOrders).slice(0, 8).map((order) => (
-                  <div key={order.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <a key={order.id} href={`/orders?orderId=${order.id}`} className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-slate-50">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-ink">{order.customerName || '未命名客户'}</div>
                       <div className="mt-1 text-xs text-muted">
@@ -341,7 +413,7 @@ export function DashboardView({
                       <StatusBadge tone={statusTone(order.status)}>{order.status}</StatusBadge>
                       <span className="text-sm font-medium text-ink">{money(order.totalPrice)}</span>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             </FadePanel>
@@ -357,10 +429,14 @@ export function DashboardView({
             </div>
             <div className="grid gap-2 p-4 md:grid-cols-2 xl:grid-cols-3">
               {summary.workbench.outOfStockParts.slice(0, 12).map((part) => (
-                <div key={part.id} className="rounded-md border border-line p-3">
+                <a
+                  key={part.id}
+                  href={`/parts?stock=out&query=${encodeURIComponent(part.model)}`}
+                  className="rounded-md border border-line p-3 transition hover:border-slate-300 hover:bg-slate-50"
+                >
                   <div className="truncate text-sm font-medium text-ink">{part.model}</div>
                   <div className="mt-1 text-xs text-muted">{part.category || '未分类'} · {part.supplier || '无供应商'}</div>
-                </div>
+                </a>
               ))}
               {summary.workbench.outOfStockParts.length === 0 && (
                 <div className="col-span-full p-6 text-center text-sm text-muted">暂无缺货零件</div>

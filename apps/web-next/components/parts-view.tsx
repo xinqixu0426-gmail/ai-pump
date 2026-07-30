@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -14,7 +14,6 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
-  Wrench,
   X,
 } from 'lucide-react';
 import {
@@ -56,10 +55,11 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 
-type QuickFilter = 'all' | PartStockStatus | 'noSupplier' | 'noPrice';
+export type QuickFilter = 'all' | 'attention' | PartStockStatus | 'noSupplier' | 'noPrice';
 
 const quickFilters: Array<{ value: QuickFilter; label: string }> = [
-  { value: 'all', label: '全部' },
+  { value: 'all', label: '全部状态' },
+  { value: 'attention', label: '库存预警' },
   { value: 'out', label: '缺货' },
   { value: 'low', label: '低库存' },
   { value: 'noSupplier', label: '无供应商' },
@@ -239,21 +239,28 @@ function smallHelp(text: string) {
   return <div className="mt-2 text-xs leading-5 text-muted">{text}</div>;
 }
 
-export function PartsView() {
+export function PartsView({
+  initialQuickFilter = 'all',
+  initialQuery = '',
+}: {
+  initialQuickFilter?: QuickFilter;
+  initialQuery?: string;
+}) {
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [category, setCategory] = useState('全部');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
   const [form, setForm] = useState<PartFormState>(emptyForm);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const collapseInitializedRef = useRef(false);
 
   async function load(force = false) {
     setError(null);
@@ -356,6 +363,7 @@ export function PartsView() {
       const matchesQuick =
         quickFilter === 'all' ||
         stock === quickFilter ||
+        (quickFilter === 'attention' && (stock === 'low' || stock === 'out')) ||
         (quickFilter === 'noSupplier' && !part.supplier.trim()) ||
         (quickFilter === 'noPrice' && part.price <= 0);
       return matchesQuery && matchesCategory && matchesQuick;
@@ -380,7 +388,18 @@ export function PartsView() {
 
   useEffect(() => {
     setSelectedIds([]);
+    if (query.trim() || category !== '全部') {
+      setCollapsedCategories(new Set());
+    }
   }, [query, category, quickFilter]);
+
+  useEffect(() => {
+    if (loading || collapseInitializedRef.current) return;
+    collapseInitializedRef.current = true;
+    if (!initialQuery.trim()) {
+      setCollapsedCategories(new Set(groupedParts.map(([name]) => name)));
+    }
+  }, [groupedParts, initialQuery, loading]);
 
   const stats = useMemo(() => {
     const totalValue = parts.reduce((sum, part) => sum + part.price * part.stock, 0);
@@ -388,6 +407,13 @@ export function PartsView() {
     const out = parts.filter((part) => partStockStatus(part).status === 'out').length;
     return { totalValue, low, out };
   }, [parts]);
+  const hasActiveFilters = Boolean(query.trim() || category !== '全部' || quickFilter !== 'all');
+
+  function clearFilters() {
+    setQuery('');
+    setCategory('全部');
+    setQuickFilter('all');
+  }
 
   function openCreateDrawer() {
     setEditingPart(null);
@@ -581,13 +607,12 @@ export function PartsView() {
   }
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Parts</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">零件</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            零件列表、分类输入规则和库存写操作都走标准 API；保存后重新拉取库存底表。
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">零件</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">
+            维护零件价格、供应商与库存基础数据
           </p>
         </div>
         <div className="flex gap-2">
@@ -605,30 +630,42 @@ export function PartsView() {
       </FadePanel>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(parts.length), '零件种类')}
+        <FadePanel delay={0.02} className="rounded-panel border border-line bg-white shadow-panel">
+          <button type="button" onClick={clearFilters} className="w-full rounded-panel p-3 text-left transition-colors hover:bg-slate-50" aria-label="查看全部零件">
+            {statLabel(String(parts.length), '零件条目')}
+          </button>
         </FadePanel>
-        <FadePanel delay={0.04} className="rounded-panel border border-line bg-white p-4 shadow-panel">
+        <FadePanel delay={0.04} className="rounded-panel border border-line bg-white p-3 shadow-panel">
           {statLabel(money(stats.totalValue), '库存总价值')}
         </FadePanel>
-        <FadePanel delay={0.06} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(stats.low), '低库存')}
+        <FadePanel delay={0.06} className={`rounded-panel border bg-white shadow-panel ${quickFilter === 'low' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-line'}`}>
+          <button type="button" onClick={() => setQuickFilter('low')} disabled={stats.low === 0} className="w-full rounded-panel p-3 text-left transition-colors hover:bg-amber-50/60 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="查看低库存零件">
+            {statLabel(String(stats.low), '低库存')}
+          </button>
         </FadePanel>
-        <FadePanel delay={0.08} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(stats.out), '缺货零件')}
+        <FadePanel delay={0.08} className={`rounded-panel border bg-white shadow-panel ${quickFilter === 'out' ? 'border-rose-300 ring-2 ring-rose-100' : 'border-line'}`}>
+          <button type="button" onClick={() => setQuickFilter('out')} className="w-full rounded-panel p-3 text-left transition-colors hover:bg-rose-50/60" aria-label="查看缺货零件">
+            {statLabel(String(stats.out), '缺货零件')}
+          </button>
         </FadePanel>
       </div>
 
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
-        <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="sticky top-14 z-20 flex flex-col gap-3 border-b border-line bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-white px-3">
             <Search size={16} className="text-muted" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="搜索型号、供应商或分类"
+              aria-label="搜索零件"
               className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
             />
+            {query ? (
+              <button type="button" onClick={() => setQuery('')} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-slate-100 hover:text-ink" aria-label="清空搜索" title="清空搜索">
+                <X size={14} />
+              </button>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
@@ -637,10 +674,11 @@ export function PartsView() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
+                aria-label="按分类筛选"
                 className="h-9 min-w-32 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 hover:bg-slate-50"
               >
                 {filterCategories.map((item) => (
-                  <option key={item} value={item}>{item}</option>
+                  <option key={item} value={item}>{item === '全部' ? '全部分类' : item}</option>
                 ))}
               </select>
             </div>
@@ -650,22 +688,34 @@ export function PartsView() {
               onChange={setQuickFilter}
               ariaLabel="库存快速筛选"
             />
-            <div className="flex gap-2">
+            <div className="flex items-center justify-between gap-1">
+              <span className="mr-1 whitespace-nowrap text-xs text-muted">
+                {hasActiveFilters ? `${filteredParts.length} / ${parts.length} 项` : `共 ${parts.length} 项`}
+              </span>
+              {hasActiveFilters ? (
+                <Button size="sm" variant="ghost" onClick={clearFilters} icon={<X size={14} />}>
+                  清除筛选
+                </Button>
+              ) : null}
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setCollapsedCategories(new Set())}
                 icon={<ChevronDown size={14} />}
+                aria-label="全部展开"
+                title="全部展开"
               >
-                展开
+                <span className="hidden 2xl:inline">展开</span>
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setCollapsedCategories(new Set(groupedParts.map(([name]) => name)))}
                 icon={<ChevronUp size={14} />}
+                aria-label="全部折叠"
+                title="全部折叠"
               >
-                折叠
+                <span className="hidden 2xl:inline">折叠</span>
               </Button>
             </div>
           </div>
@@ -700,7 +750,7 @@ export function PartsView() {
 
               return (
                 <section key={groupName} className="border-b border-line last:border-b-0">
-                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-3">
+                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -733,22 +783,22 @@ export function PartsView() {
                       <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                         <thead className="bg-white text-xs font-medium uppercase tracking-wide text-muted">
                           <tr>
-                            <th className="border-b border-line px-4 py-3 w-10"></th>
-                            <th className="border-b border-line px-4 py-3">型号</th>
-                            <th className="border-b border-line px-4 py-3">分类</th>
-                            <th className="border-b border-line px-4 py-3">供应商</th>
-                            <th className="border-b border-line px-4 py-3 text-right">单价</th>
-                            <th className="border-b border-line px-4 py-3 text-right">库存</th>
-                            <th className="border-b border-line px-4 py-3">状态</th>
-                            <th className="border-b border-line px-4 py-3 text-right">操作</th>
+                            <th className="w-10 border-b border-line px-4 py-2.5"></th>
+                            <th className="border-b border-line px-4 py-2.5">型号</th>
+                            <th className="border-b border-line px-4 py-2.5">分类</th>
+                            <th className="border-b border-line px-4 py-2.5">供应商</th>
+                            <th className="border-b border-line px-4 py-2.5 text-right">单价</th>
+                            <th className="border-b border-line px-4 py-2.5 text-right">库存</th>
+                            <th className="border-b border-line px-4 py-2.5">状态</th>
+                            <th className="border-b border-line px-4 py-2.5 text-right">操作</th>
                           </tr>
                         </thead>
                         <tbody>
                           {groupParts.map((part) => {
                             const stock = partStockStatus(part);
                             return (
-                              <tr key={part.id} className="transition-colors duration-150 hover:bg-slate-50">
-                                <td className="border-b border-line px-4 py-3">
+                              <tr key={part.id} className="group transition-colors duration-150 hover:bg-slate-50">
+                                <td className="border-b border-line px-4 py-2.5">
                                   <input
                                     type="checkbox"
                                     checked={selectedIds.includes(part.id)}
@@ -757,27 +807,20 @@ export function PartsView() {
                                     className="h-4 w-4 rounded border-line text-ink"
                                   />
                                 </td>
-                                <td className="border-b border-line px-4 py-3">
-                                  <div className="flex items-center gap-2">
-                                    <Wrench size={15} className="text-muted" />
-                                    <span className="font-medium text-ink">{part.model || '-'}</span>
-                                  </div>
+                                <td className="border-b border-line px-4 py-2.5">
+                                  <span className="font-medium text-ink">{part.model || '-'}</span>
                                 </td>
-                                <td className="border-b border-line px-4 py-3">{categoryPill(part.category, part.subcategory)}</td>
-                                <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
-                                <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(part.price)}</td>
-                                <td className="border-b border-line px-4 py-3 text-right text-muted">{part.stock}</td>
-                                <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                                <td className="border-b border-line px-4 py-2.5">{categoryPill(part.category, part.subcategory)}</td>
+                                <td className="border-b border-line px-4 py-2.5 text-muted">{part.supplier || '-'}</td>
+                                <td className="border-b border-line px-4 py-2.5 text-right font-medium text-ink">{money(part.price)}</td>
+                                <td className="border-b border-line px-4 py-2.5 text-right text-muted">{part.stock}</td>
+                                <td className="whitespace-nowrap border-b border-line px-4 py-2.5">
                                   <StatusBadge tone={stock.status === 'out' ? 'red' : stock.status === 'low' ? 'amber' : 'green'}>{stock.label}</StatusBadge>
                                 </td>
-                                <td className="border-b border-line px-4 py-3">
-                                  <div className="flex justify-end gap-2">
-                                    <Button size="sm" variant="ghost" onClick={() => openEditDrawer(part)} disabled={saving} icon={<Pencil size={14} />}>
-                                      编辑
-                                    </Button>
-                                    <Button size="sm" variant="danger" onClick={() => void removePart(part)} disabled={saving} icon={<Trash2 size={14} />}>
-                                      删除
-                                    </Button>
+                                <td className="border-b border-line px-4 py-2.5">
+                                  <div className="flex justify-end gap-1 text-muted opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                    <Button size="sm" variant="ghost" className="w-8 px-0" onClick={() => openEditDrawer(part)} disabled={saving} icon={<Pencil size={14} />} aria-label={`编辑 ${part.model || part.id}`} title="编辑" />
+                                    <Button size="sm" variant="ghost" className="w-8 px-0 hover:bg-rose-50 hover:text-rose-700" onClick={() => void removePart(part)} disabled={saving} icon={<Trash2 size={14} />} aria-label={`删除 ${part.model || part.id}`} title="删除" />
                                   </div>
                                 </td>
                               </tr>

@@ -66,6 +66,24 @@ test('订单处理方案：未确认但数据完整时可发起确认', () => {
     assert.equal(result.metrics.blockedSteps, 0);
 });
 
+test('订单处理方案：外包装估算未解决时阻止确认订单', () => {
+    const result = buildOrderReadinessPlan(readiness({
+        order: { id: 12, customerName: '测试客户', status: '待确认' },
+        verdict: 'blocked',
+        blockers: [
+            { code: 'order_not_confirmed', title: '订单尚未确认' },
+            { code: 'packaging_estimate_unresolved', title: 'V750 外包装仍是估算项' },
+        ],
+    }), { now });
+
+    assert.deepEqual(result.steps.map(item => item.id), [
+        'resolve_packaging_estimate',
+        'confirm_order',
+    ]);
+    assert.equal(result.steps[1].status, 'blocked');
+    assert.deepEqual(result.steps[1].dependsOn, ['resolve_packaging_estimate']);
+});
+
 test('订单处理方案：按采购阶段区分下单、到货和入库责任', () => {
     const result = buildOrderReadinessPlan(readiness({
         shortages: [

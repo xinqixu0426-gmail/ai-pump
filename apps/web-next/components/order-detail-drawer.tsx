@@ -431,7 +431,12 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     try {
       const result = await completeOrderPurchase(localOrder);
       setLocalOrder(result.order);
-      setMessage(`入库完成，更新 ${result.additions.length} 种零件库存`);
+      const inventoryCount = result.additions.filter((item) => item.inventoryType !== 'none').length;
+      const nonStockCount = result.additions.length - inventoryCount;
+      setMessage(
+        `入库完成，更新 ${inventoryCount} 种物料库存`
+        + (nonStockCount > 0 ? `，另完成 ${nonStockCount} 项非库存采购进度` : '')
+      );
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : '入库失败');
@@ -453,7 +458,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
           ) - Number(item.stockedQty || 0)
         ),
       }))
-      .filter((item) => item.remainingQty > 0 && item.partId);
+      .filter((item) => item.remainingQty > 0);
   }, [localOrder]);
 
   return (
@@ -737,9 +742,9 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
             </header>
 
             <main className="flex-1 space-y-4 p-5">
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                这是库存写操作。请确认采购物料已实际到货，避免重复入库。
-              </div>
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  这是采购入库操作。请确认物料已实际到货；生产领用不会自动扣减库存，实际领料仍需在库存页面登记出库。
+                </div>
 
               {purchaseAdditions.length === 0 ? (
                 <div className="rounded-panel border border-line p-8 text-center text-sm text-muted">
@@ -751,6 +756,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                     <thead className="bg-slate-50 text-xs text-muted">
                       <tr>
                         <th className="px-3 py-2">型号</th>
+                        <th className="px-3 py-2">库存类型</th>
                         <th className="px-3 py-2">名称</th>
                         <th className="px-3 py-2">供应商</th>
                         <th className="px-3 py-2 text-right">当前库存</th>
@@ -759,16 +765,31 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                       </tr>
                     </thead>
                     <tbody>
-                      {purchaseAdditions.map((item) => (
-                        <tr key={`${item.model}|${item.supplier}`} className="border-t border-line">
+                      {purchaseAdditions.map((item) => {
+                        const inventoryType = item.inventoryType === 'coil'
+                          ? '线圈'
+                          : item.inventoryType === 'none'
+                            ? '非库存项'
+                            : '零件';
+                        const tracksInventory = item.inventoryType !== 'none';
+                        return (
+                        <tr key={purchaseItemKey(item)} className="border-t border-line">
                           <td className="px-3 py-2 font-medium text-ink">{item.model}</td>
+                          <td className="px-3 py-2 text-muted">{inventoryType}</td>
                           <td className="px-3 py-2 text-muted">{item.name || '-'}</td>
                           <td className="px-3 py-2 text-muted">{item.supplier || '-'}</td>
-                          <td className="px-3 py-2 text-right text-muted">{item.currentStock}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-ink">+{item.remainingQty}</td>
-                          <td className="px-3 py-2 text-right text-muted">{Number(item.currentStock || 0) + item.remainingQty}</td>
+                          <td className="px-3 py-2 text-right text-muted">
+                            {tracksInventory ? item.currentStock : '-'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-ink">
+                            +{item.remainingQty}{item.purchaseUnit ? ` ${item.purchaseUnit}` : ''}
+                          </td>
+                          <td className="px-3 py-2 text-right text-muted">
+                            {tracksInventory ? Number(item.currentStock || 0) + item.remainingQty : '-'}
+                          </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

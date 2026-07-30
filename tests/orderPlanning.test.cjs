@@ -133,6 +133,25 @@ test('采购计划同时生成供应商待办', () => {
     assert.match(plan.todos[0].description, /201×2/);
 });
 
+test('外包装估算只用于成本预估，不进入正式采购清单', () => {
+    const purchaseList = buildPurchaseList([{
+        qty: 30,
+        partsJson: JSON.stringify([
+            {
+                model: '外包装估算',
+                name: '外包装估算（牛皮纸箱）',
+                qty: 1,
+                snapshotPrice: 4,
+                packagingMaterial: '牛皮纸箱',
+                costSource: 'manual',
+            },
+            { model: '201', name: '轴承', supplier: '轴承供应商', qty: 1 },
+        ]),
+    }], partsCatalog);
+
+    assert.deepEqual(purchaseList.map(item => item.model), ['201']);
+});
+
 test('同型号不同供应商按独立物料采购', () => {
     const catalog = [
         { Id: 10, model: '轴承X', supplier: '供应商A', stock: 1, price: 1 },

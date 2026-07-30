@@ -19,10 +19,11 @@ export function SlideOver({ open, children, onClose, size = 'standard' }: SlideO
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 xl:right-[500px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 min-[1600px]:right-[500px]">
           <motion.button
             type="button"
-            aria-label="关闭"
+            aria-hidden="true"
+            tabIndex={-1}
             className="absolute inset-0 bg-slate-950/24"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -31,6 +32,8 @@ export function SlideOver({ open, children, onClose, size = 'standard' }: SlideO
             onClick={onClose}
           />
           <motion.aside
+            role="dialog"
+            aria-modal="true"
             initial={{ y: 12, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 12, scale: 0.98, opacity: 0 }}

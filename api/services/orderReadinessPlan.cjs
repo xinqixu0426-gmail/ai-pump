@@ -1,5 +1,6 @@
 const ACTION_LABELS = {
     repair_order_data: '修正订单产品与BOM',
+    resolve_packaging_estimate: '选择正式外包装',
     repair_recipe_source: '恢复配方来源',
     resolve_part_inventory: '关联零件库存项目',
     resolve_coil_inventory: '完善线圈库存方案',
@@ -111,6 +112,21 @@ function buildOrderReadinessPlan(readiness = {}, options = {}) {
             path: '/orders',
             evidenceCodes: orderDataCodes,
             itemCount: orderDataCount,
+        }));
+    }
+
+    const packagingCount = issueCount(blockers, ['packaging_estimate_unresolved']);
+    if (packagingCount > 0) {
+        addBlockingStep(createStep('resolve_packaging_estimate', {
+            category: 'recipe',
+            reason: findingTitles(blockers, ['packaging_estimate_unresolved']).join('；'),
+            expectedResult: '订单外包装绑定到零件库中的具体型号和供应商，估算占位项不进入采购清单。',
+            priority: 'blocking',
+            mode: 'manual',
+            owner: '订单管理员',
+            path: '/orders',
+            evidenceCodes: ['packaging_estimate_unresolved'],
+            itemCount: packagingCount,
         }));
     }
 

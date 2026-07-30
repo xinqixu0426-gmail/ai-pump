@@ -297,8 +297,8 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
           {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-panel bg-slate-100" />)}
         </div>
       ) : (
-        <>
-          <div className="grid gap-3 md:grid-cols-4">
+        <div className="flex flex-col gap-4">
+          <div className="order-1 grid gap-3 md:grid-cols-4">
               <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
                 <div className="text-2xl font-semibold text-ink">{summary.totals.issueCount}</div>
                 <div className="mt-1 text-xs text-muted">问题总数</div>
@@ -317,6 +317,26 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
               </FadePanel>
           </div>
 
+          <details className="order-4 overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+            <summary className="cursor-pointer list-none px-4 py-3 transition-colors hover:bg-slate-50">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <BookCheck size={17} />
+                    规则与质量治理
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-muted">
+                    管理质量证据、候选规则、变更记录和已批准规则执行情况。
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge tone={ruleReviewQueue.length > 0 ? 'amber' : 'slate'}>待审核 {ruleReviewQueue.length}</StatusBadge>
+                  <StatusBadge tone={qualityEvidenceItems.length > 0 ? 'blue' : 'slate'}>可关联证据 {qualityEvidenceItems.length}</StatusBadge>
+                  <span className="text-xs text-muted">点击展开</span>
+                </div>
+              </div>
+            </summary>
+            <div className="space-y-4 border-t border-line bg-slate-50/50 p-4">
           <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
             <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -685,8 +705,10 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
               </div>
             )}
           </FadePanel>
+            </div>
+          </details>
 
-          <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
+          <FadePanel className="order-2 rounded-panel border border-line bg-white p-4 shadow-panel">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -708,7 +730,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
             </div>
           </FadePanel>
 
-          <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+          <div className="order-3 grid gap-4 xl:grid-cols-[1fr_360px]">
             <div className="space-y-4">
               {visibleGroups.length === 0 ? (
                 <FadePanel className="rounded-panel border border-emerald-200 bg-emerald-50 p-8 text-center text-emerald-800">
@@ -796,7 +818,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
               </FadePanel>
             ) : null}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

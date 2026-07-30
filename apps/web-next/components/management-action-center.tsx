@@ -119,71 +119,56 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
 
   if (!center) return null;
 
+  const prioritySummary = [
+    { label: '紧急', value: center.metrics.critical, tone: 'red' as StatusBadgeTone },
+    { label: '高优先级', value: center.metrics.high, tone: 'orange' as StatusBadgeTone },
+    { label: '普通', value: center.metrics.medium, tone: 'amber' as StatusBadgeTone },
+    { label: '低优先级', value: center.metrics.low, tone: 'slate' as StatusBadgeTone },
+  ].filter((item) => item.value > 0);
+
   return (
     <div className="space-y-4">
-      <section className="border-y border-line bg-white">
-        <div className="grid grid-cols-2 divide-x divide-y divide-line md:grid-cols-5 md:divide-y-0">
-          {[
-            ['待办总数', center.metrics.total],
-            ['紧急', center.metrics.critical],
-            ['高优先级', center.metrics.high],
-            ['普通', center.metrics.medium],
-            ['低优先级', center.metrics.low],
-          ].map(([label, value]) => (
-            <div key={label} className="px-4 py-3">
-              <div className="text-xl font-semibold text-ink">{value}</div>
-              <div className="mt-1 text-xs text-muted">{label}</div>
+      <section className="flex flex-col gap-3 rounded-panel border border-line bg-white px-4 py-3 shadow-panel sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ink">当前共 {center.metrics.total} 项管理待办</div>
+          <div className="mt-1 text-xs leading-5 text-muted">{center.summary}</div>
+          {progress ? (
+            <div className="mt-1 text-xs leading-5 text-muted">
+              自动复查进展：最近 {progress.windowHours} 小时归档 {progress.resolvedCount} 项，当前仍待处理 {progress.unresolvedCount} 项。
             </div>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {prioritySummary.map((item) => (
+            <StatusBadge key={item.label} tone={item.tone}>{item.label} {item.value}</StatusBadge>
           ))}
+          {progress && progress.resolvedCount > 0 ? (
+            <StatusBadge tone="green">近 {progress.windowHours} 小时归档 {progress.resolvedCount}</StatusBadge>
+          ) : null}
+          {progress && progress.recurringCount > 0 ? (
+            <StatusBadge tone="orange">反复出现 {progress.recurringCount}</StatusBadge>
+          ) : null}
         </div>
       </section>
 
-      {progress ? (
-        <section className="border-y border-line bg-white">
-          <div className="border-b border-line px-4 py-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <CheckCircle2 size={16} />
-              自动复查进展
-            </div>
-            <div className="mt-1 text-xs leading-5 text-muted">{progress.summary}</div>
-          </div>
-          <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-            <div className="px-4 py-3">
-              <div className="text-xl font-semibold text-emerald-700">{progress.resolvedCount}</div>
-              <div className="mt-1 text-xs text-muted">最近 {progress.windowHours} 小时自动归档</div>
-            </div>
-            <div className="px-4 py-3">
-              <div className="text-xl font-semibold text-ink">{progress.unresolvedCount}</div>
-              <div className="mt-1 text-xs text-muted">
-                当前仍待处理{progress.blockedCount > 0 ? `，${progress.blockedCount} 项暂时受阻` : ''}
-              </div>
-            </div>
-            <div className="px-4 py-3">
-              <div className="text-xl font-semibold text-amber-700">{progress.recurringCount}</div>
-              <div className="mt-1 text-xs text-muted">当前或近期反复出现</div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
       {executionQueue && executionQueue.items.length > 0 ? (
-        <section className="border-y border-line bg-white">
+        <section className="rounded-panel border border-line bg-white shadow-panel">
           <div className="flex flex-col gap-1 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <ListOrdered size={16} />
-                今日执行队列
+                当前最优先
               </div>
-              <div className="mt-1 text-xs leading-5 text-muted">{executionQueue.summary}</div>
+              <div className="mt-1 text-xs leading-5 text-muted">先处理影响当前业务推进的首要事项。</div>
             </div>
-            {executionQueue.remainingCount > 0 ? (
+            {center.metrics.total > 1 ? (
               <div className="shrink-0 text-xs text-muted">
-                其余 {executionQueue.remainingCount} 项保留在完整待办
+                其余 {center.metrics.total - 1} 项在下方完整待办
               </div>
             ) : null}
           </div>
           <div className="divide-y divide-line">
-            {executionQueue.items.map(item => {
+            {executionQueue.items.slice(0, 1).map(item => {
               const meta = priorityMeta[item.priority];
               const plan = itemResolution(item);
               const resolution = resolutionMeta[plan.mode];
@@ -239,7 +224,7 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
             <ClipboardList size={16} />
             完整待办
           </div>
-          <div className="mt-1 text-xs text-muted">{center.summary}</div>
+          <div className="mt-1 text-xs text-muted">按优先级和来源筛选全部事项。</div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="max-w-full overflow-x-auto pb-1 sm:pb-0">

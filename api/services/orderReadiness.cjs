@@ -1,4 +1,5 @@
 const { TERMINAL_ORDER_STATUSES, normalizePurchaseItem } = require('./orderWorkflow.cjs');
+const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 
 const STEP_LABELS = {
     order: '订单状态',
@@ -195,6 +196,20 @@ function buildOrderReadiness(options = {}) {
             );
             blockers.push(finding);
             recipeFailures.push(finding.title);
+        }
+        const packagingEstimates = parts.filter(isPackagingEstimatePart);
+        if (packagingEstimates.length > 0) {
+            const finding = issue(
+                'packaging_estimate_unresolved',
+                'high',
+                `${label} 外包装仍是估算项`,
+                '成本估算占位项不能生成正式采购和库存记录。',
+                '在配方或报价中选择具体外包装型号和供应商后重新生成订单明细。',
+                '/orders'
+            );
+            blockers.push(finding);
+            recipeFailures.push(finding.title);
+            actions.push(action('resolve_packaging', '选择正式外包装', '/orders', finding.detail));
         }
         if (!recipeExists(item, recipesById, recipesByName)) {
             const finding = issue(

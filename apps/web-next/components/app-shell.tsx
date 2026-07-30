@@ -29,13 +29,25 @@ const businessNavItems = [
   { href: '/orders', label: '订单', icon: ReceiptText },
 ];
 
+const AI_PANEL_PREF_KEY = 'pump.ai-panel-open';
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAiWorkspace = pathname === '/ai';
   const isSetupWorkspace = pathname === '/setup';
   const isFullWorkspace = isAiWorkspace || isSetupWorkspace;
-  const [mobileAiOpen, setMobileAiOpen] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiPanelDocked, setAiPanelDocked] = useState(false);
   const [pageContext, setPageContext] = useState<AiPageContext | null>(null);
+
+  useEffect(() => {
+    setAiPanelOpen(window.localStorage.getItem(AI_PANEL_PREF_KEY) === 'true');
+    const media = window.matchMedia('(min-width: 1600px)');
+    const syncDockedState = () => setAiPanelDocked(media.matches);
+    syncDockedState();
+    media.addEventListener('change', syncDockedState);
+    return () => media.removeEventListener('change', syncDockedState);
+  }, []);
 
   useEffect(() => {
     const syncPageContext = () => setPageContext(readCurrentAiPageContext());
@@ -49,13 +61,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!mobileAiOpen) return;
+    if (!aiPanelOpen || aiPanelDocked) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [mobileAiOpen]);
+  }, [aiPanelDocked, aiPanelOpen]);
+
+  function setAiPanelVisibility(open: boolean) {
+    setAiPanelOpen(open);
+    window.localStorage.setItem(AI_PANEL_PREF_KEY, String(open));
+  }
 
   if (pathname === '/login') {
     return <>{children}</>;
@@ -105,17 +122,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          {!isAiWorkspace ? (
+          {!isFullWorkspace ? (
             <Button
               variant="secondary"
               size="sm"
-              className="shrink-0 xl:hidden"
+              className="shrink-0"
               icon={<MessageSquareText size={16} />}
-              aria-label="打开业务 AI 助手"
-              title="打开业务 AI 助手"
-              onClick={() => setMobileAiOpen(true)}
+              aria-label={aiPanelOpen ? '收起业务 AI 助手' : '打开业务 AI 助手'}
+              title={aiPanelOpen ? '收起业务 AI 助手' : '打开业务 AI 助手'}
+              onClick={() => setAiPanelVisibility(!aiPanelOpen)}
             >
-              <span className="hidden sm:inline">问 AI</span>
+              <span className="hidden sm:inline">{aiPanelOpen ? '收起 AI' : '问 AI'}</span>
             </Button>
           ) : null}
         </div>
@@ -125,18 +142,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {isFullWorkspace ? (
           <div className={`mx-auto w-full ${isAiWorkspace ? 'max-w-[1720px]' : 'max-w-[1480px]'}`}>{children}</div>
         ) : (
-          <div className="mx-auto grid w-full max-w-[1920px] min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
+          <div className={`mx-auto grid w-full max-w-[1920px] min-w-0 gap-5 ${aiPanelOpen ? 'min-[1600px]:grid-cols-[minmax(0,1fr)_460px]' : ''}`}>
             <div className="min-w-0">{children}</div>
+            {aiPanelOpen && !aiPanelDocked ? (
+              <button
+                type="button"
+                className="fixed inset-0 z-40 bg-slate-950/20"
+                aria-label="关闭业务 AI 助手遮罩"
+                onClick={() => setAiPanelVisibility(false)}
+              />
+            ) : null}
             <aside
-              className={`${mobileAiOpen ? 'fixed inset-0 z-50 bg-white p-0' : 'hidden'} min-w-0 xl:sticky xl:top-[73px] xl:block xl:h-[calc(100dvh-89px)] xl:bg-transparent`}
+              className={`${aiPanelOpen
+                ? 'fixed inset-0 z-50 min-w-0 bg-white p-0 sm:left-auto sm:w-[460px] sm:border-l sm:border-line sm:shadow-xl min-[1600px]:sticky min-[1600px]:bottom-auto min-[1600px]:left-auto min-[1600px]:right-auto min-[1600px]:top-[73px] min-[1600px]:z-auto min-[1600px]:h-[calc(100dvh-89px)] min-[1600px]:w-auto min-[1600px]:border-0 min-[1600px]:bg-transparent min-[1600px]:shadow-none'
+                : 'hidden'}`}
               aria-label="业务 AI 助手"
-              role={mobileAiOpen ? 'dialog' : undefined}
-              aria-modal={mobileAiOpen ? true : undefined}
+              role={aiPanelOpen && !aiPanelDocked ? 'dialog' : undefined}
+              aria-modal={aiPanelOpen && !aiPanelDocked ? true : undefined}
             >
               <AiView
                 variant="panel"
                 pageContext={pageContext}
-                onClose={() => setMobileAiOpen(false)}
+                onClose={() => setAiPanelVisibility(false)}
               />
             </aside>
           </div>

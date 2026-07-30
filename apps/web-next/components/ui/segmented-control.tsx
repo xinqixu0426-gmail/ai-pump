@@ -30,8 +30,9 @@ export function SegmentedControl<T extends string>({
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
+          aria-pressed={value === option.value}
           className={clsx(
-            'relative h-8 shrink-0 whitespace-nowrap rounded px-3 text-sm transition-colors duration-150',
+            'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-3 text-sm transition-colors duration-150',
             value === option.value
               ? 'bg-white text-ink shadow-panel'
               : 'text-muted hover:text-ink'
@@ -39,7 +40,10 @@ export function SegmentedControl<T extends string>({
         >
           {option.label}
           {option.badge !== undefined ? (
-            <span className="absolute -right-1.5 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-ink px-1 text-[10px] font-semibold leading-none text-white shadow-panel">
+            <span className={clsx(
+              'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none',
+              value === option.value ? 'bg-ink text-white' : 'bg-slate-200 text-slate-700'
+            )}>
               {option.badge}
             </span>
           ) : null}

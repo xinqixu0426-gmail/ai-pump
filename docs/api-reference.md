@@ -191,21 +191,21 @@
 | `GET` | `/api/orders/:id/readiness-plan` | 无 | 基于实时生产准备结果生成处理步骤；返回 `sequence/dependsOn/mode/status/owner/path/toolCall`，只生成方案不执行 |
 | `POST` | `/api/orders/:id/readiness-actions/:actionId` | 路径动作仅支持 `confirm_order/generate_purchase_plan` | 执行前重新生成实时检查和方案；仅执行仍为 `confirmable + available` 的步骤，过期、已完成或受前置步骤阻塞时返回 `409`；成功返回动作、更新后的订单和 `nextPlan` |
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
-| `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；不写库 |
+| `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；“外包装估算”等成本占位项不进入正式采购；不写库 |
 | `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 基于订单表单草稿生成标准保存 payload；未传采购清单/待办时自动生成；不写库 |
 | `POST` | `/api/orders/purchase-items/batch` | `{ identityKey?, model, supplier?, purchased }` | 兼容的整项下单动作；优先按采购规格身份匹配，把采购项的 `orderedQty` 设置为计划数量，不入库 |
 | `POST` | `/api/orders/:id/status` | `{ status, reason? }` | 人工动作只允许确认订单、关闭订单或取消订单；取消必须填写原因，采购中/采购完成由数量自动推导 |
 | `POST` | `/api/orders/:id/purchase-items/progress` | `{ identityKey?, model, supplier?, orderedQty, receivedQty, stockedQty, purchasePrice?, actualSupplier?, allowOverPurchase? }` | 保存单项采购进度；强制 `入库 ≤ 到货 ≤ 下单`，超采必须明确确认；`stockedQty` 增量按 `inventoryType` 在同一事务内加入零件或线圈库存并记录批次 |
 | `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 旧客户端兼容动作；映射为整项下单/取消下单，已有到货或入库时不能取消 |
 | `POST` | `/api/orders/:id/todos/toggle` | `{ todoId, done? }` | 切换或设置指定采购待办完成状态 |
-| `POST` | `/api/orders/:id/complete-purchase` | 无 | 一次性把全部剩余计划登记为已下单、已到货和已入库，订单进入“采购完成”而不是关闭；重复入库返回 409 |
+| `POST` | `/api/orders/:id/complete-purchase` | 无 | 一次性把全部剩余计划登记为已下单、已到货和已入库；普通零件与正式线圈分别增加库存，非库存计算项只推进采购进度；返回带 `inventoryType/partId/coilId` 的 `additions`，订单进入“采购完成”而不是关闭；重复入库返回 409 |
 | `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单，固定进入“待确认” |
 | `PATCH` | `/api/orders/:id` | 订单字段 | 只有“待确认”订单允许修改核心明细 |
 | `DELETE` | `/api/orders/:id` | 无 | 只有待确认或已取消订单允许软删除 |
 
 采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory/inventoryType`。普通零件使用 `inventoryType=part + partId`；精确匹配正式线圈方案的线圈转子使用 `inventoryType=coil + coilId`，按套占用和增加 `coils.stock`；插值或外推产生、没有正式方案的计算型线圈使用 `inventoryType=none`，可完成采购进度但不写库存。`purchaseUnit/stockQtyPerUnit/specification` 区分采购展示单位和底层库存单位。成品电缆按“根”计划，入库时按 `stockQtyPerUnit` 折算为线材米数；历史按米保存的活动订单会在采购计划重算时转换为根数。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
 
-生产准备检查以本轮实时库存为准：`totalQty - currentStock` 才是当前缺口，不能因采购项已经下单或到货就判定可生产。`inventoryType=none` 的计算型线圈、没有 `partId` 的普通采购项、缺少BOM快照或未确认订单会形成数据阻塞；库存满足但成本为 0、售价低于成本或来源配方不可追溯时返回待复核。AI 工具 `check_order_readiness` 通过该接口读取结论，匹配多个客户订单时必须要求明确订单ID或合同号。
+生产准备检查以本轮实时库存为准：`totalQty - currentStock` 才是当前缺口，不能因采购项已经下单或到货就判定可生产。`inventoryType=none` 的计算型线圈、仍含“外包装估算”的订单BOM、没有 `partId` 的普通采购项、缺少BOM快照或未确认订单会形成数据阻塞；库存满足但成本为 0、售价低于成本或来源配方不可追溯时返回待复核。AI 工具 `check_order_readiness` 通过该接口读取结论，匹配多个客户订单时必须要求明确订单ID或合同号。
 
 订单准备总览只读取未关闭且未取消的活动订单，并且每次请求只运行一次 `buildBalancedOrderPlans`，避免逐单重复平衡库存。总览按 `blocked → waiting_materials → needs_review → ready` 排序，`attentionRequired` 是前三类之和。AI 工具 `get_order_readiness_overview` 和管理看板“订单准备”页签使用同一接口，均不属于生产执行或库存写入。
 

@@ -11,6 +11,7 @@ const {
 } = require('./schema.cjs');
 const { partSubcategory } = require('../services/packagingClassification.cjs');
 const { normalizePackagingPart } = require('../services/packagingSemantics.cjs');
+const { isPackagingEstimatePart } = require('../services/packagingEstimate.cjs');
 const { renderRecipeCostSnapshot } = require('../services/costEngine.cjs');
 
 const MIGRATION_TABLE_SQL = `
@@ -309,6 +310,7 @@ function rebuildCoreTablesWithConstraints(db) {
 }
 
 function parseJsonArray(value) {
+    if (Array.isArray(value)) return value;
     try {
         const parsed = JSON.parse(value || '[]');
         return Array.isArray(parsed) ? parsed : [];
@@ -379,6 +381,158 @@ function repairRecipePackagingSnapshots(db) {
             row.id
         );
     }
+}
+
+function repairOrderPackagingEstimates(db, options = {}) {
+    if (!tableExists(db, 'orders') || !tableExists(db, 'recipes') || !tableExists(db, 'parts')) {
+        return { repairedOrders: 0, repairedItems: 0 };
+    }
+    const catalog = db.prepare(`
+        SELECT id, model, supplier, stock
+        FROM parts
+        WHERE deleted_at IS NULL AND category = '包装' AND subcategory = '外包装'
+        ORDER BY id
+    `).all();
+    const catalogByIdentity = new Map(catalog.map(part => [packagingIdentity(part), part]));
+    const catalogByModel = new Map();
+    for (const part of catalog) {
+        const entries = catalogByModel.get(part.model) || [];
+        entries.push(part);
+        catalogByModel.set(part.model, entries);
+    }
+    const recipes = new Map(db.prepare(`
+        SELECT id, packing_parts_json
+        FROM recipes
+        WHERE deleted_at IS NULL
+    `).all().map(row => [Number(row.id), row]));
+    const rows = db.prepare(`
+        SELECT id, items_json, purchase_list_json, todos_json
+        FROM orders
+        WHERE deleted_at IS NULL AND status NOT IN ('已关闭', '已取消')
+        ORDER BY id
+    `).all();
+    const update = db.prepare(`
+        UPDATE orders
+        SET items_json = ?, purchase_list_json = ?, todos_json = ?, updated_at = ?
+        WHERE id = ?
+    `);
+    const now = options.now || new Date().toISOString();
+    let repairedOrders = 0;
+    let repairedItems = 0;
+
+    function resolveCatalogPart(part) {
+        const exact = catalogByIdentity.get(packagingIdentity(part));
+        if (exact) return exact;
+        const sameModel = catalogByModel.get(String(part.model || '').trim()) || [];
+        return sameModel.length === 1 ? sameModel[0] : null;
+    }
+
+    function resolveEstimate(item, estimate) {
+        const recipe = recipes.get(Number(item.recipeId || 0));
+        if (!recipe) return null;
+        const estimateMaterial = normalizePackagingPart(estimate).packagingMaterial;
+        const containers = parseJsonArray(recipe.packing_parts_json)
+            .map(part => normalizePackagingPart(part))
+            .filter(part => part.packingRole === 'container');
+        const materialMatches = containers.filter(part => part.packagingMaterial === estimateMaterial);
+        const candidates = materialMatches.length > 0 ? materialMatches : containers;
+        if (candidates.length !== 1) return null;
+        const selected = candidates[0];
+        const catalogPart = resolveCatalogPart(selected);
+        if (!catalogPart) return null;
+        return {
+            selected,
+            catalogPart,
+            targetKey: `part:${catalogPart.id}`,
+        };
+    }
+
+    for (const row of rows) {
+        const items = parseJsonArray(row.items_json);
+        const replacements = new Map();
+        const conflicts = new Set();
+        for (const item of items) {
+            for (const part of parseJsonArray(item.partsJson)) {
+                if (!isPackagingEstimatePart(part)) continue;
+                const resolved = resolveEstimate(item, part);
+                if (!resolved) continue;
+                const legacyKey = packagingIdentity(part);
+                const existing = replacements.get(legacyKey);
+                if (existing && existing.targetKey !== resolved.targetKey) {
+                    conflicts.add(legacyKey);
+                } else {
+                    replacements.set(legacyKey, resolved);
+                }
+            }
+        }
+        for (const key of conflicts) replacements.delete(key);
+        if (replacements.size === 0) continue;
+
+        let itemChanges = 0;
+        const nextItems = items.map(item => {
+            const parts = parseJsonArray(item.partsJson);
+            let changed = false;
+            const nextParts = parts.map(part => {
+                const resolved = replacements.get(packagingIdentity(part));
+                if (!isPackagingEstimatePart(part) || !resolved) return part;
+                changed = true;
+                itemChanges += 1;
+                return {
+                    ...part,
+                    model: resolved.selected.model,
+                    name: `${resolved.selected.model}（${resolved.selected.packagingMaterial}）`,
+                    supplier: resolved.catalogPart.supplier,
+                    packagingMaterial: resolved.selected.packagingMaterial,
+                    packingRole: 'container',
+                    partId: resolved.catalogPart.id,
+                    legacyEstimateModel: String(part.model || '').trim(),
+                };
+            });
+            return changed ? { ...item, partsJson: JSON.stringify(nextParts) } : item;
+        });
+        if (itemChanges === 0) continue;
+
+        const nextPurchaseList = parseJsonArray(row.purchase_list_json).map(part => {
+            const resolved = replacements.get(packagingIdentity(part));
+            if (!isPackagingEstimatePart(part) || !resolved) return part;
+            return {
+                ...part,
+                model: resolved.selected.model,
+                name: `${resolved.selected.model}（${resolved.selected.packagingMaterial}）`,
+                supplier: resolved.catalogPart.supplier,
+                actualSupplier: String(part.actualSupplier || '').trim() || resolved.catalogPart.supplier,
+                currentStock: Number(resolved.catalogPart.stock || 0),
+                partId: resolved.catalogPart.id,
+                inventoryType: 'part',
+                identityKey: resolved.targetKey,
+                packagingMaterial: resolved.selected.packagingMaterial,
+                packingRole: 'container',
+                legacyEstimateModel: String(part.model || '').trim(),
+            };
+        });
+        const nextTodos = parseJsonArray(row.todos_json).map(todo => {
+            let description = String(todo.description || '');
+            let supplier = String(todo.supplier || '').trim();
+            for (const [legacyKey, resolved] of replacements) {
+                const legacyModel = legacyKey.split('\u0000')[0];
+                if (!description.includes(legacyModel)) continue;
+                description = description.replaceAll(legacyModel, resolved.selected.model);
+                supplier = supplier || resolved.catalogPart.supplier;
+                if (supplier) description = description.replace('【】', `【${supplier}】`);
+            }
+            return { ...todo, description, supplier };
+        });
+        update.run(
+            JSON.stringify(nextItems),
+            JSON.stringify(nextPurchaseList),
+            JSON.stringify(nextTodos),
+            now,
+            row.id
+        );
+        repairedOrders += 1;
+        repairedItems += itemChanges;
+    }
+    return { repairedOrders, repairedItems };
 }
 
 const MIGRATIONS = Object.freeze([
@@ -1429,6 +1583,14 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 35,
+        name: 'resolve_active_order_packaging_estimates',
+        signature: 'resolve-active-order-packaging-estimates-from-unique-recipe-container-v1',
+        up(db) {
+            repairOrderPackagingEstimates(db);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
@@ -1496,6 +1658,7 @@ module.exports = {
     MIGRATIONS,
     MIGRATION_TABLE_SQL,
     migrationChecksum,
+    repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,
     runMigrations,
 };

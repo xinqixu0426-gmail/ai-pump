@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const { APPLICATION_TABLES } = require('../api/database/schema.cjs');
 const {
     MIGRATIONS,
+    repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,
     runMigrations,
 } = require('../api/database/migrations.cjs');
@@ -310,6 +311,89 @@ test('数据库迁移：包装语义修复重建明细但不改变历史保存�
         assert.equal(part.name, '850w上下泡沫（泡沫）');
         assert.equal(row.saved_total_cost, 2.6);
         assert.match(row.saved_cost_details, /850w上下泡沫（泡沫）/);
+    } finally {
+        db.close();
+    }
+});
+
+test('数据库迁移：活动订单外包装估算绑定正式包材并保留成本和采购进度', () => {
+    const db = openMemoryDatabase();
+    try {
+        runMigrations(db, { now: FIXED_NOW });
+        const part = db.prepare(`
+            INSERT INTO parts (
+                model, category, subcategory, price, supplier, stock, remark
+            ) VALUES ('550w牛皮纸箱', '包装', '外包装', 5, '广发纸箱', 0, '')
+        `).run();
+        const recipe = db.prepare(`
+            INSERT INTO recipes (
+                name, parts_json, packing_parts_json, saved_total_cost, saved_cost_details
+            ) VALUES (?, '[]', ?, 0, '[]')
+        `).run('V750', JSON.stringify([{
+            model: '550w牛皮纸箱',
+            supplier: '广发纸箱',
+            qty: 1,
+            packagingMaterial: '牛皮纸箱',
+            packingRole: 'container',
+        }]));
+        const estimate = {
+            model: '外包装估算',
+            name: '外包装估算（牛皮纸箱）',
+            supplier: '',
+            qty: 1,
+            snapshotPrice: 4,
+            packagingMaterial: '牛皮纸箱',
+            costSource: 'manual',
+        };
+        const purchase = {
+            model: '外包装估算',
+            name: '外包装估算（牛皮纸箱）',
+            supplier: '',
+            plannedQty: 30,
+            orderedQty: 30,
+            receivedQty: 0,
+            stockedQty: 0,
+            purchased: true,
+            identityKey: 'model:外包装估算|supplier:',
+        };
+        db.prepare(`
+            INSERT INTO orders (
+                customer_name, status, items_json, purchase_list_json, todos_json
+            ) VALUES (?, '采购中', ?, ?, ?)
+        `).run(
+            '测试客户',
+            JSON.stringify([{
+                recipeId: Number(recipe.lastInsertRowid),
+                recipeName: 'V750',
+                qty: 30,
+                unitCost: 200,
+                unitPrice: 230,
+                partsJson: JSON.stringify([estimate]),
+            }]),
+            JSON.stringify([purchase]),
+            JSON.stringify([{
+                id: 'todo-1',
+                supplier: '',
+                description: '联系【】采购：外包装估算×30',
+                done: false,
+            }])
+        );
+
+        const result = repairOrderPackagingEstimates(db, { now: FIXED_NOW });
+        const row = db.prepare(`SELECT * FROM orders WHERE customer_name = '测试客户'`).get();
+        const repairedPart = JSON.parse(JSON.parse(row.items_json)[0].partsJson)[0];
+        const repairedPurchase = JSON.parse(row.purchase_list_json)[0];
+        const repairedTodo = JSON.parse(row.todos_json)[0];
+
+        assert.deepEqual(result, { repairedOrders: 1, repairedItems: 1 });
+        assert.equal(repairedPart.model, '550w牛皮纸箱');
+        assert.equal(repairedPart.partId, Number(part.lastInsertRowid));
+        assert.equal(repairedPart.snapshotPrice, 4);
+        assert.equal(repairedPurchase.partId, Number(part.lastInsertRowid));
+        assert.equal(repairedPurchase.identityKey, `part:${part.lastInsertRowid}`);
+        assert.equal(repairedPurchase.orderedQty, 30);
+        assert.equal(repairedTodo.supplier, '广发纸箱');
+        assert.match(repairedTodo.description, /550w牛皮纸箱/);
     } finally {
         db.close();
     }

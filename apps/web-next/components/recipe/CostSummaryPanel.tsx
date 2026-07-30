@@ -58,6 +58,7 @@ export function CostSummaryPanel({
   const clampedPercent = Math.max(0, Math.min(100, completionPercent));
   const completedCount = completedItems.length;
   const moduleCount = completedItems.length + pendingItems.length;
+  const pendingHints = Array.from(new Set([...missingConfigHints, ...costWarningHints]));
 
   return (
     <aside className="xl:sticky xl:top-6 xl:self-start">
@@ -85,61 +86,70 @@ export function CostSummaryPanel({
           <CostLine label="表面处理费" value={surfaceTreatmentCost} />
         </div>
 
-        {costWarningHints.length > 0 ? (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
-            <div className="text-xs font-semibold text-amber-800">成本完整性提示</div>
-            <div className="mt-2 space-y-1">
-              {costWarningHints.map((hint) => (
-                <div key={hint} className="text-xs text-amber-700">{hint}</div>
-              ))}
+        <div className={`mt-4 rounded-md border p-3 ${pendingHints.length > 0 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/70'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className={`text-xs font-semibold ${pendingHints.length > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                {pendingHints.length > 0 ? `待完善 ${pendingHints.length} 项` : '配置已完整'}
+              </div>
+              <div className={`mt-1 text-xs ${pendingHints.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                {completedCount}/{moduleCount} 个成本模块已完成
+              </div>
             </div>
-            {onGoToCostWarnings ? (
-              <button
-                type="button"
-                onClick={onGoToCostWarnings}
-                className="mt-3 text-xs font-medium text-amber-800 underline underline-offset-2 transition-colors duration-150 hover:text-amber-900"
-              >
-                前往配置
-              </button>
-            ) : null}
+            <div className={`text-sm font-semibold ${pendingHints.length > 0 ? 'text-amber-900' : 'text-emerald-900'}`}>{clampedPercent}%</div>
           </div>
-        ) : null}
+          <div className={`mt-3 h-2 rounded-full ${pendingHints.length > 0 ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+            <div className={`h-2 rounded-full ${pendingHints.length > 0 ? 'bg-amber-500' : 'bg-emerald-600'}`} style={{ width: `${clampedPercent}%` }} />
+          </div>
 
-        <div className="mt-4 rounded-md border border-line bg-slate-50 p-3">
-          <div className="text-xs font-semibold text-slate-500">配置状态</div>
-          <div className={`mt-2 text-xs font-medium ${missingConfigHints.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-            {missingConfigHints.length > 0 ? '⚠ 存在缺失项' : '✓ 已完成配置'}
-          </div>
-          {missingConfigHints.length > 0 ? (
-            <div className="mt-2 space-y-1">
-              {missingConfigHints.slice(0, 4).map((hint) => (
-                <div key={hint} className="text-xs text-amber-700">{hint}</div>
+          {pendingHints.length > 0 ? (
+            <div className="mt-3 space-y-1.5">
+              {pendingHints.slice(0, 3).map((hint) => (
+                <div key={hint} className="text-xs leading-5 text-amber-800">· {hint}</div>
               ))}
+              {pendingHints.length > 3 ? (
+                <details className="group">
+                  <summary className="cursor-pointer list-none text-xs font-medium text-amber-800 underline underline-offset-2">
+                    查看其余 {pendingHints.length - 3} 项
+                  </summary>
+                  <div className="mt-2 space-y-1.5">
+                    {pendingHints.slice(3).map((hint) => (
+                      <div key={hint} className="text-xs leading-5 text-amber-800">· {hint}</div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+              {costWarningHints.length > 0 && onGoToCostWarnings ? (
+                <button
+                  type="button"
+                  onClick={onGoToCostWarnings}
+                  className="pt-1 text-xs font-semibold text-amber-900 underline underline-offset-2 transition-colors duration-150 hover:text-amber-950"
+                >
+                  前往配置
+                </button>
+              ) : null}
             </div>
           ) : null}
-        </div>
 
-        <div className="mt-4 rounded-md border border-line bg-white p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-semibold text-slate-500">配置完成度</div>
-            <div className="text-xs font-medium text-slate-900">{clampedPercent}%</div>
-          </div>
-          <div className="mt-2 h-2 rounded-full bg-slate-100">
-            <div className="h-2 rounded-full bg-slate-800" style={{ width: `${clampedPercent}%` }} />
-          </div>
-          <div className="mt-2 text-xs text-slate-500">{completedCount}/{moduleCount} 个成本模块已完成</div>
-          <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-1">
-            <div className="space-y-1">
-              {completedItems.map((item) => (
-                <div key={item} className="text-emerald-700">✓ {item}</div>
-              ))}
+          <details className="group mt-3 border-t border-current/10 pt-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium text-slate-600">
+              <span>查看模块状态</span>
+              <span className="group-open:hidden">展开</span>
+              <span className="hidden group-open:inline">收起</span>
+            </summary>
+            <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-1">
+              <div className="space-y-1">
+                {completedItems.map((item) => (
+                  <div key={item} className="text-emerald-700">✓ {item}</div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                {pendingItems.map((item) => (
+                  <div key={item} className="text-slate-500">○ {item}</div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-1">
-              {pendingItems.map((item) => (
-                <div key={item} className="text-slate-500">○ {item}</div>
-              ))}
-            </div>
-          </div>
+          </details>
         </div>
 
         <BomPreview count={bomCount} disabled={bomCount === 0} onOpen={onOpenBom} />

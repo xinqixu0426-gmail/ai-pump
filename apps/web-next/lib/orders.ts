@@ -36,6 +36,8 @@ export type PurchaseItem = {
   stockInHistory?: Array<{ receiptId: string; qty: number; at: string }>;
   purchased?: boolean;
   partId?: number;
+  coilId?: number;
+  inventoryType?: 'part' | 'coil' | 'none';
   purchaseUnit?: string;
   stockQtyPerUnit?: number;
   specification?: string;
@@ -297,10 +299,27 @@ export async function updateOrderPurchaseItem(
     actualSupplier?: string;
     allowOverPurchase?: boolean;
   }
-): Promise<{ order: Order; stockAddition: { partId: number; addQty: number; receiptId: string } | null }> {
+): Promise<{
+  order: Order;
+  stockAddition: {
+    inventoryType: 'part' | 'coil' | 'none';
+    partId: number | null;
+    coilId: number | null;
+    addQty: number;
+    inventoryAddQty: number;
+    receiptId: string;
+  } | null;
+}> {
   const result = await proxyRequest<ApiResponse<{
     order: OrderRow;
-    stockAddition: { partId: number; addQty: number; receiptId: string } | null;
+    stockAddition: {
+      inventoryType: 'part' | 'coil' | 'none';
+      partId: number | null;
+      coilId: number | null;
+      addQty: number;
+      inventoryAddQty: number;
+      receiptId: string;
+    } | null;
   }>>(`/api/orders/${orderId(order)}/purchase-items/progress`, {
     method: 'POST',
     body: JSON.stringify({
@@ -335,8 +354,18 @@ export async function toggleOrderTodoItem(order: Order, todoId: string, done?: b
   return rowToOrder(result.data);
 }
 
-export async function completeOrderPurchase(order: Order): Promise<{ order: Order; additions: Array<{ partId: number; addQty: number }> }> {
-  const result = await proxyRequest<ApiResponse<{ order: OrderRow; additions: Array<{ partId: number; addQty: number }> }>>(
+export type PurchaseStockAddition = {
+  inventoryType: 'part' | 'coil' | 'none';
+  resourceId: number | null;
+  partId: number | null;
+  coilId: number | null;
+  addQty: number;
+  inventoryAddQty: number;
+  purchaseUnit: string;
+};
+
+export async function completeOrderPurchase(order: Order): Promise<{ order: Order; additions: PurchaseStockAddition[] }> {
+  const result = await proxyRequest<ApiResponse<{ order: OrderRow; additions: PurchaseStockAddition[] }>>(
     `/api/orders/${orderId(order)}/complete-purchase`,
     { method: 'POST' }
   );

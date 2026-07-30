@@ -2006,7 +2006,10 @@ export function RecipesView() {
       : packingParts.length === 0
         ? 'recipe-optional-packing-section'
         : 'recipe-basic-section';
-    document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = document.getElementById(targetId);
+    const toggle = target?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    if (toggle?.getAttribute('aria-expanded') === 'false') toggle.click();
+    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   function defaultSupplierForModel(model: string, category?: string): string {
@@ -2841,8 +2844,7 @@ export function RecipesView() {
     <div className="space-y-5">
       <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Recipes</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">配方</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">配方</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
             选择泵壳、线圈转子和选配后直接生成 BOM 与成本；泵壳模板只维护稳定的固定搭配。
           </p>
@@ -2878,20 +2880,42 @@ export function RecipesView() {
         </div>
       </FadePanel>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <FadePanel delay={0.02}>
-          <StatCard value={String(recipes.length)} label="配方数量" />
-        </FadePanel>
-        <FadePanel delay={0.04}>
-          <StatCard value={money(stats.totalSavedCost)} label="保存成本合计" />
-        </FadePanel>
-        <FadePanel delay={0.06}>
-          <StatCard value={String(stats.riskyCount)} label="铜价需关注" />
-        </FadePanel>
-        <FadePanel delay={0.08}>
-          <StatCard value={String(stats.missingCostCount)} label="无保存成本" />
-        </FadePanel>
-      </div>
+      {activeSection === 'recipes' ? (
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(18rem,1.4fr)]">
+          <FadePanel delay={0.02}>
+            <StatCard value={String(recipes.length)} label="配方数量" />
+          </FadePanel>
+          <FadePanel delay={0.04}>
+            <StatCard value={money(stats.totalSavedCost)} label="保存成本合计" />
+          </FadePanel>
+          <FadePanel delay={0.06}>
+            <div className={`flex h-full items-center justify-between gap-4 rounded-panel border p-4 shadow-panel ${
+              stats.riskyCount > 0 || stats.missingCostCount > 0
+                ? 'border-amber-200 bg-amber-50'
+                : 'border-emerald-200 bg-emerald-50/70'
+            }`}>
+              <div>
+                <div className={`text-sm font-semibold ${stats.riskyCount > 0 || stats.missingCostCount > 0 ? 'text-amber-900' : 'text-emerald-900'}`}>
+                  {stats.riskyCount > 0 || stats.missingCostCount > 0 ? '成本数据需要处理' : '成本状态正常'}
+                </div>
+                <div className={`mt-1 text-xs ${stats.riskyCount > 0 || stats.missingCostCount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                  铜价关注 {stats.riskyCount} 个 · 无保存成本 {stats.missingCostCount} 个
+                </div>
+              </div>
+              {stats.riskyCount > 0 || stats.missingCostCount > 0 ? (
+                <Button
+                  size="sm"
+                  onClick={() => setQuickFilter(stats.riskyCount > 0 ? 'risk' : 'missingCost')}
+                >
+                  查看问题
+                </Button>
+              ) : (
+                <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
+              )}
+            </div>
+          </FadePanel>
+        </div>
+      ) : null}
 
       {activeSection === 'recipes' ? (
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
@@ -2956,26 +2980,23 @@ export function RecipesView() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] table-fixed border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-left text-sm">
               <thead className="whitespace-nowrap bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="w-12 border-b border-line px-4 py-3">对比</th>
-                  <th className="w-36 border-b border-line px-4 py-3">配方</th>
-                  <th className="w-40 border-b border-line px-4 py-3">模板/线圈</th>
-                  <th className="w-20 border-b border-line px-4 py-3 text-right">保存成本</th>
-                  <th className="w-20 border-b border-line px-4 py-3 text-right">当日成本</th>
-                  <th className="w-20 border-b border-line px-4 py-3 text-right" title="当日成本 - 保存成本">成本差额</th>
-                  <th className="w-[72px] border-b border-line px-4 py-3 text-right">人工/管理</th>
-                  <th className="w-24 border-b border-line px-4 py-3">铜价</th>
-                  <th className="w-16 border-b border-line px-4 py-3">创建</th>
-                  <th className="w-44 border-b border-line px-4 py-3 text-right">操作</th>
+                  <th className="w-12 border-b border-line px-4 py-2">对比</th>
+                  <th className="w-44 border-b border-line px-4 py-2">配方</th>
+                  <th className="w-52 border-b border-line px-4 py-2">模板/线圈</th>
+                  <th className="w-56 border-b border-line px-4 py-2 text-right">成本（当日 / 保存）</th>
+                  <th className="w-24 border-b border-line px-4 py-2">铜价</th>
+                  <th className="w-16 border-b border-line px-4 py-2">创建</th>
+                  <th className="w-56 border-b border-line px-4 py-2 text-right">操作</th>
                 </tr>
               </thead>
               <tbody>
                 <AnimatePresence initial={false}>
                   {filteredRows.map((row) => (
                     <PresenceRow key={row.recipe.id} className="transition-colors hover:bg-slate-50">
-                      <td className="border-b border-line px-4 py-3">
+                      <td className="border-b border-line px-4 py-2">
                         <input
                           type="checkbox"
                           checked={compareIds.includes(row.recipe.id)}
@@ -2984,42 +3005,50 @@ export function RecipesView() {
                           className="h-4 w-4 rounded border-line text-ink"
                         />
                       </td>
-                      <td className="border-b border-line px-4 py-3">
-                        <div className="font-medium text-ink">{row.recipe.name || '未命名配方'}</div>
-                        <div className="mt-0.5 max-w-[260px] truncate text-xs text-muted">{row.recipe.spec || '-'}</div>
+                      <td className="border-b border-line px-4 py-2">
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => openRecipeDetail(row.recipe)}
+                          className="max-w-full truncate text-left font-medium text-ink underline-offset-4 hover:underline disabled:cursor-not-allowed"
+                        >
+                          {row.recipe.name || '未命名配方'}
+                        </button>
+                        <div className="max-w-[260px] truncate text-xs leading-4 text-muted">{row.recipe.spec || '-'}</div>
                       </td>
-                      <td className="border-b border-line px-4 py-3">
+                      <td className="border-b border-line px-4 py-2">
                         <div className="text-ink">{row.templateName || '-'}</div>
-                        <div className="mt-0.5 text-xs text-muted">
+                        <div className="text-xs leading-4 text-muted">
                           {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium text-ink">
-                        {row.savedTotal ? money(row.savedTotal) : '-'}
+                      <td className="whitespace-nowrap border-b border-line px-4 py-2 text-right text-ink">
+                        <div className="flex items-baseline justify-end gap-2">
+                          <span className="font-medium">{row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}</span>
+                          <span className={`text-xs ${
+                            Number(row.currentCost?.difference || 0) > 0
+                              ? 'text-rose-700'
+                              : Number(row.currentCost?.difference || 0) < 0
+                                ? 'text-emerald-700'
+                                : 'text-muted'
+                          }`}>
+                            {signedMoney(row.currentCost?.difference)}
+                          </span>
+                        </div>
+                        <div className="text-xs font-normal leading-4 text-muted">
+                          保存 {row.savedTotal ? money(row.savedTotal) : '-'} · 人工/管理 {money(row.laborTotal)}
+                        </div>
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium text-ink">
-                        {row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}
-                      </td>
-                      <td className={`whitespace-nowrap border-b border-line px-4 py-3 text-right font-medium ${
-                        Number(row.currentCost?.difference || 0) > 0
-                          ? 'text-rose-700'
-                          : Number(row.currentCost?.difference || 0) < 0
-                            ? 'text-emerald-700'
-                            : 'text-muted'
-                      }`}>
-                        {signedMoney(row.currentCost?.difference)}
-                      </td>
-                      <td className="border-b border-line px-4 py-3 text-right text-muted">{money(row.laborTotal)}</td>
-                      <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                      <td className="whitespace-nowrap border-b border-line px-4 py-2">
                         <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-3 text-muted">{dateShort(row.recipe.createdAt)}</td>
-                      <td className="border-b border-line px-4 py-3">
+                      <td className="whitespace-nowrap border-b border-line px-4 py-2 text-muted">{dateShort(row.recipe.createdAt)}</td>
+                      <td className="border-b border-line px-4 py-2">
                         <div className="flex justify-end gap-1">
-                          <Button className="w-8 px-0" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => openRecipeDetail(row.recipe)} icon={<Eye size={14} />} />
-                          <Button className="w-8 px-0" size="sm" variant="ghost" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => openEditDrawer(row.recipe)} icon={<Pencil size={14} />} />
-                          <Button className="w-8 px-0" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制" disabled={saving} onClick={() => openCloneRecipe(row.recipe)} icon={<Copy size={14} />} />
-                          <Button className="w-8 px-0" size="sm" variant="danger" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void removeRecipe(row.recipe)} icon={<Trash2 size={14} />} />
+                          <Button className="h-7" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => openRecipeDetail(row.recipe)} icon={<Eye size={14} />}>查看</Button>
+                          <Button className="h-7" size="sm" variant="secondary" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => openEditDrawer(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
+                          <Button className="h-7 w-7 px-0" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制" disabled={saving} onClick={() => openCloneRecipe(row.recipe)} icon={<Copy size={14} />} />
+                          <Button className="h-7 w-7 px-0 text-slate-400 hover:text-rose-700" size="sm" variant="ghost" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void removeRecipe(row.recipe)} icon={<Trash2 size={14} />} />
                         </div>
                       </td>
                     </PresenceRow>
@@ -4085,11 +4114,10 @@ export function RecipesView() {
 
       <SlideOver open={drawerOpen} onClose={() => !saving && setDrawerOpen(false)} size="workspace">
         <form onSubmit={submitRecipe} className="flex min-h-full flex-col bg-slate-50">
-          <div className="border-b border-line bg-white">
+          <div className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-7xl items-start justify-between gap-4 px-6 py-5">
               <div>
-                <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Recipe Workspace</div>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
+                <h2 className="text-2xl font-semibold tracking-tight text-ink">
                   {editingRecipe ? '编辑配方' : '新建配方'}
                 </h2>
                 <p className="mt-2 text-sm text-muted">配置产品型号、BOM 物料和加工费用，系统会自动生成成本预览。</p>
@@ -4232,9 +4260,11 @@ export function RecipesView() {
             <WorkspaceSection
               title="2. 线圈转子"
               description="选择线圈规格和片数后，系统自动读取对应线重并计算成本。"
+              summary={form.coilSpec ? `${form.coilSpec} / ${form.coilSheets || '待选片数'} / ${form.coilMaterial || '-'} / ${form.coilSlotType || '小眼'}` : '待选择线圈规格'}
               status={bomDraft?.coilSnapshot ? 'complete' : 'warning'}
               badge="自动计算"
               badgeTone="blue"
+              defaultOpen={false}
             >
               <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
                 <label className="block">
@@ -4358,9 +4388,14 @@ export function RecipesView() {
             <WorkspaceSection
               title="3. 浮球与电缆"
               description="动态配置会进入 BOM 草稿，并实时影响成本预览。"
+              summary={[
+                form.hasFloat ? `浮球 ${form.floatWire || '待填线径'}` : '',
+                form.hasCable ? `电缆 ${form.cableWire || '待填线径'} / ${form.cableLength || '待填长度'}m` : '',
+              ].filter(Boolean).join(' · ') || '未启用浮球和电缆'}
               status={(!form.hasFloat && !form.hasCable) || (!missingConfigHints.some((hint) => hint.includes('浮球') || hint.includes('电缆'))) ? 'default' : 'warning'}
               badge={!form.hasFloat && !form.hasCable ? '未启用' : '已配置'}
               badgeTone={!form.hasFloat && !form.hasCable ? 'gray' : 'green'}
+              defaultOpen={false}
             >
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-md border border-line p-3">
@@ -4497,9 +4532,8 @@ export function RecipesView() {
               status={packingParts.length > 0 ? 'complete' : 'warning'}
               badge={packingParts.length > 0 ? `${optionalParts.length + packingParts.length} 项` : '待完善'}
               badgeTone={packingParts.length > 0 ? 'green' : 'amber'}
-              defaultOpen
+              defaultOpen={false}
               muted
-              action={<Button type="button" size="sm" onClick={addOptionalPart} disabled={saving} icon={<Plus size={14} />}>添加选配件</Button>}
             >
               <div className="space-y-5">
                 <div>
