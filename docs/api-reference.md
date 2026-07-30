@@ -493,7 +493,7 @@ V9.1 使用 `factory_files` 作为 PDF、Excel、文本和图片的统一原文�
 
 PDF 上传时同步完成解析：有文字层的页面使用 `【第 N 页】`，无文字层页面自动渲染并使用 `【第 N 页 OCR】`；混合 PDF 按页面合并。PDF 文字层最多处理 100 页和 30 万字符，OCR 最多处理 12 个扫描页、单页最多约 700 万渲染像素。图片 OCR 支持 PNG、JPG 和 WebP，原图超过 4000 万像素会拒绝解析。OCR 结果保存逐页/逐行文字框与置信度，并生成只读 `drawingCandidates`；低于 85% 标记 `needsReview`。未识别到文字时为 `metadata_only + ocrApplied=true`，AI 不得猜测原图内容。表格最多处理 20 个工作表、5000 个非空行、100 列、5 万个非空单元格和 30 万字符；保留工作表名、行号、列号、单元格引用、公式与合并区域，超出部分通过 `truncated=true` 明示。
 
-报价映射使用当前未归档客户和配方，只把精确名称/型号命中标记为可继续；近似匹配、多个候选、数量无效、金额不一致和未找到记录都进入待确认项。`quotationDraftInput` 只是现有 `/api/quotations/save-payload-draft` 的候选入参，文件单价不等于系统成本，正式报价草稿仍必须由标准报价 API 按当前配方重新试算。该链路不自动新增客户或配方，也不写正式报价。
+报价映射使用当前未归档客户和配方，只把精确名称/型号命中标记为可继续；客户型号精确命中优先于“规格”字段，避免常见规格同时出现在多个历史配方时把明确型号误判为多候选。近似匹配、同名重复、多个候选、数量无效、金额不一致和未找到记录都进入待确认项。`quotationDraftInput` 只是现有 `/api/quotations/save-payload-draft` 的候选入参，文件单价不等于系统成本，正式报价草稿仍必须由标准报价 API 按当前配方重新试算。该链路不自动新增客户或配方，也不写正式报价。
 
 V9.5 归档使用多态目标校验：客户、报价、配方和知识资料必须仍处于有效状态；“质量问题”映射到现有 `recipe_analysis_feedback` 或 `ai_answer_feedback`，不虚构第三套质量表。归档到知识库只允许已经 `parsed/metadata_only` 的文件，系统创建的 `knowledge_documents` 复用 `factory_files.file_id`，并通过现有知识自动同步进入检索。AI 工具 `search_factory_file_archive_targets` 只读查目标，`archive_factory_file` 属于写工具，必须显示确认卡片。聊天附件卡片也提供同一归档入口并显示已有归档。OCR 参数候选即使随文件归档也不升级为已确认事实。
 

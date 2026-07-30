@@ -202,6 +202,32 @@ test('V9.3 报价文件草稿：精确映射客户和配方但不写报价', asy
     }
 });
 
+test('V9.3 报价文件草稿：型号精确命中优先于重复规格', async () => {
+    const accessors = createAccessors();
+    try {
+        const target = accessors.safeInsert('recipes', {
+            name: 'V550F-220V',
+            spec: '12-100',
+            saved_total_cost: 180,
+        });
+        accessors.safeInsert('recipes', {
+            name: '其他客户型号',
+            spec: '12-100',
+            saved_total_cost: 175,
+        });
+        const result = require('../api/services/factoryQuotationDraft.cjs').matchRecipe(
+            'V550F-220V',
+            '12-100',
+            accessors.db.prepare('SELECT id, name, spec FROM recipes').all()
+        );
+
+        assert.equal(result.status, 'matched');
+        assert.equal(result.recipe.id, Number(target.lastInsertRowid));
+    } finally {
+        accessors.db.close();
+    }
+});
+
 test('V9.3 报价文件草稿：多个配方候选时停止而不猜选', async () => {
     const accessors = createAccessors();
     try {

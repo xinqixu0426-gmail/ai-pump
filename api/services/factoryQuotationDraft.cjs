@@ -176,7 +176,49 @@ function recipeKeys(recipe) {
 }
 
 function matchRecipe(model, spec, recipes) {
-    const queries = [normalize(model), normalize(spec), normalize(`${model}${spec}`)].filter(Boolean);
+    const modelQuery = normalize(model);
+    const specQuery = normalize(spec);
+    const combinedQuery = normalize(`${model}${spec}`);
+    const exactName = modelQuery
+        ? (recipes || []).filter(recipe => normalize(recipe.name) === modelQuery)
+        : [];
+    if (exactName.length === 1) {
+        return {
+            status: 'matched',
+            confidence: 1,
+            recipe: candidateView(exactName[0]),
+            candidates: [],
+        };
+    }
+    if (exactName.length > 1) {
+        return {
+            status: 'ambiguous',
+            confidence: 0,
+            candidates: exactName.slice(0, 5).map(candidateView),
+        };
+    }
+    const exactCombined = combinedQuery && modelQuery && specQuery
+        ? (recipes || []).filter(recipe => (
+            normalize(`${recipe.name || ''}${recipe.spec || ''}`) === combinedQuery
+        ))
+        : [];
+    if (exactCombined.length === 1) {
+        return {
+            status: 'matched',
+            confidence: 1,
+            recipe: candidateView(exactCombined[0]),
+            candidates: [],
+        };
+    }
+    if (exactCombined.length > 1) {
+        return {
+            status: 'ambiguous',
+            confidence: 0,
+            candidates: exactCombined.slice(0, 5).map(candidateView),
+        };
+    }
+
+    const queries = [modelQuery, specQuery, combinedQuery].filter(Boolean);
     const exact = (recipes || []).filter(recipe => (
         queries.some(query => recipeKeys(recipe).has(query))
     ));
