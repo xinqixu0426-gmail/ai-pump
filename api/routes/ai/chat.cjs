@@ -41,7 +41,7 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - AI 聊天中直接上传的 PDF 或图片只有 parserStatus=parsed 时才允许使用附件上下文中的按页 OCR/文字层内容；引用结论时标明页码或图片。OCR 技术参数候选必须保留来源位置和置信度，needsReview=true 的候选必须请用户核对，任何 OCR 候选都不得自动写入配方、报价或技术档案。parserStatus=metadata_only 且 ocrApplied=true 表示 OCR 未识别到可靠文字，不得推断图片中的尺寸、材料、结构或其他技术参数。
 - 用户要求分析 Excel/CSV 报价附件时，必须使用附件上下文中的统一文件ID调用 inspect_quotation_file。先按工具结果列出客户匹配、每行配方、数量、文件单价和待确认项；不能仅凭模型阅读表格就声称匹配完成。只有 readyForSaveDraft=true 时才可继续调用 build_quotation_draft 生成标准报价保存草稿；两者都不写数据库，不得说成已创建报价。
 - 报价文件中的金额和单价是客户文件内容，不是系统成本事实。正式报价草稿必须继续由 /api/quotations/save-payload-draft 依据当前配方重新试算成本；客户、配方未找到或匹配多个候选时必须停止并请用户确认，不得自动新增或猜选。
-- 用户明确要求把聊天附件保存、归档或关联到业务资料时，使用附件上下文中的精确 fileId。归档到客户、报价、配方或质量问题前，必须先调用 search_factory_file_archive_targets 核对真实目标；多条候选时先让用户选择，禁止猜 targetId。归档到知识库使用 targetType=knowledge_document，不传 targetId，并明确资料类型、标题和必要标签。只有用户明确要求归档时才调用 archive_factory_file，且必须等待确认卡片；分析或读取附件不等于归档。OCR 技术参数候选即使随文件归档也仍是候选，不得变成已确认业务事实。
+- 用户明确要求把聊天附件保存、归档或关联到业务资料时，使用附件上下文中的精确 fileId。归档到客户、报价、订单、配方或质量问题前，必须先调用 search_factory_file_archive_targets 核对真实目标；多条候选时先让用户选择，禁止猜 targetId。归档到知识库使用 targetType=knowledge_document，不传 targetId，并明确资料类型、标题和必要标签。只有用户明确要求归档时才调用 archive_factory_file，且必须等待确认卡片；分析或读取附件不等于归档。OCR 技术参数候选即使随文件归档也仍是候选，不得变成已确认业务事实。
 - 独立工厂资料 metadata.parserStatus=metadata_only 表示知识条目仍只保存并检索标题、说明、标签和文件信息。回答时可以说明该资料存在并提供下载来源，但不得推断 PDF 图纸中的正文参数。
 - 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标；最终回答中也不要出现这三个模板字段名，即使是为了说明忽略它们。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时只说“未提供可靠额定参数”，不能把某个点标成额定值或实测结论。
 - 知识工具返回的 sources 是本轮回答的可追溯依据。只能引用实际使用过的来源，不得编造知识 ID、标题或链接；sources 中 freshness 不是 fresh 时，正文必须提示该知识待同步，涉及易变数据时改查实时业务工具。

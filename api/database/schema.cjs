@@ -437,6 +437,7 @@ const CANONICAL_TABLES_SQL = `
             CHECK(target_type IN (
                 'customer',
                 'quotation',
+                'order',
                 'recipe',
                 'recipe_analysis_feedback',
                 'ai_answer_feedback',
@@ -446,6 +447,7 @@ const CANONICAL_TABLES_SQL = `
         relation_role TEXT NOT NULL DEFAULT 'attachment'
             CHECK(relation_role IN (
                 'attachment',
+                'customer_requirement',
                 'technical_reference',
                 'quotation_source',
                 'quality_evidence',

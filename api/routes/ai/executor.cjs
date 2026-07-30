@@ -165,6 +165,7 @@ function buildConfirmationRows(toolName, args = {}) {
             const targetLabels = {
                 customer: '客户',
                 quotation: '报价',
+                order: '订单',
                 recipe: '配方',
                 recipe_analysis_feedback: '质量问题（配方检查）',
                 ai_answer_feedback: '质量问题（AI回答）',

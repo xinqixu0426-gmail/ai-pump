@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   archiveFactoryFile,
@@ -18,6 +18,7 @@ type FactoryFileAttachmentsProps = {
   title?: string;
   description?: string;
   embedded?: boolean;
+  aiSummaryPrompt?: string;
 };
 
 const ACCEPTED_FILE_TYPES = '.pdf,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
@@ -47,6 +48,7 @@ export function FactoryFileAttachments({
   title = '附件',
   description = '支持 PDF、Excel、CSV、文本和图片，单个文件不超过 10MB。',
   embedded = false,
+  aiSummaryPrompt = '',
 }: FactoryFileAttachmentsProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [links, setLinks] = useState<FactoryFileLink[]>([]);
@@ -176,6 +178,22 @@ export function FactoryFileAttachments({
               >
                 <Download size={14} />
               </a>
+              {aiSummaryPrompt ? (
+                <a
+                  href={`/ai?${new URLSearchParams({
+                    fileId: String(link.fileId),
+                    prompt: aiSummaryPrompt,
+                  }).toString()}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="在 AI 工作台归纳客户要求"
+                  aria-label={`用 AI 归纳${link.file?.originalName || '附件'}`}
+                  className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-100"
+                >
+                  <Sparkles size={14} />
+                  AI 归纳
+                </a>
+              ) : null}
               <Button
                 type="button"
                 size="sm"

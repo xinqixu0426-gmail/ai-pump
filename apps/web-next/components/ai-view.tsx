@@ -75,6 +75,7 @@ import {
 import {
   archiveFactoryFile,
   deleteFactoryFile,
+  getFactoryFile,
   listFactoryFileLinks,
   searchFactoryFileArchiveTargets,
   uploadFactoryFile,
@@ -291,6 +292,7 @@ function attachmentParserText(attachment: AiAttachment) {
 
 const archiveTargetOptions: Array<{ value: FactoryFileArchiveTargetType; label: string }> = [
   { value: 'knowledge_document', label: '知识库资料' },
+  { value: 'order', label: '订单' },
   { value: 'recipe', label: '配方' },
   { value: 'customer', label: '客户' },
   { value: 'quotation', label: '报价' },
@@ -1811,9 +1813,16 @@ type AiViewProps = {
   onClose?: () => void;
   pageContext?: AiPageContext | null;
   initialPrompt?: string;
+  initialAttachmentId?: number;
 };
 
-export function AiView({ variant = 'workspace', onClose, pageContext = null, initialPrompt = '' }: AiViewProps = {}) {
+export function AiView({
+  variant = 'workspace',
+  onClose,
+  pageContext = null,
+  initialPrompt = '',
+  initialAttachmentId,
+}: AiViewProps = {}) {
   const isPanel = variant === 'panel';
   const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -1874,6 +1883,8 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
+  const initialAttachmentAppliedRef = useRef<number | null>(null);
+  const transientAttachmentIdsRef = useRef(new Set<number>());
 
   const apiMessages = useMemo<AiChatMessage[]>(() => (
     items
@@ -1943,6 +1954,36 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     initialPromptAppliedRef.current = true;
     setInput(prompt);
   }, [initialPrompt]);
+
+  useEffect(() => {
+    if (!initialAttachmentId || initialAttachmentAppliedRef.current === initialAttachmentId) return;
+    const previousInitialAttachmentId = initialAttachmentAppliedRef.current;
+    initialAttachmentAppliedRef.current = initialAttachmentId;
+    setUploadingAttachment(true);
+    setAttachmentError('');
+    void getFactoryFile(initialAttachmentId)
+      .then((stored) => {
+        const attachment: AiAttachment = {
+          id: stored.id,
+          originalName: stored.originalName,
+          detectedType: stored.detectedType,
+          mimeType: stored.mimeType,
+          fileSize: stored.fileSize,
+          downloadPath: stored.downloadPath,
+          parserStatus: stored.parserStatus,
+          parserSummary: stored.parserSummary,
+        };
+        setPendingAttachments((current) => {
+          const retained = previousInitialAttachmentId
+            ? current.filter(item => item.id !== previousInitialAttachmentId)
+            : current;
+          const merged = new Map([...retained, attachment].map(item => [item.id, item]));
+          return Array.from(merged.values()).slice(0, aiCapabilities?.maxAttachments || 4);
+        });
+      })
+      .catch((error) => setAttachmentError((error as Error).message || '读取订单附件失败'))
+      .finally(() => setUploadingAttachment(false));
+  }, [aiCapabilities?.maxAttachments, initialAttachmentId]);
 
   function stopVoiceInput() {
     speechRecognitionRef.current?.stop();
@@ -2047,6 +2088,9 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
         content,
         metadata: attachments.length > 0 ? { attachments } : undefined,
       });
+      for (const attachment of attachments) {
+        transientAttachmentIdsRef.current.delete(attachment.id);
+      }
       setHistoryError('');
     } catch (error) {
       const message = (error as Error).message || '保存会话失败';
@@ -2126,6 +2170,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     try {
       for (const file of selected) {
         const stored = await uploadFactoryFile(file);
+        transientAttachmentIdsRef.current.add(stored.id);
         uploaded.push({
           id: stored.id,
           originalName: stored.originalName,
@@ -2143,6 +2188,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
       });
     } catch (error) {
       for (const attachment of uploaded) {
+        transientAttachmentIdsRef.current.delete(attachment.id);
         void deleteFactoryFile(attachment.id).catch(() => {});
       }
       setAttachmentError((error as Error).message || '上传附件失败');
@@ -2154,9 +2200,11 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
 
   function discardPendingAttachment(attachment: AiAttachment) {
     setPendingAttachments(current => current.filter(item => item.id !== attachment.id));
-    void deleteFactoryFile(attachment.id).catch(() => {
-      // A deduplicated file may already be referenced by business data or another conversation.
-    });
+    if (transientAttachmentIdsRef.current.delete(attachment.id)) {
+      void deleteFactoryFile(attachment.id).catch(() => {
+        // A deduplicated file may already be referenced by business data or another conversation.
+      });
+    }
   }
 
   async function openArchiveDialog(attachment: AiAttachment) {
@@ -2250,7 +2298,9 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     if (loading) return;
     if (isListening) stopVoiceInput();
     for (const attachment of pendingAttachments) {
-      void deleteFactoryFile(attachment.id).catch(() => {});
+      if (transientAttachmentIdsRef.current.delete(attachment.id)) {
+        void deleteFactoryFile(attachment.id).catch(() => {});
+      }
     }
     setActiveConversationId(null);
     setItems([]);

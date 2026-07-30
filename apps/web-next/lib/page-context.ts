@@ -4,13 +4,14 @@ export type AiPageContext = {
   resourceType: 'order';
   resourceId: number;
   path: '/orders';
-  view: 'readiness' | 'items' | 'purchase' | 'todos';
+  view: 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos';
   label: string;
 };
 
 export const AI_PAGE_CONTEXT_EVENT = 'pump:ai-page-context';
 
 const orderViewLabels: Record<AiPageContext['view'], string> = {
+  requirements: '客户要求',
   readiness: '生产准备',
   items: '型号',
   purchase: '采购',

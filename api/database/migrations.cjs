@@ -535,6 +535,73 @@ function repairOrderPackagingEstimates(db, options = {}) {
     return { repairedOrders, repairedItems };
 }
 
+function addOrderFactoryFileLinks(db) {
+    const tableSql = String(db.prepare(`
+        SELECT sql FROM sqlite_schema
+        WHERE type = 'table' AND name = 'factory_file_links'
+    `).get()?.sql || '');
+    if (tableSql.includes("'order'") && tableSql.includes("'customer_requirement'")) return;
+
+    db.exec(`
+        DROP INDEX IF EXISTS idx_factory_file_links_file;
+        DROP INDEX IF EXISTS idx_factory_file_links_target;
+        DROP INDEX IF EXISTS idx_factory_file_links_active_unique;
+        DROP TABLE IF EXISTS factory_file_links_v9;
+        ALTER TABLE factory_file_links RENAME TO factory_file_links_v9;
+
+        CREATE TABLE factory_file_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL
+                CHECK(target_type IN (
+                    'customer',
+                    'quotation',
+                    'order',
+                    'recipe',
+                    'recipe_analysis_feedback',
+                    'ai_answer_feedback',
+                    'knowledge_document'
+                )),
+            target_id INTEGER NOT NULL,
+            relation_role TEXT NOT NULL DEFAULT 'attachment'
+                CHECK(relation_role IN (
+                    'attachment',
+                    'customer_requirement',
+                    'technical_reference',
+                    'quotation_source',
+                    'quality_evidence',
+                    'knowledge_source'
+                )),
+            title TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'manual'
+                CHECK(source IN ('manual', 'ai_chat', 'business_page')),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT,
+            FOREIGN KEY(file_id) REFERENCES factory_files(id)
+        );
+
+        INSERT INTO factory_file_links (
+            id, file_id, target_type, target_id, relation_role,
+            title, note, source, created_at, updated_at, deleted_at
+        )
+        SELECT
+            id, file_id, target_type, target_id, relation_role,
+            title, note, source, created_at, updated_at, deleted_at
+        FROM factory_file_links_v9;
+
+        DROP TABLE factory_file_links_v9;
+        CREATE INDEX idx_factory_file_links_file
+            ON factory_file_links(file_id, deleted_at, updated_at DESC);
+        CREATE INDEX idx_factory_file_links_target
+            ON factory_file_links(target_type, target_id, deleted_at, updated_at DESC);
+        CREATE UNIQUE INDEX idx_factory_file_links_active_unique
+            ON factory_file_links(file_id, target_type, target_id, relation_role)
+            WHERE deleted_at IS NULL;
+    `);
+}
+
 const MIGRATIONS = Object.freeze([
     {
         version: 1,
@@ -1591,6 +1658,15 @@ const MIGRATIONS = Object.freeze([
             repairOrderPackagingEstimates(db);
         },
     },
+    {
+        version: 36,
+        name: 'order_factory_file_links',
+        signature: 'order-factory-file-links-and-customer-requirement-role-v1',
+        foreignKeysOff: true,
+        up(db) {
+            addOrderFactoryFileLinks(db);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
@@ -1657,6 +1733,7 @@ function runMigrations(db, options = {}) {
 module.exports = {
     MIGRATIONS,
     MIGRATION_TABLE_SQL,
+    addOrderFactoryFileLinks,
     migrationChecksum,
     repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,

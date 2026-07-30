@@ -473,17 +473,17 @@ V3 第十五阶段补齐待复核工作台的操作闭环。反馈保存和已�
 
 ## 17. 统一文件 Files
 
-V9.1 使用 `factory_files` 作为 PDF、Excel、文本和图片的统一原文件对象。上传时以后端检测出的真实内容类型为准，不信任浏览器提交的 MIME；文件最大 10MB，只允许 `.pdf/.xls/.xlsx/.csv/.txt/.md/.png/.jpg/.jpeg/.webp`。扩展名与文件签名不一致、无效 UTF-8 文本、损坏 Excel、危险可执行扩展名或空文件会在写库前拒绝。V9.2 对 PDF 提取文字层、页码、行坐标和连续表格行；V9.3 对 Excel/CSV 提取工作表、行列、单元格、公式和表格块；V9.4 对图片和无文字层 PDF 执行本地中英文 OCR；V9.5 使用 `factory_file_links` 把同一文件可追溯地关联到客户、报价、配方、质量问题或知识资料，不复制原文件。
+V9.1 使用 `factory_files` 作为 PDF、Excel、文本和图片的统一原文件对象。上传时以后端检测出的真实内容类型为准，不信任浏览器提交的 MIME；文件最大 10MB，只允许 `.pdf/.xls/.xlsx/.csv/.txt/.md/.png/.jpg/.jpeg/.webp`。扩展名与文件签名不一致、无效 UTF-8 文本、损坏 Excel、危险可执行扩展名或空文件会在写库前拒绝。V9.2 对 PDF 提取文字层、页码、行坐标和连续表格行；V9.3 对 Excel/CSV 提取工作表、行列、单元格、公式和表格块；V9.4 对图片和无文字层 PDF 执行本地中英文 OCR；V9.5 使用 `factory_file_links` 把同一文件可追溯地关联到客户、报价、配方、质量问题或知识资料，不复制原文件。V10.1 增加订单客户要求文件关联。
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/files` | 查询参数 `detectedType?=pdf/spreadsheet/image/text`, `sourceType?`, `limit?` | 列出统一文件元数据，不返回二进制；默认 30 条，最大 100 条 |
 | `POST` | `/api/files` | `multipart/form-data`: `file` | 标准上传入口；按 SHA-256 去重，新文件返回 `201`，重复文件复用原对象并返回 `200 + deduplicated=true` |
-| `GET` | `/api/files/archive-targets` | 查询参数 `targetType=customer/quotation/recipe/recipe_analysis_feedback/ai_answer_feedback`, `query?`, `limit?` | 只读查找真实归档目标；返回业务标签和说明，供界面或 AI 消歧，不接受知识资料类型 |
+| `GET` | `/api/files/archive-targets` | 查询参数 `targetType=customer/quotation/order/recipe/recipe_analysis_feedback/ai_answer_feedback`, `query?`, `limit?` | 只读查找真实归档目标；订单可按客户名或合同号查找；返回业务标签和说明，供界面或 AI 消歧，不接受知识资料类型 |
 | `GET` | `/api/files/links` | 查询参数 `targetType`, `targetId` | 按业务对象列出有效文件关联及文件元数据 |
 | `GET` | `/api/files/:id` | 无 | 读取单个文件对象的类型、大小、哈希、解析状态和来源 |
 | `GET` | `/api/files/:id/links` | 无 | 列出该文件当前关联的业务对象 |
-| `POST` | `/api/files/:id/archive` | `{ targetType, targetId?, title?, note?, documentType?, tags?, source? }` | 归档文件；客户、报价、配方和质量问题必须传真实 `targetId`；知识资料使用 `targetType=knowledge_document` 且由系统创建或复用同文件资料；重复关联返回 `deduplicated=true` |
+| `POST` | `/api/files/:id/archive` | `{ targetType, targetId?, title?, note?, documentType?, tags?, source? }` | 归档文件；客户、报价、订单、配方和质量问题必须传真实 `targetId`；订单默认关系角色为 `customer_requirement`；知识资料使用 `targetType=knowledge_document` 且由系统创建或复用同文件资料；重复关联返回 `deduplicated=true` |
 | `DELETE` | `/api/files/:id/links/:linkId` | 无 | 软删除指定文件关联，不删除原文件或目标业务记录 |
 | `POST` | `/api/files/:id/parse` | 无 | 重新解析 PDF、Excel、CSV 或图片；成功返回更新后的文件对象，其他类型或解析失败返回 `400` |
 | `POST` | `/api/files/:id/quotation-draft` | `{ customerName? }` | 只读把 Excel/CSV 报价文件映射为客户、配方、数量、文件单价和待确认项；只有全部精确匹配时返回 `quotationDraftInput`，不创建客户、配方或报价 |
@@ -495,7 +495,7 @@ PDF 上传时同步完成解析：有文字层的页面使用 `【第 N 页】`�
 
 报价映射使用当前未归档客户和配方，只把精确名称/型号命中标记为可继续；客户型号精确命中优先于“规格”字段，避免常见规格同时出现在多个历史配方时把明确型号误判为多候选。近似匹配、同名重复、多个候选、数量无效、金额不一致和未找到记录都进入待确认项。`quotationDraftInput` 只是现有 `/api/quotations/save-payload-draft` 的候选入参，文件单价不等于系统成本，正式报价草稿仍必须由标准报价 API 按当前配方重新试算。该链路不自动新增客户或配方，也不写正式报价。
 
-V9.5 归档使用多态目标校验：客户、报价、配方和知识资料必须仍处于有效状态；“质量问题”映射到现有 `recipe_analysis_feedback` 或 `ai_answer_feedback`，不虚构第三套质量表。归档到知识库只允许已经 `parsed/metadata_only` 的文件，系统创建的 `knowledge_documents` 复用 `factory_files.file_id`，并通过现有知识自动同步进入检索。AI 工具 `search_factory_file_archive_targets` 只读查目标，`archive_factory_file` 属于写工具，必须显示确认卡片。聊天附件卡片也提供同一归档入口并显示已有归档。OCR 参数候选即使随文件归档也不升级为已确认事实。
+V9.5/V10.1 归档使用多态目标校验：客户、报价、订单、配方和知识资料必须仍处于有效状态；“质量问题”映射到现有 `recipe_analysis_feedback` 或 `ai_answer_feedback`，不虚构第三套质量表。归档到知识库只允许已经 `parsed/metadata_only` 的文件，系统创建的 `knowledge_documents` 复用 `factory_files.file_id`，并通过现有知识自动同步进入检索。AI 工具 `search_factory_file_archive_targets` 只读查目标，`archive_factory_file` 属于写工具，必须显示确认卡片。聊天附件卡片也提供同一归档入口并显示已有归档。OCR 参数候选即使随文件归档也不升级为已确认事实。
 
 V9 收口后，客户详情、报价详情和质量反馈入口通过 `POST /api/files` 上传，再以 `source=business_page` 调用归档接口；列表统一读取 `GET /api/files/links`，解除关联使用软删除接口。AI 回答反馈也可在知识管理页关联问题截图或原始资料。业务页上传不会自动创建知识资料；需要长期检索时必须另行归档到 `knowledge_document`。
 

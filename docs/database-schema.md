@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `33`：
+当前版本为 `36`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -54,6 +54,8 @@
 | 32 | `runtime_system_settings` | 建立系统初始化运行配置表，普通参数与加密 API Key 独立于业务设置保存 |
 | 33 | `factory_file_parsed_content` | 为统一文件保存 PDF 分页文本、结构化定位、解析错误和完成时间 |
 | 34 | `factory_file_business_links` | 建立统一文件与客户、报价、配方、质量问题和知识资料的可追溯软删除关联 |
+| 35 | `resolve_active_order_packaging_estimates` | 修复活动订单中可唯一映射到正式包装零件的历史估算项 |
+| 36 | `order_factory_file_links` | 允许统一文件绑定订单，并以客户要求角色保存原始生产、包装和交付依据 |
 
 ## 数据治理
 
@@ -66,7 +68,7 @@
 - `management_action_lifecycles` 以稳定 `action_key` 保存首次出现、当前连续出现起点、消失时间和累计出现次数；状态只允许 `active/resolved`。
 - `management_action_events` 追加保存 `appeared/resolved/reopened`，用于追溯事项反复发生；生命周期只记录检查结果变化，不替代原业务事实和人工处理记录。
 - `factory_files` 按 SHA-256 唯一保存 PDF、Excel、文本和图片原件；`parsed_text/parsed_json/parser_error/parsed_at` 保存 PDF 文字层与逐页定位、Excel/CSV 的工作表/行列/单元格/公式/表格块，或图片与扫描 PDF 的 OCR 页码、文字框、置信度和只读技术参数候选，以及失败原因和完成时间。报价文件字段映射是从这些解析结果实时生成的只读草稿，不增加报价写入或复制一份解析表。`knowledge_documents.file_id` 与 `recipe_technical_files.file_id` 复用同一文件对象。AI 会话消息在 `metadata_json.attachments` 保存经过服务端校验的文件引用，聊天历史可继续预览和下载；被会话引用的文件不能直接删除。
-- `factory_file_links` 保存文件与客户、报价、配方、配方检查反馈、AI 回答反馈或知识资料的逻辑关联。业务目标由归档服务按固定类型查询校验，不使用动态表名；同一有效文件、目标和关系角色唯一，解除关联使用 `deleted_at`，被有效关联的文件不能直接删除。归档到知识库时只创建或复用 `knowledge_documents` 引用，不复制 `file_blob`。
+- `factory_file_links` 保存文件与客户、报价、订单、配方、配方检查反馈、AI 回答反馈或知识资料的逻辑关联。订单附件默认使用 `customer_requirement` 角色，保留客户原始生产、包装和交付依据。业务目标由归档服务按固定类型查询校验，不使用动态表名；同一有效文件、目标和关系角色唯一，解除关联使用 `deleted_at`，被有效关联的文件不能直接删除。归档到知识库时只创建或复用 `knowledge_documents` 引用，不复制 `file_blob`。
 - `runtime_settings` 只保存系统初始化页白名单内的 AI 与知识检索运行参数，不参与工厂知识同步；API Key 通过 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密，接口不返回原文或密文。
 - 文件上传必须在写库前完成大小、文件名、允许扩展名、真实内容签名和 UTF-8/Excel 结构检查；只有 `parser_status=parsed` 的 PDF 文字层或 OCR 文字可以进入 AI 上下文。OCR 无可靠文字时保存为 `metadata_only + ocrApplied=true`，不得推断原图参数。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。

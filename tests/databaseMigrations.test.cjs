@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const { APPLICATION_TABLES } = require('../api/database/schema.cjs');
 const {
     MIGRATIONS,
+    addOrderFactoryFileLinks,
     repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,
     runMigrations,
@@ -189,6 +190,11 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
                 .find(index => index.name === 'idx_factory_file_links_active_unique')?.partial,
             1
         );
+        const fileLinkSql = db.prepare(`
+            SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'factory_file_links'
+        `).get().sql;
+        assert.match(fileLinkSql, /'order'/);
+        assert.match(fileLinkSql, /'customer_requirement'/);
         assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'runtime_settings'
         `).get());
@@ -200,6 +206,56 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
         assert.equal(db.prepare(`
             SELECT COUNT(*) AS count FROM sqlite_schema WHERE name = 'idx_pst_model'
         `).get().count, 0);
+    } finally {
+        db.close();
+    }
+});
+
+test('数据库迁移：订单文件关联升级保留已有归档记录', () => {
+    const db = openMemoryDatabase();
+    try {
+        db.exec(`
+            CREATE TABLE factory_files (
+                id INTEGER PRIMARY KEY
+            );
+            CREATE TABLE factory_file_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id INTEGER NOT NULL,
+                target_type TEXT NOT NULL
+                    CHECK(target_type IN ('customer', 'quotation', 'recipe', 'knowledge_document')),
+                target_id INTEGER NOT NULL,
+                relation_role TEXT NOT NULL DEFAULT 'attachment'
+                    CHECK(relation_role IN ('attachment', 'technical_reference', 'quotation_source', 'knowledge_source')),
+                title TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'manual'
+                    CHECK(source IN ('manual', 'ai_chat', 'business_page')),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT,
+                FOREIGN KEY(file_id) REFERENCES factory_files(id)
+            );
+            INSERT INTO factory_files (id) VALUES (1);
+            INSERT INTO factory_file_links (
+                file_id, target_type, target_id, relation_role,
+                title, note, source, created_at, updated_at
+            ) VALUES (
+                1, 'recipe', 9, 'technical_reference',
+                '原技术资料', '', 'business_page', '${FIXED_NOW}', '${FIXED_NOW}'
+            );
+        `);
+
+        addOrderFactoryFileLinks(db);
+
+        const existing = db.prepare('SELECT * FROM factory_file_links WHERE id = 1').get();
+        assert.equal(existing.title, '原技术资料');
+        assert.doesNotThrow(() => db.prepare(`
+            INSERT INTO factory_file_links (
+                file_id, target_type, target_id, relation_role,
+                title, note, source, created_at, updated_at
+            ) VALUES (?, 'order', 12, 'customer_requirement', '', '', 'business_page', ?, ?)
+        `).run(1, FIXED_NOW, FIXED_NOW));
+        assert.deepEqual(db.pragma('foreign_key_check'), []);
     } finally {
         db.close();
     }

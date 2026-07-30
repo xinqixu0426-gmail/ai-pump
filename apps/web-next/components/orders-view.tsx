@@ -63,7 +63,7 @@ export function OrdersView({
   initialDetailTab = 'items',
 }: {
   initialOrderId?: number | null;
-  initialDetailTab?: 'readiness' | 'items' | 'purchase' | 'todos';
+  initialDetailTab?: 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos';
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -141,7 +141,7 @@ export function OrdersView({
     void loadAuxiliary();
   }
 
-  function openOrder(order: Order, detailTab: 'readiness' | 'items' | 'purchase' | 'todos' = 'items') {
+  function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos' = 'items') {
     setSelectedOrder(order);
     replacePageLocation(`/orders?orderId=${order.id}&view=${detailTab}`);
   }

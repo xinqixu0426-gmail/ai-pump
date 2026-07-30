@@ -72,6 +72,57 @@ function insertRecipe(accessors, name = 'V1600-12-180') {
     }).lastInsertRowid);
 }
 
+function insertOrder(accessors, overrides = {}) {
+    return Number(accessors.safeInsert('orders', {
+        customer_name: '菲律宾客户',
+        contract_no: 'XYX-26013-2',
+        status: '待确认',
+        items_json: '[]',
+        purchase_list_json: '[]',
+        todos_json: '[]',
+        created_at: NOW,
+        updated_at: NOW,
+        deleted_at: null,
+        ...overrides,
+    }).lastInsertRowid);
+}
+
+test('V10.1 订单资料：客户要求文件可绑定订单并按合同号检索', () => {
+    const accessors = createAccessors();
+    try {
+        const fileId = insertFactoryFile(accessors, {
+            original_name: 'XYX-26013-2生产包装要求.pdf',
+            extension: '.pdf',
+            detected_type: 'pdf',
+            mime_type: 'application/pdf',
+        });
+        const orderId = insertOrder(accessors);
+
+        const targets = searchFactoryFileArchiveTargets({
+            targetType: 'order',
+            query: '26013',
+        }, { dbAccessors: accessors });
+        assert.deepEqual(targets.map(item => item.id), [orderId]);
+        assert.match(targets[0].label, /菲律宾客户.*XYX-26013-2/);
+
+        const archived = archiveFactoryFile(fileId, {
+            targetType: 'order',
+            targetId: orderId,
+            source: 'business_page',
+        }, { dbAccessors: accessors });
+
+        assert.equal(archived.link.relationRole, 'customer_requirement');
+        assert.equal(archived.link.targetId, orderId);
+        assert.match(archived.link.target.label, /XYX-26013-2/);
+        assert.equal(listFactoryFileLinks({
+            targetType: 'order',
+            targetId: orderId,
+        }, { dbAccessors: accessors }).length, 1);
+    } finally {
+        accessors.db.close();
+    }
+});
+
 test('V9.5 文件归档：搜索真实配方并建立可去重业务关联', () => {
     const accessors = createAccessors();
     try {

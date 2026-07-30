@@ -92,3 +92,18 @@ test('无关问题不会被订单页面上下文强行改写', () => {
     assert.strictEqual(resolveMessagesWithPageContext(messages, orderContext), messages);
     assert.strictEqual(resolveMessagesWithPageContext(contextualRecipe, orderContext), contextualRecipe);
 });
+
+test('客户要求页签可解析当前订单的附件问题', () => {
+    const context = {
+        resourceType: 'order',
+        resourceId: 18,
+        view: 'requirements',
+    };
+    assert.match(buildAiPageContextNote(context), /客户要求/);
+    assert.equal(
+        resolveMessagesWithPageContext([
+            { role: 'user', content: '这个客户要求里包装还缺什么' },
+        ], context)[0].content,
+        '这个客户要求里包装还缺什么 订单 #18'
+    );
+});

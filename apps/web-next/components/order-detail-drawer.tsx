@@ -24,6 +24,7 @@ import {
   type OrderReadinessVerdict,
 } from '@/lib/order-readiness';
 import { replacePageLocation } from '@/lib/page-context';
+import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 
 type OrderDetailDrawerProps = {
   order: Order | null;
@@ -33,7 +34,7 @@ type OrderDetailDrawerProps = {
   onSaved: () => void;
 };
 
-type TabKey = 'readiness' | 'items' | 'purchase' | 'todos';
+type TabKey = 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos';
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   待确认: 'slate',
@@ -57,6 +58,7 @@ function purchaseItemKey(item: { identityKey?: string; model: string; supplier: 
 }
 
 const tabOptions: Array<{ value: TabKey; label: string }> = [
+  { value: 'requirements', label: '客户要求' },
   { value: 'readiness', label: '生产准备' },
   { value: 'items', label: '型号' },
   { value: 'purchase', label: '采购' },
@@ -516,6 +518,21 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                   if (localOrder) void loadReadiness(localOrder.id);
                 }}
               />
+            )}
+
+            {tab === 'requirements' && (
+              <div className="space-y-3">
+                <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800">
+                  客户原始要求保留在订单下。AI 只负责按原文归纳草稿，结果需要人工确认，不会自动修改订单、配方、采购或库存。
+                </div>
+                <FactoryFileAttachments
+                  targetType="order"
+                  targetId={Number(localOrder.id)}
+                  title="客户要求文件"
+                  description="上传生产要求、包装要求、客户图片、Excel 或 PDF。上传后可直接交给 AI 归纳。"
+                  aiSummaryPrompt={`请只根据附件原文，整理订单 ${localOrder.contractNo || localOrder.id}（${localOrder.customerName || '未知客户'}）的客户要求草稿。按产品与数量、型号或线圈片数、扬程流量、电气参数、材料与结构、包装与标识、交期、质量验收、待确认问题分类；没有写明的内容标为“未提供”，冲突内容单列，禁止把推断写成客户要求。最后给出生产前资源准备清单，但不要修改任何系统数据。`}
+                />
+              </div>
             )}
 
             {tab === 'items' && (

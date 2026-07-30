@@ -827,16 +827,16 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_file_archive_targets',
-            description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
+            description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、订单、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
             parameters: {
                 type: 'object',
                 properties: {
                     targetType: {
                         type: 'string',
-                        enum: ['customer', 'quotation', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback'],
+                        enum: ['customer', 'quotation', 'order', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback'],
                         description: '归档目标类型'
                     },
-                    query: { type: 'string', description: '客户名、配方名、报价客户名或问题关键词，可为空以读取最近对象' },
+                    query: { type: 'string', description: '客户名、合同号、配方名、报价客户名或问题关键词，可为空以读取最近对象' },
                     limit: { type: 'number', description: '最多返回条数，默认20，最大50' }
                 },
                 required: ['targetType']
@@ -847,14 +847,14 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'archive_factory_file',
-            description: '把聊天中已经上传的工厂文件正式归档到知识库、客户、报价、配方或质量问题。只能使用附件上下文中的精确 fileId；客户、报价、配方和质量问题必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
+            description: '把聊天中已经上传的工厂文件正式归档到知识库、客户、报价、订单、配方或质量问题。只能使用附件上下文中的精确 fileId；客户、报价、订单、配方和质量问题必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
             parameters: {
                 type: 'object',
                 properties: {
                     fileId: { type: 'number', description: '附件上下文中的统一文件ID' },
                     targetType: {
                         type: 'string',
-                        enum: ['customer', 'quotation', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback', 'knowledge_document'],
+                        enum: ['customer', 'quotation', 'order', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback', 'knowledge_document'],
                         description: '归档目标类型'
                     },
                     targetId: { type: 'number', description: '业务对象ID；归档到知识库时省略' },

@@ -3,6 +3,7 @@ const path = require('node:path');
 const TARGET_TYPES = new Set([
     'customer',
     'quotation',
+    'order',
     'recipe',
     'recipe_analysis_feedback',
     'ai_answer_feedback',
@@ -11,12 +12,14 @@ const TARGET_TYPES = new Set([
 const SEARCHABLE_TARGET_TYPES = new Set([
     'customer',
     'quotation',
+    'order',
     'recipe',
     'recipe_analysis_feedback',
     'ai_answer_feedback',
 ]);
 const RELATION_ROLES = new Set([
     'attachment',
+    'customer_requirement',
     'technical_reference',
     'quotation_source',
     'quality_evidence',
@@ -33,6 +36,7 @@ const DOCUMENT_TYPES = new Set([
 const DEFAULT_ROLES = {
     customer: 'attachment',
     quotation: 'quotation_source',
+    order: 'customer_requirement',
     recipe: 'technical_reference',
     recipe_analysis_feedback: 'quality_evidence',
     ai_answer_feedback: 'quality_evidence',
@@ -113,6 +117,18 @@ function targetSummary(targetType, targetId, accessors) {
                 label: `${row.customer_name || '未知客户'} · 报价`,
                 detail: [row.status, row.updated_at ? `更新于 ${row.updated_at}` : ''].filter(Boolean).join(' · '),
             } : null;
+        case 'order':
+            row = accessors.db.prepare(`
+                SELECT id, customer_name, contract_no, status, updated_at
+                FROM orders
+                WHERE id = ? AND deleted_at IS NULL
+            `).get(targetId);
+            return row ? {
+                id: Number(row.id),
+                targetType,
+                label: [row.customer_name || '未知客户', row.contract_no || `订单 ${row.id}`].join(' · '),
+                detail: [row.status, row.updated_at ? `更新于 ${row.updated_at}` : ''].filter(Boolean).join(' · '),
+            } : null;
         case 'recipe':
             row = accessors.db.prepare(`
                 SELECT id, name, spec
@@ -179,6 +195,13 @@ function targetSearchRows(targetType, accessors) {
         case 'quotation':
             return accessors.db.prepare(`
                 SELECT id FROM quotations
+                WHERE deleted_at IS NULL
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 200
+            `).all();
+        case 'order':
+            return accessors.db.prepare(`
+                SELECT id FROM orders
                 WHERE deleted_at IS NULL
                 ORDER BY updated_at DESC, id DESC
                 LIMIT 200
