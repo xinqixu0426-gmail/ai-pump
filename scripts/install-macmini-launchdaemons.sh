@@ -5,6 +5,20 @@ SCRIPT_DIR=${0:A:h}
 PROJECT_DIR=/Users/dan/pump-cost-accounting-system
 USER_ID=$(/usr/bin/id -u dan)
 
+bootstrap_daemon() {
+  local label=$1
+  local plist_path=$2
+
+  if /bin/launchctl bootstrap system "$plist_path"; then
+    return
+  fi
+
+  echo "$label 首次注册失败，等待系统释放旧服务后重试。" >&2
+  /bin/launchctl bootout "system/$label" 2>/dev/null || true
+  /bin/sleep 2
+  /bin/launchctl bootstrap system "$plist_path"
+}
+
 if [[ $EUID -ne 0 ]]; then
   echo "请使用 sudo 运行此脚本。" >&2
   exit 1
@@ -31,8 +45,9 @@ cd "$PROJECT_DIR"
   "$SCRIPT_DIR/com.pumpfactory.web.daemon.plist" \
   /Library/LaunchDaemons/com.pumpfactory.web.plist
 
-/bin/launchctl bootstrap system /Library/LaunchDaemons/com.pumpfactory.api.plist
-/bin/launchctl bootstrap system /Library/LaunchDaemons/com.pumpfactory.web.plist
+/bin/sleep 1
+bootstrap_daemon com.pumpfactory.api /Library/LaunchDaemons/com.pumpfactory.api.plist
+bootstrap_daemon com.pumpfactory.web /Library/LaunchDaemons/com.pumpfactory.web.plist
 /bin/launchctl enable system/com.pumpfactory.api
 /bin/launchctl enable system/com.pumpfactory.web
 /bin/launchctl kickstart -k system/com.pumpfactory.api
