@@ -66,6 +66,7 @@ import {
   type AiAttachment,
   type AiCapabilities,
   type AiConversationSummary,
+  type AiProviderInfo,
   type AiStreamEvent,
   type AiToolPlan,
   type AiToolResult,
@@ -75,6 +76,7 @@ import {
 import {
   archiveFactoryFile,
   deleteFactoryFile,
+  getFactoryFile,
   listFactoryFileLinks,
   searchFactoryFileArchiveTargets,
   uploadFactoryFile,
@@ -98,6 +100,7 @@ type ChatItem = {
   persistedMessageId?: number;
   historical?: boolean;
   attachments?: AiAttachment[];
+  provider?: AiProviderInfo;
 };
 
 type ConfirmationResult = {
@@ -291,6 +294,7 @@ function attachmentParserText(attachment: AiAttachment) {
 
 const archiveTargetOptions: Array<{ value: FactoryFileArchiveTargetType; label: string }> = [
   { value: 'knowledge_document', label: '知识库资料' },
+  { value: 'order', label: '订单' },
   { value: 'recipe', label: '配方' },
   { value: 'customer', label: '客户' },
   { value: 'quotation', label: '报价' },
@@ -486,6 +490,7 @@ function toolLabel(name: string) {
     update_recipe: '修改配方',
     get_recent_orders: '最近订单',
     get_order_detail: '订单详情',
+    get_order_knowledge_package: '订单知识包',
     get_order_readiness_overview: '订单准备总览',
     check_order_readiness: '生产准备检查',
     plan_order_readiness_actions: '订单处理方案',
@@ -1611,6 +1616,10 @@ function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
 
 function applyStreamEvent(item: ChatItem, event: AiStreamEvent): ChatItem {
   if (event.type === 'status') return { ...item, status: event.status, statusMessage: event.message || '' };
+  if (event.type === 'provider') {
+    const { type: _type, ...provider } = event;
+    return { ...item, provider };
+  }
   if (event.type === 'content') return { ...item, content: item.content + event.content, status: 'answering', statusMessage: '' };
   if (event.type === 'tool_plan') return { ...item, toolPlan: { summary: event.summary, steps: event.steps || [] } };
   if (event.type === 'tool_call') return { ...item, toolCalls: [...(item.toolCalls || []), { name: event.name, args: event.args }], status: 'calling', statusMessage: `调用 ${event.name}` };
@@ -1811,9 +1820,16 @@ type AiViewProps = {
   onClose?: () => void;
   pageContext?: AiPageContext | null;
   initialPrompt?: string;
+  initialAttachmentId?: number;
 };
 
-export function AiView({ variant = 'workspace', onClose, pageContext = null, initialPrompt = '' }: AiViewProps = {}) {
+export function AiView({
+  variant = 'workspace',
+  onClose,
+  pageContext = null,
+  initialPrompt = '',
+  initialAttachmentId,
+}: AiViewProps = {}) {
   const isPanel = variant === 'panel';
   const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -1874,6 +1890,8 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
   const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
+  const initialAttachmentAppliedRef = useRef<number | null>(null);
+  const transientAttachmentIdsRef = useRef(new Set<number>());
 
   const apiMessages = useMemo<AiChatMessage[]>(() => (
     items
@@ -1943,6 +1961,36 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     initialPromptAppliedRef.current = true;
     setInput(prompt);
   }, [initialPrompt]);
+
+  useEffect(() => {
+    if (!initialAttachmentId || initialAttachmentAppliedRef.current === initialAttachmentId) return;
+    const previousInitialAttachmentId = initialAttachmentAppliedRef.current;
+    initialAttachmentAppliedRef.current = initialAttachmentId;
+    setUploadingAttachment(true);
+    setAttachmentError('');
+    void getFactoryFile(initialAttachmentId)
+      .then((stored) => {
+        const attachment: AiAttachment = {
+          id: stored.id,
+          originalName: stored.originalName,
+          detectedType: stored.detectedType,
+          mimeType: stored.mimeType,
+          fileSize: stored.fileSize,
+          downloadPath: stored.downloadPath,
+          parserStatus: stored.parserStatus,
+          parserSummary: stored.parserSummary,
+        };
+        setPendingAttachments((current) => {
+          const retained = previousInitialAttachmentId
+            ? current.filter(item => item.id !== previousInitialAttachmentId)
+            : current;
+          const merged = new Map([...retained, attachment].map(item => [item.id, item]));
+          return Array.from(merged.values()).slice(0, aiCapabilities?.maxAttachments || 4);
+        });
+      })
+      .catch((error) => setAttachmentError((error as Error).message || '读取订单附件失败'))
+      .finally(() => setUploadingAttachment(false));
+  }, [aiCapabilities?.maxAttachments, initialAttachmentId]);
 
   function stopVoiceInput() {
     speechRecognitionRef.current?.stop();
@@ -2047,6 +2095,9 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
         content,
         metadata: attachments.length > 0 ? { attachments } : undefined,
       });
+      for (const attachment of attachments) {
+        transientAttachmentIdsRef.current.delete(attachment.id);
+      }
       setHistoryError('');
     } catch (error) {
       const message = (error as Error).message || '保存会话失败';
@@ -2089,6 +2140,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
               toolPlan: finalAssistantItem.toolPlan,
               toolCalls: finalAssistantItem.toolCalls,
               toolResults: finalAssistantItem.toolResults,
+              provider: finalAssistantItem.provider,
             },
           });
           updateAssistant(assistantId, (item) => ({ ...item, persistedMessageId: saved.id }));
@@ -2126,6 +2178,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     try {
       for (const file of selected) {
         const stored = await uploadFactoryFile(file);
+        transientAttachmentIdsRef.current.add(stored.id);
         uploaded.push({
           id: stored.id,
           originalName: stored.originalName,
@@ -2143,6 +2196,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
       });
     } catch (error) {
       for (const attachment of uploaded) {
+        transientAttachmentIdsRef.current.delete(attachment.id);
         void deleteFactoryFile(attachment.id).catch(() => {});
       }
       setAttachmentError((error as Error).message || '上传附件失败');
@@ -2154,9 +2208,11 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
 
   function discardPendingAttachment(attachment: AiAttachment) {
     setPendingAttachments(current => current.filter(item => item.id !== attachment.id));
-    void deleteFactoryFile(attachment.id).catch(() => {
-      // A deduplicated file may already be referenced by business data or another conversation.
-    });
+    if (transientAttachmentIdsRef.current.delete(attachment.id)) {
+      void deleteFactoryFile(attachment.id).catch(() => {
+        // A deduplicated file may already be referenced by business data or another conversation.
+      });
+    }
   }
 
   async function openArchiveDialog(attachment: AiAttachment) {
@@ -2250,7 +2306,9 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
     if (loading) return;
     if (isListening) stopVoiceInput();
     for (const attachment of pendingAttachments) {
-      void deleteFactoryFile(attachment.id).catch(() => {});
+      if (transientAttachmentIdsRef.current.delete(attachment.id)) {
+        void deleteFactoryFile(attachment.id).catch(() => {});
+      }
     }
     setActiveConversationId(null);
     setItems([]);
@@ -2283,6 +2341,7 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
         toolCalls: message.metadata?.toolCalls || [],
         toolResults: message.metadata?.toolResults || [],
         attachments: message.metadata?.attachments || [],
+        provider: message.metadata?.provider,
         persistedMessageId: message.id,
         historical: true,
       })));
@@ -2638,6 +2697,11 @@ export function AiView({ variant = 'workspace', onClose, pageContext = null, ini
                         {item.role === 'user' ? <UserRound size={14} /> : <Bot size={14} />}
                       </span>
                       <span>{item.role === 'user' ? '你' : 'AI'}</span>
+                      {item.role === 'assistant' && item.provider ? (
+                        <StatusBadge tone={item.provider.provider === 'kimi' ? 'blue' : 'custom'} className="h-6 min-w-0 px-2">
+                          {item.provider.displayName}{item.provider.fallback ? '（已降级）' : ''}
+                        </StatusBadge>
+                      ) : null}
                       {item.status && item.status !== 'done' ? (
                         <StatusBadge tone="custom" className={`h-6 min-w-0 border-transparent px-2 ${item.role === 'user' ? 'bg-white/10 text-slate-100' : 'bg-slate-100 text-slate-600'}`}>
                           {item.statusMessage || item.status}

@@ -7,6 +7,7 @@ type SlideOverProps = {
   children: React.ReactNode;
   onClose: () => void;
   size?: 'standard' | 'wide' | 'workspace';
+  closeOnBackdrop?: boolean;
 };
 
 const sizeClass = {
@@ -15,7 +16,13 @@ const sizeClass = {
   workspace: 'max-w-[min(1280px,calc(100vw-2rem))]',
 };
 
-export function SlideOver({ open, children, onClose, size = 'standard' }: SlideOverProps) {
+export function SlideOver({
+  open,
+  children,
+  onClose,
+  size = 'standard',
+  closeOnBackdrop = true,
+}: SlideOverProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -29,7 +36,7 @@ export function SlideOver({ open, children, onClose, size = 'standard' }: SlideO
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
-            onClick={onClose}
+            onClick={closeOnBackdrop ? onClose : undefined}
           />
           <motion.aside
             role="dialog"

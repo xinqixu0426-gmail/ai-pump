@@ -18,6 +18,21 @@ const {
     purchaseToInventoryQty,
 } = require('../services/orderWorkflow.cjs');
 const { parsePositiveId, parseJsonArray, parseNonNegativeNumber, parsePositiveNumber } = require('../services/validation.cjs');
+const {
+    confirmOrderRequirementSummary,
+    getOrderRequirementSummary,
+    revokeOrderRequirementConfirmation,
+    saveOrderRequirementDraft,
+} = require('../services/orderRequirements.cjs');
+const {
+    confirmOrderExecutionRecord,
+    createOrderExecutionDraft,
+    deleteOrderExecutionDraft,
+    getOrderExecutionRecords,
+    revokeOrderExecutionConfirmation,
+    updateOrderExecutionDraft,
+} = require('../services/orderExecutionRecords.cjs');
+const { buildOrderKnowledgePackage } = require('../services/orderKnowledgePackage.cjs');
 const router = Router();
 
 const ORDER_FIELDS = ['customer_name', 'contract_no', 'remark', 'items_json', 'purchase_list_json', 'todos_json'];
@@ -608,6 +623,16 @@ router.get('/readiness-overview', (req, res) => {
     }
 });
 
+router.get('/:id/knowledge-package', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: buildOrderKnowledgePackage(id) });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+});
+
 router.get('/:id/readiness-plan', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
@@ -654,6 +679,151 @@ router.get('/:id/readiness', (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/:id/requirements', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: getOrderRequirementSummary(id) });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.put('/:id/requirements/draft', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({
+            success: true,
+            data: saveOrderRequirementDraft(id, {
+                summaryText: req.body?.summaryText,
+                sourceFileIds: req.body?.sourceFileIds,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/requirements/confirm', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({
+            success: true,
+            data: confirmOrderRequirementSummary(id, {
+                summaryText: req.body?.summaryText,
+                sourceFileIds: req.body?.sourceFileIds,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/requirements/revoke', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: revokeOrderRequirementConfirmation(id) });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/:id/execution-records', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({ success: true, data: getOrderExecutionRecords(id) });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/execution-records', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({
+            success: true,
+            data: createOrderExecutionDraft(id, {
+                phase: req.body?.phase,
+                recordType: req.body?.recordType,
+                title: req.body?.title,
+                summaryText: req.body?.summaryText,
+                occurredAt: req.body?.occurredAt,
+                sourceFileIds: req.body?.sourceFileIds,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.put('/:id/execution-records/:recordId/draft', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        const recordId = parsePositiveId(req.params.recordId);
+        if (!id || !recordId) return res.status(400).json({ success: false, error: '非法订单或执行档案ID' });
+        res.json({
+            success: true,
+            data: updateOrderExecutionDraft(id, recordId, {
+                phase: req.body?.phase,
+                recordType: req.body?.recordType,
+                title: req.body?.title,
+                summaryText: req.body?.summaryText,
+                occurredAt: req.body?.occurredAt,
+                sourceFileIds: req.body?.sourceFileIds,
+            }),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/execution-records/:recordId/confirm', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        const recordId = parsePositiveId(req.params.recordId);
+        if (!id || !recordId) return res.status(400).json({ success: false, error: '非法订单或执行档案ID' });
+        res.json({
+            success: true,
+            data: confirmOrderExecutionRecord(id, recordId, req.body || {}),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.post('/:id/execution-records/:recordId/revoke', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        const recordId = parsePositiveId(req.params.recordId);
+        if (!id || !recordId) return res.status(400).json({ success: false, error: '非法订单或执行档案ID' });
+        res.json({
+            success: true,
+            data: revokeOrderExecutionConfirmation(id, recordId),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+});
+
+router.delete('/:id/execution-records/:recordId', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        const recordId = parsePositiveId(req.params.recordId);
+        if (!id || !recordId) return res.status(400).json({ success: false, error: '非法订单或执行档案ID' });
+        res.json({
+            success: true,
+            data: deleteOrderExecutionDraft(id, recordId),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, error: error.message });
     }
 });
 

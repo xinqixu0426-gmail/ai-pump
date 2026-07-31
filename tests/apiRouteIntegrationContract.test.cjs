@@ -620,3 +620,58 @@ test('关键 API 集成契约：V9.5 文件归档统一校验目标并保护写�
     assert.match(tools, /const WRITE_TOOLS = new Set/);
     assert.match(store, /SELECT id FROM factory_file_links/);
 });
+
+test('V10.2 客户要求契约：草稿与人工知识确认使用独立入口', () => {
+    const routes = readUtf8('api/routes/orders.cjs');
+    const service = readUtf8('api/services/orderRequirements.cjs');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+    const panel = readUtf8('apps/web-next/components/order-requirements-panel.tsx');
+
+    assert.match(routes, /router\.put\('\/:id\/requirements\/draft'/);
+    assert.match(routes, /router\.post\('\/:id\/requirements\/confirm'/);
+    assert.match(routes, /router\.post\('\/:id\/requirements\/revoke'/);
+    assert.match(service, /confirmed_text/);
+    assert.match(service, /confirmed_source_file_ids_json/);
+    assert.match(tools, /name: 'save_order_requirement_draft'/);
+    assert.doesNotMatch(tools, /name: 'confirm_order_requirement/);
+    assert.match(panel, /确认进入知识库/);
+    assert.match(panel, /保存草稿/);
+});
+
+test('V10.3 执行档案契约：事实草稿、人工确认和知识边界独立', () => {
+    const routes = readUtf8('api/routes/orders.cjs');
+    const service = readUtf8('api/services/orderExecutionRecords.cjs');
+    const knowledge = readUtf8('api/services/knowledge.cjs');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+    const panel = readUtf8('apps/web-next/components/order-execution-records-panel.tsx');
+
+    assert.match(routes, /router\.post\('\/:id\/execution-records'/);
+    assert.match(routes, /router\.put\('\/:id\/execution-records\/:recordId\/draft'/);
+    assert.match(routes, /router\.post\('\/:id\/execution-records\/:recordId\/confirm'/);
+    assert.match(routes, /router\.post\('\/:id\/execution-records\/:recordId\/revoke'/);
+    assert.match(service, /confirmed_occurred_at/);
+    assert.match(service, /listConfirmedOrderExecutionRecordsForKnowledge/);
+    assert.match(knowledge, /执行档案（人工确认事实）/);
+    assert.match(tools, /name: 'save_order_execution_draft'/);
+    assert.doesNotMatch(tools, /name: 'confirm_order_execution/);
+    assert.match(panel, /执行事实时间线/);
+    assert.match(panel, /确认进入知识库/);
+});
+
+test('V10.4 订单知识包契约：实时业务与人工确认事实统一只读输出', () => {
+    const routes = readUtf8('api/routes/orders.cjs');
+    const service = readUtf8('api/services/orderKnowledgePackage.cjs');
+    const tools = readUtf8('api/routes/ai/tools.cjs');
+    const executor = readUtf8('api/routes/ai/executors/orderExecutors.cjs');
+
+    assert.match(routes, /router\.get\('\/:id\/knowledge-package'/);
+    assert.match(service, /buildOrderReadinessContext/);
+    assert.match(service, /getOrderRequirementSummary/);
+    assert.match(service, /getOrderExecutionRecords/);
+    assert.match(service, /draftsExcluded:\s*true/);
+    assert.match(service, /kind:\s*'human_confirmed'/);
+    assertNoWrites(service);
+    assert.match(tools, /name: 'get_order_knowledge_package'/);
+    assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/knowledge-package/);
+    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_knowledge_package/);
+});

@@ -8,6 +8,7 @@ const {
 const {
     fetchAiProvider,
     resolveAiProviderConfig,
+    resolveProviderConfig,
 } = require('../services/aiProvider.cjs');
 const router = Router();
 
@@ -40,18 +41,33 @@ router.post('/runtime/test-ai', async (req, res) => {
     const startedAt = Date.now();
     try {
         const env = buildCandidateAiEnvironment(req.body);
-        const config = resolveAiProviderConfig(env);
-        const response = await fetchAiProvider([{
-            role: 'user',
-            content: '只回复“连接正常”。',
-        }], { config });
-        await response.arrayBuffer();
-        res.json({
-            success: true,
-            data: {
+        const mode = String(env.AI_PROVIDER || 'auto').trim().toLowerCase();
+        const configs = mode === 'auto'
+            ? [
+                resolveProviderConfig('deepseek', env),
+                ...(resolveProviderConfig('kimi', env).apiKey ? [resolveProviderConfig('kimi', env)] : []),
+            ]
+            : [resolveAiProviderConfig(env)];
+        const testedProviders = [];
+        for (const config of configs) {
+            const response = await fetchAiProvider([{
+                role: 'user',
+                content: '只回复“连接正常”。',
+            }], { config });
+            await response.arrayBuffer();
+            testedProviders.push({
                 provider: config.provider,
                 displayName: config.displayName,
                 model: config.model,
+            });
+        }
+        res.json({
+            success: true,
+            data: {
+                provider: mode,
+                displayName: mode === 'auto' ? '智能路由' : testedProviders[0].displayName,
+                model: testedProviders.map(item => item.model).join(' / '),
+                testedProviders,
                 latencyMs: Date.now() - startedAt,
             },
         });

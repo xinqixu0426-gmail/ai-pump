@@ -314,12 +314,11 @@ export function RotorView() {
   const activeStatus = jobStatus ? statusLabel(jobStatus.status) : null;
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Rotor</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">转子出图</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">结构化参数出图，支持暂存、轮询任务状态和历史 PDF 下载。</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">转子出图</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">按配方带入参数，生成并管理转子图纸。</p>
         </div>
         <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
           刷新
@@ -347,17 +346,7 @@ export function RotorView() {
                 <div className="text-sm font-semibold text-ink">出图参数</div>
                 <div className="mt-1 text-xs text-muted">先选配方带入技术档案参数，再按需调整。历史记录已放到右侧辅助区。</div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {activeStatus ? (
-                  <StatusBadge tone={activeStatus.tone}>{activeStatus.label}</StatusBadge>
-                ) : null}
-                <Button type="button" size="sm" onClick={() => void saveOnly()} disabled={saving} icon={<Save size={14} />}>
-                  暂存
-                </Button>
-                <Button type="button" size="sm" variant="primary" onClick={() => void draw()} disabled={saving} icon={<Play size={14} />}>
-                  生成 PDF
-                </Button>
-              </div>
+              {activeStatus ? <StatusBadge tone={activeStatus.tone}>{activeStatus.label}</StatusBadge> : null}
             </div>
           </div>
           <div className="space-y-4 p-4">

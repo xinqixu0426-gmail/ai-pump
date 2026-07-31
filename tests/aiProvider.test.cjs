@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
     aiProviderCapabilities,
+    fetchAiProvider,
     prepareAiProviderMessages,
     resolveAiProviderConfig,
+    resolveAiProviderRoute,
 } = require('../api/services/aiProvider.cjs');
 
 function createFileAccessors() {
@@ -116,6 +118,93 @@ test('V9.1 AI 模型适配：默认保持 DeepSeek，Kimi 多模态能力可配�
     assert.equal(kimi.displayName, 'Kimi 开放平台');
     assert.equal(kimi.supportsImages, true);
     assert.equal(kimi.maxAttachments, 4);
+});
+
+test('AI 智能路由：普通对话和解析文件走 DeepSeek，图片原图走 Kimi', () => {
+    const accessors = createFileAccessors();
+    const env = {
+        AI_PROVIDER: 'auto',
+        DEEPSEEK_API_KEY: 'deepseek-key',
+        DEEPSEEK_MODEL: 'deepseek-v4-flash',
+        KIMI_API_KEY: 'kimi-key',
+        KIMI_MODEL: 'kimi-k2.7-code',
+        AI_VISION_ENABLED: 'true',
+    };
+    try {
+        assert.equal(resolveAiProviderRoute([{
+            role: 'user',
+            content: '查询订单',
+        }], { env, dbAccessors: { db: accessors.db } }).provider, 'deepseek');
+
+        assert.equal(resolveAiProviderRoute([{
+            role: 'user',
+            content: '分析表格',
+            attachments: [{ id: accessors.spreadsheetId }],
+        }], { env, dbAccessors: { db: accessors.db } }).provider, 'deepseek');
+
+        const imageRoute = resolveAiProviderRoute([{
+            role: 'user',
+            content: '识别图片',
+            attachments: [{ id: accessors.imageId }],
+        }], { env, dbAccessors: { db: accessors.db } });
+        assert.equal(imageRoute.provider, 'kimi');
+        assert.equal(imageRoute.routeReason, 'image');
+
+        const capabilities = aiProviderCapabilities(env);
+        assert.equal(capabilities.provider, 'auto');
+        assert.equal(capabilities.defaultProvider, 'deepseek');
+        assert.equal(capabilities.visionProvider, 'kimi');
+        assert.equal(capabilities.supportsImages, true);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 智能路由：Kimi 调用失败时回退 DeepSeek 和本地 OCR', async () => {
+    const accessors = createFileAccessors();
+    const requests = [];
+    const providers = [];
+    const env = {
+        AI_PROVIDER: 'auto',
+        DEEPSEEK_API_KEY: 'deepseek-key',
+        DEEPSEEK_BASE_URL: 'https://api.deepseek.test',
+        KIMI_API_KEY: 'kimi-key',
+        KIMI_BASE_URL: 'https://api.kimi.test/v1',
+        KIMI_MODEL: 'kimi-k2.7-code',
+        AI_VISION_ENABLED: 'true',
+    };
+    try {
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '识别图片',
+            attachments: [{ id: accessors.imageId }],
+        }], {
+            env,
+            dbAccessors: { db: accessors.db },
+            fetchImpl: async (url, init) => {
+                requests.push({ url, body: JSON.parse(init.body) });
+                if (requests.length === 1) return new Response('Kimi unavailable', { status: 503 });
+                return new Response(JSON.stringify({ choices: [] }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            },
+            onProvider: info => providers.push(info),
+        });
+
+        assert.equal(response.ok, true);
+        assert.equal(requests.length, 2);
+        assert.match(requests[0].url, /api\.kimi\.test/);
+        assert.equal(requests[0].body.model, 'kimi-k2.7-code');
+        assert.equal(Array.isArray(requests[0].body.messages[0].content), true);
+        assert.match(requests[1].url, /api\.deepseek\.test/);
+        assert.equal(typeof requests[1].body.messages[0].content, 'string');
+        assert.match(requests[1].body.messages[0].content, /本地 OCR 结果/);
+        assert.equal(providers.at(-1).provider, 'deepseek');
+        assert.equal(providers.at(-1).fallback, true);
+    } finally {
+        accessors.db.close();
+    }
 });
 
 test('V9.4 AI 附件：DeepSeek 不接收图片二进制但可读取本地 OCR 和文本附件', () => {

@@ -147,14 +147,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {aiPanelOpen && !aiPanelDocked ? (
               <button
                 type="button"
-                className="fixed inset-0 z-40 bg-slate-950/20"
+                className="fixed inset-0 z-[60] bg-slate-950/20"
                 aria-label="关闭业务 AI 助手遮罩"
                 onClick={() => setAiPanelVisibility(false)}
               />
             ) : null}
             <aside
               className={`${aiPanelOpen
-                ? 'fixed inset-0 z-50 min-w-0 bg-white p-0 sm:left-auto sm:w-[460px] sm:border-l sm:border-line sm:shadow-xl min-[1600px]:sticky min-[1600px]:bottom-auto min-[1600px]:left-auto min-[1600px]:right-auto min-[1600px]:top-[73px] min-[1600px]:z-auto min-[1600px]:h-[calc(100dvh-89px)] min-[1600px]:w-auto min-[1600px]:border-0 min-[1600px]:bg-transparent min-[1600px]:shadow-none'
+                ? 'fixed inset-0 z-[70] min-w-0 bg-white p-0 sm:left-auto sm:w-[460px] sm:border-l sm:border-line sm:shadow-xl min-[1600px]:sticky min-[1600px]:bottom-auto min-[1600px]:left-auto min-[1600px]:right-auto min-[1600px]:top-[73px] min-[1600px]:h-[calc(100dvh-89px)] min-[1600px]:w-auto min-[1600px]:border-0 min-[1600px]:bg-transparent min-[1600px]:shadow-none'
                 : 'hidden'}`}
               aria-label="业务 AI 助手"
               role={aiPanelOpen && !aiPanelDocked ? 'dialog' : undefined}

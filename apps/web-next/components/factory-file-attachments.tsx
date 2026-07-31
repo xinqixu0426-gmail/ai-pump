@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   archiveFactoryFile,
@@ -15,9 +15,12 @@ import {
 type FactoryFileAttachmentsProps = {
   targetType: FactoryFileArchiveTargetType;
   targetId: number;
+  relationRole?: FactoryFileLink['relationRole'];
   title?: string;
   description?: string;
   embedded?: boolean;
+  onAiSummarize?: (link: FactoryFileLink) => Promise<void>;
+  onChanged?: () => void;
 };
 
 const ACCEPTED_FILE_TYPES = '.pdf,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
@@ -44,15 +47,20 @@ function fileIcon(type?: string) {
 export function FactoryFileAttachments({
   targetType,
   targetId,
+  relationRole,
   title = '附件',
   description = '支持 PDF、Excel、CSV、文本和图片，单个文件不超过 10MB。',
   embedded = false,
+  onAiSummarize,
+  onChanged,
 }: FactoryFileAttachmentsProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [links, setLinks] = useState<FactoryFileLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [summarizingFileId, setSummarizingFileId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const locked = busy || summarizingFileId !== null;
 
   async function load() {
     if (!targetId) {
@@ -63,7 +71,8 @@ export function FactoryFileAttachments({
     setLoading(true);
     setError('');
     try {
-      setLinks(await listFactoryFileLinksForTarget(targetType, targetId));
+      const next = await listFactoryFileLinksForTarget(targetType, targetId);
+      setLinks(relationRole ? next.filter(link => link.relationRole === relationRole) : next);
     } catch (err) {
       setError(err instanceof Error ? err.message : '读取附件失败');
     } finally {
@@ -73,7 +82,7 @@ export function FactoryFileAttachments({
 
   useEffect(() => {
     void load();
-  }, [targetType, targetId]);
+  }, [targetType, targetId, relationRole]);
 
   async function upload(file?: File) {
     if (!file || busy) return;
@@ -84,10 +93,12 @@ export function FactoryFileAttachments({
       await archiveFactoryFile(stored.id, {
         targetType,
         targetId,
+        relationRole,
         title: file.name,
         source: 'business_page',
       });
       await load();
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传附件失败');
     } finally {
@@ -105,10 +116,24 @@ export function FactoryFileAttachments({
     try {
       await deleteFactoryFileLink(link.fileId, link.id);
       await load();
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : '解除附件关联失败');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function summarize(link: FactoryFileLink) {
+    if (!onAiSummarize || locked) return;
+    setSummarizingFileId(link.fileId);
+    setError('');
+    try {
+      await onAiSummarize(link);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI 归纳失败');
+    } finally {
+      setSummarizingFileId(null);
     }
   }
 
@@ -135,7 +160,7 @@ export function FactoryFileAttachments({
             type="button"
             size="sm"
             variant="secondary"
-            disabled={busy || !targetId}
+            disabled={locked || !targetId}
             icon={busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
             onClick={() => inputRef.current?.click()}
           >
@@ -176,12 +201,29 @@ export function FactoryFileAttachments({
               >
                 <Download size={14} />
               </a>
+              {onAiSummarize ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={locked}
+                  title="用 AI 原地归纳附件"
+                  aria-label={`用 AI 归纳${link.file?.originalName || '附件'}`}
+                  className="h-8 shrink-0"
+                  icon={summarizingFileId === link.fileId
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Sparkles size={14} />}
+                  onClick={() => void summarize(link)}
+                >
+                  {summarizingFileId === link.fileId ? '归纳中' : 'AI 归纳'}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 className="h-8 w-8 shrink-0 px-0"
-                disabled={busy}
+                disabled={locked}
                 title="解除关联"
                 aria-label={`解除${link.file?.originalName || '附件'}关联`}
                 icon={<Trash2 size={14} />}

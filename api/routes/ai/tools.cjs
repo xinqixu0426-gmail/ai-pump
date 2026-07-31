@@ -475,6 +475,20 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_order_knowledge_package',
+            description: '读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。适合查询客户要求、历史调整、异常、质量或交付追溯、资料依据和订单整体情况。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '订单ID，已知时优先使用' },
+                    orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'build_quotation_draft',
             description: '生成客户报价保存草稿，不写库。适合 AI 先试算成本后，为客户组装报价明细，确认后再调用正式写操作。',
             parameters: {
@@ -826,17 +840,81 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'save_order_requirement_draft',
+            description: '把已经根据订单附件整理好的客户要求保存为可编辑草稿。仅保存草稿，不确认知识、不修改订单明细、配方、采购或库存。只能在用户明确要求保存草稿后调用，并且必须使用真实订单ID和附件上下文中的精确 fileId；需要用户确认卡片。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '客户要求所属订单ID' },
+                    summaryText: { type: 'string', description: '忠于附件原文的客户要求摘要；缺失项和冲突项必须明确标注' },
+                    sourceFileIds: {
+                        type: 'array',
+                        items: { type: 'number' },
+                        description: '本摘要依据的订单附件 fileId；只能使用当前附件上下文中的精确ID'
+                    }
+                },
+                required: ['orderId', 'summaryText']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'save_order_execution_draft',
+            description: '把用户明确描述的订单执行事实保存为一条可编辑草稿。适用于生产前资源准备、生产中产能或供应商调整、过程异常，以及生产后质量、交付和客户反馈。仅保存草稿，不确认知识，不修改订单状态、配方、采购或库存；只能在用户明确要求保存后调用，并且需要确认卡片。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    orderId: { type: 'number', description: '执行事实所属的真实订单ID' },
+                    phase: {
+                        type: 'string',
+                        enum: ['pre_production', 'in_production', 'post_production'],
+                        description: '发生阶段：生产前、生产中或生产后'
+                    },
+                    recordType: {
+                        type: 'string',
+                        enum: [
+                            'resource_preparation',
+                            'material_preparation',
+                            'supplier_confirmation',
+                            'capacity_adjustment',
+                            'supplier_adjustment',
+                            'process_exception',
+                            'quality_check',
+                            'quality_result',
+                            'delivery_result',
+                            'customer_feedback',
+                            'other'
+                        ],
+                        description: '事实类型，必须与发生阶段相符'
+                    },
+                    title: { type: 'string', description: '简短标题；未提供时系统使用事实类型名称' },
+                    summaryText: { type: 'string', description: '只记录实际发生、人工决定或已确认结果，不把建议和推断写成事实' },
+                    occurredAt: { type: 'string', description: '事实发生时间，ISO 8601 格式；未提供时使用保存时间' },
+                    sourceFileIds: {
+                        type: 'array',
+                        items: { type: 'number' },
+                        description: '事实依据的订单附件 fileId，只能使用当前附件上下文中的精确ID'
+                    }
+                },
+                required: ['orderId', 'phase', 'recordType', 'summaryText']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'search_factory_file_archive_targets',
-            description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
+            description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、订单、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
             parameters: {
                 type: 'object',
                 properties: {
                     targetType: {
                         type: 'string',
-                        enum: ['customer', 'quotation', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback'],
+                        enum: ['customer', 'quotation', 'order', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback'],
                         description: '归档目标类型'
                     },
-                    query: { type: 'string', description: '客户名、配方名、报价客户名或问题关键词，可为空以读取最近对象' },
+                    query: { type: 'string', description: '客户名、合同号、配方名、报价客户名或问题关键词，可为空以读取最近对象' },
                     limit: { type: 'number', description: '最多返回条数，默认20，最大50' }
                 },
                 required: ['targetType']
@@ -847,14 +925,14 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'archive_factory_file',
-            description: '把聊天中已经上传的工厂文件正式归档到知识库、客户、报价、配方或质量问题。只能使用附件上下文中的精确 fileId；客户、报价、配方和质量问题必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
+            description: '把聊天中已经上传的工厂文件正式归档到知识库、客户、报价、订单、配方或质量问题。只能使用附件上下文中的精确 fileId；客户、报价、订单、配方和质量问题必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
             parameters: {
                 type: 'object',
                 properties: {
                     fileId: { type: 'number', description: '附件上下文中的统一文件ID' },
                     targetType: {
                         type: 'string',
-                        enum: ['customer', 'quotation', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback', 'knowledge_document'],
+                        enum: ['customer', 'quotation', 'order', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback', 'knowledge_document'],
                         description: '归档目标类型'
                     },
                     targetId: { type: 'number', description: '业务对象ID；归档到知识库时省略' },
@@ -1050,6 +1128,8 @@ const WRITE_TOOLS = new Set([
     'create_order', 'delete_order', 'update_order_status',
     'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list',
+    'save_order_requirement_draft',
+    'save_order_execution_draft',
     'execute_order_readiness_action',
     'execute_factory_workflow_step',
     'create_recipe', 'delete_recipe', 'update_recipe',

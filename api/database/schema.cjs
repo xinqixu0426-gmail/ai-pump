@@ -122,6 +122,51 @@ const CANONICAL_TABLES_SQL = `
         CHECK(status IN ('待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消'))
     );
 
+    CREATE TABLE IF NOT EXISTS order_requirement_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL UNIQUE,
+        draft_text TEXT NOT NULL DEFAULT '',
+        confirmed_text TEXT NOT NULL DEFAULT '',
+        source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        confirmed_source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'draft'
+            CHECK(status IN ('draft', 'confirmed')),
+        confirmed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(order_id) REFERENCES orders(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS order_execution_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        phase TEXT NOT NULL
+            CHECK(phase IN ('pre_production', 'in_production', 'post_production')),
+        record_type TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        draft_text TEXT NOT NULL DEFAULT '',
+        occurred_at TEXT NOT NULL,
+        source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        confirmed_phase TEXT,
+        confirmed_record_type TEXT NOT NULL DEFAULT '',
+        confirmed_title TEXT NOT NULL DEFAULT '',
+        confirmed_text TEXT NOT NULL DEFAULT '',
+        confirmed_occurred_at TEXT,
+        confirmed_source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'draft'
+            CHECK(status IN ('draft', 'confirmed')),
+        confirmed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY(order_id) REFERENCES orders(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_execution_records_order
+        ON order_execution_records(order_id, deleted_at, occurred_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_order_execution_records_confirmed
+        ON order_execution_records(order_id, confirmed_at DESC)
+        WHERE deleted_at IS NULL AND confirmed_text <> '';
+
     CREATE TABLE IF NOT EXISTS stator_variants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         diameter_mm INTEGER NOT NULL,
@@ -437,6 +482,7 @@ const CANONICAL_TABLES_SQL = `
             CHECK(target_type IN (
                 'customer',
                 'quotation',
+                'order',
                 'recipe',
                 'recipe_analysis_feedback',
                 'ai_answer_feedback',
@@ -446,6 +492,8 @@ const CANONICAL_TABLES_SQL = `
         relation_role TEXT NOT NULL DEFAULT 'attachment'
             CHECK(relation_role IN (
                 'attachment',
+                'customer_requirement',
+                'execution_evidence',
                 'technical_reference',
                 'quotation_source',
                 'quality_evidence',
@@ -852,6 +900,8 @@ const APPLICATION_TABLES = Object.freeze([
     'knowledge_vector_sync_runs',
     'management_action_events',
     'management_action_lifecycles',
+    'order_execution_records',
+    'order_requirement_summaries',
     'orders',
     'parts',
     'pump_model_variants',

@@ -92,3 +92,36 @@ test('无关问题不会被订单页面上下文强行改写', () => {
     assert.strictEqual(resolveMessagesWithPageContext(messages, orderContext), messages);
     assert.strictEqual(resolveMessagesWithPageContext(contextualRecipe, orderContext), contextualRecipe);
 });
+
+test('客户要求页签可解析当前订单的附件问题', () => {
+    const context = {
+        resourceType: 'order',
+        resourceId: 18,
+        view: 'requirements',
+    };
+    assert.match(buildAiPageContextNote(context), /客户要求/);
+    assert.equal(
+        resolveMessagesWithPageContext([
+            { role: 'user', content: '这个客户要求里包装还缺什么' },
+        ], context)[0].content,
+        '这个客户要求里包装还缺什么 订单 #18'
+    );
+});
+
+test('执行档案页签保留上下文并路由到订单知识包', () => {
+    const context = {
+        resourceType: 'order',
+        resourceId: 21,
+        view: 'execution',
+    };
+    const resolved = resolveMessagesWithPageContext([
+        { role: 'user', content: '之前做过哪些供应商调整' },
+    ], context);
+
+    assert.match(buildAiPageContextNote(context), /执行档案/);
+    assert.equal(resolved[0].content, '之前做过哪些供应商调整 订单 #21');
+    assert.deepEqual(buildFreshLookupToolCalls(resolved).at(-1), {
+        name: 'get_order_knowledge_package',
+        args: { orderId: 21 },
+    });
+});

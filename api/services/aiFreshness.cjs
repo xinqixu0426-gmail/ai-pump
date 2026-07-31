@@ -1,5 +1,5 @@
 const FACT_FIELD_RE = /价格|单价|成本|库存|铜价|铝价|汇率|状态|进度|金额|利润|报价|订单|供应商|客户|配方|零件|线圈|模板|泵壳|用途|适用|专用|配件|刀片|型号|材料|材质|参数|图纸|测试报告|技术档案|质量问题|业务规则/;
-const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|汇总|总览|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
+const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|汇总|总览|追溯|依据|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
 const MANAGEMENT_ACTION_INTENT_RE = /管理待办|待办中心|处理进展|自动归档|反复出现|解决了哪些|最优先|今天.*(?:先做什么|先.*处理|待办|风险|异常)|(?:当前|现在|全部|工厂).*(?:待办|优先事项|风险.*(?:处理|跟进)|异常.*处理|先做什么)/;
 
 /**
@@ -71,15 +71,18 @@ function buildFreshLookupToolCalls(messages = []) {
 
     const orderId = text.match(/订单\s*[#＃]?\s*(\d+)/)?.[1];
     if (/订单/.test(text)) {
-        const readinessIntent = /能不能生产|是否能生产|可以生产|可否生产|不能生产|生产准备|是否齐料|齐料了吗|还缺什么|缺(?:哪|哪些)?料/.test(text);
+        const readinessIntent = /能不能生产|是否能生产|可以生产|可否生产|不能生产|生产准备|是否齐料|齐料了吗|还缺(?:什么|哪些)?(?:物料|材料|配件|料)|缺(?:哪|哪些)?料/.test(text);
         const readinessPlanIntent = /怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/.test(text);
         const readinessOverviewIntent = /哪些订单|所有订单|全部订单|订单准备总览|订单生产准备总览|不能生产的订单|可以生产的订单|多少订单.*(?:缺料|能生产|不能生产)|订单.*(?:汇总|总览)/.test(text);
+        const knowledgePackageIntent = /客户要求|包装要求|标识要求|执行档案|执行记录|历史调整|过程调整|供应商调整|产能调整|过程异常|质量(?:结果|追溯|记录)|交付(?:结果|追溯|记录)|追溯|来源文件|依据文件|资料依据|全部已知信息|完整信息|知识包/.test(text);
         calls.push(!orderId && readinessOverviewIntent
             ? { name: 'get_order_readiness_overview', args: {} }
             : orderId && readinessPlanIntent
             ? { name: 'plan_order_readiness_actions', args: { orderId: Number(orderId) } }
             : orderId && readinessIntent
                 ? { name: 'check_order_readiness', args: { orderId: Number(orderId) } }
+            : orderId && knowledgePackageIntent
+                ? { name: 'get_order_knowledge_package', args: { orderId: Number(orderId) } }
             : orderId
                 ? { name: 'get_order_detail', args: { orderId: Number(orderId) } }
                 : { name: 'get_recent_orders', args: { limit: 10 } });

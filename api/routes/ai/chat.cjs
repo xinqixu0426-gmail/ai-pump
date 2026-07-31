@@ -31,6 +31,7 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - 用户询问配方是否漏项、配置是否合理、固定件价格是否异常或有哪些相似配方时，必须使用 analyze_recipe_configuration。已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述；检查结果只读，不得自动修改。
 - 用户询问某个订单能否生产、是否齐料、缺什么物料或生产准备情况时，必须使用 check_order_readiness。按工具 verdict 区分可生产、待补料、待复核、数据阻塞和不适用；已下单或已到货不等于已经入库，只有当前可用库存覆盖需求时才能回答可生产。该检查只读，不得自动确认订单、采购或调整库存。
 - 用户询问全部或多个订单的生产准备总览、哪些订单不能生产、多少订单缺料时，必须使用 get_order_readiness_overview。先回答汇总数量，再按数据阻塞、待补料、待复核、可生产说明重点订单；不得用最近订单列表代替实时准备总览。
+- 用户询问单个订单的客户要求、历史调整、执行异常、质量或交付追溯、来源文件，或要求汇总订单全部已知信息时，必须使用 get_order_knowledge_package。严格区分 data.order/readiness/actionPlan 的实时业务数据与 confirmedKnowledge 的人工确认事实；草稿已被排除，不得把 pendingDraftCount 或 hasPendingDraft 改写成草稿内容。来源不足时明确说系统未记录。
 - 用户询问今天先做什么、当前最重要的管理待办、处理进展或工厂有哪些风险需要优先处理时，必须使用 get_management_action_center。先使用 progress 汇总最近自动归档、仍待处理、暂时受阻和反复出现的事项，再列最优先事项、建议动作和处理入口；有 lifecycle 时可说明持续时间和累计出现次数。当前系统是单人管理助理，不要求分配负责人。该工具只读，不得说成已经创建任务；只有 progress.resolvedItems 中的事项才能说已由后台复查后自动归档。
 - 用户明确要求处理或执行今日队列中的某一项时，先重新使用 get_management_action_center 并匹配稳定事项 ID。resolution.mode=navigate/needs_input/monitor 时只能说明最短路径、所需判断或等待条件；只有 resolution.canAiConfirm=true 时，才继续调用 plan_order_readiness_actions 刷新订单方案，并使用该方案中仍为 available+confirmable 的精确步骤调用 execute_order_readiness_action 生成确认卡片。禁止直接执行或绕过确认。
 - 用户在生产准备检查后询问问题怎么处理、下一步做什么或要求处理方案时，必须使用 plan_order_readiness_actions。按方案 sequence 和 dependsOn 说明先后关系；confirmable 只表示AI以后可以发起确认，不代表已经执行，manual/needs_input/monitor 必须如实区分。
@@ -41,7 +42,9 @@ const AI_RUNTIME_RESPONSE_RULES = `
 - AI 聊天中直接上传的 PDF 或图片只有 parserStatus=parsed 时才允许使用附件上下文中的按页 OCR/文字层内容；引用结论时标明页码或图片。OCR 技术参数候选必须保留来源位置和置信度，needsReview=true 的候选必须请用户核对，任何 OCR 候选都不得自动写入配方、报价或技术档案。parserStatus=metadata_only 且 ocrApplied=true 表示 OCR 未识别到可靠文字，不得推断图片中的尺寸、材料、结构或其他技术参数。
 - 用户要求分析 Excel/CSV 报价附件时，必须使用附件上下文中的统一文件ID调用 inspect_quotation_file。先按工具结果列出客户匹配、每行配方、数量、文件单价和待确认项；不能仅凭模型阅读表格就声称匹配完成。只有 readyForSaveDraft=true 时才可继续调用 build_quotation_draft 生成标准报价保存草稿；两者都不写数据库，不得说成已创建报价。
 - 报价文件中的金额和单价是客户文件内容，不是系统成本事实。正式报价草稿必须继续由 /api/quotations/save-payload-draft 依据当前配方重新试算成本；客户、配方未找到或匹配多个候选时必须停止并请用户确认，不得自动新增或猜选。
-- 用户明确要求把聊天附件保存、归档或关联到业务资料时，使用附件上下文中的精确 fileId。归档到客户、报价、配方或质量问题前，必须先调用 search_factory_file_archive_targets 核对真实目标；多条候选时先让用户选择，禁止猜 targetId。归档到知识库使用 targetType=knowledge_document，不传 targetId，并明确资料类型、标题和必要标签。只有用户明确要求归档时才调用 archive_factory_file，且必须等待确认卡片；分析或读取附件不等于归档。OCR 技术参数候选即使随文件归档也仍是候选，不得变成已确认业务事实。
+- 用户明确要求把聊天附件保存、归档或关联到业务资料时，使用附件上下文中的精确 fileId。归档到客户、报价、订单、配方或质量问题前，必须先调用 search_factory_file_archive_targets 核对真实目标；多条候选时先让用户选择，禁止猜 targetId。归档到知识库使用 targetType=knowledge_document，不传 targetId，并明确资料类型、标题和必要标签。只有用户明确要求归档时才调用 archive_factory_file，且必须等待确认卡片；分析或读取附件不等于归档。OCR 技术参数候选即使随文件归档也仍是候选，不得变成已确认业务事实。
+- 归纳订单客户要求时，严格区分客户明确要求、未提供项、原文冲突和工厂建议；型号匹配、配方选择和经验推荐不得写成客户明确要求。先展示结果，只有用户明确要求保存草稿时才调用 save_order_requirement_draft，并使用真实 orderId 与附件上下文中的精确 fileId，等待确认卡片。该工具仅保存可编辑草稿，不代表进入知识库，也不修改订单明细、配方、采购或库存；知识确认和撤销只能由用户在订单页面操作。
+- 记录订单执行档案时，只记录用户明确陈述的实际准备、人工决定、过程调整、异常、质量结果和交付结果；建议、预测和待办不得写成已发生事实。先展示整理结果，只有用户明确要求保存时才调用 save_order_execution_draft，等待确认卡片。该工具只新建草稿，不确认知识，不修改订单状态、配方、采购或库存；正式确认和撤销只能由用户在订单页面操作。
 - 独立工厂资料 metadata.parserStatus=metadata_only 表示知识条目仍只保存并检索标题、说明、标签和文件信息。回答时可以说明该资料存在并提供下载来源，但不得推断 PDF 图纸中的正文参数。
 - 性能测试报告模板中的“规定点、实测点、偏差”不作为有效技术结论，不得引用、展示或据此判断是否达标；最终回答中也不要出现这三个模板字段名，即使是为了说明忽略它们。回答性能问题时只使用逐条“测试点”的流量、扬程、电流、效率等实际曲线数据；报告没有可靠额定参数时只说“未提供可靠额定参数”，不能把某个点标成额定值或实测结论。
 - 知识工具返回的 sources 是本轮回答的可追溯依据。只能引用实际使用过的来源，不得编造知识 ID、标题或链接；sources 中 freshness 不是 fresh 时，正文必须提示该知识待同步，涉及易变数据时改查实时业务工具。
@@ -108,6 +111,7 @@ const TOOL_PLAN_LABELS = {
     add_recipe_to_order: '订单追加产品',
     update_part: '修改零件',
     get_order_detail: '读取订单详情',
+    get_order_knowledge_package: '读取订单知识包',
     get_management_action_center: '读取管理待办',
     get_order_readiness_overview: '读取订单准备总览',
     check_order_readiness: '检查订单生产准备',
@@ -231,6 +235,17 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         let done = false;
         let allToolResults = [];
         let evidenceContextPrioritized = false;
+        let lastProviderNotice = '';
+        const announceProvider = (providerInfo) => {
+            const key = [
+                providerInfo.provider,
+                providerInfo.model,
+                providerInfo.fallback ? 'fallback' : 'primary',
+            ].join(':');
+            if (key === lastProviderNotice) return;
+            lastProviderNotice = key;
+            send('provider', providerInfo);
+        };
         const prioritizeEvidence = () => {
             if (evidenceContextPrioritized) return;
             currentMessages = prioritizeCurrentEvidence(currentMessages, messages.length);
@@ -266,6 +281,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                 aiRes = await fetchAiProvider(currentMessages, {
                     tools: AI_TOOLS,
                     stream: true,
+                    onProvider: announceProvider,
                 });
             } catch (err) {
                 send('error', { message: err.message });
@@ -453,6 +469,7 @@ async function processAiChat(text, options = {}) {
 
     const VIEW_TYPE_MAP = {
         get_order_detail: 'order_detail',
+        get_order_knowledge_package: 'order_knowledge_package',
         generate_purchase_list: 'purchase_list',
         get_management_action_center: 'management_action_center',
         get_order_readiness_overview: 'order_readiness_overview',

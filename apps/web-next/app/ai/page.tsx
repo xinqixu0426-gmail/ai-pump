@@ -7,6 +7,9 @@ export default async function AiPage({
 }) {
   const params = await searchParams;
   const rawPrompt = Array.isArray(params.prompt) ? params.prompt[0] : params.prompt;
+  const rawFileId = Array.isArray(params.fileId) ? params.fileId[0] : params.fileId;
   const initialPrompt = typeof rawPrompt === 'string' ? rawPrompt.trim().slice(0, 500) : '';
-  return <AiView initialPrompt={initialPrompt} />;
+  const parsedFileId = Number(rawFileId);
+  const initialAttachmentId = Number.isInteger(parsedFileId) && parsedFileId > 0 ? parsedFileId : undefined;
+  return <AiView initialPrompt={initialPrompt} initialAttachmentId={initialAttachmentId} />;
 }

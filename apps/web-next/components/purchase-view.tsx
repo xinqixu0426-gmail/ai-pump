@@ -104,14 +104,11 @@ export function PurchaseView() {
   }
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Purchase</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">采购中心</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            按供应商和型号汇总计划、下单、到货和入库数量；分批进度在订单详情中登记。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">采购中心</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">集中查看待采购、处理中和已入库物料。</p>
         </div>
         <Button
           onClick={() => void load(true)}
@@ -144,6 +141,7 @@ export function PurchaseView() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              aria-label="搜索采购任务"
               placeholder="搜索供应商、型号或名称"
               className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
             />

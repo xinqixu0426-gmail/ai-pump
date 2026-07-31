@@ -674,14 +674,11 @@ export function QuotationsView() {
   const viewQuotationItems = useMemo(() => parseQuotationItems(viewQuotation?.itemsJson), [viewQuotation]);
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Quotations</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">报价单</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            报价以配方保存成本为基线；客户只调整浮球、电缆长度和组合包材，其他规格沿用配方。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">报价单</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">基于配方成本生成报价并跟踪转单状态。</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -721,6 +718,7 @@ export function QuotationsView() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              aria-label="搜索报价单"
               placeholder="搜索客户、备注、配方或状态"
               className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
             />

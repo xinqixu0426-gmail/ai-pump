@@ -3,6 +3,7 @@ const path = require('node:path');
 const TARGET_TYPES = new Set([
     'customer',
     'quotation',
+    'order',
     'recipe',
     'recipe_analysis_feedback',
     'ai_answer_feedback',
@@ -11,12 +12,15 @@ const TARGET_TYPES = new Set([
 const SEARCHABLE_TARGET_TYPES = new Set([
     'customer',
     'quotation',
+    'order',
     'recipe',
     'recipe_analysis_feedback',
     'ai_answer_feedback',
 ]);
 const RELATION_ROLES = new Set([
     'attachment',
+    'customer_requirement',
+    'execution_evidence',
     'technical_reference',
     'quotation_source',
     'quality_evidence',
@@ -33,6 +37,7 @@ const DOCUMENT_TYPES = new Set([
 const DEFAULT_ROLES = {
     customer: 'attachment',
     quotation: 'quotation_source',
+    order: 'customer_requirement',
     recipe: 'technical_reference',
     recipe_analysis_feedback: 'quality_evidence',
     ai_answer_feedback: 'quality_evidence',
@@ -113,6 +118,18 @@ function targetSummary(targetType, targetId, accessors) {
                 label: `${row.customer_name || '未知客户'} · 报价`,
                 detail: [row.status, row.updated_at ? `更新于 ${row.updated_at}` : ''].filter(Boolean).join(' · '),
             } : null;
+        case 'order':
+            row = accessors.db.prepare(`
+                SELECT id, customer_name, contract_no, status, updated_at
+                FROM orders
+                WHERE id = ? AND deleted_at IS NULL
+            `).get(targetId);
+            return row ? {
+                id: Number(row.id),
+                targetType,
+                label: [row.customer_name || '未知客户', row.contract_no || `订单 ${row.id}`].join(' · '),
+                detail: [row.status, row.updated_at ? `更新于 ${row.updated_at}` : ''].filter(Boolean).join(' · '),
+            } : null;
         case 'recipe':
             row = accessors.db.prepare(`
                 SELECT id, name, spec
@@ -179,6 +196,13 @@ function targetSearchRows(targetType, accessors) {
         case 'quotation':
             return accessors.db.prepare(`
                 SELECT id FROM quotations
+                WHERE deleted_at IS NULL
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 200
+            `).all();
+        case 'order':
+            return accessors.db.prepare(`
+                SELECT id FROM orders
                 WHERE deleted_at IS NULL
                 ORDER BY updated_at DESC, id DESC
                 LIMIT 200
@@ -438,11 +462,46 @@ function deleteFactoryFileLink(fileIdValue, linkIdValue, options = {}) {
     const fileId = positiveId(fileIdValue, '文件ID');
     const linkId = positiveId(linkIdValue, '关联ID');
     const link = accessors.db.prepare(`
-        SELECT id
+        SELECT id, target_type, target_id, relation_role
         FROM factory_file_links
         WHERE id = ? AND file_id = ? AND deleted_at IS NULL
     `).get(linkId, fileId);
     if (!link) throw notFound('文件关联不存在');
+    if (link.target_type === 'order' && link.relation_role === 'customer_requirement') {
+        const requirement = accessors.db.prepare(`
+            SELECT confirmed_text, confirmed_source_file_ids_json
+            FROM order_requirement_summaries
+            WHERE order_id = ?
+        `).get(link.target_id);
+        const confirmedFileIds = parseJson(requirement?.confirmed_source_file_ids_json, []);
+        if (requirement?.confirmed_text && Array.isArray(confirmedFileIds) && confirmedFileIds.map(Number).includes(fileId)) {
+            const error = new Error('该文件已被确认的客户要求引用，请先撤销确认或重新确认不引用该文件的版本');
+            error.statusCode = 409;
+            throw error;
+        }
+    }
+    if (link.target_type === 'order' && link.relation_role === 'execution_evidence') {
+        let executionRecords = [];
+        try {
+            executionRecords = accessors.db.prepare(`
+                SELECT id, confirmed_source_file_ids_json
+                FROM order_execution_records
+                WHERE order_id = ?
+                  AND deleted_at IS NULL
+                  AND confirmed_text <> ''
+            `).all(link.target_id);
+        } catch {
+            executionRecords = [];
+        }
+        const referencedExecutionRecord = executionRecords.find(row => (
+            parseJson(row.confirmed_source_file_ids_json, []).map(Number).includes(fileId)
+        ));
+        if (referencedExecutionRecord) {
+            const error = new Error(`该文件已被确认的执行档案 #${referencedExecutionRecord.id} 引用，请先撤销确认或重新确认不引用该文件的版本`);
+            error.statusCode = 409;
+            throw error;
+        }
+    }
     accessors.softDelete('factory_file_links', linkId);
 }
 

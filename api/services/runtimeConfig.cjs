@@ -9,8 +9,8 @@ const DEFINITIONS = Object.freeze({
     aiProvider: {
         env: 'AI_PROVIDER',
         type: 'enum',
-        values: ['deepseek', 'kimi'],
-        defaultValue: 'deepseek',
+        values: ['auto', 'deepseek', 'kimi'],
+        defaultValue: 'auto',
         hot: true,
     },
     deepseekApiKey: {
@@ -368,7 +368,9 @@ function updateRuntimeSettings(input, options = {}) {
     ) {
         throw new Error(normalized.aiProvider === 'kimi'
             ? '切换 Kimi 前必须先配置 Kimi 开放平台 API Key'
-            : '切换 DeepSeek 前必须先配置 DeepSeek API Key');
+            : normalized.aiProvider === 'auto'
+                ? '启用智能路由前必须先配置 DeepSeek API Key'
+                : '切换 DeepSeek 前必须先配置 DeepSeek API Key');
     }
 
     const accessors = dbAccessors(options);

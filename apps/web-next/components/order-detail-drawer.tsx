@@ -24,6 +24,8 @@ import {
   type OrderReadinessVerdict,
 } from '@/lib/order-readiness';
 import { replacePageLocation } from '@/lib/page-context';
+import { OrderRequirementsPanel } from '@/components/order-requirements-panel';
+import { OrderExecutionRecordsPanel } from '@/components/order-execution-records-panel';
 
 type OrderDetailDrawerProps = {
   order: Order | null;
@@ -33,7 +35,7 @@ type OrderDetailDrawerProps = {
   onSaved: () => void;
 };
 
-type TabKey = 'readiness' | 'items' | 'purchase' | 'todos';
+type TabKey = 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos';
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   待确认: 'slate',
@@ -57,7 +59,9 @@ function purchaseItemKey(item: { identityKey?: string; model: string; supplier: 
 }
 
 const tabOptions: Array<{ value: TabKey; label: string }> = [
+  { value: 'requirements', label: '客户要求' },
   { value: 'readiness', label: '生产准备' },
+  { value: 'execution', label: '执行档案' },
   { value: 'items', label: '型号' },
   { value: 'purchase', label: '采购' },
   { value: 'todos', label: '待办' },
@@ -462,7 +466,12 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   }, [localOrder]);
 
   return (
-    <SlideOver open={open && Boolean(localOrder)} onClose={onClose} size="workspace">
+    <SlideOver
+      open={open && Boolean(localOrder)}
+      onClose={onClose}
+      size="workspace"
+      closeOnBackdrop={false}
+    >
       {localOrder && (
         <div className="flex min-h-full flex-col">
           <header className="border-b border-line px-5 py-4">
@@ -488,13 +497,16 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
             </div>
           </header>
 
-          <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
-            <SegmentedControl
-              value={tab}
-              options={tabOptions}
-              onChange={selectTab}
-              ariaLabel="订单详情分区"
-            />
+          <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line px-5 py-3">
+            <div className="min-w-0 flex-1 overflow-x-auto">
+              <SegmentedControl
+                value={tab}
+                options={tabOptions}
+                onChange={selectTab}
+                ariaLabel="订单详情分区"
+                className="w-max"
+              />
+            </div>
             <div className="hidden items-center gap-3 text-xs text-muted md:flex">
               <span className="inline-flex items-center gap-1"><PackageCheck size={14} /> {localOrder.items.length}</span>
               <span className="inline-flex items-center gap-1"><ShoppingCart size={14} /> {progress.stockedQty}/{progress.plannedQty}</span>
@@ -515,6 +527,22 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                 onRefresh={() => {
                   if (localOrder) void loadReadiness(localOrder.id);
                 }}
+              />
+            )}
+
+            {tab === 'requirements' && (
+              <OrderRequirementsPanel
+                orderId={Number(localOrder.id)}
+                contractNo={localOrder.contractNo}
+                customerName={localOrder.customerName}
+              />
+            )}
+
+            {tab === 'execution' && (
+              <OrderExecutionRecordsPanel
+                orderId={Number(localOrder.id)}
+                contractNo={localOrder.contractNo}
+                customerName={localOrder.customerName}
               />
             )}
 

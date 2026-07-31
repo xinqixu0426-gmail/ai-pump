@@ -678,6 +678,20 @@ test('Next UI 契约：订单详情上下文独立传给业务 AI 助手', () =>
     assert.match(orderDrawer, /replacePageLocation\(`\/orders\?orderId=/);
 });
 
+test('Next UI 契约：浮动业务 AI 必须位于订单详情弹层之上', () => {
+    const shell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
+    const orderDrawer = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+
+    assert.match(slideOver, /fixed inset-0 z-50/);
+    assert.match(slideOver, /closeOnBackdrop = true/);
+    assert.match(slideOver, /onClick=\{closeOnBackdrop \? onClose : undefined\}/);
+    assert.match(orderDrawer, /closeOnBackdrop=\{false\}/);
+    assert.match(shell, /fixed inset-0 z-\[60\] bg-slate-950\/20/);
+    assert.match(shell, /fixed inset-0 z-\[70\]/);
+    assert.doesNotMatch(shell, /min-\[1600px\]:z-auto/);
+});
+
 test('Next API 契约：页面组件不得直接请求 API', () => {
     const componentRoots = [
         path.join(repoRoot, 'apps/web-next/app'),
@@ -1237,4 +1251,28 @@ test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和
     assert.match(coilsRoute, /router\.post\('\/spec-draft'/);
     assert.match(coilCostService, /function buildCoilSpecDraft/);
     assert.match(coilCostService, /status !== 'official'/);
+});
+
+test('Next UI 契约：剩余业务工作台压缩标题并补齐高频操作反馈', () => {
+    const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
+    const purchaseView = readUtf8('apps/web-next/components/purchase-view.tsx');
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const customersView = readUtf8('apps/web-next/components/customers-view.tsx');
+
+    assert.match(coilsView, /groupsInitializedRef/);
+    assert.match(coilsView, /setCollapsedGroups\(new Set\(groupedCoils\.map/);
+    assert.match(coilsView, /aria-label="搜索线圈记录"/);
+    assert.match(coilsView, /aria-expanded=\{!collapsed\}/);
+    assert.match(coilsView, /展开全部/);
+    assert.match(ordersView, /跟踪订单状态、销售金额与采购进度/);
+    assert.match(ordersView, /aria-label="搜索订单"/);
+    assert.match(ordersView, /role="button"/);
+    assert.match(ordersView, /event\.key === 'Enter' \|\| event\.key === ' '/);
+    assert.match(rotorView, /按配方带入参数，生成并管理转子图纸/);
+    assert.match(purchaseView, /aria-label="搜索采购任务"/);
+    assert.match(quotationsView, /aria-label="搜索报价单"/);
+    assert.match(customersView, /aria-label="搜索客户"/);
+    assert.doesNotMatch(customersView, />\s*新建\s*<\/Button>\s*<\/div>\s*<div className="border-b border-line p-4">/);
 });

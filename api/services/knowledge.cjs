@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const { buildDataQualitySummary } = require('./qualitySummary.cjs');
 const { getAutoKnowledgeSyncStatus } = require('./knowledgeAutoSync.cjs');
+const { listConfirmedOrderRequirementsForKnowledge } = require('./orderRequirements.cjs');
+const { listConfirmedOrderExecutionRecordsForKnowledge } = require('./orderExecutionRecords.cjs');
 const { parsePositiveId } = require('./validation.cjs');
 
 const ENTRY_TYPES = new Set([
@@ -349,28 +351,61 @@ function quotationEntry(quotation, customerById) {
     });
 }
 
-function orderEntry(order) {
+function orderEntry(order, requirement = null, executionRecords = []) {
     const items = parseJsonArray(order.itemsJson);
     const todos = parseJsonArray(order.todosJson);
     const purchaseList = parseJsonArray(order.purchaseListJson);
+    const confirmedRequirement = normalizeText(requirement?.confirmedText);
+    const confirmedExecutionRecords = executionRecords.filter(item => normalizeText(item.confirmedText));
+    const executionUpdatedAt = confirmedExecutionRecords
+        .map(item => item.confirmedAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+    const executionContent = confirmedExecutionRecords.map(item => {
+        const occurredAt = normalizeText(item.occurredAt).replace('T', ' ').slice(0, 16);
+        return `[${item.phaseLabel || item.phase}/${item.recordTypeLabel || item.recordType}]${occurredAt ? ` ${occurredAt}` : ''} ${item.title || ''}：${item.confirmedText}`;
+    }).join('\n');
     return createEntry({
         entryType: 'order',
         sourceTable: 'orders',
         sourceId: order.id,
-        sourceUpdatedAt: order.updatedAt,
+        sourceUpdatedAt: [order.updatedAt, requirement?.confirmedAt, executionUpdatedAt].filter(Boolean).sort().at(-1),
         title: `订单：#${order.id} ${order.customerName || ''}`,
-        summary: `${order.status || '待采购'}，客户 ${order.customerName || '-'}，产品 ${items.length} 项`,
+        summary: `${order.status || '待采购'}，客户 ${order.customerName || '-'}，产品 ${items.length} 项${confirmedRequirement ? '，含人工确认客户要求' : ''}${confirmedExecutionRecords.length ? `，执行档案 ${confirmedExecutionRecords.length} 条` : ''}`,
         content: [
             `客户：${order.customerName || ''}`,
             `合同号：${order.contractNo || ''}`,
             `状态：${order.status || ''}`,
+            confirmedRequirement ? `客户要求（人工确认）：\n${confirmedRequirement}` : '',
+            executionContent ? `执行档案（人工确认事实）：\n${executionContent}` : '',
             `产品：${items.map(item => `${item.recipeName || item.baseRecipeName || '产品'} x ${item.qty || 1}，成本 ${item.unitCost ?? ''}，售价 ${item.unitPrice ?? ''}`).join('；')}`,
             `采购：${purchaseList.map(item => `${item.model || item.name || '物料'} x ${item.needQty || item.qty || 0}，供应商 ${item.supplier || '-'}`).join('；')}`,
             `待办：${todos.map(item => `${item.text || item.title || item.model || '待办'} ${item.done ? '已完成' : '未完成'}`).join('；')}`,
             `备注：${order.remark || ''}`,
         ],
-        tags: ['订单', order.status, order.customerName, order.contractNo, ...items.map(item => item.recipeName || item.baseRecipeName)],
-        metadata: { status: order.status, itemCount: items.length, purchaseCount: purchaseList.length, todoCount: todos.length },
+        tags: [
+            '订单',
+            order.status,
+            order.customerName,
+            order.contractNo,
+            confirmedRequirement ? '客户要求' : '',
+            confirmedExecutionRecords.length ? '执行档案' : '',
+            ...confirmedExecutionRecords.flatMap(item => [item.phaseLabel, item.recordTypeLabel]),
+            ...items.map(item => item.recipeName || item.baseRecipeName),
+        ],
+        metadata: {
+            status: order.status,
+            itemCount: items.length,
+            purchaseCount: purchaseList.length,
+            todoCount: todos.length,
+            requirementSummaryId: requirement?.id || null,
+            requirementConfirmedAt: requirement?.confirmedAt || null,
+            requirementSourceFileIds: requirement?.confirmedSourceFileIds || [],
+            executionRecordCount: confirmedExecutionRecords.length,
+            executionRecordIds: confirmedExecutionRecords.map(item => item.id),
+            executionSourceFileIds: [...new Set(confirmedExecutionRecords.flatMap(item => item.confirmedSourceFileIds || []))],
+        },
     });
 }
 
@@ -532,6 +567,12 @@ function buildKnowledgeEntries(options = {}) {
     const customers = options.customers || getDb().dbGetAllCustomers();
     const quotations = options.quotations || getDb().dbGetAllQuotations();
     const orders = options.orders || getDb().dbGetAllOrders();
+    const orderRequirements = Object.prototype.hasOwnProperty.call(options, 'orderRequirements')
+        ? options.orderRequirements
+        : listConfirmedOrderRequirementsForKnowledge({ dbAccessors: getDb() });
+    const orderExecutionRecords = Object.prototype.hasOwnProperty.call(options, 'orderExecutionRecords')
+        ? options.orderExecutionRecords
+        : listConfirmedOrderExecutionRecordsForKnowledge({ dbAccessors: getDb() });
     const settings = options.settings || getDb().db.prepare('SELECT key, value, updated_at FROM system_settings ORDER BY key').all();
     let ruleCandidates = options.ruleCandidates;
     if (!Object.prototype.hasOwnProperty.call(options, 'ruleCandidates')) {
@@ -551,6 +592,13 @@ function buildKnowledgeEntries(options = {}) {
         quotations,
     });
     const customerById = new Map(customers.map(customer => [Number(customer.id), customer]));
+    const requirementByOrderId = new Map(orderRequirements.map(item => [Number(item.orderId), item]));
+    const executionByOrderId = new Map();
+    orderExecutionRecords.forEach(item => {
+        const orderId = Number(item.orderId);
+        if (!executionByOrderId.has(orderId)) executionByOrderId.set(orderId, []);
+        executionByOrderId.get(orderId).push(item);
+    });
     const technicalFilesByRecipe = new Map();
     technicalFiles.forEach(file => {
         const recipeId = Number(file.recipeId);
@@ -565,7 +613,11 @@ function buildKnowledgeEntries(options = {}) {
         ...coils.map(coilEntry),
         ...customers.map(customerEntry),
         ...quotations.map(quotation => quotationEntry(quotation, customerById)),
-        ...orders.map(orderEntry),
+        ...orders.map(order => orderEntry(
+            order,
+            requirementByOrderId.get(Number(order.id)) || null,
+            executionByOrderId.get(Number(order.id)) || []
+        )),
         ...qualityEntries(qualitySummary),
         ...businessRuleEntries(settings),
         ...approvedFactoryRuleEntries(ruleCandidates),
