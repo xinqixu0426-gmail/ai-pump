@@ -37,7 +37,7 @@ const inputClass = 'mt-1.5 h-10 w-full rounded-md border border-line bg-white px
 const sectionClass = 'rounded-md border border-line bg-white p-4 shadow-panel md:p-5';
 
 const initialValues: RuntimeSettingsValues = {
-  aiProvider: 'deepseek',
+  aiProvider: 'auto',
   deepseekModel: 'deepseek-v4-flash',
   deepseekBaseUrl: 'https://api.deepseek.com',
   kimiModel: 'kimi-k2.7-code',
@@ -129,11 +129,13 @@ export function SetupView() {
   }, []);
 
   const activeProvider = form.aiProvider;
-  const activeSecret = activeProvider === 'deepseek'
-    ? snapshot?.secrets.deepseekApiKey
-    : snapshot?.secrets.kimiApiKey;
-  const activeApiKey = activeProvider === 'deepseek' ? form.deepseekApiKey : form.kimiApiKey;
-  const canTest = Boolean(activeApiKey.trim() || activeSecret?.configured);
+  const hasDeepseekKey = Boolean(form.deepseekApiKey.trim() || snapshot?.secrets.deepseekApiKey.configured);
+  const hasKimiKey = Boolean(form.kimiApiKey.trim() || snapshot?.secrets.kimiApiKey.configured);
+  const canTest = activeProvider === 'auto'
+    ? hasDeepseekKey
+    : activeProvider === 'deepseek'
+      ? hasDeepseekKey
+      : hasKimiKey;
   const deploymentReady = useMemo(
     () => snapshot?.deployment.filter((item) => item.configured).length || 0,
     [snapshot]
@@ -170,7 +172,8 @@ export function SetupView() {
     setNotice('');
     try {
       const result = await testRuntimeAi(payload());
-      setNotice(`${result.displayName} / ${result.model} 连接正常，耗时 ${result.latencyMs}ms。`);
+      const tested = result.testedProviders?.map(item => item.displayName).join('、') || result.displayName;
+      setNotice(`${tested}连接正常，耗时 ${result.latencyMs}ms。`);
     } catch (testError) {
       setError(testError instanceof Error ? testError.message : 'AI 连接测试失败');
     } finally {
@@ -232,25 +235,33 @@ export function SetupView() {
             onChange={(value) => update('aiProvider', value)}
             ariaLabel="AI 提供商"
             options={[
+              { value: 'auto', label: '智能路由' },
               { value: 'deepseek', label: 'DeepSeek' },
               { value: 'kimi', label: 'Kimi 开放平台' },
             ]}
             className="w-fit max-w-full overflow-x-auto"
           />
 
-          {activeProvider === 'deepseek' ? (
+          {activeProvider === 'auto' ? (
+            <div className="flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-800">
+              <Bot size={16} className="mt-0.5 shrink-0" />
+              <span>普通对话、PDF 文字层和 Excel 默认使用 DeepSeek；只有图片原图需要视觉理解时才自动使用 Kimi。Kimi 不可用时回退到 DeepSeek 与本地 OCR。</span>
+            </div>
+          ) : null}
+
+          {activeProvider !== 'kimi' ? (
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-medium text-muted">模型</span>
+                <span className="text-xs font-medium text-muted">DeepSeek 模型</span>
                 <input value={form.deepseekModel} onChange={(event) => update('deepseekModel', event.target.value)} className={inputClass} />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-muted">服务地址</span>
+                <span className="text-xs font-medium text-muted">DeepSeek 服务地址</span>
                 <input value={form.deepseekBaseUrl} onChange={(event) => update('deepseekBaseUrl', event.target.value)} className={inputClass} />
               </label>
               <label className="block md:col-span-2">
                 <span className="flex items-center justify-between gap-3 text-xs font-medium text-muted">
-                  <span>API Key</span>
+                  <span>DeepSeek API Key</span>
                   <SecretStatus configured={Boolean(snapshot?.secrets.deepseekApiKey.configured)} source={snapshot?.secrets.deepseekApiKey.source || 'none'} />
                 </span>
                 <input
@@ -263,11 +274,13 @@ export function SetupView() {
                 />
               </label>
             </div>
-          ) : (
-            <div className="space-y-4">
+          ) : null}
+
+          {activeProvider !== 'deepseek' ? (
+            <div className={`space-y-4 ${activeProvider === 'auto' ? 'border-t border-line pt-4' : ''}`}>
               <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
                 <KeyRound size={16} className="mt-0.5 shrink-0" />
-                <span>Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。</span>
+                <span>{activeProvider === 'auto' ? 'Kimi 只处理图片原图。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。</span>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
@@ -295,11 +308,15 @@ export function SetupView() {
               </div>
               <ToggleRow checked={form.aiVisionEnabled} onChange={(value) => update('aiVisionEnabled', value)} label="图片输入" />
             </div>
-          )}
+          ) : null}
 
           <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
             <div className="text-xs text-muted">
-              当前：{activeProvider === 'deepseek' ? form.deepseekModel : form.kimiModel}
+              当前：{activeProvider === 'auto'
+                ? `${form.deepseekModel} 默认 · 图片使用 ${form.kimiModel}`
+                : activeProvider === 'deepseek'
+                  ? form.deepseekModel
+                  : form.kimiModel}
             </div>
             <Button onClick={() => void testAi()} disabled={!canTest || testing} icon={testing ? <RefreshCw size={15} className="animate-spin" /> : <TestTube2 size={15} />}>
               {testing ? '测试中' : '测试连接'}

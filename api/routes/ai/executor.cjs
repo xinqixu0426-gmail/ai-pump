@@ -19,6 +19,7 @@ const TOOL_LABELS = {
     update_order_item: '修改订单产品',
     generate_purchase_list: '生成采购清单',
     save_order_requirement_draft: '保存客户要求草稿',
+    save_order_execution_draft: '保存订单执行档案草稿',
     get_management_action_center: '读取管理待办',
     get_order_readiness_overview: '读取订单准备总览',
     execute_order_readiness_action: '执行订单处理步骤',
@@ -48,6 +49,7 @@ const LIVE_BUSINESS_TOOLS = new Set([
     'get_copper_price',
     'get_recent_orders',
     'get_order_detail',
+    'get_order_knowledge_package',
     'get_order_readiness_overview',
     'check_order_readiness',
     'plan_order_readiness_actions',
@@ -131,6 +133,19 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '订单ID', args.orderId);
             addRow(rows, '依据文件', Array.isArray(args.sourceFileIds) ? args.sourceFileIds.join('，') : '');
             addRow(rows, '客户要求草稿', args.summaryText);
+            break;
+        case 'save_order_execution_draft':
+            addRow(rows, '订单ID', args.orderId);
+            addRow(rows, '阶段', {
+                pre_production: '生产前',
+                in_production: '生产中',
+                post_production: '生产后',
+            }[args.phase] || args.phase);
+            addRow(rows, '类型', args.recordType);
+            addRow(rows, '标题', args.title);
+            addRow(rows, '发生时间', args.occurredAt);
+            addRow(rows, '依据文件', Array.isArray(args.sourceFileIds) ? args.sourceFileIds.join('，') : '');
+            addRow(rows, '事实草稿', args.summaryText);
             break;
         case 'execute_order_readiness_action':
             addRow(rows, '订单ID', args.orderId);

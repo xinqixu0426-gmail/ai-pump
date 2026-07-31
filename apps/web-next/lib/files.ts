@@ -62,7 +62,7 @@ export type FactoryFileLink = {
   fileId: number;
   targetType: FactoryFileArchiveTargetType;
   targetId: number;
-  relationRole: 'attachment' | 'customer_requirement' | 'technical_reference' | 'quotation_source' | 'quality_evidence' | 'knowledge_source';
+  relationRole: 'attachment' | 'customer_requirement' | 'execution_evidence' | 'technical_reference' | 'quotation_source' | 'quality_evidence' | 'knowledge_source';
   title: string;
   note: string;
   source: 'manual' | 'ai_chat' | 'business_page';
@@ -75,6 +75,7 @@ export type FactoryFileLink = {
 export type ArchiveFactoryFileInput = {
   targetType: FactoryFileArchiveTargetType;
   targetId?: number;
+  relationRole?: FactoryFileLink['relationRole'];
   title?: string;
   note?: string;
   documentType?: 'technical_note' | 'pump_performance_test' | 'drawing' | 'spreadsheet' | 'other';

@@ -66,6 +66,7 @@ import {
   type AiAttachment,
   type AiCapabilities,
   type AiConversationSummary,
+  type AiProviderInfo,
   type AiStreamEvent,
   type AiToolPlan,
   type AiToolResult,
@@ -99,6 +100,7 @@ type ChatItem = {
   persistedMessageId?: number;
   historical?: boolean;
   attachments?: AiAttachment[];
+  provider?: AiProviderInfo;
 };
 
 type ConfirmationResult = {
@@ -488,6 +490,7 @@ function toolLabel(name: string) {
     update_recipe: '修改配方',
     get_recent_orders: '最近订单',
     get_order_detail: '订单详情',
+    get_order_knowledge_package: '订单知识包',
     get_order_readiness_overview: '订单准备总览',
     check_order_readiness: '生产准备检查',
     plan_order_readiness_actions: '订单处理方案',
@@ -1613,6 +1616,10 @@ function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
 
 function applyStreamEvent(item: ChatItem, event: AiStreamEvent): ChatItem {
   if (event.type === 'status') return { ...item, status: event.status, statusMessage: event.message || '' };
+  if (event.type === 'provider') {
+    const { type: _type, ...provider } = event;
+    return { ...item, provider };
+  }
   if (event.type === 'content') return { ...item, content: item.content + event.content, status: 'answering', statusMessage: '' };
   if (event.type === 'tool_plan') return { ...item, toolPlan: { summary: event.summary, steps: event.steps || [] } };
   if (event.type === 'tool_call') return { ...item, toolCalls: [...(item.toolCalls || []), { name: event.name, args: event.args }], status: 'calling', statusMessage: `调用 ${event.name}` };
@@ -2133,6 +2140,7 @@ export function AiView({
               toolPlan: finalAssistantItem.toolPlan,
               toolCalls: finalAssistantItem.toolCalls,
               toolResults: finalAssistantItem.toolResults,
+              provider: finalAssistantItem.provider,
             },
           });
           updateAssistant(assistantId, (item) => ({ ...item, persistedMessageId: saved.id }));
@@ -2333,6 +2341,7 @@ export function AiView({
         toolCalls: message.metadata?.toolCalls || [],
         toolResults: message.metadata?.toolResults || [],
         attachments: message.metadata?.attachments || [],
+        provider: message.metadata?.provider,
         persistedMessageId: message.id,
         historical: true,
       })));
@@ -2688,6 +2697,11 @@ export function AiView({
                         {item.role === 'user' ? <UserRound size={14} /> : <Bot size={14} />}
                       </span>
                       <span>{item.role === 'user' ? '你' : 'AI'}</span>
+                      {item.role === 'assistant' && item.provider ? (
+                        <StatusBadge tone={item.provider.provider === 'kimi' ? 'blue' : 'custom'} className="h-6 min-w-0 px-2">
+                          {item.provider.displayName}{item.provider.fallback ? '（已降级）' : ''}
+                        </StatusBadge>
+                      ) : null}
                       {item.status && item.status !== 'done' ? (
                         <StatusBadge tone="custom" className={`h-6 min-w-0 border-transparent px-2 ${item.role === 'user' ? 'bg-white/10 text-slate-100' : 'bg-slate-100 text-slate-600'}`}>
                           {item.statusMessage || item.status}

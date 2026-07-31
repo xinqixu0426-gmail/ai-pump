@@ -81,6 +81,30 @@ test('系统初始化：API Key 加密保存且读取接口不返回密钥原文
     }
 });
 
+test('系统初始化：智能路由默认使用 DeepSeek 并允许 Kimi 作为图片模型', () => {
+    const accessors = createAccessors();
+    const env = {
+        NODE_ENV: 'test',
+        JWT_SECRET: 'runtime-config-test-secret',
+        DEEPSEEK_API_KEY: 'deepseek-existing-key',
+    };
+    try {
+        const snapshot = initializeRuntimeSettings({ env, dbAccessors: accessors });
+        assert.equal(snapshot.values.aiProvider, 'auto');
+        assert.equal(env.AI_PROVIDER, 'auto');
+        assert.equal(normalizeValue('aiProvider', 'auto'), 'auto');
+
+        const result = updateRuntimeSettings({
+            aiProvider: 'auto',
+            kimiApiKey: 'sk-open-platform-example',
+        }, { env, dbAccessors: accessors });
+        assert.equal(result.config.values.aiProvider, 'auto');
+        assert.equal(result.config.secrets.kimiApiKey.configured, true);
+    } finally {
+        accessors.db.close();
+    }
+});
+
 test('系统初始化：即时设置更新环境，重启设置保留待重启状态', () => {
     const accessors = createAccessors();
     const env = {

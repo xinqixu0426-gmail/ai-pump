@@ -2,7 +2,7 @@
 
 import { proxyRequest } from '@/lib/api';
 
-export type AiProvider = 'deepseek' | 'kimi';
+export type AiProvider = 'auto' | 'deepseek' | 'kimi';
 
 export type RuntimeSettingsValues = {
   aiProvider: AiProvider;
@@ -67,6 +67,11 @@ type AiTestResponse = {
     displayName: string;
     model: string;
     latencyMs: number;
+    testedProviders?: Array<{
+      provider: 'deepseek' | 'kimi';
+      displayName: string;
+      model: string;
+    }>;
   };
   error?: string;
 };

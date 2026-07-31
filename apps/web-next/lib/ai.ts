@@ -21,7 +21,7 @@ export type AiAttachment = Pick<
 >>;
 
 export type AiCapabilities = {
-  provider: 'deepseek' | 'kimi';
+  provider: 'auto' | 'deepseek' | 'kimi';
   displayName: string;
   model: string;
   supportsImages: boolean;
@@ -29,6 +29,17 @@ export type AiCapabilities = {
   acceptedFileTypes: Array<'pdf' | 'spreadsheet' | 'image' | 'text'>;
   maxAttachments: number;
   maxFileSize: number;
+  defaultProvider?: 'deepseek';
+  visionProvider?: 'kimi' | null;
+};
+
+export type AiProviderInfo = {
+  provider: 'deepseek' | 'kimi';
+  displayName: string;
+  model: string;
+  routeReason: 'default' | 'image' | 'vision_unavailable' | 'vision_fallback' | 'manual';
+  fallback?: boolean;
+  fallbackFrom?: 'kimi';
 };
 
 export type AiToolResult = {
@@ -77,6 +88,7 @@ export type AiConversationMessage = {
     toolCalls?: Array<{ name: string; args: unknown }>;
     toolResults?: AiToolResult[];
     attachments?: AiAttachment[];
+    provider?: AiProviderInfo;
   };
   createdAt: string;
   updatedAt: string;
@@ -216,6 +228,7 @@ export type AiToolPlan = {
 
 export type AiStreamEvent =
   | { type: 'status'; status: string; message?: string }
+  | ({ type: 'provider' } & AiProviderInfo)
   | { type: 'content'; content: string }
   | ({ type: 'tool_plan' } & AiToolPlan)
   | { type: 'tool_call'; name: string; args: unknown }
@@ -281,6 +294,28 @@ export async function streamAiChat(
       }
     }
   }
+}
+
+export async function generateAiDraftFromAttachment(
+  prompt: string,
+  attachment: AiAttachment,
+  pageContext?: AiPageContext | null
+): Promise<string> {
+  let content = '';
+  let errorMessage = '';
+  await streamAiChat(
+    [{ role: 'user', content: prompt, attachments: [attachment] }],
+    event => {
+      if (event.type === 'content') content += event.content;
+      if (event.type === 'error') errorMessage = event.message;
+    },
+    undefined,
+    pageContext
+  );
+  if (errorMessage) throw new Error(errorMessage);
+  const result = content.trim();
+  if (!result) throw new Error('AI 没有生成可用的归纳内容');
+  return result;
 }
 
 export async function getAiSystemPrompt(): Promise<string> {

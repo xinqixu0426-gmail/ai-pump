@@ -17,8 +17,7 @@ function booleanEnv(value, fallback = false) {
     return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
-function resolveAiProviderConfig(env = process.env) {
-    const provider = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
+function resolveProviderConfig(provider, env = process.env) {
     if (provider === 'kimi') {
         const model = text(env.KIMI_MODEL) || 'kimi-k2.7-code';
         return {
@@ -43,7 +42,86 @@ function resolveAiProviderConfig(env = process.env) {
     };
 }
 
+function resolveAiProviderConfig(env = process.env) {
+    const mode = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
+    if (mode === 'auto') {
+        return {
+            ...resolveProviderConfig('deepseek', env),
+            routingMode: 'auto',
+            routeReason: 'default',
+        };
+    }
+    return resolveProviderConfig(mode, env);
+}
+
+function messageAttachmentIds(messages) {
+    const ids = [];
+    for (const message of Array.isArray(messages) ? messages : []) {
+        if (message?.role !== 'user') continue;
+        for (const id of normalizeAttachmentIds(message.attachments)) {
+            if (!ids.includes(id)) ids.push(id);
+        }
+    }
+    return ids;
+}
+
+function requiresVisionProvider(messages, options = {}) {
+    const dbAccessors = options.dbAccessors;
+    return messageAttachmentIds(messages).some((id) => {
+        const file = getFactoryFile(id, { dbAccessors });
+        return file?.detectedType === 'image';
+    });
+}
+
+function resolveAiProviderRoute(messages, options = {}) {
+    const env = options.env || process.env;
+    const mode = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
+    if (mode !== 'auto') return resolveProviderConfig(mode, env);
+
+    const deepseek = resolveProviderConfig('deepseek', env);
+    const needsVision = requiresVisionProvider(messages, options);
+    if (!needsVision) {
+        return {
+            ...deepseek,
+            routingMode: 'auto',
+            routeReason: 'default',
+        };
+    }
+
+    const kimi = resolveProviderConfig('kimi', env);
+    if (kimi.apiKey && kimi.supportsImages) {
+        return {
+            ...kimi,
+            routingMode: 'auto',
+            routeReason: 'image',
+        };
+    }
+    return {
+        ...deepseek,
+        routingMode: 'auto',
+        routeReason: 'vision_unavailable',
+    };
+}
+
 function aiProviderCapabilities(env = process.env) {
+    const mode = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
+    if (mode === 'auto') {
+        const deepseek = resolveProviderConfig('deepseek', env);
+        const kimi = resolveProviderConfig('kimi', env);
+        const visionAvailable = Boolean(kimi.apiKey && kimi.supportsImages);
+        return {
+            provider: 'auto',
+            displayName: '智能路由',
+            model: `${deepseek.model} / ${kimi.model}`,
+            supportsImages: visionAvailable,
+            supportsFiles: true,
+            acceptedFileTypes: ['pdf', 'spreadsheet', 'image', 'text'],
+            maxAttachments: MAX_CHAT_ATTACHMENTS,
+            maxFileSize: 10 * 1024 * 1024,
+            defaultProvider: 'deepseek',
+            visionProvider: visionAvailable ? 'kimi' : null,
+        };
+    }
     const config = resolveAiProviderConfig(env);
     return {
         provider: config.provider,
@@ -277,33 +355,67 @@ function prepareAiProviderMessages(messages, options = {}) {
 }
 
 async function fetchAiProvider(messages, options = {}) {
-    const config = options.config || resolveAiProviderConfig();
-    if (!config.apiKey) {
-        const keyName = config.provider === 'kimi' ? 'KIMI_API_KEY' : 'DEEPSEEK_API_KEY';
-        throw new Error(`未配置 ${keyName}`);
-    }
     const fetchImpl = options.fetchImpl || fetch;
-    const response = await fetchImpl(`${config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-            model: config.model,
-            messages: prepareAiProviderMessages(messages, {
-                config,
-                dbAccessors: options.dbAccessors,
-            }),
-            tools: options.tools,
-            stream: Boolean(options.stream),
-        }),
+    const selectedConfig = options.config || resolveAiProviderRoute(messages, {
+        env: options.env,
+        dbAccessors: options.dbAccessors,
     });
-    if (!response.ok) {
-        const responseText = await response.text();
-        throw new Error(`${config.displayName} API 错误: ${response.status} ${responseText.slice(0, 200)}`);
+    const notifyProvider = (config, extra = {}) => {
+        if (typeof options.onProvider !== 'function') return;
+        options.onProvider({
+            provider: config.provider,
+            displayName: config.displayName,
+            model: config.model,
+            routeReason: config.routeReason || 'manual',
+            ...extra,
+        });
+    };
+    const requestProvider = async (config) => {
+        if (!config.apiKey) {
+            const keyName = config.provider === 'kimi' ? 'KIMI_API_KEY' : 'DEEPSEEK_API_KEY';
+            throw new Error(`未配置 ${keyName}`);
+        }
+        const response = await fetchImpl(`${config.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+                model: config.model,
+                messages: prepareAiProviderMessages(messages, {
+                    config,
+                    dbAccessors: options.dbAccessors,
+                }),
+                tools: options.tools,
+                stream: Boolean(options.stream),
+            }),
+        });
+        if (!response.ok) {
+            const responseText = await response.text();
+            throw new Error(`${config.displayName} API 错误: ${response.status} ${responseText.slice(0, 200)}`);
+        }
+        return response;
+    };
+
+    notifyProvider(selectedConfig);
+    try {
+        return await requestProvider(selectedConfig);
+    } catch (error) {
+        if (selectedConfig.routingMode !== 'auto' || selectedConfig.provider !== 'kimi') {
+            throw error;
+        }
+        const fallback = {
+            ...resolveProviderConfig('deepseek', options.env || process.env),
+            routingMode: 'auto',
+            routeReason: 'vision_fallback',
+        };
+        notifyProvider(fallback, {
+            fallback: true,
+            fallbackFrom: 'kimi',
+        });
+        return requestProvider(fallback);
     }
-    return response;
 }
 
 module.exports = {
@@ -314,5 +426,8 @@ module.exports = {
     ocrCandidateNote,
     prepareAiProviderMessages,
     resolveAiProviderConfig,
+    resolveAiProviderRoute,
+    resolveProviderConfig,
+    requiresVisionProvider,
     truncateUtf8,
 };

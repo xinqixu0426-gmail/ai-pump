@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Boxes, Calculator, CircleAlert, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { Boxes, Calculator, ChevronDown, ChevronRight, CircleAlert, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -143,6 +143,8 @@ export function CoilsView() {
   const [calcLoading, setCalcLoading] = useState(false);
   const [editingGroupKey, setEditingGroupKey] = useState<string | null>(null);
   const [editingGroupPrice, setEditingGroupPrice] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const groupsInitializedRef = useRef(false);
   const [stockCoil, setStockCoil] = useState<CoilRecord | null>(null);
   const [stockDirection, setStockDirection] = useState<'in' | 'out'>('in');
   const [stockQty, setStockQty] = useState('');
@@ -214,6 +216,17 @@ export function CoilsView() {
     });
     return Array.from(groups.entries()).map(([key, rows]) => ({ key, rows }));
   }, [filteredCoils]);
+
+  useEffect(() => {
+    if (query.trim()) {
+      setCollapsedGroups(new Set());
+      return;
+    }
+    if (!groupsInitializedRef.current && groupedCoils.length > 0) {
+      setCollapsedGroups(new Set(groupedCoils.map((group) => group.key)));
+      groupsInitializedRef.current = true;
+    }
+  }, [groupedCoils, query]);
 
   const stats = useMemo(() => {
     const specCount = new Set(coils.map((coil) => coil.statorVariantId || `${coil.diameterMm}-${coil.material}-${coil.slotType}`)).size;
@@ -463,12 +476,11 @@ export function CoilsView() {
   }
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Coils</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">线圈转子</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">维护定子组合、绕组方案、线圈成本和成品库存。</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">线圈转子</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">维护定子组合、绕组方案、线圈成本和成品库存。</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
@@ -644,14 +656,45 @@ export function CoilsView() {
         </div>
 
         <div className="min-w-0">
-          <div className="mb-4 flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
-            <Search size={16} className="text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索规格、材质、槽眼、方案、片数、电缆线径或绕组数据"
-              className="h-8 flex-1 bg-transparent text-sm outline-none"
-            />
+          <div className="mb-3 flex flex-col gap-2 rounded-md border border-line bg-white p-2 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+              <Search size={16} className="text-muted" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="搜索线圈记录"
+                placeholder="搜索规格、材质、槽眼、方案、片数、电缆线径或绕组数据"
+                className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  aria-label="清空搜索"
+                  onClick={() => setQuery('')}
+                  className="flex h-7 w-7 items-center justify-center rounded text-muted transition hover:bg-slate-100 hover:text-ink"
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-line px-1 pt-2 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+              <span className="whitespace-nowrap text-xs text-muted">{filteredCoils.length} 条 · {groupedCoils.length} 组</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setCollapsedGroups(
+                    collapsedGroups.size > 0
+                      ? new Set()
+                      : new Set(groupedCoils.map((group) => group.key))
+                  );
+                }}
+                icon={collapsedGroups.size > 0 ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              >
+                {collapsedGroups.size > 0 ? '展开全部' : '收起全部'}
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -659,14 +702,31 @@ export function CoilsView() {
           ) : groupedCoils.length === 0 ? (
             <div className="rounded-md border border-line p-6 text-sm text-muted">暂无线圈记录</div>
           ) : (
-            <div className="space-y-4">
-              {groupedCoils.map((group) => (
+            <div className="space-y-3">
+              {groupedCoils.map((group) => {
+                const collapsed = collapsedGroups.has(group.key);
+                return (
                 <div key={group.key} className="overflow-hidden rounded-panel border border-line bg-white">
-                  <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="font-medium text-ink">{group.key}</div>
-                      <div className="mt-1 text-xs text-muted">{group.rows.length} 条 · 当前单片价 {money(group.rows[0]?.unitPrice || 0)}</div>
-                    </div>
+                  <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${collapsed ? '' : 'border-b border-line'}`}>
+                    <button
+                      type="button"
+                      aria-expanded={!collapsed}
+                      onClick={() => {
+                        setCollapsedGroups((current) => {
+                          const next = new Set(current);
+                          if (next.has(group.key)) next.delete(group.key);
+                          else next.add(group.key);
+                          return next;
+                        });
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                    >
+                      {collapsed ? <ChevronRight size={16} className="shrink-0 text-muted" /> : <ChevronDown size={16} className="shrink-0 text-muted" />}
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-ink">{group.key}</span>
+                        <span className="mt-0.5 block text-xs text-muted">{group.rows.length} 条 · 当前单片价 {money(group.rows[0]?.unitPrice || 0)}</span>
+                      </span>
+                    </button>
                     {editingGroupKey === group.key ? (
                       <div className="flex shrink-0 items-center gap-2">
                         <input
@@ -704,29 +764,29 @@ export function CoilsView() {
                       </Button>
                     )}
                   </div>
-                  <div className="overflow-x-auto">
+                  {!collapsed ? <div className="overflow-x-auto">
                     <table className="w-full min-w-[1220px] border-collapse text-left text-sm">
                       <thead className="bg-slate-50 text-xs text-muted">
                         <tr>
-                          <th className="px-4 py-3 font-medium">片数</th>
-                          <th className="px-4 py-3 font-medium">方案</th>
-                          <th className="px-4 py-3 font-medium">单片价</th>
-                          <th className="px-4 py-3 font-medium">线重</th>
-                          <th className="px-4 py-3 font-medium">铜价基数</th>
-                          <th className="px-4 py-3 font-medium">加工费</th>
-                          <th className="px-4 py-3 font-medium">总成本</th>
-                          <th className="px-4 py-3 font-medium">库存</th>
-                          <th className="px-4 py-3 font-medium">默认搭配电缆线径</th>
-                          <th className="px-4 py-3 font-medium">绕组数据</th>
-                          <th className="px-4 py-3 text-right font-medium">操作</th>
+                          <th className="px-4 py-2.5 font-medium">片数</th>
+                          <th className="px-4 py-2.5 font-medium">方案</th>
+                          <th className="px-4 py-2.5 font-medium">单片价</th>
+                          <th className="px-4 py-2.5 font-medium">线重</th>
+                          <th className="px-4 py-2.5 font-medium">铜价基数</th>
+                          <th className="px-4 py-2.5 font-medium">加工费</th>
+                          <th className="px-4 py-2.5 font-medium">总成本</th>
+                          <th className="px-4 py-2.5 font-medium">库存</th>
+                          <th className="px-4 py-2.5 font-medium">默认搭配电缆线径</th>
+                          <th className="px-4 py-2.5 font-medium">绕组数据</th>
+                          <th className="px-4 py-2.5 text-right font-medium">操作</th>
                         </tr>
                       </thead>
                       <tbody>
                         <AnimatePresence initial={false}>
                           {group.rows.map((coil) => (
                             <PresenceRow key={coil.id}>
-                              <td className="border-b border-line px-4 py-3 font-medium text-ink">{coil.sheets}</td>
-                              <td className="border-b border-line px-4 py-3">
+                              <td className="border-b border-line px-4 py-2.5 font-medium text-ink">{coil.sheets}</td>
+                              <td className="border-b border-line px-4 py-2.5">
                                 <div className="text-ink">{coil.schemeName || (coil.schemeStatus === 'testing' ? '测试方案' : '正式方案')}</div>
                                 <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${
                                   coil.schemeStatus === 'official'
@@ -738,23 +798,23 @@ export function CoilsView() {
                                   {coil.schemeStatus === 'official' ? '正式' : coil.schemeStatus === 'testing' ? '测试' : '停用'}
                                 </span>
                               </td>
-                              <td className="border-b border-line px-4 py-3 text-muted">{money(coil.unitPrice)}</td>
-                              <td className="border-b border-line px-4 py-3 text-muted">{coil.wireWeight} kg</td>
-                              <td className="border-b border-line px-4 py-3 text-muted">{money(coil.copperBase)}</td>
-                              <td className="border-b border-line px-4 py-3 text-muted">{money(coil.coilFee + coil.rotorFee)}</td>
-                              <td className="border-b border-line px-4 py-3 font-medium text-ink">{money(coil.cost)}</td>
-                              <td className="border-b border-line px-4 py-3">
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{money(coil.unitPrice)}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.wireWeight} kg</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{money(coil.copperBase)}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{money(coil.coilFee + coil.rotorFee)}</td>
+                              <td className="border-b border-line px-4 py-2.5 font-medium text-ink">{money(coil.cost)}</td>
+                              <td className="border-b border-line px-4 py-2.5">
                                 <div className="font-medium text-ink">{coil.stock} 套</div>
                                 <div className={`mt-1 text-xs ${coil.stock > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
                                   {coil.stock > 0 ? '有库存' : '待补充'}
                                 </div>
                               </td>
-                              <td className="border-b border-line px-4 py-3 text-muted">{coil.defaultWireGauge || '-'}</td>
-                              <td className="border-b border-line px-4 py-3 text-xs text-muted">
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.defaultWireGauge || '-'}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-xs text-muted">
                                 <div>主：{[coil.mainWireGauge, coil.mainWireData].filter(Boolean).join(' · ') || '-'}</div>
                                 <div className="mt-1">副：{[coil.auxWireGauge, coil.auxWireData].filter(Boolean).join(' · ') || '-'}</div>
                               </td>
-                              <td className="border-b border-line px-4 py-3">
+                              <td className="border-b border-line px-4 py-2.5">
                                 <div className="flex justify-end gap-2">
                                   <Button size="sm" variant="ghost" disabled={saving} onClick={() => void openStockDrawer(coil)} icon={<Boxes size={14} />}>
                                     库存
@@ -772,9 +832,10 @@ export function CoilsView() {
                         </AnimatePresence>
                       </tbody>
                     </table>
-                  </div>
+                  </div> : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

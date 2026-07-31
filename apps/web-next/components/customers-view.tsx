@@ -206,14 +206,11 @@ export function CustomersView() {
   }
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Customers</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">客户</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            客户档案、报价摘要和基础写操作都走标准 API，保存后重新拉取客户与报价数据。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">客户</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">维护客户档案并查看关联报价与业务资料。</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -253,14 +250,11 @@ export function CustomersView() {
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
         <FadePanel className="min-w-0 rounded-panel border border-line bg-white shadow-panel">
-          <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+          <div className="border-b border-line p-4">
             <div>
               <div className="text-sm font-semibold text-ink">客户列表</div>
               <div className="mt-1 text-xs text-muted">{filteredCustomers.length} / {customers.length}</div>
             </div>
-            <Button size="sm" variant="ghost" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={14} />}>
-              新建
-            </Button>
           </div>
 
           <div className="border-b border-line p-4">
@@ -269,6 +263,7 @@ export function CustomersView() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                aria-label="搜索客户"
                 placeholder="搜索客户、联系方式或备注"
                 className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
               />

@@ -9,8 +9,8 @@ export default async function OrdersPage({
   const orderId = Number(Array.isArray(params.orderId) ? params.orderId[0] : params.orderId);
   const initialOrderId = Number.isInteger(orderId) && orderId > 0 ? orderId : null;
   const view = Array.isArray(params.view) ? params.view[0] : params.view;
-  const initialDetailTab = ['requirements', 'readiness', 'items', 'purchase', 'todos'].includes(String(view))
-    ? view as 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos'
+  const initialDetailTab = ['requirements', 'readiness', 'execution', 'items', 'purchase', 'todos'].includes(String(view))
+    ? view as 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos'
     : 'items';
 
   return <OrdersView initialOrderId={initialOrderId} initialDetailTab={initialDetailTab} />;

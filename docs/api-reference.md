@@ -187,10 +187,17 @@
 | `GET` | `/api/orders/lookup` | `query=订单ID/客户名称/合同号` | 只读查找订单候选，不刷新采购计划；AI 按客户或合同解析订单时使用 |
 | `GET` | `/api/orders/readiness-overview` | 无 | 一次计算全部活动订单的库存平衡和生产准备结论；返回分类汇总、主要问题、缺料和第一个未阻塞处理步骤，只读不写库 |
 | `GET` | `/api/orders/:id` | 无 | 单个订单，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/orders/:id/knowledge-package` | 无 | V10.4 只读订单知识包；合并实时订单、采购、待办、生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件；排除未确认草稿 |
 | `GET` | `/api/orders/:id/requirements` | 无 | 读取客户要求草稿、最后确认版本、知识状态和当前订单附件；只读 |
 | `PUT` | `/api/orders/:id/requirements/draft` | `{ summaryText, sourceFileIds? }` | 保存可编辑草稿；来源文件必须已有效关联当前订单，不进入知识库 |
 | `POST` | `/api/orders/:id/requirements/confirm` | `{ summaryText?, sourceFileIds? }` | 原子保存并人工确认当前版本；确认内容自动合并到该订单知识条目，不修改订单明细、配方、采购或库存 |
 | `POST` | `/api/orders/:id/requirements/revoke` | 无 | 撤销知识确认并保留草稿与原文件；订单知识自动移除已确认客户要求 |
+| `GET` | `/api/orders/:id/execution-records` | 无 | 读取订单执行事实时间线、草稿/确认状态和当前订单附件；只读 |
+| `POST` | `/api/orders/:id/execution-records` | `{ phase, recordType, title?, summaryText, occurredAt?, sourceFileIds? }` | 新建一条执行事实草稿；阶段为生产前/中/后，事实类型必须与阶段匹配，不进入知识库 |
+| `PUT` | `/api/orders/:id/execution-records/:recordId/draft` | 同新建入参 | 修改当前草稿；已有确认版本时继续保留上一次正式知识，直到重新确认 |
+| `POST` | `/api/orders/:id/execution-records/:recordId/confirm` | 可传完整草稿字段，或空对象确认已保存草稿 | 人工确认事实并合并到订单知识条目；不修改订单状态、配方、采购或库存 |
+| `POST` | `/api/orders/:id/execution-records/:recordId/revoke` | 无 | 撤销该事实的知识确认，保留当前草稿和附件 |
+| `DELETE` | `/api/orders/:id/execution-records/:recordId` | 无 | 软删除未确认草稿；已确认记录必须先撤销确认 |
 | `GET` | `/api/orders/:id/readiness` | 无 | 只读生产准备检查；按订单状态、配方与BOM、零件库存、线圈库存、采购进度、成本与价格六步返回 `ready/waiting_materials/needs_review/blocked/not_applicable`，不写订单和库存 |
 | `GET` | `/api/orders/:id/readiness-plan` | 无 | 基于实时生产准备结果生成处理步骤；返回 `sequence/dependsOn/mode/status/owner/path/toolCall`，只生成方案不执行 |
 | `POST` | `/api/orders/:id/readiness-actions/:actionId` | 路径动作仅支持 `confirm_order/generate_purchase_plan` | 执行前重新生成实时检查和方案；仅执行仍为 `confirmable + available` 的步骤，过期、已完成或受前置步骤阻塞时返回 `409`；成功返回动作、更新后的订单和 `nextPlan` |
@@ -214,6 +221,10 @@
 订单准备总览只读取未关闭且未取消的活动订单，并且每次请求只运行一次 `buildBalancedOrderPlans`，避免逐单重复平衡库存。总览按 `blocked → waiting_materials → needs_review → ready` 排序，`attentionRequired` 是前三类之和。AI 工具 `get_order_readiness_overview` 和管理看板“订单准备”页签使用同一接口，均不属于生产执行或库存写入。
 
 处理方案状态为 `complete/ready_for_confirmation/action_required/needs_resolution/waiting/not_applicable`。步骤模式 `confirmable` 表示存在可映射的标准写工具，但仍需后续用户确认；`manual` 表示需要人员在业务页面处理，`needs_input` 表示缺少价格等业务决定，`monitor` 表示等待到货等外部状态。存在缺BOM或库存映射等前置问题时，后续确认和采购步骤通过 `dependsOn` 标记为阻塞。AI 工具 `plan_order_readiness_actions` 只读取该接口，不属于 `WRITE_TOOLS`；`execute_order_readiness_action` 属于 `WRITE_TOOLS`，确认后调用动作接口，并以服务端重验结果为准。
+
+执行档案与生产准备方案是两类数据：生产准备保存系统实时检查、待办和建议；执行档案只保存已经发生的准备结果、人工决定、过程调整、异常、质量和交付事实。每条执行记录保留独立草稿和最后一次人工确认快照，只有确认快照合并到现有订单知识条目。修改草稿不会覆盖旧知识，重新确认才替换；确认引用的订单附件在撤销或重新确认前不能解除关联。所有接口均属于记录与追溯，不是生产执行模块。
+
+V10.4 订单知识包不新建业务事实，也不依赖知识同步时点。`order/readiness/actionPlan` 每次从实时订单、库存和采购数据重算，`confirmedKnowledge` 只读取最后一次人工确认的客户要求和执行事实；`pendingDraftCount/hasPendingDraft` 只能说明存在待确认变更，响应不会暴露草稿正文作为正式依据。`sourceFiles` 保留 `customer_requirement/execution_evidence` 角色和下载入口，`provenance` 明确区分 `live_business` 与 `human_confirmed`。
 
 订单动作接口不接受客户端提交的状态、采购数量或采购清单，只接受动作 ID 并在服务端映射到现有订单状态和采购计划逻辑。`confirm_order` 使订单离开待确认，并按实时采购数量进度进入待采购、采购中或采购完成；`generate_purchase_plan` 保存本轮实时生成的采购清单，并仅在原待办为空时补充待办。两者都通过安全写入和审计日志，不提供生产确认或自动扣库存能力。
 
@@ -267,7 +278,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 `/setup` 系统初始化页只开放业务运行参数。AI 提供商、模型、API Key 和图片输入设置保存后供 AI 工作台即时读取；混合检索和向量批量大小即时读取。知识自动同步、向量开关、向量自动生成、Embedding 模型/维度/精度、缓存目录和离线模式涉及已初始化的后台控制器或模型实例，保存后会返回 `restartRequired=true`，重启 API 服务后生效。管理密码、JWT、内部接口密钥、CORS、端口和生产模式只显示配置状态，仍必须由部署环境提供，不能在网页中读取或修改。
 
-Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k2.7-code`。
+Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k2.7-code`。`AI_PROVIDER=auto` 为默认模式：DeepSeek 处理普通对话和已解析的 PDF/Excel/文本，只有服务端确认的图片附件切换 Kimi；也可设为 `deepseek` 或 `kimi` 强制固定模型。
 
 ## 14. 转子 Rotor
 
@@ -295,15 +306,15 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制 |
+| `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；智能路由额外返回 `defaultProvider=deepseek` 与可用的 `visionProvider=kimi` |
 | `POST` | `/api/ai/chat` | `{ messages, pageContext? }` | SSE 流式对话；消息可带 `attachments: [{ id }]`；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view` |
 | `POST` | `/api/ai/confirm-tool` | `{ toolName, args? }` | 用户确认后执行写工具；调用 `executeToolCall(..., { allowWrite: true })` |
 | `GET` | `/api/ai/system-prompt` | 无 | 读取当前 System Prompt |
 | `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 更新内存和 SQLite `config.ai-system-prompt`；不能为空，最大 50000 字符 |
 
-AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。DeepSeek 不接收图片二进制，但可以使用本地 OCR 文字；系统初始化页选择 Kimi 开放平台且模型支持视觉输入时，图片还会按 OpenAI 兼容的 `image_url` 数据格式传入。
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无图片时使用 DeepSeek；存在图片且 Kimi API Key、视觉开关和视觉模型可用时，使用 Kimi 并按 OpenAI 兼容的 `image_url` 格式发送原图。Kimi 请求失败时回退 DeepSeek，本轮只使用本地 OCR 文字。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。
 
-业务页右侧 AI 可额外发送 `pageContext: { resourceType: "order", resourceId, path: "/orders", view }`。后端只保留合法订单 ID，并将 `view` 限制为 `requirements/readiness/items/purchase/todos`；客户端标签、指令或业务数值都会被丢弃。页面上下文只用于解析“这个订单”“下一步怎么处理”等指代，不写入会话消息，也不替代实时业务工具查询；明确指定其他订单或询问全部订单时，以用户文字为准。
+业务页右侧 AI 可额外发送 `pageContext: { resourceType: "order", resourceId, path: "/orders", view }`。后端只保留合法订单 ID，并将 `view` 限制为 `requirements/readiness/execution/items/purchase/todos`；客户端标签、指令或业务数值都会被丢弃。页面上下文只用于解析“这个订单”“下一步怎么处理”等指代，不写入会话消息，也不替代实时业务工具查询；明确指定其他订单或询问全部订单时，以用户文字为准。
 
 价格、成本、库存、订单状态、报价金额和铜价等易变业务数据查询会在首轮强制调用至少一个只读工具，避免模型从会话上下文复述已过期数值。明确查询知识库时使用知识库结果；若知识条目与实时业务 API 冲突，以实时业务值为准并提示同步知识库。
 
@@ -380,6 +391,8 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `get_factory_knowledge_health`：调用 `/api/knowledge/health` 实时读取自动同步健康级别、异常原因、待同步数量和最近运行记录；只读，不执行同步。
 - `sync_factory_knowledge`：调用 `/api/knowledge/sync` 增量更新知识条目并刷新 FTS；该工具写入派生索引，位于写工具白名单，需确认后执行。
 - `save_order_requirement_draft`：把已经展示并经用户明确要求保存的订单客户要求归纳结果写入可编辑草稿；必须使用真实订单 ID 和已关联附件的精确文件 ID，需确认后执行。该工具不能确认知识，也不能修改订单明细、配方、采购或库存。
+- `save_order_execution_draft`：把用户明确陈述的订单执行事实新建为可编辑草稿；必须区分生产前/中/后和事实类型，建议、预测与待办不能写成已发生事实。该工具需确认后执行，但仍不能确认知识或修改订单状态、配方、采购和库存。
+- `get_order_knowledge_package`：按订单 ID、客户名或合同号读取 V10.4 只读订单知识包。用于客户要求、历史调整、异常、质量和交付追溯；匹配多张订单时要求明确订单，不属于 `WRITE_TOOLS`。
 
 知识查询工具结果包含 `provenance` 和 `sources`。`provenance.kind=knowledge_snapshot` 表示最近一次知识同步快照；每个 source 包含 `knowledgeEntryId/title/sourceTable/sourceId/syncedAt/sourceUpdatedAt/freshness/knowledgePath/sourcePath`。`freshness` 支持 `fresh/pending_insert/pending_update/pending_delete`。价格、库存、订单状态等实时业务查询使用 `provenance.kind=live_business`；实时结果与知识快照冲突时以实时业务结果为准。
 
@@ -488,7 +501,7 @@ V9.1 使用 `factory_files` 作为 PDF、Excel、文本和图片的统一原文�
 | `GET` | `/api/files/links` | 查询参数 `targetType`, `targetId` | 按业务对象列出有效文件关联及文件元数据 |
 | `GET` | `/api/files/:id` | 无 | 读取单个文件对象的类型、大小、哈希、解析状态和来源 |
 | `GET` | `/api/files/:id/links` | 无 | 列出该文件当前关联的业务对象 |
-| `POST` | `/api/files/:id/archive` | `{ targetType, targetId?, title?, note?, documentType?, tags?, source? }` | 归档文件；客户、报价、订单、配方和质量问题必须传真实 `targetId`；订单默认关系角色为 `customer_requirement`；知识资料使用 `targetType=knowledge_document` 且由系统创建或复用同文件资料；重复关联返回 `deduplicated=true` |
+| `POST` | `/api/files/:id/archive` | `{ targetType, targetId?, relationRole?, title?, note?, documentType?, tags?, source? }` | 归档文件；客户、报价、订单、配方和质量问题必须传真实 `targetId`；订单客户资料默认关系角色为 `customer_requirement`，执行现场依据显式使用 `execution_evidence`；知识资料使用 `targetType=knowledge_document` 且由系统创建或复用同文件资料；重复关联返回 `deduplicated=true` |
 | `DELETE` | `/api/files/:id/links/:linkId` | 无 | 软删除指定文件关联，不删除原文件或目标业务记录 |
 | `POST` | `/api/files/:id/parse` | 无 | 重新解析 PDF、Excel、CSV 或图片；成功返回更新后的文件对象，其他类型或解析失败返回 `400` |
 | `POST` | `/api/files/:id/quotation-draft` | `{ customerName? }` | 只读把 Excel/CSV 报价文件映射为客户、配方、数量、文件单价和待确认项；只有全部精确匹配时返回 `quotationDraftInput`，不创建客户、配方或报价 |
@@ -558,6 +571,7 @@ AI 工具：
 - `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
 - `save_order_requirement_draft`：经用户确认后保存订单客户要求草稿；草稿不属于正式知识，确认进入知识库和撤销确认只能在订单页面完成。
+- `save_order_execution_draft`：经用户确认后新建订单执行事实草稿；AI 无权确认、撤销或删除正式事实，知识确认只能在订单页面完成。
 
 ## 19. 当前兼容边界
 

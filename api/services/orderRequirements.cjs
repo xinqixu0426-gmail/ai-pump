@@ -76,6 +76,7 @@ function listOrderRequirementFiles(orderId, accessors) {
         JOIN factory_files f ON f.id = l.file_id
         WHERE l.target_type = 'order'
           AND l.target_id = ?
+          AND l.relation_role = 'customer_requirement'
           AND l.deleted_at IS NULL
           AND f.deleted_at IS NULL
         ORDER BY l.updated_at DESC, l.id DESC

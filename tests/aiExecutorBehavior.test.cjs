@@ -156,6 +156,45 @@ test('AI executor 行为：订单生产准备通过只读标准 API 并返回实
     ]);
 });
 
+test('AI executor 行为：订单知识包通过只读标准 API 并保留双层依据', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders/12/knowledge-package') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    order: { id: 12, customerName: '测试客户', status: '采购中' },
+                    readiness: { verdict: 'waiting_materials' },
+                    confirmedKnowledge: {
+                        customerRequirement: { text: '客户要求使用指定包装。' },
+                        executionRecords: [{ id: 3, text: '已调整备用供应商。' }],
+                    },
+                    provenance: {
+                        liveBusiness: { kind: 'live_business' },
+                        confirmedKnowledge: { kind: 'human_confirmed', draftsExcluded: true },
+                    },
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall(
+        'get_order_knowledge_package',
+        { orderId: 12 },
+        { allowWrite: false }
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'order_knowledge_package');
+    assert.equal(result.data.readiness.verdict, 'waiting_materials');
+    assert.equal(result.data.confirmedKnowledge.executionRecords.length, 1);
+    assert.equal(result.data.provenance.confirmedKnowledge.draftsExcluded, true);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/orders/12/knowledge-package',
+    ]);
+});
+
 test('AI executor 行为：订单准备总览通过只读标准 API 返回全部活动订单结论', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/orders/readiness-overview') && call.method === 'GET') {
@@ -1465,5 +1504,47 @@ test('V10.2 AI executor：客户要求只能保存草稿且必须先确认', asy
     const saved = await executeToolCall('save_order_requirement_draft', args, { allowWrite: true });
     assert.equal(saved.success, true);
     assert.match(saved.message, /仍需在订单页面人工确认/);
+    assert.equal(calls.length, 1);
+});
+
+test('V10.3 AI executor：订单执行事实只能新建草稿且必须先确认', async () => {
+    const calls = installFetchStub((call) => {
+        assert.equal(call.method, 'POST');
+        assert.match(call.url, /\/api\/orders\/27\/execution-records$/);
+        assert.equal(call.body.phase, 'in_production');
+        assert.equal(call.body.recordType, 'supplier_adjustment');
+        assert.match(call.body.summaryText, /备用供应商/);
+        assert.deepEqual(call.body.sourceFileIds, [52]);
+        return jsonResponse({
+            success: true,
+            data: {
+                id: 9,
+                orderId: 27,
+                phase: call.body.phase,
+                recordType: call.body.recordType,
+                draftText: call.body.summaryText,
+                knowledgeStatus: 'not_confirmed',
+            },
+        });
+    });
+    const args = {
+        orderId: 27,
+        phase: 'in_production',
+        recordType: 'supplier_adjustment',
+        title: '泵壳供应商临时调整',
+        summaryText: '原供应商延期，人工决定后续 20 套改由备用供应商交付。',
+        occurredAt: '2026-07-30T10:00:00.000Z',
+        sourceFileIds: [52],
+    };
+
+    const blocked = await executeToolCall('save_order_execution_draft', args, { allowWrite: false });
+    assert.equal(blocked.requiresConfirmation, true);
+    assert.equal(blocked.confirmation.title, '保存订单执行档案草稿');
+    assert.equal(calls.length, 0);
+
+    const saved = await executeToolCall('save_order_execution_draft', args, { allowWrite: true });
+    assert.equal(saved.success, true);
+    assert.match(saved.message, /仍需在订单页面人工确认/);
+    assert.equal(saved.executionRecord.id, 9);
     assert.equal(calls.length, 1);
 });

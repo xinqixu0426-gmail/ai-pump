@@ -76,6 +76,21 @@ test('AI 将多订单生产准备问题路由到实时订单总览', () => {
     ]);
 });
 
+test('AI 将订单客户要求和追溯问题路由到只读订单知识包', () => {
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '订单 #12 的客户包装要求是什么' }]).at(-1), {
+        name: 'get_order_knowledge_package',
+        args: { orderId: 12 },
+    });
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '订单12之前做过哪些供应商调整' }]).at(-1), {
+        name: 'get_order_knowledge_package',
+        args: { orderId: 12 },
+    });
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '订单12的质量和交付如何追溯' }]).at(-1), {
+        name: 'get_order_knowledge_package',
+        args: { orderId: 12 },
+    });
+});
+
 test('AI 将今日优先事项路由到统一管理待办', () => {
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '今天最先需要处理什么' }]), [
         { name: 'get_management_action_center', args: {} },

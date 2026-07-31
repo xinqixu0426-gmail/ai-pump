@@ -27,7 +27,7 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 import { replacePageLocation } from '@/lib/page-context';
 
 const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
-  { value: '全部', label: '全部' },
+  { value: '全部', label: '全部状态' },
   { value: '待确认', label: '待确认' },
   { value: '待采购', label: '待采购' },
   { value: '采购中', label: '采购中' },
@@ -63,7 +63,7 @@ export function OrdersView({
   initialDetailTab = 'items',
 }: {
   initialOrderId?: number | null;
-  initialDetailTab?: 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos';
+  initialDetailTab?: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos';
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -141,7 +141,7 @@ export function OrdersView({
     void loadAuxiliary();
   }
 
-  function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos' = 'items') {
+  function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' = 'items') {
     setSelectedOrder(order);
     replacePageLocation(`/orders?orderId=${order.id}&view=${detailTab}`);
   }
@@ -253,14 +253,11 @@ export function OrdersView({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto max-w-6xl space-y-4">
+      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Orders</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">订单</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            订单列表、详情和创建流程都走标准 API；新建订单会先生成采购计划，再写入订单。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">订单</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">跟踪订单状态、销售金额与采购进度。</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -300,6 +297,7 @@ export function OrdersView({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              aria-label="搜索订单"
               placeholder="搜索客户、合同号或备注"
               className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
             />
@@ -355,8 +353,17 @@ export function OrdersView({
                   {filteredOrders.map((order) => (
                     <PresenceRow
                       key={order.id}
-                      className="group cursor-pointer transition hover:bg-slate-50"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`查看订单：${order.customerName || '未命名客户'}${order.contractNo ? `，合同号 ${order.contractNo}` : ''}`}
+                      className="group cursor-pointer transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400"
                       onClick={() => openOrder(order)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openOrder(order);
+                        }
+                      }}
                     >
                       <td className="border-b border-line px-4 py-3">
                         <div className="font-medium text-ink">{order.customerName || '未命名客户'}</div>

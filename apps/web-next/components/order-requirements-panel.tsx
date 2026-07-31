@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { BookCheck, Check, Loader2, RotateCcw, Save, ShieldCheck } from 'lucide-react';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { Button } from '@/components/ui/button';
+import { generateAiDraftFromAttachment, type AiAttachment } from '@/lib/ai';
+import type { FactoryFileLink } from '@/lib/files';
 import {
   confirmOrderRequirementSummary,
   getOrderRequirementSummary,
@@ -34,7 +36,7 @@ export function OrderRequirementsPanel({
   const [summaryText, setSummaryText] = useState('');
   const [sourceFileIds, setSourceFileIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<'save' | 'confirm' | 'revoke' | ''>('');
+  const [busy, setBusy] = useState<'summarize' | 'save' | 'confirm' | 'revoke' | ''>('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -132,7 +134,45 @@ export function OrderRequirementsPanel({
     }
   }
 
-  const aiSummaryPrompt = `请只根据附件原文，整理订单 ${contractNo || orderId}（${customerName || '未知客户'}）的客户要求草稿。按产品与数量、客户型号或线圈片数、扬程流量、电气参数、材料与结构、包装与标识、交期、质量验收、待确认问题分类；没有写明的内容标为“未提供”，冲突内容单列，禁止把工厂推断或建议写成客户明确要求。最后给出生产前资源准备清单。先展示归纳结果，不要自动保存；只有我之后明确要求保存草稿时，才发起保存确认。保存草稿也不代表进入知识库，知识确认只能在订单页面完成。`;
+  async function summarizeRequirement(link: FactoryFileLink) {
+    if (busy) return;
+    if (
+      summaryText.trim()
+      && summaryText !== (record?.draftText || '')
+      && !window.confirm('当前编辑框有尚未保存的修改，继续归纳会覆盖这些修改。是否继续？')
+    ) {
+      return;
+    }
+    setBusy('summarize');
+    setMessage('');
+    setError('');
+    try {
+      const attachment: AiAttachment = {
+        id: link.fileId,
+        originalName: link.file?.originalName || link.title || `文件 #${link.fileId}`,
+        detectedType: link.file?.detectedType || 'text',
+        mimeType: link.file?.mimeType || 'application/octet-stream',
+        fileSize: link.file?.fileSize || 0,
+        downloadPath: `/api/files/${link.fileId}/download`,
+      };
+      const result = await generateAiDraftFromAttachment(
+        `请只根据这个附件原文，整理订单 ${contractNo || orderId}（${customerName || '未知客户'}）的客户要求草稿。按“产品与数量、客户型号或线圈片数、扬程流量、电气参数、材料与结构、包装与标识、交期、质量验收、待确认问题、生产前资源准备”分节；没有写明的内容标为“未提供”，冲突内容单列，禁止把工厂推断或建议写成客户明确要求。直接输出适合填入客户要求编辑框的正文，不要寒暄、解释操作步骤或要求我复制粘贴，不要调用保存工具。`,
+        attachment,
+        {
+          resourceType: 'order',
+          resourceId: orderId,
+          path: '/orders',
+          view: 'requirements',
+          label: `订单 #${orderId} · 客户要求`,
+        }
+      );
+      setSummaryText(result);
+      setSourceFileIds([link.fileId]);
+      setMessage('AI 归纳已填入编辑框，请核对后保存草稿。');
+    } finally {
+      setBusy('');
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -143,9 +183,10 @@ export function OrderRequirementsPanel({
       <FactoryFileAttachments
         targetType="order"
         targetId={orderId}
+        relationRole="customer_requirement"
         title="客户要求文件"
         description="上传生产要求、包装要求、客户图片、Excel 或 PDF。上传后可直接交给 AI 归纳。"
-        aiSummaryPrompt={aiSummaryPrompt}
+        onAiSummarize={summarizeRequirement}
         onChanged={() => void load({ preserveDraft: true })}
       />
 
@@ -217,7 +258,7 @@ export function OrderRequirementsPanel({
                 setMessage('');
               }}
               rows={14}
-              placeholder="可在 AI 工作台归纳后粘贴，或直接在此整理客户明确要求、未提供项、冲突项和生产前准备事项。"
+              placeholder="点击附件旁的“AI 归纳”可直接生成到这里，也可以手工整理客户明确要求、未提供项、冲突项和生产前准备事项。"
               className="w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none transition-colors placeholder:text-muted focus:border-sky-400"
             />
 

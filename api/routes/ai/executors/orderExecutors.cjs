@@ -138,6 +138,29 @@ async function executeOrderTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'save_order_execution_draft': {
+            if (!args.orderId) return { success: false, error: '缺少订单ID' };
+            if (!String(args.summaryText || '').trim()) return { success: false, error: '执行事实说明不能为空' };
+            const data = await postJson(
+                internalFetch,
+                `/api/orders/${args.orderId}/execution-records`,
+                {
+                    phase: args.phase,
+                    recordType: args.recordType,
+                    title: args.title,
+                    summaryText: args.summaryText,
+                    occurredAt: args.occurredAt,
+                    sourceFileIds: args.sourceFileIds,
+                },
+                '订单执行档案草稿保存失败'
+            );
+            return {
+                success: true,
+                message: '订单执行档案草稿已保存，仍需在订单页面人工确认后才进入知识库。',
+                executionRecord: data,
+            };
+        }
+
         case 'create_order': {
             const { customerName, contractNo = '', remark = '', status = '待采购', items = [] } = args;
             if (!customerName) {
@@ -237,6 +260,29 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     createdAt: row.createdAt ?? row.CreatedAt,
                     updatedAt: row.updatedAt ?? row.UpdatedAt
                 }
+            };
+        }
+
+        case 'get_order_knowledge_package': {
+            const resolved = await resolveOrderForReadiness(internalFetch, args);
+            if (resolved.error) {
+                return {
+                    success: false,
+                    error: resolved.error,
+                    candidates: resolved.candidates || [],
+                };
+            }
+            const data = await getJson(
+                internalFetch,
+                `/api/orders/${resolved.orderId}/knowledge-package`,
+                '订单知识包读取失败'
+            );
+            return {
+                success: true,
+                intent: 'order_knowledge_package',
+                summary: `已读取订单 #${resolved.orderId} 的实时业务状态和人工确认事实。`,
+                display: { mode: 'compact', title: '订单知识包' },
+                data,
             };
         }
 
@@ -493,7 +539,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 }
 
 const ORDER_TOOLS = new Set([
-    'create_order', 'add_recipe_to_order', 'get_order_detail',
+    'create_order', 'add_recipe_to_order', 'get_order_detail', 'get_order_knowledge_package',
     'update_order_status', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list', 'delete_order', 'get_order_readiness_overview',
     'check_order_readiness', 'plan_order_readiness_actions', 'execute_order_readiness_action'

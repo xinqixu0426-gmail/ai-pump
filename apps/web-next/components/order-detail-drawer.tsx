@@ -25,6 +25,7 @@ import {
 } from '@/lib/order-readiness';
 import { replacePageLocation } from '@/lib/page-context';
 import { OrderRequirementsPanel } from '@/components/order-requirements-panel';
+import { OrderExecutionRecordsPanel } from '@/components/order-execution-records-panel';
 
 type OrderDetailDrawerProps = {
   order: Order | null;
@@ -34,7 +35,7 @@ type OrderDetailDrawerProps = {
   onSaved: () => void;
 };
 
-type TabKey = 'requirements' | 'readiness' | 'items' | 'purchase' | 'todos';
+type TabKey = 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos';
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   待确认: 'slate',
@@ -60,6 +61,7 @@ function purchaseItemKey(item: { identityKey?: string; model: string; supplier: 
 const tabOptions: Array<{ value: TabKey; label: string }> = [
   { value: 'requirements', label: '客户要求' },
   { value: 'readiness', label: '生产准备' },
+  { value: 'execution', label: '执行档案' },
   { value: 'items', label: '型号' },
   { value: 'purchase', label: '采购' },
   { value: 'todos', label: '待办' },
@@ -464,7 +466,12 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   }, [localOrder]);
 
   return (
-    <SlideOver open={open && Boolean(localOrder)} onClose={onClose} size="workspace">
+    <SlideOver
+      open={open && Boolean(localOrder)}
+      onClose={onClose}
+      size="workspace"
+      closeOnBackdrop={false}
+    >
       {localOrder && (
         <div className="flex min-h-full flex-col">
           <header className="border-b border-line px-5 py-4">
@@ -525,6 +532,14 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
 
             {tab === 'requirements' && (
               <OrderRequirementsPanel
+                orderId={Number(localOrder.id)}
+                contractNo={localOrder.contractNo}
+                customerName={localOrder.customerName}
+              />
+            )}
+
+            {tab === 'execution' && (
+              <OrderExecutionRecordsPanel
                 orderId={Number(localOrder.id)}
                 contractNo={localOrder.contractNo}
                 customerName={localOrder.customerName}

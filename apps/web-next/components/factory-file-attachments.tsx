@@ -15,10 +15,11 @@ import {
 type FactoryFileAttachmentsProps = {
   targetType: FactoryFileArchiveTargetType;
   targetId: number;
+  relationRole?: FactoryFileLink['relationRole'];
   title?: string;
   description?: string;
   embedded?: boolean;
-  aiSummaryPrompt?: string;
+  onAiSummarize?: (link: FactoryFileLink) => Promise<void>;
   onChanged?: () => void;
 };
 
@@ -46,17 +47,20 @@ function fileIcon(type?: string) {
 export function FactoryFileAttachments({
   targetType,
   targetId,
+  relationRole,
   title = '附件',
   description = '支持 PDF、Excel、CSV、文本和图片，单个文件不超过 10MB。',
   embedded = false,
-  aiSummaryPrompt = '',
+  onAiSummarize,
   onChanged,
 }: FactoryFileAttachmentsProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [links, setLinks] = useState<FactoryFileLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [summarizingFileId, setSummarizingFileId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const locked = busy || summarizingFileId !== null;
 
   async function load() {
     if (!targetId) {
@@ -67,7 +71,8 @@ export function FactoryFileAttachments({
     setLoading(true);
     setError('');
     try {
-      setLinks(await listFactoryFileLinksForTarget(targetType, targetId));
+      const next = await listFactoryFileLinksForTarget(targetType, targetId);
+      setLinks(relationRole ? next.filter(link => link.relationRole === relationRole) : next);
     } catch (err) {
       setError(err instanceof Error ? err.message : '读取附件失败');
     } finally {
@@ -77,7 +82,7 @@ export function FactoryFileAttachments({
 
   useEffect(() => {
     void load();
-  }, [targetType, targetId]);
+  }, [targetType, targetId, relationRole]);
 
   async function upload(file?: File) {
     if (!file || busy) return;
@@ -88,6 +93,7 @@ export function FactoryFileAttachments({
       await archiveFactoryFile(stored.id, {
         targetType,
         targetId,
+        relationRole,
         title: file.name,
         source: 'business_page',
       });
@@ -118,6 +124,19 @@ export function FactoryFileAttachments({
     }
   }
 
+  async function summarize(link: FactoryFileLink) {
+    if (!onAiSummarize || locked) return;
+    setSummarizingFileId(link.fileId);
+    setError('');
+    try {
+      await onAiSummarize(link);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI 归纳失败');
+    } finally {
+      setSummarizingFileId(null);
+    }
+  }
+
   return (
     <section className={embedded ? '' : 'overflow-hidden rounded-panel border border-line bg-white shadow-panel'}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -141,7 +160,7 @@ export function FactoryFileAttachments({
             type="button"
             size="sm"
             variant="secondary"
-            disabled={busy || !targetId}
+            disabled={locked || !targetId}
             icon={busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
             onClick={() => inputRef.current?.click()}
           >
@@ -182,28 +201,29 @@ export function FactoryFileAttachments({
               >
                 <Download size={14} />
               </a>
-              {aiSummaryPrompt ? (
-                <a
-                  href={`/ai?${new URLSearchParams({
-                    fileId: String(link.fileId),
-                    prompt: aiSummaryPrompt,
-                  }).toString()}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="在 AI 工作台归纳客户要求"
+              {onAiSummarize ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={locked}
+                  title="用 AI 原地归纳附件"
                   aria-label={`用 AI 归纳${link.file?.originalName || '附件'}`}
-                  className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-100"
+                  className="h-8 shrink-0"
+                  icon={summarizingFileId === link.fileId
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Sparkles size={14} />}
+                  onClick={() => void summarize(link)}
                 >
-                  <Sparkles size={14} />
-                  AI 归纳
-                </a>
+                  {summarizingFileId === link.fileId ? '归纳中' : 'AI 归纳'}
+                </Button>
               ) : null}
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 className="h-8 w-8 shrink-0 px-0"
-                disabled={busy}
+                disabled={locked}
                 title="解除关联"
                 aria-label={`解除${link.file?.originalName || '附件'}关联`}
                 icon={<Trash2 size={14} />}

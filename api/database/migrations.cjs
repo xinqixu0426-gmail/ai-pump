@@ -602,6 +602,74 @@ function addOrderFactoryFileLinks(db) {
     `);
 }
 
+function addOrderExecutionEvidenceFileRole(db) {
+    const tableSql = String(db.prepare(`
+        SELECT sql FROM sqlite_schema
+        WHERE type = 'table' AND name = 'factory_file_links'
+    `).get()?.sql || '');
+    if (tableSql.includes("'execution_evidence'")) return;
+
+    db.exec(`
+        DROP INDEX IF EXISTS idx_factory_file_links_file;
+        DROP INDEX IF EXISTS idx_factory_file_links_target;
+        DROP INDEX IF EXISTS idx_factory_file_links_active_unique;
+        DROP TABLE IF EXISTS factory_file_links_v10;
+        ALTER TABLE factory_file_links RENAME TO factory_file_links_v10;
+
+        CREATE TABLE factory_file_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL
+                CHECK(target_type IN (
+                    'customer',
+                    'quotation',
+                    'order',
+                    'recipe',
+                    'recipe_analysis_feedback',
+                    'ai_answer_feedback',
+                    'knowledge_document'
+                )),
+            target_id INTEGER NOT NULL,
+            relation_role TEXT NOT NULL DEFAULT 'attachment'
+                CHECK(relation_role IN (
+                    'attachment',
+                    'customer_requirement',
+                    'execution_evidence',
+                    'technical_reference',
+                    'quotation_source',
+                    'quality_evidence',
+                    'knowledge_source'
+                )),
+            title TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'manual'
+                CHECK(source IN ('manual', 'ai_chat', 'business_page')),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT,
+            FOREIGN KEY(file_id) REFERENCES factory_files(id)
+        );
+
+        INSERT INTO factory_file_links (
+            id, file_id, target_type, target_id, relation_role,
+            title, note, source, created_at, updated_at, deleted_at
+        )
+        SELECT
+            id, file_id, target_type, target_id, relation_role,
+            title, note, source, created_at, updated_at, deleted_at
+        FROM factory_file_links_v10;
+
+        DROP TABLE factory_file_links_v10;
+        CREATE INDEX idx_factory_file_links_file
+            ON factory_file_links(file_id, deleted_at, updated_at DESC);
+        CREATE INDEX idx_factory_file_links_target
+            ON factory_file_links(target_type, target_id, deleted_at, updated_at DESC);
+        CREATE UNIQUE INDEX idx_factory_file_links_active_unique
+            ON factory_file_links(file_id, target_type, target_id, relation_role)
+            WHERE deleted_at IS NULL;
+    `);
+}
+
 function createOrderRequirementSummariesTable(db) {
     db.exec(`
         CREATE TABLE IF NOT EXISTS order_requirement_summaries (
@@ -660,6 +728,102 @@ function repairOrderRequirementSummariesForeignKey(db) {
             updated_at
         FROM order_requirement_summaries_v10;
         DROP TABLE order_requirement_summaries_v10;
+    `);
+}
+
+function createOrderExecutionRecordsTable(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS order_execution_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            phase TEXT NOT NULL
+                CHECK(phase IN ('pre_production', 'in_production', 'post_production')),
+            record_type TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            draft_text TEXT NOT NULL DEFAULT '',
+            occurred_at TEXT NOT NULL,
+            source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+            confirmed_phase TEXT,
+            confirmed_record_type TEXT NOT NULL DEFAULT '',
+            confirmed_title TEXT NOT NULL DEFAULT '',
+            confirmed_text TEXT NOT NULL DEFAULT '',
+            confirmed_occurred_at TEXT,
+            confirmed_source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'draft'
+                CHECK(status IN ('draft', 'confirmed')),
+            confirmed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT,
+            FOREIGN KEY(order_id) REFERENCES orders(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_order_execution_records_order
+            ON order_execution_records(order_id, deleted_at, occurred_at DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_order_execution_records_confirmed
+            ON order_execution_records(order_id, confirmed_at DESC)
+            WHERE deleted_at IS NULL AND confirmed_text <> '';
+    `);
+}
+
+function repairOrderExecutionRecordsForeignKey(db) {
+    if (!tableExists(db, 'order_execution_records')) {
+        createOrderExecutionRecordsTable(db);
+        return;
+    }
+    const foreignKeys = db.pragma('foreign_key_list(order_execution_records)');
+    if (foreignKeys.some(item => item.from === 'order_id' && item.table === 'orders')) return;
+
+    db.exec(`
+        DROP INDEX IF EXISTS idx_order_execution_records_order;
+        DROP INDEX IF EXISTS idx_order_execution_records_confirmed;
+        DROP TABLE IF EXISTS order_execution_records_v10;
+        ALTER TABLE order_execution_records RENAME TO order_execution_records_v10;
+    `);
+    createOrderExecutionRecordsTable(db);
+    db.exec(`
+        INSERT INTO order_execution_records (
+            id,
+            order_id,
+            phase,
+            record_type,
+            title,
+            draft_text,
+            occurred_at,
+            source_file_ids_json,
+            confirmed_phase,
+            confirmed_record_type,
+            confirmed_title,
+            confirmed_text,
+            confirmed_occurred_at,
+            confirmed_source_file_ids_json,
+            status,
+            confirmed_at,
+            created_at,
+            updated_at,
+            deleted_at
+        )
+        SELECT
+            id,
+            order_id,
+            phase,
+            record_type,
+            title,
+            draft_text,
+            occurred_at,
+            source_file_ids_json,
+            confirmed_phase,
+            confirmed_record_type,
+            confirmed_title,
+            confirmed_text,
+            confirmed_occurred_at,
+            confirmed_source_file_ids_json,
+            status,
+            confirmed_at,
+            created_at,
+            updated_at,
+            deleted_at
+        FROM order_execution_records_v10;
+        DROP TABLE order_execution_records_v10;
     `);
 }
 
@@ -1760,6 +1924,25 @@ const MIGRATIONS = Object.freeze([
             repairOrderRequirementSummariesForeignKey(db);
         },
     },
+    {
+        version: 39,
+        name: 'order_execution_records',
+        signature: 'order-execution-fact-timeline-confirmed-knowledge-boundary-and-fk-repair-v1',
+        foreignKeysOff: true,
+        up(db) {
+            createOrderExecutionRecordsTable(db);
+            repairOrderExecutionRecordsForeignKey(db);
+        },
+    },
+    {
+        version: 40,
+        name: 'order_execution_evidence_file_role',
+        signature: 'order-execution-evidence-file-relation-role-v1',
+        foreignKeysOff: true,
+        up(db) {
+            addOrderExecutionEvidenceFileRole(db);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
@@ -1826,8 +2009,11 @@ function runMigrations(db, options = {}) {
 module.exports = {
     MIGRATIONS,
     MIGRATION_TABLE_SQL,
+    addOrderExecutionEvidenceFileRole,
     addOrderFactoryFileLinks,
+    createOrderExecutionRecordsTable,
     migrationChecksum,
+    repairOrderExecutionRecordsForeignKey,
     repairOrderRequirementSummariesForeignKey,
     repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,

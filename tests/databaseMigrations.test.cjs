@@ -201,6 +201,23 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
                 .find(item => item.from === 'order_id')?.table,
             'orders'
         );
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'order_execution_records'
+        `).get());
+        const executionSql = db.prepare(`
+            SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'order_execution_records'
+        `).get().sql;
+        assert.match(executionSql, /'pre_production', 'in_production', 'post_production'/);
+        assert.match(executionSql, /CHECK\(status IN \('draft', 'confirmed'\)\)/);
+        assert.equal(
+            db.pragma('foreign_key_list(order_execution_records)')
+                .find(item => item.from === 'order_id')?.table,
+            'orders'
+        );
+        assert.ok(
+            db.pragma('index_list(order_execution_records)')
+                .some(index => index.name === 'idx_order_execution_records_order')
+        );
         assert.equal(
             db.pragma('index_list(factory_file_links)')
                 .find(index => index.name === 'idx_factory_file_links_active_unique')?.partial,
@@ -211,6 +228,7 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
         `).get().sql;
         assert.match(fileLinkSql, /'order'/);
         assert.match(fileLinkSql, /'customer_requirement'/);
+        assert.match(fileLinkSql, /'execution_evidence'/);
         assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'runtime_settings'
         `).get());

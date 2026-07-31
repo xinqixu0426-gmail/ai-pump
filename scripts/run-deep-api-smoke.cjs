@@ -1032,6 +1032,128 @@ async function testCrossModuleWriteFlow(baseResources) {
         undefined,
         [409]
     );
+    const executionEvidenceArchive = (await request(
+        'V10.3订单绑定执行依据文件',
+        'POST',
+        `/api/files/${pdfFile.id}/archive`,
+        {
+            targetType: 'order',
+            targetId: order.id,
+            relationRole: 'execution_evidence',
+            source: 'business_page',
+        },
+        [201]
+    )).payload.data;
+    assert(
+        executionEvidenceArchive.link.relationRole === 'execution_evidence',
+        '订单执行依据文件关联角色不正确'
+    );
+    const firstExecutionText = `已完成 ${unique}-EXEC-A 首批物料检查。`;
+    const secondExecutionText = `因供应商延期，人工决定执行 ${unique}-EXEC-B 备用供应方案。`;
+    const executionDraft = (await request(
+        'V10.3新建订单执行事实草稿',
+        'POST',
+        `/api/orders/${order.id}/execution-records`,
+        {
+            phase: 'pre_production',
+            recordType: 'material_preparation',
+            title: '首批物料检查完成',
+            summaryText: firstExecutionText,
+            occurredAt: '2026-07-30T09:00:00.000Z',
+            sourceFileIds: [pdfFile.id],
+        }
+    )).payload.data;
+    assert(executionDraft.knowledgeStatus === 'not_confirmed', '执行事实草稿被错误标记为正式知识');
+    const confirmedExecution = (await request(
+        'V10.3人工确认执行事实',
+        'POST',
+        `/api/orders/${order.id}/execution-records/${executionDraft.id}/confirm`,
+        {}
+    )).payload.data;
+    assert(confirmedExecution.knowledgeStatus === 'confirmed', '执行事实确认状态不正确');
+    await request('V10.3同步确认执行事实知识', 'POST', '/api/knowledge/sync', {});
+    const executionKnowledge = (await request(
+        'V10.3检索确认执行事实',
+        'GET',
+        `/api/knowledge?query=${encodeURIComponent(`${unique}-EXEC-A`)}&entryType=order&limit=10`
+    )).payload.data;
+    assert(executionKnowledge.length === 1, '确认的执行事实没有进入订单知识');
+    const changedExecution = (await request(
+        'V10.3修改已确认执行事实草稿',
+        'PUT',
+        `/api/orders/${order.id}/execution-records/${executionDraft.id}/draft`,
+        {
+            phase: 'in_production',
+            recordType: 'supplier_adjustment',
+            title: '供应商临时调整',
+            summaryText: secondExecutionText,
+            occurredAt: '2026-07-30T10:00:00.000Z',
+            sourceFileIds: [pdfFile.id],
+        }
+    )).payload.data;
+    assert(
+        changedExecution.knowledgeStatus === 'confirmed_with_draft',
+        '修改执行事实草稿后没有保留上次确认状态'
+    );
+    await request('V10.3同步待确认执行事实草稿', 'POST', '/api/knowledge/sync', {});
+    const executionBeforeReconfirm = (await request(
+        'V10.3复核待确认执行事实未覆盖知识',
+        'GET',
+        `/api/knowledge/${executionKnowledge[0].id}`
+    )).payload.data;
+    assert(
+        executionBeforeReconfirm.content.includes(`${unique}-EXEC-A`)
+            && !executionBeforeReconfirm.content.includes(`${unique}-EXEC-B`),
+        '待确认执行事实草稿错误覆盖了上次确认知识'
+    );
+    await request(
+        'V10.3重新确认执行事实',
+        'POST',
+        `/api/orders/${order.id}/execution-records/${executionDraft.id}/confirm`,
+        {}
+    );
+    await request('V10.3同步新确认执行事实', 'POST', '/api/knowledge/sync', {});
+    const executionAfterReconfirm = (await request(
+        'V10.3复核新确认执行事实',
+        'GET',
+        `/api/knowledge/${executionKnowledge[0].id}`
+    )).payload.data;
+    assert(
+        executionAfterReconfirm.content.includes(`${unique}-EXEC-B`)
+            && !executionAfterReconfirm.content.includes(`${unique}-EXEC-A`),
+        '重新确认后订单知识没有替换旧执行事实'
+    );
+    const orderKnowledgePackage = (await request(
+        'V10.4读取订单知识包',
+        'GET',
+        `/api/orders/${order.id}/knowledge-package`
+    )).payload.data;
+    assert(orderKnowledgePackage.order.id === order.id, '订单知识包没有返回目标订单');
+    assert(
+        orderKnowledgePackage.confirmedKnowledge.customerRequirement.text.includes(`${unique}-REQ-B`),
+        '订单知识包缺少人工确认客户要求'
+    );
+    assert(
+        orderKnowledgePackage.confirmedKnowledge.executionRecords.some(item => (
+            item.text.includes(`${unique}-EXEC-B`)
+        )),
+        '订单知识包缺少人工确认执行事实'
+    );
+    assert(
+        orderKnowledgePackage.provenance.liveBusiness.kind === 'live_business'
+            && orderKnowledgePackage.provenance.confirmedKnowledge.kind === 'human_confirmed'
+            && orderKnowledgePackage.provenance.confirmedKnowledge.draftsExcluded === true,
+        '订单知识包没有区分实时业务数据和人工确认事实'
+    );
+    assert(
+        orderKnowledgePackage.sourceFiles.some(file => (
+            file.id === pdfFile.id && file.relationRole === 'customer_requirement'
+        ))
+            && orderKnowledgePackage.sourceFiles.some(file => (
+                file.id === pdfFile.id && file.relationRole === 'execution_evidence'
+            )),
+        '订单知识包来源文件角色不完整'
+    );
     const revokedRequirement = (await request(
         'V10.2撤销客户要求知识确认',
         'POST',
@@ -1053,6 +1175,40 @@ async function testCrossModuleWriteFlow(baseResources) {
         !knowledgeAfterRevoke.content.includes(`${unique}-REQ-A`)
             && !knowledgeAfterRevoke.content.includes(`${unique}-REQ-B`),
         '撤销确认后订单知识仍保留客户要求'
+    );
+    await request(
+        'V10.3阻止解除执行事实来源文件',
+        'DELETE',
+        `/api/files/${pdfFile.id}/links/${executionEvidenceArchive.link.id}`,
+        undefined,
+        [409]
+    );
+    const revokedExecution = (await request(
+        'V10.3撤销执行事实知识确认',
+        'POST',
+        `/api/orders/${order.id}/execution-records/${executionDraft.id}/revoke`,
+        {}
+    )).payload.data;
+    assert(
+        revokedExecution.knowledgeStatus === 'not_confirmed'
+            && revokedExecution.draftText === secondExecutionText,
+        '撤销确认后没有保留执行事实草稿'
+    );
+    await request(
+        'V10.3删除未确认执行事实草稿',
+        'DELETE',
+        `/api/orders/${order.id}/execution-records/${executionDraft.id}`
+    );
+    const executionArchive = (await request(
+        'V10.3复核执行事实时间线',
+        'GET',
+        `/api/orders/${order.id}/execution-records`
+    )).payload.data;
+    assert(executionArchive.records.length === 0, '已删除执行事实草稿仍出现在时间线');
+    await request(
+        'V10.3撤销后解除执行依据文件关联',
+        'DELETE',
+        `/api/files/${pdfFile.id}/links/${executionEvidenceArchive.link.id}`
     );
     await request(
         'V10.2撤销后解除订单文件关联',

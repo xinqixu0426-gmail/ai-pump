@@ -1133,6 +1133,24 @@ test('API 静态契约：V5.5 订单准备总览对 API、AI 和只读边界保�
     assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_readiness_overview/);
 });
 
+test('API 静态契约：V10.4 订单知识包只读取实时状态和人工确认事实', () => {
+    const service = readUtf8(path.join(repoRoot, 'api/services/orderKnowledgePackage.cjs'));
+    const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const pageContext = readUtf8(path.join(repoRoot, 'api/services/aiPageContext.cjs'));
+
+    assert.match(service, /confirmedKnowledge/);
+    assert.match(service, /pendingDraftCount/);
+    assert.match(service, /buildOrderReadinessPlan/);
+    assert.doesNotMatch(service, /safeInsert|safeUpdate|softDelete|hardDelete/);
+    assert.match(ordersRoute, /router\.get\('\/:id\/knowledge-package'/);
+    assert.match(tools, /name:\s*'get_order_knowledge_package'/);
+    assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/knowledge-package/);
+    assert.match(pageContext, /'execution'/);
+    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_knowledge_package/);
+});
+
 test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
     const service = readUtf8(path.join(repoRoot, 'api/services/managementActionCenter.cjs'));
     const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
@@ -1427,12 +1445,21 @@ test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () =
     assert.match(executor, /const \{ id, Id, \.\.\.quotation \} = row/);
 });
 
-test('API 静态契约：AI 默认保持 DeepSeek V4 Flash 并允许模型适配', () => {
+test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', () => {
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const rotorRoute = readUtf8(path.join(repoRoot, 'api/routes/rotor.cjs'));
+    const runtimeConfig = readUtf8(path.join(repoRoot, 'api/services/runtimeConfig.cjs'));
+    const setupView = readUtf8(path.join(repoRoot, 'apps/web-next/components/setup-view.tsx'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
 
     assert.match(provider, /text\(env\.DEEPSEEK_MODEL\) \|\| 'deepseek-v4-flash'/);
     assert.match(provider, /provider: 'deepseek'/);
+    assert.match(provider, /resolveAiProviderRoute/);
+    assert.match(provider, /routeReason: 'image'/);
+    assert.match(provider, /routeReason: 'vision_fallback'/);
+    assert.match(runtimeConfig, /values: \['auto', 'deepseek', 'kimi'\]/);
+    assert.match(setupView, /普通对话、PDF 文字层和 Excel 默认使用 DeepSeek/);
+    assert.match(aiView, /item\.provider\.displayName/);
     assert.match(rotorRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
     assert.doesNotMatch(provider, /deepseek-chat/);
     assert.doesNotMatch(rotorRoute, /model:\s*'deepseek-chat'/);
@@ -1521,7 +1548,7 @@ test('文档契约：业务流程文档必须存在并被 README 引用', () => 
     assert.match(flow, /采购中心不入库/);
 });
 
-test('API 静态契约：V9.5-V10.2 文件归档关联业务对象且知识写入需要确认', () => {
+test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写入需要确认', () => {
     const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
     const migrations = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
@@ -1538,6 +1565,7 @@ test('API 静态契约：V9.5-V10.2 文件归档关联业务对象且知识写�
     const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
     const orderDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
     const orderRequirements = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-requirements-panel.tsx'));
+    const orderExecution = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-execution-records-panel.tsx'));
     const aiPage = readUtf8(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx'));
 
     assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_file_links/);
@@ -1547,6 +1575,7 @@ test('API 静态契约：V9.5-V10.2 文件归档关联业务对象且知识写�
     assert.match(migrations, /version: 36/);
     assert.match(migrations, /order_factory_file_links/);
     assert.match(schema, /'customer_requirement'/);
+    assert.match(schema, /'execution_evidence'/);
     assert.match(db, /'factory_file_links'/);
     assert.match(archive, /searchFactoryFileArchiveTargets/);
     assert.match(archive, /safeInsert\('knowledge_documents'/);
@@ -1576,7 +1605,19 @@ test('API 静态契约：V9.5-V10.2 文件归档关联业务对象且知识写�
     assert.match(orderDrawer, /OrderRequirementsPanel/);
     assert.match(orderRequirements, /targetType="order"/);
     assert.match(orderRequirements, /AI 可以归纳草稿/);
+    assert.match(orderRequirements, /generateAiDraftFromAttachment/);
+    assert.match(orderRequirements, /setSummaryText\(result\)/);
     assert.match(orderRequirements, /确认进入知识库/);
+    assert.match(orderDrawer, /OrderExecutionRecordsPanel/);
+    assert.match(orderExecution, /targetType="order"/);
+    assert.match(orderExecution, /relationRole="execution_evidence"/);
+    assert.match(orderExecution, /执行事实时间线/);
+    assert.match(orderExecution, /generateAiDraftFromAttachment/);
+    assert.match(orderExecution, /summaryText: result/);
+    assert.match(orderExecution, /确认进入知识库/);
     assert.match(attachmentPanel, /AI 归纳/);
+    assert.match(attachmentPanel, /onAiSummarize/);
+    assert.doesNotMatch(attachmentPanel, /href=\{`\/ai\?/);
+    assert.match(readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts')), /generateAiDraftFromAttachment/);
     assert.match(aiPage, /initialAttachmentId/);
 });
