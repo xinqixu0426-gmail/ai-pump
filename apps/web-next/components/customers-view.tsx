@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { CircleAlert, FileText, Pencil, Plus, RefreshCw, Save, Search, Trash2, UserRound, X } from 'lucide-react';
+import { CircleAlert, FileText, Pencil, Plus, RefreshCw, Save, Trash2, UserRound, X } from 'lucide-react';
 import {
   calculateCustomerQuotationStats,
   createCustomer,
@@ -20,17 +20,15 @@ import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { FormError } from '@/components/ui/form-error';
+import { ListToolbar } from '@/components/ui/list-toolbar';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
-
-function statLabel(value: string, sub: string) {
-  return (
-    <div>
-      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{sub}</div>
-    </div>
-  );
-}
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 
 function marginLabel(value: number) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
@@ -90,6 +88,16 @@ export function CustomersView() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState<CustomerFormState>(emptyForm);
+  const {
+    dirty: formDirty,
+    markDirty: markFormDirty,
+    resetDirty: resetFormDirty,
+    requestClose: requestDrawerClose,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: saving,
+    onDiscard: () => setDrawerOpen(false),
+  });
 
   async function load(force = false) {
     setError(null);
@@ -142,6 +150,7 @@ export function CustomersView() {
   );
 
   function openCreateDrawer() {
+    resetFormDirty();
     setEditingCustomer(null);
     setForm(emptyForm);
     setFormError(null);
@@ -149,6 +158,7 @@ export function CustomersView() {
   }
 
   function openEditDrawer(customer: Customer) {
+    resetFormDirty();
     setEditingCustomer(customer);
     setForm(formFromCustomer(customer));
     setFormError(null);
@@ -173,6 +183,7 @@ export function CustomersView() {
         : await createCustomer(input);
       await load(true);
       setSelectedCustomerId(saved.id);
+      resetFormDirty();
       setDrawerOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '客户保存失败');
@@ -207,12 +218,11 @@ export function CustomersView() {
 
   return (
     <div className="space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">客户</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">维护客户档案并查看关联报价与业务资料。</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="客户"
+        description="维护客户档案并查看关联报价与业务资料。"
+        actions={(
+          <>
           <Button
             onClick={() => void load(true)}
             disabled={refreshing || saving}
@@ -223,23 +233,16 @@ export function CustomersView() {
           <Button variant="primary" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
             新建客户
           </Button>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(customers.length), '客户数量')}
-        </FadePanel>
-        <FadePanel delay={0.04} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(quotations.length), '报价总数')}
-        </FadePanel>
-        <FadePanel delay={0.06} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(money(totalQuotationPrice), '总报价额')}
-        </FadePanel>
-        <FadePanel delay={0.08} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(selectedCustomer ? selectedCustomer.name : '-', '当前客户')}
-        </FadePanel>
-      </div>
+      <MetricGrid>
+        <MetricCard value={String(customers.length)} label="客户数量" delay={0.02} />
+        <MetricCard value={String(quotations.length)} label="报价总数" delay={0.04} />
+        <MetricCard value={money(totalQuotationPrice)} label="总报价额" delay={0.06} />
+        <MetricCard value={selectedCustomer ? selectedCustomer.name : '-'} label="当前客户" delay={0.08} />
+      </MetricGrid>
 
       {error && (
         <div className="flex items-center gap-2 rounded-panel border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
@@ -253,22 +256,19 @@ export function CustomersView() {
           <div className="border-b border-line p-4">
             <div>
               <div className="text-sm font-semibold text-ink">客户列表</div>
-              <div className="mt-1 text-xs text-muted">{filteredCustomers.length} / {customers.length}</div>
+              <div className="mt-1 text-xs text-muted">选择客户后查看报价历史与附件</div>
             </div>
           </div>
 
-          <div className="border-b border-line p-4">
-            <div className="flex items-center gap-2 rounded-md border border-line bg-white px-3">
-              <Search size={16} className="text-muted" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="搜索客户"
-                placeholder="搜索客户、联系方式或备注"
-                className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
-              />
-            </div>
-          </div>
+          <ListToolbar
+            query={query}
+            onQueryChange={setQuery}
+            searchLabel="搜索客户"
+            placeholder="搜索客户、联系方式或备注"
+            resultText={`显示 ${filteredCustomers.length} / ${customers.length} 个客户`}
+            hasActiveFilters={Boolean(query.trim())}
+            onReset={() => setQuery('')}
+          />
 
           {loading ? (
             <div className="space-y-3 p-4">
@@ -277,7 +277,14 @@ export function CustomersView() {
               ))}
             </div>
           ) : filteredCustomers.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted">没有匹配的客户</div>
+            <EmptyState
+              icon={UserRound}
+              title={customers.length === 0 ? '还没有客户' : '没有匹配的客户'}
+              description={customers.length === 0 ? '先建立客户档案，再从客户详情发起报价。' : '调整搜索词，或清空搜索查看全部客户。'}
+              action={customers.length === 0 ? (
+                <Button size="sm" variant="primary" onClick={openCreateDrawer} icon={<Plus size={14} />}>新建客户</Button>
+              ) : null}
+            />
           ) : (
             <div className="max-h-[620px] overflow-y-auto">
               {filteredCustomers.map((customer) => {
@@ -360,8 +367,8 @@ export function CustomersView() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+            <TableScrollArea label="客户报价历史">
+              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                   <tr>
                     <th className="border-b border-line px-4 py-3">状态</th>
@@ -385,7 +392,7 @@ export function CustomersView() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScrollArea>
           )}
           {selectedCustomer ? (
             <div className="border-t border-line">
@@ -401,12 +408,12 @@ export function CustomersView() {
         </FadePanel>
       </div>
 
-      <SlideOver open={drawerOpen} onClose={() => !saving && setDrawerOpen(false)}>
-        <form onSubmit={submitCustomer} className="flex min-h-full flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+      <SlideOver open={drawerOpen} onClose={requestDrawerClose} ariaLabelledBy="customer-form-title">
+        <form onSubmit={submitCustomer} onChange={markFormDirty} className="flex min-h-full flex-col">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Customer</div>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
+              <h2 id="customer-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">
                 {editingCustomer ? '编辑客户' : '新建客户'}
               </h2>
             </div>
@@ -414,7 +421,7 @@ export function CustomersView() {
               type="button"
               aria-label="关闭"
               disabled={saving}
-              onClick={() => setDrawerOpen(false)}
+              onClick={requestDrawerClose}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               <X size={16} />
@@ -422,12 +429,7 @@ export function CustomersView() {
           </div>
 
           <div className="flex-1 space-y-4 p-5">
-            {formError ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                <CircleAlert size={16} />
-                {formError}
-              </div>
-            ) : null}
+            <FormError message={formError} />
 
             <label className="block">
               <span className="text-sm font-medium text-ink">客户名称</span>
@@ -476,13 +478,16 @@ export function CustomersView() {
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-line p-5">
-            <Button type="button" variant="ghost" onClick={() => setDrawerOpen(false)} disabled={saving}>
-              取消
-            </Button>
-            <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
-              {saving ? '保存中' : '保存'}
-            </Button>
+          <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-white p-4 sm:p-5">
+            <div className="text-xs text-muted" aria-live="polite">{formDirty ? '有未保存修改' : '尚未修改'}</div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={saving}>
+                取消
+              </Button>
+              <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
+                {saving ? '保存中' : '保存'}
+              </Button>
+            </div>
           </div>
         </form>
       </SlideOver>

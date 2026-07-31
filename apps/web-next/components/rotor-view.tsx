@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleAlert, Copy, Download, FileText, Link as LinkIcon, Play, Printer, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort } from '@/lib/format';
 import { getAllRecipes, type Recipe } from '@/lib/recipes';
@@ -315,15 +316,15 @@ export function RotorView() {
 
   return (
     <div className="space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">转子出图</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">按配方带入参数，生成并管理转子图纸。</p>
-        </div>
-        <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
-          刷新
-        </Button>
-      </FadePanel>
+      <PageHeader
+        title="转子出图"
+        description="按配方带入参数，生成并管理转子图纸。"
+        actions={(
+          <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
+            刷新
+          </Button>
+        )}
+      />
 
       {error ? (
         <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">

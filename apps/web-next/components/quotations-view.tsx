@@ -3,14 +3,21 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, CircleAlert, Eye, FileText, Pencil, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ArrowRight, CircleAlert, Eye, FileText, Pencil, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { FormError } from '@/components/ui/form-error';
+import { ListToolbar } from '@/components/ui/list-toolbar';
+import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { TableScrollArea } from '@/components/ui/table-scroll-area';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { dateShort, money } from '@/lib/format';
 import type { Customer, Quotation } from '@/lib/customers';
 import type { Part } from '@/lib/parts';
@@ -53,15 +60,6 @@ function quotationStatusSelectClassName(status: string): string {
   if (status === '已拒绝') return '!border-rose-200 !bg-rose-50 !text-rose-700';
   if (status === '已过时') return '!border-slate-200 !bg-slate-50 !text-slate-600';
   return '!border-sky-200 !bg-sky-50 !text-sky-700';
-}
-
-function StatCard({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
-      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{label}</div>
-    </div>
-  );
 }
 
 function parseJsonArray<T>(value: unknown): T[] {
@@ -228,6 +226,16 @@ export function QuotationsView() {
   const [convertError, setConvertError] = useState<string | null>(null);
   const [viewQuotation, setViewQuotation] = useState<Quotation | null>(null);
   const overridePreviewSeqRef = useRef(new Map<string, number>());
+  const {
+    dirty: formDirty,
+    markDirty: markFormDirty,
+    resetDirty: resetFormDirty,
+    requestClose: requestDrawerClose,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: Boolean(savingId),
+    onDiscard: () => setDrawerOpen(false),
+  });
 
   async function load(force = false) {
     setError(null);
@@ -350,6 +358,7 @@ export function QuotationsView() {
     if (!customer) return;
 
     consumedPrefillRef.current = prefillKey;
+    resetFormDirty();
     setEditingQuotation(null);
     setCustomerId(String(customer.id));
     setFormStatus('报价中');
@@ -414,11 +423,13 @@ export function QuotationsView() {
   }
 
   function openCreateDrawer() {
+    resetFormDirty();
     resetForm();
     setDrawerOpen(true);
   }
 
   function openEditDrawer(quotation: Quotation) {
+    resetFormDirty();
     const customer = customers.find((item) => item.id === quotation.customerId);
     setEditingQuotation(quotation);
     setCustomerId(String(quotation.customerId));
@@ -472,6 +483,7 @@ export function QuotationsView() {
     try {
       const unitCost = await previewQuotationItemCost(selectedRecipe.id, item.overrides || {});
       setDraftItems((current) => [...current, recostQuotationItem(item, unitCost)]);
+      markFormDirty();
       setItemQty('1');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '报价成本重算失败');
@@ -600,6 +612,7 @@ export function QuotationsView() {
         await createQuotation({ customerId: numericCustomerId, status: formStatus, items: draftItems, remark });
       }
       await load(true);
+      resetFormDirty();
       setDrawerOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '报价保存失败');
@@ -675,12 +688,11 @@ export function QuotationsView() {
 
   return (
     <div className="space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">报价单</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">基于配方成本生成报价并跟踪转单状态。</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="报价单"
+        description="基于配方成本生成报价并跟踪转单状态。"
+        actions={(
+          <>
           <Button
             onClick={() => void load(true)}
             disabled={refreshing || Boolean(savingId)}
@@ -691,44 +703,43 @@ export function QuotationsView() {
           <Button variant="primary" onClick={openCreateDrawer} disabled={Boolean(savingId)} icon={<Plus size={15} />}>
             新建报价
           </Button>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       <BusinessAlertsBanner scope="quotation" />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <FadePanel delay={0.02}>
-          <StatCard value={String(stats.quoteCount)} label="报价总数" />
-        </FadePanel>
-        <FadePanel delay={0.04}>
-          <StatCard value={String(stats.quotingCount)} label="报价中" />
-        </FadePanel>
-        <FadePanel delay={0.06}>
-          <StatCard value={String(stats.acceptedOrConverted)} label="已接受/转单" />
-        </FadePanel>
-        <FadePanel delay={0.08}>
-          <StatCard value={money(stats.totalPrice)} label="总报价金额" />
-        </FadePanel>
-      </div>
+      <MetricGrid>
+        <MetricCard value={String(stats.quoteCount)} label="报价总数" delay={0.02} />
+        <MetricCard
+          value={String(stats.quotingCount)}
+          label="报价中"
+          tone={stats.quotingCount > 0 ? 'attention' : 'default'}
+          delay={0.04}
+        />
+        <MetricCard value={String(stats.acceptedOrConverted)} label="已接受/转单" delay={0.06} />
+        <MetricCard value={money(stats.totalPrice)} label="总报价金额" delay={0.08} />
+      </MetricGrid>
 
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
-        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-white px-3">
-            <Search size={16} className="text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="搜索报价单"
-              placeholder="搜索客户、备注、配方或状态"
-              className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={16} className="text-muted" />
-            <SegmentedControl value={status} options={filterOptions} onChange={setStatus} ariaLabel="报价状态筛选" />
-          </div>
-        </div>
+        <ListToolbar
+          query={query}
+          onQueryChange={setQuery}
+          searchLabel="搜索报价单"
+          placeholder="搜索客户、备注、配方或状态"
+          resultText={`显示 ${filteredQuotations.length} / ${quotations.length} 张报价`}
+          hasActiveFilters={Boolean(query.trim()) || status !== '全部'}
+          onReset={() => {
+            setQuery('');
+            setStatus('全部');
+          }}
+          filters={(
+            <>
+              <SlidersHorizontal size={16} className="shrink-0 text-muted" />
+              <SegmentedControl value={status} options={filterOptions} onChange={setStatus} ariaLabel="报价状态筛选" />
+            </>
+          )}
+        />
 
         {error ? (
           <div className="flex items-center gap-2 border-b border-line p-4 text-sm text-rose-700">
@@ -744,14 +755,17 @@ export function QuotationsView() {
             ))}
           </div>
         ) : filteredQuotations.length === 0 ? (
-          <div className="p-10 text-center">
-            <FileText className="mx-auto text-slate-300" size={32} />
-            <div className="mt-3 text-sm font-medium text-ink">没有匹配的报价单</div>
-            <div className="mt-1 text-sm text-muted">调整筛选条件或刷新后再看。</div>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title={quotations.length === 0 ? '还没有报价单' : '没有匹配的报价单'}
+            description={quotations.length === 0 ? '新建第一张报价后，可以在这里跟进接受和转单状态。' : '调整搜索词或报价状态后再看。'}
+            action={quotations.length === 0 ? (
+              <Button size="sm" variant="primary" onClick={openCreateDrawer} icon={<Plus size={14} />}>新建报价</Button>
+            ) : null}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+          <TableScrollArea label="报价列表">
+            <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="border-b border-line px-4 py-3">客户</th>
@@ -829,7 +843,7 @@ export function QuotationsView() {
                 </AnimatePresence>
               </tbody>
             </table>
-          </div>
+          </TableScrollArea>
         )}
       </FadePanel>
 
@@ -1058,12 +1072,12 @@ export function QuotationsView() {
         ) : null}
       </SlideOver>
 
-      <SlideOver open={drawerOpen} onClose={() => !savingId && setDrawerOpen(false)} size="workspace">
-        <form onSubmit={submitQuotation} className="flex min-h-full flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+      <SlideOver open={drawerOpen} onClose={requestDrawerClose} size="workspace" ariaLabelledBy="quotation-form-title">
+        <form onSubmit={submitQuotation} onChange={markFormDirty} className="flex min-h-full flex-col">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Quotation</div>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
+              <h2 id="quotation-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">
                 {editingQuotation ? '编辑报价' : '新建报价'}
               </h2>
             </div>
@@ -1071,7 +1085,7 @@ export function QuotationsView() {
               type="button"
               aria-label="关闭"
               disabled={Boolean(savingId)}
-              onClick={() => setDrawerOpen(false)}
+              onClick={requestDrawerClose}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               <X size={16} />
@@ -1079,12 +1093,7 @@ export function QuotationsView() {
           </div>
 
           <div className="flex-1 space-y-5 p-5">
-            {formError ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                <CircleAlert size={16} />
-                {formError}
-              </div>
-            ) : null}
+            <FormError message={formError} />
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
@@ -1194,7 +1203,10 @@ export function QuotationsView() {
                         size="sm"
                         variant="danger"
                         type="button"
-                        onClick={() => setDraftItems((current) => current.filter((next) => next.id !== item.id))}
+                        onClick={() => {
+                          markFormDirty();
+                          setDraftItems((current) => current.filter((next) => next.id !== item.id));
+                        }}
                         icon={<Trash2 size={14} />}
                       >
                         删除
@@ -1377,13 +1389,16 @@ export function QuotationsView() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-line p-5">
-            <Button type="button" variant="ghost" onClick={() => setDrawerOpen(false)} disabled={Boolean(savingId)}>
-              取消
-            </Button>
-            <Button type="submit" variant="primary" disabled={Boolean(savingId)} icon={<Save size={15} />}>
-              {savingId === 'form' ? '保存中' : '保存'}
-            </Button>
+          <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-white p-4 sm:p-5">
+            <div className="text-xs text-muted" aria-live="polite">{formDirty ? '有未保存修改' : '尚未修改'}</div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={Boolean(savingId)}>
+                取消
+              </Button>
+              <Button type="submit" variant="primary" disabled={Boolean(savingId)} icon={<Save size={15} />}>
+                {savingId === 'form' ? '保存中' : '保存'}
+              </Button>
+            </div>
           </div>
         </form>
       </SlideOver>

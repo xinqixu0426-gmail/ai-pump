@@ -22,6 +22,8 @@ import {
 import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { QualityView } from '@/components/quality-view';
@@ -32,16 +34,6 @@ import { getOrderReadinessOverview, type OrderReadinessOverview } from '@/lib/or
 import { ManagementActionCenterView } from '@/components/management-action-center';
 
 type DashboardMode = 'overview' | 'actions' | 'readiness' | 'quality' | 'knowledge';
-
-function statLabel(value: string, label: string, note?: string) {
-  return (
-    <div>
-      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{label}</div>
-      {note ? <div className="mt-1 text-xs text-slate-500">{note}</div> : null}
-    </div>
-  );
-}
 
 function statusTone(status: string): StatusBadgeTone {
   if (status === '采购完成') return 'green';
@@ -171,16 +163,12 @@ export function DashboardView({
   }
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Dashboard</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">管理看板</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            集中查看经营进度、供应链状态和基础数据质量。
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-4">
+      <PageHeader
+        title="管理看板"
+        description="集中查看经营进度、供应链状态和基础数据质量。"
+        actions={(
+          <>
           <div className="max-w-full overflow-x-auto pb-1">
             <SegmentedControl
               value={mode}
@@ -204,8 +192,9 @@ export function DashboardView({
                 : '正在读取最新数据'}
             </span>
           </div>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       {mode === 'quality' ? (
         <QualityView
@@ -253,28 +242,38 @@ export function DashboardView({
         </div>
       ) : mode === 'overview' && summary ? (
         <>
-          <div className="grid gap-3 md:grid-cols-4">
-            <a href="/orders" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看累计销售额对应订单">
-              <FadePanel delay={0.02} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
-                {statLabel(money(summary.financials.totalRevenue), '累计销售额')}
-              </FadePanel>
-            </a>
-            <a href="/orders" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看累计利润对应订单">
-              <FadePanel delay={0.04} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
-                {statLabel(money(summary.financials.totalProfit), '累计利润', `利润率 ${summary.financials.profitRate}%`)}
-              </FadePanel>
-            </a>
-            <a href="/orders" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看未完成订单">
-              <FadePanel delay={0.06} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
-                {statLabel(String(summary.orders.active), '未完成订单')}
-              </FadePanel>
-            </a>
-            <a href="/parts?stock=attention" className="block rounded-panel focus:outline-none focus:ring-2 focus:ring-slate-400" aria-label="查看库存预警零件">
-              <FadePanel delay={0.08} className="h-full rounded-panel border border-line bg-white p-4 shadow-panel transition hover:border-slate-300 hover:bg-slate-50">
-                {statLabel(String(summary.kpis.lowStockPartCount + summary.kpis.outOfStockPartCount), '库存预警')}
-              </FadePanel>
-            </a>
-          </div>
+          <MetricGrid>
+            <MetricCard
+              href="/orders"
+              ariaLabel="查看累计销售额对应订单"
+              value={money(summary.financials.totalRevenue)}
+              label="累计销售额"
+              delay={0.02}
+            />
+            <MetricCard
+              href="/orders"
+              ariaLabel="查看累计利润对应订单"
+              value={money(summary.financials.totalProfit)}
+              label="累计利润"
+              note={`利润率 ${summary.financials.profitRate}%`}
+              delay={0.04}
+            />
+            <MetricCard
+              href="/orders"
+              ariaLabel="查看未完成订单"
+              value={String(summary.orders.active)}
+              label="未完成订单"
+              delay={0.06}
+            />
+            <MetricCard
+              href="/parts?stock=attention"
+              ariaLabel="查看库存预警零件"
+              value={String(summary.kpis.lowStockPartCount + summary.kpis.outOfStockPartCount)}
+              label="库存预警"
+              tone={summary.kpis.lowStockPartCount + summary.kpis.outOfStockPartCount > 0 ? 'attention' : 'default'}
+              delay={0.08}
+            />
+          </MetricGrid>
 
           <div className={`grid gap-4 ${summary.workbench.supplierFocus.length > 0 ? 'xl:grid-cols-[1fr_420px]' : ''}`}>
             <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
@@ -302,26 +301,29 @@ export function DashboardView({
                   </a>
                 ))}
                 {actionableWorkbenchItems.length === 0 ? (
-                  <div className="col-span-full flex items-center gap-3 rounded-panel border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                  <div className="col-span-full flex items-center gap-2 py-1 text-emerald-700">
                     <CheckCircle2 size={18} className="shrink-0" />
-                    <div>
-                      <div className="text-sm font-semibold">当前没有待处理业务状态</div>
-                      <div className="mt-1 text-xs">待采购、待入库、缺货和今日新增订单均无需处理。</div>
-                    </div>
+                    <div className="text-sm font-medium">当前没有待处理业务状态</div>
                   </div>
                 ) : null}
+                <div className="col-span-full flex flex-wrap gap-2 border-t border-line pt-3">
+                  {summary.workbench.supplierFocus.length === 0 ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+                      <CheckCircle2 size={13} />
+                      供应商采购无待办
+                    </span>
+                  ) : null}
+                  {summary.workbench.pendingPurchaseItems.length === 0 ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+                      <CheckCircle2 size={13} />
+                      当前无待采购物料
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </FadePanel>
 
-            {summary.workbench.supplierFocus.length === 0 ? (
-              <FadePanel className="flex items-center gap-3 rounded-panel border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-                <CheckCircle2 size={18} className="shrink-0" />
-                <div>
-                  <div className="text-sm font-semibold">供应商采购无需关注</div>
-                  <div className="mt-1 text-xs">当前没有按供应商聚合的待采购事项。</div>
-                </div>
-              </FadePanel>
-            ) : (
+            {summary.workbench.supplierFocus.length > 0 ? (
               <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
                 <div className="flex items-center justify-between gap-3 border-b border-line p-4">
                   <div>
@@ -344,19 +346,11 @@ export function DashboardView({
                   ))}
                 </div>
               </FadePanel>
-            )}
+            ) : null}
           </div>
 
           <div className={`grid gap-4 ${summary.workbench.pendingPurchaseItems.length > 0 ? 'xl:grid-cols-2' : ''}`}>
-            {summary.workbench.pendingPurchaseItems.length === 0 ? (
-              <FadePanel className="flex items-center gap-3 rounded-panel border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-                <CheckCircle2 size={18} className="shrink-0" />
-                <div>
-                  <div className="text-sm font-semibold">当前没有待采购物料</div>
-                  <div className="mt-1 text-xs">订单物料暂时不需要新增采购。</div>
-                </div>
-              </FadePanel>
-            ) : (
+            {summary.workbench.pendingPurchaseItems.length > 0 ? (
               <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
                 <div className="flex items-center justify-between gap-3 border-b border-line p-4">
                   <div>
@@ -390,7 +384,7 @@ export function DashboardView({
                   </table>
                 </div>
               </FadePanel>
-            )}
+            ) : null}
 
             <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
               <div className="flex items-center justify-between gap-3 border-b border-line p-4">
@@ -422,13 +416,16 @@ export function DashboardView({
           <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
             <div className="flex items-center justify-between gap-3 border-b border-line p-4">
               <div>
-                <div className="text-sm font-semibold text-ink">缺货零件</div>
-                <div className="mt-1 text-xs text-muted">库存为 0 的前 12 项</div>
+                  <div className="text-sm font-semibold text-ink">缺货零件</div>
+                  <div className="mt-1 text-xs text-muted">库存为 0 的前 6 项</div>
+                </div>
+              <div className="flex items-center gap-3">
+                <a href="/parts?stock=out" className="text-xs font-medium text-muted hover:text-ink hover:underline">查看全部</a>
+                <PackageMinus size={18} className="text-muted" />
               </div>
-              <PackageMinus size={18} className="text-muted" />
             </div>
             <div className="grid gap-2 p-4 md:grid-cols-2 xl:grid-cols-3">
-              {summary.workbench.outOfStockParts.slice(0, 12).map((part) => (
+              {summary.workbench.outOfStockParts.slice(0, 6).map((part) => (
                 <a
                   key={part.id}
                   href={`/parts?stock=out&query=${encodeURIComponent(part.model)}`}

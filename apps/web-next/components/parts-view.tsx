@@ -52,6 +52,7 @@ import { money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 
@@ -608,14 +609,11 @@ export function PartsView({
 
   return (
     <div className="space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">零件</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            维护零件价格、供应商与库存基础数据
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="零件"
+        description="维护零件价格、供应商与库存基础数据。"
+        actions={(
+          <>
           <Button
             onClick={() => void load(true)}
             disabled={refreshing || saving}
@@ -626,8 +624,9 @@ export function PartsView({
           <Button variant="primary" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
             新建零件
           </Button>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <FadePanel delay={0.02} className="rounded-panel border border-line bg-white shadow-panel">

@@ -13,6 +13,8 @@ import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/componen
 import { TemplateMatchSummary } from '@/components/recipe/TemplateMatchSummary';
 import { TechnicalDataEditor } from '@/components/technical-data-editor';
 import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
+import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
@@ -212,15 +214,6 @@ const templateRotorParamFields: Array<{ key: TemplateRotorParamKey; label: strin
   { key: 'thread_length', label: '螺纹长度', unit: 'mm' },
   { key: 'thread_dia', label: '螺纹直径', unit: 'mm' },
 ];
-
-function StatCard({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
-      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{label}</div>
-    </div>
-  );
-}
 
 function surfaceTreatmentLabel(mode?: string): string {
   return templateSurfaceTreatmentOptions.find((option) => option.value === mode)?.label || '无';
@@ -2841,15 +2834,12 @@ export function RecipesView() {
   }
 
   return (
-    <div className="space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">配方</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            选择泵壳、线圈转子和选配后直接生成 BOM 与成本；泵壳模板只维护稳定的固定搭配。
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <div className="space-y-4">
+      <PageHeader
+        title="配方"
+        description="选择泵壳、线圈转子和选配后直接生成 BOM 与成本；泵壳模板只维护稳定的固定搭配。"
+        actions={(
+          <>
           <Button
             onClick={() => void load(true)}
             disabled={refreshing || saving}
@@ -2870,8 +2860,9 @@ export function RecipesView() {
               新建配方
             </Button>
           ) : null}
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       <FadePanel delay={0.01} className="flex flex-col gap-3 rounded-panel border border-line bg-white p-3 shadow-panel md:flex-row md:items-center md:justify-between">
         <SegmentedControl value={activeSection} options={sectionOptions} onChange={setActiveSection} ariaLabel="配方功能区" />
@@ -2882,12 +2873,8 @@ export function RecipesView() {
 
       {activeSection === 'recipes' ? (
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(18rem,1.4fr)]">
-          <FadePanel delay={0.02}>
-            <StatCard value={String(recipes.length)} label="配方数量" />
-          </FadePanel>
-          <FadePanel delay={0.04}>
-            <StatCard value={money(stats.totalSavedCost)} label="保存成本合计" />
-          </FadePanel>
+          <MetricCard value={String(recipes.length)} label="配方数量" delay={0.02} />
+          <MetricCard value={money(stats.totalSavedCost)} label="保存成本合计" delay={0.04} />
           <FadePanel delay={0.06}>
             <div className={`flex h-full items-center justify-between gap-4 rounded-panel border p-4 shadow-panel ${
               stats.riskyCount > 0 || stats.missingCostCount > 0

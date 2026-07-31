@@ -2,7 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Bot, Boxes, BriefcaseBusiness, Cable, FileText, MessageSquareText, Package, ReceiptText, RotateCcwSquare, Settings2, ShoppingCart, UsersRound } from 'lucide-react';
+import {
+  BarChart3,
+  Bot,
+  Boxes,
+  Cable,
+  Database,
+  FileText,
+  Layers3,
+  MessageSquareText,
+  Package,
+  ReceiptText,
+  RotateCcwSquare,
+  Settings2,
+  ShieldCheck,
+  ShoppingCart,
+  Truck,
+  UsersRound,
+} from 'lucide-react';
 import { AiView } from '@/components/ai-view';
 import { NavItem, NavMenu } from '@/components/ui/nav-item';
 import { Button } from '@/components/ui/button';
@@ -12,24 +29,28 @@ import {
   type AiPageContext,
 } from '@/lib/page-context';
 
-const navItems = [
-  { href: '/ai', label: 'AI', icon: Bot, enabled: true },
-  { href: '/dashboard', label: '看板', icon: BarChart3, enabled: true },
-  { href: '/recipes', label: '配方', icon: Package, enabled: true },
-  { href: '/parts', label: '零件', icon: Boxes, enabled: true },
-  { href: '/purchase', label: '采购', icon: ShoppingCart, enabled: true },
-  { href: '/coils', label: '线圈', icon: Cable, enabled: true },
-  { href: '/rotor', label: '出图', icon: RotateCcwSquare, enabled: true },
-  { href: '/setup', label: '初始化', icon: Settings2, enabled: true },
-];
-
-const businessNavItems = [
+const salesNavItems = [
   { href: '/customers', label: '客户', icon: UsersRound },
   { href: '/quotations', label: '报价', icon: FileText },
   { href: '/orders', label: '订单', icon: ReceiptText },
 ];
 
-const AI_PANEL_PREF_KEY = 'pump.ai-panel-open';
+const supplyNavItems = [
+  { href: '/purchase', label: '采购', icon: ShoppingCart },
+  { href: '/parts', label: '零件与库存', icon: Boxes },
+  { href: '/coils', label: '线圈与库存', icon: Cable },
+];
+
+const engineeringNavItems = [
+  { href: '/recipes', label: '配方', icon: Package },
+  { href: '/rotor', label: '转子出图', icon: RotateCcwSquare },
+];
+
+const systemNavItems = [
+  { href: '/dashboard?view=quality', label: '数据质量', icon: ShieldCheck },
+  { href: '/dashboard?view=knowledge', label: '知识库', icon: Database },
+  { href: '/setup', label: '系统设置', icon: Settings2 },
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,13 +62,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [pageContext, setPageContext] = useState<AiPageContext | null>(null);
 
   useEffect(() => {
-    setAiPanelOpen(window.localStorage.getItem(AI_PANEL_PREF_KEY) === 'true');
     const media = window.matchMedia('(min-width: 1600px)');
     const syncDockedState = () => setAiPanelDocked(media.matches);
     syncDockedState();
     media.addEventListener('change', syncDockedState);
     return () => media.removeEventListener('change', syncDockedState);
   }, []);
+
+  useEffect(() => {
+    setAiPanelOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const syncPageContext = () => setPageContext(readCurrentAiPageContext());
@@ -71,7 +95,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   function setAiPanelVisibility(open: boolean) {
     setAiPanelOpen(open);
-    window.localStorage.setItem(AI_PANEL_PREF_KEY, String(open));
   }
 
   if (pathname === '/login') {
@@ -86,41 +109,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
             <div className="text-xs text-muted">生产管理系统</div>
           </div>
-          <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto xl:overflow-visible" aria-label="主导航">
-            {navItems.slice(0, 2).map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={active}
-                  enabled={item.enabled}
-                  variant="top"
-                />
-              );
-            })}
-            <NavMenu
-              label="业务"
-              icon={BriefcaseBusiness}
-              active={businessNavItems.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))}
-              items={businessNavItems}
+          <nav
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:overflow-visible"
+            aria-label="主导航"
+          >
+            <NavItem
+              href="/dashboard"
+              label="看板"
+              icon={BarChart3}
+              active={pathname === '/dashboard'}
+              variant="top"
             />
-            {navItems.slice(2).map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={active}
-                  enabled={item.enabled}
-                  variant="top"
-                />
-              );
-            })}
+            <NavMenu
+              label="销售"
+              icon={UsersRound}
+              active={salesNavItems.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))}
+              items={salesNavItems}
+            />
+            <NavMenu
+              label="供应链"
+              icon={Truck}
+              active={supplyNavItems.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))}
+              items={supplyNavItems}
+            />
+            <NavMenu
+              label="产品工程"
+              icon={Layers3}
+              active={engineeringNavItems.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))}
+              items={engineeringNavItems}
+            />
+            <NavItem
+              href="/ai"
+              label="AI"
+              icon={Bot}
+              active={pathname === '/ai'}
+              variant="top"
+            />
+            <NavMenu
+              label="系统"
+              icon={Settings2}
+              active={pathname === '/setup'}
+              items={systemNavItems}
+              align="right"
+            />
           </nav>
           {!isFullWorkspace ? (
             <Button

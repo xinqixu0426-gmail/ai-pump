@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { CircleAlert, Plus, RefreshCw, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { CircleAlert, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { getAllCustomers, type Customer } from '@/lib/customers';
 import {
   calcOrderTotals,
@@ -23,8 +23,15 @@ import { OrderDetailDrawer } from '@/components/order-detail-drawer';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { FormError } from '@/components/ui/form-error';
+import { ListToolbar } from '@/components/ui/list-toolbar';
+import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import { replacePageLocation } from '@/lib/page-context';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 
 const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
   { value: '全部', label: '全部状态' },
@@ -44,15 +51,6 @@ const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   已关闭: 'slate',
   已取消: 'red',
 };
-
-function statLabel(value: string, sub: string) {
-  return (
-    <div>
-      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{sub}</div>
-    </div>
-  );
-}
 
 function customerMarginMultiplier(customer: Customer | undefined): number {
   return 1 + Math.max(0, Number(customer?.defaultMargin) || 0);
@@ -86,6 +84,16 @@ export function OrdersView({
   const [itemMargin, setItemMargin] = useState('1.10');
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
   const initialOrderHandledRef = useRef(false);
+  const {
+    dirty: formDirty,
+    markDirty: markFormDirty,
+    resetDirty: resetFormDirty,
+    requestClose: requestDrawerClose,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: saving,
+    onDiscard: () => setDrawerOpen(false),
+  });
 
   async function load(force = false) {
     setError(null);
@@ -131,6 +139,7 @@ export function OrdersView({
   }
 
   function openCreateDrawer() {
+    resetFormDirty();
     setFormError(null);
     setContractNo('');
     setRemark('');
@@ -196,6 +205,7 @@ export function OrdersView({
         ? createOrderItemFromRecipe(selectedRecipe, Number(itemQty), Number(itemMargin))
         : createOrderItemWithUnitCost(selectedRecipe, Number(itemQty), Number(itemMargin), unitCost);
       setDraftItems((current) => [...current, item]);
+      markFormDirty();
       setItemQty('1');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '订单产品成本计算失败');
@@ -243,6 +253,7 @@ export function OrdersView({
         items: draftItems,
       });
       await load(true);
+      resetFormDirty();
       setDrawerOpen(false);
       setSelectedOrder(created);
     } catch (err) {
@@ -254,12 +265,11 @@ export function OrdersView({
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">订单</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">跟踪订单状态、销售金额与采购进度。</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="订单"
+        description="跟踪订单状态、销售金额与采购进度。"
+        actions={(
+          <>
           <Button
             onClick={() => void load(true)}
             disabled={refreshing || saving}
@@ -270,53 +280,52 @@ export function OrdersView({
           <Button variant="primary" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
             新建订单
           </Button>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       <BusinessAlertsBanner scope="order" />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <FadePanel delay={0.02} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(orders.length), '订单总数')}
-        </FadePanel>
-        <FadePanel delay={0.04} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(String(stats.pending + stats.purchasing), '待处理订单')}
-        </FadePanel>
-        <FadePanel delay={0.06} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(money(stats.totalPrice), '总销售额')}
-        </FadePanel>
-        <FadePanel delay={0.08} className="rounded-panel border border-line bg-white p-4 shadow-panel">
-          {statLabel(money(stats.totalProfit), '总利润')}
-        </FadePanel>
-      </div>
+      <MetricGrid>
+        <MetricCard value={String(orders.length)} label="订单总数" delay={0.02} />
+        <MetricCard
+          value={String(stats.pending + stats.purchasing)}
+          label="待处理订单"
+          tone={stats.pending + stats.purchasing > 0 ? 'attention' : 'default'}
+          delay={0.04}
+        />
+        <MetricCard value={money(stats.totalPrice)} label="总销售额" delay={0.06} />
+        <MetricCard value={money(stats.totalProfit)} label="总利润" delay={0.08} />
+      </MetricGrid>
 
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
-        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-white px-3">
-            <Search size={16} className="text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="搜索订单"
-              placeholder="搜索客户、合同号或备注"
-              className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={16} className="text-muted" />
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as OrderStatus | '全部')}
-              aria-label="订单状态筛选"
-              className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-sky-400"
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <ListToolbar
+          query={query}
+          onQueryChange={setQuery}
+          searchLabel="搜索订单"
+          placeholder="搜索客户、合同号或备注"
+          resultText={`显示 ${filteredOrders.length} / ${orders.length} 个订单`}
+          hasActiveFilters={Boolean(query.trim()) || status !== '全部'}
+          onReset={() => {
+            setQuery('');
+            setStatus('全部');
+          }}
+          filters={(
+            <>
+              <SlidersHorizontal size={16} className="text-muted" />
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as OrderStatus | '全部')}
+                aria-label="订单状态筛选"
+                className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-sky-400"
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </>
+          )}
+        />
 
         {error ? (
           <div className="flex items-center gap-2 p-5 text-sm text-rose-700">
@@ -330,13 +339,16 @@ export function OrdersView({
             ))}
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="p-10 text-center">
-            <div className="text-sm font-medium text-ink">没有匹配的订单</div>
-            <div className="mt-1 text-sm text-muted">调整筛选条件或刷新后再看。</div>
-          </div>
+          <EmptyState
+            title={orders.length === 0 ? '还没有订单' : '没有匹配的订单'}
+            description={orders.length === 0 ? '新建第一张订单后，生产与采购进度会在这里集中展示。' : '调整搜索词或状态筛选后再看。'}
+            action={orders.length === 0 ? (
+              <Button size="sm" variant="primary" onClick={openCreateDrawer} icon={<Plus size={14} />}>新建订单</Button>
+            ) : null}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+          <TableScrollArea label="订单列表">
+            <table className="w-full min-w-[860px] border-separate border-spacing-0 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="w-[28%] border-b border-line px-4 py-3">客户</th>
@@ -382,7 +394,7 @@ export function OrdersView({
                 </AnimatePresence>
               </tbody>
             </table>
-          </div>
+          </TableScrollArea>
         )}
       </FadePanel>
 
@@ -394,18 +406,18 @@ export function OrdersView({
         onSaved={() => void load(true)}
       />
 
-      <SlideOver open={drawerOpen} onClose={() => !saving && setDrawerOpen(false)}>
-        <form onSubmit={submitOrder} className="flex min-h-full flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+      <SlideOver open={drawerOpen} onClose={requestDrawerClose} ariaLabelledBy="order-form-title">
+        <form onSubmit={submitOrder} onChange={markFormDirty} className="flex min-h-full flex-col">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Order</div>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">新建订单</h2>
+              <h2 id="order-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">新建订单</h2>
             </div>
             <button
               type="button"
               aria-label="关闭"
               disabled={saving}
-              onClick={() => setDrawerOpen(false)}
+              onClick={requestDrawerClose}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               <X size={16} />
@@ -413,12 +425,7 @@ export function OrdersView({
           </div>
 
           <div className="flex-1 space-y-5 p-5">
-            {formError ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                <CircleAlert size={16} />
-                {formError}
-              </div>
-            ) : null}
+            <FormError message={formError} />
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
@@ -567,7 +574,10 @@ export function OrdersView({
                               size="sm"
                               variant="danger"
                               type="button"
-                              onClick={() => setDraftItems((current) => current.filter((next) => next.id !== item.id))}
+                              onClick={() => {
+                                markFormDirty();
+                                setDraftItems((current) => current.filter((next) => next.id !== item.id));
+                              }}
                               icon={<Trash2 size={14} />}
                             >
                               删除
@@ -597,13 +607,16 @@ export function OrdersView({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-line p-5">
-            <Button type="button" variant="ghost" onClick={() => setDrawerOpen(false)} disabled={saving}>
-              取消
-            </Button>
-            <Button type="submit" variant="primary" disabled={saving || auxLoading} icon={<Save size={15} />}>
-              {saving ? '创建中' : '创建订单'}
-            </Button>
+          <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-white p-4 sm:p-5">
+            <div className="text-xs text-muted" aria-live="polite">{formDirty ? '有未保存修改' : '尚未修改'}</div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={saving}>
+                取消
+              </Button>
+              <Button type="submit" variant="primary" disabled={saving || auxLoading} icon={<Save size={15} />}>
+                {saving ? '创建中' : '创建订单'}
+              </Button>
+            </div>
           </div>
         </form>
       </SlideOver>

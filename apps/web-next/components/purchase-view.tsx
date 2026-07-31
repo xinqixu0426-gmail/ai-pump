@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { CircleAlert, PackageCheck, RefreshCw, Search, ShoppingCart, Truck } from 'lucide-react';
+import { CircleAlert, PackageCheck, RefreshCw, ShoppingCart, Truck } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ListToolbar } from '@/components/ui/list-toolbar';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import {
   applyPurchaseTask,
   buildPurchaseStats,
@@ -32,15 +37,6 @@ const statusTones: Record<Exclude<PurchaseFilter, 'all'>, StatusBadgeTone> = {
   partial: 'blue',
   purchased: 'green',
 };
-
-function StatCard({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
-      <div className="text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1 text-xs text-muted">{label}</div>
-    </div>
-  );
-}
 
 function TaskStatusBadge({ task }: { task: PurchaseTask }) {
   const status = taskStatus(task);
@@ -105,50 +101,47 @@ export function PurchaseView() {
 
   return (
     <div className="space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">采购中心</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">集中查看待采购、处理中和已入库物料。</p>
-        </div>
-        <Button
-          onClick={() => void load(true)}
-          disabled={refreshing || Boolean(savingKey)}
-          icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}
-        >
-          刷新
-        </Button>
-      </FadePanel>
+      <PageHeader
+        title="采购中心"
+        description="集中查看待采购、处理中和已入库物料。"
+        actions={(
+          <Button
+            onClick={() => void load(true)}
+            disabled={refreshing || Boolean(savingKey)}
+            icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}
+          >
+            刷新
+          </Button>
+        )}
+      />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <FadePanel delay={0.02}>
-          <StatCard value={String(stats.activeOrderCount)} label="涉及订单" />
-        </FadePanel>
-        <FadePanel delay={0.04}>
-          <StatCard value={String(stats.supplierCount)} label="供应商" />
-        </FadePanel>
-        <FadePanel delay={0.06}>
-          <StatCard value={`${stats.purchasedNeed}/${stats.totalNeed || 0}`} label="已下单/计划" />
-        </FadePanel>
-        <FadePanel delay={0.08}>
-          <StatCard value={String(stats.pendingTaskCount)} label="待处理任务" />
-        </FadePanel>
-      </div>
+      <MetricGrid>
+        <MetricCard value={String(stats.activeOrderCount)} label="涉及订单" delay={0.02} />
+        <MetricCard value={String(stats.supplierCount)} label="供应商" delay={0.04} />
+        <MetricCard value={`${stats.purchasedNeed}/${stats.totalNeed || 0}`} label="已下单/计划" delay={0.06} />
+        <MetricCard
+          value={String(stats.pendingTaskCount)}
+          label="待处理任务"
+          tone={stats.pendingTaskCount > 0 ? 'attention' : 'default'}
+          delay={0.08}
+        />
+      </MetricGrid>
 
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
-        <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-white px-3">
-            <Search size={16} className="text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="搜索采购任务"
-              placeholder="搜索供应商、型号或名称"
-              className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400"
-            />
-          </div>
-
-          <SegmentedControl value={filter} options={filterOptions} onChange={setFilter} ariaLabel="采购状态筛选" />
-        </div>
+        <ListToolbar
+          query={query}
+          onQueryChange={setQuery}
+          searchLabel="搜索采购任务"
+          placeholder="搜索供应商、型号或名称"
+          resultText={`显示 ${filteredTasks.length} / ${tasks.length} 项采购任务`}
+          hasActiveFilters={Boolean(query.trim()) || filter !== 'pending'}
+          onReset={() => {
+            setQuery('');
+            setFilter('pending');
+          }}
+          resetLabel="恢复默认"
+          filters={<SegmentedControl value={filter} options={filterOptions} onChange={setFilter} ariaLabel="采购状态筛选" />}
+        />
 
         {error ? (
           <div className="flex items-center gap-2 border-b border-line p-4 text-sm text-rose-700">
@@ -164,16 +157,17 @@ export function PurchaseView() {
             ))}
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-10 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-muted">
-              <ShoppingCart size={18} />
-            </div>
-            <div className="mt-3 text-sm font-medium text-ink">没有匹配的采购任务</div>
-            <div className="mt-1 text-sm text-muted">调整筛选条件或刷新后再看。</div>
-          </div>
+          <EmptyState
+            icon={ShoppingCart}
+            title={tasks.length === 0 ? '当前没有采购任务' : '当前筛选下没有采购任务'}
+            description={tasks.length === 0 ? '订单产生缺料或待采购物料后，会自动汇总到这里。' : '可以调整搜索词、切换状态，或查看全部任务。'}
+            action={tasks.length > 0 && !query.trim() && filter === 'pending' ? (
+              <Button size="sm" variant="secondary" onClick={() => { setQuery(''); setFilter('all'); }}>查看全部任务</Button>
+            ) : null}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+          <TableScrollArea label="采购任务列表">
+            <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="border-b border-line px-4 py-3">供应商</th>
@@ -234,7 +228,7 @@ export function PurchaseView() {
                 </AnimatePresence>
               </tbody>
             </table>
-          </div>
+          </TableScrollArea>
         )}
       </FadePanel>
     </div>

@@ -64,6 +64,7 @@ type NavMenuProps = {
   label: string;
   icon: LucideIcon;
   active?: boolean;
+  align?: 'left' | 'right';
   items: Array<{
     href: string;
     label: string;
@@ -71,7 +72,7 @@ type NavMenuProps = {
   }>;
 };
 
-export function NavMenu({ label, icon: Icon, active = false, items }: NavMenuProps) {
+export function NavMenu({ label, icon: Icon, active = false, align = 'left', items }: NavMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -80,8 +81,15 @@ export function NavMenu({ label, icon: Icon, active = false, items }: NavMenuPro
     function handlePointerDown(event: PointerEvent) {
       if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [open]);
 
   return (
@@ -101,7 +109,13 @@ export function NavMenu({ label, icon: Icon, active = false, items }: NavMenuPro
         <ChevronDown size={14} className={clsx('transition-transform', open && 'rotate-180')} />
       </button>
       {open ? (
-        <div role="menu" className="fixed left-3 right-3 z-40 mt-2 rounded-md border border-line bg-white p-1.5 shadow-xl sm:absolute sm:left-0 sm:right-auto sm:w-44">
+        <div
+          role="menu"
+          className={clsx(
+            'fixed left-3 right-3 z-40 mt-2 rounded-md border border-line bg-white p-1.5 shadow-xl sm:absolute sm:w-48',
+            align === 'right' ? 'sm:left-auto sm:right-0' : 'sm:left-0 sm:right-auto'
+          )}
+        >
           {items.map((item) => {
             const ItemIcon = item.icon;
             return (

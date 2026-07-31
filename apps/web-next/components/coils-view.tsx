@@ -7,6 +7,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { money } from '@/lib/format';
 import {
   calculateCoilCost,
@@ -477,20 +478,20 @@ export function CoilsView() {
 
   return (
     <div className="space-y-4">
-      <FadePanel className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">线圈转子</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">维护定子组合、绕组方案、线圈成本和成品库存。</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="线圈转子"
+        description="维护定子组合、绕组方案、线圈成本和成品库存。"
+        actions={(
+          <>
           <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
             刷新
           </Button>
           <Button variant="primary" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
             新增记录
           </Button>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       {error ? (
         <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">

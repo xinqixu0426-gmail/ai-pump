@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
@@ -182,22 +183,21 @@ export function SetupView() {
   }
 
   return (
-    <div className="mx-auto max-w-[1380px] space-y-5">
-      <FadePanel className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">System Setup</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-normal text-ink">系统初始化</h1>
-          <p className="mt-2 text-sm text-muted">AI、知识检索与部署环境配置</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="mx-auto max-w-[1380px] space-y-4">
+      <PageHeader
+        title="系统设置"
+        description="配置 AI、知识检索与部署环境。"
+        actions={(
+          <>
           <Button onClick={() => void load()} disabled={loading || saving} icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}>
             刷新
           </Button>
           <Button variant="primary" onClick={() => void save()} disabled={loading || saving} icon={saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}>
             {saving ? '保存中' : '保存设置'}
           </Button>
-        </div>
-      </FadePanel>
+          </>
+        )}
+      />
 
       {error ? (
         <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
