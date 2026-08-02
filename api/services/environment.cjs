@@ -9,9 +9,10 @@ const REQUIRED_PRODUCTION_ENV = Object.freeze([
 const DISALLOWED_JWT_SECRETS = new Set(['dev_jwt_secret', 'fallback_secret']);
 
 function isProductionEnvironment(env = process.env, platform = process.platform) {
-    return env.NODE_ENV === 'production'
-        || (platform !== 'win32' && env.BEHIND_PROXY === 'true')
-        || (platform !== 'win32' && env.NODE_ENV !== 'development');
+    if (env.NODE_ENV === 'production') return true;
+    if (platform !== 'win32' && env.BEHIND_PROXY === 'true') return true;
+    if (env.NODE_ENV === 'development' || env.NODE_ENV === 'test') return false;
+    return platform !== 'win32';
 }
 
 function parseInteger(value, {

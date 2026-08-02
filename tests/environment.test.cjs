@@ -28,6 +28,7 @@ test('运行环境：保留 Windows 开发和非 Windows 部署模式判定', ()
     assert.equal(isProductionEnvironment({ NODE_ENV: 'development' }, 'win32'), false);
     assert.equal(isProductionEnvironment({ NODE_ENV: 'production' }, 'win32'), true);
     assert.equal(isProductionEnvironment({ NODE_ENV: 'development' }, 'darwin'), false);
+    assert.equal(isProductionEnvironment({ NODE_ENV: 'test' }, 'darwin'), false);
     assert.equal(isProductionEnvironment({}, 'darwin'), true);
     assert.equal(isProductionEnvironment({ NODE_ENV: 'development', BEHIND_PROXY: 'true' }, 'linux'), true);
 });

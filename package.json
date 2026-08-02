@@ -7,7 +7,7 @@
     "dev": "npm run web-next:dev:primary",
     "build": "npm run web-next:build",
     "lint": "eslint api.cjs \"api/**/*.cjs\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\" && npm --prefix apps/web-next run lint",
-    "test": "node --test tests/*.test.cjs",
+    "test": "node scripts/run-tests.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs",
     "test:knowledge-retrieval": "node scripts/run-knowledge-retrieval-evaluation.cjs",
