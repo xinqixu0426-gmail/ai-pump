@@ -6,6 +6,7 @@ dist/
 .next-preview/
 .DS_Store
 *.log
+logs/
 *.tsbuildinfo
 uploads/
 .cert/
