@@ -302,7 +302,9 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     return leftTime - rightTime || Number(left.id || left.Id || 0) - Number(right.id || right.Id || 0);
                 })
                 .map((row, index) => {
-                    const { id, Id, ...quotation } = row;
+                    const quotation = { ...row };
+                    delete quotation.id;
+                    delete quotation.Id;
                     return { ...quotation, displaySequence: index + 1 };
                 });
             const orderRows = (orders || [])

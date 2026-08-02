@@ -232,7 +232,7 @@ function screwLengthFromModel(model) {
     return Number.isFinite(length) && length > 0 ? length : null;
 }
 
-function calculateScrewUnitPrice(basePrice, length, pricing) {
+function calculateScrewUnitPrice(length) {
     const screwLength = Number(length || 0);
     if (!Number.isFinite(screwLength) || screwLength <= 0) return 0;
     return roundMoney(Math.max(0, SCREW_LENGTH_PRICE_FACTOR * screwLength + SCREW_LENGTH_PRICE_OFFSET));
@@ -256,7 +256,7 @@ function longScrewPriceByModel(partsCatalog, model, supplier = '') {
     const matched = findScrewPricingPart(partsCatalog, model, supplier);
     if (!matched) return null;
     return {
-        unitPrice: calculateScrewUnitPrice(matched.part.price, length, matched.pricing),
+        unitPrice: calculateScrewUnitPrice(length),
         pricingPartModel: matched.part.model,
         pricingSupplier: matched.part.supplier || '',
     };
@@ -266,7 +266,7 @@ function longScrewFormulaPriceByModel(model) {
     const length = screwLengthFromModel(model);
     if (!length) return null;
     return {
-        unitPrice: calculateScrewUnitPrice(0, length, { enabled: true, diameter: screwDiameterFromModel(model) }),
+        unitPrice: calculateScrewUnitPrice(length),
         pricingPartModel: '',
         pricingSupplier: '',
     };
@@ -304,7 +304,7 @@ function partsCatalogFromPartsByModel(partsByModel) {
     ));
 }
 
-function calculateRecipeCost(parts, partsCache = {}, partsByModel = {}, options = {}) {
+function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options = {}) {
     const getSetting = options.getSetting || (() => undefined);
     let totalCost = 0;
     const details = [];

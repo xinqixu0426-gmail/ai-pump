@@ -1,6 +1,18 @@
 const FACT_FIELD_RE = /价格|单价|成本|库存|铜价|铝价|汇率|状态|进度|金额|利润|报价|订单|供应商|客户|配方|零件|线圈|模板|泵壳|用途|适用|专用|配件|刀片|型号|材料|材质|参数|图纸|测试报告|技术档案|质量问题|业务规则/;
 const LOOKUP_INTENT_RE = /多少|几个|什么|是否|有没有|哪(?:个|些)?|查(?:一下|询)?|搜索|显示|列出|给我|告诉我|当前|现在|最新|情况|详情|数据|信息|汇总|总览|追溯|依据|为何|为什么|怎么回事|怎么处理|如何处理|处理方案|解决方案|下一步|先做什么|怎么解决|如何解决|执行.*(?:步骤|方案)|处理第[一二三四五六七八九十\d]+步/;
 const MANAGEMENT_ACTION_INTENT_RE = /管理待办|待办中心|处理进展|自动归档|反复出现|解决了哪些|最优先|今天.*(?:先做什么|先.*处理|待办|风险|异常)|(?:当前|现在|全部|工厂).*(?:待办|优先事项|风险.*(?:处理|跟进)|异常.*处理|先做什么)/;
+const KNOWLEDGE_ENTRY_TYPES = new Set([
+    'part',
+    'template',
+    'recipe',
+    'coil',
+    'customer',
+    'quotation',
+    'order',
+    'quality_issue',
+    'business_rule',
+    'document',
+]);
 
 /**
  * Dynamic factory data may have changed since an earlier conversation turn.
@@ -33,6 +45,34 @@ function freshLookupQuery(text) {
     return cleaned || String(text || '').trim();
 }
 
+function explicitKnowledgeLookup(textValue) {
+    const text = String(textValue || '').trim();
+    if (
+        !text
+        || !/search_factory_knowledge|(?:查询|搜索|查).{0,12}(?:知识库|知识条目)/i.test(text)
+    ) {
+        return null;
+    }
+
+    const quoted = text.match(/[“"]([^”"]{1,120})[”"]/)?.[1]?.trim();
+    const entryType = [...KNOWLEDGE_ENTRY_TYPES].find(type => (
+        new RegExp(`(?:entryType\\s*[=:]\\s*|\\b)${type}\\b`, 'i').test(text)
+    ));
+    const query = quoted || freshLookupQuery(text)
+        .replace(/search_factory_knowledge|知识库|知识条目|entryType|business_rule/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!query) return null;
+    return {
+        name: 'search_factory_knowledge',
+        args: {
+            query,
+            ...(entryType ? { entryType } : {}),
+            limit: 10,
+        },
+    };
+}
+
 function purposeLookupQuery(text) {
     const source = String(text || '').trim();
     const beforeObject = source.match(/(.{2,40}?)(?:用的|使用的|用途的)(?:泵壳|配件|零件|型号)/);
@@ -46,14 +86,89 @@ function purposeLookupQuery(text) {
 }
 
 function coilSpecSheetKey(text) {
-    const match = String(text || '').match(/(?:^|[^\d])(\d+)\s*[-－]\s*(\d+)(?:[^\d]|$)/);
+    const match = String(text || '').match(/(?:^|[^\d])(\d+)\s*[-－×xX*]\s*(\d+)(?:[^\d]|$)/);
     return match ? `${match[1]}-${match[2]}` : '';
 }
 
+function coilInventoryDirection(action) {
+    return /出库|减少|减/.test(action) ? -1 : 1;
+}
+
+function parseCoilInventoryInstruction(textValue) {
+    const text = String(textValue || '').trim();
+    if (!text || !/入库|出库|库存(?:增加|减少|加|减)|(?:增加|减少|加|减)库存/.test(text)) return null;
+    if (/零件/.test(text) && !/线圈|定子/.test(text)) return null;
+
+    const models = [];
+    const modelRe = /(\d+)\s*[-－×xX*]\s*(\d+)/g;
+    let match;
+    while ((match = modelRe.exec(text)) !== null) {
+        const before = text[match.index - 1] || '';
+        const after = text[modelRe.lastIndex] || '';
+        if (/\d/.test(before) || /\d/.test(after)) continue;
+        const model = `${match[1]}-${match[2]}`;
+        if (!models.some(item => item.model === model)) {
+            models.push({ model, index: match.index, end: modelRe.lastIndex });
+        }
+    }
+    if (models.length === 0) return null;
+
+    const actionPattern = '(入库|出库|库存(?:增加|减少|加|减)|(?:增加|减少|加|减)库存)';
+    const sharedAfterAction = text.match(new RegExp(`各\\s*${actionPattern}\\s*(\\d+)\\s*(?:套|个|件)?`));
+    const sharedBeforeAction = text.match(new RegExp(`各\\s*(\\d+)\\s*(?:套|个|件)?\\s*${actionPattern}`));
+    let shared = null;
+    if (sharedAfterAction) {
+        shared = {
+            changeQty: coilInventoryDirection(sharedAfterAction[1]) * Number(sharedAfterAction[2]),
+        };
+    } else if (sharedBeforeAction) {
+        shared = {
+            changeQty: coilInventoryDirection(sharedBeforeAction[2]) * Number(sharedBeforeAction[1]),
+        };
+    } else {
+        const globalRe = new RegExp(`${actionPattern}\\s*(\\d+)\\s*(?:套|个|件)?`, 'g');
+        const globalMatches = [...text.matchAll(globalRe)];
+        const lastModel = models.at(-1);
+        if (globalMatches.length === 1 && globalMatches[0].index >= lastModel.end) {
+            shared = {
+                changeQty: coilInventoryDirection(globalMatches[0][1]) * Number(globalMatches[0][2]),
+            };
+        }
+    }
+
+    const items = models.map((model, index) => {
+        const segmentEnd = models[index + 1]?.index ?? text.length;
+        const segment = text.slice(model.end, segmentEnd);
+        const afterAction = segment.match(new RegExp(`${actionPattern}\\s*(\\d+)\\s*(?:套|个|件)?`));
+        const beforeAction = segment.match(new RegExp(`(\\d+)\\s*(?:套|个|件)?\\s*${actionPattern}`));
+        if (afterAction) {
+            return {
+                model: model.model,
+                changeQty: coilInventoryDirection(afterAction[1]) * Number(afterAction[2]),
+            };
+        }
+        if (beforeAction) {
+            return {
+                model: model.model,
+                changeQty: coilInventoryDirection(beforeAction[2]) * Number(beforeAction[1]),
+            };
+        }
+        return shared ? { model: model.model, changeQty: shared.changeQty } : null;
+    });
+    if (items.some(item => !item || !Number.isInteger(item.changeQty) || item.changeQty === 0)) return null;
+    return { items };
+}
+
 function buildFreshLookupToolCalls(messages = []) {
+    const text = latestUserText(messages);
+    const coilInventory = parseCoilInventoryInstruction(text);
+    if (coilInventory) {
+        return [{ name: 'adjust_coil_stock', args: coilInventory }];
+    }
+    const explicitKnowledgeCall = explicitKnowledgeLookup(text);
+    if (explicitKnowledgeCall) return [explicitKnowledgeCall];
     if (!requiresFreshToolLookup(messages)) return [];
 
-    const text = latestUserText(messages);
     if (MANAGEMENT_ACTION_INTENT_RE.test(text)) {
         return [{ name: 'get_management_action_center', args: {} }];
     }
@@ -95,6 +210,8 @@ module.exports = {
     requiresFreshToolLookup,
     buildFreshLookupToolCalls,
     coilSpecSheetKey,
+    parseCoilInventoryInstruction,
+    explicitKnowledgeLookup,
     purposeLookupQuery,
     MANAGEMENT_ACTION_INTENT_RE,
 };

@@ -94,7 +94,9 @@ async function streamQuestion(question) {
 async function main() {
     await authenticate();
     const health = await requestJson('GET', '/api/health');
-    if (health.status !== 'ok') throw new Error('API 健康检查未通过');
+    if (health.ready !== true && !['ok', 'ready'].includes(health.status)) {
+        throw new Error('API 健康检查未通过');
+    }
 
     const created = await requestJson('POST', '/api/ai/evaluations/runs');
     const runId = Number(created.run?.id);

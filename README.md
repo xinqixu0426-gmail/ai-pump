@@ -32,8 +32,6 @@ tests/                          Node 测试与架构契约
 docs/                           业务、API、前端和部署文档
 ```
 
-当前开发主线和延期事项见 [开发待办与向量检索主线](./docs/development-backlog.md)。
-
 ## 本地启动
 
 ```powershell
@@ -191,8 +189,9 @@ V6.4 提供不依赖外部 AI 的固定检索验收：服务运行时执行 `npm
 
 ### 自动任务
 
-- 启动时执行 WAL checkpoint 和数据库备份。
-- 每天 03:00 BJT 备份数据库，保留最近 7 份。
+- 启动时执行 WAL checkpoint，并生成独立 `startup` 备份（保留 5 份）。
+- 每天 03:00 BJT 生成 `daily` 备份（保留 30 份）。
+- 发布前使用 `npm run db:backup:release` 生成与 Git commit、Schema 版本绑定的可验证快照；可通过 `DB_BACKUP_MIRROR_DIR` 同步已完成备份到异机目录。
 - 启动时更新铜价，此后每天 15:00 BJT 更新。
 
 ## 生产发布
@@ -204,6 +203,9 @@ ssh dan@192.168.31.216
 cd ~/pump-cost-accounting-system
 export PATH=/opt/homebrew/bin:$PATH
 
+PREVIOUS_COMMIT=$(git rev-parse HEAD)
+npm run db:backup:release -- --git-commit "$PREVIOUS_COMMIT"
+npm run db:backup:verify -- --latest --type release --expect-commit "$PREVIOUS_COMMIT"
 git pull --ff-only origin master
 npm ci
 npm --prefix apps/web-next ci
@@ -214,13 +216,20 @@ npm run knowledge:backup-check
 npm run test:knowledge-retrieval
 ```
 
+拉取新版本前先生成发布快照；数据库恢复和联合回滚必须按
+[数据库备份与恢复](docs/database-backup-recovery.md) 执行，禁止只回滚 Git。
+
 发布后检查：
 
 ```bash
 curl http://127.0.0.1:3002/api/health
+curl http://127.0.0.1:3002/api/health/ready
 tail -n 80 logs/api-launchd.error.log
 tail -n 80 logs/web-launchd.error.log
 ```
+
+安装脚本会自动完成 LaunchDaemon 状态、API 就绪和 Web 登录页检查；只有脚本
+以 0 退出才表示本机服务启动验收通过。
 
 完整清单见 [docs/deployment-checklist.md](docs/deployment-checklist.md)。
 
@@ -230,6 +239,7 @@ tail -n 80 logs/web-launchd.error.log
 - [业务流程](docs/business-flow.md)
 - [API 接口总表](docs/api-reference.md)
 - [API 开发 SOP](docs/api-sop.md)
+- [生产运行与故障排查](docs/operations-runbook.md)
 - [生产发布清单](docs/deployment-checklist.md)
 - [前端状态边界](docs/frontend-state-boundary.md)
 - [UI/交互约束](docs/ui-refactor-guidelines.md)

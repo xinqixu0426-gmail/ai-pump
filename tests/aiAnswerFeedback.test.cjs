@@ -44,6 +44,18 @@ function createFixture() {
             created_at TEXT,
             updated_at TEXT
         );
+        CREATE TABLE factory_ai_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_feedback_id INTEGER UNIQUE,
+            title TEXT NOT NULL,
+            trigger_text TEXT NOT NULL DEFAULT '',
+            instruction TEXT NOT NULL,
+            scope_type TEXT NOT NULL DEFAULT 'global',
+            priority INTEGER NOT NULL DEFAULT 100,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT,
+            updated_at TEXT
+        );
     `);
     const now = new Date().toISOString();
     const safeInsert = (table, values) => {
@@ -154,6 +166,52 @@ test('AI 回答反馈：同一回答改判时更新原记录且准确反馈自�
     assert.equal(updated.status, 'resolved');
     assert.ok(updated.resolvedAt);
     assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM ai_answer_feedback').get().count, 1);
+    fixture.db.close();
+});
+
+test('AI 回答反馈：明确正确做法后生成通用长期纠正规则', () => {
+    const fixture = createFixture();
+    const result = submitAiAnswerFeedback('admin', {
+        messageId: fixture.assistantMessage,
+        rating: 'incorrect',
+        note: '以后查询配方详情必须先读取当前业务数据，不要复述历史回答。',
+        learnFromCorrection: true,
+    }, { dbAccessors: fixture.accessors });
+
+    assert.equal(result.learningRule.status, 'active');
+    assert.equal(result.learningRule.triggerText, 'V750 配方详情是什么？');
+    assert.equal(result.learningRule.instruction, '以后查询配方详情必须先读取当前业务数据，不要复述历史回答。');
+    assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_ai_rules').get().count, 1);
+
+    const updated = submitAiAnswerFeedback('admin', {
+        messageId: fixture.assistantMessage,
+        rating: 'incorrect',
+        note: '配方详情必须以本轮实时工具结果为准。',
+        learnFromCorrection: true,
+    }, { dbAccessors: fixture.accessors });
+    assert.equal(updated.learningRule.id, result.learningRule.id);
+    assert.equal(updated.learningRule.instruction, '配方详情必须以本轮实时工具结果为准。');
+    assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_ai_rules').get().count, 1);
+    fixture.db.close();
+});
+
+test('AI 回答反馈：没有正确做法时不伪造学习规则', () => {
+    const fixture = createFixture();
+    assert.throws(
+        () => submitAiAnswerFeedback('admin', {
+            messageId: fixture.assistantMessage,
+            rating: 'incorrect',
+            learnFromCorrection: true,
+        }, { dbAccessors: fixture.accessors }),
+        /必须填写正确做法/
+    );
+    const result = submitAiAnswerFeedback('admin', {
+        messageId: fixture.assistantMessage,
+        rating: 'outdated',
+        note: '数据已经更新',
+    }, { dbAccessors: fixture.accessors });
+    assert.equal(result.learningRule, null);
+    assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_ai_rules').get().count, 0);
     fixture.db.close();
 });
 

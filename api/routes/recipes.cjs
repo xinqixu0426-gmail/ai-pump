@@ -166,16 +166,6 @@ function buildRecipeInventoryStatus(id) {
     };
 }
 
-function numberOrNull(value) {
-    if (value === '' || value == null) return null;
-    return parseNonNegativeNumber(value, 'value');
-}
-
-function intOrNull(value) {
-    if (value === '' || value == null) return null;
-    return parseNonNegativeInteger(Number(value), 'value');
-}
-
 function recipeSelectionRows(parts, packaging = false) {
     if (!Array.isArray(parts)) return [];
     return parts

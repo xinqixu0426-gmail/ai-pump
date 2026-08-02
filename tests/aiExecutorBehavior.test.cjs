@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
+const { processAiChat } = require('../api/routes/ai/chat.cjs');
 
 const originalFetch = global.fetch;
 const originalSecret = process.env.INTERNAL_SECRET;
@@ -69,7 +70,116 @@ test('AI executor 行为：确认修改零件后通过标准 parts API 查询并
     ]);
 });
 
-test('AI executor 行为：查询零件列表通过标准 parts API', async () => {
+test('AI executor 行为：线圈库存未确认时显示按套调整且不调用 API', async () => {
+    const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
+
+    const result = await executeToolCall('adjust_coil_stock', {
+        items: [
+            { model: '12-120', changeQty: 50 },
+            { model: '12-140', changeQty: 50 },
+        ],
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.requiresConfirmation, true);
+    assert.equal(result.confirmation.toolName, 'adjust_coil_stock');
+    assert.equal(result.confirmation.title, '调整线圈库存');
+    assert.match(result.confirmation.rows[0].value, /12-120 \+50 套/);
+    assert.match(result.confirmation.rows[0].value, /12-140 \+50 套/);
+    assert.equal(calls.length, 0);
+});
+
+test('AI 对话行为：俗称批量入库直接停在确认步骤且不再调用模型', async () => {
+    const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
+
+    const result = await processAiChat('12-120,12-140各入库50套');
+
+    assert.match(result.finalContent, /调整线圈成品库存/);
+    assert.equal(result.toolResults.length, 1);
+    assert.equal(result.toolResults[0].name, 'adjust_coil_stock');
+    assert.equal(result.toolResults[0].result.requiresConfirmation, true);
+    assert.deepEqual(result.toolResults[0].result.confirmation.args.items, [
+        { model: '12-120', changeQty: 50 },
+        { model: '12-140', changeQty: 50 },
+    ]);
+    assert.equal(calls.length, 0);
+});
+
+test('AI executor 行为：确认后按俗称片数匹配正式方案并原子批量调整', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 21, commonName: '12', spec: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 3 },
+                    { id: 22, commonName: '12', spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 7 },
+                    { id: 23, commonName: '12', spec: '12', sheets: 120, material: '冷轧', slotType: '国标眼', schemeStatus: 'testing', stock: 0 },
+                ],
+            });
+        }
+        if (call.url.endsWith('/api/coils/stock-adjustments') && call.method === 'POST') {
+            assert.deepEqual(call.body, {
+                adjustments: [
+                    { coilId: 21, changeQty: 50 },
+                    { coilId: 22, changeQty: 50 },
+                ],
+            });
+            return jsonResponse({
+                success: true,
+                data: {
+                    updatedCount: 2,
+                    adjustments: [
+                        { coil: { id: 21 }, adjustment: { balanceAfter: 53 } },
+                        { coil: { id: 22 }, adjustment: { balanceAfter: 57 } },
+                    ],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('adjust_coil_stock', {
+        items: [
+            { model: '12-120', changeQty: 50 },
+            { model: '12-140', changeQty: 50 },
+        ],
+    }, { allowWrite: true });
+
+    assert.equal(result.success, true);
+    assert.equal(result.intent, 'coil_stock_adjustment');
+    assert.deepEqual(result.items.map(item => item.newStock), [53, 57]);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/coils',
+        'POST /api/coils/stock-adjustments',
+    ]);
+    assert.equal(calls.some(call => call.url.includes('/api/parts')), false);
+});
+
+test('AI executor 行为：线圈俗称匹配多个正式方案时不写库存', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 21, commonName: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official' },
+                    { id: 24, commonName: '12', sheets: 120, material: '冷轧', slotType: '国标眼', schemeStatus: 'official' },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('adjust_coil_stock', {
+        items: [{ model: '12-120', changeQty: 50 }],
+    }, { allowWrite: true });
+
+    assert.equal(result.success, false);
+    assert.match(result.error, /存在多个正式方案/);
+    assert.match(result.error, /请明确材质和槽眼/);
+    assert.deepEqual(calls.map(call => call.method), ['GET']);
+});
+
+test('AI executor 行为：零件搜索不传筛选时通过标准 parts API 返回列表', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/parts') && call.method === 'GET') {
             return jsonResponse({ success: true, data: [{ id: 1, model: '6202', category: '轴承', price: 1.5, supplier: 'S', stock: 8 }] });
@@ -77,10 +187,11 @@ test('AI executor 行为：查询零件列表通过标准 parts API', async () =
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
 
-    const result = await executeToolCall('get_all_parts', {}, { allowWrite: false });
+    const result = await executeToolCall('search_parts', {}, { allowWrite: false });
 
     assert.equal(result.success, true);
-    assert.deepEqual(result.data, [{ id: 1, model: '6202', category: '轴承', price: 1.5, supplier: 'S', stock: 8 }]);
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.parts, [{ id: 1, model: '6202', category: '轴承', subcategory: '', price: 1.5, supplier: 'S', stock: 8 }]);
     assert.equal(result.provenance.kind, 'live_business');
     assert.equal(result.provenance.label, '实时业务数据');
     assert.equal(calls.length, 1);

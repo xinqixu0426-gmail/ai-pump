@@ -45,6 +45,34 @@ function assertCoilCanBeDeleted(db, coilIdValue) {
     return true;
 }
 
+function assertCoilIdentityEditable(db, coilIdValue, changedFields = []) {
+    const coilId = Number(coilIdValue);
+    if (!Number.isInteger(coilId) || coilId <= 0) {
+        const error = new Error('非法线圈ID');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!Array.isArray(changedFields) || changedFields.length === 0) return true;
+
+    const coil = db.prepare('SELECT id, stock FROM coils WHERE id = ?').get(coilId);
+    if (!coil) {
+        const error = new Error('线圈记录不存在');
+        error.statusCode = 404;
+        throw error;
+    }
+    const movementCount = Number(db.prepare(
+        'SELECT COUNT(*) AS count FROM coil_stock_movements WHERE coil_id = ?'
+    ).get(coilId).count || 0);
+    if (Number(coil.stock || 0) > 0 || movementCount > 0) {
+        const error = new Error(
+            `该线圈已有库存或库存流水，不能修改身份字段：${changedFields.join('、')}；请新建线圈方案并保留原记录用于追溯`
+        );
+        error.statusCode = 409;
+        throw error;
+    }
+    return true;
+}
+
 function adjustCoilStock(dependencies, input = {}) {
     const { db, safeUpdate, safeInsert } = dependencies;
     const coilId = Number(input.coilId);
@@ -81,6 +109,7 @@ function adjustCoilStock(dependencies, input = {}) {
 module.exports = {
     adjustCoilStock,
     assertCoilCanBeDeleted,
+    assertCoilIdentityEditable,
     coilStockMovementRow,
     parseStockChange,
 };

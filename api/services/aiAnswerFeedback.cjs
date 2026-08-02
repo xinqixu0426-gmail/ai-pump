@@ -65,7 +65,7 @@ function collectSources(metadataJson) {
     return sources.slice(0, 30);
 }
 
-function feedbackRow(row, rowAdapter) {
+function feedbackRow(row, rowAdapter, db = null) {
     if (!row) return null;
     const adapted = rowAdapter(row);
     let sources = [];
@@ -91,7 +91,12 @@ function feedbackRow(row, rowAdapter) {
     } catch {
         retestSources = [];
     }
-    return { ...adapted, sources, diagnosis, retestSources };
+    const learningRule = db
+        ? require('./factoryAiRules.cjs').factoryAiRuleRow(
+            db.prepare('SELECT * FROM factory_ai_rules WHERE source_feedback_id = ?').get(adapted.id)
+        )
+        : null;
+    return { ...adapted, sources, diagnosis, retestSources, learningRule };
 }
 
 function assistantMessageForOwner(db, ownerKey, messageId) {
@@ -112,6 +117,12 @@ function submitAiAnswerFeedback(ownerKey, input = {}, options = {}) {
     const messageId = parsePositiveId(input.messageId, '消息ID');
     const rating = normalizeRating(input.rating);
     const note = normalizeText(input.note, 500, '补充说明');
+    if (input.learnFromCorrection === true && rating !== 'incorrect') {
+        throw new Error('只有“内容错误”反馈可以保存为长期纠正规则');
+    }
+    if (input.learnFromCorrection === true && !note) {
+        throw new Error('让 AI 长期记住时必须填写正确做法');
+    }
     const message = assistantMessageForOwner(db, ownerKey, messageId);
     if (!message) return null;
 
@@ -139,20 +150,32 @@ function submitAiAnswerFeedback(ownerKey, input = {}, options = {}) {
         resolution_note: '',
         resolved_at: status === 'resolved' ? now : null,
     };
-    const existing = db.prepare('SELECT id FROM ai_answer_feedback WHERE message_id = ?').get(message.id);
-    let id;
-    if (existing) {
-        id = existing.id;
-        safeUpdate('ai_answer_feedback', id, values);
-    } else {
-        const info = safeInsert('ai_answer_feedback', {
-            ...values,
-            created_at: now,
-            updated_at: now,
-        });
-        id = Number(info.lastInsertRowid);
-    }
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow);
+    const persistFeedback = db.transaction(() => {
+        const existing = db.prepare('SELECT id FROM ai_answer_feedback WHERE message_id = ?').get(message.id);
+        let id;
+        if (existing) {
+            id = existing.id;
+            safeUpdate('ai_answer_feedback', id, values);
+        } else {
+            const info = safeInsert('ai_answer_feedback', {
+                ...values,
+                created_at: now,
+                updated_at: now,
+            });
+            id = Number(info.lastInsertRowid);
+        }
+        const saved = db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id);
+        require('./factoryAiRules.cjs').synchronizeFactoryAiRuleFromFeedback({
+            feedback: saved,
+            learnFromCorrection: input.learnFromCorrection,
+        }, { dbAccessors: accessors });
+        return feedbackRow(
+            db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id),
+            aiAnswerFeedbackRow,
+            db
+        );
+    });
+    return persistFeedback();
 }
 
 function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
@@ -183,7 +206,7 @@ function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
         WHERE ${clauses.join(' AND ')}
         ORDER BY feedback.updated_at DESC, feedback.id DESC
         LIMIT ?
-    `).all(...params, limit).map(row => feedbackRow(row, aiAnswerFeedbackRow));
+    `).all(...params, limit).map(row => feedbackRow(row, aiAnswerFeedbackRow, db));
     const stats = db.prepare(`
         SELECT
             COUNT(*) AS total,
@@ -228,7 +251,7 @@ function reviewAiAnswerFeedback(ownerKey, idValue, input = {}, options = {}) {
         resolution_note: resolutionNote,
         resolved_at: status === 'resolved' ? new Date().toISOString() : null,
     });
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow);
+    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow, db);
 }
 
 function feedbackForOwner(db, ownerKey, id) {
@@ -265,7 +288,7 @@ function diagnoseAiAnswerFeedback(ownerKey, idValue, options = {}) {
     const id = parsePositiveId(idValue, '反馈ID');
     const row = feedbackForOwner(db, ownerKey, id);
     if (!row) return null;
-    const feedback = feedbackRow(row, aiAnswerFeedbackRow);
+    const feedback = feedbackRow(row, aiAnswerFeedbackRow, db);
     const knowledgeService = options.knowledgeService || require('./knowledge.cjs');
     const overview = knowledgeService.inspectKnowledgeOverview(
         options.knowledgeOptions || { dbAccessors: accessors }
@@ -326,7 +349,7 @@ function diagnoseAiAnswerFeedback(ownerKey, idValue, options = {}) {
         diagnosis_json: JSON.stringify(diagnosis),
         diagnosed_at: diagnosis.checkedAt,
     });
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow);
+    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow, db);
 }
 
 function recordAiAnswerFeedbackRetest(ownerKey, idValue, input = {}, options = {}) {
@@ -345,7 +368,7 @@ function recordAiAnswerFeedbackRetest(ownerKey, idValue, input = {}, options = {
         retest_sources_json: JSON.stringify(retestSources),
         retested_at: new Date().toISOString(),
     });
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow);
+    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow, db);
 }
 
 module.exports = {

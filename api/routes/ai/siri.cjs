@@ -5,12 +5,11 @@ const path = require('path');
 const { processAiChat } = require('./chat.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const { limitText, classifySiriResult, buildSiriSpeech, firstBackgroundTask } = require('./siriResponse.cjs');
+const { fetchWithPolicy } = require('../../services/httpClient.cjs');
+const { isProductionEnvironment } = require('../../services/environment.cjs');
 
 const SIRI_TOKEN = process.env.SIRI_API_TOKEN || '';
-const IS_PRODUCTION =
-    process.env.NODE_ENV === 'production' ||
-    (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
-    (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const IS_PRODUCTION = isProductionEnvironment();
 if (IS_PRODUCTION && !SIRI_TOKEN) {
     throw new Error('生产环境必须配置 SIRI_API_TOKEN');
 }
@@ -103,11 +102,11 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
         if (targetProject === 'cad') {
             try {
                 const cadApiUrl = process.env.CAD_API_URL || 'http://localhost:5000';
-                const cadRes = await fetch(`${cadApiUrl}/api/siri/chat`, {
+                const cadRes = await fetchWithPolicy(`${cadApiUrl}/api/siri/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text, context: context || [] }),
-                });
+                }, { timeoutMs: 30000, retries: 0, label: 'CAD Siri API' });
                 const cadData = await cadRes.json();
                 console.log('[Siri] CAD API 返回:', cadData.success);
                 return res.json(cadData);
@@ -247,3 +246,4 @@ router.post('/api/siri/confirm', siriAuth, async (req, res) => {
 
 
 module.exports = router;
+module.exports.stopSiriCleanup = () => clearInterval(cleanupTimer);

@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const {
     adjustCoilStock,
     assertCoilCanBeDeleted,
+    assertCoilIdentityEditable,
     coilStockMovementRow,
 } = require('../api/services/coilInventory.cjs');
 
@@ -136,6 +137,41 @@ test('只有零库存且没有库存流水的线圈方案可以删除', () => {
             assert.equal(error.statusCode, 409);
             return true;
         }
+    );
+    dependencies.db.close();
+});
+
+test('已有库存或流水后冻结线圈身份字段', () => {
+    const dependencies = createInventoryDb();
+    dependencies.db.prepare(
+        'INSERT INTO coils (id, spec, sheets, stock) VALUES (?, ?, ?, ?)'
+    ).run(2, '12', 200, 0);
+
+    assert.equal(assertCoilIdentityEditable(dependencies.db, 2, ['片数']), true);
+    assert.equal(assertCoilIdentityEditable(dependencies.db, 1, []), true);
+    assert.throws(
+        () => assertCoilIdentityEditable(dependencies.db, 1, ['片数', '材质']),
+        error => {
+            assert.equal(error.statusCode, 409);
+            assert.match(error.message, /不能修改身份字段：片数、材质/);
+            assert.match(error.message, /请新建线圈方案/);
+            return true;
+        }
+    );
+
+    adjustCoilStock(dependencies, {
+        coilId: 2,
+        changeQty: 1,
+        createdAt: '2026-07-28T08:00:00.000Z',
+    });
+    adjustCoilStock(dependencies, {
+        coilId: 2,
+        changeQty: -1,
+        createdAt: '2026-07-28T08:01:00.000Z',
+    });
+    assert.throws(
+        () => assertCoilIdentityEditable(dependencies.db, 2, ['槽眼']),
+        error => error.statusCode === 409 && /库存流水/.test(error.message)
     );
     dependencies.db.close();
 });

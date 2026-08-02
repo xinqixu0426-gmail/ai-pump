@@ -171,10 +171,10 @@ const quickFilters: Array<{ value: RecipeFilter; label: string }> = [
   { value: 'cable', label: '带电缆' },
 ];
 
-const sectionOptions: Array<{ value: RecipeSection; label: string }> = [
-  { value: 'recipes', label: '配方' },
-  { value: 'templates', label: '泵壳模板' },
-];
+const sectionOptions = {
+  recipes: { label: '配方', description: 'BOM 与成本管理' },
+  templates: { label: '泵壳模板', description: '固定搭配与基础成本' },
+} as const;
 
 function copperRiskTone(level: string): StatusBadgeTone {
   if (level === 'critical') return 'red';
@@ -1167,7 +1167,6 @@ export function RecipesView() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [detailRecipe, setDetailRecipe] = useState<Recipe | null>(null);
   const [detailCurrentCost, setDetailCurrentCost] = useState<RecipeCurrentCostResult | null>(null);
-  const [detailCurrentCostLoading, setDetailCurrentCostLoading] = useState(false);
   const [detailCurrentCostError, setDetailCurrentCostError] = useState<string | null>(null);
   const [inventoryStatus, setInventoryStatus] = useState<RecipeInventoryStatusResult | null>(null);
   const [inventoryStatusLoading, setInventoryStatusLoading] = useState(false);
@@ -1407,12 +1406,10 @@ export function RecipesView() {
     if (!detailRecipe) {
       setDetailCurrentCost(null);
       setDetailCurrentCostError(null);
-      setDetailCurrentCostLoading(false);
       return;
     }
 
     let cancelled = false;
-    setDetailCurrentCostLoading(true);
     setDetailCurrentCostError(null);
     void getRecipeCurrentCost(detailRecipe.id)
       .then((result) => {
@@ -1422,7 +1419,6 @@ export function RecipesView() {
         if (!cancelled) setDetailCurrentCostError(err instanceof Error ? err.message : '当前成本读取失败');
       })
       .finally(() => {
-        if (!cancelled) setDetailCurrentCostLoading(false);
       });
 
     return () => {
@@ -2865,9 +2861,65 @@ export function RecipesView() {
       />
 
       <FadePanel delay={0.01} className="flex flex-col gap-3 rounded-panel border border-line bg-white p-3 shadow-panel md:flex-row md:items-center md:justify-between">
-        <SegmentedControl value={activeSection} options={sectionOptions} onChange={setActiveSection} ariaLabel="配方功能区" />
+        <div className="grid w-full gap-2 sm:grid-cols-2 md:w-auto" role="group" aria-label="配方功能区">
+          <button
+            type="button"
+            onClick={() => setActiveSection('recipes')}
+            aria-pressed={activeSection === 'recipes'}
+            className={`flex min-h-14 items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 sm:min-w-48 ${
+              activeSection === 'recipes'
+                ? 'border-sky-500 bg-sky-50 text-sky-950 shadow-sm ring-1 ring-sky-200'
+                : 'border-line bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-ink'
+            }`}
+          >
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+              activeSection === 'recipes' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-500'
+            }`}>
+              <Package size={18} />
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{sectionOptions.recipes.label}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  activeSection === 'recipes' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {recipes.length} 个
+                </span>
+              </span>
+              <span className="mt-0.5 block text-xs opacity-75">{sectionOptions.recipes.description}</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('templates')}
+            aria-pressed={activeSection === 'templates'}
+            className={`flex min-h-14 items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 sm:min-w-48 ${
+              activeSection === 'templates'
+                ? 'border-amber-500 bg-amber-50 text-amber-950 shadow-sm ring-1 ring-amber-200'
+                : 'border-line bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-ink'
+            }`}
+          >
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+              activeSection === 'templates' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+            }`}>
+              <Layers3 size={18} />
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{sectionOptions.templates.label}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  activeSection === 'templates' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {templates.length} 套
+                </span>
+              </span>
+              <span className="mt-0.5 block text-xs opacity-75">{sectionOptions.templates.description}</span>
+            </span>
+          </button>
+        </div>
         <div className="text-xs text-muted">
-          配方 {recipes.length} 个 / 泵壳模板 {templates.length} 套
+          {activeSection === 'recipes' ? '当前正在管理产品配方' : '当前正在维护泵壳固定模板'}
         </div>
       </FadePanel>
 

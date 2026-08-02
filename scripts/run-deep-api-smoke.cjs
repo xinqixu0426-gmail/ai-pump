@@ -1619,6 +1619,7 @@ async function run() {
         sourceDb.close();
 
         const port = await getFreePort();
+        const unavailableNextPort = await getFreePort();
         baseUrl = `http://127.0.0.1:${port}`;
         child = spawn(process.execPath, ['api.cjs'], {
             cwd: temp,
@@ -1626,7 +1627,7 @@ async function run() {
                 ...process.env,
                 NODE_ENV: 'development',
                 PORT: String(port),
-                NEXT_ORIGIN: '',
+                NEXT_ORIGIN: `http://127.0.0.1:${unavailableNextPort}`,
                 KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED: 'false',
                 KNOWLEDGE_HYBRID_SEARCH_ENABLED: 'false',
                 NODE_PATH: path.join(root, 'node_modules'),
@@ -1640,6 +1641,14 @@ async function run() {
         await waitForHealth();
 
         await request('公开健康检查', 'GET', '/api/health');
+        await request('进程存活检查', 'GET', '/api/health/live');
+        const readiness = await request('服务就绪检查', 'GET', '/api/health/ready');
+        assert(readiness.payload?.data?.ready === true, '服务就绪检查未返回 ready=true');
+        assert(readiness.response.headers.get('x-request-id'), '服务就绪检查缺少 X-Request-ID');
+        assert(readiness.payload?.data?.runtime?.gitCommit, '服务就绪检查缺少运行版本');
+        assert(readiness.payload?.data?.background?.databaseBackup, '服务就绪检查缺少后台任务状态');
+        const proxyFailure = await request('前端转发失败返回 502', 'GET', '/frontend-proxy-check', undefined, [502]);
+        assert(String(proxyFailure.payload).includes('前端服务暂时不可用'), '前端转发失败提示不明确');
         await request('未登录访问保护', 'GET', '/api/parts', undefined, [401]);
         const login = await request('登录', 'POST', '/api/auth/login', {
             password: process.env.ACCESS_PASSWORD,
@@ -1647,6 +1656,8 @@ async function run() {
         cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
         assert(cookie.startsWith('token='), '登录未返回 token Cookie');
         await request('登录状态', 'GET', '/api/auth/check');
+        const missingApi = await request('不存在 API 返回 JSON 404', 'GET', '/api/not-found', undefined, [404]);
+        assert(missingApi.payload?.success === false, '不存在 API 未返回标准 JSON 错误');
 
         const resources = await readCoreResources();
         const baseResources = await testResourceDetails(resources);

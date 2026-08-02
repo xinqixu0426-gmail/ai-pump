@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUpRight,
+  Brain,
   BookOpen,
   CheckCircle2,
   Database,
@@ -13,6 +14,8 @@ import {
   MessageSquareWarning,
   Paperclip,
   Play,
+  Power,
+  PowerOff,
   RefreshCw,
   RotateCcw,
   Search,
@@ -49,14 +52,17 @@ import {
   createAiEvaluationRun,
   getAiEvaluationOverview,
   listAiAnswerFeedback,
+  listFactoryAiRules,
   recordAiEvaluationResult,
   recordAiAnswerFeedbackRetest,
   reviewAiAnswerFeedback,
   streamAiChat,
+  updateFactoryAiRule,
   type AiAnswerFeedback,
   type AiAnswerFeedbackList,
   type AiEvaluationOverview,
   type AiToolResult,
+  type FactoryAiRuleList,
 } from '@/lib/ai';
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -133,6 +139,7 @@ const SOURCE_PATHS: Record<string, string> = {
   quality_summary: '/dashboard?view=quality',
   business_rules: '/dashboard?view=knowledge',
   factory_rule_candidates: '/dashboard?view=quality',
+  factory_ai_rules: '/dashboard?view=knowledge',
 };
 
 function sourceKey(item: { sourceTable: string; sourceId: string }) {
@@ -210,6 +217,10 @@ export function KnowledgeView({
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolving, setResolving] = useState(false);
   const [feedbackAttachmentId, setFeedbackAttachmentId] = useState<number | null>(null);
+  const [learningRules, setLearningRules] = useState<FactoryAiRuleList | null>(null);
+  const [learningRulesLoading, setLearningRulesLoading] = useState(true);
+  const [learningRulesError, setLearningRulesError] = useState('');
+  const [updatingLearningRuleId, setUpdatingLearningRuleId] = useState<number | null>(null);
   const openedInitialEntryRef = useRef(false);
 
   async function load() {
@@ -262,6 +273,35 @@ export function KnowledgeView({
   useEffect(() => {
     void loadFeedback();
   }, [refreshKey]);
+
+  async function loadLearningRules() {
+    setLearningRulesLoading(true);
+    setLearningRulesError('');
+    try {
+      setLearningRules(await listFactoryAiRules({ limit: 100 }));
+    } catch (err) {
+      setLearningRulesError(err instanceof Error ? err.message : 'AI 学习规则加载失败');
+    } finally {
+      setLearningRulesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadLearningRules();
+  }, [refreshKey]);
+
+  async function toggleLearningRule(id: number, status: 'active' | 'disabled') {
+    setUpdatingLearningRuleId(id);
+    setLearningRulesError('');
+    try {
+      await updateFactoryAiRule(id, { status });
+      await Promise.all([loadLearningRules(), load()]);
+    } catch (err) {
+      setLearningRulesError(err instanceof Error ? err.message : 'AI 学习规则更新失败');
+    } finally {
+      setUpdatingLearningRuleId(null);
+    }
+  }
 
   async function loadEvaluation() {
     setEvaluationLoading(true);
@@ -569,6 +609,16 @@ export function KnowledgeView({
               <span>新增 {overview?.stats.pendingInsert ?? 0} · 更新 {overview?.stats.pendingUpdate ?? 0} · 移除 {overview?.stats.pendingDelete ?? 0}</span>
             ) : null}
           </div>
+          {overview?.ruleGovernance ? (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+              <ShieldCheck size={14} className="text-emerald-700" />
+              <span>
+                规则 {overview.ruleGovernance.stats.total} 条
+                {' · '}正式事实 {overview.ruleGovernance.stats.authoritativeFacts}
+                {' · '}追溯副本 {overview.ruleGovernance.stats.referenceCopies}
+              </span>
+            </div>
+          ) : null}
         </FadePanel>
         <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
           <div className="flex items-center justify-between gap-3">
@@ -696,6 +746,62 @@ export function KnowledgeView({
           </div>
         </FadePanel>
       ) : null}
+
+      <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+        <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Brain size={16} className="text-sky-700" />
+              AI 长期学习规则
+              {learningRules?.stats.active ? <StatusBadge tone="blue">{learningRules.stats.active} 条生效</StatusBadge> : null}
+            </div>
+            <div className="mt-1 text-xs text-muted">来自“报告问题”中确认的正确做法；只在相关问题中按优先级加载。</div>
+          </div>
+          <div className="text-xs text-muted">已停用 {learningRules?.stats.disabled || 0}</div>
+        </div>
+        {learningRulesError ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{learningRulesError}</div>
+        ) : null}
+        {learningRulesLoading ? (
+          <div className="flex min-h-24 items-center justify-center gap-2 text-sm text-muted">
+            <Loader2 size={16} className="animate-spin" />加载学习规则
+          </div>
+        ) : learningRules?.items.length ? (
+          <div className="divide-y divide-line">
+            {learningRules.items.map(rule => (
+              <div key={rule.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-start">
+                <div>
+                  <StatusBadge tone={rule.status === 'active' ? 'green' : 'slate'}>
+                    {rule.status === 'active' ? '正在生效' : '已停用'}
+                  </StatusBadge>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-ink">{rule.title}</div>
+                  <div className="mt-1 text-sm leading-6 text-slate-700">{rule.instruction}</div>
+                  {rule.triggerText ? <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">来源问题：{rule.triggerText}</div> : null}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={updatingLearningRuleId === rule.id
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : rule.status === 'active' ? <PowerOff size={14} /> : <Power size={14} />}
+                  onClick={() => void toggleLearningRule(rule.id, rule.status === 'active' ? 'disabled' : 'active')}
+                  disabled={updatingLearningRuleId !== null}
+                >
+                  {rule.status === 'active' ? '停用' : '启用'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-24 flex-col items-center justify-center px-4 text-center">
+            <Brain size={21} className="text-muted" />
+            <div className="mt-2 text-sm font-medium text-ink">尚无长期学习规则</div>
+            <div className="mt-1 text-xs text-muted">在 AI 回答下报告内容错误并填写正确做法后，会显示在这里。</div>
+          </div>
+        )}
+      </FadePanel>
 
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
         <div className="border-b border-line px-4 py-3">
@@ -894,7 +1000,7 @@ export function KnowledgeView({
               AI 回答反馈
               {feedback?.stats.open ? <StatusBadge tone="amber">{feedback.stats.open} 待处理</StatusBadge> : null}
             </div>
-            <div className="mt-1 text-xs text-muted">核对用户报告的错误、过期来源和资料缺口；处理不会自动改写知识或业务数据。</div>
+            <div className="mt-1 text-xs text-muted">核对错误、过期来源和资料缺口；带正确做法的内容错误可沉淀为长期规则。</div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted">
             <span>内容错误 {feedback?.stats.incorrect || 0}</span>
@@ -919,6 +1025,12 @@ export function KnowledgeView({
                     <div className="text-sm font-medium text-ink">{item.questionText || '未保存用户问题'}</div>
                     <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">AI：{item.answerText || '未保存回答内容'}</div>
                     {item.note ? <div className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900">反馈：{item.note}</div> : null}
+                    {item.learningRule ? (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-sky-700">
+                        <Brain size={13} />
+                        {item.learningRule.status === 'active' ? '已作为长期规则生效' : '长期规则已停用'}
+                      </div>
+                    ) : null}
                     {item.sources.length ? (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {item.sources.map((source, index) => (

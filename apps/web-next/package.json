@@ -4,21 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "clean": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev']) fs.rmSync(dir,{recursive:true,force:true})\"",
+    "clean": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev','.next-preview']) fs.rmSync(dir,{recursive:true,force:true})\"",
     "clean:build": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "clean:dev": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "dev:primary": "next dev -p 3000",
-    "dev": "next dev -p 3001",
+    "clean:dev": "node -e \"const fs=require('fs'); for (const dir of ['.next-dev','.next-preview']) fs.rmSync(dir,{recursive:true,force:true})\"",
+    "dev:primary": "node scripts/run-next-dev.cjs 3000 .next-dev",
+    "dev": "node scripts/run-next-dev.cjs 3001 .next-preview",
     "build": "npm run clean:build && next build",
     "rebuild": "npm run clean && npm run build",
     "start:primary": "next start -p 3000",
     "start": "next start -p 3001",
-    "lint": "next lint"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --report-unused-disable-directives"
   },
   "dependencies": {
-    "@types/node": "^25.6.0",
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
     "motion": "^12.23.27",
@@ -26,8 +23,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "zustand": "^5.0.12"
+    "remark-gfm": "^4.0.1"
   },
   "overrides": {
     "brace-expansion": "^5.0.8",
@@ -35,6 +31,9 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
     "autoprefixer": "^10.4.21",
     "eslint": "^8.55.0",
     "eslint-config-next": "^15.5.21",

@@ -206,9 +206,15 @@ function flushKnowledgeVectorSync() {
     return getController().flush();
 }
 
+function stopKnowledgeVectorSync() {
+    singleton?.dispose();
+    singleton = null;
+}
+
 module.exports = {
     createKnowledgeVectorAutoSyncController,
     flushKnowledgeVectorSync,
     getKnowledgeVectorSyncStatus,
     requestKnowledgeVectorSync,
+    stopKnowledgeVectorSync,
 };

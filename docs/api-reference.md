@@ -26,10 +26,10 @@
 |---|---|---|
 | `POST /api/auth/login` | 公开，登录限流 | 每 IP 每分钟最多 5 次 |
 | `GET /api/auth/check` | 公开读取 Cookie | 无 Cookie 时返回 401 |
-| `GET /api/health` | 公开 | 监控用 |
+| `GET /api/health`、`GET /api/health/live`、`GET /api/health/ready` | 公开 | 存活/就绪监控 |
 | 常规 `/api/*` | JWT Cookie | `app.use('/api', authMiddleware)` 后保护 |
 | 内部服务 | `x-internal-secret` | 与 `INTERNAL_SECRET` 匹配时绕过 JWT |
-| AI / 语音 / System Prompt | JWT Cookie 或 `x-internal-secret` | 路由内部单独校验 |
+| AI / 语音 / 工厂配置 | JWT Cookie 或 `x-internal-secret` | 路由内部单独校验 |
 | Siri | `x-siri-token` | 配置 `SIRI_API_TOKEN` 后强制校验 |
 
 ## 3. 认证
@@ -39,7 +39,13 @@
 | `POST` | `/api/auth/login` | `{ password }` | 签发 HttpOnly JWT Cookie；生产环境 `secure + sameSite=strict` |
 | `POST` | `/api/auth/logout` | 无 | 清除 `token` Cookie |
 | `GET` | `/api/auth/check` | 无 | `{ success, authenticated, role? }` |
-| `GET` | `/api/health` | 无 | `{ status: "ok", message, timestamp }`，非标准成功格式 |
+| `GET` | `/api/health/live` | 无 | 仅判断 API 进程存活；`{ success: true, data: { status: "alive", timestamp } }` |
+| `GET` | `/api/health/ready` | 无 | 检查 SQLite、迁移版本、启动备份；未就绪返回 HTTP 503；`data.runtime` 提供代码/进程诊断，`data.background` 提供后台任务状态 |
+| `GET` | `/api/health` | 无 | 兼容监控入口，语义与 `/api/health/ready` 相同；保留顶层 `status/message/timestamp` |
+
+所有 HTTP 响应都返回 `X-Request-ID`。调用方可传入 8-128 位字母、数字、
+点、下划线或连字符组成的编号；格式无效或未传时服务端生成 UUID。API 访问
+日志只记录编号、方法、路径、状态码和耗时，不记录查询参数或请求体。
 
 ## 4. 零件 Parts
 
@@ -61,7 +67,7 @@
 | `GET` | `/api/coils` | 无 | 绕组方案列表，返回 `diameterMm/commonName/material/slotType/schemeName/schemeStatus/stock`；`stock` 单位为套 |
 | `GET` | `/api/coils/variants` | 无 | 定子组合列表；组合键为标准直径、材质和槽眼 |
 | `POST` | `/api/coils` | `spec, diameterMm, material, slotType, sheets, schemeName?, schemeStatus?, unitPrice, wireWeight?, copperBase?, coilFee?, rotorFee?, defaultWireGauge?, defaultCapacitor?, mainWireGauge?, mainWireData?, auxWireGauge?, auxWireData?` | 新增绕组方案并计算 `cost`；材质仅支持钢带/冷轧，槽眼仅支持小眼/国标眼；正式方案会替换同组合同片数的原正式方案 |
-| `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段 | 修改定子组合或绕组方案；成本字段变化时自动重算 `cost` |
+| `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段 | 修改定子组合或绕组方案；成本字段变化时自动重算 `cost`。库存大于 0 或已有库存流水后，规格俗称、定子直径、片数、材质和槽眼被冻结，修改这些身份字段返回 `409`；应新建方案 |
 | `DELETE` | `/api/coils/:id` | 无 | 仅允许删除库存为 0 且从未产生库存流水的线圈方案；已有库存或流水时返回 `409`，避免破坏库存追溯 |
 | `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | 按定子组合生成录入草稿；精确组合可带入单片价，其他组合只带辅助字段；不写库 |
 | `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType? }` | 按标准直径批量更新定子单片价，可按材质和槽眼过滤 |
@@ -69,6 +75,7 @@
 | `GET` | `/api/coils/specs` | 无 | 正式方案可用的规格、标准直径、材质、槽眼和片数列表；`variants[]` 按材质+槽眼返回各自可用片数，供配方联动选择 |
 | `GET` | `/api/coils/:id/stock-movements` | 查询参数 `limit?` | 返回指定线圈方案最近库存流水，字段为 `changeQty/balanceAfter/movementType/referenceType/referenceId/note/createdAt` |
 | `POST` | `/api/coils/:id/stock-adjustment` | `{ changeQty, note? }` | 手工调整线圈成品库存；`changeQty` 必须是非零整数，负数出库时不得超过当前库存 |
+| `POST` | `/api/coils/stock-adjustments` | `{ adjustments: [{ coilId, changeQty }], note? }` | 原子批量调整线圈成品库存；最多 50 项、同一方案不可重复，任一项无效或库存不足时整批回滚 |
 
 ## 6. 模板 Templates
 
@@ -309,10 +316,16 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 | `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；智能路由额外返回 `defaultProvider=deepseek` 与可用的 `visionProvider=kimi` |
 | `POST` | `/api/ai/chat` | `{ messages, pageContext? }` | SSE 流式对话；消息可带 `attachments: [{ id }]`；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view` |
 | `POST` | `/api/ai/confirm-tool` | `{ toolName, args? }` | 用户确认后执行写工具；调用 `executeToolCall(..., { allowWrite: true })` |
-| `GET` | `/api/ai/system-prompt` | 无 | 读取当前 System Prompt |
-| `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 更新内存和 SQLite `config.ai-system-prompt`；不能为空，最大 50000 字符 |
+| `GET` | `/api/ai/system-prompt` | 无 | 兼容路径；读取当前可编辑的工厂个性化配置，不返回系统核心规则 |
+| `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 兼容路径；更新内存和 SQLite `config.ai-factory-profile`。不能为空，最大 8000 字符；不能覆盖核心安全、来源和写入确认边界 |
 
 AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无图片时使用 DeepSeek；存在图片且 Kimi API Key、视觉开关和视觉模型可用时，使用 Kimi 并按 OpenAI 兼容的 `image_url` 格式发送原图。Kimi 请求失败时回退 DeepSeek，本轮只使用本地 OCR 文字。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。
+
+模型工具集合由服务端按当前问题、订单页面上下文、确定性实时预取和本轮已调用工具动态生成。工具元数据包含业务领域、`read/write` 属性及 `live/derived/stable` 数据模式；只读请求默认排除写工具，明确写入意图才加入相关领域的 `WRITE_TOOLS`。每轮默认最多暴露 18 个工具，通常为 8-15 个；无法识别的业务问题使用小型通用工具集，普通闲聊不发送 `tools` 字段。设置 `AI_DYNAMIC_TOOL_ROUTING_ENABLED=false` 可恢复完整工具集合，仅用于故障回退，不会绕过写操作确认。
+
+系统提示词按四层动态组装：不可编辑核心规则、当前工具路由命中的业务领域规则、可编辑工厂配置、与本轮问题相关的已启用纠正规则。普通闲聊不加载业务领域规则；业务问题只加载当前领域，关闭动态工具路由时加载全部领域作为故障回退。旧 `config.ai-system-prompt` 首次启动时先备份到 `ai-system-prompt-legacy-backup`，再按当前 8000 字和核心边界校验迁移；不合格旧内容只保留备份并回退安全默认配置。核心规则和领域规则始终高于工厂配置和纠正规则。
+
+规则执行采用统一优先级：系统核心规则 > 当前领域规则 > 已批准配方检查规则 > 正式工厂事实 > 用户回答纠错 > 工厂个性化配置。`sourceTable=business_rules` 是可直接引用的正式工厂事实；`factory_rule_candidates` 和 `factory_ai_rules` 在知识索引中只是可追溯副本，分别只由配方智能检查服务和本轮相关纠错提示词执行，检索到副本不得造成二次执行或扩大适用范围。相同纠错文字只注入优先级最高、更新时间最新的一条，原反馈和审核记录仍完整保留。
 
 业务页右侧 AI 可额外发送 `pageContext: { resourceType: "order", resourceId, path: "/orders", view }`。后端只保留合法订单 ID，并将 `view` 限制为 `requirements/readiness/execution/items/purchase/todos`；客户端标签、指令或业务数值都会被丢弃。页面上下文只用于解析“这个订单”“下一步怎么处理”等指代，不写入会话消息，也不替代实时业务工具查询；明确指定其他订单或询问全部订单时，以用户文字为准。
 
@@ -333,17 +346,23 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 ### AI 回答反馈
 
-用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。问题反馈进入知识库管理中心待处理队列，但不会自动修改知识条目、业务数据或规则。
+用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。只有用户选择“内容错误”、填写以后应遵守的正确做法并明确勾选“让 AI 长期记住”时，系统才会生成一条全局纠正规则；其他反馈不会自动学习。纠正规则只约束后续 AI 回答和工具选择，不修改知识原文或业务数据。
 
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
 | `GET` | `/api/ai/feedback?conversationId=&status=&rating=&limit=50` | 无 | 按当前登录身份查询反馈和汇总；`status` 为 `open/resolved`，最大 100 条 |
-| `POST` | `/api/ai/feedback` | `{ messageId, rating, note? }` | 新增或改判指定 AI 回复；`rating` 为 `helpful/incorrect/outdated/missing_source` |
+| `POST` | `/api/ai/feedback` | `{ messageId, rating, note?, learnFromCorrection? }` | 新增或改判指定 AI 回复；`rating` 为 `helpful/incorrect/outdated/missing_source`。`learnFromCorrection=true` 仅允许用于 `incorrect` 且必须填写正确做法 |
 | `POST` | `/api/ai/feedback/:id/diagnose` | 无 | 只读对照当前知识概况，识别知识待同步、缺少引用、知识缺口或需业务复核，并保存诊断快照 |
 | `POST` | `/api/ai/feedback/:id/retest` | `{ answerText, toolResults }` | 保存使用原问题重新查询所得的新回答和来源，供人工对比；不自动归档 |
 | `PATCH` | `/api/ai/feedback/:id` | `{ status, resolutionNote? }` | 将问题标记为待处理或已处理；处理说明最大 500 字符 |
+| `GET` | `/api/ai/learning-rules?status=&limit=100` | 无 | 列出全局长期纠正规则和生效/停用统计；`status` 可为 `active/disabled` |
+| `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction? }` | 更新规则或启停；启用规则会在相关问题中优先加载，停用后立即不再生效 |
 
-同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。反馈和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。
+同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。
+
+启用的纠正规则按本轮问题文本和业务领域评分，只把最多 8 条相关规则加入系统上下文，并以 `sourceTable=factory_ai_rules` 的业务规则条目进入知识索引；在知识库管理中心可随时停用或恢复。它适用于术语、操作习惯、回答口径和工具选择等通用纠错，不局限于线圈。自由文本规则仍由模型执行，且优先级低于核心安全和领域规则；涉及库存、订单、报价等写操作继续受工具参数校验和人工确认保护。
+
+`GET /api/knowledge/overview` 的 `ruleGovernance` 返回规则治理概况：`precedence` 是完整优先级，`stats` 区分正式事实、可追溯执行副本和运行时生效条目，`byKind` 说明每类规则的唯一执行通道，`overlaps` 只报告规范化文字完全相同的潜在重复陈述。该检查只读，不删除原规则或证据。
 
 诊断依据是反馈保存时的 `sourceTable + sourceId` 来源快照和 `/api/knowledge/overview` 当前内容哈希状态。无来源时会从原问题中的型号、编号或引号内容检索候选知识。管理界面的“重新验证”重新调用标准 AI 对话流并保存新回答，用户必须比较新旧内容后手工确认归档；系统不会根据模型自评自动判定正确。
 
@@ -369,7 +388,7 @@ AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认�
 AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 
 - `build_recipe_bom_draft`：调用 `/api/recipes/bom-draft` 生成联动 BOM 草稿。
-- `preview_recipe_cost`：调用 `/api/recipes/:id/cost-preview` 做报价覆盖试算。
+- `preview_recipe_cost`：按配方 ID 或名称解析已有配方，调用 `/api/recipes/:id/cost-preview` 查询当前完整参考成本或做报价覆盖试算。
 - `preview_pump_shell_cost`：调用 `/api/recipes/bom-draft` 试算指定泵壳模板在某个机筒长度下的泵壳本体成本；适用于不锈钢机筒整体泵壳随长度加价。
 - `build_quotation_draft`：调用 `/api/quotations/save-payload-draft` 生成报价保存草稿。
 - `build_order_draft`：调用 `/api/orders/save-payload-draft` 生成订单保存草稿、采购清单和待办。
@@ -393,6 +412,8 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `save_order_requirement_draft`：把已经展示并经用户明确要求保存的订单客户要求归纳结果写入可编辑草稿；必须使用真实订单 ID 和已关联附件的精确文件 ID，需确认后执行。该工具不能确认知识，也不能修改订单明细、配方、采购或库存。
 - `save_order_execution_draft`：把用户明确陈述的订单执行事实新建为可编辑草稿；必须区分生产前/中/后和事实类型，建议、预测与待办不能写成已发生事实。该工具需确认后执行，但仍不能确认知识或修改订单状态、配方、采购和库存。
 - `get_order_knowledge_package`：按订单 ID、客户名或合同号读取 V10.4 只读订单知识包。用于客户要求、历史调整、异常、质量和交付追溯；匹配多张订单时要求明确订单，不属于 `WRITE_TOOLS`。
+
+AI 工具表不再暴露旧的 `query_recipe_cost_by_name`、`query_recipe_cost_by_id` 和 `get_all_parts`。配方成本统一走 `preview_recipe_cost`，避免旧局部成本接口与标准完整成本口径并存；零件查询统一走 `search_parts`，不传筛选时返回总数和最多 30 条当前零件，传关键词或类别时使用同一标准 `/api/parts` 数据源筛选。该调整不删除底层业务 API，也不影响历史会话中已保存的旧工具结果展示。
 
 知识查询工具结果包含 `provenance` 和 `sources`。`provenance.kind=knowledge_snapshot` 表示最近一次知识同步快照；每个 source 包含 `knowledgeEntryId/title/sourceTable/sourceId/syncedAt/sourceUpdatedAt/freshness/knowledgePath/sourcePath`。`freshness` 支持 `fresh/pending_insert/pending_update/pending_delete`。价格、库存、订单状态等实时业务查询使用 `provenance.kind=live_business`；实时结果与知识快照冲突时以实时业务结果为准。
 
@@ -569,6 +590,7 @@ AI 工具：
 - `get_factory_knowledge_detail`：只读读取详情。
 - `get_factory_knowledge_health`：只读诊断自动同步状态、失败原因和人工恢复建议。
 - `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
+- `adjust_coil_stock`：按“规格俗称-片数”批量调整独立线圈成品库存，例如 `12-120` 表示规格 12、片数 120；属于写工具，确认后先唯一匹配正式材质/槽眼方案，再调用原子批量接口。不得改写零件库存，匹配多个方案时停止并要求明确。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
 - `save_order_requirement_draft`：经用户确认后保存订单客户要求草稿；草稿不属于正式知识，确认进入知识库和撤销确认只能在订单页面完成。
 - `save_order_execution_draft`：经用户确认后新建订单执行事实草稿；AI 无权确认、撤销或删除正式事实，知识确认只能在订单页面完成。

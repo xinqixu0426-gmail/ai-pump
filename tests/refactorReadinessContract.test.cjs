@@ -60,6 +60,10 @@ test('文档契约：生产发布清单必须被根 README 引用并覆盖关键
         'SIRI_API_TOKEN',
         'npm run verify:release',
         'npm run verify:prod-env',
+        'npm run db:backup:release',
+        'npm run db:backup:verify',
+        'rollback-macmini-release.sh',
+        '禁止只切换 Git',
         './scripts/install-macmini-launchdaemons.sh',
         '不要把手动 `pkill + nohup` 作为常规发布路径',
         'curl http://127.0.0.1:3002/api/health',
@@ -67,6 +71,7 @@ test('文档契约：生产发布清单必须被根 README 引用并覆盖关键
     ]) {
         assert.match(doc, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
+    assert.match(rootReadme, /\(docs\/database-backup-recovery\.md\)/);
 });
 
 test('文档契约：API SOP 必须约束历史兼容字段扩散', () => {
@@ -89,12 +94,72 @@ test('文档契约：API SOP 必须约束历史兼容字段扩散', () => {
     }
 });
 
+test('运行时稳定性包含超时、就绪探针、优雅停机和部署自动验收', () => {
+    const api = readUtf8('api.cjs');
+    const health = readUtf8('api/routes/health.cjs');
+    const deploy = readUtf8('scripts/install-macmini-launchdaemons.sh');
+    const httpClient = readUtf8('api/services/httpClient.cjs');
+
+    assert.match(httpClient, /AbortController/);
+    assert.match(httpClient, /REQUEST_TIMEOUT/);
+    assert.match(api, /app\.use\('\/api\/health', healthRouter\)/);
+    assert.match(health, /router\.get\('\/live'/);
+    assert.match(health, /router\.get\('\/ready'/);
+    assert.match(api, /process\.once\('SIGTERM'/);
+    assert.match(api, /server\.close\(/);
+    assert.match(api, /status\(502\)/);
+    assert.match(deploy, /api\/health\/ready/);
+    assert.match(deploy, /state = running/);
+    assert.match(deploy, /Web 登录页/);
+});
+
+test('维护边界：部署环境解析集中且健康路由不再耦合成本模块', () => {
+    const api = readUtf8('api.cjs');
+    const environment = readUtf8('api/services/environment.cjs');
+    const cost = readUtf8('api/routes/cost.cjs');
+    const health = readUtf8('api/routes/health.cjs');
+    const internalClient = readUtf8('api/routes/ai/internalApiClient.cjs');
+
+    assert.match(api, /isProductionEnvironment/);
+    assert.match(environment, /REQUIRED_PRODUCTION_ENV/);
+    assert.match(environment, /getInternalApiTimeoutMs/);
+    assert.match(internalClient, /getInternalApiTimeoutMs\(\)/);
+    assert.match(health, /buildReadinessSnapshot/);
+    assert.doesNotMatch(cost, /router\.get\('\/health/);
+    assert.doesNotMatch(cost, /buildReadinessSnapshot/);
+});
+
+test('生产可观测性包含请求链路、进程异常诊断和日志轮转', () => {
+    const api = readUtf8('api.cjs');
+    const requestObservability = readUtf8('api/services/requestObservability.cjs');
+    const diagnostics = readUtf8('api/services/runtimeDiagnostics.cjs');
+    const deploy = readUtf8('scripts/install-macmini-launchdaemons.sh');
+    const rotation = readUtf8('scripts/com.pumpfactory.newsyslog.conf');
+    const operations = readUtf8('docs/operations-runbook.md');
+
+    assert.match(api, /createRequestObservability/);
+    assert.match(api, /uncaughtException/);
+    assert.match(api, /unhandledRejection/);
+    assert.match(requestObservability, /X-Request-ID/);
+    assert.match(requestObservability, /durationMs/);
+    assert.match(diagnostics, /gitCommit/);
+    assert.match(diagnostics, /memoryUsage/);
+    assert.match(deploy, /newsyslog/);
+    assert.match(rotation, /api-launchd/);
+    assert.match(rotation, /web-launchd/);
+    assert.match(rotation, /GEJR/);
+    assert.match(operations, /X-Request-ID/);
+    assert.match(operations, /runtime/);
+    assert.match(operations, /newsyslog/);
+});
+
 test('文档契约：迁移过程文档和旧前端回滚说明不得保留', () => {
     const removedDocs = [
         'docs/next-migration-acceptance.md',
         'docs/ai-api-executor-migration-plan.md',
         'docs/business-logic-refactor-status.md',
         'docs/cost-rules.md',
+        'docs/development-backlog.md',
     ];
 
     for (const doc of removedDocs) {
@@ -112,11 +177,18 @@ test('文档契约：迁移过程文档和旧前端回滚说明不得保留', ()
 
 test('文档契约：Next 当前启动和生产脚本保持可用', () => {
     const packageJson = JSON.parse(readUtf8('package.json'));
+    const nextPackageJson = JSON.parse(readUtf8('apps/web-next/package.json'));
+    const nextConfig = readUtf8('apps/web-next/next.config.mjs');
+    const nextDevRunner = readUtf8('apps/web-next/scripts/run-next-dev.cjs');
     const rootReadme = readUtf8('README.md');
 
     assert.equal(packageJson.scripts['web-next:full'], 'concurrently "npm run api" "npm run web-next:dev"');
     assert.equal(packageJson.scripts['web-next:prod'], 'concurrently "npm run start:prod" "npm run web-next:start"');
     assert.equal(packageJson.scripts['restart:local'], 'powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1');
+    assert.match(nextPackageJson.scripts['dev:primary'], /\.next-dev/);
+    assert.match(nextPackageJson.scripts.dev, /\.next-preview/);
+    assert.match(nextConfig, /process\.env\.NEXT_DIST_DIR \|\| '\.next'/);
+    assert.match(nextDevRunner, /NEXT_DIST_DIR: distDir/);
     assert.match(rootReadme, /npm start/);
     assert.match(rootReadme, /npm run restart:local/);
     assert.match(rootReadme, /npm run web-next:full/);
@@ -710,7 +782,10 @@ test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => 
     assert.match(knowledgeView, /AI 回答反馈/);
     assert.match(knowledgeView, /标记已处理/);
     assert.match(knowledgeView, /reviewAiAnswerFeedback/);
-    assert.match(knowledgeView, /不会自动改写知识或业务数据/);
+    assert.match(aiView, /长期规则只约束 AI，不会修改业务数据/);
+    assert.match(aiView, /让 AI 长期记住这条正确做法/);
+    assert.match(knowledgeView, /AI 长期学习规则/);
+    assert.match(knowledgeView, /toggleLearningRule/);
     assert.match(knowledgeView, /回答诊断与复测/);
     assert.match(knowledgeView, /重新验证/);
     assert.match(knowledgeView, /原回答/);

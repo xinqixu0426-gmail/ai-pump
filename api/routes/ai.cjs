@@ -20,3 +20,4 @@ router.use('/', promptModule.router);
 
 module.exports = router;
 module.exports.loadSystemPromptFromDB = promptModule.loadSystemPromptFromDB;
+module.exports.stopBackgroundTasks = () => siriRouter.stopSiriCleanup?.();

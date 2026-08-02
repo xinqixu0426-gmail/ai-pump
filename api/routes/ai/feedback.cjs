@@ -8,6 +8,10 @@ const {
     diagnoseAiAnswerFeedback,
     recordAiAnswerFeedbackRetest,
 } = require('../../services/aiAnswerFeedback.cjs');
+const {
+    listFactoryAiRules,
+    updateFactoryAiRule,
+} = require('../../services/factoryAiRules.cjs');
 
 const router = Router();
 
@@ -23,6 +27,7 @@ function feedbackAuth(req, res, next) {
 }
 
 router.use('/api/ai/feedback', feedbackAuth);
+router.use('/api/ai/learning-rules', feedbackAuth);
 
 router.get('/api/ai/feedback', (req, res) => {
     try {
@@ -78,6 +83,30 @@ router.patch('/api/ai/feedback/:id', (req, res) => {
         if (!id) return res.status(400).json({ success: false, error: '非法反馈ID' });
         const data = reviewAiAnswerFeedback(req.aiFeedbackOwner, id, req.body || {});
         if (!data) return res.status(404).json({ success: false, error: '反馈不存在' });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/api/ai/learning-rules', (req, res) => {
+    try {
+        const data = listFactoryAiRules({
+            status: req.query.status,
+            limit: req.query.limit,
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+router.patch('/api/ai/learning-rules/:id', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法规则ID' });
+        const data = updateFactoryAiRule(id, req.body || {});
+        if (!data) return res.status(404).json({ success: false, error: '纠正规则不存在' });
         res.json({ success: true, data });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });

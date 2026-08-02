@@ -9,6 +9,14 @@ function readUtf8(filePath) {
     return fs.readFileSync(path.join(repoRoot, filePath), 'utf8');
 }
 
+function readAiPromptContractSource() {
+    return [
+        'api/routes/ai/chat.cjs',
+        'api/routes/ai/prompt.cjs',
+        'api/services/aiPromptComposer.cjs',
+    ].map(readUtf8).join('\n');
+}
+
 function sliceBetween(source, startText, endText) {
     const start = source.indexOf(startText);
     assert.notEqual(start, -1, `missing start marker: ${startText}`);
@@ -109,6 +117,70 @@ test('关键 API 集成契约：配方测试报告支持上传、下载和软删
     assert.match(source, /softDelete\('recipe_technical_files'/);
     assert.match(schema, /CREATE TABLE IF NOT EXISTS recipe_technical_files/);
     assert.match(db, /'recipe_technical_files'/);
+});
+
+test('关键 API 集成契约：线圈库存支持原子批量调整并保留流水', () => {
+    const source = readUtf8('api/routes/coils.cjs');
+    const section = sliceBetween(source, "router.post('/stock-adjustments'", "router.get('/:id/stock-movements'");
+
+    assert.ok(
+        source.indexOf("router.post('/stock-adjustments'") < source.indexOf("router.get('/:id/stock-movements'"),
+        '批量库存路由必须注册在动态线圈 ID 路由之前'
+    );
+    assert.match(section, /db\.transaction\(\(\) => normalized\.map/);
+    assert.match(section, /adjustCoilStock\(/);
+    assert.match(section, /movementType: item\.changeQty > 0 \? 'manual_in' : 'manual_out'/);
+    assert.match(section, /同一线圈方案不能在一次操作中重复调整/);
+    assert.match(section, /updatedCount: results\.length/);
+});
+
+test('关键 API 集成契约：线圈产生库存事实后冻结业务身份', () => {
+    const route = readUtf8('api/routes/coils.cjs');
+    const service = readUtf8('api/services/coilInventory.cjs');
+    const patchSection = sliceBetween(route, "router.patch('/:id'", "router.delete('/:id'");
+
+    assert.match(patchSection, /identityChanges/);
+    assert.match(patchSection, /assertCoilIdentityEditable\(db, id, identityChanges\)/);
+    assert.ok(
+        patchSection.indexOf('assertCoilIdentityEditable(db, id, identityChanges)')
+            < patchSection.indexOf('ensureStatorVariant(targetScheme)'),
+        '身份冻结检查必须早于创建或切换定子组合'
+    );
+    assert.match(service, /Number\(coil\.stock \|\| 0\) > 0/);
+    assert.match(service, /SELECT COUNT\(\*\) AS count FROM coil_stock_movements WHERE coil_id = \?/);
+    assert.match(service, /error\.statusCode = 409/);
+});
+
+test('关键 API 集成契约：回答纠错可生成全局长期规则并支持停用', () => {
+    const route = readUtf8('api/routes/ai/feedback.cjs');
+    const feedbackService = readUtf8('api/services/aiAnswerFeedback.cjs');
+    const ruleService = readUtf8('api/services/factoryAiRules.cjs');
+    const chat = readAiPromptContractSource();
+
+    assert.match(route, /router\.get\('\/api\/ai\/learning-rules'/);
+    assert.match(route, /router\.patch\('\/api\/ai\/learning-rules\/:id'/);
+    assert.match(feedbackService, /learnFromCorrection === true && rating !== 'incorrect'/);
+    assert.match(feedbackService, /让 AI 长期记住时必须填写正确做法/);
+    assert.match(feedbackService, /synchronizeFactoryAiRuleFromFeedback/);
+    assert.match(ruleService, /status: 'active'/);
+    assert.match(ruleService, /ALLOWED_STATUSES = new Set\(\['active', 'disabled'\]\)/);
+    assert.match(chat, /composeAiSystemPrompt/);
+    assert.match(chat, /buildFactoryAiRulesPrompt/);
+    assert.match(ruleService, /selectRelevantFactoryAiRules/);
+});
+
+test('关键 API 集成契约：AI 对话按领域动态选择工具且保留全量回退', () => {
+    const chat = readUtf8('api/routes/ai/chat.cjs');
+    const routing = readUtf8('api/routes/ai/toolRouting.cjs');
+    const provider = readUtf8('api/services/aiProvider.cjs');
+
+    assert.match(chat, /routeAiTools\(routingMessages/);
+    assert.doesNotMatch(chat, /tools:\s*AI_TOOLS/);
+    assert.match(routing, /AI_DYNAMIC_TOOL_ROUTING_ENABLED/);
+    assert.match(routing, /WRITE_TOOLS\.has\(name\) && !classified\.writeIntent/);
+    assert.match(routing, /requiredToolNames/);
+    assert.match(routing, /priorToolNames/);
+    assert.match(provider, /Array\.isArray\(options\.tools\) && options\.tools\.length > 0/);
 });
 
 test('关键 API 集成契约：V9.1 统一文件上传执行真实类型校验和哈希去重', () => {

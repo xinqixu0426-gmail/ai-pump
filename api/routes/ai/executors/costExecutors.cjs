@@ -41,16 +41,6 @@ function coilCandidateData(coil) {
  */
 async function executeCostTool(toolName, args, internalFetch) {
     switch (toolName) {
-        case 'query_recipe_cost_by_name': {
-            const data = await getJson(internalFetch, `/api/cost/recipe/by-name?name=${encodeURIComponent(args.name)}`, '配方成本查询失败');
-            return { success: true, data };
-        }
-
-        case 'query_recipe_cost_by_id': {
-            const data = await getJson(internalFetch, `/api/recipes/${args.id}/cost`, '配方成本查询失败');
-            return { success: true, data };
-        }
-
         case 'full_calculate': {
             const data = await postJson(internalFetch, '/api/cost/full-estimate', args, '完整成本估算失败');
             return { success: true, data };
@@ -193,8 +183,7 @@ async function executeCostTool(toolName, args, internalFetch) {
 }
 
 const COST_TOOLS = new Set([
-    'query_recipe_cost_by_name', 'query_recipe_cost_by_id', 'full_calculate',
-    'get_copper_price', 'calculate_coil_cost', 'dynamic_config_cost',
+    'full_calculate', 'get_copper_price', 'calculate_coil_cost', 'dynamic_config_cost',
     'generate_rotor_drawing', 'print_rotor_drawing', 'get_rotor_drawing_history'
 ]);
 

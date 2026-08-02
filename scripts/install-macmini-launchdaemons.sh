@@ -19,6 +19,47 @@ bootstrap_daemon() {
   /bin/launchctl bootstrap system "$plist_path"
 }
 
+wait_for_daemon() {
+  local label=$1
+  local attempts=30
+  local output
+
+  for ((i = 1; i <= attempts; i++)); do
+    output=$(/bin/launchctl print "system/$label" 2>&1 || true)
+    if [[ "$output" == *"state = running"* ]]; then
+      return
+    fi
+    /bin/sleep 1
+  done
+
+  echo "$label 未在 ${attempts} 秒内进入 running 状态。" >&2
+  /bin/launchctl print "system/$label" >&2 || true
+  return 1
+}
+
+wait_for_http() {
+  local name=$1
+  local url=$2
+  local attempts=45
+
+  for ((i = 1; i <= attempts; i++)); do
+    if /usr/bin/curl --silent --show-error --fail --max-time 3 "$url" >/dev/null 2>&1; then
+      return
+    fi
+    /bin/sleep 1
+  done
+
+  echo "$name 未在 ${attempts} 秒内通过 HTTP 验收：$url" >&2
+  return 1
+}
+
+show_failure_diagnostics() {
+  echo "最近 API 日志：" >&2
+  /usr/bin/tail -n 60 "$PROJECT_DIR/logs/api-launchd.error.log" >&2 2>/dev/null || true
+  echo "最近 Web 日志：" >&2
+  /usr/bin/tail -n 60 "$PROJECT_DIR/logs/web-launchd.error.log" >&2 2>/dev/null || true
+}
+
 if [[ $EUID -ne 0 ]]; then
   echo "请使用 sudo 运行此脚本。" >&2
   exit 1
@@ -44,13 +85,32 @@ cd "$PROJECT_DIR"
 /usr/bin/install -o root -g wheel -m 644 \
   "$SCRIPT_DIR/com.pumpfactory.web.daemon.plist" \
   /Library/LaunchDaemons/com.pumpfactory.web.plist
+/usr/bin/install -o root -g wheel -m 644 \
+  "$SCRIPT_DIR/com.pumpfactory.newsyslog.conf" \
+  /etc/newsyslog.d/com.pumpfactory.conf
+/bin/mkdir -p /usr/local/libexec
+/usr/bin/install -o root -g wheel -m 755 \
+  "$SCRIPT_DIR/pumpfactory-api-log-reopen" \
+  /usr/local/libexec/pumpfactory-api-log-reopen
+/usr/bin/install -o root -g wheel -m 755 \
+  "$SCRIPT_DIR/pumpfactory-web-log-reopen" \
+  /usr/local/libexec/pumpfactory-web-log-reopen
+/usr/sbin/newsyslog -n -f /etc/newsyslog.d/com.pumpfactory.conf >/dev/null
 
 /bin/sleep 1
 bootstrap_daemon com.pumpfactory.api /Library/LaunchDaemons/com.pumpfactory.api.plist
 bootstrap_daemon com.pumpfactory.web /Library/LaunchDaemons/com.pumpfactory.web.plist
 /bin/launchctl enable system/com.pumpfactory.api
 /bin/launchctl enable system/com.pumpfactory.web
-/bin/launchctl kickstart -k system/com.pumpfactory.api
-/bin/launchctl kickstart -k system/com.pumpfactory.web
+/bin/launchctl kickstart system/com.pumpfactory.api
+/bin/launchctl kickstart system/com.pumpfactory.web
 
-echo "系统级水泵服务已安装并启动。"
+if ! wait_for_daemon com.pumpfactory.api ||
+   ! wait_for_daemon com.pumpfactory.web ||
+   ! wait_for_http "API 就绪检查" "http://127.0.0.1:3002/api/health/ready" ||
+   ! wait_for_http "Web 登录页" "http://127.0.0.1:3000/login"; then
+  show_failure_diagnostics
+  exit 1
+fi
+
+echo "系统级水泵服务已安装，并通过 LaunchDaemon、API 就绪和 Web 页面验收。"

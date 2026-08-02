@@ -99,7 +99,7 @@ function buildManagementExecutionQueue(center = {}, options = {}) {
             || left.sourceIndex - right.sourceIndex
             || String(left.title || '').localeCompare(String(right.title || ''), 'zh-CN')
         ));
-    const items = ranked.slice(0, limit).map(({ sourceIndex, ...item }, index) => ({
+    const items = ranked.slice(0, limit).map(({ sourceIndex: _sourceIndex, ...item }, index) => ({
         ...item,
         rank: index + 1,
         queueLevel: index === 0 ? 'now' : 'next',

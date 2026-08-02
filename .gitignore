@@ -3,8 +3,10 @@ node_modules/
 dist/
 .next/
 .next-dev/
+.next-preview/
 .DS_Store
 *.log
+*.tsbuildinfo
 uploads/
 .cert/
 .claude/
@@ -22,6 +24,7 @@ backups/
 # 临时与本地构建文件夹
 tmp/
 temp/
+preview/
 .env.local
 .env.*.local
 

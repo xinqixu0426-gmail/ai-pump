@@ -554,6 +554,24 @@ const CANONICAL_TABLES_SQL = `
         FOREIGN KEY(message_id) REFERENCES ai_conversation_messages(id)
     );
 
+    CREATE TABLE IF NOT EXISTS factory_ai_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_feedback_id INTEGER UNIQUE,
+        title TEXT NOT NULL,
+        trigger_text TEXT NOT NULL DEFAULT '',
+        instruction TEXT NOT NULL,
+        scope_type TEXT NOT NULL DEFAULT 'global'
+            CHECK(scope_type IN ('global')),
+        priority INTEGER NOT NULL DEFAULT 100,
+        status TEXT NOT NULL DEFAULT 'active'
+            CHECK(status IN ('active', 'disabled')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(source_feedback_id) REFERENCES ai_answer_feedback(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_status_priority
+        ON factory_ai_rules(status, priority DESC, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS ai_evaluation_cases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         case_key TEXT NOT NULL UNIQUE,
@@ -893,6 +911,7 @@ const APPLICATION_TABLES = Object.freeze([
     'factory_rule_candidates',
     'factory_rule_events',
     'factory_workflow_runs',
+    'factory_ai_rules',
     'knowledge_embeddings',
     'knowledge_entries',
     'knowledge_documents',

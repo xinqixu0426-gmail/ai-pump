@@ -19,6 +19,14 @@ function readUtf8(filePath) {
     return fs.readFileSync(filePath, 'utf8');
 }
 
+function readAiPromptContractSource() {
+    return [
+        'api/routes/ai/chat.cjs',
+        'api/routes/ai/prompt.cjs',
+        'api/services/aiPromptComposer.cjs',
+    ].map(filePath => readUtf8(path.join(repoRoot, filePath))).join('\n');
+}
+
 function relative(filePath) {
     return path.relative(repoRoot, filePath).replace(/\\/g, '/');
 }
@@ -106,6 +114,19 @@ test('API 静态契约：前端不得新增裸 fetch 调用', () => {
     }
 
     assert.deepEqual(offenders, []);
+});
+
+test('API 静态契约：AI 纠错学习只通过统一客户端并提供人工启停入口', () => {
+    const client = readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts'));
+    const chat = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const knowledge = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+
+    assert.match(client, /proxyRequest<ApiResponse<FactoryAiRuleList>>\(`\/api\/ai\/learning-rules/);
+    assert.match(client, /learnFromCorrection\?: boolean/);
+    assert.match(chat, /让 AI 长期记住这条正确做法/);
+    assert.match(chat, /feedbackRating === 'incorrect' && feedbackLearn/);
+    assert.match(knowledge, /AI 长期学习规则/);
+    assert.match(knowledge, /toggleLearningRule/);
 });
 
 test('API 静态契约：核心 Row Adapter 输出标准 id 和时间字段', () => {
@@ -457,8 +478,8 @@ test('API 静态契约：AI executor 不得直接访问数据库 helper 或裸�
 });
 
 test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
-    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const chatRoute = readAiPromptContractSource();
+    const promptRoute = readAiPromptContractSource();
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
 
     assert.match(chatRoute, /hasPendingWriteConfirmation/);
@@ -471,8 +492,8 @@ test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度'
 });
 
 test('API 静态契约：配方智能检查只读且区分工厂规则、确定问题与复核建议', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
-    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const chatRoute = readAiPromptContractSource();
+    const promptRoute = readAiPromptContractSource();
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
     const service = readUtf8(path.join(repoRoot, 'api/services/recipeIntelligence.cjs'));
@@ -541,7 +562,7 @@ test('API 静态契约：Knowledge V3 使用正反反馈和证据指纹治理学
 test('API 静态契约：Knowledge V3 规则批准前提供只读影响分析', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
 
@@ -559,7 +580,7 @@ test('API 静态契约：Knowledge V3 规则批准前提供只读影响分析', 
 test('API 静态契约：Knowledge V3 全局监控已批准规则执行情况', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
 
@@ -576,7 +597,7 @@ test('API 静态契约：Knowledge V3 全局监控已批准规则执行情况', 
 
 test('API 静态契约：Knowledge V3 同类反馈与候选规则归纳保持事务一致', () => {
     const feedbackService = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
@@ -594,7 +615,7 @@ test('API 静态契约：Knowledge V3 规则生命周期记录可追溯且只读
     const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
     const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
 
@@ -614,7 +635,7 @@ test('API 静态契约：Knowledge V3 规则审核与派生知识保持事务一
     const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const feedback = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
 
     assert.match(knowledge, /function syncFactoryRuleKnowledgeEntry/);
@@ -630,7 +651,7 @@ test('API 静态契约：Knowledge V3 规则审核与派生知识保持事务一
 test('API 静态契约：Knowledge V3 历史恢复只改变审核状态并保留当前证据', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
@@ -651,7 +672,7 @@ test('API 静态契约：Knowledge V3 历史恢复只改变审核状态并保留
 test('API 静态契约：Knowledge V3 低置信度规则禁止批准并自动撤回', () => {
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
     const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
@@ -673,7 +694,7 @@ test('API 静态契约：Knowledge V3 固化反馈证据来源并隔离范围漂
     const feedbackService = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
     const ruleService = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const prompt = readAiPromptContractSource();
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
     const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
@@ -891,8 +912,8 @@ test('API 静态契约：Knowledge V4 AI 可只读诊断同步健康状态', () 
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const chat = readAiPromptContractSource();
+    const prompt = readAiPromptContractSource();
 
     assert.match(tools, /name: 'get_factory_knowledge_health'/);
     assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_knowledge_health/);
@@ -911,7 +932,7 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
     const route = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const knowledgeLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/knowledge.ts'));
     const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
 
@@ -965,7 +986,7 @@ test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业�
 });
 
 test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型能力传递', () => {
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const conversations = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
@@ -1015,7 +1036,7 @@ test('API 静态契约：V9.3 表格解析和报价映射保持只读业务边�
     const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const lifecycle = readUtf8(path.join(repoRoot, 'api/services/managementActionLifecycle.cjs'));
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
 
@@ -1040,7 +1061,7 @@ test('API 静态契约：V9.4 图片和扫描 PDF 使用本地 OCR 且候选参�
     const candidates = readUtf8(path.join(repoRoot, 'api/services/factoryDrawingCandidates.cjs'));
     const fileParser = readUtf8(path.join(repoRoot, 'api/services/factoryFileParser.cjs'));
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
 
     assert.match(ocr, /@tesseract\.js-data\/chi_sim/);
@@ -1061,7 +1082,7 @@ test('API 静态契约：V5.2 订单生产准备检查复用库存计划且保�
     const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
     assert.match(service, /waiting_materials/);
     assert.match(service, /needs_review/);
     assert.match(service, /currentStock/);
@@ -1081,7 +1102,7 @@ test('API 静态契约：V5.3 订单处理方案有依赖顺序且只生成不�
     const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
     assert.match(service, /dependsOn/);
     assert.match(service, /mode:\s*'confirmable'/);
     assert.match(service, /mode:\s*'needs_input'/);
@@ -1103,7 +1124,7 @@ test('API 静态契约：V5.4 订单方案执行受确认和实时重验双重�
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
     const confirmation = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
     assert.match(ordersRoute, /router\.post\('\/:id\/readiness-actions\/:actionId'/);
     assert.match(ordersRoute, /action\.mode !== 'confirmable'/);
     assert.match(ordersRoute, /action\.status !== 'available'/);
@@ -1120,7 +1141,7 @@ test('API 静态契约：V5.5 订单准备总览对 API、AI 和只读边界保�
     const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
 
     assert.match(service, /attentionRequired/);
     assert.match(service, /waiting_materials/);
@@ -1156,7 +1177,7 @@ test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
     const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
 
     assert.match(service, /order_readiness/);
@@ -1219,7 +1240,7 @@ test('API 静态契约：V7.3 最短处理路径只复用受保护的现有写�
     const center = readUtf8(path.join(repoRoot, 'api/services/managementActionCenter.cjs'));
     const overview = readUtf8(path.join(repoRoot, 'api/services/orderReadinessOverview.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
     const dashboard = readUtf8(path.join(repoRoot, 'apps/web-next/components/management-action-center.tsx'));
     const aiPage = readUtf8(path.join(repoRoot, 'apps/web-next/app/ai/page.tsx'));
 
@@ -1240,7 +1261,7 @@ test('API 静态契约：V7.4 业务写入后自动复查并统一汇总处理�
     const lifecycle = readUtf8(path.join(repoRoot, 'api/services/managementActionLifecycle.cjs'));
     const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const prompt = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const prompt = readAiPromptContractSource();
     const dashboard = readUtf8(path.join(repoRoot, 'apps/web-next/components/management-action-center.tsx'));
 
     assert.match(api, /res\.once\('finish'/);
@@ -1301,7 +1322,7 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chatRoute = readAiPromptContractSource();
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
     const pageContext = readUtf8(path.join(repoRoot, 'api/services/aiPageContext.cjs'));
 
@@ -1335,8 +1356,8 @@ test('API 静态契约：知识库同步工具是受确认保护的写工具', (
 });
 
 test('API 静态契约：AI 知识回答必须携带可追溯来源并区分实时数据', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
-    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const chatRoute = readAiPromptContractSource();
+    const promptRoute = readAiPromptContractSource();
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
 
@@ -1350,19 +1371,33 @@ test('API 静态契约：AI 知识回答必须携带可追溯来源并区分实�
 });
 
 test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
-    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const chatRoute = readAiPromptContractSource();
+    const promptRoute = readAiPromptContractSource();
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
 
     assert.match(tools, /preview_pump_shell_cost/);
     assert.match(tools, /机筒长度/);
-    assert.match(tools, /不要用本工具，改用 preview_pump_shell_cost/);
     assert.match(promptRoute, /泵壳\/机筒长度规则/);
-    assert.match(promptRoute, /不要用 query_recipe_cost_by_name/);
+    assert.match(promptRoute, /查询整个配方当前成本或动态试算时统一使用 preview_recipe_cost/);
     assert.match(chatRoute, /preview_pump_shell_cost/);
-    assert.match(chatRoute, /不要使用 query_recipe_cost_by_name/);
     assert.match(businessExecutor, /\/api\/recipes\/bom-draft/);
+});
+
+test('API 静态契约：AI 成本与零件查询不再暴露旧重复工具', () => {
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    const routing = readUtf8(path.join(repoRoot, 'api/routes/ai/toolRouting.cjs'));
+    const costExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/costExecutors.cjs'));
+    const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
+
+    for (const retiredName of ['query_recipe_cost_by_name', 'query_recipe_cost_by_id', 'get_all_parts']) {
+        assert.doesNotMatch(tools, new RegExp(retiredName));
+        assert.doesNotMatch(routing, new RegExp(retiredName));
+        assert.doesNotMatch(costExecutor, new RegExp(retiredName));
+        assert.doesNotMatch(queryExecutor, new RegExp(retiredName));
+    }
+    assert.match(tools, /preview_recipe_cost/);
+    assert.match(tools, /search_parts/);
 });
 
 test('API 静态契约：AI 会话表进入安全写入白名单', () => {
@@ -1417,7 +1452,7 @@ test('API 静态契约：知识库回归检查由确定性规则判定并安全�
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {
-    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const promptRoute = readAiPromptContractSource();
 
     assert.match(promptRoute, /所有业务写操作必须通过工具调用，由后端标准 API 执行/);
     assert.match(promptRoute, /优先使用配方保存成本作为订单锁价/);
@@ -1425,7 +1460,7 @@ test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接�
 });
 
 test('API 静态契约：AI 不得把性能测试报告标成参考图纸', () => {
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     assert.match(chat, /metadata\.testReports/);
     assert.match(chat, /禁止称为“图纸”“参考图纸”或“工程图”/);
@@ -1435,14 +1470,15 @@ test('API 静态契约：AI 不得把性能测试报告标成参考图纸', () =
 });
 
 test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () => {
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
 
     assert.match(chat, /displaySequence/);
     assert.match(chat, /不得把数据库 id 写成/);
     assert.match(chat, /共同组成一个“成品电缆”业务项/);
     assert.match(executor, /displaySequence: index \+ 1/);
-    assert.match(executor, /const \{ id, Id, \.\.\.quotation \} = row/);
+    assert.match(executor, /delete quotation\.id/);
+    assert.match(executor, /delete quotation\.Id/);
 });
 
 test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', () => {
@@ -1469,15 +1505,18 @@ test('API 静态契约：生产环境不得使用默认 JWT 密钥且必须校�
     const api = readUtf8(path.join(repoRoot, 'api.cjs'));
     const auth = readUtf8(path.join(repoRoot, 'api/routes/auth.cjs'));
     const middleware = readUtf8(path.join(repoRoot, 'api/authMiddleware.cjs'));
+    const environment = readUtf8(path.join(repoRoot, 'api/services/environment.cjs'));
     const envExample = readUtf8(path.join(repoRoot, '.env.example'));
     const verifyScript = readUtf8(path.join(repoRoot, 'scripts/verify-production-env.cjs'));
 
-    assert.match(api, /requireProductionEnv/);
-    assert.match(api, /const PORT = Number\(process\.env\.PORT \|\| 3002\)/);
+    assert.match(api, /assertProductionEnvironment/);
+    assert.match(api, /const PORT = getServerPort\(\)/);
+    assert.match(auth, /isProductionEnvironment/);
+    assert.match(middleware, /isProductionEnvironment/);
+    assert.match(verifyScript, /validateProductionEnvironment/);
     for (const name of ['ACCESS_PASSWORD', 'JWT_SECRET', 'INTERNAL_SECRET', 'CORS_ORIGIN', 'SIRI_API_TOKEN']) {
-        assert.match(api, new RegExp(name));
+        assert.match(environment, new RegExp(name));
         assert.match(envExample, new RegExp(`${name}=`));
-        assert.match(verifyScript, new RegExp(name));
     }
     assert.doesNotMatch(auth, /fallback_secret/);
     assert.doesNotMatch(middleware, /fallback_secret/);
@@ -1489,6 +1528,7 @@ test('API 静态契约：生产环境 Siri 入口必须配置独立 token', () =
     const siri = readUtf8(path.join(repoRoot, 'api/routes/ai/siri.cjs'));
 
     assert.match(siri, /process\.env\.SIRI_API_TOKEN/);
+    assert.match(siri, /isProductionEnvironment/);
     assert.match(siri, /生产环境必须配置 SIRI_API_TOKEN/);
     assert.match(siri, /if \(IS_PRODUCTION && !SIRI_TOKEN\)/);
 });
@@ -1505,18 +1545,20 @@ test('API 静态契约：系统设置写入必须进入审计日志', () => {
     assert.match(section, /SETTING_UPDATE|SETTING_INSERT/);
 });
 
-test('API 静态契约：AI System Prompt 修改必须进入审计日志', () => {
+test('API 静态契约：AI 工厂配置修改必须进入审计日志且不能覆盖核心规则', () => {
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
-    const promptRoute = readUtf8(path.join(repoRoot, 'api/routes/ai/prompt.cjs'));
+    const promptRoute = readAiPromptContractSource();
     const sectionStart = db.indexOf('function setConfig');
     const sectionEnd = db.indexOf('// ── P1.7', sectionStart);
     const section = db.slice(sectionStart, sectionEnd);
 
     assert.match(section, /writeAuditLog\(/);
     assert.match(section, /CONFIG_UPDATE|CONFIG_INSERT/);
-    assert.match(promptRoute, /setConfig\('ai-system-prompt', prompt\)/);
-    assert.match(promptRoute, /提示词不能为空/);
-    assert.match(promptRoute, /prompt\.length > 50000/);
+    assert.match(promptRoute, /setConfig\(FACTORY_PROFILE_KEY, profile\)/);
+    assert.match(promptRoute, /工厂配置不能为空/);
+    assert.match(promptRoute, /FACTORY_PROFILE_MAX_LENGTH = 8000/);
+    assert.match(promptRoute, /不能覆盖核心安全、数据来源或写入确认规则/);
+    assert.match(promptRoute, /LEGACY_BACKUP_KEY/);
     assert.doesNotMatch(promptRoute, /INSERT OR REPLACE INTO config/);
 });
 
@@ -1555,7 +1597,7 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     const archive = readUtf8(path.join(repoRoot, 'api/services/factoryFileArchive.cjs'));
     const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const chat = readAiPromptContractSource();
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
     const fileLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/files.ts'));
     const attachmentPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/factory-file-attachments.tsx'));

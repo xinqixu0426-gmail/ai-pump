@@ -1,4 +1,4 @@
-const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
+const { WRITE_TOOLS } = require('./tools.cjs');
 const { createInternalFetch } = require('./internalApiClient.cjs');
 const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
@@ -9,6 +9,7 @@ const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
 const TOOL_LABELS = {
     create_part: '新建零件',
     update_part: '修改零件',
+    adjust_coil_stock: '调整线圈库存',
     delete_part: '删除零件',
     batch_update_prices: '批量调价',
     create_order: '新建订单',
@@ -36,11 +37,8 @@ const TOOL_LABELS = {
 };
 
 const LIVE_BUSINESS_TOOLS = new Set([
-    'get_all_parts',
     'search_parts',
     'get_all_recipes',
-    'query_recipe_cost_by_name',
-    'query_recipe_cost_by_id',
     'preview_recipe_cost',
     'preview_pump_shell_cost',
     'calculate_coil_cost',
@@ -109,6 +107,16 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '单价', args.price, hasValue(args.price) ? ' 元' : '');
             addRow(rows, '库存', args.stock);
             addRow(rows, '库存变动', args.stockDelta);
+            break;
+        case 'adjust_coil_stock':
+            addRow(rows, '线圈成品', Array.isArray(args.items)
+                ? args.items.map(item => {
+                    const dimensions = [item.material, item.slotType].filter(Boolean).join('/');
+                    const change = Number(item.changeQty);
+                    return `${item.model}${dimensions ? `（${dimensions}）` : ''} ${change > 0 ? '+' : ''}${change} 套`;
+                }).join('，')
+                : '');
+            addRow(rows, '备注', args.note);
             break;
         case 'delete_part':
             addRow(rows, '删除型号', args.model);

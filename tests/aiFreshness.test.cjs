@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const {
     requiresFreshToolLookup,
     buildFreshLookupToolCalls,
+    explicitKnowledgeLookup,
+    parseCoilInventoryInstruction,
     purposeLookupQuery,
 } = require('../api/services/aiFreshness.cjs');
 
@@ -27,6 +29,18 @@ test('AI 普通闲聊不强制调用业务工具', () => {
     assert.equal(requiresFreshToolLookup([{ role: 'user', content: '谢谢' }]), false);
     assert.equal(requiresFreshToolLookup([]), false);
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '你好' }]), []);
+});
+
+test('AI 明确点名知识工具时由服务端执行知识预取', () => {
+    const text = '先使用 search_factory_knowledge 按“成品电缆”查询 business_rule，再说明费用组成。';
+    assert.deepEqual(explicitKnowledgeLookup(text), {
+        name: 'search_factory_knowledge',
+        args: { query: '成品电缆', entryType: 'business_rule', limit: 10 },
+    });
+    assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: text }]), [{
+        name: 'search_factory_knowledge',
+        args: { query: '成品电缆', entryType: 'business_rule', limit: 10 },
+    }]);
 });
 
 test('AI 产品用途选择必须重新查询知识而不能复述旧会话答案', () => {
@@ -128,4 +142,35 @@ test('AI 将规格片数简写精确路由到全部线圈知识方案', () => {
     assert.deepEqual(buildFreshLookupToolCalls([{ role: 'user', content: '给我12-220的线圈数据' }]), [
         { name: 'search_factory_knowledge', args: { query: '12-220', entryType: 'coil', limit: 10 } },
     ]);
+});
+
+test('AI 将多个规格片数俗称直接路由到独立线圈库存工具', () => {
+    const expected = {
+        items: [
+            { model: '12-120', changeQty: 50 },
+            { model: '12-140', changeQty: 50 },
+        ],
+    };
+
+    assert.deepEqual(parseCoilInventoryInstruction('12-120,12-140各入库50套'), expected);
+    assert.deepEqual(buildFreshLookupToolCalls([{
+        role: 'user',
+        content: '12-120,12-140各入库50套',
+    }]), [{
+        name: 'adjust_coil_stock',
+        args: expected,
+    }]);
+});
+
+test('AI 线圈库存俗称支持分项数量和出库方向', () => {
+    assert.deepEqual(parseCoilInventoryInstruction('12-120入库50套，12-140入库30套'), {
+        items: [
+            { model: '12-120', changeQty: 50 },
+            { model: '12-140', changeQty: 30 },
+        ],
+    });
+    assert.deepEqual(parseCoilInventoryInstruction('定子12×120出库5套'), {
+        items: [{ model: '12-120', changeQty: -5 }],
+    });
+    assert.equal(parseCoilInventoryInstruction('零件12-120入库50套'), null);
 });

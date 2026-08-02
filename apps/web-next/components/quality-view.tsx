@@ -222,7 +222,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
         : '';
       if (!window.confirm(`确定${action}候选规则「${candidate.title}」？${impactSummary}`)) return;
       setRuleReviewingId(candidate.id);
-      const updated = await reviewFactoryRuleCandidate(candidate.id, { status });
+      await reviewFactoryRuleCandidate(candidate.id, { status });
       const [candidates, compliance, events] = await Promise.all([
         getFactoryRuleCandidates(),
         getFactoryRuleCompliance(),

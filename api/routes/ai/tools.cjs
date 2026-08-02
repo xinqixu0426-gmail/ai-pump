@@ -2,34 +2,6 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
-            name: 'query_recipe_cost_by_name',
-            description: '通过配方名称查询默认/保存的最新成本。当用户只问“V750的默认成本是多少”时使用；如果用户提到机筒长度、机筒高度、customBarrelLength、180mm 等动态条件，不要用本工具，改用 preview_pump_shell_cost 或 preview_recipe_cost。',
-            parameters: {
-                type: 'object',
-                properties: {
-                    name: { type: 'string', description: '配方名称或泵壳型号' }
-                },
-                required: ['name']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: 'query_recipe_cost_by_id',
-            description: '通过配方ID查成本',
-            parameters: {
-                type: 'object',
-                properties: {
-                    id: { type: 'number', description: '配方ID' }
-                },
-                required: ['id']
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
             name: 'full_calculate',
             description: '一站式BOM综合计算（配方+线圈+浮球+电缆+包材）。当用户提到完整报价、总成本时使用',
             parameters: {
@@ -85,16 +57,36 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
-            name: 'get_all_recipes',
-            description: '获取所有配方列表',
-            parameters: { type: 'object', properties: {} }
+            name: 'adjust_coil_stock',
+            description: '批量调整线圈/定子成品库存。用户说“12-120”时表示规格俗称12、片数120，不是零件型号；入库传正数，出库传负数。同一简写存在多个正式材质或槽眼方案时必须先让用户明确，禁止默认选择。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    items: {
+                        type: 'array',
+                        description: '要调整的线圈成品库存',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                model: { type: 'string', description: '规格俗称-片数，如“12-120”' },
+                                changeQty: { type: 'integer', description: '库存变动套数；入库为正数，出库为负数，不能为0' },
+                                material: { type: 'string', enum: ['钢带', '冷轧'], description: '材质（可选；存在多个方案时必填）' },
+                                slotType: { type: 'string', enum: ['小眼', '国标眼'], description: '槽眼（可选；存在多个方案时必填）' }
+                            },
+                            required: ['model', 'changeQty']
+                        }
+                    },
+                    note: { type: 'string', description: '库存调整备注（可选）' }
+                },
+                required: ['items']
+            }
         }
     },
     {
         type: 'function',
         function: {
-            name: 'get_all_parts',
-            description: '获取所有零件列表',
+            name: 'get_all_recipes',
+            description: '获取所有配方列表',
             parameters: { type: 'object', properties: {} }
         }
     },
@@ -420,7 +412,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'preview_recipe_cost',
-            description: '基于已有配方做动态成本试算，不写库。适合用户问“某配方在180mm机筒/140片/带浮球时总成本是多少”。如果只问泵壳本身成本，用 preview_pump_shell_cost。',
+            description: '查询已有配方的当前完整参考成本，或基于该配方做动态成本试算，不写库。适合用户问“V750当前成本是多少”或“某配方在180mm机筒/140片/带浮球时总成本是多少”。如果只问泵壳本身成本，用 preview_pump_shell_cost。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1124,7 +1116,7 @@ const AI_TOOLS = [
 
 // ── 写操作工具白名单（需要 allowWrite=true 才能执行） ──
 const WRITE_TOOLS = new Set([
-    'create_part', 'update_part', 'delete_part', 'batch_update_prices',
+    'create_part', 'update_part', 'delete_part', 'batch_update_prices', 'adjust_coil_stock',
     'create_order', 'delete_order', 'update_order_status',
     'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
     'generate_purchase_list',

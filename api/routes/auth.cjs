@@ -6,16 +6,14 @@
  */
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { isProductionEnvironment } = require('../services/environment.cjs');
 const router = express.Router();
 
 // 自动适配环境：
 //   Windows (win32) → 本地开发 → Lax Cookie
 //   macOS/Linux      → Mac Mini 部署 (Cloudflare Tunnel) → Secure Cookie
 // 也可通过 NODE_ENV=production 或 BEHIND_PROXY=true 强制覆盖
-const IS_PRODUCTION =
-  process.env.NODE_ENV === 'production' ||
-  (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
-  (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const IS_PRODUCTION = isProductionEnvironment();
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
 const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'dev_jwt_secret');
 const JWT_EXPIRES_IN = '15d'; // 15 天免重新登录

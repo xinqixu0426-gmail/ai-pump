@@ -57,7 +57,7 @@ function resolveLongScrewPricing(partsCatalog, model, supplier = '') {
     if (pricing) return pricing;
     const length = screwLengthFromModel(model);
     if (!length) return null;
-    const unitPrice = calculateScrewUnitPrice(0, length, { enabled: true, diameter: screwDiameterFromModel(model) });
+    const unitPrice = calculateScrewUnitPrice(length);
     if (!Number.isFinite(unitPrice) || unitPrice <= 0) return null;
     return {
         unitPrice,

@@ -3,11 +3,9 @@
  * 从 HttpOnly Cookie 中读取 token 并验证
  */
 const jwt = require('jsonwebtoken');
+const { isProductionEnvironment } = require('./services/environment.cjs');
 
-const IS_PRODUCTION =
-  process.env.NODE_ENV === 'production' ||
-  (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
-  (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const IS_PRODUCTION = isProductionEnvironment();
 const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? '' : 'dev_jwt_secret');
 if (IS_PRODUCTION && !JWT_SECRET) {
   throw new Error('生产环境必须配置 JWT_SECRET');

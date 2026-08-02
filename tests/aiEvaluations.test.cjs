@@ -150,6 +150,18 @@ test('AI 评测：禁用词允许明确否定，但拒绝反转后的肯定结�
     );
     assert.equal(correct.status, 'passed');
 
+    const futureNegation = evaluateRuleCase(
+        {
+            config: {
+                forbiddenTerms: ['全套含刀'],
+            },
+        },
+        '知识库未记录刀片组成，系统不会回答“全套含刀”。',
+        [],
+        fixture.db
+    );
+    assert.equal(futureNegation.status, 'passed');
+
     const wrong = evaluateRuleCase(
         caseItem,
         '附件不是性能测试报告，而是参考图纸。',
@@ -202,7 +214,7 @@ test('AI 评测：切割泵壳必须使用明确证据且不得把 SPA 语义候
 
     const correct = evaluateRuleCase(
         caseItem,
-        '明确记录的选择是 **800平刀切割泵壳**；系统未记录其他明确标注的切割专用配件。“切边6mm长螺丝”是外六角螺丝，不是刀片。',
+        '明确记录的选择是 **800平刀切割泵壳**；系统**未明确记录**其他切割专用配件。“切边6mm长螺丝”是外六角螺丝，不是刀片。',
         toolResults,
         fixture.db
     );

@@ -8,6 +8,7 @@ const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./servic
 const { collapseLegacyCableParts } = require('./services/cableAccessory.cjs');
 const { partSubcategory } = require('./services/packagingClassification.cjs');
 const { pruneAuditLog } = require('./services/auditRetention.cjs');
+const { createDatabaseBackup } = require('./services/databaseBackup.cjs');
 const {
     AUTO_SYNC_SOURCE_TABLES,
     requestAutoKnowledgeSync,
@@ -603,7 +604,7 @@ function setConfig(key, value) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
+const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'factory_ai_rules', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -756,39 +757,59 @@ function writeAuditLog(action, tableName, recordId, oldValue, newValue, user = '
     _auditStmt.run(action, tableName, recordId, oldValue, newValue, user, new Date().toISOString());
 }
 
-// ── P4.20: 数据库自动备份 ──
-const fsDb = require('fs');
+// ── 数据库自动备份 ──
 const { nextBjtTime } = require('./services/scheduleTime.cjs');
-const BACKUP_DIR = path.join(__dirname, '..', 'backups');
-const MAX_BACKUPS = 7;
 
-function runBackup() {
+async function runBackup(type) {
+    backupRuntimeState.running = true;
+    backupRuntimeState.lastStartedAt = new Date().toISOString();
+    backupRuntimeState.lastType = type;
     try {
-        if (!fsDb.existsSync(BACKUP_DIR)) fsDb.mkdirSync(BACKUP_DIR, { recursive: true });
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const backupPath = path.join(BACKUP_DIR, `pump_${stamp}.db`);
-        // P0-3: 使用 better-sqlite3 backup() API 替代字符串拼接的 VACUUM INTO
-        db.backup(backupPath)
-            .then(() => {
-                backupLogger.info(`数据库已备份到 ${backupPath}`);
-                const auditRetention = pruneAuditLog(db);
-                if (auditRetention.deletedCount > 0) {
-                    backupLogger.info(
-                        `已清理 ${auditRetention.deletedCount} 条超过 ${auditRetention.retentionDays} 天的审计日志`
-                    );
-                }
-                // 清理旧备份，只保留最近 MAX_BACKUPS 个
-                const files = fsDb.readdirSync(BACKUP_DIR)
-                    .filter(f => f.startsWith('pump_') && f.endsWith('.db'))
-                    .sort().reverse();
-                for (const old of files.slice(MAX_BACKUPS)) {
-                    fsDb.unlinkSync(path.join(BACKUP_DIR, old));
-                    backupLogger.info(`已清理旧备份: ${old}`);
-                }
-            })
-            .catch(err => backupLogger.error(`失败: ${err.message}`));
-    } catch (err) { backupLogger.error(`失败: ${err.message}`); }
+        const result = await createDatabaseBackup(db, {
+            type,
+            sourcePath: DB_PATH,
+        });
+        backupLogger.info(`数据库 ${type} 备份已验证: ${result.path}`);
+        if (result.mirrorPath) backupLogger.info(`异机备份已验证: ${result.mirrorPath}`);
+        if (result.mirrorError) backupLogger.warn(`异机备份失败，本机备份仍可用: ${result.mirrorError}`);
+        for (const removed of result.removed) backupLogger.info(`已清理过期备份: ${removed}`);
+        const auditRetention = pruneAuditLog(db);
+        if (auditRetention.deletedCount > 0) {
+            backupLogger.info(
+                `已清理 ${auditRetention.deletedCount} 条超过 ${auditRetention.retentionDays} 天的审计日志`
+            );
+        }
+        backupRuntimeState.lastSuccessAt = new Date().toISOString();
+        backupRuntimeState.lastError = null;
+        if (type === 'startup') {
+            backupRuntimeState.startupCompleted = true;
+            backupRuntimeState.startupCompletedAt = backupRuntimeState.lastSuccessAt;
+            backupRuntimeState.startupError = null;
+        }
+        return result;
+    } catch (err) {
+        backupLogger.error(`${type} 备份失败: ${err.message}`);
+        backupRuntimeState.lastError = err.message;
+        if (type === 'startup') backupRuntimeState.startupError = err.message;
+        return null;
+    } finally {
+        backupRuntimeState.running = false;
+        for (const resolve of backupIdleResolvers.splice(0)) resolve();
+    }
 }
+
+const backupRuntimeState = {
+    running: false,
+    lastType: null,
+    lastStartedAt: null,
+    lastSuccessAt: null,
+    lastError: null,
+    startupCompleted: Boolean(process.env.NODE_TEST_CONTEXT),
+    startupCompletedAt: process.env.NODE_TEST_CONTEXT ? new Date().toISOString() : null,
+    startupError: null,
+};
+let backupTimer = null;
+const backupIdleResolvers = [];
 
 function scheduleBackup() {
     // 每天凌晨 3:00 北京时间备份
@@ -796,14 +817,35 @@ function scheduleBackup() {
     const target = nextBjtTime(3);
     const delay = target.getTime() - now.getTime();
     backupLogger.info(`下次备份: ${target.toISOString()} (${(delay / 3600000).toFixed(1)}h 后)`);
-    setTimeout(() => {
-        runBackup();
-        scheduleBackup();
+    backupTimer = setTimeout(async () => {
+        backupTimer = null;
+        try {
+            await runBackup('daily');
+        } finally {
+            scheduleBackup();
+        }
     }, delay);
+    if (typeof backupTimer.unref === 'function') backupTimer.unref();
 }
-// 启动时立即备份一次，然后开始定时
-runBackup();
-scheduleBackup();
+
+function getBackupRuntimeState() {
+    return { ...backupRuntimeState, scheduled: Boolean(backupTimer) };
+}
+
+function stopBackupScheduler() {
+    if (backupTimer) clearTimeout(backupTimer);
+    backupTimer = null;
+}
+
+function waitForBackupIdle() {
+    if (!backupRuntimeState.running) return Promise.resolve();
+    return new Promise(resolve => backupIdleResolvers.push(resolve));
+}
+// 测试进程不触碰工作区数据库备份；正式 API 启动时立即备份并开始定时。
+if (!process.env.NODE_TEST_CONTEXT) {
+    void runBackup('startup');
+    scheduleBackup();
+}
 
 module.exports = {
     db,
@@ -812,5 +854,5 @@ module.exports = {
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,
     updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,
-    nextBjtTime,
+    nextBjtTime, getBackupRuntimeState, stopBackupScheduler, waitForBackupIdle,
 };

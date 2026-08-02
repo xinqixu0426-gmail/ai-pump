@@ -63,7 +63,8 @@ test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', (
     assert.match(aiView, /SegmentedControl/);
     assert.match(aiView, /FadePanel/);
     assert.match(aiView, /activeSampleCategory/);
-    assert.match(aiView, /编辑系统提示词/);
+    assert.match(aiView, /编辑工厂配置/);
+    assert.match(aiView, /核心安全与业务规则由系统维护/);
     assert.match(aiView, /openPromptEditor/);
     assert.match(aiView, /listAiConversations/);
     assert.match(aiView, /openConversation/);
@@ -83,7 +84,7 @@ test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', (
     assert.match(promptKit, /del:/);
     assert.match(promptKit, /input:/);
     assert.doesNotMatch(promptKit, /function parseMarkdown/);
-    assert.match(readUtf8('api/routes/ai/chat.cjs'), /AI_RUNTIME_RESPONSE_RULES/);
+    assert.match(readUtf8('api/routes/ai/chat.cjs'), /composeAiSystemPrompt/);
     assert.match(readUtf8('api/routes/ai/chat.cjs'), /send\('tool_plan'/);
-    assert.match(readUtf8('api/routes/ai/chat.cjs'), /最终面向用户的回复必须使用 Markdown/);
+    assert.match(readUtf8('api/services/aiPromptComposer.cjs'), /最终回复使用 Markdown/);
 });

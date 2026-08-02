@@ -15,6 +15,7 @@ const { parsePositiveId, parseNonNegativeNumber } = require('../services/validat
 const {
     adjustCoilStock,
     assertCoilCanBeDeleted,
+    assertCoilIdentityEditable,
     coilStockMovementRow,
     parseStockChange,
 } = require('../services/coilInventory.cjs');
@@ -191,6 +192,56 @@ router.patch('/spec/:spec', (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+router.post('/stock-adjustments', (req, res) => {
+    try {
+        const adjustments = Array.isArray(req.body?.adjustments) ? req.body.adjustments : [];
+        if (adjustments.length === 0) {
+            return res.status(400).json({ success: false, error: 'adjustments 必须是非空数组' });
+        }
+        if (adjustments.length > 50) {
+            return res.status(400).json({ success: false, error: '单次最多调整 50 个线圈方案' });
+        }
+
+        const normalized = adjustments.map((item, index) => {
+            const coilId = parsePositiveId(item?.coilId);
+            if (!coilId) throw new Error(`第 ${index + 1} 项 coilId 非法`);
+            return {
+                coilId,
+                changeQty: parseStockChange(item?.changeQty),
+            };
+        });
+        if (new Set(normalized.map(item => item.coilId)).size !== normalized.length) {
+            return res.status(400).json({ success: false, error: '同一线圈方案不能在一次操作中重复调整' });
+        }
+
+        const applyAdjustments = db.transaction(() => normalized.map(item => {
+            const adjustment = adjustCoilStock(
+                { db, safeUpdate, safeInsert },
+                {
+                    ...item,
+                    movementType: item.changeQty > 0 ? 'manual_in' : 'manual_out',
+                    note: req.body?.note,
+                }
+            );
+            return {
+                coil: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(item.coilId)),
+                adjustment,
+            };
+        }));
+        const results = applyAdjustments();
+        res.json({
+            success: true,
+            data: {
+                updatedCount: results.length,
+                adjustments: results,
+            },
+        });
+    } catch (error) {
+        const status = error.message === '线圈记录不存在' ? 404 : 400;
+        res.status(status).json({ success: false, error: error.message });
+    }
+});
+
 router.get('/:id/stock-movements', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
@@ -266,19 +317,34 @@ router.patch('/:id', (req, res) => {
         const current = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id));
         if (!current) return res.status(404).json({ success: false, error: '线圈记录不存在' });
         let targetVariantId = current.statorVariantId;
-        if (['spec', 'diameterMm', 'commonName', 'material', 'slotType'].some(key => b[key] !== undefined)) {
-            const scheme = normalizeSchemeInput({
+        const identityChanges = [];
+        const hasDimensionUpdates = ['spec', 'diameterMm', 'commonName', 'material', 'slotType']
+            .some(key => b[key] !== undefined);
+        let targetScheme = null;
+        if (hasDimensionUpdates) {
+            targetScheme = normalizeSchemeInput({
                 ...current,
                 ...b,
                 spec: b.spec ?? b.commonName ?? current.commonName ?? current.spec,
                 schemeStatus: b.schemeStatus ?? current.schemeStatus,
             });
-            const variant = ensureStatorVariant(scheme);
+            if (targetScheme.commonName !== current.commonName) identityChanges.push('规格俗称');
+            if (Number(targetScheme.diameterMm) !== Number(current.diameterMm)) identityChanges.push('定子直径');
+            if (targetScheme.material !== current.material) identityChanges.push('材质');
+            if (targetScheme.slotType !== current.slotType) identityChanges.push('槽眼');
+        }
+        if (b.sheets !== undefined && Number(b.sheets) !== Number(current.sheets)) {
+            identityChanges.push('片数');
+        }
+        assertCoilIdentityEditable(db, id, identityChanges);
+
+        if (targetScheme) {
+            const variant = ensureStatorVariant(targetScheme);
             targetVariantId = variant.id;
             updates.stator_variant_id = variant.id;
-            updates.spec = scheme.commonName;
-            updates.material = scheme.material;
-            updates.slot_type = scheme.slotType;
+            updates.spec = targetScheme.commonName;
+            updates.material = targetScheme.material;
+            updates.slot_type = targetScheme.slotType;
         }
         if (updates.scheme_status !== undefined && !COIL_SCHEME_STATUSES.has(String(updates.scheme_status))) {
             return res.status(400).json({ success: false, error: '方案状态无效' });
@@ -311,7 +377,7 @@ router.patch('/:id', (req, res) => {
         });
         saveScheme();
         res.json({ success: true, data: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id)) });
-    } catch (error) { res.status(400).json({ success: false, error: error.message }); }
+    } catch (error) { res.status(error.statusCode || 400).json({ success: false, error: error.message }); }
 });
 
 router.delete('/:id', (req, res) => {

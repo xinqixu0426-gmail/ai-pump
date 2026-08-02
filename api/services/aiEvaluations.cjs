@@ -73,10 +73,18 @@ function addCheck(checks, key, label, passed, detail) {
 }
 
 function containsAny(answer, terms) {
-    return terms.some(term => answer.includes(String(term)));
+    const normalized = normalizeAnswerForChecks(answer);
+    return terms.some(term => normalized.includes(normalizeAnswerForChecks(term)));
+}
+
+function normalizeAnswerForChecks(value) {
+    return String(value || '')
+        .replace(/[*_`~]/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 }
 
 function containsForbiddenAssertion(answer, termValue) {
+    answer = normalizeAnswerForChecks(answer);
     const term = String(termValue);
     let index = answer.indexOf(term);
     while (index >= 0) {
@@ -87,7 +95,7 @@ function containsForbiddenAssertion(answer, termValue) {
             answer.lastIndexOf('\n', index - 1)
         ) + 1;
         const prefix = answer.slice(sentenceStart, index);
-        const negation = /(?:不是|并非|不属于|不应(?:该)?|不能|不可|不得|不宜)([^。！？\n]{0,24})$/.exec(prefix);
+        const negation = /(?:不是|并非|不属于|不应(?:该)?|不能|不会|不可|不得|不宜)([^。！？\n]{0,24})$/.exec(prefix);
         const reversedByPivot = negation
             && /(?:而是|却是|实际(?:上)?是|反而是|应是|属于)/.test(negation[1]);
         if (!negation || reversedByPivot) return true;

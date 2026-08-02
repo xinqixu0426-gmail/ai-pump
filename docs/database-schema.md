@@ -16,11 +16,11 @@
 4. `schema_migrations` 保存版本、名称、校验和和应用时间。
 5. 已应用迁移的名称或校验和与代码不一致时，应用拒绝启动。
 6. `PRAGMA user_version` 与当前最高迁移版本保持一致。
-7. 表重建或数据回填前必须先生成 SQLite 一致性备份并校验。
+7. 表重建或数据回填前必须先生成 SQLite 一致性 `release` 备份并校验；备份元数据必须绑定 Git commit 和 Schema 版本。
 
 ## 当前版本
 
-当前版本为 `40`：
+当前版本为 `41`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -60,11 +60,15 @@
 | 38 | `repair_order_requirement_summary_order_fk` | 修复第一版历史库升级时订单表重建造成的客户要求外键临时表指向 |
 | 39 | `order_execution_records` | 保存订单生产前、生产中、生产后执行事实的时间线草稿、人工确认快照和依据文件 |
 | 40 | `order_execution_evidence_file_role` | 为订单现场图片、质量记录和交付凭证增加独立 `execution_evidence` 文件关系角色 |
+| 41 | `factory_ai_correction_rules` | 保存用户从 AI 回答反馈中明确确认的全局长期纠正规则 |
 
 ## 数据治理
 
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
+- 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
+- `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
+- `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
 - `knowledge_embeddings` 是可重建的派生索引，使用 `entry_id + model` 唯一约束并通过外键级联删除；只有 `content_hash` 与当前 `knowledge_entries` 一致的向量才可参与检索。
@@ -79,6 +83,8 @@
 - 文件上传必须在写库前完成大小、文件名、允许扩展名、真实内容签名和 UTF-8/Excel 结构检查；只有 `parser_status=parsed` 的 PDF 文字层或 OCR 文字可以进入 AI 上下文。OCR 无可靠文字时保存为 `metadata_only + ocrApplied=true`，不得推断原图参数。
 - 审计日志默认保留 365 天；设置 `AUDIT_RETENTION_DAYS=0` 可禁用自动清理，其他值不得少于 30 天。
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
+- 数据库备份按 `daily/startup/release/safety` 分层保留；恢复前必须验证元数据、SHA-256、完整性、外键和核心表数量，并自动生成 safety 快照。
+- 数据库迁移后的代码回滚必须恢复与目标 Git commit 绑定的数据库，禁止只回滚代码。
 - `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。
 
 ## 验收

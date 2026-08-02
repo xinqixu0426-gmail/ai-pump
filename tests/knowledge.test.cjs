@@ -244,6 +244,9 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     assert.match(cuttingRule.content, /SPA 2叶和 SPA 3叶属于清水泵壳/);
     assert.match(cuttingRule.content, /外六角螺丝，不是刀片/);
     assert.equal(cuttingRule.metadata.bladeInclusionStatus, 'unconfirmed');
+    assert.equal(cuttingRule.metadata.ruleKind, 'factory_fact');
+    assert.equal(cuttingRule.metadata.knowledgeRole, 'authoritative_fact');
+    assert.equal(cuttingRule.metadata.executionChannel, 'knowledge_retrieval');
 });
 
 test('Knowledge service：只把已批准候选规则同步成正式业务规则', () => {
@@ -283,6 +286,59 @@ test('Knowledge service：只把已批准候选规则同步成正式业务规则
     assert.equal(learnedRules.length, 1);
     assert.equal(learnedRules[0].sourceId, '21');
     assert.match(learnedRules[0].content, /证据配方数：3/);
+    assert.equal(learnedRules[0].metadata.ruleKind, 'approved_recipe_rule');
+    assert.equal(learnedRules[0].metadata.knowledgeRole, 'reference_copy');
+    assert.equal(learnedRules[0].metadata.executionChannel, 'analyze_recipe_configuration');
+});
+
+test('Knowledge service：只同步正在生效的 AI 长期纠正规则', () => {
+    const entries = buildKnowledgeEntries({
+        dbAccessors: createMemoryAccessors(),
+        parts: [],
+        templates: [],
+        recipes: [],
+        technicalFiles: [],
+        coils: [],
+        customers: [],
+        quotations: [],
+        orders: [],
+        settings: [],
+        qualitySummary: { generatedAt: '2026-01-01', issues: [] },
+        ruleCandidates: [],
+        factoryAiRules: [
+            {
+                id: 31,
+                sourceFeedbackId: 51,
+                title: '线圈库存简写',
+                triggerText: '12-120 入库 50 套',
+                instruction: '规格-片数表示线圈成品，必须调整独立线圈库存。',
+                priority: 100,
+                scopeType: 'global',
+                status: 'active',
+                updatedAt: '2026-01-02',
+            },
+            {
+                id: 32,
+                sourceFeedbackId: 52,
+                title: '已停用规则',
+                triggerText: '旧问题',
+                instruction: '这条规则不应进入知识库。',
+                priority: 100,
+                scopeType: 'global',
+                status: 'disabled',
+                updatedAt: '2026-01-02',
+            },
+        ],
+    });
+
+    const learnedRules = entries.filter(entry => entry.sourceTable === 'factory_ai_rules');
+    assert.equal(learnedRules.length, 1);
+    assert.equal(learnedRules[0].sourceId, '31');
+    assert.match(learnedRules[0].content, /必须调整独立线圈库存/);
+    assert.match(learnedRules[0].content, /12-120 入库 50 套/);
+    assert.equal(learnedRules[0].metadata.ruleKind, 'answer_correction');
+    assert.equal(learnedRules[0].metadata.knowledgeRole, 'reference_copy');
+    assert.equal(learnedRules[0].metadata.executionChannel, 'relevant_correction_prompt');
 });
 
 test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈方案', () => {
@@ -483,6 +539,9 @@ test('Knowledge service：只读概况准确识别待新增、更新和移除条
     assert.equal(overview.stats.pendingDelete, 1);
     assert.equal(overview.stats.pendingTotal, 3);
     assert.equal(overview.stats.storedTotal, beforeCount);
+    assert.ok(overview.ruleGovernance.stats.total >= 1);
+    assert.ok(overview.ruleGovernance.stats.authoritativeFacts >= 1);
+    assert.equal(overview.ruleGovernance.byKind.factory_fact.knowledgeRole, 'authoritative_fact');
     assert.ok(overview.lastSyncedAt);
     assert.deepEqual(new Set(overview.changes.map(item => item.status)), new Set([
         'pending_insert',

@@ -13,6 +13,7 @@ const AUTO_SYNC_SOURCE_TABLES = new Set([
     'orders',
     'order_requirement_summaries',
     'order_execution_records',
+    'factory_ai_rules',
     'system_settings',
 ]);
 
@@ -288,6 +289,11 @@ function recordKnowledgeSyncFailure(error, mode = 'manual', details = {}) {
     getController().recordExternalFailure(error, mode, details);
 }
 
+function stopAutoKnowledgeSync() {
+    singleton?.dispose();
+    singleton = null;
+}
+
 module.exports = {
     AUTO_SYNC_SOURCE_TABLES,
     createKnowledgeAutoSyncController,
@@ -297,4 +303,5 @@ module.exports = {
     flushAutoKnowledgeSync,
     recordKnowledgeSyncSuccess,
     recordKnowledgeSyncFailure,
+    stopAutoKnowledgeSync,
 };

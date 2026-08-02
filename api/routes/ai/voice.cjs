@@ -4,6 +4,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const authMiddleware = require('../../authMiddleware.cjs');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 
 function voiceAuth(req, res, next) {
     if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
@@ -62,7 +63,11 @@ async function getNlsToken() {
     const url = `https://nls-meta.cn-shanghai.aliyuncs.com/?${canonicalized}&Signature=${encodeURIComponent(signature)}`;
 
     console.log('[ASR] 正在获取 NLS Token...');
-    const response = await fetch(url);
+    const response = await fetchWithPolicy(url, {}, {
+        timeoutMs: 10000,
+        retries: 1,
+        label: '阿里云语音 Token',
+    });
     const result = await response.json();
 
     if (result.Token) {
@@ -105,14 +110,14 @@ router.post('/api/voice/asr', voiceAuth, upload.single('audio'), async (req, res
         // 阿里云一句话识别 REST API (非 Flash 版本)
         const url = `https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/asr?appkey=${appKey}&format=${format}&sample_rate=${sampleRate}&enable_punctuation_prediction=true&enable_inverse_text_normalization=true`;
 
-        const response = await fetch(url, {
+        const response = await fetchWithPolicy(url, {
             method: 'POST',
             headers: {
                 'X-NLS-Token': token,
                 'Content-Type': 'application/octet-stream',
             },
             body: audioBuffer,
-        });
+        }, { timeoutMs: 30000, retries: 0, label: '阿里云语音识别' });
 
         const result = await response.json();
 

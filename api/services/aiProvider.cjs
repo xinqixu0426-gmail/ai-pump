@@ -387,7 +387,9 @@ async function fetchAiProvider(messages, options = {}) {
                     config,
                     dbAccessors: options.dbAccessors,
                 }),
-                tools: options.tools,
+                ...(Array.isArray(options.tools) && options.tools.length > 0
+                    ? { tools: options.tools }
+                    : {}),
                 stream: Boolean(options.stream),
             }),
         });

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npm run web-next:dev:primary",
     "build": "npm run web-next:build",
+    "lint": "eslint api.cjs \"api/**/*.cjs\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\" && npm --prefix apps/web-next run lint",
     "test": "node --test tests/*.test.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs",
@@ -13,9 +14,13 @@
     "knowledge:vector-check": "node scripts/check-knowledge-vector-runtime.cjs",
     "knowledge:model-prepare": "node scripts/check-knowledge-vector-runtime.cjs --prepare-model",
     "knowledge:backup-check": "node scripts/check-knowledge-vector-backup.cjs",
+    "db:backup:release": "node scripts/manage-database-backups.cjs create --type release",
+    "db:backup:list": "node scripts/manage-database-backups.cjs list",
+    "db:backup:verify": "node scripts/manage-database-backups.cjs verify",
+    "db:restore": "node scripts/manage-database-backups.cjs restore",
     "restart:local": "powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1",
     "verify:prod-env": "node scripts/verify-production-env.cjs",
-    "verify:release": "npm audit && npm --prefix apps/web-next audit && npm test && npm run test:deep-api && npm run build && npm run verify:prod-env",
+    "verify:release": "npm audit && npm --prefix apps/web-next audit && npm run lint && npm test && npm run test:deep-api && npm run build && npm run verify:prod-env",
     "preview": "npm run web-next:start:primary",
     "api": "node api.cjs",
     "web-next:dev:primary": "npm --prefix apps/web-next run dev:primary",
@@ -58,7 +63,6 @@
     "tesseract.js": "7.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
     "concurrently": "^8.2.2",
     "eslint": "^8.55.0"
   },

@@ -496,6 +496,11 @@ function getManagementActionLifecycleMonitorStatus() {
     return getMonitor().getStatus();
 }
 
+function stopManagementActionLifecycleMonitor() {
+    monitorSingleton?.stop();
+    monitorSingleton = null;
+}
+
 module.exports = {
     DEFAULT_INTERVAL_MS,
     DEFAULT_RECHECK_DELAY_MS,
@@ -511,5 +516,6 @@ module.exports = {
     requestManagementActionLifecycleRecheck,
     shouldRecheckManagementActions,
     startManagementActionLifecycleMonitor,
+    stopManagementActionLifecycleMonitor,
     syncManagementActionLifecycles,
 };

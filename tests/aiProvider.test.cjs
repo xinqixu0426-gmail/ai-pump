@@ -207,6 +207,31 @@ test('AI 智能路由：Kimi 调用失败时回退 DeepSeek 和本地 OCR', asyn
     }
 });
 
+test('AI 工具路由：没有可用工具时模型请求不发送空 tools 字段', async () => {
+    let requestBody;
+    const response = await fetchAiProvider([{
+        role: 'user',
+        content: '你好',
+    }], {
+        env: {
+            AI_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://api.deepseek.test',
+        },
+        tools: [],
+        fetchImpl: async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return new Response(JSON.stringify({ choices: [] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(Object.hasOwn(requestBody, 'tools'), false);
+});
+
 test('V9.4 AI 附件：DeepSeek 不接收图片二进制但可读取本地 OCR 和文本附件', () => {
     const accessors = createFileAccessors();
     const messages = prepareAiProviderMessages([{

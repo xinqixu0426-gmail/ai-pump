@@ -52,10 +52,7 @@ test('没有有效机筒长度时不改长螺丝', () => {
 });
 
 test('参数化螺丝单价按长度公式计算', () => {
-    const price = calculateScrewUnitPrice(0.3, 195, {
-        enabled: true,
-        diameter: 6,
-    });
+    const price = calculateScrewUnitPrice(195);
     assert.equal(price, 0.63);
 });
 

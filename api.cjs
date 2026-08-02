@@ -11,39 +11,39 @@ const rateLimit = require('express-rate-limit');
 const authMiddleware = require('./api/authMiddleware.cjs');
 const http = require('http');
 const https = require('https');
+const { createLogger } = require('./api/logger.cjs');
+const { createRequestObservability } = require('./api/services/requestObservability.cjs');
+const {
+  assertProductionEnvironment,
+  getServerPort,
+  isProductionEnvironment,
+  parseCorsOrigins,
+} = require('./api/services/environment.cjs');
 
 const app = express();
-const PORT = Number(process.env.PORT || 3002);
-if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535) {
-  throw new Error('PORT 必须是有效端口号');
-}
+const appLogger = createLogger('api');
+const PORT = getServerPort();
 
 // 解决 Nginx 反向代理下 express-rate-limit 报错 (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
 app.set('trust proxy', 1);
+app.use(createRequestObservability());
 
 // ── 中间件 ──
-const IS_PRODUCTION =
-  process.env.NODE_ENV === 'production' ||
-  (process.platform !== 'win32' && process.env.BEHIND_PROXY === 'true') ||
-  (process.platform !== 'win32' && process.env.NODE_ENV !== 'development');
+const IS_PRODUCTION = isProductionEnvironment();
 const IS_DEV = !IS_PRODUCTION;
-const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
-  : [];
-
-function requireProductionEnv(name) {
-  if (!process.env[name]) {
-    throw new Error(`生产环境必须配置 ${name}`);
-  }
-}
+const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN);
 
 if (IS_PRODUCTION) {
-  ['ACCESS_PASSWORD', 'JWT_SECRET', 'INTERNAL_SECRET', 'CORS_ORIGIN', 'SIRI_API_TOKEN'].forEach(requireProductionEnv);
+  assertProductionEnvironment();
 }
 
-if (IS_PRODUCTION && corsOrigins.length === 0) {
-  throw new Error('生产环境必须配置 CORS_ORIGIN');
-}
+const {
+  db,
+  stopBackupScheduler,
+  waitForBackupIdle,
+} = require('./api/db.cjs');
+const { stopAutoKnowledgeSync } = require('./api/services/knowledgeAutoSync.cjs');
+const { stopKnowledgeVectorSync } = require('./api/services/knowledgeVectorAutoSync.cjs');
 
 if (IS_PRODUCTION) {
   app.use((req, res, next) => {
@@ -92,13 +92,11 @@ app.use('/api/auth', (req, res, next) => {
   next();
 }, authRouter);
 
-// 健康检查保持公开（方便监控）
+// 健康检查保持公开（方便监控），与业务成本路由独立。
+const healthRouter = require('./api/routes/health.cjs');
+app.use('/api/health', healthRouter);
+
 const costRouter = require('./api/routes/cost.cjs');
-app.get('/api/health', (req, res, next) => {
-  // 直接转发到 cost 路由中的 health handler
-  // 由于 cost 路由挂在 /api 上，先检查是否有 health 处理
-  next();
-});
 
 // AI 路由内部按端点鉴权；Siri 使用独立的 SIRI_API_TOKEN 验证
 const aiRouter = require('./api/routes/ai.cjs');
@@ -107,6 +105,7 @@ const {
     requestManagementActionLifecycleRecheck,
     shouldRecheckManagementActions,
     startManagementActionLifecycleMonitor,
+    stopManagementActionLifecycleMonitor,
 } = require('./api/services/managementActionLifecycle.cjs');
 app.use('/', aiRouter);
 
@@ -118,7 +117,7 @@ app.use('/', aiRouter);
 app.use('/api', (req, res, next) => {
   // 放行已经处理过的公开路径
   if (req.path.startsWith('/auth')) return next();
-  if (req.path === '/health') return next();
+  if (req.path === '/health' || req.path.startsWith('/health/')) return next();
   // 放行内部自己调用的网络请求
   if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
       return next();
@@ -142,7 +141,7 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// 注意：cost 路由包含 /api/health, /api/cost/*, /api/copper-price/*
+// cost 路由包含 /api/cost/*、/api/copper-price/* 等成本相关端点。
 // 所有路由自带 /api/ 前缀，故挂到根路径
 app.use('/api', costRouter);
 app.use('/api/parts', require('./api/routes/parts.cjs'));
@@ -159,6 +158,10 @@ app.use('/api/workbench', require('./api/routes/workbench.cjs'));
 app.use('/api/quality', require('./api/routes/quality.cjs'));
 app.use('/api/files', require('./api/routes/files.cjs'));
 app.use('/api/knowledge', require('./api/routes/knowledge.cjs'));
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: `API 不存在：${req.method} ${req.originalUrl}` });
+});
 
 // ── 生产模式：Cloudflare Tunnel 仍指向 API 端口时，将页面请求转发到 Next 前端 ──
 const NEXT_ORIGIN = process.env.NEXT_ORIGIN || (IS_PRODUCTION ? 'http://127.0.0.1:3000' : '');
@@ -192,13 +195,36 @@ if (NEXT_ORIGIN) {
     });
 
     proxyReq.on('timeout', () => proxyReq.destroy(new Error('Next frontend proxy timeout')));
-    proxyReq.on('error', () => next());
+    proxyReq.on('error', error => {
+      appLogger.error('Next 页面转发失败', {
+        requestId: req.requestId,
+        method: req.method,
+        path: req.path,
+        error,
+      });
+      if (res.headersSent) return res.destroy(error);
+      res.status(502).type('text/plain; charset=utf-8').send('前端服务暂时不可用，请稍后重试');
+    });
     req.pipe(proxyReq);
   });
 }
 
+app.use((error, req, res, next) => {
+  appLogger.error('未处理请求错误', {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.path,
+    error,
+  });
+  if (res.headersSent) return next(error);
+  if (req.path.startsWith('/api')) {
+    return res.status(500).json({ success: false, error: '服务器内部错误' });
+  }
+  res.status(500).type('text/plain; charset=utf-8').send('服务器内部错误');
+});
+
 // ── 启动 ──
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
     console.log(`水泵BOM成本查询API已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
@@ -230,4 +256,67 @@ app.listen(PORT, '0.0.0.0', () => {
 
     // 后台追踪管理待办首次出现、消失和再次出现，查看接口仍保持只读。
     startManagementActionLifecycleMonitor();
+});
+server.on('error', error => {
+  appLogger.error('HTTP 服务错误', { error });
+  shutdown('serverError', 1);
+});
+
+let shuttingDown = false;
+function closeDatabase() {
+  try {
+    if (db.open) {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      db.close();
+    }
+  } catch (error) {
+    appLogger.error(`关闭数据库失败: ${error.message}`);
+  }
+}
+
+function shutdown(signal, exitCode = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  appLogger.info(`收到 ${signal}，开始优雅停机`);
+  stopBackupScheduler();
+  costRouter.stopCopperPriceScheduler?.();
+  aiRouter.stopBackgroundTasks?.();
+  stopAutoKnowledgeSync();
+  stopKnowledgeVectorSync();
+  stopManagementActionLifecycleMonitor();
+
+  const forceTimer = setTimeout(() => {
+    appLogger.error('优雅停机超过 10 秒，强制关闭连接');
+    server.closeAllConnections?.();
+    closeDatabase();
+    process.exit(exitCode || 1);
+  }, 10000);
+  if (typeof forceTimer.unref === 'function') forceTimer.unref();
+
+  server.close(async error => {
+    await waitForBackupIdle();
+    clearTimeout(forceTimer);
+    closeDatabase();
+    if (error) {
+      appLogger.error(`HTTP 服务关闭失败: ${error.message}`);
+      process.exit(exitCode || 1);
+    }
+    appLogger.info('API 已安全停止');
+    process.exit(exitCode);
+  });
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('uncaughtException', error => {
+  appLogger.error('未捕获异常，准备重启进程', { error });
+  shutdown('uncaughtException', 1);
+});
+process.once('unhandledRejection', reason => {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  appLogger.error('未处理 Promise 拒绝，准备重启进程', { error });
+  shutdown('unhandledRejection', 1);
+});
+process.on('warning', warning => {
+  appLogger.warn('Node.js 运行警告', { warning });
 });

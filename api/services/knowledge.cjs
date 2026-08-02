@@ -4,6 +4,10 @@ const { getAutoKnowledgeSyncStatus } = require('./knowledgeAutoSync.cjs');
 const { listConfirmedOrderRequirementsForKnowledge } = require('./orderRequirements.cjs');
 const { listConfirmedOrderExecutionRecordsForKnowledge } = require('./orderExecutionRecords.cjs');
 const { parsePositiveId } = require('./validation.cjs');
+const {
+    buildRuleGovernanceMetadata,
+    summarizeRuleGovernance,
+} = require('./aiRuleGovernance.cjs');
 
 const ENTRY_TYPES = new Set([
     'part',
@@ -516,6 +520,13 @@ function businessRuleEntries(settings) {
         sourceId: rule.id,
         sourceUpdatedAt: new Date().toISOString(),
         ...rule,
+        metadata: {
+            ...rule.metadata,
+            ...buildRuleGovernanceMetadata('factory_fact', {
+                statement: rule.summary,
+                scopeType: 'global',
+            }),
+        },
     }));
 }
 
@@ -533,6 +544,7 @@ function approvedFactoryRuleEntries(rows) {
             `证据配方数：${Number(row.evidenceCount || row.evidence_count || 0)}`,
             `学习证据：确认 ${Number(row.supportCount ?? row.support_count ?? row.evidenceCount ?? row.evidence_count ?? 0)}，特殊情况 ${Number(row.specialCaseCount || row.special_case_count || 0)}，忽略 ${Number(row.ignoredCount || row.ignored_count || 0)}，置信度 ${Math.round(Number(row.confidenceScore || row.confidence_score || 0) * 100)}%`,
             row.reviewNote || row.review_note ? `审核说明：${row.reviewNote || row.review_note}` : '',
+            '执行边界：本条知识仅用于检索和追溯；实际检查由配方智能检查服务执行，不得从知识副本重复扩展规则。',
         ],
         tags: ['业务规则', '人工审核', '配方检查', row.findingKey || row.finding_key],
         metadata: {
@@ -546,6 +558,39 @@ function approvedFactoryRuleEntries(rows) {
             ignoredCount: Number(row.ignoredCount || row.ignored_count || 0),
             confidenceScore: Number(row.confidenceScore || row.confidence_score || 0),
             approvedAt: row.approvedAt || row.approved_at || null,
+            ...buildRuleGovernanceMetadata('approved_recipe_rule', {
+                statement: row.content,
+                scopeType: row.scopeType || row.scope_type || 'pump_shell_template',
+                scopeRef: row.scopeRef || row.scope_ref,
+            }),
+        },
+    }));
+}
+
+function activeFactoryAiRuleEntries(rows) {
+    return (rows || []).filter(row => row.status === 'active').map(row => createEntry({
+        entryType: 'business_rule',
+        sourceTable: 'factory_ai_rules',
+        sourceId: String(row.id),
+        sourceUpdatedAt: row.updatedAt || row.updated_at,
+        title: `AI 操作习惯：${row.title}`,
+        summary: row.instruction,
+        content: [
+            row.instruction,
+            row.triggerText || row.trigger_text ? `来源问题：${row.triggerText || row.trigger_text}` : '',
+            '来源：用户通过 AI 回答反馈明确确认的长期纠正规则。',
+            '执行边界：本条知识仅用于检索和追溯；实际生效内容由本轮相关纠错提示词注入，不得从知识副本重复执行。',
+        ],
+        tags: ['业务规则', 'AI纠错学习', '操作习惯'],
+        metadata: {
+            ruleId: row.id,
+            sourceFeedbackId: row.sourceFeedbackId || row.source_feedback_id || null,
+            scopeType: row.scopeType || row.scope_type || 'global',
+            priority: Number(row.priority || 100),
+            ...buildRuleGovernanceMetadata('answer_correction', {
+                statement: row.instruction,
+                scopeType: row.scopeType || row.scope_type || 'global',
+            }),
         },
     }));
 }
@@ -580,6 +625,16 @@ function buildKnowledgeEntries(options = {}) {
             ruleCandidates = getDb().dbGetFactoryRuleCandidates('approved');
         } catch {
             ruleCandidates = [];
+        }
+    }
+    let factoryAiRules = options.factoryAiRules;
+    if (!Object.prototype.hasOwnProperty.call(options, 'factoryAiRules')) {
+        try {
+            factoryAiRules = require('./factoryAiRules.cjs')
+                .listFactoryAiRules({ status: 'active', limit: 200 }, { dbAccessors: getDb() })
+                .items;
+        } catch {
+            factoryAiRules = [];
         }
     }
     const qualitySummary = options.qualitySummary || buildDataQualitySummary({
@@ -621,6 +676,7 @@ function buildKnowledgeEntries(options = {}) {
         ...qualityEntries(qualitySummary),
         ...businessRuleEntries(settings),
         ...approvedFactoryRuleEntries(ruleCandidates),
+        ...activeFactoryAiRuleEntries(factoryAiRules),
         ...documents.map(documentEntry),
     ].filter(entry => ENTRY_TYPES.has(entry.entryType) && entry.title);
 }
@@ -1038,6 +1094,7 @@ function inspectKnowledgeOverview(options = {}) {
             pendingUpdate,
             pendingDelete,
         },
+        ruleGovernance: summarizeRuleGovernance(currentEntries),
         byType,
         changes: changes.sort((left, right) => {
             const priority = { pending_update: 0, pending_insert: 1, pending_delete: 2 };
@@ -1051,6 +1108,7 @@ function inspectKnowledgeOverview(options = {}) {
 module.exports = {
     ENTRY_TYPES,
     buildKnowledgeEntries,
+    activeFactoryAiRuleEntries,
     documentEntry,
     syncFactoryRuleKnowledgeEntry,
     syncKnowledgeEntries,

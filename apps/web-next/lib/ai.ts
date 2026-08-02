@@ -100,6 +100,29 @@ export type AiConversationDetail = AiConversationSummary & {
 
 export type AiAnswerFeedbackRating = 'helpful' | 'incorrect' | 'outdated' | 'missing_source';
 export type AiAnswerFeedbackStatus = 'open' | 'resolved';
+export type FactoryAiRuleStatus = 'active' | 'disabled';
+
+export type FactoryAiRule = {
+  id: number;
+  sourceFeedbackId: number | null;
+  title: string;
+  triggerText: string;
+  instruction: string;
+  scopeType: 'global';
+  priority: number;
+  status: FactoryAiRuleStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FactoryAiRuleList = {
+  items: FactoryAiRule[];
+  stats: {
+    total: number;
+    active: number;
+    disabled: number;
+  };
+};
 
 export type AiAnswerFeedbackDiagnosis = {
   type: 'knowledge_outdated' | 'missing_citation' | 'knowledge_gap' | 'business_review';
@@ -139,6 +162,7 @@ export type AiAnswerFeedback = {
   retestAnswerText: string;
   retestSources: AiKnowledgeSource[];
   retestedAt: string | null;
+  learningRule: FactoryAiRule | null;
   status: AiAnswerFeedbackStatus;
   resolutionNote: string;
   resolvedAt: string | null;
@@ -320,7 +344,7 @@ export async function generateAiDraftFromAttachment(
 
 export async function getAiSystemPrompt(): Promise<string> {
   const result = await proxyRequest<ApiResponse<string>>('/api/ai/system-prompt');
-  if (!result.success || typeof result.data !== 'string') throw new Error(result.error || '读取提示词失败');
+  if (!result.success || typeof result.data !== 'string') throw new Error(result.error || '读取工厂配置失败');
   return result.data;
 }
 
@@ -329,7 +353,7 @@ export async function updateAiSystemPrompt(prompt: string): Promise<void> {
     method: 'PUT',
     body: JSON.stringify({ prompt }),
   });
-  if (!result.success) throw new Error(result.error || '保存提示词失败');
+  if (!result.success) throw new Error(result.error || '保存工厂配置失败');
 }
 
 export async function listAiConversations(): Promise<AiConversationSummary[]> {
@@ -409,12 +433,37 @@ export async function submitAiAnswerFeedback(input: {
   messageId: number;
   rating: AiAnswerFeedbackRating;
   note?: string;
+  learnFromCorrection?: boolean;
 }): Promise<AiAnswerFeedback> {
   const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>('/api/ai/feedback', {
     method: 'POST',
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答反馈失败');
+  return result.data;
+}
+
+export async function listFactoryAiRules(filters: {
+  status?: FactoryAiRuleStatus;
+  limit?: number;
+} = {}): Promise<FactoryAiRuleList> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  params.set('limit', String(filters.limit || 100));
+  const result = await proxyRequest<ApiResponse<FactoryAiRuleList>>(`/api/ai/learning-rules?${params}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取 AI 学习规则失败');
+  return result.data;
+}
+
+export async function updateFactoryAiRule(
+  id: number,
+  input: { status?: FactoryAiRuleStatus; title?: string; triggerText?: string; instruction?: string }
+): Promise<FactoryAiRule> {
+  const result = await proxyRequest<ApiResponse<FactoryAiRule>>(`/api/ai/learning-rules/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '更新 AI 学习规则失败');
   return result.data;
 }
 

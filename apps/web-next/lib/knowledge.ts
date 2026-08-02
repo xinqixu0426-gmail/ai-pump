@@ -217,6 +217,43 @@ export type KnowledgeOverview = {
     pendingUpdate: number;
     pendingDelete: number;
   };
+  ruleGovernance: {
+    precedence: Array<{
+      ruleKind: string;
+      label: string;
+      precedence: number;
+      authority: string;
+      executionChannel: string;
+      knowledgeRole: string;
+      runtimeEnforced: boolean;
+    }>;
+    stats: {
+      total: number;
+      authoritativeFacts: number;
+      referenceCopies: number;
+      runtimeEnforced: number;
+      overlapGroups: number;
+    };
+    byKind: Record<string, {
+      label: string;
+      count: number;
+      precedence: number;
+      executionChannel: string;
+      knowledgeRole: string;
+    }>;
+    overlaps: Array<{
+      canonicalKey: string;
+      count: number;
+      sources: Array<{
+        sourceTable: string;
+        sourceId: string;
+        title: string;
+        ruleKind: string;
+        scopeType: string;
+        scopeRef: string;
+      }>;
+    }>;
+  };
   byType: Partial<Record<KnowledgeEntryType, KnowledgeTypeStats>>;
   changes: KnowledgeChange[];
 };

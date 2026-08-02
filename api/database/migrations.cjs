@@ -1943,6 +1943,32 @@ const MIGRATIONS = Object.freeze([
             addOrderExecutionEvidenceFileRole(db);
         },
     },
+    {
+        version: 41,
+        name: 'factory_ai_correction_rules',
+        signature: 'general-ai-correction-rules-from-user-feedback-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS factory_ai_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_feedback_id INTEGER UNIQUE,
+                    title TEXT NOT NULL,
+                    trigger_text TEXT NOT NULL DEFAULT '',
+                    instruction TEXT NOT NULL,
+                    scope_type TEXT NOT NULL DEFAULT 'global'
+                        CHECK(scope_type IN ('global')),
+                    priority INTEGER NOT NULL DEFAULT 100,
+                    status TEXT NOT NULL DEFAULT 'active'
+                        CHECK(status IN ('active', 'disabled')),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(source_feedback_id) REFERENCES ai_answer_feedback(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_status_priority
+                    ON factory_ai_rules(status, priority DESC, updated_at DESC);
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

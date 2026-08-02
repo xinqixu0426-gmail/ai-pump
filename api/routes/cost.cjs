@@ -26,11 +26,7 @@ const router = Router();
 const costLogger = createLogger('cost');
 const copperLogger = createLogger('copper');
 const { updateAllCoilsCopperPrice: applyCopperPriceUpdate } = require('../services/copperPriceUpdate.cjs');
-
-// ── 健康检查 ──
-router.get('/health', (req, res) => {
-    res.json({ status: 'ok', message: '水泵BOM成本查询API运行中', timestamp: new Date().toISOString() });
-});
+const { fetchWithPolicy } = require('../services/httpClient.cjs');
 
 // ── POST /cost/parts ──
 function calculatePartsCostHandler(req, res) {
@@ -244,7 +240,9 @@ router.post('/cost/recipe-difference', (req, res) => {
 
 async function fetchSpotMetalPrice(varietyId, label) {
     const url = `https://m.quheqihuo.com/dz/ajax/js_data_history.html?id=${varietyId}&size=1`;
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Referer': 'https://m.quheqihuo.com/dz/js-d746.html' } });
+    const response = await fetchWithPolicy(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Referer': 'https://m.quheqihuo.com/dz/js-d746.html' },
+    }, { timeoutMs: 10000, retries: 1, label });
     const json = await response.json();
     if (json.code !== 0 || !json.data || json.data.length === 0) throw new Error(`${label}数据获取失败: ` + JSON.stringify(json));
     return Number(json.data[0].price);
@@ -259,7 +257,9 @@ async function fetchAluminumPrice() {
 }
 
 async function fetchUsdCnyRate() {
-    const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { headers: { 'User-Agent': 'pump-bom-manager/1.0' } });
+    const response = await fetchWithPolicy('https://api.exchangerate-api.com/v4/latest/USD', {
+        headers: { 'User-Agent': 'pump-bom-manager/1.0' },
+    }, { timeoutMs: 10000, retries: 1, label: '美元汇率' });
     const json = await response.json();
     const rate = Number(json?.rates?.CNY);
     if (!Number.isFinite(rate) || rate <= 0) throw new Error('美元兑人民币汇率获取失败: ' + JSON.stringify(json));
@@ -350,13 +350,21 @@ function scheduleNextCopperUpdate() {
     const delay = target.getTime() - now.getTime();
     const hours = (delay / 3600000).toFixed(1);
     copperLogger.info(`下次铜价更新: ${target.toISOString()} (${hours}h 后)`);
-    setTimeout(async () => {
+    copperUpdateTimer = setTimeout(async () => {
+        copperUpdateTimer = null;
         copperLogger.info('触发每日铜价更新');
         await runCopperPriceUpdate();
         scheduleNextCopperUpdate(); // 链式调度下一次
     }, delay);
+    if (typeof copperUpdateTimer.unref === 'function') copperUpdateTimer.unref();
 }
+let copperUpdateTimer = null;
 scheduleNextCopperUpdate();
+
+function stopCopperPriceScheduler() {
+    if (copperUpdateTimer) clearTimeout(copperUpdateTimer);
+    copperUpdateTimer = null;
+}
 
 router.post('/copper-price/update', async (req, res) => {
     try {
@@ -392,3 +400,4 @@ router.get('/market-indicators', async (req, res) => {
 module.exports = router;
 module.exports.runCopperPriceUpdate = runCopperPriceUpdate;
 module.exports.runMarketIndicatorsUpdate = runMarketIndicatorsUpdate;
+module.exports.stopCopperPriceScheduler = stopCopperPriceScheduler;

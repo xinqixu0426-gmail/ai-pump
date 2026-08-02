@@ -1,9 +1,16 @@
+const { fetchWithPolicy } = require('../../services/httpClient.cjs');
+const { getInternalApiTimeoutMs, getServerPort } = require('../../services/environment.cjs');
+
 function createInternalFetch() {
     return (url, opts = {}) => {
         const headers = { ...(opts.headers || {}) };
         headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
-        const port = process.env.PORT || 3002;
-        return fetch(`http://localhost:${port}${url}`, { ...opts, headers });
+        const port = getServerPort();
+        return fetchWithPolicy(`http://localhost:${port}${url}`, { ...opts, headers }, {
+            timeoutMs: getInternalApiTimeoutMs(),
+            retries: 0,
+            label: `内部 API ${opts.method || 'GET'} ${url}`,
+        });
     };
 }
 

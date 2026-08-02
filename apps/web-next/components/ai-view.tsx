@@ -1850,6 +1850,7 @@ export function AiView({
   const [feedbackTarget, setFeedbackTarget] = useState<ChatItem | null>(null);
   const [feedbackRating, setFeedbackRating] = useState<Exclude<AiAnswerFeedbackRating, 'helpful'>>('incorrect');
   const [feedbackNote, setFeedbackNote] = useState('');
+  const [feedbackLearn, setFeedbackLearn] = useState(true);
   const [feedbackSaving, setFeedbackSaving] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
   const [promptOpen, setPromptOpen] = useState(false);
@@ -2378,11 +2379,16 @@ export function AiView({
     setFeedbackTarget(item);
     setFeedbackRating(issueRating || 'incorrect');
     setFeedbackNote(existing?.note || '');
+    setFeedbackLearn(existing?.learningRule?.status === 'active' || !existing);
     setFeedbackError('');
   }
 
   async function saveAnswerIssue() {
     if (!feedbackTarget?.persistedMessageId || feedbackSaving) return;
+    if (feedbackLearn && feedbackRating === 'incorrect' && !feedbackNote.trim()) {
+      setFeedbackError('让 AI 长期记住时，请填写以后应该遵守的正确做法。');
+      return;
+    }
     setFeedbackSaving(true);
     setFeedbackError('');
     try {
@@ -2390,6 +2396,7 @@ export function AiView({
         messageId: feedbackTarget.persistedMessageId,
         rating: feedbackRating,
         note: feedbackNote,
+        learnFromCorrection: feedbackRating === 'incorrect' && feedbackLearn,
       });
       setFeedbackByMessageId(current => ({ ...current, [feedback.messageId]: feedback }));
       setFeedbackTarget(null);
@@ -2422,7 +2429,7 @@ export function AiView({
     try {
       setPromptDraft(await getAiSystemPrompt());
     } catch (error) {
-      setPromptError((error as Error).message || '读取提示词失败');
+      setPromptError((error as Error).message || '读取工厂配置失败');
     } finally {
       setPromptLoading(false);
     }
@@ -2431,7 +2438,7 @@ export function AiView({
   async function savePrompt() {
     const prompt = promptDraft.trim();
     if (!prompt) {
-      setPromptError('提示词不能为空');
+      setPromptError('工厂配置不能为空');
       return;
     }
     setPromptSaving(true);
@@ -2441,7 +2448,7 @@ export function AiView({
       setPromptDraft(prompt);
       setPromptOpen(false);
     } catch (error) {
-      setPromptError((error as Error).message || '保存提示词失败');
+      setPromptError((error as Error).message || '保存工厂配置失败');
     } finally {
       setPromptSaving(false);
     }
@@ -2646,7 +2653,7 @@ export function AiView({
             )}
             <div className="mt-3 border-t border-line pt-2">
               <Button variant="ghost" size="sm" className="w-full justify-start text-muted" icon={<Pencil size={15} />} onClick={() => void openPromptEditor()} disabled={promptLoading || promptSaving}>
-                提示词设置
+                工厂配置
               </Button>
             </div>
           </aside>
@@ -2982,7 +2989,7 @@ export function AiView({
 
               <div className="border-t border-line pt-2">
                 <Button variant="ghost" className="w-full justify-start" icon={<Pencil size={16} />} onClick={() => { setMobileSidebarOpen(false); void openPromptEditor(); }} disabled={promptLoading || promptSaving}>
-                  编辑提示词
+                  编辑工厂配置
                 </Button>
               </div>
             </motion.aside>
@@ -3188,7 +3195,7 @@ export function AiView({
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
               <div>
                 <h2 id="answer-feedback-title" className="text-base font-semibold text-ink">报告回答问题</h2>
-                <div className="mt-1 text-xs text-muted">反馈会进入知识库管理中心，不会自动修改业务数据。</div>
+                <div className="mt-1 text-xs text-muted">反馈会进入知识库管理中心；长期规则只约束 AI，不会修改业务数据。</div>
               </div>
               <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setFeedbackTarget(null)} disabled={feedbackSaving} />
             </div>
@@ -3204,7 +3211,10 @@ export function AiView({
                     type="button"
                     role="radio"
                     aria-checked={feedbackRating === value}
-                    onClick={() => setFeedbackRating(value)}
+                    onClick={() => {
+                      setFeedbackRating(value);
+                      setFeedbackLearn(value === 'incorrect');
+                    }}
                     className={`h-10 rounded-md border px-3 text-sm font-medium ${
                       feedbackRating === value ? 'border-ink bg-ink text-white' : 'border-line bg-white text-slate-700 hover:bg-slate-50'
                     }`}
@@ -3214,17 +3224,36 @@ export function AiView({
                 ))}
               </div>
               <label className="block">
-                <span className="text-xs font-medium text-muted">补充说明（可选）</span>
+                <span className="text-xs font-medium text-muted">
+                  {feedbackRating === 'incorrect' && feedbackLearn ? '正确做法' : '补充说明（可选）'}
+                </span>
                 <textarea
                   value={feedbackNote}
                   onChange={event => setFeedbackNote(event.target.value)}
                   maxLength={500}
                   rows={4}
-                  placeholder="例如：正确价格应为 93 元，业务数据已于今天更新。"
+                  placeholder={feedbackRating === 'incorrect' && feedbackLearn
+                    ? '例如：规格-片数表示线圈成品，入库时必须调整线圈库存，不能查询零件库。'
+                    : '例如：业务数据已于今天更新，需要重新读取当前值。'}
                   className="mt-2 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
                   disabled={feedbackSaving}
                 />
               </label>
+              {feedbackRating === 'incorrect' ? (
+                <label className="flex items-start gap-3 rounded-md border border-line bg-slate-50 px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={feedbackLearn}
+                    onChange={event => setFeedbackLearn(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-line"
+                    disabled={feedbackSaving}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-ink">让 AI 长期记住这条正确做法</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-muted">启用后会成为通用纠正规则，可在知识库管理中心停用。</span>
+                  </span>
+                </label>
+              ) : null}
               {feedbackError ? (
                 <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
                   <AlertCircle size={15} className="mt-0.5 shrink-0" />
@@ -3322,7 +3351,10 @@ export function AiView({
         >
           <div role="dialog" aria-modal="true" aria-labelledby="ai-prompt-title" className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-panel border border-line bg-white shadow-panel">
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">编辑系统提示词</h2>
+              <div>
+                <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">编辑工厂配置</h2>
+                <p className="mt-1 text-xs text-muted">用于术语、偏好和操作习惯；核心安全与业务规则由系统维护。</p>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -3338,13 +3370,13 @@ export function AiView({
               {promptLoading ? (
                 <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-muted">
                   <Loader2 size={16} className="animate-spin" />
-                  正在读取提示词
+                  正在读取工厂配置
                 </div>
               ) : (
                 <textarea
                   value={promptDraft}
                   onChange={(event) => setPromptDraft(event.target.value)}
-                  aria-label="系统提示词"
+                  aria-label="工厂个性化配置"
                   autoFocus
                   className="h-[min(58vh,560px)] min-h-72 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-3 font-mono text-sm leading-6 text-ink outline-none transition-colors focus:border-slate-400"
                   disabled={promptSaving}

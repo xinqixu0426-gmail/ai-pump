@@ -263,7 +263,6 @@ export function QuotationsView() {
 
   const customerNameMap = useMemo(() => buildCustomerNameMap(customers), [customers]);
   const stats = useMemo(() => buildQuotationStats(quotations), [quotations]);
-  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
   const selectedRecipe = recipes.find((recipe) => String(recipe.id) === recipeId);
   const draftTotals = useMemo(() => calculateQuotationTotals(draftItems), [draftItems]);
   const prefillCustomerId = searchParams.get('customerId') || '';
