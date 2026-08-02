@@ -50,8 +50,8 @@ tail -n 100 logs/web-launchd.error.log
 `install-macmini-launchdaemons.sh` 会安装
 `/etc/newsyslog.d/com.pumpfactory.conf`。API/Web 标准和错误日志达到 10 MB
 后轮转，保留 14 份并压缩。轮转完成后会向对应服务发送 `SIGTERM`，API
-完成优雅停机后由 LaunchDaemon 自动拉起，使新进程重新打开日志文件。同一
-服务 60 秒内只触发一次，避免标准日志和错误日志同时轮转造成重复重启。
+完成优雅停机后由 LaunchDaemon 自动拉起，使新进程重新打开日志文件。每个
+服务使用一条 glob 规则统一处理标准日志和错误日志，只发送一次停止信号。
 
 检查配置：
 

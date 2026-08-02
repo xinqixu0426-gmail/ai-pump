@@ -147,7 +147,13 @@ test('生产可观测性包含请求链路、进程异常诊断和日志轮转',
     assert.match(deploy, /newsyslog/);
     assert.match(rotation, /api-launchd/);
     assert.match(rotation, /web-launchd/);
-    assert.match(rotation, /GEJR/);
+    assert.match(rotation, /api-launchd\.pid 15/);
+    assert.match(rotation, /web-launchd\.pid 15/);
+    assert.doesNotMatch(rotation, /[ER]/);
+    assert.ok(
+        deploy.indexOf('newsyslog -n') < deploy.indexOf('bootout system/com.pumpfactory.api'),
+        '日志和 plist 配置必须在停止线上服务前完成校验'
+    );
     assert.match(operations, /X-Request-ID/);
     assert.match(operations, /runtime/);
     assert.match(operations, /newsyslog/);

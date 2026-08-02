@@ -70,14 +70,8 @@ fi
 
 cd "$PROJECT_DIR"
 /opt/homebrew/bin/node scripts/verify-production-env.cjs
-
-/bin/launchctl bootout "gui/$USER_ID/com.pumpfactory.api" 2>/dev/null || true
-/bin/launchctl bootout "gui/$USER_ID/com.pumpfactory.web" 2>/dev/null || true
-/bin/rm -f /Users/dan/Library/LaunchAgents/com.pumpfactory.api.plist
-/bin/rm -f /Users/dan/Library/LaunchAgents/com.pumpfactory.web.plist
-
-/bin/launchctl bootout system/com.pumpfactory.api 2>/dev/null || true
-/bin/launchctl bootout system/com.pumpfactory.web 2>/dev/null || true
+/usr/bin/plutil -lint "$SCRIPT_DIR/com.pumpfactory.api.daemon.plist" >/dev/null
+/usr/bin/plutil -lint "$SCRIPT_DIR/com.pumpfactory.web.daemon.plist" >/dev/null
 
 /usr/bin/install -o root -g wheel -m 644 \
   "$SCRIPT_DIR/com.pumpfactory.api.daemon.plist" \
@@ -90,12 +84,24 @@ cd "$PROJECT_DIR"
   /etc/newsyslog.d/com.pumpfactory.conf
 /bin/mkdir -p /usr/local/libexec
 /usr/bin/install -o root -g wheel -m 755 \
-  "$SCRIPT_DIR/pumpfactory-api-log-reopen" \
-  /usr/local/libexec/pumpfactory-api-log-reopen
+  "$SCRIPT_DIR/pumpfactory-api-daemon" \
+  /usr/local/libexec/pumpfactory-api-daemon
 /usr/bin/install -o root -g wheel -m 755 \
-  "$SCRIPT_DIR/pumpfactory-web-log-reopen" \
-  /usr/local/libexec/pumpfactory-web-log-reopen
+  "$SCRIPT_DIR/pumpfactory-web-daemon" \
+  /usr/local/libexec/pumpfactory-web-daemon
+/bin/rm -f /usr/local/libexec/pumpfactory-api-log-reopen
+/bin/rm -f /usr/local/libexec/pumpfactory-web-log-reopen
 /usr/sbin/newsyslog -n -f /etc/newsyslog.d/com.pumpfactory.conf >/dev/null
+
+/bin/launchctl bootout "gui/$USER_ID/com.pumpfactory.api" 2>/dev/null || true
+/bin/launchctl bootout "gui/$USER_ID/com.pumpfactory.web" 2>/dev/null || true
+/bin/rm -f /Users/dan/Library/LaunchAgents/com.pumpfactory.api.plist
+/bin/rm -f /Users/dan/Library/LaunchAgents/com.pumpfactory.web.plist
+
+/bin/launchctl bootout system/com.pumpfactory.api 2>/dev/null || true
+/bin/launchctl bootout system/com.pumpfactory.web 2>/dev/null || true
+/bin/rm -f "$PROJECT_DIR/logs/api-launchd.pid"
+/bin/rm -f "$PROJECT_DIR/logs/web-launchd.pid"
 
 /bin/sleep 1
 bootstrap_daemon com.pumpfactory.api /Library/LaunchDaemons/com.pumpfactory.api.plist

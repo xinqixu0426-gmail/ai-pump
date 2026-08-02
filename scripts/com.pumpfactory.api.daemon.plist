@@ -10,8 +10,7 @@
   <string>staff</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/node</string>
-    <string>api.cjs</string>
+    <string>/usr/local/libexec/pumpfactory-api-daemon</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/dan/pump-cost-accounting-system</string>

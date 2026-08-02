@@ -10,11 +10,7 @@
   <string>staff</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/node</string>
-    <string>/Users/dan/pump-cost-accounting-system/apps/web-next/node_modules/next/dist/bin/next</string>
-    <string>start</string>
-    <string>-p</string>
-    <string>3000</string>
+    <string>/usr/local/libexec/pumpfactory-web-daemon</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/dan/pump-cost-accounting-system/apps/web-next</string>
