@@ -1,28 +1,50 @@
 const { Router } = require('express');
 const multer = require('multer');
+const { db, safeInsert, safeUpdate, softDelete } = require('../db.cjs');
 const { parsePositiveId } = require('../services/validation.cjs');
 const {
+    commandActorKey,
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../services/commandRequest.cjs');
+const {
     MAX_FACTORY_FILE_SIZE,
-    deleteFactoryFile,
     getFactoryFile,
     getFactoryFileBlob,
     getFactoryFileContent,
     listFactoryFiles,
-    storeFactoryFile,
 } = require('../services/factoryFileStore.cjs');
 const {
     needsFactoryFileParsing,
-    parseFactoryFile,
 } = require('../services/factoryFileParser.cjs');
 const { buildQuotationFileDraft } = require('../services/factoryQuotationDraft.cjs');
 const {
-    archiveFactoryFile,
-    deleteFactoryFileLink,
     listFactoryFileLinks,
     searchFactoryFileArchiveTargets,
 } = require('../services/factoryFileArchive.cjs');
+const {
+    ARCHIVE_CAPABILITY_ID,
+    LINK_DELETE_CAPABILITY_ID,
+    buildFactoryFileArchivePreview,
+    executeConfirmedFactoryFileArchive,
+    executeFactoryFileLinkDelete,
+} = require('../services/factoryFileCommands.cjs');
+const {
+    DELETE_CAPABILITY_ID,
+    PARSE_CAPABILITY_ID,
+    UPLOAD_CAPABILITY_ID,
+    executeFactoryFileDelete,
+    executeFactoryFileParse,
+    executeFactoryFileUpload,
+} = require('../services/factoryFileLifecycleCommands.cjs');
 
 const router = Router();
+const fileCommandDependencies = {
+    db,
+    safeInsert,
+    safeUpdate,
+    softDelete,
+};
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_FACTORY_FILE_SIZE, files: 1 },
@@ -55,28 +77,55 @@ router.post('/', (req, res) => {
             if (!req.file?.buffer?.length) {
                 return res.status(400).json({ success: false, error: '请选择文件' });
             }
-            const result = storeFactoryFile({
-                buffer: req.file.buffer,
-                originalName: req.file.originalname,
-                mimeType: req.file.mimetype,
-                sourceType: 'direct_upload',
-            });
+            const commandContext = commandContextFromRequest(
+                req,
+                UPLOAD_CAPABILITY_ID
+            );
+            const result = executeFactoryFileUpload(
+                fileCommandDependencies,
+                {
+                    buffer: req.file.buffer,
+                    originalName: req.file.originalname,
+                    mimeType: req.file.mimetype,
+                    sourceType: 'direct_upload',
+                },
+                commandContext
+            );
             let parseWarning = '';
-            if (needsFactoryFileParsing(result.file)) {
+            let parseOperationId = null;
+            if (needsFactoryFileParsing(result)) {
                 try {
-                    await parseFactoryFile(result.file.id);
+                    const parsed = await executeFactoryFileParse(
+                        fileCommandDependencies,
+                        result.id,
+                        { expectedUpdatedAt: result.updatedAt },
+                        {
+                            actorKey: commandContext.actorKey,
+                            idempotencyKey: `upload-parse:${result.operationId}`,
+                            operationId: `${result.operationId}:parse`,
+                            requestId: commandContext.requestId,
+                            warnings: [],
+                        }
+                    );
+                    parseOperationId = parsed.operationId;
                 } catch (error) {
                     parseWarning = error.message;
+                    parseOperationId = error.receipt?.operationId || null;
                 }
             }
+            const currentFile = getFactoryFile(result.id);
             res.status(result.deduplicated ? 200 : 201).json({
                 success: true,
-                data: getFactoryFile(result.file.id),
+                data: {
+                    ...result,
+                    ...currentFile,
+                    parseOperationId,
+                },
                 deduplicated: result.deduplicated,
                 parseWarning,
             });
         } catch (error) {
-            res.status(400).json({ success: false, error: error.message });
+            sendCommandError(res, error);
         }
     });
 });
@@ -114,25 +163,46 @@ router.post('/:id/parse', async (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法文件ID' });
-        await parseFactoryFile(id);
-        res.json({ success: true, data: getFactoryFile(id) });
+        const result = await executeFactoryFileParse(
+            fileCommandDependencies,
+            id,
+            req.body || {},
+            commandContextFromRequest(req, PARSE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
     } catch (error) {
-        res.status(400).json({
+        res.status(Number(error.statusCode) || 400).json({
             success: false,
+            code: error.code || 'factory_file_parse_failed',
             error: error.message,
-            data: getFactoryFile(req.params.id),
+            requestId: req.requestId || null,
+            data: error.receipt || getFactoryFile(req.params.id),
         });
     }
 });
 
-router.post('/:id/quotation-draft', async (req, res) => {
+router.post('/:id/quotation-draft', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法文件ID' });
         const file = getFactoryFile(id);
         if (!file) return res.status(404).json({ success: false, error: '文件不存在' });
-        if (needsFactoryFileParsing(file)) {
-            await parseFactoryFile(id);
+        if (
+            needsFactoryFileParsing(file)
+            || file.parserStatus === 'processing'
+        ) {
+            return res.status(409).json({
+                success: false,
+                code: 'factory_file_parse_required',
+                error: file.parserStatus === 'processing'
+                    ? '文件正在解析，请完成后再生成报价草稿'
+                    : '文件需要先通过明确的解析命令处理，再生成报价草稿',
+                requestId: req.requestId || null,
+                data: {
+                    file,
+                    parsePath: `/api/files/${id}/parse`,
+                },
+            });
         }
         res.json({
             success: true,
@@ -158,27 +228,65 @@ router.get('/:id/links', (req, res) => {
     }
 });
 
+router.post('/:id/archive-preview', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法文件ID' });
+        const result = buildFactoryFileArchivePreview(
+            { db, safeInsert, safeUpdate },
+            id,
+            req.body || {},
+            commandActorKey(req)
+        );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
 router.post('/:id/archive', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法文件ID' });
-        const result = archiveFactoryFile(id, {
-            targetType: req.body?.targetType,
-            targetId: req.body?.targetId,
-            relationRole: req.body?.relationRole,
-            title: req.body?.title,
-            note: req.body?.note,
-            source: req.body?.source,
-            documentType: req.body?.documentType,
-            tags: req.body?.tags,
-        });
-        res.status(result.deduplicated ? 200 : 201).json({
+        let commandInput = req.body || {};
+        const commandContext = commandContextFromRequest(
+            req,
+            ARCHIVE_CAPABILITY_ID
+        );
+        if (!commandInput.confirmationToken && commandInput.targetType) {
+            const compatibilityPreview = buildFactoryFileArchivePreview(
+                { db, safeInsert, safeUpdate },
+                id,
+                commandInput,
+                commandActorKey(req)
+            );
+            commandInput = {
+                confirmationToken: compatibilityPreview.confirmationToken,
+            };
+            commandContext.warnings = [
+                ...(commandContext.warnings || []).filter(
+                    warning => warning.code !== 'idempotency_key_missing_compatibility'
+                ),
+                {
+                    code: 'legacy_archive_without_explicit_preview',
+                    message: '兼容调用仍使用旧归档入参；请迁移到 archive-preview 后提交 confirmationToken',
+                },
+            ];
+        }
+        const result = executeConfirmedFactoryFileArchive(
+            { db, safeInsert, safeUpdate },
+            id,
+            commandInput,
+            commandContext,
+            commandActorKey(req)
+        );
+        res.status(result.idempotentReplay || result.deduplicated ? 200 : 201).json({
             success: true,
             data: result,
             deduplicated: result.deduplicated,
         });
     } catch (error) {
-        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -189,10 +297,16 @@ router.delete('/:id/links/:linkId', (req, res) => {
         if (!id || !linkId) {
             return res.status(400).json({ success: false, error: '非法文件关联ID' });
         }
-        deleteFactoryFileLink(id, linkId);
-        res.json({ success: true });
+        const result = executeFactoryFileLinkDelete(
+            { db, safeInsert, safeUpdate },
+            id,
+            linkId,
+            req.body || {},
+            commandContextFromRequest(req, LINK_DELETE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
     } catch (error) {
-        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -242,10 +356,15 @@ router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法文件ID' });
-        deleteFactoryFile(id);
-        res.json({ success: true });
+        const result = executeFactoryFileDelete(
+            fileCommandDependencies,
+            id,
+            req.body || {},
+            commandContextFromRequest(req, DELETE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
     } catch (error) {
-        res.status(error.statusCode || 400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { getAiCapability } = require('../api/capabilities/registry.cjs');
 
 const repoRoot = path.join(__dirname, '..');
 
@@ -23,6 +24,7 @@ function readAiPromptContractSource() {
     return [
         'api/routes/ai/chat.cjs',
         'api/routes/ai/prompt.cjs',
+        'api/services/factoryProfileService.cjs',
         'api/services/aiPromptComposer.cjs',
     ].map(filePath => readUtf8(path.join(repoRoot, filePath))).join('\n');
 }
@@ -95,6 +97,91 @@ test('API 静态契约：发布前检查脚本必须串起前后端 audit、test
     assert.match(release, /npm run verify:prod-env/);
 });
 
+test('市场同步契约：route 不实现行情解析或数据库写入，AI 不获得新增写权限', () => {
+    const route = readUtf8(path.join(repoRoot, 'api/routes/cost.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/marketSync.cjs'));
+    const command = readUtf8(path.join(repoRoot, 'api/services/marketIndicatorCommands.cjs'));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+
+    assert.match(route, /createMarketSyncService/);
+    assert.match(route, /commandContextFromRequest/);
+    assert.doesNotMatch(route, /fetchSpotMetalPrice/);
+    assert.doesNotMatch(route, /INSERT OR REPLACE INTO system_settings/);
+    assert.match(service, /fetchMarketSnapshot/);
+    assert.match(command, /executePersistentCommand/);
+    assert.match(command, /transaction: false/);
+    assert.match(command, /setSetting/);
+    assert.doesNotMatch(tools, /sync_market_indicators/);
+});
+
+test('运行配置契约：敏感设置通过正式命令提交且回执不暴露密钥', () => {
+    const route = readUtf8(path.join(repoRoot, 'api/routes/settings.cjs'));
+    const command = readUtf8(path.join(repoRoot, 'api/services/runtimeSettingCommands.cjs'));
+    const runtime = readUtf8(path.join(repoRoot, 'api/services/runtimeConfig.cjs'));
+    const client = readUtf8(path.join(repoRoot, 'apps/web-next/lib/runtime-settings.ts'));
+
+    assert.match(route, /executeRuntimeSettingsUpdate/);
+    assert.doesNotMatch(route, /updateRuntimeSettings\(req\.body/);
+    assert.match(command, /executePersistentCommand/);
+    assert.match(command, /applyRuntimeEnvironment/);
+    assert.match(command, /requiredAuditCount: writes\.length/);
+    assert.match(runtime, /encryptSecret/);
+    assert.match(runtime, /runtimeSettingsUpdatedAt/);
+    assert.match(client, /Idempotency-Key/);
+    assert.match(client, /expectedUpdatedAt/);
+});
+
+test('客户要求契约：草稿、确认和撤销通过正式命令且 AI 不能确认知识', () => {
+    const routes = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const commands = readUtf8(path.join(
+        repoRoot,
+        'api/services/orderRequirementCommands.cjs'
+    ));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    assert.match(routes, /executeSaveRequirementDraft/);
+    assert.match(routes, /executeConfirmRequirement/);
+    assert.match(routes, /executeRevokeRequirement/);
+    assert.match(commands, /executePersistentCommand/);
+    assert.match(commands, /assertExpectedUpdatedAt/);
+    assert.match(commands, /requiredAuditCount/);
+    assert.doesNotMatch(tools, /confirm_order_requirement/);
+    assert.doesNotMatch(tools, /revoke_order_requirement/);
+});
+
+test('执行档案契约：五项写入通过正式命令且确认事实不开放给 AI', () => {
+    const routes = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const commands = readUtf8(path.join(
+        repoRoot,
+        'api/services/orderExecutionRecordCommands.cjs'
+    ));
+    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
+    assert.match(routes, /executeCreateExecutionDraft/);
+    assert.match(routes, /executeUpdateExecutionDraft/);
+    assert.match(routes, /executeConfirmExecutionRecord/);
+    assert.match(routes, /executeRevokeExecutionRecord/);
+    assert.match(routes, /executeDeleteExecutionRecord/);
+    assert.match(commands, /executePersistentCommand/);
+    assert.match(commands, /assertExpectedUpdatedAt/);
+    assert.match(commands, /requiredAuditCount/);
+    assert.doesNotMatch(tools, /confirm_order_execution/);
+    assert.doesNotMatch(tools, /revoke_order_execution/);
+    assert.doesNotMatch(tools, /delete_order_execution/);
+});
+
+test('API 静态契约：Mac Mini 发布后必须执行真实 AI 回归门禁并保存报告', () => {
+    const pkg = JSON.parse(readUtf8(path.join(repoRoot, 'package.json')));
+    const gate = pkg.scripts?.['verify:ai-release'] || '';
+    const installer = readUtf8(path.join(repoRoot, 'scripts/install-macmini-launchdaemons.sh'));
+    const evaluator = readUtf8(path.join(repoRoot, 'scripts/run-knowledge-evaluation.cjs'));
+
+    assert.match(gate, /run-knowledge-evaluation\.cjs/);
+    assert.match(gate, /ai-release-gate-latest\.json/);
+    assert.match(installer, /run verify:ai-release/);
+    assert.match(installer, /本次发布不能验收/);
+    assert.match(evaluator, /buildReleaseGateReport/);
+    assert.match(evaluator, /failedChecks/);
+});
+
 test('API 静态契约：前端成本计算不得调用已删除的 /api/cost/calculate', () => {
     const offenders = frontendSourceFiles()
         .filter((filePath) => readUtf8(filePath).includes('/api/cost/calculate'))
@@ -156,14 +243,14 @@ test('API 静态契约：核心 Row Adapter 输出标准 id 和时间字段', ()
 });
 
 test('API 静态契约：客户和报价写接口返回标准 data 对象', () => {
-    const routeFiles = ['api/routes/customers.cjs', 'api/routes/quotations.cjs'];
-    const offenders = routeFiles.filter((filePath) => {
-        const source = readUtf8(path.join(repoRoot, filePath));
-        return !source.includes('res.json({ success: true, data: record })') ||
-            source.includes('id: info.lastInsertRowid');
-    });
-
-    assert.deepEqual(offenders, []);
+    const customers = readUtf8(path.join(repoRoot, 'api/routes/customers.cjs'));
+    const quotations = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+    assert.match(customers, /legacyCustomerCommandResponse\(result\)/);
+    assert.match(quotations, /legacyQuotationCommandResponse\(result\)/);
+    assert.match(quotations, /res\.json\(\{ success: true, data:/);
+    assert.match(customers, /res\.json\(\{ success: true, data:/);
+    assert.doesNotMatch(customers, /lastInsertRowid/);
+    assert.doesNotMatch(quotations, /id: info\.lastInsertRowid/);
 });
 
 test('API 静态契约：Next 资源 client 统一处理 legacy id 时间兼容', () => {
@@ -216,21 +303,26 @@ test('API 静态契约：核心资源写接口新调用必须使用路径 ID', (
 
 test('API 静态契约：历史常用配置草稿接口必须保持后端兼容', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+    const queries = readUtf8(path.join(repoRoot, 'api/services/recipeQueries.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
 
     assert.match(route, /router\.post\('\/model-variant-draft'/);
-    assert.match(route, /recipeDraft/);
+    assert.match(route, /recipeQueries\.getModelVariantDraft/);
+    assert.match(queries, /const recipeDraft = \{/);
     assert.match(nextClient, /applyModelVariantDraft/);
     assert.match(nextClient, /\/api\/recipes\/model-variant-draft/);
 });
 
 test('API 静态契约：配方泵壳模板应用必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/templates.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/templateQueries.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
     const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(route, /router\.get\('\/:id\/default-recipe'/);
-    assert.match(route, /recipeDraft/);
+    assert.match(route, /templateQueries\.getDefaultRecipe/);
+    assert.match(service, /recipeDraft: \{/);
+    assert.match(service, /calculateRecipeCost/);
     assert.match(nextClient, /getTemplateRecipeDraft/);
     assert.match(nextClient, /\/api\/templates\/\$\{templateId\}\/default-recipe/);
     assert.match(nextView, /getTemplateRecipeDraft\(templateId\)/);
@@ -238,24 +330,32 @@ test('API 静态契约：配方泵壳模板应用必须由后端生成草稿', (
 
 test('API 静态契约：配方保存 payload 必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/recipeCommands.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
     const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
-    assert.match(route, /function buildRecipeSavePayloadDraft/);
+    assert.match(route, /buildRecipeSavePayloadDraft\(\s*recipeCommandDependencies\(\)/);
+    assert.match(service, /function buildRecipeSavePayloadDraft/);
+    assert.match(service, /buildRecipeCostDraft/);
+    assert.match(service, /executePersistentCommand/);
     assert.match(nextClient, /buildRecipeSavePayloadDraft/);
     assert.match(nextClient, /\/api\/recipes\/save-payload-draft/);
+    assert.match(nextClient, /Idempotency-Key/);
     assert.match(nextView, /buildRecipeSavePayloadDraft\(\{/);
+    assert.match(nextView, /expectedUpdatedAt: editingRecipe\?\.updatedAt/);
     assert.doesNotMatch(nextView, /partsJson: JSON\.stringify\(costDraft\.parts\)/);
 });
 
 test('API 静态契约：配方线圈材质切换必须从可用组合解析槽眼', () => {
     const coilService = readUtf8(path.join(repoRoot, 'api/services/coilCost.cjs'));
     const coilRoute = readUtf8(path.join(repoRoot, 'api/routes/coils.cjs'));
+    const coilQueries = readUtf8(path.join(repoRoot, 'api/services/coilQueries.cjs'));
     const recipeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(coilService, /function buildCoilSpecOptions/);
-    assert.match(coilRoute, /buildCoilSpecOptions\(dbGetAllCoils\(\)\)/);
+    assert.match(coilRoute, /coilQueries\.getSpecOptions\(\)/);
+    assert.match(coilQueries, /buildCoilSpecOptions\(listCoils\(\)\)/);
     assert.match(recipeView, /function resolveCoilVariantSelection/);
     assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedFormCoilSpec,\s*event\.target\.value/);
     assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedVariantCoil,\s*event\.target\.value/);
@@ -264,11 +364,14 @@ test('API 静态契约：配方线圈材质切换必须从可用组合解析槽�
 
 test('API 静态契约：配方详情只读库存状态且不保留生产扣库存入口', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+    const queries = readUtf8(path.join(repoRoot, 'api/services/recipeQueries.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/recipes.ts'));
     const recipeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
 
     assert.match(route, /router\.get\('\/:id\/inventory-status'/);
-    assert.match(route, /function buildRecipeInventoryStatus/);
+    assert.match(route, /recipeQueries\.getInventoryStatus/);
+    assert.match(queries, /function getInventoryStatus/);
+    assert.match(queries, /scheme_status = 'official'/);
     assert.doesNotMatch(route, /production-check|router\.post\('\/:id\/produce'|function produceRecipe/);
     assert.match(nextClient, /getRecipeInventoryStatus\(recipeId: number\)/);
     assert.match(nextClient, /\/api\/recipes\/\$\{recipeId\}\/inventory-status/);
@@ -277,25 +380,31 @@ test('API 静态契约：配方详情只读库存状态且不保留生产扣库�
 
 test('API 静态契约：报价转订单必须由后端生成订单草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/quotationConversion.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quotations.ts'));
 
     assert.match(route, /router\.post\('\/:id\/order-draft'/);
-    assert.match(route, /function buildOrderDraftFromQuotation/);
-    assert.match(route, /buildBalancedOrderPlans/);
+    assert.match(route, /buildQuotationOrderDraft/);
+    assert.match(service, /function buildQuotationOrderDraft/);
+    assert.match(service, /buildBalancedOrderPlans/);
     assert.match(route, /router\.post\('\/:id\/convert'/);
-    assert.match(route, /converted_order_id/);
+    assert.match(service, /converted_order_id/);
     assert.match(nextClient, /buildQuotationOrderDraft\(quotationId: number\)/);
     assert.match(nextClient, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
     assert.match(nextClient, /\/api\/quotations\/\$\{input\.quotation\.id\}\/convert/);
+    assert.match(nextClient, /expectedUpdatedAt/);
+    assert.match(nextClient, /Idempotency-Key/);
     assert.doesNotMatch(nextClient, /generatePurchasePlan/);
 });
 
 test('API 静态契约：报价保存 payload 必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/quotationDraft.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quotations.ts'));
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
-    assert.match(route, /function buildQuotationSavePayloadDraft/);
+    assert.match(route, /buildQuotationSavePayloadDraft/);
+    assert.match(service, /function buildQuotationSavePayloadDraft/);
     assert.match(nextClient, /buildQuotationSavePayloadDraft/);
     assert.match(nextClient, /\/api\/quotations\/save-payload-draft/);
     assert.doesNotMatch(nextClient, /itemsJson: JSON\.stringify\(input\.items\)/);
@@ -303,40 +412,71 @@ test('API 静态契约：报价保存 payload 必须由后端生成草稿', () =
 
 test('API 静态契约：订单保存 payload 必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const commandService = readUtf8(path.join(repoRoot, 'api/services/orderCommands.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/orders.ts'));
     const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/orders-view.tsx'));
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
-    assert.match(route, /function buildOrderSavePayloadDraft/);
+    assert.match(route, /buildOrderSavePayloadDraft/);
+    assert.match(commandService, /function buildOrderSavePayloadDraft/);
+    assert.match(commandService, /executePersistentCommand/);
+    assert.match(commandService, /executeOrderCreate/);
+    assert.match(commandService, /executeOrderStatus/);
+    assert.match(commandService, /assertExpectedUpdatedAt/);
     assert.match(nextClient, /buildOrderSavePayloadDraft/);
     assert.match(nextClient, /\/api\/orders\/save-payload-draft/);
+    assert.match(nextClient, /Idempotency-Key/);
+    assert.match(nextClient, /expectedUpdatedAt:\s*order\.updatedAt/);
     assert.doesNotMatch(nextClient, /itemsJson: JSON\.stringify\(order\.items\)/);
     assert.doesNotMatch(nextView, /generatePurchasePlan\(draftItems\)/);
 });
 
 test('API 静态契约：订单详情动作必须由后端执行', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const progressService = readUtf8(path.join(repoRoot, 'api/services/purchasingItemProgress.cjs'));
+    const inboundService = readUtf8(path.join(repoRoot, 'api/services/purchasingInbound.cjs'));
+    const inventoryService = readUtf8(path.join(repoRoot, 'api/services/purchaseInventory.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/orders.ts'));
     const detailDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
 
     assert.match(route, /router\.post\('\/:id\/status'/);
+    assert.match(route, /router\.post\('\/:id\/purchase-items\/progress-draft'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/progress'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/toggle'/);
     assert.match(route, /router\.post\('\/:id\/todos\/toggle'/);
+    assert.match(route, /router\.post\('\/:id\/complete-purchase-draft'/);
     assert.match(route, /router\.post\('\/:id\/complete-purchase'/);
-    assert.match(route, /function applyPurchaseInventory/);
-    assert.match(route, /safeUpdate\('parts', partId, \{ stock:/);
-    assert.match(route, /adjustCoilStock/);
-    assert.match(route, /movementType: 'purchase_inbound'/);
-    assert.match(route, /record\.purchase_completed_at \|\| record\.status === '采购完成'/);
-    assert.match(route, /purchase_receipt_id: receiptId/);
-    assert.match(route, /const receiptId = randomUUID\(\)/);
-    assert.match(route, /db\.transaction\(\(orderId\) =>/);
+    assert.match(route, /buildCompletePurchaseDraft/);
+    assert.match(route, /executeCompletePurchase/);
+    assert.match(route, /buildPurchaseItemProgressDraft/);
+    assert.match(route, /buildLegacyPurchaseItemToggleInput/);
+    assert.match(route, /executePurchaseItemProgress/);
+    assert.match(route, /commandContextFromRequest/);
+    assert.match(progressService, /executePersistentCommand/);
+    assert.match(progressService, /function buildLegacyPurchaseItemToggleInput/);
+    assert.match(progressService, /assertExpectedUpdatedAt/);
+    assert.match(progressService, /assertPreviewHash/);
+    assert.match(progressService, /requiredAuditCount/);
+    assert.match(inventoryService, /function applyPurchaseInventory/);
+    assert.match(inventoryService, /safeUpdate\(\s*'parts'/);
+    assert.match(inventoryService, /adjustCoilStock/);
+    assert.match(inventoryService, /movementType: 'purchase_inbound'/);
+    assert.match(inboundService, /record\.purchase_completed_at \|\| record\.status === '采购完成'/);
+    assert.match(inboundService, /purchase_receipt_id: receiptId/);
+    assert.match(inboundService, /executePersistentCommand/);
+    assert.match(inboundService, /requiredAuditCount/);
     assert.match(nextClient, /setOrderStatus/);
     assert.match(nextClient, /updateOrderPurchaseItem/);
+    assert.match(nextClient, /buildOrderPurchaseItemProgressDraft/);
+    assert.match(nextClient, /purchase-items\/progress-draft/);
     assert.match(nextClient, /toggleOrderPurchaseItem/);
     assert.match(nextClient, /toggleOrderTodoItem/);
+    assert.match(nextClient, /buildCompleteOrderPurchaseDraft/);
+    assert.match(nextClient, /Idempotency-Key/);
     assert.match(nextClient, /completeOrderPurchase/);
+    assert.match(detailDrawer, /commandDraft\.stockAddition/);
+    assert.match(detailDrawer, /window\.confirm/);
+    assert.match(detailDrawer, /入库后库存/);
     assert.doesNotMatch(detailDrawer, /saveOrder|batchAddStock/);
 });
 
@@ -345,33 +485,52 @@ test('API 静态契约：包装零件二级分类贯穿数据库、接口和标�
     const schemaSource = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
     const migrationSource = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
     const routeSource = readUtf8(path.join(repoRoot, 'api/routes/parts.cjs'));
+    const serviceSource = readUtf8(path.join(repoRoot, 'api/services/partCommands.cjs'));
 
     assert.match(schemaSource, /subcategory TEXT DEFAULT ''/);
     assert.match(dbSource, /subcategory: r\.subcategory \|\| ''/);
     assert.match(migrationSource, /partSubcategory/);
-    assert.match(routeSource, /updates\.subcategory = f\.subcategory/);
-    assert.match(routeSource, /subcategory: f\.subcategory/);
+    assert.match(routeSource, /extractPartFields/);
+    assert.match(routeSource, /executePartCreate/);
+    assert.match(routeSource, /executePartUpdate/);
+    assert.match(serviceSource, /subcategory: String\(fields\.subcategory \|\| ''\)\.trim\(\)/);
+    assert.match(serviceSource, /input\.category === undefined && input\.subcategory === undefined/);
 });
 
 test('API 静态契约：报价确认转单必须事务化并防止重复转单', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/quotationConversion.cjs'));
 
-    assert.match(route, /function convertQuotationToOrder/);
-    assert.match(route, /db\.transaction\(\(id\) =>/);
-    assert.match(route, /quotation\.converted_order_id \|\| quotation\.status === '已转订单'/);
-    assert.match(route, /safeInsert\('orders'/);
-    assert.match(route, /converted_order_id: orderId/);
-    assert.match(route, /statusCode = 409/);
+    assert.match(route, /executeQuotationConversion/);
+    assert.match(route, /commandContextFromRequest/);
+    assert.match(service, /executePersistentCommand/);
+    assert.match(service, /quotation\.converted_order_id \|\| quotation\.status === '已转订单'/);
+    assert.match(service, /safeInsert\('orders'/);
+    assert.match(service, /converted_order_id: orderId/);
+    assert.match(service, /requiredAuditCount: 2/);
+    assert.match(service, /expectedUpdatedAt/);
 });
 
 test('API 静态契约：采购中心批量采购状态必须由后端执行', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/purchasingBatchOrder.cjs'));
     const purchaseClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/purchase.ts'));
+    const purchaseView = readUtf8(path.join(repoRoot, 'apps/web-next/components/purchase-view.tsx'));
 
     assert.match(route, /router\.post\('\/purchase-items\/batch'/);
-    assert.match(route, /function applyPurchaseItemsByTask/);
-    assert.match(route, /safeUpdate\('orders', record\.id/);
+    assert.match(route, /router\.post\('\/purchase-items\/batch-draft'/);
+    assert.match(route, /executePurchaseBatch/);
+    assert.match(route, /buildPurchaseBatchDraft/);
+    assert.doesNotMatch(route, /function applyPurchaseItemsByTask/);
+    assert.match(service, /executePersistentCommand/);
+    assert.match(service, /expectedVersions/);
+    assert.match(service, /assertPreviewHash/);
+    assert.match(service, /requiredAuditCount/);
+    assert.match(purchaseClient, /\/api\/orders\/purchase-items\/batch-draft/);
     assert.match(purchaseClient, /\/api\/orders\/purchase-items\/batch/);
+    assert.match(purchaseClient, /Idempotency-Key/);
+    assert.match(purchaseView, /draft\.affectedOrders/);
+    assert.match(purchaseView, /window\.confirm/);
     assert.doesNotMatch(purchaseClient, /saveOrder|buildUpdatedOrders/);
 });
 
@@ -389,18 +548,22 @@ test('API 静态契约：成本 API 不再暴露旧命名 alias', () => {
 
 test('API 静态契约：批量库存接口只接受标准 partId', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/parts.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/inventoryCommands.cjs'));
     const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
 
-    assert.match(route, /parsePositiveId\(op\.partId\)/);
-    assert.match(route, /parseFiniteNumber\(op\.delta, 'delta'\)/);
-    assert.doesNotMatch(route, /op\.id|op\.Id/);
+    assert.match(route, /buildPartStockPreview/);
+    assert.match(route, /executeConfirmedPartStockBatch/);
+    assert.match(service, /parsePositiveId\(item\?\.partId\)/);
+    assert.match(service, /parseFiniteNumber\(value, `operations\[\$\{index\}\]\.delta`\)/);
+    assert.doesNotMatch(service, /item\?\.id|item\?\.Id/);
     assert.match(docs, /operations: \[\{ partId, delta \}\]/);
+    assert.match(docs, /\{ confirmationToken, idempotencyKey\? \}/);
 });
 
 test('API 静态契约：业务新增写库必须通过 safeInsert', () => {
     const dbSource = readUtf8(path.join(repoRoot, 'api/db.cjs'));
-    assert.match(dbSource, /function safeInsert\(table, values\)/);
-    assert.match(dbSource, /writeAuditLog\('INSERT', table/);
+    assert.match(dbSource, /function safeInsert\(table, values, options = \{\}\)/);
+    assert.match(dbSource, /writeAuditLog\(\s*'INSERT',\s*table/);
 
     const files = [
         'api/routes/parts.cjs',
@@ -430,15 +593,58 @@ test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () 
     const orderExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
     const recipeExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/recipeExecutors.cjs'));
 
-    assert.match(queryExecutor, /postJson\(internalFetch,\s*'\/api\/parts'/);
-    assert.match(queryExecutor, /patchJson\(internalFetch,\s*`\/api\/parts\/\$\{targetId\}`/);
+    assert.match(queryExecutor, /return executePartCreate\(args/);
+    assert.match(queryExecutor, /return executePartDelete\(args/);
     assert.doesNotMatch(queryExecutor, /safeInsert\('parts'|safeUpdate\('parts'|softDelete\('parts'/);
 
     assert.match(orderExecutor, /getJson\(internalFetch,\s*`\/api\/orders\/\$\{id\}`/);
     assert.match(orderExecutor, /patchJson\(internalFetch,\s*`\/api\/orders\/\$\{order\.id \?\? order\.Id\}`/);
 
-    assert.match(recipeExecutor, /deleteJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
+    assert.match(recipeExecutor, /deleteJson\(\s*internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
     assert.doesNotMatch(recipeExecutor, /softDelete\('recipes'/);
+});
+
+test('API 静态契约：AI 零件写操作必须委托独立 service 和正式 API', () => {
+    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
+    const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
+    const partExecution = readUtf8(path.join(repoRoot, 'api/services/aiPartExecution.cjs'));
+
+    assert.match(queryExecutor, /return executePartCreate\(args/);
+    assert.match(queryExecutor, /return executePartDelete\(args/);
+    assert.match(queryExecutor, /return executePartUpdate\(args/);
+    assert.match(queryExecutor, /return executePartPriceBatch\(args/);
+    assert.doesNotMatch(queryExecutor, /batch-stock-preview|prices-preview|requestedStockDelta|percentChange \/ 100|零件新建成功|找不到零件/);
+    assert.match(executor, /partUpdateInputError\(args\)/);
+    assert.match(partExecution, /postJson\(\s*internalFetch,\s*'\/api\/parts'/);
+    assert.match(partExecution, /deleteJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{target\.id \?\? target\.Id\}`/);
+    assert.match(partExecution, /patchJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{targetId\}`/);
+    assert.match(partExecution, /expectedUpdatedAt: target\.updatedAt \|\| target\.UpdatedAt/);
+    assert.match(partExecution, /\/api\/parts\/batch-stock-preview/);
+    assert.match(partExecution, /\/api\/parts\/batch-stock/);
+    assert.match(partExecution, /preview\.confirmationToken/);
+    assert.match(partExecution, /preview\.suggestedIdempotencyKey/);
+    assert.match(partExecution, /part_update_mixed_write_not_allowed/);
+    assert.match(partExecution, /suggestedOperations/);
+    assert.match(partExecution, /oldPrice \* \(1 \+ percentChange \/ 100\)/);
+    assert.match(partExecution, /\/api\/parts\/prices-preview/);
+    assert.match(partExecution, /previewHash: preview\.previewHash/);
+    assert.doesNotMatch(partExecution, /db\.prepare|safeInsert|safeUpdate/);
+});
+
+test('API 静态契约：AI 线圈库存俗称编排必须委托独立 service 和正式库存 API', () => {
+    const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
+    const coilStockExecution = readUtf8(path.join(repoRoot, 'api/services/aiCoilStockExecution.cjs'));
+
+    assert.match(queryExecutor, /return executeCoilStockAdjustment\(args/);
+    assert.doesNotMatch(queryExecutor, /parseCoilInventoryModel|stock-adjustments-preview/);
+    assert.match(coilStockExecution, /function parseCoilInventoryModel/);
+    assert.match(coilStockExecution, /coil\.schemeStatus === 'official'/);
+    assert.match(coilStockExecution, /存在多个正式方案/);
+    assert.match(coilStockExecution, /\/api\/coils\/stock-adjustments-preview/);
+    assert.match(coilStockExecution, /\/api\/coils\/stock-adjustments/);
+    assert.match(coilStockExecution, /preview\.confirmationToken/);
+    assert.match(coilStockExecution, /preview\.suggestedIdempotencyKey/);
+    assert.doesNotMatch(coilStockExecution, /db\.prepare|safeInsert|safeUpdate/);
 });
 
 test('API 静态契约：AI 订单写操作必须复用订单草稿和动作接口', () => {
@@ -457,6 +663,9 @@ test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接�
     assert.match(recipeExecutor, /\/api\/recipes\/save-payload-draft/);
     assert.match(recipeExecutor, /postJson\(internalFetch,\s*'\/api\/recipes'/);
     assert.match(recipeExecutor, /patchJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
+    assert.match(recipeExecutor, /recipeId: recipe\.id \?\? recipe\.Id/);
+    assert.match(recipeExecutor, /expectedUpdatedAt: recipe\.updatedAt \?\? recipe\.UpdatedAt/);
+    assert.match(recipeExecutor, /\{ expectedUpdatedAt: recipe\.updatedAt \?\? recipe\.UpdatedAt \}/);
     assert.doesNotMatch(recipeExecutor, /safeInsert\('recipes'|safeUpdate\('recipes'/);
 });
 
@@ -499,7 +708,7 @@ test('API 静态契约：配方智能检查只读且区分工厂规则、确定�
     const service = readUtf8(path.join(repoRoot, 'api/services/recipeIntelligence.cjs'));
 
     assert.match(tools, /name: 'analyze_recipe_configuration'/);
-    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /analyze_recipe_configuration/);
+    assert.equal(getAiCapability('analyze_recipe_configuration').access, 'read');
     assert.match(businessExecutor, /\/api\/quality\/recipe-analysis/);
     assert.match(chatRoute, /已批准工厂规则、确定性配置矛盾与同类配方复核建议必须分开描述/);
     assert.match(promptRoute, /不得把建议说成确定错误/);
@@ -518,7 +727,7 @@ test('API 静态契约：配方检查反馈按提醒键持久化且受确认保�
     const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
 
     assert.match(tools, /name: 'set_recipe_analysis_feedback'/);
-    assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /set_recipe_analysis_feedback/);
+    assert.equal(getAiCapability('set_recipe_analysis_feedback').access, 'write');
     assert.match(route, /router\.post\('\/recipes\/:recipeId\/feedback'/);
     assert.match(service, /safeInsert/);
     assert.match(service, /safeUpdate/);
@@ -526,7 +735,6 @@ test('API 静态契约：配方检查反馈按提醒键持久化且受确认保�
 });
 
 test('API 静态契约：候选业务规则需人工审核后才进入知识库', () => {
-    const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const service = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
@@ -536,7 +744,7 @@ test('API 静态契约：候选业务规则需人工审核后才进入知识库'
     assert.match(service, /status === 'approved'/);
     assert.match(knowledge, /approvedFactoryRuleEntries/);
     assert.match(knowledge, /sourceTable: 'factory_rule_candidates'/);
-    assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /review_factory_rule_candidate/);
+    assert.equal(getAiCapability('review_factory_rule_candidate').access, 'write');
     assert.match(qualityView, /候选业务规则/);
     assert.match(qualityView, /批准后参与配方检查/);
 });
@@ -568,7 +776,7 @@ test('API 静态契约：Knowledge V3 规则批准前提供只读影响分析', 
 
     assert.match(route, /router\.get\('\/rule-candidates\/:id\/impact'/);
     assert.match(tools, /name: 'get_factory_rule_impact'/);
-    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_rule_impact/);
+    assert.equal(getAiCapability('get_factory_rule_impact').access, 'read');
     assert.match(prompt, /先用 get_factory_rule_impact/);
     assert.match(service, /function buildFactoryRuleImpact/);
     assert.match(service, /needsReview/);
@@ -586,7 +794,7 @@ test('API 静态契约：Knowledge V3 全局监控已批准规则执行情况', 
 
     assert.match(route, /router\.get\('\/rule-compliance'/);
     assert.match(tools, /name: 'get_factory_rule_compliance'/);
-    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_rule_compliance/);
+    assert.equal(getAiCapability('get_factory_rule_compliance').access, 'read');
     assert.match(prompt, /使用 get_factory_rule_compliance/);
     assert.match(service, /function buildFactoryRuleCompliance/);
     assert.match(service, /affectedRecipeCount/);
@@ -625,7 +833,7 @@ test('API 静态契约：Knowledge V3 规则生命周期记录可追溯且只读
     assert.match(service, /function recordFactoryRuleEvent/);
     assert.match(service, /function listFactoryRuleEvents/);
     assert.match(tools, /name: 'get_factory_rule_history'/);
-    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_rule_history/);
+    assert.equal(getAiCapability('get_factory_rule_history').access, 'read');
     assert.match(prompt, /使用 get_factory_rule_history/);
     assert.match(qualityView, /规则变更记录/);
     assert.doesNotMatch(qualityView, /恢复历史版本/);
@@ -663,7 +871,7 @@ test('API 静态契约：Knowledge V3 历史恢复只改变审核状态并保留
     assert.match(service, /recordFactoryRuleEvent\(restored, 'restored'/);
     assert.match(service, /syncRuleKnowledge\(restored\.id/);
     assert.match(tools, /name: 'restore_factory_rule_event'/);
-    assert.match(tools.slice(tools.indexOf('const WRITE_TOOLS')), /restore_factory_rule_event/);
+    assert.equal(getAiCapability('restore_factory_rule_event').access, 'write');
     assert.match(prompt, /恢复只改变审核状态，保留当前证据/);
     assert.match(executor, /\/api\/quality\/rule-events\/\$\{Number\(args\.eventId\)\}\/restore/);
     assert.match(qualityView, /恢复此状态/);
@@ -687,7 +895,7 @@ test('API 静态契约：Knowledge V3 低置信度规则禁止批准并自动撤
     assert.match(qualityClient, /approvalEligible: boolean/);
     assert.match(qualityView, /暂不能批准/);
     assert.match(qualityView, /低于门槛会自动撤回批准/);
-    assert.match(docs, /V3 第八阶段/);
+    assert.match(docs, /至少两个不同配方[\s\S]*65%/);
 });
 
 test('API 静态契约：Knowledge V3 固化反馈证据来源并隔离范围漂移', () => {
@@ -708,13 +916,14 @@ test('API 静态契约：Knowledge V3 固化反馈证据来源并隔离范围漂
     assert.match(prompt, /不计入支持数/);
     assert.match(qualityClient, /driftedCount: number/);
     assert.match(qualityView, /换模板或修改配方后都需要重新检查确认/);
-    assert.match(docs, /V3 第九阶段/);
+    assert.match(docs, /证据来源快照[\s\S]*templateId[\s\S]*recipeUpdatedAt/);
 });
 
 test('API 静态契约：Knowledge V3 隔离配方修改后的过期反馈', () => {
     const intelligence = readUtf8(path.join(repoRoot, 'api/services/recipeIntelligence.cjs'));
     const ruleService = readUtf8(path.join(repoRoot, 'api/services/factoryRuleCandidates.cjs'));
     const recipesRoute = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+    const recipeCommands = readUtf8(path.join(repoRoot, 'api/services/recipeCommands.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
@@ -725,15 +934,17 @@ test('API 静态契约：Knowledge V3 隔离配方修改后的过期反馈', () 
     assert.match(intelligence, /历史反馈不再抑制提醒/);
     assert.match(ruleService, /contentOutdated/);
     assert.match(ruleService, /outdatedEvidence/);
-    assert.match(recipesRoute, /refreshRecipeRuleLearningIfNeeded/);
-    assert.match(recipesRoute, /decision IN \('confirmed', 'special_case', 'ignored'\)/);
-    assert.match(recipesRoute, /refreshFactoryRuleCandidates\(\{ actor \}\)/);
-    assert.match(recipesRoute, /softDelete\('recipes', id\);\s+refreshRecipeRuleLearningIfNeeded\(id,/);
+    assert.match(recipeCommands, /function refreshRecipeRuleLearningIfNeeded/);
+    assert.match(recipeCommands, /decision IN \('confirmed', 'special_case', 'ignored'\)/);
+    assert.match(recipeCommands, /dependencies\.refreshFactoryRuleCandidates\(\{/);
+    assert.match(recipesRoute, /executeRecipeDelete\(/);
+    assert.match(recipeCommands, /safeUpdate\(\s*'recipes',\s*recipeId,\s*\{ deleted_at: deletedAt \}/);
+    assert.match(recipeCommands, /refreshRecipeRuleLearningIfNeeded\(/);
     assert.match(tools, /内容过期/);
     assert.match(qualityClient, /outdatedCount: number/);
     assert.match(qualityView, /内容过期/);
     assert.match(recipesView, /反馈已过期/);
-    assert.match(docs, /V3 第十阶段/);
+    assert.match(docs, /内容过期/);
 });
 
 test('API 静态契约：Knowledge V3 扫描全部学习反馈并形成待复核队列', () => {
@@ -755,7 +966,7 @@ test('API 静态契约：Knowledge V3 扫描全部学习反馈并形成待复核
     assert.match(qualityClient, /getFactoryLearningHealth/);
     assert.match(qualityView, /学习证据待重新检查/);
     assert.match(qualityView, /尚未形成候选规则/);
-    assert.match(docs, /V3 第十一阶段/);
+    assert.match(docs, /学习证据健康检查/);
 });
 
 test('API 静态契约：Knowledge V3 待复核证据可直达配方并自动智能检查', () => {
@@ -772,7 +983,7 @@ test('API 静态契约：Knowledge V3 待复核证据可直达配方并自动智
     assert.match(recipesView, /setAutoAnalyzeRecipeId\(recipe\.id\)/);
     assert.match(recipesView, /nextUrl\.searchParams\.delete\('action'\)/);
     assert.match(recipesView, /void runRecipeAnalysis\(\)/);
-    assert.match(docs, /V3 第十二阶段/);
+    assert.match(docs, /自动执行一次智能检查/);
     assert.match(businessFlow, /自动执行一次智能检查/);
 });
 
@@ -795,7 +1006,7 @@ test('API 静态契约：Knowledge V3 已消失的待复核提醒可确认解决
     assert.match(recipesView, /data-review-target/);
     assert.match(recipesView, /确认已解决/);
     assert.match(recipesView, /原待复核提醒/);
-    assert.match(docs, /V3 第十三阶段/);
+    assert.match(docs, /确认已解决/);
 });
 
 test('API 静态契约：Knowledge V3 同一配方待复核反馈按任务聚合并顺序处理', () => {
@@ -812,7 +1023,7 @@ test('API 静态契约：Knowledge V3 同一配方待复核反馈按任务聚合
     assert.match(recipesView, /function completeCurrentReviewEvidence/);
     assert.match(recipesView, /继续处理下一条/);
     assert.match(recipesView, /待复核进度：第/);
-    assert.match(docs, /V3 第十四阶段/);
+    assert.match(docs, /按配方聚合/);
     assert.match(businessFlow, /按配方聚合/);
 });
 
@@ -829,7 +1040,7 @@ test('API 静态契约：Knowledge V3 待复核工作台展示规则影响并完
     assert.match(recipesView, /nextUrl\.searchParams\.delete\('feedbackIds'\)/);
     assert.match(recipesView, /window\.location\.assign\('\/dashboard\?view=quality'\)/);
     assert.match(recipesView, /返回数据质量/);
-    assert.match(docs, /V3 第十五阶段/);
+    assert.match(docs, /规则学习刷新结果/);
     assert.match(apiDocs, /暂时跳过只调整本地处理顺序/);
     assert.match(businessFlow, /暂时跳过只改变当前页面的处理顺序/);
 });
@@ -855,7 +1066,7 @@ test('API 静态契约：Knowledge V4 核心业务变更自动合并同步并保
     assert.match(knowledgeRoute, /recordKnowledgeSyncSuccess\(data, 'manual', \{/);
     assert.match(knowledgeView, /自动同步正常/);
     assert.match(knowledgeView, /手动同步用于全量核对和故障恢复/);
-    assert.match(docs, /Knowledge Base V4 第一阶段/);
+    assert.match(docs, /核心业务知识自动同步/);
     assert.match(apiDocs, /autoSync/);
 });
 
@@ -883,7 +1094,7 @@ test('API 静态契约：Knowledge V4 同步成功、失败和重试历史可追
     assert.match(knowledgeLib, /getKnowledgeSyncRuns/);
     assert.match(knowledgeView, /同步记录/);
     assert.match(knowledgeView, /第 \{run\.attempt\} 次尝试/);
-    assert.match(docs, /Knowledge Base V4 第二阶段/);
+    assert.match(docs, /同步运行历史/);
 });
 
 test('API 静态契约：Knowledge V4 健康告警只在真实异常时提供恢复入口', () => {
@@ -904,20 +1115,20 @@ test('API 静态契约：Knowledge V4 健康告警只在真实异常时提供恢
     assert.match(knowledgeView, /syncHealth\.status !== 'healthy'/);
     assert.match(knowledgeView, /检查并恢复/);
     assert.match(knowledgeView, /setSyncOpen\(true\)/);
-    assert.match(docs, /Knowledge Base V4 第三阶段/);
+    assert.match(docs, /知识同步健康检查/);
     assert.match(apiDocs, /\/api\/knowledge\/health/);
 });
 
 test('API 静态契约：Knowledge V4 AI 可只读诊断同步健康状态', () => {
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
+    const registry = readUtf8(path.join(repoRoot, 'api/capabilities/registry.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
     const chat = readAiPromptContractSource();
     const prompt = readAiPromptContractSource();
 
     assert.match(tools, /name: 'get_factory_knowledge_health'/);
-    assert.doesNotMatch(tools.slice(tools.indexOf('const WRITE_TOOLS')), /get_factory_knowledge_health/);
-    assert.match(executor, /'get_factory_knowledge_health'/);
+    assert.equal(getAiCapability('get_factory_knowledge_health').access, 'read');
+    assert.match(registry, /'get_factory_knowledge_health'/);
     assert.match(businessExecutor, /case 'get_factory_knowledge_health'/);
     assert.match(businessExecutor, /\/api\/knowledge\/health/);
     assert.match(chat, /get_factory_knowledge_health/);
@@ -930,6 +1141,7 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
     const parser = readUtf8(path.join(repoRoot, 'api/services/knowledgeDocumentParser.cjs'));
     const knowledge = readUtf8(path.join(repoRoot, 'api/services/knowledge.cjs'));
+    const documents = readUtf8(path.join(repoRoot, 'api/services/knowledgeDocuments.cjs'));
     const route = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const chat = readAiPromptContractSource();
@@ -946,8 +1158,12 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     assert.match(knowledge, /entryType: 'document'/);
     assert.match(knowledge, /sourceTable: 'knowledge_documents'/);
     assert.match(knowledge, /不得据此推断图纸尺寸、材料或技术参数/);
-    assert.match(route, /safeInsert\('knowledge_documents'/);
-    assert.match(route, /softDelete\('knowledge_documents'/);
+    assert.match(documents, /executePersistentCommand/);
+    assert.match(documents, /safeInsert\(\s*'knowledge_documents'/);
+    assert.match(documents, /safeUpdate\(\s*'knowledge_documents'/);
+    assert.match(documents, /assertExpectedUpdatedAt/);
+    assert.match(route, /executeKnowledgeDocumentUpload/);
+    assert.match(route, /executeKnowledgeDocumentDelete/);
     assert.match(route, /router\.get\('\/documents\/:id\/download'/);
     assert.match(tools, /'document'/);
     assert.match(chat, /parserStatus=metadata_only/);
@@ -964,8 +1180,15 @@ test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业�
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
     const store = readUtf8(path.join(repoRoot, 'api/services/factoryFileStore.cjs'));
     const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
-    const knowledgeRoute = readUtf8(path.join(repoRoot, 'api/routes/knowledge.cjs'));
+    const knowledgeDocuments = readUtf8(path.join(
+        repoRoot,
+        'api/services/knowledgeDocuments.cjs'
+    ));
     const recipesRoute = readUtf8(path.join(repoRoot, 'api/routes/recipes.cjs'));
+    const recipeTechnicalFiles = readUtf8(path.join(
+        repoRoot,
+        'api/services/recipeTechnicalFiles.cjs'
+    ));
 
     assert.match(schema, /CREATE TABLE IF NOT EXISTS factory_files/);
     assert.match(schema, /detected_type TEXT NOT NULL/);
@@ -979,10 +1202,11 @@ test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业�
     assert.match(store, /validateSpreadsheet/);
     assert.match(filesRoute, /multer\.memoryStorage/);
     assert.match(filesRoute, /MAX_FACTORY_FILE_SIZE/);
-    assert.match(knowledgeRoute, /file_id: stored\?\.file\.id \|\| null/);
-    assert.match(recipesRoute, /file_id: stored\.file\.id/);
-    assert.match(knowledgeRoute, /LEFT JOIN factory_files/);
-    assert.match(recipesRoute, /LEFT JOIN factory_files/);
+    assert.match(knowledgeDocuments, /file_id: stored\?\.file\.id \|\| null/);
+    assert.match(recipesRoute, /recipeTechnicalFileDependencies/);
+    assert.match(recipeTechnicalFiles, /file_id: stored\.file\.id/);
+    assert.match(knowledgeDocuments, /LEFT JOIN factory_files/);
+    assert.match(recipeTechnicalFiles, /LEFT JOIN factory_files/);
 });
 
 test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型能力传递', () => {
@@ -1021,7 +1245,7 @@ test('API 静态契约：V9.2 PDF 解析保留页码定位并按状态进入 AI 
     assert.match(parser, /pageNumber/);
     assert.match(parser, /detectTables/);
     assert.match(parser, /requiresOcr/);
-    assert.match(fileParser, /safeUpdate\('factory_files'/);
+    assert.match(fileParser, /accessors\.safeUpdate\(\s*'factory_files'/);
     assert.match(filesRoute, /router\.post\('\/:id\/parse'/);
     assert.match(filesRoute, /router\.get\('\/:id\/content'/);
     assert.match(provider, /解析内容（含 OCR）/);
@@ -1049,6 +1273,11 @@ test('API 静态契约：V9.3 表格解析和报价映射保持只读业务边�
     assert.doesNotMatch(mapper, /safeInsert|safeUpdate|INSERT INTO quotations/);
     assert.match(fileParser, /parseSpreadsheetBuffer/);
     assert.match(filesRoute, /router\.post\('\/:id\/quotation-draft'/);
+    const draftStart = filesRoute.indexOf("router.post('/:id/quotation-draft'");
+    const draftEnd = filesRoute.indexOf("router.get('/:id/links'", draftStart);
+    const draftRoute = filesRoute.slice(draftStart, draftEnd);
+    assert.match(draftRoute, /factory_file_parse_required/);
+    assert.doesNotMatch(draftRoute, /executeFactoryFileParse/);
     assert.match(provider, /inspect_quotation_file/);
     assert.match(tools, /name: 'inspect_quotation_file'/);
     assert.match(chat, /readyForSaveDraft=true/);
@@ -1079,6 +1308,7 @@ test('API 静态契约：V9.4 图片和扫描 PDF 使用本地 OCR 且候选参�
 
 test('API 静态契约：V5.2 订单生产准备检查复用库存计划且保持只读', () => {
     const service = readUtf8(path.join(repoRoot, 'api/services/orderReadiness.cjs'));
+    const readinessService = readUtf8(path.join(repoRoot, 'api/services/activeOrderReadiness.cjs'));
     const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
@@ -1089,12 +1319,12 @@ test('API 静态契约：V5.2 订单生产准备检查复用库存计划且保�
     assert.match(service, /inventoryType === 'none'/);
     assert.match(service, /price_below_cost/);
     assert.match(ordersRoute, /router\.get\('\/:id\/readiness'/);
-    assert.match(ordersRoute, /buildBalancedOrderPlans/);
+    assert.match(ordersRoute, /buildOrderReadinessContext/);
+    assert.match(readinessService, /buildBalancedOrderPlans/);
     assert.match(tools, /name:\s*'check_order_readiness'/);
     assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/readiness/);
     assert.match(prompt, /已下单或已到货不等于已经入库/);
-    const writeTools = tools.split('const WRITE_TOOLS')[1];
-    assert.doesNotMatch(writeTools, /check_order_readiness/);
+    assert.equal(getAiCapability('check_order_readiness').access, 'read');
 });
 
 test('API 静态契约：V5.3 订单处理方案有依赖顺序且只生成不执行', () => {
@@ -1115,22 +1345,32 @@ test('API 静态契约：V5.3 订单处理方案有依赖顺序且只生成不�
     assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/readiness-plan/);
     assert.match(executor, /\/api\/orders\/lookup\?query=/);
     assert.match(prompt, /confirmable 只表示AI以后可以发起确认/);
-    const writeTools = tools.split('const WRITE_TOOLS')[1];
-    assert.doesNotMatch(writeTools, /plan_order_readiness_actions/);
+    assert.equal(getAiCapability('plan_order_readiness_actions').access, 'read');
 });
 
 test('API 静态契约：V5.4 订单方案执行受确认和实时重验双重保护', () => {
     const ordersRoute = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
+    const commandService = readUtf8(path.join(repoRoot, 'api/services/orderReadinessCommands.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const aiExecution = readUtf8(path.join(repoRoot, 'api/services/aiOrderReadinessExecution.cjs'));
     const confirmation = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
     const prompt = readAiPromptContractSource();
     assert.match(ordersRoute, /router\.post\('\/:id\/readiness-actions\/:actionId'/);
-    assert.match(ordersRoute, /action\.mode !== 'confirmable'/);
-    assert.match(ordersRoute, /action\.status !== 'available'/);
+    assert.match(ordersRoute, /executeOrderReadinessAction/);
+    assert.match(commandService, /action\.mode !== 'confirmable'/);
+    assert.match(commandService, /action\.status !== 'available'/);
+    assert.match(commandService, /executePersistentCommand/);
+    assert.match(commandService, /assertExpectedUpdatedAt/);
+    assert.match(commandService, /assertPreviewHash/);
     assert.match(tools, /name:\s*'execute_order_readiness_action'/);
-    assert.match(tools.split('const WRITE_TOOLS')[1], /execute_order_readiness_action/);
-    assert.match(executor, /readiness-actions\/\$\{encodeURIComponent\(actionId\)\}/);
+    assert.equal(getAiCapability('execute_order_readiness_action').access, 'write');
+    assert.match(executor, /return executeOrderReadinessAction\(args/);
+    assert.doesNotMatch(executor, /readiness-actions\/\$\{encodeURIComponent\(actionId\)\}/);
+    assert.match(aiExecution, /readiness-actions\/\$\{encodeURIComponent\(actionId\)\}/);
+    assert.match(aiExecution, /command\?\.expectedUpdatedAt/);
+    assert.match(aiExecution, /command\?\.previewHash/);
+    assert.match(aiExecution, /command\?\.suggestedIdempotencyKey/);
     assert.match(confirmation, /case 'execute_order_readiness_action'/);
     assert.match(prompt, /确认时后端会再次重验/);
     assert.match(prompt, /禁止执行 manual、needs_input、monitor 或 blocked/);
@@ -1151,7 +1391,7 @@ test('API 静态契约：V5.5 订单准备总览对 API、AI 和只读边界保�
     assert.match(tools, /name:\s*'get_order_readiness_overview'/);
     assert.match(executor, /\/api\/orders\/readiness-overview/);
     assert.match(prompt, /哪些订单不能生产/);
-    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_readiness_overview/);
+    assert.equal(getAiCapability('get_order_readiness_overview').access, 'read');
 });
 
 test('API 静态契约：V10.4 订单知识包只读取实时状态和人工确认事实', () => {
@@ -1169,7 +1409,7 @@ test('API 静态契约：V10.4 订单知识包只读取实时状态和人工确�
     assert.match(tools, /name:\s*'get_order_knowledge_package'/);
     assert.match(executor, /\/api\/orders\/\$\{resolved\.orderId\}\/knowledge-package/);
     assert.match(pageContext, /'execution'/);
-    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_order_knowledge_package/);
+    assert.equal(getAiCapability('get_order_knowledge_package').access, 'read');
 });
 
 test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
@@ -1191,7 +1431,7 @@ test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
     assert.match(executor, /\/api\/workbench\/action-center/);
     assert.match(prompt, /今天先做什么/);
     assert.match(freshness, /MANAGEMENT_ACTION_INTENT_RE/);
-    assert.doesNotMatch(tools.split('const WRITE_TOOLS')[1], /get_management_action_center/);
+    assert.equal(getAiCapability('get_management_action_center').access, 'read');
 });
 
 test('API 静态契约：V7.1 管理事项生命周期后台追踪且查看接口保持只读', () => {
@@ -1286,17 +1526,23 @@ test('API 静态契约：V8.2 报价转单只复用确认、事务接口和实�
     const plan = readUtf8(path.join(repoRoot, 'api/services/factoryExecutionPlan.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const workflowExecution = readUtf8(path.join(repoRoot, 'api/services/aiFactoryWorkflowExecution.cjs'));
     const quotationRoute = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+    const quotationService = readUtf8(path.join(repoRoot, 'api/services/quotationConversion.cjs'));
 
     assert.match(plan, /toolName: 'execute_factory_workflow_step'/);
     assert.match(plan, /actionId: 'convert_quotation'/);
     assert.match(tools, /'execute_factory_workflow_step'/);
-    assert.match(executor, /执行前刷新工厂计划失败/);
-    assert.match(executor, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
-    assert.match(executor, /\/api\/quotations\/\$\{quotationId\}\/convert/);
-    assert.match(executor, /\/api\/orders\/\$\{orderId\}\/readiness-plan/);
-    assert.match(quotationRoute, /const convert = db\.transaction/);
-    assert.match(quotationRoute, /该报价已经转为订单，不能重复转单/);
+    assert.match(executor, /return executeFactoryWorkflowStep\(args/);
+    assert.doesNotMatch(executor, /执行前刷新工厂计划失败/);
+    assert.match(workflowExecution, /执行前刷新工厂计划失败/);
+    assert.match(workflowExecution, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
+    assert.match(workflowExecution, /\/api\/quotations\/\$\{quotationId\}\/convert/);
+    assert.match(workflowExecution, /conversionDraft\.expectedUpdatedAt/);
+    assert.match(workflowExecution, /\/api\/orders\/\$\{orderId\}\/readiness-plan/);
+    assert.match(quotationRoute, /executeQuotationConversion/);
+    assert.match(quotationService, /executePersistentCommand/);
+    assert.match(quotationService, /该报价已经转为订单，不能重复转单/);
 });
 
 test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复边界', () => {
@@ -1306,7 +1552,9 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
     const history = readUtf8(path.join(repoRoot, 'api/services/factoryWorkflowHistory.cjs'));
     const workbench = readUtf8(path.join(repoRoot, 'api/routes/workbench.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const workflowExecution = readUtf8(path.join(repoRoot, 'api/services/aiFactoryWorkflowExecution.cjs'));
     const orderExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/orderExecutors.cjs'));
+    const orderExecution = readUtf8(path.join(repoRoot, 'api/services/aiOrderReadinessExecution.cjs'));
 
     assert.match(migrations, /version: 30/);
     assert.match(migrations, /CREATE TABLE IF NOT EXISTS factory_workflow_runs/);
@@ -1316,9 +1564,11 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
     assert.match(history, /latestRecheck/);
     assert.match(history, /recoverableActionIds/);
     assert.match(workbench, /\/execution-runs/);
-    assert.match(businessExecutor, /status: writeCompleted \? 'completed' : 'failed'/);
-    assert.match(orderExecutor, /status: 'failed'/);
-    assert.match(orderExecutor, /执行前刷新订单计划失败/);
+    assert.match(businessExecutor, /executeFactoryWorkflowStep/);
+    assert.match(workflowExecution, /status: writeCompleted \? 'completed' : 'failed'/);
+    assert.match(orderExecutor, /executeOrderReadinessAction/);
+    assert.match(orderExecution, /status: 'failed'/);
+    assert.match(orderExecution, /执行前刷新订单计划失败/);
 });
 
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
@@ -1359,13 +1609,15 @@ test('API 静态契约：AI 知识回答必须携带可追溯来源并区分实�
     const chatRoute = readAiPromptContractSource();
     const promptRoute = readAiPromptContractSource();
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executor.cjs'));
+    const registry = readUtf8(path.join(repoRoot, 'api/capabilities/registry.cjs'));
     const businessExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
 
     assert.match(businessExecutor, /buildKnowledgeSources/);
     assert.match(businessExecutor, /\/api\/knowledge\/overview/);
     assert.match(businessExecutor, /kind: 'knowledge_snapshot'/);
     assert.match(businessExecutor, /knowledgePath: `\/dashboard\?view=knowledge&entry=/);
-    assert.match(executor, /kind: 'live_business'/);
+    assert.match(registry, /kind: 'live_business'/);
+    assert.match(executor, /capability\?\.resultProvenance/);
     assert.match(chatRoute, /sources 是本轮回答的可追溯依据/);
     assert.match(promptRoute, /不得自行编造知识 ID/);
 });
@@ -1412,7 +1664,7 @@ test('API 静态契约：AI 会话表进入安全写入白名单', () => {
     assert.match(service, /safeInsert\('ai_conversations'/);
     assert.match(service, /safeInsert\('ai_conversation_messages'/);
     assert.match(service, /safeUpdate\('ai_conversations'/);
-    assert.match(service, /safeUpdate\('ai_conversation_messages'/);
+    assert.match(service, /safeUpdate\(\s*'ai_conversation_messages'/);
 });
 
 test('API 静态契约：AI 回答反馈使用安全写入并保存来源快照', () => {
@@ -1437,6 +1689,7 @@ test('API 静态契约：知识库回归检查由确定性规则判定并安全�
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
     const schema = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
     const service = readUtf8(path.join(repoRoot, 'api/services/aiEvaluations.cjs'));
+    const regression = readUtf8(path.join(repoRoot, 'api/services/aiRegressionCases.cjs'));
 
     assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_evaluation_cases/);
     assert.match(schema, /CREATE TABLE IF NOT EXISTS ai_evaluation_runs/);
@@ -1449,6 +1702,11 @@ test('API 静态契约：知识库回归检查由确定性规则判定并安全�
     assert.match(service, /safeUpdate\('ai_evaluation_runs'/);
     assert.match(service, /fact:part_price/);
     assert.match(service, /fact:no_internal_ids/);
+    assert.match(schema, /source_feedback_id INTEGER/);
+    assert.match(schema, /review_status TEXT NOT NULL DEFAULT 'approved'/);
+    assert.match(regression, /safeInsert\('ai_evaluation_cases'/);
+    assert.match(regression, /safeUpdate\('ai_evaluation_cases'/);
+    assert.match(regression, /proposalHash/);
 });
 
 test('API 静态契约：AI 默认系统提示词不得宣称业务工具直接写数据库', () => {
@@ -1472,18 +1730,22 @@ test('API 静态契约：AI 不得把性能测试报告标成参考图纸', () =
 test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () => {
     const chat = readAiPromptContractSource();
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
+    const customerQueries = readUtf8(path.join(repoRoot, 'api/services/customerQueries.cjs'));
 
     assert.match(chat, /displaySequence/);
     assert.match(chat, /不得把数据库 id 写成/);
     assert.match(chat, /共同组成一个“成品电缆”业务项/);
-    assert.match(executor, /displaySequence: index \+ 1/);
-    assert.match(executor, /delete quotation\.id/);
-    assert.match(executor, /delete quotation\.Id/);
+    assert.match(executor, /\/api\/customers\/\$\{customerId\}\/context/);
+    assert.match(customerQueries, /displaySequence: index \+ 1/);
+    assert.match(customerQueries, /delete quotation\.id/);
+    assert.match(customerQueries, /delete quotation\.Id/);
 });
 
 test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', () => {
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
-    const rotorRoute = readUtf8(path.join(repoRoot, 'api/routes/rotor.cjs'));
+    const rotorNaturalLanguage = readUtf8(
+        path.join(repoRoot, 'api/services/rotorNaturalLanguage.cjs')
+    );
     const runtimeConfig = readUtf8(path.join(repoRoot, 'api/services/runtimeConfig.cjs'));
     const setupView = readUtf8(path.join(repoRoot, 'apps/web-next/components/setup-view.tsx'));
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
@@ -1496,9 +1758,10 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', (
     assert.match(runtimeConfig, /values: \['auto', 'deepseek', 'kimi'\]/);
     assert.match(setupView, /普通对话、PDF 文字层和 Excel 默认使用 DeepSeek/);
     assert.match(aiView, /item\.provider\.displayName/);
-    assert.match(rotorRoute, /process\.env\.DEEPSEEK_MODEL \|\| 'deepseek-v4-flash'/);
+    assert.match(rotorNaturalLanguage, /DEFAULT_MODEL = 'deepseek-v4-flash'/);
+    assert.match(rotorNaturalLanguage, /process\.env\.DEEPSEEK_MODEL \|\| DEFAULT_MODEL/);
     assert.doesNotMatch(provider, /deepseek-chat/);
-    assert.doesNotMatch(rotorRoute, /model:\s*'deepseek-chat'/);
+    assert.doesNotMatch(rotorNaturalLanguage, /model:\s*'deepseek-chat'/);
 });
 
 test('API 静态契约：生产环境不得使用默认 JWT 密钥且必须校验关键环境变量', () => {
@@ -1554,7 +1817,10 @@ test('API 静态契约：AI 工厂配置修改必须进入审计日志且不能�
 
     assert.match(section, /writeAuditLog\(/);
     assert.match(section, /CONFIG_UPDATE|CONFIG_INSERT/);
-    assert.match(promptRoute, /setConfig\(FACTORY_PROFILE_KEY, profile\)/);
+    assert.match(promptRoute, /executeFactoryProfileUpdate\(/);
+    assert.match(promptRoute, /executePersistentCommand\(/);
+    assert.match(promptRoute, /setConfig\(\s*FACTORY_PROFILE_KEY,\s*profile,\s*auditContext/);
+    assert.match(promptRoute, /expectedVersion/);
     assert.match(promptRoute, /工厂配置不能为空/);
     assert.match(promptRoute, /FACTORY_PROFILE_MAX_LENGTH = 8000/);
     assert.match(promptRoute, /不能覆盖核心安全、数据来源或写入确认规则/);
@@ -1623,8 +1889,9 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     assert.match(archive, /safeInsert\('knowledge_documents'/);
     assert.match(archive, /safeInsert\('factory_file_links'/);
     assert.match(archive, /safeUpdate\('factory_file_links'/);
-    assert.match(archive, /softDelete\('factory_file_links'/);
+    assert.match(archive, /safeUpdate\(\s*'factory_file_links'/);
     assert.match(filesRoute, /router\.get\('\/archive-targets'/);
+    assert.match(filesRoute, /router\.post\('\/:id\/archive-preview'/);
     assert.match(filesRoute, /router\.post\('\/:id\/archive'/);
     assert.match(filesRoute, /router\.get\('\/:id\/links'/);
     assert.match(tools, /name: 'search_factory_file_archive_targets'/);

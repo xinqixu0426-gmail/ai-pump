@@ -69,8 +69,8 @@ function driverReason(left, right) {
     return '单价或动态成本不同';
 }
 
-function buildRecipeCost(recipe) {
-    const { loadPartsData, calculateRecipeCost } = loadDbAccessors();
+function buildRecipeCost(recipe, dbAccessors = loadDbAccessors()) {
+    const { loadPartsData, calculateRecipeCost } = dbAccessors;
     const { partsCache, partsByModel } = loadPartsData();
     const parts = parseJsonArray(recipe.partsJson);
     return calculateRecipeCost(parts, partsCache, partsByModel);
@@ -92,10 +92,10 @@ function buildCostDifference(input = {}, options = {}) {
 
     const leftCost = Object.prototype.hasOwnProperty.call(options, 'leftCost')
         ? options.leftCost
-        : buildRecipeCost(left);
+        : buildRecipeCost(left, getDb());
     const rightCost = Object.prototype.hasOwnProperty.call(options, 'rightCost')
         ? options.rightCost
-        : buildRecipeCost(right);
+        : buildRecipeCost(right, getDb());
     const leftMap = aggregateDetails(leftCost.details || []);
     const rightMap = aggregateDetails(rightCost.details || []);
     const keys = [...new Set([...leftMap.keys(), ...rightMap.keys()])];

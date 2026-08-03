@@ -1,45 +1,113 @@
 const express = require('express');
-const { db, dbGetAllCustomers, customerRow, safeInsert, safeUpdate, softDelete } = require('../db.cjs');
+const {
+    db,
+    dbGetAllCustomers,
+    dbGetAllOrders,
+    dbGetAllQuotations,
+    customerRow,
+    safeInsert,
+    safeUpdate,
+} = require('../db.cjs');
 const { parsePositiveId } = require('../services/validation.cjs');
+const {
+    CREATE_CAPABILITY_ID: CUSTOMER_CREATE_CAPABILITY_ID,
+    DELETE_CAPABILITY_ID: CUSTOMER_DELETE_CAPABILITY_ID,
+    UPDATE_CAPABILITY_ID: CUSTOMER_UPDATE_CAPABILITY_ID,
+    executeCustomerCreate,
+    executeCustomerDelete,
+    executeCustomerUpdate,
+} = require('../services/customerCommands.cjs');
+const {
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../services/commandRequest.cjs');
+const {
+    createCustomerQueries,
+} = require('../services/customerQueries.cjs');
 const router = express.Router();
+const customerQueries = createCustomerQueries({
+    listCustomers: dbGetAllCustomers,
+    listOrders: dbGetAllOrders,
+    listQuotations: dbGetAllQuotations,
+});
+
+function customerDependencies() {
+    return {
+        customerRow,
+        db,
+        safeInsert,
+        safeUpdate,
+    };
+}
+
+function legacyCustomerCommandResponse(result) {
+    return {
+        ...result,
+        operationStatus: result.status,
+        ...result.customer,
+    };
+}
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: dbGetAllCustomers() }); }
+    try { res.json({ success: true, data: customerQueries.getAllCustomers() }); }
     catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-router.post('/', (req, res) => {
-    const { name, contactInfo, defaultMargin, remark } = req.body;
-    if (!name) return res.status(400).json({ success: false, error: 'Missing name' });
-    const now = new Date().toISOString();
+router.get('/:id/context', (req, res) => {
     try {
-        const info = safeInsert('customers', { name, contact_info: contactInfo || '', default_margin: defaultMargin || 0, remark: remark || '', created_at: now, updated_at: now });
-        const record = customerRow(db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid));
-        res.json({ success: true, data: record });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        res.json({
+            success: true,
+            data: customerQueries.getCustomerContext(req.params.id, req.query),
+        });
+    } catch (err) {
+        res.status(err.statusCode || 500).json({
+            success: false,
+            error: err.message,
+        });
+    }
+});
+
+router.post('/', (req, res) => {
+    try {
+        const result = executeCustomerCreate(
+            customerDependencies(),
+            req.body || {},
+            commandContextFromRequest(req, CUSTOMER_CREATE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: legacyCustomerCommandResponse(result) });
+    } catch (err) { sendCommandError(res, err); }
 });
 
 router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法客户ID' });
-        safeUpdate('customers', id, {
-            name: req.body.name,
-            contact_info: req.body.contactInfo,
-            default_margin: req.body.defaultMargin,
-            remark: req.body.remark
-        });
-        res.json({ success: true, data: customerRow(db.prepare('SELECT * FROM customers WHERE id = ?').get(id)) });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        const result = executeCustomerUpdate(
+            customerDependencies(),
+            id,
+            req.body || {},
+            commandContextFromRequest(req, CUSTOMER_UPDATE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: legacyCustomerCommandResponse(result) });
+    } catch (err) { sendCommandError(res, err); }
 });
 
 router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法客户ID' });
-        softDelete('customers', id);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        const result = executeCustomerDelete(
+            customerDependencies(),
+            id,
+            {
+                expectedUpdatedAt: req.body?.expectedUpdatedAt
+                    ?? req.query?.expectedUpdatedAt
+                    ?? req.headers['if-unmodified-since'],
+            },
+            commandContextFromRequest(req, CUSTOMER_DELETE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
+    } catch (err) { sendCommandError(res, err); }
 });
 
 module.exports = router;

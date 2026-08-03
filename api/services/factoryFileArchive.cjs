@@ -1,4 +1,5 @@
 const path = require('node:path');
+const { assertExpectedUpdatedAt } = require('./resourceVersion.cjs');
 
 const TARGET_TYPES = new Set([
     'customer',
@@ -88,6 +89,22 @@ function defaultDocumentType(file) {
     if (file.detected_type === 'image') return 'drawing';
     if (file.detected_type === 'text') return 'technical_note';
     return 'other';
+}
+
+function archiveTargetVersion(targetType, targetId, accessors) {
+    if (!targetId) return null;
+    const statements = {
+        customer: 'SELECT updated_at FROM customers WHERE id = ?',
+        quotation: 'SELECT updated_at FROM quotations WHERE id = ?',
+        order: 'SELECT updated_at FROM orders WHERE id = ?',
+        recipe: 'SELECT updated_at FROM recipes WHERE id = ?',
+        recipe_analysis_feedback: 'SELECT updated_at FROM recipe_analysis_feedback WHERE id = ?',
+        ai_answer_feedback: 'SELECT updated_at FROM ai_answer_feedback WHERE id = ?',
+        knowledge_document: 'SELECT updated_at FROM knowledge_documents WHERE id = ?',
+    };
+    const statement = statements[targetType];
+    if (!statement) return null;
+    return accessors.db.prepare(statement).get(targetId)?.updated_at || null;
 }
 
 function targetSummary(targetType, targetId, accessors) {
@@ -305,7 +322,128 @@ function listFactoryFileLinks(params = {}, options = {}) {
     return rows.map(row => factoryFileLinkRow(row, accessors));
 }
 
-function createKnowledgeDocumentForFile(file, input, accessors) {
+function inspectFactoryFileArchive(fileIdValue, input = {}, options = {}) {
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const fileId = positiveId(fileIdValue, '文件ID');
+    const targetType = text(input.targetType, 60);
+    if (!TARGET_TYPES.has(targetType)) throw new Error('不支持的归档目标类型');
+    const relationRole = RELATION_ROLES.has(text(input.relationRole, 60))
+        ? text(input.relationRole, 60)
+        : DEFAULT_ROLES[targetType];
+    const file = accessors.db.prepare(`
+        SELECT *
+        FROM factory_files
+        WHERE id = ? AND deleted_at IS NULL
+    `).get(fileId);
+    if (!file) throw notFound('文件不存在');
+
+    const normalizedInput = {
+        targetType,
+        relationRole,
+        title: text(input.title, 160),
+        note: text(input.note, 1000),
+        source: SOURCES.has(text(input.source, 40))
+            ? text(input.source, 40)
+            : 'manual',
+    };
+    let targetId = null;
+    let target = null;
+    let knowledgeDocument = null;
+    if (targetType === 'knowledge_document') {
+        if (!['parsed', 'metadata_only'].includes(file.parser_status)) {
+            const error = new Error('文件尚未解析完成，不能归档到知识库');
+            error.statusCode = 409;
+            throw error;
+        }
+        normalizedInput.documentType = DOCUMENT_TYPES.has(text(input.documentType, 60))
+            ? text(input.documentType, 60)
+            : defaultDocumentType(file);
+        normalizedInput.tags = normalizeTags(input.tags);
+        normalizedInput.title = normalizedInput.title
+            || text(path.basename(file.original_name, file.extension || path.extname(file.original_name)), 160)
+            || `工厂资料 ${file.id}`;
+        knowledgeDocument = accessors.db.prepare(`
+            SELECT *
+            FROM knowledge_documents
+            WHERE file_id = ? AND deleted_at IS NULL
+            ORDER BY id DESC
+            LIMIT 1
+        `).get(fileId) || null;
+        if (knowledgeDocument) {
+            targetId = Number(knowledgeDocument.id);
+            target = targetSummary(targetType, targetId, accessors);
+        } else {
+            target = {
+                id: null,
+                targetType,
+                label: normalizedInput.title,
+                detail: normalizedInput.documentType,
+            };
+        }
+    } else {
+        targetId = positiveId(input.targetId, '业务对象ID');
+        normalizedInput.targetId = targetId;
+        target = targetSummary(targetType, targetId, accessors);
+        if (!target) throw notFound('归档目标不存在或已删除');
+    }
+
+    const activeLink = targetId
+        ? accessors.db.prepare(`
+            SELECT *
+            FROM factory_file_links
+            WHERE file_id = ? AND target_type = ? AND target_id = ?
+              AND relation_role = ? AND deleted_at IS NULL
+            LIMIT 1
+        `).get(fileId, targetType, targetId, relationRole) || null
+        : null;
+    const deletedLink = !activeLink && targetId
+        ? accessors.db.prepare(`
+            SELECT *
+            FROM factory_file_links
+            WHERE file_id = ? AND target_type = ? AND target_id = ?
+              AND relation_role = ? AND deleted_at IS NOT NULL
+            ORDER BY id DESC
+            LIMIT 1
+        `).get(fileId, targetType, targetId, relationRole) || null
+        : null;
+
+    return {
+        file: {
+            id: Number(file.id),
+            originalName: file.original_name,
+            parserStatus: file.parser_status,
+            fileSha256: file.file_sha256 || '',
+            updatedAt: file.updated_at,
+        },
+        normalizedInput,
+        target,
+        targetId,
+        targetUpdatedAt: archiveTargetVersion(targetType, targetId, accessors),
+        knowledgeDocument: knowledgeDocument ? {
+            id: Number(knowledgeDocument.id),
+            title: knowledgeDocument.title,
+            documentType: knowledgeDocument.document_type,
+            updatedAt: knowledgeDocument.updated_at,
+        } : null,
+        link: activeLink ? factoryFileLinkRow(activeLink, accessors) : null,
+        deletedLink: deletedLink ? {
+            id: Number(deletedLink.id),
+            updatedAt: deletedLink.updated_at,
+            deletedAt: deletedLink.deleted_at,
+        } : null,
+        action: activeLink
+            ? 'deduplicated'
+            : deletedLink
+                ? 'restore_link'
+                : knowledgeDocument
+                    ? 'create_link'
+                    : targetType === 'knowledge_document'
+                        ? 'create_document_and_link'
+                        : 'create_link',
+    };
+}
+
+function createKnowledgeDocumentForFile(file, input, accessors, auditContext) {
     if (!['parsed', 'metadata_only'].includes(file.parser_status)) {
         const error = new Error('文件尚未解析完成，不能归档到知识库');
         error.statusCode = 409;
@@ -351,15 +489,16 @@ function createKnowledgeDocumentForFile(file, input, accessors) {
         }),
         created_at: now,
         updated_at: now,
-    });
+    }, auditContext);
     return {
         document: accessors.db.prepare('SELECT * FROM knowledge_documents WHERE id = ?')
             .get(Number(info.lastInsertRowid)),
         deduplicated: false,
+        auditId: info.auditId || null,
     };
 }
 
-function upsertLink(fileId, targetType, targetId, relationRole, input, accessors) {
+function upsertLink(fileId, targetType, targetId, relationRole, input, accessors, auditContext) {
     const existing = accessors.db.prepare(`
         SELECT *
         FROM factory_file_links
@@ -367,7 +506,12 @@ function upsertLink(fileId, targetType, targetId, relationRole, input, accessors
           AND deleted_at IS NULL
         LIMIT 1
     `).get(fileId, targetType, targetId, relationRole);
-    if (existing) return { row: existing, deduplicated: true };
+    if (existing) return {
+        row: existing,
+        deduplicated: true,
+        action: 'deduplicated',
+        auditId: null,
+    };
 
     const deleted = accessors.db.prepare(`
         SELECT *
@@ -383,13 +527,15 @@ function upsertLink(fileId, targetType, targetId, relationRole, input, accessors
         source: SOURCES.has(text(input.source, 40)) ? text(input.source, 40) : 'manual',
     };
     if (deleted) {
-        accessors.safeUpdate('factory_file_links', deleted.id, {
+        const write = accessors.safeUpdate('factory_file_links', deleted.id, {
             ...values,
             deleted_at: null,
-        });
+        }, auditContext);
         return {
             row: accessors.db.prepare('SELECT * FROM factory_file_links WHERE id = ?').get(deleted.id),
             deduplicated: false,
+            action: 'restored',
+            auditId: write.auditId || null,
         };
     }
     const now = new Date().toISOString();
@@ -402,45 +548,60 @@ function upsertLink(fileId, targetType, targetId, relationRole, input, accessors
         created_at: now,
         updated_at: now,
         deleted_at: null,
-    });
+    }, auditContext);
     return {
         row: accessors.db.prepare('SELECT * FROM factory_file_links WHERE id = ?')
             .get(Number(info.lastInsertRowid)),
         deduplicated: false,
+        action: 'created',
+        auditId: info.auditId || null,
     };
 }
 
 function archiveFactoryFile(fileIdValue, input = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const fileId = positiveId(fileIdValue, '文件ID');
-    const targetType = text(input.targetType, 60);
-    if (!TARGET_TYPES.has(targetType)) throw new Error('不支持的归档目标类型');
-    const relationRole = RELATION_ROLES.has(text(input.relationRole, 60))
-        ? text(input.relationRole, 60)
-        : DEFAULT_ROLES[targetType];
+    const inspected = inspectFactoryFileArchive(fileIdValue, input, {
+        dbAccessors: accessors,
+    });
+    const fileId = inspected.file.id;
+    const { targetType, relationRole } = inspected.normalizedInput;
     const file = accessors.db.prepare(`
         SELECT *
         FROM factory_files
         WHERE id = ? AND deleted_at IS NULL
     `).get(fileId);
-    if (!file) throw notFound('文件不存在');
 
     const execute = () => {
         let targetId;
         let knowledgeDocument = null;
         let documentDeduplicated = false;
+        let documentAuditId = null;
         if (targetType === 'knowledge_document') {
-            const result = createKnowledgeDocumentForFile(file, input, accessors);
+            const result = createKnowledgeDocumentForFile(
+                file,
+                inspected.normalizedInput,
+                accessors,
+                options.auditContext
+            );
             knowledgeDocument = result.document;
             documentDeduplicated = result.deduplicated;
+            documentAuditId = result.auditId || null;
             targetId = Number(result.document.id);
         } else {
-            targetId = positiveId(input.targetId, '业务对象ID');
+            targetId = inspected.targetId;
             if (!targetSummary(targetType, targetId, accessors)) {
                 throw notFound('归档目标不存在或已删除');
             }
         }
-        const linked = upsertLink(fileId, targetType, targetId, relationRole, input, accessors);
+        const linked = upsertLink(
+            fileId,
+            targetType,
+            targetId,
+            relationRole,
+            inspected.normalizedInput,
+            accessors,
+            options.auditContext
+        );
         return {
             link: factoryFileLinkRow(linked.row, accessors),
             knowledgeDocument: knowledgeDocument ? {
@@ -450,9 +611,12 @@ function archiveFactoryFile(fileIdValue, input = {}, options = {}) {
             } : null,
             deduplicated: linked.deduplicated
                 && (targetType !== 'knowledge_document' || documentDeduplicated),
+            linkAction: linked.action,
+            knowledgeDocumentCreated: Boolean(knowledgeDocument && !documentDeduplicated),
+            auditIds: [documentAuditId, linked.auditId].filter(Boolean),
         };
     };
-    return typeof accessors.db.transaction === 'function'
+    return typeof accessors.db.transaction === 'function' && !accessors.db.inTransaction
         ? accessors.db.transaction(execute).immediate()
         : execute();
 }
@@ -462,7 +626,7 @@ function deleteFactoryFileLink(fileIdValue, linkIdValue, options = {}) {
     const fileId = positiveId(fileIdValue, '文件ID');
     const linkId = positiveId(linkIdValue, '关联ID');
     const link = accessors.db.prepare(`
-        SELECT id, target_type, target_id, relation_role
+        SELECT *
         FROM factory_file_links
         WHERE id = ? AND file_id = ? AND deleted_at IS NULL
     `).get(linkId, fileId);
@@ -502,7 +666,23 @@ function deleteFactoryFileLink(fileIdValue, linkIdValue, options = {}) {
             throw error;
         }
     }
-    accessors.softDelete('factory_file_links', linkId);
+    assertExpectedUpdatedAt(
+        link,
+        options.expectedUpdatedAt || null,
+        `文件关联 #${linkId}`
+    );
+    const deletedAt = new Date().toISOString();
+    const write = accessors.safeUpdate(
+        'factory_file_links',
+        linkId,
+        { deleted_at: deletedAt },
+        options.auditContext
+    );
+    return {
+        link: factoryFileLinkRow(link, accessors),
+        deletedAt,
+        auditId: write.auditId || null,
+    };
 }
 
 module.exports = {
@@ -513,6 +693,7 @@ module.exports = {
     archiveFactoryFile,
     deleteFactoryFileLink,
     factoryFileLinkRow,
+    inspectFactoryFileArchive,
     listFactoryFileLinks,
     searchFactoryFileArchiveTargets,
 };

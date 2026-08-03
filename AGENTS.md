@@ -77,8 +77,11 @@
 - 在 PowerShell 中读取中文文件时，默认使用 UTF-8；若出现乱码、问号、替换字符或疑似“编码噪音”，必须立即停下排查编码设置，不能继续基于乱码内容判断或修改代码
 - 禁止把中文乱码视为可忽略的终端噪音；修复编码显示或改用明确 UTF-8 的读取方式后，才能继续开发
 
-# API SOP
+# API 契约与 SOP
 
-- API 新增和修改必须遵守 `docs/api-sop.md`。
+- 这是项目默认工作流，无须用户在每次需求中重复提醒。任何新增/修改 HTTP 路由、AI tool、内部 maintenance、API client、请求字段、响应字段、兼容层或废弃入口的任务，都必须自动判定为 API 变更。
+- 开始 API 变更前必须完整阅读 `docs/api-contract.md` 和 `docs/api-sop.md`，并把“能力登记 → schema/validation → service → route/调用方 → 测试 → 文档”纳入当前实施范围；不能把 API 当作业务功能的附带实现而跳过契约。
+- 所有 API 必须遵守 `docs/api-contract.md`；API 新增和修改同时必须执行 `docs/api-sop.md`。
 - API 新增、修改、废弃或兼容层调整后，必须同步更新 `docs/api-reference.md`；涉及业务/API 概览时同时更新 `docs/README.md`。
-- 未更新 docs 的 API 变更不视为完成。
+- API 变更至少必须运行 `npm run verify:api-contract` 和 `npm test`；涉及业务 API/数据库时运行 `npm run test:deep-api`，涉及 Web 契约时运行 `npm run build`。
+- 能力登记、实现、文档和自动化契约测试任一缺失，API 变更不视为完成。

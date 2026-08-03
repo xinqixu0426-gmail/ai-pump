@@ -208,7 +208,7 @@ const CANONICAL_TABLES_SQL = `
         CHECK(material IN ('钢带', '冷轧')),
         CHECK(slot_type IN ('小眼', '国标眼')),
         CHECK(sheets > 0),
-        CHECK(scheme_status IN ('official', 'testing')),
+        CHECK(scheme_status IN ('official', 'testing', 'disabled')),
         CHECK(unit_price IS NULL OR unit_price >= 0),
         CHECK(wire_weight IS NULL OR wire_weight >= 0),
         CHECK(copper_base IS NULL OR copper_base >= 0),
@@ -260,7 +260,27 @@ const CANONICAL_TABLES_SQL = `
         old_value TEXT,
         new_value TEXT,
         user TEXT DEFAULT 'system',
+        request_id TEXT,
+        operation_id TEXT,
+        capability_id TEXT,
         created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS api_operations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id TEXT NOT NULL,
+        capability_id TEXT NOT NULL,
+        actor_key TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        request_id TEXT,
+        status TEXT NOT NULL DEFAULT 'pending'
+            CHECK(status IN ('pending', 'completed')),
+        response_json TEXT,
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        expires_at TEXT NOT NULL,
+        UNIQUE(actor_key, capability_id, idempotency_key)
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -582,9 +602,23 @@ const CANONICAL_TABLES_SQL = `
         config_json TEXT DEFAULT '{}',
         enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
         sort_order INTEGER NOT NULL DEFAULT 0,
+        source_type TEXT NOT NULL DEFAULT 'system'
+            CHECK(source_type IN ('system', 'feedback')),
+        source_feedback_id INTEGER,
+        review_status TEXT NOT NULL DEFAULT 'approved'
+            CHECK(review_status IN ('pending', 'approved', 'rejected')),
+        confidence_score INTEGER NOT NULL DEFAULT 100,
+        generation_note TEXT DEFAULT '',
+        proposal_hash TEXT DEFAULT '',
+        review_note TEXT DEFAULT '',
+        reviewed_at TEXT,
         created_at TEXT,
-        updated_at TEXT
+        updated_at TEXT,
+        FOREIGN KEY(source_feedback_id) REFERENCES ai_answer_feedback(id)
     );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_evaluation_cases_feedback
+        ON ai_evaluation_cases(source_feedback_id)
+        WHERE source_feedback_id IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS ai_evaluation_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -786,6 +820,12 @@ const CANONICAL_INDEXES_SQL = `
         ON audit_log(created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_log_record
         ON audit_log(table_name, record_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_operation
+        ON audit_log(operation_id, id);
+    CREATE INDEX IF NOT EXISTS idx_api_operations_expiry
+        ON api_operations(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_api_operations_operation
+        ON api_operations(operation_id, capability_id);
 `;
 
 const LEGACY_COLUMN_UPGRADES = {
@@ -901,6 +941,7 @@ const APPLICATION_TABLES = Object.freeze([
     'ai_evaluation_cases',
     'ai_evaluation_results',
     'ai_evaluation_runs',
+    'api_operations',
     'audit_log',
     'coil_stock_movements',
     'coils',

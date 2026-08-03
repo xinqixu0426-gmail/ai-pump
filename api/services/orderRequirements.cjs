@@ -173,13 +173,14 @@ function saveOrderRequirementDraft(orderIdValue, input = {}, options = {}) {
     const now = new Date().toISOString();
 
     if (existing) {
-        accessors.safeUpdate('order_requirement_summaries', existing.id, {
+        const write = accessors.safeUpdate('order_requirement_summaries', existing.id, {
             draft_text: summaryText,
             source_file_ids_json: JSON.stringify(sourceFileIds),
             status: nextStatus,
-        });
+        }, options.auditContext);
+        options.onWrite?.(write);
     } else {
-        accessors.safeInsert('order_requirement_summaries', {
+        const write = accessors.safeInsert('order_requirement_summaries', {
             order_id: orderId,
             draft_text: summaryText,
             confirmed_text: '',
@@ -189,7 +190,8 @@ function saveOrderRequirementDraft(orderIdValue, input = {}, options = {}) {
             confirmed_at: null,
             created_at: now,
             updated_at: now,
-        });
+        }, options.auditContext);
+        options.onWrite?.(write);
     }
     return getOrderRequirementSummary(orderId, { dbAccessors: accessors });
 }
@@ -203,7 +205,11 @@ function confirmOrderRequirementSummary(orderIdValue, input = {}, options = {}) 
             saveOrderRequirementDraft(orderId, {
                 summaryText: input.summaryText ?? current.draftText,
                 sourceFileIds: input.sourceFileIds ?? current.sourceFileIds,
-            }, { dbAccessors: accessors });
+            }, {
+                dbAccessors: accessors,
+                auditContext: options.auditContext,
+                onWrite: options.onWrite,
+            });
         }
         const row = accessors.db.prepare(`
             SELECT * FROM order_requirement_summaries WHERE order_id = ?
@@ -216,15 +222,18 @@ function confirmOrderRequirementSummary(orderIdValue, input = {}, options = {}) 
         const draftText = normalizeSummaryText(row.draft_text);
         const availableFiles = listOrderRequirementFiles(orderId, accessors);
         const sourceFileIds = validateSourceFileIds(row.source_file_ids_json, availableFiles);
-        accessors.safeUpdate('order_requirement_summaries', row.id, {
+        const write = accessors.safeUpdate('order_requirement_summaries', row.id, {
             confirmed_text: draftText,
             confirmed_source_file_ids_json: JSON.stringify(sourceFileIds),
             status: 'confirmed',
             confirmed_at: new Date().toISOString(),
-        });
+        }, options.auditContext);
+        options.onWrite?.(write);
         return getOrderRequirementSummary(orderId, { dbAccessors: accessors });
     };
-    return typeof accessors.db.transaction === 'function'
+    return options.transaction === false
+        ? execute()
+        : typeof accessors.db.transaction === 'function'
         ? accessors.db.transaction(execute).immediate()
         : execute();
 }
@@ -241,12 +250,13 @@ function revokeOrderRequirementConfirmation(orderIdValue, options = {}) {
         error.statusCode = 409;
         throw error;
     }
-    accessors.safeUpdate('order_requirement_summaries', row.id, {
+    const write = accessors.safeUpdate('order_requirement_summaries', row.id, {
         confirmed_text: '',
         confirmed_source_file_ids_json: '[]',
         status: 'draft',
         confirmed_at: null,
-    });
+    }, options.auditContext);
+    options.onWrite?.(write);
     return getOrderRequirementSummary(orderId, { dbAccessors: accessors });
 }
 

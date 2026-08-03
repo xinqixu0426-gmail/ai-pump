@@ -1,5 +1,5 @@
 import type { ApiResponse } from './api';
-import { proxyRequest } from './api';
+import { createIdempotencyKey, proxyRequest } from './api';
 
 export type CoilRecord = {
   id: number;
@@ -122,6 +122,9 @@ export type MarketIndicators = {
     livePricePerKg: string | number;
     dbPrice?: string | number | null;
     lastUpdate?: string | null;
+    source?: string;
+    sourceOfTruth?: string;
+    asOf?: string;
   };
   aluminum: {
     livePrice: string | number;
@@ -137,6 +140,10 @@ export type MarketIndicators = {
     lastUpdate?: string | null;
     sourceDate?: string | null;
   };
+  fetchedAt?: string;
+  asOf?: string;
+  sourceOfTruth?: string;
+  sources?: Record<string, string>;
 };
 
 export type MarketIndicatorsUpdateResult = {
@@ -146,6 +153,15 @@ export type MarketIndicatorsUpdateResult = {
   aluminumPricePerTon: string | number;
   aluminumPricePerKg: string | number;
   usdCnyRate: string | number;
+  operationId?: string;
+  status?: string;
+  changes?: unknown[];
+  warnings?: unknown[];
+  auditId?: number | null;
+  idempotentReplay?: boolean;
+  fetchedAt?: string;
+  sourceOfTruth?: string;
+  sources?: Record<string, string>;
 };
 
 type CoilRow = Partial<CoilRecord> & {
@@ -195,9 +211,28 @@ export async function getAllCoils(): Promise<CoilRecord[]> {
 }
 
 export async function updateCoilSpecPrice(spec: string, material: string, slotType: string, unitPrice: number): Promise<number> {
+  const previewResult = await proxyRequest<ApiResponse<{
+    previewHash: string;
+    suggestedIdempotencyKey: string;
+  }>>('/api/coils/spec-price-preview', {
+    method: 'POST',
+    body: JSON.stringify({ spec, material, slotType, unitPrice }),
+  });
+  if (!previewResult.success || !previewResult.data) {
+    throw new Error(previewResult.error || '规格单价预览失败');
+  }
+  const preview = previewResult.data;
   const result = await proxyRequest<ApiResponse<unknown> & { updated?: number }>(`/api/coils/spec/${encodeURIComponent(spec)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ material, slotType, unitPrice }),
+    headers: {
+      'Idempotency-Key': preview.suggestedIdempotencyKey,
+    },
+    body: JSON.stringify({
+      material,
+      slotType,
+      unitPrice,
+      previewHash: preview.previewHash,
+    }),
   });
   if (!result.success) throw new Error(result.error || '规格单价保存失败');
   return Number(result.updated) || 0;
@@ -210,8 +245,12 @@ export async function getMarketIndicators(): Promise<MarketIndicators> {
 }
 
 export async function updateMarketIndicators(): Promise<MarketIndicatorsUpdateResult> {
+  const idempotencyKey = createIdempotencyKey('market-indicators-sync');
   const result = await proxyRequest<ApiResponse<MarketIndicatorsUpdateResult>>('/api/market-indicators/update', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    },
   });
   if (!result.success || !result.data) throw new Error(result.error || '市场指标同步失败');
   return result.data;
@@ -244,24 +283,39 @@ export async function getStatorVariants(): Promise<StatorVariant[]> {
 export async function createCoil(input: CoilInput): Promise<CoilRecord> {
   const result = await proxyRequest<ApiResponse<CoilRow>>('/api/coils', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('coil-create'),
+    },
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '线圈记录创建失败');
   return rowToCoil(result.data);
 }
 
-export async function updateCoil(id: number, input: CoilInput): Promise<CoilRecord> {
-  const result = await proxyRequest<ApiResponse<CoilRow>>(`/api/coils/${id}`, {
+export async function updateCoil(coil: CoilRecord, input: CoilInput): Promise<CoilRecord> {
+  if (!coil.updatedAt) throw new Error('线圈版本缺失，请刷新列表后再保存');
+  const result = await proxyRequest<ApiResponse<CoilRow>>(`/api/coils/${coil.id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`coil-update:${coil.id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: coil.updatedAt,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '线圈记录保存失败');
   return rowToCoil(result.data);
 }
 
-export async function deleteCoil(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/coils/${id}`, {
+export async function deleteCoil(coil: CoilRecord): Promise<void> {
+  if (!coil.updatedAt) throw new Error('线圈版本缺失，请刷新列表后再删除');
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/coils/${coil.id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`coil-delete:${coil.id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt: coil.updatedAt }),
   });
   if (!result.success) throw new Error(result.error || '线圈记录删除失败');
 }
@@ -272,11 +326,38 @@ export async function getCoilStockMovements(id: number, limit = 20): Promise<Coi
   return result.data || [];
 }
 
-export async function adjustCoilStock(id: number, changeQty: number, note = ''): Promise<CoilRecord> {
-  const result = await proxyRequest<ApiResponse<{ coil: CoilRow }>>(`/api/coils/${id}/stock-adjustment`, {
+export async function adjustCoilStock(
+  id: number,
+  changeQty: number,
+  note = '',
+  expectedUpdatedAt?: string
+): Promise<CoilRecord> {
+  const previewResult = await proxyRequest<ApiResponse<{
+    confirmationToken: string;
+    suggestedIdempotencyKey: string;
+    operationId: string;
+  }>>('/api/coils/stock-adjustments-preview', {
     method: 'POST',
-    body: JSON.stringify({ changeQty, note }),
+    body: JSON.stringify({
+      adjustments: [{ coilId: id, changeQty, expectedUpdatedAt }],
+      note,
+    }),
   });
-  if (!result.success || !result.data?.coil) throw new Error(result.error || '线圈库存调整失败');
-  return rowToCoil(result.data.coil);
+  if (!previewResult.success || !previewResult.data?.confirmationToken) {
+    throw new Error(previewResult.error || '线圈库存调整预览失败');
+  }
+  const preview = previewResult.data;
+  const result = await proxyRequest<ApiResponse<{
+    adjustments: Array<{ coil: CoilRow }>;
+  }>>('/api/coils/stock-adjustments', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': preview.suggestedIdempotencyKey,
+      'X-Operation-ID': preview.operationId,
+    },
+    body: JSON.stringify({ confirmationToken: preview.confirmationToken }),
+  });
+  const coil = result.data?.adjustments?.[0]?.coil;
+  if (!result.success || !coil) throw new Error(result.error || '线圈库存调整失败');
+  return rowToCoil(coil);
 }

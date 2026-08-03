@@ -139,14 +139,64 @@ export async function getPurchaseOrders(): Promise<Order[]> {
   return getAllOrders();
 }
 
-export async function applyPurchaseTask(task: PurchaseTask, purchased: boolean): Promise<void> {
+export type PurchaseBatchDraft = {
+  capabilityId: 'purchasing.task.batch_order';
+  previewHash: string;
+  suggestedIdempotencyKey: string;
+  expectedVersions: Array<{
+    orderId: number;
+    expectedUpdatedAt: string;
+  }>;
+  affectedOrders: Array<{
+    orderId: number;
+    customerName: string;
+    contractNo: string;
+    plannedQty: number;
+    beforeOrderedQty: number;
+    afterOrderedQty: number;
+    purchaseUnit: string;
+  }>;
+};
+
+function purchaseTaskPayload(task: PurchaseTask, purchased: boolean) {
+  return {
+    model: task.model,
+    supplier: task.supplier,
+    identityKey: task.identityKey,
+    purchased,
+  };
+}
+
+export async function buildPurchaseBatchDraft(
+  task: PurchaseTask,
+  purchased: boolean
+): Promise<PurchaseBatchDraft> {
+  const result = await proxyRequest<ApiResponse<PurchaseBatchDraft>>(
+    '/api/orders/purchase-items/batch-draft',
+    {
+      method: 'POST',
+      body: JSON.stringify(purchaseTaskPayload(task, purchased)),
+    }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '批量采购预览生成失败');
+  }
+  return result.data;
+}
+
+export async function applyPurchaseTask(
+  task: PurchaseTask,
+  purchased: boolean,
+  preparedDraft?: PurchaseBatchDraft
+): Promise<void> {
+  const draft = preparedDraft || await buildPurchaseBatchDraft(task, purchased);
   const result = await proxyRequest<ApiResponse<{ updatedCount: number }>>('/api/orders/purchase-items/batch', {
     method: 'POST',
+    headers: { 'Idempotency-Key': draft.suggestedIdempotencyKey },
     body: JSON.stringify({
-      model: task.model,
-      supplier: task.supplier,
-      identityKey: task.identityKey,
-      purchased,
+      ...purchaseTaskPayload(task, purchased),
+      expectedVersions: draft.expectedVersions,
+      previewHash: draft.previewHash,
     }),
   });
   if (!result.success) throw new Error(result.error || '采购状态保存失败');

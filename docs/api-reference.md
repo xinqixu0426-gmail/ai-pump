@@ -1,6 +1,17 @@
 # API 接口总表
 
-> 更新于 2026-07-29。本文按当前代码整理，覆盖 Express 路由。开发规范见 [api-sop.md](./api-sop.md)，业务口径见 [README.md](./README.md)。
+> 更新于 2026-08-03。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，职责、依赖和重构建议见 [API 架构审核与解耦报告](./api-architecture-audit.md)。
+
+文档分工：
+
+- 本文：当前可调用的 Method、Path、请求和响应。
+- [API 统一契约](./api-contract.md)：所有能力必须满足的 Command/Query、事实来源、事务、幂等、版本、确认和审计规则。
+- [API 变更 SOP](./api-sop.md)：从调用方核对到测试、兼容、文档和发布的操作流程。
+- [系统说明](./README.md)：稳定业务边界、鉴权和使用入口。
+- [API 架构审核](./api-architecture-audit.md)：能力矩阵、依赖、风险、兼容/废弃建议。
+- Git 历史：保存实施过程，不作为当前接口契约。
+
+当前源码共有 214 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -47,16 +58,32 @@
 点、下划线或连字符组成的编号；格式无效或未传时服务端生成 UUID。API 访问
 日志只记录编号、方法、路径、状态码和耗时，不记录查询参数或请求体。
 
+### 3.1 高风险 Command 通用协议
+
+已经接入统一命令执行器的写接口接受：
+
+- `Idempotency-Key` 请求头，或请求体 `idempotencyKey`；AI 内部调用也可用 `X-Operation-ID` 作为同一幂等键。键长 8-200，只允许字母、数字和 `._:/-`。
+- 资源项中的 `expectedUpdatedAt` 必须原样取自最近一次正式 API 响应。资源已变化时返回 HTTP `409` 和 `code=resource_version_conflict`，不产生业务写入、流水、审计或 operation 记录。
+- 成功返回标准 operation receipt：`operationId/capabilityId/status/resource/changes/warnings/auditId/auditIds/idempotentReplay/completedAt`，业务结果保留在同一 `data` 中。
+- 同一调用主体、`capabilityId` 和幂等键重复提交相同请求时返回已保存回执，并标记 `idempotentReplay=true`；请求内容不同返回 HTTP `409` 和 `code=idempotency_key_conflict`。
+- 失败响应为 `{ success: false, code, error, requestId }`。可预期校验错误为 `400`，资源不存在为 `404`，版本、幂等或库存状态冲突为 `409`，未知执行异常为 `500`。
+
+调用主体由 JWT 或内部凭据的 SHA-256 指纹标识，数据库不保存原始 token/secret。旧调用未提供幂等键或 `expectedUpdatedAt` 时仍兼容执行，并在 `warnings` 中明确标记缺失保护；这种调用不能获得跨请求重试或并发覆盖保护，新调用方不得依赖该兼容模式。持久化回执默认保存 90 天。
+
 ## 4. 零件 Parts
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/parts` | 无 | 零件列表，Row Adapter 输出 camelCase；包装零件额外返回 `subcategory`，并临时保留 `Id/CreatedAt/UpdatedAt` |
-| `POST` | `/api/parts` | `model, category, subcategory?, price, supplier, stock, remark/notes` | 新增零件；`category=包装` 时二级分类为 `外包装/内衬/固定包材`，未传时按型号和备注推断 |
-| `PATCH` | `/api/parts/:id` | 可更新字段 | 更新入口；动态更新必须走 `safeUpdate('parts', id, updates)` |
-| `DELETE` | `/api/parts/:id` | 无 | 软删除并返回 `{ deleted: 1 }` |
-| `PATCH` | `/api/parts/prices` | `{ updates: [{ partId, price }] }` | 批量更新零件价格；`partId` 必须为正整数，`price` 必须为非负有效数字 |
-| `POST` | `/api/parts/batch-stock` | `{ operations: [{ partId, delta }] }` | 批量库存增减，库存最低为 0；`partId` 必须为正整数，`delta` 必须为有效数字 |
+| `POST` | `/api/parts` | 请求头 `Idempotency-Key`；`model, category, subcategory?, price, supplier, stock, remark/notes` | 能力 `parts.create`。新增零件并返回原零件顶层字段和标准 operation receipt；允许设置建档初始库存。`category=包装` 时二级分类为 `外包装/内衬/固定包材`，未传时按现有字段适配规则处理 |
+| `PATCH` | `/api/parts/:id` | 请求头 `Idempotency-Key`；可更新字段及 `expectedUpdatedAt` | 能力 `parts.update`。资源版本、零件更新、operation 和强审计同一事务；原路径及顶层零件字段保持兼容。历史请求仍可提交 `stock`，但响应带 `part_stock_patch_compatibility`；Web、AI 和新增调用必须改用 `/batch-stock-preview` → `/batch-stock` |
+| `DELETE` | `/api/parts/:id` | 请求头 `Idempotency-Key`；请求体或查询参数 `expectedUpdatedAt` | 能力 `parts.delete`。软删除并返回标准回执；旧 `{ deleted: 1 }` 业务字段继续保留 |
+| `POST` | `/api/parts/prices-preview` | `{ updates: [{ partId, price, expectedUpdatedAt? }] }` | 能力 `parts.batch_update_prices` 的只读预览；校验 ID、非负价格和重复项，补齐每项正式资源版本，返回 `changes/previewHash/suggestedIdempotencyKey`，不写库 |
+| `PATCH` | `/api/parts/prices` | 请求头 `Idempotency-Key`；`{ updates: [{ partId, price, expectedUpdatedAt }], previewHash }` | 按预览批量调价；全部零件版本、预览哈希、operation 和强审计在同一 SQLite 事务校验/提交，任一冲突整批回滚，相同请求安全重放。旧 `{ partId, price }` 数组仍兼容，但会提示缺少预览或调用方版本保护 |
+| `POST` | `/api/parts/batch-stock-preview` | `{ operations: [{ partId, delta }] }` | 能力 `inventory.parts.batch_adjust_stock` 的正式只读预览；最多 100 项，读取当前库存和资源版本，返回逐项 `currentStock/nextStock`、截零 warning、`confirmationToken/operationId/suggestedIdempotencyKey`，不写库 |
+| `POST` | `/api/parts/batch-stock` | `{ confirmationToken, idempotencyKey? }`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 执行预览中由服务端固化的增量和资源版本，不信任执行请求重传的 `operations`。任一零件版本变化时整批回滚；成功返回零件和 operation receipt |
+
+AI 工具 `update_part` 和 `batch_update_prices` 的型号/类别定位、字段差异说明、元数据 PATCH、库存 Preview/Command 及调价 Preview/Command 调用集中在 `aiPartExecution`；查询 executor 只负责委托。该 AI 编排层不访问数据库，也不得把库存写入普通 PATCH。批量调价的百分比/固定金额只在这里转换为两位小数且不低于 0 的候选价，正式 `/prices-preview` 仍会重新校验具体价格、补齐资源版本并签发预览哈希；若其他调用方也需要调价策略，应扩展正式策略预览 API，不得复制换算规则。`update_part` 一次只能选择资料模式（`price/supplier/category/subcategory`）或库存模式（`stock/stockDelta`），混合请求在签发 AI confirmation token 前返回 `part_update_mixed_write_not_allowed`，不会调用业务 API，并给出两条可分别确认的建议操作；`stock` 与 `stockDelta` 同时提交返回 `part_stock_input_conflict`。两种单独模式继续分别由正式 Command 保证版本、幂等、事务和审计。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
@@ -64,64 +91,72 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/coils` | 无 | 绕组方案列表，返回 `diameterMm/commonName/material/slotType/schemeName/schemeStatus/stock`；`stock` 单位为套 |
-| `GET` | `/api/coils/variants` | 无 | 定子组合列表；组合键为标准直径、材质和槽眼 |
-| `POST` | `/api/coils` | `spec, diameterMm, material, slotType, sheets, schemeName?, schemeStatus?, unitPrice, wireWeight?, copperBase?, coilFee?, rotorFee?, defaultWireGauge?, defaultCapacitor?, mainWireGauge?, mainWireData?, auxWireGauge?, auxWireData?` | 新增绕组方案并计算 `cost`；材质仅支持钢带/冷轧，槽眼仅支持小眼/国标眼；正式方案会替换同组合同片数的原正式方案 |
-| `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段 | 修改定子组合或绕组方案；成本字段变化时自动重算 `cost`。库存大于 0 或已有库存流水后，规格俗称、定子直径、片数、材质和槽眼被冻结，修改这些身份字段返回 `409`；应新建方案 |
-| `DELETE` | `/api/coils/:id` | 无 | 仅允许删除库存为 0 且从未产生库存流水的线圈方案；已有库存或流水时返回 `409`，避免破坏库存追溯 |
-| `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | 按定子组合生成录入草稿；精确组合可带入单片价，其他组合只带辅助字段；不写库 |
-| `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType? }` | 按标准直径批量更新定子单片价，可按材质和槽眼过滤 |
+| `GET` | `/api/coils` | 无 | `coilQueries` 只读返回绕组方案列表，字段含 `diameterMm/commonName/material/slotType/schemeName/schemeStatus/stock`；`stock` 单位为套 |
+| `GET` | `/api/coils/variants` | 无 | `coilQueries` 只读返回定子组合列表；组合键为标准直径、材质和槽眼 |
+| `POST` | `/api/coils` | `spec, diameterMm, material, slotType, sheets, schemeName?, schemeStatus?, unitPrice, wireWeight?, copperBase?, coilFee?, rotorFee?, defaultWireGauge?, defaultCapacitor?, mainWireGauge?, mainWireData?, auxWireGauge?, auxWireData?, idempotencyKey?`；推荐请求头 `Idempotency-Key` | 能力 `coils.create`。新增绕组方案并计算 `cost`；材质仅支持钢带/冷轧，槽眼仅支持小眼/国标眼；正式方案会在同一事务内把同组合同片数的原正式方案改为测试方案。原线圈顶层字段继续返回，并增加标准命令回执 |
+| `PATCH` | `/api/coils/:id` | 线圈 camelCase 字段，`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key` | 能力 `coils.update`。修改定子组合或绕组方案；成本字段变化时自动重算 `cost`。库存大于 0 或已有库存流水后，规格俗称、定子直径、片数、材质和槽眼被冻结，修改这些身份字段返回 `409`；应新建方案。新调用必须传资源版本；旧请求兼容执行并返回缺少并发保护 warning |
+| `DELETE` | `/api/coils/:id` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `coils.delete`。仅允许删除库存为 0 且从未产生库存流水的线圈方案；已有库存或流水时返回 `409`，避免破坏库存追溯。页面继续显式确认；旧空请求兼容执行并返回缺少版本/重试保护 warning |
+| `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | `coilQueries` 复用 `coilCost` 按定子组合生成录入草稿；精确组合可带入单片价，其他组合只带辅助字段；不写库 |
+| `POST` | `/api/coils/spec-price-preview` | `{ spec, unitPrice, material?, slotType? }` | 能力 `coils.batch_update_unit_price` 的只读预览。按标准直径及可选材质/槽眼列出每条线圈的单片价、成本差异和 `expectedUpdatedAt`，返回 `previewHash` 与建议幂等键；不写库 |
+| `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType?, previewHash?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `coils.batch_update_unit_price`。按预览批量更新定子单片价并重算各方案成本；版本、价格或成本漂移返回 `409`，任一写入/审计失败整批回滚。保留原路径和顶层 `updated`；旧无预览请求兼容执行并返回 warning |
 | `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, wireWeight?, copperPrice? }` | `sheets` 必须为正整数，线重和铜价必须为非负数字；只使用正式方案，在同标准直径、材质和槽眼内精确匹配、插值或外推 |
-| `GET` | `/api/coils/specs` | 无 | 正式方案可用的规格、标准直径、材质、槽眼和片数列表；`variants[]` 按材质+槽眼返回各自可用片数，供配方联动选择 |
-| `GET` | `/api/coils/:id/stock-movements` | 查询参数 `limit?` | 返回指定线圈方案最近库存流水，字段为 `changeQty/balanceAfter/movementType/referenceType/referenceId/note/createdAt` |
-| `POST` | `/api/coils/:id/stock-adjustment` | `{ changeQty, note? }` | 手工调整线圈成品库存；`changeQty` 必须是非零整数，负数出库时不得超过当前库存 |
-| `POST` | `/api/coils/stock-adjustments` | `{ adjustments: [{ coilId, changeQty }], note? }` | 原子批量调整线圈成品库存；最多 50 项、同一方案不可重复，任一项无效或库存不足时整批回滚 |
+| `GET` | `/api/coils/specs` | 无 | `coilQueries` 只读返回正式方案可用的规格、标准直径、材质、槽眼和片数；`variants[]` 按材质+槽眼返回各自可用片数，供配方联动选择 |
+| `GET` | `/api/coils/:id/stock-movements` | 查询参数 `limit?` | `coilQueries` 校验方案存在后只读返回最近库存流水，`limit` 为 1-100、默认 20；字段为 `changeQty/balanceAfter/movementType/referenceType/referenceId/note/createdAt` |
+| `POST` | `/api/coils/:id/stock-adjustment` | `{ idempotencyKey?, changeQty, expectedUpdatedAt?, note? }` | 能力 `inventory.coils.adjust_stock` 的单项兼容入口；`changeQty` 必须是非零整数，库存不足返回 `409`。成功保留 `coil/adjustment` 并附 operation receipt |
+| `POST` | `/api/coils/stock-adjustments-preview` | `{ adjustments: [{ coilId, changeQty }], note? }` | 能力 `inventory.coils.adjust_stock` 的正式只读预览；最多 50 项，返回型号、材质、槽眼、当前/执行后库存和服务端确认凭证。库存不足在签发确认前拒绝 |
+| `POST` | `/api/coils/stock-adjustments` | `{ confirmationToken, idempotencyKey? }`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 标准批量执行入口，仅执行确认凭证绑定的线圈、数量、备注和资源版本；任一项版本冲突或库存不足时，库存、流水、审计和 operation 整批回滚 |
+
+AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案唯一匹配和材质/槽眼歧义拒绝集中在 `aiCoilStockExecution`；查询 executor 只负责委托。该 AI 编排层不访问数据库、不计算库存结果，必须依次调用上述正式批量 Preview/Command，并消费服务端签发的 `confirmationToken` 与 `suggestedIdempotencyKey`。库存校验、版本绑定、原子事务、流水和审计仍以正式 API 为唯一权威。
 
 ## 6. 模板 Templates
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/templates` | 无 | 泵壳模板列表，标准字段含 `id/createdAt/updatedAt` |
-| `GET` | `/api/templates/:id` | 无 | 单个模板 |
-| `GET` | `/api/templates/:id/cost` | 无 | 模板固定配件/壳体组件成本 |
-| `GET` | `/api/templates/:id/default-recipe` | 无 | 基于模板生成配方草稿、配件、转子参数和成本；`recipeDraft.templateId` 使用标准 `id` |
-| `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 把模板默认项应用到传入配方草稿 |
-| `GET` | `/api/templates/:id/recipes` | 无 | 引用该模板的配方列表 |
-| `POST` | `/api/templates` | `shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合组件，组件字段可含 `name/model/supplier/qty/unitCost/pricingMode/included/componentType/note`；每个计入的组件 `model` 必须存在于零件库“泵壳搭配”分类，否则返回 400；机筒名称为 `铝机筒/不锈钢拉伸筒/铁机筒`，不锈钢拉伸筒使用 `componentType=stainlessStretchBarrel`，其他组件使用 `standard`；`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 新增模板；支持 components/bundle 成本模式和表面处理预设。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的 `shellModel` 可手输组合名称，也可选择零件库泵壳型号；历史 `isStainlessStretchBarrel=true` 及“不锈钢拉伸机筒”名称继续兼容读取 |
-| `PATCH` | `/api/templates/:id` | 同新增模板字段 | 使用 `safeUpdate` 更新 |
-| `DELETE` | `/api/templates/:id` | 无 | 无配方引用时硬删除 |
+| `GET` | `/api/templates` | 无 | 经 `templateQueries` 返回泵壳模板列表，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/templates/:id` | 无 | 经 `templateQueries` 返回单个模板；非法 ID 返回 400，不存在返回 404 |
+| `GET` | `/api/templates/:id/cost` | 无 | 经 `templateQueries` 聚合模板固定配件、壳体组件和正式零件目录，再委托 `costEngine` 兼容入口计算成本；不写库 |
+| `GET` | `/api/templates/:id/default-recipe` | 无 | 经 `templateQueries` 基于模板生成配方草稿、配件、转子参数和正式成本结果；`recipeDraft.templateId` 使用标准 `id`，不写库 |
+| `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 经 `templateQueries` 把模板默认项应用到传入配方草稿；只生成草稿，不写库 |
+| `GET` | `/api/templates/:id/recipes` | 无 | 经 `templateQueries` 返回引用该模板的配方列表 |
+| `POST` | `/api/templates` | 请求头 `Idempotency-Key`；`shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合组件，组件字段可含 `name/model/supplier/qty/unitCost/pricingMode/included/componentType/note`；每个计入的组件 `model` 必须存在于零件库“泵壳搭配”分类，否则返回 400；机筒名称为 `铝机筒/不锈钢拉伸筒/铁机筒`，不锈钢拉伸筒使用 `componentType=stainlessStretchBarrel`，其他组件使用 `standard`；`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 能力 `templates.create`。新增模板并返回原模板顶层字段和标准 operation receipt；模板、operation 与强审计同一事务。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的组件必须引用“泵壳搭配”零件；历史组件名称继续兼容读取 |
+| `PATCH` | `/api/templates/:id` | 请求头 `Idempotency-Key`；同新增模板字段及 `expectedUpdatedAt` | 能力 `templates.update`。资源版本、组件目录校验、模板更新、operation 与强审计同一事务；原 URL 和模板字段保持兼容 |
+| `DELETE` | `/api/templates/:id` | 请求头 `Idempotency-Key`；请求体或查询参数 `expectedUpdatedAt` | 能力 `templates.delete`。无任何历史配方引用时硬删除并返回标准回执；有引用返回 `409 template_in_use`。原删除保护语义保持不变 |
+
+模板领域按 Query / Command 分层：`templateQueries` 只读取正式模板、零件目录和关联配方，并生成成本或配方草稿；目录价优先、模板手工价回退的既有规则保持兼容，正式成本仍由 `costEngine`（经 `api/db.cjs:calculateRecipeCost` 兼容导出）计算。模板新增、修改和删除唯一委托 `templateCommands`，路由只负责请求/响应协议适配。
 
 ## 7. 型号变体 Model Variants
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/model-variants` | 无 | 型号变体列表，标准字段含 `id/createdAt/updatedAt` |
-| `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段和 `customFieldsJson` | 新增变体；`customFieldsJson` 为 `[{ label, value }]` JSON 字符串；若模板含长螺丝且变体有机筒长度，会按参数化螺丝公式自动补齐对应长度的螺丝零件，响应附带 `createdLongScrewParts` |
-| `PATCH` | `/api/model-variants/:id` | 同新增字段 | 更新变体；同样可能返回 `createdLongScrewParts` |
-| `DELETE` | `/api/model-variants/:id` | 无 | 软删除 |
+| `POST` | `/api/model-variants` | `modelName, templateId` 必填；可带线圈、机筒、长螺丝、叶轮字段、`customFieldsJson` 和 `idempotencyKey?`；推荐请求头 `Idempotency-Key` | 能力 `model_variants.create`。新增历史常用配置；若模板含长螺丝且变体有机筒长度，会按参数化螺丝公式自动补齐对应长度的螺丝零件。常用配置、自动生成零件、operation 和全部强审计同一事务提交；原变体顶层字段及响应顶层 `createdLongScrewParts` 保持兼容 |
+| `PATCH` | `/api/model-variants/:id` | 同新增字段，另带 `expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key` | 能力 `model_variants.update`。更新常用配置并可能沉淀新的长螺丝规格；新调用绑定资源版本，旧无版本请求兼容执行并返回 warning；原变体字段与 `createdLongScrewParts` 保持兼容 |
+| `DELETE` | `/api/model-variants/:id` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `model_variants.delete`。按资源版本软删除常用配置，历史配方及其引用 ID 不删除；旧空请求兼容执行并返回缺少版本/重试保护 warning |
 
 ## 8. 配方 Recipes
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/recipes` | 无 | 配方列表，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength` |
-| `GET` | `/api/recipes/:id` | 无 | 单个配方，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength` |
-| `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`；不写库 |
-| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 基于配方草稿生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。自由组合模板中只有 `componentType=stainlessStretchBarrel` 的“不锈钢拉伸筒”组件会用 `customBarrelLength/modelVariant.barrelLength` 换算 cm 数量，并触发长螺丝长度联动；铝机筒、铁机筒按普通固定组件处理。历史 `isStainlessStretchBarrel=true` 数据继续兼容。自由组合组件取价只读取“泵壳搭配”分类。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
+| `GET` | `/api/recipes` | 无 | 经纯读 `recipeQueries` 返回配方列表，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength` |
+| `GET` | `/api/recipes/:id` | 无 | 经纯读 `recipeQueries` 返回单个配方，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength` |
+| `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 经 `recipeQueries` 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`；不写库 |
+| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, customBarrelLength?, coilSpec?, coilSheets?, coilMaterial?, coilWireWeight?, hasFloat?, hasCable?, packingParts?, optionalParts? }` | 经 `recipeQueries` 聚合正式模板、变体、泵壳元数据、零件和线圈，再委托 `recipeBomEngine` 生成标准化 BOM；不写库。`coilWireWeight` 为客户指定线重，会重算线圈成本。不锈钢机筒泵壳使用套件整体价时，`customBarrelLength` 会按 150mm 基准、每增加 10mm 加 1 元修正泵壳套件快照价，加价直接反映在“泵壳套件”这一行的 `snapshotPrice` 和 `shellPrice` 上。自由组合模板中只有 `componentType=stainlessStretchBarrel` 的“不锈钢拉伸筒”组件会用 `customBarrelLength/modelVariant.barrelLength` 换算 cm 数量，并触发长螺丝长度联动；铝机筒、铁机筒按普通固定组件处理。历史 `isStainlessStretchBarrel=true` 数据继续兼容。自由组合组件取价只读取“泵壳搭配”分类。`coilSnapshot` 返回 `wireGauge/defaultCapacitor` 供浮球、电缆和电容自动匹配；返回的 `parts[]` 必须包含当前成本价 `snapshotPrice`，计算项或手动价需带 `formula/costSource/source` |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写。配方正式保存时 `customBarrelLength` 和 `longScrewExtraLength` 都会持久化，重新编辑可恢复原值 |
-| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 基于表单草稿和成本草稿生成最终保存 payload；统一序列化 JSON、ID、数字和表面处理字段；`technicalData` 支持 `upperBearing/lowerBearing/pieceCount/rotorDiameter/bearingSpan/stackOffset/oilSealDiameter/impellerBoreDiameter/impellerSpan/impellerDepth/threadLength/threadDiameter` 转子出图参数；逐项检查 `costDraft.parts[].snapshotPrice`，缺失、无效或小于等于 0 时返回 400 并列出未定价 BOM 项目；`form.coilWireWeight` 会保存为客户指定线重，`form.longScrewExtraLength` 会作为非负数进入正式配方保存；不写库 |
-| `GET` | `/api/recipes/:id/inventory-status` | 无 | 按配方 BOM 返回库存状态；普通配件读取零件库，线圈转子按规格、片数、材质和槽眼读取正式线圈方案库存；只读，不执行生产或扣减库存 |
-| `POST` | `/api/recipes` | 配方字段，优先 camelCase | 新增配方并保存成本/技术快照；`partsJson` 中任一 BOM 项目的 `snapshotPrice` 缺失、无效或小于等于 0 时返回 400；若含已计价但零件库缺失的长螺丝型号，会自动补齐螺丝零件并返回 `createdLongScrewParts` |
-| `PATCH` | `/api/recipes/:id` | 配方字段 | 更新入口；提交 `partsJson` 时执行相同的 BOM 单价检查，同样可能返回 `createdLongScrewParts` |
-| `DELETE` | `/api/recipes/:id` | 无 | 软删除 |
-| `GET` | `/api/recipes/:id/technical-files` | 无 | 列出配方性能测试报告附件及解析摘要，不返回文件二进制和完整解析文本 |
-| `POST` | `/api/recipes/:id/technical-files` | `multipart/form-data`，字段 `file`，支持 `.xls/.xlsx`，最大 10MB | 保存原始 Excel 到 SQLite，并解析水泵性能报告的型号、测试号、日期和测试点明细；模板中的规定点、实测点和偏差不进入 API 摘要或知识检索文本 |
-| `GET` | `/api/recipes/:id/technical-files/:fileId/download` | 无 | 下载原始测试报告 |
-| `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 无 | 软删除测试报告 |
-| `GET` | `/api/recipes/:id/cost` | 无 | 当前配件重算参考，不是保存成本，也不是完整总成本 |
-| `GET` | `/api/recipes/current-costs` | 无 | 批量返回所有配方的当日完整成本；普通零件按当前零件库价格、线圈按当前铜价和线圈参数重算，并叠加人工、表面处理与管理费；同时返回相对保存成本的差额 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 报价/试算用，以配方保存成本为基线替换被覆盖的动态项；返回 `unitCost/parts/costSnapshot`，其中 `parts` 是应用覆盖后的可采购 BOM 快照。包材按完整有效清单重算，表面处理替换原工艺成本 |
-| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 比较两个配方的当前成本，返回总差额和主要差异驱动项；不写库 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ recipeId?, expectedUpdatedAt?, form, costDraft, packingParts?, optionalParts?, technicalData? }` | `recipes.create/recipes.update` 的正式只读预览兼保存 payload 草稿。服务端以 `costDraft.parts` 和表单费用再次调用 `costEngine` 重建 `partsJson/savedTotalCost/savedCostDetails`，不信任调用方提交的总成本或说明；统一序列化 JSON、ID、数字、表面处理和技术参数。逐项检查 BOM 快照单价，缺失、无效或小于等于 0 时返回 400。编辑时传 `recipeId + expectedUpdatedAt`，返回当前版本；统一返回 `previewHash/changes/warnings` 和建议幂等键，不写配方、operation 或审计 |
+| `GET` | `/api/recipes/:id/inventory-status` | 无 | 经 `recipeQueries` 按配方 BOM 返回库存状态；普通配件读取零件库，线圈转子按规格、片数、材质和槽眼读取正式线圈方案库存；只读，不执行生产或扣减库存 |
+| `POST` | `/api/recipes` | 请求头 `Idempotency-Key`；请求体为 `/save-payload-draft` 返回 payload，并携带 `previewHash?` | 能力 `recipes.create`。`recipeCommands` 再次通过 `costEngine` 固化 BOM/成本快照；配方、自动补齐的参数化长螺丝零件、operation 和强审计同一事务提交。相同请求安全重放，预览篡改、异参复用、未定价 BOM 或审计缺失不会产生部分写入。响应顶层继续提供完整配方字段和旧 `createdLongScrewParts`，同时增加标准回执；旧请求缺少协议字段仍兼容并返回 warnings |
+| `PATCH` | `/api/recipes/:id` | 请求头 `Idempotency-Key`；请求体为 `/save-payload-draft` 返回 payload，并携带 `{ expectedUpdatedAt?, previewHash? }`；历史部分字段 PATCH 继续兼容 | 能力 `recipes.update`。保存前合并当前配方快照，再由 `costEngine` 重建权威成本；版本、预览、异参复用或审计冲突返回 409。配方、参数化长螺丝补齐、规则学习刷新、operation 和强审计在同一事务内执行；响应保持顶层配方字段兼容并增加标准回执。旧请求缺少协议字段仍兼容并返回 warnings |
+| `DELETE` | `/api/recipes/:id` | 请求头 `Idempotency-Key`；请求体或 query `{ expectedUpdatedAt? }`，也兼容 `If-Unmodified-Since` | 能力 `recipes.delete`。配方软删除、规则学习刷新、operation 和强审计同一事务提交；相同请求安全重放，版本、异参复用或审计冲突返回 409。Web/AI 传递当前资源版本；旧请求缺少协议字段仍兼容并返回 warnings |
+| `GET` | `/api/recipes/:id/technical-files` | 无 | 通过技术档案 Query service 列出配方性能测试报告附件及解析摘要；严格只读，不返回文件二进制和完整解析文本 |
+| `POST` | `/api/recipes/:id/technical-files` | 请求头 `Idempotency-Key`；`multipart/form-data` 字段 `file`、`expectedUpdatedAt?`，支持 `.xls/.xlsx`，最大 10MB | 能力 `recipes.technical_files.upload`。验证真实文件类型并解析水泵性能报告；统一文件对象、配方附件、operation 和强审计同一事务提交。相同幂等键安全重放，同一配方重复上传相同 SHA-256 返回现有附件；版本或审计冲突不留下部分文件。响应继续在顶层返回原附件字段并增加标准回执；旧请求缺少协议字段仍兼容并返回 warnings。规定点、实测点和偏差不进入 API 摘要或知识检索文本 |
+| `GET` | `/api/recipes/:id/technical-files/:fileId/download` | 无 | 通过技术档案 Query service 下载原始测试报告；优先读取统一文件对象，兼容历史附件 BLOB |
+| `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt? }` | 能力 `recipes.technical_files.delete`。软删除附件关联，不删除可能被其他业务引用的统一文件对象；附件、operation 和强审计同一事务提交，相同请求安全重放，版本或审计冲突返回 409。变更自动触发现有知识派生同步；旧请求仍兼容并返回 warnings |
+| `GET` | `/api/recipes/:id/cost` | 无 | 经 `costQueries` 读取正式配方并委托 `costEngine` 重算当前配件参考；不是保存成本，也不是完整总成本 |
+| `GET` | `/api/recipes/current-costs` | 无 | 经 `costQueries` 批量返回所有配方的当日完整成本；普通零件按当前零件库价格、线圈按当前铜价和线圈参数重算，并叠加人工、表面处理与管理费；同时返回相对保存成本的差额 |
+| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 经 `costQueries` 读取正式配方，再委托 `dynamicCostPreview` 以保存成本为基线替换被覆盖的动态项；返回 `unitCost/parts/costSnapshot`，其中 `parts` 是应用覆盖后的可采购 BOM 快照。包材按完整有效清单重算，表面处理替换原工艺成本 |
+| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 经 `costQueries` 和 `costDifference` 比较两个正式配方的当前成本，返回总差额和主要差异驱动项；不写库 |
+
+配方列表、详情、库存状态、型号变体草稿和 BOM 草稿的数据库聚合统一在 `recipeQueries`。BOM 规则仍只由 `recipeBomEngine` 展开，正式保存成本仍只由 `costEngine` 重建；Query/Preview 不写配方、库存、operation、审计或知识索引。
 
 ## 9. 成本 Cost
 
@@ -129,36 +164,40 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
+| `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 经 `costQueries` 委托 `costEngine` 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 应用常用配置时生成配方草稿，统一带入模板工资、表面处理、线圈、机筒和叶轮字段；不写库 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则；旧式“电缆线 + 电缆配件费”会合并为一条成品电缆 |
-| `POST` | `/api/recipes/save-payload-draft` | `{ form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前检查完整 BOM 不含零价格项目并生成标准保存 payload；未定价时返回具体项目且不写库 |
-| `GET` | `/api/recipes/current-costs` | 无 | 配方列表批量重算当日完整成本并返回 `currentTotalCost/savedTotalCost/difference/partsCost/laborCost` |
-| `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；只重算配件当前参考价 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；报价页只提交浮球开关、电缆米数和组合包材覆盖，线圈、线径、铜套类型与表面处理沿用配方快照 |
-| `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | AI/N8N 一站式估算，组合配方、线圈和动态配置 |
-| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 成本差异解释器，按金额差异输出主要驱动项 |
+| `POST` | `/api/recipes/save-payload-draft` | `{ recipeId?, expectedUpdatedAt?, form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前由 `costEngine` 重建权威成本快照、检查完整 BOM 并生成带版本/预览哈希的标准保存 payload；未定价或版本冲突时不写库 |
+| `GET` | `/api/recipes/current-costs` | 无 | `costQueries` 批量重算当日完整成本并返回 `currentTotalCost/savedTotalCost/difference/partsCost/laborCost` |
+| `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；`costQueries` 只重算配件当前参考价 |
+| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；`costQueries` 委托 `dynamicCostPreview`，报价页只提交浮球开关、电缆米数和组合包材覆盖，线圈、线径、铜套类型与表面处理沿用配方快照 |
+| `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | `costQueries` 为 AI/N8N 编排配方、线圈和动态配置；各分项公式仍来自正式成本 services |
+| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | `costQueries` 委托 `costDifference` 按金额差异输出主要驱动项 |
 
 ### 9.2 拆分估算入口
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/cost/coil` | 同 `/api/coils/calculate` | 线圈成本兼容入口 |
-| `POST` | `/api/cost/float` | `floatWire?, floatAccessoryType?` 等 | 单独估算浮球成本 |
-| `POST` | `/api/cost/cable` | `cableLength, cableWire?, cableAccessoryType?` 等 | 单独估算完整成品电缆；总成本包含按米计算的线材及插头/规格费用 |
-| `POST` | `/api/cost/packing` | `packingParts?/packingPartsJson?/boxType?` 等 | 单独估算包装材料成本 |
-| `POST` | `/api/cost/overhead` | `{ assemblyWage?, packingWage?, surfaceTreatmentCost?, managementFee? }` | 人工工资、表面处理和管理费合计 |
-| `POST` | `/api/cost/dynamic` | `{ stator?/statorSpec?/statorSheets?, hasFloat?, floatWire?, hasCable?, cableWire?, cableLength?, boxType?, ...AccessoryType }` | 动态配置成本：浮球、成品电缆、包材；电缆明细不拆分线材和插头/规格费 |
+| `POST` | `/api/cost/coil` | 同 `/api/coils/calculate` | 经 `costQueries` 委托 `coilCost` 的线圈成本兼容入口，不再复用另一个 route handler |
+| `POST` | `/api/cost/float` | `floatWire?, floatAccessoryType?` 等 | 经 `costQueries` 和 `dynamicConfigCost` 单独估算浮球成本 |
+| `POST` | `/api/cost/cable` | `cableLength, cableWire?, cableAccessoryType?` 等 | 经 `costQueries` 和 `dynamicConfigCost` 单独估算完整成品电缆；总成本包含按米计算的线材及插头/规格费用 |
+| `POST` | `/api/cost/packing` | `packingParts?/packingPartsJson?/boxType?` 等 | 经 `costQueries` 委托 `costEngine` 单独估算包装材料成本 |
+| `POST` | `/api/cost/overhead` | `{ assemblyWage?, packingWage?, surfaceTreatmentCost?, managementFee? }` | 经 `costQueries` 委托 `costEngine` 汇总人工工资、表面处理和管理费 |
+| `POST` | `/api/cost/dynamic` | `{ stator?/statorSpec?/statorSheets?, hasFloat?, floatWire?, hasCable?, cableWire?, cableLength?, boxType?, ...AccessoryType }` | 经 `costQueries` 和 `dynamicConfigCost` 编排浮球、成品电缆、包材；电缆明细不拆分线材和插头/规格费 |
 
 ### 9.3 查询和市场指标
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/cost/recipe/by-name?name=xxx` | `name` 查询参数 | 按名称包含关系查配方并计算配件成本 |
-| `GET` | `/api/copper-price` | 无 | 实时铜价和数据库铜价基数 |
-| `POST` | `/api/copper-price/update` | 无 | 手动同步铜价；只更新铜价基数或成本发生变化的线圈，返回 `updatedCount/skippedCount/unchanged` |
-| `GET` | `/api/market-indicators` | 无 | 铜价、铝价、美元兑人民币汇率的实时值与数据库值 |
-| `POST` | `/api/market-indicators/update` | 无 | 同步铜价、铝线价格基数、美元汇率；铜价未变化时跳过线圈写入 |
+| `GET` | `/api/cost/recipe/by-name?name=xxx` | `name` 查询参数 | 兼容入口；经 `costQueries` 按名称包含关系查正式配方并委托 `costEngine` 计算配件成本 |
+| `GET` | `/api/copper-price` | 无 | 只读查询实时铜价和数据库已采用的线圈铜价基数；返回 `source/sourceOfTruth/asOf`，不写库 |
+| `POST` | `/api/copper-price/update` | 推荐请求头 `Idempotency-Key` | 维护能力 `market.sync_copper_price`。先在 SQLite 事务外读取外部铜价，再只更新铜价基数或成本发生变化的线圈；线圈、operation 和逐项强审计同一事务，返回兼容字段 `updatedCount/skippedCount/unchanged` 及标准回执 |
+| `GET` | `/api/market-indicators` | 无 | 只读查询铜价、铝价、美元兑人民币汇率的实时值与数据库已采用值；返回 `sources/sourceOfTruth/asOf`，不写库 |
+| `POST` | `/api/market-indicators/update` | 推荐请求头 `Idempotency-Key` | 维护能力 `market.sync_indicators`。行情在事务外并行获取，线圈铜价/成本、铝线价格基数、美元汇率、operation 与全部强审计在同一 SQLite 事务原子提交；同键重试返回首次行情快照和回执，不重复写库 |
+
+成本 HTTP 层统一由 `costQueries` 承接正式数据读取和只读场景编排，路由只负责参数、日志和响应。`costQueries` 不保存成本或修改数据库，也不定义新公式：配件/包装/人工仍由 `costEngine`，线圈由 `coilCost`，动态项由 `dynamicConfigCost`，报价覆盖由 `dynamicCostPreview`，当日完整成本与差异解释分别由 `currentRecipeCost` 和 `costDifference` 计算。
+
+两项市场同步都是显式 maintenance，不开放 AI 写工具。网页按钮属于明确同步动作；启动补跑在每次 API 进程启动时执行并在当前进程内幂等，每日 15:00 BJT 调度使用“触发类型 + 北京日期”幂等窗口。此类能力不提供 Preview/确认弹窗：Preview 后再次抓取的行情可能已经变化，不能作为可执行快照；替代保护为外部请求超时/有限重试、`502 market_data_unavailable`、事务外抓取、执行时快照、90 天持久幂等、原子提交、逐项强审计和标准 operation receipt。相同幂等键表达“同步当时可用行情”这一意图，因此重放只返回第一次已提交结果。
 
 ## 10. 客户与报价
 
@@ -167,59 +206,65 @@
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/customers` | 无 | 客户列表 |
-| `POST` | `/api/customers` | `{ name, contactInfo?, defaultMargin?, remark? }` | 新增客户；标准返回 `{ data: customer }` |
-| `PATCH` | `/api/customers/:id` | 客户字段 | 更新客户；返回 `{ data: customer }` |
-| `DELETE` | `/api/customers/:id` | 无 | 软删除 |
+| `GET` | `/api/customers/:id/context` | 查询参数 `keyword?`, `limit?`（默认 10，最大 50） | 正式客户调查 Query；从实时 `customers/quotations/orders` 聚合客户、按创建时间排列且使用连续 `displaySequence` 的报价历史和订单历史。可按配方/型号关键词筛选；响应含 `summary/query/sourceOfTruth/asOf/provenance`，不读取知识条目、不计算成本且不写库 |
+| `POST` | `/api/customers` | 请求头 `Idempotency-Key`；`{ name, contactInfo?, defaultMargin?, remark? }` | `customers.create`；客户名称唯一，默认利润率必须非负；客户、operation 与强审计同一事务。同键同参重试返回原客户，旧请求仍兼容 |
+| `PATCH` | `/api/customers/:id` | 请求头 `Idempotency-Key`；客户字段及 `{ expectedUpdatedAt? }` | `customers.update`；支持部分字段更新，使用资源版本阻止并发覆盖；客户、operation 与强审计同一事务。旧请求仍兼容并返回缺失保护 warning |
+| `DELETE` | `/api/customers/:id` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `customers.delete`；软删除客户但不级联删除历史报价，存在有效报价时回执给出 warning；使用资源版本、持久幂等和强审计。旧空请求仍兼容 |
 
 ### Quotations
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/quotations` | 无 | 报价列表；读取时自动把超过 1 个月的“报价中”标为“已过时” |
-| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items, remark? }` | 后端按每个有效 `baseRecipeId` 重新试算，生成覆盖配置、完整 `bomSnapshot`、`costSnapshot`、总成本和总报价；不信任前端单位成本，不写库 |
+| `GET` | `/api/quotations` | 无 | 只读报价列表；不会因页面、AI 或监控查询而更新状态 |
+| `POST` | `/api/quotations/save-payload-draft` | `{ customerId, status?, items|itemsJson, remark? }` | `quotations.create/update` 的正式只读预览。后端按每个有效 `baseRecipeId` 重新调用权威成本逻辑，返回完整 `itemsJson/bomSnapshot/costSnapshot/totalCost/totalPrice`、`previewHash` 和 `suggestedIdempotencyKey`；不信任前端成本且不写库 |
+| `POST` | `/api/quotations` | 请求头 `Idempotency-Key`；请求体使用上述草稿并带 `{ previewHash? }` | `quotations.create`；状态只能是“草稿”或“报价中”。事务内重新试算、写报价、operation 与强审计；同键同参重试返回原报价，不重复建单。旧请求仍兼容，但缺少预览或幂等保护会返回 warning |
+| `PATCH` | `/api/quotations/:id` | 请求头 `Idempotency-Key`；核心明细使用保存草稿并带 `{ expectedUpdatedAt?, previewHash? }`；仅备注更新可不带明细 | `quotations.update`；只有“草稿”或“报价中”允许更新核心明细。事务内校验资源版本、重新试算并强审计；旧请求仍兼容并返回缺失保护 warning |
+| `POST` | `/api/quotations/:id/status` | 请求头 `Idempotency-Key`；`{ status, expectedUpdatedAt? }` | `quotations.change_status`；按 `草稿 → 报价中 → 已接受 → 已转订单` 状态机流转，报价中也可进入已拒绝/已过时，终态不能恢复；版本、幂等、operation 与强审计在同一事务 |
+| `DELETE` | `/api/quotations/:id` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `quotations.delete`；只有草稿、已拒绝或已过时报价允许软删除；版本、幂等、operation 与强审计在同一事务 |
+| `POST` | `/api/quotations/:id/order-draft` | 无 | 从报价明细的 BOM 快照生成订单预览、采购清单和待办；同时返回 `capabilityId`、报价 `expectedUpdatedAt`、确认内容 `previewHash` 和一次性建议 `suggestedIdempotencyKey`。`previewHash` 排除运行时生成的展示 ID，只绑定正式订单/BOM/采购/待办语义；旧报价缺少快照时临时回退配方 BOM 并标记 `legacy_recipe_fallback`；不写库 |
+| `POST` | `/api/quotations/:id/convert` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt?, previewHash? }` | 只有“已接受”报价可转单；执行前重算草稿，报价版本或采购平衡事实改变时要求重新预览。在同一事务内创建订单、更新报价、保存 operation 回执并写两条强审计。相同主体、能力、幂等键和请求返回原回执；异参复用、资源版本、预览、重复或越级冲突返回 409。旧调用不传新字段仍兼容，但响应 warnings 会说明保护缺失 |
 
-`POST /api/quotations` 和带明细的 `PATCH /api/quotations/:id` 会再次解析 `itemsJson` 并重新汇总总成本和总报价，不信任调用方提交的合计金额。新报价只能是“草稿”或“报价中”，只有这两个状态允许修改核心明细。
-| `POST` | `/api/quotations` | `{ customerId, status?, itemsJson?, totalCost?, totalPrice?, remark? }` | 新增报价；状态只能是“草稿”或“报价中”；标准返回 `{ data: quotation }` |
-| `POST` | `/api/quotations/:id/order-draft` | 无 | 从报价明细的 BOM 快照生成订单预览、采购清单和待办；旧报价缺少快照时临时回退配方 BOM 并标记 `legacy_recipe_fallback`；不写库 |
-| `POST` | `/api/quotations/:id/convert` | 无 | 只有“已接受”报价可转单；在同一事务内创建订单、保存 `convertedOrderId/convertedAt` 并标记“已转订单”；重复或越级转单返回 409 |
-| `POST` | `/api/quotations/:id/status` | `{ status }` | 按 `草稿 → 报价中 → 已接受 → 已转订单` 状态机流转；报价中也可进入已拒绝/已过时，终态不能恢复 |
-| `PATCH` | `/api/quotations/:id` | 报价字段 | 只有“草稿”或“报价中”允许更新核心明细 |
-| `DELETE` | `/api/quotations/:id` | 无 | 只有草稿、已拒绝或已过时报价允许软删除 |
+报价保存命令不会信任请求中的 `totalCost/totalPrice/unitCost/bomSnapshot/costSnapshot`：`quotationDraft` 会再次从正式客户、配方和成本服务生成快照。预览哈希排除条目展示 ID 和生成时间等非业务字段，因此相同草稿的网络重试稳定；报价配置、成本或业务输入变化会导致旧预览被拒绝。成功响应在原报价字段之外增加标准 operation receipt，旧页面依赖的报价字段保持兼容。
+
+报价超过一个月自动过期已从 GET 路由迁移到 `quotationExpiry` maintenance service。API 启动时先补跑一次，之后每天北京时间 00:05 执行；维护只把有效且仍为“报价中”、`createdAt` 不晚于一个月前的记录改为“已过时”。同一轮更新位于一个 SQLite 事务内，逐条使用 `safeUpdate` 写审计，并记录 `operationId/startedAt/completedAt/expiredCount/changes`。当前不新增公开维护端点。
 
 ## 11. 订单 Orders
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/orders` | 无 | 订单列表；按创建顺序平衡全部活动订单的库存占用并刷新采购缺口，同一库存不会被多个订单重复使用 |
-| `GET` | `/api/orders/lookup` | `query=订单ID/客户名称/合同号` | 只读查找订单候选，不刷新采购计划；AI 按客户或合同解析订单时使用 |
-| `GET` | `/api/orders/readiness-overview` | 无 | 一次计算全部活动订单的库存平衡和生产准备结论；返回分类汇总、主要问题、缺料和第一个未阻塞处理步骤，只读不写库 |
-| `GET` | `/api/orders/:id` | 无 | 单个订单，标准字段含 `id/createdAt/updatedAt` |
+| `GET` | `/api/orders` | 无 | 经 `orderQueries` 返回只读订单列表；按创建顺序平衡全部活动订单的库存占用并在响应中返回实时采购缺口，同一库存不会被多个订单重复使用，但不写回订单快照 |
+| `GET` | `/api/orders/lookup` | `query=订单ID/客户名称/合同号` | 经 `orderQueries` 只读查找订单候选，不刷新采购计划；AI 按客户或合同解析订单时使用 |
+| `GET` | `/api/orders/readiness-overview` | 无 | 经 `orderQueries` 一次计算全部活动订单的库存平衡和生产准备结论；返回分类汇总、主要问题、缺料和第一个未阻塞处理步骤，只读不写库 |
+| `GET` | `/api/orders/:id` | 无 | 经 `orderQueries` 只读返回单个订单，标准字段含 `id/createdAt/updatedAt`；采购清单按全部活动订单实时平衡后仅覆盖响应视图，不改变数据库及 `updatedAt` |
 | `GET` | `/api/orders/:id/knowledge-package` | 无 | V10.4 只读订单知识包；合并实时订单、采购、待办、生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件；排除未确认草稿 |
 | `GET` | `/api/orders/:id/requirements` | 无 | 读取客户要求草稿、最后确认版本、知识状态和当前订单附件；只读 |
-| `PUT` | `/api/orders/:id/requirements/draft` | `{ summaryText, sourceFileIds? }` | 保存可编辑草稿；来源文件必须已有效关联当前订单，不进入知识库 |
-| `POST` | `/api/orders/:id/requirements/confirm` | `{ summaryText?, sourceFileIds? }` | 原子保存并人工确认当前版本；确认内容自动合并到该订单知识条目，不修改订单明细、配方、采购或库存 |
-| `POST` | `/api/orders/:id/requirements/revoke` | 无 | 撤销知识确认并保留草稿与原文件；订单知识自动移除已确认客户要求 |
+| `PUT` | `/api/orders/:id/requirements/draft` | 请求头 `Idempotency-Key`；`{ summaryText, sourceFileIds?, expectedUpdatedAt? }` | `orders.requirements.save_draft`；保存可编辑草稿，来源文件必须已有效关联当前订单，不进入知识库。草稿、operation 与强审计原子提交；旧调用兼容并返回缺少幂等或版本保护 warning |
+| `POST` | `/api/orders/:id/requirements/confirm` | 请求头 `Idempotency-Key`；`{ summaryText?, sourceFileIds?, expectedUpdatedAt? }` | `orders.requirements.confirm`；原子保存并人工确认当前版本，确认内容自动合并到该订单知识条目；不修改订单明细、配方、采购或库存。确认快照、operation 与强审计同一事务 |
+| `POST` | `/api/orders/:id/requirements/revoke` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `orders.requirements.revoke`；撤销知识确认并保留草稿与原文件；订单知识自动移除已确认客户要求。版本、持久幂等、operation 与强审计同一事务 |
 | `GET` | `/api/orders/:id/execution-records` | 无 | 读取订单执行事实时间线、草稿/确认状态和当前订单附件；只读 |
-| `POST` | `/api/orders/:id/execution-records` | `{ phase, recordType, title?, summaryText, occurredAt?, sourceFileIds? }` | 新建一条执行事实草稿；阶段为生产前/中/后，事实类型必须与阶段匹配，不进入知识库 |
-| `PUT` | `/api/orders/:id/execution-records/:recordId/draft` | 同新建入参 | 修改当前草稿；已有确认版本时继续保留上一次正式知识，直到重新确认 |
-| `POST` | `/api/orders/:id/execution-records/:recordId/confirm` | 可传完整草稿字段，或空对象确认已保存草稿 | 人工确认事实并合并到订单知识条目；不修改订单状态、配方、采购或库存 |
-| `POST` | `/api/orders/:id/execution-records/:recordId/revoke` | 无 | 撤销该事实的知识确认，保留当前草稿和附件 |
-| `DELETE` | `/api/orders/:id/execution-records/:recordId` | 无 | 软删除未确认草稿；已确认记录必须先撤销确认 |
-| `GET` | `/api/orders/:id/readiness` | 无 | 只读生产准备检查；按订单状态、配方与BOM、零件库存、线圈库存、采购进度、成本与价格六步返回 `ready/waiting_materials/needs_review/blocked/not_applicable`，不写订单和库存 |
-| `GET` | `/api/orders/:id/readiness-plan` | 无 | 基于实时生产准备结果生成处理步骤；返回 `sequence/dependsOn/mode/status/owner/path/toolCall`，只生成方案不执行 |
-| `POST` | `/api/orders/:id/readiness-actions/:actionId` | 路径动作仅支持 `confirm_order/generate_purchase_plan` | 执行前重新生成实时检查和方案；仅执行仍为 `confirmable + available` 的步骤，过期、已完成或受前置步骤阻塞时返回 `409`；成功返回动作、更新后的订单和 `nextPlan` |
-| `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 查该配方最近历史售价和利润率 |
+| `POST` | `/api/orders/:id/execution-records` | 请求头 `Idempotency-Key`；`{ phase, recordType, title?, summaryText, occurredAt?, sourceFileIds? }` | `orders.execution_records.create_draft`；新建执行事实草稿，阶段和事实类型必须匹配，不进入知识库；草稿、operation 与强审计原子提交 |
+| `PUT` | `/api/orders/:id/execution-records/:recordId/draft` | 请求头 `Idempotency-Key`；同新建入参并带 `expectedUpdatedAt?` | `orders.execution_records.update_draft`；修改当前草稿；已有确认版本时保留上一次正式知识，直到重新确认。旧调用兼容并返回保护缺失 warning |
+| `POST` | `/api/orders/:id/execution-records/:recordId/confirm` | 请求头 `Idempotency-Key`；可传完整草稿字段及 `expectedUpdatedAt?`，或只传版本确认已保存草稿 | `orders.execution_records.confirm`；可选草稿更新、确认快照、operation 与逐项强审计原子提交；不修改订单状态、配方、采购或库存 |
+| `POST` | `/api/orders/:id/execution-records/:recordId/revoke` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `orders.execution_records.revoke`；撤销该事实的知识确认，保留当前草稿和附件；版本、operation 与强审计同一事务 |
+| `DELETE` | `/api/orders/:id/execution-records/:recordId` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `orders.execution_records.delete`；软删除未确认草稿并返回标准回执；已确认记录必须先撤销确认，删除、operation 与强审计同一事务 |
+| `GET` | `/api/orders/:id/readiness` | 无 | 经 `orderQueries` 编排只读生产准备检查；按订单状态、配方与BOM、零件库存、线圈库存、采购进度、成本与价格六步返回 `ready/waiting_materials/needs_review/blocked/not_applicable`，不写订单和库存 |
+| `GET` | `/api/orders/:id/readiness-plan` | 无 | `orders.execute_readiness_action` 的正式只读预览；基于实时生产准备结果生成处理步骤，并为可执行白名单步骤返回 `command/actions` 中的 `expectedUpdatedAt/previewHash/suggestedIdempotencyKey`，只生成方案不执行 |
+| `POST` | `/api/orders/:id/readiness-actions/:actionId` | 请求头建议 `Idempotency-Key`；路径动作仅支持 `confirm_order/generate_purchase_plan`；标准请求体 `{ expectedUpdatedAt, previewHash, idempotencyKey? }` | `orders.execute_readiness_action` 正式命令；事务内重新生成实时检查和方案，仅执行仍为 `confirmable + available` 的步骤。订单/库存/采购事实或版本漂移、步骤已完成/受阻时返回 `409`；订单、operation 和强审计原子提交，相同请求安全重放。旧空请求仍兼容，但回执会标记缺少版本、预览绑定或幂等保护 |
+| `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 经 `orderQueries` 查该配方最近历史售价和利润率；历史坏 JSON 会跳过，不作为事实返回 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；“外包装估算”等成本占位项不进入正式采购；不写库 |
-| `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 基于订单表单草稿生成标准保存 payload；未传采购清单/待办时自动生成；不写库 |
-| `POST` | `/api/orders/purchase-items/batch` | `{ identityKey?, model, supplier?, purchased }` | 兼容的整项下单动作；优先按采购规格身份匹配，把采购项的 `orderedQty` 设置为计划数量，不入库 |
-| `POST` | `/api/orders/:id/status` | `{ status, reason? }` | 人工动作只允许确认订单、关闭订单或取消订单；取消必须填写原因，采购中/采购完成由数量自动推导 |
-| `POST` | `/api/orders/:id/purchase-items/progress` | `{ identityKey?, model, supplier?, orderedQty, receivedQty, stockedQty, purchasePrice?, actualSupplier?, allowOverPurchase? }` | 保存单项采购进度；强制 `入库 ≤ 到货 ≤ 下单`，超采必须明确确认；`stockedQty` 增量按 `inventoryType` 在同一事务内加入零件或线圈库存并记录批次 |
-| `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 旧客户端兼容动作；映射为整项下单/取消下单，已有到货或入库时不能取消 |
-| `POST` | `/api/orders/:id/todos/toggle` | `{ todoId, done? }` | 切换或设置指定采购待办完成状态 |
-| `POST` | `/api/orders/:id/complete-purchase` | 无 | 一次性把全部剩余计划登记为已下单、已到货和已入库；普通零件与正式线圈分别增加库存，非库存计算项只推进采购进度；返回带 `inventoryType/partId/coilId` 的 `additions`，订单进入“采购完成”而不是关闭；重复入库返回 409 |
-| `POST` | `/api/orders` | `{ customerName, contractNo?, remark?, itemsJson?, purchaseListJson?, todosJson? }` | 新增订单，固定进入“待确认” |
-| `PATCH` | `/api/orders/:id` | 订单字段 | 只有“待确认”订单允许修改核心明细 |
-| `DELETE` | `/api/orders/:id` | 无 | 只有待确认或已取消订单允许软删除 |
+| `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 能力 `orders.create` 的正式只读预览兼保存 payload 草稿；统一校验数量、成本、售价和利润率，未传采购清单/待办时自动生成；返回 `preview=true`、`changes/warnings`、`previewHash` 和建议幂等键，不写订单、operation 或审计。该草稿继续兼容待确认订单编辑，直接建单固定从“待确认”开始 |
+| `POST` | `/api/orders/purchase-items/batch-draft` | `{ identityKey?, model, supplier?, purchased }` | 只读重算全部活动订单平衡计划，返回受影响订单、各订单版本、下单数量变化、`previewHash` 和建议幂等键；不写库 |
+| `POST` | `/api/orders/purchase-items/batch` | 请求头 `Idempotency-Key`；请求体为草稿入参并增加 `{ expectedVersions?, previewHash? }` | 按采购规格身份跨订单整项下单/取消；活动订单平衡快照、受影响订单、operation 和强审计同一事务提交。相同请求安全重放，订单集合、版本、预览或审计变化返回 409。旧调用不传协议字段仍兼容并返回 warnings |
+| `POST` | `/api/orders/:id/status` | 请求头 `Idempotency-Key`；请求体 `{ status, reason?, expectedUpdatedAt? }` | 能力 `orders.change_status`；人工动作只允许确认订单、关闭订单或取消订单，取消必须填写原因。确认订单时在事务内重算并保存全部受影响活动订单的平衡采购计划，采购中/采购完成继续由数量自动推导；订单、operation 和全部强审计原子提交。相同请求安全重放，版本、状态、异参复用或审计冲突返回 409；旧调用缺少幂等键/版本仍兼容并返回 warnings |
+| `POST` | `/api/orders/:id/purchase-items/progress-draft` | `{ identityKey?, model, supplier?, orderedQty, receivedQty, stockedQty, purchasePrice?, actualSupplier?, allowOverPurchase? }` | 只读重算活动订单平衡计划，校验 `入库 ≤ 到货 ≤ 下单` 与库存映射，返回变更前后数量、库存影响、`expectedUpdatedAt/previewHash/suggestedIdempotencyKey`；不写订单、库存、operation 或审计 |
+| `POST` | `/api/orders/:id/purchase-items/progress` | 请求头 `Idempotency-Key`；请求体为草稿入参并增加 `{ expectedUpdatedAt?, previewHash? }` | 保存单项采购进度；入库增量、其他活动订单平衡快照、当前订单、operation 回执和强审计同一事务提交。相同请求安全重放，版本、确认预览、异参复用或审计冲突返回 409。旧调用不传协议字段仍兼容，但响应 warnings 会说明保护缺失 |
+| `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 旧客户端兼容动作；由 `purchasingItemProgress` 在 service 内按当前正式采购项映射为整项下单/取消下单，再委托 `purchasing.order.item_progress` command；已有到货或入库时不能取消，旧响应仍只返回订单 |
+| `POST` | `/api/orders/:id/todos/toggle` | 请求头建议 `Idempotency-Key`；`{ todoId, done?, expectedUpdatedAt?, idempotencyKey? }` | `orders.todos.toggle` 正式命令；切换或设置指定采购待办，订单、operation 和强审计同一事务提交。相同请求安全重放，版本冲突返回 `409`；重复目标状态或未知待办作为无写入回执返回。响应顶层继续兼容订单字段，旧请求缺少协议字段时返回 warning |
+| `POST` | `/api/orders/:id/complete-purchase-draft` | 无 | 只读重算全部活动订单库存平衡，返回本订单待入库的零件、正式线圈和非库存项，以及 `expectedUpdatedAt/previewHash/suggestedIdempotencyKey`；`previewHash` 绑定确认时看到的物料和数量，不写库 |
+| `POST` | `/api/orders/:id/complete-purchase` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt?, previewHash? }` | 一次性把全部剩余计划登记为已下单、已到货和已入库；普通零件与正式线圈分别增加库存并记录线圈流水，非库存计算项只推进采购进度。库存、其他活动订单平衡快照、订单状态、operation 回执和强审计同一事务提交；相同请求返回原回执，版本、预览、异参复用或重复入库冲突返回 409。旧调用不传新字段仍兼容，但响应 warnings 会说明保护缺失 |
+| `POST` | `/api/orders` | 请求头 `Idempotency-Key`；请求体为 `/save-payload-draft` 返回 payload，并携带 `previewHash?` | 能力 `orders.create`；新增订单固定进入“待确认”。订单、operation 回执和强审计同一事务提交；相同请求安全重放，预览篡改、异参复用或审计缺失整体回滚。为保持现有页面兼容，响应顶层继续提供完整订单字段，同时增加 `order`、`operationStatus` 和标准回执字段；旧请求不传协议字段仍兼容并返回 warnings |
+| `PATCH` | `/api/orders/:id` | 请求头 `Idempotency-Key`；请求体为 `/save-payload-draft` 返回 payload，并增加 `{ expectedUpdatedAt?, previewHash? }` | 能力 `orders.update_draft`；只有“待确认”订单允许修改核心明细。保存内容、operation 和强审计同一事务提交；相同请求安全重放，版本、草稿预览、异参复用、订单状态或审计冲突返回 409。响应顶层继续兼容完整订单字段，并增加标准回执；旧调用缺少协议字段仍兼容并返回 warnings |
+| `DELETE` | `/api/orders/:id` | 请求头 `Idempotency-Key`；请求体或 query `{ expectedUpdatedAt? }`，也兼容 `If-Unmodified-Since` | 能力 `orders.delete`；只有待确认或已取消订单允许软删除。删除标记、operation 和强审计原子提交，相同请求安全重放，版本、状态、异参复用或审计冲突返回 409；旧调用缺少幂等键/版本仍兼容并返回 warnings |
 
 采购项快照字段包括 `plannedQty/orderedQty/receivedQty/stockedQty/purchasePrice/actualSupplier/orderedAt/receivedAt/stockedAt/stockInHistory/inventoryType`。普通零件使用 `inventoryType=part + partId`；精确匹配正式线圈方案的线圈转子使用 `inventoryType=coil + coilId`，按套占用和增加 `coils.stock`；插值或外推产生、没有正式方案的计算型线圈使用 `inventoryType=none`，可完成采购进度但不写库存。`purchaseUnit/stockQtyPerUnit/specification` 区分采购展示单位和底层库存单位。成品电缆按“根”计划，入库时按 `stockQtyPerUnit` 折算为线材米数；历史按米保存的活动订单会在采购计划重算时转换为根数。旧 `needToBuy/purchased` 字段继续兼容读取。旧“已完成”订单启动迁移后映射为“已关闭”。
 
@@ -227,7 +272,9 @@
 
 订单准备总览只读取未关闭且未取消的活动订单，并且每次请求只运行一次 `buildBalancedOrderPlans`，避免逐单重复平衡库存。总览按 `blocked → waiting_materials → needs_review → ready` 排序，`attentionRequired` 是前三类之和。AI 工具 `get_order_readiness_overview` 和管理看板“订单准备”页签使用同一接口，均不属于生产执行或库存写入。
 
-处理方案状态为 `complete/ready_for_confirmation/action_required/needs_resolution/waiting/not_applicable`。步骤模式 `confirmable` 表示存在可映射的标准写工具，但仍需后续用户确认；`manual` 表示需要人员在业务页面处理，`needs_input` 表示缺少价格等业务决定，`monitor` 表示等待到货等外部状态。存在缺BOM或库存映射等前置问题时，后续确认和采购步骤通过 `dependsOn` 标记为阻塞。AI 工具 `plan_order_readiness_actions` 只读取该接口，不属于 `WRITE_TOOLS`；`execute_order_readiness_action` 属于 `WRITE_TOOLS`，确认后调用动作接口，并以服务端重验结果为准。
+订单列表、详情、候选查找、历史售价与准备度读取统一由纯读 `orderQueries` 编排；其中实时采购清单视图继续由 `orderPurchasePlanning` 生成，准备度事实继续由 `activeOrderReadiness` 计算。Query 不调用持久化函数，只有明确的采购进度、批量下单、采购完成或 `generate_purchase_plan` 等写操作才允许保存采购计划；现有路径、参数和 `purchaseListJson` 响应结构保持兼容。
+
+处理方案状态为 `complete/ready_for_confirmation/action_required/needs_resolution/waiting/not_applicable`。步骤模式 `confirmable` 表示存在可映射的标准写工具，但仍需后续用户确认；`manual` 表示需要人员在业务页面处理，`needs_input` 表示缺少价格等业务决定，`monitor` 表示等待到货等外部状态。存在缺BOM或库存映射等前置问题时，后续确认和采购步骤通过 `dependsOn` 标记为阻塞。AI 工具 `plan_order_readiness_actions` 只读取该接口，不属于 `WRITE_TOOLS`；`execute_order_readiness_action` 属于 `WRITE_TOOLS`。确认后的实时执行计划重验、正式预览读取、动作 API 调用、结果包装和执行历史集中在 `aiOrderReadinessExecution`，订单领域 executor 只委托；正式业务事务仍唯一由 `orderReadinessCommands` 执行。AI service 不访问数据库，且只有取得服务端生成的 `expectedUpdatedAt/previewHash/suggestedIdempotencyKey` 才会调用动作接口。
 
 执行档案与生产准备方案是两类数据：生产准备保存系统实时检查、待办和建议；执行档案只保存已经发生的准备结果、人工决定、过程调整、异常、质量和交付事实。每条执行记录保留独立草稿和最后一次人工确认快照，只有确认快照合并到现有订单知识条目。修改草稿不会覆盖旧知识，重新确认才替换；确认引用的订单附件在撤销或重新确认前不能解除关联。所有接口均属于记录与追溯，不是生产执行模块。
 
@@ -244,9 +291,9 @@ V10.4 订单知识包不新建业务事实，也不依赖知识同步时点。`o
 | `GET` | `/api/workbench/action-history` | 查询参数 `status?=active/resolved`, `limit?` | 只读查询管理事项生命周期历史和汇总，默认最近 20 条、最多 100 条 |
 | `POST` | `/api/workbench/execution-plan` | `{ workflowType, goal?, orderId?, quotationId?, actionId? }` | V8 只读生成统一工厂执行计划；`workflowType` 支持 `order_readiness/quotation_to_order/management_action` |
 | `GET` | `/api/workbench/execution-runs` | 查询参数 `workflowType?`, `subjectId?`, `actionId?`, `status?=completed/failed`, `limit?` | V8.4 只读查询执行历史及成功/失败统计 |
-| `POST` | `/api/workbench/execution-runs` | `{ workflowType, subjectType, subjectId, actionId, toolName, status, plan, result?, recheck?, outcomeSummary?, error?, startedAt? }` | V8.4 由受保护 AI 执行器记录一次确认尝试，不执行订单、报价或库存业务写入 |
+| `POST` | `/api/workbench/execution-runs` | `{ workflowType, subjectType, subjectId, actionId, toolName, status, plan, result?, recheck?, outcomeSummary?, error?, startedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `workbench.execution_runs.record`。V8.4 由受保护 AI 执行器记录一次确认尝试；运行记录、最近 500 条保留清理、operation 和逐项强审计同一事务提交，相同命令重放不重复增加尝试次数。响应继续在 `data` 顶层保留原运行记录字段，并追加标准命令回执 |
 
-管理待办中心复用各业务域的实时检查结果，不复制成本、库存或知识同步规则。优先级为 `critical/high/medium/low`，类别为 `order_readiness/business_risk/data_quality/rule_learning/knowledge_health`；同一订单的采购提醒由订单准备结论统一呈现，避免与经营风险重复计数。返回项包含来源、数量、建议动作和可执行页面路径，但不包含写工具或自动执行动作。当前按单人管理助理设计，界面和 AI 不要求分配负责人。AI 工具 `get_management_action_center` 和管理看板“今日待办”页签使用同一接口。
+管理待办中心复用各业务域的实时检查结果，不复制成本、库存或知识同步规则。优先级为 `critical/high/medium/low`，类别为 `order_readiness/business_risk/data_quality/rule_learning/knowledge_health`；同一订单的采购提醒由订单准备结论统一呈现，避免与经营风险重复计数。最近一次真实 AI 回归存在失败或待确认时，以稳定键 `knowledge-regression:release-gate` 生成知识健康事项；最新一次全部通过后自动消失。返回项包含来源、数量、建议动作和可执行页面路径，但不包含写工具或自动执行动作。当前按单人管理助理设计，界面和 AI 不要求分配负责人。AI 工具 `get_management_action_center` 和管理看板“今日待办”页签使用同一接口。
 
 V7.1 使用后台监控把稳定待办键与 `management_action_lifecycles` 对齐，只在首次出现、实质内容变化、消失或再次出现时写入；普通 `GET` 查看保持只读。`management_action_events` 追加保存 `appeared/resolved/reopened` 三类不可覆盖事件。生命周期不会替代实时检查，也不会把“检查不再出现”解释为人工已处理；看板只说明当前规则已不再检出该事项。
 
@@ -258,11 +305,13 @@ V7.4 在成功的核心业务 `POST/PUT/PATCH/DELETE` 响应结束后，请求�
 
 V8.1 的执行计划统一返回 `status/subject/metrics/steps/safeguards`。步骤模式为 `automatic/confirmable/manual/needs_input/monitor`，并通过 `dependsOn` 表示前置关系；`canExecute=true + confirmation` 才代表已经接入现有受保护执行器。当前订单确认和采购清单生成可继续使用 `execute_order_readiness_action`，服务端执行前重新检查；报价转订单在 V8.1 仅生成计划并指向报价页面，不能因为步骤模式为 `confirmable` 就宣称 AI 已经能够直接转单。该 POST 只用于承载结构化入参，不写业务数据，也不属于 `WRITE_TOOLS`。
 
-V8.2 增加 AI 写工具 `execute_factory_workflow_step`，当前只接受 `workflowType=quotation_to_order + actionId=convert_quotation + quotationId`。工具属于 `WRITE_TOOLS`，未确认时只返回确认卡片；确认后先重新调用 `/api/workbench/execution-plan`，仅当步骤仍为 `available + confirmable + canExecute` 且服务端确认参数完全一致时继续。执行链依次调用只读 `/api/quotations/:id/order-draft` 预检、事务 `/api/quotations/:id/convert` 转单、只读 `/api/orders/:id/readiness-plan` 检查新订单，最后再次刷新原报价计划。计划过期、报价未接受、已转单、预检失败或并发状态变化都会停止，不能绕过报价状态机和防重复事务。
+V8.2 增加 AI 写工具 `execute_factory_workflow_step`，当前只接受 `workflowType=quotation_to_order + actionId=convert_quotation + quotationId`。工具属于 `WRITE_TOOLS`，未确认时只返回确认卡片；确认后的跨 API 编排集中在 `aiFactoryWorkflowExecution`，领域 executor 只负责委托。该 service 先重新调用 `/api/workbench/execution-plan`，仅当步骤仍为 `available + confirmable + canExecute` 且服务端确认参数完全一致时继续；执行链依次调用只读 `/api/quotations/:id/order-draft` 预检、正式命令 `/api/quotations/:id/convert` 转单、只读 `/api/orders/:id/readiness-plan` 检查新订单，最后再次刷新原报价计划并保存执行历史。它不直接访问数据库、不重算报价或库存。预检返回的 `expectedUpdatedAt` 会传给正式命令，AI 的 `operationId` 会作为持久化幂等键；计划过期、报价未接受、已转单、预检失败、版本冲突或网络重试都不能绕过报价状态机或重复建单。
 
 V8.3 不新增写 API。AI 执行计划界面直接使用 `subject.path` 和步骤 `path` 进入带业务 ID、页签或处理参数的最短页面；`/quotations?quotationId=:id` 会在报价数据加载后自动打开对应详情。只有 `available + confirmable + canExecute` 且确认器为现有 `execute_order_readiness_action` 或 `execute_factory_workflow_step` 的步骤才提供“发起确认”。该按钮只生成一条明确的 AI 执行请求，服务端仍重新调用本节标准接口校验并返回原确认卡片；历史计划只保留查看入口，前端不会直接调用确认接口或业务写接口。
 
-V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹、动作、工具、尝试次数、成功或失败、结果摘要、错误和最新复查快照，默认保留最近 500 次。`POST /api/workbench/execution-plan` 仍只读，但会附加 `executionHistory.latestAttempt/latestRecheck/recovery`：失败记录只有在当前实时步骤仍为 `available + canExecute` 时返回 `retry_available`；计划变化或受阻时返回 `blocked`；最近写操作完成后仅继续新的未完成步骤。同一计划指纹下已有成功记录的动作会清除确认参数并标记完成，AI 执行器仍在业务写入前调用标准实时计划和业务接口，历史表不能替代事务或业务状态机。
+V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹、动作、工具、尝试次数、成功或失败、结果摘要、错误和最新复查快照，默认保留最近 500 次。将记录入口收口为持久化 maintenance command，AI executor 继续只调用正式 HTTP API，并把当前工具 `operationId` 作为执行历史的幂等依据；原先无审计的裸保留清理已改为受控 `hardDelete` 和逐项强审计。`POST /api/workbench/execution-plan` 仍只读，但会附加 `executionHistory.latestAttempt/latestRecheck/recovery`：失败记录只有在当前实时步骤仍为 `available + canExecute` 时返回 `retry_available`；计划变化或受阻时返回 `blocked`；最近写操作完成后仅继续新的未完成步骤。同一计划指纹下已有成功记录的动作会清除确认参数并标记完成。
+
+执行历史是二级执行证据，不是订单、报价、采购、库存或成本的 sourceOfTruth，也不能替代各业务命令的状态机和 `api_operations`。当前记录请求发生在业务命令响应之后，因此业务动作成功但进程在记录请求前中断时，历史仍可能缺一条；此时以正式业务状态和对应业务 operation 回执为准，不允许仅凭“没有执行历史”重做业务写入。该限制是模块化单体内保留现有 executor 编排方式的明确兼容边界，不引入消息队列。
 
 ## 13. 设置 Settings
 
@@ -276,12 +325,14 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/settings` | 无 | 所有系统设置，返回 key-value 对象 |
-| `GET` | `/api/settings/:key` | 白名单 key | 单个设置值 |
-| `PUT` | `/api/settings/:key` | `{ value }` | 更新设置；数值类必须非负，`cable_accessories` 必须含 `standard/xinjie` 的 `name` 和 `fee` |
-| `GET` | `/api/settings/runtime` | 无 | 读取系统初始化页运行配置、密钥配置状态、待重启项和只读部署环境状态；永不返回 API Key 原文或密文 |
-| `PUT` | `/api/settings/runtime` | camelCase 运行设置对象 | 保存白名单内的 AI 与知识检索设置；空密钥表示保留原值，API Key 使用 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密 |
-| `POST` | `/api/settings/runtime/test-ai` | AI 提供商、模型、地址及可选新 API Key | 不保存配置，使用当前或本次输入的凭证执行最小连接测试，返回提供商、模型和耗时 |
+| `GET` | `/api/settings` | 无 | 经 `settingsQueries` 只读返回业务白名单内的设置 key-value 对象；内部设置不会泄漏 |
+| `GET` | `/api/settings/:key` | 白名单 key | 经 `settingsQueries` 返回单个业务设置的 `key/value/updatedAt`，供写入时绑定当前资源版本；非法 key 返回 400，不存在返回 404 |
+| `PUT` | `/api/settings/:key` | `{ value, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `settings.update_business_value`。更新成本与业务白名单设置；数值类必须非负，`cable_accessories` 必须含 `standard/xinjie` 的 `name` 和 `fee`。设置、operation 和强审计同一事务提交；Web 新调用绑定资源版本，旧无版本/幂等键请求兼容执行并返回 warning |
+| `GET` | `/api/settings/runtime` | 无 | 经 `settingsQueries` 和 `runtimeConfig` 读取系统初始化页公开运行配置、整体 `updatedAt`、密钥配置状态、待重启项和只读部署环境状态；永不返回 API Key 原文或密文 |
+| `PUT` | `/api/settings/runtime` | 推荐请求头 `Idempotency-Key`；camelCase 运行设置对象及 `expectedUpdatedAt?` | 能力 `settings.update_runtime`。整批校验白名单内的 AI 与知识检索设置；空密钥表示保留原值，API Key 使用 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密。密文设置、operation 与逐项强审计同一事务，提交成功后才更新当前进程环境；冷配置继续返回待重启字段 |
+| `POST` | `/api/settings/runtime/test-ai` | AI 提供商、模型、地址及可选新 API Key | 经 `settingsQueries` 编排当前或本次输入的候选配置，对实际启用的提供商逐个执行最小连接测试并返回提供商、模型和耗时；不保存配置 |
+
+设置领域按 Query / Command 分层：`settingsQueries` 只读取业务白名单和公开运行快照，AI 连接测试只执行外部探测，不写数据库或进程环境；`businessSettingCommands` 与 `runtimeSettingCommands` 分别负责业务设置和加密运行配置写入。路由不再直接查询 `system_settings` 或编排多提供商探测。
 
 `/setup` 系统初始化页只开放业务运行参数。AI 提供商、模型、API Key 和图片输入设置保存后供 AI 工作台即时读取；混合检索和向量批量大小即时读取。知识自动同步、向量开关、向量自动生成、Embedding 模型/维度/精度、缓存目录和离线模式涉及已初始化的后台控制器或模型实例，保存后会返回 `restartRequired=true`，重启 API 服务后生效。管理密码、JWT、内部接口密钥、CORS、端口和生产模式只显示配置状态，仍必须由部署环境提供，不能在网页中读取或修改。
 
@@ -291,21 +342,25 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/rotor/draw` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 启动异步 FreeCAD 出图任务；标准返回 `{ success, data: { status, message, jobId, drawingName, params } }` |
-| `POST` | `/api/rotor/save` | 结构化转子参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 保存暂定参数到历史，不启动 FreeCAD；记录状态为 `saved`，返回 `{ success, data, jobId, drawingName, params }` |
+| `POST` | `/api/rotor/draw-preview` | 结构化出图参数；可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 能力 `drawings.rotor.generate_pdf` 的只读预览。服务端规范化轴承和尺寸，返回 `confirmationToken/operationId/inputHash/expiresAt/suggestedIdempotencyKey/params`，不写库、不启动 FreeCAD |
+| `POST` | `/api/rotor/draw` | 请求头 `Idempotency-Key`；`{ confirmationToken }` | 消费 `/draw-preview` 绑定的服务端参数，原子登记 `api_operations + rotor_drawings(queued) + audit_log` 后启动 FreeCAD。能力 `drawings.rotor.generate_pdf`，风险 high；相同幂等键只返回原任务回执，不重复出图。标准回执状态依次为 `accepted/processing/completed/failed`，原 `jobId/drawingName/params/message` 字段继续保留 |
+| `POST` | `/api/rotor/save` | 请求头 `Idempotency-Key`；结构化转子参数，可带 `drawingName/drawing_name`、`drawingText/drawing_text` | 能力 `drawings.rotor.save_parameters`。保存暂定参数到历史，不启动 FreeCAD；记录、operation 和强审计同一事务提交，相同请求安全重放。返回继续保留顶层 `jobId/drawingName/params` 并增加标准回执；旧请求缺少幂等键仍兼容并返回 warning |
 | `POST` | `/api/rotor/recipe-draft` | `{ recipeId }` | 根据配方技术档案生成出图表单草稿；配方录入的转子出图参数优先于泵壳模板历史默认值，并带入配方名称、机筒长度和不锈钢机筒开档；不写库 |
 | `POST` | `/api/rotor/template-draft` | `{ templateId, variantId? }` | 根据泵壳模板和可选型号变体生成出图表单草稿，带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注；不写库 |
-| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | 自然语言出图；标准返回 `{ success, data }`，`data.status` 可能为 `success/need_params/warning` |
-| `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；返回 `{ success, data }` |
+| `POST` | `/api/rotor/chat` | `{ message, force?, supplements?, baseParams?, drawingName?, drawingText? }` | `rotorNaturalLanguage` 调用 DeepSeek 提取候选参数，再由 `rotorParameters` 确定性纠偏、校验和生成安全提示；标准返回 `{ success, data }`，`data.status` 为 `need_params/warning/confirmation_required`。参数完整时返回与 `/draw-preview` 相同的确认凭证，不直接启动 FreeCAD |
+| `GET` | `/api/rotor/status/:jobId` | 无 | 查询任务状态；先读当前进程任务缓存，进程重启或缓存过期后回退 `rotor_drawings` 正式记录；返回 `{ success, data }` |
 | `GET` | `/api/rotor/history` | 无 | 最近 100 条出图/保存历史；标准字段为 `jobId, drawingName, nlInput, paramsJson, fcParamsJson, fileUrl, linkedPumpModel, createdAt, updatedAt`；`status=saved` 表示仅保存参数 |
-| `PATCH` | `/api/rotor/history/:id/name` | `{ drawingName/drawing_name }` | 重命名图纸 |
-| `PATCH` | `/api/rotor/history/:id/link` | `{ linkedPumpModel/linked_pump_model }` | 关联订单型号、型号变体或配方；响应标准字段为 `data.linkedPumpModel` |
-| `DELETE` | `/api/rotor/history/:id` | 无 | 删除历史记录并尝试删除对应 PDF |
-| `POST` | `/api/rotor/print/:jobId` | 无 | 打印已成功生成的 PDF |
+| `PATCH` | `/api/rotor/history/:id/name` | 请求头 `Idempotency-Key`；`{ drawingName/drawing_name, expectedUpdatedAt? }` | 能力 `drawings.rotor.rename_history`。重命名、operation 和强审计同一事务提交；版本冲突返回 409，相同请求安全重放。旧请求仍兼容并返回 warning |
+| `PATCH` | `/api/rotor/history/:id/link` | 请求头 `Idempotency-Key`；`{ linkedPumpModel/linked_pump_model, expectedUpdatedAt? }` | 能力 `drawings.rotor.link_history`。关联订单型号、型号变体或配方；版本、幂等、事务和强审计受正式命令协议保护，响应继续在顶层提供 `linkedPumpModel` |
+| `DELETE` | `/api/rotor/history/:id` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt? }` | 能力 `drawings.rotor.delete_history`，风险为可重新生成派生图纸的 medium，而不是删除订单/库存事实的 high。历史记录、operation 与强审计先在同一事务提交，再仅在受控 `public/drawings` 目录幂等清理 PDF；文件清理失败返回 warning 并保留可回收孤立文件，不回滚已确认的数据库删除。页面继续先要求用户确认，旧请求仍兼容 |
+| `POST` | `/api/rotor/print/:jobId/preview` | 无 | 能力 `drawings.rotor.print_pdf` 的只读预览。校验任务状态、正式记录和受控 PDF 文件，返回绑定 `jobId/fileUrl/updatedAt` 的确认凭证；不发送打印 |
+| `POST` | `/api/rotor/print/:jobId` | 请求头 `Idempotency-Key`；`{ confirmationToken }` | 消费打印预览凭证，先持久化 operation 和 `EXTERNAL_PRINT_REQUESTED` 强审计，再向服务器默认打印机发送一次任务；风险 critical。Windows 依次尝试 SumatraPDF、Edge、rundll32，macOS 使用 `lp`；同一幂等键重试不重复打印 |
 | `GET` | `/api/rotor/order-pump-models` | 无 | 从订单明细中提取可关联的水泵型号 |
 | `GET` | `/api/rotor/link-targets` | 无 | 出图历史可关联对象，合并订单型号、型号变体和配方，返回 `{ type, id, label, value, secondary }[]` |
 
 静态下载路径：`/drawings/*` 映射到 `public/drawings/`，用于下载生成的 PDF。
+
+转子只读数据边界统一在 `rotorQueries` 与 `rotorHistory`：订单型号、关联目标、配方/模板草稿和历史状态只聚合正式 SQLite 数据，不调用 AI、不写库；参数标准化统一在 `rotorParameters`。自然语言候选提取、DeepSeek 超时/重试、JSON 容错、正则纠偏、基础参数合并和安全告警统一在 `rotorNaturalLanguage`；模型输出不是正式图纸参数事实，必须经过确定性校验和 `/draw-preview` 确认。FreeCAD 与打印设备执行已抽入 `rotorExternalCommands`，通过 `businessConfirmation` 绑定 Preview 参数，并用 `api_operations` 持久化 `accepted/processing/completed/failed` 回执。路由只保留鉴权主体、命令上下文、service 调用和响应适配。
 
 ## 15. AI、语音与 Siri
 
@@ -315,15 +370,98 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 |---|---|---|---|
 | `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；智能路由额外返回 `defaultProvider=deepseek` 与可用的 `visionProvider=kimi` |
 | `POST` | `/api/ai/chat` | `{ messages, pageContext? }` | SSE 流式对话；消息可带 `attachments: [{ id }]`；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view` |
-| `POST` | `/api/ai/confirm-tool` | `{ toolName, args? }` | 用户确认后执行写工具；调用 `executeToolCall(..., { allowWrite: true })` |
-| `GET` | `/api/ai/system-prompt` | 无 | 兼容路径；读取当前可编辑的工厂个性化配置，不返回系统核心规则 |
-| `PUT` | `/api/ai/system-prompt` | `{ prompt }` | 兼容路径；更新内存和 SQLite `config.ai-factory-profile`。不能为空，最大 8000 字符；不能覆盖核心安全、来源和写入确认边界 |
+| `POST` | `/api/ai/confirm-tool` | `{ confirmationToken, toolName?, args? }` | 使用确认卡片中的服务端 token 执行写工具；token 绑定当前登录会话、capability、规范化参数哈希和 operationId，5 分钟有效且单次消费。新客户端只提交 `confirmationToken`；可选 `toolName/args` 仅用于检测篡改。没有 token 的旧请求返回 `409 confirmation_token_required`，不会执行 |
+| `GET` | `/api/ai/system-prompt` | 默认无参数；新调用使用 `includeMeta=1` | 兼容路径；默认继续返回配置字符串。`includeMeta=1` 返回 `{ prompt, version, sourceOfTruth }`，其中 `version` 是当前内容 SHA-256，供并发保存；不返回系统核心规则 |
+| `PUT` | `/api/ai/system-prompt` | `{ prompt, expectedVersion?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.factory_profile.update`。更新内存和 SQLite `config.ai-factory-profile`；不能为空，最大 8000 字符，不能覆盖核心安全、来源和写入确认边界。新 Web 调用先读内容版本再保存；配置、operation 和强审计同一事务提交，相同命令安全重放。旧无版本/幂等键调用继续执行并返回 warning |
 
-AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无图片时使用 DeepSeek；存在图片且 Kimi API Key、视觉开关和视觉模型可用时，使用 Kimi 并按 OpenAI 兼容的 `image_url` 格式发送原图。Kimi 请求失败时回退 DeepSeek，本轮只使用本地 OCR 文字。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无图片时使用 DeepSeek；存在图片且 Kimi API Key、视觉开关和视觉模型可用时，使用 Kimi 并按 OpenAI 兼容的 `image_url` 格式发送原图。Kimi 请求失败时回退 DeepSeek，本轮只使用本地 OCR 文字。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、工具调用增量和非 JSON 状态行；`chat.cjs` 不再自行解析模型流。
 
-模型工具集合由服务端按当前问题、订单页面上下文、确定性实时预取和本轮已调用工具动态生成。工具元数据包含业务领域、`read/write` 属性及 `live/derived/stable` 数据模式；只读请求默认排除写工具，明确写入意图才加入相关领域的 `WRITE_TOOLS`。每轮默认最多暴露 18 个工具，通常为 8-15 个；无法识别的业务问题使用小型通用工具集，普通闲聊不发送 `tools` 字段。设置 `AI_DYNAMIC_TOOL_ROUTING_ENABLED=false` 可恢复完整工具集合，仅用于故障回退，不会绕过写操作确认。
+模型工具集合由服务端按当前问题、订单页面上下文、确定性实时预取和本轮已调用工具动态生成。65 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和结果 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不再维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，实时库存、成本、订单、报价和价格等正式 API 回执只按注册表的 `live_business` provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是由注册表生成的兼容投影，不再独立维护。该注册表同时登记当前 85 个已迁移正式业务 command/maintenance 的输入/输出契约、事实来源、风险、预览、幂等、并发、事务、审计和弃用状态；相关路由和 service 从注册表校验并取得 capabilityId。只读请求默认排除写工具，明确写入意图才加入相关领域写能力。市场同步、报价过期、运行配置、工厂提示配置和内部执行历史不会因此自动成为 AI 写工具；它们只开放给各自已有 Web 或受保护内部调用方。每轮默认最多暴露 18 个工具，通常为 8-15 个；无法识别的业务问题使用小型通用工具集，普通闲聊不发送 `tools` 字段。设置 `AI_DYNAMIC_TOOL_ROUTING_ENABLED=false` 可恢复完整工具集合，仅用于故障回退，不会绕过写操作确认。未登记、缺少有效 executorKey 或 executor 实现不匹配的 AI 工具由总 executor 默认拒绝。
 
-系统提示词按四层动态组装：不可编辑核心规则、当前工具路由命中的业务领域规则、可编辑工厂配置、与本轮问题相关的已启用纠正规则。普通闲聊不加载业务领域规则；业务问题只加载当前领域，关闭动态工具路由时加载全部领域作为故障回退。旧 `config.ai-system-prompt` 首次启动时先备份到 `ai-system-prompt-legacy-backup`，再按当前 8000 字和核心边界校验迁移；不合格旧内容只保留备份并回退安全默认配置。核心规则和领域规则始终高于工厂配置和纠正规则。
+已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
+
+| capabilityId | toolName | 类型 | sourceOfTruth | 风险 | 确认 | 预览 | 幂等/并发 | 事务与审计 | 超时 |
+|---|---|---|---|---|---|---|---|---|---|
+| `parts.create` | HTTP/Web/`create_part` | command/write | `parts` | medium | 页面保存或 AI 外层确认 | 无 | 90 天持久化幂等；新资源无版本 | 零件、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `parts.update` | HTTP/Web/`update_part` | command/write | `parts`；库存字段仅兼容 | medium | 页面保存或 AI 外层确认 | 库存必须另走库存预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 零件元数据、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `parts.delete` | HTTP/Web/`delete_part` | command/write | `parts` | medium | 页面/AI 删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `parts.batch_update_prices` | HTTP/Web/`batch_update_prices` | command/write | `parts.price` | high | 页面提交或 AI 外层确认 | `/api/parts/prices-preview` | 90 天持久化幂等 + 每项 `expectedUpdatedAt` + `previewHash` | 整批价格、operation、逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `coils.create` | HTTP/Web | command/write | `stator_variants` + `coils` | medium | 页面保存是明确动作 | 无 | 90 天持久化幂等；新资源无版本 | 定子组合、正式方案替换、线圈、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `coils.update` | HTTP/Web | command/write | 当前线圈 + 定子组合 + 库存流水 | high | 页面保存是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 身份冻结检查、成本重算、正式方案替换、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `coils.delete` | HTTP/Web | command/write | 线圈库存 + 流水 | high | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 追溯保护、硬删除、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `coils.batch_update_unit_price` | HTTP/Web | command/write | 定子组合 + `coils.unit_price/cost` | high | 页面提交是明确动作 | `/api/coils/spec-price-preview` | 90 天持久化幂等 + 每项版本 + `previewHash` | 整批单片价/成本、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `templates.create` | HTTP/Web | command/write | `pump_shell_templates` + 零件组件目录 | medium | 页面保存是明确动作 | 无 | 90 天持久化幂等；新资源无版本 | 模板、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `templates.update` | HTTP/Web | command/write | 当前模板 + 零件组件目录 | high | 页面保存是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 模板、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `templates.delete` | HTTP/Web | command/write | 模板 + 全部历史配方引用 | high | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 引用检查、硬删除、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `model_variants.create` | HTTP/Web | command/write | 常用配置 + 泵壳模板 + 零件目录 | high | 页面保存是明确动作 | 无 | 90 天持久化幂等；新资源无版本 | 常用配置、自动生成长螺丝零件、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `model_variants.update` | HTTP/Web | command/write | 当前常用配置 + 泵壳模板 + 零件目录 | high | 页面保存是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 配置、自动生成长螺丝零件、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `model_variants.delete` | HTTP/Web | command/write | 当前常用配置 + 历史配方引用 | high | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation 和强审计同一 SQLite 事务；不删除历史配方 | 默认 HTTP |
+| `settings.update_business_value` | HTTP/Web | command/write | `system_settings` + `costEngine` 消费方 | high | 页面保存是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 白名单业务设置、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `settings.update_runtime` | HTTP/Web | command/write | `runtime_settings` + 当前进程环境 | high | 初始化页保存是明确动作 | 无 | 90 天持久化幂等 + 整体 `expectedUpdatedAt` | 加密设置、operation 和逐项强审计原子提交；成功后应用热配置，冷配置标记待重启 | 15s |
+| `market.sync_copper_price` | HTTP/Web/Internal scheduler | maintenance/write | 外部铜行情 + `coils.copper_base/cost` | high | 页面按钮、启动补跑或定时调度本身是明确触发 | 不适用；执行时抓取快照 | 90 天持久化幂等；启动按进程窗口、调度按北京日期窗口 | 外部抓取在事务外；变化线圈、operation 和逐项强审计原子提交 | 25s |
+| `market.sync_indicators` | HTTP/Web | maintenance/write | 外部铜/铝/汇率 + `coils` + `system_settings` | high | 页面同步按钮是明确动作 | 不适用；执行时抓取快照 | 90 天持久化幂等；同键重放首次快照 | 外部抓取在事务外；线圈、两个设置、operation 和全部强审计原子提交 | 25s |
+| `inventory.parts.batch_adjust_stock` | HTTP/Web/Internal | command/write | `parts.stock` | critical | 正式执行必须消费服务端确认 token | `/api/parts/batch-stock-preview` | 90 天持久化幂等 + token 绑定库存快照和资源版本 | 业务、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `inventory.coils.adjust_stock` | `adjust_coil_stock`/Web | command/write | `coils.stock` + `coil_stock_movements` | critical | 正式执行必须消费服务端确认 token | `/api/coils/stock-adjustments-preview` | 90 天持久化幂等 + token 绑定库存快照和资源版本 | 库存、流水、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `workflow.quotation.convert_to_order` | HTTP/Web；由 `execute_factory_workflow_step` 编排 | command/write | `quotations` + 报价 BOM/成本快照 + 活动订单库存平衡 + `orders` | critical | Web 预览确认；AI 必须使用服务端确认 token | `/api/quotations/:id/order-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` + 预览哈希 | 建单、报价状态、operation、两条强审计同一 SQLite 事务 | 默认 HTTP |
+| `purchasing.order.item_progress` | HTTP/Web；旧 toggle 兼容层 | command/write | 活动订单平衡计划 + 订单采购项 + `parts.stock`/`coils.stock` | critical | Web 保存是明确动作；增加库存时再显示正式预览中的数量、换算和库存后值；尚无 AI 调用方 | `/api/orders/:id/purchase-items/progress-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` + 预览哈希 | 平衡快照、库存/流水、订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `purchasing.task.batch_order` | HTTP/Web | command/write | 全部活动订单平衡采购计划 | high | Web 显示物料、影响订单数和数量变化；尚无 AI 调用方 | `/api/orders/purchase-items/batch-draft` + `previewHash` | 90 天持久化幂等 + 每个受影响订单 `expectedVersions` + 预览哈希 | 全部计划快照、订单状态、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `purchasing.order.complete_inbound` | HTTP/Web | command/write | 活动订单平衡计划 + `parts.stock` + `coils.stock`/流水 | critical | Web 必须先显示正式预览；尚无 AI 调用方 | `/api/orders/:id/complete-purchase-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` + 预览哈希 | 平衡快照、库存、流水、订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.create` | HTTP/Web/`create_order` | command/write | 订单保存草稿 + 活动订单采购平衡 + `orders` | high | Web 保存是明确动作；AI 必须确认 | `/api/orders/save-payload-draft` + `previewHash` | 90 天持久化幂等；新资源无版本 | 订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.change_status` | HTTP/Web/`update_order_status` | command/write | 订单状态机 + 活动订单采购平衡 | critical | Web/AI 都需明确动作 | 暂无独立预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 状态、相关采购计划、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.execute_readiness_action` | HTTP/`execute_order_readiness_action` | command/write | 实时准备度 + 活动订单采购平衡 + `orders` | critical | AI 外层确认；正式 API 绑定实时计划预览 | `/api/orders/:id/readiness-plan` | 90 天持久化幂等 + `expectedUpdatedAt` + `previewHash` 绑定订单、库存和采购事实 | 订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.requirements.save_draft` | HTTP/Web/`save_order_requirement_draft` | command/write | 订单 + 客户要求草稿 + 已关联来源文件 | medium | 页面保存或 AI 外层确认 | 无 | 90 天持久化幂等 + 已有草稿 `expectedUpdatedAt` | 草稿、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.requirements.confirm` | HTTP/Web | command/write | 客户要求确认快照 + 知识同步来源 | high | 订单页“确认进入知识库”是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 可选草稿更新、确认快照、operation、逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.requirements.revoke` | HTTP/Web | command/write | 客户要求确认快照 + 知识同步来源 | high | 订单页撤销确认是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 撤销确认、operation、强审计同一 SQLite 事务；保留草稿和文件 | 默认 HTTP |
+| `orders.execution_records.create_draft` | HTTP/Web/`save_order_execution_draft` | command/write | 订单 + 执行事实草稿 + 已关联依据文件 | medium | 页面保存或 AI 外层确认 | 无 | 90 天持久化幂等；新记录无版本 | 草稿、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.execution_records.update_draft` | HTTP/Web | command/write | 当前执行事实草稿 + 依据文件 | medium | 页面保存是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 草稿更新、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.execution_records.confirm` | HTTP/Web | command/write | 执行事实确认快照 + 知识同步来源 | high | 订单页“确认进入知识库”是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 可选草稿更新、确认快照、operation、逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.execution_records.revoke` | HTTP/Web | command/write | 执行事实确认快照 + 知识同步来源 | high | 订单页撤销确认是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 撤销确认、operation、强审计同一 SQLite 事务；保留草稿和附件 | 默认 HTTP |
+| `orders.execution_records.delete` | HTTP/Web | command/write | 未确认执行事实草稿 | high | 页面删除确认是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation、强审计同一 SQLite 事务；已确认事实拒绝删除 | 默认 HTTP |
+| `orders.todos.toggle` | HTTP/Web | command/write | `orders.todos_json` | medium | 页面勾选本身是明确动作，无额外弹窗 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 待办、operation、强审计同一 SQLite 事务；无变化不写库 | 默认 HTTP |
+| `orders.update_draft` | HTTP/Web/订单编辑 AI 工具 | command/write | 订单保存草稿 + `orders` | high | Web 保存是明确动作；AI 必须确认 | `/api/orders/save-payload-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` | 订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.delete` | HTTP/Web/`delete_order` | command/write | `orders` | high | Web/AI 都需明确动作 | 暂无独立预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `customers.create` | HTTP/Web | command/write | `customers` | medium | 页面保存是明确动作，无额外弹窗 | 无 | 90 天持久化幂等；新资源无版本 | 客户、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `customers.update` | HTTP/Web | command/write | `customers` | medium | 页面保存是明确动作，无额外弹窗 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 客户、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `customers.delete` | HTTP/Web | command/write | `customers` + 报价历史 | medium | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 客户软删除、operation、强审计同一 SQLite 事务；历史报价保留 | 默认 HTTP |
+| `quotations.create` | HTTP/Web | command/write | 客户 + 配方 + `costEngine` + `quotations` | high | 页面保存是明确动作 | `/api/quotations/save-payload-draft` + `previewHash` | 90 天持久化幂等；新资源无版本 | 报价、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `quotations.update` | HTTP/Web | command/write | 当前报价 + 客户 + 配方 + `costEngine` | high | 页面保存是明确动作 | `/api/quotations/save-payload-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` | 报价、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `quotations.change_status` | HTTP/Web | command/write | 报价状态机 + `quotations` | high | 状态按钮是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 状态、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `quotations.delete` | HTTP/Web | command/write | `quotations` | high | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `quotations.expire_overdue` | Internal scheduler | maintenance/write | `quotations.status + created_at` | high | 启动补跑或每日 00:05 BJT 定时触发，无人工确认 | 无；规则确定且执行时重查 | 90 天持久化幂等；启动按进程窗口、调度按北京时间日期窗口 | 过期状态、逐项强审计和 operation 回执同一 SQLite 事务 | 15s |
+| `recipes.create` | HTTP/Web/`create_recipe` | command/write | 保存草稿 + `costEngine` + `recipes` | high | Web 保存是明确动作；AI 必须确认 | `/api/recipes/save-payload-draft` + `previewHash` | 90 天持久化幂等；新资源无版本 | 配方、长螺丝补齐、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `recipes.update` | HTTP/Web/`update_recipe` | command/write | 当前配方 + 保存草稿 + `costEngine` | high | Web 保存是明确动作；AI 必须确认 | `/api/recipes/save-payload-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` | 配方、长螺丝补齐、规则刷新、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `recipes.delete` | HTTP/Web/`delete_recipe` | command/write | `recipes` + 规则学习 | high | Web/AI 都需明确动作 | 暂无独立预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、规则刷新、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `files.upload` | HTTP/Web | command/write | 经真实类型校验的文件字节 + `factory_files` | medium | 用户选择文件并上传即为明确动作 | 无 | 90 天持久化幂等 + SHA-256 内容去重 | 文件对象、operation 和强审计同一 SQLite 事务；需解析的新文件随后使用独立解析 operation | 60s |
+| `files.parse` | HTTP/Web；上传后可作为内部后续步骤 | maintenance/write | `factory_files.file_blob` + 本地解析器/OCR | medium | 上传或重新解析动作本身明确，无额外确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` + 15 分钟解析状态锁 | processing、accepted 回执和强审计先原子提交；解析/OCR 在长事务外；结果状态另行强审计并保存终态回执；中断后同键恢复或重建终态 | 120s |
+| `files.delete` | HTTP/Web | command/write | `factory_files` + 知识、配方、业务关联和会话引用 | medium | 当前移除动作明确；软删除和引用保护是最终安全边界 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 引用检查、软删除、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.conversations.create` | HTTP/Web | command/write | `ai_conversations` | medium | 新建会话按钮或首条消息本身是明确动作 | 无 | 90 天持久化幂等；新资源无版本 | 会话、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.conversations.messages.append` | HTTP/Web | command/write | 当前会话 + `ai_conversation_messages` + 有效附件 | medium | 发送消息本身是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 消息、会话摘要、operation 和两条强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.conversations.messages.update_metadata` | HTTP/Web | command/write | 当前会话消息 | medium | 保存模型、工具和展示元数据，无额外确认 | 无 | 90 天持久化幂等 + 消息 `expectedUpdatedAt` | 消息元数据、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.conversations.delete` | HTTP/Web | command/write | `ai_conversations` | medium | 页面删除确认是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 会话软删除、operation 和强审计同一 SQLite 事务；消息留存追溯 | 默认 HTTP |
+| `ai.evaluations.runs.start` | HTTP/Web/发布门禁脚本 | maintenance/write | 已审核启用的评测用例 + `ai_evaluation_runs` | medium | 启动检查本身是明确动作 | 无 | 90 天持久化幂等；新运行无版本 | 同 owner 未结束运行、当前运行、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.evaluations.results.record` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前正式业务只读事实 + 评测用例 + `ai_evaluation_results` | medium | 自动评测记录，无额外确认 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` + `(runId, caseId)` 唯一约束 | 单项结果、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.evaluations.runs.complete` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前运行及其已保存结果 | medium | 完成检查本身是明确动作 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` | 汇总状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.evaluations.cases.review` | HTTP/Web | maintenance/write | 纠错回归用例 + 关联纠正规则状态 | medium | 审核按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 审核状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.feedback.submit` | HTTP/Web | maintenance/write | 已保存 AI 回复 + 回答反馈 + 可选纠正规则/回归用例 | medium | 点赞或提交问题本身是明确动作 | 无 | 90 天持久化幂等；已有反馈绑定 `expectedUpdatedAt` | 反馈、派生规则、回归用例、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.feedback.diagnose` | HTTP/Web | maintenance/write | 当前反馈 + 当前知识同步状态 | medium | 诊断按钮本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 诊断快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.feedback.retest` | HTTP/Web | maintenance/write | 当前复测回答/工具依据 + 回答反馈 | medium | 复测流程本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 复测快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.feedback.review` | HTTP/Web | maintenance/write | `ai_answer_feedback` | medium | 处理按钮本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 处理状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.learning_rules.update` | HTTP/Web | maintenance/write | 长期纠正规则 + 派生回归用例 | medium | 启停/编辑按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 规则 `expectedUpdatedAt` | 规则、回归用例、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.factory_profile.update` | HTTP/Web | command/write | `config.ai-factory-profile` | medium | 页面保存本身是明确动作 | 无 | 90 天持久化幂等 + 内容 SHA-256 `expectedVersion` | 配置、operation 和强审计同一 SQLite 事务；提交后才更新进程内配置 | 默认 HTTP |
+| `quality.recipe_feedback.save` | HTTP/Web/`set_recipe_analysis_feedback` | maintenance/write | 当前配方 + 检查反馈 + 派生候选规则 | medium | 页面判断或 AI 外层确认 | 无 | 90 天持久化幂等；已有反馈绑定 `expectedUpdatedAt` | 反馈、候选、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `quality.recipe_feedback.resolve` | HTTP/Web | maintenance/write | 当前配方智能检查 + 检查反馈 + 派生候选规则 | medium | 页面确认已解决 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 反馈、候选、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `quality.rule_candidates.refresh` | HTTP/Web/`refresh_factory_rule_candidates` | maintenance/write | 配方反馈 + 当前配方版本 + 候选规则 | medium | 运维按钮或 AI 外层确认 | 无 | 90 天持久化幂等；SQLite 即时事务串行重算 | 候选、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `quality.rule_candidates.review` | HTTP/Web/`review_factory_rule_candidate` | maintenance/write | 当前候选证据 + 规则状态 + 派生知识 | medium | 页面审核或 AI 外层确认 | 先读取影响接口 | 90 天持久化幂等 + 候选规则 `expectedUpdatedAt` | 规则、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `quality.rule_events.restore` | HTTP/Web/`restore_factory_rule_event` | maintenance/write | 历史事件 + 当前证据 + 当前候选规则 | medium | 页面恢复或 AI 外层确认 | 先读取历史和当前候选 | 90 天持久化幂等 + 当前候选 `expectedUpdatedAt` | 恢复、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `workbench.execution_runs.record` | HTTP/AI internal | maintenance/write | `factory_workflow_runs` 二级执行证据 | medium | 仅在受保护业务动作已产生结果后内部记录 | 无 | 90 天持久化幂等；并发版本不适用 | 执行记录、保留清理、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `files.archive` | HTTP/Web/`archive_factory_file` | command/write | `factory_files` + `factory_file_links`；知识归档另含 `knowledge_documents` | high | 标准调用必须先取得服务端确认 token；旧直传归档参数仅兼容 | `/api/files/:id/archive-preview` | 90 天持久化幂等 + token 绑定文件、目标、关联和资料快照 | 资料、关联、operation、强审计同一 SQLite 事务 | 30s |
+| `files.links.delete` | HTTP/Web | command/write | `factory_file_links` + 已确认订单资料引用 | medium | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation、强审计同一 SQLite 事务 | 15s |
+| `drawings.rotor.generate_pdf` | HTTP/Web/`generate_rotor_drawing` | external command/write | 转子参数、`rotor_drawings`、FreeCAD | high | AI 外层确认 + 正式服务端确认 | `/api/rotor/draw-preview` | 90 天持久化幂等 + token 绑定规范参数 | operation 与 queued 记录先原子提交，随后执行外部出图并持久化终态 | 180s |
+| `drawings.rotor.print_pdf` | HTTP/Web/`print_rotor_drawing` | external command/write | `rotor_drawings`、受控 PDF、默认打印机 | critical | AI 外层确认 + 正式服务端确认 | `/api/rotor/print/:jobId/preview` | 90 天持久化幂等 + token 绑定任务和文件版本 | operation 与强审计先提交，外部打印终态持久化；同键不重复发送 | 45s |
+
+转子两项在 AI 层仍先返回确认卡片，未确认时不调用正式 CAD 或打印 API；AI 确认完成后，executor 还必须调用正式 `/draw-preview` 或 `/print/:jobId/preview` 获取业务确认凭证，再执行绑定的 HTTP Command。AI 确认卡片包含 `confirmationToken/operationId/argsHash/expiresAt`，正式业务预览包含独立的 `confirmationToken/operationId/inputHash/expiresAt/suggestedIdempotencyKey`。两层 token 都保存在单机 API 进程内，服务重启后自动失效；正式 operation 回执持久化在 SQLite，网络重试不会重复出图或打印。库存、报价转订单、采购、订单核心写入、订单准备动作与待办、配方核心 CRUD、配方性能测试报告附件、转子、人工知识同步、知识资料上传/删除以及文件归档/解除关联正式命令已经使用数据库持久化回执、资源版本或预览绑定和强审计。
+
+系统提示词按四层动态组装：不可编辑核心规则、当前工具路由命中的业务领域规则、可编辑工厂配置、与本轮问题相关的已启用纠正规则。普通闲聊不加载业务领域规则；业务问题只加载当前领域，关闭动态工具路由时加载全部领域作为故障回退。旧 `config.ai-system-prompt` 首次启动时先备份到 `ai-system-prompt-legacy-backup`，再按当前 8000 字和核心边界校验迁移；不合格旧内容只保留备份并回退安全默认配置。把保存逻辑从 route 抽到 `factoryProfileService`，内容 SHA-256 作为兼容表没有时间戳时的正式版本；事务成功后才替换进程内配置，审计失败会连同配置和 operation 一并回滚。核心规则和领域规则始终高于工厂配置和纠正规则。
 
 规则执行采用统一优先级：系统核心规则 > 当前领域规则 > 已批准配方检查规则 > 正式工厂事实 > 用户回答纠错 > 工厂个性化配置。`sourceTable=business_rules` 是可直接引用的正式工厂事实；`factory_rule_candidates` 和 `factory_ai_rules` 在知识索引中只是可追溯副本，分别只由配方智能检查服务和本轮相关纠错提示词执行，检索到副本不得造成二次执行或扩大适用范围。相同纠错文字只注入优先级最高、更新时间最新的一条，原反馈和审核记录仍完整保留。
 
@@ -338,11 +476,11 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
 | `GET` | `/api/ai/conversations?limit=50` | 无 | 获取最近会话，默认 50 条，最大 100 条 |
-| `POST` | `/api/ai/conversations` | `{ title }` | 创建会话，标题最大 80 字符 |
+| `POST` | `/api/ai/conversations` | `{ title, idempotencyKey? }`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `ai.conversations.create`。创建会话，标题最大 80 字符；相同命令安全重放，返回保留会话字段的标准回执 |
 | `GET` | `/api/ai/conversations/:id` | 无 | 获取会话及按时间排序的全部消息 |
-| `POST` | `/api/ai/conversations/:id/messages` | `{ role, content, metadata? }` | 追加消息；用户附件放在 `metadata.attachments: [{ id }]`，服务端重新读取文件名、类型、大小和下载路径后保存 |
-| `PATCH` | `/api/ai/conversations/:id/messages/:messageId` | `{ metadata }` | 更新已保存消息的工具执行结果 |
-| `DELETE` | `/api/ai/conversations/:id` | 无 | 软删除会话；历史消息保留在数据库中但不再展示 |
+| `POST` | `/api/ai/conversations/:id/messages` | `{ role, content, metadata?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.messages.append`。追加消息并原子刷新会话摘要；用户附件放在 `metadata.attachments: [{ id }]`，服务端重新读取文件名、类型、大小和下载路径后保存。新调用绑定会话版本，同键重放不重复消息；旧调用兼容并返回保护缺失 warning |
+| `PATCH` | `/api/ai/conversations/:id/messages/:messageId` | `{ metadata, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.messages.update_metadata`。更新已保存消息的工具执行结果；新调用绑定消息版本，相同命令安全重放，旧调用兼容 |
+| `DELETE` | `/api/ai/conversations/:id` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.delete`。软删除会话；历史消息保留在数据库中但不再展示。新调用绑定会话版本并持久幂等，旧空请求兼容 |
 
 ### AI 回答反馈
 
@@ -351,12 +489,12 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
 | `GET` | `/api/ai/feedback?conversationId=&status=&rating=&limit=50` | 无 | 按当前登录身份查询反馈和汇总；`status` 为 `open/resolved`，最大 100 条 |
-| `POST` | `/api/ai/feedback` | `{ messageId, rating, note?, learnFromCorrection? }` | 新增或改判指定 AI 回复；`rating` 为 `helpful/incorrect/outdated/missing_source`。`learnFromCorrection=true` 仅允许用于 `incorrect` 且必须填写正确做法 |
-| `POST` | `/api/ai/feedback/:id/diagnose` | 无 | 只读对照当前知识概况，识别知识待同步、缺少引用、知识缺口或需业务复核，并保存诊断快照 |
-| `POST` | `/api/ai/feedback/:id/retest` | `{ answerText, toolResults }` | 保存使用原问题重新查询所得的新回答和来源，供人工对比；不自动归档 |
-| `PATCH` | `/api/ai/feedback/:id` | `{ status, resolutionNote? }` | 将问题标记为待处理或已处理；处理说明最大 500 字符 |
+| `POST` | `/api/ai/feedback` | `{ messageId, rating, note?, learnFromCorrection?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.submit`。新增或改判指定 AI 回复；`rating` 为 `helpful/incorrect/outdated/missing_source`。`learnFromCorrection=true` 仅允许用于 `incorrect` 且必须填写正确做法；反馈、规则和回归用例原子提交 |
+| `POST` | `/api/ai/feedback/:id/diagnose` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.diagnose`。对照当前知识概况并保存诊断快照；诊断不是业务事实，绑定反馈版本 |
+| `POST` | `/api/ai/feedback/:id/retest` | `{ answerText, toolResults, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.retest`。保存使用原问题重新查询所得的新回答和来源，供人工对比；不自动归档 |
+| `PATCH` | `/api/ai/feedback/:id` | `{ status, resolutionNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.review`。将问题标记为待处理或已处理；处理说明最大 500 字符 |
 | `GET` | `/api/ai/learning-rules?status=&limit=100` | 无 | 列出全局长期纠正规则和生效/停用统计；`status` 可为 `active/disabled` |
-| `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction? }` | 更新规则或启停；启用规则会在相关问题中优先加载，停用后立即不再生效 |
+| `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.learning_rules.update`。更新规则或启停并同步关联回归用例；启用规则会在相关问题中优先加载，停用后立即不再生效 |
 
 同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。
 
@@ -373,17 +511,22 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
 | `GET` | `/api/ai/evaluations/overview` | 无 | 返回启用用例、当前登录身份最近一次运行和逐项结果 |
-| `POST` | `/api/ai/evaluations/runs` | 无 | 创建一次检查运行并返回待执行用例；未完成旧运行会标为失败 |
-| `POST` | `/api/ai/evaluations/runs/:id/results` | `{ caseId, answerText?, toolResults?, errorText? }` | 保存单项 AI 回答并执行后端确定性判定 |
-| `POST` | `/api/ai/evaluations/runs/:id/complete` | 无 | 汇总通过、需修复和需确认数量并结束运行 |
+| `POST` | `/api/ai/evaluations/runs` | 推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.start`。创建一次检查运行并返回待执行用例；同 owner 未完成旧运行会在同一事务标为失败。相同命令重放不会重复建运行 |
+| `POST` | `/api/ai/evaluations/runs/:id/results` | `{ caseId, answerText?, toolResults?, errorText?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.results.record`。保存单项 AI 回答并执行后端确定性判定；新调用绑定运行版本，同一运行和用例只记录一次 |
+| `POST` | `/api/ai/evaluations/runs/:id/complete` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.complete`。汇总通过、需修复和需确认数量并结束运行；已结束运行使用新键再次提交会拒绝，同键重试返回原回执 |
+| `PATCH` | `/api/ai/evaluations/cases/:id` | `{ reviewStatus, reviewNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.cases.review`。审核回答纠错生成的候选回归用例；`reviewStatus` 为 `pending/approved/rejected`，只有带确定性检查项且关联纠正规则仍启用的案例可以进入运行；新调用绑定用例版本 |
 
-运行记录按登录身份隔离。`part_price` 规则直接读取当前 `parts.price`，不会把历史固定价格写入用例；客户报价规则读取当前有效报价数量，并检查回答是否把 `#3/#5` 这类数据库 ID 当成业务展示顺序。检查过程只读取业务数据，写入仅限 `ai_evaluation_runs/results` 审计记录。
+运行记录按登录身份隔离。`part_price` 规则直接读取当前 `parts.price`，不会把历史固定价格写入用例；客户报价规则读取当前有效报价数量，并检查回答是否把 `#3/#5` 这类数据库 ID 当成业务展示顺序。检查运行过程只读取业务数据，运行结果仅写入 `ai_evaluation_runs/results` 运维证据；案例审核只更新 `ai_evaluation_cases`，不会修改被检查的业务数据。四项写入均返回 operation、强审计和幂等回执。为兼容原页面和脚本，结果/运行自身的业务 `status` 保持原字段，标准命令状态另以 `operationStatus` 返回；旧调用缺少幂等键或版本时仍执行并返回 warning。
 
-`search_customer_history` 会按创建时间为报价生成连续的 `displaySequence`，并从 AI 工具结果中移除内部报价 ID；面向用户统一展示为“第 1 份、第 2 份”。测试报告规则允许“不是工程图纸”这类正确否定说明，只禁止把附件直接标成“参考图纸”。成品电缆用例要求引用正式业务规则，并明确线材、长度、插头和规格属于一个整体业务项。
+生产发布后执行 `npm run verify:ai-release`。该命令复用上述 API 运行所有已批准案例，失败或待确认时返回非零状态，并将不含完整回答的判定摘要写入 `logs/ai-release-gate-latest.json`。Mac Mini LaunchDaemon 安装脚本在 API ready 和 Web 登录页通过后自动执行该门禁。
 
-AI 写操作由 `api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 白名单和确认流程控制。`/api/ai/chat` 中普通工具结果会继续回流给模型用于多步编排；只有返回 `requiresConfirmation` 的写操作会暂停并等待 `/api/ai/confirm-tool`。
+`learnFromCorrection=true` 会在保存长期纠正规则的同一事务中生成或更新一条 `source_type=feedback` 的回归案例。服务端只从明确引号、型号、带单位数字、正向分类和否定结论中生成确定性检查项；同时具备正确答案锚点且置信度不低于 65 的案例自动批准，其他案例保持禁用并进入知识管理页待确认。人工拒绝不会删除原反馈或长期规则；纠正规则停用时，关联案例立即退出回归，恢复规则后只有已批准案例重新启用。历史纠正规则在迁移 42 中按同一算法回填，`case_key/source_feedback_id` 唯一保证重复提交不会制造重复用例。
 
-`/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/done/error`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。
+`search_customer_history` 先解析客户，再调用正式 `/api/customers/:id/context`；报价筛选、创建时间顺序、连续 `displaySequence` 和内部报价 ID 移除全部由该 Query API 负责。面向用户统一展示为“第 1 份、第 2 份”。测试报告规则允许“不是工程图纸”这类正确否定说明，只禁止把附件直接标成“参考图纸”。成品电缆用例要求引用正式业务规则，并明确线材、长度、插头和规格属于一个整体业务项。
+
+AI 写操作由 `api/capabilities/registry.cjs` 的能力契约和 `api/services/aiToolConfirmation.cjs` 的确认协议控制，`api/routes/ai/tools.cjs` 的 `WRITE_TOOLS` 仅为兼容投影。`/api/ai/chat` 中普通工具结果会继续回流给模型用于多步编排；只有返回 `requiresConfirmation` 的写操作会暂停并等待 `/api/ai/confirm-tool`。转子生成和打印也属于该保护范围。
+
+`/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/done/error`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。工具参数对象容错、计划标签与读写标记、模型工具回执、详情视图类型和“本轮正式证据优先”提示统一由 `aiToolProtocol` 生成，流式 Web 与 Siri 使用的非流式 `processAiChat` 共享同一协议，避免两套参数解析和证据口径漂移。路由中的 `JSON.stringify` 仅用于 SSE 输出协议；`internalApiClient` 与 Siri 保留的 JSON 编解码属于 HTTP 传输边界，不是业务逻辑或数据库旁路。
 
 AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 
@@ -392,7 +535,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `preview_pump_shell_cost`：调用 `/api/recipes/bom-draft` 试算指定泵壳模板在某个机筒长度下的泵壳本体成本；适用于不锈钢机筒整体泵壳随长度加价。
 - `build_quotation_draft`：调用 `/api/quotations/save-payload-draft` 生成报价保存草稿。
 - `build_order_draft`：调用 `/api/orders/save-payload-draft` 生成订单保存草稿、采购清单和待办。
-- `search_customer_history`：组合查询客户、报价和订单历史，供报价前参考。
+- `search_customer_history`：调用 `/api/customers/:id/context` 查询正式客户、报价和订单历史，供报价前参考；AI executor 不再拉取全量报价/订单自行拼接。
 - `explain_cost_change`：调用 `/api/cost/recipe-difference` 解释两个配方的成本差异。
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
 - `analyze_recipe_configuration`：调用 `/api/quality/recipe-analysis`，只读分析相似配方、配置矛盾、同类高频项和固定件价格异常。
@@ -408,7 +551,7 @@ AI 调度器 V1 新增草稿/编排工具，均不直接写库：
 - `search_factory_knowledge`：调用 `/api/knowledge` 搜索工厂知识库，并读取 `/api/knowledge/overview` 标记每条来源的新鲜度。
 - `get_factory_knowledge_detail`：调用 `/api/knowledge/:id` 读取知识条目详情，并返回可追溯的原业务来源。
 - `get_factory_knowledge_health`：调用 `/api/knowledge/health` 实时读取自动同步健康级别、异常原因、待同步数量和最近运行记录；只读，不执行同步。
-- `sync_factory_knowledge`：调用 `/api/knowledge/sync` 增量更新知识条目并刷新 FTS；该工具写入派生索引，位于写工具白名单，需确认后执行。
+- `sync_factory_knowledge`：先调用 `/api/knowledge/sync-preview` 绑定当前正式来源与派生知识快照，再调用 `/api/knowledge/sync` 增量更新知识条目并刷新 FTS；该工具写入派生索引，位于写工具白名单，AI 确认和正式业务确认两层都不能绕过。
 - `save_order_requirement_draft`：把已经展示并经用户明确要求保存的订单客户要求归纳结果写入可编辑草稿；必须使用真实订单 ID 和已关联附件的精确文件 ID，需确认后执行。该工具不能确认知识，也不能修改订单明细、配方、采购或库存。
 - `save_order_execution_draft`：把用户明确陈述的订单执行事实新建为可编辑草稿；必须区分生产前/中/后和事实类型，建议、预测与待办不能写成已发生事实。该工具需确认后执行，但仍不能确认知识或修改订单状态、配方、采购和库存。
 - `get_order_knowledge_package`：按订单 ID、客户名或合同号读取 V10.4 只读订单知识包。用于客户要求、历史调整、异常、质量和交付追溯；匹配多张订单时要求明确订单，不属于 `WRITE_TOOLS`。
@@ -421,7 +564,7 @@ Next iPhone PWA `/ai` 复用本节接口：
 
 - 文字指令通过 `apps/web-next/lib/ai.ts:streamAiChat()` 调用 `POST /api/ai/chat`。
 - 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
-- 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力应先扩展 `tools.cjs` 和对应 executor。
+- 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力必须先登记能力注册表，再扩展 `tools.cjs`、对应 executor、正式 API、文档和契约测试。
 - PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
 - `/voice` 页面已弃用并跳转到 `/ai`，当前工作台不再提供语音输入。
 
@@ -438,7 +581,7 @@ Next iPhone PWA `/ai` 复用本节接口：
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/siri/chat` | `{ text, project?, context? }` | Siri 快捷指令统一入口；Siri 只传自然语言，内部仍由 AI tools 调度标准业务 API；`project=cad` 时转发到 `CAD_API_URL` |
-| `POST` | `/api/siri/confirm` | `{ confirmationId, confirm: true }` | Siri 写操作二次确认入口；确认后调用 `executeToolCall(..., { allowWrite: true })` |
+| `POST` | `/api/siri/confirm` | `{ confirmationId, confirm: true }` | Siri 写操作二次确认入口；外部继续使用兼容 `confirmationId`，服务端内部映射并消费与 Web 相同的参数绑定 `confirmationToken`，并发重复确认不会重复执行 |
 | `GET` | `/api/siri/result/:id` | 无 | 读取 5 分钟内缓存的 Siri 结构化结果 |
 | `GET` | `/siri-result?id=xxx` | 查询参数 `id` | 返回 `public/siri-result.html` 页面 |
 | `GET` | `/public/*` | 静态路径 | AI 路由内挂载的 `public` 静态文件兼容入口 |
@@ -459,18 +602,20 @@ Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应
 | `GET` | `/api/quality/summary` | 无 | 汇总零件、配方、模板、型号变体、线圈、客户和报价的数据质量问题；只读不写库 |
 | `GET` | `/api/quality/business-alerts` | 无 | 汇总报价和订单经营异常提醒，如长期未跟进、低于成本、成本为 0、待采购卡住和可完成订单；只读不写库 |
 | `POST` | `/api/quality/recipe-analysis` | `{ recipeId?, recipeName?, limit?, draft? }` | Knowledge V3 配方智能检查；可分析已保存配方，也可在 `draft.parts` 中提交当前未保存 BOM 草稿。返回相似配方、确定性配置矛盾、同类配方高频项、已批准规则的学习置信度和固定件价格异常；反馈后配方已修改时返回 `feedback.outdated=true`，旧“忽略/特殊情况”不再抑制当前提醒；只读不写库 |
-| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot? }` | 保存当前配方某条智能检查提醒的人工判断。服务端会覆盖并写入 `findingSnapshot.evidenceContext`，固化反馈时的配方、泵壳模板和时间，客户端不能指定证据归属。`decision` 支持 `confirmed/ignored/special_case/review`；`peer_pattern` 反馈会在同一事务中自动刷新候选规则并返回 `ruleLearning` 摘要，失败时反馈与归纳整体回滚 |
-| `POST` | `/api/quality/recipe-feedback/:id/resolve` | `{ note? }` | 处理重新智能检查后已不再出现的待复核学习反馈。仅允许当前确实处于内容过期或模板漂移状态的 `peer_pattern` 反馈；保留原始证据快照，把判断恢复为 `review`，并在同一事务内刷新候选规则。当前仍有效、已处理或归档配方反馈返回 409 |
+| `POST` | `/api/quality/recipes/:recipeId/feedback` | `{ findingKey, findingType, decision, note?, findingSnapshot?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `quality.recipe_feedback.save`。保存当前配方某条智能检查提醒的人工判断。服务端会覆盖并写入 `findingSnapshot.evidenceContext`，固化反馈时的配方、泵壳模板和时间，客户端不能指定证据归属。`decision` 支持 `confirmed/ignored/special_case/review`；已有反馈用 `expectedUpdatedAt` 防止并发覆盖；`peer_pattern` 反馈、候选规则、事件、派生知识、operation 与逐项强审计原子提交 |
+| `POST` | `/api/quality/recipe-feedback/:id/resolve` | `{ note?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `quality.recipe_feedback.resolve`。处理重新智能检查后已不再出现的待复核学习反馈。仅允许当前确实处于内容过期或模板漂移状态的 `peer_pattern` 反馈；保留原始证据快照，把判断恢复为 `review` 并原子刷新候选规则。当前仍有效、已处理、版本冲突或归档配方反馈返回 409 |
 | `GET` | `/api/quality/rule-compliance` | 无 | 汇总全部已批准规则的当前执行情况，返回规则问题总数、受影响配方去重数量、例外数量以及各规则的实时影响明细；只读不写库 |
 | `GET` | `/api/quality/rule-learning-health` | 查询参数 `limit?` | 扫描全部 `confirmed/special_case/ignored` 的 `peer_pattern` 反馈，包括尚未达到候选规则门槛的证据。返回 `active/outdated/drifted/archived` 状态、待重新检查配方和汇总；`limit` 为 1-200、默认 100；只读不写库 |
 | `GET` | `/api/quality/rule-candidates` | 查询参数 `status?` | 读取候选业务规则及学习证据；状态支持 `candidate/approved/rejected/stale`。返回 `supportCount/specialCaseCount/ignoredCount/driftedCount/outdatedCount/confidenceScore/confidenceLevel/learningEvidence/needsReview/approvalEligible/approvalBlockers/approvalRequirements`；`learningEvidence.drifted/outdated` 仅追溯历史，不计入支持数 |
 | `GET` | `/api/quality/rule-events` | 查询参数 `candidateId?`、`limit?` | 读取规则生命周期记录，按时间倒序返回 `eventType/previousStatus/newStatus/actor/note/snapshot/createdAt`；`candidateId` 可限定单条规则，`limit` 为 1-100、默认 30；只读不写库 |
-| `POST` | `/api/quality/rule-events/:id/restore` | `{ restoreNote? }` | 恢复该历史事件记录的 `candidate/approved/rejected` 审核状态，但保留规则当前内容、证据和置信度；批准会按当前证据重新校验并同步规则知识 |
-| `POST` | `/api/quality/rule-candidates/refresh` | 无 | 从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；反馈按生成时的模板和配方版本归属，后来更换模板标记为范围漂移，修改配方标记为内容过期并排除。至少 2 个不同配方确认才会进入候选；已批准规则失去最低支持时转为 `stale`，置信度跌破 65% 时撤回为 `candidate`。返回 `minimumEvidence/minimumConfidence` 及含 `suspended/driftedEvidence/outdatedEvidence` 的统计，不会自动批准新规则 |
+| `POST` | `/api/quality/rule-events/:id/restore` | `{ restoreNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `quality.rule_events.restore`。恢复该历史事件记录的 `candidate/approved/rejected` 审核状态，但保留规则当前内容、证据和置信度；`expectedUpdatedAt` 绑定当前候选版本，批准会按当前证据重新校验；恢复、事件、派生知识、operation 和强审计原子提交 |
+| `POST` | `/api/quality/rule-candidates/refresh` | `{ idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `quality.rule_candidates.refresh`。从同一泵壳模板的 `peer_pattern` 反馈中归纳候选规则；反馈按生成时的模板和配方版本归属，后来更换模板标记为范围漂移，修改配方标记为内容过期并排除。至少 2 个不同配方确认才会进入候选；已批准规则失去最低支持时转为 `stale`，置信度跌破 65% 时撤回为 `candidate`。返回 `minimumEvidence/minimumConfidence` 及含 `suspended/driftedEvidence/outdatedEvidence` 的统计；相同幂等键不会重复刷新或重复写事件 |
 | `GET` | `/api/quality/rule-candidates/:id/impact` | 无 | 只读计算规则对当前同模板配方的影响；按实时 BOM 和有效反馈分为 `compliant/needsReview/specialCases/ignored`。配方在反馈后修改时，旧例外以 `feedbackOutdated=true` 回到 `needsReview`；返回数量、配方清单和待复核占比，不修改配方 |
-| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote? }` | 人工审核候选规则；`status` 支持 `candidate/approved/rejected`。批准要求当前至少 2 个不同配方确认且置信度不低于 65%。返回 `knowledgeSync`，批准自动新增或更新对应规则知识，驳回或恢复候选自动移除 |
+| `PATCH` | `/api/quality/rule-candidates/:id` | `{ status, reviewNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `quality.rule_candidates.review`。人工审核候选规则；`status` 支持 `candidate/approved/rejected`。批准要求当前至少 2 个不同配方确认且置信度不低于 65%；`expectedUpdatedAt` 防止覆盖另一位审核者。返回 `knowledgeSync`，规则、事件、派生知识、operation 和强审计原子提交 |
 
 数据质量报告返回 `score/totals/issues/topIssues`，用于 `/dashboard` 的“数据质量”视图和 AI 质量检查工具；旧 `/quality` 页面仅保留兼容跳转。常见检查包括零件价格/供应商/库存、配方 BOM 和保存成本、模板泵壳引用、线圈默认电容/线径、客户默认利润率和历史报价金额异常。
+
+上述 5 个质量治理写入口保留原 URL 和业务字段。标准命令回执附加 `operationId/capabilityId/changes/warnings/auditId/auditIds/idempotentReplay/completedAt`；候选规则原有业务 `status` 继续保留，命令状态使用 `operationStatus`，避免破坏现有页面和 AI executor。未提供幂等键或资源版本的旧调用仍兼容执行并返回 warning，新 Web 调用已默认发送。
 
 经营异常报告返回 `totals/alerts/topAlerts`，用于报价页、订单页和 AI 经营风险检查工具。它不改变报价或订单状态，只提示需要人工跟进的业务风险。
 
@@ -517,24 +662,25 @@ V9.1 使用 `factory_files` 作为 PDF、Excel、文本和图片的统一原文�
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/files` | 查询参数 `detectedType?=pdf/spreadsheet/image/text`, `sourceType?`, `limit?` | 列出统一文件元数据，不返回二进制；默认 30 条，最大 100 条 |
-| `POST` | `/api/files` | `multipart/form-data`: `file` | 标准上传入口；按 SHA-256 去重，新文件返回 `201`，重复文件复用原对象并返回 `200 + deduplicated=true` |
+| `POST` | `/api/files` | `multipart/form-data`: `file`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `files.upload`。按 SHA-256 去重，新文件返回 `201`，重复文件或幂等重放返回 `200`；保留 `data` 文件字段和顶层 `deduplicated/parseWarning`，并追加标准命令回执。文件、operation 和强审计原子提交；PDF、表格或图片随后使用独立 `files.parse` operation 自动解析 |
 | `GET` | `/api/files/archive-targets` | 查询参数 `targetType=customer/quotation/order/recipe/recipe_analysis_feedback/ai_answer_feedback`, `query?`, `limit?` | 只读查找真实归档目标；订单可按客户名或合同号查找；返回业务标签和说明，供界面或 AI 消歧，不接受知识资料类型 |
 | `GET` | `/api/files/links` | 查询参数 `targetType`, `targetId` | 按业务对象列出有效文件关联及文件元数据 |
 | `GET` | `/api/files/:id` | 无 | 读取单个文件对象的类型、大小、哈希、解析状态和来源 |
 | `GET` | `/api/files/:id/links` | 无 | 列出该文件当前关联的业务对象 |
-| `POST` | `/api/files/:id/archive` | `{ targetType, targetId?, relationRole?, title?, note?, documentType?, tags?, source? }` | 归档文件；客户、报价、订单、配方和质量问题必须传真实 `targetId`；订单客户资料默认关系角色为 `customer_requirement`，执行现场依据显式使用 `execution_evidence`；知识资料使用 `targetType=knowledge_document` 且由系统创建或复用同文件资料；重复关联返回 `deduplicated=true` |
-| `DELETE` | `/api/files/:id/links/:linkId` | 无 | 软删除指定文件关联，不删除原文件或目标业务记录 |
-| `POST` | `/api/files/:id/parse` | 无 | 重新解析 PDF、Excel、CSV 或图片；成功返回更新后的文件对象，其他类型或解析失败返回 `400` |
-| `POST` | `/api/files/:id/quotation-draft` | `{ customerName? }` | 只读把 Excel/CSV 报价文件映射为客户、配方、数量、文件单价和待确认项；只有全部精确匹配时返回 `quotationDraftInput`，不创建客户、配方或报价 |
+| `POST` | `/api/files/:id/archive-preview` | `{ targetType, targetId?, relationRole?, title?, note?, documentType?, tags?, source? }` | `files.archive` 只读预览；校验真实目标和知识文件解析状态，返回文件/目标、预计变更、`confirmationToken`、`operationId`、快照哈希和建议幂等键，不写库 |
+| `POST` | `/api/files/:id/archive` | 标准：`{ confirmationToken, idempotencyKey? }`，建议同时使用 `Idempotency-Key`；兼容：原 `{ targetType, ... }` | `files.archive` 正式命令；标准调用只执行 token 绑定的文件、目标、角色和元数据快照，快照变化返回 `409`；资料、关联、operation 和强审计原子提交，返回保留原 `link/knowledgeDocument/deduplicated` 字段的标准回执。旧直传归档参数仍可执行并返回 `legacy_archive_without_explicit_preview` warning，但没有跨请求重试保证，新调用禁止使用 |
+| `DELETE` | `/api/files/:id/links/:linkId` | `{ expectedUpdatedAt?, idempotencyKey? }`，建议同时使用 `Idempotency-Key` | `files.links.delete` 正式命令；软删除指定文件关联，不删除原文件或目标业务记录；已被确认客户要求或执行档案引用时返回 `409`；旧空请求兼容但返回缺少版本/幂等保护 warning |
+| `POST` | `/api/files/:id/parse` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `files.parse`。重新解析 PDF、Excel、CSV 或图片；解析状态登记和外部解析使用持久化回执，同键重放不会重复 OCR。新调用绑定文件版本；旧空请求兼容但回执带版本/幂等保护缺失 warning。若文件终态已审计落库但进程在保存 operation 终态前中断，同键重放会按当前状态恢复回执；`processing` 锁超过 15 分钟后同键恢复执行，不新建 operation。成功 `data` 保留文件字段并追加标准回执，失败仍返回当前文件状态 |
+| `POST` | `/api/files/:id/quotation-draft` | `{ customerName? }` | 只读把已解析 Excel/CSV 报价文件映射为客户、配方、数量、文件单价和待确认项；只有全部精确匹配时返回 `quotationDraftInput`，不创建客户、配方或报价。文件待解析、解析失败、正在解析或解析器版本过期时返回 `409 factory_file_parse_required` 及 `parsePath`，调用方必须先显式执行 `/parse`，本接口不暗中写解析状态 |
 | `GET` | `/api/files/:id/content` | 无 | 读取完整解析结果；PDF 包含逐页 `lines/tables`，表格包含逐工作表 `rows/cells/tables`，均保留原文定位且不返回原二进制 |
 | `GET` | `/api/files/:id/download` | 无 | 下载原文件 |
-| `DELETE` | `/api/files/:id` | 无 | 软删除未被业务资料引用的文件；仍被知识资料、配方测试报告、聊天历史或 `factory_file_links` 引用时返回 `409` |
+| `DELETE` | `/api/files/:id` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `files.delete`。软删除未被业务资料引用的文件；引用检查、文件、operation 和强审计原子提交。仍被知识资料、配方测试报告、聊天历史或 `factory_file_links` 引用时返回 `409`；旧空请求兼容但回执带版本/幂等保护缺失 warning |
 
-PDF 上传时同步完成解析：有文字层的页面使用 `【第 N 页】`，无文字层页面自动渲染并使用 `【第 N 页 OCR】`；混合 PDF 按页面合并。PDF 文字层最多处理 100 页和 30 万字符，OCR 最多处理 12 个扫描页、单页最多约 700 万渲染像素。图片 OCR 支持 PNG、JPG 和 WebP，原图超过 4000 万像素会拒绝解析。OCR 结果保存逐页/逐行文字框与置信度，并生成只读 `drawingCandidates`；低于 85% 标记 `needsReview`。未识别到文字时为 `metadata_only + ocrApplied=true`，AI 不得猜测原图内容。表格最多处理 20 个工作表、5000 个非空行、100 列、5 万个非空单元格和 30 万字符；保留工作表名、行号、列号、单元格引用、公式与合并区域，超出部分通过 `truncated=true` 明示。
+PDF 上传在上传命令提交后自动完成解析：有文字层的页面使用 `【第 N 页】`，无文字层页面自动渲染并使用 `【第 N 页 OCR】`；混合 PDF 按页面合并。文件字节及上传回执先提交，CPU 密集解析和 OCR 不占用 SQLite 长事务；解析状态、结果或失败各自使用强审计，并与同一解析 operation 关联。增加解析中断恢复：结果已经落库时重建终态回执，仍在新鲜锁内时返回 `processing`，锁超时后用原 operation 继续解析。PDF 文字层最多处理 100 页和 30 万字符，OCR 最多处理 12 个扫描页、单页最多约 700 万渲染像素。图片 OCR 支持 PNG、JPG 和 WebP，原图超过 4000 万像素会拒绝解析。OCR 结果保存逐页/逐行文字框与置信度，并生成只读 `drawingCandidates`；低于 85% 标记 `needsReview`。未识别到文字时为 `metadata_only + ocrApplied=true`，AI 不得猜测原图内容。表格最多处理 20 个工作表、5000 个非空行、100 列、5 万个非空单元格和 30 万字符；保留工作表名、行号、列号、单元格引用、公式与合并区域，超出部分通过 `truncated=true` 明示。
 
 报价映射使用当前未归档客户和配方，只把精确名称/型号命中标记为可继续；客户型号精确命中优先于“规格”字段，避免常见规格同时出现在多个历史配方时把明确型号误判为多候选。近似匹配、同名重复、多个候选、数量无效、金额不一致和未找到记录都进入待确认项。`quotationDraftInput` 只是现有 `/api/quotations/save-payload-draft` 的候选入参，文件单价不等于系统成本，正式报价草稿仍必须由标准报价 API 按当前配方重新试算。该链路不自动新增客户或配方，也不写正式报价。
 
-V9.5/V10.1 归档使用多态目标校验：客户、报价、订单、配方和知识资料必须仍处于有效状态；“质量问题”映射到现有 `recipe_analysis_feedback` 或 `ai_answer_feedback`，不虚构第三套质量表。归档到知识库只允许已经 `parsed/metadata_only` 的文件，系统创建的 `knowledge_documents` 复用 `factory_files.file_id`，并通过现有知识自动同步进入检索。AI 工具 `search_factory_file_archive_targets` 只读查目标，`archive_factory_file` 属于写工具，必须显示确认卡片。聊天附件卡片也提供同一归档入口并显示已有归档。OCR 参数候选即使随文件归档也不升级为已确认事实。
+V9.5/V10.1 归档使用多态目标校验：客户、报价、订单、配方和知识资料必须仍处于有效状态；“质量问题”映射到现有 `recipe_analysis_feedback` 或 `ai_answer_feedback`，不虚构第三套质量表。归档到知识库只允许已经 `parsed/metadata_only` 的文件，系统创建的 `knowledge_documents` 复用 `factory_files.file_id`，并通过现有知识自动同步进入检索。在这些规则外增加正式 Preview → Confirmation → Command：确认凭证同时绑定原文件版本、真实目标版本、现有/已删除关联和知识资料状态，防止确认后目标或关联漂移；相同业务关联继续去重。AI 工具 `search_factory_file_archive_targets` 只读查目标，`archive_factory_file` 属于写工具，必须先显示 AI 确认卡片，确认后 executor 仍通过正式预览和命令 API 执行。聊天附件卡片也复用同一正式 client 并显示已有归档。OCR 参数候选即使随文件归档也不升级为已确认事实。
 
 V9 收口后，客户详情、报价详情和质量反馈入口通过 `POST /api/files` 上传，再以 `source=business_page` 调用归档接口；列表统一读取 `GET /api/files/links`，解除关联使用软删除接口。AI 回答反馈也可在知识管理页关联问题截图或原始资料。业务页上传不会自动创建知识资料；需要长期检索时必须另行归档到 `knowledge_document`。
 
@@ -553,12 +699,13 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 | `GET` | `/api/knowledge/vector-sync-runs` | 查询参数 `limit?`, `status?=success/failed` | 读取最近向量同步历史和汇总，包含模型、维度、新增、更新、跳过、删除、失败、待处理和耗时，最多保留最近 200 次 |
 | `GET` | `/api/knowledge/retrieval-evaluation` | 无 | 只读运行固定中文检索评测，对比 FTS/BM25、纯向量和混合检索的 Top 1/Top 3；返回逐项期望、名次、前三标题及验收结论，不调用外部 AI、不写数据库 |
 | `GET` | `/api/knowledge/documents` | 无 | 列出未删除的独立工厂资料元数据，不返回文件二进制和提取全文 |
-| `POST` | `/api/knowledge/documents` | `multipart/form-data`: `documentType`, `title`, `description?`, `contentText?`, `tags?`, `file?` | 导入独立工厂资料；必须填写技术内容或上传文件，文件最大 10MB，支持 `.txt/.md/.csv/.xls/.xlsx/.pdf` |
+| `POST` | `/api/knowledge/documents` | `multipart/form-data`: `documentType`, `title`, `description?`, `contentText?`, `tags?`, `file?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `knowledge.documents.upload`。导入独立工厂资料；必须填写技术内容或上传文件，文件最大 10MB，支持 `.txt/.md/.csv/.xls/.xlsx/.pdf`。上传是用户主动选取资料的 medium command，不额外要求确认；资料、统一文件对象、operation 和强审计在同一事务提交。返回保留原资料顶层字段，并增加标准命令回执 |
 | `GET` | `/api/knowledge/documents/:id/download` | 无 | 下载独立工厂资料原文件 |
-| `DELETE` | `/api/knowledge/documents/:id` | 无 | 软删除原始资料，自动移除对应派生知识 |
+| `DELETE` | `/api/knowledge/documents/:id` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `knowledge.documents.delete`。软删除原始资料并触发对应派生知识移除；页面继续显式确认。新调用传资源版本和幂等键，旧无 body 调用兼容执行但回执带并发/重试保护缺失 warning |
 | `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 使用 FTS/BM25 + 向量混合搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。每项附带 `matchMode/evidenceLevel/exactMatch/keywordRank/vectorDistance/finalScore`；`evidenceLevel=semantic_candidate` 表示纯语义候选，不能单独证明用途、兼容性或专用配件关系。型号、规格、客户名和合同号等精确命中优先。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
-| `POST` | `/api/knowledge/sync` | 无 | 人工全量核对当前来源，按内容哈希新增、更新和移除 `knowledge_entries`，保留既有条目 ID，并在同一事务中刷新可选 FTS；用于故障恢复，不修改原业务资源 |
+| `POST` | `/api/knowledge/sync-preview` | 无 | 能力 `knowledge.sync_derived` 的只读预览。计算正式业务来源和当前派生条目的内容哈希快照，返回新增/更新/移除明细、`previewHash`、服务端 `confirmationToken/operationId` 和建议幂等键；不写库 |
+| `POST` | `/api/knowledge/sync` | 请求头 `Idempotency-Key`；`{ confirmationToken }` | 消费同步预览凭证并重新核对快照；漂移返回 409。派生条目、FTS、同步运行历史、operation 与强审计原子提交；提交后只调度可重建的向量增量任务。相同 key 重试返回原回执，不重复同步，不修改原业务资源 |
 
 同步响应的 `stats` 包含 `total/inserted/updated/unchanged/deleted/byType`。任一业务条目或 FTS 写入失败时，整个同步事务回滚，继续保留上一版完整知识库。
 
@@ -566,11 +713,11 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 
 V4 自动同步监听标准写入 helper 中的核心来源变更，300ms 内的连续写入会合并为一次同步。`autoSync` 返回 `enabled/running/pending/pendingSources/lastRequestedAt/lastStartedAt/lastCompletedAt/lastFailedAt/lastError/consecutiveFailures/retryScheduled/lastResult`。失败会保留待同步来源并按 1 秒、5 秒、15 秒自动重试；人工 `/api/knowledge/sync` 成功后会清除失败和等待状态。可通过 `KNOWLEDGE_AUTO_SYNC_ENABLED=false` 临时关闭自动同步，人工同步不受影响。
 
-V4 第二阶段使用 SQLite `knowledge_sync_runs` 保存同步运行历史。每次自动重试是独立记录，`attempt` 表示同一轮同步的尝试次数；人工同步失败也会记录后再返回错误。历史写入失败不会反向破坏已经成功生成的知识索引，系统只保留最近 200 次运行，避免运行日志无限增长。
+V4 第二阶段使用 SQLite `knowledge_sync_runs` 保存同步运行历史。每次自动重试是独立记录，`attempt` 表示同一轮同步的尝试次数；正式人工同步的成功运行历史与派生条目、FTS、operation 和强审计同一事务提交，失败运行在回滚后单独记录。系统只保留最近 200 次运行，避免运行日志无限增长。
 
 V4 第三阶段通过 `/api/knowledge/health` 汇总运行态、内容哈希差异和最近历史。待同步超过 60 秒、运行超过 120 秒、存在未安排变化或同步失败时产生告警；自动同步关闭只标记为需要关注。没有业务变化时，即使很久没有产生新同步记录也保持健康，避免时间型假告警。看板恢复动作继续使用受确认保护的人工同步入口。
 
-V5.1 使用 SQLite `knowledge_documents` 保存系统外资料及可选原文件。`technical_note/pump_performance_test/drawing/spreadsheet/other` 是当前资料类型；文本和 Excel 提取正文进入 `document` 知识条目，性能测试报告继续复用水泵测试报告解析器。PDF 原件保存在 SQLite，但 `parserStatus=metadata_only`，当前只检索标题、说明、标签和文件信息；AI 不得据此推断图纸尺寸、材料、结构或其他正文参数。资料新增和软删除均自动触发知识同步。
+V5.1 使用 SQLite `knowledge_documents` 保存系统外资料及可选原文件。`technical_note/pump_performance_test/drawing/spreadsheet/other` 是当前资料类型；文本和 Excel 提取正文进入 `document` 知识条目，性能测试报告继续复用水泵测试报告解析器。PDF 原件保存在 SQLite，但 `parserStatus=metadata_only`，当前只检索标题、说明、标签和文件信息；AI 不得据此推断图纸尺寸、材料、结构或其他正文参数。资料新增和软删除均自动触发知识同步。V5.1 写入口现已委托 `knowledgeDocuments` service：上传的文件哈希参与命令请求指纹，相同幂等键重试不会重复建资料或增加文件重复计数；删除使用 `expectedUpdatedAt` 防止基于旧页面状态误删。
 
 V6.1 增加本地向量底座，但不改变现有搜索结果。`knowledge_embeddings` 以 `entryId + model` 唯一保存 384 维 Float32 BLOB、内容哈希和更新时间；`sqlite-vec v0.1.9` 负责余弦距离计算，`@huggingface/transformers v4.2.0` 按需加载 `Xenova/multilingual-e5-small`。模型默认缓存到当前用户的 `.cache/pump-knowledge-models`，可用 `KNOWLEDGE_MODEL_CACHE_DIR` 指定目录；生产机联网时先运行 `npm run knowledge:model-prepare` 完成首次缓存和真实 embedding 检查，再设置 `KNOWLEDGE_MODEL_OFFLINE=true` 并重启。`npm run knowledge:vector-check` 只检查扩展与运行时，不下载模型。
 
@@ -590,7 +737,7 @@ AI 工具：
 - `get_factory_knowledge_detail`：只读读取详情。
 - `get_factory_knowledge_health`：只读诊断自动同步状态、失败原因和人工恢复建议。
 - `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
-- `adjust_coil_stock`：按“规格俗称-片数”批量调整独立线圈成品库存，例如 `12-120` 表示规格 12、片数 120；属于写工具，确认后先唯一匹配正式材质/槽眼方案，再调用原子批量接口。不得改写零件库存，匹配多个方案时停止并要求明确。
+- `adjust_coil_stock`：按“规格俗称-片数”批量调整独立线圈成品库存，例如 `12-120` 表示规格 12、片数 120；属于写工具，确认后由 `aiCoilStockExecution` 唯一匹配正式材质/槽眼方案，再依次调用原子批量 Preview/Command。服务端确认凭证绑定当前库存与资源版本，建议幂等键和 AI `operationId` 随正式 API 调用传递；网络重试不会重复调整。不得改写零件库存，匹配多个方案时停止并要求明确。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
 - `save_order_requirement_draft`：经用户确认后保存订单客户要求草稿；草稿不属于正式知识，确认进入知识库和撤销确认只能在订单页面完成。
 - `save_order_execution_draft`：经用户确认后新建订单执行事实草稿；AI 无权确认、撤销或删除正式事实，知识确认只能在订单页面完成。
@@ -599,8 +746,13 @@ AI 工具：
 
 - 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是历史兼容字段，Web 页面必须使用标准字段。
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。
-- 成本历史命名入口已移除；当前标准入口为 `/api/cost/parts`、`/api/recipes/:id/cost`、`/api/recipes/:id/cost-preview`、`/api/cost/dynamic` 和 `/api/cost/full-estimate`。
+- 成本正式场景入口为 `/api/cost/parts`、`/api/recipes/cost-draft`、`/api/recipes/:id/cost-preview` 和 `/api/cost/full-estimate`；`/api/cost/dynamic` 仍有 AI executor 调用，继续兼容保留。
+- `/api/cost/coil`、`/api/cost/float`、`/api/cost/cable`、`/api/cost/packing`、`/api/cost/overhead` 和 `/api/cost/recipe/by-name` 是待核对外部调用的兼容候选。当前阶段不得删除；新增调用不得依赖这些入口。
+- `/api/model-variants` 有当前 Web 调用方，`/api/voice/asr` 有微信小程序调用方，均不是删除候选。
+- `/api/rotor/order-pump-models` 当前仓库内主要剩余测试依赖，列为兼容观察项；确认外部调用和迁移路径前不得删除。
 - `GET /api/rotor/history` 已输出 camelCase 标准字段；snake_case 字段仅作为历史兼容字段。
 - `POST /api/rotor/draw`、`POST /api/rotor/chat` 标准响应为 `{ success, data/error }`。
 - 客户和报价新增接口标准返回完整 `data` 对象，不再返回顶层 `id`。
 - 正式业务资源的新增、动态更新和删除已分别收口到 `safeInsert`、`safeUpdate`、`softDelete` / `hardDelete`；系统初始化、`system_settings` / `config` UPSERT 仍属于基础设施边界。
+
+架构风险、整改状态和优先级不在本接口总表重复维护，统一见 [API 架构审核与解耦报告](./api-architecture-audit.md)。当前接口自身存在的副作用或兼容行为已写在对应 Method/Path 行内。

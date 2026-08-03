@@ -128,7 +128,7 @@ function validateRunInput(input = {}) {
 function recordFactoryWorkflowRun(input = {}, options = {}) {
     const normalized = validateRunInput(input);
     const dbAccessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeInsert } = dbAccessors;
+    const { db, hardDelete, safeInsert } = dbAccessors;
     const now = text(input.completedAt) || new Date().toISOString();
     const startedAt = text(input.startedAt) || now;
     const planFingerprint = fingerprintFactoryExecutionPlan(normalized.plan);
@@ -156,16 +156,26 @@ function recordFactoryWorkflowRun(input = {}, options = {}) {
         completed_at: now,
         created_at: now,
         updated_at: now,
-    });
+    }, options.auditContext || {});
+    if (typeof options.onWrite === 'function') options.onWrite(info);
 
-    db.prepare(`
-        DELETE FROM factory_workflow_runs
-        WHERE id NOT IN (
-            SELECT id FROM factory_workflow_runs
-            ORDER BY created_at DESC, id DESC
-            LIMIT ?
-        )
-    `).run(MAX_RETAINED_RUNS);
+    const expiredRows = db.prepare(`
+        SELECT id
+        FROM factory_workflow_runs
+        ORDER BY created_at DESC, id DESC
+        LIMIT -1 OFFSET ?
+    `).all(MAX_RETAINED_RUNS);
+    if (expiredRows.length > 0 && typeof hardDelete !== 'function') {
+        throw new Error('执行历史保留清理缺少 hardDelete');
+    }
+    for (const expired of expiredRows) {
+        const deletion = hardDelete(
+            'factory_workflow_runs',
+            Number(expired.id),
+            options.auditContext || {}
+        );
+        if (typeof options.onWrite === 'function') options.onWrite(deletion);
+    }
 
     return workflowRunRow(
         db.prepare('SELECT * FROM factory_workflow_runs WHERE id = ?')

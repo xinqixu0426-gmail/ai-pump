@@ -276,6 +276,42 @@ function knowledgeHealthItems(knowledgeHealth = {}) {
     }));
 }
 
+function knowledgeRegressionItems(evaluation = {}) {
+    const run = evaluation.latestRun;
+    if (!run || evaluation.healthy || run.status === 'running') return [];
+    const failedCount = Number(run.failedCount || 0);
+    const reviewCount = Number(run.reviewCount || 0);
+    const issueCount = Math.max(failedCount + reviewCount, 1);
+    const issueTitles = list(evaluation.issues)
+        .map(issue => text(issue.caseTitle))
+        .filter(Boolean)
+        .slice(0, 3);
+    return [actionItem({
+        id: 'knowledge-regression:release-gate',
+        priority: failedCount > 0 || run.status === 'failed' ? 'critical' : 'high',
+        category: 'knowledge_health',
+        categoryLabel: '知识健康',
+        title: `AI 回归检查有 ${issueCount} 项未通过`,
+        detail: issueTitles.length > 0
+            ? `需要处理：${issueTitles.join('；')}`
+            : '最近一次真实 AI 回归未完整通过，需要查看运行明细。',
+        action: '进入知识库查看失败依据并重新检查',
+        owner: '系统管理员',
+        path: '/dashboard?view=knowledge',
+        count: issueCount,
+        entityType: 'ai_evaluation',
+        entityId: 'release-gate',
+        sourceType: 'ai_evaluation_release_gate',
+        resolution: {
+            mode: 'navigate',
+            title: '查看回归失败项',
+            instruction: '核对失败检查、知识来源和长期纠正规则，修复后重新运行知识库检查。',
+            expectedResult: '最新一次知识库回归全部通过。',
+            path: '/dashboard?view=knowledge',
+        },
+    })];
+}
+
 function loadDefaultSources() {
     const { buildActiveOrdersReadinessOverview } = require('./activeOrderReadiness.cjs');
     const { buildBusinessAlerts } = require('./businessAlerts.cjs');
@@ -287,6 +323,7 @@ function loadDefaultSources() {
     const { inspectKnowledgeOverview } = require('./knowledge.cjs');
     const { listKnowledgeSyncRuns } = require('./knowledgeSyncHistory.cjs');
     const { buildKnowledgeSyncHealth } = require('./knowledgeSyncHealth.cjs');
+    const { getLatestAiEvaluationHealth } = require('./aiEvaluations.cjs');
 
     const knowledgeOverview = inspectKnowledgeOverview();
     return {
@@ -300,6 +337,7 @@ function loadDefaultSources() {
             pendingTotal: knowledgeOverview.stats.pendingTotal,
             history: listKnowledgeSyncRuns({ limit: 10 }),
         }),
+        evaluation: getLatestAiEvaluationHealth(),
     };
 }
 
@@ -312,6 +350,7 @@ function buildManagementActionCenter(options = {}) {
         ...dataQualityItems(sources.quality),
         ...ruleLearningItems(sources.learningHealth, sources.candidates),
         ...knowledgeHealthItems(sources.knowledgeHealth),
+        ...knowledgeRegressionItems(sources.evaluation),
     ].sort((left, right) => {
         const priorityDifference = PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority];
         if (priorityDifference !== 0) return priorityDifference;
@@ -350,6 +389,7 @@ module.exports = {
     dataQualityItems,
     ruleLearningItems,
     knowledgeHealthItems,
+    knowledgeRegressionItems,
     actionResolution,
     stableAlertKey,
 };

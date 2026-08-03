@@ -66,7 +66,13 @@ function synchronizeFactoryAiRuleFromFeedback(input = {}, options = {}) {
 
     if (!shouldLearn) {
         if (existing && (explicitlyDisabled || rating !== 'incorrect')) {
-            safeUpdate('factory_ai_rules', existing.id, { status: 'disabled' });
+            const write = safeUpdate(
+                'factory_ai_rules',
+                existing.id,
+                { status: 'disabled' },
+                options.auditContext || {}
+            );
+            options.onWrite?.(write);
             return factoryAiRuleRow(db.prepare('SELECT * FROM factory_ai_rules WHERE id = ?').get(existing.id));
         }
         return factoryAiRuleRow(existing);
@@ -86,14 +92,21 @@ function synchronizeFactoryAiRuleFromFeedback(input = {}, options = {}) {
     let id;
     if (existing) {
         id = existing.id;
-        safeUpdate('factory_ai_rules', id, values);
+        const write = safeUpdate(
+            'factory_ai_rules',
+            id,
+            values,
+            options.auditContext || {}
+        );
+        options.onWrite?.(write);
     } else {
         const info = safeInsert('factory_ai_rules', {
             source_feedback_id: feedbackId,
             ...values,
             created_at: now,
             updated_at: now,
-        });
+        }, options.auditContext || {});
+        options.onWrite?.(info);
         id = Number(info.lastInsertRowid);
     }
     return factoryAiRuleRow(db.prepare('SELECT * FROM factory_ai_rules WHERE id = ?').get(id));
@@ -144,8 +157,42 @@ function updateFactoryAiRule(idValue, input = {}, options = {}) {
     if (input.triggerText !== undefined) updates.trigger_text = normalizeText(input.triggerText, 2000, '触发示例');
     if (input.instruction !== undefined) updates.instruction = normalizeText(input.instruction, 1000, '正确做法', true);
     if (Object.keys(updates).length === 0) throw new Error('没有需要更新的规则字段');
-    safeUpdate('factory_ai_rules', id, updates);
-    return factoryAiRuleRow(db.prepare('SELECT * FROM factory_ai_rules WHERE id = ?').get(id));
+    const write = safeUpdate(
+        'factory_ai_rules',
+        id,
+        updates,
+        options.auditContext || {}
+    );
+    options.onWrite?.(write);
+    const updated = db.prepare('SELECT * FROM factory_ai_rules WHERE id = ?').get(id);
+    if (updated.source_feedback_id) {
+        const regressionCases = require('./aiRegressionCases.cjs');
+        if (updates.trigger_text !== undefined || updates.instruction !== undefined) {
+            regressionCases.synchronizeAiEvaluationCaseFromFeedback({
+                feedback: {
+                    id: updated.source_feedback_id,
+                    rating: 'incorrect',
+                    question_text: updated.trigger_text,
+                    note: updated.instruction,
+                },
+                learnFromCorrection: true,
+            }, {
+                dbAccessors: accessors,
+                auditContext: options.auditContext,
+                onWrite: options.onWrite,
+            });
+        }
+        regressionCases.synchronizeEvaluationCaseForRuleStatus(
+            updated.source_feedback_id,
+            updated.status,
+            {
+                dbAccessors: accessors,
+                auditContext: options.auditContext,
+                onWrite: options.onWrite,
+            }
+        );
+    }
+    return factoryAiRuleRow(updated);
 }
 
 function normalizeSearchText(value) {

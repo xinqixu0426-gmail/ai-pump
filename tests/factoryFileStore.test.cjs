@@ -42,10 +42,11 @@ function createAccessors() {
     `);
     const safeInsert = (table, values) => {
         const columns = Object.keys(values);
-        return db.prepare(`
+        const info = db.prepare(`
             INSERT INTO ${table} (${columns.join(', ')})
             VALUES (${columns.map(() => '?').join(', ')})
         `).run(...columns.map(column => values[column]));
+        return { ...info, auditId: 42 };
     };
     const safeUpdate = (table, id, updates) => {
         const columns = Object.keys(updates);
@@ -54,6 +55,7 @@ function createAccessors() {
             SET ${columns.map(column => `${column} = ?`).join(', ')}
             WHERE id = ?
         `).run(...columns.map(column => updates[column]), id);
+        return { changes: 1, auditId: 43 };
     };
     const softDelete = (table, id) => {
         db.prepare(`UPDATE ${table} SET deleted_at = ? WHERE id = ?`)
@@ -137,6 +139,8 @@ test('V9.1 文件去重：相同 SHA-256 复用文件对象并累计上传次数
     assert.equal(second.file.id, first.file.id);
     assert.equal(second.file.duplicateCount, 2);
     assert.equal(second.file.parserStatus, 'parsed');
+    assert.deepEqual(first.auditIds, [42]);
+    assert.deepEqual(second.auditIds, [43]);
     assert.equal(listFactoryFiles({}, { dbAccessors: accessors }).length, 1);
     accessors.db.close();
 });

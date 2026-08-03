@@ -50,6 +50,7 @@ const rotorDrawingFields: Array<{ key: FixedTechnicalDataKey; unit?: string; int
 
 type TechnicalDataEditorProps = {
   recipeId?: number | null;
+  recipeUpdatedAt?: string;
   value: RecipeTechnicalData;
   onChange: (value: RecipeTechnicalData) => void;
   referenceFields?: TechnicalReferenceField[];
@@ -85,6 +86,7 @@ function FieldShell({ label, unit, children, wide = false }: {
 
 export function TechnicalDataEditor({
   recipeId,
+  recipeUpdatedAt,
   value,
   onChange,
   referenceFields = [],
@@ -130,7 +132,7 @@ export function TechnicalDataEditor({
     setFileBusy(true);
     setFileError('');
     try {
-      await uploadRecipeTechnicalFile(recipeId, file);
+      await uploadRecipeTechnicalFile(recipeId, file, recipeUpdatedAt);
       setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '测试报告上传失败');
@@ -145,7 +147,7 @@ export function TechnicalDataEditor({
     setFileBusy(true);
     setFileError('');
     try {
-      await deleteRecipeTechnicalFile(recipeId, file.id);
+      await deleteRecipeTechnicalFile(recipeId, file.id, file.updatedAt);
       setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '测试报告删除失败');

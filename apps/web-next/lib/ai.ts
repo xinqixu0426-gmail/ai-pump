@@ -1,6 +1,11 @@
 'use client';
 
-import { proxyRequest, proxyStreamFetch, type ApiResponse } from './api';
+import {
+  createIdempotencyKey,
+  proxyRequest,
+  proxyStreamFetch,
+  type ApiResponse,
+} from './api';
 import type { AiPageContext } from './page-context';
 import type { FactoryFile } from './files';
 
@@ -101,6 +106,7 @@ export type AiConversationDetail = AiConversationSummary & {
 export type AiAnswerFeedbackRating = 'helpful' | 'incorrect' | 'outdated' | 'missing_source';
 export type AiAnswerFeedbackStatus = 'open' | 'resolved';
 export type FactoryAiRuleStatus = 'active' | 'disabled';
+export type AiEvaluationReviewStatus = 'pending' | 'approved' | 'rejected';
 
 export type FactoryAiRule = {
   id: number;
@@ -163,6 +169,7 @@ export type AiAnswerFeedback = {
   retestSources: AiKnowledgeSource[];
   retestedAt: string | null;
   learningRule: FactoryAiRule | null;
+  regressionCase: AiEvaluationCase | null;
   status: AiAnswerFeedbackStatus;
   resolutionNote: string;
   resolvedAt: string | null;
@@ -192,6 +199,17 @@ export type AiEvaluationCase = {
   config: Record<string, unknown>;
   enabled: boolean;
   sortOrder: number;
+  sourceType: 'system' | 'feedback';
+  sourceFeedbackId: number | null;
+  reviewStatus: AiEvaluationReviewStatus;
+  confidenceScore: number;
+  generationNote: string;
+  proposalHash: string;
+  reviewNote: string;
+  reviewedAt: string | null;
+  learningRuleStatus?: FactoryAiRuleStatus | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AiEvaluationRun = {
@@ -232,6 +250,14 @@ export type AiEvaluationResult = {
 
 export type AiEvaluationOverview = {
   cases: AiEvaluationCase[];
+  feedbackCases: AiEvaluationCase[];
+  caseStats: {
+    enabled: number;
+    feedbackTotal: number;
+    feedbackApproved: number;
+    feedbackPending: number;
+    feedbackRejected: number;
+  };
   latestRun: AiEvaluationRun | null;
   results: AiEvaluationResult[];
 };
@@ -343,37 +369,136 @@ export async function generateAiDraftFromAttachment(
 }
 
 export async function getAiSystemPrompt(): Promise<string> {
-  const result = await proxyRequest<ApiResponse<string>>('/api/ai/system-prompt');
-  if (!result.success || typeof result.data !== 'string') throw new Error(result.error || '读取工厂配置失败');
-  return result.data;
+  const result = await proxyRequest<ApiResponse<string | {
+    prompt: string;
+    version: string;
+  }>>('/api/ai/system-prompt?includeMeta=1');
+  if (!result.success || !result.data) throw new Error(result.error || '读取工厂配置失败');
+  if (typeof result.data === 'string') {
+    factoryProfileVersion = null;
+    return result.data;
+  }
+  if (typeof result.data.prompt !== 'string') throw new Error('工厂配置响应格式无效');
+  factoryProfileVersion = result.data.version || null;
+  return result.data.prompt;
 }
 
 export async function updateAiSystemPrompt(prompt: string): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>('/api/ai/system-prompt', {
+  const result = await proxyRequest<ApiResponse<{
+    version?: string;
+    profile?: { version?: string };
+  }>>('/api/ai/system-prompt', {
     method: 'PUT',
-    body: JSON.stringify({ prompt }),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('factory-profile'),
+    },
+    body: JSON.stringify({
+      prompt,
+      ...(factoryProfileVersion ? { expectedVersion: factoryProfileVersion } : {}),
+    }),
   });
   if (!result.success) throw new Error(result.error || '保存工厂配置失败');
+  factoryProfileVersion = result.data?.profile?.version || result.data?.version || null;
 }
 
 export async function listAiConversations(): Promise<AiConversationSummary[]> {
   const result = await proxyRequest<ApiResponse<AiConversationSummary[]>>('/api/ai/conversations?limit=50');
   if (!result.success || !Array.isArray(result.data)) throw new Error(result.error || '读取会话历史失败');
+  result.data.forEach(rememberAiConversationVersion);
   return result.data;
+}
+
+const aiConversationVersions = new Map<number, string>();
+const aiConversationMessageVersions = new Map<string, string>();
+const aiEvaluationRunVersions = new Map<number, string>();
+const aiEvaluationCaseVersions = new Map<number, string>();
+const aiAnswerFeedbackVersions = new Map<number, string>();
+const aiAnswerFeedbackByMessage = new Map<number, string>();
+const factoryAiRuleVersions = new Map<number, string>();
+let factoryProfileVersion: string | null = null;
+
+function conversationMessageVersionKey(conversationId: number, messageId: number) {
+  return `${conversationId}:${messageId}`;
+}
+
+function rememberAiConversationVersion(conversation: AiConversationSummary) {
+  if (conversation.updatedAt) {
+    aiConversationVersions.set(conversation.id, conversation.updatedAt);
+  }
+  return conversation;
+}
+
+function rememberAiConversationMessageVersion(message: AiConversationMessage) {
+  if (message.updatedAt) {
+    aiConversationMessageVersions.set(
+      conversationMessageVersionKey(message.conversationId, message.id),
+      message.updatedAt
+    );
+  }
+  const conversationUpdatedAt = (
+    message as AiConversationMessage & { conversationUpdatedAt?: string }
+  ).conversationUpdatedAt;
+  if (conversationUpdatedAt) {
+    aiConversationVersions.set(message.conversationId, conversationUpdatedAt);
+  }
+  return message;
+}
+
+function rememberAiEvaluationRunVersion(run: AiEvaluationRun) {
+  if (run.updatedAt) {
+    aiEvaluationRunVersions.set(run.id, run.updatedAt);
+  }
+  return run;
+}
+
+function rememberAiEvaluationCaseVersion(evaluationCase: AiEvaluationCase) {
+  if (evaluationCase.updatedAt) {
+    aiEvaluationCaseVersions.set(evaluationCase.id, evaluationCase.updatedAt);
+  }
+  return evaluationCase;
+}
+
+function rememberAiAnswerFeedbackVersion(feedback: AiAnswerFeedback) {
+  if (feedback.updatedAt) {
+    aiAnswerFeedbackVersions.set(feedback.id, feedback.updatedAt);
+    aiAnswerFeedbackByMessage.set(feedback.messageId, feedback.updatedAt);
+  }
+  if (feedback.learningRule?.updatedAt) {
+    factoryAiRuleVersions.set(
+      feedback.learningRule.id,
+      feedback.learningRule.updatedAt
+    );
+  }
+  if (feedback.regressionCase) {
+    rememberAiEvaluationCaseVersion(feedback.regressionCase);
+  }
+  return feedback;
+}
+
+function rememberFactoryAiRuleVersion(rule: FactoryAiRule) {
+  if (rule.updatedAt) {
+    factoryAiRuleVersions.set(rule.id, rule.updatedAt);
+  }
+  return rule;
 }
 
 export async function createAiConversation(title: string): Promise<AiConversationSummary> {
   const result = await proxyRequest<ApiResponse<AiConversationSummary>>('/api/ai/conversations', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('ai-conversation-create'),
+    },
     body: JSON.stringify({ title }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '创建会话失败');
-  return result.data;
+  return rememberAiConversationVersion(result.data);
 }
 
 export async function getAiConversation(id: number): Promise<AiConversationDetail> {
   const result = await proxyRequest<ApiResponse<AiConversationDetail>>(`/api/ai/conversations/${id}`);
   if (!result.success || !result.data) throw new Error(result.error || '读取会话失败');
+  rememberAiConversationVersion(result.data);
+  result.data.messages.forEach(rememberAiConversationMessageVersion);
   return result.data;
 }
 
@@ -383,10 +508,16 @@ export async function appendAiConversationMessage(
 ): Promise<AiConversationMessage> {
   const result = await proxyRequest<ApiResponse<AiConversationMessage>>(`/api/ai/conversations/${conversationId}/messages`, {
     method: 'POST',
-    body: JSON.stringify(message),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-conversation-message:${conversationId}`),
+    },
+    body: JSON.stringify({
+      ...message,
+      expectedUpdatedAt: aiConversationVersions.get(conversationId) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存会话消息失败');
-  return result.data;
+  return rememberAiConversationMessageVersion(result.data);
 }
 
 export async function updateAiConversationMessage(
@@ -396,15 +527,32 @@ export async function updateAiConversationMessage(
 ): Promise<AiConversationMessage> {
   const result = await proxyRequest<ApiResponse<AiConversationMessage>>(`/api/ai/conversations/${conversationId}/messages/${messageId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ metadata }),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-conversation-message-update:${messageId}`),
+    },
+    body: JSON.stringify({
+      metadata,
+      expectedUpdatedAt: aiConversationMessageVersions.get(
+        conversationMessageVersionKey(conversationId, messageId)
+      ) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '更新会话消息失败');
-  return result.data;
+  return rememberAiConversationMessageVersion(result.data);
 }
 
 export async function deleteAiConversation(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<{ id: number }>>(`/api/ai/conversations/${id}`, { method: 'DELETE' });
+  const result = await proxyRequest<ApiResponse<{ id: number }>>(`/api/ai/conversations/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-conversation-delete:${id}`),
+    },
+    body: JSON.stringify({
+      expectedUpdatedAt: aiConversationVersions.get(id) || null,
+    }),
+  });
   if (!result.success) throw new Error(result.error || '删除会话失败');
+  aiConversationVersions.delete(id);
 }
 
 export async function getAiCapabilities(): Promise<AiCapabilities> {
@@ -426,6 +574,7 @@ export async function listAiAnswerFeedback(filters: {
   params.set('limit', String(filters.limit || 50));
   const result = await proxyRequest<ApiResponse<AiAnswerFeedbackList>>(`/api/ai/feedback?${params}`);
   if (!result.success || !result.data) throw new Error(result.error || '读取 AI 回答反馈失败');
+  result.data.items.forEach(rememberAiAnswerFeedbackVersion);
   return result.data;
 }
 
@@ -437,10 +586,16 @@ export async function submitAiAnswerFeedback(input: {
 }): Promise<AiAnswerFeedback> {
   const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>('/api/ai/feedback', {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-feedback-submit:${input.messageId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: aiAnswerFeedbackByMessage.get(input.messageId) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答反馈失败');
-  return result.data;
+  return rememberAiAnswerFeedbackVersion(result.data);
 }
 
 export async function listFactoryAiRules(filters: {
@@ -452,6 +607,7 @@ export async function listFactoryAiRules(filters: {
   params.set('limit', String(filters.limit || 100));
   const result = await proxyRequest<ApiResponse<FactoryAiRuleList>>(`/api/ai/learning-rules?${params}`);
   if (!result.success || !result.data) throw new Error(result.error || '读取 AI 学习规则失败');
+  result.data.items.forEach(rememberFactoryAiRuleVersion);
   return result.data;
 }
 
@@ -461,10 +617,16 @@ export async function updateFactoryAiRule(
 ): Promise<FactoryAiRule> {
   const result = await proxyRequest<ApiResponse<FactoryAiRule>>(`/api/ai/learning-rules/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-learning-rule-update:${id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: factoryAiRuleVersions.get(id) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '更新 AI 学习规则失败');
-  return result.data;
+  return rememberFactoryAiRuleVersion(result.data);
 }
 
 export async function reviewAiAnswerFeedback(
@@ -473,18 +635,30 @@ export async function reviewAiAnswerFeedback(
 ): Promise<AiAnswerFeedback> {
   const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>(`/api/ai/feedback/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-feedback-review:${id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: aiAnswerFeedbackVersions.get(id) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '处理 AI 回答反馈失败');
-  return result.data;
+  return rememberAiAnswerFeedbackVersion(result.data);
 }
 
 export async function diagnoseAiAnswerFeedback(id: number): Promise<AiAnswerFeedback> {
   const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>(`/api/ai/feedback/${id}/diagnose`, {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-feedback-diagnose:${id}`),
+    },
+    body: JSON.stringify({
+      expectedUpdatedAt: aiAnswerFeedbackVersions.get(id) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '诊断 AI 回答反馈失败');
-  return result.data;
+  return rememberAiAnswerFeedbackVersion(result.data);
 }
 
 export async function recordAiAnswerFeedbackRetest(
@@ -493,23 +667,37 @@ export async function recordAiAnswerFeedbackRetest(
 ): Promise<AiAnswerFeedback> {
   const result = await proxyRequest<ApiResponse<AiAnswerFeedback>>(`/api/ai/feedback/${id}/retest`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-feedback-retest:${id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: aiAnswerFeedbackVersions.get(id) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存 AI 回答复测结果失败');
-  return result.data;
+  return rememberAiAnswerFeedbackVersion(result.data);
 }
 
 export async function getAiEvaluationOverview(): Promise<AiEvaluationOverview> {
   const result = await proxyRequest<ApiResponse<AiEvaluationOverview>>('/api/ai/evaluations/overview');
   if (!result.success || !result.data) throw new Error(result.error || '读取知识库检查结果失败');
+  result.data.cases.forEach(rememberAiEvaluationCaseVersion);
+  result.data.feedbackCases.forEach(rememberAiEvaluationCaseVersion);
+  if (result.data.latestRun) rememberAiEvaluationRunVersion(result.data.latestRun);
   return result.data;
 }
 
 export async function createAiEvaluationRun(): Promise<{ run: AiEvaluationRun; cases: AiEvaluationCase[] }> {
   const result = await proxyRequest<ApiResponse<{ run: AiEvaluationRun; cases: AiEvaluationCase[] }>>('/api/ai/evaluations/runs', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('ai-evaluation-run-start'),
+    },
   });
   if (!result.success || !result.data) throw new Error(result.error || '创建知识库检查失败');
+  rememberAiEvaluationRunVersion(result.data.run);
+  result.data.cases.forEach(rememberAiEvaluationCaseVersion);
   return result.data;
 }
 
@@ -519,7 +707,13 @@ export async function recordAiEvaluationResult(
 ): Promise<AiEvaluationResult> {
   const result = await proxyRequest<ApiResponse<AiEvaluationResult>>(`/api/ai/evaluations/runs/${runId}/results`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-evaluation-result:${runId}:${input.caseId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: aiEvaluationRunVersions.get(runId) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '保存知识库检查结果失败');
   return result.data;
@@ -528,15 +722,39 @@ export async function recordAiEvaluationResult(
 export async function completeAiEvaluationRun(runId: number): Promise<AiEvaluationRun> {
   const result = await proxyRequest<ApiResponse<AiEvaluationRun>>(`/api/ai/evaluations/runs/${runId}/complete`, {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-evaluation-run-complete:${runId}`),
+    },
+    body: JSON.stringify({
+      expectedUpdatedAt: aiEvaluationRunVersions.get(runId) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '完成知识库检查失败');
-  return result.data;
+  return rememberAiEvaluationRunVersion(result.data);
 }
 
-export async function confirmAiTool(toolName: string, args: unknown): Promise<AiToolResult> {
+export async function reviewAiEvaluationCase(
+  id: number,
+  input: { reviewStatus: AiEvaluationReviewStatus; reviewNote?: string }
+): Promise<AiEvaluationCase> {
+  const result = await proxyRequest<ApiResponse<AiEvaluationCase>>(`/api/ai/evaluations/cases/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-evaluation-case-review:${id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: aiEvaluationCaseVersions.get(id) || null,
+    }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '审核纠错回归用例失败');
+  return rememberAiEvaluationCaseVersion(result.data);
+}
+
+export async function confirmAiTool(confirmationToken: string): Promise<AiToolResult> {
   const result = await proxyRequest<ApiResponse<AiToolResult>>('/api/ai/confirm-tool', {
     method: 'POST',
-    body: JSON.stringify({ toolName, args }),
+    body: JSON.stringify({ confirmationToken }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '确认执行失败');
   return result.data;

@@ -120,7 +120,7 @@ PYTHONPATH=
 - 继续询问“怎么处理”或“下一步做什么”时，AI 会生成按依赖排序的处理方案，标明 AI 可发起确认、人工处理、需要业务决定和等待跟进；方案本身不执行写操作。
 - 对方案中当前可执行的 AI 步骤，可以继续要求执行并在确认卡片中批准。服务端会重新生成实时方案，只执行仍为 `confirmable + available` 的步骤，完成后返回新的检查结果；不会自动执行生产或扣减库存。
 - 手机端使用全屏会话、历史抽屉和安全区输入框。
-- 输入框可附加 PDF、Excel、CSV、文本和图片；文件分析、业务附件关联与知识入库是三个不同动作，具体见 [V9 文件智能处理使用大纲](./docs/v9-user-guide.md)。
+- 输入框可附加 PDF、Excel、CSV、文本和图片；文件分析、业务附件关联与知识入库是三个不同动作，具体见 [业务流程：统一文件与知识边界](./docs/business-flow.md#81-统一文件与知识边界)。
 
 旧 `/voice` 页面只保留跳转到 `/ai`。旧 Web 语音组件已经删除；`POST /api/voice/asr` 仍供微信小程序兼容使用。
 
@@ -164,6 +164,8 @@ V9 已完成业务入口收口：客户详情、报价详情和数据质量页�
 `GET /api/knowledge/vector-health` 可检查向量扩展、模型、后台队列、覆盖率和最近记录，`GET /api/knowledge/vector-sync-runs` 读取持久化运行历史。V6.3 默认将 FTS/BM25 与向量结果做稳定融合，型号、规格、客户名和合同号等精确命中优先；模型或扩展异常时自动回退 FTS/LIKE。模型默认按需下载到用户目录下的 `.cache/pump-knowledge-models`；生产机联网时先运行 `npm run knowledge:model-prepare` 完成缓存和真实 embedding 检查，再设置 `KNOWLEDGE_MODEL_OFFLINE=true` 并重启服务。`KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED=false` 可只关闭后台生成，`KNOWLEDGE_HYBRID_SEARCH_ENABLED=false` 可临时关闭混合检索。
 
 V6.4 提供不依赖外部 AI 的固定检索验收：服务运行时执行 `npm run test:knowledge-retrieval`，自动对比 FTS、纯向量和混合检索 Top 1/Top 3；执行 `npm run knowledge:backup-check` 可验证 SQLite 在线备份恢复后的知识向量和检索能力。知识库看板直接展示当前向量覆盖率、混合/回退模式、待生成数量及模型异常。
+
+AI 回答中明确报告错误并保存正确做法后，系统会同步生成唯一的纠错回归案例。高置信、可确定判定的案例自动加入知识库检查，证据不足的案例在知识管理页等待确认；纠正规则停用时关联案例自动退出。`npm run test:knowledge-live` 会把这些已批准案例与内置案例一起通过真实 AI 对话流无人值守复测。Mac Mini 重启验收会运行 `npm run verify:ai-release`，失败结果进入管理待办并写入机器报告。完整说明见 [AI 纠错学习与发布回归使用报告](./docs/ai-learning-release-gate-guide.md)。
 
 ## 核心规则
 
@@ -238,11 +240,13 @@ tail -n 80 logs/web-launchd.error.log
 - [当前功能与架构](docs/README.md)
 - [业务流程](docs/business-flow.md)
 - [API 接口总表](docs/api-reference.md)
-- [API 开发 SOP](docs/api-sop.md)
+- [API 统一契约](docs/api-contract.md)
+- [API 变更 SOP](docs/api-sop.md)
+- [API 架构审核](docs/api-architecture-audit.md)
 - [生产运行与故障排查](docs/operations-runbook.md)
 - [生产发布清单](docs/deployment-checklist.md)
 - [前端状态边界](docs/frontend-state-boundary.md)
 - [UI/交互约束](docs/ui-refactor-guidelines.md)
 - [FreeCAD 尺寸映射](freecad/DIM_MAPPING.md)
 
-API 新增、修改或废弃后，必须同步更新 `docs/api-reference.md`；涉及业务概览时同时更新 `docs/README.md`。
+所有 API 必须遵守 `docs/api-contract.md`；新增、修改或废弃按 `docs/api-sop.md` 执行并同步更新 `docs/api-reference.md`，涉及业务概览时同时更新 `docs/README.md`。

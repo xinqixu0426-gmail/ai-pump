@@ -1,0 +1,81 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+    getOrderWithCurrentPurchasePlan,
+    listOrdersWithCurrentPurchasePlans,
+    persistCurrentBalancedPurchasePlans,
+} = require('../api/services/orderPurchasePlanning.cjs');
+
+function createFixture() {
+    const record = {
+        id: 7,
+        status: '待采购',
+        created_at: '2026-08-01T00:00:00.000Z',
+        deleted_at: null,
+        items_json: '[]',
+        purchase_list_json: '[{"model":"旧快照"}]',
+    };
+    const database = {
+        prepare(sql) {
+            return {
+                all() {
+                    assert.match(sql, /FROM orders/);
+                    return [record];
+                },
+                get(id) {
+                    assert.equal(id, 7);
+                    return record;
+                },
+            };
+        },
+        transaction(callback) {
+            return (...args) => callback(...args);
+        },
+    };
+    const writes = [];
+    const dbAccessors = {
+        db: database,
+        dbGetAllParts: () => [],
+        dbGetAllCoils: () => [],
+        dbGetAllOrders: () => [{
+            id: 7,
+            status: '待采购',
+            purchaseListJson: record.purchase_list_json,
+            updatedAt: '2026-08-01T00:00:00.000Z',
+        }],
+        orderRow: row => ({
+            id: row.id,
+            status: row.status,
+            purchaseListJson: row.purchase_list_json,
+            updatedAt: '2026-08-01T00:00:00.000Z',
+        }),
+        safeUpdate: (...args) => writes.push(args),
+    };
+    return { database, dbAccessors, writes };
+}
+
+test('订单列表和详情查询返回实时采购计划视图但不写库', () => {
+    const fixture = createFixture();
+    const options = {
+        db: fixture.database,
+        dbAccessors: fixture.dbAccessors,
+    };
+    const list = listOrdersWithCurrentPurchasePlans(options);
+    const detail = getOrderWithCurrentPurchasePlan(7, options);
+    assert.equal(list.length, 1);
+    assert.equal(list[0].purchaseListJson, '[]');
+    assert.equal(detail.purchaseListJson, '[]');
+    assert.equal(detail.updatedAt, '2026-08-01T00:00:00.000Z');
+    assert.deepEqual(fixture.writes, []);
+});
+
+test('只有显式持久化命令会写回变化后的采购计划', () => {
+    const fixture = createFixture();
+    persistCurrentBalancedPurchasePlans({
+        db: fixture.database,
+        dbAccessors: fixture.dbAccessors,
+    });
+    assert.deepEqual(fixture.writes, [
+        ['orders', 7, { purchase_list_json: '[]' }],
+    ]);
+});

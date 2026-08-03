@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `41`：
+当前版本为 `44`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -61,13 +61,20 @@
 | 39 | `order_execution_records` | 保存订单生产前、生产中、生产后执行事实的时间线草稿、人工确认快照和依据文件 |
 | 40 | `order_execution_evidence_file_role` | 为订单现场图片、质量记录和交付凭证增加独立 `execution_evidence` 文件关系角色 |
 | 41 | `factory_ai_correction_rules` | 保存用户从 AI 回答反馈中明确确认的全局长期纠正规则 |
+| 42 | `ai_feedback_regression_cases` | 将明确纠错转为可审核、可自动启停的确定性 AI 回归案例 |
+| 43 | `api_command_operations` | 增加持久化业务命令回执，并为审计补齐 request、operation 和 capability 关联 |
+| 44 | `allow_disabled_coil_scheme_status` | 将线圈方案状态约束与既有领域契约对齐，允许 `official/testing/disabled` |
 
 ## 数据治理
 
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
+- `api_operations` 以 `actor_key + capability_id + idempotency_key` 唯一保存高风险命令请求哈希和成功回执，默认保留 90 天；幂等记录、业务变更、领域流水和强审计在同一 `BEGIN IMMEDIATE` 事务提交。相同键但请求哈希不同必须拒绝。
+- `audit_log.request_id/operation_id/capability_id` 把一次 HTTP 请求、业务命令和各资源审计串联起来。未接入统一命令执行器的历史写入口仍使用尽力审计，不能宣称具备强审计回执。
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
+- `coils.scheme_status` 只允许 `official/testing/disabled`；`disabled` 表示停用历史方案，不删除库存追溯事实，也不参与正式方案选择。
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
+- `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；只有 `approved + enabled` 的案例进入无人值守检查。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
@@ -85,7 +92,7 @@
 - 审计清理只在一次 SQLite 一致性备份成功后执行，确保被清理记录先进入备份。
 - 数据库备份按 `daily/startup/release/safety` 分层保留；恢复前必须验证元数据、SHA-256、完整性、外键和核心表数量，并自动生成 safety 快照。
 - 数据库迁移后的代码回滚必须恢复与目标 Git commit 绑定的数据库，禁止只回滚代码。
-- `audit_log(created_at)` 和 `audit_log(table_name, record_id, created_at)` 用于周期清理和记录追溯。
+- `audit_log(created_at)`、`audit_log(table_name, record_id, created_at)` 和 `audit_log(operation_id)` 用于周期清理、资源追溯和命令追溯；`api_operations(expires_at/operation_id)` 用于回执清理与定位。
 
 ## 验收
 

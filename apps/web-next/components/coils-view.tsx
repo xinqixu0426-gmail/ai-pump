@@ -406,7 +406,7 @@ export function CoilsView() {
         auxWireGauge: form.auxWireGauge.trim(),
         auxWireData: form.auxWireData.trim(),
       };
-      if (editingCoil) await updateCoil(editingCoil.id, payload);
+      if (editingCoil) await updateCoil(editingCoil, payload);
       else await createCoil(payload);
       await load(true);
       setDrawerOpen(false);
@@ -422,7 +422,7 @@ export function CoilsView() {
     setSaving(true);
     setError(null);
     try {
-      await deleteCoil(coil.id);
+      await deleteCoil(coil);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '线圈记录删除失败');
@@ -462,7 +462,8 @@ export function CoilsView() {
       const updated = await adjustCoilStock(
         stockCoil.id,
         stockDirection === 'in' ? quantity : -quantity,
-        stockNote.trim()
+        stockNote.trim(),
+        stockCoil.updatedAt
       );
       setStockCoil(updated);
       setStockQty('');

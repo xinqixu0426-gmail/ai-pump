@@ -1,290 +1,213 @@
 const { Router } = require('express');
+const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { db, dbGetAllCoils, dbGetAllStatorVariants, coilRow, safeInsert, safeUpdate, hardDelete } = require('../db.cjs');
 const {
-    DEFAULT_COIL_MATERIAL,
-    DEFAULT_COIL_SLOT_TYPE,
-    COIL_MATERIALS,
-    COIL_SLOT_TYPES,
-    COIL_SCHEME_STATUSES,
-    normalizeCoilDimensions,
     calculateCoilCost,
-    buildCoilSpecDraft,
-    buildCoilSpecOptions,
 } = require('../services/coilCost.cjs');
-const { parsePositiveId, parseNonNegativeNumber } = require('../services/validation.cjs');
+const { parsePositiveId } = require('../services/validation.cjs');
 const {
-    adjustCoilStock,
     assertCoilCanBeDeleted,
     assertCoilIdentityEditable,
     coilStockMovementRow,
-    parseStockChange,
 } = require('../services/coilInventory.cjs');
+const { createCoilQueries } = require('../services/coilQueries.cjs');
+const {
+    commandActorKey,
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../services/commandRequest.cjs');
+const {
+    buildCoilStockPreview,
+    executeCoilStockBatch,
+    executeConfirmedCoilStockBatch,
+} = require('../services/inventoryCommands.cjs');
+const {
+    BATCH_UNIT_PRICE_CAPABILITY_ID,
+    CREATE_CAPABILITY_ID: COIL_CREATE_CAPABILITY_ID,
+    DELETE_CAPABILITY_ID: COIL_DELETE_CAPABILITY_ID,
+    UPDATE_CAPABILITY_ID: COIL_UPDATE_CAPABILITY_ID,
+    buildCoilUnitPricePreview,
+    executeCoilCreate,
+    executeCoilDelete,
+    executeCoilUnitPriceBatch,
+    executeCoilUpdate,
+} = require('../services/coilCommands.cjs');
+const COIL_STOCK_CAPABILITY_ID = requireBusinessCapability(
+    'inventory.coils.adjust_stock'
+).capabilityId;
 const router = Router();
+const coilQueries = createCoilQueries({
+    db,
+    listCoils: dbGetAllCoils,
+    listStatorVariants: dbGetAllStatorVariants,
+    movementRow: coilStockMovementRow,
+});
 
-function coilCostFromValues(values) {
-    const unitPrice = parseNonNegativeNumber(values.unitPrice, 'unitPrice');
-    const sheets = parsePositiveId(values.sheets);
-    if (!sheets) throw new Error('sheets 必须是正整数');
-    const wireWeight = parseNonNegativeNumber(values.wireWeight, 'wireWeight');
-    const copperBase = parseNonNegativeNumber(values.copperBase, 'copperBase');
-    const coilFee = parseNonNegativeNumber(values.coilFee, 'coilFee');
-    const rotorFee = parseNonNegativeNumber(values.rotorFee, 'rotorFee');
-    return {
-        unitPrice,
-        sheets,
-        wireWeight,
-        copperBase,
-        coilFee,
-        rotorFee,
-        cost: (unitPrice * sheets + wireWeight * copperBase + coilFee + rotorFee).toFixed(5),
-    };
-}
-
-function normalizeSchemeInput(body = {}) {
-    const dimensions = normalizeCoilDimensions(body);
-    if (!dimensions.commonName) throw new Error('规格俗称为必填项');
-    if (!dimensions.diameterMm) throw new Error('定子直径必须是正整数');
-    if (!COIL_MATERIALS.has(dimensions.material)) throw new Error('材质仅支持钢带或冷轧');
-    if (!COIL_SLOT_TYPES.has(dimensions.slotType)) throw new Error('槽眼仅支持小眼或国标眼');
-    const schemeStatus = String(body.schemeStatus || 'official').trim() || 'official';
-    if (!COIL_SCHEME_STATUSES.has(schemeStatus)) throw new Error('方案状态无效');
-    return {
-        ...dimensions,
-        schemeName: String(body.schemeName || (schemeStatus === 'testing' ? '测试方案' : '正式方案')).trim(),
-        schemeStatus,
-    };
-}
-
-function ensureStatorVariant(dimensions) {
-    let variant = db.prepare(`
-        SELECT * FROM stator_variants
-        WHERE diameter_mm = ? AND material = ? AND slot_type = ?
-    `).get(dimensions.diameterMm, dimensions.material, dimensions.slotType);
-    if (variant) {
-        if (!variant.common_name && dimensions.commonName) {
-            safeUpdate('stator_variants', variant.id, { common_name: dimensions.commonName });
-            variant = db.prepare('SELECT * FROM stator_variants WHERE id = ?').get(variant.id);
-        }
-        return variant;
-    }
-    const now = new Date().toISOString();
-    const info = safeInsert('stator_variants', {
-        diameter_mm: dimensions.diameterMm,
-        common_name: dimensions.commonName,
-        material: dimensions.material,
-        slot_type: dimensions.slotType,
-        created_at: now,
-        updated_at: now,
+function sendCoilQueryError(res, error) {
+    res.status(Number(error?.statusCode) || 500).json({
+        success: false,
+        error: error.message,
     });
-    return db.prepare('SELECT * FROM stator_variants WHERE id = ?').get(info.lastInsertRowid);
 }
 
-function demoteExistingOfficial(variantId, sheets, excludeId = null) {
-    const rows = db.prepare(`
-        SELECT id FROM coils
-        WHERE stator_variant_id = ? AND sheets = ? AND scheme_status = 'official'
-    `).all(variantId, sheets);
-    for (const row of rows) {
-        if (row.id !== excludeId) safeUpdate('coils', row.id, { scheme_status: 'testing' });
-    }
+function coilCommandDependencies() {
+    return {
+        db,
+        coilRow,
+        listCoils: dbGetAllCoils,
+        safeInsert,
+        safeUpdate,
+        hardDelete,
+        assertCoilCanBeDeleted,
+        assertCoilIdentityEditable,
+    };
+}
+
+function legacyCoilCommandResponse(result) {
+    return {
+        ...result,
+        operationStatus: result.status,
+        ...result.coil,
+    };
 }
 
 // ── CRUD ──
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: dbGetAllCoils() }); }
-    catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    try { res.json({ success: true, data: coilQueries.getAllCoils() }); }
+    catch (error) { sendCoilQueryError(res, error); }
 });
 
 router.get('/variants', (req, res) => {
-    try { res.json({ success: true, data: dbGetAllStatorVariants() }); }
-    catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    try { res.json({ success: true, data: coilQueries.getAllStatorVariants() }); }
+    catch (error) { sendCoilQueryError(res, error); }
 });
 
 router.post('/spec-draft', (req, res) => {
     try {
-        const spec = String(req.body?.spec || '').trim();
-        if (!spec) return res.status(400).json({ success: false, error: 'spec 为必填' });
-        const material = String(req.body?.material || DEFAULT_COIL_MATERIAL).trim() || DEFAULT_COIL_MATERIAL;
-        const slotType = String(req.body?.slotType || DEFAULT_COIL_SLOT_TYPE).trim() || DEFAULT_COIL_SLOT_TYPE;
-        const draft = buildCoilSpecDraft(dbGetAllCoils(), { ...req.body, spec, material, slotType });
-        res.json({ success: true, data: draft });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({
+            success: true,
+            data: coilQueries.getSpecDraft(req.body || {}),
+        });
+    } catch (error) { sendCoilQueryError(res, error); }
 });
 
 router.post('/', (req, res) => {
     try {
-        const b = req.body;
-        const scheme = normalizeSchemeInput(b);
-        const sheetsRaw = b.sheets;
-        if (!sheetsRaw || b.unitPrice === undefined || b.unitPrice === '') {
-            return res.status(400).json({ success: false, error: '规格、定子直径、片数和单片价为必填项' });
-        }
-        const unitPriceInput = b.unitPrice;
-        const normalized = coilCostFromValues({ ...b, unitPrice: unitPriceInput, sheets: sheetsRaw });
-        const defaultGauge = b.defaultWireGauge || null;
-        const defaultCap = b.defaultCapacitor || null;
-        const mainWireGauge = String(b.mainWireGauge || '').trim();
-        const mainWireData = String(b.mainWireData || '').trim();
-        const auxWireGauge = String(b.auxWireGauge || '').trim();
-        const auxWireData = String(b.auxWireData || '').trim();
-        
-        const saveScheme = db.transaction(() => {
-            const variant = ensureStatorVariant(scheme);
-            if (scheme.schemeStatus === 'official') demoteExistingOfficial(variant.id, normalized.sheets);
-            const now = new Date().toISOString();
-            return safeInsert('coils', {
-                stator_variant_id: variant.id,
-                spec: scheme.commonName,
-                material: scheme.material,
-                slot_type: scheme.slotType,
-                sheets: normalized.sheets,
-                scheme_name: scheme.schemeName,
-                scheme_status: scheme.schemeStatus,
-                unit_price: normalized.unitPrice,
-                wire_weight: normalized.wireWeight,
-                copper_base: normalized.copperBase,
-                coil_fee: normalized.coilFee,
-                rotor_fee: normalized.rotorFee,
-                cost: normalized.cost,
-                default_wire_gauge: defaultGauge,
-                default_capacitor: defaultCap,
-                main_wire_gauge: mainWireGauge,
-                main_wire_data: mainWireData,
-                aux_wire_gauge: auxWireGauge,
-                aux_wire_data: auxWireData,
-                created_at: now,
-                updated_at: now,
-            });
+        const result = executeCoilCreate(
+            coilCommandDependencies(),
+            req.body || {},
+            commandContextFromRequest(req, COIL_CREATE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: legacyCoilCommandResponse(result) });
+    } catch (error) { sendCommandError(res, error); }
+});
+
+router.post('/spec-price-preview', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: buildCoilUnitPricePreview(
+                coilCommandDependencies(),
+                req.body || {}
+            ),
         });
-        const info = saveScheme();
-        res.json({ success: true, data: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(info.lastInsertRowid)) });
-    } catch (error) { res.status(400).json({ success: false, error: error.message }); }
+    } catch (error) {
+        sendCommandError(res, error);
+    }
 });
 
 // ── 按规格批量更新单价 ──
 // Must be registered before /:id, otherwise "spec" is treated as an ID.
 router.patch('/spec/:spec', (req, res) => {
     try {
-        const spec = decodeURIComponent(req.params.spec);
-        const { unitPrice } = req.body;
-        const material = req.body.material ? String(req.body.material).trim() : '';
-        const slotType = req.body.slotType ? String(req.body.slotType).trim() : '';
-        if (unitPrice === undefined) return res.status(400).json({ success: false, error: 'unitPrice 为必填' });
-        const up = parseNonNegativeNumber(unitPrice, 'unitPrice');
-
-        const dimensions = normalizeCoilDimensions({ spec, material: material || DEFAULT_COIL_MATERIAL, slotType: slotType || DEFAULT_COIL_SLOT_TYPE });
-        const rows = dbGetAllCoils().filter(coil => (
-            coil.diameterMm === dimensions.diameterMm
-            && (!material || coil.material === dimensions.material)
-            && (!slotType || coil.slotType === dimensions.slotType)
-        ));
-        if (rows.length === 0) return res.status(404).json({ success: false, error: material ? `未找到规格 "${spec}"、材质 "${material}"` : `未找到规格 "${spec}"` });
-
-        const updateAll = db.transaction(() => {
-            for (const r of rows) {
-                const cost = (up * r.sheets + r.wireWeight * r.copperBase + r.coilFee + r.rotorFee).toFixed(5);
-                safeUpdate('coils', r.id, { unit_price: up, cost });
-            }
+        const result = executeCoilUnitPriceBatch(
+            coilCommandDependencies(),
+            {
+                ...(req.body || {}),
+                spec: decodeURIComponent(req.params.spec),
+            },
+            commandContextFromRequest(req, BATCH_UNIT_PRICE_CAPABILITY_ID)
+        );
+        res.json({
+            success: true,
+            updated: result.updatedCount,
+            data: result,
         });
-        updateAll();
-        res.json({ success: true, updated: rows.length });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) { sendCommandError(res, error); }
+});
+
+router.post('/stock-adjustments-preview', (req, res) => {
+    try {
+        const data = buildCoilStockPreview(
+            { db },
+            req.body || {},
+            commandActorKey(req)
+        );
+        res.json({ success: true, data });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
 });
 
 router.post('/stock-adjustments', (req, res) => {
     try {
-        const adjustments = Array.isArray(req.body?.adjustments) ? req.body.adjustments : [];
-        if (adjustments.length === 0) {
-            return res.status(400).json({ success: false, error: 'adjustments 必须是非空数组' });
-        }
-        if (adjustments.length > 50) {
-            return res.status(400).json({ success: false, error: '单次最多调整 50 个线圈方案' });
-        }
-
-        const normalized = adjustments.map((item, index) => {
-            const coilId = parsePositiveId(item?.coilId);
-            if (!coilId) throw new Error(`第 ${index + 1} 项 coilId 非法`);
-            return {
-                coilId,
-                changeQty: parseStockChange(item?.changeQty),
-            };
-        });
-        if (new Set(normalized.map(item => item.coilId)).size !== normalized.length) {
-            return res.status(400).json({ success: false, error: '同一线圈方案不能在一次操作中重复调整' });
-        }
-
-        const applyAdjustments = db.transaction(() => normalized.map(item => {
-            const adjustment = adjustCoilStock(
-                { db, safeUpdate, safeInsert },
-                {
-                    ...item,
-                    movementType: item.changeQty > 0 ? 'manual_in' : 'manual_out',
-                    note: req.body?.note,
-                }
-            );
-            return {
-                coil: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(item.coilId)),
-                adjustment,
-            };
-        }));
-        const results = applyAdjustments();
+        const result = executeConfirmedCoilStockBatch(
+            { db, safeUpdate, safeInsert, coilRow },
+            req.body || {},
+            commandContextFromRequest(req, COIL_STOCK_CAPABILITY_ID),
+            commandActorKey(req)
+        );
         res.json({
             success: true,
-            data: {
-                updatedCount: results.length,
-                adjustments: results,
-            },
+            data: result,
         });
     } catch (error) {
-        const status = error.message === '线圈记录不存在' ? 404 : 400;
-        res.status(status).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
 router.get('/:id/stock-movements', (req, res) => {
     try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
-        if (!db.prepare('SELECT id FROM coils WHERE id = ?').get(id)) {
-            return res.status(404).json({ success: false, error: '线圈记录不存在' });
-        }
-        const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
-        const rows = db.prepare(`
-            SELECT * FROM coil_stock_movements
-            WHERE coil_id = ?
-            ORDER BY created_at DESC, id DESC
-            LIMIT ?
-        `).all(id, limit);
-        res.json({ success: true, data: rows.map(coilStockMovementRow) });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({
+            success: true,
+            data: coilQueries.getStockMovements(
+                req.params.id,
+                req.query.limit
+            ),
+        });
+    } catch (error) { sendCoilQueryError(res, error); }
 });
 
 router.post('/:id/stock-adjustment', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
-        const changeQty = parseStockChange(req.body?.changeQty);
-        const applyAdjustment = db.transaction(() => adjustCoilStock(
-            { db, safeUpdate, safeInsert },
+        const result = executeCoilStockBatch(
+            { db, safeUpdate, safeInsert, coilRow },
             {
-                coilId: id,
-                changeQty,
-                movementType: changeQty > 0 ? 'manual_in' : 'manual_out',
+                adjustments: [{
+                    coilId: id,
+                    changeQty: req.body?.changeQty,
+                    expectedUpdatedAt: req.body?.expectedUpdatedAt,
+                }],
                 note: req.body?.note,
-            }
-        ));
-        const adjustment = applyAdjustment();
+            },
+            commandContextFromRequest(req, COIL_STOCK_CAPABILITY_ID)
+        );
+        const [adjustmentResult] = result.adjustments || [];
+        const receipt = Object.fromEntries(
+            Object.entries(result).filter(([key]) => key !== 'adjustments' && key !== 'updatedCount')
+        );
         res.json({
             success: true,
             data: {
-                coil: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id)),
-                adjustment,
+                ...adjustmentResult,
+                ...receipt,
             },
         });
     } catch (error) {
-        const status = error.message === '线圈记录不存在' ? 404 : 400;
-        res.status(status).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -292,104 +215,32 @@ router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
-        const b = req.body;
-        // camelCase body → snake_case column 映射
-        const COIL_MAP = {
-            spec: 'spec', material: 'material',
-            slotType: 'slot_type', schemeName: 'scheme_name', schemeStatus: 'scheme_status',
-            unitPrice: 'unit_price', sheets: 'sheets', wireWeight: 'wire_weight',
-            copperBase: 'copper_base', coilFee: 'coil_fee', rotorFee: 'rotor_fee',
-            defaultWireGauge: 'default_wire_gauge', defaultCapacitor: 'default_capacitor',
-            mainWireGauge: 'main_wire_gauge', mainWireData: 'main_wire_data',
-            auxWireGauge: 'aux_wire_gauge', auxWireData: 'aux_wire_data',
-        };
-        const optionalTextFields = new Set([
-            'schemeName',
-            'defaultWireGauge', 'defaultCapacitor',
-            'mainWireGauge', 'mainWireData', 'auxWireGauge', 'auxWireData',
-        ]);
-        const updates = {};
-        for (const [bodyKey, col] of Object.entries(COIL_MAP)) {
-            if (b[bodyKey] !== undefined) {
-                updates[col] = optionalTextFields.has(bodyKey) ? String(b[bodyKey] || '').trim() : b[bodyKey];
-            }
-        }
-        const current = coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id));
-        if (!current) return res.status(404).json({ success: false, error: '线圈记录不存在' });
-        let targetVariantId = current.statorVariantId;
-        const identityChanges = [];
-        const hasDimensionUpdates = ['spec', 'diameterMm', 'commonName', 'material', 'slotType']
-            .some(key => b[key] !== undefined);
-        let targetScheme = null;
-        if (hasDimensionUpdates) {
-            targetScheme = normalizeSchemeInput({
-                ...current,
-                ...b,
-                spec: b.spec ?? b.commonName ?? current.commonName ?? current.spec,
-                schemeStatus: b.schemeStatus ?? current.schemeStatus,
-            });
-            if (targetScheme.commonName !== current.commonName) identityChanges.push('规格俗称');
-            if (Number(targetScheme.diameterMm) !== Number(current.diameterMm)) identityChanges.push('定子直径');
-            if (targetScheme.material !== current.material) identityChanges.push('材质');
-            if (targetScheme.slotType !== current.slotType) identityChanges.push('槽眼');
-        }
-        if (b.sheets !== undefined && Number(b.sheets) !== Number(current.sheets)) {
-            identityChanges.push('片数');
-        }
-        assertCoilIdentityEditable(db, id, identityChanges);
-
-        if (targetScheme) {
-            const variant = ensureStatorVariant(targetScheme);
-            targetVariantId = variant.id;
-            updates.stator_variant_id = variant.id;
-            updates.spec = targetScheme.commonName;
-            updates.material = targetScheme.material;
-            updates.slot_type = targetScheme.slotType;
-        }
-        if (updates.scheme_status !== undefined && !COIL_SCHEME_STATUSES.has(String(updates.scheme_status))) {
-            return res.status(400).json({ success: false, error: '方案状态无效' });
-        }
-        // 自动重算 cost
-        if (updates.unit_price !== undefined || updates.sheets !== undefined || updates.wire_weight !== undefined || updates.copper_base !== undefined || updates.coil_fee !== undefined || updates.rotor_fee !== undefined) {
-            if (current) {
-                const normalized = coilCostFromValues({
-                    unitPrice: updates.unit_price ?? current.unitPrice ?? 0,
-                    sheets: updates.sheets ?? current.sheets ?? 0,
-                    wireWeight: updates.wire_weight ?? current.wireWeight ?? 0,
-                    copperBase: updates.copper_base ?? current.copperBase ?? 0,
-                    coilFee: updates.coil_fee ?? current.coilFee ?? 0,
-                    rotorFee: updates.rotor_fee ?? current.rotorFee ?? 0,
-                });
-                if (updates.unit_price !== undefined) updates.unit_price = normalized.unitPrice;
-                if (updates.sheets !== undefined) updates.sheets = normalized.sheets;
-                if (updates.wire_weight !== undefined) updates.wire_weight = normalized.wireWeight;
-                if (updates.copper_base !== undefined) updates.copper_base = normalized.copperBase;
-                if (updates.coil_fee !== undefined) updates.coil_fee = normalized.coilFee;
-                if (updates.rotor_fee !== undefined) updates.rotor_fee = normalized.rotorFee;
-                updates.cost = normalized.cost;
-            }
-        }
-        const saveScheme = db.transaction(() => {
-            const targetSheets = Number(updates.sheets ?? current.sheets);
-            const targetStatus = String(updates.scheme_status ?? current.schemeStatus ?? 'official');
-            if (targetStatus === 'official') demoteExistingOfficial(targetVariantId, targetSheets, id);
-            safeUpdate('coils', id, updates);
-        });
-        saveScheme();
-        res.json({ success: true, data: coilRow(db.prepare('SELECT * FROM coils WHERE id = ?').get(id)) });
-    } catch (error) { res.status(error.statusCode || 400).json({ success: false, error: error.message }); }
+        const result = executeCoilUpdate(
+            coilCommandDependencies(),
+            id,
+            req.body || {},
+            commandContextFromRequest(req, COIL_UPDATE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: legacyCoilCommandResponse(result) });
+    } catch (error) { sendCommandError(res, error); }
 });
 
 router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法线圈ID' });
-        assertCoilCanBeDeleted(db, id);
-        hardDelete('coils', id);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(error.statusCode || 500).json({ success: false, error: error.message });
-    }
+        const result = executeCoilDelete(
+            coilCommandDependencies(),
+            id,
+            {
+                expectedUpdatedAt: req.body?.expectedUpdatedAt
+                    ?? req.query?.expectedUpdatedAt
+                    ?? req.headers['if-unmodified-since'],
+            },
+            commandContextFromRequest(req, COIL_DELETE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
+    } catch (error) { sendCommandError(res, error); }
 });
 
 // ── 成本计算（支持插值）──
@@ -408,8 +259,8 @@ router.post('/calculate', calculateCoilCostHandler);
 
 router.get('/specs', (req, res) => {
     try {
-        res.json({ success: true, data: buildCoilSpecOptions(dbGetAllCoils()) });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({ success: true, data: coilQueries.getSpecOptions() });
+    } catch (error) { sendCoilQueryError(res, error); }
 });
 
 module.exports = router;

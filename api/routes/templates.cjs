@@ -1,283 +1,184 @@
 const { Router } = require('express');
-const { db, dbGetAllTemplates, templateRow, recipeRow, loadPartsData, calculateRecipeCost, safeInsert, safeUpdate, hardDelete } = require('../db.cjs');
-const { parsePositiveId, parseNonNegativeNumber, stringifyJsonArray, stringifyJsonObject } = require('../services/validation.cjs');
+const {
+    db,
+    dbGetAllTemplates,
+    templateRow,
+    recipeRow,
+    loadPartsData,
+    calculateRecipeCost,
+    safeInsert,
+    safeUpdate,
+    hardDelete,
+} = require('../db.cjs');
+const { parsePositiveId } = require('../services/validation.cjs');
+const {
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../services/commandRequest.cjs');
+const {
+    CREATE_CAPABILITY_ID: TEMPLATE_CREATE_CAPABILITY_ID,
+    DELETE_CAPABILITY_ID: TEMPLATE_DELETE_CAPABILITY_ID,
+    SHELL_COMPONENT_CATEGORY,
+    UPDATE_CAPABILITY_ID: TEMPLATE_UPDATE_CAPABILITY_ID,
+    executeTemplateCreate,
+    executeTemplateDelete,
+    executeTemplateUpdate,
+    normalizeSurfaceTreatmentMode,
+} = require('../services/templateCommands.cjs');
+const {
+    createTemplateQueries,
+} = require('../services/templateQueries.cjs');
 const router = Router();
-const SHELL_COMPONENT_CATEGORY = '泵壳搭配';
 
-function parseJson(value, fallback) {
-    if (!value) return fallback;
-    try {
-        return typeof value === 'string' ? JSON.parse(value) : value;
-    } catch {
-        return fallback;
-    }
+const templateQueries = createTemplateQueries({
+    db,
+    calculateRecipeCost,
+    listTemplates: dbGetAllTemplates,
+    loadPartsData,
+    normalizeSurfaceTreatmentMode,
+    recipeRow,
+    shellComponentCategory: SHELL_COMPONENT_CATEGORY,
+    templateRow,
+});
+
+function sendTemplateQueryError(res, error) {
+    res.status(error.statusCode || 500).json({
+        success: false,
+        error: error.message,
+    });
 }
 
-function componentCatalogPrice(component, partsByModel = {}) {
-    const model = String(component?.model || '').trim();
-    const supplier = String(component?.supplier || '').trim();
-    const candidates = (partsByModel[model] || []).filter(part => part.category === SHELL_COMPONENT_CATEGORY);
-    const exact = supplier ? candidates.find(part => part.supplier === supplier) : null;
-    const fallback = exact || candidates.find(part => Number(part.price || 0) > 0);
-    return Number(fallback?.price || 0);
-}
-
-function validateShellComponents(costMode, componentsJson) {
-    if (costMode !== 'components') return;
-    const components = parseJson(componentsJson, []);
-    if (!Array.isArray(components)) {
-        const error = new Error('shell_components_json 必须是数组');
-        error.statusCode = 400;
-        throw error;
-    }
-    const allowedModels = new Set(db.prepare('SELECT model FROM parts WHERE category = ? AND deleted_at IS NULL').all(SHELL_COMPONENT_CATEGORY).map(row => String(row.model || '').trim()).filter(Boolean));
-    const invalid = components.find(component => component?.included !== false && !allowedModels.has(String(component?.model || '').trim()));
-    if (invalid) {
-        const error = new Error(`自由搭配组件「${invalid.name || '未命名组件'}」的零件型号只能选择“${SHELL_COMPONENT_CATEGORY}”类别中的零件`);
-        error.statusCode = 400;
-        throw error;
-    }
-}
-
-function buildTemplateCostParts(tpl, fixedParts, partsByModel = {}) {
-    const mode = tpl.cost_mode || 'components';
-    if (mode === 'bundle') {
-        return [
-            { model: tpl.shell_model, name: '泵壳套件', supplier: '', qty: 1, snapshotPrice: Number(tpl.bundle_cost || 0), source: 'pump_shell_template', costSource: 'manual' },
-            ...fixedParts.map(p => ({ ...p, supplier: p.supplier || '' })),
-        ];
-    }
-    const components = parseJson(tpl.shell_components_json, [])
-        .filter(c => c && c.name && c.included !== false)
-        .map(c => ({
-            model: c.model || c.name,
-            name: c.name,
-            supplier: c.supplier || '',
-            qty: Number(c.qty || 1),
-            snapshotPrice: componentCatalogPrice(c, partsByModel) || Number(c.unitCost || 0),
-            source: 'pump_shell_template',
-            costSource: componentCatalogPrice(c, partsByModel) > 0 ? 'catalog' : 'manual',
-        }));
-    return [...components, ...fixedParts.map(p => ({ ...p, supplier: p.supplier || '' }))];
-}
-
-const TEMPLATE_ALIASES = {
-    shellModel: 'shell_model',
-    partsJson: 'parts_json',
-    shellComponentsJson: 'shell_components_json',
-    rotorParamsJson: 'rotor_params_json',
-    assemblyWage: 'assembly_wage',
-    packingWage: 'packing_wage',
-    paintingWage: 'painting_wage',
-    surfaceTreatmentMode: 'surface_treatment_mode',
-    surfaceTreatmentCost: 'surface_treatment_cost',
-    costMode: 'cost_mode',
-    bundleCost: 'bundle_cost',
-    bundleNote: 'bundle_note',
-};
-
-function templateBodyToDb(body) {
-    const updates = {};
-    for (const f of ['shell_model', 'description', 'parts_json', 'shell_components_json', 'rotor_params_json', 'assembly_wage', 'packing_wage', 'painting_wage', 'surface_treatment_mode', 'surface_treatment_cost', 'cost_mode', 'bundle_cost', 'bundle_note']) {
-        if (body[f] !== undefined) updates[f] = body[f];
-    }
-    for (const [camel, snake] of Object.entries(TEMPLATE_ALIASES)) {
-        if (body[camel] !== undefined) updates[snake] = body[camel];
-    }
-    return updates;
-}
-
-function optionalNonNegative(value, field) {
-    return value === undefined || value === null || value === ''
-        ? null
-        : parseNonNegativeNumber(value, field);
-}
-
-const TEMPLATE_SURFACE_TREATMENTS = new Set(['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating']);
-
-function normalizeSurfaceTreatmentMode(value, paintingWage = null) {
-    const fallback = paintingWage != null ? 'painting' : 'none';
-    return TEMPLATE_SURFACE_TREATMENTS.has(value) ? value : fallback;
-}
-
-function normalizeTemplateJsonFields(body) {
+function templateCommandDependencies() {
     return {
-        partsJson: stringifyJsonArray(body.parts_json, 'parts_json'),
-        shellComponentsJson: stringifyJsonArray(body.shell_components_json, 'shell_components_json'),
-        rotorParamsJson: stringifyJsonObject(body.rotor_params_json, 'rotor_params_json'),
+        db,
+        hardDelete,
+        safeInsert,
+        safeUpdate,
+        templateRow,
+    };
+}
+
+function legacyTemplateCommandResponse(result) {
+    return {
+        ...result,
+        operationStatus: result.status,
+        ...result.template,
     };
 }
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: dbGetAllTemplates() }); }
-    catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    try {
+        res.json({ success: true, data: templateQueries.getAllTemplates() });
+    } catch (error) {
+        sendTemplateQueryError(res, error);
+    }
 });
 
 router.get('/:id', (req, res) => {
     try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
-        if (!record) return res.status(404).json({ success: false, error: '模板不存在' });
-        res.json({ success: true, data: record });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({
+            success: true,
+            data: templateQueries.getTemplate(req.params.id),
+        });
+    } catch (error) {
+        sendTemplateQueryError(res, error);
+    }
 });
 
 router.get('/:id/cost', (req, res) => {
     try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const tpl = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id);
-        if (!tpl) return res.status(404).json({ success: false, error: '模板不存在' });
-        let tplParts = [];
-        try { tplParts = JSON.parse(tpl.parts_json || '[]'); } catch { /* ignore */ }
-        const { partsCache, partsByModel } = loadPartsData();
-        const result = calculateRecipeCost(buildTemplateCostParts(tpl, tplParts, partsByModel), partsCache, partsByModel);
-        res.json({ success: true, data: { templateId: tpl.id, shellModel: tpl.shell_model, ...result } });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({
+            success: true,
+            data: templateQueries.getTemplateCost(req.params.id),
+        });
+    } catch (error) {
+        sendTemplateQueryError(res, error);
+    }
 });
 
 router.get('/:id/default-recipe', (req, res) => {
     try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const rawTpl = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id);
-        const tpl = templateRow(rawTpl);
-        if (!tpl) return res.status(404).json({ success: false, error: '模板不存在' });
-        const parts = parseJson(tpl.partsJson, []);
-        const rotorParams = parseJson(tpl.rotorParamsJson, {});
-        const { partsCache, partsByModel } = loadPartsData();
-        const cost = calculateRecipeCost(buildTemplateCostParts(rawTpl, parts, partsByModel), partsCache, partsByModel);
         res.json({
             success: true,
-            data: {
-                template: tpl,
-                recipeDraft: {
-                    name: tpl.shellModel,
-                    spec: tpl.description || '',
-                    templateId: tpl.id,
-                    partsJson: JSON.stringify(parts),
-                    assemblyWage: tpl.assemblyWage || 0,
-                    packingWage: tpl.packingWage || 0,
-                    paintingWage: tpl.paintingWage,
-                    surfaceTreatmentMode: normalizeSurfaceTreatmentMode(tpl.surfaceTreatmentMode, tpl.paintingWage),
-                    surfaceTreatmentCost: tpl.surfaceTreatmentCost || 0,
-                },
-                parts,
-                rotorParams,
-                cost,
-            },
+            data: templateQueries.getDefaultRecipe(req.params.id),
         });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) {
+        sendTemplateQueryError(res, error);
+    }
 });
 
 router.post('/:id/apply', (req, res) => {
     try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const tpl = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
-        if (!tpl) return res.status(404).json({ success: false, error: '模板不存在' });
-        const parts = parseJson(tpl.partsJson, []);
-        const base = req.body?.recipe || {};
-        const applied = {
-            ...base,
-            templateId: tpl.id,
-            partsJson: JSON.stringify(parts),
-            assemblyWage: base.assemblyWage ?? tpl.assemblyWage ?? 0,
-            packingWage: base.packingWage ?? tpl.packingWage ?? 0,
-            paintingWage: base.paintingWage ?? tpl.paintingWage ?? null,
-            surfaceTreatmentMode: base.surfaceTreatmentMode ?? normalizeSurfaceTreatmentMode(tpl.surfaceTreatmentMode, tpl.paintingWage),
-            surfaceTreatmentCost: base.surfaceTreatmentCost ?? tpl.surfaceTreatmentCost ?? 0,
-        };
-        res.json({ success: true, data: { template: tpl, recipeDraft: applied, parts, rotorParams: parseJson(tpl.rotorParamsJson, {}) } });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({
+            success: true,
+            data: templateQueries.applyTemplate(
+                req.params.id,
+                req.body?.recipe || {}
+            ),
+        });
+    } catch (error) {
+        sendTemplateQueryError(res, error);
+    }
 });
 
 router.get('/:id/recipes', (req, res) => {
     try {
-        const id = parsePositiveId(req.params.id);
-        if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const records = db.prepare('SELECT * FROM recipes WHERE template_id = ?').all(id).map(recipeRow);
-        res.json({ success: true, data: records });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({
+            success: true,
+            data: templateQueries.getTemplateRecipes(req.params.id),
+        });
+    } catch (error) {
+        sendTemplateQueryError(res, error);
+    }
 });
 
 router.post('/', (req, res) => {
     try {
-        const { shell_model, description, parts_json, shell_components_json, rotor_params_json, assembly_wage, packing_wage, painting_wage, surface_treatment_mode, surface_treatment_cost, cost_mode, bundle_cost, bundle_note } = templateBodyToDb(req.body);
-        if (!shell_model) return res.status(400).json({ success: false, error: '泵壳型号为必填项' });
-        const now = new Date().toISOString();
-        const json = normalizeTemplateJsonFields({ parts_json, shell_components_json, rotor_params_json });
-        const mode = cost_mode === 'bundle' ? 'bundle' : 'components';
-        validateShellComponents(mode, json.shellComponentsJson);
-        const info = safeInsert('pump_shell_templates', {
-            shell_model,
-            description: description || '',
-            parts_json: json.partsJson,
-            shell_components_json: json.shellComponentsJson,
-            rotor_params_json: json.rotorParamsJson,
-            assembly_wage: parseNonNegativeNumber(assembly_wage, 'assembly_wage'),
-            packing_wage: parseNonNegativeNumber(packing_wage, 'packing_wage'),
-            painting_wage: optionalNonNegative(painting_wage, 'painting_wage'),
-            surface_treatment_mode: normalizeSurfaceTreatmentMode(surface_treatment_mode, painting_wage),
-            surface_treatment_cost: surface_treatment_mode === 'none' ? 0 : parseNonNegativeNumber(surface_treatment_cost ?? painting_wage, 'surface_treatment_cost'),
-            cost_mode: mode,
-            bundle_cost: mode === 'bundle' ? parseNonNegativeNumber(bundle_cost, 'bundle_cost') : 0,
-            bundle_note: mode === 'bundle' ? String(bundle_note || '').trim() : '',
-            created_at: now,
-            updated_at: now,
+        const result = executeTemplateCreate(
+            templateCommandDependencies(),
+            req.body || {},
+            commandContextFromRequest(req, TEMPLATE_CREATE_CAPABILITY_ID)
+        );
+        res.json({
+            success: true,
+            data: legacyTemplateCommandResponse(result),
         });
-        res.json({ success: true, data: templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(info.lastInsertRowid)) });
-    } catch (error) {
-        const body = templateBodyToDb(req.body);
-        if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: `泵壳型号 "${body.shell_model}" 已存在` });
-        if (error.statusCode === 400) return res.status(400).json({ success: false, error: error.message });
-        res.status(500).json({ success: false, error: error.message });
-    }
+    } catch (error) { sendCommandError(res, error); }
 });
 
 router.patch('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const existing = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id);
-        if (!existing) return res.status(404).json({ success: false, error: '模板不存在' });
-        const b = templateBodyToDb(req.body);
-        const updates = {};
-        if (b.shell_model !== undefined) updates.shell_model = b.shell_model;
-        if (b.description !== undefined) updates.description = b.description;
-        if (b.parts_json !== undefined) updates.parts_json = stringifyJsonArray(b.parts_json, 'parts_json');
-        if (b.shell_components_json !== undefined) updates.shell_components_json = stringifyJsonArray(b.shell_components_json, 'shell_components_json');
-        if (b.rotor_params_json !== undefined) updates.rotor_params_json = stringifyJsonObject(b.rotor_params_json, 'rotor_params_json');
-        if (b.assembly_wage !== undefined) updates.assembly_wage = parseNonNegativeNumber(b.assembly_wage, 'assembly_wage');
-        if (b.packing_wage !== undefined) updates.packing_wage = parseNonNegativeNumber(b.packing_wage, 'packing_wage');
-        if (b.painting_wage !== undefined) updates.painting_wage = optionalNonNegative(b.painting_wage, 'painting_wage');
-        if (b.surface_treatment_mode !== undefined) updates.surface_treatment_mode = normalizeSurfaceTreatmentMode(b.surface_treatment_mode, b.painting_wage);
-        if (b.surface_treatment_cost !== undefined) updates.surface_treatment_cost = parseNonNegativeNumber(b.surface_treatment_cost, 'surface_treatment_cost');
-        if (b.cost_mode !== undefined) updates.cost_mode = b.cost_mode === 'bundle' ? 'bundle' : 'components';
-        if (b.bundle_cost !== undefined) updates.bundle_cost = parseNonNegativeNumber(b.bundle_cost, 'bundle_cost');
-        if (b.bundle_note !== undefined) updates.bundle_note = String(b.bundle_note || '').trim();
-        validateShellComponents(updates.cost_mode ?? existing.cost_mode, updates.shell_components_json ?? existing.shell_components_json);
-        safeUpdate('pump_shell_templates', id, updates);
-        const record = templateRow(db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(id));
-        res.json({ success: true, data: record });
-    } catch (error) {
-        console.error("PATCH Template Error:", error);
-        if (error.message.includes('UNIQUE constraint')) return res.status(409).json({ success: false, error: '泵壳型号已存在' });
-        if (error.statusCode === 400) return res.status(400).json({ success: false, error: error.message });
-        res.status(500).json({ success: false, error: error.message });
-    }
+        const result = executeTemplateUpdate(
+            templateCommandDependencies(),
+            id,
+            req.body || {},
+            commandContextFromRequest(req, TEMPLATE_UPDATE_CAPABILITY_ID)
+        );
+        res.json({
+            success: true,
+            data: legacyTemplateCommandResponse(result),
+        });
+    } catch (error) { sendCommandError(res, error); }
 });
 
 router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法模板ID' });
-        const refs = db.prepare('SELECT COUNT(*) as cnt FROM recipes WHERE template_id = ?').get(id);
-        if (refs.cnt > 0) return res.status(409).json({ success: false, error: `有 ${refs.cnt} 个配方引用此模板，无法删除` });
-        hardDelete('pump_shell_templates', id);
-        res.json({ success: true });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        const result = executeTemplateDelete(
+            templateCommandDependencies(),
+            id,
+            {
+                expectedUpdatedAt: req.body?.expectedUpdatedAt
+                    ?? req.query?.expectedUpdatedAt
+                    ?? req.headers['if-unmodified-since'],
+            },
+            commandContextFromRequest(req, TEMPLATE_DELETE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
+    } catch (error) { sendCommandError(res, error); }
 });
 
 module.exports = router;

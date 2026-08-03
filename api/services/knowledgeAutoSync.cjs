@@ -206,16 +206,18 @@ function createKnowledgeAutoSyncController(options = {}) {
         state.lastError = '';
         state.consecutiveFailures = 0;
         state.lastResult = summarizeResult(result);
-        persistRun({
-            mode,
-            status: 'success',
-            sources: details.sources || [],
-            attempt: details.attempt || 1,
-            result,
-            startedAt: state.lastStartedAt,
-            completedAt: state.lastCompletedAt,
-            durationMs: details.durationMs || 0,
-        });
+        if (!details.skipRecord) {
+            persistRun({
+                mode,
+                status: 'success',
+                sources: details.sources || [],
+                attempt: details.attempt || 1,
+                result,
+                startedAt: state.lastStartedAt,
+                completedAt: state.lastCompletedAt,
+                durationMs: details.durationMs || 0,
+            });
+        }
     }
 
     function recordExternalFailure(error, mode = 'manual', details = {}) {

@@ -80,7 +80,8 @@ function containsAny(answer, terms) {
 function normalizeAnswerForChecks(value) {
     return String(value || '')
         .replace(/[*_`~]/g, '')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/\s+/g, '');
 }
 
 function containsForbiddenAssertion(answer, termValue) {
@@ -189,7 +190,7 @@ function listAiEvaluationCases(options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     return accessors.db.prepare(`
         SELECT * FROM ai_evaluation_cases
-        WHERE enabled = 1
+        WHERE enabled = 1 AND review_status = 'approved'
         ORDER BY sort_order, id
     `).all().map(row => caseView(row, accessors.aiEvaluationCaseRow));
 }
@@ -197,32 +198,43 @@ function listAiEvaluationCases(options = {}) {
 function createAiEvaluationRun(ownerKey, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, safeInsert, safeUpdate, aiEvaluationRunRow } = accessors;
-    const cases = listAiEvaluationCases({ dbAccessors: accessors });
-    if (cases.length === 0) throw new Error('没有启用的知识库检查用例');
-    const now = new Date().toISOString();
-    const owner = normalizeOwnerKey(ownerKey);
-    const unfinished = db.prepare(`
-        SELECT id, total_count FROM ai_evaluation_runs
-        WHERE owner_key = ? AND status = 'running'
-    `).all(owner);
-    unfinished.forEach(run => safeUpdate('ai_evaluation_runs', run.id, {
-        status: 'failed',
-        review_count: Number(run.total_count || 0),
-        completed_at: now,
-    }));
-    const info = safeInsert('ai_evaluation_runs', {
-        owner_key: owner,
-        status: 'running',
-        total_count: cases.length,
-        passed_count: 0,
-        failed_count: 0,
-        review_count: 0,
-        started_at: now,
-        created_at: now,
-        updated_at: now,
-    });
-    const run = aiEvaluationRunRow(db.prepare('SELECT * FROM ai_evaluation_runs WHERE id = ?').get(Number(info.lastInsertRowid)));
-    return { run, cases };
+    const execute = () => {
+        const cases = listAiEvaluationCases({ dbAccessors: accessors });
+        if (cases.length === 0) throw new Error('没有启用的知识库检查用例');
+        const now = new Date().toISOString();
+        const owner = normalizeOwnerKey(ownerKey);
+        const unfinished = db.prepare(`
+            SELECT id, total_count FROM ai_evaluation_runs
+            WHERE owner_key = ? AND status = 'running'
+        `).all(owner);
+        unfinished.forEach(run => {
+            const write = safeUpdate('ai_evaluation_runs', run.id, {
+                status: 'failed',
+                review_count: Number(run.total_count || 0),
+                completed_at: now,
+            }, options.auditContext || {});
+            options.onWrite?.(write);
+        });
+        const info = safeInsert('ai_evaluation_runs', {
+            owner_key: owner,
+            status: 'running',
+            total_count: cases.length,
+            passed_count: 0,
+            failed_count: 0,
+            review_count: 0,
+            started_at: now,
+            created_at: now,
+            updated_at: now,
+        }, options.auditContext || {});
+        options.onWrite?.(info);
+        const run = aiEvaluationRunRow(db.prepare('SELECT * FROM ai_evaluation_runs WHERE id = ?').get(Number(info.lastInsertRowid)));
+        return {
+            run,
+            cases,
+            supersededRunIds: unfinished.map(item => Number(item.id)),
+        };
+    };
+    return db.transaction(execute).immediate();
 }
 
 function recordAiEvaluationResult(ownerKey, runIdValue, input = {}, options = {}) {
@@ -263,7 +275,8 @@ function recordAiEvaluationResult(ownerKey, runIdValue, input = {}, options = {}
         error_text: errorText,
         created_at: now,
         updated_at: now,
-    });
+    }, options.auditContext || {});
+    options.onWrite?.(info);
     return resultView(db.prepare('SELECT * FROM ai_evaluation_results WHERE id = ?').get(Number(info.lastInsertRowid)), aiEvaluationResultRow);
 }
 
@@ -283,13 +296,14 @@ function completeAiEvaluationRun(ownerKey, runIdValue, options = {}) {
     `).get(runId);
     const expected = Number(run.total_count || 0);
     const missing = Math.max(expected - Number(counts.total || 0), 0);
-    safeUpdate('ai_evaluation_runs', runId, {
+    const write = safeUpdate('ai_evaluation_runs', runId, {
         status: missing > 0 ? 'failed' : 'completed',
         passed_count: Number(counts.passed || 0),
         failed_count: Number(counts.failed || 0),
         review_count: Number(counts.review || 0) + missing,
         completed_at: new Date().toISOString(),
-    });
+    }, options.auditContext || {});
+    options.onWrite?.(write);
     return aiEvaluationRunRow(db.prepare('SELECT * FROM ai_evaluation_runs WHERE id = ?').get(runId));
 }
 
@@ -297,12 +311,22 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, aiEvaluationRunRow, aiEvaluationResultRow } = accessors;
     const cases = listAiEvaluationCases({ dbAccessors: accessors });
+    const feedbackCases = require('./aiRegressionCases.cjs').listFeedbackEvaluationCases({
+        dbAccessors: accessors,
+    });
+    const caseStats = {
+        enabled: cases.length,
+        feedbackTotal: feedbackCases.length,
+        feedbackApproved: feedbackCases.filter(item => item.reviewStatus === 'approved').length,
+        feedbackPending: feedbackCases.filter(item => item.reviewStatus === 'pending').length,
+        feedbackRejected: feedbackCases.filter(item => item.reviewStatus === 'rejected').length,
+    };
     const latestRunRow = db.prepare(`
         SELECT * FROM ai_evaluation_runs
         WHERE owner_key = ?
         ORDER BY id DESC LIMIT 1
     `).get(normalizeOwnerKey(ownerKey));
-    if (!latestRunRow) return { cases, latestRun: null, results: [] };
+    if (!latestRunRow) return { cases, feedbackCases, caseStats, latestRun: null, results: [] };
     const latestRun = aiEvaluationRunRow(latestRunRow);
     const results = db.prepare(`
         SELECT result.*, evaluation_case.title AS case_title, evaluation_case.category AS case_category
@@ -315,7 +339,56 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
         caseTitle: row.case_title,
         caseCategory: row.case_category,
     }));
-    return { cases, latestRun, results };
+    return { cases, feedbackCases, caseStats, latestRun, results };
+}
+
+function getLatestAiEvaluationHealth(options = {}) {
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const { db, aiEvaluationRunRow, aiEvaluationResultRow } = accessors;
+    const latestRunRow = db.prepare(`
+        SELECT * FROM ai_evaluation_runs
+        ORDER BY id DESC LIMIT 1
+    `).get();
+    if (!latestRunRow) {
+        return {
+            status: 'not_run',
+            healthy: true,
+            latestRun: null,
+            issues: [],
+        };
+    }
+    const latestRun = aiEvaluationRunRow(latestRunRow);
+    if (latestRun.status === 'running') {
+        return {
+            status: 'running',
+            healthy: true,
+            latestRun,
+            issues: [],
+        };
+    }
+    const issueRows = db.prepare(`
+        SELECT result.*, evaluation_case.title AS case_title, evaluation_case.category AS case_category
+        FROM ai_evaluation_results AS result
+        JOIN ai_evaluation_cases AS evaluation_case ON evaluation_case.id = result.case_id
+        WHERE result.run_id = ? AND result.status IN ('failed', 'review')
+        ORDER BY CASE result.status WHEN 'failed' THEN 0 ELSE 1 END,
+                 evaluation_case.sort_order,
+                 evaluation_case.id
+    `).all(latestRun.id);
+    const issues = issueRows.map(row => ({
+        ...resultView(row, aiEvaluationResultRow),
+        caseTitle: row.case_title,
+        caseCategory: row.case_category,
+    }));
+    const healthy = latestRun.status === 'completed'
+        && Number(latestRun.failedCount || 0) === 0
+        && Number(latestRun.reviewCount || 0) === 0;
+    return {
+        status: healthy ? 'healthy' : 'attention',
+        healthy,
+        latestRun,
+        issues,
+    };
 }
 
 module.exports = {
@@ -324,5 +397,7 @@ module.exports = {
     recordAiEvaluationResult,
     completeAiEvaluationRun,
     getAiEvaluationOverview,
+    getLatestAiEvaluationHealth,
     evaluateRuleCase,
+    reviewFeedbackEvaluationCase: require('./aiRegressionCases.cjs').reviewFeedbackEvaluationCase,
 };

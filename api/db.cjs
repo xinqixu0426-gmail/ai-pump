@@ -418,6 +418,14 @@ function aiEvaluationCaseRow(r) {
         configJson: r.config_json || '{}',
         enabled: Boolean(r.enabled),
         sortOrder: Number(r.sort_order || 0),
+        sourceType: r.source_type || 'system',
+        sourceFeedbackId: r.source_feedback_id || null,
+        reviewStatus: r.review_status || 'approved',
+        confidenceScore: Number(r.confidence_score ?? 100),
+        generationNote: r.generation_note || '',
+        proposalHash: r.proposal_hash || '',
+        reviewNote: r.review_note || '',
+        reviewedAt: r.reviewed_at,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
     };
@@ -573,28 +581,63 @@ function getSetting(key) {
     const row = db.prepare('SELECT value FROM system_settings WHERE key = ?').get(key);
     return row ? row.value : null;
 }
-function setSetting(key, value) {
+function setSetting(key, value, options = {}) {
     const now = new Date().toISOString();
     const oldRow = db.prepare('SELECT key, value, updated_at FROM system_settings WHERE key = ?').get(key);
     db.prepare('INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run(key, String(value), now);
+    let auditId = null;
     try {
         const newRow = { key, value: String(value), updated_at: now };
-        writeAuditLog(oldRow ? 'SETTING_UPDATE' : 'SETTING_INSERT', 'system_settings', null, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(newRow));
-    } catch { /* 审计日志写入失败不应阻断业务 */ }
+        auditId = writeAuditLog(
+            oldRow ? 'SETTING_UPDATE' : 'SETTING_INSERT',
+            'system_settings',
+            null,
+            oldRow ? JSON.stringify(oldRow) : null,
+            JSON.stringify(newRow),
+            options.user,
+            options
+        );
+    } catch (error) {
+        if (options.requireAudit) throw error;
+    }
     notifyKnowledgeSourceChange('system_settings', key, oldRow ? 'update' : 'insert');
+    return {
+        key,
+        value: String(value),
+        updatedAt: now,
+        created: !oldRow,
+        auditId,
+    };
 }
 
 function getConfig(key) {
     const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key);
     return row ? row.value : null;
 }
-function setConfig(key, value) {
+function setConfig(key, value, options = {}) {
     const oldRow = db.prepare('SELECT key, value FROM config WHERE key = ?').get(key);
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run(key, String(value));
+    let auditId = null;
     try {
         const newRow = { key, value: String(value) };
-        writeAuditLog(oldRow ? 'CONFIG_UPDATE' : 'CONFIG_INSERT', 'config', null, oldRow ? JSON.stringify(oldRow) : null, JSON.stringify(newRow));
-    } catch { /* 审计日志写入失败不应阻断业务 */ }
+        auditId = writeAuditLog(
+            oldRow ? 'CONFIG_UPDATE' : 'CONFIG_INSERT',
+            'config',
+            null,
+            oldRow ? JSON.stringify(oldRow) : null,
+            JSON.stringify(newRow),
+            options.user,
+            options
+        );
+    } catch (error) {
+        if (options.requireAudit) throw error;
+    }
+    return {
+        key,
+        value: String(value),
+        created: !oldRow,
+        auditId,
+    };
 }
 
 /**
@@ -628,7 +671,7 @@ function notifyKnowledgeSourceChange(table, id, operation) {
     }
 }
 
-function safeInsert(table, values) {
+function safeInsert(table, values, options = {}) {
     if (!SAFE_TABLES.has(table)) throw new Error(`safeInsert: 非法表名 "${table}"`);
     const cols = [];
     const vals = [];
@@ -641,18 +684,29 @@ function safeInsert(table, values) {
     if (cols.length === 0) throw new Error('safeInsert: 写入字段不能为空');
     const placeholders = cols.map(() => '?').join(', ');
     const info = db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);
+    let auditId = null;
     try {
         const recordId = Number(info.lastInsertRowid);
         const newRow = Number.isInteger(recordId) && recordId > 0
             ? db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(recordId)
             : values;
-        writeAuditLog('INSERT', table, recordId || null, null, auditJson(newRow || values));
-    } catch { /* 审计日志写入失败不应阻断业务 */ }
+        auditId = writeAuditLog(
+            'INSERT',
+            table,
+            recordId || null,
+            null,
+            auditJson(newRow || values),
+            options.user,
+            options
+        );
+    } catch (error) {
+        if (options.requireAudit) throw error;
+    }
     notifyKnowledgeSourceChange(table, Number(info.lastInsertRowid) || '*', 'insert');
-    return info;
+    return { ...info, auditId };
 }
 
-function safeUpdate(table, id, updates) {
+function safeUpdate(table, id, updates, options = {}) {
     if (!SAFE_TABLES.has(table)) throw new Error(`safeUpdate: 非法表名 "${table}"`);
     const sets = [];
     const vals = [];
@@ -662,18 +716,30 @@ function safeUpdate(table, id, updates) {
         sets.push(`${col} = ?`);
         vals.push(val);
     }
-    if (sets.length === 0) return;
+    if (sets.length === 0) return { changes: 0, auditId: null };
     // 审计日志：记录更新前的值
     const oldRow = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
     sets.push('updated_at = ?');
     vals.push(new Date().toISOString());
     vals.push(id);
-    db.prepare(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
-    // 异步写审计日志，不阻塞主逻辑
+    const info = db.prepare(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+    // 默认保持历史兼容的尽力审计；高风险命令通过 requireAudit 强制审计成功
+    let auditId = null;
     try {
-        writeAuditLog('UPDATE', table, id, oldRow ? auditJson(oldRow) : null, auditJson(updates));
-    } catch { /* 审计日志写入失败不应阻断业务 */ }
+        auditId = writeAuditLog(
+            'UPDATE',
+            table,
+            id,
+            oldRow ? auditJson(oldRow) : null,
+            auditJson(updates),
+            options.user,
+            options
+        );
+    } catch (error) {
+        if (options.requireAudit) throw error;
+    }
     notifyKnowledgeSourceChange(table, id, 'update');
+    return { ...info, auditId };
 }
 
 /**
@@ -690,31 +756,55 @@ function updateOrderFields(orderId, fields) {
  * @param {string} table - 表名
  * @param {number} id - 记录 ID
  */
-function softDelete(table, id) {
+function softDelete(table, id, options = {}) {
     if (!SAFE_TABLES.has(table)) throw new Error(`softDelete: 非法表名 "${table}"`);
     const now = new Date().toISOString();
     // 记录旧值到审计日志
     const oldRow = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
     if (!oldRow) throw new Error(`softDelete: 记录不存在 (${table}#${id})`);
-    db.prepare(`UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE id = ?`).run(now, now, id);
+    const info = db.prepare(`UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE id = ?`).run(now, now, id);
+    let auditId = null;
     try {
-        writeAuditLog('SOFT_DELETE', table, id, auditJson(oldRow), null);
-    } catch { /* 审计日志写入失败不应阻断业务 */ }
+        auditId = writeAuditLog(
+            'SOFT_DELETE',
+            table,
+            id,
+            auditJson(oldRow),
+            null,
+            options.user,
+            options
+        );
+    } catch (error) {
+        if (options.requireAudit) throw error;
+    }
     notifyKnowledgeSourceChange(table, id, 'soft_delete');
+    return { ...info, auditId };
 }
 
 /**
- * 物理删除（用于暂未支持 deleted_at 的表），删除前写入审计日志
+ * 物理删除（用于暂未支持 deleted_at 的表），并记录审计日志
  */
-function hardDelete(table, id) {
+function hardDelete(table, id, options = {}) {
     if (!SAFE_TABLES.has(table)) throw new Error(`hardDelete: 非法表名 "${table}"`);
     const oldRow = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
     if (!oldRow) throw new Error(`hardDelete: 记录不存在 (${table}#${id})`);
-    db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+    const info = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+    let auditId = null;
     try {
-        writeAuditLog('DELETE', table, id, auditJson(oldRow), null);
-    } catch { /* 审计日志写入失败不应阻断业务 */ }
+        auditId = writeAuditLog(
+            'DELETE',
+            table,
+            id,
+            auditJson(oldRow),
+            null,
+            options.user,
+            options
+        );
+    } catch (error) {
+        if (options.requireAudit) throw error;
+    }
     notifyKnowledgeSourceChange(table, id, 'delete');
+    return { ...info, auditId };
 }
 
 // ── P1.7: loadPartsData 缓存 ──
@@ -752,9 +842,26 @@ function invalidatePartsCache() {
 }
 
 // ── P4.22: 审计日志 ──
-const _auditStmt = db.prepare('INSERT INTO audit_log (action, table_name, record_id, old_value, new_value, user, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-function writeAuditLog(action, tableName, recordId, oldValue, newValue, user = 'system') {
-    _auditStmt.run(action, tableName, recordId, oldValue, newValue, user, new Date().toISOString());
+const _auditStmt = db.prepare(`
+    INSERT INTO audit_log (
+        action, table_name, record_id, old_value, new_value, user,
+        request_id, operation_id, capability_id, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+function writeAuditLog(action, tableName, recordId, oldValue, newValue, user = 'system', context = {}) {
+    const info = _auditStmt.run(
+        action,
+        tableName,
+        recordId,
+        oldValue,
+        newValue,
+        String(user || 'system'),
+        context.requestId || null,
+        context.operationId || null,
+        context.capabilityId || null,
+        new Date().toISOString()
+    );
+    return Number(info.lastInsertRowid);
 }
 
 // ── 数据库自动备份 ──
@@ -853,6 +960,6 @@ module.exports = {
     dbGetAllParts, dbGetAllRecipes, dbGetAllOrders, dbGetAllCoils, dbGetAllStatorVariants, dbGetAllTemplates, dbGetAllModelVariants, dbGetAllCustomers, dbGetAllQuotations, dbGetAllRecipeTechnicalFiles, dbGetAllKnowledgeDocuments, dbGetRecipeAnalysisFeedback, dbGetFactoryRuleCandidates,
     extractPartFields, loadPartsData, calculateRecipeCost,
     getSetting, setSetting, getConfig, setConfig,
-    updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete,
+    updateOrderFields, invalidatePartsCache, safeInsert, safeUpdate, softDelete, hardDelete, writeAuditLog,
     nextBjtTime, getBackupRuntimeState, stopBackupScheduler, waitForBackupIdle,
 };

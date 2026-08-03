@@ -1,6 +1,6 @@
 'use client';
 
-import { proxyRequest } from '@/lib/api';
+import { createIdempotencyKey, proxyRequest } from '@/lib/api';
 
 export type AiProvider = 'auto' | 'deepseek' | 'kimi';
 
@@ -47,6 +47,10 @@ export type RuntimeConfigSnapshot = {
   restartRequired: boolean;
   restartFields: string[];
   kimiCodingCompatible: false;
+  updatedAt?: string | null;
+  operationId?: string;
+  idempotentReplay?: boolean;
+  changed?: string[];
 };
 
 export type RuntimeSettingsInput = RuntimeSettingsValues & {
@@ -59,6 +63,8 @@ type RuntimeResponse = {
   data: RuntimeConfigSnapshot;
   error?: string;
 };
+
+let runtimeSettingsVersion: string | null = null;
 
 type AiTestResponse = {
   success: boolean;
@@ -78,14 +84,22 @@ type AiTestResponse = {
 
 export async function getRuntimeSettings(): Promise<RuntimeConfigSnapshot> {
   const response = await proxyRequest<RuntimeResponse>('/api/settings/runtime');
+  runtimeSettingsVersion = response.data.updatedAt || null;
   return response.data;
 }
 
 export async function saveRuntimeSettings(input: RuntimeSettingsInput): Promise<RuntimeConfigSnapshot> {
   const response = await proxyRequest<RuntimeResponse>('/api/settings/runtime', {
     method: 'PUT',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('runtime-settings-update'),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: runtimeSettingsVersion,
+    }),
   });
+  runtimeSettingsVersion = response.data.updatedAt || null;
   return response.data;
 }
 

@@ -1,0 +1,1692 @@
+const DOMAIN_CAPABILITY_NAMES = Object.freeze({
+    management: Object.freeze([
+        'get_management_action_center',
+        'plan_factory_workflow',
+        'get_business_alerts',
+        'get_dashboard_summary',
+        'get_order_readiness_overview',
+        'check_order_readiness',
+        'plan_order_readiness_actions',
+        'execute_order_readiness_action',
+        'execute_factory_workflow_step',
+    ]),
+    knowledge: Object.freeze([
+        'search_factory_knowledge',
+        'get_factory_knowledge_detail',
+        'get_factory_knowledge_health',
+        'sync_factory_knowledge',
+        'get_order_knowledge_package',
+    ]),
+    quality: Object.freeze([
+        'get_data_quality_summary',
+        'analyze_recipe_configuration',
+        'get_factory_learning_health',
+        'get_factory_rule_candidates',
+        'get_factory_rule_impact',
+        'get_factory_rule_compliance',
+        'get_factory_rule_history',
+        'set_recipe_analysis_feedback',
+        'refresh_factory_rule_candidates',
+        'review_factory_rule_candidate',
+        'restore_factory_rule_event',
+    ]),
+    order: Object.freeze([
+        'get_order_detail',
+        'get_recent_orders',
+        'get_order_readiness_overview',
+        'check_order_readiness',
+        'plan_order_readiness_actions',
+        'get_order_knowledge_package',
+        'build_order_draft',
+        'generate_purchase_list',
+        'save_order_requirement_draft',
+        'save_order_execution_draft',
+        'create_order',
+        'update_order_status',
+        'add_recipe_to_order',
+        'remove_recipe_from_order',
+        'update_order_item',
+        'delete_order',
+        'execute_order_readiness_action',
+    ]),
+    quotation: Object.freeze([
+        'inspect_quotation_file',
+        'build_quotation_draft',
+        'search_customer_history',
+        'preview_recipe_cost',
+        'explain_cost_change',
+        'build_order_draft',
+        'plan_factory_workflow',
+        'execute_factory_workflow_step',
+    ]),
+    file: Object.freeze([
+        'inspect_quotation_file',
+        'search_factory_file_archive_targets',
+        'archive_factory_file',
+        'get_order_knowledge_package',
+        'save_order_requirement_draft',
+        'save_order_execution_draft',
+    ]),
+    recipe: Object.freeze([
+        'get_all_recipes',
+        'build_recipe_bom_draft',
+        'preview_recipe_cost',
+        'preview_pump_shell_cost',
+        'compare_recipes',
+        'analyze_recipe_configuration',
+        'create_recipe',
+        'update_recipe',
+        'delete_recipe',
+    ]),
+    cost: Object.freeze([
+        'preview_recipe_cost',
+        'preview_pump_shell_cost',
+        'full_calculate',
+        'dynamic_config_cost',
+        'calculate_coil_cost',
+        'get_copper_price',
+        'explain_cost_change',
+        'compare_recipes',
+        'build_recipe_bom_draft',
+    ]),
+    coil: Object.freeze([
+        'get_coil_specs',
+        'calculate_coil_cost',
+        'get_copper_price',
+        'adjust_coil_stock',
+        'search_factory_knowledge',
+    ]),
+    catalog: Object.freeze([
+        'search_parts',
+        'create_part',
+        'update_part',
+        'delete_part',
+        'batch_update_prices',
+        'search_factory_knowledge',
+    ]),
+    drawing: Object.freeze([
+        'generate_rotor_drawing',
+        'get_rotor_drawing_history',
+        'print_rotor_drawing',
+    ]),
+});
+
+const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
+    get_management_action_center: '读取管理待办',
+    plan_factory_workflow: '生成工厂工作流计划',
+    get_business_alerts: '读取经营异常',
+    get_dashboard_summary: '读取运营看板',
+    get_order_readiness_overview: '读取订单准备总览',
+    check_order_readiness: '检查订单生产准备',
+    plan_order_readiness_actions: '生成订单处理方案',
+    execute_order_readiness_action: '执行订单处理步骤',
+    execute_factory_workflow_step: '执行工厂工作流步骤',
+    search_factory_knowledge: '搜索工厂知识库',
+    get_factory_knowledge_detail: '读取知识详情',
+    get_factory_knowledge_health: '检查知识库健康状态',
+    sync_factory_knowledge: '同步工厂知识库',
+    get_order_knowledge_package: '读取订单知识包',
+    get_data_quality_summary: '读取数据质量',
+    analyze_recipe_configuration: '智能检查配方',
+    get_factory_learning_health: '检查学习证据健康状态',
+    get_factory_rule_candidates: '读取候选业务规则',
+    get_factory_rule_impact: '分析规则影响范围',
+    get_factory_rule_compliance: '检查规则执行情况',
+    get_factory_rule_history: '读取规则变更记录',
+    set_recipe_analysis_feedback: '保存配方检查反馈',
+    refresh_factory_rule_candidates: '归纳候选业务规则',
+    review_factory_rule_candidate: '审核候选业务规则',
+    restore_factory_rule_event: '恢复规则审核状态',
+    get_order_detail: '读取订单详情',
+    get_recent_orders: '读取最近订单',
+    build_order_draft: '生成订单草稿',
+    generate_purchase_list: '生成采购清单',
+    save_order_requirement_draft: '保存客户要求草稿',
+    save_order_execution_draft: '保存订单执行档案草稿',
+    create_order: '新建订单',
+    update_order_status: '修改订单状态',
+    add_recipe_to_order: '订单追加产品',
+    remove_recipe_from_order: '订单移除产品',
+    update_order_item: '修改订单产品',
+    delete_order: '删除订单',
+    inspect_quotation_file: '识别报价文件',
+    build_quotation_draft: '生成报价草稿',
+    search_customer_history: '查询客户历史',
+    explain_cost_change: '解释成本差异',
+    search_factory_file_archive_targets: '查找文件归档目标',
+    archive_factory_file: '归档工厂文件',
+    get_all_recipes: '读取配方列表',
+    build_recipe_bom_draft: '生成 BOM 草稿',
+    preview_recipe_cost: '配方成本试算',
+    preview_pump_shell_cost: '泵壳成本试算',
+    compare_recipes: '对比配方',
+    create_recipe: '新建配方',
+    update_recipe: '修改配方',
+    delete_recipe: '删除配方',
+    full_calculate: '完整成本估算',
+    dynamic_config_cost: '计算动态配置成本',
+    calculate_coil_cost: '计算线圈成本',
+    get_copper_price: '查询铜价',
+    get_coil_specs: '读取线圈规格',
+    adjust_coil_stock: '调整线圈库存',
+    search_parts: '搜索零件',
+    create_part: '新建零件',
+    update_part: '修改零件',
+    delete_part: '删除零件',
+    batch_update_prices: '批量调价',
+    generate_rotor_drawing: '生成转子图纸',
+    get_rotor_drawing_history: '读取出图历史',
+    print_rotor_drawing: '打印转子图纸',
+});
+
+const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
+    cost: Object.freeze([
+        'full_calculate',
+        'get_copper_price',
+        'calculate_coil_cost',
+        'dynamic_config_cost',
+        'generate_rotor_drawing',
+        'print_rotor_drawing',
+        'get_rotor_drawing_history',
+    ]),
+    query: Object.freeze([
+        'get_coil_specs',
+        'get_all_recipes',
+        'get_recent_orders',
+        'create_part',
+        'update_part',
+        'adjust_coil_stock',
+        'search_parts',
+        'delete_part',
+        'batch_update_prices',
+        'get_dashboard_summary',
+    ]),
+    order: Object.freeze([
+        'save_order_requirement_draft',
+        'save_order_execution_draft',
+        'create_order',
+        'add_recipe_to_order',
+        'get_order_detail',
+        'get_order_knowledge_package',
+        'check_order_readiness',
+        'get_order_readiness_overview',
+        'plan_order_readiness_actions',
+        'execute_order_readiness_action',
+        'update_order_status',
+        'remove_recipe_from_order',
+        'update_order_item',
+        'generate_purchase_list',
+        'delete_order',
+    ]),
+    recipe: Object.freeze([
+        'create_recipe',
+        'delete_recipe',
+        'update_recipe',
+        'compare_recipes',
+    ]),
+    business: Object.freeze([
+        'build_recipe_bom_draft',
+        'preview_recipe_cost',
+        'preview_pump_shell_cost',
+        'inspect_quotation_file',
+        'build_quotation_draft',
+        'build_order_draft',
+        'search_customer_history',
+        'explain_cost_change',
+        'get_data_quality_summary',
+        'analyze_recipe_configuration',
+        'set_recipe_analysis_feedback',
+        'get_factory_learning_health',
+        'get_factory_rule_candidates',
+        'get_factory_rule_impact',
+        'get_factory_rule_compliance',
+        'get_factory_rule_history',
+        'restore_factory_rule_event',
+        'refresh_factory_rule_candidates',
+        'review_factory_rule_candidate',
+        'get_management_action_center',
+        'plan_factory_workflow',
+        'execute_factory_workflow_step',
+        'get_business_alerts',
+        'search_factory_file_archive_targets',
+        'archive_factory_file',
+        'search_factory_knowledge',
+        'get_factory_knowledge_detail',
+        'get_factory_knowledge_health',
+        'sync_factory_knowledge',
+    ]),
+});
+
+const AI_EXECUTOR_BY_CAPABILITY_NAME = Object.freeze(Object.fromEntries(
+    Object.entries(AI_EXECUTOR_CAPABILITY_NAMES)
+        .flatMap(([executorKey, names]) => names.map(name => [name, executorKey]))
+));
+
+const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
+    'search_parts',
+    'get_all_recipes',
+    'preview_recipe_cost',
+    'preview_pump_shell_cost',
+    'calculate_coil_cost',
+    'dynamic_config_cost',
+    'full_calculate',
+    'get_copper_price',
+    'get_recent_orders',
+    'get_order_detail',
+    'get_order_knowledge_package',
+    'get_order_readiness_overview',
+    'check_order_readiness',
+    'plan_order_readiness_actions',
+    'search_customer_history',
+    'inspect_quotation_file',
+    'get_dashboard_summary',
+    'get_management_action_center',
+    'get_business_alerts',
+    'get_data_quality_summary',
+    'analyze_recipe_configuration',
+    'search_factory_file_archive_targets',
+    'get_factory_knowledge_health',
+    'get_factory_rule_candidates',
+    'get_factory_rule_impact',
+    'get_factory_rule_compliance',
+    'get_factory_rule_history',
+]);
+
+const WRITE_CAPABILITY_NAMES = new Set([
+    'create_part',
+    'update_part',
+    'delete_part',
+    'batch_update_prices',
+    'adjust_coil_stock',
+    'create_order',
+    'delete_order',
+    'update_order_status',
+    'add_recipe_to_order',
+    'remove_recipe_from_order',
+    'update_order_item',
+    'generate_purchase_list',
+    'save_order_requirement_draft',
+    'save_order_execution_draft',
+    'execute_order_readiness_action',
+    'execute_factory_workflow_step',
+    'create_recipe',
+    'delete_recipe',
+    'update_recipe',
+    'archive_factory_file',
+    'sync_factory_knowledge',
+    'set_recipe_analysis_feedback',
+    'refresh_factory_rule_candidates',
+    'review_factory_rule_candidate',
+    'restore_factory_rule_event',
+    'generate_rotor_drawing',
+    'print_rotor_drawing',
+]);
+
+const LIVE_CAPABILITY_NAMES = new Set([
+    'full_calculate',
+    'get_copper_price',
+    'calculate_coil_cost',
+    'get_coil_specs',
+    'adjust_coil_stock',
+    'get_all_recipes',
+    'dynamic_config_cost',
+    'get_recent_orders',
+    'get_order_detail',
+    'generate_purchase_list',
+    'preview_recipe_cost',
+    'preview_pump_shell_cost',
+    'search_customer_history',
+    'explain_cost_change',
+    'get_data_quality_summary',
+    'get_management_action_center',
+    'get_business_alerts',
+    'get_order_readiness_overview',
+    'check_order_readiness',
+    'get_dashboard_summary',
+    'search_parts',
+]);
+
+const DERIVED_CAPABILITY_NAMES = new Set([
+    'build_recipe_bom_draft',
+    'inspect_quotation_file',
+    'build_quotation_draft',
+    'build_order_draft',
+    'analyze_recipe_configuration',
+    'get_factory_learning_health',
+    'get_factory_rule_candidates',
+    'get_factory_rule_impact',
+    'get_factory_rule_compliance',
+    'get_factory_rule_history',
+    'plan_factory_workflow',
+    'execute_factory_workflow_step',
+    'plan_order_readiness_actions',
+    'get_order_knowledge_package',
+    'search_factory_knowledge',
+    'get_factory_knowledge_detail',
+    'get_factory_knowledge_health',
+]);
+
+const PREVIEW_CAPABILITY_NAMES = new Set([
+    'adjust_coil_stock',
+    'full_calculate',
+    'calculate_coil_cost',
+    'dynamic_config_cost',
+    'build_recipe_bom_draft',
+    'preview_recipe_cost',
+    'preview_pump_shell_cost',
+    'inspect_quotation_file',
+    'build_quotation_draft',
+    'build_order_draft',
+    'explain_cost_change',
+    'analyze_recipe_configuration',
+    'plan_factory_workflow',
+    'execute_factory_workflow_step',
+    'plan_order_readiness_actions',
+    'execute_order_readiness_action',
+    'compare_recipes',
+    'create_order',
+    'create_recipe',
+    'update_recipe',
+    'add_recipe_to_order',
+    'remove_recipe_from_order',
+    'update_order_item',
+    'generate_purchase_list',
+    'archive_factory_file',
+]);
+
+const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
+    create_part: Object.freeze(['parts.create']),
+    update_part: Object.freeze([
+        'parts.update',
+        'inventory.parts.batch_adjust_stock',
+    ]),
+    delete_part: Object.freeze(['parts.delete']),
+    batch_update_prices: Object.freeze(['parts.batch_update_prices']),
+    adjust_coil_stock: Object.freeze(['inventory.coils.adjust_stock']),
+    create_order: Object.freeze(['orders.create']),
+    delete_order: Object.freeze(['orders.delete']),
+    update_order_status: Object.freeze(['orders.change_status']),
+    add_recipe_to_order: Object.freeze(['orders.update_draft']),
+    remove_recipe_from_order: Object.freeze(['orders.update_draft']),
+    update_order_item: Object.freeze(['orders.update_draft']),
+    generate_purchase_list: Object.freeze(['orders.update_draft']),
+    save_order_requirement_draft: Object.freeze([
+        'orders.requirements.save_draft',
+    ]),
+    save_order_execution_draft: Object.freeze([
+        'orders.execution_records.create_draft',
+    ]),
+    execute_order_readiness_action: Object.freeze([
+        'orders.execute_readiness_action',
+        'workbench.execution_runs.record',
+    ]),
+    execute_factory_workflow_step: Object.freeze([
+        'workflow.quotation.convert_to_order',
+        'workbench.execution_runs.record',
+    ]),
+    create_recipe: Object.freeze(['recipes.create']),
+    update_recipe: Object.freeze(['recipes.update']),
+    delete_recipe: Object.freeze(['recipes.delete']),
+    archive_factory_file: Object.freeze(['files.archive']),
+    sync_factory_knowledge: Object.freeze(['knowledge.sync_derived']),
+    set_recipe_analysis_feedback: Object.freeze([
+        'quality.recipe_feedback.save',
+    ]),
+    refresh_factory_rule_candidates: Object.freeze([
+        'quality.rule_candidates.refresh',
+    ]),
+    review_factory_rule_candidate: Object.freeze([
+        'quality.rule_candidates.review',
+    ]),
+    restore_factory_rule_event: Object.freeze([
+        'quality.rule_events.restore',
+    ]),
+    generate_rotor_drawing: Object.freeze(['drawings.rotor.generate_pdf']),
+    print_rotor_drawing: Object.freeze(['drawings.rotor.print_pdf']),
+});
+
+const CRITICAL_CAPABILITY_NAMES = new Set([
+    'adjust_coil_stock',
+    'execute_factory_workflow_step',
+    'print_rotor_drawing',
+]);
+
+const MEDIUM_CAPABILITY_NAMES = new Set([
+    'create_part',
+    'update_part',
+    'delete_part',
+    'set_recipe_analysis_feedback',
+    'refresh_factory_rule_candidates',
+    'review_factory_rule_candidate',
+    'restore_factory_rule_event',
+    'save_order_requirement_draft',
+    'save_order_execution_draft',
+]);
+
+const EXTERNAL_SIDE_EFFECT_CAPABILITY_NAMES = new Set([
+    'generate_rotor_drawing',
+    'print_rotor_drawing',
+]);
+
+function defineBusinessCapability(definition) {
+    return Object.freeze({
+        access: 'write',
+        operation: 'command',
+        requiresConfirmation: true,
+        idempotency: 'persistent_actor_capability_key_request_hash_90_days',
+        concurrencyControl: 'expectedUpdatedAt',
+        transactionality: 'business_write_audit_and_operation_receipt_atomic',
+        audit: 'strong_audit_linked_by_operation_request_and_capability',
+        timeoutMs: 15_000,
+        deprecated: false,
+        contractStatus: 'current',
+        ...definition,
+    });
+}
+
+const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'inventory.parts.batch_adjust_stock': defineBusinessCapability({
+        capabilityId: 'inventory.parts.batch_adjust_stock',
+        domain: 'inventory',
+        inputSchema: 'POST /api/parts/batch-stock',
+        outputSchema: 'CommandReceipt<PartStockBatchResult>',
+        sourceOfTruth: 'parts.stock',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/parts/batch-stock-preview',
+        concurrencyControl: 'confirmationToken_bound_inventory_snapshot',
+    }),
+    'inventory.coils.adjust_stock': defineBusinessCapability({
+        capabilityId: 'inventory.coils.adjust_stock',
+        domain: 'inventory',
+        inputSchema: 'POST /api/coils/stock-adjustments',
+        outputSchema: 'CommandReceipt<CoilStockBatchResult>',
+        sourceOfTruth: 'coils.stock+coil_stock_movements',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/coils/stock-adjustments-preview',
+        concurrencyControl: 'confirmationToken_bound_inventory_snapshot',
+    }),
+    'workflow.quotation.convert_to_order': defineBusinessCapability({
+        capabilityId: 'workflow.quotation.convert_to_order',
+        domain: 'quotation',
+        inputSchema: 'POST /api/quotations/:id/convert',
+        outputSchema: 'CommandReceipt<QuotationConversionResult>',
+        sourceOfTruth: 'quotationSnapshot+orderPlanning+orders',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/quotations/:id/order-draft',
+    }),
+    'customers.create': defineBusinessCapability({
+        capabilityId: 'customers.create',
+        domain: 'customer',
+        inputSchema: 'POST /api/customers',
+        outputSchema: 'CommandReceipt<CustomerCreateResult>',
+        sourceOfTruth: 'customers',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'customers.update': defineBusinessCapability({
+        capabilityId: 'customers.update',
+        domain: 'customer',
+        inputSchema: 'PATCH /api/customers/:id',
+        outputSchema: 'CommandReceipt<CustomerUpdateResult>',
+        sourceOfTruth: 'customers',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'customers.delete': defineBusinessCapability({
+        capabilityId: 'customers.delete',
+        domain: 'customer',
+        inputSchema: 'DELETE /api/customers/:id',
+        outputSchema: 'CommandReceipt<CustomerDeleteResult>',
+        sourceOfTruth: 'customers+quotationHistory',
+        riskLevel: 'medium',
+        supportsPreview: false,
+    }),
+    'parts.create': defineBusinessCapability({
+        capabilityId: 'parts.create',
+        domain: 'catalog',
+        inputSchema: 'POST /api/parts',
+        outputSchema: 'CommandReceipt<PartCreateResult>',
+        sourceOfTruth: 'parts',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'parts.update': defineBusinessCapability({
+        capabilityId: 'parts.update',
+        domain: 'catalog',
+        inputSchema: 'PATCH /api/parts/:id',
+        outputSchema: 'CommandReceipt<PartUpdateResult>',
+        sourceOfTruth: 'parts',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'parts.delete': defineBusinessCapability({
+        capabilityId: 'parts.delete',
+        domain: 'catalog',
+        inputSchema: 'DELETE /api/parts/:id',
+        outputSchema: 'CommandReceipt<PartDeleteResult>',
+        sourceOfTruth: 'parts+recipeSnapshots',
+        riskLevel: 'medium',
+        supportsPreview: false,
+    }),
+    'parts.batch_update_prices': defineBusinessCapability({
+        capabilityId: 'parts.batch_update_prices',
+        domain: 'catalog',
+        inputSchema: 'PATCH /api/parts/prices',
+        outputSchema: 'CommandReceipt<PartBatchPriceResult>',
+        sourceOfTruth: 'parts.price',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/parts/prices-preview',
+        concurrencyControl: 'expectedVersions',
+    }),
+    'coils.create': defineBusinessCapability({
+        capabilityId: 'coils.create',
+        domain: 'coil',
+        inputSchema: 'POST /api/coils',
+        outputSchema: 'CommandReceipt<CoilCreateResult>',
+        sourceOfTruth: 'stator_variants+coils',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'coils.update': defineBusinessCapability({
+        capabilityId: 'coils.update',
+        domain: 'coil',
+        inputSchema: 'PATCH /api/coils/:id',
+        outputSchema: 'CommandReceipt<CoilUpdateResult>',
+        sourceOfTruth: 'stator_variants+coils+coil_stock_movements',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'coils.delete': defineBusinessCapability({
+        capabilityId: 'coils.delete',
+        domain: 'coil',
+        inputSchema: 'DELETE /api/coils/:id',
+        outputSchema: 'CommandReceipt<CoilDeleteResult>',
+        sourceOfTruth: 'coils+coil_stock_movements',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'coils.batch_update_unit_price': defineBusinessCapability({
+        capabilityId: 'coils.batch_update_unit_price',
+        domain: 'coil',
+        inputSchema: 'PATCH /api/coils/spec/:spec',
+        outputSchema: 'CommandReceipt<CoilBatchUnitPriceResult>',
+        sourceOfTruth: 'stator_variants+coils.cost',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/coils/spec-price-preview',
+        concurrencyControl: 'expectedVersions',
+    }),
+    'templates.create': defineBusinessCapability({
+        capabilityId: 'templates.create',
+        domain: 'recipe',
+        inputSchema: 'POST /api/templates',
+        outputSchema: 'CommandReceipt<TemplateCreateResult>',
+        sourceOfTruth: 'pump_shell_templates+partsCatalog',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'templates.update': defineBusinessCapability({
+        capabilityId: 'templates.update',
+        domain: 'recipe',
+        inputSchema: 'PATCH /api/templates/:id',
+        outputSchema: 'CommandReceipt<TemplateUpdateResult>',
+        sourceOfTruth: 'pump_shell_templates+partsCatalog',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'templates.delete': defineBusinessCapability({
+        capabilityId: 'templates.delete',
+        domain: 'recipe',
+        inputSchema: 'DELETE /api/templates/:id',
+        outputSchema: 'CommandReceipt<TemplateDeleteResult>',
+        sourceOfTruth: 'pump_shell_templates+recipeReferences',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'model_variants.create': defineBusinessCapability({
+        capabilityId: 'model_variants.create',
+        domain: 'recipe',
+        inputSchema: 'POST /api/model-variants',
+        outputSchema: 'CommandReceipt<ModelVariantCreateResult>',
+        sourceOfTruth: 'pump_model_variants+pump_shell_templates+parts',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'model_variants.update': defineBusinessCapability({
+        capabilityId: 'model_variants.update',
+        domain: 'recipe',
+        inputSchema: 'PATCH /api/model-variants/:id',
+        outputSchema: 'CommandReceipt<ModelVariantUpdateResult>',
+        sourceOfTruth: 'pump_model_variants+pump_shell_templates+parts',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'model_variants.delete': defineBusinessCapability({
+        capabilityId: 'model_variants.delete',
+        domain: 'recipe',
+        inputSchema: 'DELETE /api/model-variants/:id',
+        outputSchema: 'CommandReceipt<ModelVariantDeleteResult>',
+        sourceOfTruth: 'pump_model_variants+recipeReferences',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'settings.update_business_value': defineBusinessCapability({
+        capabilityId: 'settings.update_business_value',
+        domain: 'cost',
+        inputSchema: 'PUT /api/settings/:key',
+        outputSchema: 'CommandReceipt<BusinessSettingUpdateResult>',
+        sourceOfTruth: 'system_settings+costEngineConsumers',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'settings.update_runtime': defineBusinessCapability({
+        capabilityId: 'settings.update_runtime',
+        domain: 'configuration',
+        inputSchema: 'PUT /api/settings/runtime',
+        outputSchema: 'CommandReceipt<RuntimeSettingsUpdateResult>',
+        sourceOfTruth: 'runtime_settings+process_environment',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'expectedUpdatedAt',
+        transactionality:
+            'encrypted_settings_audit_and_operation_receipt_atomic_then_process_environment_apply',
+    }),
+    'market.sync_copper_price': defineBusinessCapability({
+        capabilityId: 'market.sync_copper_price',
+        domain: 'cost',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/copper-price/update',
+        outputSchema: 'CommandReceipt<CopperPriceSyncResult>',
+        sourceOfTruth: 'externalCopperMarket+coils.copper_base+coils.cost',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'external_snapshot_at_execution_time',
+        transactionality:
+            'external_fetch_before_atomic_coil_audit_and_operation_commit',
+        timeoutMs: 25_000,
+    }),
+    'market.sync_indicators': defineBusinessCapability({
+        capabilityId: 'market.sync_indicators',
+        domain: 'cost',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/market-indicators/update',
+        outputSchema: 'CommandReceipt<MarketIndicatorSyncResult>',
+        sourceOfTruth:
+            'externalMetalAndExchangeMarkets+coils+system_settings',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'external_snapshot_at_execution_time',
+        transactionality:
+            'external_fetch_before_atomic_coils_settings_audit_and_operation_commit',
+        timeoutMs: 25_000,
+    }),
+    'orders.requirements.save_draft': defineBusinessCapability({
+        capabilityId: 'orders.requirements.save_draft',
+        domain: 'order',
+        inputSchema: 'PUT /api/orders/:id/requirements/draft',
+        outputSchema: 'CommandReceipt<OrderRequirementSummary>',
+        sourceOfTruth:
+            'orders+order_requirement_summaries+linked_customer_requirement_files',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.requirements.confirm': defineBusinessCapability({
+        capabilityId: 'orders.requirements.confirm',
+        domain: 'knowledge',
+        inputSchema: 'POST /api/orders/:id/requirements/confirm',
+        outputSchema: 'CommandReceipt<OrderRequirementSummary>',
+        sourceOfTruth:
+            'order_requirement_summaries.confirmed_snapshot+knowledgeSync',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.requirements.revoke': defineBusinessCapability({
+        capabilityId: 'orders.requirements.revoke',
+        domain: 'knowledge',
+        inputSchema: 'POST /api/orders/:id/requirements/revoke',
+        outputSchema: 'CommandReceipt<OrderRequirementSummary>',
+        sourceOfTruth:
+            'order_requirement_summaries.confirmed_snapshot+knowledgeSync',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.execution_records.create_draft': defineBusinessCapability({
+        capabilityId: 'orders.execution_records.create_draft',
+        domain: 'order',
+        inputSchema: 'POST /api/orders/:id/execution-records',
+        outputSchema: 'CommandReceipt<OrderExecutionRecord>',
+        sourceOfTruth:
+            'orders+order_execution_records+linked_execution_evidence_files',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'orders.execution_records.update_draft': defineBusinessCapability({
+        capabilityId: 'orders.execution_records.update_draft',
+        domain: 'order',
+        inputSchema: 'PUT /api/orders/:id/execution-records/:recordId/draft',
+        outputSchema: 'CommandReceipt<OrderExecutionRecord>',
+        sourceOfTruth:
+            'order_execution_records+linked_execution_evidence_files',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.execution_records.confirm': defineBusinessCapability({
+        capabilityId: 'orders.execution_records.confirm',
+        domain: 'knowledge',
+        inputSchema: 'POST /api/orders/:id/execution-records/:recordId/confirm',
+        outputSchema: 'CommandReceipt<OrderExecutionRecord>',
+        sourceOfTruth:
+            'order_execution_records.confirmed_snapshot+knowledgeSync',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.execution_records.revoke': defineBusinessCapability({
+        capabilityId: 'orders.execution_records.revoke',
+        domain: 'knowledge',
+        inputSchema: 'POST /api/orders/:id/execution-records/:recordId/revoke',
+        outputSchema: 'CommandReceipt<OrderExecutionRecord>',
+        sourceOfTruth:
+            'order_execution_records.confirmed_snapshot+knowledgeSync',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.execution_records.delete': defineBusinessCapability({
+        capabilityId: 'orders.execution_records.delete',
+        domain: 'order',
+        inputSchema: 'DELETE /api/orders/:id/execution-records/:recordId',
+        outputSchema: 'CommandReceipt<OrderExecutionRecordDeleteResult>',
+        sourceOfTruth: 'order_execution_records.confirmation_state',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'quotations.create': defineBusinessCapability({
+        capabilityId: 'quotations.create',
+        domain: 'quotation',
+        inputSchema: 'POST /api/quotations',
+        outputSchema: 'CommandReceipt<QuotationCreateResult>',
+        sourceOfTruth: 'quotationSaveDraft+costEngine+quotations',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/quotations/save-payload-draft',
+        concurrencyControl: 'not_applicable',
+    }),
+    'quotations.update': defineBusinessCapability({
+        capabilityId: 'quotations.update',
+        domain: 'quotation',
+        inputSchema: 'PATCH /api/quotations/:id',
+        outputSchema: 'CommandReceipt<QuotationUpdateResult>',
+        sourceOfTruth: 'quotationSaveDraft+costEngine+quotations',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/quotations/save-payload-draft',
+    }),
+    'quotations.change_status': defineBusinessCapability({
+        capabilityId: 'quotations.change_status',
+        domain: 'quotation',
+        inputSchema: 'POST /api/quotations/:id/status',
+        outputSchema: 'CommandReceipt<QuotationStatusResult>',
+        sourceOfTruth: 'quotationStateMachine+quotations',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'quotations.delete': defineBusinessCapability({
+        capabilityId: 'quotations.delete',
+        domain: 'quotation',
+        inputSchema: 'DELETE /api/quotations/:id',
+        outputSchema: 'CommandReceipt<QuotationDeleteResult>',
+        sourceOfTruth: 'quotations',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'quotations.expire_overdue': defineBusinessCapability({
+        capabilityId: 'quotations.expire_overdue',
+        domain: 'quotation',
+        operation: 'maintenance',
+        inputSchema: 'INTERNAL quotation-expiry scheduler',
+        outputSchema: 'CommandReceipt<QuotationExpiryResult>',
+        sourceOfTruth: 'quotations.status+quotations.created_at',
+        riskLevel: 'high',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+        transactionality:
+            'quotation_status_audits_and_operation_receipt_atomic',
+    }),
+    'purchasing.order.item_progress': defineBusinessCapability({
+        capabilityId: 'purchasing.order.item_progress',
+        domain: 'purchasing',
+        inputSchema: 'POST /api/orders/:id/purchase-items/progress',
+        outputSchema: 'CommandReceipt<PurchaseItemProgressResult>',
+        sourceOfTruth: 'orderPurchasePlan+parts.stock+coils.stock',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/orders/:id/purchase-items/progress-draft',
+    }),
+    'purchasing.task.batch_order': defineBusinessCapability({
+        capabilityId: 'purchasing.task.batch_order',
+        domain: 'purchasing',
+        inputSchema: 'POST /api/orders/purchase-items/batch',
+        outputSchema: 'CommandReceipt<PurchaseBatchOrderResult>',
+        sourceOfTruth: 'activeOrderPurchasePlans',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/orders/purchase-items/batch-draft',
+        concurrencyControl: 'expectedVersions',
+    }),
+    'purchasing.order.complete_inbound': defineBusinessCapability({
+        capabilityId: 'purchasing.order.complete_inbound',
+        domain: 'purchasing',
+        inputSchema: 'POST /api/orders/:id/complete-purchase',
+        outputSchema: 'CommandReceipt<CompletePurchaseResult>',
+        sourceOfTruth: 'orderPurchasePlan+parts.stock+coils.stock',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/orders/:id/complete-purchase-draft',
+    }),
+    'orders.create': defineBusinessCapability({
+        capabilityId: 'orders.create',
+        domain: 'order',
+        inputSchema: 'POST /api/orders',
+        outputSchema: 'CommandReceipt<OrderCreateResult>',
+        sourceOfTruth: 'orderSaveDraft+orders',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/orders/save-payload-draft',
+        concurrencyControl: 'not_applicable',
+    }),
+    'orders.change_status': defineBusinessCapability({
+        capabilityId: 'orders.change_status',
+        domain: 'order',
+        inputSchema: 'POST /api/orders/:id/status',
+        outputSchema: 'CommandReceipt<OrderStatusResult>',
+        sourceOfTruth: 'orderWorkflow+activeOrderPurchasePlans',
+        riskLevel: 'critical',
+        supportsPreview: false,
+    }),
+    'orders.execute_readiness_action': defineBusinessCapability({
+        capabilityId: 'orders.execute_readiness_action',
+        domain: 'order',
+        inputSchema: 'POST /api/orders/:id/readiness-actions/:actionId',
+        outputSchema: 'CommandReceipt<OrderReadinessActionResult>',
+        sourceOfTruth: 'orderReadinessPlan+activeOrderPurchasePlans+orders',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/orders/:id/readiness-plan',
+        concurrencyControl: 'expectedUpdatedAt+previewHash_bound_live_readiness',
+    }),
+    'orders.todos.toggle': defineBusinessCapability({
+        capabilityId: 'orders.todos.toggle',
+        domain: 'order',
+        inputSchema: 'POST /api/orders/:id/todos/toggle',
+        outputSchema: 'CommandReceipt<OrderTodoToggleResult>',
+        sourceOfTruth: 'orders.todos_json',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'orders.update_draft': defineBusinessCapability({
+        capabilityId: 'orders.update_draft',
+        domain: 'order',
+        inputSchema: 'PATCH /api/orders/:id',
+        outputSchema: 'CommandReceipt<OrderUpdateResult>',
+        sourceOfTruth: 'orderSaveDraft+orders',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/orders/save-payload-draft',
+    }),
+    'orders.delete': defineBusinessCapability({
+        capabilityId: 'orders.delete',
+        domain: 'order',
+        inputSchema: 'DELETE /api/orders/:id',
+        outputSchema: 'CommandReceipt<OrderDeleteResult>',
+        sourceOfTruth: 'orders',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'recipes.create': defineBusinessCapability({
+        capabilityId: 'recipes.create',
+        domain: 'recipe',
+        inputSchema: 'POST /api/recipes',
+        outputSchema: 'CommandReceipt<RecipeCreateResult>',
+        sourceOfTruth: 'recipeSaveDraft+costEngine+recipes',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/recipes/save-payload-draft',
+        concurrencyControl: 'not_applicable',
+    }),
+    'recipes.update': defineBusinessCapability({
+        capabilityId: 'recipes.update',
+        domain: 'recipe',
+        inputSchema: 'PATCH /api/recipes/:id',
+        outputSchema: 'CommandReceipt<RecipeUpdateResult>',
+        sourceOfTruth: 'recipeSaveDraft+costEngine+recipes',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/recipes/save-payload-draft',
+    }),
+    'recipes.delete': defineBusinessCapability({
+        capabilityId: 'recipes.delete',
+        domain: 'recipe',
+        inputSchema: 'DELETE /api/recipes/:id',
+        outputSchema: 'CommandReceipt<RecipeDeleteResult>',
+        sourceOfTruth: 'recipes+factoryRuleLearning',
+        riskLevel: 'high',
+        supportsPreview: false,
+    }),
+    'recipes.technical_files.upload': defineBusinessCapability({
+        capabilityId: 'recipes.technical_files.upload',
+        domain: 'recipe',
+        inputSchema: 'POST /api/recipes/:id/technical-files',
+        outputSchema: 'CommandReceipt<RecipeTechnicalFileUploadResult>',
+        sourceOfTruth: 'factory_files+recipe_technical_files',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        timeoutMs: 30_000,
+    }),
+    'recipes.technical_files.delete': defineBusinessCapability({
+        capabilityId: 'recipes.technical_files.delete',
+        domain: 'recipe',
+        inputSchema: 'DELETE /api/recipes/:id/technical-files/:fileId',
+        outputSchema: 'CommandReceipt<RecipeTechnicalFileDeleteResult>',
+        sourceOfTruth: 'recipe_technical_files',
+        riskLevel: 'medium',
+        supportsPreview: false,
+    }),
+    'drawings.rotor.save_parameters': defineBusinessCapability({
+        capabilityId: 'drawings.rotor.save_parameters',
+        domain: 'drawing',
+        inputSchema: 'POST /api/rotor/save',
+        outputSchema: 'CommandReceipt<RotorParameterSaveResult>',
+        sourceOfTruth: 'rotorParameters+rotor_drawings',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+    }),
+    'drawings.rotor.rename_history': defineBusinessCapability({
+        capabilityId: 'drawings.rotor.rename_history',
+        domain: 'drawing',
+        inputSchema: 'PATCH /api/rotor/history/:id/name',
+        outputSchema: 'CommandReceipt<RotorHistoryRenameResult>',
+        sourceOfTruth: 'rotor_drawings',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'drawings.rotor.link_history': defineBusinessCapability({
+        capabilityId: 'drawings.rotor.link_history',
+        domain: 'drawing',
+        inputSchema: 'PATCH /api/rotor/history/:id/link',
+        outputSchema: 'CommandReceipt<RotorHistoryLinkResult>',
+        sourceOfTruth: 'rotor_drawings',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+    }),
+    'drawings.rotor.delete_history': defineBusinessCapability({
+        capabilityId: 'drawings.rotor.delete_history',
+        domain: 'drawing',
+        inputSchema: 'DELETE /api/rotor/history/:id',
+        outputSchema: 'CommandReceipt<RotorHistoryDeleteResult>',
+        sourceOfTruth: 'rotor_drawings+public/drawings',
+        riskLevel: 'medium',
+        supportsPreview: false,
+        transactionality: 'business_delete_audit_and_operation_receipt_atomic_then_idempotent_file_cleanup',
+    }),
+    'drawings.rotor.generate_pdf': defineBusinessCapability({
+        capabilityId: 'drawings.rotor.generate_pdf',
+        domain: 'drawing',
+        inputSchema: 'POST /api/rotor/draw',
+        outputSchema: 'ExternalCommandReceipt<RotorDrawingJob>',
+        sourceOfTruth: 'rotorParameters+rotor_drawings+FreeCAD',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/rotor/draw-preview',
+        concurrencyControl: 'confirmationToken_bound_input',
+        transactionality: 'operation_and_queued_record_atomic_before_external_side_effect',
+        timeoutMs: 180_000,
+    }),
+    'drawings.rotor.print_pdf': defineBusinessCapability({
+        capabilityId: 'drawings.rotor.print_pdf',
+        domain: 'drawing',
+        inputSchema: 'POST /api/rotor/print/:jobId',
+        outputSchema: 'ExternalCommandReceipt<RotorPrintResult>',
+        sourceOfTruth: 'rotor_drawings+public/drawings+defaultPrinter',
+        riskLevel: 'critical',
+        supportsPreview: true,
+        previewPath: '/api/rotor/print/:jobId/preview',
+        concurrencyControl: 'confirmationToken_bound_resource',
+        transactionality: 'operation_and_audit_recorded_before_external_side_effect',
+        timeoutMs: 45_000,
+    }),
+    'knowledge.sync_derived': defineBusinessCapability({
+        capabilityId: 'knowledge.sync_derived',
+        domain: 'knowledge',
+        inputSchema: 'POST /api/knowledge/sync',
+        outputSchema: 'CommandReceipt<KnowledgeSyncResult>',
+        sourceOfTruth: 'formalBusinessTables+knowledge_entries+knowledge_sync_runs',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/knowledge/sync-preview',
+        concurrencyControl: 'confirmationToken_bound_snapshot',
+        transactionality: 'derived_entries_sync_run_audit_and_operation_receipt_atomic',
+        timeoutMs: 60_000,
+    }),
+    'knowledge.documents.upload': defineBusinessCapability({
+        capabilityId: 'knowledge.documents.upload',
+        domain: 'knowledge',
+        inputSchema: 'POST /api/knowledge/documents',
+        outputSchema: 'CommandReceipt<KnowledgeDocumentUploadResult>',
+        sourceOfTruth: 'factory_files+knowledge_documents',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+        transactionality: 'file_document_audit_and_operation_receipt_atomic',
+        timeoutMs: 30_000,
+    }),
+    'knowledge.documents.delete': defineBusinessCapability({
+        capabilityId: 'knowledge.documents.delete',
+        domain: 'knowledge',
+        inputSchema: 'DELETE /api/knowledge/documents/:id',
+        outputSchema: 'CommandReceipt<KnowledgeDocumentDeleteResult>',
+        sourceOfTruth: 'knowledge_documents',
+        riskLevel: 'medium',
+        supportsPreview: false,
+        transactionality: 'document_delete_audit_and_operation_receipt_atomic',
+    }),
+    'files.upload': defineBusinessCapability({
+        capabilityId: 'files.upload',
+        domain: 'file',
+        inputSchema: 'POST /api/files multipart/form-data',
+        outputSchema: 'CommandReceipt<FactoryFileUploadResult>',
+        sourceOfTruth: 'validated_file_bytes+factory_files',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'content_sha256_deduplication',
+        transactionality:
+            'file_blob_audit_and_operation_receipt_atomic_then_optional_parse',
+        timeoutMs: 60_000,
+    }),
+    'files.parse': defineBusinessCapability({
+        capabilityId: 'files.parse',
+        domain: 'file',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/files/:id/parse',
+        outputSchema: 'CommandReceipt<FactoryFileParseResult>',
+        sourceOfTruth: 'factory_files.file_blob+localParsersAndOcr',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'expectedUpdatedAt+parser_status_lock',
+        transactionality:
+            'processing_state_audit_and_operation_accept_atomic_then_parser_result_audited',
+        timeoutMs: 120_000,
+    }),
+    'files.delete': defineBusinessCapability({
+        capabilityId: 'files.delete',
+        domain: 'file',
+        inputSchema: 'DELETE /api/files/:id',
+        outputSchema: 'CommandReceipt<FactoryFileDeleteResult>',
+        sourceOfTruth:
+            'factory_files+knowledge_recipe_business_and_conversation_references',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality: 'reference_check_soft_delete_audit_and_operation_receipt_atomic',
+    }),
+    'ai.conversations.create': defineBusinessCapability({
+        capabilityId: 'ai.conversations.create',
+        domain: 'ai',
+        inputSchema: 'POST /api/ai/conversations',
+        outputSchema: 'CommandReceipt<AiConversation>',
+        sourceOfTruth: 'ai_conversations',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+        transactionality: 'conversation_audit_and_operation_receipt_atomic',
+    }),
+    'ai.conversations.messages.append': defineBusinessCapability({
+        capabilityId: 'ai.conversations.messages.append',
+        domain: 'ai',
+        inputSchema: 'POST /api/ai/conversations/:id/messages',
+        outputSchema: 'CommandReceipt<AiConversationMessage>',
+        sourceOfTruth: 'ai_conversations+ai_conversation_messages+factory_files',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'message_conversation_summary_audits_and_operation_receipt_atomic',
+    }),
+    'ai.conversations.messages.update_metadata': defineBusinessCapability({
+        capabilityId: 'ai.conversations.messages.update_metadata',
+        domain: 'ai',
+        inputSchema: 'PATCH /api/ai/conversations/:id/messages/:messageId',
+        outputSchema: 'CommandReceipt<AiConversationMessage>',
+        sourceOfTruth: 'ai_conversation_messages',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality: 'message_metadata_audit_and_operation_receipt_atomic',
+    }),
+    'ai.conversations.delete': defineBusinessCapability({
+        capabilityId: 'ai.conversations.delete',
+        domain: 'ai',
+        inputSchema: 'DELETE /api/ai/conversations/:id',
+        outputSchema: 'CommandReceipt<AiConversationDeleteResult>',
+        sourceOfTruth: 'ai_conversations',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality: 'conversation_soft_delete_audit_and_operation_receipt_atomic',
+    }),
+    'ai.evaluations.runs.start': defineBusinessCapability({
+        capabilityId: 'ai.evaluations.runs.start',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/ai/evaluations/runs',
+        outputSchema: 'CommandReceipt<AiEvaluationRunStartResult>',
+        sourceOfTruth:
+            'approved_ai_evaluation_cases+ai_evaluation_runs',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+        transactionality:
+            'superseded_run_new_run_audits_and_operation_receipt_atomic',
+    }),
+    'ai.evaluations.results.record': defineBusinessCapability({
+        capabilityId: 'ai.evaluations.results.record',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/ai/evaluations/runs/:id/results',
+        outputSchema: 'CommandReceipt<AiEvaluationResult>',
+        sourceOfTruth:
+            'live_business_reads+ai_evaluation_cases+ai_evaluation_results',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'expectedUpdatedAt+run_case_unique',
+        transactionality:
+            'evaluation_result_audit_and_operation_receipt_atomic',
+    }),
+    'ai.evaluations.runs.complete': defineBusinessCapability({
+        capabilityId: 'ai.evaluations.runs.complete',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/ai/evaluations/runs/:id/complete',
+        outputSchema: 'CommandReceipt<AiEvaluationRun>',
+        sourceOfTruth:
+            'ai_evaluation_runs+ai_evaluation_results',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'evaluation_summary_audit_and_operation_receipt_atomic',
+    }),
+    'ai.evaluations.cases.review': defineBusinessCapability({
+        capabilityId: 'ai.evaluations.cases.review',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'PATCH /api/ai/evaluations/cases/:id',
+        outputSchema: 'CommandReceipt<AiEvaluationCase>',
+        sourceOfTruth:
+            'ai_evaluation_cases+factory_ai_rules',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'evaluation_case_review_audit_and_operation_receipt_atomic',
+    }),
+    'ai.feedback.submit': defineBusinessCapability({
+        capabilityId: 'ai.feedback.submit',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/ai/feedback',
+        outputSchema: 'CommandReceipt<AiAnswerFeedback>',
+        sourceOfTruth:
+            'ai_conversation_messages+ai_answer_feedback+derived_learning_rule_and_regression_case',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'expectedUpdatedAt_if_feedback_exists',
+        transactionality:
+            'feedback_rule_regression_audits_and_operation_receipt_atomic',
+    }),
+    'ai.feedback.diagnose': defineBusinessCapability({
+        capabilityId: 'ai.feedback.diagnose',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/ai/feedback/:id/diagnose',
+        outputSchema: 'CommandReceipt<AiAnswerFeedback>',
+        sourceOfTruth:
+            'ai_answer_feedback+current_knowledge_sync_state',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'diagnosis_snapshot_audit_and_operation_receipt_atomic',
+    }),
+    'ai.feedback.retest': defineBusinessCapability({
+        capabilityId: 'ai.feedback.retest',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/ai/feedback/:id/retest',
+        outputSchema: 'CommandReceipt<AiAnswerFeedback>',
+        sourceOfTruth:
+            'current_ai_answer_tool_evidence+ai_answer_feedback',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'retest_snapshot_audit_and_operation_receipt_atomic',
+    }),
+    'ai.feedback.review': defineBusinessCapability({
+        capabilityId: 'ai.feedback.review',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'PATCH /api/ai/feedback/:id',
+        outputSchema: 'CommandReceipt<AiAnswerFeedback>',
+        sourceOfTruth: 'ai_answer_feedback',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'feedback_review_audit_and_operation_receipt_atomic',
+    }),
+    'ai.learning_rules.update': defineBusinessCapability({
+        capabilityId: 'ai.learning_rules.update',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema: 'PATCH /api/ai/learning-rules/:id',
+        outputSchema: 'CommandReceipt<FactoryAiRule>',
+        sourceOfTruth:
+            'factory_ai_rules+derived_ai_evaluation_cases',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'learning_rule_regression_case_audits_and_operation_receipt_atomic',
+    }),
+    'ai.factory_profile.update': defineBusinessCapability({
+        capabilityId: 'ai.factory_profile.update',
+        domain: 'ai',
+        operation: 'command',
+        inputSchema: 'PUT /api/ai/system-prompt',
+        outputSchema: 'CommandReceipt<FactoryProfile>',
+        sourceOfTruth: 'config.ai-factory-profile',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'expectedVersion_content_sha256',
+        transactionality:
+            'factory_profile_audit_and_operation_receipt_atomic',
+    }),
+    'quality.recipe_feedback.save': defineBusinessCapability({
+        capabilityId: 'quality.recipe_feedback.save',
+        domain: 'quality',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/quality/recipes/:recipeId/feedback',
+        outputSchema: 'CommandReceipt<RecipeAnalysisFeedback>',
+        sourceOfTruth:
+            'recipes+recipe_analysis_feedback+derived_factory_rule_candidates',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'expectedUpdatedAt_if_feedback_exists',
+        transactionality:
+            'feedback_candidate_events_knowledge_audits_and_operation_receipt_atomic',
+    }),
+    'quality.recipe_feedback.resolve': defineBusinessCapability({
+        capabilityId: 'quality.recipe_feedback.resolve',
+        domain: 'quality',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/quality/recipe-feedback/:id/resolve',
+        outputSchema: 'CommandReceipt<RecipeAnalysisFeedbackResolution>',
+        sourceOfTruth:
+            'current_recipe_analysis+recipe_analysis_feedback+derived_factory_rule_candidates',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'feedback_candidate_events_knowledge_audits_and_operation_receipt_atomic',
+    }),
+    'quality.rule_candidates.refresh': defineBusinessCapability({
+        capabilityId: 'quality.rule_candidates.refresh',
+        domain: 'quality',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/quality/rule-candidates/refresh',
+        outputSchema: 'CommandReceipt<FactoryRuleCandidateRefreshResult>',
+        sourceOfTruth:
+            'recipe_analysis_feedback+recipes+factory_rule_candidates',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+        transactionality:
+            'candidate_events_knowledge_audits_and_operation_receipt_atomic',
+    }),
+    'quality.rule_candidates.review': defineBusinessCapability({
+        capabilityId: 'quality.rule_candidates.review',
+        domain: 'quality',
+        operation: 'maintenance',
+        inputSchema: 'PATCH /api/quality/rule-candidates/:id',
+        outputSchema: 'CommandReceipt<FactoryRuleCandidate>',
+        sourceOfTruth:
+            'factory_rule_candidates+factory_rule_events+derived_knowledge_entry',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'candidate_event_knowledge_audits_and_operation_receipt_atomic',
+    }),
+    'quality.rule_events.restore': defineBusinessCapability({
+        capabilityId: 'quality.rule_events.restore',
+        domain: 'quality',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/quality/rule-events/:id/restore',
+        outputSchema: 'CommandReceipt<FactoryRuleRestoreResult>',
+        sourceOfTruth:
+            'factory_rule_events+current_learning_evidence+factory_rule_candidates+derived_knowledge_entry',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'candidate_restore_event_knowledge_audits_and_operation_receipt_atomic',
+    }),
+    'workbench.execution_runs.record': defineBusinessCapability({
+        capabilityId: 'workbench.execution_runs.record',
+        domain: 'management',
+        operation: 'maintenance',
+        inputSchema: 'POST /api/workbench/execution-runs',
+        outputSchema: 'CommandReceipt<FactoryWorkflowRun>',
+        sourceOfTruth:
+            'factory_workflow_runs_secondary_execution_evidence',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        concurrencyControl: 'not_applicable',
+        transactionality:
+            'workflow_run_retention_audits_and_operation_receipt_atomic',
+    }),
+    'files.archive': defineBusinessCapability({
+        capabilityId: 'files.archive',
+        domain: 'file',
+        inputSchema: 'POST /api/files/:id/archive',
+        outputSchema: 'CommandReceipt<FactoryFileArchiveResult>',
+        sourceOfTruth: 'factory_files+factory_file_links+knowledge_documents',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/files/:id/archive-preview',
+        concurrencyControl: 'confirmationToken_bound_snapshot',
+        transactionality: 'document_link_audit_and_operation_receipt_atomic',
+        timeoutMs: 30_000,
+    }),
+    'files.links.delete': defineBusinessCapability({
+        capabilityId: 'files.links.delete',
+        domain: 'file',
+        inputSchema: 'DELETE /api/files/:id/links/:linkId',
+        outputSchema: 'CommandReceipt<FactoryFileLinkDeleteResult>',
+        sourceOfTruth: 'factory_file_links+confirmed_order_file_references',
+        riskLevel: 'medium',
+        supportsPreview: false,
+        transactionality: 'link_delete_audit_and_operation_receipt_atomic',
+    }),
+});
+
+function domainsByCapabilityName() {
+    const result = new Map();
+    for (const [domain, names] of Object.entries(DOMAIN_CAPABILITY_NAMES)) {
+        for (const name of names) {
+            const domains = result.get(name) || [];
+            if (!domains.includes(domain)) domains.push(domain);
+            result.set(name, domains);
+        }
+    }
+    return result;
+}
+
+function sourceOfTruthFor(name, domains) {
+    const overrides = {
+        build_recipe_bom_draft: 'recipeBomEngine',
+        preview_pump_shell_cost: 'recipeBomEngineAndCostEngine',
+        get_order_knowledge_package: 'orderService',
+        plan_factory_workflow: 'workflowPlanningService',
+        execute_factory_workflow_step: 'formalWorkflowApi',
+        inspect_quotation_file: 'quotationFileParser',
+        build_quotation_draft: 'quotationService',
+        build_order_draft: 'orderService',
+    };
+    if (overrides[name]) return overrides[name];
+    if (name === 'adjust_coil_stock') return 'coilInventory';
+    if (name === 'generate_rotor_drawing' || name === 'print_rotor_drawing') {
+        return 'rotorServiceAndDevice';
+    }
+    if (domains.includes('cost')) return 'costEngine';
+    if (domains.includes('knowledge')) return 'knowledgeIndex';
+    if (domains.includes('order')) return 'orderService';
+    if (domains.includes('quotation')) return 'quotationService';
+    if (domains.includes('recipe')) return 'recipeService';
+    if (domains.includes('catalog')) return 'partsService';
+    if (domains.includes('coil')) return 'coilService';
+    if (domains.includes('quality')) return 'qualityService';
+    if (domains.includes('file')) return 'factoryFileService';
+    return 'formalApi';
+}
+
+function dataModeFor(name) {
+    if (LIVE_CAPABILITY_NAMES.has(name)) return 'live';
+    if (DERIVED_CAPABILITY_NAMES.has(name)) return 'derived';
+    return 'stable';
+}
+
+function riskLevelFor(name, access) {
+    if (access === 'read') return 'low';
+    if (CRITICAL_CAPABILITY_NAMES.has(name)) return 'critical';
+    if (MEDIUM_CAPABILITY_NAMES.has(name)) return 'medium';
+    return 'high';
+}
+
+function timeoutFor(name) {
+    if (name === 'generate_rotor_drawing') return 120_000;
+    if (name === 'print_rotor_drawing') return 45_000;
+    if (name === 'sync_factory_knowledge') return 60_000;
+    if (name === 'archive_factory_file') return 30_000;
+    return 15_000;
+}
+
+function buildRegistry() {
+    const registry = {};
+    for (const [name, domains] of domainsByCapabilityName()) {
+        const access = WRITE_CAPABILITY_NAMES.has(name) ? 'write' : 'read';
+        const operation = access === 'write'
+            ? 'command'
+            : PREVIEW_CAPABILITY_NAMES.has(name)
+                ? 'preview'
+                : 'query';
+        const externalSideEffect = EXTERNAL_SIDE_EFFECT_CAPABILITY_NAMES.has(name);
+        const formalCapabilityIds = AI_FORMAL_CAPABILITY_IDS[name] || [];
+        const formalCapabilities = formalCapabilityIds
+            .map(capabilityId => BUSINESS_CAPABILITY_REGISTRY[capabilityId])
+            .filter(Boolean);
+        if (access === 'write' && formalCapabilityIds.length === 0) {
+            throw new Error(`AI 写能力 ${name} 未关联正式业务能力`);
+        }
+        if (formalCapabilities.length !== formalCapabilityIds.length) {
+            const missing = formalCapabilityIds.filter(
+                capabilityId => !BUSINESS_CAPABILITY_REGISTRY[capabilityId]
+            );
+            throw new Error(`AI 能力 ${name} 关联了未登记正式能力: ${missing.join(', ')}`);
+        }
+        const primaryFormalCapability = formalCapabilities[0] || null;
+        const supportsPreview = PREVIEW_CAPABILITY_NAMES.has(name)
+            || formalCapabilities.some(capability => capability.supportsPreview);
+        const concurrencyControl = name === 'update_part'
+            ? 'exclusive_input_mode_expectedUpdatedAt_or_confirmationToken_bound_inventory_snapshot'
+            : primaryFormalCapability?.concurrencyControl;
+        const transactionality = name === 'update_part'
+            ? 'single_formal_command_per_invocation_mixed_metadata_and_inventory_rejected'
+            : primaryFormalCapability?.transactionality;
+        registry[name] = Object.freeze({
+            capabilityId: `ai.${name}`,
+            toolName: name,
+            displayName: AI_CAPABILITY_DISPLAY_NAMES[name] || name,
+            executorKey: AI_EXECUTOR_BY_CAPABILITY_NAME[name] || null,
+            domain: domains[0],
+            domains: Object.freeze([...domains]),
+            inputSchema: `AI_TOOLS.${name}.parameters`,
+            outputSchema: `executor.${name}.result`,
+            access,
+            operation,
+            sourceOfTruth: sourceOfTruthFor(name, domains),
+            dataMode: dataModeFor(name),
+            resultProvenance: LIVE_BUSINESS_EVIDENCE_NAMES.has(name)
+                ? Object.freeze({
+                    kind: 'live_business',
+                    label: '实时业务数据',
+                })
+                : null,
+            riskLevel: riskLevelFor(name, access),
+            requiresConfirmation: access === 'write',
+            supportsPreview,
+            formalCapabilityIds: Object.freeze([...formalCapabilityIds]),
+            formalPreviewPaths: Object.freeze(formalCapabilities
+                .map(capability => capability.previewPath)
+                .filter(Boolean)),
+            idempotency: access === 'read'
+                ? 'inherent'
+                : primaryFormalCapability.idempotency,
+            concurrencyControl: access === 'read'
+                ? 'not_applicable'
+                : concurrencyControl
+                    || (name === 'create_order' || name === 'create_recipe'
+                        ? 'not_applicable'
+                        : name === 'refresh_factory_rule_candidates'
+                            ? 'not_applicable'
+                        : name === 'adjust_coil_stock'
+                            ? 'confirmationToken_bound_inventory_snapshot'
+                        : name === 'archive_factory_file'
+                            ? 'confirmationToken_bound_snapshot'
+                        : 'expectedUpdatedAt'),
+            transactionality: access === 'read'
+                ? 'not_applicable'
+                : transactionality
+                    || (externalSideEffect
+                        ? 'external_side_effect_requires_operation_state'
+                        : 'business_write_audit_and_operation_receipt_atomic'),
+            audit: access === 'read'
+                ? 'none'
+                : primaryFormalCapability.audit
+                    || 'strong_audit_linked_by_operation_request_and_capability',
+            timeoutMs: timeoutFor(name),
+            deprecated: false,
+            contractStatus: 'current',
+        });
+    }
+    return Object.freeze(registry);
+}
+
+const AI_CAPABILITY_REGISTRY = buildRegistry();
+
+function getAiCapability(name) {
+    return AI_CAPABILITY_REGISTRY[String(name || '')] || null;
+}
+
+function getBusinessCapability(capabilityId) {
+    return BUSINESS_CAPABILITY_REGISTRY[String(capabilityId || '')] || null;
+}
+
+function requireBusinessCapability(capabilityId) {
+    const capability = getBusinessCapability(capabilityId);
+    if (!capability) {
+        throw new Error(`正式业务能力未登记: ${String(capabilityId || '')}`);
+    }
+    return capability;
+}
+
+function listBusinessCapabilities() {
+    return Object.values(BUSINESS_CAPABILITY_REGISTRY);
+}
+
+function listAiCapabilities() {
+    return Object.values(AI_CAPABILITY_REGISTRY);
+}
+
+function writeCapabilityNames() {
+    return listAiCapabilities()
+        .filter(capability => capability.access === 'write')
+        .map(capability => capability.toolName);
+}
+
+function assertAiToolRegistryComplete(aiTools = []) {
+    const toolNames = new Set((Array.isArray(aiTools) ? aiTools : [])
+        .map(tool => tool?.function?.name)
+        .filter(Boolean));
+    const registeredNames = new Set(Object.keys(AI_CAPABILITY_REGISTRY));
+    const missing = [...toolNames].filter(name => !registeredNames.has(name));
+    const orphaned = [...registeredNames].filter(name => !toolNames.has(name));
+    if (missing.length || orphaned.length) {
+        throw new Error(
+            `AI 能力注册表不完整: missing=[${missing.join(', ')}], orphaned=[${orphaned.join(', ')}]`
+        );
+    }
+    const invalidMetadata = listAiCapabilities()
+        .filter(capability => (
+            !capability.displayName
+            || capability.displayName === capability.toolName
+            || !AI_EXECUTOR_CAPABILITY_NAMES[capability.executorKey]
+        ))
+        .map(capability => capability.toolName);
+    if (invalidMetadata.length > 0) {
+        throw new Error(`AI 能力注册表执行元数据不完整: [${invalidMetadata.join(', ')}]`);
+    }
+    return true;
+}
+
+module.exports = {
+    AI_CAPABILITY_REGISTRY,
+    BUSINESS_CAPABILITY_REGISTRY,
+    DOMAIN_CAPABILITY_NAMES,
+    assertAiToolRegistryComplete,
+    getAiCapability,
+    getBusinessCapability,
+    listAiCapabilities,
+    listBusinessCapabilities,
+    requireBusinessCapability,
+    writeCapabilityNames,
+};

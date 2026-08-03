@@ -1,34 +1,119 @@
-# API 开发 SOP
+# API 变更 SOP
 
-> 更新于 2026-07-21。
+> 更新于 2026-08-03。
 
-本 SOP 是本项目后续新增、修改 API 的强制流程。所有 API 变更都要先按本文自查，再提交代码。
+本文只规定 API 从设计到发布的强制流程。所有能力必须先遵守 [API 统一契约](./api-contract.md)；当前 Method、Path、请求和响应统一维护在 [API 接口总表](./api-reference.md)。
 
-当前业务说明见 [README.md](./README.md)，完整接口地图和真实调用语义见 [api-reference.md](./api-reference.md)。当前 API 已完成主契约收口；新增 API 不得复刻历史兼容写法。
+本 SOP 是项目默认工作流。只要改动涉及 HTTP 路由、AI tool、内部 maintenance、API client、请求/响应字段、兼容或废弃入口，就自动适用，无须需求方再次声明“按 API SOP 执行”。
 
-## 1. 路由命名
+文档职责：
 
-- 资源型接口使用复数名词：`/api/parts`、`/api/recipes`、`/api/orders`。
-- 单条资源操作必须带路径 id：
-  - `GET /api/resources/:id`
-  - `PATCH /api/resources/:id`
-  - `DELETE /api/resources/:id`
-- 批量操作必须显式命名，不要伪装成普通 CRUD：
-  - `POST /api/parts/batch-stock`
-  - `POST /api/resources/batch-delete`
-- 业务动作使用清晰动词或业务名词：
-  - `POST /api/cost/parts`
-  - `POST /api/recipes/model-variant-draft`
-  - `GET /api/recipes/:id/cost`
-  - `POST /api/recipes/:id/cost-preview`
-  - `POST /api/cost/full-estimate`
-- 表单草稿类接口必须放在所属资源下，并明确是否写库；例如 `POST /api/recipes/model-variant-draft` 只生成配方草稿，不创建配方。
-- 新接口不要使用含糊命名或旧命名风格，如 `calculate`、`dynamic-config`、`full-calculate`。
-- 已删除的旧入口不得恢复，包括 `/api/cost/calculate`、`/api/cost/recipe/:id`、`/api/cost/dynamic-calculate`、`/api/cost/dynamic-config`、`/api/cost/full-calculate`。
+- `api-contract.md`：永久规则，回答“API 必须怎样工作”。
+- `api-sop.md`：本流程，回答“API 变更必须怎样完成”。
+- `api-reference.md`：当前事实，回答“现在有哪些 API、怎样调用”。
+- `api-architecture-audit.md`：阶段性审核，回答“现状有哪些债务、先改什么”。
 
-## 2. 响应格式
+当前核心 API 已完成统一契约收口。新增或修改能力不得绕过能力登记和自动化契约；发现历史兼容偏离时，按小批次保持原路径兼容并在审核报告登记风险和移除条件。
 
-所有 JSON API 必须统一响应结构。
+## 1. 变更前：确认真实范围
+
+开始设计前必须检查：
+
+1. `git status --short --branch`，确认分支和未提交改动。
+2. 搜索真实调用方：
+   - `apps/web-next/`
+   - `api/routes/ai/` 和 executors
+   - `wechat-miniprogram/`
+   - Siri、内部服务、脚本和测试
+3. 阅读相关 route、service、数据库表、迁移、测试和文档。
+4. 确认是否已有相同或可复用能力，禁止为了调用方便复制业务逻辑。
+5. 成本相关先确认能否复用 `costEngine`；库存、订单、报价和配方必须确认正式 sourceOfTruth。
+
+不允许仅凭路由文件名判断“没有调用方”或“可以删除”。
+
+## 2. 设计前：填写能力契约
+
+每个新增或修改能力必须先写清：
+
+```text
+capabilityId:
+displayName:（AI tool 或面向用户的计划/确认能力必填）
+executorKey:（AI tool 必填：cost | query | order | recipe | business）
+resultProvenance:（AI tool 需要声明实时正式事实时填写；否则 null）
+domain:
+method/path 或 INTERNAL trigger:
+access: query | command | preview | maintenance
+callers:
+sourceOfTruth:
+inputSchema/outputSchema:
+riskLevel:
+requiresConfirmation:
+supportsPreview:
+idempotency:
+concurrencyControl:
+transactionality:
+audit:
+timeoutMs:
+deprecated:
+```
+
+能力注册表已经上线于 `api/capabilities/registry.cjs`：AI tools 和已迁移正式 command 必须先修改注册表，再由测试核对 route、service、AI tool 和文档。AI tool 的 `displayName`、唯一 `executorKey` 和结果 `resultProvenance` 同样只在注册表维护，计划、确认卡片、总 executor 和其他调用方必须读取对应字段。领域 executor 不得再导出或维护工具名单。尚未迁移的历史接口在本次改造前至少把完整属性写入 `api-reference.md`；一旦抽成正式 service/command，必须同时进入代码注册表，不能继续只登记在文档。
+
+无公开 HTTP 路径的受控定时任务使用 `INTERNAL <稳定触发器名称>` 作为 `inputSchema`，并登记 internal caller；不得为通过契约校验而虚构路由。若 maintenance 改变正式业务事实，持久化幂等、强审计和 operation 回执要求与 HTTP command 相同。
+
+设计检查：
+
+- Query 是否真正无副作用。
+- Command 是否需要 preview、confirmationToken、idempotencyKey、expectedVersion、事务和强审计。
+- AI tool 是否登记唯一 executorKey；其正式结果若是实时业务事实，是否登记正确 resultProvenance，且没有第二份分发或 provenance 名单。
+- 是否由领域 service 实现，而不是继续增加胖 route。
+- 是否保持现有路径、请求和响应兼容。
+- AI、Web、微信和 Siri 是否都能复用同一正式能力。
+
+## 3. 实现顺序
+
+按以下顺序实施：
+
+1. 增加或调整 input/output schema 与 validation。
+2. 实现或调整 query/command/preview service。
+3. 为跨表写入建立 `db.transaction()`。
+4. 使用 `safeInsert()`、`safeUpdate()`、`softDelete()` 或 `hardDelete()`。
+5. 为 high/critical 命令实现幂等、版本检查、确认和标准回执。
+6. route 只接入鉴权、兼容适配、校验、service 和响应。
+7. AI executor 通过 internal API client 调正式 API。
+8. Web client 通过 `proxyRequest()`、`proxyFetch()` 或 `proxyStreamFetch()`。
+9. 写操作成功后，页面重新读取正式资源。
+
+禁止：
+
+- AI executor 直接访问 DB helper 或生成 SQL。
+- 页面、route 和 executor 各自实现成本、库存或状态机。
+- Query 中写回“修正后数据”、审计、缓存或知识同步队列。
+- 动态拼接 SQL 表名、列名、SET 或 WHERE。
+- 使用 `Number(value) || default` 吞掉非法数字。
+
+## 4. 路由和字段规则
+
+- 资源路径使用复数名词，如 `/api/orders`。
+- 单资源读取、更新和删除使用 `/:id`。
+- 批量和业务动作显式命名，如 `/batch-stock`、`/:id/convert`。
+- 草稿和预览明确使用 `draft` 或 `preview`，并写明不写库。
+- 新接口禁止含糊命名，如 `do-action`、`process` 或没有业务对象的 `calculate`。
+- API 请求与响应使用 camelCase；数据库保持 snake_case。
+- 核心资源输出 `id/createdAt/updatedAt`。
+- 历史 `Id/CreatedAt/UpdatedAt` 只能停留在兼容 adapter。
+- 前端类型和页面不得新增 snake_case、`Id`、`CreatedAt` 或 `UpdatedAt`。
+- 历史 `paintingWage`、`boxType` 只用于旧记录兼容；正式字段使用 `surfaceTreatmentMode`、`surfaceTreatmentCost` 和 `packingPartsJson`。
+
+已删除的旧成本 alias 不得恢复，包括：
+
+- `/api/cost/calculate`
+- `/api/cost/recipe/:id`
+- `/api/cost/dynamic-calculate`
+- `/api/cost/dynamic-config`
+- `/api/cost/full-calculate`
+
+## 5. 响应与错误
 
 成功：
 
@@ -42,196 +127,109 @@
 { "success": false, "error": "错误信息" }
 ```
 
-规则：
+新增或重构接口应同时提供稳定 `code` 和 `requestId`。创建必须返回完整资源或 `{ id, version }`；high/critical 命令必须返回 `operationId`、`changes`、`warnings`、`auditId` 和幂等重放状态。
 
-- 列表也必须包在 `data` 中：`{ success: true, data: [] }`。
-- 创建成功返回完整新记录或 `{ success: true, data: { id } }`，不得返回顶层 `id`。
-- 不允许同一模块里混用裸数组、顶层 `id`、顶层 `unitCost` 或 `{ status, message }`。
-- 前端 `proxyRequest()` 负责透传服务端 `error`，后端错误信息要可读。
+输入错误不能返回 `500`；版本或状态冲突使用 `409`，业务规则不满足使用 `422`。
 
-## 3. 字段命名
+## 6. 兼容、废弃和删除
 
-- 数据库列名保持 `snake_case`。
-- 后端 Row Adapter 对外标准输出必须是 `camelCase`。
-- 前后端 API 契约必须使用 `camelCase`。
-- 前端类型定义不得新增 `snake_case` 字段。
-- 新增字段不得使用 `Id/CreatedAt/UpdatedAt` 或 snake_case。
-- 现有核心资源的 `Id/CreatedAt/UpdatedAt` 只是历史响应字段；新增页面必须通过 `apps/web-next/lib/api.ts` 的 entity helper 读取 ID/时间。
-- 旧字段迁移时允许短期双字段输出，但必须标注为 legacy、限定清理条件，并在 API client 做 normalize。
+修改现有 API 时：
 
-示例：
+1. 优先在原路径内保持兼容。
+2. 必须新增路径时，先增加标准接口。
+3. 将 Web、AI、微信、Siri 和内部调用迁移到标准接口。
+4. 在 `api-reference.md` 标记旧入口 `deprecated`、替代能力和删除条件。
+5. 增加调用遥测或完成全仓库调用方核对。
+6. 至少经过一个兼容周期后再删除。
+7. 增加防止旧入口回流的静态契约测试。
 
-```js
-function recipeRow(r) {
-  return {
-    id: r.id,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    partsJson: r.parts_json,
-    savedTotalCost: r.saved_total_cost,
-    templateId: r.template_id,
-  };
-}
+不得擅自删除 voice、model-variants 等历史能力；必须先证明没有真实调用方和外部兼容依赖。
+
+兼容字段只能位于后端 route adapter 和 `apps/web-next/lib/` normalize 层，禁止扩散到 service 和页面状态。
+
+## 7. 文档同步
+
+每次 API 变更必须同步：
+
+- `docs/api-reference.md`
+  - Method 和 Path
+  - capabilityId、access、sourceOfTruth、riskLevel；AI tool 同时说明 executorKey 和 resultProvenance
+  - 调用方
+  - 请求和响应
+  - 事务、幂等、版本、确认、审计和超时
+  - 兼容或 deprecated 状态
+- `docs/README.md`
+  - 仅在稳定业务边界或系统入口变化时更新
+- `docs/api-contract.md`
+  - 仅在全局规则变化时更新
+- `docs/api-architecture-audit.md`
+  - 仅在整改状态或优先级变化时更新
+
+版本过程说明不得继续堆入 `docs/README.md` 或 `api-reference.md`。
+
+不得为单次版本或阶段新增 `vN-user-guide`、临时迁移说明、状态清单或重复脑图。仍有效的业务规则归入 `business-flow.md`，API 事实归入 `api-reference.md`，架构风险归入 `api-architecture-audit.md`，实施过程由 Git 历史保存。
+
+接口代码、能力登记、文档和测试任一缺失，变更都不算完成。
+
+## 8. 自动化测试
+
+每次 API 变更至少执行：
+
+```text
+node --check <修改过的 cjs>
+聚焦单元/API/SQLite 测试
+npm run verify:api-contract
+npm test
 ```
 
-## 4. 写库安全
+涉及正式业务 API 或数据库：
 
-- 正式业务资源新增必须使用 `safeInsert(table, values)`。
-- 所有动态 UPDATE 必须使用 `safeUpdate(table, id, updates)`。
-- 删除业务数据优先使用 `softDelete(table, id)`，除非该表明确是临时表或日志表。
-- `safeInsert` / `safeUpdate` 表名必须在 `SAFE_TABLES` 白名单内，字段名必须是 snake_case 数据库列名。
-- `safeInsert` 会过滤 `undefined` 字段，写入后自动记录 `INSERT` 审计日志。
-- 禁止在业务路由、AI executor 中直接拼写资源表 `INSERT INTO parts/orders/recipes/...`：
-
-```js
-// 禁止
-db.prepare('INSERT INTO parts (...) VALUES (...)').run(...values);
+```text
+npm run test:deep-api
 ```
 
-```js
-// 必须
-safeInsert('parts', {
-  model,
-  category,
-  price,
-  created_at: now,
-  updated_at: now,
-});
+涉及 Web 请求或类型：
+
+```text
+npm run build
 ```
 
-- 禁止拼接动态 SET：
+发布前：
 
-```js
-// 禁止
-db.prepare(`UPDATE parts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+```text
+npm run verify:release
 ```
 
-```js
-// 必须
-safeUpdate('parts', id, updates);
-```
+强制覆盖：
 
-- 写操作不需要手写 audit log，`safeInsert` / `safeUpdate` / `softDelete` / `hardDelete` 会处理。
-- 系统初始化、`system_settings` / `config` 的 UPSERT 属于基础设施边界；新增业务资源表不得以此为例绕过 `safeInsert`。
+- 每个 route Method + Path 都出现在 `api-reference.md`。
+- Query 前后业务表、审计表和同步队列没有变化。
+- Command 校验失败和事务中途失败不留下部分写入。
+- idempotencyKey 重放、冲突和并发版本冲突。
+- confirmationToken 篡改、过期、换主体和重复使用。
+- AI tool 的 read/write/risk/confirmation 与 capability 一致。
+- `costEngine` 与所有正式成本入口一致。
+- 旧路径和响应兼容。
+- 前端没有新增裸 `fetch()`。
 
-## 5. 入参校验
+## 9. 提交前自查
 
-每个写接口必须校验：
+- [ ] 已检查 Git 分支、工作区和真实调用方。
+- [ ] 已自动按本 SOP 执行，无需依赖需求方提醒。
+- [ ] 已填写完整能力契约。
+- [ ] Query 确认无写副作用。
+- [ ] Command 已按风险实现事务、幂等、版本、确认和审计。
+- [ ] route 只负责边界工作，业务逻辑在 service。
+- [ ] AI/微信/Siri 复用正式 API。
+- [ ] 正式成本只由 `costEngine` 计算。
+- [ ] 动态写入使用 safe helper。
+- [ ] Web 请求使用 proxyRequest 系列。
+- [ ] `api-reference.md` 已更新。
+- [ ] 聚焦测试、`npm test` 和适用的深度测试/构建通过。
+- [ ] 兼容影响、回滚方式和残余风险已记录。
 
-- `:id` 是正整数。
-- 金额、数量、单价、库存变更是有效数字。
-- 不能为负的字段必须拒绝负数。
-- `settings` 类接口必须走 key 白名单。
-- JSON 字符串字段必须能被解析，或在写入前由后端统一序列化。
-- 批量接口入参也必须使用标准 camelCase 字段，例如库存接口只接受 `partId`，不得兜底 `id/Id`。
-- 成本基础资料写接口不得使用裸 `parseFloat()` / `parseInt()` 吞掉坏输入；必须使用 `parseFiniteNumber()` 或 `parseNonNegativeNumber()`。
-- 订单、报价、配方保存草稿中的金额、数量、单价、利润率也必须使用统一数字 helper；不得使用 `Number(value) || 默认值` 吞掉坏输入。
-- JSON 字段写库前必须使用 `stringifyJsonArray()` / `stringifyJsonObject()`，不得直接信任前端传入的 JSON 字符串。
+## 10. 例外
 
-常用 helper：
+不能满足 [API 统一契约](./api-contract.md) 时，必须在同一变更中登记偏离条款、业务原因、风险、替代保护、到期条件和移除计划。
 
-```js
-const {
-  parsePositiveId,
-  requirePositiveId,
-  parseFiniteNumber,
-  parseNonNegativeNumber,
-  parsePositiveNumber,
-  parseNonNegativeInteger,
-  parseJsonArray,
-  stringifyJsonArray,
-  stringifyJsonObject,
-} = require('../services/validation.cjs');
-```
-
-核心路由不得再自定义 `parseId()`，也不得直接对 `req.params.id` 使用 `parseInt()` 或 `Number()`。
-
-## 6. 鉴权
-
-- `/api/auth/login`、`/api/auth/check`、`/api/health` 可以公开。
-- 其他 `/api/*` 默认必须走 JWT Cookie 鉴权。
-- AI、Siri、语音类接口如果公开，必须有独立 token 或内部 secret。
-- 修改 AI system prompt、配置项、写库工具等高风险接口必须鉴权。
-- 内部调用使用 `x-internal-secret`，不得依赖来源 IP 判断权限。
-
-## 7. 前端请求
-
-- 前端禁止裸 `fetch()`，统一使用 `proxyRequest()` / `proxyFetch()` / `proxyStreamFetch()`。
-- 常规 JSON 使用 `proxyRequest()`。
-- SSE 和流式响应使用 `proxyStreamFetch()`；文件响应可用 `proxyFetch()`。
-- 表单上传使用 `proxyRequest()` 并传入 `FormData`，公共 client 会保留浏览器生成的 multipart boundary。
-- 前端执行增删改后必须重新拉取对应资源，不能只更新本地派生状态。
-
-## 8. 成本接口
-
-成本接口以业务语义命名：
-
-- `POST /api/cost/parts`：按配件数组计算。
-- `GET /api/recipes/:id/cost`：按配方计算。
-- `POST /api/recipes/:id/cost-preview`：基于配方和 overrides 试算。
-- `POST /api/cost/full-estimate`：一站式估算，供 AI/N8N/外部自动化使用。
-
-成本逻辑要求：
-
-- 后端是单次成本计算权威来源。
-- `api/services/costEngine.cjs` 是通用成本规则服务层，`api/db.cjs:calculateRecipeCost` 仅保留兼容导出。
-- 前端不得新增独立正式成本计算口径；保存、报价、订单必须以后端 API 结果为准。
-- 成本返回必须包含可追溯明细，不只返回总价。
-
-## 9. 修改现有 API
-
-修改已有 API 时按以下顺序：
-
-1. 新增规范接口。
-2. 前端 API client 切到新接口。
-3. 文档标记旧接口 deprecated，并给出删除条件。
-4. 确认无前端、AI、微信小程序或外部自动化调用后删除旧接口。
-5. 增加静态契约测试，禁止旧入口或旧响应格式回流。
-
-当前已经删除的旧入口不得重新作为兼容层恢复；如外部调用方需要迁移，应在调用方适配标准入口。
-
-## 10. 死代码清理
-
-API 变更完成后必须同步清理：
-
-- 被删除路由对应的前端调用、AI internalFetch、文档兼容表和测试兜底。
-- API client 中不再需要的裸数组响应兼容、顶层 `id` 兼容、旧成本入口常量。
-- 路由中不再需要的 `id/Id` 兜底读取。
-- 与删除接口只相关的注释、TODO 和状态文档。
-
-## 11. 验收清单
-
-每次 API 变更必须完成：
-
-- `node --check` 检查修改过的 `.cjs` 文件。
-- `npm run build` 检查前端类型和构建。
-- 搜索确认没有裸 `fetch()`。
-- 搜索确认没有新增动态 `UPDATE ... SET ${...}`。
-- 写接口确认新增使用 `safeInsert`，更新使用 `safeUpdate`，删除使用 `softDelete` / `hardDelete`。
-- 新增/修改接口确认响应格式为 `{ success, data/error }`。
-- 前端调用确认走 `proxyRequest()`。
-- 若移除旧接口，确认 `tests/apiStaticContract.test.cjs` 有防回退断言。
-- 新增、修改、废弃或调整兼容层后，必须同步更新 `docs/api-reference.md`。
-- 如果 API 变更影响业务流程、核心接口概览或已知边界，必须同步更新 `docs/README.md`。
-
-## 12. 文档要求
-
-新增、修改、废弃 API 或调整旧接口兼容层时，必须同时更新接口文档：
-
-- API 路径和方法。
-- 是否需要鉴权。
-- 请求体字段。
-- 成功响应示例。
-- 失败响应示例。
-- 是否替换或删除了旧接口。
-
-接口文档统一维护在 `docs/api-reference.md`；业务/API 概览维护在 `docs/README.md`。接口没有文档，或文档没有跟随代码更新，不视为完成。
-
-## 13. 历史兼容边界
-
-- 核心资源响应中的 `Id`、`CreatedAt`、`UpdatedAt` 仅供旧调用兼容；新代码只使用 `id`、`createdAt`、`updatedAt`。
-- 配方、订单、模板和型号变体仍可在后端边界兼容少量 snake_case 入参；Web 类型与页面必须保持 camelCase。
-- 旧字段转换只能放在 `apps/web-next/lib/` 的 normalize 或 row adapter 中，禁止进入页面状态和新组件类型。
-- `paintingWage`、`boxType` 只允许作为旧记录读取回退；正式字段使用 `surfaceTreatmentMode`、`surfaceTreatmentCost` 和 `packingPartsJson`。
-- `GET /api/recipes/:id/cost` 只提供当前配件参考价，不能替代完整成本或报价试算。
-- 删除兼容层前必须搜索 Web、AI、微信小程序和外部入口，并执行 `npm run verify:release`。
+“旧代码也是这样”“当前只有一个用户”“以后再补”不能作为长期例外。

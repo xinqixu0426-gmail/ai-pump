@@ -84,6 +84,19 @@ test('AI 工具路由：报价转订单包含计划与受保护执行器', () =>
     assert.ok(result.toolNames.length <= DEFAULT_MAX_TOOLS);
 });
 
+test('AI 工具路由：转子出图与打印被识别为需要确认的写意图', () => {
+    const drawing = route('帮我生成转子图纸');
+    assert.equal(drawing.writeIntent, true);
+    assert.ok(drawing.domains.includes('drawing'));
+    assert.ok(drawing.toolNames.includes('generate_rotor_drawing'));
+    assert.equal(AI_TOOL_METADATA.generate_rotor_drawing.requiresConfirmation, true);
+
+    const printing = route('打印上一张转子图纸');
+    assert.equal(printing.writeIntent, true);
+    assert.ok(printing.toolNames.includes('print_rotor_drawing'));
+    assert.equal(AI_TOOL_METADATA.print_rotor_drawing.riskLevel, 'critical');
+});
+
 test('AI 工具路由：确定性预取工具必须进入模型工具集合', () => {
     const result = route('订单12现在怎么样', {
         requiredToolNames: ['get_order_detail', 'search_factory_knowledge'],

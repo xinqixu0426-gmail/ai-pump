@@ -56,6 +56,7 @@ import {
   recordAiEvaluationResult,
   recordAiAnswerFeedbackRetest,
   reviewAiAnswerFeedback,
+  reviewAiEvaluationCase,
   streamAiChat,
   updateFactoryAiRule,
   type AiAnswerFeedback,
@@ -200,6 +201,7 @@ export function KnowledgeView({
   const [documentSaving, setDocumentSaving] = useState(false);
   const [documentError, setDocumentError] = useState('');
   const [deleteDocumentId, setDeleteDocumentId] = useState<number | null>(null);
+  const [deleteDocumentVersion, setDeleteDocumentVersion] = useState<string | null>(null);
   const [documentDeleting, setDocumentDeleting] = useState(false);
   const [feedback, setFeedback] = useState<AiAnswerFeedbackList | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(true);
@@ -214,6 +216,7 @@ export function KnowledgeView({
   const [evaluationRunning, setEvaluationRunning] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState({ completed: 0, total: 0, title: '' });
   const [evaluationError, setEvaluationError] = useState('');
+  const [reviewingEvaluationCaseId, setReviewingEvaluationCaseId] = useState<number | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolving, setResolving] = useState(false);
   const [feedbackAttachmentId, setFeedbackAttachmentId] = useState<number | null>(null);
@@ -456,8 +459,12 @@ export function KnowledgeView({
     setDocumentDeleting(true);
     setDocumentError('');
     try {
-      await deleteKnowledgeDocument(deleteDocumentId);
+      await deleteKnowledgeDocument(
+        deleteDocumentId,
+        deleteDocumentVersion,
+      );
       setDeleteDocumentId(null);
+      setDeleteDocumentVersion(null);
       setSelected(null);
       setDetail(null);
       await new Promise(resolve => window.setTimeout(resolve, 450));
@@ -578,6 +585,20 @@ export function KnowledgeView({
       await loadEvaluation();
     } finally {
       setEvaluationRunning(false);
+    }
+  }
+
+  async function reviewEvaluationCase(id: number, reviewStatus: 'approved' | 'rejected') {
+    if (reviewingEvaluationCaseId !== null) return;
+    setReviewingEvaluationCaseId(id);
+    setEvaluationError('');
+    try {
+      await reviewAiEvaluationCase(id, { reviewStatus });
+      await Promise.all([loadEvaluation(), loadFeedback()]);
+    } catch (err) {
+      setEvaluationError(err instanceof Error ? err.message : '纠错回归用例审核失败');
+    } finally {
+      setReviewingEvaluationCaseId(null);
     }
   }
 
@@ -896,13 +917,18 @@ export function KnowledgeView({
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <ShieldCheck size={16} className="text-emerald-600" />
               知识库回归检查
+              {evaluation?.caseStats.feedbackPending ? (
+                <StatusBadge tone="amber">{evaluation.caseStats.feedbackPending} 条待确认</StatusBadge>
+              ) : null}
               {evaluation?.latestRun?.status === 'completed' ? (
                 <StatusBadge tone={evaluation.latestRun.failedCount || evaluation.latestRun.reviewCount ? 'amber' : 'green'}>
                   {evaluation.latestRun.passedCount}/{evaluation.latestRun.totalCount} 通过
                 </StatusBadge>
               ) : null}
             </div>
-            <div className="mt-1 text-xs text-muted">自动复查价格、来源、报告类型、线圈方案、报价序号和成品电缆语义。</div>
+            <div className="mt-1 text-xs text-muted">
+              当前启用 {evaluation?.caseStats.enabled || 0} 项，其中纠错回归 {evaluation?.caseStats.feedbackApproved || 0} 项。
+            </div>
           </div>
           <Button
             variant="primary"
@@ -915,6 +941,60 @@ export function KnowledgeView({
         </div>
         {evaluationError ? (
           <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{evaluationError}</div>
+        ) : null}
+        {evaluation?.feedbackCases.length ? (
+          <div className="border-b border-line">
+            <div className="bg-slate-50 px-4 py-2 text-xs font-medium text-muted">纠错回归用例</div>
+            <div className="divide-y divide-line">
+              {evaluation.feedbackCases.map(item => {
+                const disabledByRule = item.learningRuleStatus === 'disabled';
+                const busy = reviewingEvaluationCaseId === item.id;
+                return (
+                  <div key={item.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-center">
+                    <div>
+                      <StatusBadge tone={
+                        disabledByRule || item.reviewStatus === 'rejected'
+                          ? 'slate'
+                          : item.reviewStatus === 'approved' ? 'green' : 'amber'
+                      }>
+                        {disabledByRule
+                          ? '规则已停用'
+                          : item.reviewStatus === 'approved' ? '已纳入' : item.reviewStatus === 'rejected' ? '未纳入' : '待确认'}
+                      </StatusBadge>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-ink">{item.title}</div>
+                      <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{item.generationNote}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      {item.reviewStatus !== 'approved' && !disabledByRule ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          onClick={() => void reviewEvaluationCase(item.id, 'approved')}
+                          disabled={reviewingEvaluationCaseId !== null}
+                        >
+                          纳入回归
+                        </Button>
+                      ) : null}
+                      {item.reviewStatus !== 'rejected' ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<X size={14} />}
+                          onClick={() => void reviewEvaluationCase(item.id, 'rejected')}
+                          disabled={reviewingEvaluationCaseId !== null}
+                        >
+                          暂不纳入
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : null}
         {evaluationRunning ? (
           <div className="border-b border-line bg-slate-50 px-4 py-3">
@@ -1029,6 +1109,14 @@ export function KnowledgeView({
                       <div className="mt-2 flex items-center gap-2 text-xs text-sky-700">
                         <Brain size={13} />
                         {item.learningRule.status === 'active' ? '已作为长期规则生效' : '长期规则已停用'}
+                      </div>
+                    ) : null}
+                    {item.regressionCase ? (
+                      <div className="mt-1 flex items-center gap-2 text-xs text-emerald-700">
+                        <ShieldCheck size={13} />
+                        {item.regressionCase.enabled
+                          ? '已加入自动回归'
+                          : item.regressionCase.reviewStatus === 'pending' ? '回归案例待确认' : '未加入自动回归'}
                       </div>
                     ) : null}
                     {item.sources.length ? (
@@ -1320,7 +1408,10 @@ export function KnowledgeView({
               {documentError ? <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{documentError}</div> : null}
             </div>
             <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-              <Button variant="ghost" onClick={() => setDeleteDocumentId(null)} disabled={documentDeleting}>取消</Button>
+              <Button variant="ghost" onClick={() => {
+                setDeleteDocumentId(null);
+                setDeleteDocumentVersion(null);
+              }} disabled={documentDeleting}>取消</Button>
               <Button variant="danger" icon={documentDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} onClick={() => void removeDocument()} disabled={documentDeleting}>
                 {documentDeleting ? '删除中' : '确认删除'}
               </Button>
@@ -1523,6 +1614,9 @@ export function KnowledgeView({
                 <Button variant="danger" className="flex-1" icon={<Trash2 size={15} />} onClick={() => {
                   setDocumentError('');
                   setDeleteDocumentId(Number(selected.sourceId));
+                  setDeleteDocumentVersion(
+                    selected.sourceUpdatedAt || detail?.sourceUpdatedAt || null
+                  );
                   setSelected(null);
                 }}>
                   删除资料

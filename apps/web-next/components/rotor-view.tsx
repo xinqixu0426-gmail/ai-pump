@@ -20,6 +20,8 @@ import {
   linkRotorHistory,
   parseRotorParams,
   printRotorDrawing,
+  previewRotorDraw,
+  previewRotorPrint,
   saveRotorParams,
   startRotorDraw,
   type RotorFormData,
@@ -233,7 +235,12 @@ export function RotorView() {
     setError(null);
     setMessage(null);
     try {
-      const result = await startRotorDraw(form, drawingName, drawingText);
+      const preview = await previewRotorDraw(form, drawingName, drawingText);
+      const confirmed = window.confirm(
+        `确认生成「${preview.drawingName || drawingName || '未命名转子图纸'}」？\n确认后将启动 FreeCAD 出图任务。`,
+      );
+      if (!confirmed) return;
+      const result = await startRotorDraw(preview);
       setJobId(result.jobId);
       setJobStatus({ status: 'processing', drawingName: result.drawingName });
       setMessage(result.message || '出图任务已启动');
@@ -274,7 +281,7 @@ export function RotorView() {
     setLinkLoading(true);
     setError(null);
     try {
-      await linkRotorHistory(linkRow.id, target.value);
+      await linkRotorHistory(linkRow, target.value);
       setMessage(`已关联到 ${target.label}`);
       setLinkRow(null);
       await load(true);
@@ -290,7 +297,9 @@ export function RotorView() {
     setError(null);
     setMessage(null);
     try {
-      setMessage(await printRotorDrawing(row.jobId));
+      const preview = await previewRotorPrint(row.jobId);
+      if (!window.confirm(`确认打印「${preview.drawingName || row.drawingName || row.jobId}」？\n将发送到服务器默认打印机。`)) return;
+      setMessage(await printRotorDrawing(preview));
     } catch (err) {
       setError(err instanceof Error ? err.message : '打印失败');
     } finally {
@@ -303,7 +312,7 @@ export function RotorView() {
     setSaving(true);
     setError(null);
     try {
-      await deleteRotorHistory(row.id);
+      await deleteRotorHistory(row);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '删除出图记录失败');

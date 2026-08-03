@@ -224,6 +224,7 @@ function factoryFileRow(row) {
 function storeFactoryFile(input = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, safeInsert, safeUpdate } = accessors;
+    const auditContext = options.auditContext || {};
     const inspected = inspectFactoryFile(input);
     const sourceType = SOURCE_TYPES.has(text(input.sourceType))
         ? text(input.sourceType)
@@ -260,12 +261,13 @@ function storeFactoryFile(input = {}, options = {}) {
                 deleted_at: null,
             });
         }
-        safeUpdate('factory_files', existing.id, updates);
+        const write = safeUpdate('factory_files', existing.id, updates, auditContext);
         return {
             file: factoryFileRow(
                 db.prepare('SELECT * FROM factory_files WHERE id = ?').get(existing.id)
             ),
             deduplicated: true,
+            auditIds: write?.auditId ? [write.auditId] : [],
         };
     }
 
@@ -283,12 +285,13 @@ function storeFactoryFile(input = {}, options = {}) {
         metadata_json: JSON.stringify({ security: inspected.security }),
         created_at: now,
         updated_at: now,
-    });
+    }, auditContext);
     return {
         file: factoryFileRow(
             db.prepare('SELECT * FROM factory_files WHERE id = ?').get(Number(info.lastInsertRowid))
         ),
         deduplicated: false,
+        auditIds: info.auditId ? [info.auditId] : [],
     };
 }
 
@@ -407,7 +410,17 @@ function deleteFactoryFile(id, options = {}) {
         error.statusCode = 409;
         throw error;
     }
-    accessors.softDelete('factory_files', fileId);
+    const write = accessors.softDelete(
+        'factory_files',
+        fileId,
+        options.auditContext
+    );
+    options.onWrite?.(write);
+    return {
+        id: fileId,
+        deleted: true,
+        auditIds: write?.auditId ? [write.auditId] : [],
+    };
 }
 
 module.exports = {

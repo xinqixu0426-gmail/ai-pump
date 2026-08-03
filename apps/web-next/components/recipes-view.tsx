@@ -2299,7 +2299,7 @@ export function RecipesView() {
     setError(null);
     try {
       const input = variantFormToInput(variantForm);
-      if (editingVariant) await updateModelVariant(editingVariant.id, input);
+      if (editingVariant) await updateModelVariant(editingVariant, input);
       else await createModelVariant(input);
       await load(true);
       setVariantDrawerOpen(false);
@@ -2316,7 +2316,7 @@ export function RecipesView() {
     setSaving(true);
     setError(null);
     try {
-      await deleteModelVariant(variant.id);
+      await deleteModelVariant(variant);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '常用配置删除失败');
@@ -2487,7 +2487,7 @@ export function RecipesView() {
     setFormError(null);
     setError(null);
     try {
-      if (editingTemplate) await updateTemplate(editingTemplate.id, input);
+      if (editingTemplate) await updateTemplate(editingTemplate, input);
       else await createTemplate(input);
       await load(true);
       setTemplateDrawerOpen(false);
@@ -2504,7 +2504,7 @@ export function RecipesView() {
     setSaving(true);
     setError(null);
     try {
-      await deleteTemplate(template.id);
+      await deleteTemplate(template);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '泵壳模板删除失败');
@@ -2732,6 +2732,8 @@ export function RecipesView() {
       });
 
       const payload = await buildRecipeSavePayloadDraft({
+        recipeId: editingRecipe?.id,
+        expectedUpdatedAt: editingRecipe?.updatedAt,
         form: {
           name: form.name,
           spec: form.spec,
@@ -2786,7 +2788,7 @@ export function RecipesView() {
     setSaving(true);
     setError(null);
     try {
-      await deleteRecipe(recipe.id);
+      await deleteRecipe(recipe.id, recipe.updatedAt);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '配方删除失败');
@@ -4726,6 +4728,7 @@ export function RecipesView() {
 
             <TechnicalDataEditor
               recipeId={editingRecipe?.id}
+              recipeUpdatedAt={editingRecipe?.updatedAt}
               value={form.technicalData}
               onChange={(technicalData) => updateForm({ technicalData }, false)}
               referenceFields={technicalReferenceFields}

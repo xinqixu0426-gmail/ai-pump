@@ -125,11 +125,32 @@ async function parseFactoryFile(id, options = {}) {
     if (!['pdf', 'spreadsheet', 'image'].includes(row.detected_type)) {
         throw new Error('当前只解析 PDF、Excel、CSV 和图片文件');
     }
+    const updateState = updates => {
+        const execute = () => {
+            const write = accessors.safeUpdate(
+                'factory_files',
+                fileId,
+                {
+                    ...updates,
+                    updated_at: updates.updated_at || new Date().toISOString(),
+                },
+                options.auditContext
+            );
+            options.onWrite?.(write);
+            return write;
+        };
+        return options.transactionalWrites
+            && typeof accessors.db.transaction === 'function'
+            ? accessors.db.transaction(execute).immediate()
+            : execute();
+    };
 
-    accessors.safeUpdate('factory_files', fileId, {
-        parser_status: 'processing',
-        parser_error: '',
-    });
+    if (!options.skipProcessingWrite) {
+        updateState({
+            parser_status: 'processing',
+            parser_error: '',
+        });
+    }
     const parsedAt = options.now || new Date().toISOString();
     try {
         let result;
@@ -140,7 +161,7 @@ async function parseFactoryFile(id, options = {}) {
         } else {
             result = parseSpreadsheetBuffer(row.file_blob, options.spreadsheetOptions);
         }
-        accessors.safeUpdate('factory_files', fileId, {
+        updateState({
             parser_status: result.parserStatus,
             parsed_text: result.extractedText,
             parsed_json: JSON.stringify(result.parsed),
@@ -151,7 +172,7 @@ async function parseFactoryFile(id, options = {}) {
         return result;
     } catch (error) {
         const message = String(error?.message || error).slice(0, 1_000);
-        accessors.safeUpdate('factory_files', fileId, {
+        updateState({
             parser_status: 'failed',
             parser_error: message,
             parsed_at: parsedAt,

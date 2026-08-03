@@ -114,7 +114,7 @@ export function FactoryFileAttachments({
     setBusy(true);
     setError('');
     try {
-      await deleteFactoryFileLink(link.fileId, link.id);
+      await deleteFactoryFileLink(link.fileId, link.id, link.updatedAt);
       await load();
       onChanged?.();
     } catch (err) {

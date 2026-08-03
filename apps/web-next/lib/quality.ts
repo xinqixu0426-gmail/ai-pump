@@ -1,4 +1,4 @@
-import { proxyRequest, type ApiResponse } from './api';
+import { createIdempotencyKey, proxyRequest, type ApiResponse } from './api';
 import type { RecipePart } from './recipes';
 
 export type QualitySeverity = 'danger' | 'warning' | 'info';
@@ -71,6 +71,9 @@ export type RecipeAnalysisFeedbackDecision = 'confirmed' | 'ignored' | 'special_
 
 export type RecipeAnalysisFeedback = {
   id: number;
+  recipeId?: number;
+  findingKey?: string;
+  findingType?: string;
   decision: RecipeAnalysisFeedbackDecision;
   note: string;
   updatedAt: string | null;
@@ -395,6 +398,59 @@ export type RecipeConfigurationAnalysisInput = {
   };
 };
 
+const recipeFeedbackVersions = new Map<number, string>();
+const recipeFindingFeedbackVersions = new Map<string, string>();
+const factoryRuleCandidateVersions = new Map<number, string>();
+const factoryRuleEventCandidates = new Map<number, number>();
+
+function recipeFindingVersionKey(recipeId: number, findingKey: string) {
+  return `${recipeId}:${findingKey}`;
+}
+
+function rememberRecipeFeedbackVersion<T extends RecipeAnalysisFeedback>(
+  feedback: T,
+  recipeId?: number,
+  findingKey?: string
+): T {
+  if (feedback.updatedAt) {
+    recipeFeedbackVersions.set(feedback.id, feedback.updatedAt);
+    const resolvedRecipeId = feedback.recipeId || recipeId;
+    const resolvedFindingKey = feedback.findingKey || findingKey;
+    if (resolvedRecipeId && resolvedFindingKey) {
+      recipeFindingFeedbackVersions.set(
+        recipeFindingVersionKey(resolvedRecipeId, resolvedFindingKey),
+        feedback.updatedAt
+      );
+    }
+  }
+  return feedback;
+}
+
+function rememberAnalysisFeedbackVersions(analysis: RecipeConfigurationAnalysis) {
+  for (const finding of [
+    ...analysis.factoryRuleAlerts,
+    ...analysis.missingItems,
+    ...analysis.priceAlerts,
+    ...analysis.suppressedFindings,
+  ]) {
+    if (finding.feedback) {
+      rememberRecipeFeedbackVersion(
+        finding.feedback,
+        analysis.recipe.id || undefined,
+        finding.key
+      );
+    }
+  }
+  return analysis;
+}
+
+function rememberFactoryRuleCandidateVersion<T extends FactoryRuleCandidate>(candidate: T): T {
+  if (candidate.updatedAt) {
+    factoryRuleCandidateVersions.set(candidate.id, candidate.updatedAt);
+  }
+  return candidate;
+}
+
 export async function getDataQualitySummary(): Promise<DataQualitySummary> {
   const result = await proxyRequest<ApiResponse<DataQualitySummary>>('/api/quality/summary');
   if (!result.success || !result.data) throw new Error(result.error || '数据质量加载失败');
@@ -413,7 +469,7 @@ export async function analyzeRecipeConfiguration(input: RecipeConfigurationAnaly
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '配方智能检查失败');
-  return result.data;
+  return rememberAnalysisFeedbackVersions(result.data);
 }
 
 export async function saveRecipeAnalysisFeedback(
@@ -428,10 +484,18 @@ export async function saveRecipeAnalysisFeedback(
 ): Promise<RecipeAnalysisFeedback> {
   const result = await proxyRequest<ApiResponse<RecipeAnalysisFeedback>>(`/api/quality/recipes/${recipeId}/feedback`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`recipe-analysis-feedback:${recipeId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: recipeFindingFeedbackVersions.get(
+        recipeFindingVersionKey(recipeId, input.findingKey)
+      ) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '检查反馈保存失败');
-  return result.data;
+  return rememberRecipeFeedbackVersion(result.data, recipeId, input.findingKey);
 }
 
 export async function resolveRecipeAnalysisFeedback(
@@ -448,21 +512,30 @@ export async function resolveRecipeAnalysisFeedback(
     resolutionReason: 'template_drift' | 'content_outdated';
   }>>(`/api/quality/recipe-feedback/${feedbackId}/resolve`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`recipe-analysis-feedback-resolve:${feedbackId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: recipeFeedbackVersions.get(feedbackId) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '待复核反馈处理失败');
-  return result.data;
+  return rememberRecipeFeedbackVersion(result.data);
 }
 
 export async function getFactoryRuleCandidates(): Promise<FactoryRuleCandidate[]> {
   const result = await proxyRequest<ApiResponse<FactoryRuleCandidate[]>>('/api/quality/rule-candidates');
   if (!result.success || !result.data) throw new Error(result.error || '候选规则加载失败');
-  return result.data;
+  return result.data.map(rememberFactoryRuleCandidateVersion);
 }
 
 export async function getFactoryLearningHealth(limit = 100): Promise<FactoryLearningHealth> {
   const result = await proxyRequest<ApiResponse<FactoryLearningHealth>>(`/api/quality/rule-learning-health?limit=${limit}`);
   if (!result.success || !result.data) throw new Error(result.error || '学习证据健康状态加载失败');
+  for (const item of result.data.items) {
+    if (item.decidedAt) recipeFeedbackVersions.set(item.feedbackId, item.decidedAt);
+  }
   return result.data;
 }
 
@@ -476,6 +549,9 @@ export async function getFactoryRuleEvents(input: {
   const suffix = query.toString() ? `?${query.toString()}` : '';
   const result = await proxyRequest<ApiResponse<FactoryRuleEvent[]>>(`/api/quality/rule-events${suffix}`);
   if (!result.success || !result.data) throw new Error(result.error || '规则变更记录加载失败');
+  for (const event of result.data) {
+    factoryRuleEventCandidates.set(event.id, event.candidateId);
+  }
   return result.data;
 }
 
@@ -485,9 +561,18 @@ export async function restoreFactoryRuleEvent(
 ): Promise<FactoryRuleRestoreResult> {
   const result = await proxyRequest<ApiResponse<FactoryRuleRestoreResult>>(`/api/quality/rule-events/${eventId}/restore`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`factory-rule-event-restore:${eventId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: factoryRuleCandidateVersions.get(
+        factoryRuleEventCandidates.get(eventId) || 0
+      ) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '规则审核状态恢复失败');
+  rememberFactoryRuleCandidateVersion(result.data.candidate);
   return result.data;
 }
 
@@ -502,20 +587,28 @@ export async function refreshFactoryRuleCandidates(): Promise<{
     minimumConfidence: number;
     stats: { created: number; updated: number; stale: number; suspended: number; active: number; driftedEvidence: number; outdatedEvidence: number };
     candidates: FactoryRuleCandidate[];
-  }>>('/api/quality/rule-candidates/refresh', { method: 'POST' });
+  }>>('/api/quality/rule-candidates/refresh', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('factory-rule-candidates-refresh'),
+    },
+  });
   if (!result.success || !result.data) throw new Error(result.error || '候选规则归纳失败');
+  result.data.candidates.forEach(rememberFactoryRuleCandidateVersion);
   return result.data;
 }
 
 export async function getFactoryRuleImpact(id: number): Promise<FactoryRuleImpact> {
   const result = await proxyRequest<ApiResponse<FactoryRuleImpact>>(`/api/quality/rule-candidates/${id}/impact`);
   if (!result.success || !result.data) throw new Error(result.error || '规则影响分析失败');
+  rememberFactoryRuleCandidateVersion(result.data.candidate);
   return result.data;
 }
 
 export async function getFactoryRuleCompliance(): Promise<FactoryRuleCompliance> {
   const result = await proxyRequest<ApiResponse<FactoryRuleCompliance>>('/api/quality/rule-compliance');
   if (!result.success || !result.data) throw new Error(result.error || '规则执行情况加载失败');
+  result.data.rules.forEach(rule => rememberFactoryRuleCandidateVersion(rule.candidate));
   return result.data;
 }
 
@@ -525,10 +618,16 @@ export async function reviewFactoryRuleCandidate(
 ): Promise<FactoryRuleCandidate> {
   const result = await proxyRequest<ApiResponse<FactoryRuleCandidate>>(`/api/quality/rule-candidates/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`factory-rule-candidate-review:${id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: factoryRuleCandidateVersions.get(id) || null,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '候选规则审核失败');
-  return result.data;
+  return rememberFactoryRuleCandidateVersion(result.data);
 }
 
 export function qualitySeverityClassName(severity: QualitySeverity): string {

@@ -93,6 +93,11 @@ curl http://127.0.0.1:3002/api/health/ready
 迁移版本和启动备份。`install-macmini-launchdaemons.sh` 已自动等待两个
 LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失败会
 输出最近错误日志并以非零状态退出，不能把脚本开始执行视为发布成功。
+健康检查通过后，安装脚本还会自动执行 `npm run verify:ai-release`。真实 AI
+回归存在失败、待确认或模型调用错误时，安装命令返回失败，本次发布不能验收；
+服务保持运行以便排查，结果保存在 `logs/ai-release-gate-latest.json`，并进入
+管理看板“今日待办”的知识健康事项。模型流式连接瞬时中断会自动重试，连续
+3 次不能完成才按错误阻止验收。
 脚本还会安装并校验 `/etc/newsyslog.d/com.pumpfactory.conf`，四个
 LaunchDaemon 日志达到 10 MB 后轮转，保留 14 份压缩文件；轮转后对应服务
 收到 `SIGTERM` 并由 LaunchDaemon 自动拉起，以确保新日志文件真正生效。

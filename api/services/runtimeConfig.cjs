@@ -222,6 +222,14 @@ function storedMap(options = {}) {
     return new Map(storedRows(options).map((row) => [row.setting_key, row]));
 }
 
+function runtimeSettingsUpdatedAt(options = {}) {
+    const { db } = dbAccessors(options);
+    return db.prepare(`
+        SELECT MAX(updated_at) AS updated_at
+        FROM runtime_settings
+    `).get()?.updated_at || null;
+}
+
 function effectiveValues(options = {}) {
     const env = options.env || process.env;
     const rows = storedMap(options);
@@ -280,19 +288,28 @@ function upsertRuntimeSetting(field, value, options = {}) {
         ? encryptSecret(value, options.env || process.env)
         : value;
     if (existing) {
-        accessors.safeUpdate('runtime_settings', existing.id, {
+        const write = accessors.safeUpdate('runtime_settings', existing.id, {
             setting_value: settingValue,
             is_secret: definition.type === 'secret' ? 1 : 0,
-        });
-        return;
+        }, options.auditContext || {});
+        return {
+            id: existing.id,
+            created: false,
+            auditId: write?.auditId || null,
+        };
     }
-    accessors.safeInsert('runtime_settings', {
+    const write = accessors.safeInsert('runtime_settings', {
         setting_key: field,
         setting_value: settingValue,
         is_secret: definition.type === 'secret' ? 1 : 0,
         created_at: now,
         updated_at: now,
-    });
+    }, options.auditContext || {});
+    return {
+        id: Number(write?.lastInsertRowid) || null,
+        created: true,
+        auditId: write?.auditId || null,
+    };
 }
 
 function deploymentStatus(env = process.env) {
@@ -334,6 +351,7 @@ function publicSnapshot(options = {}) {
         restartRequired: restartFields.length > 0,
         restartFields,
         kimiCodingCompatible: false,
+        updatedAt: runtimeSettingsUpdatedAt(options),
     };
 }
 
@@ -348,13 +366,14 @@ function initializeRuntimeSettings(options = {}) {
     return publicSnapshot({ ...options, env });
 }
 
-function updateRuntimeSettings(input, options = {}) {
+function prepareRuntimeSettingsUpdate(input, options = {}) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
         throw new Error('运行设置必须是对象');
     }
     const env = options.env || process.env;
     const normalized = {};
     for (const [field, rawValue] of Object.entries(input)) {
+        if (field === 'expectedUpdatedAt' || field === 'idempotencyKey') continue;
         if (!(field in DEFINITIONS)) throw new Error(`不支持的运行设置: ${field}`);
         if (DEFINITIONS[field].type === 'secret' && String(rawValue || '').trim() === '') continue;
         normalized[field] = normalizeValue(field, rawValue);
@@ -372,21 +391,59 @@ function updateRuntimeSettings(input, options = {}) {
                 ? '启用智能路由前必须先配置 DeepSeek API Key'
                 : '切换 DeepSeek 前必须先配置 DeepSeek API Key');
     }
+    const changed = Object.keys(normalized).filter(
+        field => normalized[field] !== current.values[field]
+    );
+    return {
+        current,
+        requested: { ...normalized },
+        normalized: Object.fromEntries(
+            changed.map(field => [field, normalized[field]])
+        ),
+        changed,
+    };
+}
 
+function persistRuntimeSettings(normalized, options = {}) {
+    const env = options.env || process.env;
     const accessors = dbAccessors(options);
-    const saveAll = accessors.db.transaction(() => {
+    const writes = [];
+    const saveAll = () => {
         for (const [field, value] of Object.entries(normalized)) {
-            upsertRuntimeSetting(field, value, { ...options, env, dbAccessors: accessors });
+            writes.push({
+                field,
+                ...upsertRuntimeSetting(field, value, {
+                    ...options,
+                    env,
+                    dbAccessors: accessors,
+                }),
+            });
         }
-    });
-    saveAll.immediate();
+    };
+    if (options.transaction === false) saveAll();
+    else accessors.db.transaction(saveAll).immediate();
+    return writes;
+}
 
+function applyRuntimeEnvironment(normalized, env = process.env) {
     for (const [field, value] of Object.entries(normalized)) {
         env[DEFINITIONS[field].env] = value;
     }
+}
+
+function updateRuntimeSettings(input, options = {}) {
+    const env = options.env || process.env;
+    const draft = prepareRuntimeSettingsUpdate(input, { ...options, env });
+    const writes = persistRuntimeSettings(draft.normalized, {
+        ...options,
+        env,
+    });
+    applyRuntimeEnvironment(draft.normalized, env);
     return {
-        changed: Object.keys(normalized),
+        changed: draft.changed,
         config: publicSnapshot({ ...options, env }),
+        auditIds: writes.map(write => write.auditId).filter(Boolean),
+        writes,
     };
 }
 
@@ -410,12 +467,16 @@ function buildCandidateAiEnvironment(input = {}, options = {}) {
 
 module.exports = {
     DEFINITIONS,
+    applyRuntimeEnvironment,
     buildCandidateAiEnvironment,
     decryptSecret,
     effectiveValues,
     encryptSecret,
     initializeRuntimeSettings,
     normalizeValue,
+    persistRuntimeSettings,
+    prepareRuntimeSettingsUpdate,
     publicSnapshot,
+    runtimeSettingsUpdatedAt,
     updateRuntimeSettings,
 };

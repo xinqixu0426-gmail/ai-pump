@@ -6,6 +6,7 @@ const {
     recordAiEvaluationResult,
     completeAiEvaluationRun,
     getAiEvaluationOverview,
+    getLatestAiEvaluationHealth,
     evaluateRuleCase,
 } = require('../api/services/aiEvaluations.cjs');
 
@@ -25,8 +26,21 @@ function createFixture() {
             config_json TEXT DEFAULT '{}',
             enabled INTEGER DEFAULT 1,
             sort_order INTEGER DEFAULT 0,
+            source_type TEXT NOT NULL DEFAULT 'system',
+            source_feedback_id INTEGER UNIQUE,
+            review_status TEXT NOT NULL DEFAULT 'approved',
+            confidence_score INTEGER NOT NULL DEFAULT 100,
+            generation_note TEXT DEFAULT '',
+            proposal_hash TEXT DEFAULT '',
+            review_note TEXT DEFAULT '',
+            reviewed_at TEXT,
             created_at TEXT,
             updated_at TEXT
+        );
+        CREATE TABLE factory_ai_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_feedback_id INTEGER UNIQUE,
+            status TEXT NOT NULL DEFAULT 'active'
         );
         CREATE TABLE ai_evaluation_runs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +91,14 @@ function createFixture() {
         configJson: row.config_json,
         enabled: Boolean(row.enabled),
         sortOrder: row.sort_order,
+        sourceType: row.source_type || 'system',
+        sourceFeedbackId: row.source_feedback_id || null,
+        reviewStatus: row.review_status || 'approved',
+        confidenceScore: Number(row.confidence_score ?? 100),
+        generationNote: row.generation_note || '',
+        proposalHash: row.proposal_hash || '',
+        reviewNote: row.review_note || '',
+        reviewedAt: row.reviewed_at,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     });
@@ -179,7 +201,20 @@ test('AI 评测：切割泵壳必须使用明确证据且不得把 SPA 语义候
         config: {
             requiredTerms: [
                 ['800平刀切割泵壳'],
-                ['系统未记录', '系统未明确记录', '没有记录', '没有明确记录', '未明确标注', '无法确认'],
+                [
+                    '系统未记录',
+                    '系统未明确记录',
+                    '没有记录',
+                    '没有明确记录',
+                    '没有其他明确标注',
+                    '未记录',
+                    '未明确记录',
+                    '未明确标注',
+                    '无明确记录',
+                    '当前无明确',
+                    '不能确认',
+                    '无法确认',
+                ],
                 ['切边6mm长螺丝'],
                 ['外六角', '外六角螺丝'],
             ],
@@ -214,7 +249,7 @@ test('AI 评测：切割泵壳必须使用明确证据且不得把 SPA 语义候
 
     const correct = evaluateRuleCase(
         caseItem,
-        '明确记录的选择是 **800平刀切割泵壳**；系统**未明确记录**其他切割专用配件。“切边6mm长螺丝”是外六角螺丝，不是刀片。',
+        '明确记录的选择是 **800平刀切割泵壳**；系统内没有其他明确标注的切割专用配件，不能确认存在刀片。“切边6mm长螺丝”是外六角螺丝，不是刀片。',
         toolResults,
         fixture.db
     );
@@ -271,5 +306,34 @@ test('AI 评测：运行生命周期保存结果、汇总并按 owner 隔离', (
     assert.equal(completed.status, 'completed');
     assert.equal(completed.passedCount, 1);
     assert.equal(getAiEvaluationOverview('admin', { dbAccessors: fixture.accessors }).results.length, 1);
+    assert.equal(getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors }).healthy, true);
+    fixture.db.close();
+});
+
+test('AI 评测：最近失败结果形成全局发布健康信号', () => {
+    const fixture = createFixture();
+    fixture.db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, sort_order, created_at, updated_at
+        ) VALUES ('case-release', '发布门禁术语', '业务规则', '测试术语', 'rules', ?, 1, 10, ?, ?)
+    `).run(JSON.stringify({
+        requiredTerms: [['正确术语']],
+    }), new Date().toISOString(), new Date().toISOString());
+
+    const created = createAiEvaluationRun('internal', { dbAccessors: fixture.accessors });
+    recordAiEvaluationResult('internal', created.run.id, {
+        caseId: created.cases[0].id,
+        answerText: '返回了错误术语。',
+        toolResults: [],
+    }, { dbAccessors: fixture.accessors });
+    completeAiEvaluationRun('internal', created.run.id, { dbAccessors: fixture.accessors });
+
+    const health = getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors });
+    assert.equal(health.status, 'attention');
+    assert.equal(health.healthy, false);
+    assert.equal(health.latestRun.failedCount, 1);
+    assert.equal(health.issues[0].caseTitle, '发布门禁术语');
+    assert.equal(health.issues[0].checks[0].passed, false);
     fixture.db.close();
 });

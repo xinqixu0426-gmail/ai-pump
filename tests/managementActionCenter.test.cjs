@@ -192,6 +192,40 @@ test('管理待办中心在各来源健康时返回空结果', () => {
     assert.match(result.summary, /没有需要处理/);
 });
 
+test('管理待办中心把最近 AI 回归失败作为稳定知识健康事项', () => {
+    const input = {
+        readiness: { items: [] },
+        businessAlerts: { alerts: [] },
+        quality: { issues: [] },
+        learningHealth: { items: [] },
+        candidates: [],
+        knowledgeHealth: { issues: [] },
+        evaluation: {
+            healthy: false,
+            latestRun: {
+                id: 18,
+                status: 'completed',
+                failedCount: 1,
+                reviewCount: 1,
+            },
+            issues: [
+                { caseTitle: '测试报告不能标成图纸' },
+                { caseTitle: '报价不能暴露内部编号' },
+            ],
+        },
+    };
+    const result = buildManagementActionCenter({ sources: input });
+    const item = result.items[0];
+
+    assert.equal(result.metrics.total, 1);
+    assert.equal(item.id, 'knowledge-regression:release-gate');
+    assert.equal(item.priority, 'critical');
+    assert.equal(item.count, 2);
+    assert.equal(item.path, '/dashboard?view=knowledge');
+    assert.match(item.detail, /测试报告不能标成图纸/);
+    assert.equal(item.resolution.expectedResult, '最新一次知识库回归全部通过。');
+});
+
 test('管理待办中心经营风险使用稳定业务键，不受列表顺序影响', () => {
     const businessAlerts = {
         alerts: [

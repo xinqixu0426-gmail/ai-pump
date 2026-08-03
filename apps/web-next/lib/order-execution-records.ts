@@ -1,6 +1,6 @@
 'use client';
 
-import { proxyRequest, type ApiResponse } from './api';
+import { createIdempotencyKey, proxyRequest, type ApiResponse } from './api';
 import type { OrderRequirementFile } from './order-requirements';
 
 export type OrderExecutionPhase = 'pre_production' | 'in_production' | 'post_production';
@@ -44,6 +44,8 @@ export type OrderExecutionRecord = {
   confirmedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  operationId?: string;
+  idempotentReplay?: boolean;
 };
 
 export type OrderExecutionArchive = {
@@ -64,6 +66,13 @@ export type OrderExecutionDraftInput = {
   sourceFileIds: number[];
 };
 
+const executionRecordVersions = new Map<number, string>();
+
+function rememberRecord(record: OrderExecutionRecord) {
+  executionRecordVersions.set(record.id, record.updatedAt);
+  return record;
+}
+
 async function recordRequest<T>(
   path: string,
   options: RequestInit = {}
@@ -75,58 +84,95 @@ async function recordRequest<T>(
   return result.data;
 }
 
-export function getOrderExecutionRecords(orderId: number) {
-  return recordRequest<OrderExecutionArchive>(`/api/orders/${orderId}/execution-records`);
+export async function getOrderExecutionRecords(orderId: number) {
+  const archive = await recordRequest<OrderExecutionArchive>(
+    `/api/orders/${orderId}/execution-records`
+  );
+  archive.records.forEach(rememberRecord);
+  return archive;
 }
 
-export function createOrderExecutionDraft(orderId: number, input: OrderExecutionDraftInput) {
-  return recordRequest<OrderExecutionRecord>(`/api/orders/${orderId}/execution-records`, {
+export async function createOrderExecutionDraft(orderId: number, input: OrderExecutionDraftInput) {
+  return rememberRecord(await recordRequest<OrderExecutionRecord>(
+    `/api/orders/${orderId}/execution-records`,
+    {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`order-execution-create:${orderId}`),
+    },
     body: JSON.stringify(input),
-  });
+    }
+  ));
 }
 
-export function updateOrderExecutionDraft(
+export async function updateOrderExecutionDraft(
   orderId: number,
   recordId: number,
   input: OrderExecutionDraftInput
 ) {
-  return recordRequest<OrderExecutionRecord>(
+  return rememberRecord(await recordRequest<OrderExecutionRecord>(
     `/api/orders/${orderId}/execution-records/${recordId}/draft`,
     {
       method: 'PUT',
-      body: JSON.stringify(input),
+      headers: {
+        'Idempotency-Key': createIdempotencyKey(`order-execution-update:${recordId}`),
+      },
+      body: JSON.stringify({
+        ...input,
+        expectedUpdatedAt: executionRecordVersions.get(recordId) || null,
+      }),
     }
-  );
+  ));
 }
 
-export function confirmOrderExecutionRecord(
+export async function confirmOrderExecutionRecord(
   orderId: number,
   recordId: number,
   input: OrderExecutionDraftInput
 ) {
-  return recordRequest<OrderExecutionRecord>(
+  return rememberRecord(await recordRequest<OrderExecutionRecord>(
     `/api/orders/${orderId}/execution-records/${recordId}/confirm`,
     {
       method: 'POST',
-      body: JSON.stringify(input),
+      headers: {
+        'Idempotency-Key': createIdempotencyKey(`order-execution-confirm:${recordId}`),
+      },
+      body: JSON.stringify({
+        ...input,
+        expectedUpdatedAt: executionRecordVersions.get(recordId) || null,
+      }),
     }
-  );
+  ));
 }
 
-export function revokeOrderExecutionConfirmation(orderId: number, recordId: number) {
-  return recordRequest<OrderExecutionRecord>(
+export async function revokeOrderExecutionConfirmation(orderId: number, recordId: number) {
+  return rememberRecord(await recordRequest<OrderExecutionRecord>(
     `/api/orders/${orderId}/execution-records/${recordId}/revoke`,
     {
       method: 'POST',
-      body: JSON.stringify({}),
+      headers: {
+        'Idempotency-Key': createIdempotencyKey(`order-execution-revoke:${recordId}`),
+      },
+      body: JSON.stringify({
+        expectedUpdatedAt: executionRecordVersions.get(recordId) || null,
+      }),
     }
-  );
+  ));
 }
 
-export function deleteOrderExecutionDraft(orderId: number, recordId: number) {
-  return recordRequest<{ id: number; deleted: boolean }>(
+export async function deleteOrderExecutionDraft(orderId: number, recordId: number) {
+  const result = await recordRequest<{ id: number; deleted: boolean }>(
     `/api/orders/${orderId}/execution-records/${recordId}`,
-    { method: 'DELETE' }
+    {
+      method: 'DELETE',
+      headers: {
+        'Idempotency-Key': createIdempotencyKey(`order-execution-delete:${recordId}`),
+      },
+      body: JSON.stringify({
+        expectedUpdatedAt: executionRecordVersions.get(recordId) || null,
+      }),
+    }
   );
+  executionRecordVersions.delete(recordId);
+  return result;
 }

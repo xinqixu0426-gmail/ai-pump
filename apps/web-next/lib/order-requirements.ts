@@ -1,6 +1,6 @@
 'use client';
 
-import { proxyRequest, type ApiResponse } from './api';
+import { createIdempotencyKey, proxyRequest, type ApiResponse } from './api';
 
 export type OrderRequirementFile = {
   id: number;
@@ -37,6 +37,8 @@ export type OrderRequirementSummary = {
   createdAt: string | null;
   updatedAt: string | null;
   availableFiles: OrderRequirementFile[];
+  operationId?: string;
+  idempotentReplay?: boolean;
 };
 
 type RequirementInput = {
@@ -59,27 +61,55 @@ async function requirementRequest(
   return result.data;
 }
 
+const requirementVersions = new Map<number, string | null>();
+
+async function rememberRequirementVersion(
+  orderId: number,
+  request: Promise<OrderRequirementSummary>
+) {
+  const result = await request;
+  requirementVersions.set(orderId, result.updatedAt || null);
+  return result;
+}
+
 export function getOrderRequirementSummary(orderId: number) {
-  return requirementRequest(orderId);
+  return rememberRequirementVersion(orderId, requirementRequest(orderId));
 }
 
 export function saveOrderRequirementDraft(orderId: number, input: RequirementInput) {
-  return requirementRequest(orderId, '/draft', {
+  return rememberRequirementVersion(orderId, requirementRequest(orderId, '/draft', {
     method: 'PUT',
-    body: JSON.stringify(input),
-  });
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`order-requirement-save:${orderId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: requirementVersions.get(orderId) || null,
+    }),
+  }));
 }
 
 export function confirmOrderRequirementSummary(orderId: number, input: RequirementInput) {
-  return requirementRequest(orderId, '/confirm', {
+  return rememberRequirementVersion(orderId, requirementRequest(orderId, '/confirm', {
     method: 'POST',
-    body: JSON.stringify(input),
-  });
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`order-requirement-confirm:${orderId}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: requirementVersions.get(orderId) || null,
+    }),
+  }));
 }
 
 export function revokeOrderRequirementConfirmation(orderId: number) {
-  return requirementRequest(orderId, '/revoke', {
+  return rememberRequirementVersion(orderId, requirementRequest(orderId, '/revoke', {
     method: 'POST',
-    body: JSON.stringify({}),
-  });
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`order-requirement-revoke:${orderId}`),
+    },
+    body: JSON.stringify({
+      expectedUpdatedAt: requirementVersions.get(orderId) || null,
+    }),
+  }));
 }

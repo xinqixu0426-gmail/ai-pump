@@ -47,7 +47,7 @@ function recordKnowledgeSyncRun(input, options = {}) {
         completed_at: now,
         created_at: now,
         updated_at: now,
-    });
+    }, options.auditContext);
 
     db.prepare(`
         DELETE FROM knowledge_sync_runs
@@ -64,6 +64,7 @@ function recordKnowledgeSyncRun(input, options = {}) {
     return {
         ...adapted,
         triggerSources: parseSources(adapted.triggerSourcesJson),
+        auditId: info.auditId || null,
     };
 }
 

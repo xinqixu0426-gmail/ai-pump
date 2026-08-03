@@ -1,12 +1,20 @@
 const { Router } = require('express');
+const dbAccessors = require('../db.cjs');
 const { buildBusinessSummary } = require('../services/businessSummary.cjs');
 const { buildManagementActionCenter } = require('../services/managementActionCenter.cjs');
 const { buildFactoryExecutionPlan } = require('../services/factoryExecutionPlan.cjs');
 const {
     decorateFactoryExecutionPlanWithHistory,
     listFactoryWorkflowRuns,
-    recordFactoryWorkflowRun,
 } = require('../services/factoryWorkflowHistory.cjs');
+const {
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../services/commandRequest.cjs');
+const {
+    RECORD_WORKFLOW_RUN_CAPABILITY_ID,
+    executeRecordFactoryWorkflowRun,
+} = require('../services/factoryWorkflowCommands.cjs');
 const {
     decorateManagementActionCenter,
     lifecycleOverview,
@@ -80,12 +88,24 @@ router.get('/execution-runs', (req, res) => {
 
 router.post('/execution-runs', (req, res) => {
     try {
+        const result = executeRecordFactoryWorkflowRun(
+            dbAccessors,
+            req.body || {},
+            commandContextFromRequest(
+                req,
+                RECORD_WORKFLOW_RUN_CAPABILITY_ID
+            )
+        );
         res.status(201).json({
             success: true,
-            data: recordFactoryWorkflowRun(req.body || {}),
+            data: {
+                ...result,
+                operationStatus: result.status,
+                ...result.executionRun,
+            },
         });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 

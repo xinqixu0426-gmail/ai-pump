@@ -15,6 +15,7 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import {
   applyPurchaseTask,
+  buildPurchaseBatchDraft,
   buildPurchaseStats,
   buildPurchaseTasks,
   getPurchaseOrders,
@@ -90,7 +91,20 @@ export function PurchaseView() {
     setError(null);
 
     try {
-      await applyPurchaseTask(task, purchased);
+      const draft = await buildPurchaseBatchDraft(task, purchased);
+      if (draft.affectedOrders.length === 0) {
+        throw new Error('当前采购任务已经变化，请刷新后重试');
+      }
+      const totalChange = draft.affectedOrders.reduce(
+        (sum, order) => sum + Math.abs(order.afterOrderedQty - order.beforeOrderedQty),
+        0
+      );
+      const confirmed = window.confirm(
+        `${purchased ? '确认全部下单' : '确认取消下单'}：${task.model}`
+        + `\n影响 ${draft.affectedOrders.length} 个订单，数量 ${totalChange}${task.purchaseUnit || ''}。`
+      );
+      if (!confirmed) return;
+      await applyPurchaseTask(task, purchased, draft);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '采购状态保存失败');

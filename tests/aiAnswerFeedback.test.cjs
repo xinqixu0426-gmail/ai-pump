@@ -56,6 +56,27 @@ function createFixture() {
             created_at TEXT,
             updated_at TEXT
         );
+        CREATE TABLE ai_evaluation_cases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_key TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            category TEXT NOT NULL,
+            question TEXT NOT NULL,
+            evaluator_type TEXT NOT NULL DEFAULT 'rules',
+            config_json TEXT DEFAULT '{}',
+            enabled INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            source_type TEXT NOT NULL DEFAULT 'system',
+            source_feedback_id INTEGER UNIQUE,
+            review_status TEXT NOT NULL DEFAULT 'approved',
+            confidence_score INTEGER NOT NULL DEFAULT 100,
+            generation_note TEXT DEFAULT '',
+            proposal_hash TEXT DEFAULT '',
+            review_note TEXT DEFAULT '',
+            reviewed_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
     `);
     const now = new Date().toISOString();
     const safeInsert = (table, values) => {
@@ -85,6 +106,27 @@ function createFixture() {
         status: row.status,
         resolutionNote: row.resolution_note || '',
         resolvedAt: row.resolved_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    });
+    const aiEvaluationCaseRow = row => row && ({
+        id: row.id,
+        caseKey: row.case_key,
+        title: row.title,
+        category: row.category,
+        question: row.question,
+        evaluatorType: row.evaluator_type,
+        configJson: row.config_json || '{}',
+        enabled: Boolean(row.enabled),
+        sortOrder: Number(row.sort_order || 0),
+        sourceType: row.source_type || 'system',
+        sourceFeedbackId: row.source_feedback_id || null,
+        reviewStatus: row.review_status || 'approved',
+        confidenceScore: Number(row.confidence_score ?? 100),
+        generationNote: row.generation_note || '',
+        proposalHash: row.proposal_hash || '',
+        reviewNote: row.review_note || '',
+        reviewedAt: row.reviewed_at,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     });
@@ -130,7 +172,7 @@ function createFixture() {
         ownerConversation,
         assistantMessage,
         otherMessage,
-        accessors: { db, safeInsert, safeUpdate, aiAnswerFeedbackRow },
+        accessors: { db, safeInsert, safeUpdate, aiAnswerFeedbackRow, aiEvaluationCaseRow },
     };
 }
 
@@ -182,6 +224,8 @@ test('AI 回答反馈：明确正确做法后生成通用长期纠正规则', ()
     assert.equal(result.learningRule.triggerText, 'V750 配方详情是什么？');
     assert.equal(result.learningRule.instruction, '以后查询配方详情必须先读取当前业务数据，不要复述历史回答。');
     assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_ai_rules').get().count, 1);
+    assert.equal(result.regressionCase.reviewStatus, 'pending');
+    assert.equal(result.regressionCase.enabled, false);
 
     const updated = submitAiAnswerFeedback('admin', {
         messageId: fixture.assistantMessage,
@@ -192,6 +236,24 @@ test('AI 回答反馈：明确正确做法后生成通用长期纠正规则', ()
     assert.equal(updated.learningRule.id, result.learningRule.id);
     assert.equal(updated.learningRule.instruction, '配方详情必须以本轮实时工具结果为准。');
     assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_ai_rules').get().count, 1);
+    assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM ai_evaluation_cases').get().count, 1);
+    fixture.db.close();
+});
+
+test('AI 回答反馈：明确术语纠错自动生成高置信回归用例', () => {
+    const fixture = createFixture();
+    const result = submitAiAnswerFeedback('admin', {
+        messageId: fixture.assistantMessage,
+        rating: 'incorrect',
+        note: '附件不是参考图纸，正确分类是性能测试报告。',
+        learnFromCorrection: true,
+    }, { dbAccessors: fixture.accessors });
+
+    assert.equal(result.regressionCase.reviewStatus, 'approved');
+    assert.equal(result.regressionCase.enabled, true);
+    assert.ok(result.regressionCase.confidenceScore >= 65);
+    assert.deepEqual(result.regressionCase.config.requiredTerms, [['性能测试报告']]);
+    assert.deepEqual(result.regressionCase.config.forbiddenTerms, ['参考图纸']);
     fixture.db.close();
 });
 

@@ -744,7 +744,8 @@ function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
         if (!entry) {
             if (existing) {
                 deletedEmbeddings = countKnowledgeEntryEmbeddings(db, existing.id);
-                hardDelete('knowledge_entries', existing.id);
+                const write = hardDelete('knowledge_entries', existing.id, options.auditContext || {});
+                options.onWrite?.(write);
                 action = 'deleted';
             } else {
                 action = 'absent';
@@ -765,14 +766,21 @@ function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
                 synced_at: now,
             };
             if (!existing) {
-                safeInsert('knowledge_entries', {
+                const write = safeInsert('knowledge_entries', {
                     ...values,
                     created_at: now,
                     updated_at: now,
-                });
+                }, options.auditContext || {});
+                options.onWrite?.(write);
                 action = 'inserted';
             } else if (existing.content_hash !== entry.contentHash) {
-                safeUpdate('knowledge_entries', existing.id, values);
+                const write = safeUpdate(
+                    'knowledge_entries',
+                    existing.id,
+                    values,
+                    options.auditContext || {}
+                );
+                options.onWrite?.(write);
                 action = 'updated';
             }
         }
@@ -811,12 +819,19 @@ function syncFactoryRuleKnowledgeEntry(candidateIdValue, options = {}) {
 
 function syncKnowledgeEntries(options = {}) {
     const dbAccessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeInsert, safeUpdate, knowledgeEntryRow } = dbAccessors;
+    const {
+        db,
+        safeInsert,
+        safeUpdate,
+        hardDelete,
+        knowledgeEntryRow,
+    } = dbAccessors;
     const entries = buildKnowledgeEntries({ ...options, dbAccessors });
     const now = new Date().toISOString();
     const stats = { total: entries.length, inserted: 0, updated: 0, unchanged: 0, deleted: 0, byType: {} };
     let deletedEmbeddings = 0;
     let ftsEnabled = false;
+    const auditIds = [];
     const sync = db.transaction((rows) => {
         const existingRows = db.prepare('SELECT * FROM knowledge_entries').all();
         const existingBySource = new Map(existingRows.map(row => [`${row.source_table}\u0000${row.source_id}`, row]));
@@ -845,7 +860,8 @@ function syncKnowledgeEntries(options = {}) {
                     ...values,
                     created_at: now,
                     updated_at: now,
-                });
+                }, options.auditContext);
+                if (info.auditId) auditIds.push(info.auditId);
                 retainedIds.add(Number(info.lastInsertRowid));
                 stats.inserted += 1;
             } else {
@@ -853,32 +869,53 @@ function syncKnowledgeEntries(options = {}) {
                 if (existing.content_hash === entry.contentHash) {
                     stats.unchanged += 1;
                 } else {
-                    safeUpdate('knowledge_entries', existing.id, values);
+                    const write = safeUpdate(
+                        'knowledge_entries',
+                        existing.id,
+                        values,
+                        options.auditContext
+                    );
+                    if (write.auditId) auditIds.push(write.auditId);
                     stats.updated += 1;
                 }
             }
             stats.byType[entry.entryType] = (stats.byType[entry.entryType] || 0) + 1;
         }
 
-        const remove = db.prepare('DELETE FROM knowledge_entries WHERE id = ?');
+        const remove = typeof hardDelete === 'function'
+            ? null
+            : db.prepare('DELETE FROM knowledge_entries WHERE id = ?');
         for (const existing of existingRows) {
             if (retainedIds.has(existing.id)) continue;
             deletedEmbeddings += countKnowledgeEntryEmbeddings(db, existing.id);
-            remove.run(existing.id);
+            if (typeof hardDelete === 'function') {
+                const write = hardDelete(
+                    'knowledge_entries',
+                    existing.id,
+                    options.auditContext
+                );
+                if (write.auditId) auditIds.push(write.auditId);
+            } else {
+                remove.run(existing.id);
+            }
             stats.deleted += 1;
         }
 
         ftsEnabled = rebuildFts(db);
     });
     sync(entries);
-    const vectorSyncScheduled = requestKnowledgeVectorRefresh({
-        reason: 'knowledge_sync',
-        deletedCount: deletedEmbeddings,
-    });
+    const vectorSyncScheduled = options.scheduleVectorSync === false
+        ? false
+        : requestKnowledgeVectorRefresh({
+            reason: 'knowledge_sync',
+            deletedCount: deletedEmbeddings,
+        });
     return {
         syncedAt: now,
         ftsEnabled,
         vectorSyncScheduled,
+        deletedEmbeddings,
+        auditIds,
         stats,
         sample: db.prepare('SELECT * FROM knowledge_entries ORDER BY updated_at DESC, id DESC LIMIT 5').all().map(knowledgeEntryRow),
     };

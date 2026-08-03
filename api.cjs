@@ -39,11 +39,26 @@ if (IS_PRODUCTION) {
 
 const {
   db,
+  safeUpdate,
   stopBackupScheduler,
   waitForBackupIdle,
 } = require('./api/db.cjs');
 const { stopAutoKnowledgeSync } = require('./api/services/knowledgeAutoSync.cjs');
 const { stopKnowledgeVectorSync } = require('./api/services/knowledgeVectorAutoSync.cjs');
+const {
+  createQuotationExpiryMaintenance,
+  expireOverdueQuotations,
+} = require('./api/services/quotationExpiry.cjs');
+const quotationExpiryLogger = createLogger('quotation-expiry');
+const quotationExpiryMaintenance = createQuotationExpiryMaintenance({
+  run: (now, trigger) => expireOverdueQuotations({
+    db,
+    safeUpdate,
+    now,
+    trigger,
+  }),
+  logger: quotationExpiryLogger,
+});
 
 if (IS_PRODUCTION) {
   app.use((req, res, next) => {
@@ -243,6 +258,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`  POST /api/knowledge/sync                - 增量同步工厂知识库`);
     console.log(`========================================`);
 
+    // 报价过期属于受控维护命令：启动时补跑，之后每天北京时间 00:05 执行。
+    quotationExpiryMaintenance.start();
+
     // 启动时自动更新铜价
     console.log('[启动] 正在获取最新铜价...');
     costRouter.runCopperPriceUpdate();
@@ -280,6 +298,7 @@ function shutdown(signal, exitCode = 0) {
   appLogger.info(`收到 ${signal}，开始优雅停机`);
   stopBackupScheduler();
   costRouter.stopCopperPriceScheduler?.();
+  quotationExpiryMaintenance.stop();
   aiRouter.stopBackgroundTasks?.();
   stopAutoKnowledgeSync();
   stopKnowledgeVectorSync();

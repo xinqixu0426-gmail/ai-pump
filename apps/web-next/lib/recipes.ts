@@ -1,6 +1,13 @@
 import type { ApiResponse } from './api';
 import { proxyFetch, proxyRequest } from './api';
 
+function createIdempotencyKey(prefix: string): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}:${crypto.randomUUID()}`;
+  }
+  return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+}
+
 export type RecipePart = {
   model: string;
   name?: string;
@@ -124,6 +131,8 @@ export type PumpShellTemplate = {
   costMode?: string;
   bundleCost?: number;
   bundleNote?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type TemplatePartInput = {
@@ -162,6 +171,8 @@ export type PumpModelVariant = {
   impellerBladeCount?: number | null;
   note?: string;
   customFieldsJson?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type CoilSpecOption = {
@@ -373,6 +384,8 @@ export function rowToTemplate(row: TemplateRow): PumpShellTemplate {
     costMode: row.costMode || 'components',
     bundleCost: Number(row.bundleCost) || 0,
     bundleNote: row.bundleNote || '',
+    createdAt: row.createdAt || row.CreatedAt,
+    updatedAt: row.updatedAt || row.UpdatedAt,
   };
 }
 
@@ -393,6 +406,8 @@ export function rowToVariant(row: VariantRow): PumpModelVariant {
     impellerBladeCount: row.impellerBladeCount == null ? null : Number(row.impellerBladeCount),
     note: row.note || '',
     customFieldsJson: row.customFieldsJson || '[]',
+    createdAt: row.createdAt || row.CreatedAt,
+    updatedAt: row.updatedAt || row.UpdatedAt,
   };
 }
 
@@ -518,24 +533,39 @@ export type TemplateInput = {
 export async function createTemplate(input: TemplateInput): Promise<PumpShellTemplate> {
   const result = await proxyRequest<ApiResponse<TemplateRow>>('/api/templates', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('template-create'),
+    },
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '泵壳模板创建失败');
   return rowToTemplate(result.data);
 }
 
-export async function updateTemplate(id: number, input: TemplateInput): Promise<PumpShellTemplate> {
-  const result = await proxyRequest<ApiResponse<TemplateRow>>(`/api/templates/${id}`, {
+export async function updateTemplate(template: PumpShellTemplate, input: TemplateInput): Promise<PumpShellTemplate> {
+  if (!template.updatedAt) throw new Error('模板版本缺失，请刷新后再保存');
+  const result = await proxyRequest<ApiResponse<TemplateRow>>(`/api/templates/${template.id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`template-update:${template.id}`),
+    },
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: template.updatedAt,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '泵壳模板保存失败');
   return rowToTemplate(result.data);
 }
 
-export async function deleteTemplate(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/templates/${id}`, {
+export async function deleteTemplate(template: PumpShellTemplate): Promise<void> {
+  if (!template.updatedAt) throw new Error('模板版本缺失，请刷新后再删除');
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/templates/${template.id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`template-delete:${template.id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt: template.updatedAt }),
   });
   if (!result.success) throw new Error(result.error || '泵壳模板删除失败');
 }
@@ -726,6 +756,15 @@ export type RecipeSaveInput = {
   surfaceTreatmentMode: SurfaceTreatmentMode;
   surfaceTreatmentCost: number;
   managementFee: number;
+  capabilityId?: string;
+  preview?: boolean;
+  requiresConfirmation?: boolean;
+  suggestedIdempotencyKey?: string;
+  previewHash?: string;
+  recipeId?: number;
+  expectedUpdatedAt?: string;
+  changes?: Array<Record<string, unknown>>;
+  warnings?: Array<Record<string, unknown>>;
 };
 
 export type RecipeTechnicalFileSummary = {
@@ -754,11 +793,19 @@ export async function getRecipeTechnicalFiles(recipeId: number): Promise<RecipeT
   return result.data || [];
 }
 
-export async function uploadRecipeTechnicalFile(recipeId: number, file: File): Promise<RecipeTechnicalFile> {
+export async function uploadRecipeTechnicalFile(
+  recipeId: number,
+  file: File,
+  expectedUpdatedAt?: string,
+): Promise<RecipeTechnicalFile> {
   const body = new FormData();
   body.append('file', file);
+  if (expectedUpdatedAt) body.append('expectedUpdatedAt', expectedUpdatedAt);
   const result = await proxyRequest<ApiResponse<RecipeTechnicalFile>>(`/api/recipes/${recipeId}/technical-files`, {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`recipe-technical-file-upload:${recipeId}`),
+    },
     body,
   });
   if (!result.success || !result.data) throw new Error(result.error || '测试报告上传失败');
@@ -776,14 +823,24 @@ export async function downloadRecipeTechnicalFile(recipeId: number, file: Recipe
   URL.revokeObjectURL(url);
 }
 
-export async function deleteRecipeTechnicalFile(recipeId: number, fileId: number): Promise<void> {
+export async function deleteRecipeTechnicalFile(
+  recipeId: number,
+  fileId: number,
+  expectedUpdatedAt?: string,
+): Promise<void> {
   const result = await proxyRequest<ApiResponse<unknown>>(`/api/recipes/${recipeId}/technical-files/${fileId}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`recipe-technical-file-delete:${fileId}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt }),
   });
   if (!result.success) throw new Error(result.error || '测试报告删除失败');
 }
 
 export type RecipeSavePayloadDraftInput = {
+  recipeId?: number;
+  expectedUpdatedAt?: string;
   form: {
     name: string;
     spec: string;
@@ -831,6 +888,9 @@ export async function buildRecipeSavePayloadDraft(input: RecipeSavePayloadDraftI
 export async function createRecipe(input: RecipeSaveInput): Promise<Recipe> {
   const result = await proxyRequest<ApiResponse<RecipeRow>>('/api/recipes', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': input.suggestedIdempotencyKey || createIdempotencyKey('recipe-create'),
+    },
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '配方创建失败');
@@ -840,15 +900,22 @@ export async function createRecipe(input: RecipeSaveInput): Promise<Recipe> {
 export async function updateRecipe(id: number, input: RecipeSaveInput): Promise<Recipe> {
   const result = await proxyRequest<ApiResponse<RecipeRow>>(`/api/recipes/${id}`, {
     method: 'PATCH',
+    headers: {
+      'Idempotency-Key': input.suggestedIdempotencyKey || createIdempotencyKey(`recipe-update:${id}`),
+    },
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '配方保存失败');
   return rowToRecipe(result.data);
 }
 
-export async function deleteRecipe(id: number): Promise<void> {
+export async function deleteRecipe(id: number, expectedUpdatedAt?: string): Promise<void> {
   const result = await proxyRequest<ApiResponse<unknown>>(`/api/recipes/${id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`recipe-delete:${id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt }),
   });
   if (!result.success) throw new Error(result.error || '配方删除失败');
 }
@@ -873,24 +940,34 @@ export type ModelVariantInput = {
 export async function createModelVariant(input: ModelVariantInput): Promise<PumpModelVariant> {
   const result = await proxyRequest<ApiResponse<VariantRow>>('/api/model-variants', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('model-variant-create'),
+    },
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '常用配置创建失败');
   return rowToVariant(result.data);
 }
 
-export async function updateModelVariant(id: number, input: ModelVariantInput): Promise<PumpModelVariant> {
-  const result = await proxyRequest<ApiResponse<VariantRow>>(`/api/model-variants/${id}`, {
+export async function updateModelVariant(variant: PumpModelVariant, input: ModelVariantInput): Promise<PumpModelVariant> {
+  const result = await proxyRequest<ApiResponse<VariantRow>>(`/api/model-variants/${variant.id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`model-variant-update:${variant.id}`),
+    },
+    body: JSON.stringify({ ...input, expectedUpdatedAt: variant.updatedAt }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '常用配置保存失败');
   return rowToVariant(result.data);
 }
 
-export async function deleteModelVariant(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/model-variants/${id}`, {
+export async function deleteModelVariant(variant: PumpModelVariant): Promise<void> {
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/model-variants/${variant.id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`model-variant-delete:${variant.id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt: variant.updatedAt }),
   });
   if (!result.success) throw new Error(result.error || '常用配置删除失败');
 }

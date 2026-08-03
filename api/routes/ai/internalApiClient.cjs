@@ -1,10 +1,12 @@
 const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 const { getInternalApiTimeoutMs, getServerPort } = require('../../services/environment.cjs');
 
-function createInternalFetch() {
+function createInternalFetch(context = {}) {
     return (url, opts = {}) => {
         const headers = { ...(opts.headers || {}) };
         headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
+        if (context.operationId) headers['x-operation-id'] = String(context.operationId);
+        if (context.capabilityId) headers['x-capability-id'] = String(context.capabilityId);
         const port = getServerPort();
         return fetchWithPolicy(`http://localhost:${port}${url}`, { ...opts, headers }, {
             timeoutMs: getInternalApiTimeoutMs(),
@@ -53,8 +55,8 @@ function patchJson(internalFetch, url, body, fallbackError) {
     return requestJson(internalFetch, 'PATCH', url, body, fallbackError);
 }
 
-function deleteJson(internalFetch, url, fallbackError) {
-    return requestJson(internalFetch, 'DELETE', url, undefined, fallbackError);
+function deleteJson(internalFetch, url, fallbackError, body) {
+    return requestJson(internalFetch, 'DELETE', url, body, fallbackError);
 }
 
 module.exports = { createInternalFetch, readApiJson, getJson, postJson, putJson, patchJson, deleteJson };

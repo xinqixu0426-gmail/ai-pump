@@ -112,14 +112,20 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
         `).get(recipeId, findingKey);
         const now = recordedAt;
         if (current) {
-            update('recipe_analysis_feedback', current.id, {
-                finding_type: findingType,
-                decision,
-                note,
-                finding_snapshot_json: findingSnapshotJson,
-            });
+            const write = update(
+                'recipe_analysis_feedback',
+                current.id,
+                {
+                    finding_type: findingType,
+                    decision,
+                    note,
+                    finding_snapshot_json: findingSnapshotJson,
+                },
+                options.auditContext || {}
+            );
+            options.onWrite?.(write);
         } else {
-            insert('recipe_analysis_feedback', {
+            const write = insert('recipe_analysis_feedback', {
                 recipe_id: recipeId,
                 finding_key: findingKey,
                 finding_type: findingType,
@@ -128,7 +134,8 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
                 finding_snapshot_json: findingSnapshotJson,
                 created_at: now,
                 updated_at: now,
-            });
+            }, options.auditContext || {});
+            options.onWrite?.(write);
         }
 
         const saved = feedbackRow(database.prepare(`
@@ -145,6 +152,8 @@ function saveRecipeAnalysisFeedback(recipeIdValue, input = {}, options = {}) {
             safeUpdate: update,
             hardDelete: remove,
             actor: options.actor,
+            auditContext: options.auditContext,
+            onWrite: options.onWrite,
         });
         return {
             ...saved,
@@ -232,10 +241,16 @@ function resolveRecipeAnalysisFeedback(feedbackIdValue, input = {}, options = {}
         .slice(0, 500);
 
     const resolveFeedback = database.transaction(() => {
-        update('recipe_analysis_feedback', feedbackId, {
-            decision: 'review',
-            note,
-        });
+        const write = update(
+            'recipe_analysis_feedback',
+            feedbackId,
+            {
+                decision: 'review',
+                note,
+            },
+            options.auditContext || {}
+        );
+        options.onWrite?.(write);
 
         const refreshCandidates = options.refreshFactoryRuleCandidates
             || require('./factoryRuleCandidates.cjs').refreshFactoryRuleCandidates;
@@ -245,6 +260,8 @@ function resolveRecipeAnalysisFeedback(feedbackIdValue, input = {}, options = {}
             safeUpdate: update,
             hardDelete: remove,
             actor: options.actor,
+            auditContext: options.auditContext,
+            onWrite: options.onWrite,
         });
         return {
             ...feedbackRow(database.prepare(`

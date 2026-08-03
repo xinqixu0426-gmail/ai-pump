@@ -1,5 +1,5 @@
 import type { ApiResponse } from './api';
-import { proxyRequest } from './api';
+import { createIdempotencyKey, proxyRequest } from './api';
 
 export type RotorFormData = {
   upperBearing: string;
@@ -44,6 +44,20 @@ export type RotorDrawResult = {
   drawingName: string;
   params?: Record<string, unknown>;
   message?: string;
+};
+
+export type RotorCommandPreview = {
+  capabilityId: string;
+  operationId: string;
+  confirmationToken: string;
+  inputHash: string;
+  expiresAt: string;
+  suggestedIdempotencyKey: string;
+  drawingName?: string;
+  params?: Record<string, unknown>;
+  jobId?: string;
+  fileUrl?: string;
+  warnings?: Array<{ code: string; message: string }>;
 };
 
 export type RotorTemplateDraft = {
@@ -213,20 +227,37 @@ export async function getRotorHistory(): Promise<RotorHistoryRecord[]> {
 export async function saveRotorParams(form: RotorFormData, drawingName: string, drawingText: string): Promise<RotorDrawResult> {
   const result = await proxyRequest<ApiResponse<RotorDrawResult> & RotorDrawResult>('/api/rotor/save', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('rotor-save'),
+    },
     body: JSON.stringify(rotorPayload(form, drawingName, drawingText)),
   });
   if (!result.success && !result.jobId) throw new Error(result.error || result.message || '转子参数保存失败');
   return result.data || { jobId: result.jobId, drawingName: result.drawingName || drawingName };
 }
 
-export async function startRotorDraw(form: RotorFormData, drawingName: string, drawingText: string): Promise<RotorDrawResult> {
-  const result = await proxyRequest<(ApiResponse<RotorDrawResult> & RotorDrawResult & { status?: string })>('/api/rotor/draw', {
+export async function previewRotorDraw(form: RotorFormData, drawingName: string, drawingText: string): Promise<RotorCommandPreview> {
+  const result = await proxyRequest<ApiResponse<RotorCommandPreview> & RotorCommandPreview>('/api/rotor/draw-preview', {
     method: 'POST',
     body: JSON.stringify(rotorPayload(form, drawingName, drawingText)),
   });
+  const preview = result.data || result;
+  if (!result.success || !preview.confirmationToken) throw new Error(result.error || result.message || '出图预览失败');
+  return preview;
+}
+
+export async function startRotorDraw(preview: RotorCommandPreview): Promise<RotorDrawResult> {
+  const result = await proxyRequest<(ApiResponse<RotorDrawResult> & RotorDrawResult & { status?: string })>('/api/rotor/draw', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': preview.suggestedIdempotencyKey,
+      'X-Operation-ID': preview.operationId,
+    },
+    body: JSON.stringify({ confirmationToken: preview.confirmationToken }),
+  });
   if (result.success && result.data) return result.data;
   if (result.status !== 'success' && !result.jobId) throw new Error(result.error || result.message || '出图任务启动失败');
-  return { jobId: result.jobId, drawingName: result.drawingName || drawingName, params: result.params, message: result.message };
+  return { jobId: result.jobId, drawingName: result.drawingName || preview.drawingName || '', params: result.params, message: result.message };
 }
 
 export async function getRotorJobStatus(jobId: string): Promise<RotorJobStatus> {
@@ -259,17 +290,35 @@ export async function getRotorRecipeDraft(recipeId: number): Promise<RotorRecipe
   return { ...result.data, patch: rotorPatchFromParams(result.data.patch as Record<string, unknown>) };
 }
 
-export async function printRotorDrawing(jobId: string): Promise<string> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/rotor/print/${jobId}`, {
+export async function previewRotorPrint(jobId: string): Promise<RotorCommandPreview> {
+  const result = await proxyRequest<ApiResponse<RotorCommandPreview> & RotorCommandPreview>(`/api/rotor/print/${jobId}/preview`, {
     method: 'POST',
+  });
+  const preview = result.data || result;
+  if (!result.success || !preview.confirmationToken) throw new Error(result.error || result.message || '打印预览失败');
+  return preview;
+}
+
+export async function printRotorDrawing(preview: RotorCommandPreview): Promise<string> {
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/rotor/print/${preview.jobId}`, {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': preview.suggestedIdempotencyKey,
+      'X-Operation-ID': preview.operationId,
+    },
+    body: JSON.stringify({ confirmationToken: preview.confirmationToken }),
   });
   if (!result.success) throw new Error(result.error || result.message || '打印失败');
   return result.message || '打印指令已发送';
 }
 
-export async function deleteRotorHistory(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/rotor/history/${id}`, {
+export async function deleteRotorHistory(record: RotorHistoryRecord): Promise<void> {
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/rotor/history/${record.id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`rotor-delete:${record.id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt: record.updatedAt || undefined }),
   });
   if (!result.success) throw new Error(result.error || '删除出图记录失败');
 }
@@ -281,10 +330,16 @@ export async function getRotorLinkTargets(): Promise<RotorLinkTarget[]> {
   return rows;
 }
 
-export async function linkRotorHistory(id: number, linkedPumpModel: string): Promise<void> {
-  const result = await proxyRequest<ApiResponse<{ linkedPumpModel: string }>>(`/api/rotor/history/${id}/link`, {
+export async function linkRotorHistory(record: RotorHistoryRecord, linkedPumpModel: string): Promise<void> {
+  const result = await proxyRequest<ApiResponse<{ linkedPumpModel: string }>>(`/api/rotor/history/${record.id}/link`, {
     method: 'PATCH',
-    body: JSON.stringify({ linkedPumpModel }),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`rotor-link:${record.id}`),
+    },
+    body: JSON.stringify({
+      linkedPumpModel,
+      expectedUpdatedAt: record.updatedAt || undefined,
+    }),
   });
   if (!result.success) throw new Error(result.error || '关联出图记录失败');
 }

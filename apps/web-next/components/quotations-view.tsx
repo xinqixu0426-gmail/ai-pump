@@ -606,7 +606,14 @@ export function QuotationsView() {
 
     try {
       if (editingQuotation) {
-        await updateQuotation({ id: editingQuotation.id, customerId: numericCustomerId, status: formStatus, items: draftItems, remark });
+        await updateQuotation({
+          id: editingQuotation.id,
+          customerId: numericCustomerId,
+          status: formStatus,
+          items: draftItems,
+          remark,
+          expectedUpdatedAt: editingQuotation.updatedAt,
+        });
       } else {
         await createQuotation({ customerId: numericCustomerId, status: formStatus, items: draftItems, remark });
       }
@@ -625,7 +632,7 @@ export function QuotationsView() {
     setSavingId(`delete-${quotation.id}`);
     setError(null);
     try {
-      await deleteQuotation(quotation.id);
+      await deleteQuotation(quotation);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '报价删除失败');

@@ -87,7 +87,7 @@ function adjustCoilStock(dependencies, input = {}) {
     }
 
     const now = input.createdAt || new Date().toISOString();
-    safeUpdate('coils', coilId, { stock: balanceAfter });
+    const stockWrite = safeUpdate('coils', coilId, { stock: balanceAfter }, input.auditContext);
     const movement = safeInsert('coil_stock_movements', {
         coil_id: coilId,
         change_qty: changeQty,
@@ -97,12 +97,13 @@ function adjustCoilStock(dependencies, input = {}) {
         reference_id: String(input.referenceId || '').trim(),
         note: String(input.note || '').trim(),
         created_at: now,
-    });
+    }, input.auditContext);
     return {
         coilId,
         changeQty,
         balanceAfter,
         movementId: Number(movement.lastInsertRowid),
+        auditIds: [stockWrite?.auditId, movement?.auditId].filter(Boolean),
     };
 }
 

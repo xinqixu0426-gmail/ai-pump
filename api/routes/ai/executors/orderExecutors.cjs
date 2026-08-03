@@ -1,5 +1,8 @@
 const { getJson, postJson, putJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
 const { recordWorkflowRun } = require('./workflowRunRecorder.cjs');
+const {
+    executeOrderReadinessAction,
+} = require('../../../services/aiOrderReadinessExecution.cjs');
 
 function parseJsonArray(value) {
     try {
@@ -114,7 +117,10 @@ async function saveExistingOrder(internalFetch, order, items, options = {}) {
         purchaseList: options.purchaseList,
         todos: options.todos,
     });
-    return patchJson(internalFetch, `/api/orders/${order.id ?? order.Id}`, payload, '订单保存失败');
+    return patchJson(internalFetch, `/api/orders/${order.id ?? order.Id}`, {
+        ...payload,
+        expectedUpdatedAt: order.updatedAt || order.UpdatedAt,
+    }, '订单保存失败');
 }
 
 async function executeOrderTool(toolName, args, internalFetch) {
@@ -348,95 +354,12 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'execute_order_readiness_action': {
-            const orderId = Number.parseInt(args.orderId, 10);
-            const actionId = String(args.actionId || '').trim();
-            if (!Number.isInteger(orderId) || orderId <= 0) {
-                return { success: false, error: '订单ID无效' };
-            }
-            if (!['confirm_order', 'generate_purchase_plan'].includes(actionId)) {
-                return { success: false, error: `不支持的订单处理步骤：${actionId}` };
-            }
-            const startedAt = new Date().toISOString();
-            let currentPlan = null;
-            try {
-                currentPlan = await postJson(
-                    internalFetch,
-                    '/api/workbench/execution-plan',
-                    {
-                        workflowType: 'order_readiness',
-                        orderId,
-                        goal: `处理订单 #${orderId} 的生产准备问题`,
-                    },
-                    '执行前刷新订单计划失败'
-                );
-                const step = (Array.isArray(currentPlan.steps) ? currentPlan.steps : [])
-                    .find(item => item.id === actionId);
-                if (!step || step.status !== 'available' || step.canExecute !== true) {
-                    throw new Error(`当前计划中的“${actionId}”步骤已不可执行，请按最新状态处理。`);
-                }
-                const data = await postJson(
-                    internalFetch,
-                    `/api/orders/${orderId}/readiness-actions/${encodeURIComponent(actionId)}`,
-                    {},
-                    '订单处理步骤执行失败'
-                );
-                const recorded = await recordWorkflowRun(internalFetch, {
-                    workflowType: 'order_readiness',
-                    subjectType: 'order',
-                    subjectId: orderId,
-                    actionId,
-                    toolName: 'execute_order_readiness_action',
-                    status: 'completed',
-                    plan: currentPlan,
-                    result: {
-                        orderId,
-                        orderStatus: data.order?.status || '',
-                        nextPlanStatus: data.nextPlan?.planStatus || '',
-                    },
-                    recheck: data.nextPlan || {},
-                    outcomeSummary: `订单 #${orderId} 已执行“${data.action?.title || actionId}”`,
-                    startedAt,
-                });
-                return {
-                    success: true,
-                    intent: 'order_readiness_action',
-                    message: `已执行：${data.action?.title || actionId}`,
-                    display: { mode: 'compact', title: '订单处理结果' },
-                    data: {
-                        ...data,
-                        executionRun: recorded.run,
-                        historyWarning: recorded.warning,
-                    },
-                };
-            } catch (error) {
-                const fallbackPlan = currentPlan || {
-                    workflowType: 'order_readiness',
-                    subject: { type: 'order', id: orderId },
-                    steps: [],
-                };
-                const recorded = await recordWorkflowRun(internalFetch, {
-                    workflowType: 'order_readiness',
-                    subjectType: 'order',
-                    subjectId: orderId,
-                    actionId,
-                    toolName: 'execute_order_readiness_action',
-                    status: 'failed',
-                    plan: fallbackPlan,
-                    recheck: currentPlan || {},
-                    outcomeSummary: '订单处理步骤执行失败',
-                    error: error.message,
-                    startedAt,
-                });
-                return {
-                    success: false,
-                    error: error.message,
-                    data: {
-                        currentPlan,
-                        executionRun: recorded.run,
-                        historyWarning: recorded.warning,
-                    },
-                };
-            }
+            return executeOrderReadinessAction(args, {
+                internalFetch,
+                getJson,
+                postJson,
+                recordWorkflowRun,
+            });
         }
 
         case 'update_order_status': {
@@ -447,7 +370,11 @@ async function executeOrderTool(toolName, args, internalFetch) {
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             const oldStatus = row.status || '待确认';
             try {
-                await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, { status, reason }, '订单状态更新失败');
+                await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, {
+                    status,
+                    reason,
+                    expectedUpdatedAt: row.updatedAt || row.UpdatedAt,
+                }, '订单状态更新失败');
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.customerName };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -509,7 +436,10 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     status: row.status || '待采购',
                     items,
                 });
-                await patchJson(internalFetch, `/api/orders/${row.id ?? row.Id}`, payload, '采购清单保存失败');
+                await patchJson(internalFetch, `/api/orders/${row.id ?? row.Id}`, {
+                    ...payload,
+                    expectedUpdatedAt: row.updatedAt || row.UpdatedAt,
+                }, '采购清单保存失败');
                 const purchaseList = parseJsonArray(payload.purchaseListJson);
                 const todos = parseJsonArray(payload.todosJson);
                 return {
@@ -529,7 +459,12 @@ async function executeOrderTool(toolName, args, internalFetch) {
             const { orderId } = args;
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-            await deleteJson(internalFetch, `/api/orders/${row.id ?? row.Id}`, '订单删除失败');
+            await deleteJson(
+                internalFetch,
+                `/api/orders/${row.id ?? row.Id}`,
+                '订单删除失败',
+                { expectedUpdatedAt: row.updatedAt || row.UpdatedAt }
+            );
             return { success: true, message: `订单${orderId}已删除`, orderId, customerName: row.customerName };
         }
 
@@ -538,11 +473,4 @@ async function executeOrderTool(toolName, args, internalFetch) {
     }
 }
 
-const ORDER_TOOLS = new Set([
-    'create_order', 'add_recipe_to_order', 'get_order_detail', 'get_order_knowledge_package',
-    'update_order_status', 'remove_recipe_from_order', 'update_order_item',
-    'generate_purchase_list', 'delete_order', 'get_order_readiness_overview',
-    'check_order_readiness', 'plan_order_readiness_actions', 'execute_order_readiness_action'
-]);
-
-module.exports = { executeOrderTool, ORDER_TOOLS };
+module.exports = { executeOrderTool };

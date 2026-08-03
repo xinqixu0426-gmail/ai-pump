@@ -289,7 +289,8 @@ function createOrderExecutionDraft(orderIdValue, input = {}, options = {}) {
         created_at: now,
         updated_at: now,
         deleted_at: null,
-    });
+    }, options.auditContext);
+    options.onWrite?.(inserted);
     const recordId = Number(inserted.lastInsertRowid);
     return recordResult(requireRecord(orderId, recordId, accessors));
 }
@@ -301,7 +302,7 @@ function updateOrderExecutionDraft(orderIdValue, recordIdValue, input = {}, opti
     requireOrder(orderId, accessors);
     const row = requireRecord(orderId, recordId, accessors);
     const draft = normalizeDraftInput(input, row, listOrderFiles(orderId, accessors));
-    accessors.safeUpdate('order_execution_records', recordId, {
+    const write = accessors.safeUpdate('order_execution_records', recordId, {
         phase: draft.phase,
         record_type: draft.recordType,
         title: draft.title,
@@ -309,7 +310,8 @@ function updateOrderExecutionDraft(orderIdValue, recordIdValue, input = {}, opti
         occurred_at: draft.occurredAt,
         source_file_ids_json: JSON.stringify(draft.sourceFileIds),
         status: draftMatchesConfirmed(row, draft) ? 'confirmed' : 'draft',
-    });
+    }, options.auditContext);
+    options.onWrite?.(write);
     return recordResult(requireRecord(orderId, recordId, accessors));
 }
 
@@ -319,11 +321,15 @@ function confirmOrderExecutionRecord(orderIdValue, recordIdValue, input = {}, op
     const recordId = positiveId(recordIdValue, '执行档案ID');
     const execute = () => {
         if (Object.keys(input || {}).length > 0) {
-            updateOrderExecutionDraft(orderId, recordId, input, { dbAccessors: accessors });
+            updateOrderExecutionDraft(orderId, recordId, input, {
+                dbAccessors: accessors,
+                auditContext: options.auditContext,
+                onWrite: options.onWrite,
+            });
         }
         const row = requireRecord(orderId, recordId, accessors);
         const draft = normalizeDraftInput({}, row, listOrderFiles(orderId, accessors));
-        accessors.safeUpdate('order_execution_records', recordId, {
+        const write = accessors.safeUpdate('order_execution_records', recordId, {
             confirmed_phase: draft.phase,
             confirmed_record_type: draft.recordType,
             confirmed_title: draft.title,
@@ -332,10 +338,13 @@ function confirmOrderExecutionRecord(orderIdValue, recordIdValue, input = {}, op
             confirmed_source_file_ids_json: JSON.stringify(draft.sourceFileIds),
             status: 'confirmed',
             confirmed_at: new Date().toISOString(),
-        });
+        }, options.auditContext);
+        options.onWrite?.(write);
         return recordResult(requireRecord(orderId, recordId, accessors));
     };
-    return typeof accessors.db.transaction === 'function'
+    return options.transaction === false
+        ? execute()
+        : typeof accessors.db.transaction === 'function'
         ? accessors.db.transaction(execute).immediate()
         : execute();
 }
@@ -347,7 +356,7 @@ function revokeOrderExecutionConfirmation(orderIdValue, recordIdValue, options =
     requireOrder(orderId, accessors);
     const row = requireRecord(orderId, recordId, accessors);
     if (!row.confirmed_text) throw conflict('当前执行档案尚未确认进入知识库');
-    accessors.safeUpdate('order_execution_records', recordId, {
+    const write = accessors.safeUpdate('order_execution_records', recordId, {
         confirmed_phase: null,
         confirmed_record_type: '',
         confirmed_title: '',
@@ -356,7 +365,8 @@ function revokeOrderExecutionConfirmation(orderIdValue, recordIdValue, options =
         confirmed_source_file_ids_json: '[]',
         status: 'draft',
         confirmed_at: null,
-    });
+    }, options.auditContext);
+    options.onWrite?.(write);
     return recordResult(requireRecord(orderId, recordId, accessors));
 }
 
@@ -369,7 +379,12 @@ function deleteOrderExecutionDraft(orderIdValue, recordIdValue, options = {}) {
     if (row.confirmed_text) {
         throw conflict('已确认的执行事实不能直接删除，请先撤销知识确认');
     }
-    accessors.softDelete('order_execution_records', recordId);
+    const write = accessors.softDelete(
+        'order_execution_records',
+        recordId,
+        options.auditContext
+    );
+    options.onWrite?.(write);
     return { id: recordId, deleted: true };
 }
 

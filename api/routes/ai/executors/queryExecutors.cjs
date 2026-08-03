@@ -1,14 +1,13 @@
 const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
-
-function parseCoilInventoryModel(value) {
-    const match = String(value || '').trim().match(/^(\d+)\s*[-－×xX*]\s*(\d+)$/);
-    if (!match) return null;
-    return {
-        commonName: match[1],
-        sheets: Number(match[2]),
-        model: `${match[1]}-${match[2]}`,
-    };
-}
+const {
+    executeCoilStockAdjustment,
+} = require('../../../services/aiCoilStockExecution.cjs');
+const {
+    executePartCreate,
+    executePartDelete,
+    executePartPriceBatch,
+    executePartUpdate,
+} = require('../../../services/aiPartExecution.cjs');
 
 async function executeQueryTool(toolName, args, internalFetch) {
     switch (toolName) {
@@ -43,171 +42,27 @@ async function executeQueryTool(toolName, args, internalFetch) {
         }
 
         case 'create_part': {
-            const { model, category = '其他', subcategory = '', price, supplier = '-', stock = 0 } = args;
-            if (!model || price === undefined) {
-                return { success: false, error: '缺少必要参数：型号或单价' };
-            }
-
-            const saved = await postJson(internalFetch, '/api/parts', { model, category, subcategory, price, supplier, stock }, '零件新建失败');
-            return {
-                success: true,
-                message: '零件新建成功（已通过标准 API 写入）',
-                part: {
-                    model: saved.model || model,
-                    category: saved.category || category,
-                    subcategory: saved.subcategory || subcategory,
-                    price: saved.price ?? price,
-                    supplier: saved.supplier || supplier,
-                    stock: saved.stock ?? stock
-                },
-                id: saved.id || saved.Id
-            };
+            return executePartCreate(args, {
+                internalFetch,
+                postJson,
+            });
         }
 
         case 'update_part': {
-            const { model, price, stock, stockDelta, supplier, category, subcategory } = args;
-            if (!model) {
-                return { success: false, error: '缺少必要参数：零件型号' };
-            }
-            // 先查找该零件
-            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
-            const target = allParts.find(p => (p.model || '') === model);
-            if (!target) {
-                return { success: false, error: `未找到型号为"${model}"的零件` };
-            }
-
-            const updates = {};
-            const changes = [];
-            if (price !== undefined) {
-                updates.price = price;
-                changes.push(`单价: ${target.price || target.price} → ${price}`);
-            }
-            if (stock !== undefined) {
-                updates.stock = stock;
-                changes.push(`库存: ${target.stock || target.stock || 0} → ${stock}`);
-            } else if (stockDelta !== undefined) {
-                const currentStock = Number(target.stock || target.stock || 0);
-                const newStock = Math.max(0, currentStock + stockDelta);
-                updates.stock = newStock;
-                changes.push(`库存: ${currentStock} → ${newStock} (${stockDelta > 0 ? '+' : ''}${stockDelta})`);
-            }
-            if (supplier !== undefined) {
-                updates.supplier = supplier;
-                changes.push(`供应商: ${target.supplier || target.supplier} → ${supplier}`);
-            }
-            if (category !== undefined) {
-                updates.category = category;
-                changes.push(`类别: ${target.category || target.category} → ${category}`);
-            }
-            if (subcategory !== undefined) {
-                updates.subcategory = subcategory;
-                changes.push(`二级分类: ${target.subcategory || '-'} → ${subcategory}`);
-            }
-
-            if (changes.length === 0) {
-                return { success: false, error: '没有指定任何要修改的字段' };
-            }
-
-            const targetId = target.id ?? target.Id;
-            const saved = await patchJson(internalFetch, `/api/parts/${targetId}`, updates, '零件修改失败');
-            return {
-                success: true,
-                message: '零件修改成功（已通过标准 API 写入）',
-                part: {
-                    id: saved.id || saved.Id || targetId,
-                    model: saved.model || model,
-                    category: saved.category,
-                    subcategory: saved.subcategory || '',
-                    price: saved.price,
-                    supplier: saved.supplier,
-                    stock: saved.stock
-                },
-                changes
-            };
+            return executePartUpdate(args, {
+                internalFetch,
+                getJson,
+                postJson,
+                patchJson,
+            });
         }
 
         case 'adjust_coil_stock': {
-            const items = Array.isArray(args.items) ? args.items : [];
-            if (items.length === 0) {
-                return { success: false, error: '至少需要一个线圈库存调整项目' };
-            }
-            if (items.length > 50) {
-                return { success: false, error: '单次最多调整 50 个线圈方案' };
-            }
-
-            const coils = await getJson(internalFetch, '/api/coils', '线圈方案读取失败');
-            const resolved = [];
-            for (const item of items) {
-                const parsed = parseCoilInventoryModel(item.model);
-                const changeQty = Number(item.changeQty);
-                if (!parsed) {
-                    return { success: false, error: `线圈简写“${item.model || ''}”格式无效，应为“规格-片数”，例如 12-120` };
-                }
-                if (!Number.isInteger(changeQty) || changeQty === 0) {
-                    return { success: false, error: `${parsed.model} 的库存变动必须是非零整数套数` };
-                }
-
-                const candidates = coils.filter(coil => (
-                    coil.schemeStatus === 'official'
-                    && Number(coil.sheets) === parsed.sheets
-                    && [coil.commonName, coil.spec].some(value => String(value || '').trim() === parsed.commonName)
-                    && (!item.material || coil.material === item.material)
-                    && (!item.slotType || coil.slotType === item.slotType)
-                ));
-                if (candidates.length === 0) {
-                    return {
-                        success: false,
-                        error: `未找到正式线圈方案“${parsed.model}”${item.material ? `、材质“${item.material}”` : ''}${item.slotType ? `、槽眼“${item.slotType}”` : ''}`,
-                    };
-                }
-                if (candidates.length > 1) {
-                    const options = candidates
-                        .map(coil => `${coil.material || '未标材质'}/${coil.slotType || '未标槽眼'}`)
-                        .join('、');
-                    return {
-                        success: false,
-                        error: `线圈“${parsed.model}”存在多个正式方案（${options}），请明确材质和槽眼后再调整库存`,
-                    };
-                }
-
-                const coil = candidates[0];
-                resolved.push({
-                    coilId: coil.id ?? coil.Id,
-                    model: parsed.model,
-                    material: coil.material,
-                    slotType: coil.slotType,
-                    changeQty,
-                    previousStock: Number(coil.stock || 0),
-                });
-            }
-
-            if (new Set(resolved.map(item => item.coilId)).size !== resolved.length) {
-                return { success: false, error: '同一线圈方案不能在一次操作中重复调整' };
-            }
-
-            const result = await postJson(internalFetch, '/api/coils/stock-adjustments', {
-                adjustments: resolved.map(item => ({
-                    coilId: item.coilId,
-                    changeQty: item.changeQty,
-                })),
-                note: args.note,
-            }, '线圈库存调整失败');
-            const savedById = new Map((result.adjustments || []).map(item => [
-                item.coil?.id ?? item.coil?.Id,
-                item,
-            ]));
-            return {
-                success: true,
-                intent: 'coil_stock_adjustment',
-                message: `已调整 ${result.updatedCount ?? resolved.length} 个线圈方案的成品库存`,
-                items: resolved.map(item => {
-                    const saved = savedById.get(item.coilId);
-                    return {
-                        ...item,
-                        newStock: saved?.adjustment?.balanceAfter ?? item.previousStock + item.changeQty,
-                    };
-                }),
-            };
+            return executeCoilStockAdjustment(args, {
+                internalFetch,
+                getJson,
+                postJson,
+            });
         }
 
         case 'search_parts': {
@@ -224,43 +79,20 @@ async function executeQueryTool(toolName, args, internalFetch) {
         }
 
         case 'delete_part': {
-            const { model } = args;
-            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
-            const target = allParts.find(p => (p.model || '') === model);
-            if (!target) return { success: false, error: '找不到零件: ' + model };
-            await deleteJson(internalFetch, `/api/parts/${target.id ?? target.Id}`, '零件删除失败');
-            return { success: true, message: `零件"${model}"已删除`, model };
+            return executePartDelete(args, {
+                internalFetch,
+                getJson,
+                deleteJson,
+            });
         }
 
         case 'batch_update_prices': {
-            const { category, percentChange, absoluteChange } = args;
-            if (percentChange === undefined && absoluteChange === undefined) return { success: false, error: '需要指定percentChange或absoluteChange' };
-            const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
-            const targets = allParts.filter(p => (p.category || '') === category || (p.category || '').includes(category));
-            if (targets.length === 0) return { success: false, error: `没有找到类别包含"${category}"的零件` };
-
-            const updates = [];
-            const details = [];
-            for (const p of targets) {
-                const oldPrice = Number(p.price || 0);
-                let newPrice;
-                if (percentChange !== undefined) { newPrice = Math.round(oldPrice * (1 + percentChange / 100) * 100) / 100; }
-                else { newPrice = Math.round((oldPrice + absoluteChange) * 100) / 100; }
-                if (newPrice < 0) newPrice = 0;
-                updates.push({ partId: p.id ?? p.Id, price: newPrice });
-                details.push({ model: p.model, oldPrice, newPrice });
-            }
-
-            const result = await patchJson(internalFetch, '/api/parts/prices', { updates }, '批量调价失败');
-
-            return {
-                success: true,
-                message: `已批量更新${result.updatedCount ?? targets.length}个"${category}"类零件的价格`,
-                category,
-                count: result.updatedCount ?? targets.length,
-                changeType: percentChange !== undefined ? `${percentChange > 0 ? '+' : ''}${percentChange}%` : `${absoluteChange > 0 ? '+' : ''}${absoluteChange}元`,
-                details
-            };
+            return executePartPriceBatch(args, {
+                internalFetch,
+                getJson,
+                postJson,
+                patchJson,
+            });
         }
 
         case 'get_dashboard_summary': {
@@ -273,10 +105,4 @@ async function executeQueryTool(toolName, args, internalFetch) {
     }
 }
 
-const QUERY_TOOLS = new Set([
-    'get_coil_specs', 'get_all_recipes', 'get_recent_orders',
-    'create_part', 'update_part', 'adjust_coil_stock', 'search_parts', 'delete_part', 'batch_update_prices',
-    'get_dashboard_summary'
-]);
-
-module.exports = { executeQueryTool, QUERY_TOOLS };
+module.exports = { executeQueryTool };

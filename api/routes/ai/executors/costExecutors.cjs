@@ -137,7 +137,21 @@ async function executeCostTool(toolName, args, internalFetch) {
             }
 
             try {
-                const result = await postJson(internalFetch, '/api/rotor/draw', drawParams, '出图失败');
+                const preview = await postJson(
+                    internalFetch,
+                    '/api/rotor/draw-preview',
+                    drawParams,
+                    '出图预览失败'
+                );
+                const result = await postJson(
+                    internalFetch,
+                    '/api/rotor/draw',
+                    {
+                        confirmationToken: preview.confirmationToken,
+                        idempotencyKey: preview.suggestedIdempotencyKey,
+                    },
+                    '出图失败'
+                );
                 const ret = {
                     success: true,
                     message: '出图任务已启动，大约需要15-30秒',
@@ -157,7 +171,21 @@ async function executeCostTool(toolName, args, internalFetch) {
             const { jobId } = args;
             if (!jobId) return { success: false, error: '缺少 jobId 参数' };
             try {
-                await postJson(internalFetch, `/api/rotor/print/${jobId}`, undefined, '打印失败');
+                const preview = await postJson(
+                    internalFetch,
+                    `/api/rotor/print/${jobId}/preview`,
+                    {},
+                    '打印预览失败'
+                );
+                await postJson(
+                    internalFetch,
+                    `/api/rotor/print/${jobId}`,
+                    {
+                        confirmationToken: preview.confirmationToken,
+                        idempotencyKey: preview.suggestedIdempotencyKey,
+                    },
+                    '打印失败'
+                );
                 return { success: true, message: '打印指令已发送到默认打印机', jobId };
             } catch (error) {
                 return { success: false, error: error.message || '打印失败' };
@@ -182,9 +210,4 @@ async function executeCostTool(toolName, args, internalFetch) {
     }
 }
 
-const COST_TOOLS = new Set([
-    'full_calculate', 'get_copper_price', 'calculate_coil_cost', 'dynamic_config_cost',
-    'generate_rotor_drawing', 'print_rotor_drawing', 'get_rotor_drawing_history'
-]);
-
-module.exports = { executeCostTool, COST_TOOLS };
+module.exports = { executeCostTool };

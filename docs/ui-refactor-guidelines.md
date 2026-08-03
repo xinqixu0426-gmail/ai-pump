@@ -72,7 +72,7 @@
 
 UI 调整不得改变这些业务事实：
 
-- API 契约遵守 `docs/api-sop.md`；
+- API 必须遵守 `docs/api-contract.md`，变更流程执行 `docs/api-sop.md`；
 - 业务流程遵守 `docs/business-flow.md`；
 - 前端状态边界遵守 `docs/frontend-state-boundary.md`；
 - 成本、库存、报价转订单、订单锁价不得在 UI 层重写口径；

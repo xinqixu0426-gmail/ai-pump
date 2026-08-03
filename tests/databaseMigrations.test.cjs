@@ -183,6 +183,36 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'factory_files'
         `).get());
         assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'api_operations'
+        `).get());
+        const cuttingCase = db.prepare(`
+            SELECT config_json FROM ai_evaluation_cases
+            WHERE case_key = 'cutting-shell-purpose-evidence'
+        `).get();
+        const cuttingConfig = JSON.parse(cuttingCase.config_json);
+        assert.ok(cuttingConfig.requiredTerms.some(group => (
+            group.includes('未明确记录')
+            && group.includes('未记录')
+            && group.includes('不能确认')
+        )));
+        const coilsSql = db.prepare(`
+            SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'coils'
+        `).get().sql;
+        assert.match(
+            coilsSql,
+            /CHECK\(scheme_status IN \('official', 'testing', 'disabled'\)\)/
+        );
+        db.prepare(`
+            INSERT INTO coils (
+                spec, material, slot_type, sheets, scheme_status,
+                created_at, updated_at
+            ) VALUES ('disabled-test', '钢带', '小眼', 1, 'disabled', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW);
+        const auditColumns = new Set(db.pragma('table_info(audit_log)').map(column => column.name));
+        assert.ok(auditColumns.has('request_id'));
+        assert.ok(auditColumns.has('operation_id'));
+        assert.ok(auditColumns.has('capability_id'));
+        assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'factory_file_links'
         `).get());
         assert.ok(db.prepare(`

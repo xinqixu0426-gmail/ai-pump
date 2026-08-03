@@ -13,6 +13,7 @@ const { partSubcategory } = require('../services/packagingClassification.cjs');
 const { normalizePackagingPart } = require('../services/packagingSemantics.cjs');
 const { isPackagingEstimatePart } = require('../services/packagingEstimate.cjs');
 const { renderRecipeCostSnapshot } = require('../services/costEngine.cjs');
+const { buildFeedbackEvaluationProposal } = require('../services/aiRegressionCases.cjs');
 
 const MIGRATION_TABLE_SQL = `
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -1967,6 +1968,279 @@ const MIGRATIONS = Object.freeze([
                 CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_status_priority
                     ON factory_ai_rules(status, priority DESC, updated_at DESC);
             `);
+        },
+    },
+    {
+        version: 42,
+        name: 'ai_feedback_regression_cases',
+        signature: 'feedback-correction-to-reviewed-regression-case-v1',
+        up(db) {
+            const columns = new Set(db.pragma('table_info(ai_evaluation_cases)').map(column => column.name));
+            const additions = {
+                source_type: "TEXT NOT NULL DEFAULT 'system' CHECK(source_type IN ('system', 'feedback'))",
+                source_feedback_id: 'INTEGER',
+                review_status: "TEXT NOT NULL DEFAULT 'approved' CHECK(review_status IN ('pending', 'approved', 'rejected'))",
+                confidence_score: 'INTEGER NOT NULL DEFAULT 100',
+                generation_note: "TEXT DEFAULT ''",
+                proposal_hash: "TEXT DEFAULT ''",
+                review_note: "TEXT DEFAULT ''",
+                reviewed_at: 'TEXT',
+            };
+            for (const [column, definition] of Object.entries(additions)) {
+                if (!columns.has(column)) {
+                    db.exec(`ALTER TABLE ai_evaluation_cases ADD COLUMN ${column} ${definition}`);
+                }
+            }
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_evaluation_cases_feedback
+                    ON ai_evaluation_cases(source_feedback_id)
+                    WHERE source_feedback_id IS NOT NULL;
+            `);
+            const now = new Date().toISOString();
+            const insert = db.prepare(`
+                INSERT INTO ai_evaluation_cases (
+                    case_key, title, category, question, evaluator_type, config_json,
+                    enabled, sort_order, source_type, source_feedback_id, review_status,
+                    confidence_score, generation_note, proposal_hash, review_note,
+                    reviewed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'rules', ?, ?, ?, 'feedback', ?, ?, ?, ?, ?, '', ?, ?, ?)
+            `);
+            const feedbackRows = db.prepare(`
+                SELECT feedback.*, learning_rule.status AS learning_rule_status
+                FROM ai_answer_feedback AS feedback
+                JOIN factory_ai_rules AS learning_rule
+                  ON learning_rule.source_feedback_id = feedback.id
+                WHERE feedback.rating = 'incorrect'
+            `).all();
+            for (const feedback of feedbackRows) {
+                if (db.prepare(
+                    'SELECT 1 FROM ai_evaluation_cases WHERE source_feedback_id = ?'
+                ).get(feedback.id)) continue;
+                const proposal = buildFeedbackEvaluationProposal(feedback);
+                insert.run(
+                    proposal.caseKey,
+                    proposal.title,
+                    proposal.category,
+                    proposal.question,
+                    JSON.stringify(proposal.config),
+                    proposal.enabled && feedback.learning_rule_status === 'active' ? 1 : 0,
+                    1000 + feedback.id,
+                    feedback.id,
+                    proposal.reviewStatus,
+                    proposal.confidenceScore,
+                    proposal.generationNote,
+                    proposal.proposalHash,
+                    proposal.reviewStatus === 'approved' ? now : null,
+                    now,
+                    now
+                );
+            }
+        },
+    },
+    {
+        version: 43,
+        name: 'api_command_operations',
+        signature: 'persistent-idempotency-resource-version-and-strong-audit-linkage-v1',
+        up(db) {
+            const auditColumns = columnNames(db, 'audit_log');
+            const auditAdditions = {
+                request_id: 'TEXT',
+                operation_id: 'TEXT',
+                capability_id: 'TEXT',
+            };
+            for (const [column, definition] of Object.entries(auditAdditions)) {
+                if (!auditColumns.has(column)) {
+                    db.exec(`ALTER TABLE audit_log ADD COLUMN ${quoteIdentifier(column)} ${definition}`);
+                }
+            }
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS api_operations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    operation_id TEXT NOT NULL,
+                    capability_id TEXT NOT NULL,
+                    actor_key TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL,
+                    request_hash TEXT NOT NULL,
+                    request_id TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending', 'completed')),
+                    response_json TEXT,
+                    created_at TEXT NOT NULL,
+                    completed_at TEXT,
+                    expires_at TEXT NOT NULL,
+                    UNIQUE(actor_key, capability_id, idempotency_key)
+                );
+                CREATE INDEX IF NOT EXISTS idx_audit_log_operation
+                    ON audit_log(operation_id, id);
+                CREATE INDEX IF NOT EXISTS idx_api_operations_expiry
+                    ON api_operations(expires_at);
+                CREATE INDEX IF NOT EXISTS idx_api_operations_operation
+                    ON api_operations(operation_id, capability_id);
+            `);
+        },
+    },
+    {
+        version: 44,
+        name: 'allow_disabled_coil_scheme_status',
+        signature: 'coil-scheme-status-official-testing-disabled-v1',
+        foreignKeysOff: true,
+        up(db) {
+            const sql = String(db.prepare(`
+                SELECT sql FROM sqlite_schema
+                WHERE type = 'table' AND name = 'coils'
+            `).get()?.sql || '');
+            if (/scheme_status IN \('official', 'testing', 'disabled'\)/.test(sql)) {
+                return;
+            }
+            db.exec(`
+                DROP INDEX IF EXISTS idx_coils_variant_sheets;
+                DROP INDEX IF EXISTS idx_coils_one_official_scheme;
+                DROP TABLE IF EXISTS coils_scheme_status_v44;
+                CREATE TABLE coils_scheme_status_v44 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    stator_variant_id INTEGER,
+                    spec TEXT NOT NULL,
+                    material TEXT DEFAULT '钢带',
+                    slot_type TEXT DEFAULT '小眼',
+                    sheets INTEGER NOT NULL,
+                    scheme_name TEXT DEFAULT '',
+                    scheme_status TEXT DEFAULT 'official',
+                    unit_price REAL DEFAULT 0,
+                    wire_weight REAL DEFAULT 0,
+                    copper_base REAL DEFAULT 0,
+                    coil_fee REAL DEFAULT 0,
+                    rotor_fee REAL DEFAULT 0,
+                    cost REAL DEFAULT 0,
+                    default_wire_gauge TEXT,
+                    default_capacitor TEXT,
+                    main_wire_gauge TEXT DEFAULT '',
+                    main_wire_data TEXT DEFAULT '',
+                    aux_wire_gauge TEXT DEFAULT '',
+                    aux_wire_data TEXT DEFAULT '',
+                    created_at TEXT,
+                    updated_at TEXT,
+                    stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
+                    FOREIGN KEY(stator_variant_id) REFERENCES stator_variants(id),
+                    CHECK(material IN ('钢带', '冷轧')),
+                    CHECK(slot_type IN ('小眼', '国标眼')),
+                    CHECK(sheets > 0),
+                    CHECK(scheme_status IN ('official', 'testing', 'disabled')),
+                    CHECK(unit_price IS NULL OR unit_price >= 0),
+                    CHECK(wire_weight IS NULL OR wire_weight >= 0),
+                    CHECK(copper_base IS NULL OR copper_base >= 0),
+                    CHECK(coil_fee IS NULL OR coil_fee >= 0),
+                    CHECK(rotor_fee IS NULL OR rotor_fee >= 0),
+                    CHECK(cost IS NULL OR cost >= 0)
+                );
+                INSERT INTO coils_scheme_status_v44 (
+                    id, stator_variant_id, spec, material, slot_type, sheets,
+                    scheme_name, scheme_status, unit_price, wire_weight,
+                    copper_base, coil_fee, rotor_fee, cost,
+                    default_wire_gauge, default_capacitor,
+                    main_wire_gauge, main_wire_data,
+                    aux_wire_gauge, aux_wire_data,
+                    created_at, updated_at, stock
+                )
+                SELECT
+                    id, stator_variant_id, spec, material, slot_type, sheets,
+                    scheme_name, scheme_status, unit_price, wire_weight,
+                    copper_base, coil_fee, rotor_fee, cost,
+                    default_wire_gauge, default_capacitor,
+                    main_wire_gauge, main_wire_data,
+                    aux_wire_gauge, aux_wire_data,
+                    created_at, updated_at, stock
+                FROM coils;
+                DROP TABLE coils;
+                ALTER TABLE coils_scheme_status_v44 RENAME TO coils;
+                CREATE INDEX idx_coils_variant_sheets
+                    ON coils(stator_variant_id, sheets);
+                CREATE UNIQUE INDEX idx_coils_one_official_scheme
+                    ON coils(stator_variant_id, sheets)
+                    WHERE scheme_status = 'official';
+            `);
+            const foreignKeyErrors = db.pragma('foreign_key_check');
+            if (foreignKeyErrors.length > 0) {
+                throw new Error(
+                    `线圈状态约束迁移后存在 ${foreignKeyErrors.length} 条外键错误`
+                );
+            }
+        },
+    },
+    {
+        version: 45,
+        name: 'accept_equivalent_cutting_evidence_wording',
+        signature: 'cutting-regression-accept-unqualified-not-explicitly-recorded-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['800平刀切割泵壳'],
+                    [
+                        '系统未记录',
+                        '系统未明确记录',
+                        '没有记录',
+                        '没有明确记录',
+                        '未明确记录',
+                        '未明确标注',
+                        '无法确认',
+                    ],
+                    ['切边6mm长螺丝'],
+                    ['外六角', '外六角螺丝'],
+                ],
+                forbiddenTerms: [
+                    'SPA系列切割泵壳',
+                    'SPA 2叶切割泵壳',
+                    'SPA 3叶切割泵壳',
+                    '专门为切割工况设计',
+                    '全套含刀',
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['business_rules'],
+            }), new Date().toISOString());
+        },
+    },
+    {
+        version: 46,
+        name: 'accept_clear_cutting_evidence_uncertainty',
+        signature: 'cutting-regression-accept-clear-uncertainty-phrases-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['800平刀切割泵壳'],
+                    [
+                        '系统未记录',
+                        '系统未明确记录',
+                        '没有记录',
+                        '没有明确记录',
+                        '没有其他明确标注',
+                        '未记录',
+                        '未明确记录',
+                        '未明确标注',
+                        '无明确记录',
+                        '当前无明确',
+                        '不能确认',
+                        '无法确认',
+                    ],
+                    ['切边6mm长螺丝'],
+                    ['外六角', '外六角螺丝'],
+                ],
+                forbiddenTerms: [
+                    'SPA系列切割泵壳',
+                    'SPA 2叶切割泵壳',
+                    'SPA 3叶切割泵壳',
+                    '专门为切割工况设计',
+                    '全套含刀',
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['business_rules'],
+            }), new Date().toISOString());
         },
     },
 ]);

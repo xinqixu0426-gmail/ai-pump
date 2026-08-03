@@ -514,7 +514,7 @@ export function PartsView({
       }
 
       const input = formToInput(form, finalModel, buildNotesPayload());
-      await (editingPart ? updatePart(editingPart.id, input) : createPart(input));
+      await (editingPart ? updatePart(editingPart, input) : createPart(input));
       await load(true);
       if (continueEntry) {
         setForm(resetAfterContinue(form));
@@ -535,7 +535,7 @@ export function PartsView({
     setError(null);
 
     try {
-      await deletePart(part.id);
+      await deletePart(part);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '零件删除失败');
@@ -597,7 +597,7 @@ export function PartsView({
     setError(null);
 
     try {
-      await deleteParts(selectedIds);
+      await deleteParts(selectedParts);
       setSelectedIds([]);
       await load(true);
     } catch (err) {

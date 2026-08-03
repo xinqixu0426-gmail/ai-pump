@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, ClipboardList, PackageCheck, RefreshCw, Save, ShoppingCart, X } from 'lucide-react';
 import {
+  buildCompleteOrderPurchaseDraft,
+  buildOrderPurchaseItemProgressDraft,
   completeOrderPurchase,
   orderPurchaseProgress,
   setOrderStatus,
   toggleOrderTodoItem,
   updateOrderPurchaseItem,
+  type CompletePurchaseDraft,
   type Order,
   type OrderStatus,
 } from '@/lib/orders';
@@ -278,6 +281,8 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   const [localOrder, setLocalOrder] = useState<Order | null>(order);
   const [tab, setTab] = useState<TabKey>('items');
   const [confirmingPurchase, setConfirmingPurchase] = useState(false);
+  const [completePurchaseDraft, setCompletePurchaseDraft] = useState<CompletePurchaseDraft | null>(null);
+  const [purchaseDraftLoading, setPurchaseDraftLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -327,6 +332,8 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     if (changedOrder) {
       setTab(initialTab);
       setConfirmingPurchase(false);
+      setCompletePurchaseDraft(null);
+      setPurchaseDraftLoading(false);
       setReadiness(null);
       setReadinessPlan(null);
     }
@@ -392,14 +399,44 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     setSaving(true);
     setError('');
     try {
-      const result = await updateOrderPurchaseItem(localOrder, item, {
+      const progressInput = {
         orderedQty,
         receivedQty: Number(draft.receivedQty) || 0,
         stockedQty: Number(draft.stockedQty) || 0,
         purchasePrice: Number(draft.purchasePrice) || 0,
         actualSupplier: draft.actualSupplier,
         allowOverPurchase,
-      });
+      };
+      const commandDraft = await buildOrderPurchaseItemProgressDraft(
+        localOrder,
+        item,
+        progressInput
+      );
+      if (commandDraft.stockAddition) {
+        const addition = commandDraft.stockAddition;
+        const inventoryLabel = addition.inventoryType === 'coil'
+          ? '线圈库存'
+          : addition.inventoryType === 'part'
+            ? '零件库存'
+            : '采购进度（非库存项）';
+        const convertedQuantity = addition.inventoryAddQty !== addition.addQty
+          ? `，折算库存增加 ${addition.inventoryAddQty}`
+          : '';
+        const stockAfter = addition.stockAfter === null
+          ? ''
+          : `，入库后库存 ${addition.stockAfter}`;
+        const confirmed = window.confirm(
+          `确认登记 ${item.model} 入库 ${addition.addQty}${addition.purchaseUnit || ''}？`
+          + `\n影响：${inventoryLabel}${convertedQuantity}${stockAfter}`
+        );
+        if (!confirmed) return;
+      }
+      const result = await updateOrderPurchaseItem(
+        localOrder,
+        item,
+        progressInput,
+        commandDraft
+      );
       setLocalOrder(result.order);
       setMessage(result.stockAddition
         ? `已入库 ${result.stockAddition.addQty}，采购进度已保存`
@@ -433,8 +470,9 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     setSaving(true);
     setError('');
     try {
-      const result = await completeOrderPurchase(localOrder);
+      const result = await completeOrderPurchase(localOrder, completePurchaseDraft || undefined);
       setLocalOrder(result.order);
+      setCompletePurchaseDraft(null);
       const inventoryCount = result.additions.filter((item) => item.inventoryType !== 'none').length;
       const nonStockCount = result.additions.length - inventoryCount;
       setMessage(
@@ -449,7 +487,22 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     }
   }
 
-  const purchaseAdditions = useMemo(() => {
+  async function openCompletePurchaseConfirmation() {
+    if (!localOrder) return;
+    setPurchaseDraftLoading(true);
+    setError('');
+    try {
+      const draft = await buildCompleteOrderPurchaseDraft(localOrder);
+      setCompletePurchaseDraft(draft);
+      setConfirmingPurchase(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '入库预览生成失败');
+    } finally {
+      setPurchaseDraftLoading(false);
+    }
+  }
+
+  const pendingPurchaseAdditions = useMemo(() => {
     if (!localOrder) return [];
     return localOrder.purchaseList
       .map((item) => ({
@@ -464,6 +517,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
       }))
       .filter((item) => item.remainingQty > 0);
   }, [localOrder]);
+  const purchaseAdditions = completePurchaseDraft?.additions || [];
 
   return (
     <SlideOver
@@ -718,13 +772,13 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                 确认订单
               </Button>
             )}
-            {(localOrder.status === '待采购' || localOrder.status === '采购中') && purchaseAdditions.length > 0 && (
+            {(localOrder.status === '待采购' || localOrder.status === '采购中') && pendingPurchaseAdditions.length > 0 && (
               <Button
                 variant="primary"
-                disabled={saving}
-                onClick={() => setConfirmingPurchase(true)}
+                disabled={saving || purchaseDraftLoading}
+                onClick={() => void openCompletePurchaseConfirmation()}
               >
-                全部到货并入库
+                {purchaseDraftLoading ? '生成入库预览...' : '全部到货并入库'}
               </Button>
             )}
             {localOrder.status === '采购完成' && (
@@ -810,10 +864,10 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                             {tracksInventory ? item.currentStock : '-'}
                           </td>
                           <td className="px-3 py-2 text-right font-semibold text-ink">
-                            +{item.remainingQty}{item.purchaseUnit ? ` ${item.purchaseUnit}` : ''}
+                            +{item.addQty}{item.purchaseUnit ? ` ${item.purchaseUnit}` : ''}
                           </td>
                           <td className="px-3 py-2 text-right text-muted">
-                            {tracksInventory ? Number(item.currentStock || 0) + item.remainingQty : '-'}
+                            {tracksInventory ? item.stockAfter : '-'}
                           </td>
                         </tr>
                         );

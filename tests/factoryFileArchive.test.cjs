@@ -8,6 +8,16 @@ const {
     listFactoryFileLinks,
     searchFactoryFileArchiveTargets,
 } = require('../api/services/factoryFileArchive.cjs');
+const {
+    ARCHIVE_CAPABILITY_ID,
+    LINK_DELETE_CAPABILITY_ID,
+    buildFactoryFileArchivePreview,
+    executeConfirmedFactoryFileArchive,
+    executeFactoryFileLinkDelete,
+} = require('../api/services/factoryFileCommands.cjs');
+const {
+    resetBusinessConfirmationsForTests,
+} = require('../api/services/businessConfirmation.cjs');
 
 const NOW = '2026-07-29T08:00:00.000Z';
 
@@ -15,26 +25,46 @@ function createAccessors() {
     const db = new Database(':memory:');
     db.pragma('foreign_keys = ON');
     runMigrations(db, { now: NOW });
+    let nextAuditId = 1;
     const safeInsert = (table, values) => {
         const columns = Object.keys(values).filter(column => values[column] !== undefined);
-        return db.prepare(`
+        const info = db.prepare(`
             INSERT INTO ${table} (${columns.join(', ')})
             VALUES (${columns.map(() => '?').join(', ')})
         `).run(...columns.map(column => values[column]));
+        return { ...info, auditId: nextAuditId++ };
     };
     const safeUpdate = (table, id, values) => {
-        const columns = Object.keys(values).filter(column => values[column] !== undefined);
-        return db.prepare(`
+        const normalized = {
+            ...values,
+            updated_at: new Date().toISOString(),
+        };
+        const columns = Object.keys(normalized).filter(
+            column => normalized[column] !== undefined
+        );
+        const info = db.prepare(`
             UPDATE ${table}
             SET ${columns.map(column => `${column} = ?`).join(', ')}
             WHERE id = ?
-        `).run(...columns.map(column => values[column]), id);
+        `).run(...columns.map(column => normalized[column]), id);
+        return { ...info, auditId: nextAuditId++ };
     };
     const softDelete = (table, id) => safeUpdate(table, id, {
         deleted_at: NOW,
         updated_at: NOW,
     });
     return { db, safeInsert, safeUpdate, softDelete };
+}
+
+function commandContext(capabilityId, key) {
+    return {
+        actorKey: 'user:file-command-test',
+        capabilityId,
+        idempotencyKey: key,
+        operationId: key,
+        requestId: `request:${key}`,
+        warnings: [],
+    };
 }
 
 function insertFactoryFile(accessors, overrides = {}) {
@@ -240,6 +270,148 @@ test('V9.5 文件归档：解除关联采用软删除且可重新归档', () => 
         }, { dbAccessors: accessors });
         assert.equal(restored.link.id, archived.link.id);
         assert.equal(listFactoryFileLinks({ fileId }, { dbAccessors: accessors }).length, 1);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('文件归档正式命令：预览绑定快照、强审计并支持持久化幂等重放', () => {
+    resetBusinessConfirmationsForTests();
+    const accessors = createAccessors();
+    try {
+        const fileId = insertFactoryFile(accessors);
+        const recipeId = insertRecipe(accessors);
+        const preview = buildFactoryFileArchivePreview(
+            accessors,
+            fileId,
+            {
+                targetType: 'recipe',
+                targetId: recipeId,
+                note: '正式命令归档',
+            },
+            'user:file-command-test'
+        );
+        assert.equal(preview.capabilityId, ARCHIVE_CAPABILITY_ID);
+        assert.equal(preview.action, 'create_link');
+        assert.equal(preview.changes.length, 1);
+
+        const input = { confirmationToken: preview.confirmationToken };
+        const context = commandContext(
+            ARCHIVE_CAPABILITY_ID,
+            'file-archive:test-1'
+        );
+        const first = executeConfirmedFactoryFileArchive(
+            accessors,
+            fileId,
+            input,
+            context,
+            'user:file-command-test'
+        );
+        const replay = executeConfirmedFactoryFileArchive(
+            accessors,
+            fileId,
+            input,
+            context,
+            'user:file-command-test'
+        );
+
+        assert.equal(first.deduplicated, false);
+        assert.equal(first.auditIds.length, 1);
+        assert.equal(first.changes.length, 1);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(replay.operationId, first.operationId);
+        assert.equal(
+            accessors.db.prepare(`
+                SELECT COUNT(*) AS count
+                FROM factory_file_links
+                WHERE file_id = ? AND deleted_at IS NULL
+            `).get(fileId).count,
+            1
+        );
+    } finally {
+        resetBusinessConfirmationsForTests();
+        accessors.db.close();
+    }
+});
+
+test('文件归档正式命令：预览后目标版本变化时拒绝写入', () => {
+    resetBusinessConfirmationsForTests();
+    const accessors = createAccessors();
+    try {
+        const fileId = insertFactoryFile(accessors);
+        const recipeId = insertRecipe(accessors);
+        const preview = buildFactoryFileArchivePreview(
+            accessors,
+            fileId,
+            { targetType: 'recipe', targetId: recipeId },
+            'user:file-command-test'
+        );
+        accessors.db.prepare(
+            'UPDATE recipes SET updated_at = ? WHERE id = ?'
+        ).run('2026-07-30T08:00:00.000Z', recipeId);
+
+        assert.throws(
+            () => executeConfirmedFactoryFileArchive(
+                accessors,
+                fileId,
+                { confirmationToken: preview.confirmationToken },
+                commandContext(
+                    ARCHIVE_CAPABILITY_ID,
+                    'file-archive:test-stale'
+                ),
+                'user:file-command-test'
+            ),
+            error => error?.code === 'factory_file_archive_preview_stale'
+        );
+        assert.equal(
+            accessors.db.prepare(
+                'SELECT COUNT(*) AS count FROM factory_file_links'
+            ).get().count,
+            0
+        );
+    } finally {
+        resetBusinessConfirmationsForTests();
+        accessors.db.close();
+    }
+});
+
+test('文件关联删除正式命令：校验版本、强审计并安全重放', () => {
+    const accessors = createAccessors();
+    try {
+        const fileId = insertFactoryFile(accessors);
+        const recipeId = insertRecipe(accessors);
+        const archived = archiveFactoryFile(fileId, {
+            targetType: 'recipe',
+            targetId: recipeId,
+        }, { dbAccessors: accessors });
+        const context = commandContext(
+            LINK_DELETE_CAPABILITY_ID,
+            'file-link-delete:test-1'
+        );
+        const input = { expectedUpdatedAt: archived.link.updatedAt };
+        const first = executeFactoryFileLinkDelete(
+            accessors,
+            fileId,
+            archived.link.id,
+            input,
+            context
+        );
+        const replay = executeFactoryFileLinkDelete(
+            accessors,
+            fileId,
+            archived.link.id,
+            input,
+            context
+        );
+
+        assert.equal(first.deleted, 1);
+        assert.equal(first.auditIds.length, 1);
+        assert.equal(first.changes.length, 1);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(listFactoryFileLinks(
+            { fileId },
+            { dbAccessors: accessors }
+        ).length, 0);
     } finally {
         accessors.db.close();
     }

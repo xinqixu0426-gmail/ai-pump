@@ -4,6 +4,15 @@ set -euo pipefail
 SCRIPT_DIR=${0:A:h}
 PROJECT_DIR=/Users/dan/pump-cost-accounting-system
 USER_ID=$(/usr/bin/id -u dan)
+NPM_BIN=/opt/homebrew/bin/npm
+USER_PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+as_dan() {
+  /usr/bin/sudo -u dan /usr/bin/env \
+    HOME=/Users/dan \
+    PATH="$USER_PATH" \
+    "$@"
+}
 
 bootstrap_daemon() {
   local label=$1
@@ -119,4 +128,11 @@ if ! wait_for_daemon com.pumpfactory.api ||
   exit 1
 fi
 
-echo "系统级水泵服务已安装，并通过 LaunchDaemon、API 就绪和 Web 页面验收。"
+if ! as_dan "$NPM_BIN" run verify:ai-release; then
+  echo "AI 发布回归门禁未通过，服务保持运行但本次发布不能验收。" >&2
+  echo "检查 $PROJECT_DIR/logs/ai-release-gate-latest.json 和知识管理页失败明细。" >&2
+  show_failure_diagnostics
+  exit 1
+fi
+
+echo "系统级水泵服务已安装，并通过 LaunchDaemon、API、Web 和 AI 回归门禁验收。"

@@ -106,6 +106,9 @@ type ChatItem = {
 type ConfirmationResult = {
   requiresConfirmation?: boolean;
   confirmation?: {
+    confirmationToken?: string;
+    operationId?: string;
+    expiresAt?: string;
     toolName: string;
     args?: unknown;
     title?: string;
@@ -1650,11 +1653,14 @@ function ToolResultCard({
   if (isConfirmationResult(result)) {
     const confirmation = result.confirmation;
     async function handleConfirm() {
-      if (!confirmation?.toolName) return;
+      if (!confirmation?.confirmationToken) {
+        setError('这张确认卡片已过期，请重新发起操作。');
+        return;
+      }
       try {
         setConfirming(true);
         setError('');
-        const next = await confirmAiTool(confirmation.toolName, confirmation.args || {});
+        const next = await confirmAiTool(confirmation.confirmationToken);
         onConfirmed(next);
       } catch (err) {
         setError((err as Error).message || '确认执行失败');

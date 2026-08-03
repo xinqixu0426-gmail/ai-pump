@@ -1,19 +1,42 @@
 const { Router } = require('express');
 const authMiddleware = require('../../authMiddleware.cjs');
+const dbAccessors = require('../../db.cjs');
 const { parsePositiveId } = require('../../services/validation.cjs');
 const {
-    submitAiAnswerFeedback,
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../../services/commandRequest.cjs');
+const {
     listAiAnswerFeedback,
-    reviewAiAnswerFeedback,
-    diagnoseAiAnswerFeedback,
-    recordAiAnswerFeedbackRetest,
 } = require('../../services/aiAnswerFeedback.cjs');
 const {
     listFactoryAiRules,
-    updateFactoryAiRule,
 } = require('../../services/factoryAiRules.cjs');
+const {
+    DIAGNOSE_FEEDBACK_CAPABILITY_ID,
+    RETEST_FEEDBACK_CAPABILITY_ID,
+    REVIEW_FEEDBACK_CAPABILITY_ID,
+    SUBMIT_FEEDBACK_CAPABILITY_ID,
+    UPDATE_LEARNING_RULE_CAPABILITY_ID,
+    executeDiagnoseAiAnswerFeedback,
+    executeRetestAiAnswerFeedback,
+    executeReviewAiAnswerFeedback,
+    executeSubmitAiAnswerFeedback,
+    executeUpdateFactoryAiRule,
+} = require('../../services/aiFeedbackCommands.cjs');
 
 const router = Router();
+const aiFeedbackDependencies = {
+    ...dbAccessors,
+};
+
+function legacyFeedbackEntityResponse(receipt, entityKey) {
+    return {
+        ...receipt,
+        operationStatus: receipt.status,
+        ...receipt[entityKey],
+    };
+}
 
 function feedbackAuth(req, res, next) {
     if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
@@ -45,11 +68,18 @@ router.get('/api/ai/feedback', (req, res) => {
 
 router.post('/api/ai/feedback', (req, res) => {
     try {
-        const data = submitAiAnswerFeedback(req.aiFeedbackOwner, req.body || {});
-        if (!data) return res.status(404).json({ success: false, error: 'AI 回复不存在' });
-        res.status(201).json({ success: true, data });
+        const data = executeSubmitAiAnswerFeedback(
+            aiFeedbackDependencies,
+            req.aiFeedbackOwner,
+            req.body || {},
+            commandContextFromRequest(req, SUBMIT_FEEDBACK_CAPABILITY_ID)
+        );
+        res.status(data.idempotentReplay ? 200 : 201).json({
+            success: true,
+            data: legacyFeedbackEntityResponse(data, 'feedback'),
+        });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -57,11 +87,19 @@ router.post('/api/ai/feedback/:id/diagnose', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法反馈ID' });
-        const data = diagnoseAiAnswerFeedback(req.aiFeedbackOwner, id);
-        if (!data) return res.status(404).json({ success: false, error: '反馈不存在' });
-        res.json({ success: true, data });
+        const data = executeDiagnoseAiAnswerFeedback(
+            aiFeedbackDependencies,
+            req.aiFeedbackOwner,
+            id,
+            req.body || {},
+            commandContextFromRequest(req, DIAGNOSE_FEEDBACK_CAPABILITY_ID)
+        );
+        res.json({
+            success: true,
+            data: legacyFeedbackEntityResponse(data, 'feedback'),
+        });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -69,11 +107,19 @@ router.post('/api/ai/feedback/:id/retest', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法反馈ID' });
-        const data = recordAiAnswerFeedbackRetest(req.aiFeedbackOwner, id, req.body || {});
-        if (!data) return res.status(404).json({ success: false, error: '反馈不存在' });
-        res.json({ success: true, data });
+        const data = executeRetestAiAnswerFeedback(
+            aiFeedbackDependencies,
+            req.aiFeedbackOwner,
+            id,
+            req.body || {},
+            commandContextFromRequest(req, RETEST_FEEDBACK_CAPABILITY_ID)
+        );
+        res.json({
+            success: true,
+            data: legacyFeedbackEntityResponse(data, 'feedback'),
+        });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -81,11 +127,19 @@ router.patch('/api/ai/feedback/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法反馈ID' });
-        const data = reviewAiAnswerFeedback(req.aiFeedbackOwner, id, req.body || {});
-        if (!data) return res.status(404).json({ success: false, error: '反馈不存在' });
-        res.json({ success: true, data });
+        const data = executeReviewAiAnswerFeedback(
+            aiFeedbackDependencies,
+            req.aiFeedbackOwner,
+            id,
+            req.body || {},
+            commandContextFromRequest(req, REVIEW_FEEDBACK_CAPABILITY_ID)
+        );
+        res.json({
+            success: true,
+            data: legacyFeedbackEntityResponse(data, 'feedback'),
+        });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 
@@ -105,11 +159,21 @@ router.patch('/api/ai/learning-rules/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
         if (!id) return res.status(400).json({ success: false, error: '非法规则ID' });
-        const data = updateFactoryAiRule(id, req.body || {});
-        if (!data) return res.status(404).json({ success: false, error: '纠正规则不存在' });
-        res.json({ success: true, data });
+        const data = executeUpdateFactoryAiRule(
+            aiFeedbackDependencies,
+            id,
+            req.body || {},
+            commandContextFromRequest(
+                req,
+                UPDATE_LEARNING_RULE_CAPABILITY_ID
+            )
+        );
+        res.json({
+            success: true,
+            data: legacyFeedbackEntityResponse(data, 'rule'),
+        });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendCommandError(res, error);
     }
 });
 

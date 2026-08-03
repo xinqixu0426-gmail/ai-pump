@@ -1,119 +1,12 @@
 const { AI_TOOLS, WRITE_TOOLS } = require('./tools.cjs');
+const {
+    DOMAIN_CAPABILITY_NAMES,
+    getAiCapability,
+} = require('../../capabilities/registry.cjs');
 
 const DEFAULT_MAX_TOOLS = 18;
 
-const DOMAIN_TOOL_NAMES = Object.freeze({
-    management: [
-        'get_management_action_center',
-        'plan_factory_workflow',
-        'get_business_alerts',
-        'get_dashboard_summary',
-        'get_order_readiness_overview',
-        'check_order_readiness',
-        'plan_order_readiness_actions',
-        'execute_order_readiness_action',
-        'execute_factory_workflow_step',
-    ],
-    knowledge: [
-        'search_factory_knowledge',
-        'get_factory_knowledge_detail',
-        'get_factory_knowledge_health',
-        'sync_factory_knowledge',
-        'get_order_knowledge_package',
-    ],
-    quality: [
-        'get_data_quality_summary',
-        'analyze_recipe_configuration',
-        'get_factory_learning_health',
-        'get_factory_rule_candidates',
-        'get_factory_rule_impact',
-        'get_factory_rule_compliance',
-        'get_factory_rule_history',
-        'set_recipe_analysis_feedback',
-        'refresh_factory_rule_candidates',
-        'review_factory_rule_candidate',
-        'restore_factory_rule_event',
-    ],
-    order: [
-        'get_order_detail',
-        'get_recent_orders',
-        'get_order_readiness_overview',
-        'check_order_readiness',
-        'plan_order_readiness_actions',
-        'get_order_knowledge_package',
-        'build_order_draft',
-        'generate_purchase_list',
-        'save_order_requirement_draft',
-        'save_order_execution_draft',
-        'create_order',
-        'update_order_status',
-        'add_recipe_to_order',
-        'remove_recipe_from_order',
-        'update_order_item',
-        'delete_order',
-        'execute_order_readiness_action',
-    ],
-    quotation: [
-        'inspect_quotation_file',
-        'build_quotation_draft',
-        'search_customer_history',
-        'preview_recipe_cost',
-        'explain_cost_change',
-        'build_order_draft',
-        'plan_factory_workflow',
-        'execute_factory_workflow_step',
-    ],
-    file: [
-        'inspect_quotation_file',
-        'search_factory_file_archive_targets',
-        'archive_factory_file',
-        'get_order_knowledge_package',
-        'save_order_requirement_draft',
-        'save_order_execution_draft',
-    ],
-    recipe: [
-        'get_all_recipes',
-        'build_recipe_bom_draft',
-        'preview_recipe_cost',
-        'preview_pump_shell_cost',
-        'compare_recipes',
-        'analyze_recipe_configuration',
-        'create_recipe',
-        'update_recipe',
-        'delete_recipe',
-    ],
-    cost: [
-        'preview_recipe_cost',
-        'preview_pump_shell_cost',
-        'full_calculate',
-        'dynamic_config_cost',
-        'calculate_coil_cost',
-        'get_copper_price',
-        'explain_cost_change',
-        'compare_recipes',
-        'build_recipe_bom_draft',
-    ],
-    coil: [
-        'get_coil_specs',
-        'calculate_coil_cost',
-        'get_copper_price',
-        'adjust_coil_stock',
-        'search_factory_knowledge',
-    ],
-    catalog: [
-        'search_parts',
-        'create_part',
-        'update_part',
-        'delete_part',
-        'batch_update_prices',
-        'search_factory_knowledge',
-    ],
-    drawing: [
-        'generate_rotor_drawing',
-        'get_rotor_drawing_history',
-        'print_rotor_drawing',
-    ],
-});
+const DOMAIN_TOOL_NAMES = DOMAIN_CAPABILITY_NAMES;
 
 const GENERAL_TOOL_NAMES = Object.freeze([
     'search_factory_knowledge',
@@ -140,51 +33,8 @@ const DOMAIN_RULES = Object.freeze([
     ['catalog', /零件|配件|供应商|库存|调价/],
 ]);
 
-const WRITE_INTENT_RE = /新增|新建|创建|录入|修改|更新|调整|删除|保存|归档|同步|入库|出库|增加|减少|调价|生成采购|下单|转(?:成|为)?订单|确认|忽略|特殊情况|批准|驳回|恢复|执行|打印/;
+const WRITE_INTENT_RE = /新增|新建|创建|录入|修改|更新|调整|删除|保存|归档|同步|入库|出库|增加|减少|调价|生成采购|生成.{0,12}图纸|出图|下单|转(?:成|为)?订单|确认|忽略|特殊情况|批准|驳回|恢复|执行|打印/;
 const BUSINESS_INTENT_RE = /成本|价格|零件|配件|配方|模板|泵壳|线圈|定子|转子|订单|报价|客户|采购|库存|知识|规则|文件|附件|图纸|质量|工厂|管理|供应商|铜价|BOM/i;
-
-const LIVE_TOOL_NAMES = new Set([
-    'full_calculate',
-    'get_copper_price',
-    'calculate_coil_cost',
-    'get_coil_specs',
-    'adjust_coil_stock',
-    'get_all_recipes',
-    'dynamic_config_cost',
-    'get_recent_orders',
-    'get_order_detail',
-    'generate_purchase_list',
-    'preview_recipe_cost',
-    'preview_pump_shell_cost',
-    'search_customer_history',
-    'explain_cost_change',
-    'get_data_quality_summary',
-    'get_management_action_center',
-    'get_business_alerts',
-    'get_order_readiness_overview',
-    'check_order_readiness',
-    'get_dashboard_summary',
-    'search_parts',
-]);
-
-const DERIVED_TOOL_NAMES = new Set([
-    'build_recipe_bom_draft',
-    'inspect_quotation_file',
-    'build_quotation_draft',
-    'build_order_draft',
-    'analyze_recipe_configuration',
-    'get_factory_learning_health',
-    'get_factory_rule_candidates',
-    'get_factory_rule_impact',
-    'get_factory_rule_compliance',
-    'get_factory_rule_history',
-    'plan_factory_workflow',
-    'plan_order_readiness_actions',
-    'get_order_knowledge_package',
-    'search_factory_knowledge',
-    'get_factory_knowledge_detail',
-    'get_factory_knowledge_health',
-]);
 
 const TOOL_BY_NAME = new Map(AI_TOOLS.map(tool => [tool.function.name, tool]));
 const TOOL_DOMAINS = new Map();
@@ -200,15 +50,15 @@ for (const [domain, names] of Object.entries(DOMAIN_TOOL_NAMES)) {
 const AI_TOOL_METADATA = Object.freeze(Object.fromEntries(
     AI_TOOLS.map(tool => {
         const name = tool.function.name;
+        const capability = getAiCapability(name);
         return [name, Object.freeze({
             name,
-            domains: Object.freeze((TOOL_DOMAINS.get(name) || []).map(item => item.domain)),
-            access: WRITE_TOOLS.has(name) ? 'write' : 'read',
-            dataMode: LIVE_TOOL_NAMES.has(name)
-                ? 'live'
-                : DERIVED_TOOL_NAMES.has(name)
-                    ? 'derived'
-                    : 'stable',
+            capabilityId: capability.capabilityId,
+            domains: capability.domains,
+            access: capability.access,
+            dataMode: capability.dataMode,
+            riskLevel: capability.riskLevel,
+            requiresConfirmation: capability.requiresConfirmation,
         })];
     })
 ));

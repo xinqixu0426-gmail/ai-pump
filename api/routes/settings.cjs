@@ -1,18 +1,40 @@
 const { Router } = require('express');
-const { getSetting, setSetting } = require('../db.cjs');
+const { db, setSetting } = require('../db.cjs');
+const {
+    commandContextFromRequest,
+    sendCommandError,
+} = require('../services/commandRequest.cjs');
+const {
+    ALLOWED_SETTINGS,
+    UPDATE_CAPABILITY_ID: BUSINESS_SETTING_UPDATE_CAPABILITY_ID,
+    executeBusinessSettingUpdate,
+} = require('../services/businessSettingCommands.cjs');
 const {
     buildCandidateAiEnvironment,
     publicSnapshot,
-    updateRuntimeSettings,
 } = require('../services/runtimeConfig.cjs');
+const {
+    UPDATE_RUNTIME_CAPABILITY_ID,
+    executeRuntimeSettingsUpdate,
+} = require('../services/runtimeSettingCommands.cjs');
 const {
     fetchAiProvider,
     resolveAiProviderConfig,
     resolveProviderConfig,
 } = require('../services/aiProvider.cjs');
+const {
+    createSettingsQueries,
+} = require('../services/settingsQueries.cjs');
 const router = Router();
-
-const ALLOWED_SETTINGS = new Set(['management_fee', 'cable_accessories', 'float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate']);
+const settingsQueries = createSettingsQueries({
+    allowedSettings: ALLOWED_SETTINGS,
+    buildCandidateAiEnvironment,
+    db,
+    fetchAiProvider,
+    publicRuntimeSnapshot: publicSnapshot,
+    resolveAiProviderConfig,
+    resolveProviderConfig,
+});
 
 function runtimeError(res, error, fallback = '运行设置操作失败') {
     const message = String(error?.message || fallback)
@@ -22,7 +44,10 @@ function runtimeError(res, error, fallback = '运行设置操作失败') {
 
 router.get('/runtime', (_req, res) => {
     try {
-        res.json({ success: true, data: publicSnapshot() });
+        res.json({
+            success: true,
+            data: settingsQueries.getRuntimeSettings(),
+        });
     } catch (error) {
         runtimeError(res, error, '运行设置读取失败');
     }
@@ -30,46 +55,32 @@ router.get('/runtime', (_req, res) => {
 
 router.put('/runtime', (req, res) => {
     try {
-        const result = updateRuntimeSettings(req.body);
-        res.json({ success: true, data: result.config, changed: result.changed });
+        const result = executeRuntimeSettingsUpdate(
+            {
+                dbAccessors: require('../db.cjs'),
+                env: process.env,
+            },
+            req.body || {},
+            commandContextFromRequest(
+                req,
+                UPDATE_RUNTIME_CAPABILITY_ID
+            )
+        );
+        res.json({
+            success: true,
+            data: result,
+            changed: result.changed,
+        });
     } catch (error) {
-        runtimeError(res, error, '运行设置保存失败');
+        sendCommandError(res, error);
     }
 });
 
 router.post('/runtime/test-ai', async (req, res) => {
-    const startedAt = Date.now();
     try {
-        const env = buildCandidateAiEnvironment(req.body);
-        const mode = String(env.AI_PROVIDER || 'auto').trim().toLowerCase();
-        const configs = mode === 'auto'
-            ? [
-                resolveProviderConfig('deepseek', env),
-                ...(resolveProviderConfig('kimi', env).apiKey ? [resolveProviderConfig('kimi', env)] : []),
-            ]
-            : [resolveAiProviderConfig(env)];
-        const testedProviders = [];
-        for (const config of configs) {
-            const response = await fetchAiProvider([{
-                role: 'user',
-                content: '只回复“连接正常”。',
-            }], { config });
-            await response.arrayBuffer();
-            testedProviders.push({
-                provider: config.provider,
-                displayName: config.displayName,
-                model: config.model,
-            });
-        }
         res.json({
             success: true,
-            data: {
-                provider: mode,
-                displayName: mode === 'auto' ? '智能路由' : testedProviders[0].displayName,
-                model: testedProviders.map(item => item.model).join(' / '),
-                testedProviders,
-                latencyMs: Date.now() - startedAt,
-            },
+            data: await settingsQueries.testAiConnection(req.body || {}),
         });
     } catch (error) {
         runtimeError(res, error, 'AI 连接测试失败');
@@ -77,50 +88,55 @@ router.post('/runtime/test-ai', async (req, res) => {
 });
 
 router.get('/:key', (req, res) => {
-    if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
-    const value = getSetting(req.params.key);
-    if (value === null) return res.status(404).json({ success: false, error: `设置项 "${req.params.key}" 不存在` });
-    res.json({ success: true, data: { key: req.params.key, value } });
+    try {
+        res.json({
+            success: true,
+            data: settingsQueries.getBusinessSetting(req.params.key),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            error: error.message,
+        });
+    }
 });
 
 router.put('/:key', (req, res) => {
-    const { value } = req.body;
-    if (!ALLOWED_SETTINGS.has(req.params.key)) return res.status(400).json({ success: false, error: '非法设置项' });
-    if (value === undefined) return res.status(400).json({ success: false, error: 'value 为必填项' });
-    if (req.params.key === 'management_fee') {
-        const fee = Number(value);
-        if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ success: false, error: 'management_fee 必须是非负数字' });
+    try {
+        const result = executeBusinessSettingUpdate(
+            { db, setSetting },
+            req.params.key,
+            req.body || {},
+            commandContextFromRequest(
+                req,
+                BUSINESS_SETTING_UPDATE_CAPABILITY_ID
+            )
+        );
+        res.json({
+            success: true,
+            data: {
+                ...result,
+                operationStatus: result.status,
+                ...result.setting,
+            },
+        });
+    } catch (error) {
+        sendCommandError(res, error);
     }
-    if (['float_accessory_delta', 'aluminum_wire_price_per_kg', 'usd_cny_rate'].includes(req.params.key)) {
-        const numericValue = Number(value);
-        if (!Number.isFinite(numericValue) || numericValue < 0) return res.status(400).json({ success: false, error: `${req.params.key} 必须是非负数字` });
-    }
-    if (req.params.key === 'cable_accessories') {
-        let config;
-        try { config = typeof value === 'string' ? JSON.parse(value) : value; }
-        catch { return res.status(400).json({ success: false, error: 'cable_accessories 必须是有效 JSON' }); }
-        for (const type of ['standard', 'xinjie']) {
-            const name = config?.[type]?.name;
-            const fee = Number(config?.[type]?.fee);
-            if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ success: false, error: `${type}.name 不能为空` });
-            if (!Number.isFinite(fee) || fee < 0) return res.status(400).json({ success: false, error: `${type}.fee 必须是非负数字` });
-        }
-        req.body.value = JSON.stringify(config);
-    }
-    setSetting(req.params.key, req.body.value);
-    res.json({ success: true, data: { key: req.params.key, value: String(req.body.value) } });
 });
 
 router.get('/', (req, res) => {
-    const { db } = require('../db.cjs');
-    const rows = db.prepare(`
-        SELECT key, value, updated_at
-        FROM system_settings
-        WHERE key IN (${[...ALLOWED_SETTINGS].map(() => '?').join(', ')})
-    `).all(...ALLOWED_SETTINGS);
-    const data = {};
-    rows.forEach(r => { data[r.key] = r.value; });
-    res.json({ success: true, data });
+    try {
+        res.json({
+            success: true,
+            data: settingsQueries.getAllBusinessSettings(),
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
 });
 
 module.exports = router;

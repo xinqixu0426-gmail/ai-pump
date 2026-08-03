@@ -457,7 +457,7 @@ module_migrations
 - Row Adapter 继续输出当前 camelCase 契约；
 - 清理旧字段必须等到没有旧版本客户端、历史数据已迁移且契约测试更新后进行。
 
-任何 API 新增或调整都必须同步 `docs/api-reference.md`；本文本身不授权直接改变 API。
+任何 API 新增或调整都必须遵守 `docs/api-contract.md`、执行 `docs/api-sop.md` 并同步 `docs/api-reference.md`；本文本身不授权直接改变 API。
 
 ## 9. 目标目录结构
 

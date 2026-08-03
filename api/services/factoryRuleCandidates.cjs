@@ -182,7 +182,7 @@ function recordFactoryRuleEvent(candidate, eventType, details = {}, options = {}
     const insert = options.safeInsert || accessors.safeInsert;
     if (typeof insert !== 'function') throw new Error('规则事件写入器不可用');
     const now = details.createdAt || new Date().toISOString();
-    insert('factory_rule_events', {
+    const write = insert('factory_rule_events', {
         candidate_id: Number(candidate.id),
         rule_key: candidate.ruleKey,
         event_type: eventType,
@@ -192,7 +192,8 @@ function recordFactoryRuleEvent(candidate, eventType, details = {}, options = {}
         note: String(details.note || '').slice(0, 500),
         snapshot_json: JSON.stringify(details.snapshot || candidate),
         created_at: now,
-    });
+    }, options.auditContext || {});
+    options.onWrite?.(write);
 }
 
 function listFactoryRuleEvents(options = {}) {
@@ -736,7 +737,13 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                 values.approved_at = null;
                 values.reviewed_learning_hash = '';
             }
-            update('factory_rule_candidates', current.id, values);
+            const write = update(
+                'factory_rule_candidates',
+                current.id,
+                values,
+                options.auditContext || {}
+            );
+            options.onWrite?.(write);
             const updatedCandidate = candidateRow(
                 database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
             );
@@ -766,6 +773,8 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                         safeUpdate: update,
                         hardDelete: remove,
                     },
+                    auditContext: options.auditContext,
+                    onWrite: options.onWrite,
                 });
             }
             if (approvalSuspended) suspended += 1;
@@ -778,7 +787,8 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                 review_note: '',
                 created_at: now,
                 updated_at: now,
-            });
+            }, options.auditContext || {});
+            options.onWrite?.(info);
             const createdCandidate = candidateRow(
                 database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(Number(info.lastInsertRowid))
             );
@@ -804,11 +814,17 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
         const evidenceChanged = row.learning_hash !== learningValues.learning_hash
             || Number(row.support_count || 0) !== Number(learningValues.support_count || 0);
         if (row.status === 'stale' && !evidenceChanged) continue;
-        update('factory_rule_candidates', row.id, {
-            ...learningValues,
-            status: 'stale',
-            reviewed_learning_hash: '',
-        });
+        const write = update(
+            'factory_rule_candidates',
+            row.id,
+            {
+                ...learningValues,
+                status: 'stale',
+                reviewed_learning_hash: '',
+            },
+            options.auditContext || {}
+        );
+        options.onWrite?.(write);
         const staleCandidate = candidateRow(
             database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(row.id)
         );
@@ -827,6 +843,8 @@ function refreshFactoryRuleCandidatesCore(options = {}) {
                 safeUpdate: update,
                 hardDelete: remove,
             },
+            auditContext: options.auditContext,
+            onWrite: options.onWrite,
         });
         stale += 1;
     }
@@ -893,13 +911,19 @@ function reviewFactoryRuleCandidateCore(idValue, input = {}, options = {}) {
         throw inputError(`规则不满足批准门槛：${approvalGate.blockers.join('；')}`);
     }
     const now = new Date().toISOString();
-    update('factory_rule_candidates', id, {
-        ...(status === 'approved' ? ruleLearningValues(currentGroup, now) : {}),
-        status,
-        review_note: reviewNote,
-        approved_at: status === 'approved' ? now : null,
-        reviewed_learning_hash: status === 'approved' ? currentGroup.learningHash : '',
-    });
+    const write = update(
+        'factory_rule_candidates',
+        id,
+        {
+            ...(status === 'approved' ? ruleLearningValues(currentGroup, now) : {}),
+            status,
+            review_note: reviewNote,
+            approved_at: status === 'approved' ? now : null,
+            reviewed_learning_hash: status === 'approved' ? currentGroup.learningHash : '',
+        },
+        options.auditContext || {}
+    );
+    options.onWrite?.(write);
     const reviewed = candidateRow(database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(id));
     recordFactoryRuleEvent(reviewed, status === 'candidate' ? 'reopened' : status, {
         previousStatus: current.status,
@@ -914,6 +938,8 @@ function reviewFactoryRuleCandidateCore(idValue, input = {}, options = {}) {
             safeUpdate: update,
             hardDelete: remove,
         },
+        auditContext: options.auditContext,
+        onWrite: options.onWrite,
     });
     return { ...reviewed, knowledgeSync };
 }
@@ -982,13 +1008,19 @@ function restoreFactoryRuleEventCore(eventIdValue, input = {}, options = {}) {
     const reviewNote = restoreNote || sourceReviewNote || `恢复自规则事件 #${sourceEvent.id}`;
     const now = new Date().toISOString();
     const learningUpdates = ruleLearningValues(currentGroup, now);
-    update('factory_rule_candidates', current.id, {
-        ...learningUpdates,
-        status: targetStatus,
-        review_note: reviewNote,
-        approved_at: targetStatus === 'approved' ? now : null,
-        reviewed_learning_hash: targetStatus === 'approved' ? currentGroup.learningHash : '',
-    });
+    const write = update(
+        'factory_rule_candidates',
+        current.id,
+        {
+            ...learningUpdates,
+            status: targetStatus,
+            review_note: reviewNote,
+            approved_at: targetStatus === 'approved' ? now : null,
+            reviewed_learning_hash: targetStatus === 'approved' ? currentGroup.learningHash : '',
+        },
+        options.auditContext || {}
+    );
+    options.onWrite?.(write);
     const restored = candidateRow(
         database.prepare('SELECT * FROM factory_rule_candidates WHERE id = ?').get(current.id)
     );
@@ -1005,6 +1037,8 @@ function restoreFactoryRuleEventCore(eventIdValue, input = {}, options = {}) {
             safeUpdate: update,
             hardDelete: remove,
         },
+        auditContext: options.auditContext,
+        onWrite: options.onWrite,
     });
     return {
         candidate: restored,

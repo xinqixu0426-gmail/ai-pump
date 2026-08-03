@@ -21,6 +21,7 @@ const CORE_COUNT_TABLES = Object.freeze([
     'factory_files',
     'knowledge_entries',
     'knowledge_embeddings',
+    'api_operations',
     'audit_log',
 ]);
 

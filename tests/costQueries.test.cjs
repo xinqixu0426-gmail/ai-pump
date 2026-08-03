@@ -1,0 +1,303 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const Database = require('better-sqlite3');
+const {
+    CostQueryError,
+    createCostQueries,
+} = require('../api/services/costQueries.cjs');
+
+function createFixture() {
+    const db = new Database(':memory:');
+    db.exec(`
+        CREATE TABLE recipes (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            spec TEXT,
+            parts_json TEXT,
+            template_id INTEGER,
+            coil_spec TEXT,
+            coil_sheets INTEGER,
+            coil_material TEXT,
+            coil_slot_type TEXT,
+            coil_wire_weight REAL,
+            has_float INTEGER,
+            float_wire TEXT,
+            float_accessory_type TEXT,
+            has_cable INTEGER,
+            cable_length REAL,
+            cable_wire TEXT,
+            cable_accessory_type TEXT,
+            box_type TEXT,
+            packing_parts_json TEXT,
+            custom_barrel_length REAL,
+            extra_parts_json TEXT,
+            assembly_wage REAL,
+            packing_wage REAL,
+            painting_wage REAL,
+            surface_treatment_mode TEXT,
+            surface_treatment_cost REAL,
+            management_fee REAL,
+            saved_total_cost REAL,
+            deleted_at TEXT
+        );
+        INSERT INTO recipes VALUES (
+            1, 'PUMP-A', 'A规格',
+            '[{"name":"轴承","model":"6201","qty":1,"snapshotPrice":10}]',
+            NULL, '', 0, '钢带', '小眼', NULL,
+            0, '', 'standard', 0, 0, '', 'standard',
+            '', '[]', NULL, '[]',
+            2, 3, NULL, 'none', 0, 1, 20, NULL
+        );
+        INSERT INTO recipes VALUES (
+            2, 'PUMP-B', 'B规格',
+            '[{"name":"轴承","model":"6202","qty":1,"snapshotPrice":15}]',
+            NULL, '', 0, '钢带', '小眼', NULL,
+            0, '', 'standard', 0, 0, '', 'standard',
+            '', '[]', NULL, '[]',
+            2, 3, NULL, 'none', 0, 1, 25, NULL
+        );
+    `);
+
+    const recipeRow = row => row && ({
+        id: row.id,
+        Id: row.id,
+        name: row.name,
+        spec: row.spec,
+        partsJson: row.parts_json,
+        coilSpec: row.coil_spec,
+        coilSheets: row.coil_sheets,
+        coilMaterial: row.coil_material,
+        coilSlotType: row.coil_slot_type,
+        coilWireWeight: row.coil_wire_weight,
+        assemblyWage: row.assembly_wage,
+        packingWage: row.packing_wage,
+        paintingWage: row.painting_wage,
+        surfaceTreatmentMode: row.surface_treatment_mode,
+        surfaceTreatmentCost: row.surface_treatment_cost,
+        managementFee: row.management_fee,
+        savedTotalCost: row.saved_total_cost,
+    });
+    const listRecipes = () => db.prepare(
+        'SELECT * FROM recipes WHERE deleted_at IS NULL ORDER BY id'
+    ).all().map(recipeRow);
+    const costCalls = [];
+    const calculateRecipeCost = (parts) => {
+        costCalls.push(parts);
+        const details = (parts || []).map(part => ({
+            ...part,
+            qty: Number(part.qty || 1),
+            subtotal: Number(part.snapshotPrice || 0)
+                * Number(part.qty || 1),
+        }));
+        const totalCost = details.reduce(
+            (sum, item) => sum + item.subtotal,
+            0
+        );
+        return {
+            totalCost: totalCost.toFixed(2),
+            itemCount: details.length,
+            missingParts: [],
+            details,
+        };
+    };
+    const queries = createCostQueries({
+        db,
+        calculateRecipeCost,
+        getSetting: key => key === 'management_fee' ? 1 : undefined,
+        listCoils: () => [],
+        listRecipes,
+        loadPartsData: () => ({
+            partsCache: {},
+            partsByModel: {},
+        }),
+        recipeRow,
+    });
+    return {
+        costCalls,
+        db,
+        queries,
+    };
+}
+
+test('成本 Query 的配件数组计算继续唯一委托正式成本函数', () => {
+    const fixture = createFixture();
+    try {
+        const parts = [{
+            model: '6201',
+            qty: 2,
+            snapshotPrice: 10,
+        }];
+        assert.deepEqual(
+            fixture.queries.calculateParts({ parts }),
+            {
+                totalCost: '20.00',
+                itemCount: 1,
+                missingParts: [],
+                details: [{
+                    model: '6201',
+                    qty: 2,
+                    snapshotPrice: 10,
+                    subtotal: 20,
+                }],
+            }
+        );
+        assert.equal(fixture.costCalls[0], parts);
+        assert.throws(
+            () => fixture.queries.calculateParts({ parts: [] }),
+            error => (
+                error instanceof CostQueryError
+                && error.statusCode === 400
+                && error.message === '请求体必须包含 parts 数组'
+            )
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('成本 Query 统一按名称、ID 和批量当日口径读取配方', () => {
+    const fixture = createFixture();
+    try {
+        assert.deepEqual(
+            fixture.queries.getRecipeCostByName('PUMP-A'),
+            {
+                recipeId: 1,
+                recipeName: 'PUMP-A',
+                recipeSpec: 'A规格',
+                totalCost: '10.00',
+                itemCount: 1,
+                missingParts: [],
+                details: [{
+                    name: '轴承',
+                    model: '6201',
+                    qty: 1,
+                    snapshotPrice: 10,
+                    subtotal: 10,
+                }],
+            }
+        );
+        assert.equal(
+            fixture.queries.getRecipeCostById('2').recipeId,
+            '2'
+        );
+        const current = fixture.queries.getCurrentRecipeCosts(
+            new Date('2026-08-03T00:00:00.000Z')
+        );
+        assert.equal(current.asOf, '2026-08-03T00:00:00.000Z');
+        assert.deepEqual(current.items.map(item => ({
+            recipeId: item.recipeId,
+            currentTotalCost: item.currentTotalCost,
+            savedTotalCost: item.savedTotalCost,
+        })), [
+            {
+                recipeId: 1,
+                currentTotalCost: 16,
+                savedTotalCost: 20,
+            },
+            {
+                recipeId: 2,
+                currentTotalCost: 21,
+                savedTotalCost: 25,
+            },
+        ]);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('成本 Query 保持配方查询的 400/404 兼容错误', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => fixture.queries.getRecipeCostByName(''),
+            error => (
+                error instanceof CostQueryError
+                && error.statusCode === 400
+                && error.message === '请提供 name 查询参数'
+            )
+        );
+        assert.throws(
+            () => fixture.queries.getRecipeCostByName('不存在'),
+            error => (
+                error instanceof CostQueryError
+                && error.statusCode === 404
+            )
+        );
+        assert.throws(
+            () => fixture.queries.getRecipeCostById(999),
+            error => (
+                error instanceof CostQueryError
+                && error.statusCode === 404
+                && error.message === '配方ID 999 不存在'
+            )
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('成本 Query 统一承接线圈、动态项和完整估算编排', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => fixture.queries.calculateCoil({}),
+            error => (
+                error instanceof CostQueryError
+                && error.statusCode === 400
+                && error.message === '规格为必填项'
+            )
+        );
+        assert.deepEqual(fixture.queries.calculateDynamic({}), {
+            totalCost: '0.00',
+            itemCount: 0,
+            resolvedWire: '0.55',
+            details: [],
+        });
+        const full = fixture.queries.calculateFullEstimate({
+            pumphousing_model: 'PUMP-A',
+        });
+        assert.equal(full.recipeCost.recipeName, 'PUMP-A');
+        assert.equal(full.recipeCost.totalCost, '10.00');
+        assert.equal(full.dynamicCost.totalCost, '0.00');
+        assert.equal(full.totalCost, '10.00');
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('成本 Query 的配方覆盖预览保持只读和原响应字段', () => {
+    const fixture = createFixture();
+    try {
+        const result = fixture.queries.previewRecipeCost(1, {});
+        assert.equal(result.recipeName, 'PUMP-A');
+        assert.equal(result.data.unitCost, 20);
+        assert.ok(Array.isArray(result.data.parts));
+        assert.equal(typeof result.data.costSnapshot, 'object');
+        assert.throws(
+            () => fixture.queries.previewRecipeCost(999, {}),
+            error => (
+                error instanceof CostQueryError
+                && error.statusCode === 404
+                && error.message === 'Recipe not found'
+            )
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('成本差异解释通过注入的正式配方和成本依赖完成', () => {
+    const fixture = createFixture();
+    try {
+        const result = fixture.queries.getRecipeDifference({
+            leftRecipeId: 1,
+            rightRecipeId: 2,
+        });
+        assert.equal(result.left.name, 'PUMP-A');
+        assert.equal(result.right.name, 'PUMP-B');
+        assert.equal(result.totalDiff, 5);
+        assert.equal(result.direction, '增加');
+    } finally {
+        fixture.db.close();
+    }
+});

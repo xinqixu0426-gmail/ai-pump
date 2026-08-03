@@ -1,6 +1,6 @@
 'use client';
 
-import { proxyRequest, type ApiResponse } from './api';
+import { createIdempotencyKey, proxyRequest, type ApiResponse } from './api';
 
 export type FactoryFile = {
   id: number;
@@ -93,28 +93,67 @@ export type ArchiveFactoryFileResult = {
   deduplicated: boolean;
 };
 
+export type ArchiveFactoryFilePreview = {
+  capabilityId: 'files.archive';
+  operationId: string;
+  confirmationToken: string;
+  inputHash: string;
+  expiresAt: string;
+  suggestedIdempotencyKey: string;
+  previewHash: string;
+  file: Pick<FactoryFile, 'id' | 'originalName' | 'parserStatus' | 'fileSha256' | 'updatedAt'>;
+  target: Omit<FactoryFileArchiveTarget, 'id'> & { id: number | null };
+  action: 'deduplicated' | 'restore_link' | 'create_link' | 'create_document_and_link';
+  changes: Array<Record<string, unknown>>;
+  warnings: Array<{ code: string; message: string }>;
+};
+
+function createFileCommandKey(prefix: string) {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}:${crypto.randomUUID()}`;
+  }
+  return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+}
+
+const factoryFileVersions = new Map<number, string>();
+
+function rememberFactoryFileVersion(file: FactoryFile) {
+  if (file.updatedAt) factoryFileVersions.set(file.id, file.updatedAt);
+  return file;
+}
+
 export async function uploadFactoryFile(file: File): Promise<FactoryFile> {
   const formData = new FormData();
   formData.append('file', file);
   const result = await proxyRequest<ApiResponse<FactoryFile>>('/api/files', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('file-upload'),
+    },
     body: formData,
   });
   if (!result.success || !result.data) throw new Error(result.error || '上传文件失败');
-  return result.data;
+  return rememberFactoryFileVersion(result.data);
 }
 
 export async function getFactoryFile(id: number): Promise<FactoryFile> {
   const result = await proxyRequest<ApiResponse<FactoryFile>>(`/api/files/${id}`);
   if (!result.success || !result.data) throw new Error(result.error || '读取文件状态失败');
-  return result.data;
+  return rememberFactoryFileVersion(result.data);
 }
 
 export async function deleteFactoryFile(id: number): Promise<void> {
   const result = await proxyRequest<ApiResponse<unknown>>(`/api/files/${id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`file-delete:${id}`),
+    },
+    body: JSON.stringify({
+      expectedUpdatedAt: factoryFileVersions.get(id) || null,
+    }),
   });
   if (!result.success) throw new Error(result.error || '删除文件失败');
+  factoryFileVersions.delete(id);
 }
 
 export async function searchFactoryFileArchiveTargets(
@@ -153,17 +192,40 @@ export async function archiveFactoryFile(
   id: number,
   input: ArchiveFactoryFileInput
 ): Promise<ArchiveFactoryFileResult> {
+  const preview = await proxyRequest<ApiResponse<ArchiveFactoryFilePreview>>(
+    `/api/files/${id}/archive-preview`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }
+  );
+  if (!preview.success || !preview.data) {
+    throw new Error(preview.error || '归档文件预览失败');
+  }
   const result = await proxyRequest<ApiResponse<ArchiveFactoryFileResult>>(`/api/files/${id}/archive`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': preview.data.suggestedIdempotencyKey,
+    },
+    body: JSON.stringify({
+      confirmationToken: preview.data.confirmationToken,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '归档文件失败');
   return result.data;
 }
 
-export async function deleteFactoryFileLink(fileId: number, linkId: number): Promise<void> {
+export async function deleteFactoryFileLink(
+  fileId: number,
+  linkId: number,
+  expectedUpdatedAt?: string
+): Promise<void> {
   const result = await proxyRequest<ApiResponse<unknown>>(`/api/files/${fileId}/links/${linkId}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createFileCommandKey(`file-link-delete:${linkId}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt }),
   });
   if (!result.success) throw new Error(result.error || '解除文件关联失败');
 }

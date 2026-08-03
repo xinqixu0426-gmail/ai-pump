@@ -63,6 +63,7 @@ function buildFormFromRecipe(recipe, overrides = {}) {
         cableWire: recipe.cableWire || '',
         cableAccessoryType: recipe.cableAccessoryType || 'standard',
         customBarrelLength: recipe.customBarrelLength ?? null,
+        longScrewExtraLength: recipe.longScrewExtraLength ?? 0,
         modelVariantId: recipe.modelVariantId ?? null,
         impellerModel: recipe.impellerModel || '',
         impellerThickness: recipe.impellerThickness ?? null,
@@ -159,6 +160,10 @@ async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}
     }
     const costDraft = await postJson(internalFetch, '/api/recipes/cost-draft', { parts }, '生成配方成本草稿失败');
     return postJson(internalFetch, '/api/recipes/save-payload-draft', {
+        ...(options.recipeId ? {
+            recipeId: Number(options.recipeId),
+            expectedUpdatedAt: options.expectedUpdatedAt,
+        } : {}),
         form: {
             name: form.name,
             spec: form.spec || '',
@@ -181,6 +186,7 @@ async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}
             cableWire: form.cableWire || '',
             cableAccessoryType: form.cableAccessoryType || 'standard',
             customBarrelLength: form.customBarrelLength ?? null,
+            longScrewExtraLength: form.longScrewExtraLength ?? 0,
             modelVariantId: form.modelVariantId ?? null,
             impellerModel: form.impellerModel || '',
             impellerThickness: form.impellerThickness ?? null,
@@ -224,7 +230,12 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const { recipeName } = args;
             const recipe = findRecipe(await loadRecipes(internalFetch), recipeName);
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
-            await deleteJson(internalFetch, `/api/recipes/${recipe.id ?? recipe.Id}`, '配方删除失败');
+            await deleteJson(
+                internalFetch,
+                `/api/recipes/${recipe.id ?? recipe.Id}`,
+                '配方删除失败',
+                { expectedUpdatedAt: recipe.updatedAt ?? recipe.UpdatedAt }
+            );
             return { success: true, message: `配方"${recipe.name || recipeName}"已删除`, recipeName: recipe.name || recipeName };
         }
 
@@ -270,6 +281,8 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
             try {
                 const payload = await buildAiRecipeSavePayload(internalFetch, form, parts, {
+                    recipeId: recipe.id ?? recipe.Id,
+                    expectedUpdatedAt: recipe.updatedAt ?? recipe.UpdatedAt,
                     packingParts: parseJsonArray(recipe.packingPartsJson),
                     optionalParts: parseJsonArray(recipe.extraPartsJson),
                     technicalData: parseJsonObject(recipe.technicalDataJson),
@@ -317,8 +330,4 @@ async function executeRecipeTool(toolName, args, internalFetch) {
     }
 }
 
-const RECIPE_TOOLS = new Set([
-    'create_recipe', 'delete_recipe', 'update_recipe', 'compare_recipes'
-]);
-
-module.exports = { executeRecipeTool, RECIPE_TOOLS };
+module.exports = { executeRecipeTool };

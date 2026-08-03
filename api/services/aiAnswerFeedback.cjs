@@ -65,7 +65,7 @@ function collectSources(metadataJson) {
     return sources.slice(0, 30);
 }
 
-function feedbackRow(row, rowAdapter, db = null) {
+function feedbackRow(row, rowAdapter, db = null, evaluationCaseAdapter = null) {
     if (!row) return null;
     const adapted = rowAdapter(row);
     let sources = [];
@@ -96,7 +96,13 @@ function feedbackRow(row, rowAdapter, db = null) {
             db.prepare('SELECT * FROM factory_ai_rules WHERE source_feedback_id = ?').get(adapted.id)
         )
         : null;
-    return { ...adapted, sources, diagnosis, retestSources, learningRule };
+    const regressionCase = db && evaluationCaseAdapter
+        ? require('./aiRegressionCases.cjs').evaluationCaseView(
+            db.prepare('SELECT * FROM ai_evaluation_cases WHERE source_feedback_id = ?').get(adapted.id),
+            evaluationCaseAdapter
+        )
+        : null;
+    return { ...adapted, sources, diagnosis, retestSources, learningRule, regressionCase };
 }
 
 function assistantMessageForOwner(db, ownerKey, messageId) {
@@ -113,7 +119,7 @@ function assistantMessageForOwner(db, ownerKey, messageId) {
 
 function submitAiAnswerFeedback(ownerKey, input = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeInsert, safeUpdate, aiAnswerFeedbackRow } = accessors;
+    const { db, safeInsert, safeUpdate, aiAnswerFeedbackRow, aiEvaluationCaseRow } = accessors;
     const messageId = parsePositiveId(input.messageId, '消息ID');
     const rating = normalizeRating(input.rating);
     const note = normalizeText(input.note, 500, '补充说明');
@@ -155,24 +161,44 @@ function submitAiAnswerFeedback(ownerKey, input = {}, options = {}) {
         let id;
         if (existing) {
             id = existing.id;
-            safeUpdate('ai_answer_feedback', id, values);
+            const write = safeUpdate(
+                'ai_answer_feedback',
+                id,
+                values,
+                options.auditContext || {}
+            );
+            options.onWrite?.(write);
         } else {
             const info = safeInsert('ai_answer_feedback', {
                 ...values,
                 created_at: now,
                 updated_at: now,
-            });
+            }, options.auditContext || {});
+            options.onWrite?.(info);
             id = Number(info.lastInsertRowid);
         }
         const saved = db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id);
         require('./factoryAiRules.cjs').synchronizeFactoryAiRuleFromFeedback({
             feedback: saved,
             learnFromCorrection: input.learnFromCorrection,
-        }, { dbAccessors: accessors });
+        }, {
+            dbAccessors: accessors,
+            auditContext: options.auditContext,
+            onWrite: options.onWrite,
+        });
+        require('./aiRegressionCases.cjs').synchronizeAiEvaluationCaseFromFeedback({
+            feedback: saved,
+            learnFromCorrection: input.learnFromCorrection,
+        }, {
+            dbAccessors: accessors,
+            auditContext: options.auditContext,
+            onWrite: options.onWrite,
+        });
         return feedbackRow(
             db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id),
             aiAnswerFeedbackRow,
-            db
+            db,
+            aiEvaluationCaseRow
         );
     });
     return persistFeedback();
@@ -180,7 +206,7 @@ function submitAiAnswerFeedback(ownerKey, input = {}, options = {}) {
 
 function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const { db, aiAnswerFeedbackRow } = accessors;
+    const { db, aiAnswerFeedbackRow, aiEvaluationCaseRow } = accessors;
     const owner = normalizeOwnerKey(ownerKey);
     const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 100);
     const clauses = ['conversation.owner_key = ?', 'conversation.deleted_at IS NULL'];
@@ -206,7 +232,7 @@ function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
         WHERE ${clauses.join(' AND ')}
         ORDER BY feedback.updated_at DESC, feedback.id DESC
         LIMIT ?
-    `).all(...params, limit).map(row => feedbackRow(row, aiAnswerFeedbackRow, db));
+    `).all(...params, limit).map(row => feedbackRow(row, aiAnswerFeedbackRow, db, aiEvaluationCaseRow));
     const stats = db.prepare(`
         SELECT
             COUNT(*) AS total,
@@ -234,7 +260,7 @@ function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
 
 function reviewAiAnswerFeedback(ownerKey, idValue, input = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeUpdate, aiAnswerFeedbackRow } = accessors;
+    const { db, safeUpdate, aiAnswerFeedbackRow, aiEvaluationCaseRow } = accessors;
     const id = parsePositiveId(idValue, '反馈ID');
     const status = String(input.status || '').trim();
     if (!ALLOWED_STATUSES.has(status)) throw new Error('处理状态不合法');
@@ -246,12 +272,18 @@ function reviewAiAnswerFeedback(ownerKey, idValue, input = {}, options = {}) {
         WHERE feedback.id = ? AND conversation.owner_key = ? AND conversation.deleted_at IS NULL
     `).get(id, normalizeOwnerKey(ownerKey));
     if (!owned) return null;
-    safeUpdate('ai_answer_feedback', id, {
+    const write = safeUpdate('ai_answer_feedback', id, {
         status,
         resolution_note: resolutionNote,
         resolved_at: status === 'resolved' ? new Date().toISOString() : null,
-    });
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow, db);
+    }, options.auditContext || {});
+    options.onWrite?.(write);
+    return feedbackRow(
+        db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id),
+        aiAnswerFeedbackRow,
+        db,
+        aiEvaluationCaseRow
+    );
 }
 
 function feedbackForOwner(db, ownerKey, id) {
@@ -284,11 +316,11 @@ function questionSearchTerms(question) {
 
 function diagnoseAiAnswerFeedback(ownerKey, idValue, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeUpdate, aiAnswerFeedbackRow } = accessors;
+    const { db, safeUpdate, aiAnswerFeedbackRow, aiEvaluationCaseRow } = accessors;
     const id = parsePositiveId(idValue, '反馈ID');
     const row = feedbackForOwner(db, ownerKey, id);
     if (!row) return null;
-    const feedback = feedbackRow(row, aiAnswerFeedbackRow, db);
+    const feedback = feedbackRow(row, aiAnswerFeedbackRow, db, aiEvaluationCaseRow);
     const knowledgeService = options.knowledgeService || require('./knowledge.cjs');
     const overview = knowledgeService.inspectKnowledgeOverview(
         options.knowledgeOptions || { dbAccessors: accessors }
@@ -345,16 +377,22 @@ function diagnoseAiAnswerFeedback(ownerKey, idValue, options = {}) {
         candidateSources,
         actions,
     };
-    safeUpdate('ai_answer_feedback', id, {
+    const write = safeUpdate('ai_answer_feedback', id, {
         diagnosis_json: JSON.stringify(diagnosis),
         diagnosed_at: diagnosis.checkedAt,
-    });
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow, db);
+    }, options.auditContext || {});
+    options.onWrite?.(write);
+    return feedbackRow(
+        db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id),
+        aiAnswerFeedbackRow,
+        db,
+        aiEvaluationCaseRow
+    );
 }
 
 function recordAiAnswerFeedbackRetest(ownerKey, idValue, input = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const { db, safeUpdate, aiAnswerFeedbackRow } = accessors;
+    const { db, safeUpdate, aiAnswerFeedbackRow, aiEvaluationCaseRow } = accessors;
     const id = parsePositiveId(idValue, '反馈ID');
     if (!feedbackForOwner(db, ownerKey, id)) return null;
     const answerText = normalizeText(input.answerText, 100000, '复测回答');
@@ -363,12 +401,18 @@ function recordAiAnswerFeedbackRetest(ownerKey, idValue, input = {}, options = {
     const toolResultsJson = JSON.stringify(toolResults);
     if (toolResultsJson.length > 200000) throw new Error('复测工具结果过大');
     const retestSources = collectSources(JSON.stringify({ toolResults }));
-    safeUpdate('ai_answer_feedback', id, {
+    const write = safeUpdate('ai_answer_feedback', id, {
         retest_answer_text: answerText,
         retest_sources_json: JSON.stringify(retestSources),
         retested_at: new Date().toISOString(),
-    });
-    return feedbackRow(db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id), aiAnswerFeedbackRow, db);
+    }, options.auditContext || {});
+    options.onWrite?.(write);
+    return feedbackRow(
+        db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id),
+        aiAnswerFeedbackRow,
+        db,
+        aiEvaluationCaseRow
+    );
 }
 
 module.exports = {

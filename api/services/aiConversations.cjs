@@ -91,7 +91,8 @@ function createAiConversation(ownerKey, title, options = {}) {
         last_message_preview: '',
         created_at: now,
         updated_at: now,
-    });
+    }, options.auditContext);
+    options.onWrite?.(info);
     return aiConversationRow(db.prepare('SELECT * FROM ai_conversations WHERE id = ?').get(Number(info.lastInsertRowid)));
 }
 
@@ -134,16 +135,30 @@ function appendAiConversationMessage(ownerKey, id, input, options = {}) {
             metadata_json: metadataJson,
             created_at: now,
             updated_at: now,
-        });
+        }, options.auditContext);
+        options.onWrite?.(info);
         const count = db.prepare('SELECT COUNT(*) AS count FROM ai_conversation_messages WHERE conversation_id = ?').get(id).count;
-        safeUpdate('ai_conversations', id, {
+        const conversationWrite = safeUpdate('ai_conversations', id, {
             message_count: count,
             last_message_preview: content.replace(/\s+/g, ' ').trim().slice(0, 120),
-        });
-        return aiConversationMessageRow(db.prepare('SELECT * FROM ai_conversation_messages WHERE id = ?').get(Number(info.lastInsertRowid)));
+        }, options.auditContext);
+        options.onWrite?.(conversationWrite);
+        return {
+            message: aiConversationMessageRow(
+                db.prepare('SELECT * FROM ai_conversation_messages WHERE id = ?')
+                    .get(Number(info.lastInsertRowid))
+            ),
+            conversationUpdatedAt: db.prepare(
+                'SELECT updated_at updatedAt FROM ai_conversations WHERE id = ?'
+            ).get(id)?.updatedAt || now,
+        };
     });
-    const message = append();
-    return { ...message, metadata };
+    const appended = append();
+    return {
+        ...appended.message,
+        metadata,
+        conversationUpdatedAt: appended.conversationUpdatedAt,
+    };
 }
 
 function updateAiConversationMessage(ownerKey, conversationId, messageId, metadata, options = {}) {
@@ -154,7 +169,13 @@ function updateAiConversationMessage(ownerKey, conversationId, messageId, metada
     if (!row) return null;
     const metadataJson = JSON.stringify(parseMetadata(metadata));
     if (metadataJson.length > 200000) throw new Error('消息附加数据过大');
-    safeUpdate('ai_conversation_messages', messageId, { metadata_json: metadataJson });
+    const write = safeUpdate(
+        'ai_conversation_messages',
+        messageId,
+        { metadata_json: metadataJson },
+        options.auditContext
+    );
+    options.onWrite?.(write);
     const updated = aiConversationMessageRow(db.prepare('SELECT * FROM ai_conversation_messages WHERE id = ?').get(messageId));
     return { ...updated, metadata: parseMetadata(updated.metadataJson) };
 }
@@ -163,7 +184,13 @@ function deleteAiConversation(ownerKey, id, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, safeUpdate } = accessors;
     if (!conversationForOwner(db, id, ownerKey)) return false;
-    safeUpdate('ai_conversations', id, { deleted_at: new Date().toISOString() });
+    const write = safeUpdate(
+        'ai_conversations',
+        id,
+        { deleted_at: new Date().toISOString() },
+        options.auditContext
+    );
+    options.onWrite?.(write);
     return true;
 }
 

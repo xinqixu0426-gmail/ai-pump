@@ -1,5 +1,5 @@
 import type { ApiResponse } from './api';
-import { proxyRequest } from './api';
+import { createIdempotencyKey, proxyRequest } from './api';
 import { getAllCustomers, getAllQuotations, rowToQuotation, type Customer, type Quotation } from './customers';
 import type { OrderItem, PurchaseItem, TodoItem } from './orders';
 import { getAllParts, type Part } from './parts';
@@ -85,6 +85,11 @@ export type QuotationDataset = {
 };
 
 export type QuotationOrderDraft = {
+  capabilityId: 'workflow.quotation.convert_to_order';
+  quotationId: number;
+  expectedUpdatedAt: string;
+  suggestedIdempotencyKey: string;
+  previewHash: string;
   customerName: string;
   contractNo?: string;
   remark?: string;
@@ -101,6 +106,11 @@ export type QuotationSavePayloadDraft = {
   totalCost: number;
   totalPrice: number;
   remark: string;
+  preview: true;
+  previewHash: string;
+  suggestedIdempotencyKey: string;
+  changes?: unknown[];
+  warnings?: unknown[];
 };
 
 export const quotationStatusOptions: QuotationStatus[] = ['草稿', '报价中', '已接受', '已拒绝', '已转订单', '已过时'];
@@ -255,6 +265,7 @@ export async function createQuotation(input: {
   const payload = await buildQuotationSavePayloadDraft(input);
   const result = await proxyRequest<ApiResponse<QuotationRow>>('/api/quotations', {
     method: 'POST',
+    headers: { 'Idempotency-Key': payload.suggestedIdempotencyKey },
     body: JSON.stringify(payload),
   });
   if (!result.success || !result.data) throw new Error(result.error || '报价创建失败');
@@ -267,11 +278,17 @@ export async function updateQuotation(input: {
   status: QuotationStatus;
   items: QuotationItem[];
   remark?: string;
+  expectedUpdatedAt?: string;
 }): Promise<Quotation> {
+  if (!input.expectedUpdatedAt) throw new Error('报价版本缺失，请刷新列表后再保存');
   const payload = await buildQuotationSavePayloadDraft(input);
   const result = await proxyRequest<ApiResponse<QuotationRow>>(`/api/quotations/${input.id}`, {
     method: 'PATCH',
-    body: JSON.stringify(payload),
+    headers: { 'Idempotency-Key': payload.suggestedIdempotencyKey },
+    body: JSON.stringify({
+      ...payload,
+      expectedUpdatedAt: input.expectedUpdatedAt,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '报价保存失败');
   return rowToQuotation(result.data);
@@ -292,17 +309,26 @@ export async function buildQuotationSavePayloadDraft(input: {
 }
 
 export async function updateQuotationStatus(quotation: Quotation, status: QuotationStatus): Promise<Quotation> {
+  if (!quotation.updatedAt) throw new Error('报价版本缺失，请刷新列表后再修改状态');
   const result = await proxyRequest<ApiResponse<QuotationRow>>(`/api/quotations/${quotation.id}/status`, {
     method: 'POST',
-    body: JSON.stringify({ status }),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`quotation-status:${quotation.id}`),
+    },
+    body: JSON.stringify({ status, expectedUpdatedAt: quotation.updatedAt }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '报价状态保存失败');
   return rowToQuotation(result.data);
 }
 
-export async function deleteQuotation(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/quotations/${id}`, {
+export async function deleteQuotation(quotation: Quotation): Promise<void> {
+  if (!quotation.updatedAt) throw new Error('报价版本缺失，请刷新列表后再删除');
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/quotations/${quotation.id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`quotation-delete:${quotation.id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt: quotation.updatedAt }),
   });
   if (!result.success) throw new Error(result.error || '报价删除失败');
 }
@@ -321,8 +347,16 @@ export async function convertQuotationToOrder(input: {
   recipes?: Recipe[];
   draft?: QuotationOrderDraft;
 }): Promise<void> {
+  const idempotencyKey = input.draft?.suggestedIdempotencyKey
+    || createIdempotencyKey(`quotation-convert:${input.quotation.id}`);
+  const expectedUpdatedAt = input.draft?.expectedUpdatedAt || input.quotation.updatedAt;
   const result = await proxyRequest<ApiResponse<unknown>>(`/api/quotations/${input.quotation.id}/convert`, {
     method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({
+      expectedUpdatedAt,
+      ...(input.draft?.previewHash ? { previewHash: input.draft.previewHash } : {}),
+    }),
   });
   if (!result.success) throw new Error(result.error || '报价转订单失败');
 }

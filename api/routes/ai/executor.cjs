@@ -1,79 +1,28 @@
-const { WRITE_TOOLS } = require('./tools.cjs');
+const { getAiCapability } = require('../../capabilities/registry.cjs');
+const { issueAiToolConfirmation } = require('../../services/aiToolConfirmation.cjs');
 const { createInternalFetch } = require('./internalApiClient.cjs');
 const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
 const { executeOrderTool } = require('./executors/orderExecutors.cjs');
 const { executeRecipeTool } = require('./executors/recipeExecutors.cjs');
 const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
+const { partUpdateInputError } = require('../../services/aiPartExecution.cjs');
 
-const TOOL_LABELS = {
-    create_part: '新建零件',
-    update_part: '修改零件',
-    adjust_coil_stock: '调整线圈库存',
-    delete_part: '删除零件',
-    batch_update_prices: '批量调价',
-    create_order: '新建订单',
-    delete_order: '删除订单',
-    update_order_status: '修改订单状态',
-    add_recipe_to_order: '订单追加产品',
-    remove_recipe_from_order: '订单移除产品',
-    update_order_item: '修改订单产品',
-    generate_purchase_list: '生成采购清单',
-    save_order_requirement_draft: '保存客户要求草稿',
-    save_order_execution_draft: '保存订单执行档案草稿',
-    get_management_action_center: '读取管理待办',
-    get_order_readiness_overview: '读取订单准备总览',
-    execute_order_readiness_action: '执行订单处理步骤',
-    execute_factory_workflow_step: '执行工厂工作流步骤',
-    create_recipe: '新建配方',
-    delete_recipe: '删除配方',
-    update_recipe: '修改配方',
-    archive_factory_file: '归档工厂文件',
-    sync_factory_knowledge: '同步工厂知识库',
-    set_recipe_analysis_feedback: '保存配方检查反馈',
-    refresh_factory_rule_candidates: '归纳候选业务规则',
-    review_factory_rule_candidate: '审核候选业务规则',
-    restore_factory_rule_event: '恢复规则审核状态',
-};
+const TOOL_EXECUTORS = Object.freeze({
+    cost: executeCostTool,
+    query: executeQueryTool,
+    order: executeOrderTool,
+    recipe: executeRecipeTool,
+    business: executeBusinessTool,
+});
 
-const LIVE_BUSINESS_TOOLS = new Set([
-    'search_parts',
-    'get_all_recipes',
-    'preview_recipe_cost',
-    'preview_pump_shell_cost',
-    'calculate_coil_cost',
-    'dynamic_config_cost',
-    'full_calculate',
-    'get_copper_price',
-    'get_recent_orders',
-    'get_order_detail',
-    'get_order_knowledge_package',
-    'get_order_readiness_overview',
-    'check_order_readiness',
-    'plan_order_readiness_actions',
-    'search_customer_history',
-    'inspect_quotation_file',
-    'get_dashboard_summary',
-    'get_management_action_center',
-    'get_business_alerts',
-    'get_data_quality_summary',
-    'analyze_recipe_configuration',
-    'search_factory_file_archive_targets',
-    'get_factory_knowledge_health',
-    'get_factory_rule_candidates',
-    'get_factory_rule_impact',
-    'get_factory_rule_compliance',
-    'get_factory_rule_history',
-]);
-
-function attachReadProvenance(toolName, result) {
+function attachReadProvenance(capability, result) {
     if (!result || result.success === false || result.requiresConfirmation || result.provenance) return result;
-    if (!LIVE_BUSINESS_TOOLS.has(toolName)) return result;
+    if (!capability?.resultProvenance) return result;
     return {
         ...result,
         provenance: {
-            kind: 'live_business',
-            label: '实时业务数据',
+            ...capability.resultProvenance,
             fetchedAt: new Date().toISOString(),
         },
     };
@@ -230,19 +179,32 @@ function buildConfirmationRows(toolName, args = {}) {
     return rows;
 }
 
-function buildWriteConfirmation(toolName, args) {
-    const title = TOOL_LABELS[toolName] || toolName;
+function buildWriteConfirmation(toolName, args, options = {}) {
+    const capability = getAiCapability(toolName);
+    const title = capability?.displayName || toolName;
     const rows = buildConfirmationRows(toolName, args);
+    const token = issueAiToolConfirmation({
+        toolName,
+        args: args || {},
+        subject: options.confirmationSubject || 'internal:executor',
+    });
     return {
         success: true,
         requiresConfirmation: true,
         confirmation: {
+            capabilityId: capability?.capabilityId || null,
+            riskLevel: capability?.riskLevel || 'high',
+            confirmationToken: token.confirmationToken,
+            operationId: token.operationId,
+            argsHash: token.argsHash,
+            resourceVersion: token.resourceVersion,
+            expiresAt: token.expiresAt,
             toolName,
             args: args || {},
             title,
             rows,
-            summary: `AI 准备执行「${title}」，确认后才会写入数据库。`,
-            warning: '请核对内容无误后再确认。确认后会立即执行写操作，并进入审计日志。',
+            summary: `AI 准备执行「${title}」，确认后才会执行受保护业务动作。`,
+            warning: '请核对内容无误后再确认。确认后可能写入业务数据或产生设备、文件等外部副作用。',
         },
     };
 }
@@ -256,32 +218,43 @@ function buildWriteConfirmation(toolName, args) {
  */
 async function executeToolCall(toolName, args, options = {}) {
     const { allowWrite = false } = options;
-    
+
+    const capability = getAiCapability(toolName);
+    if (!capability) {
+        return { success: false, error: `工具未登记到能力注册表，已拒绝执行: ${toolName}` };
+    }
+    if (toolName === 'update_part') {
+        const inputError = partUpdateInputError(args);
+        if (inputError) return inputError;
+    }
+
     // 权限拦截：写操作需要 allowWrite=true
-    if (WRITE_TOOLS.has(toolName) && !allowWrite) {
-        return buildWriteConfirmation(toolName, args);
+    if (capability.access === 'write' && !allowWrite) {
+        return buildWriteConfirmation(toolName, args, options);
     }
     
     // 内部网络获取助手，注入系统秘钥并复用标准 API 鉴权入口。
-    const internalFetch = createInternalFetch();
+    const internalFetch = createInternalFetch({
+        operationId: options.operationId,
+        capabilityId: capability.capabilityId,
+    });
+    const executor = TOOL_EXECUTORS[capability.executorKey];
+    if (!executor) {
+        return {
+            success: false,
+            error: `能力未登记有效 executorKey，已拒绝执行: ${toolName}`,
+        };
+    }
 
     try {
-        const costRes = await executeCostTool(toolName, args, internalFetch);
-        if (costRes) return attachReadProvenance(toolName, costRes);
-
-        const queryRes = await executeQueryTool(toolName, args, internalFetch);
-        if (queryRes) return attachReadProvenance(toolName, queryRes);
-
-        const orderRes = await executeOrderTool(toolName, args, internalFetch);
-        if (orderRes) return attachReadProvenance(toolName, orderRes);
-
-        const recipeRes = await executeRecipeTool(toolName, args, internalFetch);
-        if (recipeRes) return attachReadProvenance(toolName, recipeRes);
-
-        const businessRes = await executeBusinessTool(toolName, args, internalFetch);
-        if (businessRes) return attachReadProvenance(toolName, businessRes);
-
-        return { success: false, error: `未知工具: ${toolName}` };
+        const result = await executor(toolName, args, internalFetch);
+        if (!result) {
+            return {
+                success: false,
+                error: `能力 executorKey 与实现不一致，已拒绝执行: ${toolName}`,
+            };
+        }
+        return attachReadProvenance(capability, result);
     } catch (err) {
         return { success: false, error: err.message };
     }

@@ -78,6 +78,51 @@ async function request(label, method, pathname, body, expectedStatuses = [200]) 
     return { response, payload };
 }
 
+async function syncKnowledge(label) {
+    const preview = (await request(
+        `${label}预览`,
+        'POST',
+        '/api/knowledge/sync-preview',
+        {}
+    )).payload.data;
+    return request(label, 'POST', '/api/knowledge/sync', {
+        confirmationToken: preview.confirmationToken,
+        idempotencyKey: preview.suggestedIdempotencyKey,
+    });
+}
+
+async function archiveFactoryFile(label, fileId, input, expectedStatuses = [201]) {
+    const preview = (await request(
+        `${label}预览`,
+        'POST',
+        `/api/files/${fileId}/archive-preview`,
+        input
+    )).payload.data;
+    return request(
+        label,
+        'POST',
+        `/api/files/${fileId}/archive`,
+        {
+            confirmationToken: preview.confirmationToken,
+            idempotencyKey: preview.suggestedIdempotencyKey,
+        },
+        expectedStatuses
+    );
+}
+
+async function deleteFactoryFileLink(label, fileId, link, expectedStatuses = [200]) {
+    return request(
+        label,
+        'DELETE',
+        `/api/files/${fileId}/links/${link.id}`,
+        {
+            expectedUpdatedAt: link.updatedAt,
+            idempotencyKey: `deep:file-link-delete:${fileId}:${link.id}`,
+        },
+        expectedStatuses
+    );
+}
+
 async function requestForm(label, pathname, form, expectedStatuses = [200]) {
     const startedAt = Date.now();
     const headers = {};
@@ -114,6 +159,45 @@ async function requestDownload(label, pathname) {
     }
     results.push({ label, status: response.status, ms: Date.now() - startedAt });
     return bytes;
+}
+
+function readGetPuritySnapshot(databasePath) {
+    const snapshotDb = new Database(databasePath, { readonly: true });
+    try {
+        snapshotDb.pragma('busy_timeout = 5000');
+        return {
+            orders: snapshotDb.prepare(`
+                SELECT id, status, purchase_list_json, updated_at
+                FROM orders
+                ORDER BY id
+            `).all(),
+            quotations: snapshotDb.prepare(`
+                SELECT id, status, updated_at
+                FROM quotations
+                ORDER BY id
+            `).all(),
+        };
+    } finally {
+        snapshotDb.close();
+    }
+}
+
+async function testCoreGetEndpointsDoNotWrite(databasePath) {
+    const before = readGetPuritySnapshot(databasePath);
+    await request('GET纯度-订单列表', 'GET', '/api/orders');
+    const orderId = before.orders[0]?.id;
+    if (orderId) await request('GET纯度-订单详情', 'GET', `/api/orders/${orderId}`);
+    await request('GET纯度-报价列表', 'GET', '/api/quotations');
+    const after = readGetPuritySnapshot(databasePath);
+    assert(
+        JSON.stringify(after.orders) === JSON.stringify(before.orders),
+        '订单 GET 修改了 orders 表'
+    );
+    assert(
+        JSON.stringify(after.quotations) === JSON.stringify(before.quotations),
+        '报价 GET 修改了 quotations 表'
+    );
+    results.push({ label: '核心 GET 前后业务表不变', status: 200, ms: 0 });
 }
 
 async function waitForAutomaticKnowledgeUpdate(part, expectedPrice) {
@@ -203,6 +287,40 @@ async function readCoreResources() {
     return resources;
 }
 
+async function testBusinessSettingCommand() {
+    const current = (await request(
+        '读取管理费设置版本',
+        'GET',
+        '/api/settings/management_fee'
+    )).payload.data;
+    const input = {
+        value: current.value,
+        expectedUpdatedAt: current.updatedAt,
+        idempotencyKey: `deep:business-setting:${Date.now()}`,
+    };
+    const result = (await request(
+        '保存业务设置正式命令',
+        'PUT',
+        '/api/settings/management_fee',
+        input
+    )).payload.data;
+    assert(
+        result.capabilityId === 'settings.update_business_value',
+        '保存业务设置缺少正式 capability 回执'
+    );
+    assert(result.auditId, '保存业务设置缺少强审计回执');
+    const replay = (await request(
+        '重放业务设置正式命令',
+        'PUT',
+        '/api/settings/management_fee',
+        input
+    )).payload.data;
+    assert(
+        replay.idempotentReplay === true,
+        '保存业务设置重放未命中持久幂等回执'
+    );
+}
+
 async function testResourceDetails(resources) {
     const parts = resources['零件列表'].data;
     const recipes = resources['配方列表'].data;
@@ -255,6 +373,12 @@ async function testResourceDetails(resources) {
         material: coil.material,
         slotType: coil.slotType,
     });
+    await request('线圈单片价预览', 'POST', '/api/coils/spec-price-preview', {
+        spec: coil.spec,
+        material: coil.material,
+        slotType: coil.slotType,
+        unitPrice: coil.unitPrice,
+    });
     await request('订单采购草稿', 'POST', '/api/orders/purchase-plan', {
         items: [{
             recipeId: recipe.id,
@@ -290,6 +414,7 @@ async function createBundleTemplate(unique, suffix = '') {
         costMode: 'bundle',
         bundleCost: 100,
         bundleNote: '自动验收',
+        idempotencyKey: `deep:template-create:${unique}${suffix}`,
     })).payload.data;
 }
 
@@ -298,24 +423,274 @@ async function testCrossModuleWriteFlow(baseResources) {
     const baseRecipe = baseResources.recipe;
     const baseCoil = baseResources.coil;
 
-    const part = (await request('新增零件', 'POST', '/api/parts', {
+    const partCreateInput = {
         model: unique,
         category: '测试件',
         price: 12.34,
         supplier: '自动验收',
         stock: 5,
         remark: '隔离数据库',
-    })).payload.data;
-    await request('修改零件', 'PATCH', `/api/parts/${part.id}`, {
+        idempotencyKey: `deep:part-create:${unique}`,
+    };
+    const partCreateReceipt = (await request(
+        '新增零件正式命令',
+        'POST',
+        '/api/parts',
+        partCreateInput
+    )).payload.data;
+    const partCreateReplay = (await request(
+        '新增零件幂等重放',
+        'POST',
+        '/api/parts',
+        partCreateInput
+    )).payload.data;
+    assert(partCreateReceipt.capabilityId === 'parts.create', '新增零件缺少正式 capability 回执');
+    assert(partCreateReceipt.auditId, '新增零件缺少强审计回执');
+    assert(partCreateReplay.idempotentReplay === true, '新增零件重复请求没有命中幂等回执');
+    assert(partCreateReplay.id === partCreateReceipt.id, '新增零件幂等重放产生了不同资源');
+    const part = partCreateReceipt;
+    const partUpdate = (await request('修改零件正式命令', 'PATCH', `/api/parts/${part.id}`, {
         price: 13.21,
         remark: '已修改',
+        expectedUpdatedAt: part.updatedAt,
+        idempotencyKey: `deep:part-update:${unique}`,
+    })).payload.data;
+    assert(partUpdate.capabilityId === 'parts.update', '修改零件缺少正式 capability 回执');
+    assert(partUpdate.auditId, '修改零件缺少强审计回执');
+
+    const coilCreateInput = {
+        spec: '987',
+        diameterMm: 987,
+        material: '钢带',
+        slotType: '小眼',
+        sheets: 140,
+        schemeName: '深度测试方案',
+        schemeStatus: 'testing',
+        unitPrice: 0.4,
+        wireWeight: 1.2,
+        copperBase: 80,
+        coilFee: 10,
+        rotorFee: 5,
+        idempotencyKey: `deep:coil-create:${unique}`,
+    };
+    const coilCreate = (await request(
+        '新增线圈正式命令',
+        'POST',
+        '/api/coils',
+        coilCreateInput
+    )).payload.data;
+    const coilCreateReplay = (await request(
+        '新增线圈幂等重放',
+        'POST',
+        '/api/coils',
+        coilCreateInput
+    )).payload.data;
+    assert(coilCreate.capabilityId === 'coils.create', '新增线圈缺少正式 capability 回执');
+    assert(coilCreate.auditId, '新增线圈缺少强审计回执');
+    assert(coilCreateReplay.idempotentReplay === true, '新增线圈没有命中幂等重放');
+    assert(coilCreateReplay.id === coilCreate.id, '新增线圈幂等重放产生了不同资源');
+
+    const coilUpdate = (await request(
+        '修改线圈正式命令',
+        'PATCH',
+        `/api/coils/${coilCreate.id}`,
+        {
+            wireWeight: 1.3,
+            expectedUpdatedAt: coilCreate.updatedAt,
+            idempotencyKey: `deep:coil-update:${unique}`,
+        }
+    )).payload.data;
+    assert(coilUpdate.capabilityId === 'coils.update', '修改线圈缺少正式 capability 回执');
+    assert(coilUpdate.auditId, '修改线圈缺少强审计回执');
+
+    const coilPricePreview = (await request(
+        '线圈批量改单片价正式预览',
+        'POST',
+        '/api/coils/spec-price-preview',
+        {
+            spec: coilUpdate.spec,
+            material: coilUpdate.material,
+            slotType: coilUpdate.slotType,
+            unitPrice: 0.5,
+        }
+    )).payload.data;
+    assert(coilPricePreview.updatedCount === 1, '隔离线圈调价预览范围不正确');
+    const coilPriceInput = {
+        material: coilUpdate.material,
+        slotType: coilUpdate.slotType,
+        unitPrice: 0.5,
+        previewHash: coilPricePreview.previewHash,
+        idempotencyKey: coilPricePreview.suggestedIdempotencyKey,
+    };
+    const coilPrice = (await request(
+        '线圈批量改单片价正式命令',
+        'PATCH',
+        `/api/coils/spec/${encodeURIComponent(coilUpdate.spec)}`,
+        coilPriceInput
+    )).payload.data;
+    const coilPriceReplay = (await request(
+        '线圈批量改单片价幂等重放',
+        'PATCH',
+        `/api/coils/spec/${encodeURIComponent(coilUpdate.spec)}`,
+        coilPriceInput
+    )).payload.data;
+    assert(coilPrice.capabilityId === 'coils.batch_update_unit_price', '线圈调价缺少正式 capability 回执');
+    assert(coilPrice.auditIds.length === 1, '线圈调价缺少逐项强审计');
+    assert(coilPriceReplay.idempotentReplay === true, '线圈调价没有命中幂等重放');
+
+    const pricedCoil = coilPrice.coils[0];
+    const coilDeleteInput = {
+        expectedUpdatedAt: pricedCoil.updatedAt,
+        idempotencyKey: `deep:coil-delete:${unique}`,
+    };
+    const coilDelete = (await request(
+        '删除线圈正式命令',
+        'DELETE',
+        `/api/coils/${pricedCoil.id}`,
+        coilDeleteInput
+    )).payload.data;
+    const coilDeleteReplay = (await request(
+        '删除线圈幂等重放',
+        'DELETE',
+        `/api/coils/${pricedCoil.id}`,
+        coilDeleteInput
+    )).payload.data;
+    assert(coilDelete.capabilityId === 'coils.delete', '删除线圈缺少正式 capability 回执');
+    assert(coilDelete.auditId, '删除线圈缺少强审计回执');
+    assert(coilDeleteReplay.idempotentReplay === true, '删除线圈没有命中幂等重放');
+
+    const pricePreview = (await request(
+        '批量调价正式预览',
+        'POST',
+        '/api/parts/prices-preview',
+        {
+            updates: [{
+                partId: part.id,
+                price: 14.56,
+                expectedUpdatedAt: partUpdate.updatedAt,
+            }],
+        }
+    )).payload.data;
+    const priceCommand = {
+        updates: pricePreview.updates,
+        previewHash: pricePreview.previewHash,
+        idempotencyKey: pricePreview.suggestedIdempotencyKey,
+    };
+    const priceReceipt = (await request(
+        '批量调价持久化命令',
+        'PATCH',
+        '/api/parts/prices',
+        priceCommand
+    )).payload.data;
+    const priceReplay = (await request(
+        '批量调价幂等重放',
+        'PATCH',
+        '/api/parts/prices',
+        priceCommand
+    )).payload.data;
+    assert(priceReceipt.capabilityId === 'parts.batch_update_prices', '批量调价缺少正式 capability 回执');
+    assert(priceReceipt.auditId && priceReceipt.auditIds.length === 1, '批量调价缺少强审计回执');
+    assert(priceReplay.idempotentReplay === true, '批量调价重复请求没有命中幂等回执');
+    assert(priceReplay.operationId === priceReceipt.operationId, '批量调价幂等重放 operationId 发生变化');
+    const stalePricePreview = (await request(
+        '批量调价过期预览',
+        'POST',
+        '/api/parts/prices-preview',
+        {
+            updates: [{
+                partId: part.id,
+                price: 15.67,
+                expectedUpdatedAt: priceReceipt.parts[0].updatedAt,
+            }],
+        }
+    )).payload.data;
+    await request('制造调价预览版本变化', 'PATCH', `/api/parts/${part.id}`, {
+        remark: '调价预览版本变化',
+        expectedUpdatedAt: priceReceipt.parts[0].updatedAt,
+        idempotencyKey: `deep:part-price-conflict:${unique}`,
     });
-    await request('批量调价', 'PATCH', '/api/parts/prices', {
-        updates: [{ partId: part.id, price: 14.56 }],
+    const priceConflict = await request(
+        '批量调价版本冲突',
+        'PATCH',
+        '/api/parts/prices',
+        {
+            updates: stalePricePreview.updates,
+            previewHash: stalePricePreview.previewHash,
+            idempotencyKey: stalePricePreview.suggestedIdempotencyKey,
+        },
+        [409]
+    );
+    assert(priceConflict.payload?.code === 'resource_version_conflict', '调价版本冲突没有返回稳定错误码');
+    const partBeforeStock = (await request(
+        '库存命令读取资源版本',
+        'GET',
+        '/api/parts'
+    )).payload.data.find(item => item.id === part.id);
+    const stockPreview = (await request(
+        '批量库存正式预览',
+        'POST',
+        '/api/parts/batch-stock-preview',
+        {
+            operations: [{
+                partId: part.id,
+                delta: 2,
+                expectedUpdatedAt: partBeforeStock.updatedAt,
+            }],
+        }
+    )).payload.data;
+    const stockCommand = {
+        idempotencyKey: stockPreview.suggestedIdempotencyKey,
+        confirmationToken: stockPreview.confirmationToken,
+    };
+    const stockReceipt = (await request(
+        '批量库存持久化命令',
+        'POST',
+        '/api/parts/batch-stock',
+        stockCommand
+    )).payload.data;
+    const stockReplay = (await request(
+        '批量库存幂等重放',
+        'POST',
+        '/api/parts/batch-stock',
+        stockCommand
+    )).payload.data;
+    assert(stockReceipt.idempotentReplay === false, '首次库存命令被错误标记为重放');
+    assert(stockReplay.idempotentReplay === true, '重复库存命令没有返回持久化回执');
+    assert(stockReplay.operationId === stockReceipt.operationId, '幂等重放 operationId 发生变化');
+    assert(stockReceipt.auditId && stockReceipt.auditIds.length > 0, '库存命令缺少强审计回执');
+    const staleStockPreview = (await request(
+        '批量库存过期预览',
+        'POST',
+        '/api/parts/batch-stock-preview',
+        {
+            operations: [{
+                partId: part.id,
+                delta: 1,
+            }],
+        }
+    )).payload.data;
+    await request('制造库存预览版本变化', 'PATCH', `/api/parts/${part.id}`, {
+        remark: '库存预览版本变化',
+        expectedUpdatedAt: staleStockPreview.operations[0].expectedUpdatedAt,
+        idempotencyKey: `deep:part-stock-conflict:${unique}`,
     });
-    await request('批量库存', 'POST', '/api/parts/batch-stock', {
-        operations: [{ partId: part.id, delta: 2 }],
-    });
+    const versionConflict = await request(
+        '批量库存版本冲突',
+        'POST',
+        '/api/parts/batch-stock',
+        {
+            idempotencyKey: staleStockPreview.suggestedIdempotencyKey,
+            confirmationToken: staleStockPreview.confirmationToken,
+        },
+        [409]
+    );
+    assert(versionConflict.payload?.code === 'resource_version_conflict', '库存版本冲突没有返回稳定错误码');
+    const partAfterStock = (await request(
+        '库存命令核对最终库存',
+        'GET',
+        '/api/parts'
+    )).payload.data.find(item => item.id === part.id);
+    assert(partAfterStock.stock === partBeforeStock.stock + 2, '幂等重放或版本冲突重复修改了库存');
     await waitForAutomaticKnowledgeUpdate(part, 14.56);
     const automaticHistory = (await request(
         '自动知识同步历史',
@@ -337,9 +712,22 @@ async function testCrossModuleWriteFlow(baseResources) {
     );
 
     const template = await createBundleTemplate(unique);
-    await request('修改模板', 'PATCH', `/api/templates/${template.id}`, {
+    const templateReplay = await createBundleTemplate(unique);
+    assert(template.capabilityId === 'templates.create', '新增模板缺少正式 capability 回执');
+    assert(template.auditId, '新增模板缺少强审计回执');
+    assert(templateReplay.idempotentReplay === true, '新增模板重复请求没有命中幂等回执');
+    const updatedTemplate = (await request(
+        '修改模板正式命令',
+        'PATCH',
+        `/api/templates/${template.id}`,
+        {
         description: '隔离验收模板已修改',
-    });
+            expectedUpdatedAt: template.updatedAt,
+            idempotencyKey: `deep:template-update:${unique}`,
+        }
+    )).payload.data;
+    assert(updatedTemplate.capabilityId === 'templates.update', '修改模板缺少正式 capability 回执');
+    assert(updatedTemplate.auditId, '修改模板缺少强审计回执');
     const variantInput = {
         modelName: `${unique}-MODEL`,
         templateId: template.id,
@@ -351,17 +739,32 @@ async function testCrossModuleWriteFlow(baseResources) {
         note: '自动验收',
         customFieldsJson: '[]',
     };
+    const variantCreateInput = {
+        ...variantInput,
+        idempotencyKey: `deep:model-variant-create:${unique}`,
+    };
     const variant = (await request(
         '新增型号配置',
         'POST',
         '/api/model-variants',
-        variantInput
+        variantCreateInput
     )).payload.data;
-    await request('修改型号配置', 'PATCH', `/api/model-variants/${variant.id}`, {
+    assert(variant.capabilityId === 'model_variants.create', '新增型号配置缺少正式 capability 回执');
+    const variantReplay = (await request(
+        '重放新增型号配置',
+        'POST',
+        '/api/model-variants',
+        variantCreateInput
+    )).payload.data;
+    assert(variantReplay.idempotentReplay === true, '新增型号配置重放未命中持久幂等回执');
+    const updatedVariant = (await request('修改型号配置', 'PATCH', `/api/model-variants/${variant.id}`, {
         ...variantInput,
         longScrewExtraLength: 1,
         note: '自动验收已修改',
-    });
+        expectedUpdatedAt: variant.updatedAt,
+        idempotencyKey: `deep:model-variant-update:${unique}`,
+    })).payload.data;
+    assert(updatedVariant.capabilityId === 'model_variants.update', '修改型号配置缺少正式 capability 回执');
     await request('型号配置配方草稿', 'POST', '/api/recipes/model-variant-draft', {
         modelVariantId: variant.id,
     });
@@ -453,15 +856,79 @@ async function testCrossModuleWriteFlow(baseResources) {
         recipeId: recipe.id,
     });
 
-    const customer = (await request('新增客户', 'POST', '/api/customers', {
+    const customerCreateInput = {
         name: `${unique}-CUSTOMER`,
         contactInfo: '自动验收',
         defaultMargin: 0.15,
         remark: '隔离数据库',
-    })).payload.data;
-    await request('修改客户', 'PATCH', `/api/customers/${customer.id}`, {
-        remark: '隔离数据库已修改',
-    });
+        idempotencyKey: `customer-create:${unique}`,
+    };
+    const createdCustomer = (await request(
+        '正式新增客户',
+        'POST',
+        '/api/customers',
+        customerCreateInput
+    )).payload.data;
+    assert(
+        createdCustomer.capabilityId === 'customers.create'
+            && createdCustomer.auditId,
+        '新增客户没有返回正式命令与强审计回执'
+    );
+    const customerReplay = (await request(
+        '新增客户幂等重放',
+        'POST',
+        '/api/customers',
+        customerCreateInput
+    )).payload.data;
+    assert(
+        customerReplay.idempotentReplay === true
+            && customerReplay.id === createdCustomer.id,
+        '新增客户幂等重放产生了重复客户'
+    );
+    const customer = (await request(
+        '正式修改客户',
+        'PATCH',
+        `/api/customers/${createdCustomer.id}`,
+        {
+            name: createdCustomer.name,
+            contactInfo: createdCustomer.contactInfo,
+            defaultMargin: createdCustomer.defaultMargin,
+            remark: '隔离数据库已修改',
+            expectedUpdatedAt: createdCustomer.updatedAt,
+            idempotencyKey: `customer-update:${unique}`,
+        }
+    )).payload.data;
+    assert(
+        customer.capabilityId === 'customers.update'
+            && customer.auditId
+            && customer.remark === '隔离数据库已修改',
+        '修改客户没有返回正式命令与强审计回执'
+    );
+    const disposableCustomer = (await request(
+        '新增待删除客户',
+        'POST',
+        '/api/customers',
+        {
+            ...customerCreateInput,
+            name: `${unique}-DISPOSABLE-CUSTOMER`,
+            idempotencyKey: `customer-create-delete:${unique}`,
+        }
+    )).payload.data;
+    const deletedCustomer = (await request(
+        '正式删除客户',
+        'DELETE',
+        `/api/customers/${disposableCustomer.id}`,
+        {
+            expectedUpdatedAt: disposableCustomer.updatedAt,
+            idempotencyKey: `customer-delete:${unique}`,
+        }
+    )).payload.data;
+    assert(
+        deletedCustomer.capabilityId === 'customers.delete'
+            && deletedCustomer.deleted === 1
+            && deletedCustomer.auditId,
+        '删除客户没有返回正式命令与强审计回执'
+    );
     const quoteInput = {
         customerId: customer.id,
         status: '草稿',
@@ -473,25 +940,167 @@ async function testCrossModuleWriteFlow(baseResources) {
         }],
         remark: '自动深度验收',
     };
-    await request('报价保存草稿', 'POST', '/api/quotations/save-payload-draft', quoteInput);
+    const quoteSaveDraft = (await request(
+        '报价保存草稿',
+        'POST',
+        '/api/quotations/save-payload-draft',
+        quoteInput
+    )).payload.data;
+    assert(
+        quoteSaveDraft.previewHash && quoteSaveDraft.suggestedIdempotencyKey,
+        '报价保存草稿缺少预览哈希或建议幂等键'
+    );
     const quotation = (await request(
         '新增报价',
         'POST',
         '/api/quotations',
-        quoteInput
+        {
+            ...quoteSaveDraft,
+            idempotencyKey: quoteSaveDraft.suggestedIdempotencyKey,
+        }
     )).payload.data;
+    assert(
+        quotation.capabilityId === 'quotations.create'
+            && quotation.operationId
+            && quotation.auditId
+            && quotation.totalCost === quoteSaveDraft.totalCost,
+        '新增报价没有返回正式命令、强审计回执或保持预览成本'
+    );
+    const quotationReplay = (await request(
+        '新增报价幂等重放',
+        'POST',
+        '/api/quotations',
+        {
+            ...quoteSaveDraft,
+            idempotencyKey: quoteSaveDraft.suggestedIdempotencyKey,
+        }
+    )).payload.data;
+    assert(
+        quotationReplay.idempotentReplay === true
+            && quotationReplay.id === quotation.id,
+        '新增报价幂等重放产生了重复报价'
+    );
+    const quotationIdempotencyConflict = (await request(
+        '新增报价幂等键异参复用拒绝',
+        'POST',
+        '/api/quotations',
+        {
+            ...quoteSaveDraft,
+            remark: '异参请求不得复用原报价幂等键',
+            idempotencyKey: quoteSaveDraft.suggestedIdempotencyKey,
+        },
+        [409]
+    )).payload;
+    assert(
+        quotationIdempotencyConflict.code === 'idempotency_key_conflict',
+        '新增报价异参复用没有返回稳定幂等冲突'
+    );
+    const quoteUpdateDraft = (await request(
+        '报价修改草稿',
+        'POST',
+        '/api/quotations/save-payload-draft',
+        { ...quoteInput, remark: '自动深度验收已修改' }
+    )).payload.data;
+    const updatedQuotation = (await request(
+        '正式修改报价',
+        'PATCH',
+        `/api/quotations/${quotation.id}`,
+        {
+            ...quoteUpdateDraft,
+            expectedUpdatedAt: quotation.updatedAt,
+            idempotencyKey: quoteUpdateDraft.suggestedIdempotencyKey,
+        }
+    )).payload.data;
+    assert(
+        updatedQuotation.capabilityId === 'quotations.update'
+            && updatedQuotation.remark === '自动深度验收已修改',
+        '报价修改未通过正式命令保存'
+    );
+    const staleQuotationUpdate = (await request(
+        '报价修改旧版本拒绝',
+        'PATCH',
+        `/api/quotations/${quotation.id}`,
+        {
+            ...quoteUpdateDraft,
+            expectedUpdatedAt: quotation.updatedAt,
+            idempotencyKey: `quotation-update-stale:${unique}`,
+        },
+        [409]
+    )).payload;
+    assert(
+        staleQuotationUpdate.code === 'resource_version_conflict',
+        '报价修改旧版本没有返回稳定版本冲突'
+    );
+    const disposableQuotation = (await request(
+        '新增待删除报价',
+        'POST',
+        '/api/quotations',
+        {
+            ...quoteSaveDraft,
+            idempotencyKey: `quotation-create-delete:${unique}`,
+        }
+    )).payload.data;
+    const deletedQuotation = (await request(
+        '正式删除报价',
+        'DELETE',
+        `/api/quotations/${disposableQuotation.id}`,
+        {
+            expectedUpdatedAt: disposableQuotation.updatedAt,
+            idempotencyKey: `quotation-delete:${unique}`,
+        }
+    )).payload.data;
+    assert(
+        deletedQuotation.capabilityId === 'quotations.delete'
+            && deletedQuotation.deleted === 1
+            && deletedQuotation.auditId,
+        '报价删除没有返回正式命令与强审计回执'
+    );
     await request(
         '报价转订单预览',
         'POST',
         `/api/quotations/${quotation.id}/order-draft`,
         {}
     );
-    await request('报价进入报价中', 'POST', `/api/quotations/${quotation.id}/status`, {
-        status: '报价中',
-    });
-    await request('报价接受', 'POST', `/api/quotations/${quotation.id}/status`, {
-        status: '已接受',
-    });
+    const quotingQuotation = (await request(
+        '报价进入报价中',
+        'POST',
+        `/api/quotations/${quotation.id}/status`,
+        {
+            status: '报价中',
+            expectedUpdatedAt: updatedQuotation.updatedAt,
+            idempotencyKey: `quotation-status:${unique}:quoting`,
+        }
+    )).payload.data;
+    assert(
+        quotingQuotation.capabilityId === 'quotations.change_status'
+            && quotingQuotation.auditId,
+        '报价状态变更没有正式命令回执'
+    );
+    const staleQuotationStatus = (await request(
+        '报价状态旧版本拒绝',
+        'POST',
+        `/api/quotations/${quotation.id}/status`,
+        {
+            status: '已接受',
+            expectedUpdatedAt: updatedQuotation.updatedAt,
+            idempotencyKey: `quotation-status-stale:${unique}`,
+        },
+        [409]
+    )).payload;
+    assert(
+        staleQuotationStatus.code === 'resource_version_conflict',
+        '报价状态旧版本没有返回稳定版本冲突'
+    );
+    await request(
+        '报价接受',
+        'POST',
+        `/api/quotations/${quotation.id}/status`,
+        {
+            status: '已接受',
+            expectedUpdatedAt: quotingQuotation.updatedAt,
+            idempotencyKey: `quotation-status:${unique}:accepted`,
+        }
+    );
     const workflowBeforeConvert = (await request(
         'V8报价转单计划',
         'POST',
@@ -542,13 +1151,79 @@ async function testCrossModuleWriteFlow(baseResources) {
         && retryPlan.executionHistory.recovery.recoverableActionIds.includes('convert_quotation'),
         '失败步骤在当前计划仍可执行时没有提供安全恢复'
     );
+    const conversionDraft = (await request(
+        '报价转订单执行前预览',
+        'POST',
+        `/api/quotations/${quotation.id}/order-draft`,
+        {}
+    )).payload.data;
+    assert(
+        conversionDraft.capabilityId === 'workflow.quotation.convert_to_order'
+        && conversionDraft.expectedUpdatedAt
+        && conversionDraft.previewHash
+        && conversionDraft.suggestedIdempotencyKey,
+        '报价转订单预览缺少能力、版本、预览哈希或幂等信息'
+    );
+    const conversionPayload = {
+        idempotencyKey: conversionDraft.suggestedIdempotencyKey,
+        expectedUpdatedAt: conversionDraft.expectedUpdatedAt,
+        previewHash: conversionDraft.previewHash,
+    };
     const converted = (await request(
         '报价转订单',
         'POST',
         `/api/quotations/${quotation.id}/convert`,
-        {},
+        conversionPayload,
         [201]
     )).payload.data;
+    assert(
+        converted.capabilityId === 'workflow.quotation.convert_to_order'
+        && converted.operationId
+        && converted.auditIds?.length === 2
+        && converted.idempotentReplay === false,
+        '报价转订单没有返回完整 operation 与强审计回执'
+    );
+    const conversionReplay = (await request(
+        '报价转订单幂等重放',
+        'POST',
+        `/api/quotations/${quotation.id}/convert`,
+        conversionPayload,
+        [201]
+    )).payload.data;
+    assert(
+        conversionReplay.idempotentReplay === true
+        && conversionReplay.order?.id === converted.order?.id,
+        '报价转订单相同幂等键产生了重复订单'
+    );
+    const customerContext = (await request(
+        '客户正式上下文聚合',
+        'GET',
+        `/api/customers/${customer.id}/context?keyword=${encodeURIComponent(recipe.name)}&limit=1`
+    )).payload.data;
+    assert(
+        customerContext.customer?.id === customer.id
+            && customerContext.quotations?.length === 1
+            && customerContext.quotations[0].displaySequence === 1
+            && !Object.prototype.hasOwnProperty.call(customerContext.quotations[0], 'id')
+            && customerContext.orders?.length === 1
+            && customerContext.orders[0].id === converted.order?.id
+            && customerContext.provenance?.kind === 'live_business',
+        '客户上下文没有从正式客户、报价和订单事实聚合'
+    );
+    const staleConversion = (await request(
+        '报价转订单版本冲突',
+        'POST',
+        `/api/quotations/${quotation.id}/convert`,
+        {
+            idempotencyKey: `quotation-convert-stale:${unique}`,
+            expectedUpdatedAt: conversionDraft.expectedUpdatedAt,
+        },
+        [409]
+    )).payload;
+    assert(
+        staleConversion.code === 'resource_version_conflict',
+        '报价转订单旧版本没有稳定返回 resource_version_conflict'
+    );
     const workflowAfterConvert = (await request(
         'V8转单后计划复查',
         'POST',
@@ -675,7 +1350,7 @@ async function testCrossModuleWriteFlow(baseResources) {
             items: [{
                 recipeId: recipe.id,
                 recipeName: recipe.name,
-                qty: 1,
+                qty: 20,
                 unitCost: 14.56,
                 unitPrice: 20,
                 partsJson: JSON.stringify([{
@@ -698,11 +1373,23 @@ async function testCrossModuleWriteFlow(baseResources) {
         confirmStep?.mode === 'confirmable' && confirmStep?.status === 'available',
         `待确认订单没有可执行的确认步骤: ${JSON.stringify(confirmStep)}`
     );
+    const confirmCommand = pendingPlan.actions?.confirm_order || confirmStep.command;
+    assert(
+        confirmCommand?.expectedUpdatedAt
+            && confirmCommand?.previewHash
+            && confirmCommand?.suggestedIdempotencyKey,
+        `订单确认步骤缺少正式命令协议: ${JSON.stringify(confirmCommand)}`
+    );
+    const confirmPayload = {
+        idempotencyKey: confirmCommand.suggestedIdempotencyKey,
+        expectedUpdatedAt: confirmCommand.expectedUpdatedAt,
+        previewHash: confirmCommand.previewHash,
+    };
     const actionResult = (await request(
         '执行订单确认步骤',
         'POST',
         `/api/orders/${pendingOrder.id}/readiness-actions/confirm_order`,
-        {}
+        confirmPayload
     )).payload.data;
     assert(actionResult.action?.id === 'confirm_order', '订单方案动作返回了错误的步骤');
     assert(
@@ -713,20 +1400,84 @@ async function testCrossModuleWriteFlow(baseResources) {
         !actionResult.nextPlan?.steps?.some(item => item.id === 'confirm_order'),
         '订单确认后重新检查仍返回确认步骤'
     );
+    assert(
+        actionResult.capabilityId === 'orders.execute_readiness_action'
+            && actionResult.operationId
+            && actionResult.auditId,
+        `订单确认步骤缺少正式命令回执: ${JSON.stringify(actionResult)}`
+    );
+    const replayedAction = (await request(
+        '幂等重放订单确认步骤',
+        'POST',
+        `/api/orders/${pendingOrder.id}/readiness-actions/confirm_order`,
+        confirmPayload
+    )).payload.data;
+    assert(replayedAction.idempotentReplay === true, '订单确认步骤幂等重放未返回原回执');
     await request(
         '重复执行已过期订单步骤',
         'POST',
         `/api/orders/${pendingOrder.id}/readiness-actions/confirm_order`,
-        {},
+        { idempotencyKey: `readiness-stale:${unique}:confirm` },
+        [409]
+    );
+    const purchaseDraft = (await request(
+        '采购一键入库正式预览',
+        'POST',
+        `/api/orders/${pendingOrder.id}/complete-purchase-draft`,
+        {}
+    )).payload.data;
+    assert(
+        purchaseDraft.capabilityId === 'purchasing.order.complete_inbound'
+            && purchaseDraft.expectedUpdatedAt
+            && purchaseDraft.previewHash
+            && purchaseDraft.suggestedIdempotencyKey,
+        `采购入库预览缺少正式协议字段: ${JSON.stringify(purchaseDraft)}`
+    );
+    assert(purchaseDraft.additions.length > 0, '采购入库预览没有返回待入库物料');
+    const completePurchasePayload = {
+        idempotencyKey: purchaseDraft.suggestedIdempotencyKey,
+        expectedUpdatedAt: purchaseDraft.expectedUpdatedAt,
+        previewHash: purchaseDraft.previewHash,
+    };
+    const purchaseReceipt = (await request(
+        '采购一键入库持久化命令',
+        'POST',
+        `/api/orders/${pendingOrder.id}/complete-purchase`,
+        completePurchasePayload
+    )).payload.data;
+    assert(purchaseReceipt.order?.status === '采购完成', '采购一键入库没有进入采购完成');
+    assert(
+        purchaseReceipt.operationId
+            && purchaseReceipt.receiptId
+            && purchaseReceipt.auditIds?.length >= 2,
+        `采购一键入库回执不完整: ${JSON.stringify(purchaseReceipt)}`
+    );
+    const purchaseReplay = (await request(
+        '采购一键入库同键重放',
+        'POST',
+        `/api/orders/${pendingOrder.id}/complete-purchase`,
+        completePurchasePayload
+    )).payload.data;
+    assert(
+        purchaseReplay.idempotentReplay === true
+            && purchaseReplay.receiptId === purchaseReceipt.receiptId,
+        '采购一键入库重试没有返回原回执'
+    );
+    await request(
+        '采购一键入库旧版本拒绝',
+        'POST',
+        `/api/orders/${pendingOrder.id}/complete-purchase`,
+        {
+            ...completePurchasePayload,
+            idempotencyKey: `${purchaseDraft.suggestedIdempotencyKey}:stale`,
+        },
         [409]
     );
     await request(
         '结束方案执行测试订单',
         'POST',
         `/api/orders/${pendingOrder.id}/status`,
-        actionResult.order?.status === '采购完成'
-            ? { status: '已关闭' }
-            : { status: '已取消', reason: '隔离方案执行验收结束' }
+        { status: '已关闭' }
     );
     const purchaseList = JSON.parse(order.purchaseListJson || '[]');
     const purchaseItem = purchaseList.find(
@@ -734,18 +1485,105 @@ async function testCrossModuleWriteFlow(baseResources) {
     );
     if (purchaseItem) {
         const plannedQty = Number(purchaseItem.plannedQty || purchaseItem.needToBuy);
+        const batchPayload = {
+            identityKey: purchaseItem.identityKey,
+            model: purchaseItem.model,
+            supplier: purchaseItem.supplier,
+            purchased: true,
+        };
+        const batchDraft = (await request(
+            '采购中心批量下单正式预览',
+            'POST',
+            '/api/orders/purchase-items/batch-draft',
+            batchPayload
+        )).payload.data;
+        assert(
+            batchDraft.capabilityId === 'purchasing.task.batch_order'
+                && batchDraft.expectedVersions?.length > 0
+                && batchDraft.previewHash
+                && batchDraft.suggestedIdempotencyKey,
+            `采购批量下单预览缺少正式协议字段: ${JSON.stringify(batchDraft)}`
+        );
+        const batchCommand = {
+            ...batchPayload,
+            idempotencyKey: batchDraft.suggestedIdempotencyKey,
+            expectedVersions: batchDraft.expectedVersions,
+            previewHash: batchDraft.previewHash,
+        };
+        const batchReceipt = (await request(
+            '采购中心批量下单持久化命令',
+            'POST',
+            '/api/orders/purchase-items/batch',
+            batchCommand
+        )).payload.data;
+        assert(
+            batchReceipt.operationId
+                && batchReceipt.updatedCount > 0
+                && batchReceipt.auditIds?.length >= batchReceipt.updatedCount,
+            `采购批量下单回执不完整: ${JSON.stringify(batchReceipt)}`
+        );
+        const batchReplay = (await request(
+            '采购中心批量下单同键重放',
+            'POST',
+            '/api/orders/purchase-items/batch',
+            batchCommand
+        )).payload.data;
+        assert(batchReplay.idempotentReplay === true, '采购批量下单重试没有返回原回执');
+        const progressPayload = {
+            identityKey: purchaseItem.identityKey,
+            model: purchaseItem.model,
+            supplier: purchaseItem.supplier,
+            orderedQty: plannedQty,
+            receivedQty: 0,
+            stockedQty: 0,
+        };
+        const progressDraft = (await request(
+            '登记采购进度正式预览',
+            'POST',
+            `/api/orders/${order.id}/purchase-items/progress-draft`,
+            progressPayload
+        )).payload.data;
+        assert(
+            progressDraft.capabilityId === 'purchasing.order.item_progress'
+                && progressDraft.expectedUpdatedAt
+                && progressDraft.previewHash
+                && progressDraft.suggestedIdempotencyKey,
+            `采购进度预览缺少正式协议字段: ${JSON.stringify(progressDraft)}`
+        );
+        const progressCommand = {
+            ...progressPayload,
+            idempotencyKey: progressDraft.suggestedIdempotencyKey,
+            expectedUpdatedAt: progressDraft.expectedUpdatedAt,
+            previewHash: progressDraft.previewHash,
+        };
+        const progressReceipt = (await request(
+            '登记采购进度持久化命令',
+            'POST',
+            `/api/orders/${order.id}/purchase-items/progress`,
+            progressCommand
+        )).payload.data;
+        assert(
+            progressReceipt.operationId
+                && progressReceipt.auditIds?.length >= 1
+                && progressReceipt.order?.status === '采购中',
+            `采购进度命令回执不完整: ${JSON.stringify(progressReceipt)}`
+        );
+        const progressReplay = (await request(
+            '登记采购进度同键重放',
+            'POST',
+            `/api/orders/${order.id}/purchase-items/progress`,
+            progressCommand
+        )).payload.data;
+        assert(progressReplay.idempotentReplay === true, '采购进度重试没有返回原回执');
         await request(
-            '登记采购进度',
+            '登记采购进度旧版本拒绝',
             'POST',
             `/api/orders/${order.id}/purchase-items/progress`,
             {
-                identityKey: purchaseItem.identityKey,
-                model: purchaseItem.model,
-                supplier: purchaseItem.supplier,
-                orderedQty: plannedQty,
-                receivedQty: 0,
-                stockedQty: 0,
-            }
+                ...progressCommand,
+                idempotencyKey: `${progressDraft.suggestedIdempotencyKey}:stale`,
+            },
+            [409]
         );
     }
     await request('取消测试订单', 'POST', `/api/orders/${order.id}/status`, {
@@ -786,13 +1624,31 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('修改线圈方案', 'PATCH', `/api/coils/${trackedCoil.id}`, {
         schemeName: `${unique}-UPDATED`,
     });
-    await request('线圈库存入库', 'POST', `/api/coils/${trackedCoil.id}/stock-adjustment`, {
-        changeQty: 3,
-        note: '自动验收',
+    const coilInboundPreview = (await request(
+        '线圈库存入库预览',
+        'POST',
+        '/api/coils/stock-adjustments-preview',
+        {
+            adjustments: [{ coilId: trackedCoil.id, changeQty: 3 }],
+            note: '自动验收',
+        }
+    )).payload.data;
+    await request('线圈库存入库', 'POST', '/api/coils/stock-adjustments', {
+        confirmationToken: coilInboundPreview.confirmationToken,
+        idempotencyKey: coilInboundPreview.suggestedIdempotencyKey,
     });
-    await request('线圈库存出库', 'POST', `/api/coils/${trackedCoil.id}/stock-adjustment`, {
-        changeQty: -1,
-        note: '自动验收',
+    const coilOutboundPreview = (await request(
+        '线圈库存出库预览',
+        'POST',
+        '/api/coils/stock-adjustments-preview',
+        {
+            adjustments: [{ coilId: trackedCoil.id, changeQty: -1 }],
+            note: '自动验收',
+        }
+    )).payload.data;
+    await request('线圈库存出库', 'POST', '/api/coils/stock-adjustments', {
+        confirmationToken: coilOutboundPreview.confirmationToken,
+        idempotencyKey: coilOutboundPreview.suggestedIdempotencyKey,
     });
     await request('新线圈库存流水', 'GET', `/api/coils/${trackedCoil.id}/stock-movements`);
     const blockedDelete = await request(
@@ -924,10 +1780,9 @@ async function testCrossModuleWriteFlow(baseResources) {
     )).payload.data;
     assert(reparsedPdf.parserStatus === 'parsed', 'PDF 手动重试后状态不正确');
 
-    const orderRequirementArchive = (await request(
+    const orderRequirementArchive = (await archiveFactoryFile(
         'V10.2订单绑定客户要求文件',
-        'POST',
-        `/api/files/${pdfFile.id}/archive`,
+        pdfFile.id,
         {
             targetType: 'order',
             targetId: order.id,
@@ -968,7 +1823,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         {}
     )).payload.data;
     assert(confirmedRequirement.knowledgeStatus === 'confirmed', '客户要求确认状态不正确');
-    await request('V10.2同步确认客户要求知识', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.2同步确认客户要求知识');
     const requirementKnowledge = (await request(
         'V10.2检索确认客户要求',
         'GET',
@@ -997,7 +1852,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         changedRequirement.knowledgeStatus === 'confirmed_with_draft',
         '修改草稿后没有保留上次确认状态'
     );
-    await request('V10.2同步待确认草稿', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.2同步待确认草稿');
     const knowledgeBeforeReconfirm = (await request(
         'V10.2复核待确认草稿未覆盖知识',
         'GET',
@@ -1014,7 +1869,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         `/api/orders/${order.id}/requirements/confirm`,
         {}
     );
-    await request('V10.2同步新确认客户要求', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.2同步新确认客户要求');
     const knowledgeAfterReconfirm = (await request(
         'V10.2复核新确认客户要求',
         'GET',
@@ -1025,17 +1880,15 @@ async function testCrossModuleWriteFlow(baseResources) {
             && !knowledgeAfterReconfirm.content.includes(`${unique}-REQ-A`),
         '重新确认后订单知识没有替换旧客户要求'
     );
-    await request(
+    await deleteFactoryFileLink(
         'V10.2阻止解除已确认来源文件',
-        'DELETE',
-        `/api/files/${pdfFile.id}/links/${orderRequirementArchive.link.id}`,
-        undefined,
+        pdfFile.id,
+        orderRequirementArchive.link,
         [409]
     );
-    const executionEvidenceArchive = (await request(
+    const executionEvidenceArchive = (await archiveFactoryFile(
         'V10.3订单绑定执行依据文件',
-        'POST',
-        `/api/files/${pdfFile.id}/archive`,
+        pdfFile.id,
         {
             targetType: 'order',
             targetId: order.id,
@@ -1071,7 +1924,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         {}
     )).payload.data;
     assert(confirmedExecution.knowledgeStatus === 'confirmed', '执行事实确认状态不正确');
-    await request('V10.3同步确认执行事实知识', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.3同步确认执行事实知识');
     const executionKnowledge = (await request(
         'V10.3检索确认执行事实',
         'GET',
@@ -1095,7 +1948,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         changedExecution.knowledgeStatus === 'confirmed_with_draft',
         '修改执行事实草稿后没有保留上次确认状态'
     );
-    await request('V10.3同步待确认执行事实草稿', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.3同步待确认执行事实草稿');
     const executionBeforeReconfirm = (await request(
         'V10.3复核待确认执行事实未覆盖知识',
         'GET',
@@ -1112,7 +1965,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         `/api/orders/${order.id}/execution-records/${executionDraft.id}/confirm`,
         {}
     );
-    await request('V10.3同步新确认执行事实', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.3同步新确认执行事实');
     const executionAfterReconfirm = (await request(
         'V10.3复核新确认执行事实',
         'GET',
@@ -1165,7 +2018,7 @@ async function testCrossModuleWriteFlow(baseResources) {
             && revokedRequirement.draftText === secondRequirementText,
         '撤销确认后没有保留客户要求草稿'
     );
-    await request('V10.2同步撤销客户要求知识', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('V10.2同步撤销客户要求知识');
     const knowledgeAfterRevoke = (await request(
         'V10.2复核撤销后移除客户要求',
         'GET',
@@ -1176,11 +2029,10 @@ async function testCrossModuleWriteFlow(baseResources) {
             && !knowledgeAfterRevoke.content.includes(`${unique}-REQ-B`),
         '撤销确认后订单知识仍保留客户要求'
     );
-    await request(
+    await deleteFactoryFileLink(
         'V10.3阻止解除执行事实来源文件',
-        'DELETE',
-        `/api/files/${pdfFile.id}/links/${executionEvidenceArchive.link.id}`,
-        undefined,
+        pdfFile.id,
+        executionEvidenceArchive.link,
         [409]
     );
     const revokedExecution = (await request(
@@ -1205,15 +2057,15 @@ async function testCrossModuleWriteFlow(baseResources) {
         `/api/orders/${order.id}/execution-records`
     )).payload.data;
     assert(executionArchive.records.length === 0, '已删除执行事实草稿仍出现在时间线');
-    await request(
+    await deleteFactoryFileLink(
         'V10.3撤销后解除执行依据文件关联',
-        'DELETE',
-        `/api/files/${pdfFile.id}/links/${executionEvidenceArchive.link.id}`
+        pdfFile.id,
+        executionEvidenceArchive.link
     );
-    await request(
+    await deleteFactoryFileLink(
         'V10.2撤销后解除订单文件关联',
-        'DELETE',
-        `/api/files/${pdfFile.id}/links/${orderRequirementArchive.link.id}`
+        pdfFile.id,
+        orderRequirementArchive.link
     );
 
     const imageCanvas = createCanvas(1600, 600);
@@ -1353,10 +2205,9 @@ async function testCrossModuleWriteFlow(baseResources) {
         archiveTargets.length === 1 && archiveTargets[0].id === recipe.id,
         '文件归档没有找到唯一真实配方'
     );
-    const recipeArchive = (await request(
+    const recipeArchive = (await archiveFactoryFile(
         'V9.5归档报价文件到配方',
-        'POST',
-        `/api/files/${spreadsheetFile.id}/archive`,
+        spreadsheetFile.id,
         {
             targetType: 'recipe',
             targetId: recipe.id,
@@ -1375,10 +2226,9 @@ async function testCrossModuleWriteFlow(baseResources) {
         recipeFileLinks.some(link => link.id === recipeArchive.link.id && link.file.id === spreadsheetFile.id),
         '配方没有返回归档文件'
     );
-    const customerArchive = (await request(
+    const customerArchive = (await archiveFactoryFile(
         'V9业务页归档文件到客户',
-        'POST',
-        `/api/files/${spreadsheetFile.id}/archive`,
+        spreadsheetFile.id,
         {
             targetType: 'customer',
             targetId: customer.id,
@@ -1392,10 +2242,9 @@ async function testCrossModuleWriteFlow(baseResources) {
             && customerArchive.link.source === 'business_page',
         '客户业务页文件关联属性不正确'
     );
-    const quotationArchive = (await request(
+    const quotationArchive = (await archiveFactoryFile(
         'V9业务页归档文件到报价',
-        'POST',
-        `/api/files/${spreadsheetFile.id}/archive`,
+        spreadsheetFile.id,
         {
             targetType: 'quotation',
             targetId: quotation.id,
@@ -1436,10 +2285,9 @@ async function testCrossModuleWriteFlow(baseResources) {
     );
 
     const knowledgeArchiveTitle = `${unique}-归档PDF资料`;
-    const knowledgeArchive = (await request(
+    const knowledgeArchive = (await archiveFactoryFile(
         'V9.5归档 PDF 到知识库',
-        'POST',
-        `/api/files/${pdfFile.id}/archive`,
+        pdfFile.id,
         {
             targetType: 'knowledge_document',
             title: knowledgeArchiveTitle,
@@ -1451,10 +2299,9 @@ async function testCrossModuleWriteFlow(baseResources) {
         [201]
     )).payload.data;
     assert(knowledgeArchive.knowledgeDocument?.id > 0, '知识库归档没有创建知识资料');
-    const duplicateKnowledgeArchive = (await request(
+    const duplicateKnowledgeArchive = (await archiveFactoryFile(
         'V9.5知识库归档去重',
-        'POST',
-        `/api/files/${pdfFile.id}/archive`,
+        pdfFile.id,
         {
             targetType: 'knowledge_document',
             title: `${knowledgeArchiveTitle}-重复`,
@@ -1474,6 +2321,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     documentForm.set('description', '深度 API 自动验收');
     documentForm.set('contentText', '技术参数由自动验收生成');
     documentForm.set('tags', JSON.stringify([unique, '技术资料']));
+    documentForm.set('idempotencyKey', `deep:knowledge-document-upload:${unique}`);
     documentForm.set('file', new Blob([documentText], { type: 'text/markdown' }), `${unique}.md`);
     const document = (await requestForm(
         '导入工厂资料',
@@ -1497,7 +2345,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     )).payload.data;
     assert(documents.some(item => item.id === document.id), '工厂资料列表缺少新资料');
 
-    await request('知识增量同步', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('知识增量同步');
     const syncHistory = (await request(
         '手动知识同步历史',
         'GET',
@@ -1553,38 +2401,50 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(documentDetail.content.includes('泵壳材料 304'), '工厂资料提取文本没有进入知识详情');
     const downloaded = await requestDownload('下载工厂资料原件', document.downloadPath);
     assert(downloaded.equals(Buffer.from(documentText)), '工厂资料下载内容与上传内容不一致');
-    await request(
+    await deleteFactoryFileLink(
         'V9.5解除配方文件关联',
-        'DELETE',
-        `/api/files/${spreadsheetFile.id}/links/${recipeArchive.link.id}`
+        spreadsheetFile.id,
+        recipeArchive.link
     );
-    await request(
+    await deleteFactoryFileLink(
         'V9解除客户文件关联',
-        'DELETE',
-        `/api/files/${spreadsheetFile.id}/links/${customerArchive.link.id}`
+        spreadsheetFile.id,
+        customerArchive.link
     );
-    await request(
+    await deleteFactoryFileLink(
         'V9解除报价文件关联',
-        'DELETE',
-        `/api/files/${spreadsheetFile.id}/links/${quotationArchive.link.id}`
+        spreadsheetFile.id,
+        quotationArchive.link
     );
-    await request(
+    await deleteFactoryFileLink(
         'V9.5解除知识资料文件关联',
-        'DELETE',
-        `/api/files/${pdfFile.id}/links/${knowledgeArchive.link.id}`
+        pdfFile.id,
+        knowledgeArchive.link
     );
     await request(
         'V9.5删除归档知识资料',
         'DELETE',
-        `/api/knowledge/documents/${knowledgeArchive.knowledgeDocument.id}`
+        `/api/knowledge/documents/${knowledgeArchive.knowledgeDocument.id}`,
+        {
+            expectedUpdatedAt: knowledgeArchive.knowledgeDocument.updatedAt,
+            idempotencyKey: `deep:knowledge-document-delete:archive:${unique}`,
+        }
     );
-    await request('删除工厂资料', 'DELETE', `/api/knowledge/documents/${document.id}`);
+    await request(
+        '删除工厂资料',
+        'DELETE',
+        `/api/knowledge/documents/${document.id}`,
+        {
+            expectedUpdatedAt: document.updatedAt,
+            idempotencyKey: `deep:knowledge-document-delete:direct:${unique}`,
+        }
+    );
     await request('删除未引用统一文件', 'DELETE', `/api/files/${factoryFile.id}`);
     await request('删除 PDF 验收文件', 'DELETE', `/api/files/${pdfFile.id}`);
     await request('删除图片 OCR 验收文件', 'DELETE', `/api/files/${imageFile.id}`);
     await request('删除扫描 PDF OCR 验收文件', 'DELETE', `/api/files/${scannedPdfFile.id}`);
     await request('删除 Excel 验收文件', 'DELETE', `/api/files/${spreadsheetFile.id}`);
-    await request('删除资料后同步知识', 'POST', '/api/knowledge/sync', {});
+    await syncKnowledge('删除资料后同步知识');
     const removedDocumentKnowledge = (await request(
         '确认工厂资料知识移除',
         'GET',
@@ -1593,17 +2453,62 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(removedDocumentKnowledge.length === 0, '删除资料后对应知识仍然存在');
 
     await request('删除测试配方', 'DELETE', `/api/recipes/${recipe.id}`);
-    await request('删除型号配置', 'DELETE', `/api/model-variants/${variant.id}`);
+    const variantDeleteInput = {
+        expectedUpdatedAt: updatedVariant.updatedAt,
+        idempotencyKey: `deep:model-variant-delete:${unique}`,
+    };
+    const variantDelete = (await request(
+        '删除型号配置',
+        'DELETE',
+        `/api/model-variants/${variant.id}`,
+        variantDeleteInput
+    )).payload.data;
+    assert(variantDelete.capabilityId === 'model_variants.delete', '删除型号配置缺少正式 capability 回执');
+    const variantDeleteReplay = (await request(
+        '重放删除型号配置',
+        'DELETE',
+        `/api/model-variants/${variant.id}`,
+        variantDeleteInput
+    )).payload.data;
+    assert(variantDeleteReplay.idempotentReplay === true, '删除型号配置重放未命中持久幂等回执');
     await request(
         '阻止删除仍有历史配方引用的模板',
         'DELETE',
         `/api/templates/${template.id}`,
-        undefined,
+        {
+            expectedUpdatedAt: updatedTemplate.updatedAt,
+            idempotencyKey: `deep:template-delete-blocked:${unique}`,
+        },
         [409]
     );
     const cleanTemplate = await createBundleTemplate(unique, '-CLEAN');
-    await request('删除无引用模板', 'DELETE', `/api/templates/${cleanTemplate.id}`);
-    await request('删除测试零件', 'DELETE', `/api/parts/${part.id}`);
+    const templateDelete = (await request(
+        '删除无引用模板正式命令',
+        'DELETE',
+        `/api/templates/${cleanTemplate.id}`,
+        {
+            expectedUpdatedAt: cleanTemplate.updatedAt,
+            idempotencyKey: `deep:template-delete:${unique}`,
+        }
+    )).payload.data;
+    assert(templateDelete.capabilityId === 'templates.delete', '删除模板缺少正式 capability 回执');
+    assert(templateDelete.auditId, '删除模板缺少强审计回执');
+    const partBeforeDelete = (await request(
+        '删除零件读取资源版本',
+        'GET',
+        '/api/parts'
+    )).payload.data.find(item => item.id === part.id);
+    const partDeleteReceipt = (await request(
+        '删除测试零件正式命令',
+        'DELETE',
+        `/api/parts/${part.id}`,
+        {
+            expectedUpdatedAt: partBeforeDelete.updatedAt,
+            idempotencyKey: `deep:part-delete:${unique}`,
+        }
+    )).payload.data;
+    assert(partDeleteReceipt.capabilityId === 'parts.delete', '删除零件缺少正式 capability 回执');
+    assert(partDeleteReceipt.auditId, '删除零件缺少强审计回执');
     await request('删除测试客户', 'DELETE', `/api/customers/${customer.id}`);
 }
 
@@ -1656,10 +2561,34 @@ async function run() {
         cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
         assert(cookie.startsWith('token='), '登录未返回 token Cookie');
         await request('登录状态', 'GET', '/api/auth/check');
+        const legacyConfirmation = await request(
+            'AI旧确认参数不能直接执行',
+            'POST',
+            '/api/ai/confirm-tool',
+            { toolName: 'delete_part', args: { id: 1 } },
+            [409]
+        );
+        assert(
+            legacyConfirmation.payload?.code === 'confirmation_token_required',
+            'AI旧确认请求未返回 confirmation_token_required'
+        );
+        const invalidConfirmation = await request(
+            'AI伪造确认token被拒绝',
+            'POST',
+            '/api/ai/confirm-tool',
+            { confirmationToken: 'not-a-valid-confirmation-token' },
+            [400]
+        );
+        assert(
+            invalidConfirmation.payload?.code === 'confirmation_token_invalid',
+            'AI伪造确认 token 未被拒绝'
+        );
         const missingApi = await request('不存在 API 返回 JSON 404', 'GET', '/api/not-found', undefined, [404]);
         assert(missingApi.payload?.success === false, '不存在 API 未返回标准 JSON 错误');
 
+        await testCoreGetEndpointsDoNotWrite(path.join(temp, 'pump.db'));
         const resources = await readCoreResources();
+        await testBusinessSettingCommand();
         const baseResources = await testResourceDetails(resources);
         await testCrossModuleWriteFlow(baseResources);
 

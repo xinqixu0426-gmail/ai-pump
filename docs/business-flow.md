@@ -35,27 +35,28 @@
 
 | 流程 | 主要入口 | 是否写库 | 写入内容 |
 |---|---|---:|---|
-| 零件新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 是 | 零件基础数据；更新和删除必须走 `safeUpdate` / `softDelete` |
-| 批量库存增减 | `/api/parts/batch-stock` | 是 | 只改 `parts.stock`；入参只接受 `{ partId, delta }` |
+| 零件新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 是 | 零件基础数据；正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
+| 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务 |
+| 批量库存增减 | `/api/parts/batch-stock-preview` → `/api/parts/batch-stock` | 预览否、执行是 | 只改 `parts.stock`；服务端确认 token 绑定 `partId/delta/expectedUpdatedAt`，库存、operation 和强审计同一事务；普通 PATCH 的 `stock` 只保留历史兼容 |
 | 线圈新增/修改/删除 | `/api/coils`、`/api/coils/:id` | 是 | 定子组合、绕组方案状态、可选绕组技术备忘和计算后的 `cost` |
-| 模板新增/修改/删除 | `/api/templates`、`/api/templates/:id` | 是 | 泵壳模板、组件结构、工资默认值、转子默认参数 |
+| 模板新增/修改/删除 | `/api/templates`、`/api/templates/:id` | 是 | 泵壳模板、组件结构、工资默认值、转子默认参数；持久幂等，修改/删除绑定版本，模板与 operation/强审计同事务；任何历史配方引用都会阻止硬删除 |
 | 模板成本/默认配方预览 | `/api/templates/:id/cost`、`/api/templates/:id/default-recipe` | 否 | 只返回计算结果或草稿 |
 | BOM 草稿 | `/api/recipes/bom-draft` | 否 | 只生成标准化 BOM 草稿 |
 | 配方成本草稿 | `/api/recipes/cost-draft` | 否 | 只生成保存前成本快照草稿 |
 | 配方保存/修改/删除 | `/api/recipes`、`/api/recipes/:id` | 是 | 配方 BOM、成本快照、技术参数；可能自动新增缺失长螺丝零件 |
 | 当前配方成本参考 | `/api/recipes/:id/cost` | 否 | 只按当前基础数据重算参考价 |
 | 报价覆盖试算 | `/api/recipes/:id/cost-preview` | 否 | 只按配方快照和覆盖项试算 |
-| 客户新增/修改/删除 | `/api/customers`、`/api/customers/:id` | 是 | 客户档案和默认利润率 |
-| 报价新增/修改/删除 | `/api/quotations`、`/api/quotations/:id` | 是 | 报价头、状态、明细 JSON、总成本和总报价 |
+| 客户新增/修改/删除 | `/api/customers`、`/api/customers/:id` | 是 | 持久幂等；修改/删除使用 `expectedUpdatedAt`；软删除保留报价历史，客户与强审计同事务 |
+| 报价新增/修改/状态/删除 | `/api/quotations`、`/api/quotations/:id`、`/api/quotations/:id/status` | 是 | 先用保存草稿取得正式成本快照和 `previewHash`；命令使用持久幂等，覆盖/删除使用 `expectedUpdatedAt`，报价与强审计同事务 |
 | 订单采购计划 | `/api/orders/purchase-plan` | 否 | 只生成采购清单和待办草稿 |
 | 活动订单准备总览 | `/api/orders/readiness-overview` | 否 | 一次平衡全部活动订单库存，汇总准备结论、问题和下一步 |
 | 订单生产准备检查 | `/api/orders/:id/readiness` | 否 | 只读核对订单、BOM、零件、线圈、采购和成本价格 |
 | 订单准备处理方案 | `/api/orders/:id/readiness-plan` | 否 | 将检查问题转换为有依赖顺序的确认、人工和等待步骤 |
-| 订单方案动作执行 | `/api/orders/:id/readiness-actions/:actionId` | 是 | 用户确认后实时重验，只执行当前可确认步骤并返回新方案 |
+| 订单方案动作执行 | `GET /api/orders/:id/readiness-plan` → `POST /api/orders/:id/readiness-actions/:actionId` | 是 | 用户确认后用版本、预览哈希和幂等键绑定实时方案；事务内再次重验，只执行当前可确认步骤并返回标准回执和新方案 |
 | 订单新增/修改/删除 | `/api/orders`、`/api/orders/:id` | 是 | 订单头、明细、锁定成本、售价、采购清单、待办和状态 |
-| 采购中心整项下单 | `/api/orders/purchase-items/batch` | 是 | 更新活动订单采购项的下单数量；不入库 |
-| 采购进度与分批入库 | `/api/orders/:id/purchase-items/progress` | 是 | 更新下单/到货/入库数量；仅入库增量在同一事务内增加库存 |
-| 一次性全部入库 | `/api/orders/:id/complete-purchase` | 是 | 把剩余计划登记为下单、到货和入库，并进入采购完成 |
+| 采购中心整项下单 | `/api/orders/purchase-items/batch-draft`、`/api/orders/purchase-items/batch` | 预览否/执行是 | 先确认物料、影响订单和数量，再原子更新全部活动订单采购项；不入库 |
+| 采购进度与分批入库 | `/api/orders/:id/purchase-items/progress-draft`、`/api/orders/:id/purchase-items/progress` | 预览否/执行是 | 保存前由正式预览绑定订单版本、平衡计划、数量与库存影响；仅入库增量在统一命令事务内增加库存 |
+| 一次性全部入库 | `/api/orders/:id/complete-purchase-draft`、`/api/orders/:id/complete-purchase` | 预览否/执行是 | 先用正式平衡计划预览并绑定版本与物料哈希，再把剩余计划登记为下单、到货和入库，并进入采购完成 |
 | 配方库存状态 | `/api/recipes/:id/inventory-status` | 否 | 普通配件读取零件库，线圈转子读取独立线圈库存；只返回当前库存和状态 |
 | 转子出图 | `/api/rotor/draw`、`/api/rotor/chat` | 是 | 写入出图任务和历史记录 |
 | 转子参数暂存 | `/api/rotor/save` | 是 | 保存 `status=saved` 的历史记录 |
@@ -85,8 +86,8 @@
 2. 选择基础配方，读取配方保存快照作为默认成本基线。
 3. 客户只可覆盖是否带浮球、电缆米数、外包装（牛皮纸箱/彩印箱/木箱）、泡沫型号和是否含珍珠棉；线圈直径、材质、槽眼、片数和线径沿用配方。
 4. 覆盖项通过 `POST /api/recipes/:id/cost-preview` 试算。
-5. 报价保存时后端重新试算，并把完整 `bomSnapshot`、`costSnapshot`、覆盖参数、单位成本和售价写入 `quotations.itemsJson`。
-6. “报价中”超过一个月会在读取列表时自动标记为“已过时”。
+5. 报价保存时后端重新试算，并把完整 `bomSnapshot`、`costSnapshot`、覆盖参数、单位成本和售价写入 `quotations.itemsJson`；新增/修改使用保存草稿的稳定 `previewHash`，网络重试复用同一幂等键，不会重复建报价。
+6. “报价中”超过一个月由 API 启动补跑及每天北京时间 00:05 的维护任务标记为“已过时”；读取列表不产生业务写入。
 
 禁止事项：
 
@@ -107,10 +108,11 @@
 ### 6.2 报价转订单
 
 1. 从报价明细读取客户、数量、报价单价和保存时已经展开的 BOM/成本快照。
-2. 调用 `POST /api/quotations/:id/order-draft` 预览订单及采购计划。
-3. 确认后调用 `POST /api/quotations/:id/convert`。
-4. 后端在同一事务内创建订单、保存报价与订单关联并把报价更新为 `已转订单`。
-5. 同一报价重复转单返回 409；转单后不允许再修改报价明细。
+2. 调用 `POST /api/quotations/:id/order-draft` 预览订单及采购计划，同时取得报价 `expectedUpdatedAt`、确认内容 `previewHash` 和建议幂等键。
+3. 人工或 AI 确认后，使用同一版本和预览哈希调用 `POST /api/quotations/:id/convert`；AI 还必须经过服务端 confirmation token，并复用确认操作的 `operationId` 作为幂等键。
+4. 后端在同一事务内创建订单、保存报价与订单关联、把报价更新为 `已转订单`、保存 operation 回执并写入两条强审计。
+5. 相同请求重试返回原回执；幂等键异参复用、报价版本冲突、活动订单/库存变化导致的预览冲突、重复或越级转单返回 409，且不会留下部分订单、状态或审计。
+6. 兼容调用可暂不传 `Idempotency-Key/expectedUpdatedAt`，但不具备协议级重试和并发保护；新增调用不得使用兼容模式。
 
 ### 6.3 订单状态
 
@@ -146,14 +148,20 @@
 
 ### 7.3 入库
 
+- 采购中心“全部下单”先调用 `/api/orders/purchase-items/batch-draft`，按全部活动订单实时平衡计划返回受影响订单、数量、版本和预览哈希；人工确认后以同一幂等键执行 `/api/orders/purchase-items/batch`。
+- 跨订单批量下单不增加库存；所有计划快照、订单状态、operation 和强审计在同一事务提交，任一订单版本或受影响集合变化都会拒绝旧预览。
 - 入库发生在订单详情确认。
 - 数量必须满足 `stockedQty ≤ receivedQty ≤ orderedQty`；`orderedQty` 超过 `plannedQty` 时必须明确确认超采。
 - 每次提高 `stockedQty` 都只把增量加入库存，并在同一事务内记录 `stockInHistory` 批次。
 - 普通零件入库前必须存在对应 `partId`，线圈转子入库前必须存在对应 `coilId`；任一校验失败时采购进度和库存一起回滚。
 - 线圈采购入库增加 `coils.stock` 并写入 `coil_stock_movements`，订单号保存在流水引用中。
 - 全部计划数量入库后自动进入采购完成；订单关闭是后续独立人工动作。
-- `POST /api/orders/:id/complete-purchase` 是兼容的一键动作，用于确认全部剩余物料已经到货并入库，不直接关闭订单。
-- 一键入库确认必须同时展示普通零件、正式线圈和非库存计算项；只有普通零件与正式线圈会增加库存，非库存项只完成采购进度。
+- 单项保存先调用 `POST /api/orders/:id/purchase-items/progress-draft`，绑定当前订单版本、全部活动订单平衡计划、采购数量和实际库存；Web 的“保存采购进度”是明确动作，涉及库存增加时还必须显示入库数量、采购/库存单位换算和入库后库存供人工确认。
+- 执行 `POST /api/orders/:id/purchase-items/progress` 时提交同一 `expectedUpdatedAt/previewHash/Idempotency-Key`。平衡或库存漂移返回 409；入库增量、关联计划快照、订单、operation 和强审计任一失败都会整体回滚。
+- 一键入库必须先调用 `POST /api/orders/:id/complete-purchase-draft`，由后端按全部活动订单和当前库存生成普通零件、正式线圈、非库存项及准确数量，并返回 `expectedUpdatedAt/previewHash/suggestedIdempotencyKey`。
+- 人工确认后调用 `POST /api/orders/:id/complete-purchase`。新增调用必须提交相同版本、预览哈希和幂等键；确认后库存或平衡计划变化会返回 409 并要求重新预览。
+- 只有普通零件与正式线圈会增加库存，非库存项只完成采购进度；平衡计划、零件库存、线圈库存与流水、订单状态、operation 回执和强审计在同一事务内提交。
+- 相同请求重试返回原回执；旧调用暂可不传新字段，但不具备协议级重试、并发和确认内容绑定保护。一键入库不直接关闭订单。
 - 采购入库只记录新到物料。系统不恢复生产执行模块，也不在订单关闭时自动扣料；实际领用由仓库分别通过零件库存调整和线圈库存调整登记出库。
 
 ### 7.4 配方库存查看
@@ -254,6 +262,15 @@
 
 ## 8. 知识库与 AI 会话
 
+### 8.1 统一文件与知识边界
+
+- PDF、Excel、CSV、文本和图片先保存为统一文件对象；相同内容按 SHA-256 复用，不为每个业务关系重复保存二进制。
+- “本轮 AI 分析”“关联客户/报价/配方/质量证据”“归档到知识库”是三个独立动作。业务附件关联不等于知识入库，只有明确归档的资料才进入跨会话检索。
+- AI 工作台单个文件不超过 10MB，每条消息最多 4 个。PDF/表格解析和图片 OCR 只提供带来源位置与置信度的候选，不自动新增客户、配方、报价或技术参数。
+- 文件价格不是正式成本。报价文件只能生成只读映射草稿，正式报价仍由配方成本 API 重新计算并由用户确认。
+- 解除一个业务关联不删除原文件或其他关联；被已确认客户要求或执行事实引用的来源文件必须先撤销确认或确认不再引用的新版本。
+- 原文件和解析结果用于追溯；AI 摘要不能替代原文，低置信度或冲突内容必须人工复核。
+
 - `knowledge_entries` 是由正式业务数据生成的派生索引，不是新的业务事实来源。
 - 同步按 `sourceTable + sourceId` 增量更新，原始数据失效时移除对应条目，并保留未变化条目的稳定 ID。
 - 核心业务通过标准写入 helper 变更后自动提交知识刷新；连续写入短延迟合并，失败自动重试，人工同步只作为全量核对和恢复兜底。
@@ -271,6 +288,14 @@
 - 每次复核保存后展示规则学习刷新结果；暂时跳过只改变当前页面的处理顺序，不改变反馈状态。整组完成后清理复核参数，返回数据质量看板时重新读取健康队列。
 - AI 会话完整保存在 SQLite；发送给模型的上下文只保留最近 10 条用户或助手消息。
 - 历史会话中的写操作结果只用于回看，不能再次直接确认执行。
+
+### 8.2 客户要求与订单执行档案
+
+- 订单详情“客户要求”保存客户原始文件、AI 辅助归纳草稿和人工确认版本；AI 归纳只填充编辑框，不自动保存或确认。
+- 未明确内容标记为“未提供”，冲突项单独列出。只有人工确认版本可以进入订单知识包，未确认草稿不能作为事实。
+- “执行档案”按生产前、生产中、生产后记录已经发生的资源准备、供应商调整、过程异常、质量、交付和客户反馈；建议、预测、待办和未决定事项不能保存为执行事实。
+- 已确认内容再次编辑时，知识库继续使用上一次确认版本；重新确认后才替换，撤销确认会移除正式知识但保留草稿和原始文件。
+- 订单知识包只读聚合实时订单、采购、待办和生产准备状态，以及人工确认的客户要求和执行事实。两类来源必须明确区分；没有记录时直接说明“未记录”，不得用相似订单补写。
 
 ## 9. 允许调整的内容
 
@@ -302,5 +327,5 @@
 - 保存动作是否明确调用后端权威成本接口。
 - 只读预览是否没有写库副作用。
 - 写操作后是否重新拉取对应资源。
-- 新增 API 是否已同步 `docs/api-reference.md` 和 `docs/api-sop.md` 约束。
+- 新增 API 是否遵守 `docs/api-contract.md`、执行 `docs/api-sop.md`，并同步 `docs/api-reference.md`。
 - 新增业务规则是否有 helper 或服务层测试，而不是只藏在页面组件里。

@@ -30,4 +30,38 @@ function rotorHistoryRow(row) {
     };
 }
 
-module.exports = { rotorHistoryRow };
+function listRotorHistory(db, limit = 100) {
+    const normalizedLimit = Math.min(
+        500,
+        Math.max(1, Number.parseInt(limit, 10) || 100)
+    );
+    return db.prepare(`
+        SELECT *
+        FROM rotor_drawings
+        ORDER BY created_at DESC
+        LIMIT ?
+    `).all(normalizedLimit).map(rotorHistoryRow);
+}
+
+function getRotorJobStatus(db, jobId, activeJobs) {
+    const active = activeJobs?.get(String(jobId || ''));
+    if (active) return active;
+    const row = db.prepare(`
+        SELECT drawing_name, status, file_url, error
+        FROM rotor_drawings
+        WHERE job_id = ?
+    `).get(String(jobId || ''));
+    if (!row) return null;
+    return {
+        status: row.status || 'not_found',
+        drawingName: row.drawing_name || '',
+        fileUrl: row.file_url || '',
+        error: row.error || '',
+    };
+}
+
+module.exports = {
+    getRotorJobStatus,
+    listRotorHistory,
+    rotorHistoryRow,
+};

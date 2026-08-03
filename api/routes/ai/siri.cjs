@@ -7,6 +7,12 @@ const { executeToolCall } = require('./executor.cjs');
 const { limitText, classifySiriResult, buildSiriSpeech, firstBackgroundTask } = require('./siriResponse.cjs');
 const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 const { isProductionEnvironment } = require('../../services/environment.cjs');
+const {
+    completeAiToolConfirmation,
+    confirmationSubjectForChannel,
+    consumeAiToolConfirmation,
+    failAiToolConfirmation,
+} = require('../../services/aiToolConfirmation.cjs');
 
 const SIRI_TOKEN = process.env.SIRI_API_TOKEN || '';
 const IS_PRODUCTION = isProductionEnvironment();
@@ -19,6 +25,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', '..', '..', 'public');
 const siriResults = new Map();
 const siriConfirmations = new Map();
 const SIRI_RESULT_TTL = 5 * 60 * 1000; // 5 minutes
+const SIRI_CONFIRMATION_SUBJECT = confirmationSubjectForChannel('siri', SIRI_TOKEN);
 
 // 每分钟清理过期结果
 const cleanupTimer = setInterval(() => {
@@ -125,7 +132,11 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
         let speech = '';
 
         try {
-            const aiData = await processAiChat(text, { context, promptSuffix: siriPromptSuffix });
+            const aiData = await processAiChat(text, {
+                context,
+                promptSuffix: siriPromptSuffix,
+                confirmationSubject: SIRI_CONFIRMATION_SUBJECT,
+            });
             finalContent = aiData.finalContent;
             toolResults = aiData.toolResults;
             speech = aiData.speech;
@@ -140,8 +151,7 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
         if (pendingConfirmation) {
             siriConfirmations.set(confirmationId, {
                 createdAt: Date.now(),
-                toolName: pendingConfirmation.result.confirmation.toolName,
-                args: pendingConfirmation.result.confirmation.args || {},
+                confirmationToken: pendingConfirmation.result.confirmation.confirmationToken,
                 sourceText: text,
             });
         }
@@ -192,6 +202,8 @@ router.post('/api/siri/chat', siriAuth, async (req, res) => {
 });
 
 router.post('/api/siri/confirm', siriAuth, async (req, res) => {
+    let consumed = null;
+    let consumedToken = '';
     try {
         const { confirmationId, confirm } = req.body || {};
         if (!confirmationId) {
@@ -206,14 +218,43 @@ router.post('/api/siri/confirm', siriAuth, async (req, res) => {
             return res.status(404).json({ success: false, status: 'failed', speech: '确认已过期。', error: '确认不存在或已过期' });
         }
 
-        const result = await executeToolCall(pending.toolName, pending.args || {}, { allowWrite: true });
+        consumedToken = pending.confirmationToken;
         siriConfirmations.delete(confirmationId);
+        consumed = consumeAiToolConfirmation({
+            confirmationToken: consumedToken,
+            subject: SIRI_CONFIRMATION_SUBJECT,
+        });
+        const receipt = consumed.replay
+            ? consumed.receipt
+            : null;
+        const result = receipt?.result || await executeToolCall(consumed.toolName, consumed.args, {
+            allowWrite: true,
+            operationId: consumed.operationId,
+        });
+        if (!consumed.replay) {
+            completeAiToolConfirmation({
+                confirmationToken: pending.confirmationToken,
+                subject: SIRI_CONFIRMATION_SUBJECT,
+                receipt: {
+                    name: consumed.toolName,
+                    result,
+                    capabilityId: consumed.capabilityId,
+                    operationId: consumed.operationId,
+                    status: result?.success === false ? 'failed' : (result?.status || 'completed'),
+                    changes: Array.isArray(result?.changes) ? result.changes : [],
+                    warnings: Array.isArray(result?.warnings) ? result.warnings : [],
+                    auditId: result?.auditId ?? null,
+                    idempotentReplay: false,
+                    completedAt: new Date().toISOString(),
+                },
+            });
+        }
 
         const failed = result?.success === false;
-        const task = firstBackgroundTask([{ name: pending.toolName, result }]);
+        const task = firstBackgroundTask([{ name: consumed.toolName, result }]);
         const status = failed ? 'failed' : task ? 'processing' : 'success';
         const speech = failed ? buildSiriSpeech({ status, failed: { result } }) : task ? buildSiriSpeech({ status, task }) : '已执行。';
-        const toolResults = [{ name: pending.toolName, view_type: 'action_result', result }];
+        const toolResults = [{ name: consumed.toolName, view_type: 'action_result', result }];
 
         const resultId = crypto.randomUUID();
         siriResults.set(resultId, {
@@ -239,6 +280,19 @@ router.post('/api/siri/confirm', siriAuth, async (req, res) => {
             task,
         });
     } catch (err) {
+        if (consumed && !consumed.replay) {
+            try {
+                if (consumedToken) {
+                    failAiToolConfirmation({
+                        confirmationToken: consumedToken,
+                        subject: SIRI_CONFIRMATION_SUBJECT,
+                        error: err,
+                    });
+                }
+            } catch {
+                // 保留原始执行错误。
+            }
+        }
         console.error('[Siri] 确认执行错误:', err.message);
         res.status(500).json({ success: false, status: 'failed', speech: '确认执行失败。', error: err.message });
     }

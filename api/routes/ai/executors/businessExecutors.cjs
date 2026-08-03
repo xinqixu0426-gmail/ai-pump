@@ -1,5 +1,8 @@
 const { getJson, postJson, patchJson } = require('../internalApiClient.cjs');
 const { recordWorkflowRun } = require('./workflowRunRecorder.cjs');
+const {
+    executeFactoryWorkflowStep,
+} = require('../../../services/aiFactoryWorkflowExecution.cjs');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -18,15 +21,6 @@ function findByNameOrId(rows, value, nameKeys = ['name']) {
         if (Number.isFinite(id) && (row.id === id || row.Id === id)) return true;
         return nameKeys.some((key) => normalizeText(row[key]) === text || includesText(row[key], text));
     });
-}
-
-function parseJsonArray(value) {
-    try {
-        const parsed = JSON.parse(value || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
 }
 
 function roundMoney(value) {
@@ -283,43 +277,29 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         }
 
         case 'search_customer_history': {
-            const [customers, quotations, orders] = await Promise.all([
-                getJson(internalFetch, '/api/customers', '客户列表读取失败'),
-                getJson(internalFetch, '/api/quotations', '报价列表读取失败'),
-                getJson(internalFetch, '/api/orders', '订单列表读取失败'),
-            ]);
+            const customers = await getJson(internalFetch, '/api/customers', '客户列表读取失败');
             const customer = findByNameOrId(customers, args.customerName || args.customerId, ['name']);
             if (!customer) return { success: false, error: `未找到客户：${args.customerName || args.customerId || ''}` };
             const customerId = customer.id ?? customer.Id;
+            const query = new URLSearchParams();
             const keyword = normalizeText(args.keyword || args.recipeName || args.model);
-            const quoteRows = (quotations || [])
-                .filter((row) => (row.customerId ?? row.customer_id) === customerId)
-                .map((row) => ({ ...row, items: parseJsonArray(row.itemsJson || row.items_json) }))
-                .filter((row) => !keyword || row.items.some((item) => includesText(item.baseRecipeName || item.recipeName, keyword)))
-                .sort((left, right) => {
-                    const leftTime = Date.parse(left.createdAt || left.created_at || '') || 0;
-                    const rightTime = Date.parse(right.createdAt || right.created_at || '') || 0;
-                    return leftTime - rightTime || Number(left.id || left.Id || 0) - Number(right.id || right.Id || 0);
-                })
-                .map((row, index) => {
-                    const quotation = { ...row };
-                    delete quotation.id;
-                    delete quotation.Id;
-                    return { ...quotation, displaySequence: index + 1 };
-                });
-            const orderRows = (orders || [])
-                .filter((row) => normalizeText(row.customerName || row.customer_name) === normalizeText(customer.name))
-                .map((row) => ({ ...row, items: parseJsonArray(row.itemsJson || row.items_json) }))
-                .filter((row) => !keyword || row.items.some((item) => includesText(item.recipeName || item.baseRecipeName, keyword)));
+            if (keyword) query.set('keyword', keyword);
+            if (args.limit != null) query.set('limit', String(args.limit));
+            const suffix = query.size > 0 ? `?${query.toString()}` : '';
+            const context = await getJson(
+                internalFetch,
+                `/api/customers/${customerId}/context${suffix}`,
+                '客户历史读取失败'
+            );
             return {
                 success: true,
                 intent: 'customer_history',
-                summary: `找到 ${customer.name} 的历史报价 ${quoteRows.length} 条、订单 ${orderRows.length} 条。`,
+                summary: context.summary,
                 display: { mode: 'compact', title: '客户历史' },
                 data: {
-                    customer,
-                    quotations: quoteRows.slice(0, args.limit || 10),
-                    orders: orderRows.slice(0, args.limit || 10),
+                    customer: context.customer,
+                    quotations: context.quotations,
+                    orders: context.orders,
                 },
             };
         }
@@ -383,6 +363,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     decision: args.decision,
                     note: args.note,
                     findingSnapshot: args.findingSnapshot || {},
+                    expectedUpdatedAt: args.expectedUpdatedAt,
                 },
                 '配方检查反馈保存失败'
             );
@@ -492,7 +473,10 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const data = await postJson(
                 internalFetch,
                 `/api/quality/rule-events/${Number(args.eventId)}/restore`,
-                { restoreNote: args.restoreNote },
+                {
+                    restoreNote: args.restoreNote,
+                    expectedUpdatedAt: args.expectedUpdatedAt,
+                },
                 '规则审核状态恢复失败'
             );
             return {
@@ -530,6 +514,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 {
                     status: args.status,
                     reviewNote: args.reviewNote,
+                    expectedUpdatedAt: args.expectedUpdatedAt,
                 },
                 '候选业务规则审核失败'
             );
@@ -584,203 +569,12 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         }
 
         case 'execute_factory_workflow_step': {
-            const workflowType = normalizeText(args.workflowType);
-            const quotationId = Number(args.quotationId);
-            const actionId = normalizeText(args.actionId);
-            if (workflowType !== 'quotation_to_order' || actionId !== 'convert_quotation') {
-                return { success: false, error: '当前只支持执行报价转订单步骤' };
-            }
-            if (!Number.isInteger(quotationId) || quotationId <= 0) {
-                return { success: false, error: '缺少有效的报价ID' };
-            }
-
-            const planInput = {
-                workflowType,
-                quotationId,
-                goal: `将报价 #${quotationId} 转为订单并检查生产准备`,
-            };
-            const startedAt = new Date().toISOString();
-            let currentPlan = null;
-            let converted = null;
-            try {
-                currentPlan = await postJson(
-                    internalFetch,
-                    '/api/workbench/execution-plan',
-                    planInput,
-                    '执行前刷新工厂计划失败'
-                );
-                const step = (Array.isArray(currentPlan.steps) ? currentPlan.steps : [])
-                    .find(item => item.id === actionId);
-                const confirmation = step?.confirmation;
-                const confirmationArgs = confirmation?.args || {};
-                if (
-                    !step
-                    || step.mode !== 'confirmable'
-                    || step.status !== 'available'
-                    || step.canExecute !== true
-                    || confirmation?.toolName !== 'execute_factory_workflow_step'
-                    || confirmationArgs.workflowType !== workflowType
-                    || Number(confirmationArgs.quotationId) !== quotationId
-                    || confirmationArgs.actionId !== actionId
-                ) {
-                    const message = `当前计划中的“${actionId}”步骤已不可执行，请刷新计划后按最新状态处理。`;
-                    const recorded = await recordWorkflowRun(internalFetch, {
-                        workflowType,
-                        subjectType: 'quotation',
-                        subjectId: quotationId,
-                        actionId,
-                        toolName: 'execute_factory_workflow_step',
-                        status: 'failed',
-                        plan: currentPlan,
-                        recheck: currentPlan,
-                        outcomeSummary: '实时重验后拒绝执行',
-                        error: message,
-                        startedAt,
-                    });
-                    return {
-                        success: false,
-                        error: message,
-                        data: {
-                            currentPlan,
-                            executionRun: recorded.run,
-                            historyWarning: recorded.warning,
-                        },
-                    };
-                }
-
-                await postJson(
-                    internalFetch,
-                    `/api/quotations/${quotationId}/order-draft`,
-                    {},
-                    '报价转订单预检失败'
-                );
-                converted = await postJson(
-                    internalFetch,
-                    `/api/quotations/${quotationId}/convert`,
-                    {},
-                    '报价转订单失败'
-                );
-                const orderId = Number(converted.order?.id || converted.order?.Id || 0);
-                if (!orderId) throw new Error('报价已转单，但接口未返回有效订单ID');
-                const nextPlan = await getJson(
-                    internalFetch,
-                    `/api/orders/${orderId}/readiness-plan`,
-                    '新订单生产准备检查失败'
-                );
-                const workflowPlan = await postJson(
-                    internalFetch,
-                    '/api/workbench/execution-plan',
-                    planInput,
-                    '转单后刷新工厂计划失败'
-                );
-                const recorded = await recordWorkflowRun(internalFetch, {
-                    workflowType,
-                    subjectType: 'quotation',
-                    subjectId: quotationId,
-                    actionId,
-                    toolName: 'execute_factory_workflow_step',
-                    status: 'completed',
-                    plan: currentPlan,
-                    result: {
-                        quotationId,
-                        orderId,
-                        orderStatus: converted.order?.status || '',
-                        nextPlanStatus: nextPlan.planStatus || '',
-                    },
-                    recheck: workflowPlan,
-                    outcomeSummary: `报价 #${quotationId} 已转为订单 #${orderId}`,
-                    startedAt,
-                });
-                return {
-                    success: true,
-                    intent: 'factory_workflow_action',
-                    summary: `报价 #${quotationId} 已转为订单 #${orderId}，并完成新订单生产准备检查。`,
-                    display: { mode: 'compact', title: '工厂工作流执行结果' },
-                    data: {
-                        action: {
-                            id: actionId,
-                            title: '确认转单并检查新订单',
-                            executedAt: new Date().toISOString(),
-                        },
-                        quotation: converted.quotation,
-                        order: converted.order,
-                        nextPlan,
-                        workflowPlan,
-                        executionRun: recorded.run,
-                        historyWarning: recorded.warning,
-                    },
-                };
-            } catch (error) {
-                let latestPlan = currentPlan;
-                if (converted) {
-                    try {
-                        latestPlan = await postJson(
-                            internalFetch,
-                            '/api/workbench/execution-plan',
-                            planInput,
-                            '失败后刷新工厂计划失败'
-                        );
-                    } catch {
-                        // The conversion response remains authoritative for preventing retries.
-                    }
-                }
-                const fallbackPlan = currentPlan || {
-                    workflowType,
-                    subject: { type: 'quotation', id: quotationId },
-                    steps: [],
-                };
-                const writeCompleted = Boolean(converted);
-                const recorded = await recordWorkflowRun(internalFetch, {
-                    workflowType,
-                    subjectType: 'quotation',
-                    subjectId: quotationId,
-                    actionId,
-                    toolName: 'execute_factory_workflow_step',
-                    status: writeCompleted ? 'completed' : 'failed',
-                    plan: fallbackPlan,
-                    result: writeCompleted ? {
-                        quotationId,
-                        orderId: Number(converted.order?.id || converted.order?.Id || 0),
-                        orderStatus: converted.order?.status || '',
-                    } : {},
-                    recheck: latestPlan || {},
-                    outcomeSummary: writeCompleted
-                        ? `报价 #${quotationId} 已完成转单，但后续复查未完整完成`
-                        : '报价转订单执行失败',
-                    error: error.message,
-                    startedAt,
-                });
-                if (writeCompleted) {
-                    return {
-                        success: true,
-                        intent: 'factory_workflow_action',
-                        summary: `报价 #${quotationId} 已完成转单，但后续检查失败：${error.message}`,
-                        display: { mode: 'compact', title: '工厂工作流执行结果' },
-                        data: {
-                            action: {
-                                id: actionId,
-                                title: '确认转单',
-                                executedAt: new Date().toISOString(),
-                            },
-                            quotation: converted.quotation,
-                            order: converted.order,
-                            workflowPlan: latestPlan,
-                            followUpError: error.message,
-                            executionRun: recorded.run,
-                            historyWarning: recorded.warning,
-                        },
-                    };
-                }
-                return {
-                    success: false,
-                    error: error.message,
-                    data: {
-                        currentPlan: latestPlan,
-                        executionRun: recorded.run,
-                        historyWarning: recorded.warning,
-                    },
-                };
-            }
+            return executeFactoryWorkflowStep(args, {
+                internalFetch,
+                getJson,
+                postJson,
+                recordWorkflowRun,
+            });
         }
 
         case 'get_business_alerts': {
@@ -815,9 +609,9 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
         case 'archive_factory_file': {
             if (!args.fileId) return { success: false, error: '缺少附件文件ID' };
-            const data = await postJson(
+            const preview = await postJson(
                 internalFetch,
-                `/api/files/${args.fileId}/archive`,
+                `/api/files/${args.fileId}/archive-preview`,
                 {
                     targetType: args.targetType,
                     targetId: args.targetId,
@@ -826,6 +620,15 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     documentType: args.documentType,
                     tags: args.tags,
                     source: 'ai_chat',
+                },
+                '工厂文件归档预览失败'
+            );
+            const data = await postJson(
+                internalFetch,
+                `/api/files/${args.fileId}/archive`,
+                {
+                    confirmationToken: preview.confirmationToken,
+                    idempotencyKey: preview.suggestedIdempotencyKey,
                 },
                 '工厂文件归档失败'
             );
@@ -939,7 +742,21 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         }
 
         case 'sync_factory_knowledge': {
-            const data = await postJson(internalFetch, '/api/knowledge/sync', {}, '工厂知识库同步失败');
+            const preview = await postJson(
+                internalFetch,
+                '/api/knowledge/sync-preview',
+                {},
+                '工厂知识库同步预览失败'
+            );
+            const data = await postJson(
+                internalFetch,
+                '/api/knowledge/sync',
+                {
+                    confirmationToken: preview.confirmationToken,
+                    idempotencyKey: preview.suggestedIdempotencyKey,
+                },
+                '工厂知识库同步失败'
+            );
             const total = data.stats?.total ?? data.stats?.inserted ?? 0;
             return {
                 success: true,

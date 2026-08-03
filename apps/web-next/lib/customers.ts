@@ -1,5 +1,5 @@
 import type { ApiResponse } from './api';
-import { proxyRequest } from './api';
+import { createIdempotencyKey, proxyRequest } from './api';
 
 export type Customer = {
   id: number;
@@ -109,24 +109,36 @@ export async function getAllCustomers(): Promise<Customer[]> {
 export async function createCustomer(input: CustomerInput): Promise<Customer> {
   const result = await proxyRequest<ApiResponse<CustomerRow>>('/api/customers', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('customer-create'),
+    },
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '客户创建失败');
   return rowToCustomer(result.data);
 }
 
-export async function updateCustomer(id: number, input: CustomerInput): Promise<Customer> {
-  const result = await proxyRequest<ApiResponse<CustomerRow>>(`/api/customers/${id}`, {
+export async function updateCustomer(customer: Customer, input: CustomerInput): Promise<Customer> {
+  if (!customer.updatedAt) throw new Error('客户版本缺失，请刷新列表后再保存');
+  const result = await proxyRequest<ApiResponse<CustomerRow>>(`/api/customers/${customer.id}`, {
     method: 'PATCH',
-    body: JSON.stringify(input),
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`customer-update:${customer.id}`),
+    },
+    body: JSON.stringify({ ...input, expectedUpdatedAt: customer.updatedAt }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '客户保存失败');
   return rowToCustomer(result.data);
 }
 
-export async function deleteCustomer(id: number): Promise<void> {
-  const result = await proxyRequest<ApiResponse<unknown>>(`/api/customers/${id}`, {
+export async function deleteCustomer(customer: Customer): Promise<void> {
+  if (!customer.updatedAt) throw new Error('客户版本缺失，请刷新列表后再删除');
+  const result = await proxyRequest<ApiResponse<unknown>>(`/api/customers/${customer.id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`customer-delete:${customer.id}`),
+    },
+    body: JSON.stringify({ expectedUpdatedAt: customer.updatedAt }),
   });
   if (!result.success) throw new Error(result.error || '客户删除失败');
 }

@@ -21,6 +21,12 @@ function resolveApiPath(path: string): string {
   return `${process.env.NEXT_PUBLIC_API_BASE_URL || ''}${path}`;
 }
 
+export function createIdempotencyKey(prefix = 'web'): string {
+  const random = globalThis.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `${prefix}:${random}`;
+}
+
 export async function proxyFetch(
   path: string,
   options: RequestInit = {},

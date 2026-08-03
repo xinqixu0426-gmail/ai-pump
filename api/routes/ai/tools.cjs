@@ -190,7 +190,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'update_part',
-            description: '修改零件信息（价格、库存、供应商等）。当用户说"把XX零件的价格改成YY""XX的库存加10"时使用',
+            description: '修改零件资料或调整库存。一次调用只能选择一种模式：资料字段（价格、供应商、类别）或库存字段（stock/stockDelta）；两种模式必须拆成两个分别确认的调用。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -605,7 +605,8 @@ const AI_TOOLS = [
                     findingType: { type: 'string', description: '智能检查返回的提醒类型' },
                     decision: { type: 'string', enum: ['confirmed', 'ignored', 'special_case', 'review'], description: '确认问题、忽略、特殊情况或恢复复核' },
                     note: { type: 'string', description: '用户说明，可选，最多500字' },
-                    findingSnapshot: { type: 'object', description: '本次提醒摘要，可选' }
+                    findingSnapshot: { type: 'object', description: '本次提醒摘要，可选' },
+                    expectedUpdatedAt: { type: 'string', description: '最近一次智能检查返回的反馈 updatedAt；更新已有反馈时应传入' }
                 },
                 required: ['recipeId', 'findingKey', 'findingType', 'decision']
             }
@@ -682,7 +683,8 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     eventId: { type: 'number', description: '要恢复的规则历史事件ID；应先用 get_factory_rule_history 查询' },
-                    restoreNote: { type: 'string', description: '本次恢复说明，可选，最多500字' }
+                    restoreNote: { type: 'string', description: '本次恢复说明，可选，最多500字' },
+                    expectedUpdatedAt: { type: 'string', description: 'get_factory_rule_candidates 返回的当前规则 updatedAt；用于防止覆盖并发审核' }
                 },
                 required: ['eventId']
             }
@@ -706,7 +708,8 @@ const AI_TOOLS = [
                 properties: {
                     candidateId: { type: 'number', description: '候选规则ID' },
                     status: { type: 'string', enum: ['candidate', 'approved', 'rejected'], description: '目标审核状态' },
-                    reviewNote: { type: 'string', description: '审核说明，可选，最多500字' }
+                    reviewNote: { type: 'string', description: '审核说明，可选，最多500字' },
+                    expectedUpdatedAt: { type: 'string', description: 'get_factory_rule_candidates 返回的当前规则 updatedAt；用于防止覆盖并发审核' }
                 },
                 required: ['candidateId', 'status']
             }
@@ -1114,24 +1117,14 @@ const AI_TOOLS = [
     }
 ];
 
-// ── 写操作工具白名单（需要 allowWrite=true 才能执行） ──
-const WRITE_TOOLS = new Set([
-    'create_part', 'update_part', 'delete_part', 'batch_update_prices', 'adjust_coil_stock',
-    'create_order', 'delete_order', 'update_order_status',
-    'add_recipe_to_order', 'remove_recipe_from_order', 'update_order_item',
-    'generate_purchase_list',
-    'save_order_requirement_draft',
-    'save_order_execution_draft',
-    'execute_order_readiness_action',
-    'execute_factory_workflow_step',
-    'create_recipe', 'delete_recipe', 'update_recipe',
-    'archive_factory_file',
-    'sync_factory_knowledge',
-    'set_recipe_analysis_feedback',
-    'refresh_factory_rule_candidates',
-    'review_factory_rule_candidate',
-    'restore_factory_rule_event',
-]);
+// 写能力由统一能力注册表投影，禁止在工具文件内维护第二份名单。
+const {
+    assertAiToolRegistryComplete,
+    writeCapabilityNames,
+} = require('../../capabilities/registry.cjs');
+
+assertAiToolRegistryComplete(AI_TOOLS);
+const WRITE_TOOLS = new Set(writeCapabilityNames());
 
 
 module.exports = { AI_TOOLS, WRITE_TOOLS };

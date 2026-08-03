@@ -31,20 +31,40 @@ function buildCopperPriceUpdates(coils, copperPricePerTon) {
     };
 }
 
-function updateAllCoilsCopperPrice(db, safeUpdate, copperPricePerTon, logger) {
+function updateAllCoilsCopperPrice(
+    db,
+    safeUpdate,
+    copperPricePerTon,
+    logger,
+    options = {}
+) {
     const coils = db.prepare('SELECT * FROM coils').all();
     const draft = buildCopperPriceUpdates(coils, copperPricePerTon);
-    if (draft.updates.length > 0) {
-        db.transaction((updates) => {
-            updates.forEach((item) => safeUpdate('coils', item.id, item.values));
-        })(draft.updates);
+    const auditIds = [];
+    const applyUpdates = (updates) => {
+        updates.forEach((item) => {
+            const write = safeUpdate(
+                'coils',
+                item.id,
+                item.values,
+                options.auditContext || {}
+            );
+            if (write?.auditId) auditIds.push(write.auditId);
+        });
+    };
+    if (draft.updates.length > 0 && options.transaction === false) {
+        applyUpdates(draft.updates);
+    } else if (draft.updates.length > 0) {
+        db.transaction(applyUpdates)(draft.updates);
     }
     const result = {
         copperPricePerTon: draft.copperPricePerTon,
         copperPricePerKg: draft.copperPricePerKg,
         updatedCount: draft.updates.length,
+        updatedCoilIds: draft.updates.map(item => item.id),
         skippedCount: draft.scannedCount - draft.updates.length,
         unchanged: draft.updates.length === 0,
+        auditIds,
     };
     logger?.info(
         result.unchanged

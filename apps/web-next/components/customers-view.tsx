@@ -179,7 +179,7 @@ export function CustomersView() {
 
     try {
       const saved = editingCustomer
-        ? await updateCustomer(editingCustomer.id, input)
+        ? await updateCustomer(editingCustomer, input)
         : await createCustomer(input);
       await load(true);
       setSelectedCustomerId(saved.id);
@@ -203,7 +203,7 @@ export function CustomersView() {
     setError(null);
 
     try {
-      await deleteCustomer(customer.id);
+      await deleteCustomer(customer);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '客户删除失败');

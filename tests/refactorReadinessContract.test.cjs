@@ -166,6 +166,9 @@ test('文档契约：迁移过程文档和旧前端回滚说明不得保留', ()
         'docs/business-logic-refactor-status.md',
         'docs/cost-rules.md',
         'docs/development-backlog.md',
+        'docs/business-mindmap.md',
+        'docs/v9-user-guide.md',
+        'docs/v10-user-guide.md',
     ];
 
     for (const doc of removedDocs) {
@@ -814,10 +817,14 @@ test('Next UI 契约：知识库回归检查支持一键运行和失败明细', 
     assert.match(knowledgeView, /自动判定/);
     assert.match(knowledgeView, /AI 实际回答/);
     assert.match(knowledgeView, /runEvaluationSuite/);
+    assert.match(knowledgeView, /纠错回归用例/);
+    assert.match(knowledgeView, /纳入回归/);
+    assert.match(knowledgeView, /reviewEvaluationCase/);
     assert.match(knowledgeView, /streamAiChat/);
     assert.match(aiLib, /createAiEvaluationRun/);
     assert.match(aiLib, /recordAiEvaluationResult/);
     assert.match(aiLib, /completeAiEvaluationRun/);
+    assert.match(aiLib, /reviewAiEvaluationCase/);
     assert.match(liveRunner, /\/api\/ai\/evaluations\/runs/);
     assert.match(liveRunner, /\/api\/ai\/chat/);
     assert.match(liveRunner, /process\.exitCode = 1/);
@@ -1039,6 +1046,8 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     }
     assert.match(partsLib, /subcategory/);
     assert.match(partsLib, /\/api\/settings\/\$\{key\}/);
+    assert.match(partsLib, /business-setting-update:/);
+    assert.match(partsLib, /expectedUpdatedAt:\s*settingVersions\.get\(key\)/);
     assert.match(partsLib, /export async function deleteParts/);
 });
 
@@ -1100,6 +1109,7 @@ test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批
     const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
     const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
     const coilsRoute = readUtf8('api/routes/coils.cjs');
+    const coilCommands = readUtf8('api/services/coilCommands.cjs');
     const settingsRoute = readUtf8('api/routes/settings.cjs');
     const db = readUtf8('api/db.cjs');
     const docsReadme = readUtf8('docs/README.md');
@@ -1117,7 +1127,18 @@ test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批
     assert.match(coilsView, /改单价/);
     assert.match(coilsView, /saveGroupPrice/);
     assert.match(coilsLib, /updateCoilSpecPrice/);
+    assert.match(coilsLib, /\/api\/coils\/spec-price-preview/);
     assert.match(coilsLib, /\/api\/coils\/spec\/\$\{encodeURIComponent\(spec\)\}/);
+    assert.match(coilsLib, /previewHash:\s*preview\.previewHash/);
+    assert.match(coilsLib, /expectedUpdatedAt:\s*coil\.updatedAt/);
+    assert.match(coilsRoute, /executeCoilCreate/);
+    assert.match(coilsRoute, /executeCoilUpdate/);
+    assert.match(coilsRoute, /executeCoilDelete/);
+    assert.match(coilsRoute, /executeCoilUnitPriceBatch/);
+    assert.match(coilCommands, /executePersistentCommand/);
+    assert.match(coilCommands, /assertCoilIdentityEditable/);
+    assert.match(coilCommands, /assertCoilCanBeDeleted/);
+    assert.match(coilCommands, /assertPreviewHash/);
     assert.match(coilsLib, /getMarketIndicators/);
     assert.match(coilsLib, /\/api\/market-indicators/);
     assert.match(coilsLib, /updateMarketIndicators/);
@@ -1237,7 +1258,8 @@ test('Next UI 契约：转子页支持配方技术档案带入并支持历史关
     assert.match(rotorLib, /\/api\/rotor\/recipe-draft/);
     assert.match(rotorLib, /JSON\.stringify\(\{ recipeId \}\)/);
     assert.match(rotorLib, /\/api\/rotor\/link-targets/);
-    assert.match(rotorLib, /\/api\/rotor\/history\/\$\{id\}\/link/);
+    assert.match(rotorLib, /\/api\/rotor\/history\/\$\{record\.id\}\/link/);
+    assert.match(rotorLib, /expectedUpdatedAt: record\.updatedAt/);
     assert.match(rotorRoute, /router\.post\('\/recipe-draft'/);
     assert.match(rotorDraftService, /function buildRotorRecipeDraft/);
 });
@@ -1324,6 +1346,10 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesLib, /createModelVariant/);
     assert.match(recipesLib, /updateModelVariant/);
     assert.match(recipesLib, /deleteModelVariant/);
+    assert.match(recipesLib, /model-variant-create/);
+    assert.match(recipesLib, /model-variant-update:/);
+    assert.match(recipesLib, /model-variant-delete:/);
+    assert.match(recipesLib, /expectedUpdatedAt:\s*variant\.updatedAt/);
     assert.match(recipesLib, /applyModelVariantDraft/);
     assert.match(recipesLib, /buildRecipeSavePayloadDraft/);
     assert.match(recipesLib, /getTemplateRecipeDraft/);
@@ -1368,7 +1394,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
     const partFormRules = readUtf8('apps/web-next/lib/part-form-rules.ts');
-    const templatesRoute = readUtf8('api/routes/templates.cjs');
+    const templateCommands = readUtf8('api/services/templateCommands.cjs');
     const schema = readUtf8('api/database/schema.cjs');
 
     assert.match(recipesView, /part\.category === '泵壳'/);
@@ -1399,9 +1425,9 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(recipesView, /templateForm\.surfaceTreatmentCost/);
     assert.doesNotMatch(recipesView, /喷漆工资/);
     assert.match(recipesLib, /electrophoresis_powder_coating/);
-    assert.match(templatesRoute, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);
-    assert.match(templatesRoute, /validateShellComponents/);
-    assert.match(templatesRoute, /category = \? AND deleted_at IS NULL/);
+    assert.match(templateCommands, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);
+    assert.match(templateCommands, /validateShellComponents/);
+    assert.match(templateCommands, /category = \? AND deleted_at IS NULL/);
     assert.match(schema, /\['surface_treatment_mode', "TEXT DEFAULT 'none'"\]/);
     assert.match(schema, /\['surface_treatment_cost', 'REAL'\]/);
     assert.match(schema, /\['bundle_note', "TEXT DEFAULT ''"\]/);

@@ -1,6 +1,6 @@
 'use client';
 
-import { proxyRequest, type ApiResponse } from './api';
+import { createIdempotencyKey, proxyRequest, type ApiResponse } from './api';
 
 export type KnowledgeSyncStats = {
   total: number;
@@ -9,6 +9,19 @@ export type KnowledgeSyncStats = {
   unchanged: number;
   deleted: number;
   byType: Record<string, number>;
+};
+
+type KnowledgeSyncPreview = {
+  operationId: string;
+  confirmationToken: string;
+  suggestedIdempotencyKey: string;
+  previewHash: string;
+  stats: {
+    pendingTotal: number;
+    pendingInsert: number;
+    pendingUpdate: number;
+    pendingDelete: number;
+  };
 };
 
 export type KnowledgeEntryType =
@@ -309,8 +322,20 @@ export async function getKnowledgeEntryDetail(id: number): Promise<KnowledgeDeta
 }
 
 export async function syncFactoryKnowledge(): Promise<KnowledgeSyncStats> {
+  const previewResult = await proxyRequest<ApiResponse<KnowledgeSyncPreview>>('/api/knowledge/sync-preview', {
+    method: 'POST',
+  });
+  if (!previewResult.success || !previewResult.data?.confirmationToken) {
+    throw new Error(previewResult.error || '知识库同步预览失败');
+  }
+  const preview = previewResult.data;
   const result = await proxyRequest<ApiResponse<KnowledgeSyncResult>>('/api/knowledge/sync', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': preview.suggestedIdempotencyKey,
+      'X-Operation-ID': preview.operationId,
+    },
+    body: JSON.stringify({ confirmationToken: preview.confirmationToken }),
   });
   if (!result.success || !result.data?.stats) throw new Error(result.error || '知识库同步失败');
   return result.data.stats;
@@ -324,6 +349,7 @@ export async function uploadKnowledgeDocument(input: {
   tags?: string[];
   file?: File | null;
 }): Promise<KnowledgeDocument> {
+  const operationId = createIdempotencyKey('knowledge-document-upload');
   const form = new FormData();
   form.set('documentType', input.documentType);
   form.set('title', input.title);
@@ -333,15 +359,25 @@ export async function uploadKnowledgeDocument(input: {
   if (input.file) form.set('file', input.file);
   const result = await proxyRequest<ApiResponse<KnowledgeDocument>>('/api/knowledge/documents', {
     method: 'POST',
+    headers: {
+      'Idempotency-Key': operationId,
+      'X-Operation-ID': operationId,
+    },
     body: form,
   });
   if (!result.success || !result.data) throw new Error(result.error || '工厂资料导入失败');
   return result.data;
 }
 
-export async function deleteKnowledgeDocument(id: number): Promise<void> {
+export async function deleteKnowledgeDocument(id: number, expectedUpdatedAt?: string | null): Promise<void> {
+  const operationId = createIdempotencyKey('knowledge-document-delete');
   const result = await proxyRequest<ApiResponse<never>>(`/api/knowledge/documents/${id}`, {
     method: 'DELETE',
+    headers: {
+      'Idempotency-Key': operationId,
+      'X-Operation-ID': operationId,
+    },
+    body: JSON.stringify({ expectedUpdatedAt: expectedUpdatedAt || undefined }),
   });
   if (!result.success) throw new Error(result.error || '工厂资料删除失败');
 }
