@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,7 +62,7 @@ export function FactoryFileAttachments({
   const [error, setError] = useState('');
   const locked = busy || summarizingFileId !== null;
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!targetId) {
       setLinks([]);
       setLoading(false);
@@ -78,11 +78,11 @@ export function FactoryFileAttachments({
     } finally {
       setLoading(false);
     }
-  }
+  }, [relationRole, targetId, targetType]);
 
   useEffect(() => {
     void load();
-  }, [targetType, targetId, relationRole]);
+  }, [load]);
 
   async function upload(file?: File) {
     if (!file || busy) return;

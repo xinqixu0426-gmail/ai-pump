@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUpRight,
   Brain,
@@ -225,8 +225,13 @@ export function KnowledgeView({
   const [learningRulesError, setLearningRulesError] = useState('');
   const [updatingLearningRuleId, setUpdatingLearningRuleId] = useState<number | null>(null);
   const openedInitialEntryRef = useRef(false);
+  const onRefreshCompleteRef = useRef(onRefreshComplete);
 
-  async function load() {
+  useEffect(() => {
+    onRefreshCompleteRef.current = onRefreshComplete;
+  }, [onRefreshComplete]);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -252,14 +257,14 @@ export function KnowledgeView({
       setError(err instanceof Error ? err.message : '知识库加载失败');
     } finally {
       setLoading(false);
-      onRefreshComplete?.();
+      onRefreshCompleteRef.current?.();
     }
-  }
+  }, [entryType, query]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), query ? 250 : 0);
     return () => window.clearTimeout(timer);
-  }, [query, entryType, refreshKey]);
+  }, [load, query, refreshKey]);
 
   async function loadFeedback() {
     setFeedbackLoading(true);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookCheck, Check, Loader2, RotateCcw, Save, ShieldCheck } from 'lucide-react';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export function OrderRequirementsPanel({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  async function load({ preserveDraft = false } = {}) {
+  const load = useCallback(async ({ preserveDraft = false } = {}) => {
     if (!orderId) return;
     setLoading(true);
     setError('');
@@ -59,11 +59,11 @@ export function OrderRequirementsPanel({
     } finally {
       setLoading(false);
     }
-  }
+  }, [orderId]);
 
   useEffect(() => {
     void load();
-  }, [orderId]);
+  }, [load]);
 
   const selectedFiles = useMemo(
     () => new Set(sourceFileIds),

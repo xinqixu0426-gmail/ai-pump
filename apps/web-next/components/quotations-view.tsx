@@ -368,7 +368,7 @@ export function QuotationsView() {
     setDraftItems([]);
     setFormError(null);
     setDrawerOpen(true);
-  }, [customers, loading, prefillCustomerId, prefillKey, shouldCreateFromQuery]);
+  }, [customers, loading, prefillCustomerId, prefillKey, resetFormDirty, shouldCreateFromQuery]);
 
   useEffect(() => {
     if (loading || !viewQuotationId || consumedViewQuotationRef.current === viewQuotationId) return;

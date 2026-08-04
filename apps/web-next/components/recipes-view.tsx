@@ -202,6 +202,14 @@ function liveRecipeTotal(draft: RecipeBomDraftResult | null, form: RecipeFormSta
     + numberValue(form.managementFee);
 }
 
+function useLatestValue<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
+}
+
 export function RecipesView() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [currentCosts, setCurrentCosts] = useState<RecipeCurrentTotalCost[]>([]);
@@ -293,6 +301,7 @@ export function RecipesView() {
   const autoWireSelectionRef = useRef({ floatWire: '', cableWire: '' });
   const autoAnalysisStartedRef = useRef<number | null>(null);
   const deepLinkHandledRef = useRef(false);
+  const runRecipeAnalysisRef = useLatestValue(runRecipeAnalysis);
   const reviewEvidenceTarget = reviewEvidenceTargets[0] || null;
   const reviewEvidenceCompletedCount = Math.max(0, reviewEvidenceBatchTotal - reviewEvidenceTargets.length);
 
@@ -411,8 +420,8 @@ export function RecipesView() {
       '',
       `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
     );
-    void runRecipeAnalysis();
-  }, [autoAnalyzeRecipeId, drawerOpen, editingRecipe?.id]);
+    void runRecipeAnalysisRef.current();
+  }, [autoAnalyzeRecipeId, drawerOpen, editingRecipe?.id, runRecipeAnalysisRef]);
 
   const templateNameMap = useMemo(() => buildTemplateNameMap(templates), [templates]);
   const currentCostMap = useMemo(() => new Map(currentCosts.map((item) => [item.recipeId, item])), [currentCosts]);
@@ -708,19 +717,14 @@ export function RecipesView() {
     };
   }, [
     bomDraft,
-    form.assemblyWage,
     form.cableLength,
     form.cableWire,
     form.coilSheets,
     form.coilSpec,
-    form.coilMaterial,
-    form.coilSlotType,
     form.floatWire,
     form.hasCable,
     form.hasFloat,
-    form.managementFee,
     form.name,
-    form.packingWage,
     form.templateId,
     laborCostComplete,
     packingParts.length,

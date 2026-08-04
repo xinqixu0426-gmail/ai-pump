@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, History, ListChecks, RefreshCw, RotateCcw, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
@@ -88,8 +88,15 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [expandedRuleImpactId, setExpandedRuleImpactId] = useState<number | null>(null);
   const [ruleImpacts, setRuleImpacts] = useState<Record<number, FactoryRuleImpact>>({});
   const [qualityAttachmentTargetId, setQualityAttachmentTargetId] = useState<number | null>(null);
+  const onScoreChangeRef = useRef(onScoreChange);
+  const onRefreshCompleteRef = useRef(onRefreshComplete);
 
-  async function load(force = false) {
+  useEffect(() => {
+    onScoreChangeRef.current = onScoreChange;
+    onRefreshCompleteRef.current = onRefreshComplete;
+  }, [onRefreshComplete, onScoreChange]);
+
+  const load = useCallback(async (force = false) => {
     setError('');
     if (force) setRefreshing(true);
     else setLoading(true);
@@ -108,19 +115,19 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
       setRuleCompliance(compliance);
       setRuleEvents(events);
       setLearningHealth(health);
-      onScoreChange?.(quality.score);
+      onScoreChangeRef.current?.(quality.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : '数据质量加载失败');
     } finally {
       setLoading(false);
       setRefreshing(false);
-      onRefreshComplete?.();
+      onRefreshCompleteRef.current?.();
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, [refreshKey]);
+  }, [load, refreshKey]);
 
   const visibleGroups = useMemo(() => {
     const groups = (summary?.issues || []).filter((group) => group.count > 0);
@@ -132,8 +139,14 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const ruleCandidatesNeedingReview = ruleCandidates.filter((candidate) => candidate.needsReview);
   const ruleReviewQueue = ruleCandidates.filter((candidate) => candidate.status === 'candidate' || candidate.needsReview);
   const learnedSpecialCaseCount = ruleCandidates.reduce((total, candidate) => total + candidate.specialCaseCount, 0);
-  const evidenceRecheckItems = (learningHealth?.items || []).filter((item) => item.needsRecheck);
-  const qualityEvidenceItems = (learningHealth?.items || []).slice(0, 50);
+  const evidenceRecheckItems = useMemo(
+    () => (learningHealth?.items || []).filter((item) => item.needsRecheck),
+    [learningHealth]
+  );
+  const qualityEvidenceItems = useMemo(
+    () => (learningHealth?.items || []).slice(0, 50),
+    [learningHealth]
+  );
   const evidenceRecheckGroups = useMemo(() => {
     const groups = new Map<number, {
       recipeId: number;
@@ -160,7 +173,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     if (!qualityEvidenceItems.some((item) => item.feedbackId === qualityAttachmentTargetId)) {
       setQualityAttachmentTargetId(qualityEvidenceItems[0].feedbackId);
     }
-  }, [learningHealth, qualityAttachmentTargetId]);
+  }, [qualityAttachmentTargetId, qualityEvidenceItems]);
 
   async function refreshRuleCandidates() {
     setRuleRefreshing(true);

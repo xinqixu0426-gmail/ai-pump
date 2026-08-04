@@ -124,7 +124,7 @@ export function DashboardView({
     void getDataQualitySummary()
       .then((quality) => setQualityScore(quality.score))
       .catch(() => undefined);
-  }, []);
+  }, [initialMode]);
 
   useEffect(() => {
     setMode(initialMode);

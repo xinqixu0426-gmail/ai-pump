@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Check,
   ClipboardClock,
@@ -114,7 +114,7 @@ export function OrderExecutionRecordsPanel({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  async function load(selectId?: number | null, preserveDraft = false) {
+  const load = useCallback(async (selectId: number | null, preserveDraft = false) => {
     if (!orderId) return;
     setLoading(true);
     setError('');
@@ -129,7 +129,7 @@ export function OrderExecutionRecordsPanel({
         }));
         return;
       }
-      const targetId = selectId === undefined ? editingId : selectId;
+      const targetId = selectId;
       if (targetId) {
         const record = next.records.find(item => item.id === targetId);
         if (record) {
@@ -142,13 +142,13 @@ export function OrderExecutionRecordsPanel({
     } finally {
       setLoading(false);
     }
-  }
+  }, [orderId]);
 
   useEffect(() => {
     setEditingId(null);
     setDraft(emptyDraft());
     void load(null);
-  }, [orderId]);
+  }, [load]);
 
   const editingRecord = useMemo(
     () => archive?.records.find(item => item.id === editingId) || null,
@@ -323,7 +323,7 @@ export function OrderExecutionRecordsPanel({
         title="执行依据文件"
         description="上传现场图片、质量记录、交付凭证或供应商资料；同一订单的附件会统一保留。"
         onAiSummarize={summarizeExecution}
-        onChanged={() => void load(undefined, true)}
+        onChanged={() => void load(null, true)}
       />
 
       <section className="border-y border-line bg-white">

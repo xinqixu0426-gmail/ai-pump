@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Archive, FileText, Image as ImageIcon, X } from 'lucide-react';
 import type { AiAttachment } from '@/lib/ai';
 import { attachmentParserText, fileSizeText } from '@/components/ai/AiResultPrimitives';
@@ -24,9 +25,12 @@ export function AiMessageAttachments({
         >
           {attachment.detectedType === 'image' ? (
             <a href={attachment.downloadPath} target="_blank" rel="noreferrer" className="block">
-              <img
+              <Image
                 src={`${attachment.downloadPath}?inline=1`}
                 alt={attachment.originalName}
+                width={960}
+                height={640}
+                unoptimized
                 className="max-h-64 w-full bg-slate-100 object-contain"
               />
             </a>
@@ -74,7 +78,14 @@ export function AiPendingAttachmentStrip({
       {attachments.map((attachment) => (
         <div key={`pending-${attachment.id}`} className="relative w-32 shrink-0 overflow-hidden rounded-md border border-line bg-slate-50">
           {attachment.detectedType === 'image' ? (
-            <img src={`${attachment.downloadPath}?inline=1`} alt="" className="h-20 w-full bg-slate-100 object-cover" />
+            <Image
+              src={`${attachment.downloadPath}?inline=1`}
+              alt=""
+              width={256}
+              height={160}
+              unoptimized
+              className="h-20 w-full bg-slate-100 object-cover"
+            />
           ) : (
             <span className="flex h-20 items-center justify-center text-slate-500"><FileText size={24} /></span>
           )}

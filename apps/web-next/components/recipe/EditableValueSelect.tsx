@@ -62,6 +62,9 @@ export function EditableValueSelect({
         min={min}
         step={step}
         disabled={disabled}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-haspopup="listbox"
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={listboxId}

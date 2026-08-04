@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { CircleAlert, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { getAllCustomers, type Customer } from '@/lib/customers';
@@ -83,7 +83,7 @@ export function OrdersView({
   const [itemQty, setItemQty] = useState('1');
   const [itemMargin, setItemMargin] = useState('1.10');
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
-  const initialOrderHandledRef = useRef(false);
+  const initialOrderHandledRef = useRef<number | null>(null);
   const {
     dirty: formDirty,
     markDirty: markFormDirty,
@@ -95,7 +95,7 @@ export function OrdersView({
     onDiscard: () => setDrawerOpen(false),
   });
 
-  async function load(force = false) {
+  const load = useCallback(async (force = false) => {
     setError(null);
     if (force) setRefreshing(true);
     else setLoading(true);
@@ -103,8 +103,8 @@ export function OrdersView({
     try {
       const data = await getAllOrders();
       setOrders(data);
-      if (!initialOrderHandledRef.current && initialOrderId) {
-        initialOrderHandledRef.current = true;
+      if (initialOrderId && initialOrderHandledRef.current !== initialOrderId) {
+        initialOrderHandledRef.current = initialOrderId;
         const target = data.find((order) => Number(order.id) === initialOrderId);
         if (target) setSelectedOrder(target);
         else setError(`没有找到订单 #${initialOrderId}`);
@@ -115,11 +115,11 @@ export function OrdersView({
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [initialOrderId]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function loadAuxiliary() {
     if (customers.length > 0 && recipes.length > 0) return;

@@ -37,11 +37,13 @@ export function useConfirmDiscard({
     setDirty(false);
     onDiscard();
   }, [busy, dirty, message, onDiscard]);
+  const markDirty = useCallback(() => setDirty(true), []);
+  const resetDirty = useCallback(() => setDirty(false), []);
 
   return {
     dirty,
-    markDirty: () => setDirty(true),
-    resetDirty: () => setDirty(false),
+    markDirty,
+    resetDirty,
     requestClose,
   };
 }
