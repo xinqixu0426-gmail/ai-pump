@@ -1824,6 +1824,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
     const shellCostEditor = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
+    const templateForm = readUtf8('apps/web-next/components/recipe/pump-shell-template-form.ts');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
     const partFormRules = readUtf8('apps/web-next/lib/part-form-rules.ts');
     const templateCommands = readUtf8('api/services/templateCommands.cjs');
@@ -1852,6 +1853,14 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(templateEditor, /function selectShell/);
     assert.match(shellCostEditor, /泵壳套件/);
     assert.match(shellCostEditor, /自由搭配/);
+    assert.match(shellCostEditor, /2\. 搭建泵壳/);
+    assert.match(shellCostEditor, /从第一个采购项开始搭建/);
+    assert.match(shellCostEditor, /添加小套件/);
+    assert.match(shellCostEditor, /添加单件/);
+    assert.match(shellCostEditor, /aria-expanded=\{expandedRowId === row\.id\}/);
+    assert.match(shellCostEditor, /完成此项/);
+    assert.match(templateForm, /componentRows: \[\]/);
+    assert.doesNotMatch(templateForm, /function defaultShellComponents/);
     assert.match(shellCostEditor, /包含组件/);
     assert.match(shellCostEditor, /不单独计价或扣库存/);
     assert.match(templateEditor, /role="radiogroup" aria-label="泵壳计价方式"/);

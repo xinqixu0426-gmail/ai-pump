@@ -65,23 +65,6 @@ function defaultTemplateParts(): TemplatePartFormRow[] {
   }));
 }
 
-function defaultShellComponents(): ShellComponentFormRow[] {
-  return ['上帽', '机筒', '花板', '油缸', '泵头', '叶轮', '底座', '法兰'].map((name) => ({
-    id: nextSelectionId(),
-    name,
-    model: '',
-    supplier: '',
-    qty: 1,
-    unitCost: 0,
-    pricingMode: 'fixed',
-    included: name !== '法兰',
-    optional: name === '法兰',
-    componentType: 'standard',
-    subassemblyContents: [],
-    note: '',
-  }));
-}
-
 function emptyTemplateRotorParams(): TemplateRotorParamsState {
   return templateRotorParamFields.reduce((params, field) => {
     params[field.key] = '';
@@ -101,7 +84,7 @@ export function emptyTemplateForm(): TemplateFormState {
     bundleCost: '0',
     bundleNote: '',
     partRows: defaultTemplateParts(),
-    componentRows: defaultShellComponents(),
+    componentRows: [],
     rotorParams: emptyTemplateRotorParams(),
   };
 }
@@ -180,7 +163,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
     bundleCost: String(template.bundleCost || 0),
     bundleNote: template.bundleNote || '',
     partRows: partRows.length > 0 ? partRows : defaultTemplateParts(),
-    componentRows: componentRows.length > 0 ? componentRows : defaultShellComponents(),
+    componentRows,
     rotorParams,
   };
 }
