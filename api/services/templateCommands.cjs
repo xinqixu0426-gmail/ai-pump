@@ -9,6 +9,7 @@ const {
 } = require('./resourceVersion.cjs');
 const {
     parseNonNegativeNumber,
+    parsePositiveNumber,
     parsePositiveId,
     stringifyJsonArray,
     stringifyJsonObject,
@@ -18,6 +19,13 @@ const CREATE_CAPABILITY_ID = requireBusinessCapability('templates.create').capab
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('templates.update').capabilityId;
 const DELETE_CAPABILITY_ID = requireBusinessCapability('templates.delete').capabilityId;
 const SHELL_COMPONENT_CATEGORY = '泵壳搭配';
+const SHELL_COMPONENT_TYPES = new Set([
+    'standard',
+    'stainlessStretchBarrel',
+    'subassembly',
+]);
+const MAX_SHELL_COMPONENTS = 50;
+const MAX_SUBASSEMBLY_CONTENTS = 30;
 const TEMPLATE_SURFACE_TREATMENTS = new Set([
     'none',
     'painting',
@@ -92,6 +100,101 @@ function normalizeShellModel(value, required = false) {
     return model;
 }
 
+function normalizeSubassemblyContents(value, field) {
+    const contents = JSON.parse(stringifyJsonArray(value, field));
+    if (contents.length > MAX_SUBASSEMBLY_CONTENTS) {
+        throw templateCommandError(
+            'template_subassembly_contents_limit',
+            `每个供应商小套件最多包含 ${MAX_SUBASSEMBLY_CONTENTS} 个组成项`,
+            400
+        );
+    }
+    return contents.map((item, index) => {
+        const name = String(item?.name || '').trim();
+        if (!name) {
+            throw templateCommandError(
+                'template_subassembly_content_name_required',
+                `${field}[${index}].name 为必填项`,
+                400
+            );
+        }
+        return {
+            name,
+            qty: parsePositiveNumber(
+                item?.qty ?? 1,
+                `${field}[${index}].qty`
+            ),
+            ...(String(item?.note || '').trim()
+                ? { note: String(item.note).trim() }
+                : {}),
+        };
+    });
+}
+
+function normalizeShellComponentsJson(value) {
+    const components = JSON.parse(stringifyJsonArray(
+        value,
+        'shell_components_json'
+    ));
+    if (components.length > MAX_SHELL_COMPONENTS) {
+        throw templateCommandError(
+            'template_shell_components_limit',
+            `自由搭配最多包含 ${MAX_SHELL_COMPONENTS} 个计价项`,
+            400
+        );
+    }
+    return JSON.stringify(components.map((component, index) => {
+        const componentType = component?.componentType
+            || (component?.isStainlessStretchBarrel
+                ? 'stainlessStretchBarrel'
+                : 'standard');
+        if (!SHELL_COMPONENT_TYPES.has(componentType)) {
+            throw templateCommandError(
+                'template_component_type_invalid',
+                `shell_components_json[${index}].componentType 不受支持`,
+                400
+            );
+        }
+        const normalized = {
+            ...component,
+            name: String(component?.name || '').trim(),
+            model: String(component?.model || '').trim(),
+            supplier: String(component?.supplier || '').trim(),
+            qty: parseNonNegativeNumber(
+                component?.qty ?? 1,
+                `shell_components_json[${index}].qty`
+            ),
+            unitCost: parseNonNegativeNumber(
+                component?.unitCost ?? 0,
+                `shell_components_json[${index}].unitCost`
+            ),
+            included: component?.included !== false,
+            componentType,
+        };
+        if (componentType === 'subassembly') {
+            const contents = normalizeSubassemblyContents(
+                component?.subassemblyContents,
+                `shell_components_json[${index}].subassemblyContents`
+            );
+            if (normalized.included && contents.length === 0) {
+                throw templateCommandError(
+                    'template_subassembly_contents_required',
+                    `供应商小套件「${normalized.name || normalized.model || index + 1}」至少需要一个组成项`,
+                    400
+                );
+            }
+            normalized.pricingMode = 'fixed';
+            normalized.subassemblyContents = contents;
+        } else {
+            normalized.pricingMode = componentType === 'stainlessStretchBarrel'
+                ? 'lengthCm'
+                : 'fixed';
+            delete normalized.subassemblyContents;
+        }
+        return normalized;
+    }));
+}
+
 function validateShellComponents(db, costMode, componentsJson) {
     if (costMode !== 'components') return;
     const components = JSON.parse(componentsJson || '[]');
@@ -127,9 +230,8 @@ function normalizeCreateInput(input = {}) {
         shell_model: normalizeShellModel(body.shell_model, true),
         description: String(body.description || ''),
         parts_json: stringifyJsonArray(body.parts_json, 'parts_json'),
-        shell_components_json: stringifyJsonArray(
-            body.shell_components_json,
-            'shell_components_json'
+        shell_components_json: normalizeShellComponentsJson(
+            body.shell_components_json
         ),
         rotor_params_json: stringifyJsonObject(
             body.rotor_params_json,
@@ -166,9 +268,8 @@ function normalizeUpdateInput(input = {}) {
         updates.parts_json = stringifyJsonArray(body.parts_json, 'parts_json');
     }
     if (body.shell_components_json !== undefined) {
-        updates.shell_components_json = stringifyJsonArray(
-            body.shell_components_json,
-            'shell_components_json'
+        updates.shell_components_json = normalizeShellComponentsJson(
+            body.shell_components_json
         );
     }
     if (body.rotor_params_json !== undefined) {
@@ -452,6 +553,7 @@ module.exports = {
     executeTemplateCreate,
     executeTemplateDelete,
     executeTemplateUpdate,
+    normalizeShellComponentsJson,
     normalizeSurfaceTreatmentMode,
     templateBodyToDb,
     validateShellComponents,

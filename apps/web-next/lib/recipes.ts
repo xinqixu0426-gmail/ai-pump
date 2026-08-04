@@ -36,6 +36,9 @@ export type RecipePart = {
   cableAccessoryName?: string;
   cableAccessoryFee?: number;
   inventoryQty?: number;
+  inventoryType?: string;
+  componentType?: 'standard' | 'stainlessStretchBarrel' | 'subassembly';
+  subassemblyContents?: SubassemblyContentInput[];
   packingRole?: 'container' | 'foam' | 'pearlCotton' | 'fixed';
 };
 
@@ -142,6 +145,12 @@ export type TemplatePartInput = {
   supplier?: string;
 };
 
+export type SubassemblyContentInput = {
+  name: string;
+  qty: number;
+  note?: string;
+};
+
 export type ShellComponentInput = {
   name: string;
   model?: string;
@@ -151,7 +160,8 @@ export type ShellComponentInput = {
   pricingMode: 'fixed' | 'lengthCm';
   included: boolean;
   optional?: boolean;
-  componentType?: 'standard' | 'stainlessStretchBarrel';
+  componentType?: 'standard' | 'stainlessStretchBarrel' | 'subassembly';
+  subassemblyContents?: SubassemblyContentInput[];
   note?: string;
 };
 

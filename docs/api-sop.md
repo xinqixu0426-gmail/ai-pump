@@ -11,9 +11,9 @@
 - `api-contract.md`：永久规则，回答“API 必须怎样工作”。
 - `api-sop.md`：本流程，回答“API 变更必须怎样完成”。
 - `api-reference.md`：当前事实，回答“现在有哪些 API、怎样调用”。
-- `api-architecture-audit.md`：阶段性审核，回答“现状有哪些债务、先改什么”。
+- `technical-debt.md`：当前行动清单，回答“还有哪些债务、先改什么”。
 
-当前核心 API 已完成统一契约收口。新增或修改能力不得绕过能力登记和自动化契约；发现历史兼容偏离时，按小批次保持原路径兼容并在审核报告登记风险和移除条件。
+当前核心 API 已完成统一契约收口。新增或修改能力不得绕过能力登记和自动化契约；发现历史兼容偏离时，按小批次保持原路径兼容并在技术债清单登记风险和移除条件。
 
 ## 1. 变更前：确认真实范围
 
@@ -162,12 +162,12 @@ deprecated:
   - 仅在稳定业务边界或系统入口变化时更新
 - `docs/api-contract.md`
   - 仅在全局规则变化时更新
-- `docs/api-architecture-audit.md`
-  - 仅在整改状态或优先级变化时更新
+- `docs/technical-debt.md`
+  - 仅记录尚未完成的风险、触发条件、优先级和验收标准
 
 版本过程说明不得继续堆入 `docs/README.md` 或 `api-reference.md`。
 
-不得为单次版本或阶段新增 `vN-user-guide`、临时迁移说明、状态清单或重复脑图。仍有效的业务规则归入 `business-flow.md`，API 事实归入 `api-reference.md`，架构风险归入 `api-architecture-audit.md`，实施过程由 Git 历史保存。
+不得为单次版本或阶段新增 `vN-user-guide`、临时迁移说明、状态清单或重复脑图。仍有效的业务规则归入 `business-flow.md`，API 事实归入 `api-reference.md`，尚未完成的架构风险归入 `technical-debt.md`，实施过程由 Git 历史保存。
 
 接口代码、能力登记、文档和测试任一缺失，变更都不算完成。
 

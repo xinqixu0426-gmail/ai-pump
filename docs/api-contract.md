@@ -10,7 +10,7 @@
 
 - 当前 Method、Path、请求和响应见 [api-reference.md](./api-reference.md)。
 - 新增、修改、兼容和废弃流程见 [api-sop.md](./api-sop.md)。
-- 当前不符合项和整改顺序见 [api-architecture-audit.md](./api-architecture-audit.md)。
+- 当前不符合项和优化顺序见 [technical-debt.md](./technical-debt.md)。
 
 文中：
 

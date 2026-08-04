@@ -109,6 +109,11 @@ function createTemplateQueries({
                     component,
                     partsByModel
                 );
+                const isSubassembly = component.componentType === 'subassembly';
+                const subassemblyContents = isSubassembly
+                    && Array.isArray(component.subassemblyContents)
+                    ? component.subassemblyContents
+                    : [];
                 return {
                     model: component.model || component.name,
                     name: component.name,
@@ -118,6 +123,12 @@ function createTemplateQueries({
                         || Number(component.unitCost || 0),
                     source: 'pump_shell_template',
                     costSource: catalogPrice > 0 ? 'catalog' : 'manual',
+                    ...(isSubassembly ? {
+                        componentType: 'subassembly',
+                        subassemblyContents,
+                        inventoryType: 'part',
+                        formula: `${component.name}: ${catalogPrice || Number(component.unitCost || 0)}×${Number(component.qty || 1)}（包含：${subassemblyContents.map(item => `${item.name}×${item.qty}`).join('、')}；子项不单独计价）`,
+                    } : {}),
                 };
             });
 

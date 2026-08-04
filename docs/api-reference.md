@@ -1,6 +1,6 @@
 # API 接口总表
 
-> 更新于 2026-08-03。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，职责、依赖和重构建议见 [API 架构审核与解耦报告](./api-architecture-audit.md)。
+> 更新于 2026-08-03。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，未完成风险和优化顺序见 [当前技术债与优化清单](./technical-debt.md)。
 
 文档分工：
 
@@ -8,7 +8,7 @@
 - [API 统一契约](./api-contract.md)：所有能力必须满足的 Command/Query、事实来源、事务、幂等、版本、确认和审计规则。
 - [API 变更 SOP](./api-sop.md)：从调用方核对到测试、兼容、文档和发布的操作流程。
 - [系统说明](./README.md)：稳定业务边界、鉴权和使用入口。
-- [API 架构审核](./api-architecture-audit.md)：能力矩阵、依赖、风险、兼容/废弃建议。
+- [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
 当前源码共有 214 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
@@ -118,11 +118,11 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `GET` | `/api/templates/:id/default-recipe` | 无 | 经 `templateQueries` 基于模板生成配方草稿、配件、转子参数和正式成本结果；`recipeDraft.templateId` 使用标准 `id`，不写库 |
 | `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 经 `templateQueries` 把模板默认项应用到传入配方草稿；只生成草稿，不写库 |
 | `GET` | `/api/templates/:id/recipes` | 无 | 经 `templateQueries` 返回引用该模板的配方列表 |
-| `POST` | `/api/templates` | 请求头 `Idempotency-Key`；`shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合组件，组件字段可含 `name/model/supplier/qty/unitCost/pricingMode/included/componentType/note`；每个计入的组件 `model` 必须存在于零件库“泵壳搭配”分类，否则返回 400；机筒名称为 `铝机筒/不锈钢拉伸筒/铁机筒`，不锈钢拉伸筒使用 `componentType=stainlessStretchBarrel`，其他组件使用 `standard`；`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 能力 `templates.create`。新增模板并返回原模板顶层字段和标准 operation receipt；模板、operation 与强审计同一事务。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的组件必须引用“泵壳搭配”零件；历史组件名称继续兼容读取 |
+| `POST` | `/api/templates` | 请求头 `Idempotency-Key`；`shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合计价项，公共字段可含 `name/model/supplier/qty/unitCost/pricingMode/included/componentType/note`；每个计入项的 `model` 必须存在于零件库“泵壳搭配”分类，否则返回 400。普通单件使用 `componentType=standard`；不锈钢拉伸筒使用 `stainlessStretchBarrel`；供应商小套件使用 `subassembly` 并带一级 `subassemblyContents: [{ name, qty, note? }]`，计入的小套件至少 1 个、最多 30 个组成项，组成项数量必须为正数。自由搭配最多 50 个计价项。`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 能力 `templates.create`。新增模板并返回原模板顶层字段和标准 operation receipt；模板、operation 与强审计同一事务。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的单件或小套件父项必须引用“泵壳搭配”零件。小套件父项是唯一计价和库存单位，组成项不生成独立 BOM、不重复计价或扣库存；历史组件名称继续兼容读取 |
 | `PATCH` | `/api/templates/:id` | 请求头 `Idempotency-Key`；同新增模板字段及 `expectedUpdatedAt` | 能力 `templates.update`。资源版本、组件目录校验、模板更新、operation 与强审计同一事务；原 URL 和模板字段保持兼容 |
 | `DELETE` | `/api/templates/:id` | 请求头 `Idempotency-Key`；请求体或查询参数 `expectedUpdatedAt` | 能力 `templates.delete`。无任何历史配方引用时硬删除并返回标准回执；有引用返回 `409 template_in_use`。原删除保护语义保持不变 |
 
-模板领域按 Query / Command 分层：`templateQueries` 只读取正式模板、零件目录和关联配方，并生成成本或配方草稿；目录价优先、模板手工价回退的既有规则保持兼容，正式成本仍由 `costEngine`（经 `api/db.cjs:calculateRecipeCost` 兼容导出）计算。模板新增、修改和删除唯一委托 `templateCommands`，路由只负责请求/响应协议适配。
+模板领域按 Query / Command 分层：`templateQueries` 只读取正式模板、零件目录和关联配方，并生成成本或配方草稿；目录价优先、模板手工价回退的既有规则保持兼容，正式成本仍由 `costEngine`（经 `api/db.cjs:calculateRecipeCost` 兼容导出）计算。模板新增、修改和删除唯一委托 `templateCommands`，路由只负责请求/响应协议适配。供应商小套件不允许嵌套；其组成项只保存在父计价项的 JSON 中，不是零件目录、成本或库存事实。
 
 ## 7. 型号变体 Model Variants
 
@@ -755,4 +755,4 @@ AI 工具：
 - 客户和报价新增接口标准返回完整 `data` 对象，不再返回顶层 `id`。
 - 正式业务资源的新增、动态更新和删除已分别收口到 `safeInsert`、`safeUpdate`、`softDelete` / `hardDelete`；系统初始化、`system_settings` / `config` UPSERT 仍属于基础设施边界。
 
-架构风险、整改状态和优先级不在本接口总表重复维护，统一见 [API 架构审核与解耦报告](./api-architecture-audit.md)。当前接口自身存在的副作用或兼容行为已写在对应 Method/Path 行内。
+未完成风险、整改状态和优先级不在本接口总表重复维护，统一见 [当前技术债与优化清单](./technical-debt.md)。当前接口自身存在的副作用或兼容行为已写在对应 Method/Path 行内。

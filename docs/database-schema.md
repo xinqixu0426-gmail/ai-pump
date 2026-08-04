@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `44`：
+当前版本为 `46`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -64,6 +64,8 @@
 | 42 | `ai_feedback_regression_cases` | 将明确纠错转为可审核、可自动启停的确定性 AI 回归案例 |
 | 43 | `api_command_operations` | 增加持久化业务命令回执，并为审计补齐 request、operation 和 capability 关联 |
 | 44 | `allow_disabled_coil_scheme_status` | 将线圈方案状态约束与既有领域契约对齐，允许 `official/testing/disabled` |
+| 45 | `accept_equivalent_cutting_evidence_wording` | 放宽切割泵壳证据回归中等价的不确定性表述 |
+| 46 | `accept_clear_cutting_evidence_uncertainty` | 补充清晰的不确定性短语，避免安全回答被误判失败 |
 
 ## 数据治理
 
@@ -77,6 +79,7 @@
 - `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；只有 `approved + enabled` 的案例进入无人值守检查。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
+- `pump_shell_templates.shell_components_json` 的自由搭配计价项支持 `componentType=subassembly`。小套件父项仍绑定零件库“泵壳搭配”型号；一级 `subassemblyContents: [{ name, qty, note? }]` 仅保存组成说明，不建立子零件价格或库存关系，因此本功能不新增数据表或迁移。
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
 - `knowledge_embeddings` 是可重建的派生索引，使用 `entry_id + model` 唯一约束并通过外键级联删除；只有 `content_hash` 与当前 `knowledge_entries` 一致的向量才可参与检索。
 - `knowledge_vector_sync_runs` 只记录派生向量任务结果，最多保留最近 200 次；记录失败不能反向破坏已生成向量。

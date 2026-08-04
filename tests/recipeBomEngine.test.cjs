@@ -6,6 +6,7 @@ const partsCatalog = [
     { model: '不锈钢机筒', category: '配件', supplier: '错误分类供应商', price: 0.2 },
     { model: '不锈钢机筒', category: '泵壳搭配', supplier: '机筒供应商', price: 0.8 },
     { model: '铝机筒', category: '泵壳搭配', supplier: '铝件供应商', price: 8 },
+    { model: 'V750铝铸件小套件', category: '泵壳搭配', supplier: '张启彪', price: 45 },
     { model: '6*基础', category: '螺丝', supplier: '螺丝供应商', price: 0.3, notes: JSON.stringify({ screwPricing: { enabled: true, diameter: 6 } }) },
     { model: '201', category: '轴承', supplier: '轴承供应商', price: 1.1 },
     { model: '20μF', category: '电容', supplier: '电容供应商', price: 3 },
@@ -174,6 +175,50 @@ test('后端 BOM draft 只有不锈钢拉伸筒组件才联动机筒长度和长
     assert.equal(barrel.qty, 1);
     assert.equal(screw.model, '6*170');
     assert.equal(screw.dynamicRule, undefined);
+});
+
+test('供应商小套件只生成父项 BOM，组成项不重复计价或扣库存', () => {
+    const subassemblyTemplate = {
+        ...template,
+        partsJson: '[]',
+        shellComponentsJson: JSON.stringify([
+            {
+                name: '铝铸件小套件',
+                model: 'V750铝铸件小套件',
+                supplier: '张启彪',
+                qty: 1,
+                unitCost: 0,
+                pricingMode: 'fixed',
+                included: true,
+                componentType: 'subassembly',
+                subassemblyContents: [
+                    { name: '上帽', qty: 1 },
+                    { name: '铝机筒', qty: 1 },
+                    { name: '油缸盖', qty: 1, note: '与上帽同厂' },
+                ],
+            },
+        ]),
+    };
+
+    const result = buildRecipeBomDraft({}, {
+        template: subassemblyTemplate,
+        partsCatalog,
+        coils,
+    });
+
+    const subassembly = result.parts.find(part => part.model === 'V750铝铸件小套件');
+    assert.ok(subassembly);
+    assert.equal(subassembly.snapshotPrice, 45);
+    assert.equal(subassembly.componentType, 'subassembly');
+    assert.equal(subassembly.inventoryType, 'part');
+    assert.deepEqual(subassembly.subassemblyContents, [
+        { name: '上帽', qty: 1 },
+        { name: '铝机筒', qty: 1 },
+        { name: '油缸盖', qty: 1, note: '与上帽同厂' },
+    ]);
+    assert.match(subassembly.formula, /子项不单独计价/);
+    assert.equal(result.parts.some(part => ['上帽', '铝机筒', '油缸盖'].includes(part.name)), false);
+    assert.equal(result.shellPrice, 45);
 });
 
 test('不锈钢泵壳套件按机筒长度在整体价上加价', () => {

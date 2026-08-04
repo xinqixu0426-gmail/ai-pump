@@ -63,6 +63,30 @@ function isStainlessStretchBarrelComponent(component) {
         || component?.isStainlessStretchBarrel === true;
 }
 
+function isSubassemblyComponent(component) {
+    return component?.componentType === 'subassembly';
+}
+
+function normalizeSubassemblyContents(component) {
+    if (!isSubassemblyComponent(component)) return [];
+    const contents = Array.isArray(component?.subassemblyContents)
+        ? component.subassemblyContents
+        : [];
+    return contents
+        .map(item => ({
+            name: String(item?.name || '').trim(),
+            qty: Number(item?.qty || 1),
+            ...(String(item?.note || '').trim()
+                ? { note: String(item.note).trim() }
+                : {}),
+        }))
+        .filter(item => item.name && Number.isFinite(item.qty) && item.qty > 0);
+}
+
+function subassemblyContentsText(contents) {
+    return contents.map(item => `${item.name}×${item.qty}`).join('、');
+}
+
 function componentUnitPrice(partsCatalog, component) {
     const model = String(component?.model || '').trim();
     const supplier = String(component?.supplier || '').trim();
@@ -171,6 +195,11 @@ function buildRecipeBomDraft(input, context) {
                 const qty = lengthCmQty(component, customBarrelLength);
                 const { price: unitCost, costSource } = componentUnitPrice(partsCatalog, component);
                 const isVariableStainlessBarrel = isStainlessStretchBarrelComponent(component) && component.pricingMode === 'lengthCm';
+                const subassemblyContents = normalizeSubassemblyContents(component);
+                const isSubassembly = isSubassemblyComponent(component);
+                const baseFormula = component.pricingMode === 'lengthCm'
+                    ? `${component.name}: ${unitCost}×${qty}cm${isVariableStainlessBarrel ? '（长度来自配方/型号变体）' : ''}`
+                    : `${component.name}: ${unitCost}×${qty}`;
                 bomParts.push({
                     model: component.model || component.name,
                     name: component.pricingMode === 'lengthCm' ? `${component.name}(按cm)` : component.name,
@@ -179,13 +208,18 @@ function buildRecipeBomDraft(input, context) {
                     snapshotPrice: unitCost,
                     source: 'pump_shell_template',
                     costSource,
+                    componentType: isSubassembly ? 'subassembly' : component.componentType || 'standard',
+                    ...(isSubassembly ? {
+                        subassemblyContents,
+                        inventoryType: 'part',
+                    } : {}),
                     ...(isVariableStainlessBarrel ? {
                         dynamicRule: 'stainlessStretchBarrelByLength',
                         barrelLength: Number(customBarrelLength || 0) || null,
                     } : {}),
-                    formula: component.pricingMode === 'lengthCm'
-                        ? `${component.name}: ${unitCost}×${qty}cm${isVariableStainlessBarrel ? '（长度来自配方/型号变体）' : ''}`
-                        : `${component.name}: ${unitCost}×${qty}`,
+                    formula: isSubassembly
+                        ? `${baseFormula}（包含：${subassemblyContentsText(subassemblyContents)}；子项不单独计价）`
+                        : baseFormula,
                 });
             });
         }

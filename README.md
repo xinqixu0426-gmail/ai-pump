@@ -242,7 +242,7 @@ tail -n 80 logs/web-launchd.error.log
 - [API 接口总表](docs/api-reference.md)
 - [API 统一契约](docs/api-contract.md)
 - [API 变更 SOP](docs/api-sop.md)
-- [API 架构审核](docs/api-architecture-audit.md)
+- [当前技术债与优化清单](docs/technical-debt.md)
 - [生产运行与故障排查](docs/operations-runbook.md)
 - [生产发布清单](docs/deployment-checklist.md)
 - [前端状态边界](docs/frontend-state-boundary.md)

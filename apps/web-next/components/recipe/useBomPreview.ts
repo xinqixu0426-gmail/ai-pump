@@ -1,0 +1,260 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RecipeSelectionRow } from '@/components/recipe/RecipeDataTable';
+import {
+  parseRecipePartsJson,
+  previewRecipeBomDraft,
+  validRecipeParts,
+  type CableAccessoryType,
+  type Recipe,
+  type RecipeBomDraftResult,
+  type RecipePart,
+} from '@/lib/recipes';
+
+type BomPreviewInput = Parameters<typeof previewRecipeBomDraft>[0];
+
+export type BomPreviewForm = {
+  templateId: string;
+  variantId: string;
+  customBarrelLength: string;
+  longScrewExtraLength: string;
+  coilSpec: string;
+  coilSheets: string;
+  coilMaterial: string;
+  coilSlotType: '小眼' | '国标眼';
+  coilWireWeight: string;
+  hasFloat: boolean;
+  floatWire: string;
+  floatAccessoryType: CableAccessoryType;
+  hasCable: boolean;
+  cableLength: string;
+  cableWire: string;
+  cableAccessoryType: CableAccessoryType;
+};
+
+type RunBomPreviewOptions = {
+  captureError?: boolean;
+};
+
+type UseBomPreviewOptions = {
+  active: boolean;
+  form: BomPreviewForm;
+  optionalParts: RecipeSelectionRow[];
+  packingParts: RecipeSelectionRow[];
+  hasStainlessBarrel: boolean;
+  autoDelayMs?: number;
+};
+
+function numberValue(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function selectionToRecipeParts(
+  parts: RecipeSelectionRow[],
+  packaging = false
+): RecipePart[] {
+  return parts
+    .filter((part) => part.model.trim())
+    .map((part) => ({
+      model: part.model.trim(),
+      supplier: part.supplier.trim(),
+      qty: numberValue(part.qty) || 1,
+      ...(packaging ? { packagingMaterial: part.packagingMaterial.trim() || '纸箱' } : {}),
+      ...(part.costSource === 'manual'
+        ? { snapshotPrice: numberValue(part.snapshotPrice), costSource: 'manual' as const }
+        : {}),
+    }));
+}
+
+function buildBomPreviewInput(
+  form: BomPreviewForm,
+  optionalParts: RecipeSelectionRow[],
+  packingParts: RecipeSelectionRow[],
+  hasStainlessBarrel: boolean
+): BomPreviewInput | null {
+  const canPreview = Boolean(
+    form.templateId
+    || optionalParts.length > 0
+    || packingParts.length > 0
+    || form.hasFloat
+    || form.hasCable
+    || form.coilSpec
+    || form.coilSheets
+  );
+  if (!canPreview) return null;
+
+  return {
+    templateId: Number(form.templateId),
+    modelVariantId: form.variantId ? Number(form.variantId) : null,
+    customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
+    longScrewExtraLength: hasStainlessBarrel ? form.longScrewExtraLength || 0 : 0,
+    coilSpec: form.coilSpec,
+    coilSheets: form.coilSheets,
+    coilMaterial: form.coilMaterial,
+    coilSlotType: form.coilSlotType,
+    coilWireWeight: form.coilWireWeight || null,
+    optionalParts: selectionToRecipeParts(optionalParts),
+    hasFloat: form.hasFloat,
+    floatWire: form.floatWire,
+    floatAccessoryType: form.floatAccessoryType,
+    floatAccessoryDelta: 0,
+    hasCable: form.hasCable,
+    cableLength: form.cableLength,
+    cableWire: form.cableWire,
+    cableAccessoryType: form.cableAccessoryType,
+    packingParts: selectionToRecipeParts(packingParts, true),
+  };
+}
+
+export function bomPreviewFromRecipe(recipe: Recipe): RecipeBomDraftResult {
+  return {
+    parts: validRecipeParts(parseRecipePartsJson(recipe.partsJson)),
+    shellPrice: 0,
+    templateParts: [],
+    shellComponents: [],
+    coilSnapshot: null,
+    capacitorModel: '',
+    customBarrelLength: recipe.customBarrelLength ?? null,
+    longScrewExtraLength: recipe.longScrewExtraLength || 0,
+  };
+}
+
+export function useBomPreview({
+  active,
+  form,
+  optionalParts,
+  packingParts,
+  hasStainlessBarrel,
+  autoDelayMs = 400,
+}: UseBomPreviewOptions) {
+  const [draft, setDraft] = useState<RecipeBomDraftResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
+  const {
+    templateId,
+    variantId,
+    customBarrelLength,
+    longScrewExtraLength,
+    coilSpec,
+    coilSheets,
+    coilMaterial,
+    coilSlotType,
+    coilWireWeight,
+    hasFloat,
+    floatWire,
+    floatAccessoryType,
+    hasCable,
+    cableLength,
+    cableWire,
+    cableAccessoryType,
+  } = form;
+  const input = useMemo(() => buildBomPreviewInput(
+    {
+      templateId,
+      variantId,
+      customBarrelLength,
+      longScrewExtraLength,
+      coilSpec,
+      coilSheets,
+      coilMaterial,
+      coilSlotType,
+      coilWireWeight,
+      hasFloat,
+      floatWire,
+      floatAccessoryType,
+      hasCable,
+      cableLength,
+      cableWire,
+      cableAccessoryType,
+    },
+    optionalParts,
+    packingParts,
+    hasStainlessBarrel
+  ), [
+    templateId,
+    variantId,
+    customBarrelLength,
+    longScrewExtraLength,
+    coilSpec,
+    coilSheets,
+    coilMaterial,
+    coilSlotType,
+    coilWireWeight,
+    hasFloat,
+    floatWire,
+    floatAccessoryType,
+    hasCable,
+    cableLength,
+    cableWire,
+    cableAccessoryType,
+    hasStainlessBarrel,
+    optionalParts,
+    packingParts,
+  ]);
+
+  const runRequest = useCallback(async (
+    requestInput: BomPreviewInput,
+    options: RunBomPreviewOptions = {}
+  ): Promise<RecipeBomDraftResult> => {
+    const requestId = ++requestRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const nextDraft = await previewRecipeBomDraft(requestInput);
+      if (requestId === requestRef.current) setDraft(nextDraft);
+      return nextDraft;
+    } catch (error) {
+      if (requestId === requestRef.current && options.captureError !== false) {
+        setError(error instanceof Error ? error.message : '生成 BOM 草稿失败');
+      }
+      throw error;
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
+  }, []);
+
+  const replace = useCallback((nextDraft: RecipeBomDraftResult | null) => {
+    requestRef.current += 1;
+    setDraft(nextDraft);
+    setLoading(false);
+    setError(null);
+  }, []);
+
+  const reset = useCallback(() => replace(null), [replace]);
+  const clearError = useCallback(() => setError(null), []);
+  const run = useCallback(async (
+    options: RunBomPreviewOptions = {}
+  ): Promise<RecipeBomDraftResult | null> => {
+    if (!input) {
+      reset();
+      return null;
+    }
+    return runRequest(input, options);
+  }, [input, reset, runRequest]);
+
+  useEffect(() => {
+    if (!active) return;
+    if (!input) {
+      reset();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void run({ captureError: true }).catch(() => undefined);
+    }, autoDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [active, autoDelayMs, input, reset, run]);
+
+  return {
+    draft,
+    loading,
+    error,
+    canPreview: Boolean(input),
+    run,
+    replace,
+    reset,
+    clearError,
+  };
+}

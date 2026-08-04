@@ -1,1824 +1,57 @@
 'use client';
 
-import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'motion/react';
 import {
-  AlertCircle,
-  Archive,
-  ArrowUpRight,
-  Bot,
-  Boxes,
-  Check,
-  ChevronDown,
-  ClipboardList,
-  Coins,
   Database,
-  FileSearch,
-  FileText,
-  Image as ImageIcon,
   Maximize2,
-  History,
-  Loader2,
-  MessageSquareText,
-  Mic,
-  MicOff,
   PanelLeft,
-  Paperclip,
-  Pencil,
   Plus,
-  ReceiptText,
-  RefreshCw,
-  Save,
-  Search,
-  Send,
-  ShieldAlert,
   Sparkles,
-  ThumbsUp,
-  Trash2,
-  UserRound,
-  MessageSquareWarning,
-  Wrench,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SegmentedControl } from '@/components/ui/segmented-control';
-import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
 import {
   appendAiConversationMessage,
-  confirmAiTool,
   createAiConversation,
-  deleteAiConversation,
-  getAiCapabilities,
-  getAiConversation,
   getAiSystemPrompt,
-  listAiConversations,
-  listAiAnswerFeedback,
   streamAiChat,
-  submitAiAnswerFeedback,
   updateAiConversationMessage,
   updateAiSystemPrompt,
-  type AiChatMessage,
-  type AiAnswerFeedback,
-  type AiAnswerFeedbackRating,
   type AiAttachment,
-  type AiCapabilities,
   type AiConversationSummary,
-  type AiProviderInfo,
-  type AiStreamEvent,
-  type AiToolPlan,
   type AiToolResult,
-  type AiKnowledgeSource,
-  type AiResultProvenance,
 } from '@/lib/ai';
-import {
-  archiveFactoryFile,
-  deleteFactoryFile,
-  getFactoryFile,
-  listFactoryFileLinks,
-  searchFactoryFileArchiveTargets,
-  uploadFactoryFile,
-  type FactoryFileArchiveTarget,
-  type FactoryFileArchiveTargetType,
-  type FactoryFileLink,
-} from '@/lib/files';
 import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
 import type { AiPageContext } from '@/lib/page-context';
-import { StreamingText } from '@/components/prompt-kit/basic-chat';
-
-type ChatItem = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  status?: string;
-  statusMessage?: string;
-  toolPlan?: AiToolPlan;
-  toolCalls?: Array<{ name: string; args: unknown }>;
-  toolResults?: AiToolResult[];
-  persistedMessageId?: number;
-  historical?: boolean;
-  attachments?: AiAttachment[];
-  provider?: AiProviderInfo;
-};
-
-type ConfirmationResult = {
-  requiresConfirmation?: boolean;
-  confirmation?: {
-    confirmationToken?: string;
-    operationId?: string;
-    expiresAt?: string;
-    toolName: string;
-    args?: unknown;
-    title?: string;
-    summary?: string;
-    warning?: string;
-    rows?: Array<{ label: string; value: string }>;
-  };
-};
-
-type SampleCategory = '常用' | '成本' | '订单' | '质量';
-type AsideMode = 'history' | 'templates';
-
-type SpeechRecognitionResultEventLike = {
-  results: ArrayLike<{
-    0?: { transcript?: string };
-    length: number;
-  }>;
-};
-
-type SpeechRecognitionErrorEventLike = {
-  error?: string;
-};
-
-type SpeechRecognitionInstance = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onstart: (() => void) | null;
-  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
-
-const asideModeOptions: Array<{ value: AsideMode; label: string }> = [
-  { value: 'history', label: '历史' },
-  { value: 'templates', label: '模板' },
-];
-
-const sampleCategoryOptions: Array<{ value: SampleCategory; label: string }> = [
-  { value: '常用', label: '常用' },
-  { value: '成本', label: '成本' },
-  { value: '订单', label: '订单' },
-  { value: '质量', label: '质量' },
-];
-
-const samples: Array<{ category: SampleCategory; icon: LucideIcon; label: string; prompt: string; mode?: 'read' | 'write' }> = [
-  { category: '常用', icon: ClipboardList, label: '最近订单', prompt: '查一下最近 5 个订单' },
-  { category: '常用', icon: FileSearch, label: '转子出图', prompt: '用 V750 模板出 160 片转子图' },
-  { category: '成本', icon: Database, label: '成本查询', prompt: 'V750 的成本是多少' },
-  { category: '成本', icon: Database, label: '配方对比', prompt: '对比 V750 和 V550 配方' },
-  { category: '成本', icon: Coins, label: '差异解释', prompt: '为什么 12-140 比 12-120 贵' },
-  { category: '订单', icon: ClipboardList, label: '订单流转', prompt: '把订单 5 改成采购中', mode: 'write' },
-  { category: '订单', icon: ReceiptText, label: '待采购', prompt: '现在有哪些订单卡在待采购' },
-  { category: '质量', icon: ShieldAlert, label: '今日待办', prompt: '今天最先需要处理什么' },
-  { category: '质量', icon: Database, label: '数据质量', prompt: '系统资料还有什么问题会影响 AI 准确性' },
-  { category: '质量', icon: FileSearch, label: '零件检索', prompt: '找所有螺丝零件' },
-];
-
-const starterSamples = samples.filter((sample) => (
-  ['最近订单', '成本查询', '待采购', '今日待办'].includes(sample.label)
-));
+import {
+  AnswerFeedbackDialog,
+  DeleteConversationDialog,
+  KnowledgeSyncDialog,
+  SystemPromptDialog,
+} from '@/components/ai/AiWorkspaceDialogs';
+import type { ChatItem } from '@/components/ai/AiAnswerProcess';
+import {
+  AiDesktopSidebar,
+  AiMobileConversationDrawer,
+  type AiAsideMode,
+  type AiSampleCategory,
+} from '@/components/ai/AiConversationSidebars';
+import { useAiConversationHistory } from '@/components/ai/useAiConversationHistory';
+import {
+  applyAiStreamEvent,
+  useAiMessageStream,
+} from '@/components/ai/useAiMessageStream';
+import { useAiAttachments } from '@/components/ai/useAiAttachments';
+import { AiAttachmentArchiveController } from '@/components/ai/AiAttachmentArchiveController';
+import { AiComposer } from '@/components/ai/AiComposer';
+import { AiMessageList } from '@/components/ai/AiMessageList';
+import { useAiAnswerFeedback } from '@/components/ai/useAiAnswerFeedback';
+import { useAiSpeechInput } from '@/components/ai/useAiSpeechInput';
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
-  if (typeof window === 'undefined') return null;
-  const speechWindow = window as typeof window & {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  };
-  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
-}
-
-function appendSpeechTranscript(base: string, transcript: string) {
-  const normalizedTranscript = transcript.trim();
-  if (!normalizedTranscript) return base;
-  const normalizedBase = base.trimEnd();
-  return normalizedBase ? `${normalizedBase} ${normalizedTranscript}` : normalizedTranscript;
-}
-
-function speechErrorMessage(error?: string) {
-  if (error === 'not-allowed' || error === 'service-not-allowed') return '无法使用麦克风，请在浏览器设置中允许麦克风权限。';
-  if (error === 'audio-capture') return '未检测到可用的麦克风。';
-  if (error === 'network') return '语音识别服务暂时无法连接，请稍后重试。';
-  if (error === 'no-speech') return '没有识别到语音，请靠近麦克风后重试。';
-  return '语音识别失败，请重试。';
-}
-
-function isConfirmationResult(value: unknown): value is ConfirmationResult {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    (value as ConfirmationResult).requiresConfirmation &&
-    (value as ConfirmationResult).confirmation?.toolName
-  );
-}
-
-function formatJson(value: unknown) {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function arrayValue(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object')) : [];
-}
-
-function money(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) ? `¥${number.toFixed(2)}` : '';
-}
-
-function numberText(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) ? String(number) : '';
-}
-
-function textValue(value: unknown, fallback = '-') {
-  if (value === null || value === undefined || value === '') return fallback;
-  return String(value);
-}
-
-function dateText(value: unknown) {
-  if (!value) return '-';
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-function fileSizeText(value: number) {
-  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
-  return `${Math.max(1, Math.ceil(value / 1024))} KB`;
-}
-
-function attachmentParserText(attachment: AiAttachment) {
-  if (attachment.detectedType === 'image') {
-    if (attachment.parserStatus === 'parsed') {
-      const confidence = Math.round(attachment.parserSummary?.confidence || 0);
-      const candidates = attachment.parserSummary?.drawingCandidateCount || 0;
-      const suffix = candidates > 0 ? `，${candidates} 个参数候选` : '';
-      return `OCR ${confidence}%${suffix}`;
-    }
-    if (attachment.parserStatus === 'metadata_only' && attachment.parserSummary?.ocrApplied) return 'OCR 未识别到文字';
-    if (attachment.parserStatus === 'failed') return 'OCR 失败';
-    if (attachment.parserStatus === 'processing') return '正在 OCR';
-    return '等待 OCR';
-  }
-  if (attachment.detectedType === 'spreadsheet') {
-    if (attachment.parserStatus === 'parsed') {
-      const sheets = attachment.parserSummary?.parsedSheetCount || attachment.parserSummary?.sheetCount || 0;
-      const rows = attachment.parserSummary?.rowCount || 0;
-      if (sheets > 0) return `已读取 ${sheets} 个表，${rows} 行`;
-      return '已读取表格';
-    }
-    if (attachment.parserStatus === 'failed') return '解析失败';
-    if (attachment.parserStatus === 'processing') return '正在解析';
-    return '等待解析';
-  }
-  if (attachment.detectedType !== 'pdf') return fileSizeText(attachment.fileSize);
-  if (attachment.parserStatus === 'parsed') {
-    const pages = attachment.parserSummary?.parsedPageCount || attachment.parserSummary?.pageCount || 0;
-    const ocr = attachment.parserSummary?.ocrApplied ? '（含 OCR）' : '';
-    const candidates = attachment.parserSummary?.drawingCandidateCount || 0;
-    const suffix = candidates > 0 ? `，${candidates} 个参数候选` : '';
-    return pages > 0 ? `已读取 ${pages} 页${ocr}${suffix}` : `已读取文字层${ocr}${suffix}`;
-  }
-  if (attachment.parserStatus === 'metadata_only' && attachment.parserSummary?.ocrApplied) return 'OCR 未识别到文字';
-  if (attachment.parserStatus === 'metadata_only' && attachment.parserSummary?.requiresOcr) return '扫描件，等待 OCR';
-  if (attachment.parserStatus === 'failed') return '解析失败';
-  if (attachment.parserStatus === 'processing') return '正在解析';
-  return '等待解析';
-}
-
-const archiveTargetOptions: Array<{ value: FactoryFileArchiveTargetType; label: string }> = [
-  { value: 'knowledge_document', label: '知识库资料' },
-  { value: 'order', label: '订单' },
-  { value: 'recipe', label: '配方' },
-  { value: 'customer', label: '客户' },
-  { value: 'quotation', label: '报价' },
-  { value: 'recipe_analysis_feedback', label: '质量问题（配方检查）' },
-  { value: 'ai_answer_feedback', label: '质量问题（AI回答）' },
-];
-
-const documentTypeOptions = [
-  { value: 'technical_note', label: '技术说明' },
-  { value: 'pump_performance_test', label: '性能测试报告' },
-  { value: 'drawing', label: '图纸' },
-  { value: 'spreadsheet', label: '电子表格' },
-  { value: 'other', label: '其他资料' },
-] as const;
-
-function defaultArchiveDocumentType(attachment: AiAttachment): typeof documentTypeOptions[number]['value'] {
-  if (attachment.detectedType === 'spreadsheet') return 'spreadsheet';
-  if (attachment.detectedType === 'image') return 'drawing';
-  if (attachment.detectedType === 'text') return 'technical_note';
-  return 'other';
-}
-
-function archiveTargetLabel(value: FactoryFileArchiveTargetType) {
-  return archiveTargetOptions.find(option => option.value === value)?.label || value;
-}
-
-function isSafeInternalPath(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
-}
-
-function buildFactoryWorkflowShortcutPrompt(
-  plan: Record<string, unknown>,
-  step: Record<string, unknown>
-) {
-  if (
-    step.mode !== 'confirmable'
-    || step.status !== 'available'
-    || !step.canExecute
-  ) return '';
-
-  const confirmation = asRecord(step.confirmation);
-  const args = asRecord(confirmation.args);
-  const title = textValue(step.title, '当前步骤');
-  if (confirmation.toolName === 'execute_factory_workflow_step') {
-    const quotationId = Number(args.quotationId);
-    if (
-      plan.workflowType !== 'quotation_to_order'
-      || args.workflowType !== 'quotation_to_order'
-      || args.actionId !== 'convert_quotation'
-      || !Number.isInteger(quotationId)
-      || quotationId <= 0
-    ) return '';
-    return `执行报价 #${quotationId} 的“${title}”步骤。请先重新生成最新报价转订单执行计划，仅在步骤仍可执行时发起确认，不要绕过确认。`;
-  }
-
-  if (confirmation.toolName === 'execute_order_readiness_action') {
-    const orderId = Number(args.orderId);
-    const actionId = textValue(args.actionId, '');
-    if (
-      !['order_readiness', 'management_action'].includes(textValue(plan.workflowType, ''))
-      || !Number.isInteger(orderId)
-      || orderId <= 0
-      || !actionId
-    ) return '';
-    return `执行订单 #${orderId} 的“${title}”步骤。请先重新检查最新生产准备计划，仅在步骤“${actionId}”仍可执行时发起确认，不要绕过确认。`;
-  }
-
-  return '';
-}
-
-function collectAnswerEvidence(toolResults: AiToolResult[] = []) {
-  const sourceById = new Map<number, AiKnowledgeSource>();
-  const provenances: AiResultProvenance[] = [];
-  for (const tool of toolResults) {
-    const result = asRecord(tool.result);
-    const provenance = asRecord(result.provenance);
-    if (provenance.kind === 'live_business' || provenance.kind === 'knowledge_snapshot') {
-      provenances.push({
-        kind: provenance.kind,
-        label: textValue(provenance.label, provenance.kind === 'live_business' ? '实时业务数据' : '知识库快照'),
-        fetchedAt: provenance.fetchedAt ? String(provenance.fetchedAt) : undefined,
-        checkedAt: provenance.checkedAt ? String(provenance.checkedAt) : null,
-        hasPendingSources: Boolean(provenance.hasPendingSources),
-      });
-    }
-    for (const source of arrayValue(result.sources)) {
-      const knowledgeEntryId = Number(source.knowledgeEntryId);
-      if (!Number.isInteger(knowledgeEntryId) || knowledgeEntryId <= 0) continue;
-      sourceById.set(knowledgeEntryId, {
-        kind: 'knowledge_snapshot',
-        knowledgeEntryId,
-        entryType: textValue(source.entryType, ''),
-        title: textValue(source.title, `知识条目 #${knowledgeEntryId}`),
-        sourceTable: textValue(source.sourceTable, ''),
-        sourceId: textValue(source.sourceId, ''),
-        syncedAt: source.syncedAt ? String(source.syncedAt) : null,
-        sourceUpdatedAt: source.sourceUpdatedAt ? String(source.sourceUpdatedAt) : null,
-        freshness: ['fresh', 'pending_insert', 'pending_update', 'pending_delete'].includes(String(source.freshness))
-          ? source.freshness as AiKnowledgeSource['freshness']
-          : 'fresh',
-        knowledgePath: isSafeInternalPath(source.knowledgePath)
-          ? source.knowledgePath
-          : `/dashboard?view=knowledge&entry=${knowledgeEntryId}`,
-        sourcePath: isSafeInternalPath(source.sourcePath) ? source.sourcePath : '',
-      });
-    }
-  }
-  return {
-    sources: [...sourceById.values()],
-    hasLiveBusiness: provenances.some(item => item.kind === 'live_business'),
-    hasKnowledgeSnapshot: provenances.some(item => item.kind === 'knowledge_snapshot'),
-  };
-}
-
-function AnswerEvidence({ toolResults }: { toolResults: AiToolResult[] }) {
-  const evidence = collectAnswerEvidence(toolResults);
-  if (!evidence.hasLiveBusiness && !evidence.hasKnowledgeSnapshot && evidence.sources.length === 0) return null;
-  const staleSources = evidence.sources.filter(source => source.freshness !== 'fresh');
-  const freshnessLabel: Record<AiKnowledgeSource['freshness'], string> = {
-    fresh: '最新',
-    pending_insert: '待新增',
-    pending_update: '待更新',
-    pending_delete: '待移除',
-  };
-
-  return (
-    <section className="mt-3 border-t border-slate-200 pt-3" aria-label="回答依据">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="text-xs font-semibold text-ink">回答依据</div>
-        {evidence.hasLiveBusiness ? <StatusBadge tone="green" className="h-5 min-w-0 px-2">实时业务数据</StatusBadge> : null}
-        {evidence.hasKnowledgeSnapshot ? <StatusBadge tone="blue" className="h-5 min-w-0 px-2">知识库快照</StatusBadge> : null}
-      </div>
-      {staleSources.length ? (
-        <div className="mt-2 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-          <AlertCircle size={14} className="mt-0.5 shrink-0" />
-          <span>{staleSources.length} 条依据处于待同步状态，易变数据请以本轮实时业务查询为准。</span>
-        </div>
-      ) : null}
-      {evidence.sources.length ? (
-        <div className="mt-2 divide-y divide-slate-100 border-y border-slate-100">
-          {evidence.sources.slice(0, 8).map(source => (
-            <div key={source.knowledgeEntryId} className="flex min-w-0 items-center gap-3 py-2">
-              <a href={source.knowledgePath} className="min-w-0 flex-1 text-left hover:text-sky-700">
-                <span className="block truncate text-sm font-medium">{source.title}</span>
-                <span className="mt-0.5 block truncate text-xs text-muted">
-                  {source.sourceTable && source.sourceId ? `${source.sourceTable} #${source.sourceId} · ` : ''}
-                  同步于 {dateText(source.syncedAt)}
-                </span>
-              </a>
-              <StatusBadge tone={source.freshness === 'fresh' ? 'green' : 'amber'} className="h-5 min-w-0 px-2">
-                {freshnessLabel[source.freshness]}
-              </StatusBadge>
-              {source.sourcePath ? (
-                <a
-                  href={source.sourcePath}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-slate-100 hover:text-ink"
-                  aria-label={`查看${source.title}原数据`}
-                  title="查看原数据"
-                >
-                  <ArrowUpRight size={15} />
-                </a>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function percentText(value: unknown) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return '';
-  return `${number > 10 ? number.toFixed(1) : (number * 100).toFixed(1)}%`;
-}
-
-function toolLabel(name: string) {
-  const labels: Record<string, string> = {
-    get_all_parts: '零件列表',
-    search_parts: '零件搜索',
-    create_part: '新增零件',
-    update_part: '修改零件',
-    batch_update_prices: '批量调价',
-    get_all_recipes: '配方列表',
-    query_recipe_cost_by_name: '配方成本',
-    query_recipe_cost_by_id: '配方成本',
-    full_calculate: '完整估算',
-    calculate_coil_cost: '线圈成本',
-    dynamic_config_cost: '动态配置成本',
-    get_copper_price: '铜价',
-    compare_recipes: '配方对比',
-    create_recipe: '新增配方',
-    update_recipe: '修改配方',
-    get_recent_orders: '最近订单',
-    get_order_detail: '订单详情',
-    get_order_knowledge_package: '订单知识包',
-    get_order_readiness_overview: '订单准备总览',
-    check_order_readiness: '生产准备检查',
-    plan_order_readiness_actions: '订单处理方案',
-    execute_order_readiness_action: '执行订单处理步骤',
-    create_order: '新增订单',
-    add_recipe_to_order: '追加型号',
-    update_order_status: '订单状态',
-    update_order_item: '修改订单项',
-    generate_purchase_list: '采购清单',
-    generate_rotor_drawing: '转子出图',
-    get_rotor_drawing_history: '出图历史',
-    print_rotor_drawing: '打印图纸',
-    get_dashboard_summary: '运营看板',
-  };
-  return labels[name] || name;
-}
-
-function resultIcon(name: string) {
-  if (name.includes('part')) return Boxes;
-  if (name.includes('recipe') || name.includes('cost') || name.includes('calculate')) return Coins;
-  if (name.includes('order') || name.includes('purchase')) return ReceiptText;
-  if (name.includes('rotor') || name.includes('drawing') || name.includes('print')) return FileText;
-  return Wrench;
-}
-
-function unwrapResult(value: unknown): Record<string, unknown> {
-  const result = asRecord(value);
-  const data = asRecord(result.data);
-  if (Object.keys(data).length > 0 && Object.keys(result).length <= 2 && result.success !== false) return data;
-  return result;
-}
-
-function pickMetrics(source: Record<string, unknown>) {
-  const candidates: Array<[string, unknown, 'money' | 'number' | 'text' | 'percent']> = [
-    ['总成本', source.totalCost ?? source.savedTotalCost ?? source.cost, 'money'],
-    ['单位成本', source.unitCost, 'money'],
-    ['出厂价', source.unitPrice ?? source.totalPrice, 'money'],
-    ['利润', source.totalProfit ?? source.profit, 'money'],
-    ['利润率', source.profitMargin ?? source.margin, 'percent'],
-    ['数量', source.count ?? source.qty ?? source.quantity, 'number'],
-    ['铜价', source.copperPrice ?? source.price, 'money'],
-    ['线径', source.wireDiameter ?? source.resolvedWire ?? source.wire, 'text'],
-    ['片数', source.sheets ?? source.statorSheets, 'number'],
-  ];
-  return candidates
-    .map(([label, value, type]) => {
-      if (value === undefined || value === null || value === '') return null;
-      const display = type === 'money' ? money(value) : type === 'percent' ? percentText(value) : type === 'number' ? numberText(value) : textValue(value);
-      return display ? { label, value: display } : null;
-    })
-    .filter((item): item is { label: string; value: string } => Boolean(item));
-}
-
-function RawDetails({ result }: { result: unknown }) {
-  return (
-    <details className="group mt-3 rounded-md border border-slate-200 bg-slate-50">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium text-muted">
-        原始数据
-        <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
-      </summary>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-slate-200 bg-slate-950 p-3 text-xs leading-relaxed text-slate-100">{formatJson(result)}</pre>
-    </details>
-  );
-}
-
-function MetricGrid({ metrics }: { metrics: Array<{ label: string; value: string }> }) {
-  if (metrics.length === 0) return null;
-  return (
-    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {metrics.slice(0, 6).map((metric) => (
-        <div key={metric.label} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-          <div className="text-xs text-muted">{metric.label}</div>
-          <div className="mt-1 truncate text-base font-semibold text-ink">{metric.value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function KeyValueRows({ rows }: { rows: Array<{ label: string; value: unknown }> }) {
-  const visible = rows.filter((row) => row.value !== undefined && row.value !== null && row.value !== '');
-  if (visible.length === 0) return null;
-  return (
-    <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
-      {visible.map((row) => (
-        <div key={row.label} className="flex min-w-0 justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 text-sm">
-          <span className="shrink-0 text-muted">{row.label}</span>
-          <span className="truncate font-medium text-ink">{String(row.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DataTable({ columns, rows, emptyText = '暂无数据' }: {
-  columns: Array<{ key: string; label: string; render?: (row: Record<string, unknown>) => ReactNode }>;
-  rows: Array<Record<string, unknown>>;
-  emptyText?: string;
-}) {
-  if (rows.length === 0) return <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">{emptyText}</div>;
-  return (
-    <div className="mt-3 overflow-hidden rounded-md border border-slate-200">
-      <div className="max-h-80 overflow-auto">
-        <table className="w-full min-w-[560px] border-collapse text-left text-sm">
-          <thead className="sticky top-0 bg-slate-100 text-xs font-medium text-muted">
-            <tr>
-              {columns.map((column) => <th key={column.key} className="border-b border-slate-200 px-3 py-2">{column.label}</th>)}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.slice(0, 30).map((row, index) => (
-              <tr key={`${textValue(row.id, String(index))}-${index}`}>
-                {columns.map((column) => (
-                  <td key={column.key} className="max-w-48 truncate px-3 py-2 text-slate-700">
-                    {column.render ? column.render(row) : textValue(row[column.key])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {rows.length > 30 ? <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs text-muted">仅显示前 30 条，共 {rows.length} 条</div> : null}
-    </div>
-  );
-}
-
-function ChangesList({ changes }: { changes: unknown }) {
-  const rows = Array.isArray(changes) ? changes.map(String) : [];
-  if (rows.length === 0) return null;
-  return (
-    <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3">
-      <div className="text-xs font-medium text-emerald-800">变更内容</div>
-      <div className="mt-2 grid gap-1 text-sm text-emerald-950">
-        {rows.map((change, index) => <div key={`${change}-${index}`}>{change}</div>)}
-      </div>
-    </div>
-  );
-}
-
-function PartsResult({ name, result }: { name: string; result: Record<string, unknown> }) {
-  const rows = arrayValue(result.data || result.parts);
-  const part = asRecord(result.part);
-  if (Object.keys(part).length > 0) {
-    return (
-      <>
-        <KeyValueRows rows={[
-          { label: '型号', value: part.model },
-          { label: '类别', value: part.category },
-          { label: '单价', value: money(part.price) || part.price },
-          { label: '库存', value: part.stock },
-          { label: '供应商', value: part.supplier },
-        ]} />
-        <ChangesList changes={result.changes} />
-      </>
-    );
-  }
-  return (
-    <>
-      <div className="mt-2 text-sm text-muted">共 {textValue(result.count ?? rows.length, '0')} 条结果</div>
-      <DataTable
-        rows={rows}
-        columns={[
-          { key: 'model', label: '型号' },
-          { key: 'category', label: '类别' },
-          { key: 'price', label: '单价', render: (row) => money(row.price) || textValue(row.price) },
-          { key: 'stock', label: '库存' },
-          { key: 'supplier', label: '供应商' },
-        ]}
-        emptyText={name === 'search_parts' ? '没有匹配的零件' : '暂无零件'}
-      />
-    </>
-  );
-}
-
-function RecipesResult({ result }: { result: Record<string, unknown> }) {
-  const rows = arrayValue(result.data);
-  const recipe = asRecord(result.recipe);
-  if (Object.keys(recipe).length > 0 || result.recipeName) {
-    return (
-      <>
-        <KeyValueRows rows={[
-          { label: '配方', value: recipe.name || result.recipeName },
-          { label: '规格', value: recipe.spec },
-          { label: '零件数', value: recipe.partsCount || result.partsCount },
-          { label: '成本', value: money(recipe.totalCost || result.newCost) || recipe.totalCost || result.newCost },
-        ]} />
-        <ChangesList changes={result.changes} />
-      </>
-    );
-  }
-  return (
-    <DataTable
-      rows={rows}
-      columns={[
-        { key: 'name', label: '配方' },
-        { key: 'spec', label: '规格' },
-        { key: 'savedCost', label: '保存成本', render: (row) => money(row.savedCost) || textValue(row.savedCost) },
-      ]}
-      emptyText="暂无配方"
-    />
-  );
-}
-
-function CostResult({ result }: { result: Record<string, unknown> }) {
-  const data = unwrapResult(result);
-  const metrics = pickMetrics(data);
-  const parts = arrayValue(data.parts || data.breakdownParts || data.items);
-  return (
-    <>
-      <MetricGrid metrics={metrics} />
-      <KeyValueRows rows={[
-        { label: '配方', value: data.recipeName || data.name || data.recipeSpec },
-        { label: '规格', value: data.spec },
-        { label: '线圈', value: data.coilSpec || data.resolvedSpec },
-        { label: '说明', value: data.message },
-      ]} />
-      {parts.length > 0 ? (
-        <DataTable
-          rows={parts}
-          columns={[
-            { key: 'model', label: '零件' },
-            { key: 'qty', label: '数量' },
-            { key: 'price', label: '单价', render: (row) => money(row.price ?? row.snapshotPrice ?? row.unitPrice) || textValue(row.price ?? row.snapshotPrice ?? row.unitPrice) },
-            { key: 'cost', label: '金额', render: (row) => money(row.cost ?? row.totalCost) || textValue(row.cost ?? row.totalCost) },
-          ]}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function OrderResult({ name, result }: { name: string; result: Record<string, unknown> }) {
-  const order = asRecord(result.order);
-  const rows = name === 'get_recent_orders' ? arrayValue(result.data) : [];
-  if (rows.length > 0) {
-    return (
-      <DataTable
-        rows={rows}
-        columns={[
-          { key: 'id', label: 'ID' },
-          { key: 'customer', label: '客户' },
-          { key: 'contract', label: '合同号' },
-          { key: 'status', label: '状态' },
-          { key: 'createdAt', label: '时间', render: (row) => dateText(row.createdAt) },
-        ]}
-      />
-    );
-  }
-
-  const target = Object.keys(order).length > 0 ? order : result;
-  const items = arrayValue(target.items);
-  const purchaseList = arrayValue(result.purchaseList || target.purchaseList);
-  return (
-    <>
-      <KeyValueRows rows={[
-        { label: '订单 ID', value: target.id || result.orderId },
-        { label: '客户', value: target.customerName || result.customerName },
-        { label: '合同号', value: target.contractNo },
-        { label: '状态', value: target.status || result.newStatus },
-      ]} />
-      <MetricGrid metrics={pickMetrics(target)} />
-      <ChangesList changes={result.changes} />
-      {items.length > 0 ? (
-        <DataTable
-          rows={items}
-          columns={[
-            { key: 'recipeName', label: '型号' },
-            { key: 'qty', label: '数量' },
-            { key: 'unitCost', label: '成本', render: (row) => money(row.unitCost) || textValue(row.unitCost) },
-            { key: 'unitPrice', label: '出厂价', render: (row) => money(row.unitPrice) || textValue(row.unitPrice) },
-          ]}
-        />
-      ) : null}
-      {purchaseList.length > 0 ? (
-        <DataTable
-          rows={purchaseList}
-          columns={[
-            { key: 'model', label: '零件' },
-            { key: 'supplier', label: '供应商' },
-            { key: 'requiredQty', label: '需求' },
-            { key: 'stock', label: '库存' },
-            { key: 'needToBuy', label: '采购' },
-          ]}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function OrderReadinessResult({ result }: { result: Record<string, unknown> }) {
-  const data = asRecord(result.data);
-  const order = asRecord(data.order);
-  const metrics = asRecord(data.metrics);
-  const steps = arrayValue(data.steps);
-  const shortages = arrayValue(data.shortages);
-  const actions = arrayValue(data.recommendedActions);
-  const verdict = textValue(data.verdict);
-  const verdictMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    ready: { label: '可生产', tone: 'green' },
-    waiting_materials: { label: '待补料', tone: 'amber' },
-    needs_review: { label: '待复核', tone: 'orange' },
-    blocked: { label: '数据阻塞', tone: 'red' },
-    not_applicable: { label: '不适用', tone: 'slate' },
-  };
-  const currentVerdict = verdictMeta[verdict] || { label: verdict || '未知', tone: 'slate' as StatusBadgeTone };
-  const stepTone = (status: unknown): StatusBadgeTone => {
-    if (status === 'pass') return 'green';
-    if (status === 'warning') return 'amber';
-    if (status === 'fail') return 'red';
-    return 'slate';
-  };
-  const stepLabel = (status: unknown) => {
-    if (status === 'pass') return '通过';
-    if (status === 'warning') return '注意';
-    if (status === 'fail') return '阻塞';
-    return '未执行';
-  };
-
-  return (
-    <>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink">
-            订单 #{textValue(order.id)} · {textValue(order.customerName, '未命名客户')}
-          </div>
-          <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
-        </div>
-        <StatusBadge tone={currentVerdict.tone}>{currentVerdict.label}</StatusBadge>
-      </div>
-      <KeyValueRows rows={[
-        { label: '订单状态', value: order.status },
-        { label: '合同号', value: order.contractNo || '-' },
-        { label: '产品数量', value: `${textValue(order.totalUnits, '0')} 台` },
-        { label: '物料行', value: metrics.materialLineCount },
-        { label: '缺料项', value: metrics.shortageLineCount },
-        { label: '锁定成本', value: money(metrics.totalLockedCost) },
-        { label: '订单金额', value: money(metrics.totalOrderPrice) },
-        { label: '毛利', value: money(metrics.grossProfit) },
-      ]} />
-      <div className="mt-3 divide-y divide-slate-100 border-y border-slate-100">
-        {steps.map((item, index) => (
-          <div key={textValue(item.key, String(index))} className="flex min-w-0 items-start gap-3 py-2.5">
-            <StatusBadge tone={stepTone(item.status)} className="h-5 min-w-12 px-2">
-              {stepLabel(item.status)}
-            </StatusBadge>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-ink">{textValue(item.label)}</div>
-              <div className="mt-0.5 text-xs leading-5 text-muted">{textValue(item.summary)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-      {shortages.length > 0 ? (
-        <DataTable
-          rows={shortages}
-          columns={[
-            { key: 'model', label: '缺料' },
-            { key: 'requiredQty', label: '需求' },
-            { key: 'availableQty', label: '可用库存' },
-            { key: 'shortageQty', label: '缺口' },
-            { key: 'procurementStage', label: '当前阶段' },
-          ]}
-        />
-      ) : null}
-      {actions.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {actions.map((item, index) => {
-            const path = textValue(item.path);
-            return path.startsWith('/') ? (
-              <a
-                key={`${textValue(item.key)}-${index}`}
-                href={path}
-                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {textValue(item.label)}
-                <ArrowUpRight size={13} />
-              </a>
-            ) : null;
-          })}
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function OrderReadinessOverviewResult({ result }: { result: Record<string, unknown> }) {
-  const data = asRecord(result.data);
-  const metrics = asRecord(data.metrics);
-  const items = arrayValue(data.items);
-  const verdictMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    ready: { label: '可生产', tone: 'green' },
-    waiting_materials: { label: '待补料', tone: 'amber' },
-    needs_review: { label: '待复核', tone: 'orange' },
-    blocked: { label: '数据阻塞', tone: 'red' },
-    not_applicable: { label: '不适用', tone: 'slate' },
-  };
-
-  return (
-    <>
-      <div className="mt-3 border-b border-slate-100 pb-3">
-        <div className="text-sm font-semibold text-ink">订单准备总览</div>
-        <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
-      </div>
-      <KeyValueRows rows={[
-        { label: '活动订单', value: metrics.totalActiveOrders },
-        { label: '需关注', value: metrics.attentionRequired },
-        { label: '数据阻塞', value: metrics.blocked },
-        { label: '待补料', value: metrics.waitingMaterials },
-        { label: '待复核', value: metrics.needsReview },
-        { label: '可生产', value: metrics.ready },
-      ]} />
-      {items.length > 0 ? (
-        <DataTable
-          rows={items.slice(0, 12)}
-          columns={[
-            {
-              key: 'order',
-              label: '订单',
-              render: (row) => {
-                const order = asRecord(row.order);
-                return `#${textValue(order.id)} · ${textValue(order.customerName, '未命名客户')}`;
-              },
-            },
-            {
-              key: 'verdict',
-              label: '结论',
-              render: (row) => {
-                const verdict = textValue(row.verdict, '');
-                const meta = verdictMeta[verdict] || { label: verdict || '未知', tone: 'slate' as StatusBadgeTone };
-                return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
-              },
-            },
-            {
-              key: 'issue',
-              label: '主要问题',
-              render: (row) => {
-                const blocker = arrayValue(row.blockers)[0];
-                const shortage = arrayValue(row.shortages)[0];
-                const warning = arrayValue(row.warnings)[0];
-                if (blocker) return textValue(blocker.title);
-                if (shortage) return `${textValue(shortage.model)} 缺 ${textValue(shortage.shortageQty)}${textValue(shortage.purchaseUnit, '')}`;
-                if (warning) return textValue(warning.title);
-                return '检查通过';
-              },
-            },
-            {
-              key: 'nextAction',
-              label: '下一步',
-              render: (row) => textValue(asRecord(row.nextAction).title, '无需处理'),
-            },
-          ]}
-        />
-      ) : null}
-      <div className="mt-3">
-        <a
-          href="/dashboard?view=readiness"
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          打开订单准备总览
-          <ArrowUpRight size={13} />
-        </a>
-      </div>
-    </>
-  );
-}
-
-function ManagementActionCenterResult({ result }: { result: Record<string, unknown> }) {
-  const data = asRecord(result.data);
-  const metrics = asRecord(data.metrics);
-  const progress = asRecord(data.progress);
-  const executionQueue = asRecord(data.executionQueue);
-  const executionItems = arrayValue(executionQueue.items);
-  const items = executionItems.length > 0 ? executionItems : arrayValue(data.items).slice(0, 3);
-  const priorityMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    critical: { label: '紧急', tone: 'red' },
-    high: { label: '高优先级', tone: 'orange' },
-    medium: { label: '普通', tone: 'amber' },
-    low: { label: '低', tone: 'slate' },
-  };
-
-  return (
-    <>
-      <div className="mt-3 border-b border-slate-100 pb-3">
-        <div className="text-sm font-semibold text-ink">今日执行队列</div>
-        <div className="mt-1 text-xs leading-5 text-muted">
-          {textValue(executionQueue.summary, textValue(data.summary))}
-        </div>
-      </div>
-      <KeyValueRows rows={[
-        { label: '待办总数', value: metrics.total },
-        { label: '紧急', value: metrics.critical },
-        { label: '高优先级', value: metrics.high },
-        { label: '普通', value: metrics.medium },
-        { label: '低优先级', value: metrics.low },
-      ]} />
-      {Object.keys(progress).length > 0 ? (
-        <>
-          <div className="mt-3 text-sm font-semibold text-ink">自动复查进展</div>
-          <div className="mt-1 text-xs leading-5 text-muted">{textValue(progress.summary)}</div>
-          <KeyValueRows rows={[
-            { label: '近期已解决', value: progress.resolvedCount },
-            { label: '仍待处理', value: progress.unresolvedCount },
-            { label: '暂时受阻', value: progress.blockedCount },
-            { label: '反复出现', value: progress.recurringCount },
-          ]} />
-        </>
-      ) : null}
-      {items.length > 0 ? (
-        <DataTable
-          rows={items.slice(0, 12)}
-          columns={[
-            {
-              key: 'priority',
-              label: '优先级',
-              render: row => {
-                const priority = textValue(row.priority);
-                const meta = priorityMeta[priority] || { label: priority || '未知', tone: 'slate' as StatusBadgeTone };
-                return <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>;
-              },
-            },
-            { key: 'categoryLabel', label: '来源' },
-            { key: 'title', label: '待办' },
-            {
-              key: 'reasons',
-              label: '排序依据',
-              render: row => arrayValue(row.reasons).map(value => textValue(value)).filter(Boolean).join(' · '),
-            },
-            {
-              key: 'resolution',
-              label: '最短处理路径',
-              render: row => textValue(asRecord(row.resolution).title, textValue(row.action)),
-            },
-          ]}
-        />
-      ) : null}
-      <div className="mt-3">
-        <a
-          href="/dashboard?view=actions"
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          打开管理待办
-          <ArrowUpRight size={13} />
-        </a>
-      </div>
-    </>
-  );
-}
-
-function WorkflowExecutionRunSummary({
-  run,
-  warning,
-}: {
-  run: Record<string, unknown>;
-  warning?: string;
-}) {
-  if (Object.keys(run).length === 0 && !warning) return null;
-  const completed = textValue(run.status, '') === 'completed';
-  return (
-    <div className="mt-3 border-y border-slate-100 py-3 text-xs">
-      {Object.keys(run).length > 0 ? (
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="font-medium text-slate-700">
-              执行记录 #{textValue(run.id)} · 第 {textValue(run.attemptNumber, '1')} 次尝试
-            </div>
-            <div className="mt-1 leading-5 text-muted">
-              {textValue(run.outcomeSummary, completed ? '执行已完成' : '执行失败')}
-            </div>
-            {!completed && textValue(run.errorText, '') ? (
-              <div className="mt-1 leading-5 text-rose-700">{textValue(run.errorText)}</div>
-            ) : null}
-          </div>
-          <StatusBadge tone={completed ? 'green' : 'red'}>{completed ? '已记录完成' : '已记录失败'}</StatusBadge>
-        </div>
-      ) : null}
-      {warning ? <div className="mt-2 leading-5 text-amber-700">{warning}</div> : null}
-    </div>
-  );
-}
-
-function FactoryExecutionPlanResult({
-  result,
-  onRequestAction,
-  actionDisabled = false,
-}: {
-  result: Record<string, unknown>;
-  onRequestAction?: (prompt: string) => void;
-  actionDisabled?: boolean;
-}) {
-  const data = asRecord(result.data);
-  const subject = asRecord(data.subject);
-  const metrics = asRecord(data.metrics);
-  const steps = arrayValue(data.steps);
-  const safeguards = arrayValue(data.safeguards);
-  const executionHistory = asRecord(data.executionHistory);
-  const latestAttempt = asRecord(executionHistory.latestAttempt);
-  const latestRecheck = asRecord(executionHistory.latestRecheck);
-  const recovery = asRecord(executionHistory.recovery);
-  const recoverableActionIds = new Set(
-    Array.isArray(recovery.recoverableActionIds)
-      ? recovery.recoverableActionIds.map(value => textValue(value, '')).filter(Boolean)
-      : []
-  );
-  const statusMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    complete: { label: '已完成', tone: 'green' },
-    ready: { label: '可继续', tone: 'blue' },
-    action_required: { label: '待处理', tone: 'amber' },
-    needs_input: { label: '需要决定', tone: 'orange' },
-    blocked: { label: '有阻塞', tone: 'red' },
-    waiting: { label: '等待中', tone: 'slate' },
-    not_applicable: { label: '不适用', tone: 'slate' },
-  };
-  const modeMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    automatic: { label: '自动检查', tone: 'green' },
-    confirmable: { label: '需确认', tone: 'blue' },
-    manual: { label: '页面处理', tone: 'amber' },
-    needs_input: { label: '业务判断', tone: 'orange' },
-    monitor: { label: '等待状态', tone: 'slate' },
-  };
-  const currentStatus = statusMeta[textValue(data.status)]
-    || { label: textValue(data.status, '未知'), tone: 'slate' as StatusBadgeTone };
-  const stepTitles = new Map(steps.map(item => [textValue(item.id), textValue(item.title)]));
-
-  return (
-    <>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink">{textValue(subject.label, textValue(data.goal, '工厂执行计划'))}</div>
-          <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <StatusBadge tone={currentStatus.tone}>{currentStatus.label}</StatusBadge>
-          {isSafeInternalPath(subject.path) ? (
-            <a
-              href={subject.path}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            >
-              打开当前业务
-              <ArrowUpRight size={13} />
-            </a>
-          ) : null}
-        </div>
-      </div>
-      <KeyValueRows rows={[
-        { label: '总步骤', value: metrics.totalSteps },
-        { label: '已检查', value: metrics.completedSteps },
-        { label: '已有安全执行器', value: metrics.executableSteps },
-        { label: '需要业务判断', value: metrics.needsInputSteps },
-        { label: '受前置阻塞', value: metrics.blockedSteps },
-      ]} />
-      {Object.keys(latestAttempt).length > 0 ? (
-        <div className="mt-3 border-y border-slate-100 py-3 text-xs">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="font-medium text-slate-700">
-                最近执行 · 第 {textValue(latestAttempt.attemptNumber, '1')} 次尝试
-              </div>
-              <div className="mt-1 leading-5 text-muted">
-                {textValue(latestAttempt.outcomeSummary, textValue(recovery.message))}
-              </div>
-              {textValue(latestAttempt.errorText, '') ? (
-                <div className="mt-1 leading-5 text-rose-700">{textValue(latestAttempt.errorText)}</div>
-              ) : null}
-              <div className="mt-1 leading-5 text-slate-700">{textValue(recovery.message)}</div>
-              {textValue(latestRecheck.summary, '') ? (
-                <div className="mt-1 leading-5 text-muted">最新复查：{textValue(latestRecheck.summary)}</div>
-              ) : null}
-            </div>
-            <StatusBadge tone={textValue(latestAttempt.status, '') === 'completed' ? 'green' : 'red'}>
-              {textValue(latestAttempt.status, '') === 'completed' ? '上次已完成' : '上次失败'}
-            </StatusBadge>
-          </div>
-        </div>
-      ) : null}
-      {steps.length > 0 ? (
-        <div className="mt-3 divide-y divide-slate-100 border-y border-slate-100">
-          {steps.map((item, index) => {
-            const mode = textValue(item.mode);
-            const currentMode = modeMeta[mode] || { label: mode || '处理', tone: 'slate' as StatusBadgeTone };
-            const dependencies = arrayValue(item.dependsOn)
-              .map(value => stepTitles.get(textValue(value)) || textValue(value))
-              .filter(Boolean);
-            const canExecute = Boolean(item.canExecute);
-            const actionPrompt = buildFactoryWorkflowShortcutPrompt(data, item);
-            return (
-              <div key={textValue(item.id, String(index))} className="flex min-w-0 gap-3 py-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-xs font-semibold text-white">
-                  {textValue(item.sequence, String(index + 1))}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold text-ink">{textValue(item.title)}</div>
-                    <StatusBadge tone={currentMode.tone}>{currentMode.label}</StatusBadge>
-                    {textValue(item.status) === 'complete' ? <StatusBadge tone="green">已核对</StatusBadge> : null}
-                    {textValue(item.status) === 'blocked' ? <StatusBadge tone="red">有前置步骤</StatusBadge> : null}
-                    {canExecute ? <StatusBadge tone="blue">可由 AI 发起确认</StatusBadge> : null}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-muted">{textValue(item.reason)}</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-700">
-                    完成标准：{textValue(item.expectedResult)}
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                    {dependencies.length > 0 ? <span>前置：{dependencies.join('、')}</span> : null}
-                    {isSafeInternalPath(item.path) ? (
-                      <a
-                        href={item.path}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-950"
-                      >
-                        {textValue(item.status) === 'complete' ? '查看结果' : '去处理'}
-                        <ArrowUpRight size={12} />
-                      </a>
-                    ) : null}
-                    {actionPrompt && onRequestAction ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        className="text-xs"
-                        icon={<ShieldAlert size={13} />}
-                        onClick={() => onRequestAction(actionPrompt)}
-                        disabled={actionDisabled}
-                      >
-                        {recoverableActionIds.has(textValue(item.id, '')) ? '重新发起确认' : '发起确认'}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-      {safeguards.length > 0 ? (
-        <details className="mt-3 border-t border-slate-100 pt-3 text-xs text-muted">
-          <summary className="cursor-pointer font-medium text-slate-700">执行保护</summary>
-          <div className="mt-2 space-y-1">
-            {safeguards.map((item, index) => <div key={index}>{textValue(item)}</div>)}
-          </div>
-        </details>
-      ) : null}
-    </>
-  );
-}
-
-function OrderReadinessPlanResult({ result }: { result: Record<string, unknown> }) {
-  const data = asRecord(result.data);
-  const order = asRecord(data.order);
-  const metrics = asRecord(data.metrics);
-  const steps = arrayValue(data.steps);
-  const status = textValue(data.planStatus);
-  const statusMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    complete: { label: '无需处理', tone: 'green' },
-    ready_for_confirmation: { label: '可发起确认', tone: 'blue' },
-    action_required: { label: '待处理', tone: 'amber' },
-    needs_resolution: { label: '先修复数据', tone: 'red' },
-    waiting: { label: '等待跟进', tone: 'slate' },
-    not_applicable: { label: '不适用', tone: 'slate' },
-  };
-  const modeMeta: Record<string, { label: string; tone: StatusBadgeTone }> = {
-    confirmable: { label: 'AI可确认', tone: 'blue' },
-    manual: { label: '人工处理', tone: 'amber' },
-    needs_input: { label: '需要决定', tone: 'orange' },
-    monitor: { label: '等待跟进', tone: 'slate' },
-  };
-  const currentStatus = statusMeta[status] || { label: status || '未知', tone: 'slate' as StatusBadgeTone };
-  const stepTitles = new Map(steps.map((item) => [textValue(item.id), textValue(item.title)]));
-
-  return (
-    <>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink">
-            订单 #{textValue(order.id)} · {textValue(order.customerName, '未命名客户')}
-          </div>
-          <div className="mt-1 text-xs leading-5 text-muted">{textValue(data.summary)}</div>
-        </div>
-        <StatusBadge tone={currentStatus.tone}>{currentStatus.label}</StatusBadge>
-      </div>
-      <KeyValueRows rows={[
-        { label: '总步骤', value: metrics.totalSteps },
-        { label: 'AI可确认', value: metrics.confirmableSteps },
-        { label: '人工处理', value: metrics.manualSteps },
-        { label: '等待跟进', value: metrics.waitingSteps },
-        { label: '前置阻塞', value: metrics.blockedSteps },
-      ]} />
-      {steps.length > 0 ? (
-        <div className="mt-3 divide-y divide-slate-100 border-y border-slate-100">
-          {steps.map((item, index) => {
-            const mode = textValue(item.mode);
-            const currentMode = modeMeta[mode] || { label: mode || '处理', tone: 'slate' as StatusBadgeTone };
-            const dependencies = (Array.isArray(item.dependsOn) ? item.dependsOn : [])
-              .map((dependency) => stepTitles.get(String(dependency)) || String(dependency))
-              .filter(Boolean);
-            return (
-              <div key={textValue(item.id, String(index))} className="flex min-w-0 gap-3 py-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-xs font-semibold text-white">
-                  {textValue(item.sequence, String(index + 1))}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold text-ink">{textValue(item.title)}</div>
-                    <StatusBadge tone={currentMode.tone}>{currentMode.label}</StatusBadge>
-                    {textValue(item.status) === 'blocked' ? <StatusBadge tone="red">有前置步骤</StatusBadge> : null}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-muted">{textValue(item.reason)}</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-700">
-                    完成标准：{textValue(item.expectedResult)}
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                    <span>负责人：{textValue(item.owner, '管理员')}</span>
-                    {dependencies.length > 0 ? <span>前置：{dependencies.join('、')}</span> : null}
-                    {textValue(item.path).startsWith('/') ? (
-                      <a href={textValue(item.path)} className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-950">
-                        打开处理页面
-                        <ArrowUpRight size={12} />
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function OrderReadinessActionResult({ result }: { result: Record<string, unknown> }) {
-  const data = asRecord(result.data);
-  const action = asRecord(data.action);
-  const order = asRecord(data.order);
-  const nextPlan = asRecord(data.nextPlan);
-  const executionRun = asRecord(data.executionRun);
-
-  return (
-    <>
-      <div className="mt-3 flex items-start gap-3 border-b border-emerald-100 pb-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
-          <Check size={15} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink">{textValue(action.title, '处理步骤已执行')}</div>
-          <div className="mt-1 text-xs leading-5 text-muted">
-            订单 #{textValue(order.id)} · 当前状态 {textValue(order.status)}
-          </div>
-        </div>
-      </div>
-      <WorkflowExecutionRunSummary run={executionRun} warning={textValue(data.historyWarning, '')} />
-      {Object.keys(nextPlan).length > 0 ? (
-        <>
-          <div className="mt-3 text-xs font-semibold text-slate-700">重新检查后的处理方案</div>
-          <OrderReadinessPlanResult result={{ data: nextPlan }} />
-        </>
-      ) : null}
-    </>
-  );
-}
-
-function FactoryWorkflowActionResult({
-  result,
-  onRequestAction,
-  actionDisabled = false,
-}: {
-  result: Record<string, unknown>;
-  onRequestAction?: (prompt: string) => void;
-  actionDisabled?: boolean;
-}) {
-  const data = asRecord(result.data);
-  const action = asRecord(data.action);
-  const quotation = asRecord(data.quotation);
-  const order = asRecord(data.order);
-  const nextPlan = asRecord(data.nextPlan);
-  const workflowPlan = asRecord(data.workflowPlan);
-  const executionRun = asRecord(data.executionRun);
-
-  return (
-    <>
-      <div className="mt-3 flex items-start gap-3 border-b border-emerald-100 pb-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
-          <Check size={15} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-ink">{textValue(action.title, '工作流步骤已执行')}</div>
-          <div className="mt-1 text-xs leading-5 text-muted">
-            报价 #{textValue(quotation.id)} 已转为订单 #{textValue(order.id)} · 当前状态 {textValue(order.status)}
-          </div>
-        </div>
-      </div>
-      <WorkflowExecutionRunSummary run={executionRun} warning={textValue(data.historyWarning, '')} />
-      {Object.keys(nextPlan).length > 0 ? (
-        <>
-          <div className="mt-3 text-xs font-semibold text-slate-700">新订单生产准备</div>
-          <OrderReadinessPlanResult result={{ data: nextPlan }} />
-        </>
-      ) : null}
-      {Object.keys(workflowPlan).length > 0 ? (
-        <>
-          <div className="mt-3 text-xs font-semibold text-slate-700">原报价流程复查</div>
-          <FactoryExecutionPlanResult
-            result={{ data: workflowPlan }}
-            onRequestAction={onRequestAction}
-            actionDisabled={actionDisabled}
-          />
-        </>
-      ) : null}
-    </>
-  );
-}
-
-function CompareResult({ result }: { result: Record<string, unknown> }) {
-  const recipe1 = asRecord(result.recipe1);
-  const recipe2 = asRecord(result.recipe2);
-  const rows = arrayValue(result.comparison);
-  const differenceTone = (value: unknown): StatusBadgeTone => {
-    const label = textValue(value);
-    if (label.includes('仅配方1')) return 'amber';
-    if (label.includes('仅配方2')) return 'blue';
-    if (label.includes('型号')) return 'purple';
-    if (label.includes('数量')) return 'orange';
-    return 'red';
-  };
-
-  return (
-    <>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {[recipe1, recipe2].map((recipe, index) => (
-          <div key={index} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-sm font-semibold text-ink">{textValue(recipe.name)}</div>
-            <div className="mt-1 text-xs text-muted">{textValue(recipe.spec)}</div>
-            <div className="mt-3 flex items-center justify-between text-sm">
-              <span className="text-muted">成本</span>
-              <span className="font-semibold text-ink">{money(recipe.cost) || textValue(recipe.cost)}</span>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-sm">
-              <span className="text-muted">零件数</span>
-              <span className="font-semibold text-ink">{textValue(recipe.partsCount)}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <KeyValueRows rows={[{ label: '成本差额', value: money(result.costDiff) || result.costDiff }]} />
-      <DataTable
-        rows={rows}
-        columns={[
-          { key: 'name', label: '项目', render: (row) => textValue(row.name || row.model) },
-          {
-            key: 'difference',
-            label: '差异',
-            render: (row) => {
-              const label = textValue(row.difference || row.onlyIn);
-              return <StatusBadge tone={differenceTone(label)}>{label}</StatusBadge>;
-            },
-          },
-          { key: 'model1', label: '配方1型号', render: (row) => textValue(row.model1) },
-          { key: 'qty1', label: '配方1数量' },
-          { key: 'amount1', label: '配方1金额', render: (row) => money(row.amount1) || textValue(row.amount1) },
-          { key: 'model2', label: '配方2型号', render: (row) => textValue(row.model2) },
-          { key: 'qty2', label: '配方2数量' },
-          { key: 'amount2', label: '配方2金额', render: (row) => money(row.amount2) || textValue(row.amount2) },
-          { key: 'diff', label: '差额', render: (row) => money(row.diff) || textValue(row.diff) },
-        ]}
-      />
-    </>
-  );
-}
-
-function RotorResult({ result }: { result: Record<string, unknown> }) {
-  const templateInfo = asRecord(result.templateInfo);
-  const params = asRecord(result.params);
-  const history = arrayValue(result.history);
-  if (history.length > 0) {
-    return (
-      <DataTable
-        rows={history}
-        columns={[
-          { key: 'jobId', label: '任务' },
-          { key: 'status', label: '状态' },
-          { key: 'input', label: '输入' },
-          { key: 'createdAt', label: '时间', render: (row) => dateText(row.createdAt) },
-        ]}
-      />
-    );
-  }
-  return (
-    <>
-      <KeyValueRows rows={[
-        { label: '任务 ID', value: result.jobId },
-        { label: '状态', value: result.message },
-        { label: '模板', value: templateInfo.model },
-        { label: '机筒长度', value: templateInfo.barrelLength },
-        { label: '开档偏移', value: templateInfo.openOffset },
-        { label: '状态接口', value: result.statusUrl },
-      ]} />
-      <MetricGrid metrics={pickMetrics(params)} />
-    </>
-  );
-}
-
-function GenericResult({ result }: { result: Record<string, unknown> }) {
-  const source = unwrapResult(result);
-  const metrics = pickMetrics(source);
-  const rows = arrayValue(source.data || source.items || source.summary);
-  return (
-    <>
-      <MetricGrid metrics={metrics} />
-      <KeyValueRows rows={[
-        { label: '消息', value: source.message || result.message },
-        { label: '名称', value: source.name || source.model },
-        { label: '状态', value: source.status },
-        { label: '数量', value: source.count },
-      ]} />
-      {rows.length > 0 ? (
-        <DataTable
-          rows={rows}
-          columns={[
-            { key: 'name', label: '名称', render: (row) => textValue(row.name || row.model || row.recipeName || row.customer || row.id) },
-            { key: 'category', label: '类别' },
-            { key: 'price', label: '价格', render: (row) => money(row.price ?? row.cost ?? row.totalCost) || textValue(row.price ?? row.cost ?? row.totalCost) },
-            { key: 'status', label: '状态' },
-          ]}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function BusinessResult({
-  item,
-  onSendPrompt,
-  shortcutDisabled = false,
-}: {
-  item: AiToolResult;
-  onSendPrompt?: (prompt: string) => void;
-  shortcutDisabled?: boolean;
-}) {
-  const result = asRecord(item.result);
-  if (result.success === false) {
-    return (
-      <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-        <AlertCircle size={16} className="mt-0.5 shrink-0" />
-        <span>{textValue(result.error, '执行失败')}</span>
-      </div>
-    );
-  }
-
-  if (['get_all_parts', 'search_parts', 'create_part', 'update_part', 'batch_update_prices'].includes(item.name)) {
-    return <PartsResult name={item.name} result={result} />;
-  }
-  if (['get_all_recipes', 'create_recipe', 'update_recipe', 'delete_recipe'].includes(item.name)) {
-    return <RecipesResult result={result} />;
-  }
-  if (['query_recipe_cost_by_name', 'query_recipe_cost_by_id', 'full_calculate', 'calculate_coil_cost', 'dynamic_config_cost', 'get_copper_price'].includes(item.name)) {
-    return <CostResult result={result} />;
-  }
-  if (item.name === 'compare_recipes') return <CompareResult result={result} />;
-  if (item.name === 'get_management_action_center') return <ManagementActionCenterResult result={result} />;
-  if (item.name === 'plan_factory_workflow') {
-    return (
-      <FactoryExecutionPlanResult
-        result={result}
-        onRequestAction={onSendPrompt}
-        actionDisabled={shortcutDisabled}
-      />
-    );
-  }
-  if (item.name === 'execute_factory_workflow_step') {
-    return (
-      <FactoryWorkflowActionResult
-        result={result}
-        onRequestAction={onSendPrompt}
-        actionDisabled={shortcutDisabled}
-      />
-    );
-  }
-  if (item.name === 'get_order_readiness_overview') return <OrderReadinessOverviewResult result={result} />;
-  if (item.name === 'check_order_readiness') return <OrderReadinessResult result={result} />;
-  if (item.name === 'plan_order_readiness_actions') return <OrderReadinessPlanResult result={result} />;
-  if (item.name === 'execute_order_readiness_action') return <OrderReadinessActionResult result={result} />;
-  if (item.name.includes('order') || item.name === 'generate_purchase_list') return <OrderResult name={item.name} result={result} />;
-  if (item.name.includes('rotor') || item.name.includes('drawing') || item.name.includes('print')) return <RotorResult result={result} />;
-  return <GenericResult result={result} />;
-}
-
-function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
-  if (!plan.steps || plan.steps.length === 0) return null;
-  return (
-    <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="font-medium text-ink">执行计划</div>
-        <div className="text-xs text-muted">{plan.summary}</div>
-      </div>
-      <div className="mt-2 grid gap-2">
-        {plan.steps.map((step) => (
-          <div key={`${step.index}-${step.name}`} className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-slate-100 px-1.5 text-xs font-semibold text-slate-600">{step.index}</span>
-                <span className="font-medium text-ink">{step.label || toolLabel(step.name)}</span>
-                <StatusBadge tone={step.mode === 'write' ? 'amber' : 'blue'}>
-                  {step.mode === 'write' ? '需确认' : '只读'}
-                </StatusBadge>
-              </div>
-              {step.argsSummary && step.argsSummary.length > 0 ? (
-                <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted">
-                  {step.argsSummary.map((arg) => (
-                    <span key={`${step.name}-${arg.key}`} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5">
-                      {arg.key}: {arg.value}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            {step.requiresConfirmation ? (
-              <div className="text-xs text-amber-700">确认前不会写入</div>
-            ) : null}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function applyStreamEvent(item: ChatItem, event: AiStreamEvent): ChatItem {
-  if (event.type === 'status') return { ...item, status: event.status, statusMessage: event.message || '' };
-  if (event.type === 'provider') {
-    const { type: _type, ...provider } = event;
-    return { ...item, provider };
-  }
-  if (event.type === 'content') return { ...item, content: item.content + event.content, status: 'answering', statusMessage: '' };
-  if (event.type === 'tool_plan') return { ...item, toolPlan: { summary: event.summary, steps: event.steps || [] } };
-  if (event.type === 'tool_call') return { ...item, toolCalls: [...(item.toolCalls || []), { name: event.name, args: event.args }], status: 'calling', statusMessage: `调用 ${event.name}` };
-  if (event.type === 'tool_result') return { ...item, toolResults: [...(item.toolResults || []), { name: event.name, result: event.result }] };
-  if (event.type === 'detail') return { ...item, toolResults: event.toolResults || item.toolResults || [] };
-  if (event.type === 'done') return { ...item, status: 'done', statusMessage: '' };
-  if (event.type === 'error') return { ...item, status: 'error', statusMessage: event.message, content: item.content || event.message };
-  return item;
-}
-
-function ToolResultCard({
-  item,
-  onConfirmed,
-  onSendPrompt,
-  shortcutDisabled = false,
-  readOnly = false,
-}: {
-  item: AiToolResult;
-  onConfirmed: (next: AiToolResult) => void;
-  onSendPrompt?: (prompt: string) => void;
-  shortcutDisabled?: boolean;
-  readOnly?: boolean;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState('');
-  const result = item.result;
-
-  if (isConfirmationResult(result)) {
-    const confirmation = result.confirmation;
-    async function handleConfirm() {
-      if (!confirmation?.confirmationToken) {
-        setError('这张确认卡片已过期，请重新发起操作。');
-        return;
-      }
-      try {
-        setConfirming(true);
-        setError('');
-        const next = await confirmAiTool(confirmation.confirmationToken);
-        onConfirmed(next);
-      } catch (err) {
-        setError((err as Error).message || '确认执行失败');
-      } finally {
-        setConfirming(false);
-      }
-    }
-
-    return (
-      <div className="rounded-panel border border-amber-200 bg-amber-50 p-3 shadow-panel">
-        <div className="flex items-start gap-2">
-          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-white text-amber-700">
-            <ShieldAlert size={17} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-amber-950">{confirmation?.title || '待确认操作'}</div>
-            {confirmation?.summary ? <div className="mt-1 text-sm text-amber-900">{confirmation.summary}</div> : null}
-            {Array.isArray(confirmation?.rows) && confirmation.rows.length > 0 ? (
-              <div className="mt-2 grid gap-1 text-xs text-amber-950 sm:grid-cols-2">
-                {confirmation.rows.map((row, index) => (
-                  <div key={`${row.label}-${index}`} className="flex min-w-0 justify-between gap-3 rounded-md border border-amber-200/80 bg-white/70 px-2 py-1">
-                    <span className="text-amber-700">{row.label}</span>
-                    <span className="truncate font-medium">{row.value}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {confirmation?.warning ? <div className="mt-2 text-xs text-amber-800">{confirmation.warning}</div> : null}
-            {error ? <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700">{error}</div> : null}
-            <div className="mt-3 flex justify-end">
-              {readOnly ? (
-                <span className="text-xs text-amber-700">历史记录，仅供查看</span>
-              ) : (
-                <Button size="sm" variant="primary" onClick={handleConfirm} disabled={confirming} icon={confirming ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}>
-                  确认执行
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const Icon = resultIcon(item.name);
-  const record = asRecord(result);
-  const failed = record.success === false;
-  const display = asRecord(record.display);
-  const title = textValue(display.title, toolLabel(item.name));
-  const summary = textValue(record.summary || record.message || record.error, failed ? '执行失败' : '工具调用完成');
-  return (
-    <details className="group rounded-md border border-slate-200 bg-slate-50 text-sm">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2">
-        <span className="inline-flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-slate-600">
-            <Icon size={14} />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate font-medium text-ink">{title}</span>
-            <span className="block truncate text-xs text-muted">{summary}</span>
-          </span>
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <StatusBadge tone={failed ? 'red' : 'green'}>{failed ? '失败' : '完成'}</StatusBadge>
-          <ChevronDown size={14} className="text-slate-400 transition-transform group-open:rotate-180" />
-        </span>
-      </summary>
-      <div className="border-t border-slate-200 bg-white p-3">
-        <BusinessResult
-          item={item}
-          onSendPrompt={readOnly ? undefined : onSendPrompt}
-          shortcutDisabled={shortcutDisabled}
-        />
-        <RawDetails result={result} />
-      </div>
-    </details>
-  );
-}
-
-function AnswerProcess({
-  item,
-  onConfirmed,
-  onSendPrompt,
-  shortcutDisabled = false,
-}: {
-  item: ChatItem;
-  onConfirmed: (index: number, next: AiToolResult) => void;
-  onSendPrompt: (prompt: string) => void;
-  shortcutDisabled?: boolean;
-}) {
-  const toolResults = item.toolResults || [];
-  const evidence = collectAnswerEvidence(toolResults);
-  const hasEvidence = evidence.hasLiveBusiness || evidence.hasKnowledgeSnapshot || evidence.sources.length > 0;
-  const hasProcess = Boolean(item.toolPlan || item.toolCalls?.length || toolResults.length);
-  const requiresAttention = toolResults.some(tool => {
-    if (isConfirmationResult(tool.result)) return true;
-    return asRecord(tool.result).success === false;
-  });
-  const [open, setOpen] = useState(requiresAttention);
-  useEffect(() => {
-    if (requiresAttention) setOpen(true);
-  }, [requiresAttention]);
-  if (!hasEvidence && !hasProcess) return null;
-
-  const processCount = Math.max(
-    item.toolPlan?.steps?.length || 0,
-    item.toolCalls?.length || 0,
-    toolResults.length,
-  );
-
-  return (
-    <details
-      className="group mt-3 rounded-md border border-slate-200 bg-slate-50/70"
-      open={open}
-      onToggle={event => setOpen(event.currentTarget.open)}
-    >
-      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
-        <span className="inline-flex min-w-0 items-center gap-2">
-          <FileSearch size={15} className="shrink-0 text-slate-500" />
-          <span className="font-medium text-ink">回答依据与处理过程</span>
-          {evidence.sources.length ? <span className="text-xs text-muted">{evidence.sources.length} 条依据</span> : null}
-          {processCount ? <span className="text-xs text-muted">{processCount} 个步骤</span> : null}
-        </span>
-        <span className="inline-flex shrink-0 items-center gap-2">
-          {requiresAttention ? <StatusBadge tone="amber">需要处理</StatusBadge> : null}
-          <ChevronDown size={15} className="text-slate-400 transition-transform group-open:rotate-180" />
-        </span>
-      </summary>
-      <div className="border-t border-slate-200 bg-white px-3 pb-3">
-        {hasEvidence ? <AnswerEvidence toolResults={toolResults} /> : null}
-        {item.toolPlan ? <ToolPlanPanel plan={item.toolPlan} /> : null}
-        {item.toolCalls && item.toolCalls.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {item.toolCalls.map((call, index) => (
-              <span key={`${call.name}-${index}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
-                <Wrench size={12} />
-                {toolLabel(call.name)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {toolResults.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            {toolResults.map((tool, index) => (
-              <ToolResultCard
-                key={`${tool.name}-${index}`}
-                item={tool}
-                readOnly={item.historical}
-                onConfirmed={(next) => onConfirmed(index, next)}
-                onSendPrompt={onSendPrompt}
-                shortcutDisabled={shortcutDisabled}
-              />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </details>
-  );
 }
 
 type AiViewProps = {
@@ -1838,27 +71,52 @@ export function AiView({
 }: AiViewProps = {}) {
   const isPanel = variant === 'panel';
   const router = useRouter();
-  const [items, setItems] = useState<ChatItem[]>([]);
+  const {
+    items,
+    setItems,
+    loading,
+    setLoading,
+    apiMessages,
+    updateAssistant,
+    beginStream,
+    finishStream,
+    stopStream,
+  } = useAiMessageStream();
+  const {
+    conversations,
+    activeConversationId,
+    historyQuery,
+    historyLoading,
+    historyError,
+    openingConversationId,
+    deletingConversation,
+    filteredConversations,
+    setHistoryQuery,
+    setHistoryError,
+    addConversation,
+    clearActiveConversation,
+    refreshConversationList,
+    openConversation: loadConversation,
+    removeConversation,
+  } = useAiConversationHistory(loading);
+  const {
+    aiCapabilities,
+    pendingAttachments,
+    uploadingAttachment,
+    attachmentError,
+    fileInputRef,
+    selectAttachments,
+    discardPendingAttachment,
+    clearPendingAttachments,
+    restorePendingAttachments,
+    markAttachmentsPersisted,
+    discardAllPendingAttachments,
+  } = useAiAttachments(initialAttachmentId);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [asideMode, setAsideMode] = useState<AsideMode>('history');
+  const [asideMode, setAsideMode] = useState<AiAsideMode>('history');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [activeSampleCategory, setActiveSampleCategory] = useState<SampleCategory>('常用');
-  const [historyQuery, setHistoryQuery] = useState('');
-  const [conversations, setConversations] = useState<AiConversationSummary[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyError, setHistoryError] = useState('');
-  const [openingConversationId, setOpeningConversationId] = useState<number | null>(null);
+  const [activeSampleCategory, setActiveSampleCategory] = useState<AiSampleCategory>('常用');
   const [deleteTarget, setDeleteTarget] = useState<AiConversationSummary | null>(null);
-  const [deletingConversation, setDeletingConversation] = useState(false);
-  const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, AiAnswerFeedback>>({});
-  const [feedbackTarget, setFeedbackTarget] = useState<ChatItem | null>(null);
-  const [feedbackRating, setFeedbackRating] = useState<Exclude<AiAnswerFeedbackRating, 'helpful'>>('incorrect');
-  const [feedbackNote, setFeedbackNote] = useState('');
-  const [feedbackLearn, setFeedbackLearn] = useState(true);
-  const [feedbackSaving, setFeedbackSaving] = useState(false);
-  const [feedbackError, setFeedbackError] = useState('');
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
   const [promptLoading, setPromptLoading] = useState(false);
@@ -1868,99 +126,39 @@ export function AiView({
   const [knowledgeSyncing, setKnowledgeSyncing] = useState(false);
   const [knowledgeSyncResult, setKnowledgeSyncResult] = useState<KnowledgeSyncStats | null>(null);
   const [knowledgeSyncError, setKnowledgeSyncError] = useState('');
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [speechError, setSpeechError] = useState('');
-  const [aiCapabilities, setAiCapabilities] = useState<AiCapabilities | null>(null);
-  const [pendingAttachments, setPendingAttachments] = useState<AiAttachment[]>([]);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const [attachmentError, setAttachmentError] = useState('');
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
-  const [archiveTargetType, setArchiveTargetType] = useState<FactoryFileArchiveTargetType>('knowledge_document');
-  const [archiveQuery, setArchiveQuery] = useState('');
-  const [archiveTargets, setArchiveTargets] = useState<FactoryFileArchiveTarget[]>([]);
-  const [archiveTargetId, setArchiveTargetId] = useState('');
-  const [archiveTitle, setArchiveTitle] = useState('');
-  const [archiveNote, setArchiveNote] = useState('');
-  const [archiveTags, setArchiveTags] = useState('');
-  const [archiveDocumentType, setArchiveDocumentType] = useState<typeof documentTypeOptions[number]['value']>('other');
-  const [archiveLinks, setArchiveLinks] = useState<FactoryFileLink[]>([]);
-  const [archiveLoading, setArchiveLoading] = useState(false);
-  const [archiveSearching, setArchiveSearching] = useState(false);
-  const [archiveSaving, setArchiveSaving] = useState(false);
-  const [archiveError, setArchiveError] = useState('');
-  const [archiveSuccess, setArchiveSuccess] = useState('');
-  const abortRef = useRef<AbortController | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const speechBaseInputRef = useRef('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
-  const initialAttachmentAppliedRef = useRef<number | null>(null);
-  const transientAttachmentIdsRef = useRef(new Set<number>());
-
-  const apiMessages = useMemo<AiChatMessage[]>(() => (
-    items
-      .filter((item) => item.role === 'user' || (item.role === 'assistant' && item.content.trim()))
-      .map((item) => ({
-        role: item.role,
-        content: item.content,
-        ...(item.attachments?.length ? { attachments: item.attachments } : {}),
-      }))
-  ), [items]);
-  const visibleSamples = useMemo(() => (
-    samples.filter((sample) => sample.category === activeSampleCategory)
-  ), [activeSampleCategory]);
-  const filteredConversations = useMemo(() => {
-    const query = historyQuery.trim().toLocaleLowerCase();
-    if (!query) return conversations;
-    return conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(query));
-  }, [conversations, historyQuery]);
-
-  function updateAssistant(id: string, updater: (item: ChatItem) => ChatItem) {
-    setItems((current) => current.map((item) => (item.id === id ? updater(item) : item)));
-  }
-
-  useEffect(() => {
-    void getAiCapabilities()
-      .then(setAiCapabilities)
-      .catch((error) => setAttachmentError((error as Error).message || '读取模型能力失败'));
-  }, []);
+  const {
+    speechSupported,
+    isListening,
+    speechError,
+    stopVoiceInput,
+    toggleVoiceInput,
+  } = useAiSpeechInput(input, setInput);
+  const {
+    feedbackByMessageId,
+    feedbackTarget,
+    feedbackRating,
+    feedbackNote,
+    feedbackLearn,
+    feedbackSaving,
+    feedbackError,
+    setFeedbackByMessageId,
+    setFeedbackNote,
+    setFeedbackLearn,
+    markAnswerHelpful,
+    openAnswerIssue,
+    saveAnswerIssue,
+    changeFeedbackRating,
+    resetFeedback,
+    closeFeedbackDialog,
+  } = useAiAnswerFeedback(setHistoryError);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [items]);
-
-  useEffect(() => {
-    let active = true;
-    void listAiConversations()
-      .then((rows) => {
-        if (active) setConversations(rows);
-      })
-      .catch((error) => {
-        if (active) setHistoryError((error as Error).message || '读取会话历史失败');
-      })
-      .finally(() => {
-        if (active) setHistoryLoading(false);
-      });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    setSpeechSupported(Boolean(getSpeechRecognitionConstructor()));
-    return () => {
-      const recognition = speechRecognitionRef.current;
-      if (recognition) {
-        recognition.onstart = null;
-        recognition.onresult = null;
-        recognition.onerror = null;
-        recognition.onend = null;
-        recognition.abort();
-      }
-      speechRecognitionRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     const prompt = initialPrompt.trim();
@@ -1968,95 +166,6 @@ export function AiView({
     initialPromptAppliedRef.current = true;
     setInput(prompt);
   }, [initialPrompt]);
-
-  useEffect(() => {
-    if (!initialAttachmentId || initialAttachmentAppliedRef.current === initialAttachmentId) return;
-    const previousInitialAttachmentId = initialAttachmentAppliedRef.current;
-    initialAttachmentAppliedRef.current = initialAttachmentId;
-    setUploadingAttachment(true);
-    setAttachmentError('');
-    void getFactoryFile(initialAttachmentId)
-      .then((stored) => {
-        const attachment: AiAttachment = {
-          id: stored.id,
-          originalName: stored.originalName,
-          detectedType: stored.detectedType,
-          mimeType: stored.mimeType,
-          fileSize: stored.fileSize,
-          downloadPath: stored.downloadPath,
-          parserStatus: stored.parserStatus,
-          parserSummary: stored.parserSummary,
-        };
-        setPendingAttachments((current) => {
-          const retained = previousInitialAttachmentId
-            ? current.filter(item => item.id !== previousInitialAttachmentId)
-            : current;
-          const merged = new Map([...retained, attachment].map(item => [item.id, item]));
-          return Array.from(merged.values()).slice(0, aiCapabilities?.maxAttachments || 4);
-        });
-      })
-      .catch((error) => setAttachmentError((error as Error).message || '读取订单附件失败'))
-      .finally(() => setUploadingAttachment(false));
-  }, [aiCapabilities?.maxAttachments, initialAttachmentId]);
-
-  function stopVoiceInput() {
-    speechRecognitionRef.current?.stop();
-  }
-
-  function toggleVoiceInput() {
-    if (isListening) {
-      stopVoiceInput();
-      return;
-    }
-
-    const Recognition = getSpeechRecognitionConstructor();
-    if (!Recognition) {
-      setSpeechError('当前浏览器不支持语音输入，请使用 Chrome、Edge 或 Safari。');
-      return;
-    }
-
-    const recognition = new Recognition();
-    speechRecognitionRef.current = recognition;
-    speechBaseInputRef.current = input;
-    recognition.lang = 'zh-CN';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.onstart = () => {
-      setSpeechError('');
-      setIsListening(true);
-    };
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let index = 0; index < event.results.length; index += 1) {
-        transcript += event.results[index]?.[0]?.transcript || '';
-      }
-      setInput(appendSpeechTranscript(speechBaseInputRef.current, transcript));
-    };
-    recognition.onerror = (event) => {
-      if (event.error !== 'aborted') setSpeechError(speechErrorMessage(event.error));
-    };
-    recognition.onend = () => {
-      setIsListening(false);
-      speechRecognitionRef.current = null;
-    };
-
-    try {
-      recognition.start();
-    } catch {
-      speechRecognitionRef.current = null;
-      setIsListening(false);
-      setSpeechError('麦克风启动失败，请重试。');
-    }
-  }
-
-  async function refreshConversationList() {
-    try {
-      setConversations(await listAiConversations());
-      setHistoryError('');
-    } catch (error) {
-      setHistoryError((error as Error).message || '读取会话历史失败');
-    }
-  }
 
   async function sendMessage(text: string) {
     const attachments = pendingAttachments;
@@ -2083,8 +192,7 @@ export function AiView({
     }];
     setItems((current) => [...current, userItem, assistantItem]);
     setInput('');
-    setPendingAttachments([]);
-    setAttachmentError('');
+    clearPendingAttachments();
     setLoading(true);
 
     let conversationId = activeConversationId;
@@ -2094,33 +202,29 @@ export function AiView({
       if (!conversationId) {
         const conversation = await createAiConversation(content);
         conversationId = conversation.id;
-        setActiveConversationId(conversation.id);
-        setConversations((current) => [conversation, ...current]);
+        addConversation(conversation);
       }
       await appendAiConversationMessage(conversationId, {
         role: 'user',
         content,
         metadata: attachments.length > 0 ? { attachments } : undefined,
       });
-      for (const attachment of attachments) {
-        transientAttachmentIdsRef.current.delete(attachment.id);
-      }
+      markAttachmentsPersisted(attachments);
       setHistoryError('');
     } catch (error) {
       const message = (error as Error).message || '保存会话失败';
       updateAssistant(assistantId, (item) => ({ ...item, status: 'error', statusMessage: message, content: message }));
       setHistoryError(message);
-      setPendingAttachments(attachments);
+      restorePendingAttachments(attachments);
       setLoading(false);
       return;
     }
 
     try {
-      const controller = new AbortController();
-      abortRef.current = controller;
+      const controller = beginStream();
       await streamAiChat(nextMessages, (event) => {
-        finalAssistantItem = applyStreamEvent(finalAssistantItem, event);
-        updateAssistant(assistantId, (item) => applyStreamEvent(item, event));
+        finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
+        updateAssistant(assistantId, (item) => applyAiStreamEvent(item, event));
       }, controller.signal, pageContext);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
@@ -2156,143 +260,7 @@ export function AiView({
           setHistoryError((error as Error).message || '保存 AI 回复失败');
         }
       }
-      setLoading(false);
-      abortRef.current = null;
-    }
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void sendMessage(input);
-  }
-
-  function handleStop() {
-    abortRef.current?.abort();
-    setLoading(false);
-  }
-
-  async function handleAttachmentSelection(files: FileList | null) {
-    if (!files?.length || uploadingAttachment) return;
-    const maximum = aiCapabilities?.maxAttachments || 4;
-    const selected = Array.from(files).slice(0, Math.max(0, maximum - pendingAttachments.length));
-    if (selected.length === 0) {
-      setAttachmentError(`每条消息最多上传 ${maximum} 个附件`);
-      return;
-    }
-    setUploadingAttachment(true);
-    setAttachmentError('');
-    const uploaded: AiAttachment[] = [];
-    try {
-      for (const file of selected) {
-        const stored = await uploadFactoryFile(file);
-        transientAttachmentIdsRef.current.add(stored.id);
-        uploaded.push({
-          id: stored.id,
-          originalName: stored.originalName,
-          detectedType: stored.detectedType,
-          mimeType: stored.mimeType,
-          fileSize: stored.fileSize,
-          downloadPath: stored.downloadPath,
-          parserStatus: stored.parserStatus,
-          parserSummary: stored.parserSummary,
-        });
-      }
-      setPendingAttachments(current => {
-        const merged = new Map([...current, ...uploaded].map(attachment => [attachment.id, attachment]));
-        return Array.from(merged.values()).slice(0, maximum);
-      });
-    } catch (error) {
-      for (const attachment of uploaded) {
-        transientAttachmentIdsRef.current.delete(attachment.id);
-        void deleteFactoryFile(attachment.id).catch(() => {});
-      }
-      setAttachmentError((error as Error).message || '上传附件失败');
-    } finally {
-      setUploadingAttachment(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  function discardPendingAttachment(attachment: AiAttachment) {
-    setPendingAttachments(current => current.filter(item => item.id !== attachment.id));
-    if (transientAttachmentIdsRef.current.delete(attachment.id)) {
-      void deleteFactoryFile(attachment.id).catch(() => {
-        // A deduplicated file may already be referenced by business data or another conversation.
-      });
-    }
-  }
-
-  async function openArchiveDialog(attachment: AiAttachment) {
-    setArchiveAttachment(attachment);
-    setArchiveTargetType('knowledge_document');
-    setArchiveQuery('');
-    setArchiveTargets([]);
-    setArchiveTargetId('');
-    setArchiveTitle(attachment.originalName.replace(/\.[^.]+$/, ''));
-    setArchiveNote('');
-    setArchiveTags('');
-    setArchiveDocumentType(defaultArchiveDocumentType(attachment));
-    setArchiveLinks([]);
-    setArchiveError('');
-    setArchiveSuccess('');
-    setArchiveLoading(true);
-    try {
-      setArchiveLinks(await listFactoryFileLinks(attachment.id));
-    } catch (error) {
-      setArchiveError((error as Error).message || '读取归档记录失败');
-    } finally {
-      setArchiveLoading(false);
-    }
-  }
-
-  async function searchArchiveTargets() {
-    if (archiveTargetType === 'knowledge_document') return;
-    setArchiveSearching(true);
-    setArchiveError('');
-    setArchiveSuccess('');
-    try {
-      const targets = await searchFactoryFileArchiveTargets(archiveTargetType, archiveQuery);
-      setArchiveTargets(targets);
-      setArchiveTargetId(targets.length === 1 ? String(targets[0].id) : '');
-      if (targets.length === 0) setArchiveError('没有找到匹配的业务对象');
-    } catch (error) {
-      setArchiveTargets([]);
-      setArchiveTargetId('');
-      setArchiveError((error as Error).message || '查找归档目标失败');
-    } finally {
-      setArchiveSearching(false);
-    }
-  }
-
-  async function saveFileArchive() {
-    if (!archiveAttachment || archiveSaving) return;
-    if (archiveTargetType !== 'knowledge_document' && !Number(archiveTargetId)) {
-      setArchiveError('请先搜索并选择一个归档目标');
-      return;
-    }
-    setArchiveSaving(true);
-    setArchiveError('');
-    setArchiveSuccess('');
-    try {
-      const result = await archiveFactoryFile(archiveAttachment.id, {
-        targetType: archiveTargetType,
-        ...(archiveTargetType === 'knowledge_document' ? {} : { targetId: Number(archiveTargetId) }),
-        title: archiveTitle,
-        note: archiveNote,
-        documentType: archiveDocumentType,
-        tags: archiveTags.split(/[,，\n]/).map(item => item.trim()).filter(Boolean),
-        source: 'manual',
-      });
-      setArchiveSuccess(
-        result.deduplicated
-          ? `这个文件已经归档到 ${result.link.target?.label || archiveTargetLabel(archiveTargetType)}`
-          : `已归档到 ${result.link.target?.label || archiveTargetLabel(archiveTargetType)}`
-      );
-      setArchiveLinks(await listFactoryFileLinks(archiveAttachment.id));
-    } catch (error) {
-      setArchiveError((error as Error).message || '归档文件失败');
-    } finally {
-      setArchiveSaving(false);
+      finishStream();
     }
   }
 
@@ -2312,120 +280,30 @@ export function AiView({
   function startNewConversation() {
     if (loading) return;
     if (isListening) stopVoiceInput();
-    for (const attachment of pendingAttachments) {
-      if (transientAttachmentIdsRef.current.delete(attachment.id)) {
-        void deleteFactoryFile(attachment.id).catch(() => {});
-      }
-    }
-    setActiveConversationId(null);
+    discardAllPendingAttachments();
+    clearActiveConversation();
     setItems([]);
-    setFeedbackByMessageId({});
+    resetFeedback();
     setInput('');
-    setPendingAttachments([]);
-    setAttachmentError('');
     setAsideMode('history');
     setMobileSidebarOpen(false);
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
   async function openConversation(id: number) {
-    if (loading || openingConversationId) return;
-    setOpeningConversationId(id);
-    setHistoryError('');
-    try {
-      const [conversation, feedback] = await Promise.all([
-        getAiConversation(id),
-        listAiAnswerFeedback({ conversationId: id }),
-      ]);
-      setActiveConversationId(conversation.id);
-      setFeedbackByMessageId(Object.fromEntries(feedback.items.map(item => [item.messageId, item])));
-      setItems(conversation.messages.map((message) => ({
-        id: `saved-${message.id}`,
-        role: message.role,
-        content: message.content,
-        status: 'done',
-        toolPlan: message.metadata?.toolPlan,
-        toolCalls: message.metadata?.toolCalls || [],
-        toolResults: message.metadata?.toolResults || [],
-        attachments: message.metadata?.attachments || [],
-        provider: message.metadata?.provider,
-        persistedMessageId: message.id,
-        historical: true,
-      })));
-      setMobileSidebarOpen(false);
-    } catch (error) {
-      setHistoryError((error as Error).message || '读取会话失败');
-    } finally {
-      setOpeningConversationId(null);
-    }
-  }
-
-  async function markAnswerHelpful(item: ChatItem) {
-    if (!item.persistedMessageId || feedbackSaving) return;
-    setFeedbackSaving(true);
-    setFeedbackError('');
-    try {
-      const feedback = await submitAiAnswerFeedback({
-        messageId: item.persistedMessageId,
-        rating: 'helpful',
-      });
-      setFeedbackByMessageId(current => ({ ...current, [feedback.messageId]: feedback }));
-    } catch (error) {
-      const message = (error as Error).message || '保存反馈失败';
-      setFeedbackError(message);
-      setHistoryError(message);
-    } finally {
-      setFeedbackSaving(false);
-    }
-  }
-
-  function openAnswerIssue(item: ChatItem) {
-    const existing = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
-    const issueRating = existing?.rating !== 'helpful' ? existing?.rating : undefined;
-    setFeedbackTarget(item);
-    setFeedbackRating(issueRating || 'incorrect');
-    setFeedbackNote(existing?.note || '');
-    setFeedbackLearn(existing?.learningRule?.status === 'active' || !existing);
-    setFeedbackError('');
-  }
-
-  async function saveAnswerIssue() {
-    if (!feedbackTarget?.persistedMessageId || feedbackSaving) return;
-    if (feedbackLearn && feedbackRating === 'incorrect' && !feedbackNote.trim()) {
-      setFeedbackError('让 AI 长期记住时，请填写以后应该遵守的正确做法。');
-      return;
-    }
-    setFeedbackSaving(true);
-    setFeedbackError('');
-    try {
-      const feedback = await submitAiAnswerFeedback({
-        messageId: feedbackTarget.persistedMessageId,
-        rating: feedbackRating,
-        note: feedbackNote,
-        learnFromCorrection: feedbackRating === 'incorrect' && feedbackLearn,
-      });
-      setFeedbackByMessageId(current => ({ ...current, [feedback.messageId]: feedback }));
-      setFeedbackTarget(null);
-    } catch (error) {
-      setFeedbackError((error as Error).message || '保存反馈失败');
-    } finally {
-      setFeedbackSaving(false);
-    }
+    const opened = await loadConversation(id);
+    if (!opened) return;
+    setFeedbackByMessageId(opened.feedbackByMessageId);
+    setItems(opened.items);
+    setMobileSidebarOpen(false);
   }
 
   async function confirmDeleteConversation() {
     if (!deleteTarget) return;
-    setDeletingConversation(true);
-    try {
-      await deleteAiConversation(deleteTarget.id);
-      if (activeConversationId === deleteTarget.id) startNewConversation();
-      setDeleteTarget(null);
-      await refreshConversationList();
-    } catch (error) {
-      setHistoryError((error as Error).message || '删除会话失败');
-    } finally {
-      setDeletingConversation(false);
-    }
+    const removedActiveConversation = await removeConversation(deleteTarget.id);
+    if (removedActiveConversation === null) return;
+    if (removedActiveConversation) startNewConversation();
+    setDeleteTarget(null);
   }
 
   async function openPromptEditor() {
@@ -2566,843 +444,144 @@ export function AiView({
         </div>
 
         <div className={`grid min-h-0 min-w-0 flex-1 ${isPanel ? '' : 'lg:grid-cols-[310px_minmax(0,1fr)]'}`}>
-          <aside className={`${isPanel ? 'hidden' : 'hidden lg:flex'} min-h-0 min-w-0 flex-col border-r border-line bg-white p-4`}>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-                {asideMode === 'history' ? <History size={16} /> : <MessageSquareText size={16} />}
-                {asideMode === 'history' ? '会话记录' : '任务模板'}
-              </div>
-              <SegmentedControl value={asideMode} options={asideModeOptions} onChange={setAsideMode} ariaLabel="AI 侧栏内容" />
-            </div>
-
-            {asideMode === 'history' ? (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <label className="relative mb-2 block">
-                  <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
-                  <input
-                    type="search"
-                    value={historyQuery}
-                    onChange={(event) => setHistoryQuery(event.target.value)}
-                    placeholder="搜索会话"
-                    aria-label="搜索会话"
-                    className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-                  />
-                </label>
-                {historyError ? (
-                  <div className="mb-2 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
-                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                    <span>{historyError}</span>
-                  </div>
-                ) : null}
-                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-                  {historyLoading ? (
-                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>
-                  ) : conversations.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-sm text-muted">暂无历史会话</div>
-                  ) : filteredConversations.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-sm text-muted">没有匹配的会话</div>
-                  ) : filteredConversations.map((conversation) => (
-                    <div key={conversation.id} className={`group flex items-center gap-1 rounded-md border p-1 ${activeConversationId === conversation.id ? 'border-slate-300 bg-slate-100' : 'border-transparent hover:bg-slate-50'}`}>
-                      <button
-                        type="button"
-                        onClick={() => void openConversation(conversation.id)}
-                        disabled={loading || openingConversationId !== null}
-                        className="min-w-0 flex-1 rounded px-2 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <span className="flex items-center gap-2">
-                          {openingConversationId === conversation.id ? <Loader2 size={13} className="shrink-0 animate-spin text-muted" /> : <MessageSquareText size={13} className="shrink-0 text-muted" />}
-                          <span className="truncate text-sm font-medium text-ink">{conversation.title}</span>
-                        </span>
-                        <span className="mt-1 block truncate pl-5 text-xs text-muted">{conversation.messageCount} 条 · {dateText(conversation.updatedAt)}</span>
-                      </button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-8 px-0 text-slate-400 opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
-                        icon={<Trash2 size={14} />}
-                        aria-label={`删除会话 ${conversation.title}`}
-                        title="删除会话"
-                        onClick={() => setDeleteTarget(conversation)}
-                        disabled={loading}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1">
-                <SegmentedControl value={activeSampleCategory} options={sampleCategoryOptions} onChange={setActiveSampleCategory} ariaLabel="AI 任务模板分类" />
-                <div className="-mx-1 mt-3 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:max-h-[calc(100vh-21rem)] lg:grid-cols-1 lg:overflow-y-auto lg:px-0 lg:pb-0">
-                  {visibleSamples.map((sample) => {
-                    const Icon = sample.icon;
-                    return (
-                      <button
-                        key={sample.prompt}
-                        type="button"
-                        onClick={() => void sendMessage(sample.prompt)}
-                        disabled={loading}
-                        className="group flex min-h-14 min-w-[190px] items-center gap-3 rounded-panel border border-line bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 lg:min-h-16 lg:min-w-0"
-                      >
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600 group-hover:text-ink"><Icon size={17} /></span>
-                        <span className="min-w-0">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-sm font-medium text-ink">{sample.label}</span>
-                            <StatusBadge tone={sample.mode === 'write' ? 'amber' : 'blue'} className="h-5 min-w-0 px-1.5">{sample.mode === 'write' ? '确认' : '只读'}</StatusBadge>
-                          </span>
-                          <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            <div className="mt-3 border-t border-line pt-2">
-              <Button variant="ghost" size="sm" className="w-full justify-start text-muted" icon={<Pencil size={15} />} onClick={() => void openPromptEditor()} disabled={promptLoading || promptSaving}>
-                工厂配置
-              </Button>
-            </div>
-          </aside>
+          <AiDesktopSidebar
+            hidden={isPanel}
+            asideMode={asideMode}
+            activeSampleCategory={activeSampleCategory}
+            conversations={conversations}
+            filteredConversations={filteredConversations}
+            activeConversationId={activeConversationId}
+            openingConversationId={openingConversationId}
+            historyQuery={historyQuery}
+            historyLoading={historyLoading}
+            historyError={historyError}
+            loading={loading}
+            promptBusy={promptLoading || promptSaving}
+            onAsideModeChange={setAsideMode}
+            onSampleCategoryChange={setActiveSampleCategory}
+            onHistoryQueryChange={setHistoryQuery}
+            onOpenConversation={(id) => void openConversation(id)}
+            onDeleteConversation={setDeleteTarget}
+            onRunSample={(prompt) => void sendMessage(prompt)}
+            onEditPrompt={() => void openPromptEditor()}
+          />
 
           <section className="flex min-h-0 min-w-0 flex-col bg-white md:bg-slate-50">
-            <div ref={scrollRef} className={`flex-1 overflow-y-auto ${isPanel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
-              {items.length === 0 ? (
-                <div className={`flex h-full items-center justify-center ${isPanel ? 'min-h-[220px]' : 'min-h-[220px] md:min-h-[360px]'}`}>
-                  <div className={`w-full px-2 py-7 text-center ${isPanel ? 'max-w-lg' : 'max-w-2xl md:rounded-panel md:border md:border-line md:bg-white md:px-7 md:shadow-panel'}`}>
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-ink text-white">
-                      <Bot size={22} />
-                    </div>
-                    <div className="mt-4 text-lg font-semibold text-ink">今天想先处理什么？</div>
-                    <p className="mt-1 text-sm leading-6 text-muted">直接描述任务，或从常用操作开始</p>
-                    <div className={`mx-auto mt-5 grid max-w-xl gap-2 ${isPanel ? '' : 'sm:grid-cols-2'}`}>
-                      {(isPanel ? starterSamples.slice(0, 2) : starterSamples).map((sample) => {
-                        const Icon = sample.icon;
-                        return (
-                          <button
-                            key={sample.prompt}
-                            type="button"
-                            onClick={() => void sendMessage(sample.prompt)}
-                            disabled={loading}
-                            className="group flex min-h-16 items-center gap-3 rounded-md border border-line bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-slate-300 hover:bg-white disabled:opacity-60"
-                          >
-                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600 group-hover:text-ink">
-                              <Icon size={17} />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block text-sm font-medium text-ink">{sample.label}</span>
-                              <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+            <AiMessageList
+              items={items}
+              panel={isPanel}
+              loading={loading}
+              feedbackByMessageId={feedbackByMessageId}
+              feedbackSaving={feedbackSaving}
+              scrollRef={scrollRef}
+              onRunSample={(prompt) => void sendMessage(prompt)}
+              onArchive={setArchiveAttachment}
+              onConfirmed={replaceToolResult}
+              onMarkHelpful={(item) => void markAnswerHelpful(item)}
+              onReportIssue={openAnswerIssue}
+            />
 
-              {items.map((item) => {
-                const answerFeedback = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
-                return (
-                <div key={item.id} className={`mx-auto w-full max-w-4xl ${item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}>
-                  <div className={`text-ink ${isPanel ? 'max-w-[94%]' : 'max-w-[940px]'} ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
-                    <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${item.role === 'user' ? 'text-muted md:text-slate-200' : 'text-muted'} ${item.role === 'user' ? 'hidden md:flex' : ''}`}>
-                      <span className={`hidden h-6 w-6 items-center justify-center rounded-md md:inline-flex ${item.role === 'user' ? 'bg-white/10' : 'bg-slate-100 text-slate-600'}`}>
-                        {item.role === 'user' ? <UserRound size={14} /> : <Bot size={14} />}
-                      </span>
-                      <span>{item.role === 'user' ? '你' : 'AI'}</span>
-                      {item.role === 'assistant' && item.provider ? (
-                        <StatusBadge tone={item.provider.provider === 'kimi' ? 'blue' : 'custom'} className="h-6 min-w-0 px-2">
-                          {item.provider.displayName}{item.provider.fallback ? '（已降级）' : ''}
-                        </StatusBadge>
-                      ) : null}
-                      {item.status && item.status !== 'done' ? (
-                        <StatusBadge tone="custom" className={`h-6 min-w-0 border-transparent px-2 ${item.role === 'user' ? 'bg-white/10 text-slate-100' : 'bg-slate-100 text-slate-600'}`}>
-                          {item.statusMessage || item.status}
-                        </StatusBadge>
-                      ) : null}
-                    </div>
-                    {item.attachments?.length ? (
-                      <div className="mb-2 grid gap-2 sm:grid-cols-2">
-                        {item.attachments.map((attachment) => (
-                          <div
-                            key={attachment.id}
-                            className={`min-w-0 overflow-hidden rounded-md border ${item.role === 'user' ? 'border-slate-200 bg-white text-ink md:border-white/20 md:bg-white/10 md:text-white' : 'border-line bg-slate-50'}`}
-                          >
-                            {attachment.detectedType === 'image' ? (
-                              <a href={attachment.downloadPath} target="_blank" rel="noreferrer" className="block">
-                                <img
-                                  src={`${attachment.downloadPath}?inline=1`}
-                                  alt={attachment.originalName}
-                                  className="max-h-64 w-full bg-slate-100 object-contain"
-                                />
-                              </a>
-                            ) : null}
-                            <span className="flex min-w-0 items-center gap-1 px-1.5 py-1.5">
-                              <a href={attachment.downloadPath} target="_blank" rel="noreferrer" className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-0.5 hover:bg-black/5">
-                                {attachment.detectedType === 'image'
-                                  ? <ImageIcon size={15} className="shrink-0" />
-                                  : <FileText size={15} className="shrink-0" />}
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-xs font-medium">{attachment.originalName}</span>
-                                  <span className={`mt-0.5 block text-[11px] ${item.role === 'user' ? 'text-muted md:text-slate-300' : 'text-muted'}`}>
-                                    {fileSizeText(attachment.fileSize)}
-                                  </span>
-                                </span>
-                              </a>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={`h-8 w-8 px-0 ${item.role === 'user' ? 'md:text-slate-200 md:hover:bg-white/10 md:hover:text-white' : ''}`}
-                                icon={<Archive size={14} />}
-                                aria-label={`归档 ${attachment.originalName}`}
-                                title="归档到业务资料"
-                                onClick={() => void openArchiveDialog(attachment)}
-                              />
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {item.content ? (
-                      item.role === 'assistant'
-                        ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
-                        : <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div>
-                    ) : null}
-                    {item.role === 'assistant' && loading && item.status !== 'done' && !item.content ? (
-                      <div className="flex items-center gap-2 text-sm text-muted">
-                        <Loader2 size={15} className="animate-spin" />
-                        {item.statusMessage || '处理中...'}
-                      </div>
-                    ) : null}
-                    {item.role === 'assistant' ? (
-                      <AnswerProcess
-                        item={item}
-                        onConfirmed={(index, next) => replaceToolResult(item.id, index, next)}
-                        onSendPrompt={(prompt) => void sendMessage(prompt)}
-                        shortcutDisabled={loading}
-                      />
-                    ) : null}
-                    {item.role === 'assistant' && item.persistedMessageId && item.status !== 'error' ? (
-                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2">
-                        <span className="text-xs text-muted">这条回答是否可靠？</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={`h-8 px-2 text-xs ${answerFeedback?.rating === 'helpful' ? 'bg-emerald-50 text-emerald-700' : ''}`}
-                          icon={<ThumbsUp size={14} />}
-                          onClick={() => void markAnswerHelpful(item)}
-                          disabled={feedbackSaving}
-                        >
-                          {answerFeedback?.rating === 'helpful' ? '已标记准确' : '准确'}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={`h-8 px-2 text-xs ${answerFeedback && answerFeedback.rating !== 'helpful' ? 'bg-amber-50 text-amber-800' : ''}`}
-                          icon={<MessageSquareWarning size={14} />}
-                          onClick={() => openAnswerIssue(item)}
-                          disabled={feedbackSaving}
-                        >
-                          {answerFeedback && answerFeedback.rating !== 'helpful' ? '已报告问题' : '报告问题'}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-
-            <form onSubmit={handleSubmit} className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${isPanel ? 'px-3 pt-2 xl:p-3' : 'px-3 pt-2 md:p-4'}`}>
-              {isPanel && pageContext ? (
-                <div className="mb-2 flex min-w-0 items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs text-sky-900" aria-label="AI 页面上下文">
-                  <ReceiptText size={14} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{pageContext.label}</span>
-                  <span className="shrink-0 text-sky-700">实时查询</span>
-                </div>
-              ) : null}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp"
-                className="hidden"
-                onChange={(event) => void handleAttachmentSelection(event.target.files)}
-              />
-              {pendingAttachments.length > 0 ? (
-                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                  {pendingAttachments.map((attachment) => (
-                    <div key={`pending-${attachment.id}`} className="relative w-32 shrink-0 overflow-hidden rounded-md border border-line bg-slate-50">
-                      {attachment.detectedType === 'image' ? (
-                        <img src={`${attachment.downloadPath}?inline=1`} alt="" className="h-20 w-full bg-slate-100 object-cover" />
-                      ) : (
-                        <span className="flex h-20 items-center justify-center text-slate-500"><FileText size={24} /></span>
-                      )}
-                      <div className="px-2 py-1.5 pr-7">
-                        <div className="truncate text-xs text-ink">{attachment.originalName}</div>
-                        <div className="mt-0.5 truncate text-[11px] text-muted">{attachmentParserText(attachment)}</div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1 h-7 w-7 bg-white/90 px-0 text-slate-600 shadow-sm"
-                        icon={<X size={14} />}
-                        aria-label={`移除 ${attachment.originalName}`}
-                        title="移除附件"
-                        onClick={() => discardPendingAttachment(attachment)}
-                        disabled={loading}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="flex items-end gap-2 rounded-2xl border border-line bg-slate-50 p-1.5 shadow-panel md:rounded-panel md:p-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-10 w-10 shrink-0 rounded-full px-0 md:h-9 md:w-9"
-                  icon={uploadingAttachment ? <Loader2 size={17} className="animate-spin" /> : <Paperclip size={17} />}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading || uploadingAttachment || pendingAttachments.length >= (aiCapabilities?.maxAttachments || 4)}
-                  aria-label="上传文件或图片"
-                  title="上传文件或图片"
-                />
-                <textarea
-                  ref={composerRef}
-                  value={input}
-                  onChange={(event) => {
-                    if (isListening) stopVoiceInput();
-                    setInput(event.target.value);
-                  }}
-                  placeholder="输入要查询或处理的事情..."
-                  rows={1}
-                  className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-slate-400 md:min-h-11 md:text-sm"
-                  disabled={loading}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void sendMessage(input);
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className={`h-10 w-10 shrink-0 rounded-full px-0 md:h-9 md:w-9 ${isListening ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100' : ''}`}
-                  icon={isListening ? <MicOff size={17} /> : <Mic size={17} />}
-                  onClick={toggleVoiceInput}
-                  disabled={loading || !speechSupported}
-                  aria-label={isListening ? '停止语音输入' : '开始语音输入'}
-                  aria-pressed={isListening}
-                  title={speechSupported ? (isListening ? '停止语音输入' : '语音输入') : '当前浏览器不支持语音输入'}
-                />
-                {loading ? (
-                  <Button variant="secondary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<X size={16} />} onClick={handleStop} aria-label="停止">
-                    <span className="hidden md:inline">停止</span>
-                  </Button>
-                ) : (
-                  <Button type="submit" variant="primary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<Send size={16} />} disabled={(!input.trim() && pendingAttachments.length === 0) || uploadingAttachment} aria-label="发送">
-                    <span className="hidden md:inline">发送</span>
-                  </Button>
-                )}
-              </div>
-              {isListening || speechError ? (
-                <div className="px-2 pt-1.5 text-xs text-rose-600">
-                  {speechError || '正在聆听…再次点击麦克风结束'}
-                </div>
-              ) : null}
-              {attachmentError || (pendingAttachments.some(item => item.detectedType === 'image') && aiCapabilities && !aiCapabilities.supportsImages) ? (
-                <div className={`px-2 pt-1.5 text-xs ${attachmentError ? 'text-rose-600' : 'text-amber-700'}`}>
-                  {attachmentError || `图片会保存在会话中，但当前 ${aiCapabilities?.displayName} 模型不支持识图。`}
-                </div>
-              ) : null}
-            </form>
+            <AiComposer
+              panel={isPanel}
+              pageContext={pageContext}
+              input={input}
+              loading={loading}
+              pendingAttachments={pendingAttachments}
+              uploadingAttachment={uploadingAttachment}
+              attachmentError={attachmentError}
+              aiCapabilities={aiCapabilities}
+              speechSupported={speechSupported}
+              isListening={isListening}
+              speechError={speechError}
+              fileInputRef={fileInputRef}
+              composerRef={composerRef}
+              onInputChange={setInput}
+              onSelectAttachments={(files) => void selectAttachments(files)}
+              onRemoveAttachment={discardPendingAttachment}
+              onStopVoice={stopVoiceInput}
+              onToggleVoice={toggleVoiceInput}
+              onStop={stopStream}
+              onSend={(text) => void sendMessage(text)}
+            />
           </section>
         </div>
       </FadePanel>
 
-      <AnimatePresence>
-        {mobileSidebarOpen ? (
-          <div className={`fixed inset-0 z-40 ${isPanel ? '' : 'lg:hidden'}`}>
-            <motion.button
-              type="button"
-              aria-label="关闭会话记录"
-              className="absolute inset-0 bg-black/25"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileSidebarOpen(false)}
-            />
-            <motion.aside
-              className="ai-mobile-drawer absolute inset-y-0 left-0 flex w-[86vw] max-w-[340px] flex-col border-r border-line bg-white px-3 shadow-xl"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-            >
-              <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-ink">AI 工作台</div>
-                  <div className="mt-0.5 text-xs text-muted">会话记录</div>
-                </div>
-                <Button variant="ghost" size="sm" className="h-9 w-9 px-0" icon={<X size={17} />} aria-label="关闭" title="关闭" onClick={() => setMobileSidebarOpen(false)} />
-              </div>
+      <AiMobileConversationDrawer
+        open={mobileSidebarOpen}
+        panel={isPanel}
+        conversations={conversations}
+        filteredConversations={filteredConversations}
+        activeConversationId={activeConversationId}
+        openingConversationId={openingConversationId}
+        historyQuery={historyQuery}
+        historyLoading={historyLoading}
+        historyError={historyError}
+        loading={loading}
+        promptBusy={promptLoading || promptSaving}
+        onClose={() => setMobileSidebarOpen(false)}
+        onNewConversation={startNewConversation}
+        onHistoryQueryChange={setHistoryQuery}
+        onOpenConversation={(id) => void openConversation(id)}
+        onDeleteConversation={(conversation) => {
+          setMobileSidebarOpen(false);
+          setDeleteTarget(conversation);
+        }}
+        onEditPrompt={() => {
+          setMobileSidebarOpen(false);
+          void openPromptEditor();
+        }}
+      />
 
-              <Button variant="secondary" className="mt-3 w-full" icon={<Plus size={16} />} onClick={startNewConversation} disabled={loading}>
-                新建会话
-              </Button>
-
-              <label className="relative mt-3 block">
-                <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
-                <input
-                  type="search"
-                  value={historyQuery}
-                  onChange={(event) => setHistoryQuery(event.target.value)}
-                  placeholder="搜索会话"
-                  aria-label="搜索会话"
-                  className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-                />
-              </label>
-
-              {historyError ? (
-                <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
-                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                  <span>{historyError}</span>
-                </div>
-              ) : null}
-
-              <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
-                {historyLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>
-                ) : conversations.length === 0 ? (
-                  <div className="px-3 py-8 text-center text-sm text-muted">暂无历史会话</div>
-                ) : filteredConversations.length === 0 ? (
-                  <div className="px-3 py-8 text-center text-sm text-muted">没有匹配的会话</div>
-                ) : filteredConversations.map((conversation) => (
-                  <div key={`mobile-${conversation.id}`} className={`flex items-center gap-1 rounded-md p-1 ${activeConversationId === conversation.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
-                    <button type="button" onClick={() => void openConversation(conversation.id)} disabled={loading || openingConversationId !== null} className="min-w-0 flex-1 rounded px-2 py-2 text-left disabled:opacity-60">
-                      <span className="flex items-center gap-2">
-                        {openingConversationId === conversation.id ? <Loader2 size={14} className="shrink-0 animate-spin text-muted" /> : <MessageSquareText size={14} className="shrink-0 text-muted" />}
-                        <span className="truncate text-sm font-medium text-ink">{conversation.title}</span>
-                      </span>
-                      <span className="mt-1 block truncate pl-5 text-xs text-muted">{conversation.messageCount} 条 · {dateText(conversation.updatedAt)}</span>
-                    </button>
-                    <Button variant="ghost" size="sm" className="h-9 w-9 px-0 text-slate-400 hover:text-rose-600" icon={<Trash2 size={14} />} aria-label={`删除会话 ${conversation.title}`} title="删除会话" onClick={() => { setMobileSidebarOpen(false); setDeleteTarget(conversation); }} disabled={loading} />
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t border-line pt-2">
-                <Button variant="ghost" className="w-full justify-start" icon={<Pencil size={16} />} onClick={() => { setMobileSidebarOpen(false); void openPromptEditor(); }} disabled={promptLoading || promptSaving}>
-                  编辑工厂配置
-                </Button>
-              </div>
-            </motion.aside>
-          </div>
-        ) : null}
-      </AnimatePresence>
-
-      {archiveAttachment ? (
-        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/25 p-3 md:p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="file-archive-title" className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-panel border border-line bg-white shadow-panel">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div className="min-w-0">
-                <h2 id="file-archive-title" className="text-base font-semibold text-ink">归档附件</h2>
-                <div className="mt-1 truncate text-xs text-muted">{archiveAttachment.originalName}</div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 px-0"
-                icon={<X size={16} />}
-                aria-label="关闭"
-                title="关闭"
-                onClick={() => setArchiveAttachment(null)}
-                disabled={archiveSaving}
-              />
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-              <label className="block">
-                <span className="text-xs font-medium text-muted">归档位置</span>
-                <select
-                  value={archiveTargetType}
-                  onChange={event => {
-                    setArchiveTargetType(event.target.value as FactoryFileArchiveTargetType);
-                    setArchiveTargets([]);
-                    setArchiveTargetId('');
-                    setArchiveError('');
-                    setArchiveSuccess('');
-                  }}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
-                  disabled={archiveSaving}
-                >
-                  {archiveTargetOptions.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              {archiveTargetType === 'knowledge_document' ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block sm:col-span-2">
-                    <span className="text-xs font-medium text-muted">资料标题</span>
-                    <input
-                      value={archiveTitle}
-                      onChange={event => setArchiveTitle(event.target.value)}
-                      maxLength={160}
-                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
-                      disabled={archiveSaving}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-muted">资料类型</span>
-                    <select
-                      value={archiveDocumentType}
-                      onChange={event => setArchiveDocumentType(event.target.value as typeof archiveDocumentType)}
-                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
-                      disabled={archiveSaving}
-                    >
-                      {documentTypeOptions.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-muted">标签</span>
-                    <input
-                      value={archiveTags}
-                      onChange={event => setArchiveTags(event.target.value)}
-                      placeholder="型号、客户、用途"
-                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
-                      disabled={archiveSaving}
-                    />
-                  </label>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-xs font-medium text-muted">查找{archiveTargetLabel(archiveTargetType)}</span>
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        value={archiveQuery}
-                        onChange={event => setArchiveQuery(event.target.value)}
-                        onKeyDown={event => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            void searchArchiveTargets();
-                          }
-                        }}
-                        placeholder="输入名称或关键词"
-                        className="h-10 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
-                        disabled={archiveSearching || archiveSaving}
-                      />
-                      <Button
-                        variant="secondary"
-                        className="h-10"
-                        icon={archiveSearching ? <Loader2 size={15} className="animate-spin" /> : <FileSearch size={15} />}
-                        onClick={() => void searchArchiveTargets()}
-                        disabled={archiveSearching || archiveSaving}
-                      >
-                        搜索
-                      </Button>
-                    </div>
-                  </div>
-                  {archiveTargets.length > 0 ? (
-                    <label className="block">
-                      <span className="text-xs font-medium text-muted">选择准确对象</span>
-                      <select
-                        value={archiveTargetId}
-                        onChange={event => setArchiveTargetId(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400"
-                        disabled={archiveSaving}
-                      >
-                        <option value="">请选择</option>
-                        {archiveTargets.map(target => (
-                          <option key={target.id} value={target.id}>
-                            {target.label}{target.detail ? ` · ${target.detail}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-                </div>
-              )}
-
-              <label className="block">
-                <span className="text-xs font-medium text-muted">归档说明（可选）</span>
-                <textarea
-                  value={archiveNote}
-                  onChange={event => setArchiveNote(event.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                  className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
-                  disabled={archiveSaving}
-                />
-              </label>
-
-              <div className="rounded-md border border-line bg-slate-50 p-3">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
-                  <Archive size={14} />
-                  已有归档
-                </div>
-                {archiveLoading ? (
-                  <div className="mt-2 flex items-center gap-2 text-xs text-muted">
-                    <Loader2 size={13} className="animate-spin" />
-                    正在读取
-                  </div>
-                ) : archiveLinks.length > 0 ? (
-                  <div className="mt-2 space-y-1.5">
-                    {archiveLinks.map(link => (
-                      <div key={link.id} className="flex items-start justify-between gap-3 text-xs">
-                        <span className="min-w-0 truncate text-slate-700">{link.target?.label || `已删除对象 ${link.targetId}`}</span>
-                        <span className="shrink-0 text-muted">{archiveTargetLabel(link.targetType)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs text-muted">尚未归档</div>
-                )}
-              </div>
-
-              {archiveSuccess ? (
-                <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-                  <Check size={15} className="mt-0.5 shrink-0" />
-                  {archiveSuccess}
-                </div>
-              ) : null}
-              {archiveError ? (
-                <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
-                  {archiveError}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-              <Button variant="ghost" onClick={() => setArchiveAttachment(null)} disabled={archiveSaving}>关闭</Button>
-              <Button
-                variant="primary"
-                icon={archiveSaving ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />}
-                onClick={() => void saveFileArchive()}
-                disabled={archiveLoading || archiveSaving}
-              >
-                {archiveSaving ? '归档中' : '确认归档'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AiAttachmentArchiveController
+        attachment={archiveAttachment}
+        onClose={() => setArchiveAttachment(null)}
+      />
 
       {feedbackTarget ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/25 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="answer-feedback-title" className="w-full max-w-lg rounded-panel border border-line bg-white shadow-panel">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div>
-                <h2 id="answer-feedback-title" className="text-base font-semibold text-ink">报告回答问题</h2>
-                <div className="mt-1 text-xs text-muted">反馈会进入知识库管理中心；长期规则只约束 AI，不会修改业务数据。</div>
-              </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setFeedbackTarget(null)} disabled={feedbackSaving} />
-            </div>
-            <div className="space-y-4 p-4">
-              <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="问题类型">
-                {([
-                  ['incorrect', '内容错误'],
-                  ['outdated', '来源过期'],
-                  ['missing_source', '资料不足'],
-                ] as Array<[Exclude<AiAnswerFeedbackRating, 'helpful'>, string]>).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={feedbackRating === value}
-                    onClick={() => {
-                      setFeedbackRating(value);
-                      setFeedbackLearn(value === 'incorrect');
-                    }}
-                    className={`h-10 rounded-md border px-3 text-sm font-medium ${
-                      feedbackRating === value ? 'border-ink bg-ink text-white' : 'border-line bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <label className="block">
-                <span className="text-xs font-medium text-muted">
-                  {feedbackRating === 'incorrect' && feedbackLearn ? '正确做法' : '补充说明（可选）'}
-                </span>
-                <textarea
-                  value={feedbackNote}
-                  onChange={event => setFeedbackNote(event.target.value)}
-                  maxLength={500}
-                  rows={4}
-                  placeholder={feedbackRating === 'incorrect' && feedbackLearn
-                    ? '例如：规格-片数表示线圈成品，入库时必须调整线圈库存，不能查询零件库。'
-                    : '例如：业务数据已于今天更新，需要重新读取当前值。'}
-                  className="mt-2 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
-                  disabled={feedbackSaving}
-                />
-              </label>
-              {feedbackRating === 'incorrect' ? (
-                <label className="flex items-start gap-3 rounded-md border border-line bg-slate-50 px-3 py-2.5">
-                  <input
-                    type="checkbox"
-                    checked={feedbackLearn}
-                    onChange={event => setFeedbackLearn(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-line"
-                    disabled={feedbackSaving}
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-ink">让 AI 长期记住这条正确做法</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-muted">启用后会成为通用纠正规则，可在知识库管理中心停用。</span>
-                  </span>
-                </label>
-              ) : null}
-              {feedbackError ? (
-                <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
-                  {feedbackError}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-              <Button variant="ghost" onClick={() => setFeedbackTarget(null)} disabled={feedbackSaving}>取消</Button>
-              <Button variant="primary" icon={feedbackSaving ? <Loader2 size={15} className="animate-spin" /> : <MessageSquareWarning size={15} />} onClick={() => void saveAnswerIssue()} disabled={feedbackSaving}>
-                {feedbackSaving ? '提交中' : '提交反馈'}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <AnswerFeedbackDialog
+          rating={feedbackRating}
+          note={feedbackNote}
+          learnFromCorrection={feedbackLearn}
+          saving={feedbackSaving}
+          error={feedbackError}
+          onRatingChange={changeFeedbackRating}
+          onNoteChange={setFeedbackNote}
+          onLearnFromCorrectionChange={setFeedbackLearn}
+          onSave={saveAnswerIssue}
+          onClose={closeFeedbackDialog}
+        />
       ) : null}
 
       {deleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="delete-conversation-title" className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel">
-            <div className="border-b border-line px-4 py-3">
-              <h2 id="delete-conversation-title" className="text-base font-semibold text-ink">删除会话</h2>
-            </div>
-            <div className="p-4">
-              <p className="text-sm leading-6 text-slate-700">确定删除“{deleteTarget.title}”及其历史记录吗？</p>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-              <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deletingConversation}>取消</Button>
-              <Button variant="danger" icon={deletingConversation ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} onClick={() => void confirmDeleteConversation()} disabled={deletingConversation}>
-                {deletingConversation ? '删除中' : '删除'}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <DeleteConversationDialog
+          title={deleteTarget.title}
+          deleting={deletingConversation}
+          onConfirm={confirmDeleteConversation}
+          onClose={() => setDeleteTarget(null)}
+        />
       ) : null}
 
       {knowledgeSyncOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="knowledge-sync-title" className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div>
-                <h2 id="knowledge-sync-title" className="text-base font-semibold text-ink">同步工厂知识库</h2>
-                <div className="mt-1 text-xs text-muted">从当前业务数据库刷新 AI 检索条目</div>
-              </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" title="关闭" onClick={() => setKnowledgeSyncOpen(false)} disabled={knowledgeSyncing} />
-            </div>
-            <div className="p-4">
-              {knowledgeSyncResult ? (
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                    <Check size={16} />
-                    同步完成，共 {knowledgeSyncResult.total} 条知识
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.inserted}</div><div className="mt-1 text-xs text-muted">新增</div></div>
-                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.updated}</div><div className="mt-1 text-xs text-muted">更新</div></div>
-                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.deleted}</div><div className="mt-1 text-xs text-muted">移除</div></div>
-                    <div className="rounded-md border border-line bg-slate-50 p-2 text-center"><div className="font-semibold text-ink">{knowledgeSyncResult.unchanged}</div><div className="mt-1 text-xs text-muted">未变化</div></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm leading-6 text-slate-700">
-                  同步会读取零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则，增量更新 AI 使用的知识索引，不会修改原始业务数据。
-                </div>
-              )}
-              {knowledgeSyncError ? (
-                <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
-                  {knowledgeSyncError}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-              {knowledgeSyncResult ? (
-                <Button variant="primary" onClick={() => setKnowledgeSyncOpen(false)}>完成</Button>
-              ) : (
-                <>
-                  <Button variant="ghost" onClick={() => setKnowledgeSyncOpen(false)} disabled={knowledgeSyncing}>取消</Button>
-                  <Button variant="primary" icon={knowledgeSyncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} onClick={() => void runKnowledgeSync()} disabled={knowledgeSyncing}>
-                    {knowledgeSyncing ? '同步中' : '确认同步'}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <KnowledgeSyncDialog
+          result={knowledgeSyncResult}
+          syncing={knowledgeSyncing}
+          error={knowledgeSyncError}
+          onSync={runKnowledgeSync}
+          onClose={() => setKnowledgeSyncOpen(false)}
+        />
       ) : null}
 
       {promptOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !promptSaving) setPromptOpen(false);
-          }}
-        >
-          <div role="dialog" aria-modal="true" aria-labelledby="ai-prompt-title" className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-panel border border-line bg-white shadow-panel">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div>
-                <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">编辑工厂配置</h2>
-                <p className="mt-1 text-xs text-muted">用于术语、偏好和操作习惯；核心安全与业务规则由系统维护。</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-8 px-0"
-                icon={<X size={16} />}
-                aria-label="关闭"
-                title="关闭"
-                onClick={() => setPromptOpen(false)}
-                disabled={promptSaving}
-              />
-            </div>
-            <div className="min-h-0 flex-1 p-4">
-              {promptLoading ? (
-                <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-muted">
-                  <Loader2 size={16} className="animate-spin" />
-                  正在读取工厂配置
-                </div>
-              ) : (
-                <textarea
-                  value={promptDraft}
-                  onChange={(event) => setPromptDraft(event.target.value)}
-                  aria-label="工厂个性化配置"
-                  autoFocus
-                  className="h-[min(58vh,560px)] min-h-72 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-3 font-mono text-sm leading-6 text-ink outline-none transition-colors focus:border-slate-400"
-                  disabled={promptSaving}
-                />
-              )}
-              {promptError ? (
-                <div className="mt-3 flex items-center gap-2 text-sm text-rose-600">
-                  <AlertCircle size={15} />
-                  {promptError}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
-              <Button variant="ghost" onClick={() => setPromptOpen(false)} disabled={promptSaving}>取消</Button>
-              <Button variant="primary" icon={promptSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} onClick={() => void savePrompt()} disabled={promptLoading || promptSaving || !promptDraft.trim()}>
-                {promptSaving ? '保存中' : '保存'}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <SystemPromptDialog
+          draft={promptDraft}
+          loading={promptLoading}
+          saving={promptSaving}
+          error={promptError}
+          onDraftChange={setPromptDraft}
+          onSave={savePrompt}
+          onClose={() => setPromptOpen(false)}
+        />
       ) : null}
     </div>
   );

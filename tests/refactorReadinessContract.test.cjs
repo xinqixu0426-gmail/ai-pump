@@ -169,6 +169,7 @@ test('文档契约：迁移过程文档和旧前端回滚说明不得保留', ()
         'docs/business-mindmap.md',
         'docs/v9-user-guide.md',
         'docs/v10-user-guide.md',
+        'docs/api-architecture-audit.md',
     ];
 
     for (const doc of removedDocs) {
@@ -182,6 +183,35 @@ test('文档契约：迁移过程文档和旧前端回滚说明不得保留', ()
 
     assert.doesNotMatch(readme, /next-migration-acceptance|ai-api-executor-migration-plan|legacy:dev|回滚备用/);
     assert.doesNotMatch(docs, /Next 迁移验收清单|AI 调用 API 改造计划|正式 UI\/交互重构前|正式 UI 重构前/);
+});
+
+test('文档契约：当前技术债只保留未完成事项并明确巨型组件瘦身边界', () => {
+    const debt = readUtf8('docs/technical-debt.md');
+    const stateBoundary = readUtf8('docs/frontend-state-boundary.md');
+    const docsReadme = readUtf8('docs/README.md');
+
+    assert.match(debt, /只保留尚未完成/);
+    assert.match(debt, /87\/100/);
+    assert.doesNotMatch(debt, /recipes-view\.tsx/);
+    assert.match(debt, /ai-view\.tsx/);
+    assert.match(debt, /需要，但应渐进拆分，禁止一次性重写/);
+    assert.match(debt, /qty=0/);
+    assert.match(debt, /字段白名单/);
+    assert.match(stateBoundary, /超过约 1,500 行/);
+    assert.match(stateBoundary, /\[当前技术债与优化清单\]\(\.\/technical-debt\.md/);
+    assert.match(docsReadme, /\[当前技术债与优化清单\]\(\.\/technical-debt\.md\)/);
+});
+
+test('文档契约：数据库当前版本必须与迁移代码最高版本一致', () => {
+    const migrations = readUtf8('api/database/migrations.cjs');
+    const schemaDoc = readUtf8('docs/database-schema.md');
+    const versions = Array.from(
+        migrations.matchAll(/\bversion:\s*(\d+),/g),
+        match => Number(match[1])
+    );
+    const latestVersion = Math.max(...versions);
+
+    assert.match(schemaDoc, new RegExp(`当前版本为 \\\`${latestVersion}\\\``));
 });
 
 test('文档契约：Next 当前启动和生产脚本保持可用', () => {
@@ -432,81 +462,87 @@ test('API 静态契约：Knowledge V6.4 检索评测和备份恢复可无人值�
 });
 
 test('Next UI 契约：AI 回复展示可点击依据并保留新鲜度警告', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const answerProcess = readUtf8('apps/web-next/components/ai/AiAnswerProcess.tsx');
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');
 
     assert.match(aiLib, /AiKnowledgeSource/);
     assert.match(aiLib, /knowledgePath/);
-    assert.match(aiView, /function AnswerEvidence/);
-    assert.match(aiView, /回答依据/);
-    assert.match(aiView, /实时业务数据/);
-    assert.match(aiView, /知识库快照/);
-    assert.match(aiView, /待同步状态/);
-    assert.match(aiView, /查看原数据/);
+    assert.match(answerProcess, /function AnswerEvidence/);
+    assert.match(answerProcess, /回答依据/);
+    assert.match(answerProcess, /实时业务数据/);
+    assert.match(answerProcess, /知识库快照/);
+    assert.match(answerProcess, /待同步状态/);
+    assert.match(answerProcess, /查看原数据/);
 });
 
 test('Next UI 契约：AI 回答依据和处理过程默认折叠且异常自动展开', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const answerProcess = readUtf8('apps/web-next/components/ai/AiAnswerProcess.tsx');
 
-    assert.match(aiView, /function AnswerProcess/);
-    assert.match(aiView, /回答依据与处理过程/);
-    assert.match(aiView, /open=\{open\}/);
-    assert.match(aiView, /if \(requiresAttention\) setOpen\(true\)/);
-    assert.match(aiView, /isConfirmationResult\(tool\.result\)/);
-    assert.match(aiView, /asRecord\(tool\.result\)\.success === false/);
+    assert.match(answerProcess, /function AnswerProcess/);
+    assert.match(answerProcess, /回答依据与处理过程/);
+    assert.match(answerProcess, /open=\{open\}/);
+    assert.match(answerProcess, /if \(requiresAttention\) setOpen\(true\)/);
+    assert.match(answerProcess, /isConfirmationResult\(tool\.result\)/);
+    assert.match(answerProcess, /asRecord\(tool\.result\)\.success === false/);
 });
 
 test('Next UI 契约：AI 工作台提供可执行首屏、历史搜索和稳定阅读宽度', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const sidebars = readUtf8('apps/web-next/components/ai/AiConversationSidebars.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
 
     assert.match(aiView, /查询成本、订单、库存与工厂知识/);
-    assert.match(aiView, /aria-label="搜索会话"/);
+    assert.match(sidebars, /aria-label="搜索会话"/);
     assert.match(aiView, /filteredConversations/);
-    assert.match(aiView, /今天想先处理什么/);
-    assert.match(aiView, /starterSamples/);
-    assert.match(aiView, /group-hover:opacity-100/);
-    assert.match(aiView, /max-w-4xl/);
-    assert.match(aiView, /\[field-sizing:content\]/);
+    assert.match(messageList, /今天想先处理什么/);
+    assert.match(messageList, /aiStarterSamples/);
+    assert.match(sidebars, /group-hover:opacity-100/);
+    assert.match(messageList, /max-w-4xl/);
+    assert.match(composer, /\[field-sizing:content\]/);
     assert.doesNotMatch(aiView, /AI Executor/);
 });
 
 test('Next UI 契约：订单生产准备检查展示结论、六步状态和缺料清单', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
-    assert.match(aiView, /function OrderReadinessResult/);
-    assert.match(aiView, /check_order_readiness/);
-    assert.match(aiView, /可生产/);
-    assert.match(aiView, /待补料/);
-    assert.match(aiView, /数据阻塞/);
-    assert.match(aiView, /procurementStage/);
-    assert.match(aiView, /recommendedActions/);
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
+    assert.match(workflowResults, /function OrderReadinessResult/);
+    assert.match(businessResult, /check_order_readiness/);
+    assert.match(workflowResults, /可生产/);
+    assert.match(workflowResults, /待补料/);
+    assert.match(workflowResults, /数据阻塞/);
+    assert.match(workflowResults, /procurementStage/);
+    assert.match(workflowResults, /recommendedActions/);
 });
 
 test('Next UI 契约：订单处理方案展示顺序、负责人、依赖和执行方式', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
-    assert.match(aiView, /function OrderReadinessPlanResult/);
-    assert.match(aiView, /plan_order_readiness_actions/);
-    assert.match(aiView, /AI可确认/);
-    assert.match(aiView, /人工处理/);
-    assert.match(aiView, /等待跟进/);
-    assert.match(aiView, /dependsOn/);
-    assert.match(aiView, /Array\.isArray\(item\.dependsOn\)/);
-    assert.match(aiView, /完成标准/);
-    assert.match(aiView, /负责人/);
-    assert.match(aiView, /前置阻塞/);
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
+    assert.match(workflowResults, /function OrderReadinessPlanResult/);
+    assert.match(businessResult, /plan_order_readiness_actions/);
+    assert.match(workflowResults, /AI可确认/);
+    assert.match(workflowResults, /人工处理/);
+    assert.match(workflowResults, /等待跟进/);
+    assert.match(workflowResults, /dependsOn/);
+    assert.match(workflowResults, /Array\.isArray\(item\.dependsOn\)/);
+    assert.match(workflowResults, /完成标准/);
+    assert.match(workflowResults, /负责人/);
+    assert.match(workflowResults, /前置阻塞/);
 });
 
 test('Next UI 契约：V8 工厂执行计划展示统一步骤、边界和执行保护', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
     const tools = readUtf8('api/routes/ai/tools.cjs');
 
-    assert.match(aiView, /function FactoryExecutionPlanResult/);
-    assert.match(aiView, /plan_factory_workflow/);
-    assert.match(aiView, /已有安全执行器/);
-    assert.match(aiView, /执行保护/);
+    assert.match(workflowResults, /function FactoryExecutionPlanResult/);
+    assert.match(businessResult, /plan_factory_workflow/);
+    assert.match(workflowResults, /已有安全执行器/);
+    assert.match(workflowResults, /执行保护/);
     assert.doesNotMatch(
-        aiView.slice(
-            aiView.indexOf('function FactoryExecutionPlanResult'),
-            aiView.indexOf('function OrderReadinessPlanResult')
+        workflowResults.slice(
+            workflowResults.indexOf('function FactoryExecutionPlanResult'),
+            workflowResults.indexOf('function OrderReadinessPlanResult')
         ),
         /item\.owner/
     );
@@ -515,33 +551,37 @@ test('Next UI 契约：V8 工厂执行计划展示统一步骤、边界和执行
 });
 
 test('Next UI 契约：V8.2 跨模块执行后展示转单结果和新订单复查', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
     const tools = readUtf8('api/routes/ai/tools.cjs');
 
-    assert.match(aiView, /function FactoryWorkflowActionResult/);
-    assert.match(aiView, /execute_factory_workflow_step/);
-    assert.match(aiView, /新订单生产准备/);
-    assert.match(aiView, /原报价流程复查/);
+    assert.match(workflowResults, /function FactoryWorkflowActionResult/);
+    assert.match(businessResult, /execute_factory_workflow_step/);
+    assert.match(workflowResults, /新订单生产准备/);
+    assert.match(workflowResults, /原报价流程复查/);
     assert.match(tools, /计划过期、报价未接受、已转单、资料不完整或步骤受阻时立即停止/);
 });
 
 test('Next UI 契约：V8.3 执行计划提供精确业务入口和受保护确认捷径', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const answerProcess = readUtf8('apps/web-next/components/ai/AiAnswerProcess.tsx');
+    const primitives = readUtf8('apps/web-next/components/ai/AiResultPrimitives.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
     const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
-    const factoryPlanStart = aiView.indexOf('function FactoryExecutionPlanResult');
-    const orderPlanStart = aiView.indexOf('function OrderReadinessPlanResult');
-    const factoryPlan = aiView.slice(factoryPlanStart, orderPlanStart);
+    const factoryPlanStart = workflowResults.indexOf('function FactoryExecutionPlanResult');
+    const orderPlanStart = workflowResults.indexOf('function OrderReadinessPlanResult');
+    const factoryPlan = workflowResults.slice(factoryPlanStart, orderPlanStart);
 
-    assert.match(aiView, /function buildFactoryWorkflowShortcutPrompt/);
-    assert.match(aiView, /重新生成最新报价转订单执行计划/);
-    assert.match(aiView, /重新检查最新生产准备计划/);
+    assert.match(primitives, /function buildFactoryWorkflowShortcutPrompt/);
+    assert.match(primitives, /重新生成最新报价转订单执行计划/);
+    assert.match(primitives, /重新检查最新生产准备计划/);
     assert.match(factoryPlan, /打开当前业务/);
     assert.match(factoryPlan, /发起确认/);
     assert.match(factoryPlan, /isSafeInternalPath\(subject\.path\)/);
     assert.match(factoryPlan, /isSafeInternalPath\(item\.path\)/);
     assert.match(factoryPlan, /onRequestAction\(actionPrompt\)/);
-    assert.match(aiView, /onSendPrompt=\{readOnly \? undefined : onSendPrompt\}/);
-    assert.match(aiView, /shortcutDisabled=\{loading\}/);
+    assert.match(answerProcess, /onSendPrompt=\{readOnly \? undefined : onSendPrompt\}/);
+    assert.match(messageList, /shortcutDisabled=\{loading\}/);
     assert.doesNotMatch(factoryPlan, /confirmAiTool/);
     assert.match(quotationsView, /searchParams\.get\('quotationId'\)/);
     assert.match(quotationsView, /consumedViewQuotationRef/);
@@ -549,32 +589,34 @@ test('Next UI 契约：V8.3 执行计划提供精确业务入口和受保护确�
 });
 
 test('Next UI 契约：V8.4 展示执行结果、失败原因和可恢复步骤', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
 
-    assert.match(aiView, /function WorkflowExecutionRunSummary/);
-    assert.match(aiView, /最近执行/);
-    assert.match(aiView, /latestRecheck/);
-    assert.match(aiView, /最新复查/);
-    assert.match(aiView, /recovery\.message/);
-    assert.match(aiView, /recoverableActionIds/);
-    assert.match(aiView, /重新发起确认/);
-    assert.match(aiView, /执行记录 #/);
-    assert.match(aiView, /historyWarning/);
+    assert.match(workflowResults, /function WorkflowExecutionRunSummary/);
+    assert.match(workflowResults, /最近执行/);
+    assert.match(workflowResults, /latestRecheck/);
+    assert.match(workflowResults, /最新复查/);
+    assert.match(workflowResults, /recovery\.message/);
+    assert.match(workflowResults, /recoverableActionIds/);
+    assert.match(workflowResults, /重新发起确认/);
+    assert.match(workflowResults, /执行记录 #/);
+    assert.match(workflowResults, /historyWarning/);
 });
 
 test('Next UI 契约：订单方案动作执行后展示结果和重验后的方案', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
-    assert.match(aiView, /function OrderReadinessActionResult/);
-    assert.match(aiView, /execute_order_readiness_action/);
-    assert.match(aiView, /重新检查后的处理方案/);
-    assert.match(aiView, /<OrderReadinessPlanResult result=\{\{ data: nextPlan \}\}/);
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
+    assert.match(workflowResults, /function OrderReadinessActionResult/);
+    assert.match(businessResult, /execute_order_readiness_action/);
+    assert.match(workflowResults, /重新检查后的处理方案/);
+    assert.match(workflowResults, /<OrderReadinessPlanResult result=\{\{ data: nextPlan \}\}/);
 });
 
 test('Next UI 契约：管理看板和 AI 均展示订单准备总览', () => {
     const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
     const overview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
     const readinessLib = readUtf8('apps/web-next/lib/order-readiness.ts');
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
 
     assert.match(dashboard, /value: 'readiness', label: '订单准备'/);
     assert.match(dashboard, /attentionRequired/);
@@ -583,16 +625,17 @@ test('Next UI 契约：管理看板和 AI 均展示订单准备总览', () => {
     assert.match(overview, /待补物料/);
     assert.match(overview, /SegmentedControl/);
     assert.match(readinessLib, /proxyRequest<ApiResponse<OrderReadinessOverview>>\('\/api\/orders\/readiness-overview'\)/);
-    assert.match(aiView, /function OrderReadinessOverviewResult/);
-    assert.match(aiView, /get_order_readiness_overview/);
-    assert.match(aiView, /\/dashboard\?view=readiness/);
+    assert.match(workflowResults, /function OrderReadinessOverviewResult/);
+    assert.match(businessResult, /get_order_readiness_overview/);
+    assert.match(workflowResults, /\/dashboard\?view=readiness/);
 });
 
 test('Next UI 契约：管理看板和 AI 使用同一管理待办中心', () => {
     const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
     const actionCenter = readUtf8('apps/web-next/components/management-action-center.tsx');
     const dashboardLib = readUtf8('apps/web-next/lib/dashboard.ts');
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
 
     assert.match(dashboard, /value: 'actions', label: '今日待办'/);
     assert.match(dashboard, /ManagementActionCenterView/);
@@ -608,9 +651,9 @@ test('Next UI 契约：管理看板和 AI 使用同一管理待办中心', () =>
     assert.doesNotMatch(actionCenter, /item\.owner/);
     assert.match(actionCenter, /item\.path/);
     assert.match(dashboardLib, /\/api\/workbench\/action-center/);
-    assert.match(aiView, /function ManagementActionCenterResult/);
-    assert.match(aiView, /get_management_action_center/);
-    assert.match(aiView, /\/dashboard\?view=actions/);
+    assert.match(workflowResults, /function ManagementActionCenterResult/);
+    assert.match(businessResult, /get_management_action_center/);
+    assert.match(workflowResults, /\/dashboard\?view=actions/);
 });
 
 test('Next UI 契约：管理看板压缩零状态并优先展示可处理内容', () => {
@@ -777,22 +820,23 @@ test('Next UI 契约：订单准备总览可精确进入指定订单处理工作
 });
 
 test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const dialogs = readUtf8('apps/web-next/components/ai/AiWorkspaceDialogs.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');
 
-    assert.match(aiView, /这条回答是否可靠/);
-    assert.match(aiView, /报告回答问题/);
-    assert.match(aiView, /内容错误/);
-    assert.match(aiView, /来源过期/);
-    assert.match(aiView, /资料不足/);
+    assert.match(messageList, /这条回答是否可靠/);
+    assert.match(dialogs, /报告回答问题/);
+    assert.match(dialogs, /内容错误/);
+    assert.match(dialogs, /来源过期/);
+    assert.match(dialogs, /资料不足/);
     assert.match(aiLib, /submitAiAnswerFeedback/);
     assert.match(aiLib, /proxyRequest/);
     assert.match(knowledgeView, /AI 回答反馈/);
     assert.match(knowledgeView, /标记已处理/);
     assert.match(knowledgeView, /reviewAiAnswerFeedback/);
-    assert.match(aiView, /长期规则只约束 AI，不会修改业务数据/);
-    assert.match(aiView, /让 AI 长期记住这条正确做法/);
+    assert.match(dialogs, /长期规则只约束 AI，不会修改业务数据/);
+    assert.match(dialogs, /让 AI 长期记住这条正确做法/);
     assert.match(knowledgeView, /AI 长期学习规则/);
     assert.match(knowledgeView, /toggleLearningRule/);
     assert.match(knowledgeView, /回答诊断与复测/);
@@ -853,6 +897,7 @@ test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助�
 test('Next UI 契约：订单详情上下文独立传给业务 AI 助手', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');
     const pageContext = readUtf8('apps/web-next/lib/page-context.ts');
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
@@ -860,7 +905,7 @@ test('Next UI 契约：订单详情上下文独立传给业务 AI 助手', () =>
 
     assert.match(shell, /readCurrentAiPageContext/);
     assert.match(shell, /pageContext=\{pageContext\}/);
-    assert.match(aiView, /aria-label="AI 页面上下文"/);
+    assert.match(composer, /aria-label="AI 页面上下文"/);
     assert.match(aiView, /controller\.signal, pageContext/);
     assert.match(aiLib, /resourceId: pageContext\.resourceId/);
     assert.doesNotMatch(aiLib, /pageContext: \{[\s\S]{0,200}label:/);
@@ -921,11 +966,12 @@ test('Next UI 契约：不得重新引入 MUI 或 Emotion 依赖', () => {
 
 test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手写 JSON', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeDetailPanel = readUtf8('apps/web-next/components/recipe/RecipeDetailPanel.tsx');
     const editor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
     const technicalLib = readUtf8('apps/web-next/lib/technical-data.ts');
 
     assert.match(recipesView, /TechnicalDataEditor/);
-    assert.match(recipesView, /parseTechnicalDataJson/);
+    assert.match(recipeDetailPanel, /parseTechnicalDataJson/);
     assert.match(recipesView, /buildRecipeSavePayloadDraft/);
     assert.doesNotMatch(recipesView, /技术参数 JSON/);
     assert.doesNotMatch(recipesView, /<textarea[\s\S]*technicalDataJson/);
@@ -942,14 +988,18 @@ test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手
 
 test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeOptionalPackingSection = readUtf8('apps/web-next/components/recipe/RecipeOptionalPackingSection.tsx');
+    const recipeCostDisplay = readUtf8('apps/web-next/components/recipe/recipe-cost-display.ts');
+    const recipeDetailPanel = readUtf8('apps/web-next/components/recipe/RecipeDetailPanel.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
     const apiReference = readUtf8('docs/api-reference.md');
 
-    assert.match(recipesView, /partCostLine/);
+    assert.match(recipeOptionalPackingSection, /partCostLine/);
     assert.match(recipesView, /partFormulaLine/);
-    assert.match(recipesView, /findDraftPart\(bomDraft, part\)/);
-    assert.match(recipesView, /公式:/);
-    assert.match(recipesView, /小计/);
+    assert.match(recipeOptionalPackingSection, /findDraftSelectionPart\(bomDraft, part\)/);
+    assert.match(recipeOptionalPackingSection, /公式:/);
+    assert.match(recipeCostDisplay, /function findDraftSelectionPart/);
+    assert.match(recipeDetailPanel, /快照小计/);
     assert.match(recipesLib, /formula\?: string/);
     assert.match(apiReference, /snapshotPrice/);
     assert.match(apiReference, /formula\/costSource\/source/);
@@ -957,55 +1007,78 @@ test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式
 
 test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeEditor = readUtf8('apps/web-next/components/recipe/RecipeEditor.tsx');
+    const recipeBasicSection = readUtf8('apps/web-next/components/recipe/RecipeBasicSection.tsx');
+    const recipeCoilSection = readUtf8('apps/web-next/components/recipe/RecipeCoilSection.tsx');
+    const recipeDynamicConfigSection = readUtf8('apps/web-next/components/recipe/RecipeDynamicConfigSection.tsx');
+    const recipeOptionalPackingSection = readUtf8('apps/web-next/components/recipe/RecipeOptionalPackingSection.tsx');
+    const recipeLaborCostSection = readUtf8('apps/web-next/components/recipe/RecipeLaborCostSection.tsx');
     const templateMatchSummary = readUtf8('apps/web-next/components/recipe/TemplateMatchSummary.tsx');
     const technicalEditor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
 
-    assert.match(recipesView, /1\. 泵壳与产品/);
-    assert.match(recipesView, /2\. 线圈转子/);
-    assert.match(recipesView, /3\. 浮球与电缆/);
-    assert.match(recipesView, /4\. 包装与其他配件/);
-    assert.match(recipesView, /5\. 人工与费用/);
-    assert.match(recipesView, /配方名称/);
-    assert.match(recipesView, /泵壳模板/);
-    assert.match(recipesView, /线重 kg/);
+    assert.match(recipesView, /<RecipeEditor/);
+    assert.match(recipesView, /<RecipeBasicSection/);
+    assert.match(recipesView, /<RecipeCoilSection/);
+    assert.match(recipesView, /<RecipeDynamicConfigSection/);
+    assert.match(recipesView, /<RecipeOptionalPackingSection/);
+    assert.match(recipesView, /<RecipeLaborCostSection/);
+    assert.doesNotMatch(recipesView, /id="recipe-basic-section"/);
+    assert.match(recipeEditor, /保存配方/);
+    assert.match(recipeBasicSection, /1\. 泵壳与产品/);
+    assert.match(recipeBasicSection, /配方名称/);
+    assert.match(recipeBasicSection, /泵壳模板/);
+    assert.match(recipeCoilSection, /2\. 线圈转子/);
+    assert.match(recipeDynamicConfigSection, /3\. 浮球与电缆/);
+    assert.match(recipeOptionalPackingSection, /4\. 包装与其他配件/);
+    assert.match(recipeLaborCostSection, /5\. 人工与费用/);
+    assert.match(recipeLaborCostSection, /以下费用可能漏算/);
+    assert.match(recipeLaborCostSection, /安装工资/);
+    assert.match(recipeLaborCostSection, /打包工资/);
+    assert.match(recipeLaborCostSection, /管理费/);
+    assert.match(recipeLaborCostSection, /value: 'custom'/);
+    assert.match(recipeLaborCostSection, /disabled=\{form\.surfaceTreatmentMode === 'none'\}/);
+    assert.match(recipeCoilSection, /线重 kg/);
     assert.match(recipesView, /exactCoilRecord\.wireWeight/);
-    assert.match(recipesView, /value=\{form\.coilWireWeight\}/);
-    assert.match(recipesView, /系统默认 \/ 客户指定/);
+    assert.match(recipeCoilSection, /value=\{form\.coilWireWeight\}/);
+    assert.match(recipeCoilSection, /系统默认 \/ 客户指定/);
     assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
     assert.match(templateMatchSummary, /模板 \/ 型号零配件/);
     assert.match(templateMatchSummary, /查看明细/);
     assert.doesNotMatch(templateMatchSummary, /parts\.slice/);
     assert.match(recipesView, /relatedBomParts/);
-    assert.match(recipesView, /自动关联电容/);
-    assert.match(recipesView, /sm:grid-cols-4/);
-    assert.match(recipesView, /sm:grid-cols-\[8\.5rem_minmax\(0,1fr\)_7rem\]/);
-    assert.match(recipesView, /<details className="group mt-2 rounded-md border border-line bg-slate-50\/70">/);
-    assert.match(recipesView, /计算明细/);
-    assert.match(recipesView, /bomDraft\?\.coilSnapshot\?\.formula/);
+    assert.match(recipeCoilSection, /自动关联电容/);
+    assert.match(recipeCoilSection, /sm:grid-cols-4/);
+    assert.match(recipeCoilSection, /sm:grid-cols-\[8\.5rem_minmax\(0,1fr\)_7rem\]/);
+    assert.match(recipeCoilSection, /<details className="group mt-2 rounded-md border border-line bg-slate-50\/70">/);
+    assert.match(recipeCoilSection, /计算明细/);
+    assert.match(recipeCoilSection, /coilSnapshot\?\.formula/);
+    assert.match(recipesView, /coilSnapshot=\{bomDraft\?\.coilSnapshot\}/);
     assert.doesNotMatch(recipesView, /线圈与叶轮/);
     assert.match(technicalEditor, /叶轮参数/);
 });
 
 test('Next UI 契约：配方保存前自动智能检查并允许明确覆盖', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const analysisPanel = readUtf8('apps/web-next/components/recipe/RecipeAnalysisPanel.tsx');
     const qualityLib = readUtf8('apps/web-next/lib/quality.ts');
 
     assert.match(recipesView, /runRecipeAnalysis/);
-    assert.match(recipesView, /智能检查/);
-    assert.match(recipesView, /确定问题/);
-    assert.match(recipesView, /已批准工厂规则/);
-    assert.match(recipesView, /factoryRuleAlerts/);
-    assert.match(recipesView, /appliedFactoryRuleCount/);
-    assert.match(recipesView, /复核建议/);
-    assert.match(recipesView, /价格提醒/);
-    assert.match(recipesView, /相似配方依据/);
+    assert.match(recipesView, /<RecipeAnalysisPanel/);
+    assert.match(analysisPanel, /配方智能检查/);
+    assert.match(analysisPanel, /确定问题/);
+    assert.match(analysisPanel, /已批准工厂规则/);
+    assert.match(analysisPanel, /factoryRuleAlerts/);
+    assert.match(analysisPanel, /appliedFactoryRuleCount/);
+    assert.match(analysisPanel, /复核建议/);
+    assert.match(analysisPanel, /价格提醒/);
+    assert.match(analysisPanel, /相似配方依据/);
     assert.match(recipesView, /parts: draft\.parts/);
     assert.match(recipesView, /analyzeCurrentRecipeDraft\(draft\)/);
     assert.match(recipesView, /analysis\.summary\.highConfidenceAlertCount > 0/);
     assert.match(recipesView, /setAnalysisSaveGateOpen\(true\)/);
     assert.match(recipesView, /skipIntelligenceCheck: true/);
-    assert.match(recipesView, /确认并继续保存/);
-    assert.match(recipesView, /普通复核建议不会阻止保存/);
+    assert.match(analysisPanel, /确认并继续保存/);
+    assert.match(analysisPanel, /普通复核建议不会阻止保存/);
     assert.match(qualityLib, /\/api\/quality\/recipe-analysis/);
     assert.match(qualityLib, /proxyRequest/);
     assert.match(qualityLib, /advisoryOnly: true/);
@@ -1013,13 +1086,76 @@ test('Next UI 契约：配方保存前自动智能检查并允许明确覆盖', 
 
 test('Next UI 契约：浮球和电缆参数完成后展示后端 BOM 成本', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeDynamicConfigSection = readUtf8('apps/web-next/components/recipe/RecipeDynamicConfigSection.tsx');
+    const recipeCostDisplay = readUtf8('apps/web-next/components/recipe/recipe-cost-display.ts');
 
-    assert.match(recipesView, /DynamicConfigCostRow/);
-    assert.match(recipesView, /label="浮球成本"/);
-    assert.match(recipesView, /label="成品电缆成本"/);
-    assert.match(recipesView, /floatCostPart/);
-    assert.match(recipesView, /cableCostPart/);
-    assert.match(recipesView, /未匹配到零件价格，请先补齐零件库/);
+    assert.match(recipeDynamicConfigSection, /DynamicConfigCostRow/);
+    assert.match(recipeDynamicConfigSection, /label="浮球成本"/);
+    assert.match(recipeDynamicConfigSection, /label="成品电缆成本"/);
+    assert.match(recipesView, /floatCostPart=\{floatCostPart\}/);
+    assert.match(recipesView, /cableCostPart=\{cableCostPart\}/);
+    assert.match(recipeDynamicConfigSection, /未匹配到零件价格，请先补齐零件库/);
+    assert.match(recipeCostDisplay, /function partFormulaLine/);
+});
+
+test('Next UI 契约：BOM 预览集中管理参数、自动刷新和过期响应', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const bomPreviewHook = readUtf8('apps/web-next/components/recipe/useBomPreview.ts');
+
+    assert.match(recipesView, /useBomPreview\(\{/);
+    assert.match(recipesView, /canPreview: canPreviewBomDraft/);
+    assert.match(recipesView, /runBomPreview/);
+    assert.match(recipesView, /resetBomPreview/);
+    assert.match(recipesView, /replaceBomPreview/);
+    assert.doesNotMatch(recipesView, /bomDraftRequestRef/);
+    assert.doesNotMatch(recipesView, /floatAccessoryDelta: 0/);
+    assert.doesNotMatch(recipesView, /void buildBomDraft\(\{ silent: true \}\)/);
+    assert.match(bomPreviewHook, /previewRecipeBomDraft/);
+    assert.match(bomPreviewHook, /function buildBomPreviewInput/);
+    assert.match(bomPreviewHook, /selectionToRecipeParts\(optionalParts\)/);
+    assert.match(bomPreviewHook, /selectionToRecipeParts\(packingParts, true\)/);
+    assert.match(bomPreviewHook, /autoDelayMs = 400/);
+    assert.match(bomPreviewHook, /window\.setTimeout/);
+    assert.match(bomPreviewHook, /run\(\{ captureError: true \}\)/);
+    assert.match(bomPreviewHook, /requestId === requestRef\.current/);
+    assert.match(bomPreviewHook, /requestRef\.current \+= 1/);
+    assert.match(bomPreviewHook, /setLoading\(false\)/);
+    assert.match(bomPreviewHook, /captureError/);
+});
+
+test('Next UI 契约：配方草稿集中管理生命周期和纯草稿操作', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeDraftHook = readUtf8('apps/web-next/components/recipe/useRecipeDraft.ts');
+    const bomPreviewHook = readUtf8('apps/web-next/components/recipe/useBomPreview.ts');
+
+    assert.match(recipesView, /useRecipeDraft\(\)/);
+    assert.match(recipesView, /startCreate: startCreateDraft/);
+    assert.match(recipesView, /startEdit: startEditDraft/);
+    assert.match(recipesView, /startClone: startCloneDraft/);
+    assert.doesNotMatch(recipesView, /function formFromRecipe/);
+    assert.doesNotMatch(recipesView, /function parseSelections/);
+    assert.doesNotMatch(recipesView, /setEditingRecipe/);
+    assert.doesNotMatch(recipesView, /setOptionalParts/);
+    assert.doesNotMatch(recipesView, /setPackingParts/);
+    assert.match(recipesView, /defaultSupplierForModel/);
+    assert.match(recipesView, /packagingMaterialForCatalogPart/);
+    assert.match(recipeDraftHook, /function createEmptyRecipeForm/);
+    assert.match(recipeDraftHook, /function createEmptySelection/);
+    assert.match(recipeDraftHook, /function formFromRecipe/);
+    assert.match(recipeDraftHook, /function selectionsFromRecipe/);
+    assert.match(recipeDraftHook, /const addOptionalPart = useCallback/);
+    assert.match(recipeDraftHook, /const addPackingPart = useCallback/);
+    assert.match(recipeDraftHook, /const updateOptionalPart = useCallback/);
+    assert.match(recipeDraftHook, /const updatePackingPart = useCallback/);
+    assert.match(recipeDraftHook, /const removeOptionalPart = useCallback/);
+    assert.match(recipeDraftHook, /const removePackingPart = useCallback/);
+    assert.match(recipeDraftHook, /const startCreate = useCallback/);
+    assert.match(recipeDraftHook, /const startEdit = useCallback/);
+    assert.match(recipeDraftHook, /const startClone = useCallback/);
+    assert.match(recipeDraftHook, /未命名配方.*副本/);
+    assert.match(recipeDraftHook, /variantId: ''/);
+    assert.match(recipeDraftHook, /savedCoilWireWeight/);
+    assert.match(bomPreviewHook, /export function bomPreviewFromRecipe/);
 });
 
 test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
@@ -1266,22 +1402,32 @@ test('Next UI 契约：转子页支持配方技术档案带入并支持历史关
 
 test('Next UI 契约：配方页必须保留模板入口并支持直接复制配方', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+    const recipeComparePanel = readUtf8('apps/web-next/components/recipe/RecipeComparePanel.tsx');
+    const modelVariantPanel = readUtf8('apps/web-next/components/recipe/ModelVariantCompatibilityPanel.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+    const recipeBasicSection = readUtf8('apps/web-next/components/recipe/RecipeBasicSection.tsx');
+    const recipeCoilSection = readUtf8('apps/web-next/components/recipe/RecipeCoilSection.tsx');
+    const recipeDynamicConfigSection = readUtf8('apps/web-next/components/recipe/RecipeDynamicConfigSection.tsx');
+    const recipeDetailPanel = readUtf8('apps/web-next/components/recipe/RecipeDetailPanel.tsx');
+    const editableValueSelect = readUtf8('apps/web-next/components/recipe/EditableValueSelect.tsx');
     const templateMatchSummary = readUtf8('apps/web-next/components/recipe/TemplateMatchSummary.tsx');
+    const recipeDraftHook = readUtf8('apps/web-next/components/recipe/useRecipeDraft.ts');
+    const bomPreviewHook = readUtf8('apps/web-next/components/recipe/useBomPreview.ts');
 
     assert.match(recipesView, /sectionOptions/);
     assert.match(recipesView, /泵壳模板/);
-    assert.match(recipesView, /配方对比/);
+    assert.match(recipeComparePanel, /配方对比/);
     assert.match(recipesView, /toggleCompareRecipe/);
-    assert.match(recipesView, /buildComparePartRows/);
-    assert.match(recipesView, /comparePartRows/);
-    assert.match(recipesView, /Recipe Detail/);
+    assert.match(recipeComparePanel, /buildComparePartRows/);
+    assert.match(recipeComparePanel, /comparePartRows/);
+    assert.match(recipeDetailPanel, /Recipe Detail/);
     assert.match(recipesView, /openRecipeDetail/);
-    assert.match(recipesView, /const detailCurrentSummary = detailRecipe \? currentCostMap\.get\(detailRecipe\.id\)/);
-    assert.match(recipesView, /当日完整成本/);
-    assert.doesNotMatch(recipesView, /detailCurrentCost \? Number\(detailCurrentCost\.totalCost/);
+    assert.match(recipesView, /currentSummary=\{detailRecipe \? currentCostMap\.get\(detailRecipe\.id\)/);
+    assert.match(recipeDetailPanel, /当日完整成本/);
+    assert.doesNotMatch(recipeDetailPanel, /currentCost \? Number\(currentCost\.totalCost/);
     assert.match(recipesView, /getRecipeInventoryStatus/);
-    assert.match(recipesView, /配件与线圈库存/);
+    assert.match(recipeDetailPanel, /配件与线圈库存/);
     assert.doesNotMatch(recipesView, /确认生产|生产数量|预检库存|produceRecipe/);
     assert.match(recipesView, /新建模板/);
     assert.match(recipesView, /submitTemplate/);
@@ -1292,55 +1438,57 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /const hasStainlessStretchBarrelComponent = formTemplateShellComponents\.some/);
     assert.match(recipesView, /isStainlessStretchBarrelComponent\(component\)/);
     assert.match(recipesView, /const hasStainlessBarrel = formTemplate\?\.costMode === 'components'/);
-    assert.match(recipesView, /\{hasStainlessBarrel \? \(/);
+    assert.match(recipeBasicSection, /\{hasStainlessBarrel \? \(/);
     assert.match(recipesView, /customBarrelLength: hasStainlessBarrel \? form\.customBarrelLength \|\| null : null/);
     assert.match(recipesView, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);
-    assert.match(recipesView, /longScrewExtraLength: String\(recipe\.longScrewExtraLength \|\| 0\)/);
-    assert.equal((recipesView.match(/longScrewExtraLength: recipe\.longScrewExtraLength \|\| 0/g) || []).length, 2);
+    assert.match(recipeDraftHook, /longScrewExtraLength: String\(recipe\.longScrewExtraLength \|\| 0\)/);
+    assert.match(bomPreviewHook, /longScrewExtraLength: recipe\.longScrewExtraLength \|\| 0/);
     assert.match(recipesView, /openCloneRecipe/);
-    assert.match(recipesView, /副本/);
-    assert.match(recipesView, /复制/);
+    assert.match(recipeDraftHook, /副本/);
+    assert.match(recipeWorkspace, /复制/);
     assert.doesNotMatch(recipesView, /保存为常用配置/);
-    assert.match(recipesView, /线圈快照/);
-    assert.match(recipesView, /自动电容/);
+    assert.match(recipeWorkspace, /线圈快照/);
+    assert.match(recipeCoilSection, /自动电容/);
     assert.match(recipesView, /bomDraft\?\.coilSnapshot\?\.wireGauge/);
     assert.match(recipesView, /patch\.floatWire = nextFloatWire/);
     assert.match(recipesView, /patch\.cableWire = nextCableWire/);
-    assert.match(recipesView, /isFloatWireRecommended \? <RecipeStatusBadge tone="green">系统推荐<\/RecipeStatusBadge>/);
-    assert.match(recipesView, /isCableWireRecommended \? <RecipeStatusBadge tone="green">系统推荐<\/RecipeStatusBadge>/);
+    assert.match(recipeDynamicConfigSection, /isFloatWireRecommended \? <RecipeStatusBadge tone="green">系统推荐<\/RecipeStatusBadge>/);
+    assert.match(recipeDynamicConfigSection, /isCableWireRecommended \? <RecipeStatusBadge tone="green">系统推荐<\/RecipeStatusBadge>/);
     assert.match(recipesView, /autoWireSelectionRef\.current\.floatWire = ''/);
     assert.match(recipesView, /autoWireSelectionRef\.current\.cableWire = ''/);
     assert.match(recipesView, /wireOptions\(parts, '浮球', '浮球-线径'\)/);
     assert.match(recipesView, /wireOptions\(parts, '电缆线', '电缆-线径'\)/);
-    assert.match(recipesView, /ariaLabel="浮球线径"/);
-    assert.match(recipesView, /ariaLabel="电缆线径"/);
-    assert.match(recipesView, /function EditableWireSelect/);
+    assert.match(recipeDynamicConfigSection, /ariaLabel="浮球线径"/);
+    assert.match(recipeDynamicConfigSection, /ariaLabel="电缆线径"/);
+    assert.match(editableValueSelect, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
-    assert.match(recipesView, /function EditableNumberSelect/);
-    assert.match(recipesView, /onFocus=\{\(\) => \{/);
+    assert.match(editableValueSelect, /function EditableNumberSelect/);
+    assert.match(editableValueSelect, /onFocus=\{\(\) => \{/);
     assert.match(recipesView, /const exactCoilRecord = useMemo/);
     assert.match(recipesView, /coilWireWeight: String\(exactCoilRecord\.wireWeight\)/);
     assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
-    assert.match(recipesView, /role="listbox"/);
-    assert.match(recipesView, /options=\{coilSheetOptions\}/);
+    assert.match(editableValueSelect, /role="listbox"/);
+    assert.match(recipesView, /sheetOptions=\{coilSheetOptions\}/);
+    assert.match(recipeCoilSection, /options=\{sheetOptions\}/);
     assert.doesNotMatch(recipesView, /list="recipe-coil-sheet-options"/);
-    assert.match(recipesView, /系统联动/);
-    assert.match(recipesView, /CircleHelp/);
+    assert.match(recipeBasicSection, /系统联动/);
+    assert.match(recipeBasicSection, /CircleHelp/);
     assert.match(recipesView, /linkedChangeSummary/);
     assert.match(recipesView, /hasLinkedChangeWarning/);
-    assert.match(recipesView, /<details/);
+    assert.match(recipeBasicSection, /<details/);
     assert.match(recipesView, /linkedChangeAnnotations/);
     assert.match(recipesView, /泵壳整体成本/);
     assert.match(recipesView, /不锈钢长螺丝/);
     assert.match(recipesView, /关联电容/);
-    assert.match(recipesView, /浮球线径/);
-    assert.match(recipesView, /电缆线径/);
-    assert.match(recipesView, /wireLinkNote/);
-    assert.match(recipesView, /机筒 \/ 长螺丝/);
+    assert.match(recipeDynamicConfigSection, /浮球线径/);
+    assert.match(recipeDynamicConfigSection, /电缆线径/);
+    assert.match(recipeDynamicConfigSection, /wireLinkNote/);
+    assert.match(modelVariantPanel, /机筒 \/ 长螺丝/);
     assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
     assert.doesNotMatch(templateMatchSummary, /getSubtotal/);
     assert.doesNotMatch(templateMatchSummary, /getSourceLabel/);
-    assert.match(recipesView, /onOpenAll=\{\(\) => setTemplateMatchDialogOpen\(true\)\}/);
+    assert.match(recipesView, /onOpenTemplateParts=\{\(\) => setTemplateMatchDialogOpen\(true\)\}/);
+    assert.match(recipeBasicSection, /onOpenAll=\{onOpenTemplateParts\}/);
     assert.match(recipesView, /buildRecipeSavePayloadDraft/);
     assert.match(recipesView, /assemblyWage:\s*String\(recipeDraft\.assemblyWage/);
     assert.match(recipesLib, /createModelVariant/);
@@ -1367,18 +1515,21 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
 
 test('Next UI 契约：配方页必须压缩成本信息并给工作台足够空间', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
     const costSummary = readUtf8('apps/web-next/components/recipe/CostSummaryPanel.tsx');
     const recipeSection = readUtf8('apps/web-next/components/recipe/RecipeSection.tsx');
+    const recipeLaborCostSection = readUtf8('apps/web-next/components/recipe/RecipeLaborCostSection.tsx');
     const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
 
-    assert.match(recipesView, /成本（当日 \/ 保存）/);
-    assert.match(recipesView, /成本状态正常/);
-    assert.match(recipesView, /className="flex items-baseline justify-end gap-2"/);
-    assert.match(recipesView, /className="h-7"/);
-    assert.match(recipesView, /px-4 py-2/);
-    assert.match(recipesView, /defaultOpen=\{false\}/);
+    assert.match(recipesView, /<RecipeWorkspace/);
+    assert.match(recipeWorkspace, /成本（当日 \/ 保存）/);
+    assert.match(recipeWorkspace, /成本状态正常/);
+    assert.match(recipeWorkspace, /className="flex items-baseline justify-end gap-2"/);
+    assert.match(recipeWorkspace, /className="h-7"/);
+    assert.match(recipeWorkspace, /px-4 py-2/);
+    assert.match(recipeLaborCostSection, /defaultOpen=\{false\}/);
     assert.doesNotMatch(recipesView, />Recipes</);
-    assert.doesNotMatch(recipesView, /variant="danger" aria-label=\{`删除\$\{row\.recipe/);
+    assert.doesNotMatch(recipeWorkspace, /variant="danger" aria-label=\{`删除\$\{row\.recipe/);
     assert.match(costSummary, /pendingHints = Array\.from\(new Set/);
     assert.match(costSummary, /查看模块状态/);
     assert.doesNotMatch(costSummary, /成本完整性提示/);
@@ -1390,39 +1541,327 @@ test('Next UI 契约：配方页必须压缩成本信息并给工作台足够空
     assert.match(slideOver, /aria-modal="true"/);
 });
 
+test('Next UI 契约：配方工作区独立管理列表派生和筛选展示', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+
+    assert.match(recipesView, /<RecipeWorkspace/);
+    assert.match(recipesView, /onView=\{openRecipeDetail\}/);
+    assert.match(recipesView, /onEdit=\{openEditDrawer\}/);
+    assert.match(recipesView, /onClone=\{openCloneRecipe\}/);
+    assert.match(recipesView, /onRemove=\{removeRecipe\}/);
+    assert.doesNotMatch(recipesView, /const recipeRows = useMemo/);
+    assert.doesNotMatch(recipesView, /const filteredRows = useMemo/);
+    assert.doesNotMatch(recipesView, /const stats = useMemo/);
+    assert.match(recipeWorkspace, /const recipeRows = useMemo/);
+    assert.match(recipeWorkspace, /const filteredRows = useMemo/);
+    assert.match(recipeWorkspace, /const stats = useMemo/);
+    assert.match(recipeWorkspace, /buildRecipeCopperRisk/);
+    assert.match(recipeWorkspace, /recipePartsOverview/);
+    assert.match(recipeWorkspace, /ariaLabel="配方快速筛选"/);
+    assert.match(recipeWorkspace, /className="max-w-full overflow-x-auto"/);
+    assert.match(recipeWorkspace, /onToggleCompare\(row\.recipe\.id\)/);
+    assert.doesNotMatch(recipeWorkspace, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：配方详情独立展示成本、BOM、技术参数和库存', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeDetailPanel = readUtf8('apps/web-next/components/recipe/RecipeDetailPanel.tsx');
+
+    assert.match(recipesView, /<RecipeDetailPanel/);
+    assert.match(recipesView, /onRefreshInventory=\{refreshInventoryStatus\}/);
+    assert.match(recipesView, /getRecipeCurrentCost\(detailRecipe\.id\)/);
+    assert.match(recipesView, /getRecipeInventoryStatus\(recipe\.id\)/);
+    assert.doesNotMatch(recipesView, /const detailParts = useMemo/);
+    assert.doesNotMatch(recipesView, /const detailTechnicalEntries = useMemo/);
+    assert.doesNotMatch(recipesView, /const detailPartCompareRows = useMemo/);
+    assert.match(recipeDetailPanel, /parseRecipePartsJson\(recipe\.partsJson\)/);
+    assert.match(recipeDetailPanel, /parseTechnicalDataJson\(recipe\.technicalDataJson\)/);
+    assert.match(recipeDetailPanel, /const partCompareRows = useMemo/);
+    assert.match(recipeDetailPanel, /BOM 快照/);
+    assert.match(recipeDetailPanel, /配件与线圈库存/);
+    assert.doesNotMatch(recipeDetailPanel, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：配方对比独立派生基础信息和 BOM 差异', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeComparePanel = readUtf8('apps/web-next/components/recipe/RecipeComparePanel.tsx');
+
+    assert.match(recipesView, /<RecipeComparePanel/);
+    assert.match(recipesView, /compareIds=\{compareIds\}/);
+    assert.match(recipesView, /onClose=\{\(\) => setCompareOpen\(false\)\}/);
+    assert.doesNotMatch(recipesView, /function buildComparePartRows/);
+    assert.doesNotMatch(recipesView, /const compareRecipes = useMemo/);
+    assert.doesNotMatch(recipesView, /const comparePartRows = useMemo/);
+    assert.match(recipeComparePanel, /function buildComparePartRows/);
+    assert.match(recipeComparePanel, /const compareRecipes = useMemo/);
+    assert.match(recipeComparePanel, /const comparePartRows = useMemo/);
+    assert.match(recipeComparePanel, /BOM 差异/);
+    assert.match(recipeComparePanel, /comparePartDifference/);
+    assert.doesNotMatch(recipeComparePanel, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：历史型号兼容工作区独立管理筛选、草稿和线圈联动', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const variantPanel = readUtf8('apps/web-next/components/recipe/ModelVariantCompatibilityPanel.tsx');
+    const coilSelection = readUtf8('apps/web-next/components/recipe/coil-selection.ts');
+
+    assert.match(recipesView, /<ModelVariantCompatibilityPanel/);
+    assert.match(recipesView, /visible=\{activeSection === 'variants'\}/);
+    assert.match(recipesView, /editorTarget=\{variantEditorTarget\}/);
+    assert.match(recipesView, /onSubmit=\{submitVariant\}/);
+    assert.match(recipesView, /await (?:createModelVariant|updateModelVariant)/);
+    assert.match(recipesView, /await load\(true\)/);
+    assert.doesNotMatch(recipesView, /variantDrawerOpen|variantQuery|variantTemplateFilter/);
+    assert.doesNotMatch(recipesView, /function parseVariantCustomFields|function variantFormToInput/);
+    assert.match(variantPanel, /const filteredVariants = useMemo/);
+    assert.match(variantPanel, /function variantFormToInput/);
+    assert.match(variantPanel, /function addCustomField/);
+    assert.match(variantPanel, /resolveCoilVariantSelection/);
+    assert.match(variantPanel, /<SlideOver open=\{Boolean\(editorTarget\)\}/);
+    assert.match(coilSelection, /export function resolveCoilVariantSelection/);
+    assert.match(recipesView, /from '@\/components\/recipe\/coil-selection'/);
+    assert.doesNotMatch(variantPanel, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：泵壳模板工作区独立派生列表成本并展示详情', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const templateWorkspace = readUtf8('apps/web-next/components/recipe/PumpShellTemplateWorkspace.tsx');
+
+    assert.match(recipesView, /<PumpShellTemplateWorkspace/);
+    assert.match(recipesView, /visible=\{activeSection === 'templates'\}/);
+    assert.match(recipesView, /parts=\{parts\}/);
+    assert.match(recipesView, /onEdit=\{openEditTemplate\}/);
+    assert.match(recipesView, /onRemove=\{\(template\) => void removeTemplate\(template\)\}/);
+    assert.doesNotMatch(recipesView, /const templateRows = useMemo/);
+    assert.doesNotMatch(recipesView, /templateDetail|setTemplateDetail/);
+    assert.match(templateWorkspace, /const rows = useMemo/);
+    assert.match(templateWorkspace, /Number\(catalogPart\?\.price \|\| 0\) > 0/);
+    assert.match(templateWorkspace, /Number\(component\.unitCost \|\| 0\)/);
+    assert.match(templateWorkspace, /<SlideOver open=\{Boolean\(detail\)\}/);
+    assert.match(templateWorkspace, /固定配件/);
+    assert.match(templateWorkspace, /泵壳计价/);
+    assert.match(templateWorkspace, /供应商小套件/);
+    assert.doesNotMatch(templateWorkspace, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：配方智能检查面板独立管理复核展示和反馈草稿', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const analysisPanel = readUtf8('apps/web-next/components/recipe/RecipeAnalysisPanel.tsx');
+
+    assert.match(recipesView, /<RecipeAnalysisPanel/);
+    assert.match(recipesView, /onSaveFeedback=\{saveAnalysisFeedback\}/);
+    assert.match(recipesView, /await saveRecipeAnalysisFeedback\(editingRecipe\.id/);
+    assert.match(recipesView, /await runRecipeAnalysis\(\{ preserveSaveGate: analysisSaveGateOpen \}\)/);
+    assert.match(recipesView, /void saveRecipe\(\{ skipIntelligenceCheck: true \}\)/);
+    assert.doesNotMatch(recipesView, /analysisFeedbackDraft|feedbackActions|reviewTargetFinding/);
+    assert.match(analysisPanel, /const \[feedbackDraft, setFeedbackDraft\] = useState/);
+    assert.match(analysisPanel, /const reviewTargetFinding = useMemo/);
+    assert.match(analysisPanel, /data-review-target/);
+    assert.match(analysisPanel, /待复核进度/);
+    assert.match(analysisPanel, /规则学习已按本次判断刷新/);
+    assert.match(analysisPanel, /aria-labelledby="analysis-feedback-title"/);
+    assert.match(analysisPanel, /onSaveFeedback\(/);
+    assert.doesNotMatch(analysisPanel, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：泵壳模板表单转换独立管理默认值、回填和提交序列化', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const templateForm = readUtf8('apps/web-next/components/recipe/pump-shell-template-form.ts');
+
+    assert.match(recipesView, /from '@\/components\/recipe\/pump-shell-template-form'/);
+    assert.match(recipesView, /setTemplateForm\(emptyTemplateForm\(\)\)/);
+    assert.match(recipesView, /setTemplateForm\(templateFormFromTemplate\(template\)\)/);
+    assert.match(recipesView, /const input = templateFormToInput\(templateForm\)/);
+    assert.match(recipesView, /await (?:createTemplate|updateTemplate)/);
+    assert.match(recipesView, /await load\(true\)/);
+    assert.doesNotMatch(recipesView, /function defaultTemplateParts|function defaultShellComponents/);
+    assert.doesNotMatch(recipesView, /function templateFormFromTemplate|function templateFormToInput/);
+    assert.match(templateForm, /export function emptyTemplateForm/);
+    assert.match(templateForm, /export function templateFormFromTemplate/);
+    assert.match(templateForm, /export function templateFormToInput/);
+    assert.match(templateForm, /partsJson: JSON\.stringify\(partsPayload\)/);
+    assert.match(templateForm, /shellComponentsJson: JSON\.stringify\(componentsPayload\)/);
+    assert.match(templateForm, /rotorParamsJson: JSON\.stringify\(rotorParamsPayload\)/);
+    assert.match(templateForm, /form\.surfaceTreatmentMode === 'none'/);
+    assert.doesNotMatch(templateForm, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：AI 工作台弹层独立展示且写入状态仍由专属状态层编排', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const dialogs = readUtf8('apps/web-next/components/ai/AiWorkspaceDialogs.tsx');
+    const conversationHistory = readUtf8('apps/web-next/components/ai/useAiConversationHistory.ts');
+    const attachmentArchive = readUtf8('apps/web-next/components/ai/AiAttachmentArchiveController.tsx');
+    const answerFeedback = readUtf8('apps/web-next/components/ai/useAiAnswerFeedback.ts');
+
+    assert.match(aiView, /from '@\/components\/ai\/AiWorkspaceDialogs'/);
+    assert.match(aiView, /<AiAttachmentArchiveController/);
+    assert.match(aiView, /<AnswerFeedbackDialog/);
+    assert.match(aiView, /<DeleteConversationDialog/);
+    assert.match(aiView, /<KnowledgeSyncDialog/);
+    assert.match(aiView, /<SystemPromptDialog/);
+    assert.match(attachmentArchive, /await archiveFactoryFile\(/);
+    assert.match(answerFeedback, /await submitAiAnswerFeedback\(/);
+    assert.match(conversationHistory, /await deleteAiConversation\(/);
+    assert.match(aiView, /await syncFactoryKnowledge\(/);
+    assert.match(aiView, /await updateAiSystemPrompt\(/);
+    assert.doesNotMatch(aiView, /aria-labelledby="file-archive-title"/);
+    assert.doesNotMatch(aiView, /aria-labelledby="answer-feedback-title"/);
+    assert.doesNotMatch(aiView, /aria-labelledby="knowledge-sync-title"/);
+    assert.doesNotMatch(aiView, /aria-labelledby="ai-prompt-title"/);
+    assert.match(dialogs, /export function AttachmentArchiveDialog/);
+    assert.match(dialogs, /export function AnswerFeedbackDialog/);
+    assert.match(dialogs, /export function DeleteConversationDialog/);
+    assert.match(dialogs, /export function KnowledgeSyncDialog/);
+    assert.match(dialogs, /export function SystemPromptDialog/);
+    assert.match(dialogs, /role="dialog"/);
+    assert.doesNotMatch(dialogs, /archiveFactoryFile|submitAiAnswerFeedback|deleteAiConversation|syncFactoryKnowledge|updateAiSystemPrompt/);
+    assert.doesNotMatch(dialogs, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：AI 回答依据、确认卡片和业务结果按职责拆分', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const answerProcess = readUtf8('apps/web-next/components/ai/AiAnswerProcess.tsx');
+    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
+    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
+    const primitives = readUtf8('apps/web-next/components/ai/AiResultPrimitives.tsx');
+
+    assert.match(aiView, /<AiMessageList/);
+    assert.match(messageList, /from '@\/components\/ai\/AiAnswerProcess'/);
+    assert.match(messageList, /<AnswerProcess/);
+    assert.match(aiView, /useAiMessageStream/);
+    assert.doesNotMatch(aiView, /function ToolResultCard|function BusinessResult|function AnswerEvidence/);
+    assert.match(answerProcess, /export function AnswerProcess/);
+    assert.match(answerProcess, /function ToolResultCard/);
+    assert.match(answerProcess, /confirmAiTool\(confirmation\.confirmationToken\)/);
+    assert.match(answerProcess, /isConfirmationResult\(result\)/);
+    assert.match(answerProcess, /readOnly \? undefined : onSendPrompt/);
+    assert.match(businessResult, /export function BusinessResult/);
+    assert.match(businessResult, /FactoryExecutionPlanResult/);
+    assert.match(workflowResults, /export function FactoryExecutionPlanResult/);
+    assert.match(workflowResults, /buildFactoryWorkflowShortcutPrompt/);
+    assert.match(primitives, /export function DataTable/);
+    assert.match(primitives, /export function attachmentParserText/);
+    assert.doesNotMatch(answerProcess, /fetch\(/);
+    assert.doesNotMatch(businessResult, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(workflowResults, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(primitives, /proxyRequest|proxyFetch|fetch\(/);
+});
+
+test('Next UI 契约：AI 会话侧栏、历史状态和流式消息状态按职责拆分', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const sidebars = readUtf8('apps/web-next/components/ai/AiConversationSidebars.tsx');
+    const conversationHistory = readUtf8('apps/web-next/components/ai/useAiConversationHistory.ts');
+    const messageStream = readUtf8('apps/web-next/components/ai/useAiMessageStream.ts');
+
+    assert.match(aiView, /<AiDesktopSidebar/);
+    assert.match(aiView, /<AiMobileConversationDrawer/);
+    assert.match(aiView, /useAiConversationHistory\(loading\)/);
+    assert.match(aiView, /useAiMessageStream\(\)/);
+    assert.match(sidebars, /function ConversationList/);
+    assert.match(sidebars, /aria-label="搜索会话"/);
+    assert.match(sidebars, /export const aiStarterSamples/);
+    assert.match(conversationHistory, /listAiConversations\(\)/);
+    assert.match(conversationHistory, /getAiConversation\(id\)/);
+    assert.match(conversationHistory, /deleteAiConversation\(id\)/);
+    assert.match(messageStream, /export function applyAiStreamEvent/);
+    assert.match(messageStream, /const abortRef = useRef<AbortController/);
+    assert.doesNotMatch(sidebars, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(conversationHistory, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(messageStream, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(aiView, /function applyAiStreamEvent|function ConversationList/);
+});
+
+test('Next UI 契约：AI 附件上传、展示和归档编排按职责拆分', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const attachments = readUtf8('apps/web-next/components/ai/useAiAttachments.ts');
+    const displays = readUtf8('apps/web-next/components/ai/AiAttachmentDisplays.tsx');
+    const archiveController = readUtf8('apps/web-next/components/ai/AiAttachmentArchiveController.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
+
+    assert.match(aiView, /useAiAttachments\(initialAttachmentId\)/);
+    assert.match(messageList, /<AiMessageAttachments/);
+    assert.match(composer, /<AiPendingAttachmentStrip/);
+    assert.match(aiView, /<AiAttachmentArchiveController/);
+    assert.match(attachments, /uploadFactoryFile\(file\)/);
+    assert.match(attachments, /transientAttachmentIdsRef/);
+    assert.match(attachments, /markAttachmentsPersisted/);
+    assert.match(attachments, /discardAllPendingAttachments/);
+    assert.match(displays, /export function AiMessageAttachments/);
+    assert.match(displays, /export function AiPendingAttachmentStrip/);
+    assert.match(archiveController, /searchFactoryFileArchiveTargets/);
+    assert.match(archiveController, /archiveFactoryFile\(attachment\.id/);
+    assert.doesNotMatch(displays, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(aiView, /uploadFactoryFile|function openArchiveDialog|function saveFileArchive/);
+});
+
+test('Next UI 契约：AI 消息、输入、语音和反馈状态按职责拆分', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
+    const speech = readUtf8('apps/web-next/components/ai/useAiSpeechInput.ts');
+    const feedback = readUtf8('apps/web-next/components/ai/useAiAnswerFeedback.ts');
+
+    assert.match(aiView, /<AiMessageList/);
+    assert.match(aiView, /<AiComposer/);
+    assert.match(aiView, /useAiSpeechInput\(input, setInput\)/);
+    assert.match(aiView, /useAiAnswerFeedback\(setHistoryError\)/);
+    assert.match(messageList, /<StreamingText/);
+    assert.match(messageList, /这条回答是否可靠/);
+    assert.match(composer, /ai-mobile-composer/);
+    assert.match(composer, /AI 页面上下文/);
+    assert.match(speech, /webkitSpeechRecognition/);
+    assert.match(speech, /recognition\.abort\(\)/);
+    assert.match(feedback, /submitAiAnswerFeedback/);
+    assert.doesNotMatch(messageList, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(composer, /proxyRequest|proxyFetch|fetch\(/);
+    assert.doesNotMatch(aiView, /function toggleVoiceInput|function markAnswerHelpful|<StreamingText/);
+});
+
 test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
+    const shellCostEditor = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
     const partFormRules = readUtf8('apps/web-next/lib/part-form-rules.ts');
     const templateCommands = readUtf8('api/services/templateCommands.cjs');
     const schema = readUtf8('api/database/schema.cjs');
 
     assert.match(recipesView, /part\.category === '泵壳'/);
-    assert.match(recipesView, /零件库泵壳型号/);
-    assert.match(recipesView, /组合模板名称/);
-    assert.match(recipesView, /list="shell-template-model-options"/);
-    assert.match(recipesView, /可直接输入新的组合名称，也可展开选择零件库中的泵壳型号/);
-    assert.match(recipesView, /componentType/);
+    assert.match(recipesView, /<PumpShellTemplateEditor/);
+    assert.match(templateEditor, /零件库泵壳型号/);
+    assert.match(templateEditor, /组合模板名称/);
+    assert.match(templateEditor, /list="shell-template-model-options"/);
+    assert.match(templateEditor, /可直接输入新的组合名称，也可展开选择零件库中的泵壳型号/);
+    assert.match(templateEditor, /<ShellCostEditor/);
+    assert.match(shellCostEditor, /componentType/);
     assert.match(partFormRules, /泵壳搭配/);
     assert.match(recipesView, /part\.category === SHELL_COMPONENT_CATEGORY/);
-    assert.match(recipesView, /barrelComponentNameOptions = \['铝机筒', STAINLESS_STRETCH_BARREL_NAME, '铁机筒'\]/);
-    assert.match(recipesView, /不锈钢拉伸筒/);
-    assert.match(recipesView, /aria-label="机筒类型"/);
-    assert.match(recipesView, /shellComponentModelOptions\.map/);
-    assert.doesNotMatch(recipesView, /id="shell-component-model-options"/);
-    assert.doesNotMatch(recipesView, /checked=\{Boolean\(row\.isStainlessStretchBarrel\)\}/);
-    assert.match(recipesView, /supplier/);
-    assert.match(recipesView, /selectTemplateShell/);
-    assert.match(recipesView, /泵壳套件/);
-    assert.match(recipesView, /自由搭配/);
-    assert.match(recipesView, /role="radiogroup" aria-label="泵壳计价方式"/);
-    assert.match(recipesView, /templateForm\.costMode === 'bundle'/);
-    assert.match(recipesView, /templateForm\.bundleNote/);
-    assert.match(recipesView, /填写套件计价或配置说明/);
-    assert.match(recipesView, /电泳\+喷塑/);
-    assert.match(recipesView, /整体喷塑/);
-    assert.match(recipesView, /表面处理费用/);
-    assert.match(recipesView, /templateForm\.surfaceTreatmentCost/);
+    assert.match(shellCostEditor, /barrelComponentNameOptions = \['铝机筒', STAINLESS_STRETCH_BARREL_NAME, '铁机筒'\]/);
+    assert.match(shellCostEditor, /不锈钢拉伸筒/);
+    assert.match(shellCostEditor, /aria-label="机筒类型"/);
+    assert.match(shellCostEditor, /modelOptions\.map/);
+    assert.doesNotMatch(shellCostEditor, /id="shell-component-model-options"/);
+    assert.doesNotMatch(shellCostEditor, /checked=\{Boolean\(row\.isStainlessStretchBarrel\)\}/);
+    assert.match(shellCostEditor, /supplier/);
+    assert.doesNotMatch(recipesView, /function addSubassemblyContentRow/);
+    assert.doesNotMatch(recipesView, /function updateComponentRow/);
+    assert.doesNotMatch(recipesView, /function selectTemplateShell/);
+    assert.match(templateEditor, /function selectShell/);
+    assert.match(shellCostEditor, /泵壳套件/);
+    assert.match(shellCostEditor, /自由搭配/);
+    assert.match(shellCostEditor, /包含组件/);
+    assert.match(shellCostEditor, /不单独计价或扣库存/);
+    assert.match(templateEditor, /role="radiogroup" aria-label="泵壳计价方式"/);
+    assert.match(templateEditor, /form\.costMode === 'bundle'/);
+    assert.match(templateEditor, /bundleNote=\{form\.bundleNote\}/);
+    assert.match(shellCostEditor, /填写套件计价或配置说明/);
+    assert.match(templateEditor, /电泳\+喷塑/);
+    assert.match(templateEditor, /整体喷塑/);
+    assert.match(templateEditor, /表面处理费用/);
+    assert.match(templateEditor, /form\.surfaceTreatmentCost/);
     assert.doesNotMatch(recipesView, /喷漆工资/);
     assert.match(recipesLib, /electrophoresis_powder_coating/);
     assert.match(templateCommands, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);

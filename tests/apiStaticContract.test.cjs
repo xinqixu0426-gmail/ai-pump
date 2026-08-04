@@ -205,13 +205,14 @@ test('API 静态契约：前端不得新增裸 fetch 调用', () => {
 
 test('API 静态契约：AI 纠错学习只通过统一客户端并提供人工启停入口', () => {
     const client = readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts'));
-    const chat = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const feedback = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiAnswerFeedback.ts'));
+    const dialogs = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiWorkspaceDialogs.tsx'));
     const knowledge = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
 
     assert.match(client, /proxyRequest<ApiResponse<FactoryAiRuleList>>\(`\/api\/ai\/learning-rules/);
     assert.match(client, /learnFromCorrection\?: boolean/);
-    assert.match(chat, /让 AI 长期记住这条正确做法/);
-    assert.match(chat, /feedbackRating === 'incorrect' && feedbackLearn/);
+    assert.match(dialogs, /让 AI 长期记住这条正确做法/);
+    assert.match(feedback, /feedbackRating === 'incorrect' && feedbackLearn/);
     assert.match(knowledge, /AI 长期学习规则/);
     assert.match(knowledge, /toggleLearningRule/);
 });
@@ -352,13 +353,19 @@ test('API 静态契约：配方线圈材质切换必须从可用组合解析槽�
     const coilRoute = readUtf8(path.join(repoRoot, 'api/routes/coils.cjs'));
     const coilQueries = readUtf8(path.join(repoRoot, 'api/services/coilQueries.cjs'));
     const recipeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const recipeCoilSection = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/RecipeCoilSection.tsx'));
+    const variantPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/ModelVariantCompatibilityPanel.tsx'));
+    const coilSelection = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/coil-selection.ts'));
 
     assert.match(coilService, /function buildCoilSpecOptions/);
     assert.match(coilRoute, /coilQueries\.getSpecOptions\(\)/);
     assert.match(coilQueries, /buildCoilSpecOptions\(listCoils\(\)\)/);
-    assert.match(recipeView, /function resolveCoilVariantSelection/);
-    assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedFormCoilSpec,\s*event\.target\.value/);
-    assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedVariantCoil,\s*event\.target\.value/);
+    assert.match(coilSelection, /export function resolveCoilVariantSelection/);
+    assert.match(coilSelection, /variant\.material === preferredMaterial && variant\.slotType === preferredSlotType/);
+    assert.match(coilSelection, /variants\.find\(\(variant\) => variant\.material === preferredMaterial\)/);
+    assert.match(recipeCoilSection, /onMaterialChange\(event\.target\.value\)/);
+    assert.match(recipeView, /resolveCoilVariantSelection\(\s*selectedFormCoilSpec,\s*coilMaterial/);
+    assert.match(variantPanel, /resolveCoilVariantSelection\(\s*selectedCoil,\s*event\.target\.value/);
     assert.doesNotMatch(recipeView, /coilMaterial:\s*event\.target\.value,\s*coilSlotType:\s*'小眼'/);
 });
 
@@ -807,7 +814,7 @@ test('API 静态契约：Knowledge V3 同类反馈与候选规则归纳保持事
     const feedbackService = readUtf8(path.join(repoRoot, 'api/services/recipeAnalysisFeedback.cjs'));
     const prompt = readAiPromptContractSource();
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
-    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const analysisPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/RecipeAnalysisPanel.tsx'));
 
     assert.match(feedbackService, /database\.transaction/);
     assert.match(feedbackService, /findingType !== 'peer_pattern'/);
@@ -816,7 +823,7 @@ test('API 静态契约：Knowledge V3 同类反馈与候选规则归纳保持事
     assert.match(prompt, /无需再调用 refresh_factory_rule_candidates/);
     assert.match(qualityView, /反馈保存后会自动归纳/);
     assert.match(qualityView, /重新核对规则/);
-    assert.match(recipesView, /自动计入候选规则证据/);
+    assert.match(analysisPanel, /自动计入候选规则证据/);
 });
 
 test('API 静态契约：Knowledge V3 规则生命周期记录可追溯且只读', () => {
@@ -926,7 +933,7 @@ test('API 静态契约：Knowledge V3 隔离配方修改后的过期反馈', () 
     const recipeCommands = readUtf8(path.join(repoRoot, 'api/services/recipeCommands.cjs'));
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
-    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const analysisPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/RecipeAnalysisPanel.tsx'));
     const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
     const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
 
@@ -943,7 +950,7 @@ test('API 静态契约：Knowledge V3 隔离配方修改后的过期反馈', () 
     assert.match(tools, /内容过期/);
     assert.match(qualityClient, /outdatedCount: number/);
     assert.match(qualityView, /内容过期/);
-    assert.match(recipesView, /反馈已过期/);
+    assert.match(analysisPanel, /反馈已过期/);
     assert.match(docs, /内容过期/);
 });
 
@@ -992,7 +999,7 @@ test('API 静态契约：Knowledge V3 已消失的待复核提醒可确认解决
     const route = readUtf8(path.join(repoRoot, 'api/routes/quality.cjs'));
     const qualityClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quality.ts'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
-    const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const analysisPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/RecipeAnalysisPanel.tsx'));
     const docs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
 
     assert.match(feedbackService, /function resolveRecipeAnalysisFeedback/);
@@ -1003,15 +1010,16 @@ test('API 静态契约：Knowledge V3 已消失的待复核提醒可确认解决
     assert.match(route, /router\.post\('\/recipe-feedback\/:id\/resolve'/);
     assert.match(qualityClient, /resolveRecipeAnalysisFeedback/);
     assert.match(qualityView, /feedbackIds=\$\{feedbackIds\}/);
-    assert.match(recipesView, /data-review-target/);
-    assert.match(recipesView, /确认已解决/);
-    assert.match(recipesView, /原待复核提醒/);
+    assert.match(analysisPanel, /data-review-target/);
+    assert.match(analysisPanel, /确认已解决/);
+    assert.match(analysisPanel, /原待复核提醒/);
     assert.match(docs, /确认已解决/);
 });
 
 test('API 静态契约：Knowledge V3 同一配方待复核反馈按任务聚合并顺序处理', () => {
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const analysisPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/RecipeAnalysisPanel.tsx'));
     const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
     const businessFlow = readUtf8(path.join(repoRoot, 'docs/business-flow.md'));
 
@@ -1022,24 +1030,25 @@ test('API 静态契约：Knowledge V3 同一配方待复核反馈按任务聚合
     assert.match(recipesView, /setReviewEvidenceTargets\(evidence\)/);
     assert.match(recipesView, /function completeCurrentReviewEvidence/);
     assert.match(recipesView, /继续处理下一条/);
-    assert.match(recipesView, /待复核进度：第/);
+    assert.match(analysisPanel, /待复核进度：第/);
     assert.match(docs, /按配方聚合/);
     assert.match(businessFlow, /按配方聚合/);
 });
 
 test('API 静态契约：Knowledge V3 待复核工作台展示规则影响并完成闭环', () => {
     const recipesView = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipes-view.tsx'));
+    const analysisPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/recipe/RecipeAnalysisPanel.tsx'));
     const docs = readUtf8(path.join(repoRoot, 'docs/README.md'));
     const apiDocs = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
     const businessFlow = readUtf8(path.join(repoRoot, 'docs/business-flow.md'));
 
     assert.match(recipesView, /setReviewRuleLearning\(result\.ruleLearning \|\| null\)/);
-    assert.match(recipesView, /规则学习已按本次判断刷新/);
+    assert.match(analysisPanel, /规则学习已按本次判断刷新/);
     assert.match(recipesView, /function skipCurrentReviewEvidence/);
     assert.match(recipesView, /原反馈状态没有改变/);
     assert.match(recipesView, /nextUrl\.searchParams\.delete\('feedbackIds'\)/);
     assert.match(recipesView, /window\.location\.assign\('\/dashboard\?view=quality'\)/);
-    assert.match(recipesView, /返回数据质量/);
+    assert.match(analysisPanel, /返回数据质量/);
     assert.match(docs, /规则学习刷新结果/);
     assert.match(apiDocs, /暂时跳过只调整本地处理顺序/);
     assert.match(businessFlow, /暂时跳过只改变当前页面的处理顺序/);
@@ -1214,6 +1223,8 @@ test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型�
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const conversations = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const aiAttachments = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiAttachments.ts'));
+    const aiComposer = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiComposer.tsx'));
 
     assert.match(chat, /router\.get\('\/api\/ai\/capabilities'/);
     assert.match(chat, /fetchAiProvider/);
@@ -1223,8 +1234,8 @@ test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型�
     assert.match(provider, /不支持直接识图/);
     assert.match(conversations, /resolveMessageAttachments/);
     assert.match(conversations, /FROM factory_files/);
-    assert.match(aiView, /uploadFactoryFile/);
-    assert.match(aiView, /Paperclip/);
+    assert.match(aiAttachments, /uploadFactoryFile/);
+    assert.match(aiComposer, /Paperclip/);
     assert.match(aiView, /pendingAttachments/);
 });
 
@@ -1235,7 +1246,7 @@ test('API 静态契约：V9.2 PDF 解析保留页码定位并按状态进入 AI 
     const fileParser = readUtf8(path.join(repoRoot, 'api/services/factoryFileParser.cjs'));
     const filesRoute = readUtf8(path.join(repoRoot, 'api/routes/files.cjs'));
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
-    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const attachmentDisplays = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiAttachmentDisplays.tsx'));
 
     assert.match(schema, /parsed_text TEXT NOT NULL DEFAULT ''/);
     assert.match(schema, /parsed_json TEXT NOT NULL DEFAULT '\{\}'/);
@@ -1250,7 +1261,7 @@ test('API 静态契约：V9.2 PDF 解析保留页码定位并按状态进入 AI 
     assert.match(filesRoute, /router\.get\('\/:id\/content'/);
     assert.match(provider, /解析内容（含 OCR）/);
     assert.match(provider, /本轮不能推断扫描图片中的内容/);
-    assert.match(aiView, /attachmentParserText/);
+    assert.match(attachmentDisplays, /attachmentParserText/);
 });
 
 test('API 静态契约：V9.3 表格解析和报价映射保持只读业务边界', () => {
@@ -1262,7 +1273,8 @@ test('API 静态契约：V9.3 表格解析和报价映射保持只读业务边�
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const chat = readAiPromptContractSource();
     const lifecycle = readUtf8(path.join(repoRoot, 'api/services/managementActionLifecycle.cjs'));
-    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const attachmentDisplays = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiAttachmentDisplays.tsx'));
+    const resultPrimitives = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiResultPrimitives.tsx'));
 
     assert.match(parser, /version: 'spreadsheet-v1'/);
     assert.match(parser, /cellRef/);
@@ -1282,7 +1294,8 @@ test('API 静态契约：V9.3 表格解析和报价映射保持只读业务边�
     assert.match(tools, /name: 'inspect_quotation_file'/);
     assert.match(chat, /readyForSaveDraft=true/);
     assert.match(lifecycle, /quotation-draft/);
-    assert.match(aiView, /已读取 \$\{sheets\} 个表/);
+    assert.match(attachmentDisplays, /attachmentParserText/);
+    assert.match(resultPrimitives, /已读取 \$\{sheets\} 个表/);
 });
 
 test('API 静态契约：V9.4 图片和扫描 PDF 使用本地 OCR 且候选参数只读', () => {
@@ -1291,7 +1304,8 @@ test('API 静态契约：V9.4 图片和扫描 PDF 使用本地 OCR 且候选参�
     const fileParser = readUtf8(path.join(repoRoot, 'api/services/factoryFileParser.cjs'));
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const chat = readAiPromptContractSource();
-    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const attachmentDisplays = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiAttachmentDisplays.tsx'));
+    const resultPrimitives = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiResultPrimitives.tsx'));
 
     assert.match(ocr, /@tesseract\.js-data\/chi_sim/);
     assert.match(ocr, /@tesseract\.js-data\/eng/);
@@ -1303,7 +1317,8 @@ test('API 静态契约：V9.4 图片和扫描 PDF 使用本地 OCR 且候选参�
     assert.match(fileParser, /detected_type === 'image'/);
     assert.match(provider, /本地 OCR 结果/);
     assert.match(chat, /任何 OCR 候选都不得自动写入/);
-    assert.match(aiView, /OCR 未识别到文字/);
+    assert.match(attachmentDisplays, /attachmentParserText/);
+    assert.match(resultPrimitives, /OCR 未识别到文字/);
 });
 
 test('API 静态契约：V5.2 订单生产准备检查复用库存计划且保持只读', () => {
@@ -1462,7 +1477,7 @@ test('API 静态契约：V7.2 今日执行队列可解释排序且保持只读',
     const queue = readUtf8(path.join(repoRoot, 'api/services/managementExecutionQueue.cjs'));
     const lifecycle = readUtf8(path.join(repoRoot, 'api/services/managementActionLifecycle.cjs'));
     const dashboard = readUtf8(path.join(repoRoot, 'apps/web-next/components/management-action-center.tsx'));
-    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const workflowResults = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiWorkflowResults.tsx'));
 
     assert.match(queue, /PRIORITY_BASE/);
     assert.match(queue, /duration/);
@@ -1473,7 +1488,7 @@ test('API 静态契约：V7.2 今日执行队列可解释排序且保持只读',
     assert.match(lifecycle, /buildManagementExecutionQueue\(decorated\)/);
     assert.match(dashboard, /今日执行队列/);
     assert.match(dashboard, /executionQueue\.items/);
-    assert.match(aiView, /executionQueue\.summary/);
+    assert.match(workflowResults, /executionQueue\.summary/);
 });
 
 test('API 静态契约：V7.3 最短处理路径只复用受保护的现有写入口', () => {
@@ -1748,7 +1763,7 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', (
     );
     const runtimeConfig = readUtf8(path.join(repoRoot, 'api/services/runtimeConfig.cjs'));
     const setupView = readUtf8(path.join(repoRoot, 'apps/web-next/components/setup-view.tsx'));
-    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const aiMessageList = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiMessageList.tsx'));
 
     assert.match(provider, /text\(env\.DEEPSEEK_MODEL\) \|\| 'deepseek-v4-flash'/);
     assert.match(provider, /provider: 'deepseek'/);
@@ -1757,7 +1772,7 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', (
     assert.match(provider, /routeReason: 'vision_fallback'/);
     assert.match(runtimeConfig, /values: \['auto', 'deepseek', 'kimi'\]/);
     assert.match(setupView, /普通对话、PDF 文字层和 Excel 默认使用 DeepSeek/);
-    assert.match(aiView, /item\.provider\.displayName/);
+    assert.match(aiMessageList, /item\.provider\.displayName/);
     assert.match(rotorNaturalLanguage, /DEFAULT_MODEL = 'deepseek-v4-flash'/);
     assert.match(rotorNaturalLanguage, /process\.env\.DEEPSEEK_MODEL \|\| DEFAULT_MODEL/);
     assert.doesNotMatch(provider, /deepseek-chat/);
@@ -1865,6 +1880,8 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const chat = readAiPromptContractSource();
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const aiDialogs = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiWorkspaceDialogs.tsx'));
+    const aiAttachmentArchive = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiAttachmentArchiveController.tsx'));
     const fileLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/files.ts'));
     const attachmentPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/factory-file-attachments.tsx'));
     const customersView = readUtf8(path.join(repoRoot, 'apps/web-next/components/customers-view.tsx'));
@@ -1901,8 +1918,10 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     assert.match(fileLib, /archiveFactoryFile/);
     assert.match(fileLib, /listFactoryFileLinksForTarget/);
     assert.match(fileLib, /deleteFactoryFileLink/);
-    assert.match(aiView, /归档附件/);
-    assert.match(aiView, /已有归档/);
+    assert.match(aiView, /AiAttachmentArchiveController/);
+    assert.match(aiAttachmentArchive, /AttachmentArchiveDialog/);
+    assert.match(aiDialogs, /归档附件/);
+    assert.match(aiDialogs, /已有归档/);
     assert.match(attachmentPanel, /source: 'business_page'/);
     assert.match(attachmentPanel, /uploadFactoryFile/);
     assert.match(attachmentPanel, /archiveFactoryFile/);
