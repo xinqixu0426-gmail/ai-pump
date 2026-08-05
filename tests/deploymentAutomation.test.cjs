@@ -13,7 +13,9 @@ test('Mac Mini 一键发布：Windows 入口只部署已推送提交并通过 st
     assert.match(pkg.scripts['deploy:macmini'], /deploy-macmini\.ps1/);
     assert.match(wrapper, /--untracked-files=no/);
     assert.match(wrapper, /origin\/\$Branch/);
-    assert.match(wrapper, /Get-Content[\s\S]*-Raw[\s\S]*-Encoding UTF8[\s\S]*\|\s*& ssh/);
+    assert.match(wrapper, /Start-Process[\s\S]*-FilePath 'ssh'/);
+    assert.match(wrapper, /-RedirectStandardInput \$remoteScript/);
+    assert.doesNotMatch(wrapper, /Get-Content[\s\S]*\|\s*& ssh/);
     assert.match(wrapper, /ServerAliveInterval=30/);
     assert.match(wrapper, /\/bin\/zsh -s/);
 });

@@ -45,14 +45,20 @@ try {
     }
 
     Write-Host "准备部署 $($localCommit.Substring(0, 7)) 到 $SshHost。"
-    Get-Content -LiteralPath $remoteScript -Raw -Encoding UTF8 |
-        & ssh `
-            -o ServerAliveInterval=30 `
-            -o ServerAliveCountMax=6 `
-            $SshHost `
+    $sshProcess = Start-Process `
+        -FilePath 'ssh' `
+        -ArgumentList @(
+            '-o', 'ServerAliveInterval=30',
+            '-o', 'ServerAliveCountMax=6',
+            $SshHost,
             "PUMP_DEPLOY_BRANCH=$Branch /bin/zsh -s"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Mac Mini 发布失败，退出码：$LASTEXITCODE。"
+        ) `
+        -RedirectStandardInput $remoteScript `
+        -NoNewWindow `
+        -Wait `
+        -PassThru
+    if ($sshProcess.ExitCode -ne 0) {
+        throw "Mac Mini 发布失败，退出码：$($sshProcess.ExitCode)。"
     }
 } finally {
     Pop-Location
