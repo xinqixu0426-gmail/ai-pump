@@ -191,6 +191,18 @@ test('AI 评测：禁用词允许明确否定，但拒绝反转后的肯定结�
     );
     assert.equal(futureNegation.status, 'passed');
 
+    const unconfirmedConclusion = evaluateRuleCase(
+        {
+            config: {
+                forbiddenTerms: ['全套含刀'],
+            },
+        },
+        '系统未明确记录是否随泵壳附带刀片，无法确认“全套含刀”，不能自行推断。',
+        [],
+        fixture.db
+    );
+    assert.equal(unconfirmedConclusion.status, 'passed');
+
     const wrong = evaluateRuleCase(
         caseItem,
         '附件不是性能测试报告，而是参考图纸。',
