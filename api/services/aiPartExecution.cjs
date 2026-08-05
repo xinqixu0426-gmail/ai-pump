@@ -43,6 +43,47 @@ async function executePartCreate(args = {}, dependencies = {}) {
     };
 }
 
+async function executePartBatchCreate(args = {}, dependencies = {}) {
+    const {
+        internalFetch,
+        postJson,
+    } = dependencies;
+    if (!Array.isArray(args.parts) || args.parts.length === 0) {
+        return { success: false, error: '缺少必要参数：parts 必须是非空数组' };
+    }
+    const preview = await postJson(
+        internalFetch,
+        '/api/parts/batch-create-preview',
+        { parts: args.parts },
+        '批量新增零件预览失败'
+    );
+    const saved = await postJson(
+        internalFetch,
+        '/api/parts/batch-create',
+        {
+            confirmationToken: preview.confirmationToken,
+            idempotencyKey: preview.suggestedIdempotencyKey,
+        },
+        '批量新增零件失败'
+    );
+    return {
+        success: true,
+        message: `已通过标准 API 批量新增 ${saved.createdCount} 个零件`,
+        createdCount: saved.createdCount,
+        skippedCount: preview.skippedCount || 0,
+        parts: saved.parts || [],
+        skippedExisting: preview.skippedExisting || [],
+        changes: saved.changes || [],
+        warnings: [
+            ...(preview.warnings || []),
+            ...(saved.warnings || []),
+        ],
+        auditId: saved.auditId || null,
+        auditIds: saved.auditIds || [],
+        formalOperationId: saved.operationId || null,
+    };
+}
+
 async function executePartDelete(args = {}, dependencies = {}) {
     const {
         internalFetch,
@@ -304,6 +345,7 @@ async function executePartPriceBatch(args = {}, dependencies = {}) {
 }
 
 module.exports = {
+    executePartBatchCreate,
     executePartCreate,
     executePartDelete,
     executePartPriceBatch,

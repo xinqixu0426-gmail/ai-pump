@@ -3,6 +3,7 @@ const {
     executeCoilStockAdjustment,
 } = require('../../../services/aiCoilStockExecution.cjs');
 const {
+    executePartBatchCreate,
     executePartCreate,
     executePartDelete,
     executePartPriceBatch,
@@ -43,6 +44,13 @@ async function executeQueryTool(toolName, args, internalFetch) {
 
         case 'create_part': {
             return executePartCreate(args, {
+                internalFetch,
+                postJson,
+            });
+        }
+
+        case 'batch_create_parts': {
+            return executePartBatchCreate(args, {
                 internalFetch,
                 postJson,
             });

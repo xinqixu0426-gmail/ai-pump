@@ -1050,6 +1050,35 @@ test('关键 API 集成契约：/api/parts/batch-stock 是唯一标准库存增�
     assert.doesNotMatch(section, /\bdb\.prepare\(\s*`?\s*UPDATE\b/i);
 });
 
+test('关键 API 集成契约：批量零件建档使用预览、确认和原子正式命令', () => {
+    const route = readUtf8('api/routes/parts.cjs');
+    const service = readUtf8('api/services/partCommands.cjs');
+    const aiExecutor = readUtf8('api/routes/ai/executors/queryExecutors.cjs');
+    const aiPartExecution = readUtf8('api/services/aiPartExecution.cjs');
+    const routeSection = sliceBetween(
+        route,
+        "router.post('/batch-create-preview'",
+        "router.post('/prices-preview'"
+    );
+
+    assert.match(routeSection, /buildPartBatchCreatePreview/);
+    assert.match(routeSection, /executeConfirmedPartBatchCreate/);
+    assert.match(routeSection, /commandActorKey/);
+    assert.match(routeSection, /commandContextFromRequest/);
+    assert.match(routeSection, /invalidatePartsCache\(\)/);
+    assert.doesNotMatch(routeSection, /safeInsert\s*\(|db\.transaction/);
+    assert.match(service, /MAX_BATCH_CREATE_PARTS = 100/);
+    assert.match(service, /issueBusinessConfirmation/);
+    assert.match(service, /consumeBusinessConfirmation/);
+    assert.match(service, /findActivePartByIdentity/);
+    assert.match(service, /executePersistentCommand/);
+    assert.match(service, /safeInsert\('parts'/);
+    assert.match(service, /requiredAuditCount: created\.length/);
+    assert.match(aiExecutor, /case 'batch_create_parts'/);
+    assert.match(aiPartExecution, /\/api\/parts\/batch-create-preview/);
+    assert.match(aiPartExecution, /\/api\/parts\/batch-create/);
+});
+
 test('关键 API 集成契约：/api/parts/prices 是标准批量调价入口', () => {
     const source = readUtf8('api/routes/parts.cjs');
     const service = readUtf8('api/services/partCommands.cjs');

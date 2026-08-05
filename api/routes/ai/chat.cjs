@@ -18,6 +18,11 @@ const {
 } = require('../../services/aiToolProtocol.cjs');
 const { routeAiTools } = require('./toolRouting.cjs');
 const {
+    buildWriteToolCorrection,
+    safeUnverifiedWriteReply,
+    shouldRetryUnverifiedWriteReply,
+} = require('../../services/aiWriteGuard.cjs');
+const {
     aiProviderCapabilities,
     fetchAiProvider,
 } = require('../../services/aiProvider.cjs');
@@ -65,6 +70,7 @@ function buildPendingWriteReply(toolResults) {
     if (!pending) return '';
     const replies = {
         create_part: '好的，我来帮你新增这个零件，请核对下面的确认卡片。',
+        batch_create_parts: '好的，我来批量录入这些零件，请核对整批确认卡片。',
         update_part: '好的，我来帮你修改这个零件，请核对下面的确认卡片。',
         adjust_coil_stock: '好的，我来帮你调整线圈成品库存，请核对下面的确认卡片。',
         delete_part: '好的，我来帮你删除这个零件，请核对下面的确认卡片。',
@@ -132,6 +138,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         let done = false;
         let allToolResults = [];
         let evidenceContextPrioritized = false;
+        let writeGuardRetries = 0;
         let lastProviderNotice = '';
         const announceProvider = (providerInfo) => {
             const key = [
@@ -187,8 +194,9 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
 
         while (!done && maxRounds-- > 0) {
             let aiRes;
+            let toolRoute;
             try {
-                const toolRoute = routeAiTools(routingMessages, {
+                toolRoute = routeAiTools(routingMessages, {
                     pageContext,
                     requiredToolNames: freshLookupCalls.map(call => call.name),
                     priorToolNames: allToolResults.map(item => item.name),
@@ -203,8 +211,14 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                 return res.end();
             }
 
+            const bufferWriteReply = (
+                toolRoute.writeIntent
+                && toolRoute.toolNames.some(name => WRITE_TOOLS.has(name))
+            );
             const providerStream = await readAiProviderStream(aiRes, {
-                onContent: content => send('content', { content }),
+                onContent: content => {
+                    if (!bufferWriteReply) send('content', { content });
+                },
             });
             const msgContent = providerStream.content;
             const toolCallsArr = providerStream.toolCalls;
@@ -215,6 +229,9 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
             });
 
             if (toolCallsArr.length > 0) {
+                if (bufferWriteReply && msgContent) {
+                    send('content', { content: msgContent });
+                }
                 send('tool_plan', buildAiToolPlan(toolCallsArr, WRITE_TOOLS));
                 for (const tc of toolCallsArr) {
                     const funcName = tc.function.name;
@@ -256,6 +273,28 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     send('status', { status: 'thinking', message: '正在根据工具结果继续推理...' });
                 }
             } else {
+                const guarded = shouldRetryUnverifiedWriteReply({
+                    content: msgContent,
+                    toolRoute,
+                    writeTools: WRITE_TOOLS,
+                });
+                if (guarded && writeGuardRetries < 1) {
+                    writeGuardRetries += 1;
+                    currentMessages.push({
+                        role: 'system',
+                        content: buildWriteToolCorrection(toolRoute, WRITE_TOOLS),
+                    });
+                    send('status', {
+                        status: 'thinking',
+                        message: '正在校验写操作并生成真实确认卡片...',
+                    });
+                    continue;
+                }
+                if (bufferWriteReply) {
+                    send('content', {
+                        content: guarded ? safeUnverifiedWriteReply() : msgContent,
+                    });
+                }
                 if (allToolResults.length > 0) {
                     send('detail', {
                         detailType: allToolResults.length === 1 ? allToolResults[0].name : 'multi_tool',
@@ -399,6 +438,7 @@ async function processAiChat(text, options = {}) {
     let done = false;
     let finalContent = '';
     let evidenceContextPrioritized = false;
+    let writeGuardRetries = 0;
     const prioritizeEvidence = () => {
         if (evidenceContextPrioritized) return;
         currentMessages = prioritizeBusinessEvidence(currentMessages, messages.length);
@@ -463,7 +503,22 @@ async function processAiChat(text, options = {}) {
             }
             prioritizeEvidence();
         } else {
-            finalContent = msg.content || '';
+            const guarded = shouldRetryUnverifiedWriteReply({
+                content: msg.content || '',
+                toolRoute,
+                writeTools: WRITE_TOOLS,
+            });
+            if (guarded && writeGuardRetries < 1) {
+                writeGuardRetries += 1;
+                currentMessages.push({
+                    role: 'system',
+                    content: buildWriteToolCorrection(toolRoute, WRITE_TOOLS),
+                });
+                continue;
+            }
+            finalContent = guarded
+                ? safeUnverifiedWriteReply()
+                : (msg.content || '');
             done = true;
         }
     }

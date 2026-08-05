@@ -48,6 +48,54 @@ test('AI 工具路由：零件查询统一使用可筛选搜索工具', () => {
     assert.equal(result.toolNames.includes('get_all_parts'), false);
 });
 
+test('AI 工具路由：写入关键词与多轮确认持续暴露零件写工具', () => {
+    const initial = route('将这些零件写入数据库');
+    assert.equal(initial.writeIntent, true);
+    assert.deepEqual(initial.domains, ['catalog']);
+    assert.ok(initial.toolNames.includes('create_part'));
+    assert.ok(initial.toolNames.includes('batch_create_parts'));
+
+    const details = routeAiTools([
+        { role: 'user', content: '帮我录入零件' },
+        { role: 'assistant', content: '请提供型号和单价' },
+        { role: 'user', content: '14*28*39 单价0.5，类别油封，供应商大旭' },
+    ]);
+    assert.equal(details.writeIntent, true);
+    assert.ok(details.domains.includes('catalog'));
+    assert.ok(details.toolNames.includes('create_part'));
+
+    const confirmed = routeAiTools([
+        { role: 'user', content: '将这些零件写入数据库' },
+        { role: 'assistant', content: '已整理待录入清单' },
+        { role: 'user', content: '全部ok' },
+    ]);
+    assert.equal(confirmed.writeIntent, true);
+    assert.deepEqual(confirmed.domains, ['catalog']);
+    assert.ok(confirmed.toolNames.includes('batch_create_parts'));
+
+    const explicitConfirmation = routeAiTools([
+        { role: 'user', content: '帮我录入零件' },
+        { role: 'assistant', content: '请提供型号和单价' },
+        { role: 'user', content: '14*28*39 单价0.5，类别油封，供应商大旭' },
+        { role: 'assistant', content: '请确认录入' },
+        { role: 'user', content: '确认' },
+    ]);
+    assert.equal(explicitConfirmation.writeIntent, true);
+    assert.ok(explicitConfirmation.domains.includes('catalog'));
+    assert.ok(explicitConfirmation.toolNames.includes('create_part'));
+});
+
+test('AI 工具路由：明确查询不会继承此前零件写入意图', () => {
+    const result = routeAiTools([
+        { role: 'user', content: '帮我录入零件' },
+        { role: 'assistant', content: '请提供型号和单价' },
+        { role: 'user', content: '查询零件当前库存是多少' },
+    ]);
+    assert.equal(result.writeIntent, false);
+    assert.ok(result.toolNames.includes('search_parts'));
+    assert.equal(result.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+});
+
 test('AI 工具路由：线圈俗称入库进入独立线圈库存领域', () => {
     const result = route('12-120,12-140各入库50套');
     assert.deepEqual(result.domains, ['coil']);

@@ -2,16 +2,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
+    BATCH_CREATE_CAPABILITY_ID,
     BATCH_PRICE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
+    buildPartBatchCreatePreview,
     buildPartPricePreview,
+    executeConfirmedPartBatchCreate,
     executePartCreate,
     executePartDelete,
     executePartPriceBatch,
     executePartUpdate,
 } = require('../api/services/partCommands.cjs');
+const {
+    resetBusinessConfirmationsForTests,
+} = require('../api/services/businessConfirmation.cjs');
 
 function createFixture() {
     const db = new Database(':memory:');
@@ -261,6 +267,163 @@ test('零件批量调价预览绑定逐项版本并支持整批幂等重放', ()
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 3);
     } finally {
         fixture.db.close();
+    }
+});
+
+test('零件批量新增：同型号不同供应商可建档，现有同供应商跳过并整批幂等', () => {
+    resetBusinessConfirmationsForTests();
+    const fixture = createFixture();
+    const subject = 'jwt:part-batch-create';
+    try {
+        seedPart(fixture, 'SEAL-1', 1);
+        const preview = buildPartBatchCreatePreview(
+            fixture.dependencies,
+            {
+                parts: [
+                    {
+                        model: 'SEAL-1',
+                        category: '油封',
+                        price: 1,
+                        supplier: '供应商A',
+                        stock: 0,
+                    },
+                    {
+                        model: 'SEAL-1',
+                        category: '油封',
+                        price: 1.2,
+                        supplier: '供应商B',
+                        stock: 0,
+                    },
+                    {
+                        model: 'SEAL-2',
+                        category: '油封',
+                        price: 1.5,
+                        supplier: '供应商A',
+                        stock: 0,
+                    },
+                ],
+            },
+            subject
+        );
+        assert.equal(preview.capabilityId, BATCH_CREATE_CAPABILITY_ID);
+        assert.equal(preview.preview, true);
+        assert.equal(preview.requestedCount, 3);
+        assert.equal(preview.createCount, 2);
+        assert.equal(preview.skippedCount, 1);
+        assert.match(preview.confirmationToken, /^[A-Za-z0-9_-]{40,128}$/);
+
+        const context = commandContext(BATCH_CREATE_CAPABILITY_ID, 'batch-create');
+        const input = { confirmationToken: preview.confirmationToken };
+        const receipt = executeConfirmedPartBatchCreate(
+            fixture.dependencies,
+            input,
+            context,
+            subject
+        );
+        const replay = executeConfirmedPartBatchCreate(
+            fixture.dependencies,
+            input,
+            context,
+            subject
+        );
+        assert.equal(receipt.createdCount, 2);
+        assert.equal(receipt.auditIds.length, 2);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(
+            fixture.db.prepare(
+                'SELECT COUNT(*) AS count FROM parts WHERE deleted_at IS NULL'
+            ).get().count,
+            3
+        );
+        assert.equal(
+            fixture.db.prepare(
+                'SELECT COUNT(*) AS count FROM parts WHERE model = ? AND deleted_at IS NULL'
+            ).get('SEAL-1').count,
+            2
+        );
+    } finally {
+        fixture.db.close();
+        resetBusinessConfirmationsForTests();
+    }
+});
+
+test('零件批量新增：预览后身份冲突或强审计缺失时整批回滚', () => {
+    resetBusinessConfirmationsForTests();
+    const fixture = createFixture();
+    const subject = 'jwt:part-batch-create-conflict';
+    try {
+        const conflictPreview = buildPartBatchCreatePreview(
+            fixture.dependencies,
+            {
+                parts: [
+                    { model: 'BATCH-A', price: 1, supplier: 'S' },
+                    { model: 'BATCH-B', price: 2, supplier: 'S' },
+                ],
+            },
+            subject
+        );
+        fixture.dependencies.safeInsert('parts', {
+            model: 'BATCH-A',
+            category: '其他',
+            subcategory: '',
+            price: 1,
+            supplier: 'S',
+            stock: 0,
+            remark: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        }, {});
+        assert.throws(
+            () => executeConfirmedPartBatchCreate(
+                fixture.dependencies,
+                { confirmationToken: conflictPreview.confirmationToken },
+                commandContext(BATCH_CREATE_CAPABILITY_ID, 'batch-conflict'),
+                subject
+            ),
+            error => error.code === 'part_batch_snapshot_conflict'
+        );
+        assert.equal(
+            fixture.db.prepare(
+                'SELECT COUNT(*) AS count FROM parts WHERE model = ?'
+            ).get('BATCH-B').count,
+            0
+        );
+
+        const auditPreview = buildPartBatchCreatePreview(
+            fixture.dependencies,
+            {
+                parts: [
+                    { model: 'BATCH-C', price: 3, supplier: 'S' },
+                    { model: 'BATCH-D', price: 4, supplier: 'S' },
+                ],
+            },
+            subject
+        );
+        const originalSafeInsert = fixture.dependencies.safeInsert;
+        let inserts = 0;
+        fixture.dependencies.safeInsert = (...args) => {
+            inserts += 1;
+            const result = originalSafeInsert(...args);
+            return inserts === 2 ? { ...result, auditId: null } : result;
+        };
+        assert.throws(
+            () => executeConfirmedPartBatchCreate(
+                fixture.dependencies,
+                { confirmationToken: auditPreview.confirmationToken },
+                commandContext(BATCH_CREATE_CAPABILITY_ID, 'batch-audit'),
+                subject
+            ),
+            error => error.code === 'strong_audit_required'
+        );
+        assert.equal(
+            fixture.db.prepare(
+                "SELECT COUNT(*) AS count FROM parts WHERE model IN ('BATCH-C', 'BATCH-D')"
+            ).get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+        resetBusinessConfirmationsForTests();
     }
 });
 

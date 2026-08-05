@@ -57,6 +57,10 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '库存', args.stock);
             addRow(rows, '库存变动', args.stockDelta);
             break;
+        case 'batch_create_parts':
+            addRow(rows, '新增数量', Array.isArray(args.parts) ? args.parts.length : 0);
+            addRow(rows, '零件', previewItems(args.parts, 'model'));
+            break;
         case 'adjust_coil_stock':
             addRow(rows, '线圈成品', Array.isArray(args.items)
                 ? args.items.map(item => {

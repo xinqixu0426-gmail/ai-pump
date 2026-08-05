@@ -33,8 +33,10 @@ const DOMAIN_RULES = Object.freeze([
     ['catalog', /零件|配件|供应商|库存|调价/],
 ]);
 
-const WRITE_INTENT_RE = /新增|新建|创建|录入|修改|更新|调整|删除|保存|归档|同步|入库|出库|增加|减少|调价|生成采购|生成.{0,12}图纸|出图|下单|转(?:成|为)?订单|确认|忽略|特殊情况|批准|驳回|恢复|执行|打印/;
+const WRITE_INTENT_RE = /新增|新建|创建|录入|写入|提交|导入|修改|更新|调整|删除|保存|归档|同步|入库|出库|增加|减少|调价|生成采购|生成.{0,12}图纸|出图|下单|转(?:成|为)?订单|确认|忽略|特殊情况|批准|驳回|恢复|执行|打印/;
 const BUSINESS_INTENT_RE = /成本|价格|零件|配件|配方|模板|泵壳|线圈|定子|转子|订单|报价|客户|采购|库存|知识|规则|文件|附件|图纸|质量|工厂|管理|供应商|铜价|BOM/i;
+const READ_INTENT_RE = /查询|查看|读取|多少|什么|哪些|是否|有没有|现有|现在|当前|为什么|怎么|分析|对比|检查/;
+const WRITE_FOLLOW_UP_RE = /^(?:确认(?:录入|执行|提交)?|全部\s*(?:ok|OK|正确|没问题)|可以|同意|按(?:这个|上面|清单|这些).*(?:执行|录入|提交)?|就这样|继续(?:执行|录入)?|执行|提交)[。！!\s]*$/;
 
 const TOOL_BY_NAME = new Map(AI_TOOLS.map(tool => [tool.function.name, tool]));
 const TOOL_DOMAINS = new Map();
@@ -86,6 +88,34 @@ function domainsForToolNames(names = []) {
     return domains;
 }
 
+function domainsForText(text = '') {
+    const domains = [];
+    for (const [domain, pattern] of DOMAIN_RULES) {
+        if (pattern.test(text) && !domains.includes(domain)) domains.push(domain);
+    }
+    return domains;
+}
+
+function recentWriteContext(messages = [], currentText = '', currentDomains = []) {
+    const userTexts = (Array.isArray(messages) ? messages : [])
+        .filter(message => message?.role === 'user' && typeof message.content === 'string')
+        .map(message => message.content.trim())
+        .filter(Boolean);
+    if (userTexts[userTexts.length - 1] === currentText) userTexts.pop();
+    for (const text of userTexts.reverse().slice(0, 5)) {
+        if (!WRITE_INTENT_RE.test(text)) continue;
+        const domains = domainsForText(text);
+        if (domains.length === 0) continue;
+        if (
+            currentDomains.length === 0
+            || domains.some(domain => currentDomains.includes(domain))
+        ) {
+            return { text, domains };
+        }
+    }
+    return null;
+}
+
 function classifyAiToolDomains(messages = [], options = {}) {
     const text = latestUserText(messages);
     const domains = [];
@@ -98,14 +128,26 @@ function classifyAiToolDomains(messages = [], options = {}) {
         ...(options.requiredToolNames || []),
         ...(options.priorToolNames || []),
     ])) add(domain);
-    for (const [domain, pattern] of DOMAIN_RULES) {
-        if (pattern.test(text)) add(domain);
+    for (const domain of domainsForText(text)) add(domain);
+
+    let writeIntent = WRITE_INTENT_RE.test(text);
+    const shouldInheritWriteContext = (
+        WRITE_FOLLOW_UP_RE.test(text)
+        || (domains.length > 0 && !writeIntent && !READ_INTENT_RE.test(text))
+        || (writeIntent && domains.length === 0)
+    );
+    if (shouldInheritWriteContext) {
+        const priorWrite = recentWriteContext(messages, text, domains);
+        if (priorWrite) {
+            writeIntent = true;
+            if (domains.length === 0) priorWrite.domains.forEach(add);
+        }
     }
 
     return {
         domains,
         text,
-        writeIntent: WRITE_INTENT_RE.test(text),
+        writeIntent,
         businessIntent: BUSINESS_INTENT_RE.test(text),
     };
 }

@@ -20,11 +20,14 @@ const {
     executeConfirmedPartStockBatch,
 } = require('../services/inventoryCommands.cjs');
 const {
+    BATCH_CREATE_CAPABILITY_ID: PART_BATCH_CREATE_CAPABILITY_ID,
     BATCH_PRICE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID: PART_CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID: PART_DELETE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID: PART_UPDATE_CAPABILITY_ID,
+    buildPartBatchCreatePreview,
     buildPartPricePreview,
+    executeConfirmedPartBatchCreate,
     executePartCreate,
     executePartDelete,
     executePartPriceBatch,
@@ -68,6 +71,34 @@ router.post('/', (req, res) => {
         invalidatePartsCache();
         res.json({ success: true, data: legacyPartCommandResponse(result) });
     } catch (error) { sendCommandError(res, error); }
+});
+
+router.post('/batch-create-preview', (req, res) => {
+    try {
+        const data = buildPartBatchCreatePreview(
+            partDependencies(),
+            req.body || {},
+            commandActorKey(req)
+        );
+        res.json({ success: true, data });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/batch-create', (req, res) => {
+    try {
+        const result = executeConfirmedPartBatchCreate(
+            partDependencies(),
+            req.body || {},
+            commandContextFromRequest(req, PART_BATCH_CREATE_CAPABILITY_ID),
+            commandActorKey(req)
+        );
+        invalidatePartsCache();
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
 });
 
 router.post('/prices-preview', (req, res) => {

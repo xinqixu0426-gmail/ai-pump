@@ -126,7 +126,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'create_part',
-            description: '新建/录入零件到数据库。当用户说"新建零件""添加零件""录入一个叫XX的零件"时使用',
+            description: '新建/录入单个零件到数据库。仅用于一条零件；两条及以上必须使用 batch_create_parts',
             parameters: {
                 type: 'object',
                 properties: {
@@ -138,6 +138,38 @@ const AI_TOOLS = [
                     stock: { type: 'number', description: '初始库存数量，默认0' }
                 },
                 required: ['model', 'price']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'batch_create_parts',
+            description: '批量新增/录入零件到数据库。适用于价格表、图片识别结果或用户一次提供两条及以上零件；同型号但供应商不同允许分别建档，同型号同供应商的现有零件会在正式预览中跳过。调用后必须显示一次整批确认卡片',
+            parameters: {
+                type: 'object',
+                properties: {
+                    parts: {
+                        type: 'array',
+                        minItems: 1,
+                        maxItems: 100,
+                        description: '待新增零件，必须完整保留用户确认的型号、单价、供应商和库存',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                model: { type: 'string', description: '型号/名称' },
+                                category: { type: 'string', description: '类别，默认其他' },
+                                subcategory: { type: 'string', description: '包装二级分类，仅 category=包装 时使用' },
+                                price: { type: 'number', description: '单价（元）' },
+                                supplier: { type: 'string', description: '供应商，默认-' },
+                                stock: { type: 'number', description: '初始库存，默认0' },
+                                remark: { type: 'string', description: '备注（可选）' }
+                            },
+                            required: ['model', 'price']
+                        }
+                    }
+                },
+                required: ['parts']
             }
         }
     },

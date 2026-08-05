@@ -148,6 +148,7 @@ export function toolLabel(name: string) {
     get_all_parts: '零件列表',
     search_parts: '零件搜索',
     create_part: '新增零件',
+    batch_create_parts: '批量新增零件',
     update_part: '修改零件',
     batch_update_prices: '批量调价',
     get_all_recipes: '配方列表',

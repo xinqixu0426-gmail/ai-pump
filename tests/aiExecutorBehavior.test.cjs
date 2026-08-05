@@ -191,6 +191,82 @@ test('AI executor 行为：新建和删除零件只调用正式 CRUD API', async
     ]);
 });
 
+test('AI executor 行为：批量新增零件只生成一次确认并调用正式批量 API', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const args = {
+        parts: [
+            { model: '8*20*8', category: '油封', price: 0.18, supplier: '鹏杰', stock: 0 },
+            { model: '10*22*5', category: '油封', price: 0.18, supplier: '鹏杰', stock: 0 },
+        ],
+    };
+    const beforeCalls = installFetchStub(() => jsonResponse({
+        success: false,
+        error: '确认前不应调用 API',
+    }, 500));
+    const pending = await executeToolCall(
+        'batch_create_parts',
+        args,
+        { allowWrite: false, confirmationSubject: 'session-batch-part' }
+    );
+    assert.equal(pending.requiresConfirmation, true);
+    assert.equal(pending.confirmation.toolName, 'batch_create_parts');
+    assert.equal(beforeCalls.length, 0);
+
+    const calls = installFetchStub((call) => {
+        assert.equal(call.headers['x-internal-secret'], 'test-secret');
+        assert.equal(call.headers['x-operation-id'], 'operation-batch-part');
+        assert.equal(call.headers['x-capability-id'], 'ai.batch_create_parts');
+        if (call.url.endsWith('/api/parts/batch-create-preview')) {
+            assert.deepEqual(call.body, args);
+            return jsonResponse({
+                success: true,
+                data: {
+                    confirmationToken: 'formal-batch-part-confirmation-token',
+                    suggestedIdempotencyKey: 'part-batch-create:formal-operation',
+                    skippedCount: 0,
+                    skippedExisting: [],
+                    warnings: [],
+                },
+            });
+        }
+        if (call.url.endsWith('/api/parts/batch-create')) {
+            assert.deepEqual(call.body, {
+                confirmationToken: 'formal-batch-part-confirmation-token',
+                idempotencyKey: 'part-batch-create:formal-operation',
+            });
+            return jsonResponse({
+                success: true,
+                data: {
+                    createdCount: 2,
+                    parts: args.parts.map((part, index) => ({ id: index + 101, ...part })),
+                    changes: [{ field: 'created' }, { field: 'created' }],
+                    warnings: [],
+                    auditId: 700,
+                    auditIds: [700, 701],
+                    operationId: 'formal-operation',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall(
+        'batch_create_parts',
+        args,
+        { allowWrite: true, operationId: 'operation-batch-part' }
+    );
+    assert.equal(result.success, true);
+    assert.equal(result.createdCount, 2);
+    assert.equal(result.auditId, 700);
+    assert.deepEqual(
+        calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`),
+        [
+            'POST /api/parts/batch-create-preview',
+            'POST /api/parts/batch-create',
+        ]
+    );
+});
+
 test('AI executor 行为：零件库存增减必须先预览再调用正式批量命令', async () => {
     process.env.INTERNAL_SECRET = 'test-secret';
     const calls = installFetchStub((call) => {

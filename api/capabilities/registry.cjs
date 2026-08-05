@@ -99,6 +99,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     catalog: Object.freeze([
         'search_parts',
         'create_part',
+        'batch_create_parts',
         'update_part',
         'delete_part',
         'batch_update_prices',
@@ -171,6 +172,7 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     adjust_coil_stock: '调整线圈库存',
     search_parts: '搜索零件',
     create_part: '新建零件',
+    batch_create_parts: '批量新增零件',
     update_part: '修改零件',
     delete_part: '删除零件',
     batch_update_prices: '批量调价',
@@ -194,6 +196,7 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_all_recipes',
         'get_recent_orders',
         'create_part',
+        'batch_create_parts',
         'update_part',
         'adjust_coil_stock',
         'search_parts',
@@ -294,6 +297,7 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
 
 const WRITE_CAPABILITY_NAMES = new Set([
     'create_part',
+    'batch_create_parts',
     'update_part',
     'delete_part',
     'batch_update_prices',
@@ -384,6 +388,7 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
     'plan_order_readiness_actions',
     'execute_order_readiness_action',
     'compare_recipes',
+    'batch_create_parts',
     'create_order',
     'create_recipe',
     'update_recipe',
@@ -396,6 +401,7 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     create_part: Object.freeze(['parts.create']),
+    batch_create_parts: Object.freeze(['parts.batch_create']),
     update_part: Object.freeze([
         'parts.update',
         'inventory.parts.batch_adjust_stock',
@@ -557,6 +563,18 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         requiresConfirmation: false,
         supportsPreview: false,
         concurrencyControl: 'not_applicable',
+    }),
+    'parts.batch_create': defineBusinessCapability({
+        capabilityId: 'parts.batch_create',
+        domain: 'catalog',
+        inputSchema: 'POST /api/parts/batch-create',
+        outputSchema: 'CommandReceipt<PartBatchCreateResult>',
+        sourceOfTruth: 'parts',
+        riskLevel: 'high',
+        supportsPreview: true,
+        previewPath: '/api/parts/batch-create-preview',
+        concurrencyControl: 'confirmationToken_bound_absence_snapshot',
+        callers: Object.freeze(['ai', 'internal']),
     }),
     'parts.update': defineBusinessCapability({
         capabilityId: 'parts.update',

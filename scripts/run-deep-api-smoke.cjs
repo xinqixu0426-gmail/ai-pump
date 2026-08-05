@@ -449,6 +449,59 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(partCreateReplay.idempotentReplay === true, '新增零件重复请求没有命中幂等回执');
     assert(partCreateReplay.id === partCreateReceipt.id, '新增零件幂等重放产生了不同资源');
     const part = partCreateReceipt;
+    const partBatchPreview = (await request(
+        '批量新增零件预览',
+        'POST',
+        '/api/parts/batch-create-preview',
+        {
+            parts: [
+                {
+                    model: unique,
+                    category: '测试件',
+                    price: 12.34,
+                    supplier: '自动验收',
+                    stock: 0,
+                },
+                {
+                    model: unique,
+                    category: '测试件',
+                    price: 12.5,
+                    supplier: '第二供应商',
+                    stock: 0,
+                },
+                {
+                    model: `${unique}-BATCH`,
+                    category: '测试件',
+                    price: 8.8,
+                    supplier: '自动验收',
+                    stock: 0,
+                },
+            ],
+        }
+    )).payload.data;
+    assert(partBatchPreview.requestedCount === 3, '批量新增零件预览数量错误');
+    assert(partBatchPreview.createCount === 2, '批量新增零件预览未保留同型号不同供应商');
+    assert(partBatchPreview.skippedCount === 1, '批量新增零件预览未跳过同型号同供应商');
+    const partBatchInput = {
+        confirmationToken: partBatchPreview.confirmationToken,
+        idempotencyKey: partBatchPreview.suggestedIdempotencyKey,
+    };
+    const partBatchCreate = (await request(
+        '批量新增零件正式命令',
+        'POST',
+        '/api/parts/batch-create',
+        partBatchInput
+    )).payload.data;
+    const partBatchReplay = (await request(
+        '批量新增零件幂等重放',
+        'POST',
+        '/api/parts/batch-create',
+        partBatchInput
+    )).payload.data;
+    assert(partBatchCreate.capabilityId === 'parts.batch_create', '批量新增零件缺少正式 capability 回执');
+    assert(partBatchCreate.createdCount === 2, '批量新增零件执行数量错误');
+    assert(partBatchCreate.auditIds.length === 2, '批量新增零件强审计数量错误');
+    assert(partBatchReplay.idempotentReplay === true, '批量新增零件没有命中幂等重放');
     const partUpdate = (await request('修改零件正式命令', 'PATCH', `/api/parts/${part.id}`, {
         price: 13.21,
         remark: '已修改',
