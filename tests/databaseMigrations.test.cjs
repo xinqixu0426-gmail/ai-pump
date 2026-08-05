@@ -275,6 +275,68 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
     }
 });
 
+test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改反馈用例', () => {
+    const db = openMemoryDatabase();
+    try {
+        runMigrations(db, { now: FIXED_NOW });
+        db.prepare(`DELETE FROM ai_evaluation_cases WHERE source_type = 'system'`).run();
+        db.prepare(`
+            INSERT INTO ai_evaluation_cases (
+                case_key, title, category, question, evaluator_type, config_json,
+                enabled, sort_order, source_type, review_status, confidence_score,
+                created_at, updated_at
+            ) VALUES (
+                'feedback-preserved', '用户反馈用例', '反馈', '保留这条反馈',
+                'rules', '{}', 0, 1000, 'feedback', 'pending', 70, ?, ?
+            )
+        `).run(FIXED_NOW, FIXED_NOW);
+
+        const restoreMigration = MIGRATIONS.find(migration => migration.version === 47);
+        assert.ok(restoreMigration);
+        restoreMigration.up(db);
+        restoreMigration.up(db);
+
+        const systemCases = db.prepare(`
+            SELECT case_key, enabled, review_status, source_type
+            FROM ai_evaluation_cases
+            WHERE source_type = 'system'
+            ORDER BY sort_order
+        `).all();
+        assert.deepEqual(
+            systemCases.map(item => item.case_key),
+            [
+                'part-current-price',
+                'coil-all-official-variants',
+                'test-report-file-type',
+                'test-report-ignore-template-points',
+                'customer-quotation-display-order',
+                'complete-cable-semantics',
+                'cutting-shell-purpose-evidence',
+            ]
+        );
+        assert.ok(systemCases.every(item => (
+            item.enabled === 1
+            && item.review_status === 'approved'
+            && item.source_type === 'system'
+        )));
+        assert.deepEqual(
+            db.prepare(`
+                SELECT title, enabled, review_status, confidence_score
+                FROM ai_evaluation_cases
+                WHERE case_key = 'feedback-preserved'
+            `).get(),
+            {
+                title: '用户反馈用例',
+                enabled: 0,
+                review_status: 'pending',
+                confidence_score: 70,
+            }
+        );
+    } finally {
+        db.close();
+    }
+});
+
 test('数据库迁移：订单文件关联升级保留已有归档记录', () => {
     const db = openMemoryDatabase();
     try {

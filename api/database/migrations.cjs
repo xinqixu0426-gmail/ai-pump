@@ -2243,6 +2243,132 @@ const MIGRATIONS = Object.freeze([
             }), new Date().toISOString());
         },
     },
+    {
+        version: 47,
+        name: 'restore_system_ai_evaluation_cases',
+        signature: 'restore-canonical-system-ai-release-gate-cases-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            const upsert = db.prepare(`
+                INSERT INTO ai_evaluation_cases (
+                    case_key, title, category, question, evaluator_type, config_json,
+                    enabled, sort_order, source_type, review_status, confidence_score,
+                    reviewed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'rules', ?, 1, ?, 'system', 'approved', 100, ?, ?, ?)
+                ON CONFLICT(case_key) DO UPDATE SET
+                    title = excluded.title,
+                    category = excluded.category,
+                    question = excluded.question,
+                    evaluator_type = excluded.evaluator_type,
+                    config_json = excluded.config_json,
+                    enabled = excluded.enabled,
+                    sort_order = excluded.sort_order,
+                    review_status = excluded.review_status,
+                    confidence_score = excluded.confidence_score,
+                    reviewed_at = excluded.reviewed_at,
+                    updated_at = excluded.updated_at
+                WHERE ai_evaluation_cases.source_type = 'system'
+            `);
+            const cases = [
+                ['part-current-price', '零件价格使用当前值', '价格',
+                    '查询800平刀切割泵壳目前的单价，并说明数据来源。', {
+                        expectedMode: 'live_business',
+                        requiredTools: ['search_parts'],
+                        fact: { type: 'part_price', model: '800平刀切割泵壳' },
+                    }],
+                ['coil-all-official-variants', '线圈规格返回全部正式方案', '线圈',
+                    '查询12-220线圈的全部正式方案，列出材质、槽眼和成本。', {
+                        requiredTerms: [['钢带'], ['小眼'], ['冷轧'], ['国标眼']],
+                        requiredTools: ['search_factory_knowledge'],
+                        requiredSourceTables: ['coils'],
+                    }],
+                ['test-report-file-type', '测试报告不能标成图纸', '技术档案',
+                    'V1600-3”-12-180配方技术档案中的Excel附件是什么资料？', {
+                        requiredTerms: [['性能测试报告', '测试报告']],
+                        forbiddenTerms: ['参考图纸'],
+                        requiredSourceTables: ['recipes'],
+                    }],
+                ['test-report-ignore-template-points', '测试模板规定点不作为结论', '技术档案',
+                    '总结V1600-3”-12-180性能测试报告中的有效测试数据。只展示逐条测试点数据，不要提到被忽略的模板字段名称。', {
+                        forbiddenTerms: ['规定点', '实测点', '偏差'],
+                        requiredTerms: [['测试点'], ['流量'], ['扬程']],
+                        requiredSourceTables: ['recipes'],
+                    }],
+                ['customer-quotation-display-order', '客户报价不暴露内部序号', '报价',
+                    '查询客户邱焕现有的全部报价，按第1份、第2份这样的展示顺序列出。', {
+                        requiredTools: ['search_customer_history'],
+                        fact: {
+                            type: 'customer_quotation_count',
+                            customerName: '邱焕',
+                            forbidInternalIds: true,
+                        },
+                    }],
+                ['complete-cable-semantics', '电缆按成品整体解释', '配方',
+                    '先使用 search_factory_knowledge 按“成品电缆”查询 business_rule，再说明线材、长度、插头和规格费用如何共同组成成品电缆，是否应该拆成两个收费项目。', {
+                        requiredTerms: [
+                            ['成品电缆'],
+                            ['整体', '一体'],
+                            ['不应该', '不宜', '不能', '不得', '不应'],
+                            [
+                                '共同组成一个',
+                                '共同构成',
+                                '一个整体业务项',
+                                '同属一个',
+                                '属于一个',
+                                '作为一个',
+                                '一个计费项目',
+                                '一项成品电缆',
+                                '一个收费项目',
+                            ],
+                        ],
+                        requiredTools: ['search_factory_knowledge'],
+                        requiredSourceTables: ['business_rules'],
+                    }],
+                ['cutting-shell-purpose-evidence', '切割用途不得由语义候选推断', '知识检索',
+                    '切割杂草用的泵壳是哪一个？系统中有哪些明确标注的切割专用配件？', {
+                        requiredTerms: [
+                            ['800平刀切割泵壳'],
+                            [
+                                '系统未记录',
+                                '系统未明确记录',
+                                '没有记录',
+                                '没有明确记录',
+                                '没有其他明确标注',
+                                '未记录',
+                                '未明确记录',
+                                '未明确标注',
+                                '无明确记录',
+                                '当前无明确',
+                                '不能确认',
+                                '无法确认',
+                            ],
+                            ['切边6mm长螺丝'],
+                            ['外六角', '外六角螺丝'],
+                        ],
+                        forbiddenTerms: [
+                            'SPA系列切割泵壳',
+                            'SPA 2叶切割泵壳',
+                            'SPA 3叶切割泵壳',
+                            '专门为切割工况设计',
+                            '全套含刀',
+                        ],
+                        requiredTools: ['search_factory_knowledge'],
+                        requiredSourceTables: ['business_rules'],
+                    }],
+            ];
+            cases.forEach((item, index) => upsert.run(
+                item[0],
+                item[1],
+                item[2],
+                item[3],
+                JSON.stringify(item[4]),
+                (index + 1) * 10,
+                now,
+                now,
+                now
+            ));
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
