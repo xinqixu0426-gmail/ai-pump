@@ -77,6 +77,17 @@ function containsAny(answer, terms) {
     return terms.some(term => normalized.includes(normalizeAnswerForChecks(term)));
 }
 
+function containsMissingCustomerConclusion(answer, configuredTerms) {
+    if (containsAny(answer, configuredTerms)) return true;
+    return normalizeAnswerForChecks(answer)
+        .split(/[。！？\n]/)
+        .some(sentence => (
+            sentence.includes('客户')
+            && /(?:未找到|没有找到|未查询到|没有查询到|查无|不存在|未记录)/.test(sentence)
+            && !/(?:可能|也许|或许|不确定|是否)/.test(sentence)
+        ));
+}
+
 function normalizeAnswerForChecks(value) {
     return String(value || '')
         .replace(/[*_`~]/g, '')
@@ -209,7 +220,7 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
             const missingCustomerTerms = Array.isArray(config.fact.missingCustomerTerms)
                 ? config.fact.missingCustomerTerms
                 : ['未找到客户', '没有找到客户', '客户不存在', '未记录客户'];
-            const missingMatched = containsAny(answer, missingCustomerTerms);
+            const missingMatched = containsMissingCustomerConclusion(answer, missingCustomerTerms);
             addCheck(
                 checks,
                 'fact:customer_missing',

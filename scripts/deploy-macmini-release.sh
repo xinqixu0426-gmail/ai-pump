@@ -11,11 +11,23 @@ STARTED_AT=$(/bin/date +%s)
 
 export PATH="$USER_PATH"
 
+show_recent_log() {
+  local label=$1
+  local file=$2
+  local modified_at
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  modified_at=$(/usr/bin/stat -f %m "$file" 2>/dev/null || print 0)
+  if (( modified_at >= STARTED_AT )); then
+    echo "本次发布期间的 $label 错误日志：" >&2
+    /usr/bin/tail -n 30 "$file" >&2 2>/dev/null || true
+  fi
+}
+
 show_failure_diagnostics() {
-  echo "最近 API 错误日志：" >&2
-  /usr/bin/tail -n 60 "$PROJECT_DIR/logs/api-launchd.error.log" >&2 2>/dev/null || true
-  echo "最近 Web 错误日志：" >&2
-  /usr/bin/tail -n 60 "$PROJECT_DIR/logs/web-launchd.error.log" >&2 2>/dev/null || true
+  show_recent_log "API" "$PROJECT_DIR/logs/api-launchd.error.log"
+  show_recent_log "Web" "$PROJECT_DIR/logs/web-launchd.error.log"
 }
 
 on_exit() {

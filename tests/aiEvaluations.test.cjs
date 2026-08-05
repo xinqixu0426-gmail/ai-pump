@@ -279,6 +279,20 @@ test('AI 评测：客户不存在时接受明确未找到结论而不要求伪�
     };
     const correct = evaluateRuleCase(caseItem, '未找到客户“邱焕”。', [], fixture.db);
     assert.equal(correct.status, 'passed');
+    const naturalWording = evaluateRuleCase(
+        caseItem,
+        '未查询到客户“邱焕”的报价记录。系统中未找到名称为“邱焕”的客户。',
+        [],
+        fixture.db
+    );
+    assert.equal(naturalWording.status, 'passed');
+    const uncertain = evaluateRuleCase(
+        caseItem,
+        '客户可能不存在，需要进一步核实。',
+        [],
+        fixture.db
+    );
+    assert.equal(uncertain.status, 'failed');
     assert.equal(
         correct.checks.find(check => check.key === 'fact:customer_missing').passed,
         true
