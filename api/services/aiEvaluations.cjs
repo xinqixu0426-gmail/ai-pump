@@ -110,16 +110,57 @@ function numberPattern(value) {
     return new RegExp(`(^|[^\\d.])${escaped}(?:\\.0+)?([^\\d.]|$)`);
 }
 
+function evaluatePrerequisite(config, answer, db) {
+    const prerequisite = config?.prerequisite;
+    if (!prerequisite || prerequisite.type !== 'recipe_test_report') return null;
+    const recipeName = String(prerequisite.recipeName || '').trim();
+    const recipe = db.prepare(`
+        SELECT id FROM recipes
+        WHERE deleted_at IS NULL AND name = ?
+        ORDER BY id DESC LIMIT 1
+    `).get(recipeName);
+    const report = recipe && db.prepare(`
+        SELECT id FROM recipe_technical_files
+        WHERE recipe_id = ? AND deleted_at IS NULL
+          AND report_type = 'pump_performance_test'
+        ORDER BY id DESC LIMIT 1
+    `).get(recipe.id);
+    const available = Boolean(report);
+    const unavailableTerms = Array.isArray(config.unavailableTerms)
+        ? config.unavailableTerms
+        : ['未找到', '没有找到', '未记录', '没有记录', '无法确认', '无法提供', '尚未归档'];
+    return {
+        available,
+        passed: available || containsAny(answer, unavailableTerms),
+        label: available ? `存在 ${recipeName} 性能测试报告` : `明确说明 ${recipeName} 性能测试报告不可用`,
+        detail: available
+            ? '已找到目标配方的性能测试报告'
+            : '目标资料不存在时必须明确说明未找到或无法确认',
+    };
+}
+
 function evaluateRuleCase(caseItem, answerText, toolResults, db) {
     const answer = String(answerText || '');
     const config = caseItem.config || {};
     const checks = [];
     const evidence = collectEvidence(toolResults);
     const toolNames = new Set(toolResults.map(item => item?.name).filter(Boolean));
+    const prerequisite = evaluatePrerequisite(config, answer, db);
 
-    for (const terms of Array.isArray(config.requiredTerms) ? config.requiredTerms : []) {
-        const group = Array.isArray(terms) ? terms : [terms];
-        addCheck(checks, `required:${group.join('|')}`, `包含 ${group.join(' 或 ')}`, containsAny(answer, group), '回答必须包含至少一个指定词');
+    if (prerequisite) {
+        addCheck(
+            checks,
+            'prerequisite:recipe_test_report',
+            prerequisite.label,
+            prerequisite.passed,
+            prerequisite.detail
+        );
+    }
+    if (!prerequisite || prerequisite.available) {
+        for (const terms of Array.isArray(config.requiredTerms) ? config.requiredTerms : []) {
+            const group = Array.isArray(terms) ? terms : [terms];
+            addCheck(checks, `required:${group.join('|')}`, `包含 ${group.join(' 或 ')}`, containsAny(answer, group), '回答必须包含至少一个指定词');
+        }
     }
     for (const term of Array.isArray(config.forbiddenTerms) ? config.forbiddenTerms : []) {
         const forbiddenAssertion = containsForbiddenAssertion(answer, term);
@@ -134,9 +175,11 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
     for (const toolName of Array.isArray(config.requiredTools) ? config.requiredTools : []) {
         addCheck(checks, `tool:${toolName}`, `调用 ${toolName}`, toolNames.has(toolName), toolNames.has(toolName) ? '已调用' : '未调用要求的工具');
     }
-    for (const sourceTable of Array.isArray(config.requiredSourceTables) ? config.requiredSourceTables : []) {
-        const matched = evidence.sources.some(source => source.sourceTable === sourceTable);
-        addCheck(checks, `source:${sourceTable}`, `引用 ${sourceTable}`, matched, matched ? '已保存可追溯来源' : '没有保存要求的知识来源');
+    if (!prerequisite || prerequisite.available) {
+        for (const sourceTable of Array.isArray(config.requiredSourceTables) ? config.requiredSourceTables : []) {
+            const matched = evidence.sources.some(source => source.sourceTable === sourceTable);
+            addCheck(checks, `source:${sourceTable}`, `引用 ${sourceTable}`, matched, matched ? '已保存可追溯来源' : '没有保存要求的知识来源');
+        }
     }
     if (config.expectedMode) {
         const matched = evidence.provenance.some(item => item.kind === config.expectedMode);
@@ -162,8 +205,22 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
         const quotations = customer
             ? db.prepare('SELECT id FROM quotations WHERE deleted_at IS NULL AND customer_id = ? ORDER BY id').all(customer.id)
             : [];
-        const countMatched = new RegExp(`(?:共|现有|找到)?\\s*${quotations.length}\\s*(?:条|份|个)`).test(answer);
-        addCheck(checks, 'fact:quotation_count', `回答报价数量 ${quotations.length} 份`, countMatched, countMatched ? '数量正确' : `回答未明确当前共有 ${quotations.length} 份报价`);
+        if (!customer) {
+            const missingCustomerTerms = Array.isArray(config.fact.missingCustomerTerms)
+                ? config.fact.missingCustomerTerms
+                : ['未找到客户', '没有找到客户', '客户不存在', '未记录客户'];
+            const missingMatched = containsAny(answer, missingCustomerTerms);
+            addCheck(
+                checks,
+                'fact:customer_missing',
+                `明确说明未找到客户 ${config.fact.customerName}`,
+                missingMatched,
+                missingMatched ? '没有伪造客户或报价数量' : '客户不存在时必须明确说明未找到客户'
+            );
+        } else {
+            const countMatched = new RegExp(`(?:共|现有|找到)?\\s*${quotations.length}\\s*(?:条|份|个)`).test(answer);
+            addCheck(checks, 'fact:quotation_count', `回答报价数量 ${quotations.length} 份`, countMatched, countMatched ? '数量正确' : `回答未明确当前共有 ${quotations.length} 份报价`);
+        }
         if (config.fact.forbidInternalIds) {
             const exposedIds = quotations
                 .map(item => item.id)

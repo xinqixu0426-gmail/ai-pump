@@ -2369,6 +2369,55 @@ const MIGRATIONS = Object.freeze([
             ));
         },
     },
+    {
+        version: 48,
+        name: 'data_aware_system_ai_evaluation_cases',
+        signature: 'system-ai-release-gate-validates-unavailable-production-fixtures-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            const update = db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `);
+            update.run(JSON.stringify({
+                prerequisite: {
+                    type: 'recipe_test_report',
+                    recipeName: 'V1600-3”-12-180',
+                },
+                unavailableTerms: [
+                    '未找到',
+                    '没有找到',
+                    '未记录',
+                    '没有记录',
+                    '无法确认',
+                    '尚未归档',
+                ],
+                requiredTerms: [['性能测试报告', '测试报告']],
+                forbiddenTerms: ['参考图纸'],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['recipes'],
+            }), now, 'test-report-file-type');
+            update.run(JSON.stringify({
+                prerequisite: {
+                    type: 'recipe_test_report',
+                    recipeName: 'V1600-3”-12-180',
+                },
+                unavailableTerms: [
+                    '未找到',
+                    '没有找到',
+                    '未记录',
+                    '没有记录',
+                    '无法提供',
+                    '尚未归档',
+                ],
+                forbiddenTerms: ['规定点', '实测点', '偏差'],
+                requiredTerms: [['测试点'], ['流量'], ['扬程']],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['recipes'],
+            }), now, 'test-report-ignore-template-points');
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
@@ -2394,6 +2443,9 @@ function runMigrations(db, options = {}) {
         INSERT INTO schema_migrations (version, name, checksum, applied_at)
         VALUES (?, ?, ?, ?)
     `);
+    const selectAppliedVersion = db.prepare(`
+        SELECT version, name, checksum FROM schema_migrations WHERE version = ?
+    `);
     const completed = [];
 
     for (const migration of MIGRATIONS) {
@@ -2407,8 +2459,16 @@ function runMigrations(db, options = {}) {
         }
         const foreignKeysEnabled = Boolean(db.pragma('foreign_keys', { simple: true }));
         if (migration.foreignKeysOff && foreignKeysEnabled) db.pragma('foreign_keys = OFF');
+        let appliedNow = false;
         try {
             const apply = db.transaction(() => {
+                const concurrent = selectAppliedVersion.get(migration.version);
+                if (concurrent) {
+                    if (concurrent.name !== migration.name || concurrent.checksum !== checksum) {
+                        throw new Error(`迁移 ${migration.version} 校验失败，已应用迁移不得修改`);
+                    }
+                    return;
+                }
                 migration.up(db);
                 insert.run(
                     migration.version,
@@ -2417,12 +2477,13 @@ function runMigrations(db, options = {}) {
                     options.now || new Date().toISOString()
                 );
                 db.pragma(`user_version = ${migration.version}`);
+                appliedNow = true;
             });
             apply.immediate();
         } finally {
             if (migration.foreignKeysOff && foreignKeysEnabled) db.pragma('foreign_keys = ON');
         }
-        completed.push(migration.version);
+        if (appliedNow) completed.push(migration.version);
     }
 
     const currentVersion = MIGRATIONS.at(-1)?.version || 0;

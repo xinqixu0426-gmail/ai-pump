@@ -292,9 +292,13 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         `).run(FIXED_NOW, FIXED_NOW);
 
         const restoreMigration = MIGRATIONS.find(migration => migration.version === 47);
+        const dataAwareMigration = MIGRATIONS.find(migration => migration.version === 48);
         assert.ok(restoreMigration);
+        assert.ok(dataAwareMigration);
         restoreMigration.up(db);
         restoreMigration.up(db);
+        dataAwareMigration.up(db);
+        dataAwareMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, review_status, source_type
@@ -319,6 +323,17 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
             && item.review_status === 'approved'
             && item.source_type === 'system'
         )));
+        const testReportCase = db.prepare(`
+            SELECT config_json FROM ai_evaluation_cases
+            WHERE case_key = 'test-report-file-type'
+        `).get();
+        assert.deepEqual(
+            JSON.parse(testReportCase.config_json).prerequisite,
+            {
+                type: 'recipe_test_report',
+                recipeName: 'V1600-3”-12-180',
+            }
+        );
         assert.deepEqual(
             db.prepare(`
                 SELECT title, enabled, review_status, confidence_score

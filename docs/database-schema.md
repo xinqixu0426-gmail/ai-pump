@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `47`：
+当前版本为 `48`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -67,6 +67,7 @@
 | 45 | `accept_equivalent_cutting_evidence_wording` | 放宽切割泵壳证据回归中等价的不确定性表述 |
 | 46 | `accept_clear_cutting_evidence_uncertainty` | 补充清晰的不确定性短语，避免安全回答被误判失败 |
 | 47 | `restore_system_ai_evaluation_cases` | 恢复并校准 7 条内置系统 AI 发布回归用例；不修改用户反馈用例 |
+| 48 | `data_aware_system_ai_evaluation_cases` | 测试报告前置数据不存在时核对安全的不可用说明，存在时继续执行严格内容和来源检查 |
 
 ## 数据治理
 

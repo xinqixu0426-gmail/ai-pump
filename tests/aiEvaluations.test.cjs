@@ -16,6 +16,13 @@ function createFixture() {
         CREATE TABLE parts (id INTEGER PRIMARY KEY, model TEXT, price REAL, deleted_at TEXT);
         CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, deleted_at TEXT);
         CREATE TABLE quotations (id INTEGER PRIMARY KEY, customer_id INTEGER, deleted_at TEXT);
+        CREATE TABLE recipes (id INTEGER PRIMARY KEY, name TEXT, deleted_at TEXT);
+        CREATE TABLE recipe_technical_files (
+            id INTEGER PRIMARY KEY,
+            recipe_id INTEGER,
+            report_type TEXT,
+            deleted_at TEXT
+        );
         CREATE TABLE ai_evaluation_cases (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             case_key TEXT NOT NULL UNIQUE,
@@ -192,6 +199,80 @@ test('AI 评测：禁用词允许明确否定，但拒绝反转后的肯定结�
     );
     assert.equal(wrong.status, 'failed');
     assert.equal(wrong.checks.find(check => check.key === 'forbidden:参考图纸').passed, false);
+    fixture.db.close();
+});
+
+test('AI 评测：目标测试报告不存在时核对安全说明，存在时恢复严格内容和来源检查', () => {
+    const fixture = createFixture();
+    const caseItem = {
+        config: {
+            prerequisite: {
+                type: 'recipe_test_report',
+                recipeName: 'V1600-3”-12-180',
+            },
+            unavailableTerms: ['未找到', '无法确认'],
+            requiredTerms: [['性能测试报告'], ['流量'], ['扬程']],
+            forbiddenTerms: ['参考图纸'],
+            requiredTools: ['search_factory_knowledge'],
+            requiredSourceTables: ['recipes'],
+        },
+    };
+    const unavailable = evaluateRuleCase(
+        caseItem,
+        '系统未找到目标配方，因此无法确认附件内容。',
+        [{ name: 'search_factory_knowledge', result: {} }],
+        fixture.db
+    );
+    assert.equal(unavailable.status, 'passed');
+    assert.equal(unavailable.checks.some(check => check.key.startsWith('required:')), false);
+    assert.equal(unavailable.checks.some(check => check.key.startsWith('source:')), false);
+
+    const unsupported = evaluateRuleCase(
+        caseItem,
+        '附件内容已经确认。',
+        [{ name: 'search_factory_knowledge', result: {} }],
+        fixture.db
+    );
+    assert.equal(unsupported.status, 'failed');
+
+    fixture.db.prepare(`INSERT INTO recipes VALUES (1, ?, NULL)`).run('V1600-3”-12-180');
+    fixture.db.prepare(`
+        INSERT INTO recipe_technical_files VALUES (1, 1, 'pump_performance_test', NULL)
+    `).run();
+    const available = evaluateRuleCase(
+        caseItem,
+        '附件是性能测试报告，测试点包含流量和扬程。',
+        [{
+            name: 'search_factory_knowledge',
+            result: { sources: [{ sourceTable: 'recipes' }] },
+        }],
+        fixture.db
+    );
+    assert.equal(available.status, 'passed');
+    fixture.db.close();
+});
+
+test('AI 评测：客户不存在时接受明确未找到结论而不要求伪造零份报价', () => {
+    const fixture = createFixture();
+    fixture.db.prepare('DELETE FROM quotations').run();
+    fixture.db.prepare('DELETE FROM customers').run();
+    const caseItem = {
+        config: {
+            fact: {
+                type: 'customer_quotation_count',
+                customerName: '邱焕',
+                forbidInternalIds: true,
+            },
+        },
+    };
+    const correct = evaluateRuleCase(caseItem, '未找到客户“邱焕”。', [], fixture.db);
+    assert.equal(correct.status, 'passed');
+    assert.equal(
+        correct.checks.find(check => check.key === 'fact:customer_missing').passed,
+        true
+    );
+    const invented = evaluateRuleCase(caseItem, '当前共有 0 份报价。', [], fixture.db);
+    assert.equal(invented.status, 'failed');
     fixture.db.close();
 });
 
