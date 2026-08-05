@@ -80,6 +80,7 @@
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
 - `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；只有 `approved + enabled` 的案例进入无人值守检查。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
 - 7 条 `source_type=system` 的内置 AI 发布回归用例属于代码版本化的发布基线。迁移 47 会在缺失时恢复，并校准为当前确定性规则；`source_type=feedback` 的用户纠错案例不受影响。
+- `NODE_ENV=test` 时 `api/db.cjs` 只打开 `PUMP_TEST_DATABASE_PATH` 指定的按进程临时 SQLite；`npm test` 自动创建并清理这些数据库。发布验证不会迁移或写入生产 `pump.db`，生产迁移只随 API 服务启动执行。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
 - `pump_shell_templates.shell_components_json` 的自由搭配计价项支持 `componentType=subassembly`。小套件父项仍绑定零件库“泵壳搭配”型号；一级 `subassemblyContents: [{ name, qty, note? }]` 仅保存组成说明，不建立子零件价格或库存关系，因此本功能不新增数据表或迁移。

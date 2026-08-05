@@ -20,6 +20,7 @@
     "db:backup:list": "node scripts/manage-database-backups.cjs list",
     "db:backup:verify": "node scripts/manage-database-backups.cjs verify",
     "db:restore": "node scripts/manage-database-backups.cjs restore",
+    "deploy:macmini": "powershell -ExecutionPolicy Bypass -File scripts/deploy-macmini.ps1",
     "restart:local": "powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1",
     "verify:prod-env": "node scripts/verify-production-env.cjs",
     "verify:release": "npm audit && npm --prefix apps/web-next audit && npm run verify:api-contract && npm run lint && npm test && npm run test:deep-api && npm run build && npm run verify:prod-env",

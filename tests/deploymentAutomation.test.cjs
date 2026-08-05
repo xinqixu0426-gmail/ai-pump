@@ -1,0 +1,52 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..');
+const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
+
+test('Mac Mini 一键发布：Windows 入口只部署已推送提交并通过 stdin 传递脚本', () => {
+    const wrapper = read('scripts/deploy-macmini.ps1');
+    const pkg = JSON.parse(read('package.json'));
+
+    assert.match(pkg.scripts['deploy:macmini'], /deploy-macmini\.ps1/);
+    assert.match(wrapper, /--untracked-files=no/);
+    assert.match(wrapper, /origin\/\$Branch/);
+    assert.match(wrapper, /Get-Content[\s\S]*-Raw[\s\S]*-Encoding UTF8[\s\S]*\|\s*& ssh/);
+    assert.match(wrapper, /ServerAliveInterval=30/);
+    assert.match(wrapper, /\/bin\/zsh -s/);
+});
+
+test('Mac Mini 一键发布：备份、快进、门禁、重启和公网验收顺序固定', () => {
+    const deploy = read('scripts/deploy-macmini-release.sh');
+    const backupIndex = deploy.indexOf('db:backup:release');
+    const pullIndex = deploy.indexOf('git pull --ff-only');
+    const releaseGateIndex = deploy.indexOf('run verify:release');
+    const restartIndex = deploy.indexOf('launchctl kickstart -k system/com.pumpfactory.api');
+    const aiGateIndex = deploy.indexOf('run verify:ai-release');
+    const publicIndex = deploy.indexOf('公网 API ready');
+
+    assert.ok(backupIndex >= 0 && backupIndex < pullIndex);
+    assert.ok(pullIndex < releaseGateIndex);
+    assert.ok(releaseGateIndex < restartIndex);
+    assert.ok(restartIndex < aiGateIndex);
+    assert.ok(aiGateIndex < publicIndex);
+    assert.doesNotMatch(deploy, /sudo\s+(?:-n\s+)?launchctl\s+kickstart/);
+    assert.match(deploy, /release-code-gate-\$new_commit\.json/);
+    assert.match(deploy, /startupBackup\?\.ok !== true/);
+    assert.match(deploy, /gitCommit/);
+});
+
+test('测试运行器：每个测试进程使用独立临时数据库而不是生产 pump.db', () => {
+    const db = read('api/db.cjs');
+    const runner = read('scripts/run-tests.cjs');
+
+    assert.match(db, /process\.env\.NODE_ENV === 'test'/);
+    assert.match(db, /PUMP_TEST_DATABASE_PATH/);
+    assert.match(db, /\{pid\}/);
+    assert.match(runner, /mkdtempSync/);
+    assert.match(runner, /PUMP_TEST_DATABASE_PATH/);
+    assert.match(runner, /pump-\{pid\}\.db/);
+    assert.match(runner, /rmSync\(testDatabaseDir/);
+});

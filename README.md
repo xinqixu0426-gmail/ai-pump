@@ -200,6 +200,18 @@ AI 回答中明确报告错误并保存正确做法后，系统会同步生成�
 
 生产环境为 Mac Mini：
 
+日常发布在 Windows 项目根目录执行：
+
+```powershell
+npm run deploy:macmini
+```
+
+该入口只部署已 push 的 `origin/master`，自动完成 commit 绑定备份、远端门禁、
+LaunchDaemon 重启、真实 AI 回归和公网验收。测试使用隔离临时数据库，不会迁移
+或写入生产 `pump.db`。
+
+首次安装系统级 LaunchDaemon 或服务定义发生变化时，才登录 Mac Mini 执行：
+
 ```bash
 ssh dan@192.168.31.216
 cd ~/pump-cost-accounting-system

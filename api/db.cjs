@@ -2,6 +2,7 @@
  * 数据库初始化 + 共享辅助函数
  */
 const path = require('path');
+const os = require('os');
 const Database = require('better-sqlite3');
 const { createLogger } = require('./logger.cjs');
 const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./services/costEngine.cjs');
@@ -18,7 +19,16 @@ const backupLogger = createLogger('backup');
 const knowledgeSyncLogger = createLogger('knowledge-auto-sync');
 
 // ── SQLite 初始化 ──
-const DB_PATH = path.join(__dirname, '..', 'pump.db');
+const testDatabaseTemplate = String(
+    process.env.PUMP_TEST_DATABASE_PATH
+    || path.join(os.tmpdir(), 'pump-tests-{pid}.db')
+);
+const testDatabasePath = testDatabaseTemplate.includes('{pid}')
+    ? testDatabaseTemplate.replaceAll('{pid}', String(process.pid))
+    : `${testDatabaseTemplate}.${process.pid}`;
+const DB_PATH = process.env.NODE_ENV === 'test'
+    ? path.resolve(testDatabasePath)
+    : path.join(__dirname, '..', 'pump.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');

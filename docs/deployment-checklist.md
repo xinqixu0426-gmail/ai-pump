@@ -1,6 +1,18 @@
 # 生产发布检查清单
 
-> 更新于 2026-07-29。
+> 更新于 2026-08-05。
+
+日常发布优先在 Windows 项目根目录运行：
+
+```powershell
+npm run deploy:macmini
+```
+
+该命令只接受已经 push 到 `origin/master` 的提交，并自动完成生产快照、快进拉取、
+按需安装依赖、完整发布门禁、无 sudo LaunchDaemon 重启、启动备份验证、真实 AI
+回归和公网验收。PowerShell 通过 stdin 把 UTF-8 脚本交给远端 `zsh`，不再拼接
+复杂 SSH 命令。重复部署同一 commit 时会复用该 commit 已通过的代码门禁证据，
+但仍会重新执行服务重启、ready、启动备份、真实 AI 和公网检查。
 
 本文用于 Mac Mini 生产环境发布前后的固定检查。发布命令以项目根目录为准：
 
@@ -64,10 +76,18 @@ npm run verify:release
 
 ## 3. 重启服务
 
-生产环境统一使用 LaunchDaemon 安装脚本重启。该脚本会在安装前再次执行生产环境检查，并安装 API 与 Web 两个服务：
+日常发布由 `npm run deploy:macmini` 使用现有系统级 LaunchDaemon 的非 sudo
+`kickstart` 重启，不再重复安装系统文件。首次部署，或
+`com.pumpfactory.*.plist`、守护包装脚本、日志轮转配置发生变化时，才运行一次：
 
 ```bash
 sudo ./scripts/install-macmini-launchdaemons.sh
+```
+
+日常远端手工兜底命令为：
+
+```bash
+/bin/zsh ./scripts/deploy-macmini-release.sh
 ```
 
 不要把手动 `pkill + nohup` 作为常规发布路径。只有 LaunchDaemon 被系统策略阻断或需要临时排障时，才允许短时间手动启动，并在排障结束后回到脚本托管：
@@ -98,6 +118,10 @@ LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失�
 服务保持运行以便排查，结果保存在 `logs/ai-release-gate-latest.json`，并进入
 管理看板“今日待办”的知识健康事项。模型流式连接瞬时中断会自动重试，连续
 3 次不能完成才按错误阻止验收。
+
+`npm test` 会为每个测试进程创建独立临时 SQLite，发布门禁不会再运行迁移或
+测试写入生产 `pump.db`；真实生产迁移只在 API 服务重启时执行，并由拉取前的
+commit 绑定 release 备份保护。
 脚本还会安装并校验 `/etc/newsyslog.d/com.pumpfactory.conf`，四个
 LaunchDaemon 日志达到 10 MB 后轮转，保留 14 份压缩文件；轮转后对应服务
 收到 `SIGTERM` 并由 LaunchDaemon 自动拉起，以确保新日志文件真正生效。

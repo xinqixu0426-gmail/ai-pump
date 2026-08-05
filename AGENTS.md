@@ -63,7 +63,8 @@
 
 - 生产服务器：Mac Mini (192.168.31.216)
 - 路径：`~/pump-cost-accounting-system`（不要放在 `Documents`，避免 macOS 后台服务被 TCC 权限拦截）
-- 进程管理：系统级 LaunchDaemon（`sudo ./scripts/install-macmini-launchdaemons.sh`）
+- 日常发布：Windows 项目根目录运行 `npm run deploy:macmini`，自动完成备份、快进拉取、发布门禁、无 sudo 重启、AI 回归和公网验收
+- 进程管理：系统级 LaunchDaemon；仅首次安装或服务定义变化时运行 `sudo ./scripts/install-macmini-launchdaemons.sh`
 - SSH 需要手动 export PATH 才能用 npm：`export PATH=/opt/homebrew/bin:$PATH`
 
 ## 7. 代码风格
