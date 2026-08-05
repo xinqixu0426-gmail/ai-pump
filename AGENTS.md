@@ -85,3 +85,45 @@
 - API 新增、修改、废弃或兼容层调整后，必须同步更新 `docs/api-reference.md`；涉及业务/API 概览时同时更新 `docs/README.md`。
 - API 变更至少必须运行 `npm run verify:api-contract` 和 `npm test`；涉及业务 API/数据库时运行 `npm run test:deep-api`，涉及 Web 契约时运行 `npm run build`。
 - 能力登记、实现、文档和自动化契约测试任一缺失，API 变更不视为完成。
+
+# Guardian v0.1 工作流
+
+Guardian 只观察、映射和验证，不定义水泵业务事实，也不修改业务代码或文档。项目事实继续以本文件、正式代码和 `docs/` 权威文档为准。
+
+当前水泵项目处于 `report-only` 试运行阶段。Guardian 报告中的 failure 必须处理或解释，但暂不以退出码阻断开发；未经项目负责人确认，不得改为强制门禁。
+
+本机已构建的 Guardian CLI：
+
+```powershell
+$guardian = "C:\Users\Dan\Documents\AI Development Framework\guardian\dist\src\cli.js"
+```
+
+在其他机器运行时，先定位并构建同版本 Framework，再把 `$guardian` 指向对应 `dist/src/cli.js`；不要把 Guardian Core 复制进本项目。
+
+## 任务开始
+
+阅读本文件和相关权威文档、检查 Git 状态并区分已有修改后，运行：
+
+```powershell
+node $guardian start `
+  --request "<需求摘要>" `
+  --modules "<预计模块，逗号分隔>" `
+  --types "<变更类型，逗号分隔>" `
+  --success "<成功标准>"
+```
+
+如果当前任务正在修复 Guardian 配置，允许先完成最小配置修复再补做快照，但必须明确哪些文件早于快照存在。
+
+## 开发中和完成前
+
+- 重要或高风险修改后：`node $guardian check --phase focused`
+- 准备提交前：`node $guardian check --phase commit --doc-review "<文档更新、合并、删除或无需调整的说明>"`
+- 内部等价重构且权威文档确实不受影响时，可改用 `--no-doc-impact "<明确理由>"`
+- 准备 push 前：`node $guardian check --phase push`
+- 查看最近报告：`node $guardian report`
+
+Guardian 配置的验证命令按阶段递增运行：focused 包含 API 契约检查，commit 增加 lint 和完整测试，push 再增加深度 API 检查和 Web 构建。
+
+`verify:ai-release` 依赖真实 AI，当前 Guardian v0.1 不能按变更模块条件触发，因此不配置为每次 push 都运行。涉及 AI tool、executor、知识检索或 AI 发布门禁的高风险变化时，Codex 仍必须按 `docs/ai-learning-release-gate-guide.md` 单独运行并报告 `npm run verify:ai-release`。
+
+Guardian 的运行报告和 session 属于本地证据，不提交。任何未运行、超时或失败的验证都必须如实报告，不能描述为通过。commit、push 和部署仍只在当前任务明确授权时执行。

@@ -50,12 +50,14 @@ test('AI tool protocol：工具调用与模型回执使用同一序列化格式'
     const message = buildAiToolResultMessage(call, { success: true, data: { id: 27 } });
 
     assert.equal(call.function.arguments, '{"orderId":27}');
-    assert.deepEqual(message, {
-        role: 'tool',
-        tool_call_id: 'call-27',
-        name: 'get_order_detail',
-        content: '{"success":true,"data":{"id":27}}',
-    });
+    assert.equal(message.role, 'tool');
+    assert.equal(message.tool_call_id, 'call-27');
+    assert.equal(message.name, 'get_order_detail');
+    assert.match(message.content, /^\{"success":true,"data":\{"id":27\}\}/);
+    assert.match(message.content, /只输出面向用户的结果/);
+    assert.match(message.content, /不展示内部思考、逐步推理、工具选择或处理过程/);
+    assert.match(message.content, /一个简短标题和 2-5 个短要点/);
+    assert.doesNotMatch(message.content, /120 个汉字/);
 });
 
 test('AI tool protocol：实时证据统一注入并移除历史 assistant 事实干扰', () => {
@@ -70,6 +72,9 @@ test('AI tool protocol：实时证据统一注入并移除历史 assistant 事�
     assert.match(prioritized[0].content, /本轮服务端已刷新数据/);
     assert.match(prioritized[0].content, /"stock":8/);
     assert.match(prioritized[0].content, /本轮证据优先/);
+    assert.match(prioritized[0].content, /只输出面向用户的结果/);
+    assert.match(prioritized[0].content, /不展示内部推理链/);
+    assert.match(prioritized[0].content, /确认、失败和关键风险不得省略/);
     assert.equal(prioritized.some(message => message.content === '旧库存 10'), false);
     assert.equal(prioritized.at(-1).content, '现在库存多少');
 });

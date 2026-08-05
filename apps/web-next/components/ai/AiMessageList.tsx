@@ -73,6 +73,9 @@ export function AiMessageList({
 
       {items.map((item) => {
         const answerFeedback = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
+        const hasAnswerProcess = item.role === 'assistant' && Boolean(
+          item.toolPlan || item.toolCalls?.length || item.toolResults?.length
+        );
         return (
           <div key={item.id} className={`mx-auto w-full max-w-4xl ${item.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}>
             <div className={`text-ink ${panel ? 'max-w-[94%]' : 'max-w-[940px]'} ${item.role === 'user' ? 'rounded-2xl bg-slate-100 px-3 py-2.5 md:rounded-panel md:border md:border-ink md:bg-ink md:p-3 md:text-white md:shadow-panel' : 'w-full bg-transparent md:w-auto md:rounded-panel md:border md:border-line md:bg-white md:p-3 md:shadow-panel'}`}>
@@ -92,6 +95,17 @@ export function AiMessageList({
                   </StatusBadge>
                 ) : null}
               </div>
+              {item.role === 'assistant' ? (
+                <AnswerProcess
+                  item={item}
+                  onConfirmed={(index, next) => onConfirmed(item.id, index, next)}
+                  onSendPrompt={onRunSample}
+                  shortcutDisabled={loading}
+                />
+              ) : null}
+              {hasAnswerProcess && (item.content || item.attachments?.length) ? (
+                <div className="my-3 border-t border-line" aria-hidden="true" />
+              ) : null}
               <AiMessageAttachments attachments={item.attachments || []} role={item.role} onArchive={onArchive} />
               {item.content ? (
                 item.role === 'assistant'
@@ -103,14 +117,6 @@ export function AiMessageList({
                   <Loader2 size={15} className="animate-spin" />
                   {item.statusMessage || '处理中...'}
                 </div>
-              ) : null}
-              {item.role === 'assistant' ? (
-                <AnswerProcess
-                  item={item}
-                  onConfirmed={(index, next) => onConfirmed(item.id, index, next)}
-                  onSendPrompt={onRunSample}
-                  shortcutDisabled={loading}
-                />
               ) : null}
               {item.role === 'assistant' && item.persistedMessageId && item.status !== 'error' ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2">

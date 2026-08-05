@@ -477,13 +477,18 @@ test('Next UI 契约：AI 回复展示可点击依据并保留新鲜度警告', 
 
 test('Next UI 契约：AI 回答依据和处理过程默认折叠且异常自动展开', () => {
     const answerProcess = readUtf8('apps/web-next/components/ai/AiAnswerProcess.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
 
     assert.match(answerProcess, /function AnswerProcess/);
-    assert.match(answerProcess, /回答依据与处理过程/);
+    assert.match(answerProcess, /已处理/);
+    assert.match(answerProcess, /查看处理过程/);
     assert.match(answerProcess, /open=\{open\}/);
     assert.match(answerProcess, /if \(requiresAttention\) setOpen\(true\)/);
     assert.match(answerProcess, /isConfirmationResult\(tool\.result\)/);
     assert.match(answerProcess, /asRecord\(tool\.result\)\.success === false/);
+    assert.ok(messageList.indexOf('<AnswerProcess') < messageList.indexOf('<StreamingText'));
+    assert.match(messageList, /hasAnswerProcess/);
+    assert.match(messageList, /my-3 border-t border-line/);
 });
 
 test('Next UI 契约：AI 工作台提供可执行首屏、历史搜索和稳定阅读宽度', () => {

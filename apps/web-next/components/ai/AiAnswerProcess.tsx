@@ -349,17 +349,19 @@ export function AnswerProcess({
     item.toolCalls?.length || 0,
     toolResults.length,
   );
+  const completed = item.historical || item.status === 'done';
 
   return (
     <details
-      className="group mt-3 rounded-md border border-slate-200 bg-slate-50/70"
+      className="group rounded-md border border-slate-200 bg-slate-50/70"
       open={open}
       onToggle={event => setOpen(event.currentTarget.open)}
     >
       <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
         <span className="inline-flex min-w-0 items-center gap-2">
           <FileSearch size={15} className="shrink-0 text-slate-500" />
-          <span className="font-medium text-ink">回答依据与处理过程</span>
+          <span className="font-medium text-ink">{completed ? '已处理' : '处理中'}</span>
+          <span className="text-xs text-muted">· 查看处理过程</span>
           {evidence.sources.length ? <span className="text-xs text-muted">{evidence.sources.length} 条依据</span> : null}
           {processCount ? <span className="text-xs text-muted">{processCount} 个步骤</span> : null}
         </span>
