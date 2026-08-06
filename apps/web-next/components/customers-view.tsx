@@ -251,7 +251,7 @@ export function CustomersView() {
         </div>
       )}
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-4 min-[1440px]:grid-cols-[360px_minmax(0,1fr)]">
         <FadePanel className="min-w-0 rounded-panel border border-line bg-white shadow-panel">
           <div className="border-b border-line p-4">
             <div>
@@ -286,7 +286,7 @@ export function CustomersView() {
               ) : null}
             />
           ) : (
-            <div className="max-h-[620px] overflow-y-auto">
+            <div className="min-[1440px]:max-h-[620px] min-[1440px]:overflow-y-auto">
               {filteredCustomers.map((customer) => {
                 const selected = customer.id === selectedCustomerId;
                 const quoteCount = quotationCounts.get(customer.id) || 0;
@@ -367,8 +367,31 @@ export function CustomersView() {
               </div>
             </div>
           ) : (
+            <>
+              <div className="divide-y divide-line md:hidden">
+                {customerQuotations.map((quotation) => (
+                  <article key={quotation.id} className="space-y-3 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <StatusBadge tone={quotationStatusTone(quotation.status)}>{quotation.status}</StatusBadge>
+                      <span className="text-xs text-muted">{dateShort(quotation.createdAt)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3">
+                      <div>
+                        <div className="text-xs text-muted">总报价</div>
+                        <div className="mt-1 text-base font-semibold text-ink">{money(quotation.totalPrice)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-muted">总成本</div>
+                        <div className="mt-1 text-sm font-medium text-muted">{money(quotation.totalCost)}</div>
+                      </div>
+                    </div>
+                    {quotation.remark ? <div className="line-clamp-2 text-xs leading-5 text-muted">备注：{quotation.remark}</div> : null}
+                  </article>
+                ))}
+              </div>
+              <div className="hidden md:block">
             <TableScrollArea label="客户报价历史">
-              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
+              <table className="w-full min-w-[640px] border-separate border-spacing-0 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                   <tr>
                     <th className="border-b border-line px-4 py-3">状态</th>
@@ -393,6 +416,8 @@ export function CustomersView() {
                 </tbody>
               </table>
             </TableScrollArea>
+              </div>
+            </>
           )}
           {selectedCustomer ? (
             <div className="border-t border-line">

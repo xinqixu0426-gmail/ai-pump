@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleAlert, Copy, Download, Link as LinkIcon, Play, Printer, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { CircleAlert, Copy, Download, History, Link as LinkIcon, Play, Printer, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -62,6 +62,7 @@ export function RotorView() {
   const [drawingName, setDrawingName] = useState('');
   const [drawingText, setDrawingText] = useState('');
   const [history, setHistory] = useState<RotorHistoryRecord[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [selectedShellMeta, setSelectedShellMeta] = useState<Record<string, unknown> | null>(null);
   const [selectedRecipeId, setSelectedRecipeId] = useState('');
@@ -321,6 +322,20 @@ export function RotorView() {
     }
   }
 
+  useEffect(() => {
+    if (!historyOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !linkRow) setHistoryOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [historyOpen, linkRow]);
+
   const activeStatus = jobStatus ? statusLabel(jobStatus.status) : null;
 
   return (
@@ -329,9 +344,15 @@ export function RotorView() {
         title="转子出图"
         description="按配方带入参数，生成并管理转子图纸。"
         actions={(
-          <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
-            刷新
-          </Button>
+          <>
+            <Button onClick={() => setHistoryOpen(true)} icon={<History size={15} />}>
+              历史记录
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-muted">{stats.total}</span>
+            </Button>
+            <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
+              刷新
+            </Button>
+          </>
         )}
       />
 
@@ -348,7 +369,7 @@ export function RotorView() {
         <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-700">{templateHint}</div>
       ) : null}
 
-      <FadePanel className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <FadePanel>
         <div className="rounded-panel border border-line bg-white shadow-panel">
           <div className="border-b border-line p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -489,16 +510,34 @@ export function RotorView() {
           </div>
         </div>
 
-        <aside className="min-w-0 rounded-panel border border-line bg-white/80 shadow-panel">
+      </FadePanel>
+
+      {historyOpen ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-slate-950/25"
+            aria-label="关闭出图历史遮罩"
+            onClick={() => setHistoryOpen(false)}
+          />
+          <aside
+            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-line bg-white shadow-xl sm:w-[420px]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="出图历史"
+          >
           <div className="border-b border-line p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-ink">历史</div>
                 <div className="mt-1 text-xs text-muted">{stats.success} 完成 / {stats.saved} 暂存 / 共 {stats.total}</div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}>
-                刷新
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}>
+                  刷新
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 w-8 px-0" onClick={() => setHistoryOpen(false)} icon={<X size={16} />} aria-label="关闭出图历史" />
+              </div>
             </div>
           </div>
           {loading ? (
@@ -506,7 +545,7 @@ export function RotorView() {
           ) : history.length === 0 ? (
             <div className="p-6 text-sm text-muted">暂无出图记录</div>
           ) : (
-            <div className="max-h-[680px] overflow-y-auto p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
               <div className="space-y-2">
                 {history.slice(0, 30).map((row) => {
                     const status = statusLabel(row.status);
@@ -553,11 +592,12 @@ export function RotorView() {
               {history.length > 30 ? <div className="px-1 pt-3 text-xs text-muted">仅显示最近 30 条</div> : null}
             </div>
           )}
-        </aside>
-      </FadePanel>
+          </aside>
+        </>
+      ) : null}
 
       {linkRow ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 p-4">
           <div className="w-full max-w-xl rounded-panel border border-line bg-white shadow-panel">
             <div className="flex items-center justify-between gap-3 border-b border-line p-4">
               <div>

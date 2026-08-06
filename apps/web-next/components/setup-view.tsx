@@ -34,6 +34,14 @@ type FormState = RuntimeSettingsValues & {
   kimiApiKey: string;
 };
 
+type SetupSection = 'ai' | 'knowledge' | 'deployment';
+
+const setupSections: Array<{ value: SetupSection; label: string }> = [
+  { value: 'ai', label: 'AI 助手' },
+  { value: 'knowledge', label: '知识检索' },
+  { value: 'deployment', label: '部署环境' },
+];
+
 const inputClass = 'mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-200';
 const sectionClass = 'rounded-md border border-line bg-white p-4 shadow-panel md:p-5';
 
@@ -110,6 +118,7 @@ export function SetupView() {
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [section, setSection] = useState<SetupSection>('ai');
 
   async function load() {
     setLoading(true);
@@ -141,6 +150,20 @@ export function SetupView() {
     () => snapshot?.deployment.filter((item) => item.configured).length || 0,
     [snapshot]
   );
+  const isDirty = useMemo(
+    () => Boolean(snapshot && JSON.stringify(form) !== JSON.stringify(formFromSnapshot(snapshot))),
+    [form, snapshot]
+  );
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const protectUnsavedSettings = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectUnsavedSettings);
+    return () => window.removeEventListener('beforeunload', protectUnsavedSettings);
+  }, [isDirty]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -149,6 +172,11 @@ export function SetupView() {
 
   function payload(): RuntimeSettingsInput {
     return { ...form };
+  }
+
+  function requestReload() {
+    if (isDirty && !window.confirm('当前设置有尚未保存的修改，确定重新加载并放弃这些修改吗？')) return;
+    void load();
   }
 
   async function save() {
@@ -189,10 +217,10 @@ export function SetupView() {
         description="配置 AI、知识检索与部署环境。"
         actions={(
           <>
-          <Button onClick={() => void load()} disabled={loading || saving} icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}>
+          <Button onClick={requestReload} disabled={loading || saving} icon={<RefreshCw size={15} className={loading ? 'animate-spin' : ''} />}>
             刷新
           </Button>
-          <Button variant="primary" onClick={() => void save()} disabled={loading || saving} icon={saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}>
+          <Button variant="primary" onClick={() => void save()} disabled={loading || saving || !isDirty} icon={saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}>
             {saving ? '保存中' : '保存设置'}
           </Button>
           </>
@@ -218,7 +246,19 @@ export function SetupView() {
         </div>
       ) : null}
 
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <FadePanel className="sticky top-0 z-20 flex flex-col gap-3 rounded-panel border border-line bg-white/95 p-2 shadow-panel backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <SegmentedControl
+          value={section}
+          options={setupSections}
+          onChange={setSection}
+          ariaLabel="设置工作区"
+          className="w-full overflow-x-auto sm:w-fit"
+        />
+        <StatusBadge tone={isDirty ? 'amber' : 'green'}>{isDirty ? '有未保存修改' : '设置已同步'}</StatusBadge>
+      </FadePanel>
+
+      <div className="min-w-0">
+        {section === 'ai' ? (
         <FadePanel className={`${sectionClass} min-w-0 space-y-5`}>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sky-50 text-sky-700">
@@ -323,7 +363,9 @@ export function SetupView() {
             </Button>
           </div>
         </FadePanel>
+        ) : null}
 
+        {section === 'knowledge' ? (
         <FadePanel delay={0.03} className={`${sectionClass} min-w-0`}>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
@@ -368,8 +410,10 @@ export function SetupView() {
             </label>
           </div>
         </FadePanel>
+        ) : null}
       </div>
 
+      {section === 'deployment' ? (
       <FadePanel delay={0.06} className={sectionClass}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -397,6 +441,7 @@ export function SetupView() {
           ))}
         </div>
       </FadePanel>
+      ) : null}
     </div>
   );
 }

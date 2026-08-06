@@ -770,16 +770,78 @@ export function QuotationsView() {
             ) : null}
           />
         ) : (
+          <>
+            <div className="divide-y divide-line min-[1280px]:hidden">
+              {filteredQuotations.map((quotation) => {
+                const customerName = customerNameMap.get(quotation.customerId) || `未知客户 #${quotation.customerId}`;
+                const saving = savingId === String(quotation.id);
+                return (
+                  <article key={quotation.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-ink">{customerName}</div>
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{quotationItemSummary(quotation)}</div>
+                      </div>
+                      <select
+                        value={quotation.status}
+                        disabled={saving || Boolean(savingId && savingId !== String(quotation.id))}
+                        onChange={(event) => void saveStatus(quotation, event.target.value as QuotationStatus)}
+                        className={`h-8 min-w-[5.25rem] shrink-0 whitespace-nowrap rounded-full border px-3 text-center text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${quotationStatusSelectClassName(quotation.status)}`}
+                        aria-label={`${customerName}报价状态`}
+                      >
+                        {quotationStatusChoices(quotation.status as QuotationStatus).map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-xs">
+                      <div>
+                        <div className="text-muted">总报价</div>
+                        <div className="mt-1 text-base font-semibold text-ink">{money(quotation.totalPrice)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-muted">含税出厂价</div>
+                        <div className="mt-1 text-base font-semibold text-ink">{money(quotationTaxIncludedFactoryPrice(quotation))}</div>
+                      </div>
+                      <div className="text-muted">成本 {money(quotation.totalCost)}</div>
+                      <div className="text-right text-muted">{dateShort(quotation.createdAt)}</div>
+                    </div>
+                    {quotation.remark ? <div className="line-clamp-2 text-xs text-muted">备注：{quotation.remark}</div> : null}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {quotation.status === '已接受' ? (
+                        <Button size="sm" variant="primary" disabled={Boolean(savingId)} onClick={() => void openConvertPreview(quotation)} icon={<ArrowRight size={14} />}>
+                          转订单
+                        </Button>
+                      ) : null}
+                      <Button size="sm" variant="ghost" disabled={Boolean(savingId)} onClick={() => setViewQuotation(quotation)} icon={<Eye size={14} />}>
+                        查看
+                      </Button>
+                      {(quotation.status === '草稿' || quotation.status === '报价中') ? (
+                        <Button size="sm" variant="ghost" disabled={Boolean(savingId)} onClick={() => openEditDrawer(quotation)} icon={<Pencil size={14} />}>
+                          编辑
+                        </Button>
+                      ) : null}
+                      {(['草稿', '已拒绝', '已过时'] as QuotationStatus[]).includes(quotation.status as QuotationStatus) ? (
+                        <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => void removeQuotation(quotation)} icon={<Trash2 size={14} />}>
+                          删除
+                        </Button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden min-[1280px]:block">
           <TableScrollArea label="报价列表">
-            <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[920px] border-separate border-spacing-0 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="border-b border-line px-4 py-3">客户</th>
                   <th className="border-b border-line px-4 py-3">明细</th>
                   <th className="border-b border-line px-4 py-3">状态</th>
-                  <th className="border-b border-line px-4 py-3 text-right">总成本</th>
+                  <th className="hidden border-b border-line px-4 py-3 text-right min-[1440px]:table-cell">总成本</th>
                   <th className="border-b border-line px-4 py-3 text-right">总报价</th>
-                  <th className="border-b border-line px-4 py-3 text-right">含税出厂价</th>
+                  <th className="hidden border-b border-line px-4 py-3 text-right min-[1440px]:table-cell">含税出厂价</th>
                   <th className="border-b border-line px-4 py-3">创建</th>
                   <th className="border-b border-line px-4 py-3 text-right">操作</th>
                 </tr>
@@ -811,9 +873,9 @@ export function QuotationsView() {
                             ))}
                           </select>
                         </td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{money(quotation.totalCost)}</td>
+                        <td className="hidden border-b border-line px-4 py-3 text-right text-muted min-[1440px]:table-cell">{money(quotation.totalCost)}</td>
                         <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(quotation.totalPrice)}</td>
-                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(quotationTaxIncludedFactoryPrice(quotation))}</td>
+                        <td className="hidden border-b border-line px-4 py-3 text-right font-medium text-ink min-[1440px]:table-cell">{money(quotationTaxIncludedFactoryPrice(quotation))}</td>
                         <td className="border-b border-line px-4 py-3 text-muted">{dateShort(quotation.createdAt)}</td>
                         <td className="border-b border-line px-4 py-3">
                           <div className="flex justify-end gap-2">
@@ -850,6 +912,8 @@ export function QuotationsView() {
               </tbody>
             </table>
           </TableScrollArea>
+            </div>
+          </>
         )}
       </FadePanel>
 

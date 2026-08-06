@@ -85,6 +85,7 @@ export function AiView({
   const {
     conversations,
     activeConversationId,
+    restorableConversationId,
     historyQuery,
     historyLoading,
     historyError,
@@ -95,6 +96,7 @@ export function AiView({
     setHistoryError,
     addConversation,
     clearActiveConversation,
+    clearRestorableConversation,
     refreshConversationList,
     openConversation: loadConversation,
     removeConversation,
@@ -130,6 +132,15 @@ export function AiView({
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
+  const restoredConversationRef = useRef(false);
+  const restoreConversationActionsRef = useRef({
+    openConversation,
+    clearRestorableConversation,
+  });
+  restoreConversationActionsRef.current = {
+    openConversation,
+    clearRestorableConversation,
+  };
   const {
     speechSupported,
     isListening,
@@ -166,6 +177,17 @@ export function AiView({
     initialPromptAppliedRef.current = true;
     setInput(prompt);
   }, [initialPrompt]);
+
+  useEffect(() => {
+    if (historyLoading || restoredConversationRef.current) return;
+    restoredConversationRef.current = true;
+    if (!restorableConversationId) return;
+    if (!conversations.some((conversation) => conversation.id === restorableConversationId)) {
+      restoreConversationActionsRef.current.clearRestorableConversation();
+      return;
+    }
+    void restoreConversationActionsRef.current.openConversation(restorableConversationId);
+  }, [conversations, historyLoading, restorableConversationId]);
 
   async function sendMessage(text: string) {
     const attachments = pendingAttachments;

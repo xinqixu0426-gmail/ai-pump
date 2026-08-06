@@ -90,6 +90,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [qualityAttachmentTargetId, setQualityAttachmentTargetId] = useState<number | null>(null);
   const onScoreChangeRef = useRef(onScoreChange);
   const onRefreshCompleteRef = useRef(onRefreshComplete);
+  const issueListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     onScoreChangeRef.current = onScoreChange;
@@ -134,6 +135,13 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     if (activeKey === 'all') return groups;
     return groups.filter((group) => group.key === activeKey);
   }, [activeKey, summary]);
+
+  function focusIssueGroup(key: string) {
+    setActiveKey(key);
+    window.requestAnimationFrame(() => {
+      issueListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
   const topBusinessAlerts = businessAlerts?.topAlerts || [];
   const approvedRuleCandidates = ruleCandidates.filter((candidate) => candidate.status === 'approved');
   const ruleCandidatesNeedingReview = ruleCandidates.filter((candidate) => candidate.needsReview);
@@ -722,6 +730,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
           </details>
 
           <FadePanel className="order-2 rounded-panel border border-line bg-white p-4 shadow-panel">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -741,16 +750,23 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 </button>
               ))}
             </div>
+              <div className="text-xs text-muted">
+                {activeKey === 'all' ? '全部模式每类展示前 4 项，点击类别查看明细' : '当前仅查看所选问题类别'}
+              </div>
+            </div>
           </FadePanel>
 
-          <div className="order-3 grid gap-4 xl:grid-cols-[1fr_360px]">
+          <div ref={issueListRef} className="order-3 grid scroll-mt-4 gap-4 xl:grid-cols-[1fr_360px]">
             <div className="space-y-4">
               {visibleGroups.length === 0 ? (
                 <FadePanel className="rounded-panel border border-emerald-200 bg-emerald-50 p-8 text-center text-emerald-800">
                   <CheckCircle2 size={28} className="mx-auto" />
                   <div className="mt-3 text-sm font-semibold">当前筛选下没有问题</div>
                 </FadePanel>
-              ) : visibleGroups.map((group) => (
+              ) : visibleGroups.map((group) => {
+                const itemLimit = activeKey === 'all' ? 4 : 12;
+                const visibleItems = group.items.slice(0, itemLimit);
+                return (
                 <FadePanel key={group.key} className="rounded-panel border border-line bg-white shadow-panel">
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line p-4">
                     <div>
@@ -763,7 +779,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                     <StatusBadge tone={severityTone(group.severity)}>{group.count} 项</StatusBadge>
                   </div>
                   <div className="divide-y divide-line">
-                    {group.items.slice(0, 12).map((item) => (
+                    {visibleItems.map((item) => (
                       <div key={`${group.key}-${item.id}-${item.desc}`} className="flex items-start justify-between gap-3 px-4 py-3">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-ink">{item.title}</div>
@@ -774,10 +790,24 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                         </Button>
                       </div>
                     ))}
-                    {group.count > 12 ? <div className="px-4 py-3 text-xs text-muted">仅显示前 12 项，共 {group.count} 项</div> : null}
+                    {group.count > itemLimit ? (
+                      activeKey === 'all' ? (
+                        <button
+                          type="button"
+                          onClick={() => focusIssueGroup(group.key)}
+                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-xs font-medium text-sky-700 transition-colors hover:bg-slate-50"
+                        >
+                          <span>查看“{group.title}”全部明细</span>
+                          <span>共 {group.count} 项</span>
+                        </button>
+                      ) : (
+                        <div className="px-4 py-3 text-xs text-muted">仅显示前 12 项，共 {group.count} 项</div>
+                      )
+                    ) : null}
                   </div>
                 </FadePanel>
-              ))}
+                );
+              })}
             </div>
 
             <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
@@ -792,13 +822,19 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
                 {summary.topIssues.length === 0 ? (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">暂无优先问题</div>
                 ) : summary.topIssues.map((group) => (
-                  <div key={group.key} className={`rounded-md border p-3 ${qualitySeverityClassName(group.severity)}`}>
+                  <button
+                    key={group.key}
+                    type="button"
+                    onClick={() => focusIssueGroup(group.key)}
+                    className={`block w-full rounded-md border p-3 text-left transition-shadow hover:shadow-sm ${qualitySeverityClassName(group.severity)}`}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold">{group.title}</div>
                       <div className="text-sm font-semibold">{group.count}</div>
                     </div>
                     <div className="mt-1 text-xs leading-5 opacity-80">{group.suggestion}</div>
-                  </div>
+                    <div className="mt-2 text-xs font-medium opacity-80">查看此类问题</div>
+                  </button>
                 ))}
               </div>
             </FadePanel>

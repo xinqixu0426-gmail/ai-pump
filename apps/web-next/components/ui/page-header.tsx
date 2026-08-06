@@ -20,7 +20,7 @@ export function PageHeader({
   return (
     <FadePanel
       className={clsx(
-        'flex flex-col gap-3 md:flex-row md:items-center md:justify-between',
+        'flex flex-col gap-3 min-[1280px]:flex-row min-[1280px]:items-center min-[1280px]:justify-between',
         className
       )}
     >
@@ -31,7 +31,7 @@ export function PageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 min-[1280px]:shrink-0">{actions}</div>
       ) : null}
     </FadePanel>
   );

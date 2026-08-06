@@ -343,7 +343,8 @@ test('Next UI 契约：详情编辑面板必须居中显示，不使用右侧抽
     const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
 
     assert.match(slideOver, /items-center justify-center/);
-    assert.match(slideOver, /min-\[1600px\]:right-\[500px\]/);
+    assert.match(slideOver, /lg:left-56/);
+    assert.match(slideOver, /min-\[1600px\]:right-\[356px\]/);
     assert.match(slideOver, /max-h-\[calc\(100vh-2rem\)\]/);
     assert.match(slideOver, /rounded-panel/);
     assert.doesNotMatch(slideOver, /right-0/);
@@ -690,8 +691,8 @@ test('Next UI 契约：管理看板释放主区宽度并提供可追溯下钻', 
     const partsPage = readUtf8('apps/web-next/app/parts/page.tsx');
     const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
 
-    assert.match(shell, /setAiPanelOpen\(false\)/);
-    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+    assert.match(shell, /window\.matchMedia\('\(min-width: 1600px\)'\)/);
+    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_340px\]/);
     assert.match(shell, /aiPanelOpen \? '收起 AI' : '问 AI'/);
     assert.match(aiView, /aria-label="关闭 AI 助手"/);
     assert.match(dashboard, /累计销售额/);
@@ -730,9 +731,12 @@ test('Next UI 契约：P0 全局导航按业务域分组并统一页面骨架', 
         assert.match(shell, new RegExp(route.replace('/', '\\/')));
     }
     assert.doesNotMatch(shell, /pump\.ai-panel-open|localStorage/);
-    assert.match(shell, /useEffect\(\(\) => \{\s*setAiPanelOpen\(false\);\s*\}, \[pathname\]\)/);
-    assert.match(shell, /overflow-x-auto[^"]*md:overflow-visible/);
-    assert.match(nav, /event\.key === 'Escape'/);
+    assert.match(shell, /setAiPanelOpen\(media\.matches && !isAiWorkspace\)/);
+    assert.match(shell, /sticky top-0 hidden h-screen w-56/);
+    assert.match(shell, /mobileNavOpen/);
+    assert.match(shell, /event\.key === 'Escape'/);
+    assert.match(nav, /export function NavSection/);
+    assert.match(nav, /aria-current/);
     assert.match(pageHeader, /export function PageHeader/);
     assert.match(metricCard, /export function MetricCard/);
     assert.match(metricCard, /export function MetricGrid/);
@@ -880,19 +884,25 @@ test('Next UI 契约：知识库回归检查支持一键运行和失败明细', 
     assert.match(packageJson, /"test:knowledge-live"/);
 });
 
-test('Next UI 契约：业务页面使用顶部导航并提供可复用 AI 助手', () => {
+test('Next UI 契约：业务页面使用自适应三栏工作台并提供可复用 AI 助手', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
 
     assert.match(shell, /aria-label="主导航"/);
-    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_460px\]/);
+    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_340px\]/);
+    assert.match(shell, /setAiPanelOpen\(media\.matches && !isAiWorkspace\)/);
+    assert.match(shell, /aria-label="展开业务 AI 助手"/);
+    assert.match(shell, /fixed bottom-\[max\(1\.25rem,env\(safe-area-inset-bottom\)\)\] right-5 z-\[90\]/);
+    assert.doesNotMatch(shell, /isSetupWorkspace/);
     assert.match(shell, /<AiView\s+variant="panel"/);
-    assert.match(shell, /<NavMenu/);
+    assert.match(shell, /<NavSection/);
+    assert.doesNotMatch(shell, /<NavMenu/);
     assert.match(shell, /label="销售"/);
     assert.match(shell, /label="供应链"/);
     assert.match(shell, /label="产品工程"/);
     assert.match(shell, /label="系统"/);
-    assert.doesNotMatch(shell, /fixed inset-y-0 left-0/);
+    assert.match(shell, /fixed inset-y-0 left-0/);
+    assert.match(shell, /aria-label="打开主导航"/);
     assert.match(aiView, /variant\?: 'workspace' \| 'panel'/);
     assert.match(aiView, /进入 AI 工作台/);
     assert.match(aiView, /同步知识库/);
@@ -905,6 +915,7 @@ test('Next UI 契约：订单详情上下文独立传给业务 AI 助手', () =>
     const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');
     const pageContext = readUtf8('apps/web-next/lib/page-context.ts');
+    const conversationHistory = readUtf8('apps/web-next/components/ai/useAiConversationHistory.ts');
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const orderDrawer = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
 
@@ -916,6 +927,9 @@ test('Next UI 契约：订单详情上下文独立传给业务 AI 助手', () =>
     assert.doesNotMatch(aiLib, /pageContext: \{[\s\S]{0,200}label:/);
     assert.match(pageContext, /resourceType: 'order'/);
     assert.match(pageContext, /AI_PAGE_CONTEXT_EVENT/);
+    assert.match(conversationHistory, /window\.sessionStorage\.setItem\(ACTIVE_CONVERSATION_STORAGE_KEY/);
+    assert.match(conversationHistory, /restorableConversationId/);
+    assert.match(aiView, /restoreConversationActionsRef\.current\.openConversation\(restorableConversationId\)/);
     assert.match(ordersView, /replacePageLocation\(`\/orders\?orderId=/);
     assert.match(orderDrawer, /replacePageLocation\(`\/orders\?orderId=/);
 });
@@ -929,8 +943,8 @@ test('Next UI 契约：浮动业务 AI 必须位于订单详情弹层之上', ()
     assert.match(slideOver, /closeOnBackdrop = true/);
     assert.match(slideOver, /onClick=\{closeOnBackdrop \? onClose : undefined\}/);
     assert.match(orderDrawer, /closeOnBackdrop=\{false\}/);
-    assert.match(shell, /fixed inset-0 z-\[60\] bg-slate-950\/20/);
-    assert.match(shell, /fixed inset-0 z-\[70\]/);
+    assert.match(shell, /fixed inset-0 z-\[100\] bg-slate-950\/24/);
+    assert.match(shell, /fixed inset-0 z-\[110\]/);
     assert.doesNotMatch(shell, /min-\[1600px\]:z-auto/);
 });
 
@@ -1541,7 +1555,8 @@ test('Next UI 契约：配方页必须压缩成本信息并给工作台足够空
     assert.match(recipeSection, /aria-expanded=\{open\}/);
     assert.match(recipesView, /button\[aria-expanded\]/);
     assert.match(recipesView, /requestAnimationFrame/);
-    assert.match(slideOver, /min-\[1600px\]:right-\[500px\]/);
+    assert.match(slideOver, /lg:left-56/);
+    assert.match(slideOver, /min-\[1600px\]:right-\[356px\]/);
     assert.doesNotMatch(slideOver, /\sp-4 xl:right-\[500px\]/);
     assert.match(slideOver, /aria-modal="true"/);
 });
@@ -1939,4 +1954,63 @@ test('Next UI 契约：剩余业务工作台压缩标题并补齐高频操作反
     assert.match(quotationsView, /searchLabel="搜索报价单"/);
     assert.match(customersView, /searchLabel="搜索客户"/);
     assert.doesNotMatch(customersView, />\s*新建\s*<\/Button>\s*<\/div>\s*<div className="border-b border-line p-4">/);
+});
+
+test('Next UI 契约：P0 工作区响应式、长列表分页和辅助历史抽屉', () => {
+    const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const customersView = readUtf8('apps/web-next/components/customers-view.tsx');
+    const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
+    const guidelines = readUtf8('docs/ui-refactor-guidelines.md');
+
+    assert.match(quotationsView, /min-\[1280px\]:hidden/);
+    assert.match(quotationsView, /min-w-\[920px\]/);
+    assert.match(customersView, /min-\[1440px\]:grid-cols-\[360px_minmax\(0,1fr\)\]/);
+    assert.match(customersView, /md:hidden/);
+    assert.match(knowledgeView, /const KNOWLEDGE_PAGE_SIZE = 30/);
+    assert.match(knowledgeView, /KNOWLEDGE_WORKSPACES/);
+    assert.match(knowledgeView, /pagedDisplayItems\.map/);
+    assert.match(knowledgeView, /第 \{safeEntryPage\}\/\{entryPageCount\} 页/);
+    assert.match(rotorView, /historyOpen/);
+    assert.match(rotorView, /aria-label="出图历史"/);
+    assert.match(rotorView, /document\.body\.style\.overflow = 'hidden'/);
+    assert.doesNotMatch(rotorView, /max-h-\[680px\]/);
+    assert.match(guidelines, /有效内容宽度/);
+    assert.match(guidelines, /一个纵向滚动容器/);
+});
+
+test('Next UI 契约：P1 配方窄屏首屏和质量问题聚焦保持紧凑', () => {
+    const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+    const qualityView = readUtf8('apps/web-next/components/quality-view.tsx');
+    const guidelines = readUtf8('docs/ui-refactor-guidelines.md');
+
+    assert.match(recipeWorkspace, /sm:hidden/);
+    assert.match(recipeWorkspace, /min-\[1180px\]:hidden/);
+    assert.match(recipeWorkspace, /hidden overflow-x-auto min-\[1180px\]:block/);
+    assert.match(recipeWorkspace, /min-w-\[900px\]/);
+    assert.match(recipeWorkspace, /保存成本 \{money\(stats\.totalSavedCost\)\}/);
+    assert.match(qualityView, /const itemLimit = activeKey === 'all' \? 4 : 12/);
+    assert.match(qualityView, /focusIssueGroup/);
+    assert.match(qualityView, /查看此类问题/);
+    assert.match(qualityView, /全部模式每类展示前 4 项/);
+    assert.match(guidelines, /多张桌面指标卡应合并为一条紧凑摘要/);
+    assert.match(guidelines, /单类别聚焦入口/);
+});
+
+test('Next UI 契约：P2 系统设置按任务分区并保护未保存修改', () => {
+    const setupView = readUtf8('apps/web-next/components/setup-view.tsx');
+    const guidelines = readUtf8('docs/ui-refactor-guidelines.md');
+
+    assert.match(setupView, /type SetupSection = 'ai' \| 'knowledge' \| 'deployment'/);
+    assert.match(setupView, /ariaLabel="设置工作区"/);
+    assert.match(setupView, /section === 'ai'/);
+    assert.match(setupView, /section === 'knowledge'/);
+    assert.match(setupView, /section === 'deployment'/);
+    assert.match(setupView, /JSON\.stringify\(form\) !== JSON\.stringify\(formFromSnapshot\(snapshot\)\)/);
+    assert.match(setupView, /window\.addEventListener\('beforeunload', protectUnsavedSettings\)/);
+    assert.match(setupView, /当前设置有尚未保存的修改/);
+    assert.match(setupView, /disabled=\{loading \|\| saving \|\| !isDirty\}/);
+    assert.match(setupView, /有未保存修改/);
+    assert.match(guidelines, /共享同一份草稿和统一保存动作/);
+    assert.match(guidelines, /刷新或关闭页面前阻止静默丢弃/);
 });

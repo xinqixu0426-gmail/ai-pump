@@ -149,7 +149,25 @@ export function RecipeWorkspace({
 
   return (
     <>
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(18rem,1.4fr)]">
+      <FadePanel className="rounded-panel border border-line bg-white p-3 shadow-panel sm:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-ink">{recipes.length} 个配方 · 保存成本 {money(stats.totalSavedCost)}</div>
+            <div className={`mt-1 text-xs ${hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {hasCostIssues ? `铜价关注 ${stats.riskyCount} 个 · 无保存成本 ${stats.missingCostCount} 个` : '成本状态正常'}
+            </div>
+          </div>
+          {hasCostIssues ? (
+            <Button size="sm" onClick={() => onQuickFilterChange(stats.riskyCount > 0 ? 'risk' : 'missingCost')}>
+              查看问题
+            </Button>
+          ) : (
+            <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
+          )}
+        </div>
+      </FadePanel>
+
+      <div className="hidden gap-3 sm:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(18rem,1.4fr)]">
         <MetricCard value={String(recipes.length)} label="配方数量" delay={0.02} />
         <MetricCard value={money(stats.totalSavedCost)} label="保存成本合计" delay={0.04} />
         <FadePanel delay={0.06}>
@@ -243,17 +261,73 @@ export function RecipeWorkspace({
             <div className="mt-1 text-sm text-muted">调整搜索、模板或快速筛选。</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] table-fixed border-separate border-spacing-0 text-left text-sm">
+          <>
+            <div className="divide-y divide-line min-[1180px]:hidden">
+              {filteredRows.map((row) => (
+                <article key={row.recipe.id} className="space-y-3 p-4">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={compareIds.includes(row.recipe.id)}
+                      onChange={() => onToggleCompare(row.recipe.id)}
+                      aria-label={`选择对比${row.recipe.name || row.recipe.id}`}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-line text-ink"
+                    />
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => onView(row.recipe)}
+                      className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
+                    >
+                      <span className="block truncate text-sm font-semibold text-ink">{row.recipe.name || '未命名配方'}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted">{row.recipe.spec || '无规格备注'}</span>
+                    </button>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-ink">{row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}</div>
+                      <div className={`mt-0.5 text-xs ${
+                        Number(row.currentCost?.difference || 0) > 0
+                          ? 'text-rose-700'
+                          : Number(row.currentCost?.difference || 0) < 0
+                            ? 'text-emerald-700'
+                            : 'text-muted'
+                      }`}>
+                        {signedMoney(row.currentCost?.difference)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 rounded-md bg-slate-50 p-3 text-xs sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <div className="text-muted">模板 / 线圈</div>
+                      <div className="mt-1 truncate text-ink">{row.templateName || '-'}</div>
+                      <div className="mt-0.5 truncate text-muted">
+                        {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
+                      </div>
+                    </div>
+                    <div className="flex items-end justify-between gap-3 sm:flex-col sm:items-end">
+                      <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
+                      <span className="text-muted">保存 {row.savedTotal ? money(row.savedTotal) : '-'} · {dateShort(row.recipe.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <Button className="h-7" size="sm" variant="ghost" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={14} />}>查看</Button>
+                    <Button className="h-7" size="sm" variant="secondary" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
+                    <Button className="h-7 w-7 px-0" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />} />
+                    <Button className="h-7 w-7 px-0 text-slate-400 hover:text-rose-700" size="sm" variant="ghost" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void onRemove(row.recipe)} icon={<Trash2 size={14} />} />
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto min-[1180px]:block">
+            <table className="w-full min-w-[900px] table-fixed border-separate border-spacing-0 text-left text-sm">
               <thead className="whitespace-nowrap bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="w-12 border-b border-line px-4 py-2">对比</th>
-                  <th className="w-44 border-b border-line px-4 py-2">配方</th>
-                  <th className="w-52 border-b border-line px-4 py-2">模板/线圈</th>
-                  <th className="w-56 border-b border-line px-4 py-2 text-right">成本（当日 / 保存）</th>
-                  <th className="w-24 border-b border-line px-4 py-2">铜价</th>
-                  <th className="w-16 border-b border-line px-4 py-2">创建</th>
-                  <th className="w-56 border-b border-line px-4 py-2 text-right">操作</th>
+                  <th className="w-10 border-b border-line px-3 py-2">对比</th>
+                  <th className="w-40 border-b border-line px-3 py-2">配方</th>
+                  <th className="w-44 border-b border-line px-3 py-2">模板/线圈</th>
+                  <th className="w-48 border-b border-line px-3 py-2 text-right">成本（当日 / 保存）</th>
+                  <th className="w-20 border-b border-line px-3 py-2">铜价</th>
+                  <th className="w-14 border-b border-line px-3 py-2">创建</th>
+                  <th className="w-48 border-b border-line px-4 py-2 text-right">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -269,7 +343,7 @@ export function RecipeWorkspace({
                           className="h-4 w-4 rounded border-line text-ink"
                         />
                       </td>
-                      <td className="border-b border-line px-4 py-2">
+                      <td className="border-b border-line px-3 py-2">
                         <button
                           type="button"
                           disabled={saving}
@@ -280,13 +354,13 @@ export function RecipeWorkspace({
                         </button>
                         <div className="max-w-[260px] truncate text-xs leading-4 text-muted">{row.recipe.spec || '-'}</div>
                       </td>
-                      <td className="border-b border-line px-4 py-2">
+                      <td className="border-b border-line px-3 py-2">
                         <div className="text-ink">{row.templateName || '-'}</div>
                         <div className="text-xs leading-4 text-muted">
                           {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-2 text-right text-ink">
+                      <td className="whitespace-nowrap border-b border-line px-3 py-2 text-right text-ink">
                         <div className="flex items-baseline justify-end gap-2">
                           <span className="font-medium">{row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}</span>
                           <span className={`text-xs ${
@@ -303,11 +377,11 @@ export function RecipeWorkspace({
                           保存 {row.savedTotal ? money(row.savedTotal) : '-'} · 人工/管理 {money(row.laborTotal)}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-2">
+                      <td className="whitespace-nowrap border-b border-line px-3 py-2">
                         <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
                       </td>
-                      <td className="whitespace-nowrap border-b border-line px-4 py-2 text-muted">{dateShort(row.recipe.createdAt)}</td>
-                      <td className="border-b border-line px-4 py-2">
+                      <td className="whitespace-nowrap border-b border-line px-3 py-2 text-muted">{dateShort(row.recipe.createdAt)}</td>
+                      <td className="border-b border-line px-3 py-2">
                         <div className="flex justify-end gap-1">
                           <Button className="h-7" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={14} />}>查看</Button>
                           <Button className="h-7" size="sm" variant="secondary" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
@@ -320,7 +394,8 @@ export function RecipeWorkspace({
                 </AnimatePresence>
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </FadePanel>
     </>

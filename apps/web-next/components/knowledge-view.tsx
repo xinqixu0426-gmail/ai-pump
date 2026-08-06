@@ -68,9 +68,11 @@ import {
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
 type KnowledgeStatusFilter = 'all' | 'fresh' | 'pending';
+type KnowledgeWorkspace = 'overview' | 'sources' | 'entries' | 'ai';
 
 type KnowledgeDisplayItem = {
   id: number | null;
@@ -129,6 +131,14 @@ const FEEDBACK_LABELS: Record<Exclude<AiAnswerFeedback['rating'], 'helpful'>, st
   missing_source: '资料不足',
 };
 
+const KNOWLEDGE_PAGE_SIZE = 30;
+const KNOWLEDGE_WORKSPACES: Array<{ value: KnowledgeWorkspace; label: string }> = [
+  { value: 'overview', label: '运行概况' },
+  { value: 'sources', label: '来源同步' },
+  { value: 'entries', label: '知识条目' },
+  { value: 'ai', label: 'AI 治理' },
+];
+
 const SOURCE_PATHS: Record<string, string> = {
   parts: '/parts',
   pump_shell_templates: '/parts',
@@ -180,6 +190,8 @@ export function KnowledgeView({
   const [vectorHealth, setVectorHealth] = useState<KnowledgeVectorHealth | null>(null);
   const [vectorHealthError, setVectorHealthError] = useState('');
   const [entries, setEntries] = useState<KnowledgeListItem[]>([]);
+  const [workspace, setWorkspace] = useState<KnowledgeWorkspace>('overview');
+  const [entryPage, setEntryPage] = useState(1);
   const [query, setQuery] = useState('');
   const [entryType, setEntryType] = useState<KnowledgeEntryType | ''>('');
   const [statusFilter, setStatusFilter] = useState<KnowledgeStatusFilter>('all');
@@ -335,6 +347,7 @@ export function KnowledgeView({
   useEffect(() => {
     if (!initialEntryId || !overview || openedInitialEntryRef.current) return;
     openedInitialEntryRef.current = true;
+    setWorkspace('entries');
     let cancelled = false;
     setDetailLoading(true);
     void getKnowledgeEntryDetail(initialEntryId)
@@ -396,6 +409,17 @@ export function KnowledgeView({
       .map(change => ({ ...change })) as KnowledgeDisplayItem[];
     return [...unsynced, ...filteredStored];
   }, [changeBySource, entries, entryType, overview, query, statusFilter]);
+
+  const entryPageCount = Math.max(1, Math.ceil(displayItems.length / KNOWLEDGE_PAGE_SIZE));
+  const safeEntryPage = Math.min(entryPage, entryPageCount);
+  const pagedDisplayItems = useMemo(
+    () => displayItems.slice((safeEntryPage - 1) * KNOWLEDGE_PAGE_SIZE, safeEntryPage * KNOWLEDGE_PAGE_SIZE),
+    [displayItems, safeEntryPage]
+  );
+
+  useEffect(() => {
+    setEntryPage(1);
+  }, [entryType, query, statusFilter]);
 
   async function openDetail(item: KnowledgeDisplayItem) {
     setSelected(item);
@@ -619,6 +643,18 @@ export function KnowledgeView({
         <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
       ) : null}
 
+      <div className="sticky top-0 z-20 rounded-panel border border-line bg-white/95 p-2 shadow-panel backdrop-blur">
+        <SegmentedControl
+          value={workspace}
+          options={KNOWLEDGE_WORKSPACES}
+          onChange={setWorkspace}
+          ariaLabel="知识库工作区"
+          className="w-full overflow-x-auto sm:w-fit"
+        />
+      </div>
+
+      {workspace === 'overview' ? (
+        <>
       <div className="grid gap-3 lg:grid-cols-3">
         <FadePanel className="rounded-panel border border-line bg-white p-4 shadow-panel">
           <div className="flex items-center justify-between gap-3">
@@ -828,7 +864,11 @@ export function KnowledgeView({
           </div>
         )}
       </FadePanel>
+        </>
+      ) : null}
 
+      {workspace === 'sources' ? (
+        <>
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
         <div className="border-b border-line px-4 py-3">
           <div className="text-sm font-semibold text-ink">来源覆盖</div>
@@ -842,7 +882,10 @@ export function KnowledgeView({
               <button
                 key={type}
                 type="button"
-                onClick={() => setEntryType(type)}
+                onClick={() => {
+                  setEntryType(type);
+                  setWorkspace('entries');
+                }}
                 className={`flex min-h-20 items-center justify-between gap-3 border-b border-line px-4 py-3 text-left transition-colors hover:bg-slate-50 sm:border-r ${
                   entryType === type ? 'bg-slate-50' : 'bg-white'
                 }`}
@@ -915,7 +958,11 @@ export function KnowledgeView({
           <div className="px-4 py-8 text-center text-sm text-muted">首次自动或手动同步后会显示运行记录。</div>
         )}
       </FadePanel>
+        </>
+      ) : null}
 
+      {workspace === 'ai' ? (
+        <>
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
         <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1189,7 +1236,10 @@ export function KnowledgeView({
           </div>
         )}
       </FadePanel>
+        </>
+      ) : null}
 
+      {workspace === 'entries' ? (
       <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
         <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1246,28 +1296,53 @@ export function KnowledgeView({
             <Loader2 size={16} className="animate-spin" />加载知识条目
           </div>
         ) : displayItems.length ? (
-          <div className="divide-y divide-line">
-            {displayItems.map(item => {
-              const status = STATUS_META[item.status];
-              return (
-                <button
-                  key={`${sourceKey(item)}-${item.status}`}
-                  type="button"
-                  onClick={() => void openDetail(item)}
-                  className="grid w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 md:grid-cols-[110px_minmax(0,1fr)_100px] md:items-center"
-                >
-                  <div className="flex items-center gap-2">
-                    <StatusBadge tone="slate">{ENTRY_TYPE_LABELS[item.entryType]}</StatusBadge>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-ink">{item.title}</div>
-                    <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{item.summary || '暂无摘要'}</div>
-                  </div>
-                  <div className="flex md:justify-end"><StatusBadge tone={status.tone}>{status.label}</StatusBadge></div>
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <div className="divide-y divide-line">
+              {pagedDisplayItems.map(item => {
+                const status = STATUS_META[item.status];
+                return (
+                  <button
+                    key={`${sourceKey(item)}-${item.status}`}
+                    type="button"
+                    onClick={() => void openDetail(item)}
+                    className="grid w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 md:grid-cols-[110px_minmax(0,1fr)_100px] md:items-center"
+                  >
+                    <div className="flex items-center gap-2">
+                      <StatusBadge tone="slate">{ENTRY_TYPE_LABELS[item.entryType]}</StatusBadge>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-ink">{item.title}</div>
+                      <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{item.summary || '暂无摘要'}</div>
+                    </div>
+                    <div className="flex md:justify-end"><StatusBadge tone={status.tone}>{status.label}</StatusBadge></div>
+                  </button>
+                );
+              })}
+            </div>
+            {entryPageCount > 1 ? (
+              <div className="flex flex-col gap-3 border-t border-line bg-slate-50 px-4 py-3 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+                <span>第 {safeEntryPage}/{entryPageCount} 页 · 共 {displayItems.length} 条</span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={safeEntryPage <= 1}
+                    onClick={() => setEntryPage(page => Math.max(1, page - 1))}
+                  >
+                    上一页
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={safeEntryPage >= entryPageCount}
+                    onClick={() => setEntryPage(page => Math.min(entryPageCount, page + 1))}
+                  >
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="flex min-h-48 flex-col items-center justify-center px-4 text-center">
             <BookOpen size={22} className="text-muted" />
@@ -1276,6 +1351,7 @@ export function KnowledgeView({
           </div>
         )}
       </FadePanel>
+      ) : null}
 
       {syncOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">

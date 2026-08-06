@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { ChevronDown, type LucideIcon } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
 
 type NavItemProps = {
   href: string;
@@ -12,6 +11,7 @@ type NavItemProps = {
   active?: boolean;
   enabled?: boolean;
   variant?: 'sidebar' | 'mobile' | 'top';
+  onNavigate?: (href: string) => void;
 };
 
 function navClassName(active: boolean, enabled: boolean, variant: 'sidebar' | 'mobile' | 'top') {
@@ -36,7 +36,15 @@ function navClassName(active: boolean, enabled: boolean, variant: 'sidebar' | 'm
   );
 }
 
-export function NavItem({ href, label, icon: Icon, active = false, enabled = true, variant = 'sidebar' }: NavItemProps) {
+export function NavItem({
+  href,
+  label,
+  icon: Icon,
+  active = false,
+  enabled = true,
+  variant = 'sidebar',
+  onNavigate,
+}: NavItemProps) {
   const className = navClassName(active, enabled, variant);
   const iconSize = variant === 'sidebar' ? 16 : 15;
 
@@ -53,87 +61,55 @@ export function NavItem({ href, label, icon: Icon, active = false, enabled = tru
   }
 
   return (
-    <Link href={href} prefetch={false} className={className}>
+    <Link
+      href={href}
+      prefetch={false}
+      className={className}
+      aria-current={active ? 'page' : undefined}
+      onClick={() => onNavigate?.(href)}
+    >
       <Icon size={iconSize} />
       <span>{label}</span>
     </Link>
   );
 }
 
-type NavMenuProps = {
+type NavSectionProps = {
   label: string;
   icon: LucideIcon;
   active?: boolean;
-  align?: 'left' | 'right';
   items: Array<{
     href: string;
     label: string;
     icon: LucideIcon;
+    active?: boolean;
   }>;
+  onNavigate?: (href: string) => void;
 };
 
-export function NavMenu({ label, icon: Icon, active = false, align = 'left', items }: NavMenuProps) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(event: PointerEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open]);
-
+export function NavSection({ label, icon: Icon, active = false, items, onNavigate }: NavSectionProps) {
   return (
-    <div ref={menuRef} className="relative shrink-0">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+    <section aria-label={label} className="space-y-1">
+      <div
         className={clsx(
-          'flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors duration-150',
-          active ? 'bg-ink text-white shadow-panel' : 'text-slate-600 hover:bg-slate-100 hover:text-ink'
+          'flex h-8 items-center gap-2 px-3 text-[11px] font-semibold uppercase tracking-[0.08em]',
+          active ? 'text-ink' : 'text-slate-400'
         )}
       >
-        <Icon size={15} />
+        <Icon size={14} />
         <span>{label}</span>
-        <ChevronDown size={14} className={clsx('transition-transform', open && 'rotate-180')} />
-      </button>
-      {open ? (
-        <div
-          role="menu"
-          className={clsx(
-            'fixed left-3 right-3 z-40 mt-2 rounded-md border border-line bg-white p-1.5 shadow-xl sm:absolute sm:w-48',
-            align === 'right' ? 'sm:left-auto sm:right-0' : 'sm:left-0 sm:right-auto'
-          )}
-        >
-          {items.map((item) => {
-            const ItemIcon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={false}
-                role="menuitem"
-                className="flex h-10 items-center gap-2 rounded-md px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
-                onClick={() => setOpen(false)}
-              >
-                <ItemIcon size={16} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
+        <span className="ml-auto h-px flex-1 bg-slate-200" aria-hidden="true" />
+      </div>
+      <div className="space-y-1 border-l border-slate-200 pl-2">
+        {items.map((item) => (
+          <NavItem
+            key={item.href}
+            {...item}
+            variant="sidebar"
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </section>
   );
 }

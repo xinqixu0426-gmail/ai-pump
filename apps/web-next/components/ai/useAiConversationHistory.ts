@@ -16,9 +16,24 @@ type OpenedConversation = {
   feedbackByMessageId: Record<number, AiAnswerFeedback>;
 };
 
+const ACTIVE_CONVERSATION_STORAGE_KEY = 'pump.ai-active-conversation';
+
+function readRestorableConversationId(): number | null {
+  if (typeof window === 'undefined') return null;
+  const value = Number(window.sessionStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY));
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function persistActiveConversationId(id: number | null) {
+  if (typeof window === 'undefined') return;
+  if (id) window.sessionStorage.setItem(ACTIVE_CONVERSATION_STORAGE_KEY, String(id));
+  else window.sessionStorage.removeItem(ACTIVE_CONVERSATION_STORAGE_KEY);
+}
+
 export function useAiConversationHistory(locked: boolean) {
   const [conversations, setConversations] = useState<AiConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [restorableConversationId, setRestorableConversationId] = useState<number | null>(null);
   const [historyQuery, setHistoryQuery] = useState('');
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
@@ -38,6 +53,10 @@ export function useAiConversationHistory(locked: boolean) {
     } catch (error) {
       setHistoryError((error as Error).message || '读取会话历史失败');
     }
+  }, []);
+
+  useEffect(() => {
+    setRestorableConversationId(readRestorableConversationId());
   }, []);
 
   useEffect(() => {
@@ -65,6 +84,8 @@ export function useAiConversationHistory(locked: boolean) {
         listAiAnswerFeedback({ conversationId: id }),
       ]);
       setActiveConversationId(conversation.id);
+      setRestorableConversationId(conversation.id);
+      persistActiveConversationId(conversation.id);
       return {
         feedbackByMessageId: Object.fromEntries(feedback.items.map((item) => [item.messageId, item])),
         items: conversation.messages.map((message) => ({
@@ -94,7 +115,11 @@ export function useAiConversationHistory(locked: boolean) {
     try {
       await deleteAiConversation(id);
       const removedActiveConversation = activeConversationId === id;
-      if (removedActiveConversation) setActiveConversationId(null);
+      if (removedActiveConversation) {
+        setActiveConversationId(null);
+        setRestorableConversationId(null);
+        persistActiveConversationId(null);
+      }
       await refreshConversationList();
       return removedActiveConversation;
     } catch (error) {
@@ -107,16 +132,26 @@ export function useAiConversationHistory(locked: boolean) {
 
   function addConversation(conversation: AiConversationSummary) {
     setActiveConversationId(conversation.id);
+    setRestorableConversationId(conversation.id);
+    persistActiveConversationId(conversation.id);
     setConversations((current) => [conversation, ...current]);
   }
 
   function clearActiveConversation() {
     setActiveConversationId(null);
+    setRestorableConversationId(null);
+    persistActiveConversationId(null);
+  }
+
+  function clearRestorableConversation() {
+    setRestorableConversationId(null);
+    persistActiveConversationId(null);
   }
 
   return {
     conversations,
     activeConversationId,
+    restorableConversationId,
     historyQuery,
     historyLoading,
     historyError,
@@ -127,6 +162,7 @@ export function useAiConversationHistory(locked: boolean) {
     setHistoryError,
     addConversation,
     clearActiveConversation,
+    clearRestorableConversation,
     refreshConversationList,
     openConversation,
     removeConversation,

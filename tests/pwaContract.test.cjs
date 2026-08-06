@@ -36,7 +36,8 @@ test('PWA 契约：/ai 在移动端隐藏全局业务导航并接管完整视口
     const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
 
     assert.match(shell, /isAiWorkspace = pathname === '\/ai'/);
-    assert.match(shell, /isAiWorkspace \? 'hidden md:block'/);
+    assert.match(shell, /isAiWorkspace \? 'hidden' : 'flex'/);
+    assert.match(shell, /lg:hidden/);
     assert.match(aiView, /h-\[100dvh\]/);
     assert.match(aiView, /ai-mobile-header/);
     assert.match(composer, /ai-mobile-composer/);

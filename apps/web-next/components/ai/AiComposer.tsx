@@ -56,7 +56,7 @@ export function AiComposer({
         event.preventDefault();
         onSend(input);
       }}
-      className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${panel ? 'px-3 pt-2 xl:p-3' : 'px-3 pt-2 md:p-4'}`}
+      className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${panel ? 'p-3' : 'px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:p-4'}`}
     >
       {panel && pageContext ? (
         <div className="mb-2 flex min-w-0 items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs text-sky-900" aria-label="AI 页面上下文">
@@ -96,9 +96,9 @@ export function AiComposer({
             if (isListening) onStopVoice();
             onInputChange(event.target.value);
           }}
-          placeholder="输入要查询或处理的事情..."
+          placeholder={panel ? '输入问题…' : '输入要查询或处理的事情...'}
           rows={1}
-          className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-slate-400 md:min-h-11 md:text-sm"
+          className="max-h-28 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-slate-400 md:min-h-9 md:py-1.5 md:text-sm"
           disabled={loading}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -119,12 +119,12 @@ export function AiComposer({
           title={speechSupported ? (isListening ? '停止语音输入' : '语音输入') : '当前浏览器不支持语音输入'}
         />
         {loading ? (
-          <Button variant="secondary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<X size={16} />} onClick={onStop} aria-label="停止">
-            <span className="hidden md:inline">停止</span>
+          <Button variant="secondary" className={`h-10 w-10 rounded-full px-0 md:h-9 ${panel ? 'md:w-9' : 'md:w-auto md:rounded-md md:px-3'}`} icon={<X size={16} />} onClick={onStop} aria-label="停止">
+            <span className={panel ? 'sr-only' : 'hidden md:inline'}>停止</span>
           </Button>
         ) : (
-          <Button type="submit" variant="primary" className="h-10 w-10 rounded-full px-0 md:h-9 md:w-auto md:rounded-md md:px-3" icon={<Send size={16} />} disabled={(!input.trim() && pendingAttachments.length === 0) || uploadingAttachment} aria-label="发送">
-            <span className="hidden md:inline">发送</span>
+          <Button type="submit" variant="primary" className={`h-10 w-10 rounded-full px-0 md:h-9 ${panel ? 'md:w-9' : 'md:w-auto md:rounded-md md:px-3'}`} icon={<Send size={16} />} disabled={(!input.trim() && pendingAttachments.length === 0) || uploadingAttachment} aria-label="发送">
+            <span className={panel ? 'sr-only' : 'hidden md:inline'}>发送</span>
           </Button>
         )}
       </div>
