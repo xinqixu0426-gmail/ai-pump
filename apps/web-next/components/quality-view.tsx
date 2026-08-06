@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BookCheck, CheckCircle2, CircleAlert, DatabaseZap, History, ListChecks, RefreshCw, RotateCcw, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
@@ -70,6 +71,20 @@ type QualityViewProps = {
   onRefreshComplete?: () => void;
 };
 
+type RuleConfirmTarget =
+  | {
+    kind: 'review';
+    candidate: FactoryRuleCandidate;
+    status: 'approved' | 'rejected';
+    impact: FactoryRuleImpact | null;
+  }
+  | {
+    kind: 'restore';
+    event: FactoryRuleEvent;
+    targetLabel: string;
+    eventTime: string;
+  };
+
 export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, onRefreshComplete }: QualityViewProps) {
   const [summary, setSummary] = useState<DataQualitySummary | null>(null);
   const [businessAlerts, setBusinessAlerts] = useState<BusinessAlertsSummary | null>(null);
@@ -88,6 +103,7 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   const [expandedRuleImpactId, setExpandedRuleImpactId] = useState<number | null>(null);
   const [ruleImpacts, setRuleImpacts] = useState<Record<number, FactoryRuleImpact>>({});
   const [qualityAttachmentTargetId, setQualityAttachmentTargetId] = useState<number | null>(null);
+  const [ruleConfirmTarget, setRuleConfirmTarget] = useState<RuleConfirmTarget | null>(null);
   const onScoreChangeRef = useRef(onScoreChange);
   const onRefreshCompleteRef = useRef(onRefreshComplete);
   const issueListRef = useRef<HTMLDivElement>(null);
@@ -234,16 +250,21 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
   }
 
   async function reviewRuleCandidate(candidate: FactoryRuleCandidate, status: 'approved' | 'rejected') {
-    const action = status === 'approved' ? '批准' : '驳回';
     setError('');
     try {
       const impact = status === 'approved' ? await loadRuleImpact(candidate) : null;
-      const impactSummary = impact
-        ? `\n影响范围：同模板 ${impact.summary.totalRecipes} 个配方，其中 ${impact.summary.needsReviewCount} 个需要复核，${impact.summary.specialCaseCount} 个特殊情况。`
-        : '';
-      if (!window.confirm(`确定${action}候选规则「${candidate.title}」？${impactSummary}`)) return;
-      setRuleReviewingId(candidate.id);
-      await reviewFactoryRuleCandidate(candidate.id, { status });
+      setRuleConfirmTarget({ kind: 'review', candidate, status, impact });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '候选规则审核失败');
+    }
+  }
+
+  async function applyRuleReview(target: Extract<RuleConfirmTarget, { kind: 'review' }>) {
+    setRuleConfirmTarget(null);
+    setRuleReviewingId(target.candidate.id);
+    setError('');
+    try {
+      await reviewFactoryRuleCandidate(target.candidate.id, { status: target.status });
       const [candidates, compliance, events] = await Promise.all([
         getFactoryRuleCandidates(),
         getFactoryRuleCompliance(),
@@ -265,9 +286,12 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
     if (!targetStatus || !current || current.status === targetStatus) return;
     const targetLabel = targetStatus === 'approved' ? '已批准' : targetStatus === 'rejected' ? '已驳回' : '待审核';
     const eventTime = new Date(event.createdAt).toLocaleString('zh-CN');
-    if (!window.confirm(
-      `确定把规则「${event.ruleTitle || event.ruleKey}」恢复为 ${eventTime} 记录的“${targetLabel}”状态？\n系统会保留当前学习证据，并重新校验批准条件。`
-    )) return;
+    setRuleConfirmTarget({ kind: 'restore', event, targetLabel, eventTime });
+  }
+
+  async function applyRuleRestore(target: Extract<RuleConfirmTarget, { kind: 'restore' }>) {
+    setRuleConfirmTarget(null);
+    const { event } = target;
     setRuleRestoringEventId(event.id);
     setError('');
     try {
@@ -869,6 +893,40 @@ export function QualityView({ embedded = false, refreshKey = 0, onScoreChange, o
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(ruleConfirmTarget)}
+        title={ruleConfirmTarget?.kind === 'review'
+          ? `${ruleConfirmTarget.status === 'approved' ? '批准' : '驳回'}候选规则？`
+          : '恢复历史规则状态？'}
+        description={ruleConfirmTarget?.kind === 'review'
+          ? (
+            <div className="space-y-2">
+              <p>规则“{ruleConfirmTarget.candidate.title}”将被{ruleConfirmTarget.status === 'approved' ? '批准并参与当前配方复核' : '驳回且不进入正式规则'}。</p>
+              {ruleConfirmTarget.impact ? (
+                <p>
+                  影响范围：同模板 {ruleConfirmTarget.impact.summary.totalRecipes} 个配方，其中
+                  {' '}{ruleConfirmTarget.impact.summary.needsReviewCount} 个需要复核，
+                  {' '}{ruleConfirmTarget.impact.summary.specialCaseCount} 个特殊情况。
+                </p>
+              ) : null}
+            </div>
+          )
+          : ruleConfirmTarget?.kind === 'restore'
+            ? `规则“${ruleConfirmTarget.event.ruleTitle || ruleConfirmTarget.event.ruleKey}”将恢复为 ${ruleConfirmTarget.eventTime} 记录的“${ruleConfirmTarget.targetLabel}”状态。当前学习证据会保留，系统将重新校验批准条件。`
+            : ''}
+        confirmLabel={ruleConfirmTarget?.kind === 'review'
+          ? `确认${ruleConfirmTarget.status === 'approved' ? '批准' : '驳回'}`
+          : '确认恢复'}
+        confirmVariant={ruleConfirmTarget?.kind === 'review' && ruleConfirmTarget.status === 'rejected' ? 'danger' : 'primary'}
+        busy={Boolean(ruleReviewingId || ruleRestoringEventId)}
+        layer="top"
+        onClose={() => setRuleConfirmTarget(null)}
+        onConfirm={() => {
+          const target = ruleConfirmTarget;
+          if (target?.kind === 'review') void applyRuleReview(target);
+          else if (target?.kind === 'restore') void applyRuleRestore(target);
+        }}
+      />
     </div>
   );
 }

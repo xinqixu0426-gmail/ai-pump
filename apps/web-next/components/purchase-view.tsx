@@ -6,6 +6,7 @@ import { CircleAlert, PackageCheck, RefreshCw, ShoppingCart, Truck } from 'lucid
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
@@ -22,6 +23,7 @@ import {
   statusText,
   taskStatus,
   type PurchaseFilter,
+  type PurchaseBatchDraft,
   type PurchaseTask,
 } from '@/lib/purchase';
 import type { Order } from '@/lib/orders';
@@ -54,6 +56,12 @@ export function PurchaseView() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<PurchaseFilter>('pending');
+  const [confirmTarget, setConfirmTarget] = useState<{
+    task: PurchaseTask;
+    purchased: boolean;
+    draft: PurchaseBatchDraft;
+    totalChange: number;
+  } | null>(null);
 
   async function load(force = false) {
     setError(null);
@@ -99,12 +107,22 @@ export function PurchaseView() {
         (sum, order) => sum + Math.abs(order.afterOrderedQty - order.beforeOrderedQty),
         0
       );
-      const confirmed = window.confirm(
-        `${purchased ? '确认全部下单' : '确认取消下单'}：${task.model}`
-        + `\n影响 ${draft.affectedOrders.length} 个订单，数量 ${totalChange}${task.purchaseUnit || ''}。`
-      );
-      if (!confirmed) return;
-      await applyPurchaseTask(task, purchased, draft);
+      setConfirmTarget({ task, purchased, draft, totalChange });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '采购状态保存失败');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function applyConfirmedTask() {
+    if (!confirmTarget) return;
+    const target = confirmTarget;
+    setConfirmTarget(null);
+    setSavingKey(target.task.key);
+    setError(null);
+    try {
+      await applyPurchaseTask(target.task, target.purchased, target.draft);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '采购状态保存失败');
@@ -245,6 +263,18 @@ export function PurchaseView() {
           </TableScrollArea>
         )}
       </FadePanel>
+      <ConfirmDialog
+        open={Boolean(confirmTarget)}
+        title={confirmTarget?.purchased ? '确认全部下单？' : '确认取消下单？'}
+        description={confirmTarget
+          ? `物料“${confirmTarget.task.model}”将影响 ${confirmTarget.draft.affectedOrders.length} 个订单，变更数量合计 ${confirmTarget.totalChange}${confirmTarget.task.purchaseUnit || ''}。确认后将立即更新这些订单的采购进度。`
+          : ''}
+        confirmLabel={confirmTarget?.purchased ? '确认下单' : '确认取消'}
+        confirmVariant={confirmTarget?.purchased ? 'primary' : 'danger'}
+        busy={Boolean(savingKey)}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => void applyConfirmedTask()}
+      />
     </div>
   );
 }

@@ -482,7 +482,9 @@ test('API 静态契约：订单详情动作必须由后端执行', () => {
     assert.match(nextClient, /Idempotency-Key/);
     assert.match(nextClient, /completeOrderPurchase/);
     assert.match(detailDrawer, /commandDraft\.stockAddition/);
-    assert.match(detailDrawer, /window\.confirm/);
+    assert.doesNotMatch(detailDrawer, /window\.confirm/);
+    assert.match(detailDrawer, /setPurchaseConfirmTarget/);
+    assert.match(detailDrawer, /<ConfirmDialog/);
     assert.match(detailDrawer, /入库后库存/);
     assert.doesNotMatch(detailDrawer, /saveOrder|batchAddStock/);
 });
@@ -537,7 +539,9 @@ test('API 静态契约：采购中心批量采购状态必须由后端执行', (
     assert.match(purchaseClient, /\/api\/orders\/purchase-items\/batch/);
     assert.match(purchaseClient, /Idempotency-Key/);
     assert.match(purchaseView, /draft\.affectedOrders/);
-    assert.match(purchaseView, /window\.confirm/);
+    assert.doesNotMatch(purchaseView, /window\.confirm/);
+    assert.match(purchaseView, /setConfirmTarget\(\{ task, purchased, draft, totalChange \}\)/);
+    assert.match(purchaseView, /<ConfirmDialog/);
     assert.doesNotMatch(purchaseClient, /saveOrder|buildUpdatedOrders/);
 });
 

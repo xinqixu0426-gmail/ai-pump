@@ -13,10 +13,13 @@ import {
   type CompletePurchaseDraft,
   type Order,
   type OrderStatus,
+  type PurchaseItemProgressDraft,
+  type PurchaseItemProgressInput,
 } from '@/lib/orders';
 import { money } from '@/lib/format';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
@@ -56,6 +59,20 @@ type PurchaseProgressDraft = {
   purchasePrice: string;
   actualSupplier: string;
 };
+
+type PurchaseProgressConfirmTarget =
+  | {
+    kind: 'over-purchase';
+    item: Order['purchaseList'][number];
+    plannedQty: number;
+    orderedQty: number;
+  }
+  | {
+    kind: 'stock-addition';
+    item: Order['purchaseList'][number];
+    progressInput: PurchaseItemProgressInput;
+    commandDraft: PurchaseItemProgressDraft;
+  };
 
 function purchaseItemKey(item: { identityKey?: string; model: string; supplier: string }) {
   return item.identityKey || `${item.model}|${item.supplier}`;
@@ -291,6 +308,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   const [readinessPlan, setReadinessPlan] = useState<OrderReadinessPlan | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [readinessError, setReadinessError] = useState('');
+  const [purchaseConfirmTarget, setPurchaseConfirmTarget] = useState<PurchaseProgressConfirmTarget | null>(null);
   const previousOrderIdRef = useRef<string | null>(null);
   const readinessRequestRef = useRef(0);
 
@@ -336,6 +354,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
       setPurchaseDraftLoading(false);
       setReadiness(null);
       setReadinessPlan(null);
+      setPurchaseConfirmTarget(null);
     }
     if (order?.id) {
       void loadReadiness(order.id);
@@ -384,22 +403,53 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     await runAction(() => setOrderStatus(localOrder, status, reason), `订单状态已更新为 ${status}`);
   }
 
-  async function handleSavePurchaseProgress(item: Order['purchaseList'][number]) {
+  async function commitPurchaseProgress(
+    item: Order['purchaseList'][number],
+    progressInput: PurchaseItemProgressInput,
+    commandDraft: PurchaseItemProgressDraft
+  ) {
+    if (!localOrder) return;
+    setPurchaseConfirmTarget(null);
+    setSaving(true);
+    setError('');
+    try {
+      const result = await updateOrderPurchaseItem(
+        localOrder,
+        item,
+        progressInput,
+        commandDraft
+      );
+      setLocalOrder(result.order);
+      setMessage(result.stockAddition
+        ? `已入库 ${result.stockAddition.addQty}，采购进度已保存`
+        : '采购进度已保存');
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '采购进度保存失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSavePurchaseProgress(
+    item: Order['purchaseList'][number],
+    allowOverPurchase = false
+  ) {
     if (!localOrder) return;
     const key = purchaseItemKey(item);
     const draft = progressDrafts[key];
     if (!draft) return;
     const plannedQty = Number(item.plannedQty ?? item.needToBuy) || 0;
     const orderedQty = Number(draft.orderedQty) || 0;
-    const allowOverPurchase = orderedQty > plannedQty
-      ? window.confirm(`下单数量 ${orderedQty} 超过计划数量 ${plannedQty}，确认超采吗？`)
-      : false;
-    if (orderedQty > plannedQty && !allowOverPurchase) return;
+    if (orderedQty > plannedQty && !allowOverPurchase) {
+      setPurchaseConfirmTarget({ kind: 'over-purchase', item, plannedQty, orderedQty });
+      return;
+    }
 
     setSaving(true);
     setError('');
     try {
-      const progressInput = {
+      const progressInput: PurchaseItemProgressInput = {
         orderedQty,
         receivedQty: Number(draft.receivedQty) || 0,
         stockedQty: Number(draft.stockedQty) || 0,
@@ -413,35 +463,15 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
         progressInput
       );
       if (commandDraft.stockAddition) {
-        const addition = commandDraft.stockAddition;
-        const inventoryLabel = addition.inventoryType === 'coil'
-          ? '线圈库存'
-          : addition.inventoryType === 'part'
-            ? '零件库存'
-            : '采购进度（非库存项）';
-        const convertedQuantity = addition.inventoryAddQty !== addition.addQty
-          ? `，折算库存增加 ${addition.inventoryAddQty}`
-          : '';
-        const stockAfter = addition.stockAfter === null
-          ? ''
-          : `，入库后库存 ${addition.stockAfter}`;
-        const confirmed = window.confirm(
-          `确认登记 ${item.model} 入库 ${addition.addQty}${addition.purchaseUnit || ''}？`
-          + `\n影响：${inventoryLabel}${convertedQuantity}${stockAfter}`
-        );
-        if (!confirmed) return;
+        setPurchaseConfirmTarget({
+          kind: 'stock-addition',
+          item,
+          progressInput,
+          commandDraft,
+        });
+        return;
       }
-      const result = await updateOrderPurchaseItem(
-        localOrder,
-        item,
-        progressInput,
-        commandDraft
-      );
-      setLocalOrder(result.order);
-      setMessage(result.stockAddition
-        ? `已入库 ${result.stockAddition.addQty}，采购进度已保存`
-        : '采购进度已保存');
-      onSaved();
+      await commitPurchaseProgress(item, progressInput, commandDraft);
     } catch (err) {
       setError(err instanceof Error ? err.message : '采购进度保存失败');
     } finally {
@@ -520,6 +550,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   const purchaseAdditions = completePurchaseDraft?.additions || [];
 
   return (
+    <>
     <SlideOver
       open={open && Boolean(localOrder)}
       onClose={onClose}
@@ -897,5 +928,45 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
         ) : null}
       </SlideOver>
     </SlideOver>
+    <ConfirmDialog
+      open={Boolean(purchaseConfirmTarget)}
+      title={purchaseConfirmTarget?.kind === 'over-purchase'
+        ? '确认超计划下单？'
+        : '确认登记采购入库？'}
+      description={purchaseConfirmTarget?.kind === 'over-purchase'
+        ? `物料“${purchaseConfirmTarget.item.model}”的下单数量 ${purchaseConfirmTarget.orderedQty} 超过计划数量 ${purchaseConfirmTarget.plannedQty}。确认后系统会按超采数量保存采购进度。`
+        : purchaseConfirmTarget?.kind === 'stock-addition' && purchaseConfirmTarget.commandDraft.stockAddition
+          ? (() => {
+            const addition = purchaseConfirmTarget.commandDraft.stockAddition;
+            const inventoryLabel = addition.inventoryType === 'coil'
+              ? '线圈库存'
+              : addition.inventoryType === 'part'
+                ? '零件库存'
+                : '采购进度（非库存项）';
+            const convertedQuantity = addition.inventoryAddQty !== addition.addQty
+              ? `，折算库存增加 ${addition.inventoryAddQty}`
+              : '';
+            const stockAfter = addition.stockAfter === null
+              ? ''
+              : `，入库后库存 ${addition.stockAfter}`;
+            return `物料“${purchaseConfirmTarget.item.model}”将登记入库 ${addition.addQty}${addition.purchaseUnit || ''}，并更新${inventoryLabel}${convertedQuantity}${stockAfter}。`;
+          })()
+          : ''}
+      confirmLabel={purchaseConfirmTarget?.kind === 'over-purchase' ? '确认超采' : '确认入库'}
+      confirmVariant={purchaseConfirmTarget?.kind === 'over-purchase' ? 'danger' : 'primary'}
+      busy={saving}
+      layer="top"
+      onClose={() => setPurchaseConfirmTarget(null)}
+      onConfirm={() => {
+        const target = purchaseConfirmTarget;
+        if (target?.kind === 'over-purchase') {
+          setPurchaseConfirmTarget(null);
+          void handleSavePurchaseProgress(target.item, true);
+        } else if (target?.kind === 'stock-addition') {
+          void commitPurchaseProgress(target.item, target.progressInput, target.commandDraft);
+        }
+      }}
+    />
+    </>
   );
 }

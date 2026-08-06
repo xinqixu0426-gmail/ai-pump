@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleAlert, Copy, Download, History, Link as LinkIcon, Play, Printer, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
-import { Dialog, Drawer } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog, Drawer } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort } from '@/lib/format';
@@ -58,6 +58,22 @@ function downloadUrl(fileUrl: string): string {
   return `${process.env.NEXT_PUBLIC_API_BASE_URL || ''}${fileUrl}`;
 }
 
+type RotorConfirmTarget =
+  | {
+    kind: 'draw';
+    preview: Awaited<ReturnType<typeof previewRotorDraw>>;
+    drawingName: string;
+  }
+  | {
+    kind: 'print';
+    preview: Awaited<ReturnType<typeof previewRotorPrint>>;
+    row: RotorHistoryRecord;
+  }
+  | {
+    kind: 'delete';
+    row: RotorHistoryRecord;
+  };
+
 export function RotorView() {
   const [form, setForm] = useState<RotorFormData>(emptyRotorForm);
   const [drawingName, setDrawingName] = useState('');
@@ -80,6 +96,7 @@ export function RotorView() {
   const [linkRow, setLinkRow] = useState<RotorHistoryRecord | null>(null);
   const [linkTargets, setLinkTargets] = useState<RotorLinkTarget[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<RotorConfirmTarget | null>(null);
   const pollRef = useRef<number | null>(null);
   const autoDrawingNameRef = useRef('');
   const autoDrawingTextRef = useRef('');
@@ -238,11 +255,25 @@ export function RotorView() {
     setMessage(null);
     try {
       const preview = await previewRotorDraw(form, drawingName, drawingText);
-      const confirmed = window.confirm(
-        `确认生成「${preview.drawingName || drawingName || '未命名转子图纸'}」？\n确认后将启动 FreeCAD 出图任务。`,
-      );
-      if (!confirmed) return;
-      const result = await startRotorDraw(preview);
+      setConfirmTarget({
+        kind: 'draw',
+        preview,
+        drawingName: preview.drawingName || drawingName || '未命名转子图纸',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '出图预览生成失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function startConfirmedDraw(target: Extract<RotorConfirmTarget, { kind: 'draw' }>) {
+    setConfirmTarget(null);
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await startRotorDraw(target.preview);
       setJobId(result.jobId);
       setJobStatus({ status: 'processing', drawingName: result.drawingName });
       setMessage(result.message || '出图任务已启动');
@@ -300,8 +331,21 @@ export function RotorView() {
     setMessage(null);
     try {
       const preview = await previewRotorPrint(row.jobId);
-      if (!window.confirm(`确认打印「${preview.drawingName || row.drawingName || row.jobId}」？\n将发送到服务器默认打印机。`)) return;
-      setMessage(await printRotorDrawing(preview));
+      setConfirmTarget({ kind: 'print', preview, row });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '打印预览生成失败');
+    } finally {
+      setPrintingJobId(null);
+    }
+  }
+
+  async function printConfirmed(target: Extract<RotorConfirmTarget, { kind: 'print' }>) {
+    setConfirmTarget(null);
+    setPrintingJobId(target.row.jobId);
+    setError(null);
+    setMessage(null);
+    try {
+      setMessage(await printRotorDrawing(target.preview));
     } catch (err) {
       setError(err instanceof Error ? err.message : '打印失败');
     } finally {
@@ -309,8 +353,8 @@ export function RotorView() {
     }
   }
 
-  async function remove(row: RotorHistoryRecord) {
-    if (!window.confirm(`确定删除「${row.drawingName || row.jobId}」？`)) return;
+  async function removeConfirmed(row: RotorHistoryRecord) {
+    setConfirmTarget(null);
     setSaving(true);
     setError(null);
     try {
@@ -576,7 +620,7 @@ export function RotorView() {
                           <Button size="sm" variant="ghost" disabled={row.status !== 'success' || printingJobId === row.jobId} onClick={() => void print(row)} icon={<Printer size={14} />}>
                             打印
                           </Button>
-                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => void remove(row)} icon={<Trash2 size={14} />}>
+                          <Button size="sm" variant="ghost" disabled={saving} onClick={() => setConfirmTarget({ kind: 'delete', row })} icon={<Trash2 size={14} />}>
                             删除
                           </Button>
                         </div>
@@ -639,6 +683,36 @@ export function RotorView() {
           </div>
         </Dialog>
       ) : null}
+      <ConfirmDialog
+        open={Boolean(confirmTarget)}
+        title={confirmTarget?.kind === 'draw'
+          ? '启动转子出图任务？'
+          : confirmTarget?.kind === 'print'
+            ? '发送图纸到默认打印机？'
+            : '删除转子出图记录？'}
+        description={confirmTarget?.kind === 'draw'
+          ? `确认后将为“${confirmTarget.drawingName}”启动 FreeCAD 出图任务。任务会在服务器后台执行，可在出图历史中查看结果。`
+          : confirmTarget?.kind === 'print'
+            ? `图纸“${confirmTarget.preview.drawingName || confirmTarget.row.drawingName || confirmTarget.row.jobId}”将立即发送到服务器默认打印机，请确认现场打印机和纸张已准备好。`
+            : confirmTarget?.kind === 'delete'
+              ? `出图记录“${confirmTarget.row.drawingName || confirmTarget.row.jobId}”将被删除；关联记录会移除，已生成的 PDF 也可能被清理，此操作无法撤销。`
+              : ''}
+        confirmLabel={confirmTarget?.kind === 'draw'
+          ? '启动出图'
+          : confirmTarget?.kind === 'print'
+            ? '确认打印'
+            : '删除记录'}
+        confirmVariant={confirmTarget?.kind === 'delete' ? 'danger' : 'primary'}
+        busy={saving || Boolean(printingJobId)}
+        layer="top"
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          const target = confirmTarget;
+          if (target?.kind === 'draw') void startConfirmedDraw(target);
+          else if (target?.kind === 'print') void printConfirmed(target);
+          else if (target?.kind === 'delete') void removeConfirmed(target.row);
+        }}
+      />
     </div>
   );
 }

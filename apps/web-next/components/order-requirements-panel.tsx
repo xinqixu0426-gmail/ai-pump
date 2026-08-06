@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookCheck, Check, Loader2, RotateCcw, Save, ShieldCheck } from 'lucide-react';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { generateAiDraftFromAttachment, type AiAttachment } from '@/lib/ai';
 import type { FactoryFileLink } from '@/lib/files';
 import {
@@ -19,6 +20,11 @@ type OrderRequirementsPanelProps = {
   contractNo?: string;
   customerName?: string;
 };
+
+type RequirementConfirmTarget =
+  | { kind: 'confirm' }
+  | { kind: 'revoke' }
+  | { kind: 'summarize'; link: FactoryFileLink };
 
 function dateLabel(value: string | null) {
   if (!value) return '';
@@ -39,6 +45,7 @@ export function OrderRequirementsPanel({
   const [busy, setBusy] = useState<'summarize' | 'save' | 'confirm' | 'revoke' | ''>('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [confirmTarget, setConfirmTarget] = useState<RequirementConfirmTarget | null>(null);
 
   const load = useCallback(async ({ preserveDraft = false } = {}) => {
     if (!orderId) return;
@@ -100,7 +107,6 @@ export function OrderRequirementsPanel({
 
   async function confirmKnowledge() {
     if (!hasText || busy) return;
-    if (!window.confirm('确认当前客户要求内容准确，并作为正式知识供 AI 检索？')) return;
     setBusy('confirm');
     setMessage('');
     setError('');
@@ -119,7 +125,6 @@ export function OrderRequirementsPanel({
 
   async function revokeKnowledge() {
     if (busy || !record?.hasConfirmedVersion) return;
-    if (!window.confirm('撤销这份客户要求的知识库确认？原文件和当前草稿会继续保留。')) return;
     setBusy('revoke');
     setMessage('');
     setError('');
@@ -134,13 +139,15 @@ export function OrderRequirementsPanel({
     }
   }
 
-  async function summarizeRequirement(link: FactoryFileLink) {
+  async function summarizeRequirement(link: FactoryFileLink, overwrite = false) {
     if (busy) return;
     if (
+      !overwrite
+      &&
       summaryText.trim()
       && summaryText !== (record?.draftText || '')
-      && !window.confirm('当前编辑框有尚未保存的修改，继续归纳会覆盖这些修改。是否继续？')
     ) {
+      setConfirmTarget({ kind: 'summarize', link });
       return;
     }
     setBusy('summarize');
@@ -222,7 +229,7 @@ export function OrderRequirementsPanel({
               variant="primary"
               disabled={!hasText || Boolean(busy) || loading}
               icon={busy === 'confirm' ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-              onClick={() => void confirmKnowledge()}
+              onClick={() => setConfirmTarget({ kind: 'confirm' })}
             >
               确认进入知识库
             </Button>
@@ -233,7 +240,7 @@ export function OrderRequirementsPanel({
                 variant="ghost"
                 disabled={Boolean(busy)}
                 icon={busy === 'revoke' ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                onClick={() => void revokeKnowledge()}
+                onClick={() => setConfirmTarget({ kind: 'revoke' })}
               >
                 撤销确认
               </Button>
@@ -292,6 +299,35 @@ export function OrderRequirementsPanel({
           </div>
         )}
       </section>
+      <ConfirmDialog
+        open={Boolean(confirmTarget)}
+        title={confirmTarget?.kind === 'confirm'
+          ? '确认客户要求进入知识库？'
+          : confirmTarget?.kind === 'revoke'
+            ? '撤销客户要求的知识确认？'
+            : '覆盖未保存的客户要求？'}
+        description={confirmTarget?.kind === 'confirm'
+          ? '当前归纳内容将作为这份订单的正式客户要求供 AI 检索。请先确认内容、附件依据和未提供项均已人工核对。'
+          : confirmTarget?.kind === 'revoke'
+            ? '已确认版本将停止作为正式知识供 AI 检索；原始文件和当前草稿会继续保留。'
+            : '继续 AI 归纳会用所选附件生成的新内容覆盖编辑框中尚未保存的修改，覆盖后无法自动恢复。'}
+        confirmLabel={confirmTarget?.kind === 'confirm'
+          ? '确认进入知识库'
+          : confirmTarget?.kind === 'revoke'
+            ? '撤销确认'
+            : '继续并覆盖'}
+        confirmVariant={confirmTarget?.kind === 'confirm' ? 'primary' : 'danger'}
+        busy={Boolean(busy)}
+        layer="top"
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          const target = confirmTarget;
+          setConfirmTarget(null);
+          if (target?.kind === 'confirm') void confirmKnowledge();
+          else if (target?.kind === 'revoke') void revokeKnowledge();
+          else if (target?.kind === 'summarize') void summarizeRequirement(target.link, true);
+        }}
+      />
     </div>
   );
 }

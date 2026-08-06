@@ -880,6 +880,39 @@ test('Next UI 契约：P2 高风险删除操作使用统一确认弹层', () => 
     assert.match(views[4], /title="删除测试报告？"/);
 });
 
+test('Next UI 契约：P2 特殊业务确认流程使用统一确认弹层', () => {
+    const orderRequirements = readUtf8('apps/web-next/components/order-requirements-panel.tsx');
+    const orderExecution = readUtf8('apps/web-next/components/order-execution-records-panel.tsx');
+    const orderDetail = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+    const purchaseView = readUtf8('apps/web-next/components/purchase-view.tsx');
+    const qualityView = readUtf8('apps/web-next/components/quality-view.tsx');
+    const setupView = readUtf8('apps/web-next/components/setup-view.tsx');
+    const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
+
+    for (const view of [
+        orderRequirements,
+        orderExecution,
+        orderDetail,
+        purchaseView,
+        qualityView,
+        setupView,
+        rotorView,
+    ]) {
+        assert.doesNotMatch(view, /window\.confirm/);
+        assert.match(view, /<ConfirmDialog/);
+    }
+    for (const nestedView of [orderRequirements, orderExecution, orderDetail, qualityView, rotorView]) {
+        assert.match(nestedView, /layer="top"/);
+    }
+    assert.match(orderRequirements, /确认客户要求进入知识库？/);
+    assert.match(orderExecution, /确认执行事实进入知识库？/);
+    assert.match(orderDetail, /确认超计划下单？/);
+    assert.match(purchaseView, /确认全部下单？/);
+    assert.match(qualityView, /恢复历史规则状态？/);
+    assert.match(setupView, /放弃未保存的系统设置？/);
+    assert.match(rotorView, /发送图纸到默认打印机？/);
+});
+
 test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {
     const dashboardOverview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
     const ordersPage = readUtf8('apps/web-next/app/orders/page.tsx');
@@ -2102,7 +2135,7 @@ test('Next UI 契约：P2 系统设置按任务分区并保护未保存修改', 
     assert.match(setupView, /section === 'deployment'/);
     assert.match(setupView, /JSON\.stringify\(form\) !== JSON\.stringify\(formFromSnapshot\(snapshot\)\)/);
     assert.match(setupView, /window\.addEventListener\('beforeunload', protectUnsavedSettings\)/);
-    assert.match(setupView, /当前设置有尚未保存的修改/);
+    assert.match(setupView, /放弃未保存的系统设置/);
     assert.match(setupView, /disabled=\{loading \|\| saving \|\| !isDirty\}/);
     assert.match(setupView, /有未保存修改/);
     assert.match(guidelines, /共享同一份草稿和统一保存动作/);

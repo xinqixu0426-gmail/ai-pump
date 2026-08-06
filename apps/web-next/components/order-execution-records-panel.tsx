@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { generateAiDraftFromAttachment, type AiAttachment } from '@/lib/ai';
 import type { FactoryFileLink } from '@/lib/files';
@@ -36,6 +37,12 @@ type OrderExecutionRecordsPanelProps = {
   contractNo?: string;
   customerName?: string;
 };
+
+type ExecutionConfirmTarget =
+  | { kind: 'confirm' }
+  | { kind: 'revoke' }
+  | { kind: 'delete' }
+  | { kind: 'summarize'; link: FactoryFileLink };
 
 const phaseOptions: Array<{ value: OrderExecutionPhase; label: string }> = [
   { value: 'pre_production', label: '生产前' },
@@ -113,6 +120,7 @@ export function OrderExecutionRecordsPanel({
   const [busy, setBusy] = useState<'summarize' | 'save' | 'confirm' | 'revoke' | 'delete' | ''>('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [confirmTarget, setConfirmTarget] = useState<ExecutionConfirmTarget | null>(null);
 
   const load = useCallback(async (selectId: number | null, preserveDraft = false) => {
     if (!orderId) return;
@@ -217,7 +225,6 @@ export function OrderExecutionRecordsPanel({
 
   async function confirmKnowledge() {
     if (!editingId || !hasText || busy) return;
-    if (!window.confirm('确认这条记录是已经发生的事实，并作为正式知识供 AI 检索？')) return;
     setBusy('confirm');
     setMessage('');
     setError('');
@@ -234,7 +241,6 @@ export function OrderExecutionRecordsPanel({
 
   async function revokeKnowledge() {
     if (!editingId || !editingRecord?.hasConfirmedVersion || busy) return;
-    if (!window.confirm('撤销这条执行事实的知识确认？当前草稿和附件会继续保留。')) return;
     setBusy('revoke');
     setMessage('');
     setError('');
@@ -251,7 +257,6 @@ export function OrderExecutionRecordsPanel({
 
   async function deleteDraft() {
     if (!editingId || editingRecord?.hasConfirmedVersion || busy) return;
-    if (!window.confirm('删除这条尚未确认的执行档案草稿？')) return;
     setBusy('delete');
     setMessage('');
     setError('');
@@ -267,13 +272,15 @@ export function OrderExecutionRecordsPanel({
     }
   }
 
-  async function summarizeExecution(link: FactoryFileLink) {
+  async function summarizeExecution(link: FactoryFileLink, overwrite = false) {
     if (busy) return;
     if (
+      !overwrite
+      &&
       draft.summaryText.trim()
       && draft.summaryText !== (editingRecord?.draftText || '')
-      && !window.confirm('当前事实说明有尚未保存的修改，继续归纳会覆盖这些修改。是否继续？')
     ) {
+      setConfirmTarget({ kind: 'summarize', link });
       return;
     }
     setBusy('summarize');
@@ -499,7 +506,7 @@ export function OrderExecutionRecordsPanel({
                 variant="primary"
                 disabled={!editingId || !hasText || Boolean(busy) || loading}
                 icon={busy === 'confirm' ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                onClick={() => void confirmKnowledge()}
+                onClick={() => setConfirmTarget({ kind: 'confirm' })}
               >
                 确认进入知识库
               </Button>
@@ -510,7 +517,7 @@ export function OrderExecutionRecordsPanel({
                   variant="ghost"
                   disabled={Boolean(busy)}
                   icon={busy === 'revoke' ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                  onClick={() => void revokeKnowledge()}
+                  onClick={() => setConfirmTarget({ kind: 'revoke' })}
                 >
                   撤销确认
                 </Button>
@@ -521,7 +528,7 @@ export function OrderExecutionRecordsPanel({
                   variant="ghost"
                   disabled={Boolean(busy)}
                   icon={busy === 'delete' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                  onClick={() => void deleteDraft()}
+                  onClick={() => setConfirmTarget({ kind: 'delete' })}
                 >
                   删除草稿
                 </Button>
@@ -530,6 +537,42 @@ export function OrderExecutionRecordsPanel({
           </div>
         </div>
       </section>
+      <ConfirmDialog
+        open={Boolean(confirmTarget)}
+        title={confirmTarget?.kind === 'confirm'
+          ? '确认执行事实进入知识库？'
+          : confirmTarget?.kind === 'revoke'
+            ? '撤销执行事实的知识确认？'
+            : confirmTarget?.kind === 'delete'
+              ? '删除执行档案草稿？'
+              : '覆盖未保存的事实说明？'}
+        description={confirmTarget?.kind === 'confirm'
+          ? `“${draft.title || '未命名执行事实'}”将被标记为已经发生的正式事实并供 AI 检索。请确认时间、类型、内容和附件依据准确。`
+          : confirmTarget?.kind === 'revoke'
+            ? '已确认版本将停止作为正式知识供 AI 检索；当前草稿和附件会继续保留。'
+            : confirmTarget?.kind === 'delete'
+              ? `尚未确认的草稿“${editingRecord?.title || draft.title || '未命名执行事实'}”将被永久删除，此操作无法撤销。`
+              : '继续 AI 归纳会用所选附件生成的新内容覆盖事实说明中尚未保存的修改，覆盖后无法自动恢复。'}
+        confirmLabel={confirmTarget?.kind === 'confirm'
+          ? '确认进入知识库'
+          : confirmTarget?.kind === 'revoke'
+            ? '撤销确认'
+            : confirmTarget?.kind === 'delete'
+              ? '删除草稿'
+              : '继续并覆盖'}
+        confirmVariant={confirmTarget?.kind === 'confirm' ? 'primary' : 'danger'}
+        busy={Boolean(busy)}
+        layer="top"
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          const target = confirmTarget;
+          setConfirmTarget(null);
+          if (target?.kind === 'confirm') void confirmKnowledge();
+          else if (target?.kind === 'revoke') void revokeKnowledge();
+          else if (target?.kind === 'delete') void deleteDraft();
+          else if (target?.kind === 'summarize') void summarizeExecution(target.link, true);
+        }}
+      />
     </div>
   );
 }

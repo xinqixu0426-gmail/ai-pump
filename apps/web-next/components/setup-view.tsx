@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -119,6 +120,7 @@ export function SetupView() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [section, setSection] = useState<SetupSection>('ai');
+  const [reloadConfirmationOpen, setReloadConfirmationOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -175,7 +177,10 @@ export function SetupView() {
   }
 
   function requestReload() {
-    if (isDirty && !window.confirm('当前设置有尚未保存的修改，确定重新加载并放弃这些修改吗？')) return;
+    if (isDirty) {
+      setReloadConfirmationOpen(true);
+      return;
+    }
     void load();
   }
 
@@ -442,6 +447,19 @@ export function SetupView() {
         </div>
       </FadePanel>
       ) : null}
+      <ConfirmDialog
+        open={reloadConfirmationOpen}
+        title="放弃未保存的系统设置？"
+        description="重新加载会丢弃 AI、知识检索和部署环境中所有尚未保存的修改，并恢复为服务器当前配置。"
+        confirmLabel="放弃修改并刷新"
+        confirmVariant="danger"
+        busy={loading}
+        onClose={() => setReloadConfirmationOpen(false)}
+        onConfirm={() => {
+          setReloadConfirmationOpen(false);
+          void load();
+        }}
+      />
     </div>
   );
 }
