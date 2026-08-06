@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import {
   archiveFactoryFile,
   deleteFactoryFileLink,
@@ -59,6 +60,7 @@ export function FactoryFileAttachments({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [summarizingFileId, setSummarizingFileId] = useState<number | null>(null);
+  const [unlinkTarget, setUnlinkTarget] = useState<FactoryFileLink | null>(null);
   const [error, setError] = useState('');
   const locked = busy || summarizingFileId !== null;
 
@@ -108,15 +110,14 @@ export function FactoryFileAttachments({
   }
 
   async function unlink(link: FactoryFileLink) {
-    if (busy || !window.confirm(`解除附件「${link.file?.originalName || link.title || link.fileId}」与当前业务记录的关联？原文件不会被删除。`)) {
-      return;
-    }
+    if (busy) return;
     setBusy(true);
     setError('');
     try {
       await deleteFactoryFileLink(link.fileId, link.id, link.updatedAt);
       await load();
       onChanged?.();
+      setUnlinkTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '解除附件关联失败');
     } finally {
@@ -138,6 +139,7 @@ export function FactoryFileAttachments({
   }
 
   return (
+    <>
     <section className={embedded ? '' : 'overflow-hidden rounded-panel border border-line bg-white shadow-panel'}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
@@ -227,12 +229,29 @@ export function FactoryFileAttachments({
                 title="解除关联"
                 aria-label={`解除${link.file?.originalName || '附件'}关联`}
                 icon={<Trash2 size={14} />}
-                onClick={() => void unlink(link)}
+                onClick={() => setUnlinkTarget(link)}
               />
             </div>
           ))}
         </div>
       )}
     </section>
+
+    <ConfirmDialog
+      open={Boolean(unlinkTarget)}
+      title="解除附件关联？"
+      description={unlinkTarget
+        ? `附件“${unlinkTarget.file?.originalName || unlinkTarget.title || unlinkTarget.fileId}”将从当前业务记录中移除，但原文件仍会保留在文件库中。`
+        : ''}
+      confirmLabel="解除关联"
+      confirmVariant="danger"
+      busy={busy}
+      onConfirm={() => unlinkTarget && void unlink(unlinkTarget)}
+      onClose={() => {
+        if (!busy) setUnlinkTarget(null);
+      }}
+      layer="top"
+    />
+    </>
   );
 }

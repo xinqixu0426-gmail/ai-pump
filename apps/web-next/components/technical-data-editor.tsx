@@ -4,6 +4,7 @@ import { ChevronDown, Download, FileSpreadsheet, Loader2, Plus, Trash2, Upload }
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import {
   deleteRecipeTechnicalFile,
   downloadRecipeTechnicalFile,
@@ -102,6 +103,7 @@ export function TechnicalDataEditor({
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [fileError, setFileError] = useState('');
+  const [deleteFileTarget, setDeleteFileTarget] = useState<RecipeTechnicalFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const customFields = value.customFields || [];
   const filledCount = getTechnicalDataEntries(value).length;
@@ -143,12 +145,13 @@ export function TechnicalDataEditor({
   }
 
   async function removeTestReport(file: RecipeTechnicalFile) {
-    if (!recipeId || !window.confirm(`删除测试报告“${file.originalName}”？`)) return;
+    if (!recipeId) return;
     setFileBusy(true);
     setFileError('');
     try {
       await deleteRecipeTechnicalFile(recipeId, file.id, file.updatedAt);
       setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
+      setDeleteFileTarget(null);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '测试报告删除失败');
     } finally {
@@ -247,7 +250,7 @@ export function TechnicalDataEditor({
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <Button type="button" size="sm" variant="ghost" title="下载原文件" aria-label={`下载${file.originalName}`} onClick={() => recipeId && void downloadRecipeTechnicalFile(recipeId, file)} icon={<Download size={14} />} />
-                      <Button type="button" size="sm" variant="danger" title="删除测试报告" aria-label={`删除${file.originalName}`} disabled={fileBusy} onClick={() => void removeTestReport(file)} icon={<Trash2 size={14} />} />
+                      <Button type="button" size="sm" variant="danger" title="删除测试报告" aria-label={`删除${file.originalName}`} disabled={fileBusy} onClick={() => setDeleteFileTarget(file)} icon={<Trash2 size={14} />} />
                     </div>
                   </div>
                 );
@@ -371,6 +374,22 @@ export function TechnicalDataEditor({
           )}
         </div>
       </div> : null}
+
+      <ConfirmDialog
+        open={Boolean(deleteFileTarget)}
+        title="删除测试报告？"
+        description={deleteFileTarget
+          ? `测试报告“${deleteFileTarget.originalName}”及其解析结果将被永久删除，此操作无法撤销。`
+          : ''}
+        confirmLabel="删除报告"
+        confirmVariant="danger"
+        busy={fileBusy}
+        onConfirm={() => deleteFileTarget && void removeTestReport(deleteFileTarget)}
+        onClose={() => {
+          if (!fileBusy) setDeleteFileTarget(null);
+        }}
+        layer="top"
+      />
     </div>
   );
 }

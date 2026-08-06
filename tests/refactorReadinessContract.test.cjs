@@ -859,6 +859,27 @@ test('Next UI 契约：P1 高频 CRUD 使用统一字段与确认弹层', () => 
     assert.match(customersView, /title="删除客户？"/);
 });
 
+test('Next UI 契约：P2 高风险删除操作使用统一确认弹层', () => {
+    const views = [
+        readUtf8('apps/web-next/components/quotations-view.tsx'),
+        readUtf8('apps/web-next/components/coils-view.tsx'),
+        readUtf8('apps/web-next/components/recipes-view.tsx'),
+        readUtf8('apps/web-next/components/factory-file-attachments.tsx'),
+        readUtf8('apps/web-next/components/technical-data-editor.tsx'),
+    ];
+
+    for (const view of views) {
+        assert.doesNotMatch(view, /window\.confirm/);
+        assert.match(view, /<ConfirmDialog/);
+        assert.match(view, /confirmVariant="danger"/);
+    }
+    assert.match(views[0], /title="删除报价？"/);
+    assert.match(views[1], /title="删除线圈记录？"/);
+    assert.match(views[2], /删除泵壳模板？/);
+    assert.match(views[3], /title="解除附件关联？"/);
+    assert.match(views[4], /title="删除测试报告？"/);
+});
+
 test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {
     const dashboardOverview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
     const ordersPage = readUtf8('apps/web-next/app/orders/page.tsx');
@@ -1629,7 +1650,7 @@ test('Next UI 契约：配方工作区独立管理列表派生和筛选展示', 
     assert.match(recipesView, /onView=\{openRecipeDetail\}/);
     assert.match(recipesView, /onEdit=\{openEditDrawer\}/);
     assert.match(recipesView, /onClone=\{openCloneRecipe\}/);
-    assert.match(recipesView, /onRemove=\{removeRecipe\}/);
+    assert.match(recipesView, /onRemove=\{\(recipe\) => setDeleteTarget\(\{ kind: 'recipe', item: recipe \}\)\}/);
     assert.doesNotMatch(recipesView, /const recipeRows = useMemo/);
     assert.doesNotMatch(recipesView, /const filteredRows = useMemo/);
     assert.doesNotMatch(recipesView, /const stats = useMemo/);
@@ -1712,7 +1733,7 @@ test('Next UI 契约：泵壳模板工作区独立派生列表成本并展示详
     assert.match(recipesView, /visible=\{activeSection === 'templates'\}/);
     assert.match(recipesView, /parts=\{parts\}/);
     assert.match(recipesView, /onEdit=\{openEditTemplate\}/);
-    assert.match(recipesView, /onRemove=\{\(template\) => void removeTemplate\(template\)\}/);
+    assert.match(recipesView, /onRemove=\{\(template\) => setDeleteTarget\(\{ kind: 'template', item: template \}\)\}/);
     assert.doesNotMatch(recipesView, /const templateRows = useMemo/);
     assert.doesNotMatch(recipesView, /templateDetail|setTemplateDetail/);
     assert.match(templateWorkspace, /const rows = useMemo/);

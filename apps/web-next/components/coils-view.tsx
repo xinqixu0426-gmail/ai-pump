@@ -7,6 +7,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { InlineNotice } from '@/components/ui/notice';
@@ -138,6 +139,7 @@ export function CoilsView() {
   const [query, setQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingCoil, setEditingCoil] = useState<CoilRecord | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CoilRecord | null>(null);
   const [form, setForm] = useState<CoilFormState>(emptyForm);
   const [calcSpec, setCalcSpec] = useState('');
   const [calcMaterial, setCalcMaterial] = useState('钢带');
@@ -422,12 +424,12 @@ export function CoilsView() {
   }
 
   async function removeCoil(coil: CoilRecord) {
-    if (!window.confirm(`确定删除「${coil.spec} / ${coil.sheets}片」？`)) return;
     setSaving(true);
     setError(null);
     try {
       await deleteCoil(coil);
       await load(true);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '线圈记录删除失败');
     } finally {
@@ -813,7 +815,7 @@ export function CoilsView() {
                                   <Button size="sm" variant="ghost" disabled={saving} onClick={() => openEditDrawer(coil)} icon={<Pencil size={14} />}>
                                     编辑
                                   </Button>
-                                  <Button size="sm" variant="danger" disabled={saving} onClick={() => void removeCoil(coil)} icon={<Trash2 size={14} />}>
+                                  <Button size="sm" variant="danger" disabled={saving} onClick={() => setDeleteTarget(coil)} icon={<Trash2 size={14} />}>
                                     删除
                                   </Button>
                                 </div>
@@ -1047,6 +1049,21 @@ export function CoilsView() {
           </form>
         ) : null}
       </SlideOver>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除线圈记录？"
+        description={deleteTarget
+          ? `线圈“${deleteTarget.spec} / ${deleteTarget.sheets}片 / ${deleteTarget.material} / ${deleteTarget.slotType}”将被永久删除。已有库存或被业务数据引用时，后端仍会执行最终校验。`
+          : ''}
+        confirmLabel="删除线圈"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={() => deleteTarget && void removeCoil(deleteTarget)}
+        onClose={() => {
+          if (!saving) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

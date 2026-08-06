@@ -62,6 +62,7 @@ import {
 } from '@/components/recipe/ShellCostEditor';
 import { TechnicalDataEditor } from '@/components/technical-data-editor';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { money } from '@/lib/format';
@@ -109,6 +110,11 @@ import {
 import { buildTechnicalReferenceFields, calculateBearingSpan, findShellMetaForTemplate, openOffsetFromMeta } from '@/lib/technical-references';
 
 type RecipeSection = 'recipes' | 'templates' | 'variants';
+
+type RecipeDeleteTarget =
+  | { kind: 'recipe'; item: Recipe }
+  | { kind: 'template'; item: PumpShellTemplate }
+  | { kind: 'variant'; item: PumpModelVariant };
 
 function parseRecipeReviewTarget(search: string): {
   recipeId: number;
@@ -289,6 +295,7 @@ export function RecipesView() {
   const [coilRecords, setCoilRecords] = useState<CoilRecord[]>([]);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<PumpShellTemplate | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RecipeDeleteTarget | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
   const [autoAnalyzeRecipeId, setAutoAnalyzeRecipeId] = useState<number | null>(null);
   const [reviewEvidenceTargets, setReviewEvidenceTargets] = useState<FactoryLearningHealth['items']>([]);
@@ -1014,12 +1021,12 @@ export function RecipesView() {
   }
 
   async function removeVariant(variant: PumpModelVariant) {
-    if (!window.confirm(`确定删除常用配置「${variant.modelName || variant.id}」？已创建的配方不会被删除。`)) return;
     setSaving(true);
     setError(null);
     try {
       await deleteModelVariant(variant);
       await load(true);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '常用配置删除失败');
     } finally {
@@ -1092,12 +1099,12 @@ export function RecipesView() {
   }
 
   async function removeTemplate(template: PumpShellTemplate) {
-    if (!window.confirm(`确定删除泵壳模板「${template.shellModel || template.id}」？如果已有配方引用，后端会拒绝删除。`)) return;
     setSaving(true);
     setError(null);
     try {
       await deleteTemplate(template);
       await load(true);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '泵壳模板删除失败');
     } finally {
@@ -1343,12 +1350,12 @@ export function RecipesView() {
   }
 
   async function removeRecipe(recipe: Recipe) {
-    if (!window.confirm(`确定删除配方「${recipe.name || recipe.id}」？`)) return;
     setSaving(true);
     setError(null);
     try {
       await deleteRecipe(recipe.id, recipe.updatedAt);
       await load(true);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '配方删除失败');
     } finally {
@@ -1472,7 +1479,7 @@ export function RecipesView() {
           onView={openRecipeDetail}
           onEdit={openEditDrawer}
           onClone={openCloneRecipe}
-          onRemove={removeRecipe}
+          onRemove={(recipe) => setDeleteTarget({ kind: 'recipe', item: recipe })}
         />
       ) : null}
 
@@ -1482,7 +1489,7 @@ export function RecipesView() {
         parts={parts}
         saving={saving}
         onEdit={openEditTemplate}
-        onRemove={(template) => void removeTemplate(template)}
+        onRemove={(template) => setDeleteTarget({ kind: 'template', item: template })}
       />
 
       <ModelVariantCompatibilityPanel
@@ -1497,7 +1504,7 @@ export function RecipesView() {
         onOpenClone={openCloneVariant}
         onCloseEditor={() => setVariantEditorTarget(null)}
         onSubmit={submitVariant}
-        onRemove={(variant) => void removeVariant(variant)}
+        onRemove={(variant) => setDeleteTarget({ kind: 'variant', item: variant })}
       />
 
       <RecipeDetailPanel
@@ -1746,6 +1753,38 @@ export function RecipesView() {
         getSubtotal={recipePartSubtotal}
         getSourceLabel={partCostSourceLabel}
         getFormula={partFormulaLine}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={deleteTarget?.kind === 'recipe'
+          ? '删除配方？'
+          : deleteTarget?.kind === 'template'
+            ? '删除泵壳模板？'
+            : '删除常用配置？'}
+        description={deleteTarget?.kind === 'recipe'
+          ? `配方“${deleteTarget.item.name || deleteTarget.item.id}”及其当前配置将被永久删除，此操作无法撤销。`
+          : deleteTarget?.kind === 'template'
+            ? `泵壳模板“${deleteTarget.item.shellModel || deleteTarget.item.id}”将被删除；如果仍被配方引用，后端会拒绝执行。`
+            : deleteTarget?.kind === 'variant'
+              ? `常用配置“${deleteTarget.item.modelName || deleteTarget.item.id}”将被删除。已创建的配方不会受到影响。`
+              : ''}
+        confirmLabel={deleteTarget?.kind === 'recipe'
+          ? '删除配方'
+          : deleteTarget?.kind === 'template'
+            ? '删除模板'
+            : '删除配置'}
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (deleteTarget.kind === 'recipe') void removeRecipe(deleteTarget.item);
+          else if (deleteTarget.kind === 'template') void removeTemplate(deleteTarget.item);
+          else void removeVariant(deleteTarget.item);
+        }}
+        onClose={() => {
+          if (!saving) setDeleteTarget(null);
+        }}
       />
     </div>
   );

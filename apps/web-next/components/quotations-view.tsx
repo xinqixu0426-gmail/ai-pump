@@ -226,6 +226,7 @@ export function QuotationsView() {
   const [convertDraft, setConvertDraft] = useState<QuotationOrderDraft | null>(null);
   const [convertError, setConvertError] = useState<string | null>(null);
   const [viewQuotation, setViewQuotation] = useState<Quotation | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
   const overridePreviewSeqRef = useRef(new Map<string, number>());
   const {
     dirty: formDirty,
@@ -633,12 +634,12 @@ export function QuotationsView() {
   }
 
   async function removeQuotation(quotation: Quotation) {
-    if (!window.confirm(`确定删除报价 #${quotation.id}？`)) return;
     setSavingId(`delete-${quotation.id}`);
     setError(null);
     try {
       await deleteQuotation(quotation);
       await load(true);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '报价删除失败');
     } finally {
@@ -827,7 +828,7 @@ export function QuotationsView() {
                         </Button>
                       ) : null}
                       {(['草稿', '已拒绝', '已过时'] as QuotationStatus[]).includes(quotation.status as QuotationStatus) ? (
-                        <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => void removeQuotation(quotation)} icon={<Trash2 size={14} />}>
+                        <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => setDeleteTarget(quotation)} icon={<Trash2 size={14} />}>
                           删除
                         </Button>
                       ) : null}
@@ -904,7 +905,7 @@ export function QuotationsView() {
                               </Button>
                             ) : null}
                             {(['草稿', '已拒绝', '已过时'] as QuotationStatus[]).includes(quotation.status as QuotationStatus) ? (
-                              <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => void removeQuotation(quotation)} icon={<Trash2 size={14} />}>
+                              <Button size="sm" variant="danger" disabled={Boolean(savingId)} onClick={() => setDeleteTarget(quotation)} icon={<Trash2 size={14} />}>
                                 删除
                               </Button>
                             ) : null}
@@ -1489,6 +1490,21 @@ export function QuotationsView() {
         onConfirm={confirmDiscard}
         onClose={cancelDiscard}
         layer="top"
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除报价？"
+        description={deleteTarget
+          ? `报价 #${deleteTarget.id} 将被永久删除。客户档案不会被删除，但该报价的明细和历史状态无法恢复。`
+          : ''}
+        confirmLabel="删除报价"
+        confirmVariant="danger"
+        busy={Boolean(savingId)}
+        onConfirm={() => deleteTarget && void removeQuotation(deleteTarget)}
+        onClose={() => {
+          if (!savingId) setDeleteTarget(null);
+        }}
       />
     </div>
   );
