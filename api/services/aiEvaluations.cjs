@@ -88,6 +88,15 @@ function containsMissingCustomerConclusion(answer, configuredTerms) {
         ));
 }
 
+function containsZeroQuotationConclusion(answer) {
+    return normalizeAnswerForChecks(answer)
+        .split(/[。！？\n]/)
+        .some(sentence => (
+            /(?:没有|无|暂无|未找到|未查询到)(?:任何)?(?:历史)?报价(?:记录)?/.test(sentence)
+            || /报价(?:记录)?(?:为)?空/.test(sentence)
+        ));
+}
+
 function normalizeAnswerForChecks(value) {
     return String(value || '')
         .replace(/[*_`~]/g, '')
@@ -229,7 +238,8 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
                 missingMatched ? '没有伪造客户或报价数量' : '客户不存在时必须明确说明未找到客户'
             );
         } else {
-            const countMatched = new RegExp(`(?:共|现有|找到)?\\s*${quotations.length}\\s*(?:条|份|个)`).test(answer);
+            const countMatched = new RegExp(`(?:共|现有|找到)?\\s*${quotations.length}\\s*(?:条|份|个)`).test(answer)
+                || (quotations.length === 0 && containsZeroQuotationConclusion(answer));
             addCheck(checks, 'fact:quotation_count', `回答报价数量 ${quotations.length} 份`, countMatched, countMatched ? '数量正确' : `回答未明确当前共有 ${quotations.length} 份报价`);
         }
         if (config.fact.forbidInternalIds) {

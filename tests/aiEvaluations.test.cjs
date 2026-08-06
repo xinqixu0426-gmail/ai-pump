@@ -386,6 +386,30 @@ test('AI 评测：客户报价检查识别错误数量和内部数据库编号',
     fixture.db.close();
 });
 
+test('AI 评测：零报价接受明确无历史报价结论并拒绝含糊回答', () => {
+    const fixture = createFixture();
+    fixture.db.prepare('DELETE FROM quotations').run();
+    const caseItem = {
+        config: {
+            fact: { type: 'customer_quotation_count', customerName: '邱焕', forbidInternalIds: true },
+        },
+    };
+
+    for (const answer of [
+        '客户邱焕目前没有任何历史报价，也没有历史订单。',
+        '客户邱焕暂无报价记录。',
+        '当前共有 0 份报价。',
+    ]) {
+        const result = evaluateRuleCase(caseItem, answer, [], fixture.db);
+        assert.equal(result.status, 'passed', answer);
+    }
+
+    const vague = evaluateRuleCase(caseItem, '没有足够信息确认报价情况。', [], fixture.db);
+    assert.equal(vague.status, 'failed');
+    assert.equal(vague.checks.find(check => check.key === 'fact:quotation_count').passed, false);
+    fixture.db.close();
+});
+
 test('AI 评测：运行生命周期保存结果、汇总并按 owner 隔离', () => {
     const fixture = createFixture();
     fixture.db.prepare(`
