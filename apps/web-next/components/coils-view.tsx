@@ -2,11 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Boxes, Calculator, ChevronDown, ChevronRight, CircleAlert, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { Boxes, Calculator, ChevronDown, ChevronRight, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { Field, Input, Select } from '@/components/ui/field';
+import { FormError } from '@/components/ui/form-error';
+import { InlineNotice } from '@/components/ui/notice';
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { money } from '@/lib/format';
 import {
@@ -495,10 +499,7 @@ export function CoilsView() {
       />
 
       {error ? (
-        <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-          <CircleAlert size={16} />
-          {error}
-        </div>
+        <InlineNotice tone="danger">{error}</InlineNotice>
       ) : null}
 
       <FadePanel className="space-y-4 border-amber-200 bg-amber-50/70">
@@ -556,90 +557,76 @@ export function CoilsView() {
       </FadePanel>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
+        <Panel elevated className="p-4">
           <div className="text-2xl font-semibold tracking-tight text-ink">{coils.length}</div>
           <div className="mt-1 text-xs text-muted">线圈记录</div>
-        </div>
-        <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
+        </Panel>
+        <Panel elevated className="p-4">
           <div className="text-2xl font-semibold tracking-tight text-ink">{stats.specCount}</div>
           <div className="mt-1 text-xs text-muted">定子组合</div>
-        </div>
-        <div className="rounded-panel border border-line bg-white p-4 shadow-panel">
+        </Panel>
+        <Panel elevated className="p-4">
           <div className="text-2xl font-semibold tracking-tight text-ink">{money(stats.avgCost)}</div>
           <div className="mt-1 text-xs text-muted">平均成本</div>
-        </div>
+        </Panel>
       </div>
 
       <FadePanel className="grid gap-4 lg:grid-cols-[360px_1fr]">
-        <div className="rounded-panel border border-line p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <Calculator size={16} />
-            成本试算
-          </div>
-          <div className="mt-4 space-y-3">
-            <label className="block">
-              <span className="text-sm font-medium text-ink">规格</span>
-              <input
+        <Panel>
+          <PanelHeader title="成本试算" icon={<Calculator size={16} />} />
+          <PanelBody className="space-y-3">
+            <Field label="规格">
+              <Input
                 value={calcSpec}
                 onChange={(event) => setCalcSpec(event.target.value)}
                 list="coil-spec-options"
-                className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
               />
-            </label>
+            </Field>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-ink">材质</span>
-                <select
+              <Field label="材质">
+                <Select
                   value={calcMaterial}
                   onChange={(event) => setCalcMaterial(event.target.value)}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 >
                   {materials.map((material) => (
                     <option key={material} value={material}>{material}</option>
                   ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">槽眼</span>
-                <select
+                </Select>
+              </Field>
+              <Field label="槽眼">
+                <Select
                   value={calcSlotType}
                   onChange={(event) => setCalcSlotType(event.target.value as '小眼' | '国标眼')}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 >
                   <option value="小眼">小眼</option>
                   <option value="国标眼">国标眼</option>
-                </select>
-              </label>
+                </Select>
+              </Field>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-ink">片数</span>
-                <input
+              <Field label="片数">
+                <Input
                   value={calcSheets}
                   onChange={(event) => setCalcSheets(event.target.value)}
                   type="number"
                   min="0"
                   step="1"
-                  className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">自定义线重</span>
-                <input
+              </Field>
+              <Field label="自定义线重" hint="可选；留空时使用配方记录中的线重。">
+                <Input
                   value={calcWireWeight}
                   onChange={(event) => setCalcWireWeight(event.target.value)}
                   type="number"
                   min="0"
                   step="0.001"
-                  className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   placeholder="可选"
                 />
-              </label>
+              </Field>
             </div>
             <Button type="button" variant="primary" onClick={() => void runCalculate()} disabled={calcLoading} icon={<Calculator size={15} />}>
               {calcLoading ? '试算中' : '试算'}
             </Button>
-          </div>
           {calcResult ? (
             <div className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm">
               <div className="text-xl font-semibold text-ink">{money(calcResult.totalCost)}</div>
@@ -655,7 +642,8 @@ export function CoilsView() {
           <datalist id="coil-spec-options">
             {specOptions.map((spec) => <option key={spec} value={spec} />)}
           </datalist>
-        </div>
+          </PanelBody>
+        </Panel>
 
         <div className="min-w-0">
           <div className="mb-3 flex flex-col gap-2 rounded-md border border-line bg-white p-2 sm:flex-row sm:items-center">
@@ -731,7 +719,7 @@ export function CoilsView() {
                     </button>
                     {editingGroupKey === group.key ? (
                       <div className="flex shrink-0 items-center gap-2">
-                        <input
+                        <Input
                           value={editingGroupPrice}
                           onChange={(event) => setEditingGroupPrice(event.target.value)}
                           onKeyDown={(event) => {
@@ -742,7 +730,8 @@ export function CoilsView() {
                           min="0"
                           step="0.0001"
                           autoFocus
-                          className="h-8 w-28 rounded-md border border-line px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                          compact
+                          className="w-28"
                         />
                         <Button size="sm" variant="primary" disabled={saving} onClick={() => void saveGroupPrice(group.key)}>
                           保存
@@ -843,7 +832,11 @@ export function CoilsView() {
         </div>
       </FadePanel>
 
-      <SlideOver open={drawerOpen} onClose={() => !saving && setDrawerOpen(false)}>
+      <SlideOver
+        open={drawerOpen}
+        onClose={() => !saving && setDrawerOpen(false)}
+        ariaLabel={editingCoil ? '编辑线圈记录' : '新增线圈记录'}
+      >
         <form onSubmit={submitCoil} className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-line p-5">
             <div>
@@ -861,16 +854,10 @@ export function CoilsView() {
             </button>
           </div>
           <div className="flex-1 space-y-5 p-5">
-            {formError ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                <CircleAlert size={16} />
-                {formError}
-              </div>
-            ) : null}
+            <FormError message={formError} />
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-ink">规格俗称</span>
-                <input
+              <Field label="规格俗称">
+                <Input
                   value={form.spec}
                   onChange={(event) => {
                     const spec = event.target.value;
@@ -883,94 +870,76 @@ export function CoilsView() {
                   }}
                   list="coil-spec-options"
                   placeholder="例如 12"
-                  className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">定子直径 mm</span>
-                <input value={form.diameterMm} onChange={(event) => updateForm({ diameterMm: event.target.value })} type="number" min="1" step="1" placeholder="例如 120" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                <span className="mt-1 block text-xs text-muted">俗称 12 对应标准直径 120mm。</span>
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">材质</span>
-                <select value={form.material} onChange={(event) => updateFormMaterial(event.target.value)} className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
+              </Field>
+              <Field label="定子直径 mm" hint="俗称 12 对应标准直径 120mm。">
+                <Input value={form.diameterMm} onChange={(event) => updateForm({ diameterMm: event.target.value })} type="number" min="1" step="1" placeholder="例如 120" />
+              </Field>
+              <Field label="材质">
+                <Select value={form.material} onChange={(event) => updateFormMaterial(event.target.value)}>
                   <option value="钢带">钢带</option>
                   <option value="冷轧">冷轧</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">槽眼</span>
-                <select value={form.slotType} onChange={(event) => updateFormSlotType(event.target.value as '小眼' | '国标眼')} className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
+                </Select>
+              </Field>
+              <Field label="槽眼">
+                <Select value={form.slotType} onChange={(event) => updateFormSlotType(event.target.value as '小眼' | '国标眼')}>
                   <option value="小眼">小眼</option>
                   <option value="国标眼">国标眼</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">片数</span>
-                <input value={form.sheets} onChange={(event) => updateForm({ sheets: event.target.value })} type="number" min="0" step="1" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">方案状态</span>
-                <select value={form.schemeStatus} onChange={(event) => updateForm({ schemeStatus: event.target.value as CoilFormState['schemeStatus'] })} className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
+                </Select>
+              </Field>
+              <Field label="片数">
+                <Input value={form.sheets} onChange={(event) => updateForm({ sheets: event.target.value })} type="number" min="0" step="1" />
+              </Field>
+              <Field label="方案状态" hint="同一定子组合和片数只能有一套正式方案。">
+                <Select value={form.schemeStatus} onChange={(event) => updateForm({ schemeStatus: event.target.value as CoilFormState['schemeStatus'] })}>
                   <option value="official">正式方案</option>
                   <option value="testing">测试方案</option>
                   <option value="disabled">停用</option>
-                </select>
-                <span className="mt-1 block text-xs text-muted">同一定子组合和片数只能有一套正式方案。</span>
-              </label>
-              <label className="block md:col-span-2">
-                <span className="text-sm font-medium text-ink">方案名称</span>
-                <input value={form.schemeName} onChange={(event) => updateForm({ schemeName: event.target.value })} placeholder="例如 高扬程测试方案" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">单片价</span>
-                <input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={Boolean(editingCoil)} className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-muted" />
-                {editingCoil ? <span className="mt-1 block text-xs text-muted">单片价请在定子组合里批量修改，保持同直径、材质和槽眼一致。</span> : null}
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">线重 kg</span>
-                <input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">铜价基数</span>
-                <input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">线圈加工费</span>
-                <input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">转子加工费</span>
-                <input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">默认搭配电缆线径</span>
-                <input value={form.defaultWireGauge} onChange={(event) => updateForm({ defaultWireGauge: event.target.value })} className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">默认电容 μF</span>
-                <input value={form.defaultCapacitor} onChange={(event) => updateForm({ defaultCapacitor: event.target.value })} className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
+                </Select>
+              </Field>
+              <Field label="方案名称" className="md:col-span-2">
+                <Input value={form.schemeName} onChange={(event) => updateForm({ schemeName: event.target.value })} placeholder="例如 高扬程测试方案" />
+              </Field>
+              <Field
+                label="单片价"
+                hint={editingCoil ? '单片价请在定子组合里批量修改，保持同直径、材质和槽眼一致。' : undefined}
+              >
+                <Input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={Boolean(editingCoil)} />
+              </Field>
+              <Field label="线重 kg">
+                <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
+              </Field>
+              <Field label="铜价基数">
+                <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" />
+              </Field>
+              <Field label="线圈加工费">
+                <Input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" />
+              </Field>
+              <Field label="转子加工费">
+                <Input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" />
+              </Field>
+              <Field label="默认搭配电缆线径">
+                <Input value={form.defaultWireGauge} onChange={(event) => updateForm({ defaultWireGauge: event.target.value })} />
+              </Field>
+              <Field label="默认电容 μF">
+                <Input value={form.defaultCapacitor} onChange={(event) => updateForm({ defaultCapacitor: event.target.value })} />
+              </Field>
               <div className="border-t border-line pt-4 md:col-span-2">
                 <div className="text-sm font-medium text-ink">绕组技术参数</div>
                 <div className="mt-1 text-xs text-muted">选填，用于记录线圈绕组数据备忘。</div>
               </div>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">主线线径</span>
-                <input value={form.mainWireGauge} onChange={(event) => updateForm({ mainWireGauge: event.target.value })} placeholder="例如 0.55" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">主线数据</span>
-                <input value={form.mainWireData} onChange={(event) => updateForm({ mainWireData: event.target.value })} placeholder="匝数、绕法等备忘" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">副线线径</span>
-                <input value={form.auxWireGauge} onChange={(event) => updateForm({ auxWireGauge: event.target.value })} placeholder="例如 0.45" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-ink">副线数据</span>
-                <input value={form.auxWireData} onChange={(event) => updateForm({ auxWireData: event.target.value })} placeholder="匝数、绕法等备忘" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-              </label>
+              <Field label="主线线径">
+                <Input value={form.mainWireGauge} onChange={(event) => updateForm({ mainWireGauge: event.target.value })} placeholder="例如 0.55" />
+              </Field>
+              <Field label="主线数据">
+                <Input value={form.mainWireData} onChange={(event) => updateForm({ mainWireData: event.target.value })} placeholder="匝数、绕法等备忘" />
+              </Field>
+              <Field label="副线线径">
+                <Input value={form.auxWireGauge} onChange={(event) => updateForm({ auxWireGauge: event.target.value })} placeholder="例如 0.45" />
+              </Field>
+              <Field label="副线数据">
+                <Input value={form.auxWireData} onChange={(event) => updateForm({ auxWireData: event.target.value })} placeholder="匝数、绕法等备忘" />
+              </Field>
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t border-line p-5">
@@ -984,7 +953,11 @@ export function CoilsView() {
         </form>
       </SlideOver>
 
-      <SlideOver open={Boolean(stockCoil)} onClose={() => !saving && setStockCoil(null)}>
+      <SlideOver
+        open={Boolean(stockCoil)}
+        onClose={() => !saving && setStockCoil(null)}
+        ariaLabel="线圈库存"
+      >
         {stockCoil ? (
           <form onSubmit={submitStockAdjustment} className="flex min-h-full flex-col">
             <div className="flex items-start justify-between gap-4 border-b border-line p-5">
@@ -1024,26 +997,22 @@ export function CoilsView() {
                     </Button>
                   </div>
                 </div>
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">数量（套）</span>
-                  <input
+                <Field label="数量（套）">
+                  <Input
                     value={stockQty}
                     onChange={(event) => setStockQty(event.target.value)}
                     type="number"
                     min="1"
                     step="1"
-                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">备注</span>
-                  <input
+                </Field>
+                <Field label="备注">
+                  <Input
                     value={stockNote}
                     onChange={(event) => setStockNote(event.target.value)}
                     placeholder="例如 盘点调整、样机领用"
-                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   />
-                </label>
+                </Field>
                 <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
                   {saving ? '保存中' : '保存库存变动'}
                 </Button>

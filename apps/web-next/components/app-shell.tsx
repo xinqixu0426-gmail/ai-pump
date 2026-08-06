@@ -10,7 +10,6 @@ import {
   Database,
   FileText,
   Layers3,
-  MessageSquareText,
   Menu,
   Package,
   ReceiptText,
@@ -23,6 +22,11 @@ import {
   X,
 } from 'lucide-react';
 import { AiView } from '@/components/ai-view';
+import {
+  AI_PANEL_DEFAULT_WIDTH,
+  AssistantPanel,
+  clampAiPanelWidth,
+} from '@/components/ai/assistant-panel';
 import { NavItem, NavSection } from '@/components/ui/nav-item';
 import { Button } from '@/components/ui/button';
 import {
@@ -54,29 +58,50 @@ const systemNavItems = [
   { href: '/setup', label: '系统设置', icon: Settings2 },
 ];
 
+const AI_PANEL_STORAGE = {
+  open: 'pump.ai-panel.open',
+  pinned: 'pump.ai-panel.pinned',
+  width: 'pump.ai-panel.width',
+} as const;
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAiWorkspace = pathname === '/ai';
   const isFullWorkspace = isAiWorkspace;
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
-  const [aiPanelDocked, setAiPanelDocked] = useState(false);
+  const [aiPanelPinned, setAiPanelPinned] = useState(false);
+  const [aiPanelFullscreen, setAiPanelFullscreen] = useState(false);
+  const [aiPanelWidth, setAiPanelWidth] = useState(AI_PANEL_DEFAULT_WIDTH);
+  const [aiPanelPreferencesLoaded, setAiPanelPreferencesLoaded] = useState(false);
+  const [isWideViewport, setIsWideViewport] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [currentHref, setCurrentHref] = useState(pathname);
   const [pageContext, setPageContext] = useState<AiPageContext | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1600px)');
-    const syncDockedState = () => {
-      setAiPanelDocked(media.matches);
-      setAiPanelOpen(media.matches && !isAiWorkspace);
-    };
-    syncDockedState();
-    media.addEventListener('change', syncDockedState);
-    return () => media.removeEventListener('change', syncDockedState);
-  }, [isAiWorkspace]);
+    const syncWideViewport = () => setIsWideViewport(media.matches);
+    syncWideViewport();
+    media.addEventListener('change', syncWideViewport);
+    return () => media.removeEventListener('change', syncWideViewport);
+  }, []);
 
   useEffect(() => {
-    setAiPanelOpen(window.matchMedia('(min-width: 1600px)').matches && pathname !== '/ai');
+    const storedWidth = Number(window.localStorage.getItem(AI_PANEL_STORAGE.width));
+    setAiPanelWidth(Number.isFinite(storedWidth) && storedWidth > 0 ? clampAiPanelWidth(storedWidth) : AI_PANEL_DEFAULT_WIDTH);
+    setAiPanelPinned(window.localStorage.getItem(AI_PANEL_STORAGE.pinned) === 'true');
+    setAiPanelOpen(window.localStorage.getItem(AI_PANEL_STORAGE.open) === 'true');
+    setAiPanelPreferencesLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!aiPanelPreferencesLoaded) return;
+    window.localStorage.setItem(AI_PANEL_STORAGE.open, String(aiPanelOpen));
+    window.localStorage.setItem(AI_PANEL_STORAGE.pinned, String(aiPanelPinned));
+    window.localStorage.setItem(AI_PANEL_STORAGE.width, String(aiPanelWidth));
+  }, [aiPanelOpen, aiPanelPinned, aiPanelPreferencesLoaded, aiPanelWidth]);
+
+  useEffect(() => {
     setMobileNavOpen(false);
     setCurrentHref(`${pathname}${window.location.search}`);
   }, [pathname]);
@@ -107,17 +132,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [pathname]);
 
-  useEffect(() => {
-    if (!aiPanelOpen || aiPanelDocked) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [aiPanelDocked, aiPanelOpen]);
-
   function setAiPanelVisibility(open: boolean) {
     setAiPanelOpen(open);
+    if (!open) setAiPanelFullscreen(false);
   }
 
   function isNavItemActive(href: string) {
@@ -130,6 +147,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setCurrentHref(href);
     setMobileNavOpen(false);
   }
+
+  const aiPanelDocked = aiPanelOpen && aiPanelPinned && isWideViewport && !aiPanelFullscreen;
 
   const navigation = (
     <nav className="space-y-4" aria-label="主导航">
@@ -190,19 +209,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mt-0.5 text-xs text-muted">生产管理系统</div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{navigation}</div>
-        {!isFullWorkspace ? (
-          <div className="border-t border-line p-3 min-[1280px]:hidden">
-            <Button
-              variant="secondary"
-              className="w-full justify-start"
-              icon={<MessageSquareText size={16} />}
-              aria-label={aiPanelOpen ? '收起业务 AI 助手' : '打开业务 AI 助手'}
-              onClick={() => setAiPanelVisibility(!aiPanelOpen)}
-            >
-              {aiPanelOpen ? '收起业务 AI' : '询问业务 AI'}
-            </Button>
-          </div>
-        ) : null}
       </aside>
 
       <div className="min-w-0 flex-1">
@@ -218,19 +224,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="truncate text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
             <div className="truncate text-[11px] text-muted">生产管理系统</div>
           </div>
-          {!isFullWorkspace ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0"
-              icon={<MessageSquareText size={16} />}
-              aria-label={aiPanelOpen ? '收起业务 AI 助手' : '打开业务 AI 助手'}
-              title={aiPanelOpen ? '收起业务 AI 助手' : '打开业务 AI 助手'}
-              onClick={() => setAiPanelVisibility(!aiPanelOpen)}
-            >
-              <span className="hidden sm:inline">{aiPanelOpen ? '收起 AI' : '问 AI'}</span>
-            </Button>
-          ) : null}
         </header>
 
         {mobileNavOpen ? (
@@ -270,14 +263,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {isFullWorkspace ? (
             <div className={`mx-auto w-full ${isAiWorkspace ? 'max-w-[1720px]' : 'max-w-[1480px]'}`}>{children}</div>
           ) : (
-            <div className="mx-auto grid w-full max-w-[1920px] min-w-0 gap-4 min-[1600px]:grid-cols-[minmax(0,1fr)_500px] min-[1920px]:grid-cols-[minmax(0,1fr)_560px]">
+            <div
+              className="mx-auto grid w-full max-w-[1920px] min-w-0 gap-4"
+              style={{ gridTemplateColumns: aiPanelDocked ? `minmax(0, 1fr) ${aiPanelWidth}px` : 'minmax(0, 1fr)' }}
+            >
               <div className="min-w-0">{children}</div>
-              <div className="sticky top-5 hidden h-[calc(100dvh-40px)] min-[1600px]:block">
-                <aside className="h-full min-w-0" aria-label="业务 AI 助手">
-                  <AiView variant="panel" pageContext={pageContext} />
-                </aside>
-              </div>
-              {!aiPanelDocked && !aiPanelOpen ? (
+              {!aiPanelOpen ? (
                 <button
                   type="button"
                   className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-[90] inline-flex h-14 w-14 items-center justify-center rounded-full border border-slate-700 bg-ink text-white shadow-xl transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
@@ -288,28 +279,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Bot size={22} />
                 </button>
               ) : null}
-              {aiPanelOpen && !aiPanelDocked ? (
-                <button
-                  type="button"
-                  className="fixed inset-0 z-[100] bg-slate-950/24"
-                  aria-label="关闭业务 AI 助手遮罩"
-                  onClick={() => setAiPanelVisibility(false)}
-                />
-              ) : null}
-              {aiPanelOpen && !aiPanelDocked ? (
-                <aside
-                  className="fixed inset-0 z-[110] min-w-0 bg-white p-0 sm:bottom-5 sm:left-auto sm:right-5 sm:top-5 sm:w-[420px] sm:overflow-hidden sm:rounded-panel sm:border sm:border-line sm:shadow-2xl"
-                  aria-label="业务 AI 助手"
-                  role="dialog"
-                  aria-modal="true"
-                >
+              <AssistantPanel
+                open={aiPanelOpen}
+                docked={aiPanelDocked}
+                canDock={isWideViewport}
+                pinned={aiPanelPinned}
+                fullscreen={aiPanelFullscreen}
+                width={aiPanelWidth}
+                onClose={() => setAiPanelVisibility(false)}
+                onPinnedChange={setAiPanelPinned}
+                onFullscreenChange={setAiPanelFullscreen}
+                onWidthChange={setAiPanelWidth}
+              >
+                {(controls) => (
                   <AiView
                     variant="panel"
                     pageContext={pageContext}
-                    onClose={() => setAiPanelVisibility(false)}
+                    panelControls={controls}
                   />
-                </aside>
-              ) : null}
+                )}
+              </AssistantPanel>
             </div>
           )}
         </main>

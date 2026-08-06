@@ -9,10 +9,10 @@ import {
   MessageSquareWarning,
   RefreshCw,
   Save,
-  Trash2,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import type {
   AiAnswerFeedbackRating,
   AiAttachment,
@@ -111,8 +111,18 @@ export function AttachmentArchiveDialog({
   onClose,
 }: AttachmentArchiveDialogProps) {
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/25 p-3 md:p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="file-archive-title" className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-panel border border-line bg-white shadow-panel">
+    <Dialog
+      open
+      onClose={() => {
+        if (!saving) onClose();
+      }}
+      size="md"
+      layer="assistant"
+      closeOnBackdrop={false}
+      ariaLabelledBy="file-archive-title"
+      panelClassName="flex flex-col overflow-hidden"
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
             <h2 id="file-archive-title" className="text-base font-semibold text-ink">归档附件</h2>
@@ -293,7 +303,7 @@ export function AttachmentArchiveDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -323,8 +333,17 @@ export function AnswerFeedbackDialog({
   onClose,
 }: AnswerFeedbackDialogProps) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/25 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="answer-feedback-title" className="w-full max-w-lg rounded-panel border border-line bg-white shadow-panel">
+    <Dialog
+      open
+      onClose={() => {
+        if (!saving) onClose();
+      }}
+      size="md"
+      layer="assistant"
+      closeOnBackdrop={false}
+      ariaLabelledBy="answer-feedback-title"
+    >
+      <div>
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div>
             <h2 id="answer-feedback-title" className="text-base font-semibold text-ink">报告回答问题</h2>
@@ -398,7 +417,7 @@ export function AnswerFeedbackDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -416,22 +435,17 @@ export function DeleteConversationDialog({
   onClose,
 }: DeleteConversationDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="delete-conversation-title" className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel">
-        <div className="border-b border-line px-4 py-3">
-          <h2 id="delete-conversation-title" className="text-base font-semibold text-ink">删除会话</h2>
-        </div>
-        <div className="p-4">
-          <p className="text-sm leading-6 text-slate-700">确定删除“{title}”及其历史记录吗？</p>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-          <Button variant="ghost" onClick={onClose} disabled={deleting}>取消</Button>
-          <Button variant="danger" icon={deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} onClick={() => void onConfirm()} disabled={deleting}>
-            {deleting ? '删除中' : '删除'}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      open
+      layer="assistant"
+      title="删除会话"
+      description={<>确定删除“{title}”及其历史记录吗？</>}
+      confirmLabel="删除"
+      confirmVariant="danger"
+      busy={deleting}
+      onConfirm={() => void onConfirm()}
+      onClose={onClose}
+    />
   );
 }
 
@@ -451,8 +465,17 @@ export function KnowledgeSyncDialog({
   onClose,
 }: KnowledgeSyncDialogProps) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="knowledge-sync-title" className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel">
+    <Dialog
+      open
+      onClose={() => {
+        if (!syncing) onClose();
+      }}
+      size="sm"
+      layer="assistant"
+      closeOnBackdrop={false}
+      ariaLabelledBy="knowledge-sync-title"
+    >
+      <div>
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div>
             <h2 id="knowledge-sync-title" className="text-base font-semibold text-ink">同步工厂知识库</h2>
@@ -499,7 +522,7 @@ export function KnowledgeSyncDialog({
           )}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -523,13 +546,18 @@ export function SystemPromptDialog({
   onClose,
 }: SystemPromptDialogProps) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving) onClose();
+    <Dialog
+      open
+      onClose={() => {
+        if (!saving) onClose();
       }}
+      size="lg"
+      layer="assistant"
+      closeOnBackdrop={!saving}
+      ariaLabelledBy="ai-prompt-title"
+      panelClassName="flex flex-col overflow-hidden"
     >
-      <div role="dialog" aria-modal="true" aria-labelledby="ai-prompt-title" className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-panel border border-line bg-white shadow-panel">
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div>
             <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">编辑工厂配置</h2>
@@ -576,6 +604,6 @@ export function SystemPromptDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

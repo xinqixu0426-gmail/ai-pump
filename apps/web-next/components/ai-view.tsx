@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Database,
@@ -60,6 +60,7 @@ type AiViewProps = {
   pageContext?: AiPageContext | null;
   initialPrompt?: string;
   initialAttachmentId?: number;
+  panelControls?: ReactNode;
 };
 
 export function AiView({
@@ -68,6 +69,7 @@ export function AiView({
   pageContext = null,
   initialPrompt = '',
   initialAttachmentId,
+  panelControls,
 }: AiViewProps = {}) {
   const isPanel = variant === 'panel';
   const router = useRouter();
@@ -401,6 +403,7 @@ export function AiView({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {isPanel ? panelControls : null}
             {isPanel ? (
               <Button
                 variant="ghost"
@@ -434,7 +437,7 @@ export function AiView({
               onClick={startNewConversation}
               disabled={loading}
             />
-            {isPanel && onClose ? (
+            {isPanel && onClose && !panelControls ? (
               <Button
                 variant="ghost"
                 size="sm"

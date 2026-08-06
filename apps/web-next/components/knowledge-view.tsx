@@ -68,6 +68,7 @@ import {
 import { StreamingText } from '@/components/prompt-kit/basic-chat';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { Dialog, Drawer } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 
@@ -1354,8 +1355,16 @@ export function KnowledgeView({
       ) : null}
 
       {syncOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="knowledge-sync-title">
+        <Dialog
+          open
+          onClose={() => {
+            if (!syncing) setSyncOpen(false);
+          }}
+          size="sm"
+          closeOnBackdrop={!syncing}
+          ariaLabelledBy="knowledge-sync-title"
+        >
+          <div>
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 id="knowledge-sync-title" className="text-base font-semibold text-ink">同步工厂知识库</h2>
               <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setSyncOpen(false)} disabled={syncing} />
@@ -1378,12 +1387,21 @@ export function KnowledgeView({
               </Button>
             </div>
           </div>
-        </div>
+        </Dialog>
       ) : null}
 
       {documentOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="knowledge-document-title">
+        <Dialog
+          open
+          onClose={() => {
+            if (!documentSaving) setDocumentOpen(false);
+          }}
+          size="lg"
+          closeOnBackdrop={!documentSaving}
+          ariaLabelledBy="knowledge-document-title"
+          panelClassName="flex flex-col overflow-hidden"
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 id="knowledge-document-title" className="text-base font-semibold text-ink">导入工厂资料</h2>
               <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setDocumentOpen(false)} disabled={documentSaving} />
@@ -1475,12 +1493,22 @@ export function KnowledgeView({
               </Button>
             </div>
           </div>
-        </div>
+        </Dialog>
       ) : null}
 
       {deleteDocumentId ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="knowledge-document-delete-title">
+        <Dialog
+          open
+          onClose={() => {
+            if (documentDeleting) return;
+            setDeleteDocumentId(null);
+            setDeleteDocumentVersion(null);
+          }}
+          size="sm"
+          closeOnBackdrop={!documentDeleting}
+          ariaLabelledBy="knowledge-document-delete-title"
+        >
+          <div>
             <div className="border-b border-line px-4 py-3">
               <h2 id="knowledge-document-delete-title" className="text-base font-semibold text-ink">删除工厂资料</h2>
             </div>
@@ -1498,12 +1526,20 @@ export function KnowledgeView({
               </Button>
             </div>
           </div>
-        </div>
+        </Dialog>
       ) : null}
 
       {resolveTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div className="w-full max-w-md rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="feedback-resolve-title">
+        <Dialog
+          open
+          onClose={() => {
+            if (!resolving) setResolveTarget(null);
+          }}
+          size="sm"
+          closeOnBackdrop={!resolving}
+          ariaLabelledBy="feedback-resolve-title"
+        >
+          <div>
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 id="feedback-resolve-title" className="text-base font-semibold text-ink">处理 AI 回答反馈</h2>
               <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setResolveTarget(null)} disabled={resolving} />
@@ -1530,12 +1566,21 @@ export function KnowledgeView({
               </Button>
             </div>
           </div>
-        </div>
+        </Dialog>
       ) : null}
 
       {diagnosticTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-panel border border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="feedback-diagnosis-title">
+        <Dialog
+          open
+          onClose={() => {
+            if (!retesting) setDiagnosticTarget(null);
+          }}
+          size="xl"
+          closeOnBackdrop={!retesting}
+          ariaLabelledBy="feedback-diagnosis-title"
+          panelClassName="flex flex-col overflow-hidden"
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1646,12 +1691,18 @@ export function KnowledgeView({
               </div>
             </div>
           </div>
-        </div>
+        </Dialog>
       ) : null}
 
       {selected ? (
-        <div className="fixed inset-0 z-50 bg-black/25" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null); }}>
-          <aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-line bg-white shadow-panel" role="dialog" aria-modal="true" aria-labelledby="knowledge-detail-title">
+        <Drawer
+          open
+          onClose={() => setSelected(null)}
+          width="md"
+          ariaLabelledBy="knowledge-detail-title"
+          panelClassName="flex flex-col overflow-hidden"
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1715,8 +1766,8 @@ export function KnowledgeView({
                 </Button>
               </div>
             ) : null}
-          </aside>
-        </div>
+          </div>
+        </Drawer>
       ) : null}
     </div>
   );

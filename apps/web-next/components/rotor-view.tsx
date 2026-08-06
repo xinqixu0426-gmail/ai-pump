@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleAlert, Copy, Download, History, Link as LinkIcon, Play, Printer, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
+import { Dialog, Drawer } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort } from '@/lib/format';
@@ -513,19 +514,13 @@ export function RotorView() {
       </FadePanel>
 
       {historyOpen ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-slate-950/25"
-            aria-label="关闭出图历史遮罩"
-            onClick={() => setHistoryOpen(false)}
-          />
-          <aside
-            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-line bg-white shadow-xl sm:w-[420px]"
-            role="dialog"
-            aria-modal="true"
-            aria-label="出图历史"
-          >
+        <Drawer
+          open
+          onClose={() => setHistoryOpen(false)}
+          width="sm"
+          ariaLabel="出图历史"
+          panelClassName="flex flex-col overflow-hidden"
+        >
           <div className="border-b border-line p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -592,13 +587,20 @@ export function RotorView() {
               {history.length > 30 ? <div className="px-1 pt-3 text-xs text-muted">仅显示最近 30 条</div> : null}
             </div>
           )}
-          </aside>
-        </>
+        </Drawer>
       ) : null}
 
       {linkRow ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 p-4">
-          <div className="w-full max-w-xl rounded-panel border border-line bg-white shadow-panel">
+        <Dialog
+          open
+          onClose={() => {
+            if (!linkLoading) setLinkRow(null);
+          }}
+          size="md"
+          closeOnBackdrop={!linkLoading}
+          ariaLabel="关联出图记录"
+        >
+          <div>
             <div className="flex items-center justify-between gap-3 border-b border-line p-4">
               <div>
                 <div className="text-sm font-semibold text-ink">关联出图记录</div>
@@ -635,7 +637,7 @@ export function RotorView() {
               )}
             </div>
           </div>
-        </div>
+        </Dialog>
       ) : null}
     </div>
   );

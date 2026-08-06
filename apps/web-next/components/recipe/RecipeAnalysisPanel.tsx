@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { money } from '@/lib/format';
 import type {
@@ -202,7 +203,7 @@ export function RecipeAnalysisPanel({
 
   return (
     <>
-      <SlideOver open={open} onClose={onClose} size="wide">
+      <SlideOver open={open} onClose={onClose} size="wide" ariaLabel="配方智能检查">
         <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
           <div>
             <div className="flex items-center gap-2">
@@ -553,13 +554,13 @@ export function RecipeAnalysisPanel({
       </SlideOver>
 
       {feedbackDraft && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 p-4" role="presentation">
-          <div
-            className="w-full max-w-md rounded-md border border-line bg-white shadow-xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="analysis-feedback-title"
-          >
+        <Dialog
+          open
+          onClose={() => setFeedbackDraft(null)}
+          size="sm"
+          ariaLabelledBy="analysis-feedback-title"
+        >
+          <div>
             <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
               <div>
                 <h2 id="analysis-feedback-title" className="font-semibold text-ink">
@@ -610,7 +611,7 @@ export function RecipeAnalysisPanel({
               </Button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </>
   );
