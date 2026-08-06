@@ -6,7 +6,7 @@ import type { AiAnswerFeedback, AiAttachment, AiToolResult } from '@/lib/ai';
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
 import { AiMessageAttachments } from '@/components/ai/AiAttachmentDisplays';
 import { AnswerProcess, type ChatItem } from '@/components/ai/AiAnswerProcess';
-import { StreamingText } from '@/components/prompt-kit/basic-chat';
+import { StreamingText } from '@/components/ai/ai-text';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 

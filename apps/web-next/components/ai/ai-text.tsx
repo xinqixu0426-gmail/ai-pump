@@ -1,58 +1,19 @@
 'use client';
 
-import { forwardRef, useEffect, useRef, useState } from 'react';
-import type { ButtonHTMLAttributes, FormEvent, HTMLAttributes, KeyboardEvent, ReactNode, TextareaHTMLAttributes } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export function ChatContainer({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden rounded-panel border border-line bg-white', className)}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-export const ChatMessages = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function ChatMessages({ className, children, ...props }, ref) {
-  return (
-    <div ref={ref} className={clsx('min-h-0 flex-1 space-y-4 overflow-y-auto p-4', className)} {...props}>
-      {children}
-    </div>
-  );
-});
-
-export function Message({ role, className, children }: {
-  role: 'user' | 'assistant';
+export function MarkdownContent({
+  id: _id,
+  children,
+  className,
+}: {
+  id: string;
+  children: string;
   className?: string;
-  children: ReactNode;
 }) {
-  return (
-    <article className={clsx('flex', role === 'user' ? 'justify-end' : 'justify-start', className)}>
-      <div
-        className={clsx(
-          'max-w-[92%] rounded-panel border px-3 py-2.5 text-sm leading-6 shadow-panel md:max-w-[78%]',
-          role === 'user' ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink'
-        )}
-      >
-        {children}
-      </div>
-    </article>
-  );
-}
-
-export function MessageHeader({ children, muted = false }: { children: ReactNode; muted?: boolean }) {
-  return (
-    <div className={clsx('mb-1.5 flex flex-wrap items-center gap-2 text-xs font-medium', muted ? 'text-slate-200' : 'text-muted')}>
-      {children}
-    </div>
-  );
-}
-
-export function MarkdownContent({ id: _id, children, className }: { id: string; children: string; className?: string }) {
   return (
     <div className={clsx('space-y-2 text-sm leading-6', className)}>
       <ReactMarkdown
@@ -166,67 +127,7 @@ export function StreamingText({
     };
   }, [id, streaming]);
 
-  return <MarkdownContent id={id} className={className} >{displayText}</MarkdownContent>;
-}
-
-export function PromptInput({ onSubmit, className, children }: {
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <form onSubmit={onSubmit} className={clsx('border-t border-line bg-white p-3', className)}>
-      <div className="rounded-panel border border-line bg-slate-50 p-2 shadow-panel">
-        {children}
-      </div>
-    </form>
-  );
-}
-
-export function PromptInputTextarea({
-  onSubmitShortcut,
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { onSubmitShortcut?: () => void }) {
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    props.onKeyDown?.(event);
-    if (event.defaultPrevented) return;
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      onSubmitShortcut?.();
-    }
-  }
-
-  return (
-    <textarea
-      rows={2}
-      className={clsx(
-        'max-h-32 min-h-12 w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60',
-        className
-      )}
-      {...props}
-      onKeyDown={handleKeyDown}
-    />
-  );
-}
-
-export function PromptInputActions({ className, children }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={clsx('mt-2 flex items-center justify-between gap-2', className)}>{children}</div>;
-}
-
-export function PromptSuggestion({ children, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      className={clsx(
-        'min-h-10 shrink-0 rounded-md border border-line bg-white px-3 text-left text-sm text-ink shadow-panel transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60',
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
+  return <MarkdownContent id={id} className={className}>{displayText}</MarkdownContent>;
 }
 
 function safeHref(value: string) {

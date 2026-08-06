@@ -7,7 +7,6 @@ import {
   BookOpen,
   CheckCircle2,
   Database,
-  Download,
   FileUp,
   History,
   Loader2,
@@ -17,7 +16,6 @@ import {
   Power,
   PowerOff,
   RefreshCw,
-  RotateCcw,
   Search,
   SearchCheck,
   ShieldCheck,
@@ -25,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
+import { KnowledgeDialogs } from '@/components/knowledge/KnowledgeDialogs';
 import {
   deleteKnowledgeDocument,
   getKnowledgeEntryDetail,
@@ -35,8 +34,6 @@ import {
   searchKnowledgeEntries,
   syncFactoryKnowledge,
   uploadKnowledgeDocument,
-  type KnowledgeChange,
-  type KnowledgeChangeStatus,
   type KnowledgeDetail,
   type KnowledgeDocumentType,
   type KnowledgeEntryType,
@@ -65,116 +62,29 @@ import {
   type AiToolResult,
   type FactoryAiRuleList,
 } from '@/lib/ai';
-import { StreamingText } from '@/components/prompt-kit/basic-chat';
+import { StreamingText } from '@/components/ai/ai-text';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
-import { Dialog, Drawer } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
-
-type KnowledgeStatusFilter = 'all' | 'fresh' | 'pending';
-type KnowledgeWorkspace = 'overview' | 'sources' | 'entries' | 'ai';
-
-type KnowledgeDisplayItem = {
-  id: number | null;
-  entryType: KnowledgeEntryType;
-  sourceTable: string;
-  sourceId: string;
-  title: string;
-  summary: string;
-  sourceUpdatedAt: string | null;
-  syncedAt: string | null;
-  status: 'fresh' | KnowledgeChangeStatus;
-};
-
-const ENTRY_TYPE_OPTIONS: Array<{ value: KnowledgeEntryType | ''; label: string }> = [
-  { value: '', label: '全部分类' },
-  { value: 'part', label: '零件' },
-  { value: 'template', label: '泵壳模板' },
-  { value: 'recipe', label: '配方' },
-  { value: 'coil', label: '线圈' },
-  { value: 'customer', label: '客户' },
-  { value: 'quotation', label: '报价' },
-  { value: 'order', label: '订单' },
-  { value: 'quality_issue', label: '质量问题' },
-  { value: 'business_rule', label: '业务规则' },
-  { value: 'document', label: '工厂资料' },
-];
-
-const ENTRY_TYPE_LABELS = Object.fromEntries(
-  ENTRY_TYPE_OPTIONS.filter(option => option.value).map(option => [option.value, option.label])
-) as Record<KnowledgeEntryType, string>;
-
-const STATUS_META: Record<'fresh' | KnowledgeChangeStatus, { label: string; tone: StatusBadgeTone }> = {
-  fresh: { label: '最新', tone: 'green' },
-  pending_insert: { label: '待新增', tone: 'blue' },
-  pending_update: { label: '待更新', tone: 'amber' },
-  pending_delete: { label: '待移除', tone: 'red' },
-};
-
-const SYNC_MODE_LABELS = {
-  automatic: '自动同步',
-  flush: '即时同步',
-  manual: '手动同步',
-} as const;
-
-const DOCUMENT_TYPE_OPTIONS: Array<{ value: KnowledgeDocumentType; label: string }> = [
-  { value: 'technical_note', label: '技术说明' },
-  { value: 'pump_performance_test', label: '性能测试报告' },
-  { value: 'drawing', label: '图纸' },
-  { value: 'spreadsheet', label: 'Excel 资料' },
-  { value: 'other', label: '其他资料' },
-];
-
-const FEEDBACK_LABELS: Record<Exclude<AiAnswerFeedback['rating'], 'helpful'>, string> = {
-  incorrect: '内容错误',
-  outdated: '来源过期',
-  missing_source: '资料不足',
-};
-
-const KNOWLEDGE_PAGE_SIZE = 30;
-const KNOWLEDGE_WORKSPACES: Array<{ value: KnowledgeWorkspace; label: string }> = [
-  { value: 'overview', label: '运行概况' },
-  { value: 'sources', label: '来源同步' },
-  { value: 'entries', label: '知识条目' },
-  { value: 'ai', label: 'AI 治理' },
-];
-
-const SOURCE_PATHS: Record<string, string> = {
-  parts: '/parts',
-  pump_shell_templates: '/parts',
-  recipes: '/recipes',
-  coils: '/coils',
-  customers: '/customers',
-  quotations: '/quotations',
-  orders: '/orders',
-  quality_summary: '/dashboard?view=quality',
-  business_rules: '/dashboard?view=knowledge',
-  factory_rule_candidates: '/dashboard?view=quality',
-  factory_ai_rules: '/dashboard?view=knowledge',
-};
-
-function sourceKey(item: { sourceTable: string; sourceId: string }) {
-  return `${item.sourceTable}\u0000${item.sourceId}`;
-}
-
-function dateTime(value: string | null | undefined) {
-  if (!value) return '尚未同步';
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
-
-function matchesChange(change: KnowledgeChange, query: string, entryType: KnowledgeEntryType | '') {
-  if (entryType && change.entryType !== entryType) return false;
-  const keyword = query.trim().toLocaleLowerCase();
-  if (!keyword) return true;
-  return `${change.title}\n${change.summary}\n${change.sourceId}`.toLocaleLowerCase().includes(keyword);
-}
+import { StatusBadge } from '@/components/ui/status-badge';
+import {
+  DOCUMENT_TYPE_OPTIONS,
+  ENTRY_TYPE_LABELS,
+  ENTRY_TYPE_OPTIONS,
+  FEEDBACK_LABELS,
+  KNOWLEDGE_PAGE_SIZE,
+  KNOWLEDGE_WORKSPACES,
+  SOURCE_PATHS,
+  STATUS_META,
+  SYNC_MODE_LABELS,
+  dateTime,
+  matchesChange,
+  sourceKey,
+  type KnowledgeDisplayItem,
+  type KnowledgeStatusFilter,
+  type KnowledgeWorkspace,
+} from '@/components/knowledge/knowledge-view-model';
 
 export function KnowledgeView({
   initialEntryId = null,
@@ -1529,246 +1439,43 @@ export function KnowledgeView({
         </Dialog>
       ) : null}
 
-      {resolveTarget ? (
-        <Dialog
-          open
-          onClose={() => {
-            if (!resolving) setResolveTarget(null);
-          }}
-          size="sm"
-          closeOnBackdrop={!resolving}
-          ariaLabelledBy="feedback-resolve-title"
-        >
-          <div>
-            <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <h2 id="feedback-resolve-title" className="text-base font-semibold text-ink">处理 AI 回答反馈</h2>
-              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setResolveTarget(null)} disabled={resolving} />
-            </div>
-            <div className="space-y-3 p-4">
-              <div className="text-sm font-medium text-ink">{resolveTarget.questionText}</div>
-              <label className="block">
-                <span className="text-xs font-medium text-muted">处理说明（可选）</span>
-                <textarea
-                  value={resolutionNote}
-                  onChange={event => setResolutionNote(event.target.value)}
-                  maxLength={500}
-                  rows={3}
-                  placeholder="例如：已同步最新业务数据并复核回答。"
-                  className="mt-2 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400"
-                  disabled={resolving}
-                />
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-              <Button variant="ghost" onClick={() => setResolveTarget(null)} disabled={resolving}>取消</Button>
-              <Button variant="primary" icon={resolving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} onClick={() => void resolveFeedback()} disabled={resolving}>
-                {resolving ? '处理中' : '确认已处理'}
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      ) : null}
-
-      {diagnosticTarget ? (
-        <Dialog
-          open
-          onClose={() => {
-            if (!retesting) setDiagnosticTarget(null);
-          }}
-          size="xl"
-          closeOnBackdrop={!retesting}
-          ariaLabelledBy="feedback-diagnosis-title"
-          panelClassName="flex flex-col overflow-hidden"
-        >
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 id="feedback-diagnosis-title" className="text-base font-semibold text-ink">回答诊断与复测</h2>
-                  <StatusBadge tone="amber">{diagnosticTarget.rating === 'helpful' ? '准确' : FEEDBACK_LABELS[diagnosticTarget.rating]}</StatusBadge>
-                </div>
-                <div className="mt-1 truncate text-xs text-muted">{diagnosticTarget.questionText}</div>
-              </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setDiagnosticTarget(null)} disabled={retesting} />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <div className="space-y-4">
-                {diagnosticTarget.diagnosis ? (
-                  <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge tone={diagnosticTarget.diagnosis.type === 'knowledge_outdated' ? 'amber' : 'blue'}>
-                        {diagnosticTarget.diagnosis.type === 'knowledge_outdated' ? '知识待同步'
-                          : diagnosticTarget.diagnosis.type === 'missing_citation' ? '缺少引用'
-                            : diagnosticTarget.diagnosis.type === 'knowledge_gap' ? '知识缺口'
-                              : '需业务复核'}
-                      </StatusBadge>
-                      <span className="text-xs text-sky-700">诊断于 {dateTime(diagnosticTarget.diagnosedAt)}</span>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-sky-950">{diagnosticTarget.diagnosis.summary}</p>
-                  </div>
-                ) : null}
-
-                {diagnosticTarget.diagnosis?.checkedSources.length ? (
-                  <div>
-                    <div className="text-xs font-medium text-muted">引用来源状态</div>
-                    <div className="mt-2 divide-y divide-line rounded-md border border-line">
-                      {diagnosticTarget.diagnosis.checkedSources.map((source, index) => {
-                        const status = STATUS_META[source.currentStatus];
-                        return (
-                          <div key={`${source.sourceTable}-${source.sourceId}-${index}`} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-ink">{source.currentTitle || source.title}</div>
-                              <div className="mt-0.5 text-xs text-muted">{source.sourceTable} #{source.sourceId}</div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-                              {source.knowledgePath || source.sourcePath ? (
-                                <a href={source.knowledgePath || source.sourcePath} className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900">
-                                  查看来源 <ArrowUpRight size={11} />
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-
-                {diagnosticTarget.diagnosis?.candidateSources.length ? (
-                  <div>
-                    <div className="text-xs font-medium text-muted">可能遗漏的知识</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {diagnosticTarget.diagnosis.candidateSources.map(source => (
-                        <a key={source.id} href={`/dashboard?view=knowledge&entry=${source.id}`} className="inline-flex items-center gap-1 rounded-md border border-line bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:text-ink">
-                          {source.title}<ArrowUpRight size={11} />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className={`grid gap-3 ${diagnosticTarget.retestAnswerText ? 'lg:grid-cols-2' : ''}`}>
-                  <div className="min-w-0 rounded-md border border-line bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-muted">原回答</div>
-                    <div className="mt-2 max-h-80 overflow-y-auto">
-                      <StreamingText id={`original-${diagnosticTarget.id}`} text={diagnosticTarget.answerText} streaming={false} />
-                    </div>
-                  </div>
-                  {diagnosticTarget.retestAnswerText ? (
-                    <div className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs font-medium text-emerald-800">复测回答</div>
-                        <span className="text-xs text-emerald-700">{dateTime(diagnosticTarget.retestedAt)}</span>
-                      </div>
-                      <div className="mt-2 max-h-80 overflow-y-auto">
-                        <StreamingText id={`retest-${diagnosticTarget.id}`} text={diagnosticTarget.retestAnswerText} streaming={false} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                {retestStatus ? <div className="text-sm text-muted">{retestStatus}</div> : null}
-              </div>
-            </div>
-            <div className="flex flex-col-reverse gap-2 border-t border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" icon={diagnosingId === diagnosticTarget.id ? <Loader2 size={15} className="animate-spin" /> : <SearchCheck size={15} />} onClick={() => void diagnoseFeedback(diagnosticTarget)} disabled={diagnosingId !== null || retesting}>
-                  重新诊断
-                </Button>
-                {diagnosticTarget.diagnosis?.actions.some(action => action.type === 'sync_knowledge') ? (
-                  <Button variant="secondary" icon={<RefreshCw size={15} />} onClick={() => { setDiagnosticTarget(null); setSyncMessage(''); setSyncOpen(true); }} disabled={retesting}>
-                    同步知识库
-                  </Button>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="secondary" icon={retesting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} onClick={() => void retestFeedback(diagnosticTarget)} disabled={retesting || diagnosingId !== null}>
-                  {retesting ? '复测中' : '重新验证'}
-                </Button>
-                <Button variant="primary" icon={<CheckCircle2 size={15} />} onClick={() => { setResolveTarget(diagnosticTarget); setDiagnosticTarget(null); setResolutionNote(''); }} disabled={retesting}>
-                  确认并归档
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Dialog>
-      ) : null}
-
-      {selected ? (
-        <Drawer
-          open
-          onClose={() => setSelected(null)}
-          width="md"
-          ariaLabelledBy="knowledge-detail-title"
-          panelClassName="flex flex-col overflow-hidden"
-        >
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge tone="slate">{ENTRY_TYPE_LABELS[selected.entryType]}</StatusBadge>
-                  <StatusBadge tone={STATUS_META[selected.status].tone}>{STATUS_META[selected.status].label}</StatusBadge>
-                </div>
-                <h2 id="knowledge-detail-title" className="mt-3 text-base font-semibold text-ink">{selected.title}</h2>
-              </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={17} />} aria-label="关闭详情" onClick={() => setSelected(null)} />
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {detailLoading ? (
-                <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" />加载详情</div>
-              ) : (
-                <div className="space-y-5">
-                  <div>
-                    <div className="text-xs font-medium text-muted">摘要</div>
-                    <p className="mt-2 text-sm leading-6 text-ink">{selected.summary || '暂无摘要'}</p>
-                  </div>
-                  {detail ? (
-                    <div>
-                      <div className="text-xs font-medium text-muted">当前已同步内容</div>
-                      <pre className="mt-2 whitespace-pre-wrap break-words rounded-md border border-line bg-slate-50 p-3 font-sans text-sm leading-6 text-ink">{detail.content || '暂无内容'}</pre>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
-                      这是尚未同步的新知识。完成同步后即可查看 AI 实际读取的完整内容。
-                    </div>
-                  )}
-                  <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
-                    <div><div className="text-xs text-muted">业务来源</div><div className="mt-1 text-sm text-ink">{selected.sourceTable} #{selected.sourceId}</div></div>
-                    <div><div className="text-xs text-muted">同步时间</div><div className="mt-1 text-sm text-ink">{dateTime(selected.syncedAt)}</div></div>
-                    {selected.sourceUpdatedAt || detail?.sourceUpdatedAt ? <div><div className="text-xs text-muted">来源更新时间</div><div className="mt-1 text-sm text-ink">{dateTime(selected.sourceUpdatedAt || detail?.sourceUpdatedAt)}</div></div> : null}
-                    {detail?.tags?.length ? <div><div className="text-xs text-muted">检索标签</div><div className="mt-1 text-sm text-ink">{detail.tags.join('、')}</div></div> : null}
-                  </div>
-                </div>
-              )}
-            </div>
-            {selected.sourceTable === 'knowledge_documents' ? (
-              <div className="flex gap-2 border-t border-line p-4">
-                <Button variant="danger" className="flex-1" icon={<Trash2 size={15} />} onClick={() => {
-                  setDocumentError('');
-                  setDeleteDocumentId(Number(selected.sourceId));
-                  setDeleteDocumentVersion(
-                    selected.sourceUpdatedAt || detail?.sourceUpdatedAt || null
-                  );
-                  setSelected(null);
-                }}>
-                  删除资料
-                </Button>
-                {documentDownloadPath ? (
-                  <Button className="flex-1" icon={<Download size={15} />} onClick={() => { window.location.href = documentDownloadPath; }}>
-                    下载原文件
-                  </Button>
-                ) : null}
-              </div>
-            ) : sourcePath ? (
-              <div className="border-t border-line p-4">
-                <Button className="w-full" icon={<ArrowUpRight size={15} />} onClick={() => { window.location.href = sourcePath; }}>
-                  查看业务来源
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </Drawer>
-      ) : null}
+      <KnowledgeDialogs
+        resolveTarget={resolveTarget}
+        resolving={resolving}
+        resolutionNote={resolutionNote}
+        onResolutionNoteChange={setResolutionNote}
+        onCloseResolve={() => setResolveTarget(null)}
+        onResolve={() => void resolveFeedback()}
+        diagnosticTarget={diagnosticTarget}
+        diagnosingId={diagnosingId}
+        retesting={retesting}
+        retestStatus={retestStatus}
+        onCloseDiagnostic={() => setDiagnosticTarget(null)}
+        onDiagnose={target => void diagnoseFeedback(target)}
+        onSyncKnowledge={() => {
+          setDiagnosticTarget(null);
+          setSyncMessage('');
+          setSyncOpen(true);
+        }}
+        onRetest={target => void retestFeedback(target)}
+        onArchive={target => {
+          setResolveTarget(target);
+          setDiagnosticTarget(null);
+          setResolutionNote('');
+        }}
+        selected={selected}
+        detail={detail}
+        detailLoading={detailLoading}
+        sourcePath={sourcePath}
+        documentDownloadPath={documentDownloadPath}
+        onCloseDetail={() => setSelected(null)}
+        onDeleteDocument={(target, sourceVersion) => {
+          setDocumentError('');
+          setDeleteDocumentId(Number(target.sourceId));
+          setDeleteDocumentVersion(sourceVersion);
+          setSelected(null);
+        }}
+      />
     </div>
   );
 }

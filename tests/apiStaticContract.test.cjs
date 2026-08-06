@@ -1160,6 +1160,11 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     const chat = readAiPromptContractSource();
     const knowledgeLib = readUtf8(path.join(repoRoot, 'apps/web-next/lib/knowledge.ts'));
     const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
+    const knowledgeDialogs = readUtf8(path.join(
+        repoRoot,
+        'apps/web-next/components/knowledge/KnowledgeDialogs.tsx',
+    ));
+    const knowledgeUi = `${knowledgeView}\n${knowledgeDialogs}`;
 
     assert.match(schema, /CREATE TABLE IF NOT EXISTS knowledge_documents/);
     assert.match(migrations, /version: 22/);
@@ -1182,9 +1187,9 @@ test('API 静态契约：Knowledge V5 独立工厂资料进入检索与来源追
     assert.match(chat, /parserStatus=metadata_only/);
     assert.match(knowledgeLib, /uploadKnowledgeDocument/);
     assert.match(knowledgeLib, /deleteKnowledgeDocument/);
-    assert.match(knowledgeView, /导入工厂资料/);
-    assert.match(knowledgeView, /下载原文件/);
-    assert.match(knowledgeView, /删除资料/);
+    assert.match(knowledgeUi, /导入工厂资料/);
+    assert.match(knowledgeUi, /下载原文件/);
+    assert.match(knowledgeUi, /删除资料/);
 });
 
 test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业务来源', () => {

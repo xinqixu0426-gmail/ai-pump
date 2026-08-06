@@ -411,6 +411,8 @@ test('Next UI 契约：知识库管理中心融合进看板并保持同步确认
     const dashboardView = readUtf8('apps/web-next/components/dashboard-view.tsx');
     const dashboardPage = readUtf8('apps/web-next/app/dashboard/page.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const knowledgeDialogs = readUtf8('apps/web-next/components/knowledge/KnowledgeDialogs.tsx');
+    const knowledgeUi = `${knowledgeView}\n${knowledgeDialogs}`;
     const knowledgeLib = readUtf8('apps/web-next/lib/knowledge.ts');
     const docs = readUtf8('docs/api-reference.md') + '\n' + readUtf8('docs/README.md');
 
@@ -420,16 +422,16 @@ test('Next UI 契约：知识库管理中心融合进看板并保持同步确认
     assert.match(dashboardPage, /params\.entry/);
     assert.match(knowledgeView, /知识条目/);
     assert.match(knowledgeView, /待同步/);
-    assert.match(knowledgeView, /当前已同步内容/);
-    assert.match(knowledgeView, /查看业务来源/);
+    assert.match(knowledgeUi, /当前已同步内容/);
+    assert.match(knowledgeUi, /查看业务来源/);
     assert.match(knowledgeView, /确认同步/);
     assert.match(knowledgeView, /同步记录/);
     assert.match(knowledgeView, /失败和重试可追溯/);
     assert.match(knowledgeView, /syncHealth\.status !== 'healthy'/);
     assert.match(knowledgeView, /检查并恢复/);
     assert.match(knowledgeView, /导入工厂资料/);
-    assert.match(knowledgeView, /下载原文件/);
-    assert.match(knowledgeView, /删除资料/);
+    assert.match(knowledgeUi, /下载原文件/);
+    assert.match(knowledgeUi, /删除资料/);
     assert.match(knowledgeLib, /\/api\/knowledge\/overview/);
     assert.match(knowledgeLib, /\/api\/knowledge\/documents/);
     assert.match(knowledgeLib, /\/api\/knowledge\/sync-runs/);
@@ -913,6 +915,29 @@ test('Next UI 契约：P2 特殊业务确认流程使用统一确认弹层', () 
     assert.match(rotorView, /发送图纸到默认打印机？/);
 });
 
+test('Next UI 契约：P3 删除重复 AI 外壳并拆分知识库大型弹层', () => {
+    const aiText = readUtf8('apps/web-next/components/ai/ai-text.tsx');
+    const aiMessageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const knowledgeDialogs = readUtf8('apps/web-next/components/knowledge/KnowledgeDialogs.tsx');
+    const knowledgeModel = readUtf8('apps/web-next/components/knowledge/knowledge-view-model.ts');
+    const componentGuide = readUtf8('docs/ui-component-guide.md');
+
+    assert.match(aiText, /export function MarkdownContent/);
+    assert.match(aiText, /export function StreamingText/);
+    assert.match(aiMessageList, /from '@\/components\/ai\/ai-text'/);
+    assert.ok(!fs.existsSync(path.join(repoRoot, 'apps/web-next/components/prompt-kit/basic-chat.tsx')));
+    assert.doesNotMatch(knowledgeView, /components\/prompt-kit/);
+    assert.match(knowledgeView, /<KnowledgeDialogs/);
+    assert.match(knowledgeView, /knowledge-view-model/);
+    assert.match(knowledgeDialogs, /feedback-diagnosis-title/);
+    assert.match(knowledgeDialogs, /knowledge-detail-title/);
+    assert.match(knowledgeModel, /export const STATUS_META/);
+    assert.doesNotMatch(knowledgeView, /feedback-diagnosis-title|knowledge-detail-title/);
+    assert.match(componentGuide, /AI 组件边界/);
+    assert.match(componentGuide, /业务页面不得手写 `fixed inset-0` 遮罩/);
+});
+
 test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {
     const dashboardOverview = readUtf8('apps/web-next/components/order-readiness-overview.tsx');
     const ordersPage = readUtf8('apps/web-next/app/orders/page.tsx');
@@ -939,6 +964,8 @@ test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => 
     const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
     const dialogs = readUtf8('apps/web-next/components/ai/AiWorkspaceDialogs.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const knowledgeDialogs = readUtf8('apps/web-next/components/knowledge/KnowledgeDialogs.tsx');
+    const knowledgeUi = `${knowledgeView}\n${knowledgeDialogs}`;
     const aiLib = readUtf8('apps/web-next/lib/ai.ts');
 
     assert.match(messageList, /这条回答是否可靠/);
@@ -955,10 +982,10 @@ test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => 
     assert.match(dialogs, /让 AI 长期记住这条正确做法/);
     assert.match(knowledgeView, /AI 长期学习规则/);
     assert.match(knowledgeView, /toggleLearningRule/);
-    assert.match(knowledgeView, /回答诊断与复测/);
-    assert.match(knowledgeView, /重新验证/);
-    assert.match(knowledgeView, /原回答/);
-    assert.match(knowledgeView, /复测回答/);
+    assert.match(knowledgeUi, /回答诊断与复测/);
+    assert.match(knowledgeUi, /重新验证/);
+    assert.match(knowledgeUi, /原回答/);
+    assert.match(knowledgeUi, /复测回答/);
     assert.match(knowledgeView, /streamAiChat/);
     assert.match(aiLib, /diagnoseAiAnswerFeedback/);
     assert.match(aiLib, /recordAiAnswerFeedbackRetest/);
@@ -2077,6 +2104,8 @@ test('Next UI 契约：P0 工作区响应式、长列表分页和辅助历史抽
     const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
     const customersView = readUtf8('apps/web-next/components/customers-view.tsx');
     const knowledgeView = readUtf8('apps/web-next/components/knowledge-view.tsx');
+    const knowledgeDialogs = readUtf8('apps/web-next/components/knowledge/KnowledgeDialogs.tsx');
+    const knowledgeModel = readUtf8('apps/web-next/components/knowledge/knowledge-view-model.ts');
     const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
     const analysisPanel = readUtf8('apps/web-next/components/recipe/RecipeAnalysisPanel.tsx');
     const dialog = readUtf8('apps/web-next/components/ui/dialog.tsx');
@@ -2086,7 +2115,7 @@ test('Next UI 契约：P0 工作区响应式、长列表分页和辅助历史抽
     assert.match(quotationsView, /min-w-\[920px\]/);
     assert.match(customersView, /min-\[1440px\]:grid-cols-\[360px_minmax\(0,1fr\)\]/);
     assert.match(customersView, /md:hidden/);
-    assert.match(knowledgeView, /const KNOWLEDGE_PAGE_SIZE = 30/);
+    assert.match(knowledgeModel, /const KNOWLEDGE_PAGE_SIZE = 30/);
     assert.match(knowledgeView, /KNOWLEDGE_WORKSPACES/);
     assert.match(knowledgeView, /pagedDisplayItems\.map/);
     assert.match(knowledgeView, /第 \{safeEntryPage\}\/\{entryPageCount\} 页/);
@@ -2094,8 +2123,8 @@ test('Next UI 契约：P0 工作区响应式、长列表分页和辅助历史抽
     assert.match(rotorView, /ariaLabel="出图历史"/);
     assert.match(rotorView, /<Drawer/);
     assert.match(rotorView, /<Dialog/);
-    assert.match(knowledgeView, /import \{ Dialog, Drawer \}/);
-    assert.match(knowledgeView, /<Drawer/);
+    assert.match(knowledgeDialogs, /import \{ Dialog, Drawer \}/);
+    assert.match(knowledgeDialogs, /<Drawer/);
     assert.match(analysisPanel, /from '@\/components\/ui\/dialog'/);
     assert.doesNotMatch(knowledgeView, /fixed inset-0/);
     assert.doesNotMatch(rotorView, /fixed inset-0/);
