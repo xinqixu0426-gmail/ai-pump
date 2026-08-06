@@ -344,7 +344,8 @@ test('Next UI 契约：详情编辑面板必须居中显示，不使用右侧抽
 
     assert.match(slideOver, /items-center justify-center/);
     assert.match(slideOver, /lg:left-56/);
-    assert.match(slideOver, /min-\[1600px\]:right-\[356px\]/);
+    assert.match(slideOver, /min-\[1600px\]:right-\[516px\]/);
+    assert.match(slideOver, /min-\[1920px\]:right-\[576px\]/);
     assert.match(slideOver, /max-h-\[calc\(100vh-2rem\)\]/);
     assert.match(slideOver, /rounded-panel/);
     assert.doesNotMatch(slideOver, /right-0/);
@@ -692,7 +693,8 @@ test('Next UI 契约：管理看板释放主区宽度并提供可追溯下钻', 
     const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
 
     assert.match(shell, /window\.matchMedia\('\(min-width: 1600px\)'\)/);
-    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_340px\]/);
+    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_500px\]/);
+    assert.match(shell, /min-\[1920px\]:grid-cols-\[minmax\(0,1fr\)_560px\]/);
     assert.match(shell, /aiPanelOpen \? '收起 AI' : '问 AI'/);
     assert.match(aiView, /aria-label="关闭 AI 助手"/);
     assert.match(dashboard, /累计销售额/);
@@ -889,7 +891,8 @@ test('Next UI 契约：业务页面使用自适应三栏工作台并提供可复
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
 
     assert.match(shell, /aria-label="主导航"/);
-    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_340px\]/);
+    assert.match(shell, /min-\[1600px\]:grid-cols-\[minmax\(0,1fr\)_500px\]/);
+    assert.match(shell, /min-\[1920px\]:grid-cols-\[minmax\(0,1fr\)_560px\]/);
     assert.match(shell, /setAiPanelOpen\(media\.matches && !isAiWorkspace\)/);
     assert.match(shell, /aria-label="展开业务 AI 助手"/);
     assert.match(shell, /fixed bottom-\[max\(1\.25rem,env\(safe-area-inset-bottom\)\)\] right-5 z-\[90\]/);
@@ -1556,7 +1559,8 @@ test('Next UI 契约：配方页必须压缩成本信息并给工作台足够空
     assert.match(recipesView, /button\[aria-expanded\]/);
     assert.match(recipesView, /requestAnimationFrame/);
     assert.match(slideOver, /lg:left-56/);
-    assert.match(slideOver, /min-\[1600px\]:right-\[356px\]/);
+    assert.match(slideOver, /min-\[1600px\]:right-\[516px\]/);
+    assert.match(slideOver, /min-\[1920px\]:right-\[576px\]/);
     assert.doesNotMatch(slideOver, /\sp-4 xl:right-\[500px\]/);
     assert.match(slideOver, /aria-modal="true"/);
 });

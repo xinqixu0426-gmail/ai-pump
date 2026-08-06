@@ -270,7 +270,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {isFullWorkspace ? (
             <div className={`mx-auto w-full ${isAiWorkspace ? 'max-w-[1720px]' : 'max-w-[1480px]'}`}>{children}</div>
           ) : (
-            <div className="mx-auto grid w-full max-w-[1920px] min-w-0 gap-4 min-[1600px]:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="mx-auto grid w-full max-w-[1920px] min-w-0 gap-4 min-[1600px]:grid-cols-[minmax(0,1fr)_500px] min-[1920px]:grid-cols-[minmax(0,1fr)_560px]">
               <div className="min-w-0">{children}</div>
               <div className="sticky top-5 hidden h-[calc(100dvh-40px)] min-[1600px]:block">
                 <aside className="h-full min-w-0" aria-label="业务 AI 助手">
