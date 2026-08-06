@@ -8,6 +8,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
@@ -228,9 +229,13 @@ export function QuotationsView() {
   const overridePreviewSeqRef = useRef(new Map<string, number>());
   const {
     dirty: formDirty,
+    discardPromptOpen,
+    discardMessage,
     markDirty: markFormDirty,
     resetDirty: resetFormDirty,
     requestClose: requestDrawerClose,
+    confirmDiscard,
+    cancelDiscard,
   } = useConfirmDiscard({
     open: drawerOpen,
     busy: Boolean(savingId),
@@ -1472,6 +1477,19 @@ export function QuotationsView() {
           </div>
         </form>
       </SlideOver>
+
+      <ConfirmDialog
+        open={discardPromptOpen}
+        title="放弃未保存修改？"
+        description={discardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={Boolean(savingId)}
+        onConfirm={confirmDiscard}
+        onClose={cancelDiscard}
+        layer="top"
+      />
     </div>
   );
 }

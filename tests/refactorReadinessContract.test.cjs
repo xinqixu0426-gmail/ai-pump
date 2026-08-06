@@ -813,6 +813,7 @@ test('Next UI 契约：P2 长表单保护未保存修改并固定关键操作', 
         readUtf8('apps/web-next/components/orders-view.tsx'),
         readUtf8('apps/web-next/components/quotations-view.tsx'),
         readUtf8('apps/web-next/components/customers-view.tsx'),
+        readUtf8('apps/web-next/components/parts-view.tsx'),
     ];
 
     assert.match(slideOver, /from '@\/components\/ui\/dialog'/);
@@ -824,7 +825,9 @@ test('Next UI 契约：P2 长表单保护未保存修改并固定关键操作', 
     assert.match(dialog, /aria-labelledby=\{ariaLabelledBy\}/);
     assert.match(dialog, /previousFocus\?\.focus/);
     assert.match(confirmDiscard, /beforeunload/);
-    assert.match(confirmDiscard, /window\.confirm\(message\)/);
+    assert.match(confirmDiscard, /discardPromptOpen/);
+    assert.match(confirmDiscard, /confirmDiscard/);
+    assert.doesNotMatch(confirmDiscard, /window\.confirm/);
     assert.match(formError, /role="alert"/);
     assert.match(formError, /scrollIntoView/);
     assert.match(formError, /focus\(\{ preventScroll: true \}\)/);
@@ -835,8 +838,25 @@ test('Next UI 契约：P2 长表单保护未保存修改并固定关键操作', 
         assert.match(view, /sticky top-0/);
         assert.match(view, /sticky bottom-0/);
         assert.match(view, /有未保存修改/);
+        assert.match(view, /<ConfirmDialog/);
     }
     assert.match(formViews[0], /markFormDirty\(\);[\s\S]*setDraftItems\(\(current\) => current\.filter/);
+});
+
+test('Next UI 契约：P1 高频 CRUD 使用统一字段与确认弹层', () => {
+    const partsView = readUtf8('apps/web-next/components/parts-view.tsx');
+    const customersView = readUtf8('apps/web-next/components/customers-view.tsx');
+
+    for (const view of [partsView, customersView]) {
+        assert.doesNotMatch(view, /window\.confirm/);
+        assert.match(view, /<ConfirmDialog/);
+        assert.match(view, /<Field/);
+        assert.match(view, /<Input/);
+        assert.match(view, /<FormError message=\{formError\}/);
+    }
+    assert.match(partsView, /kind: 'duplicate'/);
+    assert.match(partsView, /kind: 'delete-selected'/);
+    assert.match(customersView, /title="删除客户？"/);
 });
 
 test('Next UI 契约：订单准备总览可精确进入指定订单处理工作台', () => {

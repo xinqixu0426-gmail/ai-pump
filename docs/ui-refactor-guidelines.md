@@ -56,6 +56,7 @@
 - motion-primitives 风格组件放在 `apps/web-next/components/motion/`，以源码组件方式沉淀，不把动效逻辑散落到页面里。
 - Next 前端的按钮、链接、导航项必须优先复用 `apps/web-next/components/ui/` 下的基础组件，避免每个页面手写 hover 和跳转行为。
 - 弹层统一使用 `Dialog`、`ConfirmDialog`、`Drawer`；由基础组件负责 Portal、焦点陷阱、Escape、焦点恢复、滚动锁定和层级。页面不得再次手写 `fixed inset-0` 遮罩。
+- 删除、覆盖、重复创建和放弃未保存修改必须使用 `ConfirmDialog`，不得调用浏览器原生 `window.confirm()`；确认文案要明确对象、后果和不可撤销性。
 - 表单字段优先使用 `Field`、`Input`、`Select`、`Textarea`，统一高度、焦点、禁用和错误状态。
 - 工具容器优先使用 `Panel`、`PanelHeader`、`PanelBody`；状态反馈优先使用 `InlineNotice`、`FormError`，避免复制整段边框和颜色类。
 - 普通业务弹层使用基础层级；AI 助手覆盖层位于业务弹层之上，AI 内部弹层再位于助手之上。

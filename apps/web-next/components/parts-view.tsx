@@ -52,11 +52,20 @@ import { money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
+import { Field, Input, Select, Textarea } from '@/components/ui/field';
+import { FormError } from '@/components/ui/form-error';
 import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 
 export type QuickFilter = 'all' | 'attention' | PartStockStatus | 'noSupplier' | 'noPrice';
+
+type PendingPartAction =
+  | { kind: 'duplicate'; continueEntry: boolean; model: string }
+  | { kind: 'delete'; part: Part }
+  | { kind: 'delete-selected'; count: number };
 
 const quickFilters: Array<{ value: QuickFilter; label: string }> = [
   { value: 'all', label: '全部状态' },
@@ -258,10 +267,25 @@ export function PartsView({
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingPartAction | null>(null);
   const [form, setForm] = useState<PartFormState>(emptyForm);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const collapseInitializedRef = useRef(false);
+  const {
+    dirty: formDirty,
+    discardPromptOpen,
+    discardMessage,
+    markDirty: markFormDirty,
+    resetDirty: resetFormDirty,
+    requestClose: requestDrawerClose,
+    confirmDiscard,
+    cancelDiscard,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: saving,
+    onDiscard: () => setDrawerOpen(false),
+  });
 
   async function load(force = false) {
     setError(null);
@@ -417,6 +441,7 @@ export function PartsView({
   }
 
   function openCreateDrawer() {
+    resetFormDirty();
     setEditingPart(null);
     setForm(emptyForm);
     setFormError(null);
@@ -424,6 +449,7 @@ export function PartsView({
   }
 
   function openEditDrawer(part: Part) {
+    resetFormDirty();
     setEditingPart(part);
     setForm(formFromPart(part));
     setFormError(null);
@@ -455,6 +481,41 @@ export function PartsView({
       screwDiameter: form.screwDiameter,
     });
     return structured ? JSON.stringify(structured) : form.rawNotes.trim();
+  }
+
+  async function persistPart(continueEntry: boolean, finalModel: string) {
+    setSaving(true);
+    setFormError(null);
+    setError(null);
+
+    try {
+      if (isCableMode) {
+        await setSettingValue('cable_accessories', buildCableAccessorySettingsValue({
+          standardCableAccessoryName: form.standardCableAccessoryName,
+          standardCableAccessoryFee: form.standardCableAccessoryFee,
+          xinjieCableAccessoryName: form.xinjieCableAccessoryName,
+          xinjieCableAccessoryFee: form.xinjieCableAccessoryFee,
+        }));
+      }
+
+      if (isFloatMode) {
+        await setSettingValue('float_accessory_delta', String(parseFloatAccessoryDelta(form.floatAccessoryDelta)));
+      }
+
+      const input = formToInput(form, finalModel, buildNotesPayload());
+      await (editingPart ? updatePart(editingPart, input) : createPart(input));
+      await load(true);
+      resetFormDirty();
+      if (continueEntry) {
+        setForm(resetAfterContinue(form));
+      } else {
+        setDrawerOpen(false);
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '零件保存失败');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function submitPart(event: FormEvent<HTMLFormElement>) {
@@ -493,43 +554,14 @@ export function PartsView({
       part.category.trim() === form.category.trim() &&
       (part.subcategory || '').trim() === (form.category === '包装' ? form.subcategory.trim() : '')
     ));
-    if (duplicated && !window.confirm(`已存在同分类零件「${finalModel}」，仍然继续创建？`)) return;
-
-    setSaving(true);
-    setFormError(null);
-    setError(null);
-
-    try {
-      if (isCableMode) {
-        await setSettingValue('cable_accessories', buildCableAccessorySettingsValue({
-          standardCableAccessoryName: form.standardCableAccessoryName,
-          standardCableAccessoryFee: form.standardCableAccessoryFee,
-          xinjieCableAccessoryName: form.xinjieCableAccessoryName,
-          xinjieCableAccessoryFee: form.xinjieCableAccessoryFee,
-        }));
-      }
-
-      if (isFloatMode) {
-        await setSettingValue('float_accessory_delta', String(parseFloatAccessoryDelta(form.floatAccessoryDelta)));
-      }
-
-      const input = formToInput(form, finalModel, buildNotesPayload());
-      await (editingPart ? updatePart(editingPart, input) : createPart(input));
-      await load(true);
-      if (continueEntry) {
-        setForm(resetAfterContinue(form));
-      } else {
-        setDrawerOpen(false);
-      }
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : '零件保存失败');
-    } finally {
-      setSaving(false);
+    if (duplicated) {
+      setPendingAction({ kind: 'duplicate', continueEntry, model: finalModel });
+      return;
     }
+    await persistPart(continueEntry, finalModel);
   }
 
-  async function removePart(part: Part) {
-    if (!window.confirm(`确定删除零件「${part.model || part.id}」？`)) return;
+  async function deleteSinglePart(part: Part) {
 
     setSaving(true);
     setError(null);
@@ -589,10 +621,7 @@ export function PartsView({
     URL.revokeObjectURL(url);
   }
 
-  async function removeSelectedParts() {
-    if (selectedIds.length === 0) return;
-    if (!window.confirm(`确定删除选中的 ${selectedIds.length} 个零件？此操作不可撤销。`)) return;
-
+  async function deleteSelectedParts() {
     setSaving(true);
     setError(null);
 
@@ -605,6 +634,21 @@ export function PartsView({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action.kind === 'duplicate') {
+      await persistPart(action.continueEntry, action.model);
+      return;
+    }
+    if (action.kind === 'delete') {
+      await deleteSinglePart(action.part);
+      return;
+    }
+    await deleteSelectedParts();
   }
 
   return (
@@ -667,7 +711,7 @@ export function PartsView({
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center">
             <div className="flex items-center gap-2">
               <SlidersHorizontal size={16} className="text-muted" />
               <select
@@ -681,12 +725,14 @@ export function PartsView({
                 ))}
               </select>
             </div>
-            <SegmentedControl
-              value={quickFilter}
-              options={quickFilters}
-              onChange={setQuickFilter}
-              ariaLabel="库存快速筛选"
-            />
+            <div className="max-w-full overflow-x-auto pb-1 lg:pb-0">
+              <SegmentedControl
+                value={quickFilter}
+                options={quickFilters}
+                onChange={setQuickFilter}
+                ariaLabel="库存快速筛选"
+              />
+            </div>
             <div className="flex items-center justify-between gap-1">
               <span className="mr-1 whitespace-nowrap text-xs text-muted">
                 {hasActiveFilters ? `${filteredParts.length} / ${parts.length} 项` : `共 ${parts.length} 项`}
@@ -819,7 +865,7 @@ export function PartsView({
                                 <td className="border-b border-line px-4 py-2.5">
                                   <div className="flex justify-end gap-1 text-muted opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                                     <Button size="sm" variant="ghost" className="w-8 px-0" onClick={() => openEditDrawer(part)} disabled={saving} icon={<Pencil size={14} />} aria-label={`编辑 ${part.model || part.id}`} title="编辑" />
-                                    <Button size="sm" variant="ghost" className="w-8 px-0 hover:bg-rose-50 hover:text-rose-700" onClick={() => void removePart(part)} disabled={saving} icon={<Trash2 size={14} />} aria-label={`删除 ${part.model || part.id}`} title="删除" />
+                                    <Button size="sm" variant="ghost" className="w-8 px-0 hover:bg-rose-50 hover:text-rose-700" onClick={() => setPendingAction({ kind: 'delete', part })} disabled={saving} icon={<Trash2 size={14} />} aria-label={`删除 ${part.model || part.id}`} title="删除" />
                                   </div>
                                 </td>
                               </tr>
@@ -843,7 +889,7 @@ export function PartsView({
           <Button size="sm" variant="ghost" onClick={exportSelectedCsv} icon={<Download size={14} />} className="text-white hover:bg-white/10 hover:text-white">
             导出 CSV
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => void removeSelectedParts()} disabled={saving} icon={<Trash2 size={14} />} className="text-rose-200 hover:bg-rose-500/20 hover:text-rose-100">
+          <Button size="sm" variant="ghost" onClick={() => setPendingAction({ kind: 'delete-selected', count: selectedIds.length })} disabled={saving} icon={<Trash2 size={14} />} className="text-rose-200 hover:bg-rose-500/20 hover:text-rose-100">
             删除
           </Button>
           <button
@@ -857,12 +903,12 @@ export function PartsView({
         </div>
       ) : null}
 
-      <SlideOver open={drawerOpen} onClose={() => !saving && setDrawerOpen(false)}>
-        <form onSubmit={submitPart} className="flex min-h-full flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+      <SlideOver open={drawerOpen} onClose={requestDrawerClose} ariaLabelledBy="part-form-title">
+        <form onSubmit={submitPart} onChange={markFormDirty} className="flex min-h-full flex-col">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Part</div>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
+              <h2 id="part-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">
                 {editingPart ? '编辑零件' : '新建零件'}
               </h2>
               <div className="mt-1 text-sm text-muted">按分类录入结构化字段，最终型号：{modelPreview || '-'}</div>
@@ -871,7 +917,7 @@ export function PartsView({
               type="button"
               aria-label="关闭"
               disabled={saving}
-              onClick={() => setDrawerOpen(false)}
+              onClick={requestDrawerClose}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               <X size={16} />
@@ -879,17 +925,11 @@ export function PartsView({
           </div>
 
           <div className="flex-1 space-y-5 p-5">
-            {formError ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                <CircleAlert size={16} />
-                {formError}
-              </div>
-            ) : null}
+            <FormError message={formError} />
 
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-ink">分类</span>
-                <select
+              <Field label="分类" required>
+                <Select
                   value={form.category}
                   onChange={(event) => {
                     const nextCategory = event.target.value;
@@ -901,37 +941,34 @@ export function PartsView({
                         : '',
                     }));
                   }}
-                  className={textInputClass()}
                 >
                   {categoryOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
 
               {isPackagingMode ? (
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">包装二级分类</span>
-                  <select
+                <Field
+                  label="包装二级分类"
+                  hint="外包装：牛皮纸箱、彩印箱、木箱；内衬：泡沫、珍珠棉。"
+                >
+                  <Select
                     value={form.subcategory || PACKAGING_SUBCATEGORIES[0]}
                     onChange={(event) => setForm((current) => ({ ...current, subcategory: event.target.value }))}
-                    className={textInputClass()}
                   >
                     {PACKAGING_SUBCATEGORIES.map((item) => (
                       <option key={item} value={item}>{item}</option>
                     ))}
-                  </select>
-                  {smallHelp('外包装：牛皮纸箱、彩印箱、木箱；内衬：泡沫、珍珠棉。')}
-                </label>
+                  </Select>
+                </Field>
               ) : null}
 
-              <label className="block">
-                <span className="text-sm font-medium text-ink">供应商</span>
-                <input
+              <Field label="供应商">
+                <Input
                   value={form.supplier}
                   onChange={(event) => setForm((current) => ({ ...current, supplier: event.target.value }))}
                   list="part-supplier-options"
-                  className={textInputClass()}
                   placeholder="供应商名称"
                 />
                 <datalist id="part-supplier-options">
@@ -939,7 +976,7 @@ export function PartsView({
                     <option key={item} value={item} />
                   ))}
                 </datalist>
-              </label>
+              </Field>
             </div>
 
             {isCapacitorMode ? (
@@ -980,41 +1017,36 @@ export function PartsView({
                 {smallHelp(`保存型号会自动生成：${modelPreview || `${wirePrefix}线径`}`)}
               </label>
             ) : (
-              <label className="block">
-                <span className="text-sm font-medium text-ink">型号</span>
-                <input
+              <Field label="型号" required>
+                <Input
                   value={form.model}
                   onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))}
-                  className={textInputClass()}
                   placeholder="例如：6204 轴承"
+                  autoFocus
                 />
-              </label>
+              </Field>
             )}
 
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-ink">单价</span>
-                <input
+              <Field label="单价" required>
+                <Input
                   value={form.price}
                   onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
                   type="number"
                   min="0"
                   step="0.001"
-                  className={textInputClass()}
                 />
-              </label>
+              </Field>
 
-              <label className="block">
-                <span className="text-sm font-medium text-ink">库存</span>
-                <input
+              <Field label="库存">
+                <Input
                   value={form.stock}
                   onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))}
                   type="number"
                   min="0"
                   step="1"
-                  className={textInputClass()}
                 />
-              </label>
+              </Field>
             </div>
 
             {isCableMode ? (
@@ -1145,34 +1177,73 @@ export function PartsView({
             ) : null}
 
             {!isCableMode && !isScrewMode && !isPumpShellMode ? (
-              <label className="block">
-                <span className="text-sm font-medium text-ink">备注</span>
-                <textarea
+              <Field label="备注">
+                <Textarea
                   value={form.rawNotes}
                   onChange={(event) => setForm((current) => ({ ...current, rawNotes: event.target.value }))}
                   rows={4}
-                  className="mt-2 w-full resize-none rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  className="resize-none"
                   placeholder="供应说明或临时备注"
                 />
-              </label>
+              </Field>
             ) : null}
           </div>
 
-          <div className="flex flex-wrap justify-end gap-2 border-t border-line p-5">
-            <Button type="button" variant="ghost" onClick={() => setDrawerOpen(false)} disabled={saving}>
-              取消
-            </Button>
-            {!editingPart ? (
-              <Button type="submit" name="continueEntry" variant="ghost" disabled={saving} icon={<Save size={15} />}>
-                {saving ? '保存中' : '保存并继续'}
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-white p-4 sm:p-5">
+            <div className="text-xs text-muted" aria-live="polite">{formDirty ? '有未保存修改' : '尚未修改'}</div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={saving}>
+                取消
               </Button>
-            ) : null}
-            <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
-              {saving ? '保存中' : '保存'}
-            </Button>
+              {!editingPart ? (
+                <Button type="submit" name="continueEntry" variant="ghost" disabled={saving} icon={<Save size={15} />}>
+                  {saving ? '保存中' : '保存并继续'}
+                </Button>
+              ) : null}
+              <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
+                {saving ? '保存中' : '保存'}
+              </Button>
+            </div>
           </div>
         </form>
       </SlideOver>
+
+      <ConfirmDialog
+        open={discardPromptOpen}
+        title="放弃未保存修改？"
+        description={discardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={confirmDiscard}
+        onClose={cancelDiscard}
+        layer="top"
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title={pendingAction?.kind === 'duplicate'
+          ? '创建重复零件？'
+          : pendingAction?.kind === 'delete-selected'
+            ? `删除 ${pendingAction.count} 个零件？`
+            : '删除零件？'}
+        description={pendingAction?.kind === 'duplicate'
+          ? `同一分类中已经存在零件“${pendingAction.model}”。继续创建可能导致报价和库存选择时难以区分。`
+          : pendingAction?.kind === 'delete-selected'
+            ? '选中的零件将被永久删除，此操作无法撤销。'
+            : pendingAction?.kind === 'delete'
+              ? `零件“${pendingAction.part.model || pendingAction.part.id}”将被永久删除，此操作无法撤销。`
+              : ''}
+        confirmLabel={pendingAction?.kind === 'duplicate' ? '仍然创建' : '确认删除'}
+        confirmVariant={pendingAction?.kind === 'duplicate' ? 'primary' : 'danger'}
+        busy={saving}
+        onConfirm={() => void confirmPendingAction()}
+        onClose={() => {
+          if (!saving) setPendingAction(null);
+        }}
+        layer={pendingAction?.kind === 'duplicate' ? 'top' : 'base'}
+      />
     </div>
   );
 }

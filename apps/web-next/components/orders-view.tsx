@@ -22,6 +22,7 @@ import { PresenceRow } from '@/components/motion/presence-row';
 import { OrderDetailDrawer } from '@/components/order-detail-drawer';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -86,9 +87,13 @@ export function OrdersView({
   const initialOrderHandledRef = useRef<number | null>(null);
   const {
     dirty: formDirty,
+    discardPromptOpen,
+    discardMessage,
     markDirty: markFormDirty,
     resetDirty: resetFormDirty,
     requestClose: requestDrawerClose,
+    confirmDiscard,
+    cancelDiscard,
   } = useConfirmDiscard({
     open: drawerOpen,
     busy: saving,
@@ -620,6 +625,19 @@ export function OrdersView({
           </div>
         </form>
       </SlideOver>
+
+      <ConfirmDialog
+        open={discardPromptOpen}
+        title="放弃未保存修改？"
+        description={discardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={confirmDiscard}
+        onClose={cancelDiscard}
+        layer="top"
+      />
     </div>
   );
 }

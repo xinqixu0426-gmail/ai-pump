@@ -20,7 +20,9 @@ import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Field, Input, Textarea } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
@@ -87,12 +89,17 @@ export function CustomersView() {
   const [query, setQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [form, setForm] = useState<CustomerFormState>(emptyForm);
   const {
     dirty: formDirty,
+    discardPromptOpen,
+    discardMessage,
     markDirty: markFormDirty,
     resetDirty: resetFormDirty,
     requestClose: requestDrawerClose,
+    confirmDiscard,
+    cancelDiscard,
   } = useConfirmDiscard({
     open: drawerOpen,
     busy: saving,
@@ -192,19 +199,15 @@ export function CustomersView() {
     }
   }
 
-  async function removeCustomer(customer: Customer) {
-    const quoteCount = quotationCounts.get(customer.id) || 0;
-    const message = quoteCount > 0
-      ? `该客户已有 ${quoteCount} 张报价，删除后报价历史仍会保留客户 ID。确定删除？`
-      : '确定删除该客户？';
-    if (!window.confirm(message)) return;
-
+  async function confirmRemoveCustomer() {
+    if (!deleteTarget) return;
     setSaving(true);
     setError(null);
 
     try {
-      await deleteCustomer(customer);
+      await deleteCustomer(deleteTarget);
       await load(true);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '客户删除失败');
     } finally {
@@ -346,7 +349,7 @@ export function CustomersView() {
                 <Button size="sm" variant="ghost" onClick={() => openEditDrawer(selectedCustomer)} disabled={saving} icon={<Pencil size={14} />}>
                   编辑
                 </Button>
-                <Button size="sm" variant="danger" onClick={() => void removeCustomer(selectedCustomer)} disabled={saving} icon={<Trash2 size={14} />}>
+                <Button size="sm" variant="danger" onClick={() => setDeleteTarget(selectedCustomer)} disabled={saving} icon={<Trash2 size={14} />}>
                   删除
                 </Button>
               </div>
@@ -456,51 +459,46 @@ export function CustomersView() {
           <div className="flex-1 space-y-4 p-5">
             <FormError message={formError} />
 
-            <label className="block">
-              <span className="text-sm font-medium text-ink">客户名称</span>
-              <input
+            <Field label="客户名称" required>
+              <Input
                 value={form.name}
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 placeholder="例如：上海某某泵业"
+                autoFocus
               />
-            </label>
+            </Field>
 
-            <label className="block">
-              <span className="text-sm font-medium text-ink">联系方式</span>
-              <input
+            <Field label="联系方式" hint="可填写联系人、电话或微信，方便报价和订单跟进。">
+              <Input
                 value={form.contactInfo}
                 onChange={(event) => setForm((current) => ({ ...current, contactInfo: event.target.value }))}
-                className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 placeholder="电话、微信或联系人"
               />
-            </label>
+            </Field>
 
-            <label className="block">
-              <span className="text-sm font-medium text-ink">默认加价率</span>
-              <div className="mt-2 flex h-10 items-center rounded-md border border-line px-3 focus-within:border-slate-400">
-                <input
+            <Field label="默认加价率" hint="新建报价时自动带入，仍可在具体报价中调整。">
+              <div className="flex h-10 items-center rounded-md border border-line bg-white px-3 focus-within:border-slate-500 focus-within:ring-2 focus-within:ring-slate-200">
+                <Input
                   value={form.defaultMarginPercent}
                   onChange={(event) => setForm((current) => ({ ...current, defaultMarginPercent: event.target.value }))}
                   type="number"
                   min="0"
                   step="1"
-                  className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none"
+                  className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 focus:border-0 focus:ring-0"
                 />
                 <span className="text-sm text-muted">%</span>
               </div>
-            </label>
+            </Field>
 
-            <label className="block">
-              <span className="text-sm font-medium text-ink">备注</span>
-              <textarea
+            <Field label="备注">
+              <Textarea
                 value={form.remark}
                 onChange={(event) => setForm((current) => ({ ...current, remark: event.target.value }))}
                 rows={5}
-                className="mt-2 w-full resize-none rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                className="resize-none"
                 placeholder="客户偏好、付款习惯或交付注意事项"
               />
-            </label>
+            </Field>
           </div>
 
           <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-white p-4 sm:p-5">
@@ -516,6 +514,33 @@ export function CustomersView() {
           </div>
         </form>
       </SlideOver>
+
+      <ConfirmDialog
+        open={discardPromptOpen}
+        title="放弃未保存修改？"
+        description={discardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        onConfirm={confirmDiscard}
+        onClose={cancelDiscard}
+        layer="top"
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="删除客户？"
+        description={deleteTarget && (quotationCounts.get(deleteTarget.id) || 0) > 0
+          ? `该客户已有 ${quotationCounts.get(deleteTarget.id)} 张报价。删除客户后，历史报价仍会保留原客户 ID。`
+          : '客户删除后无法恢复，确认继续吗？'}
+        confirmLabel="删除客户"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={() => void confirmRemoveCustomer()}
+        onClose={() => {
+          if (!saving) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

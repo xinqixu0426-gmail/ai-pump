@@ -16,9 +16,13 @@ export function useConfirmDiscard({
   message = '当前表单有尚未保存的修改，确定放弃吗？',
 }: ConfirmDiscardOptions) {
   const [dirty, setDirty] = useState(false);
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
 
   useEffect(() => {
-    if (!open) setDirty(false);
+    if (!open) {
+      setDirty(false);
+      setDiscardPromptOpen(false);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -33,17 +37,31 @@ export function useConfirmDiscard({
 
   const requestClose = useCallback(() => {
     if (busy) return;
-    if (dirty && !window.confirm(message)) return;
+    if (dirty) {
+      setDiscardPromptOpen(true);
+      return;
+    }
     setDirty(false);
     onDiscard();
-  }, [busy, dirty, message, onDiscard]);
+  }, [busy, dirty, onDiscard]);
+  const confirmDiscard = useCallback(() => {
+    if (busy) return;
+    setDiscardPromptOpen(false);
+    setDirty(false);
+    onDiscard();
+  }, [busy, onDiscard]);
+  const cancelDiscard = useCallback(() => setDiscardPromptOpen(false), []);
   const markDirty = useCallback(() => setDirty(true), []);
   const resetDirty = useCallback(() => setDirty(false), []);
 
   return {
     dirty,
+    discardPromptOpen,
+    discardMessage: message,
     markDirty,
     resetDirty,
     requestClose,
+    confirmDiscard,
+    cancelDiscard,
   };
 }
