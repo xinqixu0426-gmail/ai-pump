@@ -3,12 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Bot,
-  CheckCircle2,
   CircleAlert,
   Database,
-  KeyRound,
   RefreshCw,
-  RotateCw,
   Save,
   ServerCog,
   ShieldCheck,
@@ -17,7 +14,10 @@ import {
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
+import { Checkbox, Field, Input, Select } from '@/components/ui/field';
+import { InlineNotice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
+import { Panel, PanelBody } from '@/components/ui/panel';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
@@ -42,9 +42,6 @@ const setupSections: Array<{ value: SetupSection; label: string }> = [
   { value: 'knowledge', label: '知识检索' },
   { value: 'deployment', label: '部署环境' },
 ];
-
-const inputClass = 'mt-1.5 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-200';
-const sectionClass = 'rounded-md border border-line bg-white p-4 shadow-panel md:p-5';
 
 const initialValues: RuntimeSettingsValues = {
   aiProvider: 'auto',
@@ -90,11 +87,10 @@ function ToggleRow({
         {label}
         {restart ? <StatusBadge tone="amber">重启生效</StatusBadge> : <StatusBadge tone="green">即时生效</StatusBadge>}
       </span>
-      <input
-        type="checkbox"
+      <Checkbox
+        size="md"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-5 w-5 rounded border-line accent-slate-900"
       />
     </label>
   );
@@ -233,22 +229,13 @@ export function SetupView() {
       />
 
       {error ? (
-        <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-          <CircleAlert size={17} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <InlineNotice tone="danger">{error}</InlineNotice>
       ) : null}
       {notice ? (
-        <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
-          <span>{notice}</span>
-        </div>
+        <InlineNotice tone="success">{notice}</InlineNotice>
       ) : null}
       {snapshot?.restartRequired ? (
-        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <RotateCw size={17} className="mt-0.5 shrink-0" />
-          <span>已保存的知识检索设置与当前进程不同，需要重启 API 服务。</span>
-        </div>
+        <InlineNotice tone="warning">已保存的知识检索设置与当前进程不同，需要重启 API 服务。</InlineNotice>
       ) : null}
 
       <FadePanel className="sticky top-0 z-20 flex flex-col gap-3 rounded-panel border border-line bg-white/95 p-2 shadow-panel backdrop-blur sm:flex-row sm:items-center sm:justify-between">
@@ -264,7 +251,9 @@ export function SetupView() {
 
       <div className="min-w-0">
         {section === 'ai' ? (
-        <FadePanel className={`${sectionClass} min-w-0 space-y-5`}>
+        <FadePanel className="min-w-0">
+          <Panel elevated>
+          <PanelBody className="space-y-5 md:p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sky-50 text-sky-700">
               <Bot size={18} />
@@ -288,68 +277,68 @@ export function SetupView() {
           />
 
           {activeProvider === 'auto' ? (
-            <div className="flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-800">
-              <Bot size={16} className="mt-0.5 shrink-0" />
-              <span>普通对话、PDF 文字层和 Excel 默认使用 DeepSeek；只有图片原图需要视觉理解时才自动使用 Kimi。Kimi 不可用时回退到 DeepSeek 与本地 OCR。</span>
-            </div>
+            <InlineNotice tone="info">
+              普通对话、PDF 文字层和 Excel 默认使用 DeepSeek；只有图片原图需要视觉理解时才自动使用 Kimi。Kimi 不可用时回退到 DeepSeek 与本地 OCR。
+            </InlineNotice>
           ) : null}
 
           {activeProvider !== 'kimi' ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-xs font-medium text-muted">DeepSeek 模型</span>
-                <input value={form.deepseekModel} onChange={(event) => update('deepseekModel', event.target.value)} className={inputClass} />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-muted">DeepSeek 服务地址</span>
-                <input value={form.deepseekBaseUrl} onChange={(event) => update('deepseekBaseUrl', event.target.value)} className={inputClass} />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="flex items-center justify-between gap-3 text-xs font-medium text-muted">
+              <Field label="DeepSeek 模型">
+                <Input value={form.deepseekModel} onChange={(event) => update('deepseekModel', event.target.value)} />
+              </Field>
+              <Field label="DeepSeek 服务地址">
+                <Input value={form.deepseekBaseUrl} onChange={(event) => update('deepseekBaseUrl', event.target.value)} />
+              </Field>
+              <Field
+                className="md:col-span-2"
+                label={(
+                  <span className="flex items-center justify-between gap-3">
                   <span>DeepSeek API Key</span>
                   <SecretStatus configured={Boolean(snapshot?.secrets.deepseekApiKey.configured)} source={snapshot?.secrets.deepseekApiKey.source || 'none'} />
-                </span>
-                <input
+                  </span>
+                )}
+              >
+                <Input
                   type="password"
                   autoComplete="new-password"
                   value={form.deepseekApiKey}
                   onChange={(event) => update('deepseekApiKey', event.target.value)}
                   placeholder={snapshot?.secrets.deepseekApiKey.configured ? '留空保持当前密钥' : '输入 DeepSeek API Key'}
-                  className={inputClass}
                 />
-              </label>
+              </Field>
             </div>
           ) : null}
 
           {activeProvider !== 'deepseek' ? (
             <div className={`space-y-4 ${activeProvider === 'auto' ? 'border-t border-line pt-4' : ''}`}>
-              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                <KeyRound size={16} className="mt-0.5 shrink-0" />
-                <span>{activeProvider === 'auto' ? 'Kimi 只处理图片原图。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。</span>
-              </div>
+              <InlineNotice tone="warning">
+                {activeProvider === 'auto' ? 'Kimi 只处理图片原图。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。
+              </InlineNotice>
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="block">
-                  <span className="text-xs font-medium text-muted">模型</span>
-                  <input value={form.kimiModel} onChange={(event) => update('kimiModel', event.target.value)} className={inputClass} />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-muted">服务地址</span>
-                  <input value={form.kimiBaseUrl} onChange={(event) => update('kimiBaseUrl', event.target.value)} className={inputClass} />
-                </label>
-                <label className="block md:col-span-2">
-                  <span className="flex items-center justify-between gap-3 text-xs font-medium text-muted">
+                <Field label="模型">
+                  <Input value={form.kimiModel} onChange={(event) => update('kimiModel', event.target.value)} />
+                </Field>
+                <Field label="服务地址">
+                  <Input value={form.kimiBaseUrl} onChange={(event) => update('kimiBaseUrl', event.target.value)} />
+                </Field>
+                <Field
+                  className="md:col-span-2"
+                  label={(
+                    <span className="flex items-center justify-between gap-3">
                     <span>Kimi 开放平台 API Key</span>
                     <SecretStatus configured={Boolean(snapshot?.secrets.kimiApiKey.configured)} source={snapshot?.secrets.kimiApiKey.source || 'none'} />
-                  </span>
-                  <input
+                    </span>
+                  )}
+                >
+                  <Input
                     type="password"
                     autoComplete="new-password"
                     value={form.kimiApiKey}
                     onChange={(event) => update('kimiApiKey', event.target.value)}
                     placeholder={snapshot?.secrets.kimiApiKey.configured ? '留空保持当前密钥' : '输入开放平台 API Key'}
-                    className={inputClass}
                   />
-                </label>
+                </Field>
               </div>
               <ToggleRow checked={form.aiVisionEnabled} onChange={(value) => update('aiVisionEnabled', value)} label="图片输入" />
             </div>
@@ -367,11 +356,15 @@ export function SetupView() {
               {testing ? '测试中' : '测试连接'}
             </Button>
           </div>
+          </PanelBody>
+          </Panel>
         </FadePanel>
         ) : null}
 
         {section === 'knowledge' ? (
-        <FadePanel delay={0.03} className={`${sectionClass} min-w-0`}>
+        <FadePanel delay={0.03} className="min-w-0">
+          <Panel elevated>
+          <PanelBody className="md:p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
               <Database size={18} />
@@ -389,37 +382,36 @@ export function SetupView() {
             <ToggleRow checked={form.knowledgeModelOffline} onChange={(value) => update('knowledgeModelOffline', value)} label="仅使用本地模型" restart />
           </div>
           <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-muted">Embedding 模型</span>
-              <input value={form.knowledgeEmbeddingModel} onChange={(event) => update('knowledgeEmbeddingModel', event.target.value)} className={inputClass} />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-muted">向量维度</span>
-              <input type="number" min="1" max="4096" value={form.knowledgeEmbeddingDimensions} onChange={(event) => update('knowledgeEmbeddingDimensions', Number(event.target.value))} className={inputClass} />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-muted">批量大小</span>
-              <input type="number" min="1" max="64" value={form.knowledgeVectorBatchSize} onChange={(event) => update('knowledgeVectorBatchSize', Number(event.target.value))} className={inputClass} />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-muted">计算精度</span>
-              <select value={form.knowledgeEmbeddingDtype} onChange={(event) => update('knowledgeEmbeddingDtype', event.target.value as FormState['knowledgeEmbeddingDtype'])} className={inputClass}>
+            <Field label="Embedding 模型" className="sm:col-span-2">
+              <Input value={form.knowledgeEmbeddingModel} onChange={(event) => update('knowledgeEmbeddingModel', event.target.value)} />
+            </Field>
+            <Field label="向量维度">
+              <Input type="number" min="1" max="4096" value={form.knowledgeEmbeddingDimensions} onChange={(event) => update('knowledgeEmbeddingDimensions', Number(event.target.value))} />
+            </Field>
+            <Field label="批量大小">
+              <Input type="number" min="1" max="64" value={form.knowledgeVectorBatchSize} onChange={(event) => update('knowledgeVectorBatchSize', Number(event.target.value))} />
+            </Field>
+            <Field label="计算精度">
+              <Select value={form.knowledgeEmbeddingDtype} onChange={(event) => update('knowledgeEmbeddingDtype', event.target.value as FormState['knowledgeEmbeddingDtype'])}>
                 <option value="q8">q8</option>
                 <option value="fp16">fp16</option>
                 <option value="fp32">fp32</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-muted">模型缓存目录</span>
-              <input value={form.knowledgeModelCacheDir} onChange={(event) => update('knowledgeModelCacheDir', event.target.value)} placeholder="默认用户缓存目录" className={inputClass} />
-            </label>
+              </Select>
+            </Field>
+            <Field label="模型缓存目录">
+              <Input value={form.knowledgeModelCacheDir} onChange={(event) => update('knowledgeModelCacheDir', event.target.value)} placeholder="默认用户缓存目录" />
+            </Field>
           </div>
+          </PanelBody>
+          </Panel>
         </FadePanel>
         ) : null}
       </div>
 
       {section === 'deployment' ? (
-      <FadePanel delay={0.06} className={sectionClass}>
+      <FadePanel delay={0.06}>
+        <Panel elevated>
+        <PanelBody className="md:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 text-slate-700">
@@ -445,6 +437,8 @@ export function SetupView() {
             </div>
           ))}
         </div>
+        </PanelBody>
+        </Panel>
       </FadePanel>
       ) : null}
       <ConfirmDialog

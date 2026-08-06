@@ -6,6 +6,7 @@ import { CheckCircle2, CircleAlert, Copy, Eye, GitCompare, Package, Pencil, Sear
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/field';
 import { MetricCard } from '@/components/ui/metric-card';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
@@ -266,8 +267,7 @@ export function RecipeWorkspace({
               {filteredRows.map((row) => (
                 <article key={row.recipe.id} className="space-y-3 p-4">
                   <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={compareIds.includes(row.recipe.id)}
                       onChange={() => onToggleCompare(row.recipe.id)}
                       aria-label={`选择对比${row.recipe.name || row.recipe.id}`}
@@ -335,8 +335,7 @@ export function RecipeWorkspace({
                   {filteredRows.map((row) => (
                     <PresenceRow key={row.recipe.id} className="transition-colors hover:bg-slate-50">
                       <td className="border-b border-line px-4 py-2">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={compareIds.includes(row.recipe.id)}
                           onChange={() => onToggleCompare(row.recipe.id)}
                           aria-label={`选择对比${row.recipe.name || row.recipe.id}`}

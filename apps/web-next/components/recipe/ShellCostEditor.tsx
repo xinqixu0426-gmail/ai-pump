@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Check, ChevronDown, Package, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Checkbox } from '@/components/ui/field';
 import type { ShellComponentInput, SubassemblyContentInput } from '@/lib/recipes';
 
 export type ShellComponentRow = {
@@ -401,7 +402,7 @@ export function ShellCostEditor({
                   ) : null}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
                     <label className="flex h-9 items-center gap-2 text-sm font-medium text-muted">
-                      <input type="checkbox" checked={row.included !== false} onChange={(event) => updateComponentRow(row.id, { included: event.target.checked })} />
+                      <Checkbox checked={row.included !== false} onChange={(event) => updateComponentRow(row.id, { included: event.target.checked })} />
                       计入成本
                     </label>
                     <Button

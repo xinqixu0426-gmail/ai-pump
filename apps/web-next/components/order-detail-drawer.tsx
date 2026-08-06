@@ -20,6 +20,7 @@ import { money } from '@/lib/format';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/field';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
@@ -763,8 +764,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                   <>
                     <div className="flex justify-end">
                       <label className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm text-muted">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={allTodosDone}
                           disabled={saving || todoItems.length === 0}
                           onChange={(event) => void handleSetAllTodos(event.target.checked)}
@@ -775,8 +775,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                     </div>
                     {localOrder.todos.map((todo) => (
                       <label key={todo.id} className="flex gap-3 rounded-panel border border-line p-3 text-sm">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={Boolean(todo.done)}
                           disabled={saving}
                           onChange={() => void handleToggleTodo(todo.id)}

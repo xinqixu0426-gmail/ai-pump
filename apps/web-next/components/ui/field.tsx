@@ -62,6 +62,31 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   );
 });
 
+type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> & {
+  invalid?: boolean;
+  size?: 'sm' | 'md';
+};
+
+export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
+  { invalid, size = 'sm', className, ...props },
+  ref
+) {
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      aria-invalid={invalid || undefined}
+      className={clsx(
+        'shrink-0 rounded border-line accent-slate-900 outline-none transition-colors focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50',
+        size === 'md' ? 'h-5 w-5' : 'h-4 w-4',
+        invalid && 'border-rose-400 focus:ring-rose-100',
+        className
+      )}
+      {...props}
+    />
+  );
+});
+
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   invalid?: boolean;
   compact?: boolean;

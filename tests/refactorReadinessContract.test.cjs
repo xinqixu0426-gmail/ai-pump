@@ -377,6 +377,32 @@ test('Next UI 契约：P0 表单、面板和反馈使用统一基础组件', () 
     assert.match(coils, /<InlineNotice tone="danger"/);
 });
 
+test('Next UI 契约：相同表单功能统一走共享组件并阻止已收口页面回退', () => {
+    const webRoot = path.join(repoRoot, 'apps/web-next');
+    const checkboxOffenders = walkFiles(
+        webRoot,
+        (filePath) => /\.(tsx|jsx)$/.test(filePath)
+            && relative(filePath) !== 'apps/web-next/components/ui/field.tsx'
+            && /\btype\s*=\s*["']checkbox["']/.test(fs.readFileSync(filePath, 'utf8'))
+    ).map(relative);
+    const field = readUtf8('apps/web-next/components/ui/field.tsx');
+    const setup = readUtf8('apps/web-next/components/setup-view.tsx');
+    const labor = readUtf8('apps/web-next/components/recipe/RecipeLaborCostSection.tsx');
+    const guide = readUtf8('docs/ui-component-guide.md');
+
+    assert.deepEqual(checkboxOffenders, []);
+    assert.match(field, /export const Checkbox/);
+    assert.match(setup, /import \{ Checkbox, Field, Input, Select \}/);
+    assert.match(setup, /<Panel elevated>/);
+    assert.match(setup, /<InlineNotice tone="danger"/);
+    assert.doesNotMatch(setup, /const (input|section)Class|<input|<select/);
+    assert.match(labor, /import \{ Field, Input, Select \}/);
+    assert.match(labor, /<InlineNotice tone="warning"/);
+    assert.doesNotMatch(labor, /inputClassName|<input|<select/);
+    assert.match(guide, /同一种交互只能有一个基础组件入口/);
+    assert.match(guide, /页面传入的 `className` 只用于网格跨度、外边距和对齐/);
+});
+
 test('Next UI 契约：启用导航必须有真实页面且只允许 NavItem 使用 Link', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
     const groupedRoutes = Array.from(shell.matchAll(/\{\s*href: '([^']+)',\s*label: '([^']+)',\s*icon: [^}]+\}/g))

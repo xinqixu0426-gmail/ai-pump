@@ -1,6 +1,8 @@
 'use client';
 
 import { RecipeSection } from '@/components/recipe/RecipeSection';
+import { Field, Input, Select } from '@/components/ui/field';
+import { InlineNotice } from '@/components/ui/notice';
 import { money } from '@/lib/format';
 import type { SurfaceTreatmentMode } from '@/lib/recipes';
 
@@ -29,8 +31,6 @@ const surfaceTreatmentOptions: Array<{ value: SurfaceTreatmentMode; label: strin
   { value: 'custom', label: '自定义' },
 ];
 
-const inputClassName = 'mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400';
-
 export function RecipeLaborCostSection({
   form,
   warnings,
@@ -51,72 +51,61 @@ export function RecipeLaborCostSection({
       muted
     >
       {warnings.length > 0 ? (
-        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <div className="font-semibold">以下费用可能漏算</div>
-          <div className="mt-1 space-y-1">
+        <InlineNotice tone="warning" title="以下费用可能漏算" className="mb-3">
+          <div className="space-y-1 text-xs">
             {warnings.map((warning) => <div key={warning}>{warning}</div>)}
           </div>
-        </div>
+        </InlineNotice>
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-5">
-        <label className="block">
-          <span className="text-sm font-medium text-ink">安装工资</span>
-          <input
+        <Field label="安装工资">
+          <Input
             value={form.assemblyWage}
             onChange={(event) => onChange({ assemblyWage: event.target.value })}
             type="number"
             min="0"
             step="0.01"
-            className={inputClassName}
           />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium text-ink">打包工资</span>
-          <input
+        </Field>
+        <Field label="打包工资">
+          <Input
             value={form.packingWage}
             onChange={(event) => onChange({ packingWage: event.target.value })}
             type="number"
             min="0"
             step="0.01"
-            className={inputClassName}
           />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium text-ink">管理费</span>
-          <input
+        </Field>
+        <Field label="管理费">
+          <Input
             value={form.managementFee}
             onChange={(event) => onChange({ managementFee: event.target.value })}
             type="number"
             min="0"
             step="0.01"
-            className={inputClassName}
           />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium text-ink">表面处理</span>
-          <select
+        </Field>
+        <Field label="表面处理">
+          <Select
             value={form.surfaceTreatmentMode}
             onChange={(event) => onChange({ surfaceTreatmentMode: event.target.value as SurfaceTreatmentMode })}
-            className={`${inputClassName} bg-white`}
           >
             {surfaceTreatmentOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium text-ink">表面处理费用</span>
-          <input
+          </Select>
+        </Field>
+        <Field label="表面处理费用">
+          <Input
             value={form.surfaceTreatmentCost}
             onChange={(event) => onChange({ surfaceTreatmentCost: event.target.value })}
             type="number"
             min="0"
             step="0.01"
             disabled={form.surfaceTreatmentMode === 'none'}
-            className={`${inputClassName} disabled:opacity-60`}
           />
-        </label>
+        </Field>
       </div>
     </RecipeSection>
   );

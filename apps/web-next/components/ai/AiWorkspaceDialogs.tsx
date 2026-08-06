@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/field';
 import type {
   AiAnswerFeedbackRating,
   AiAttachment,
@@ -390,11 +391,10 @@ export function AnswerFeedbackDialog({
           </label>
           {rating === 'incorrect' ? (
             <label className="flex items-start gap-3 rounded-md border border-line bg-slate-50 px-3 py-2.5">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={learnFromCorrection}
                 onChange={event => onLearnFromCorrectionChange(event.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-line"
+                className="mt-0.5"
                 disabled={saving}
               />
               <span>

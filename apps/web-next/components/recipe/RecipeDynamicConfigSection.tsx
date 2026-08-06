@@ -3,6 +3,7 @@
 import { EditableWireSelect } from '@/components/recipe/EditableValueSelect';
 import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/components/recipe/RecipeSection';
 import { partCostLine, partFormulaLine, recipePartSubtotal } from '@/components/recipe/recipe-cost-display';
+import { Checkbox } from '@/components/ui/field';
 import { money } from '@/lib/format';
 import type { CableAccessoryType, RecipePart } from '@/lib/recipes';
 
@@ -120,11 +121,9 @@ export function RecipeDynamicConfigSection({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-md border border-line p-3">
           <label className="flex items-center gap-2 text-sm font-medium text-ink">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={form.hasFloat}
               onChange={(event) => onChange({ hasFloat: event.target.checked })}
-              className="h-4 w-4 rounded border-line"
             />
             浮球
           </label>
@@ -168,11 +167,9 @@ export function RecipeDynamicConfigSection({
 
         <div className="rounded-md border border-line p-3">
           <label className="flex items-center gap-2 text-sm font-medium text-ink">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={form.hasCable}
               onChange={(event) => onChange({ hasCable: event.target.checked })}
-              className="h-4 w-4 rounded border-line"
             />
             电缆
           </label>

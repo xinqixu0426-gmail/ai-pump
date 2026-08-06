@@ -53,7 +53,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
-import { Field, Input, Select, Textarea } from '@/components/ui/field';
+import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -796,8 +796,7 @@ export function PartsView({
               return (
                 <section key={groupName} className="border-b border-line last:border-b-0">
                   <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={allSelected}
                       ref={(node) => {
                         if (node) node.indeterminate = partiallySelected;
@@ -844,8 +843,7 @@ export function PartsView({
                             return (
                               <tr key={part.id} className="group transition-colors duration-150 hover:bg-slate-50">
                                 <td className="border-b border-line px-4 py-2.5">
-                                  <input
-                                    type="checkbox"
+                                  <Checkbox
                                     checked={selectedIds.includes(part.id)}
                                     onChange={(event) => toggleSelectPart(part.id, event.target.checked)}
                                     aria-label={`选择零件${part.model || part.id}`}
@@ -1116,11 +1114,9 @@ export function PartsView({
             {isScrewMode ? (
               <section className="rounded-md border border-line bg-slate-50 p-4">
                 <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={form.screwPricingEnabled}
                     onChange={(event) => setForm((current) => ({ ...current, screwPricingEnabled: event.target.checked }))}
-                    className="h-4 w-4 rounded border-line"
                   />
                   按长度自动计价
                 </label>
@@ -1152,11 +1148,9 @@ export function PartsView({
                   <label className="block">
                     <span className="text-xs font-medium text-muted">机筒类型</span>
                     <span className="mt-2 flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={form.isStainless}
                         onChange={(event) => setForm((current) => ({ ...current, isStainless: event.target.checked }))}
-                        className="h-4 w-4 rounded border-line"
                       />
                       不锈钢机筒
                     </span>

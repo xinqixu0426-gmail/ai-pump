@@ -13,6 +13,7 @@ import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { FactoryFileAttachments } from '@/components/factory-file-attachments';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Checkbox } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 import { PageHeader } from '@/components/ui/page-header';
@@ -1413,29 +1414,23 @@ export function QuotationsView() {
                         </label>
                         <div className="flex min-h-9 flex-wrap items-center gap-x-6 gap-y-2 sm:col-span-2">
                           <label className="flex items-center gap-2 text-sm text-ink">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={Boolean(item.overrides?.hasFloat)}
                               onChange={(event) => void updateDraftItemOverrides(item.id, { hasFloat: event.target.checked })}
-                              className="h-4 w-4 rounded border-line"
                             />
                             带浮球
                           </label>
                           <label className="flex items-center gap-2 text-sm text-ink">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={normalizePackingParts(item.overrides?.packingPartsJson).some((part) => inferPackingRole(part) === 'foam')}
                               onChange={(event) => togglePackingConfiguration(item, 'foam', event.target.checked)}
-                              className="h-4 w-4 rounded border-line"
                             />
                             带泡沫
                           </label>
                           <label className="flex items-center gap-2 text-sm text-ink">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={normalizePackingParts(item.overrides?.packingPartsJson).some((part) => inferPackingRole(part) === 'pearlCotton')}
                               onChange={(event) => togglePackingConfiguration(item, 'pearlCotton', event.target.checked)}
-                              className="h-4 w-4 rounded border-line"
                             />
                             带珍珠棉
                           </label>
