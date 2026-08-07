@@ -97,3 +97,11 @@ test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', (
     assert.match(readUtf8('api/routes/ai/chat.cjs'), /send\('tool_plan'/);
     assert.match(readUtf8('api/services/aiPromptComposer.cjs'), /最终回复使用 Markdown/);
 });
+
+test('AI 契约：流式会话用同步锁阻止快速连续提交', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    assert.match(aiView, /sendInFlightRef\s*=\s*useRef\(false\)/);
+    assert.match(aiView, /sendInFlightRef\.current\)\s*return/);
+    assert.match(aiView, /sendInFlightRef\.current\s*=\s*true/);
+    assert.match(aiView, /sendInFlightRef\.current\s*=\s*false/);
+});

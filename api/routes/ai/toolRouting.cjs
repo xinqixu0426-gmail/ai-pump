@@ -3,6 +3,9 @@ const {
     DOMAIN_CAPABILITY_NAMES,
     getAiCapability,
 } = require('../../capabilities/registry.cjs');
+const {
+    hasInventoryWriteIntent,
+} = require('../../services/aiFreshness.cjs');
 
 const DEFAULT_MAX_TOOLS = 18;
 
@@ -30,13 +33,15 @@ const DOMAIN_RULES = Object.freeze([
     ['coil', /线圈|定子|漆包线|片数|铜价|转子成本|\d+\s*[-－×xX*]\s*\d+/],
     ['cost', /成本|价格|单价|金额|利润|铜价|试算|估算|多少钱|涨价|降价/],
     ['recipe', /配方|泵壳模板|模板|泵壳|BOM|机筒|桶长|配置/],
-    ['catalog', /零件|配件|供应商|库存|调价/],
+    ['catalog', /零件|配件|供应商|库存|调价|电缆|电源线|轴承|油封|密封|叶轮|电容|泵体|泵盖|机筒/],
 ]);
 
-const WRITE_INTENT_RE = /新增|新建|创建|录入|写入|提交|导入|修改|更新|调整|删除|保存|归档|同步|入库|出库|增加|减少|调价|生成采购|生成.{0,12}图纸|出图|下单|转(?:成|为)?订单|确认|忽略|特殊情况|批准|驳回|恢复|执行|打印/;
-const BUSINESS_INTENT_RE = /成本|价格|零件|配件|配方|模板|泵壳|线圈|定子|转子|订单|报价|客户|采购|库存|知识|规则|文件|附件|图纸|质量|工厂|管理|供应商|铜价|BOM/i;
-const READ_INTENT_RE = /查询|查看|读取|多少|什么|哪些|是否|有没有|现有|现在|当前|为什么|怎么|分析|对比|检查/;
-const WRITE_FOLLOW_UP_RE = /^(?:确认(?:录入|执行|提交)?|全部\s*(?:ok|OK|正确|没问题)|可以|同意|按(?:这个|上面|清单|这些).*(?:执行|录入|提交)?|就这样|继续(?:执行|录入)?|执行|提交)[。！!\s]*$/;
+const WRITE_INTENT_RE = /新增|新建|创建|录入|写入|提交|导入|修改(?!记录|历史|日志|时间|人|情况)|更新(?!记录|历史|日志|时间|情况)|调整(?!记录|历史|日志|时间|情况)|改为|改成|设为|设置为|变更为|删除|保存|归档|同步|入库|出库|增加|减少|调价|生成采购|生成.{0,12}图纸|出图|下单|转(?:成|为)?订单|确认|忽略|特殊情况|批准|驳回|恢复|执行|打印/;
+const NEGATED_WRITE_PREFIX_RE = /(?:不要|无需|不用|不需要|禁止|不能|不得|避免|请勿|尚未|还没|没有).{0,10}$/;
+const BUSINESS_INTENT_RE = /成本|价格|零件|配件|配方|模板|泵壳|线圈|定子|转子|订单|报价|客户|采购|库存|知识|规则|文件|附件|图纸|质量|工厂|管理|供应商|铜价|电缆|电源线|轴承|油封|密封|叶轮|电容|BOM/i;
+const READ_INTENT_RE = /查(?:一下|询)?|查看|读取|搜索|列出|显示|明细|详情|多少|什么|哪些|是否|有没有|现有|现在|当前|为什么|怎么|分析|对比|检查/;
+const WRITE_FOLLOW_UP_RE = /^(?:是|好|好的|确定|确认(?:录入|执行|提交)?|全部\s*(?:ok|OK|正确|没问题)|可以|同意|按(?:这个|上面|清单|这些).*(?:执行|录入|提交)?|就这样|继续(?:执行|录入)?|执行|提交)[。！!\s]*$/;
+const WRITE_DETAILS_RE = /型号|规格|单价|价格|类别|供应商|数量|备注|材质|片数|槽眼|客户|交期/;
 
 const TOOL_BY_NAME = new Map(AI_TOOLS.map(tool => [tool.function.name, tool]));
 const TOOL_DOMAINS = new Map();
@@ -96,6 +101,16 @@ function domainsForText(text = '') {
     return domains;
 }
 
+function hasWriteIntent(text = '') {
+    if (hasInventoryWriteIntent(text)) return true;
+    const matches = String(text || '').matchAll(new RegExp(WRITE_INTENT_RE.source, 'g'));
+    for (const match of matches) {
+        const prefix = String(text || '').slice(Math.max(0, match.index - 16), match.index);
+        if (!NEGATED_WRITE_PREFIX_RE.test(prefix)) return true;
+    }
+    return false;
+}
+
 function recentWriteContext(messages = [], currentText = '', currentDomains = []) {
     const userTexts = (Array.isArray(messages) ? messages : [])
         .filter(message => message?.role === 'user' && typeof message.content === 'string')
@@ -103,7 +118,8 @@ function recentWriteContext(messages = [], currentText = '', currentDomains = []
         .filter(Boolean);
     if (userTexts[userTexts.length - 1] === currentText) userTexts.pop();
     for (const text of userTexts.reverse().slice(0, 5)) {
-        if (!WRITE_INTENT_RE.test(text)) continue;
+        if (READ_INTENT_RE.test(text)) return null;
+        if (!hasWriteIntent(text)) continue;
         const domains = domainsForText(text);
         if (domains.length === 0) continue;
         if (
@@ -124,22 +140,27 @@ function classifyAiToolDomains(messages = [], options = {}) {
     };
 
     if (options.pageContext?.resourceType === 'order') add('order');
-    for (const domain of domainsForToolNames([
-        ...(options.requiredToolNames || []),
-        ...(options.priorToolNames || []),
-    ])) add(domain);
     for (const domain of domainsForText(text)) add(domain);
+    if (domains.length === 0) {
+        for (const domain of domainsForToolNames([
+            ...(options.requiredToolNames || []),
+            ...(options.priorToolNames || []),
+        ])) add(domain);
+    }
 
-    let writeIntent = WRITE_INTENT_RE.test(text);
+    const currentWriteIntent = hasWriteIntent(text);
+    let writeIntent = currentWriteIntent;
+    let writeIntentSource = currentWriteIntent ? 'current' : 'none';
     const shouldInheritWriteContext = (
         WRITE_FOLLOW_UP_RE.test(text)
-        || (domains.length > 0 && !writeIntent && !READ_INTENT_RE.test(text))
+        || (!writeIntent && WRITE_DETAILS_RE.test(text) && !READ_INTENT_RE.test(text))
         || (writeIntent && domains.length === 0)
     );
     if (shouldInheritWriteContext) {
         const priorWrite = recentWriteContext(messages, text, domains);
         if (priorWrite) {
             writeIntent = true;
+            writeIntentSource = 'history';
             if (domains.length === 0) priorWrite.domains.forEach(add);
         }
     }
@@ -148,19 +169,26 @@ function classifyAiToolDomains(messages = [], options = {}) {
         domains,
         text,
         writeIntent,
+        writeIntentSource,
         businessIntent: BUSINESS_INTENT_RE.test(text),
     };
 }
 
 function routeAiTools(messages = [], options = {}) {
     if (!routingEnabled(options.env)) {
+        const classified = classifyAiToolDomains(messages, options);
+        const tools = AI_TOOLS.filter(tool => (
+            !WRITE_TOOLS.has(tool.function.name) || classified.writeIntent
+        ));
         return {
-            tools: AI_TOOLS,
-            toolNames: AI_TOOLS.map(tool => tool.function.name),
-            domains: ['all'],
-            writeIntent: true,
+            tools,
+            toolNames: tools.map(tool => tool.function.name),
+            domains: classified.domains.length > 0 ? classified.domains : ['all'],
+            writeIntent: classified.writeIntent,
+            writeIntentSource: classified.writeIntentSource,
+            businessIntent: classified.businessIntent,
             fallback: true,
-            reason: 'routing_disabled',
+            reason: 'routing_disabled_safe_allowlist',
         };
     }
 
@@ -180,6 +208,8 @@ function routeAiTools(messages = [], options = {}) {
             toolNames: [],
             domains: [],
             writeIntent: false,
+            writeIntentSource: 'none',
+            businessIntent: false,
             fallback: false,
             reason: 'casual_conversation',
         };
@@ -219,6 +249,8 @@ function routeAiTools(messages = [], options = {}) {
         toolNames,
         domains: classified.domains,
         writeIntent: classified.writeIntent,
+        writeIntentSource: classified.writeIntentSource,
+        businessIntent: classified.businessIntent,
         fallback: useGeneralFallback,
         reason: useGeneralFallback ? 'general_business_fallback' : 'matched_domains',
     };

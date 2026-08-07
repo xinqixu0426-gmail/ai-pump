@@ -41,6 +41,31 @@ test('AI 确认协议：token 绑定能力、服务端参数和 operationId', ()
     assert.equal(consumed.operationId, confirmation.operationId);
 });
 
+test('AI 确认协议：服务端预览上下文随 token 绑定但不暴露给确认卡调用方', () => {
+    const confirmation = issue({
+        executionContext: {
+            kind: 'part_stock_preview',
+            confirmationToken: 'formal-preview-token',
+            idempotencyKey: 'formal-idempotency-key',
+        },
+    });
+
+    assert.equal(
+        Object.prototype.hasOwnProperty.call(confirmation, 'executionContext'),
+        false
+    );
+    const consumed = consumeAiToolConfirmation({
+        confirmationToken: confirmation.confirmationToken,
+        subject: 'session-a',
+        now: 2_000,
+    });
+    assert.deepEqual(consumed.executionContext, {
+        kind: 'part_stock_preview',
+        confirmationToken: 'formal-preview-token',
+        idempotencyKey: 'formal-idempotency-key',
+    });
+});
+
 test('AI 确认协议：参数或工具名被篡改时拒绝且原 token 仍可正确消费', () => {
     const confirmation = issue();
 
@@ -165,5 +190,6 @@ test('AI 确认协议：正式确认路由只执行 token 中的服务端参数'
     assert.match(route, /confirmation_token_required/);
     assert.match(route, /consumeAiToolConfirmation/);
     assert.match(route, /executeToolCall\(consumed\.toolName, consumed\.args/);
+    assert.match(route, /confirmationContext:\s*consumed\.executionContext/);
     assert.doesNotMatch(route, /executeToolCall\(toolName,\s*args/);
 });

@@ -125,6 +125,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 采购中心按供应商和型号聚合数量进度，可批量整项下单；采购中心本身不执行到货或入库。
 - 订单保存产品、数量、单位成本、售价、采购清单和待办快照。
 - `GET /api/orders` 与 `GET /api/orders/:id` 会返回按全部活动订单实时平衡后的采购清单视图，但不再写回数据库或改变 `updatedAt`；采购计划持久化只发生在明确的订单/采购写操作中。
+- `GET /api/orders/purchase-overview` 由 `orderQueries` 只读聚合当前采购任务和数量进度，采购中心与 AI 查询都应以该正式结果为准；查询不会生成采购清单、下单或入库。
 - 采购清单中普通零件按 `partId` 或“型号 + 供应商”汇总，线圈转子按正式方案 `coilId` 汇总，并在全部活动订单间顺序分配当前库存。线圈不进入零件库：精确正式方案按套进入 `coils.stock`，没有正式方案的插值/外推线圈标记为非库存计算项。
 - 已有库存或库存流水的线圈方案会冻结规格俗称、直径、片数、材质和槽眼；身份发生变化时应新建方案，确保订单引用与历史库存流水始终对应同一资产。
 - “外包装估算”只允许作为报价或成本预估占位项，不进入正式采购清单；订单确认前必须选择零件库中的具体外包装型号和供应商，未解决时准备度返回数据阻塞。
@@ -201,6 +202,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 ### 请求与响应
 
 - Web 请求统一使用 `apps/web-next/lib/api.ts` 中的 `proxyRequest()`、`proxyFetch()` 或 `proxyStreamFetch()`。
+- AI SSE 完整响应以 `done` 为终点；手机网络中断时 Web/PWA 自动重试一次，未完成回复不写入会话。
 - Web 新调用必须使用当前标准 API 入口；历史字段兼容只允许封装在 API client 内，不得继续扩散到页面组件。
 - 前后端字段使用 camelCase；数据库列使用 snake_case。
 - 标准成功响应：`{ "success": true, "data": {} }`。
@@ -307,9 +309,9 @@ POST /api/rotor/save
 - AI 工具路由按管理、知识、质量、订单、报价、文件、配方、成本、线圈、零件和出图领域动态选择模型可见工具，普通问题通常只加载当前领域的 8-15 个工具；只读问题不暴露写工具，明确写入意图才加载对应领域写工具。确定性实时预取和已调用工具始终保留，未知业务问题使用小型通用工具集，纯闲聊不发送业务工具。`AI_DYNAMIC_TOOL_ROUTING_ENABLED=false` 可紧急回退到原全量工具集，写操作确认和标准 API 边界不受该开关影响。
 - AI 系统上下文按“不可编辑核心规则 + 当前领域规则 + 可编辑工厂配置 + 相关纠错规则”组装。AI 工作台的“工厂配置”只维护术语、偏好和操作习惯，不能覆盖标准 API、来源真实性和写操作确认；旧整份提示词会先备份再迁移。纠正规则按当前问题筛选，避免无关历史习惯占用上下文或互相干扰。
 - AI 调度器 V1 将普通工具结果作为模型继续推理的上下文，不再把查询结果卡片作为对话终点；只有写操作确认会中断等待用户确认。
-- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作。66 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探或维护重复工具名单。实时业务证据只由正式 API 回执和注册表共同标记。动态路由识别“写入/提交/导入”等写意图，并在短确认或补充参数时延续最近同领域写入上下文；明确查询不会继承。写意图回复先在服务端校验，未调用正式工具时禁止模型自行生成确认卡片、宣称成功，或在写工具已开放时错误声称“无权限/无接口”。`aiProviderStream` 负责第三方模型流和工具调用增量解析，`aiToolProtocol` 统一流式 Web 与非流式 Siri 的工具参数、计划、回执、详情类型和实时证据优先规则；AI route 只保留鉴权、轮次控制、正式 executor 调用和 SSE 输出。
+- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作。71 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探或维护重复工具名单。所有工具统一经过 `aiExecutionEvidence`：Query/Preview 必须有本轮正式 API 成功证据；正式查询完成后的“未找到”可如实返回，HTTP/超时/协议失败则停止结论；29 个写工具必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理，确认接口也不得宣称完成。有业务工具时先缓冲模型正文，全部证据通过后才向前端发送结论。动态路由识别“写入/提交/导入/改为/设为”等写意图，并在短确认或补充参数时延续最近同领域写入上下文；否定表达和修改记录查询保持只读，明确查询不会继承写意图。明确指定对象和条件的零件、线圈、订单、采购、配方事实查询由服务端直接调用对应正式 API，成功后不再允许模型扩大搜索；强制查询失败会停止回答，知识库或模型不能补写业务数据。知识库只处理用途、经验、规则依据、历史确认知识或明确知识查询，不回答实时库存。写意图回复先在服务端校验，未调用正式工具时禁止模型自行生成确认卡片、宣称成功，或在写工具已开放时错误声称“无权限/无接口”。`aiProviderStream` 负责第三方模型流和工具调用增量解析，`aiToolProtocol` 统一流式 Web 与非流式 Siri 的工具参数、计划、回执、详情类型和实时证据优先规则；AI route 只保留鉴权、轮次控制、正式 executor 调用和 SSE 输出。
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。
-- 配方当前完整成本和带覆盖项的成本试算统一使用 `preview_recipe_cost`；零件全部读取和条件查找统一使用 `search_parts`。旧的按名称/ID成本查询及全量零件工具不再提供给模型，避免并存口径和无上限列表占用上下文；历史会话中的旧工具结果仍可正常查看。
+- AI 的零件、线圈、订单、采购、配方事实查询统一使用 `aiBusinessQueryCompiler`：先识别业务域、意图和实体目标，再生成类型化字段，经统一校验后才生成执行计划并调用正式 API。规则路由和模型候选参数共用同一校验器；型号与配方名会剥离语义标签和事实字段描述，不把整句话当关键词。零件支持 `keyword/category/supplier/stockStatus`，线圈支持 `spec/sheets/material/slotType`，订单支持 `limit/status/customerName/contractNo`，采购支持 `limit/supplier/pendingOnly`，配方列表支持 `keyword`。配方明细使用 `get_recipe_detail`，需要当前成本时同一次调用正式 `cost-preview`；纯成本与技术档案分别使用 `preview_recipe_cost` 和 `get_recipe_technical_files`。零结果与 API 失败明确区分，低库存正式口径仍为库存 1–5。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary`、`analyze_recipe_configuration` 和 `get_business_alerts` 读取基础资料健康度、配方配置风险、报价和订单经营异常；这些工具均为只读工具。对配方检查结果可通过 `set_recipe_analysis_feedback` 保存“确认问题、忽略、特殊情况、恢复复核”判断，该写操作必须经用户确认。
 - AI 可调用 `check_order_readiness` 检查某个订单当前能否生产。工具返回六步检查过程、实时缺料、采购阶段、阻塞原因和建议入口；它只读标准订单 API，不会自动确认订单、补采购或调整库存。
@@ -318,9 +320,9 @@ POST /api/rotor/save
 - AI 可在用户明确要求执行方案步骤时调用 `execute_order_readiness_action`。该工具属于 `WRITE_TOOLS`，先显示确认卡片；确认后的计划重验、正式预览、动作调用和执行历史集中由 `aiOrderReadinessExecution` 编排，订单 executor 只委托。业务写入仍唯一调用订单标准 Command API，并由服务端再次重验步骤；人工、等待、需补充输入或已阻塞步骤不能执行。
 - AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；查询 `12-220` 这类线圈键会按材质和槽眼返回全部匹配方案。`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具。
 - AI 在库存语境中将 `12-120`、`12-140` 识别为“线圈/定子规格俗称-片数”，通过 `adjust_coil_stock` 调整独立线圈成品库存，不再到零件库查找。俗称解析、正式方案唯一匹配和材质/槽眼歧义拒绝集中由 `aiCoilStockExecution` 编排，executor 只委托；多个规格仍必须依次调用正式批量 Preview/Command，消费服务端确认凭证和建议幂等键后才原子写入。AI 层不计算库存结果，歧义时整批停止并要求明确。
-- AI 修改零件时，型号定位、字段差异和正式 API 调用由 `aiPartExecution` 编排，executor 只委托。元数据必须走版本化 `/api/parts/:id`，库存必须走 `/api/parts/batch-stock-preview` → `/batch-stock`，AI 不直接写库或把库存塞回普通 PATCH。一次 `update_part` 只能修改资料或调整库存；混合请求在确认前拒绝并拆成两个分别确认的建议操作，避免跨 Command 部分成功。
+- AI 修改零件时，型号定位、字段差异和正式 API 调用由 `aiPartExecution` 编排，executor 只委托。元数据必须走版本化 `/api/parts/:id`；一个或多个型号的库存增减统一编译为 `adjust_part_stock`。`+30/-20/加30/入库30` 使用同一意图规则，服务端清理自然语言连接词并避免把三段零件型号误判成线圈俗称，再经正式零件 Query 唯一解析目标；零匹配返回相似候选、多匹配返回真实候选，必须由用户明确型号。只有唯一匹配且 `/api/parts/batch-stock-preview` 完整时才生成结构化确认卡，模型 Markdown 永远不能充当卡片。预览凭证只绑定在服务端 AI confirmation token 中，确认后直接调用一次 `/batch-stock`，不重新信任模型参数。正式 Command 后继续核对逐项数量和前后值，并通过 `/api/parts` 回读最终库存；只有回读、`operationId/status/auditIds` 全部一致才能声明成功。AI 不直接写库或把库存塞回普通 PATCH。一次 `update_part` 只能修改资料或调整库存；混合请求在确认前拒绝并拆成两个分别确认的建议操作，避免跨 Command 部分成功。
 - AI 按类别批量调价时，同一 `aiPartExecution` 只生成逐项候选价，再强制调用 `/api/parts/prices-preview` → `/prices`；服务端预览负责正式价格校验、资源版本和预览哈希，执行端负责整批事务、持久化幂等和逐项强审计。百分比/固定金额换算尚未成为通用业务 API，其他调用方不得复制该规则。
-- AI 询问价格、成本、库存、订单状态、报价金额和铜价等易变数据时，首轮必须重新调用只读工具，不能直接复述同一会话中的旧数字；明确查询知识库时读取同步后的知识条目，实时业务值冲突时以业务系统当前值为准并提示重新同步。
+- AI 询问价格、成本、库存、订单状态、采购进度、配方、报价金额和铜价等易变数据时，首轮必须重新调用对应模块的正式只读工具，不能直接复述同一会话中的旧数字或先做宽泛知识搜索；明确查询知识库时才读取同步后的知识条目，实时业务值冲突时以业务系统当前值为准并提示重新同步。
 - AI 知识回答在正文上方提供“已处理 · 查看处理过程”的折叠区，并用分隔线与最终结果区分。普通回答默认收起，需要时可展开查看工具计划、调用结果和知识来源；待确认写操作或执行失败会自动展开，避免遗漏必须处理的事项。来源随会话消息一同保存，历史会话也能回看。知识来源可以打开知识详情或原业务页面；待同步条目会显示警告。普通价格、库存、订单和成本查询标记为“实时业务数据”，与“知识库快照”明确区分。
 - AI 工作台会把会话和消息保存到 SQLite，支持查看、继续和删除历史会话；上下文仍只发送最近 10 条消息，历史存档数量不受上下文窗口影响。
 - 已保存的 AI 回复支持标记“准确”或报告“内容错误、来源过期、资料不足”。反馈会保存当时的问答和知识来源快照，问题进入管理看板“知识库”的待处理队列。报告内容错误时可填写正确做法并选择“让 AI 长期记住”，系统会生成可启停的全局纠正规则，在后续相关问题中优先加载并进入知识规则索引；来源过期、资料不足和未明确勾选的反馈不会自动学习。规则只约束 AI，不会改写订单、库存、配方、成本等业务数据。
@@ -333,6 +335,7 @@ POST /api/rotor/save
 - PWA 状态流使用单一状态枚举：`idle`、`thinking`、`calling`、`answering`、`confirming`、`done`、`error`、`cancelled`，顶部状态和消息状态都由该状态驱动。
 - PWA 当前优先接入成熟 AI 工具：经营概况、最近订单、订单详情、配方成本、零件搜索、线圈成本、铜价、配方对比和出图历史；新建订单、修改订单状态、改零件、生成采购清单、配方/零件写操作必须确认后执行。
 - PWA 与桌面共享 SQLite AI 会话历史，可跨设备回看和继续；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
+- AI 最近 10 条消息只作为语言记忆，不作为操作队列；新的明确业务问题从当前轮次重新判定领域和权限，跨库存、模板、配方、订单、采购等话题不会重放旧写入。只有紧邻的指代追问或缺参补充继承上一轮，模型工具调用还要经过本轮 allowlist 与读写意图双重校验。Web/PWA 同一工作台只允许一个流式请求在途。
 - 微信小程序代码位于 `wechat-miniprogram/`，当前通过 `INTERNAL_SECRET` 兼容认证；真实密钥不得提交到仓库，小程序生产鉴权应迁移到 OpenID 或服务端会话。
 - Siri 使用快捷指令文字输入，不经过 ASR；统一调用 `POST /api/siri/chat`，由 AI tools 决定业务动作，Siri 不直接访问库存、BOM、采购等内部 API。它是独立的快捷指令集成，不是已弃用 Web Voice 的重复入口。
 - Siri 返回 `speech` 供朗读，内容保持简短；结构化结果通过 `resultUrl` 查看，结果临时保存在内存中，5 分钟后失效。
@@ -353,7 +356,7 @@ POST /api/rotor/save
 
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
-- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。66 个 AI 工具、28 个 AI 写工具和 86 个正式业务 command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
+- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。69 个 AI 工具、29 个 AI 写工具和 86 个正式业务 command/maintenance 由 `api/capabilities/registry.cjs` 统一治理，并由统一执行证据门判定查询或写入是否真实完成。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。
 - 零件资料修改与库存调整是两个独立 Command；AI 的 `update_part` 混合意图在确认前拆分。报价转订单、采购下单/入库、配方保存、转子出图、文件归档和知识同步均调用对应正式 service。

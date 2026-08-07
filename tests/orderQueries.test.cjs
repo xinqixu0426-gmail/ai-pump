@@ -32,7 +32,46 @@ function createFixture() {
             (4, '已删除客户', 'HT-004', '已取消', '[]',
              '2026-08-04T00:00:00.000Z', '2026-08-04T00:00:00.000Z');
     `);
-    const listResult = [{ id: 1 }, { id: 2 }];
+    const listResult = [
+        {
+            id: 1,
+            status: '待采购',
+            purchaseListJson: JSON.stringify([
+                {
+                    identityKey: 'S||A',
+                    supplier: 'S',
+                    model: 'A',
+                    plannedQty: 10,
+                    orderedQty: 4,
+                    receivedQty: 2,
+                    stockedQty: 1,
+                },
+                {
+                    supplier: '',
+                    model: 'B',
+                    needToBuy: 2,
+                },
+            ]),
+        },
+        {
+            id: 2,
+            status: '采购中',
+            purchaseList: [{
+                identityKey: 'S||A',
+                supplier: 'S',
+                model: 'A',
+                plannedQty: 5,
+                purchased: true,
+                receivedQty: 5,
+                stockedQty: 3,
+            }],
+        },
+        {
+            id: 3,
+            status: '已关闭',
+            purchaseList: [{ supplier: '忽略', model: 'C', plannedQty: 99 }],
+        },
+    ];
     const queries = createOrderQueries({
         db,
         listOrdersWithCurrentPurchasePlans: () => listResult,
@@ -51,6 +90,10 @@ test('订单 Query 返回实时列表、详情、准备度和准备度总览', (
     const fixture = createFixture();
     try {
         assert.equal(fixture.queries.getAllOrders(), fixture.listResult);
+        assert.deepEqual(
+            fixture.queries.getAllOrders({ status: '采购中', limit: 10 }).map(order => order.id),
+            [2]
+        );
         assert.deepEqual(fixture.queries.getOrder(1), {
             id: 1,
             purchaseList: [],
@@ -81,6 +124,64 @@ test('订单 Query 历史价格跳过坏 JSON 并返回最近有效事实', () =
             fixture.queries.getLatestRecipePrice('不存在的配方'),
             null
         );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单 Query 采购总览只聚合活动订单的当前采购计划', () => {
+    const fixture = createFixture();
+    try {
+        const overview = fixture.queries.getPurchaseOverview();
+        assert.equal(overview.returnedCount, 2);
+        assert.equal(overview.truncated, false);
+        assert.deepEqual(overview.summary, {
+            activeOrderCount: 2,
+            supplierCount: 2,
+            taskCount: 2,
+            pendingTaskCount: 2,
+            plannedQty: 17,
+            orderedQty: 9,
+            receivedQty: 7,
+            stockedQty: 4,
+            pendingQty: 8,
+        });
+        assert.deepEqual(
+            overview.tasks.find(task => task.model === 'A'),
+            {
+                identityKey: 'S||A',
+                supplier: 'S',
+                supplierLabel: 'S',
+                model: 'A',
+                name: 'A',
+                purchaseUnit: '',
+                specification: '',
+                plannedQty: 15,
+                orderedQty: 9,
+                receivedQty: 7,
+                stockedQty: 4,
+                pendingQty: 6,
+                orderIds: [1, 2],
+                orderCount: 2,
+            }
+        );
+        assert.equal(overview.tasks.some(task => task.model === 'C'), false);
+        const limited = fixture.queries.getPurchaseOverview({ limit: 1 });
+        assert.equal(limited.summary.taskCount, 2);
+        assert.equal(limited.returnedCount, 1);
+        assert.equal(limited.truncated, true);
+        assert.equal(limited.tasks[0].model, 'A');
+        const supplierFiltered = fixture.queries.getPurchaseOverview({
+            supplier: 'S',
+            pendingOnly: true,
+        });
+        assert.equal(supplierFiltered.summary.taskCount, 1);
+        assert.deepEqual(supplierFiltered.filters, {
+            supplier: 'S',
+            pendingOnly: true,
+            limit: null,
+        });
+        assert.deepEqual(supplierFiltered.tasks.map(task => task.model), ['A']);
     } finally {
         fixture.db.close();
     }

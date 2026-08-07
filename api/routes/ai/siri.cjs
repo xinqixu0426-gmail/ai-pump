@@ -230,6 +230,7 @@ router.post('/api/siri/confirm', siriAuth, async (req, res) => {
         const result = receipt?.result || await executeToolCall(consumed.toolName, consumed.args, {
             allowWrite: true,
             operationId: consumed.operationId,
+            confirmationContext: consumed.executionContext,
         });
         if (!consumed.replay) {
             completeAiToolConfirmation({

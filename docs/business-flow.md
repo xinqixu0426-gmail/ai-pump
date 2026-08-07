@@ -35,9 +35,9 @@
 
 | 流程 | 主要入口 | 是否写库 | 写入内容 |
 |---|---|---:|---|
-| 零件新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 是 | 零件基础数据；正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
+| 零件查询/新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 查询否/写入是 | 查询由零件 Query service 按关键词、类别和库存状态筛选；低库存统一为库存 1–5。正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
 | 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务 |
-| 批量库存增减 | `/api/parts/batch-stock-preview` → `/api/parts/batch-stock` | 预览否、执行是 | 只改 `parts.stock`；服务端确认 token 绑定 `partId/delta/expectedUpdatedAt`，库存、operation 和强审计同一事务；普通 PATCH 的 `stock` 只保留历史兼容 |
+| 批量库存增减 | `/api/parts/batch-stock-preview` → `/api/parts/batch-stock` | 预览否、执行是 | 只改 `parts.stock`；服务端确认 token 绑定 `partId/delta/expectedUpdatedAt`，库存、operation 和强审计同一事务；AI 的单个/多个型号统一经 `adjust_part_stock` 生成一张确认卡，缺少 operation/audit 回执不得报成功；普通 PATCH 的 `stock` 只保留历史兼容 |
 | 线圈新增/修改/删除 | `/api/coils`、`/api/coils/:id` | 是 | 定子组合、绕组方案状态、可选绕组技术备忘和计算后的 `cost` |
 | 模板新增/修改/删除 | `/api/templates`、`/api/templates/:id` | 是 | 泵壳模板、组件结构、工资默认值、转子默认参数；持久幂等，修改/删除绑定版本，模板与 operation/强审计同事务；任何历史配方引用都会阻止硬删除 |
 | 模板成本/默认配方预览 | `/api/templates/:id/cost`、`/api/templates/:id/default-recipe` | 否 | 只返回计算结果或草稿 |
@@ -144,6 +144,7 @@
 
 - 采购中心只聚合未完成订单的采购需求。
 - 采购中心汇总 `plannedQty/orderedQty/receivedQty/stockedQty`，可按供应商和型号执行整项下单，不增加库存。
+- `GET /api/orders/purchase-overview` 只读汇总同一批活动订单的当前采购数量、供应商和待办明细；AI 查询“当前采购情况”时直接调用该接口，不从知识库或历史会话推断。
 - 部分下单、实际采购价、实际供应商、到货和入库数量在订单详情逐项登记。
 
 ### 7.3 入库
@@ -278,6 +279,7 @@
 - 健康检查只在自动同步关闭、等待或运行超时、未安排变化和失败未恢复时告警；没有业务变化不会因时间间隔产生假告警。人工恢复仍先确认再同步。
 - FTS 与知识条目在同一事务内刷新；同步失败时保留上一版完整索引。
 - AI 搜索结果必须能返回原始来源类型和来源 ID，业务判断仍以原资源 API 为准。
+- 零件、订单、采购和配方的明确事实查询先由统一业务查询编译器生成类型化条件，并在执行计划前通过同一参数校验器，再调用各自正式 API。疑问词、状态词和领域名不能通过删词残留变成关键词；模型提出的候选参数也必须经过同一校验。正式接口返回零结果、未找到或业务失败后不得扩大为宽泛知识搜索。只有用途、经验、制度、外部资料等知识型问题进入知识检索。
 - 系统外技术说明、文本、Excel、测试报告和 PDF 原件保存在 `knowledge_documents`，通过 `document` 知识条目进入现有检索；文本和 Excel 可检索提取正文，PDF 当前只使用人工填写的标题、说明和标签，不得推断未解析的图纸内容。
 - 配方智能检查的学习反馈绑定当时的泵壳模板和配方版本；内容修改或模板变化后，旧反馈停止影响规则并进入待重新检查队列。
 - 归档带有学习反馈的配方时，同一事务会立即刷新候选规则和已批准规则知识；归档证据只保留历史追溯，不再支持当前规则。

@@ -191,6 +191,14 @@ function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
                 <StatusBadge tone={step.mode === 'write' ? 'amber' : 'blue'}>
                   {step.mode === 'write' ? '需确认' : '只读'}
                 </StatusBadge>
+                {step.validationStatus ? (
+                  <StatusBadge tone={step.validationStatus === 'rejected' ? 'red' : 'green'}>
+                    {step.validationStatus === 'rejected' ? '参数已拒绝' : '参数已校验'}
+                  </StatusBadge>
+                ) : null}
+                <span className="text-xs text-muted">
+                  {step.source === 'rule' ? '规则生成' : step.source === 'model' ? '模型候选' : ''}
+                </span>
               </div>
               {step.argsSummary && step.argsSummary.length > 0 ? (
                 <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted">
@@ -200,6 +208,9 @@ function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
                     </span>
                   ))}
                 </div>
+              ) : null}
+              {step.validationError ? (
+                <div className="mt-1 text-xs text-rose-700">{step.validationError}</div>
               ) : null}
             </div>
             {step.requiresConfirmation ? (

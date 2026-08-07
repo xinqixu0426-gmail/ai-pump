@@ -55,6 +55,13 @@ test('线圈 Query 统一返回线圈、定子组合、规格草稿和规格选�
     const fixture = createFixture();
     try {
         assert.equal(fixture.queries.getAllCoils(), fixture.coils);
+        assert.deepEqual(fixture.queries.getAllCoils({
+            spec: '12',
+            sheets: '160',
+            material: '冷轧',
+            slotType: '国标眼',
+        }), fixture.coils);
+        assert.deepEqual(fixture.queries.getAllCoils({ sheets: 999 }), []);
         assert.equal(
             fixture.queries.getAllStatorVariants(),
             fixture.variants
@@ -96,6 +103,14 @@ test('线圈 Query 库存流水只读、按时间倒序并限制返回数量', (
 test('线圈 Query 使用稳定的输入和不存在资源错误', () => {
     const fixture = createFixture();
     try {
+        assert.throws(
+            () => fixture.queries.getAllCoils({ sheets: 'bad' }),
+            error => (
+                error instanceof CoilQueryError
+                && error.statusCode === 400
+                && error.message === 'sheets 必须是正整数'
+            )
+        );
         assert.throws(
             () => fixture.queries.getSpecDraft({}),
             error => (

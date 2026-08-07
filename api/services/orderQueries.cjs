@@ -8,6 +8,16 @@ class OrderQueryError extends Error {
     }
 }
 
+function parseJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    try {
+        const parsed = JSON.parse(value || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
 function createOrderQueries({
     db,
     listOrdersWithCurrentPurchasePlans,
@@ -31,8 +41,108 @@ function createOrderQueries({
         throw new Error('订单查询服务缺少准备度查询');
     }
 
-    function getAllOrders() {
-        return listOrdersWithCurrentPurchasePlans();
+    function getAllOrders(options = {}) {
+        const status = String(options.status || '').trim().toLocaleLowerCase();
+        const customerName = String(options.customerName || '').trim().toLocaleLowerCase();
+        const contractNo = String(options.contractNo || '').trim().toLocaleLowerCase();
+        const requestedLimit = Number.parseInt(options.limit, 10);
+        const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+            ? Math.min(requestedLimit, 100)
+            : null;
+        const source = listOrdersWithCurrentPurchasePlans();
+        if (!status && !customerName && !contractNo && !limit) return source;
+        const orders = source
+            .filter(order => (
+                (!status || String(order.status || '').trim().toLocaleLowerCase() === status)
+                && (!customerName || String(order.customerName || '').toLocaleLowerCase().includes(customerName))
+                && (!contractNo || String(order.contractNo || '').toLocaleLowerCase().includes(contractNo))
+            ))
+            .sort((left, right) => Number(right.id || 0) - Number(left.id || 0));
+        return limit ? orders.slice(0, limit) : orders;
+    }
+
+    function getPurchaseOverview(options = {}) {
+        const activeStatuses = new Set(['待采购', '采购中', '采购完成']);
+        const activeOrders = getAllOrders().filter(order => activeStatuses.has(order.status));
+        const tasksByKey = new Map();
+
+        for (const order of activeOrders) {
+            const purchaseList = parseJsonArray(order.purchaseList ?? order.purchaseListJson);
+            for (const item of purchaseList) {
+                const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0) || 0;
+                if (plannedQty <= 0) continue;
+                const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0)) || 0;
+                const receivedQty = Number(item.receivedQty || 0);
+                const stockedQty = Number(item.stockedQty || 0);
+                const supplier = String(item.supplier || '').trim();
+                const model = String(item.model || item.name || '').trim();
+                const key = String(item.identityKey || `${supplier}||${model}`);
+                const current = tasksByKey.get(key) || {
+                    identityKey: item.identityKey || '',
+                    supplier,
+                    supplierLabel: supplier || '未指定供应商',
+                    model,
+                    name: item.name || model,
+                    purchaseUnit: item.purchaseUnit || '',
+                    specification: item.specification || '',
+                    plannedQty: 0,
+                    orderedQty: 0,
+                    receivedQty: 0,
+                    stockedQty: 0,
+                    pendingQty: 0,
+                    orderIds: [],
+                };
+                current.plannedQty += plannedQty;
+                current.orderedQty += orderedQty;
+                current.receivedQty += receivedQty;
+                current.stockedQty += stockedQty;
+                current.pendingQty += Math.max(0, plannedQty - orderedQty);
+                if (!current.orderIds.includes(order.id)) current.orderIds.push(order.id);
+                tasksByKey.set(key, current);
+            }
+        }
+
+        const supplier = String(options.supplier || '').trim().toLocaleLowerCase();
+        const pendingOnly = options.pendingOnly === true || String(options.pendingOnly).toLowerCase() === 'true';
+        const allTasks = [...tasksByKey.values()]
+            .map(task => ({ ...task, orderCount: task.orderIds.length }))
+            .filter(task => (
+                (!supplier || task.supplierLabel.toLocaleLowerCase().includes(supplier))
+                && (!pendingOnly || task.pendingQty > 0)
+            ))
+            .sort((left, right) => (
+                Number(right.pendingQty > 0) - Number(left.pendingQty > 0)
+                || right.pendingQty - left.pendingQty
+                || left.supplierLabel.localeCompare(right.supplierLabel, 'zh-CN')
+                || left.model.localeCompare(right.model, 'zh-CN')
+            ));
+        const requestedLimit = Number.parseInt(options.limit, 10);
+        const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+            ? Math.min(requestedLimit, 100)
+            : allTasks.length;
+        const tasks = allTasks.slice(0, limit);
+        const sum = field => allTasks.reduce((total, task) => total + task[field], 0);
+        return {
+            summary: {
+                activeOrderCount: new Set(allTasks.flatMap(task => task.orderIds)).size,
+                supplierCount: new Set(allTasks.map(task => task.supplierLabel)).size,
+                taskCount: allTasks.length,
+                pendingTaskCount: allTasks.filter(task => task.pendingQty > 0).length,
+                plannedQty: sum('plannedQty'),
+                orderedQty: sum('orderedQty'),
+                receivedQty: sum('receivedQty'),
+                stockedQty: sum('stockedQty'),
+                pendingQty: sum('pendingQty'),
+            },
+            returnedCount: tasks.length,
+            truncated: tasks.length < allTasks.length,
+            filters: {
+                supplier: String(options.supplier || '').trim(),
+                pendingOnly,
+                limit: limit === allTasks.length ? null : limit,
+            },
+            tasks,
+        };
     }
 
     function getLatestRecipePrice(recipeName) {
@@ -131,6 +241,7 @@ function createOrderQueries({
         getAllOrders,
         getLatestRecipePrice,
         getOrder,
+        getPurchaseOverview,
         getOrderReadiness,
         getReadinessOverview,
         lookupOrders,

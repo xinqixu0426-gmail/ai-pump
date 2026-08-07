@@ -2,7 +2,8 @@ const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 const { getInternalApiTimeoutMs, getServerPort } = require('../../services/environment.cjs');
 
 function createInternalFetch(context = {}) {
-    return (url, opts = {}) => {
+    const trace = [];
+    const internalFetch = (url, opts = {}) => {
         const headers = { ...(opts.headers || {}) };
         headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
         if (context.operationId) headers['x-operation-id'] = String(context.operationId);
@@ -14,6 +15,21 @@ function createInternalFetch(context = {}) {
             label: `内部 API ${opts.method || 'GET'} ${url}`,
         });
     };
+    Object.defineProperties(internalFetch, {
+        recordApiResult: {
+            value: entry => trace.push({
+                method: String(entry?.method || 'GET').toUpperCase(),
+                path: String(entry?.path || ''),
+                ok: entry?.ok !== false,
+                result: entry?.result,
+                error: entry?.error || null,
+            }),
+        },
+        getApiTrace: {
+            value: () => trace.map(entry => ({ ...entry })),
+        },
+    });
+    return internalFetch;
 }
 
 async function readApiJson(response, fallbackError) {
@@ -25,7 +41,10 @@ async function readApiJson(response, fallbackError) {
         throw new Error(fallbackError || `API 返回了非 JSON 响应：${response.status}`);
     }
     if (!response.ok || result.success === false) {
-        throw new Error(result.error || fallbackError || `API 调用失败：${response.status}`);
+        const error = new Error(result.error || fallbackError || `API 调用失败：${response.status}`);
+        error.code = result.code || 'internal_api_request_failed';
+        error.statusCode = response.status;
+        throw error;
     }
     return result.data ?? result;
 }
@@ -36,7 +55,27 @@ async function requestJson(internalFetch, method, url, body, fallbackError) {
         options.headers = { 'Content-Type': 'application/json' };
         options.body = JSON.stringify(body);
     }
-    return readApiJson(await internalFetch(url, options), fallbackError);
+    try {
+        const result = await readApiJson(await internalFetch(url, options), fallbackError);
+        if (typeof internalFetch.recordApiResult === 'function') {
+            internalFetch.recordApiResult({ method, path: url, ok: true, result });
+        }
+        return result;
+    } catch (error) {
+        if (typeof internalFetch.recordApiResult === 'function') {
+            internalFetch.recordApiResult({
+                method,
+                path: url,
+                ok: false,
+                error: {
+                    code: error.code || 'internal_api_request_failed',
+                    statusCode: error.statusCode || null,
+                    message: error.message,
+                },
+            });
+        }
+        throw error;
+    }
 }
 
 function getJson(internalFetch, url, fallbackError) {

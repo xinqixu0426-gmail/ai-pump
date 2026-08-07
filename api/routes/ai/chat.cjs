@@ -3,8 +3,14 @@ const router = express.Router();
 const { WRITE_TOOLS } = require('./tools.cjs');
 const { getFactoryProfile } = require('./prompt.cjs');
 const { executeToolCall } = require('./executor.cjs');
-const { trimAiContext } = require('../../services/aiContext.cjs');
-const { buildFreshLookupToolCalls } = require('../../services/aiFreshness.cjs');
+const {
+    scopeAiContextForTurn,
+    trimAiContext,
+} = require('../../services/aiContext.cjs');
+const {
+    buildFreshLookupToolCalls,
+    isDeterministicFreshLookupCalls,
+} = require('../../services/aiFreshness.cjs');
 const { composeAiSystemPrompt } = require('../../services/aiPromptComposer.cjs');
 const { readAiProviderStream } = require('../../services/aiProviderStream.cjs');
 const {
@@ -13,12 +19,14 @@ const {
     buildAiToolPlan,
     buildAiToolResultMessage,
     parseAiToolArguments,
+    prepareAiToolCalls,
     prioritizeBusinessEvidence,
     viewTypeForAiTool,
 } = require('../../services/aiToolProtocol.cjs');
 const { routeAiTools } = require('./toolRouting.cjs');
 const {
     buildWriteToolCorrection,
+    isWriteClarificationReply,
     safeUnverifiedWriteReply,
     shouldRetryUnverifiedWriteReply,
 } = require('../../services/aiWriteGuard.cjs');
@@ -39,6 +47,12 @@ const {
     consumeAiToolConfirmation,
     failAiToolConfirmation,
 } = require('../../services/aiToolConfirmation.cjs');
+const {
+    hasVerifiedExecution,
+    hasVerifiedToolEvidence,
+    hasVerifiedWriteExecution,
+    safeMissingBusinessEvidenceReply,
+} = require('../../services/aiExecutionEvidence.cjs');
 
 function latestUserText(messages) {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -71,6 +85,7 @@ function buildPendingWriteReply(toolResults) {
     const replies = {
         create_part: '好的，我来帮你新增这个零件，请核对下面的确认卡片。',
         batch_create_parts: '好的，我来批量录入这些零件，请核对整批确认卡片。',
+        adjust_part_stock: '好的，我来批量调整这些零件的库存，请核对整批确认卡片。',
         update_part: '好的，我来帮你修改这个零件，请核对下面的确认卡片。',
         adjust_coil_stock: '好的，我来帮你调整线圈成品库存，请核对下面的确认卡片。',
         delete_part: '好的，我来帮你删除这个零件，请核对下面的确认卡片。',
@@ -88,6 +103,26 @@ function buildPendingWriteReply(toolResults) {
 
 function hasPendingWriteConfirmation(toolResults) {
     return (toolResults || []).some(item => item?.result?.requiresConfirmation && item.result.confirmation);
+}
+
+function lacksStructuredWriteResult(toolRoute, toolResults, content) {
+    if (!toolRoute?.writeIntent) return false;
+    if (hasPendingWriteConfirmation(toolResults)) return false;
+    if ((toolResults || []).some(item => hasVerifiedWriteExecution(item?.result))) return false;
+    return !isWriteClarificationReply(content);
+}
+
+function toolsAfterDeterministicFreshLookup(tools, freshLookupCalls, toolResults) {
+    const lookupCompleted = (
+        isDeterministicFreshLookupCalls(freshLookupCalls)
+        && toolResults.some(item => (
+            item?.name === freshLookupCalls[0]?.name
+            && item?.result
+        ))
+    );
+    if (!lookupCompleted) return tools;
+
+    return [];
 }
 
 router.get('/api/ai/capabilities', confirmAuth, (req, res) => {
@@ -121,6 +156,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
             pageContext,
             requiredToolNames: freshLookupCalls.map(call => call.name),
         });
+        const scopedMessages = scopeAiContextForTurn(messages, initialToolRoute);
         send('status', { status: 'thinking', message: '正在理解您的问题...' });
 
         let currentMessages = [
@@ -131,7 +167,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     query: latestUserText(routingMessages),
                 })}${pageContextNote ? `\n\n${pageContextNote}` : ''}`,
             },
-            ...messages
+            ...scopedMessages
         ];
 
         let maxRounds = 5;
@@ -152,7 +188,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         };
         const prioritizeEvidence = () => {
             if (evidenceContextPrioritized) return;
-            currentMessages = prioritizeBusinessEvidence(currentMessages, messages.length);
+            currentMessages = prioritizeBusinessEvidence(currentMessages, scopedMessages.length);
             evidenceContextPrioritized = true;
         };
 
@@ -162,7 +198,8 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     freshLookupCalls.map((call, index) => (
                         buildAiToolCall(call.name, call.args, `fresh_lookup_${index}`)
                     )),
-                    WRITE_TOOLS
+                    WRITE_TOOLS,
+                    { source: 'rule' }
                 ),
                 summary: `正在刷新 ${freshLookupCalls.length} 项易变业务数据。`,
             });
@@ -187,6 +224,20 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                 });
                 send('done', {});
                 done = true;
+            } else if (!allToolResults.slice(-freshLookupCalls.length).every(
+                item => hasVerifiedExecution(item?.result)
+            )) {
+                send('content', {
+                    content: safeMissingBusinessEvidenceReply(
+                        allToolResults.slice(-freshLookupCalls.length)
+                    ),
+                });
+                send('detail', {
+                    detailType: allToolResults.length === 1 ? allToolResults[0].name : 'multi_tool',
+                    toolResults: allToolResults,
+                });
+                send('done', {});
+                done = true;
             } else {
                 send('status', { status: 'analyzing', message: '已刷新当前数据，正在分析...' });
             }
@@ -195,14 +246,20 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         while (!done && maxRounds-- > 0) {
             let aiRes;
             let toolRoute;
+            let offeredTools;
             try {
                 toolRoute = routeAiTools(routingMessages, {
                     pageContext,
                     requiredToolNames: freshLookupCalls.map(call => call.name),
                     priorToolNames: allToolResults.map(item => item.name),
                 });
+                offeredTools = toolsAfterDeterministicFreshLookup(
+                        toolRoute.tools,
+                        freshLookupCalls,
+                        allToolResults
+                    );
                 aiRes = await fetchAiProvider(currentMessages, {
-                    tools: toolRoute.tools,
+                    tools: offeredTools,
                     stream: true,
                     onProvider: announceProvider,
                 });
@@ -211,17 +268,22 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                 return res.end();
             }
 
-            const bufferWriteReply = (
-                toolRoute.writeIntent
-                && toolRoute.toolNames.some(name => WRITE_TOOLS.has(name))
+            const bufferBusinessReply = (
+                toolRoute.toolNames.length > 0
+                || allToolResults.length > 0
             );
             const providerStream = await readAiProviderStream(aiRes, {
                 onContent: content => {
-                    if (!bufferWriteReply) send('content', { content });
+                    if (!bufferBusinessReply) send('content', { content });
                 },
             });
             const msgContent = providerStream.content;
-            const toolCallsArr = providerStream.toolCalls;
+            const preparedToolCalls = prepareAiToolCalls(providerStream.toolCalls, 'model', {
+                allowedToolNames: offeredTools.map(tool => tool.function.name),
+                writeIntent: toolRoute.writeIntent,
+                writeTools: WRITE_TOOLS,
+            });
+            const toolCallsArr = preparedToolCalls.map(item => item.toolCall);
             currentMessages.push({
                 role: 'assistant',
                 content: msgContent || "",
@@ -229,21 +291,31 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
             });
 
             if (toolCallsArr.length > 0) {
-                if (bufferWriteReply && msgContent) {
-                    send('content', { content: msgContent });
-                }
-                send('tool_plan', buildAiToolPlan(toolCallsArr, WRITE_TOOLS));
-                for (const tc of toolCallsArr) {
+                send('tool_plan', buildAiToolPlan(preparedToolCalls, WRITE_TOOLS));
+                for (const preparedToolCall of preparedToolCalls) {
+                    const tc = preparedToolCall.toolCall;
                     const funcName = tc.function.name;
-                    send('status', { status: 'calling', message: `正在调用: ${funcName}...` });
+                    send('status', {
+                        status: preparedToolCall.validationStatus === 'rejected' ? 'analyzing' : 'calling',
+                        message: preparedToolCall.validationStatus === 'rejected'
+                            ? `${funcName} 参数未通过校验，已阻止执行`
+                            : `正在调用: ${funcName}...`,
+                    });
 
                     const args = parseAiToolArguments(tc.function.arguments);
 
                     send('tool_call', { name: funcName, args });
-                    const result = await executeToolCall(funcName, args, {
-                        allowWrite: false,
-                        confirmationSubject,
-                    });
+                    const result = preparedToolCall.validationStatus === 'rejected'
+                        ? {
+                            success: false,
+                            error: preparedToolCall.validationError,
+                            code: preparedToolCall.validationCode || 'INVALID_AI_BUSINESS_QUERY',
+                            validation: { status: 'rejected', toolName: funcName },
+                        }
+                        : await executeToolCall(funcName, args, {
+                            allowWrite: false,
+                            confirmationSubject,
+                        });
                     send('tool_result', { name: funcName, result });
                     send('status', {
                         status: hasPendingWriteConfirmation([{ name: funcName, result }]) ? 'confirming' : 'analyzing',
@@ -260,7 +332,7 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
 
                 if (hasPendingWriteConfirmation(allToolResults)) {
                     const directReply = buildPendingWriteReply(allToolResults);
-                    if (!msgContent.trim()) {
+                    if (bufferBusinessReply || !msgContent.trim()) {
                         send('content', { content: directReply });
                     }
                     send('detail', {
@@ -273,11 +345,15 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     send('status', { status: 'thinking', message: '正在根据工具结果继续推理...' });
                 }
             } else {
+                const missingBusinessEvidence = (
+                    allToolResults.length > 0
+                    && !hasVerifiedToolEvidence(allToolResults)
+                );
                 const guarded = shouldRetryUnverifiedWriteReply({
                     content: msgContent,
                     toolRoute,
                     writeTools: WRITE_TOOLS,
-                });
+                }) || lacksStructuredWriteResult(toolRoute, allToolResults, msgContent);
                 if (guarded && writeGuardRetries < 1) {
                     writeGuardRetries += 1;
                     currentMessages.push({
@@ -290,9 +366,17 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
                     });
                     continue;
                 }
-                if (bufferWriteReply) {
+                if (bufferBusinessReply) {
                     send('content', {
-                        content: guarded ? safeUnverifiedWriteReply() : msgContent,
+                        content: missingBusinessEvidence
+                            ? safeMissingBusinessEvidenceReply(allToolResults)
+                            : guarded
+                                ? safeUnverifiedWriteReply()
+                                : msgContent,
+                    });
+                } else if (missingBusinessEvidence) {
+                    send('content', {
+                        content: safeMissingBusinessEvidenceReply(allToolResults),
                     });
                 }
                 if (allToolResults.length > 0) {
@@ -350,17 +434,30 @@ router.post('/api/ai/confirm-tool', confirmAuth, async (req, res) => {
         const result = await executeToolCall(consumed.toolName, consumed.args, {
             allowWrite: true,
             operationId: consumed.operationId,
+            confirmationContext: consumed.executionContext,
         });
+        if (!result || result.success === false || !hasVerifiedWriteExecution(result)) {
+            const executionError = new Error(
+                result?.error || '正式业务 API 未返回可验证的写操作回执'
+            );
+            executionError.code = result?.code || 'ai_write_evidence_missing';
+            executionError.statusCode = 502;
+            throw executionError;
+        }
         const completedAt = new Date().toISOString();
         const receipt = {
             name: consumed.toolName,
             result,
             capabilityId: consumed.capabilityId,
             operationId: consumed.operationId,
-            status: result?.success === false ? 'failed' : (result?.status || 'completed'),
+            status: 'completed',
             changes: Array.isArray(result?.changes) ? result.changes : [],
             warnings: Array.isArray(result?.warnings) ? result.warnings : [],
-            auditId: result?.auditId ?? null,
+            auditId: result?.auditId
+                ?? result.executionEvidence.receipts[0]?.auditIds?.[0]
+                ?? null,
+            auditIds: result?.auditIds
+                ?? result.executionEvidence.receipts.flatMap(receipt => receipt.auditIds || []),
             idempotentReplay: false,
             completedAt,
         };
@@ -421,6 +518,7 @@ async function processAiChat(text, options = {}) {
         pageContext,
         requiredToolNames: freshLookupCalls.map(call => call.name),
     });
+    const scopedMessages = scopeAiContextForTurn(messages, initialToolRoute);
 
     let currentMessages = [
         {
@@ -431,7 +529,7 @@ async function processAiChat(text, options = {}) {
                 extra: promptSuffix,
             })}${pageContextNote ? `\n\n${pageContextNote}` : ''}`,
         },
-        ...messages
+        ...scopedMessages
     ];
 
     let maxRounds = 5;
@@ -441,7 +539,7 @@ async function processAiChat(text, options = {}) {
     let writeGuardRetries = 0;
     const prioritizeEvidence = () => {
         if (evidenceContextPrioritized) return;
-        currentMessages = prioritizeBusinessEvidence(currentMessages, messages.length);
+        currentMessages = prioritizeBusinessEvidence(currentMessages, scopedMessages.length);
         evidenceContextPrioritized = true;
     };
 
@@ -458,6 +556,13 @@ async function processAiChat(text, options = {}) {
         if (hasPendingWriteConfirmation(toolResults)) {
             finalContent = buildPendingWriteReply(toolResults);
             done = true;
+        } else if (!toolResults.slice(-freshLookupCalls.length).every(
+            item => hasVerifiedExecution(item?.result)
+        )) {
+            finalContent = safeMissingBusinessEvidenceReply(
+                toolResults.slice(-freshLookupCalls.length)
+            );
+            done = true;
         }
     }
 
@@ -467,8 +572,13 @@ async function processAiChat(text, options = {}) {
             requiredToolNames: freshLookupCalls.map(call => call.name),
             priorToolNames: toolResults.map(item => item.name),
         });
+        const offeredTools = toolsAfterDeterministicFreshLookup(
+                toolRoute.tools,
+                freshLookupCalls,
+                toolResults
+            );
         const aiRes = await fetchAiProvider(currentMessages, {
-            tools: toolRoute.tools,
+            tools: offeredTools,
             stream: false,
         });
 
@@ -484,17 +594,30 @@ async function processAiChat(text, options = {}) {
             tool_calls: msg.tool_calls
         });
 
-        if (msg.tool_calls && msg.tool_calls.length > 0) {
-            for (const tc of msg.tool_calls) {
+        const preparedToolCalls = prepareAiToolCalls(msg.tool_calls || [], 'model', {
+            allowedToolNames: offeredTools.map(tool => tool.function.name),
+            writeIntent: toolRoute.writeIntent,
+            writeTools: WRITE_TOOLS,
+        });
+        if (preparedToolCalls.length > 0) {
+            for (const preparedToolCall of preparedToolCalls) {
+                const tc = preparedToolCall.toolCall;
                 const funcName = tc.function.name;
                 console.log(`[AI] 调用工具: ${funcName}`);
 
                 const args = parseAiToolArguments(tc.function.arguments);
 
-                const result = await executeToolCall(funcName, args, {
-                    allowWrite,
-                    confirmationSubject,
-                });
+                const result = preparedToolCall.validationStatus === 'rejected'
+                    ? {
+                        success: false,
+                        error: preparedToolCall.validationError,
+                        code: preparedToolCall.validationCode || 'INVALID_AI_BUSINESS_QUERY',
+                        validation: { status: 'rejected', toolName: funcName },
+                    }
+                    : await executeToolCall(funcName, args, {
+                        allowWrite,
+                        confirmationSubject,
+                    });
                 const viewType = viewTypeForAiTool(funcName);
 
                 toolResults.push({ name: funcName, view_type: viewType, result });
@@ -502,12 +625,20 @@ async function processAiChat(text, options = {}) {
                 currentMessages.push(buildAiToolResultMessage(tc, result));
             }
             prioritizeEvidence();
+            if (hasPendingWriteConfirmation(toolResults)) {
+                finalContent = buildPendingWriteReply(toolResults);
+                done = true;
+            }
         } else {
+            const missingBusinessEvidence = (
+                toolResults.length > 0
+                && !hasVerifiedToolEvidence(toolResults)
+            );
             const guarded = shouldRetryUnverifiedWriteReply({
                 content: msg.content || '',
                 toolRoute,
                 writeTools: WRITE_TOOLS,
-            });
+            }) || lacksStructuredWriteResult(toolRoute, toolResults, msg.content || '');
             if (guarded && writeGuardRetries < 1) {
                 writeGuardRetries += 1;
                 currentMessages.push({
@@ -516,9 +647,11 @@ async function processAiChat(text, options = {}) {
                 });
                 continue;
             }
-            finalContent = guarded
-                ? safeUnverifiedWriteReply()
-                : (msg.content || '');
+            finalContent = missingBusinessEvidence
+                ? safeMissingBusinessEvidenceReply(toolResults)
+                : guarded
+                    ? safeUnverifiedWriteReply()
+                    : (msg.content || '');
             done = true;
         }
     }

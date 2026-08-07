@@ -268,6 +268,9 @@ export type AiToolPlanStep = {
   label: string;
   mode: 'read' | 'write';
   requiresConfirmation?: boolean;
+  source?: 'rule' | 'model' | 'unknown';
+  validationStatus?: 'validated' | 'rejected';
+  validationError?: string;
   argsSummary?: Array<{ key: string; value: string }>;
 };
 
@@ -288,6 +291,42 @@ export type AiStreamEvent =
   | { type: 'error'; message: string };
 
 export const AI_CONTEXT_MESSAGE_LIMIT = 10;
+export const AI_STREAM_INTERRUPTED_CODE = 'AI_STREAM_INTERRUPTED';
+
+export class AiStreamTransportError extends Error {
+  readonly code = AI_STREAM_INTERRUPTED_CODE;
+  readonly retryable = true;
+
+  constructor(message = 'AI 连接中断，请重试') {
+    super(message);
+    this.name = 'AiStreamTransportError';
+  }
+}
+
+class AiStreamServerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AiStreamServerError';
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : (error as { name?: string } | null)?.name === 'AbortError';
+}
+
+function isFetchTransportError(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /load failed|failed to fetch|network|connection|terminated/i.test(message);
+}
+
+export function isRetryableAiStreamError(error: unknown): boolean {
+  return error instanceof AiStreamTransportError
+    || (error as { code?: string; retryable?: boolean } | null)?.code === AI_STREAM_INTERRUPTED_CODE
+    || (error as { retryable?: boolean } | null)?.retryable === true;
+}
 
 function resolveAiStreamUrl(): string {
   const configured = process.env.NEXT_PUBLIC_AI_STREAM_URL;
@@ -304,45 +343,76 @@ export async function streamAiChat(
   signal?: AbortSignal,
   pageContext?: AiPageContext | null
 ): Promise<void> {
-  const response = await proxyStreamFetch(resolveAiStreamUrl(), {
-    method: 'POST',
-    body: JSON.stringify({
-      messages: messages.slice(-AI_CONTEXT_MESSAGE_LIMIT),
-      ...(pageContext ? {
-        pageContext: {
-          resourceType: pageContext.resourceType,
-          resourceId: pageContext.resourceId,
-          path: pageContext.path,
-          view: pageContext.view,
-        },
-      } : {}),
-    }),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await proxyStreamFetch(resolveAiStreamUrl(), {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: messages.slice(-AI_CONTEXT_MESSAGE_LIMIT),
+        ...(pageContext ? {
+          pageContext: {
+            resourceType: pageContext.resourceType,
+            resourceId: pageContext.resourceId,
+            path: pageContext.path,
+            view: pageContext.view,
+          },
+        } : {}),
+      }),
+      signal,
+    });
+  } catch (error) {
+    if (isAbortError(error) || !isFetchTransportError(error)) throw error;
+    throw new AiStreamTransportError();
+  }
 
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('无法读取 AI 响应流');
+  if (!reader) throw new AiStreamTransportError('无法读取 AI 响应流，请重试');
 
   const decoder = new TextDecoder();
   let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  let completed = false;
+  let serverError = '';
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const raw = line.slice(6).trim();
-      if (!raw) continue;
-      try {
-        onEvent(JSON.parse(raw) as AiStreamEvent);
-      } catch {
-        // Ignore partial or malformed SSE chunks.
-      }
+  function consumeLine(line: string) {
+    const normalized = line.trimEnd();
+    if (!normalized.startsWith('data:')) return;
+    const raw = normalized.slice(5).trim();
+    if (!raw) return;
+    try {
+      const event = JSON.parse(raw) as AiStreamEvent;
+      if (event.type === 'done') completed = true;
+      if (event.type === 'error') serverError = event.message;
+      onEvent(event);
+    } catch (error) {
+      if (error instanceof SyntaxError) return;
+      throw error;
     }
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) consumeLine(line);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) consumeLine(buffer);
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    if (error instanceof AiStreamServerError || error instanceof AiStreamTransportError) throw error;
+    throw new AiStreamTransportError();
+  }
+
+  if (serverError) {
+    throw new AiStreamServerError(serverError);
+  }
+  if (!completed) {
+    throw new AiStreamTransportError();
   }
 }
 

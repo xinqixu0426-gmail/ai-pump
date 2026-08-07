@@ -314,7 +314,7 @@ export function BusinessResult({
     );
   }
 
-  if (['get_all_parts', 'search_parts', 'create_part', 'batch_create_parts', 'update_part', 'batch_update_prices'].includes(item.name)) {
+  if (['get_all_parts', 'search_parts', 'create_part', 'batch_create_parts', 'adjust_part_stock', 'update_part', 'batch_update_prices'].includes(item.name)) {
     return <PartsResult name={item.name} result={result} />;
   }
   if (['get_all_recipes', 'create_recipe', 'update_recipe', 'delete_recipe'].includes(item.name)) {

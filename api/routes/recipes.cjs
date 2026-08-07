@@ -94,7 +94,12 @@ function sendRecipeQueryError(res, error) {
 }
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: recipeQueries.getAllRecipes() }); }
+    try {
+        res.json({
+            success: true,
+            data: recipeQueries.getAllRecipes({ keyword: req.query.keyword }),
+        });
+    }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 

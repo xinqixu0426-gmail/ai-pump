@@ -33,6 +33,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     order: Object.freeze([
         'get_order_detail',
         'get_recent_orders',
+        'get_purchase_overview',
         'get_order_readiness_overview',
         'check_order_readiness',
         'plan_order_readiness_actions',
@@ -69,6 +70,8 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     ]),
     recipe: Object.freeze([
         'get_all_recipes',
+        'get_recipe_detail',
+        'get_recipe_technical_files',
         'build_recipe_bom_draft',
         'preview_recipe_cost',
         'preview_pump_shell_cost',
@@ -91,6 +94,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     ]),
     coil: Object.freeze([
         'get_coil_specs',
+        'search_coils',
         'calculate_coil_cost',
         'get_copper_price',
         'adjust_coil_stock',
@@ -100,6 +104,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'search_parts',
         'create_part',
         'batch_create_parts',
+        'adjust_part_stock',
         'update_part',
         'delete_part',
         'batch_update_prices',
@@ -140,6 +145,7 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     restore_factory_rule_event: '恢复规则审核状态',
     get_order_detail: '读取订单详情',
     get_recent_orders: '读取最近订单',
+    get_purchase_overview: '读取采购总览',
     build_order_draft: '生成订单草稿',
     generate_purchase_list: '生成采购清单',
     save_order_requirement_draft: '保存客户要求草稿',
@@ -157,6 +163,8 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     search_factory_file_archive_targets: '查找文件归档目标',
     archive_factory_file: '归档工厂文件',
     get_all_recipes: '读取配方列表',
+    get_recipe_detail: '读取配方明细',
+    get_recipe_technical_files: '读取配方技术档案',
     build_recipe_bom_draft: '生成 BOM 草稿',
     preview_recipe_cost: '配方成本试算',
     preview_pump_shell_cost: '泵壳成本试算',
@@ -169,10 +177,12 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     calculate_coil_cost: '计算线圈成本',
     get_copper_price: '查询铜价',
     get_coil_specs: '读取线圈规格',
+    search_coils: '查询线圈库存',
     adjust_coil_stock: '调整线圈库存',
     search_parts: '搜索零件',
     create_part: '新建零件',
     batch_create_parts: '批量新增零件',
+    adjust_part_stock: '调整零件库存',
     update_part: '修改零件',
     delete_part: '删除零件',
     batch_update_prices: '批量调价',
@@ -193,10 +203,14 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
     ]),
     query: Object.freeze([
         'get_coil_specs',
+        'search_coils',
         'get_all_recipes',
+        'get_recipe_detail',
+        'get_recipe_technical_files',
         'get_recent_orders',
         'create_part',
         'batch_create_parts',
+        'adjust_part_stock',
         'update_part',
         'adjust_coil_stock',
         'search_parts',
@@ -210,6 +224,7 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'create_order',
         'add_recipe_to_order',
         'get_order_detail',
+        'get_purchase_overview',
         'get_order_knowledge_package',
         'check_order_readiness',
         'get_order_readiness_overview',
@@ -267,7 +282,10 @@ const AI_EXECUTOR_BY_CAPABILITY_NAME = Object.freeze(Object.fromEntries(
 
 const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
     'search_parts',
+    'search_coils',
     'get_all_recipes',
+    'get_recipe_detail',
+    'get_recipe_technical_files',
     'preview_recipe_cost',
     'preview_pump_shell_cost',
     'calculate_coil_cost',
@@ -275,6 +293,7 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
     'full_calculate',
     'get_copper_price',
     'get_recent_orders',
+    'get_purchase_overview',
     'get_order_detail',
     'get_order_knowledge_package',
     'get_order_readiness_overview',
@@ -298,6 +317,7 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
 const WRITE_CAPABILITY_NAMES = new Set([
     'create_part',
     'batch_create_parts',
+    'adjust_part_stock',
     'update_part',
     'delete_part',
     'batch_update_prices',
@@ -331,10 +351,15 @@ const LIVE_CAPABILITY_NAMES = new Set([
     'get_copper_price',
     'calculate_coil_cost',
     'get_coil_specs',
+    'search_coils',
     'adjust_coil_stock',
+    'adjust_part_stock',
     'get_all_recipes',
+    'get_recipe_detail',
+    'get_recipe_technical_files',
     'dynamic_config_cost',
     'get_recent_orders',
+    'get_purchase_overview',
     'get_order_detail',
     'generate_purchase_list',
     'preview_recipe_cost',
@@ -402,6 +427,7 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     create_part: Object.freeze(['parts.create']),
     batch_create_parts: Object.freeze(['parts.batch_create']),
+    adjust_part_stock: Object.freeze(['inventory.parts.batch_adjust_stock']),
     update_part: Object.freeze([
         'parts.update',
         'inventory.parts.batch_adjust_stock',
@@ -453,6 +479,7 @@ const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
 
 const CRITICAL_CAPABILITY_NAMES = new Set([
     'adjust_coil_stock',
+    'adjust_part_stock',
     'execute_factory_workflow_step',
     'print_rotor_drawing',
 ]);
@@ -1502,6 +1529,7 @@ function domainsByCapabilityName() {
 function sourceOfTruthFor(name, domains) {
     const overrides = {
         build_recipe_bom_draft: 'recipeBomEngine',
+        get_recipe_detail: 'recipeServiceAndCostEngine',
         preview_pump_shell_cost: 'recipeBomEngineAndCostEngine',
         get_order_knowledge_package: 'orderService',
         plan_factory_workflow: 'workflowPlanningService',

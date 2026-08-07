@@ -74,7 +74,7 @@ function legacyCoilCommandResponse(result) {
 // ── CRUD ──
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: coilQueries.getAllCoils() }); }
+    try { res.json({ success: true, data: coilQueries.getAllCoils(req.query) }); }
     catch (error) { sendCoilQueryError(res, error); }
 });
 

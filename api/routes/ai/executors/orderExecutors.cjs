@@ -125,6 +125,21 @@ async function saveExistingOrder(internalFetch, order, items, options = {}) {
 
 async function executeOrderTool(toolName, args, internalFetch) {
     switch (toolName) {
+        case 'get_purchase_overview': {
+            const query = new URLSearchParams();
+            query.set('limit', String(args.limit || 20));
+            for (const field of ['limit', 'supplier', 'pendingOnly']) {
+                const value = String(args[field] ?? '').trim();
+                if (value) query.set(field, value);
+            }
+            const data = await getJson(
+                internalFetch,
+                `/api/orders/purchase-overview${query.size ? `?${query.toString()}` : ''}`,
+                '采购总览读取失败'
+            );
+            return { success: true, data };
+        }
+
         case 'save_order_requirement_draft': {
             if (!args.orderId) return { success: false, error: '缺少订单ID' };
             if (!String(args.summaryText || '').trim()) return { success: false, error: '客户要求摘要不能为空' };

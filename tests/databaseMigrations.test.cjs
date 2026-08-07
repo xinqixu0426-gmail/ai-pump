@@ -293,12 +293,24 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
 
         const restoreMigration = MIGRATIONS.find(migration => migration.version === 47);
         const dataAwareMigration = MIGRATIONS.find(migration => migration.version === 48);
+        const formalTechnicalFileMigration = MIGRATIONS.find(migration => migration.version === 49);
+        const formalCoilQueryMigration = MIGRATIONS.find(migration => migration.version === 50);
+        const dataAwareCoilQueryMigration = MIGRATIONS.find(migration => migration.version === 51);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
+        assert.ok(formalTechnicalFileMigration);
+        assert.ok(formalCoilQueryMigration);
+        assert.ok(dataAwareCoilQueryMigration);
         restoreMigration.up(db);
         restoreMigration.up(db);
         dataAwareMigration.up(db);
         dataAwareMigration.up(db);
+        formalTechnicalFileMigration.up(db);
+        formalTechnicalFileMigration.up(db);
+        formalCoilQueryMigration.up(db);
+        formalCoilQueryMigration.up(db);
+        dataAwareCoilQueryMigration.up(db);
+        dataAwareCoilQueryMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, review_status, source_type
@@ -332,6 +344,35 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
             {
                 type: 'recipe_test_report',
                 recipeName: 'V1600-3”-12-180',
+            }
+        );
+        assert.deepEqual(
+            JSON.parse(testReportCase.config_json).requiredTools,
+            ['get_recipe_technical_files']
+        );
+        const coilCase = db.prepare(`
+            SELECT config_json FROM ai_evaluation_cases
+            WHERE case_key = 'coil-all-official-variants'
+        `).get();
+        assert.deepEqual(
+            JSON.parse(coilCase.config_json),
+            {
+                prerequisite: {
+                    type: 'coil_variants',
+                    spec: '12',
+                    sheets: 220,
+                },
+                unavailableTerms: [
+                    '未找到',
+                    '没有找到',
+                    '未查到',
+                    '暂无',
+                    '没有可列出',
+                ],
+                expectedMode: 'live_business',
+                requiredTerms: [['钢带'], ['小眼'], ['冷轧'], ['国标眼']],
+                requiredTools: ['search_coils'],
+                requiredSourceTables: ['coils'],
             }
         );
         assert.deepEqual(

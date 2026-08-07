@@ -2418,6 +2418,103 @@ const MIGRATIONS = Object.freeze([
             }), now, 'test-report-ignore-template-points');
         },
     },
+    {
+        version: 49,
+        name: 'formal_recipe_technical_file_ai_evaluation',
+        signature: 'system-ai-release-gate-uses-formal-recipe-technical-files-api-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            const update = db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `);
+            update.run(JSON.stringify({
+                prerequisite: {
+                    type: 'recipe_test_report',
+                    recipeName: 'V1600-3”-12-180',
+                },
+                unavailableTerms: [
+                    '未找到',
+                    '没有找到',
+                    '未记录',
+                    '没有记录',
+                    '无法确认',
+                    '尚未归档',
+                ],
+                requiredTerms: [['性能测试报告', '测试报告']],
+                forbiddenTerms: ['参考图纸'],
+                requiredTools: ['get_recipe_technical_files'],
+                requiredSourceTables: ['recipes'],
+            }), now, 'test-report-file-type');
+            update.run(JSON.stringify({
+                prerequisite: {
+                    type: 'recipe_test_report',
+                    recipeName: 'V1600-3”-12-180',
+                },
+                unavailableTerms: [
+                    '未找到',
+                    '没有找到',
+                    '未记录',
+                    '没有记录',
+                    '无法提供',
+                    '尚未归档',
+                ],
+                forbiddenTerms: ['规定点', '实测点', '偏差'],
+                requiredTerms: [['测试点'], ['流量'], ['扬程']],
+                requiredTools: ['get_recipe_technical_files'],
+                requiredSourceTables: ['recipes'],
+            }), now, 'test-report-ignore-template-points');
+        },
+    },
+    {
+        version: 50,
+        name: 'formal_coil_query_ai_evaluation',
+        signature: 'system-ai-release-gate-uses-formal-live-coil-query-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `).run(JSON.stringify({
+                expectedMode: 'live_business',
+                requiredTerms: [['钢带'], ['小眼'], ['冷轧'], ['国标眼']],
+                requiredTools: ['search_coils'],
+                requiredSourceTables: ['coils'],
+            }), now, 'coil-all-official-variants');
+        },
+    },
+    {
+        version: 51,
+        name: 'data_aware_formal_coil_ai_evaluation',
+        signature: 'system-ai-release-gate-validates-unavailable-formal-coil-fixture-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `).run(JSON.stringify({
+                prerequisite: {
+                    type: 'coil_variants',
+                    spec: '12',
+                    sheets: 220,
+                },
+                unavailableTerms: [
+                    '未找到',
+                    '没有找到',
+                    '未查到',
+                    '暂无',
+                    '没有可列出',
+                ],
+                expectedMode: 'live_business',
+                requiredTerms: [['钢带'], ['小眼'], ['冷轧'], ['国标眼']],
+                requiredTools: ['search_coils'],
+                requiredSourceTables: ['coils'],
+            }), now, 'coil-all-official-variants');
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

@@ -130,9 +130,53 @@ function numberPattern(value) {
     return new RegExp(`(^|[^\\d.])${escaped}(?:\\.0+)?([^\\d.]|$)`);
 }
 
+function containsUnavailableConclusion(answer, configuredTerms = []) {
+    if (containsAny(answer, configuredTerms)) return true;
+    const normalized = normalizeAnswerForChecks(answer);
+    return (
+        /(?:未|没有|无|暂无).{0,24}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)/.test(normalized)
+        || /(?:返回|记录数|结果).{0,12}0\s*条/.test(normalized)
+    );
+}
+
 function evaluatePrerequisite(config, answer, db) {
     const prerequisite = config?.prerequisite;
-    if (!prerequisite || prerequisite.type !== 'recipe_test_report') return null;
+    if (!prerequisite) return null;
+    if (prerequisite.type === 'coil_variants') {
+        const spec = String(prerequisite.spec || '').trim();
+        const sheets = Number.parseInt(prerequisite.sheets, 10);
+        const row = db.prepare(`
+            SELECT id FROM coils
+            WHERE spec = ? AND sheets = ?
+              AND COALESCE(scheme_status, 'official') = 'official'
+            ORDER BY id LIMIT 1
+        `).get(spec, sheets);
+        const available = Boolean(row);
+        const unavailableTerms = Array.isArray(config.unavailableTerms)
+            ? config.unavailableTerms
+            : ['未找到', '没有找到', '未查到', '暂无', '没有可列出'];
+        const unavailableResultTerms = [
+            ...unavailableTerms,
+            '未查询到',
+            '没有查询到',
+            '查询结果为 0',
+            '查询结果为0',
+            '返回结果为 0',
+            '返回结果为0',
+        ];
+        return {
+            type: prerequisite.type,
+            available,
+            passed: available || containsUnavailableConclusion(answer, unavailableResultTerms),
+            label: available
+                ? `存在 ${spec}-${sheets} 正式线圈方案`
+                : `明确说明 ${spec}-${sheets} 正式线圈方案不可用`,
+            detail: available
+                ? '已找到目标规格片数的正式线圈方案'
+                : '目标方案不存在时必须明确说明未找到',
+        };
+    }
+    if (prerequisite.type !== 'recipe_test_report') return null;
     const recipeName = String(prerequisite.recipeName || '').trim();
     const recipe = db.prepare(`
         SELECT id FROM recipes
@@ -150,6 +194,7 @@ function evaluatePrerequisite(config, answer, db) {
         ? config.unavailableTerms
         : ['未找到', '没有找到', '未记录', '没有记录', '无法确认', '无法提供', '尚未归档'];
     return {
+        type: prerequisite.type,
         available,
         passed: available || containsAny(answer, unavailableTerms),
         label: available ? `存在 ${recipeName} 性能测试报告` : `明确说明 ${recipeName} 性能测试报告不可用`,
@@ -170,7 +215,7 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
     if (prerequisite) {
         addCheck(
             checks,
-            'prerequisite:recipe_test_report',
+            `prerequisite:${prerequisite.type}`,
             prerequisite.label,
             prerequisite.passed,
             prerequisite.detail
@@ -213,7 +258,33 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
             ORDER BY id DESC LIMIT 1
         `).get(config.fact.model);
         if (!row) {
-            addCheck(checks, 'fact:part_price', '核对当前零件价格', false, `零件库没有 ${config.fact.model}`);
+            const missingPartTerms = Array.isArray(config.fact.missingPartTerms)
+                ? config.fact.missingPartTerms
+                : [
+                    '未找到该零件',
+                    '未查到',
+                    '未查询到',
+                    '没有查询到',
+                    '没有找到该零件',
+                    '未找到这个零件',
+                    '零件库没有',
+                    '零件库中没有',
+                    '未找到匹配',
+                    '没有匹配',
+                    '该型号不存在',
+                    '没有该型号',
+                    '返回 0 条',
+                    '返回0条',
+                    '没有该零件',
+                ];
+            const missingMatched = containsUnavailableConclusion(answer, missingPartTerms);
+            addCheck(
+                checks,
+                'fact:part_missing',
+                `明确说明零件库没有 ${config.fact.model}`,
+                missingMatched,
+                missingMatched ? '没有伪造零件价格' : `零件库没有 ${config.fact.model} 时必须明确说明未找到`
+            );
         } else {
             const matched = numberPattern(row.price).test(answer);
             addCheck(checks, 'fact:part_price', `回答当前价格 ${Number(row.price)} 元`, matched, matched ? '与零件库当前价格一致' : `回答未包含当前价格 ${Number(row.price)} 元`);

@@ -123,9 +123,32 @@ function sendOrderQueryError(res, error) {
 
 router.get('/', (req, res) => {
     try {
-        res.json({ success: true, data: orderQueries.getAllOrders() });
+        res.json({
+            success: true,
+            data: orderQueries.getAllOrders({
+                limit: req.query.limit,
+                status: req.query.status,
+                customerName: req.query.customerName,
+                contractNo: req.query.contractNo,
+            }),
+        });
     }
     catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+router.get('/purchase-overview', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: orderQueries.getPurchaseOverview({
+                limit: req.query.limit,
+                supplier: req.query.supplier,
+                pendingOnly: req.query.pendingOnly,
+            }),
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 router.get('/history-price/:recipeName', (req, res) => {

@@ -1,5 +1,9 @@
 const { prioritizeCurrentEvidence } = require('./aiContext.cjs');
 const { getAiCapability } = require('../capabilities/registry.cjs');
+const {
+    QUERY_TOOL_NAMES,
+    normalizeBusinessQueryArgs,
+} = require('./aiBusinessQueryCompiler.cjs');
 
 const VIEW_TYPE_MAP = {
     get_order_detail: 'order_detail',
@@ -36,8 +40,85 @@ function summarizeArgs(args = {}) {
         .slice(0, 6);
 }
 
-function buildAiToolPlan(toolCalls = [], writeTools = new Set()) {
-    const steps = toolCalls.map((toolCall, index) => {
+function prepareAiToolCalls(toolCalls = [], source = 'model', options = {}) {
+    const allowedToolNames = options.allowedToolNames
+        ? new Set(options.allowedToolNames)
+        : null;
+    const writeTools = options.writeTools || new Set();
+    return toolCalls.map(toolCall => {
+        const name = toolCall.function?.name || '';
+        if (allowedToolNames && !allowedToolNames.has(name)) {
+            return {
+                toolCall,
+                source,
+                validationStatus: 'rejected',
+                validationCode: 'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN',
+                validationError: `当前问题未授权调用工具 ${name}`,
+            };
+        }
+        if (writeTools.has(name) && options.writeIntent !== true) {
+            return {
+                toolCall,
+                source,
+                validationStatus: 'rejected',
+                validationCode: 'AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN',
+                validationError: `当前问题是查询意图，已阻止写工具 ${name}`,
+            };
+        }
+        if (!QUERY_TOOL_NAMES.has(name)) {
+            return {
+                toolCall,
+                source,
+            };
+        }
+        try {
+            const args = normalizeBusinessQueryArgs(
+                name,
+                parseAiToolArguments(toolCall.function?.arguments)
+            );
+            return {
+                toolCall: {
+                    ...toolCall,
+                    function: {
+                        ...toolCall.function,
+                        arguments: JSON.stringify(args),
+                    },
+                },
+                source,
+                validationStatus: 'validated',
+            };
+        } catch (error) {
+            return {
+                toolCall: {
+                    ...toolCall,
+                    function: {
+                        ...toolCall.function,
+                        arguments: '{}',
+                    },
+                },
+                source,
+                validationStatus: 'rejected',
+                validationCode: 'INVALID_AI_BUSINESS_QUERY',
+                validationError: error.message,
+            };
+        }
+    });
+}
+
+function buildAiToolPlan(toolCalls = [], writeTools = new Set(), options = {}) {
+    const prepared = toolCalls.map(item => (
+        item?.toolCall
+            ? item
+            : {
+                toolCall: item,
+                source: options.source || 'unknown',
+                validationStatus: QUERY_TOOL_NAMES.has(item?.function?.name)
+                    ? 'validated'
+                    : undefined,
+            }
+    ));
+    const steps = prepared.map((preparedCall, index) => {
+        const toolCall = preparedCall.toolCall;
         const name = toolCall.function?.name || '';
         const write = writeTools.has(name);
         return {
@@ -46,13 +127,21 @@ function buildAiToolPlan(toolCalls = [], writeTools = new Set()) {
             label: getAiCapability(name)?.displayName || name,
             mode: write ? 'write' : 'read',
             requiresConfirmation: write,
-            argsSummary: summarizeArgs(parseAiToolArguments(toolCall.function?.arguments)),
+            source: preparedCall.source,
+            validationStatus: preparedCall.validationStatus,
+            validationError: preparedCall.validationError,
+            argsSummary: preparedCall.validationStatus === 'rejected'
+                ? []
+                : summarizeArgs(parseAiToolArguments(toolCall.function?.arguments)),
         };
     });
     const writeCount = steps.filter(step => step.mode === 'write').length;
+    const rejectedCount = steps.filter(step => step.validationStatus === 'rejected').length;
     return {
         steps,
-        summary: writeCount > 0
+        summary: rejectedCount > 0
+            ? `${rejectedCount} 个候选步骤参数未通过校验，不会执行。`
+            : writeCount > 0
             ? `准备执行 ${steps.length} 个步骤，其中 ${writeCount} 个写操作需要确认。`
             : `准备执行 ${steps.length} 个只读/试算步骤。`,
     };
@@ -110,6 +199,7 @@ module.exports = {
     buildAiToolPlan,
     buildAiToolResultMessage,
     parseAiToolArguments,
+    prepareAiToolCalls,
     prioritizeBusinessEvidence,
     viewTypeForAiTool,
 };

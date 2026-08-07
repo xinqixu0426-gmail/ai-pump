@@ -46,6 +46,10 @@ test('AI 工具路由：零件查询统一使用可筛选搜索工具', () => {
     assert.deepEqual(result.domains, ['catalog']);
     assert.ok(result.toolNames.includes('search_parts'));
     assert.equal(result.toolNames.includes('get_all_parts'), false);
+
+    const cableResult = route('列出电缆');
+    assert.deepEqual(cableResult.domains, ['catalog']);
+    assert.ok(cableResult.toolNames.includes('search_parts'));
 });
 
 test('AI 工具路由：写入关键词与多轮确认持续暴露零件写工具', () => {
@@ -85,6 +89,22 @@ test('AI 工具路由：写入关键词与多轮确认持续暴露零件写工�
     assert.ok(explicitConfirmation.toolNames.includes('create_part'));
 });
 
+test('AI 工具路由：库存符号增量和自然确认都保持零件写入上下文', () => {
+    const initial = route('TEST-机筒-1100库存+100');
+    assert.equal(initial.writeIntent, true);
+    assert.ok(initial.domains.includes('catalog'));
+    assert.ok(initial.toolNames.includes('adjust_part_stock'));
+
+    const confirmed = routeAiTools([
+        { role: 'user', content: 'TEST-机筒-1100库存+100' },
+        { role: 'assistant', content: '请确认是否执行' },
+        { role: 'user', content: '是' },
+    ]);
+    assert.equal(confirmed.writeIntent, true);
+    assert.ok(confirmed.domains.includes('catalog'));
+    assert.ok(confirmed.toolNames.includes('adjust_part_stock'));
+});
+
 test('AI 工具路由：明确查询不会继承此前零件写入意图', () => {
     const result = routeAiTools([
         { role: 'user', content: '帮我录入零件' },
@@ -94,6 +114,71 @@ test('AI 工具路由：明确查询不会继承此前零件写入意图', () =>
     assert.equal(result.writeIntent, false);
     assert.ok(result.toolNames.includes('search_parts'));
     assert.equal(result.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+});
+
+test('AI 工具路由：订单状态口语修改进入写流程，否定和修改记录查询保持只读', () => {
+    const write = route('把订单1状态改为待采购');
+    assert.equal(write.writeIntent, true);
+    assert.ok(write.domains.includes('order'));
+    assert.ok(write.toolNames.includes('update_order_status'));
+
+    const negated = route('不要把订单1状态改为待采购，只查当前状态');
+    assert.equal(negated.writeIntent, false);
+    assert.equal(negated.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+
+    const history = route('订单1的状态修改记录是什么');
+    assert.equal(history.writeIntent, false);
+    assert.equal(history.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+});
+
+test('AI 工具路由：否定语境中的写词不能把资料查询升级为写操作', () => {
+    const result = route('总结V1600性能测试报告，只展示测试数据，不要提到被忽略的模板字段');
+    assert.equal(result.writeIntent, false);
+    assert.equal(result.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+
+    const notExecuted = route('这个操作尚未执行，查一下当前状态');
+    assert.equal(notExecuted.writeIntent, false);
+    assert.equal(notExecuted.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+});
+
+test('AI 工具路由：跨到模板查询时不继承零件或线圈库存写入', () => {
+    const history = [
+        { role: 'user', content: 'TEST-机筒-1100库存加100' },
+        { role: 'assistant', content: '请核对库存调整确认卡片' },
+        { role: 'user', content: '150-96的线圈库存+30' },
+        { role: 'assistant', content: '请核对线圈库存确认卡片' },
+        { role: 'user', content: '查一下配方V的明细' },
+    ];
+    const result = routeAiTools([
+        ...history,
+        { role: 'user', content: '查一下模板V的明细' },
+    ], {
+        requiredToolNames: ['search_factory_knowledge'],
+    });
+
+    assert.deepEqual(result.domains, ['recipe']);
+    assert.equal(result.writeIntent, false);
+    assert.equal(result.writeIntentSource, 'none');
+    assert.ok(result.toolNames.includes('search_factory_knowledge'));
+    assert.equal(result.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+
+    for (const query of [
+        '查一下订单12的详情',
+        '当前采购任务有哪些',
+        '查一下配方V的明细',
+        '查询客户大旭的报价',
+    ]) {
+        const crossDomain = routeAiTools([
+            ...history,
+            { role: 'user', content: query },
+        ]);
+        assert.equal(crossDomain.writeIntent, false, query);
+        assert.equal(
+            crossDomain.toolNames.some(name => WRITE_TOOLS.has(name)),
+            false,
+            query
+        );
+    }
 });
 
 test('AI 工具路由：线圈俗称入库进入独立线圈库存领域', () => {
@@ -162,10 +247,17 @@ test('AI 工具路由：未知业务问题使用小型通用回退而不是全�
     assert.equal(result.toolNames.some(name => WRITE_TOOLS.has(name)), false);
 });
 
-test('AI 工具路由：环境开关关闭后恢复完整工具集合', () => {
+test('AI 工具路由：环境开关关闭也不能让查询轮次获得写工具', () => {
     const result = route('V750成本是多少', {
         env: { AI_DYNAMIC_TOOL_ROUTING_ENABLED: 'false' },
     });
-    assert.equal(result.reason, 'routing_disabled');
-    assert.equal(result.toolNames.length, AI_TOOLS.length);
+    assert.equal(result.reason, 'routing_disabled_safe_allowlist');
+    assert.equal(result.writeIntent, false);
+    assert.equal(result.toolNames.some(name => WRITE_TOOLS.has(name)), false);
+
+    const writeResult = route('TEST-机筒-1100库存加100', {
+        env: { AI_DYNAMIC_TOOL_ROUTING_ENABLED: 'false' },
+    });
+    assert.equal(writeResult.writeIntent, true);
+    assert.equal(writeResult.toolNames.length, AI_TOOLS.length);
 });

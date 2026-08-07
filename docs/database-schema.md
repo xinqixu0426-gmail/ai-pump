@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `48`：
+当前版本为 `51`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -68,6 +68,9 @@
 | 46 | `accept_clear_cutting_evidence_uncertainty` | 补充清晰的不确定性短语，避免安全回答被误判失败 |
 | 47 | `restore_system_ai_evaluation_cases` | 恢复并校准 7 条内置系统 AI 发布回归用例；不修改用户反馈用例 |
 | 48 | `data_aware_system_ai_evaluation_cases` | 测试报告前置数据不存在时核对安全的不可用说明，存在时继续执行严格内容和来源检查 |
+| 49 | `formal_recipe_technical_file_ai_evaluation` | 测试报告类 AI 发布回归统一要求调用正式配方技术档案 API，不再依赖宽泛知识搜索 |
+| 50 | `formal_coil_query_ai_evaluation` | 线圈方案 AI 发布回归统一要求调用正式实时线圈 Query API，不再把知识快照作为库存和成本事实 |
+| 51 | `data_aware_formal_coil_ai_evaluation` | 目标线圈测试方案不存在时验收明确的不可用说明，存在时继续严格核对全部正式方案 |
 
 ## 数据治理
 

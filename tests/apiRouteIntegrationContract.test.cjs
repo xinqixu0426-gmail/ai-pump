@@ -241,7 +241,7 @@ test('关键 API 集成契约：线圈列表、规格草稿和库存流水委托
     );
 
     assert.match(route, /createCoilQueries/);
-    assert.match(listSection, /coilQueries\.getAllCoils/);
+    assert.match(listSection, /coilQueries\.getAllCoils\(req\.query\)/);
     assert.match(listSection, /coilQueries\.getAllStatorVariants/);
     assert.match(route, /coilQueries\.getSpecDraft/);
     assert.match(route, /coilQueries\.getSpecOptions/);
@@ -249,6 +249,8 @@ test('关键 API 集成契约：线圈列表、规格草稿和库存流水委托
     assert.doesNotMatch(movementSection, /db\.prepare|SELECT|coilStockMovementRow/);
     assert.match(service, /SELECT id FROM coils WHERE id = \?/);
     assert.match(service, /FROM coil_stock_movements/);
+    assert.match(service, /String\(options\.spec/);
+    assert.match(service, /Number\(coil\.sheets\) === sheets/);
     assert.doesNotMatch(service, /safeInsert|safeUpdate|hardDelete/);
 });
 
@@ -303,17 +305,26 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
     assert.match(regressionService, /source_type: 'feedback'/);
 });
 
-test('关键 API 集成契约：AI 对话按领域动态选择工具且保留全量回退', () => {
+test('关键 API 集成契约：AI 对话按当前轮次隔离上下文并二次校验工具权限', () => {
     const chat = readUtf8('api/routes/ai/chat.cjs');
     const routing = readUtf8('api/routes/ai/toolRouting.cjs');
+    const context = readUtf8('api/services/aiContext.cjs');
+    const protocol = readUtf8('api/services/aiToolProtocol.cjs');
     const provider = readUtf8('api/services/aiProvider.cjs');
 
     assert.match(chat, /routeAiTools\(routingMessages/);
+    assert.match(chat, /scopeAiContextForTurn\(messages, initialToolRoute\)/);
+    assert.match(chat, /allowedToolNames: offeredTools\.map/);
+    assert.match(chat, /writeIntent: toolRoute\.writeIntent/);
     assert.doesNotMatch(chat, /tools:\s*AI_TOOLS/);
     assert.match(routing, /AI_DYNAMIC_TOOL_ROUTING_ENABLED/);
     assert.match(routing, /WRITE_TOOLS\.has\(name\) && !classified\.writeIntent/);
+    assert.match(routing, /routing_disabled_safe_allowlist/);
     assert.match(routing, /requiredToolNames/);
     assert.match(routing, /priorToolNames/);
+    assert.match(context, /historical business state|executable business state/i);
+    assert.match(protocol, /AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN/);
+    assert.match(protocol, /AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN/);
     assert.match(provider, /Array\.isArray\(options\.tools\) && options\.tools\.length > 0/);
 });
 
@@ -909,6 +920,8 @@ test('关键 API 集成契约：订单只读查询和处理方案不刷新采购
     const detail = sliceBetween(source, "router.get('/:id'", "router.post('/'");
 
     assert.match(list, /orderQueries\.getAllOrders/);
+    assert.match(list, /router\.get\('\/purchase-overview'/);
+    assert.match(list, /orderQueries\.getPurchaseOverview/);
     assertNoWrites(list);
     assert.match(lookup, /orderQueries\.lookupOrders/);
     assert.doesNotMatch(lookup, /db\.prepare|SELECT /);
@@ -951,6 +964,19 @@ test('关键 API 集成契约：报价列表只读，过期状态由独立维护
     assert.match(service, /executePersistentCommand/);
     assert.match(service, /safeUpdate\(\s*'quotations'/);
     assert.match(service, /requiredAuditCount: quotationIds\.length/);
+});
+
+test('关键 API 集成契约：零件列表筛选委托只读 Query service', () => {
+    const route = readUtf8('api/routes/parts.cjs');
+    const service = readUtf8('api/services/partQueries.cjs');
+    const section = sliceBetween(route, "router.get('/'", "router.post('/'");
+
+    assert.match(section, /listParts\(dbGetAllParts\(\),/);
+    assert.match(section, /stockStatus:\s*req\.query\.stockStatus/);
+    assertNoWrites(section);
+    assert.match(service, /stock > 0 && stock <= LOW_STOCK_MAX/);
+    assert.match(service, /stockStatus === 'attention'/);
+    assertNoWrites(service);
 });
 
 test('关键 API 集成契约：客户历史由正式 Query 聚合，AI executor 只调用客户 API', () => {
@@ -1398,7 +1424,8 @@ test('关键 API 集成契约：AI chat 委托模型流与工具消息协议 ser
     const toolProtocol = readUtf8('api/services/aiToolProtocol.cjs');
 
     assert.match(chat, /readAiProviderStream\(aiRes/);
-    assert.match(chat, /buildAiToolPlan\(toolCallsArr, WRITE_TOOLS\)/);
+    assert.match(chat, /prepareAiToolCalls\(providerStream\.toolCalls, 'model', \{/);
+    assert.match(chat, /buildAiToolPlan\(preparedToolCalls, WRITE_TOOLS\)/);
     assert.match(chat, /parseAiToolArguments\(tc\.function\.arguments\)/);
     assert.match(chat, /buildAiToolResultMessage\(tc, result\)/);
     assert.match(chat, /appendRefreshedBusinessEvidence/);
@@ -1410,6 +1437,7 @@ test('关键 API 集成契约：AI chat 委托模型流与工具消息协议 ser
     assert.match(providerStream, /appendToolCallDelta/);
     assert.match(providerStream, /data\?\.choices\?\.\[0\]\?\.delta/);
     assert.match(toolProtocol, /writeTools\.has\(name\)/);
+    assert.match(toolProtocol, /normalizeBusinessQueryArgs/);
     assert.match(toolProtocol, /prioritizeCurrentEvidence/);
     assertNoWrites(providerStream);
     assertNoWrites(toolProtocol);
@@ -1443,7 +1471,9 @@ test('关键 API 集成契约：AI 工具按注册表 executorKey 唯一分发',
     assert.match(registry, /executorKey: AI_EXECUTOR_BY_CAPABILITY_NAME\[name\] \|\| null/);
     assert.match(registry, /resultProvenance: LIVE_BUSINESS_EVIDENCE_NAMES\.has\(name\)/);
     assert.match(executor, /const executor = TOOL_EXECUTORS\[capability\.executorKey\]/);
-    assert.match(executor, /return attachReadProvenance\(capability, result\)/);
+    assert.match(executor, /attachVerifiedExecutionEvidence\(/);
+    assert.match(executor, /internalFetch\.getApiTrace\(\)/);
+    assert.match(executor, /return attachReadProvenance\(capability, verifiedResult\)/);
     assert.doesNotMatch(executor, /const LIVE_BUSINESS_TOOLS/);
     assert.doesNotMatch(executor, /const costRes|const queryRes|const orderRes|const recipeRes|const businessRes/);
 

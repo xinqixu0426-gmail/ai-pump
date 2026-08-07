@@ -1598,9 +1598,13 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
 test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
     const chatRoute = readAiPromptContractSource();
     const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
+    const businessCompiler = readUtf8(path.join(repoRoot, 'api/services/aiBusinessQueryCompiler.cjs'));
+    const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
     const pageContext = readUtf8(path.join(repoRoot, 'api/services/aiPageContext.cjs'));
 
     assert.match(chatRoute, /buildFreshLookupToolCalls/);
+    assert.match(chatRoute, /function toolsAfterDeterministicFreshLookup/);
+    assert.match(chatRoute, /if \(!lookupCompleted\) return tools;\s*return \[\];/);
     assert.match(chatRoute, /normalizeAiPageContext\(req\.body\?\.pageContext\)/);
     assert.match(chatRoute, /resolveMessagesWithPageContext/);
     assert.match(chatRoute, /正在刷新.*易变业务数据/);
@@ -1608,8 +1612,35 @@ test('API 静态契约：易变业务数据查询必须强制刷新工具结果'
     assert.match(chatRoute, /所有正式材质\+槽眼方案/);
     assert.match(freshness, /function coilSpecSheetKey/);
     assert.match(freshness, /entryType: 'coil'/);
+    assert.match(freshness, /compileBusinessQuery\(text\)/);
+    assert.match(businessCompiler, /function compilePartQuery/);
+    assert.match(businessCompiler, /function compileOrderQuery/);
+    assert.match(businessCompiler, /function compileProcurementQuery/);
+    assert.match(businessCompiler, /function compileRecipeQuery/);
+    assert.match(businessCompiler, /function normalizeBusinessQueryArgs/);
+    assert.match(queryExecutor, /suppliers: \[\.\.\.supplierCounts\.entries\(\)\]/);
+    assert.match(queryExecutor, /truncated: parts\.length < results\.length/);
     assert.match(pageContext, /仅用于理解/);
     assert.match(pageContext, /不得替代工具查询/);
+});
+
+test('API 静态契约：PWA AI 流中断自动重试且不保存不完整回复', () => {
+    const aiClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts'));
+    const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
+    const messageStream = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiMessageStream.ts'));
+    const apiReference = readUtf8(path.join(repoRoot, 'docs/api-reference.md'));
+
+    assert.match(aiClient, /AI_STREAM_INTERRUPTED/);
+    assert.match(aiClient, /if \(!completed\)/);
+    assert.match(aiClient, /throw new AiStreamTransportError/);
+    assert.match(aiView, /MAX_AI_STREAM_ATTEMPTS = 2/);
+    assert.match(aiView, /isRetryableAiStreamError/);
+    assert.match(aiView, /streamCompleted\s*&&/);
+    assert.match(aiView, /finalAssistantItem\.status === 'done'/);
+    assert.match(messageStream, /item\.status !== 'error'/);
+    assert.match(messageStream, /item\.status !== 'cancelled'/);
+    assert.match(apiReference, /连接中断时自动重试一次/);
+    assert.match(apiReference, /收到 `done`/);
 });
 
 test('API 静态契约：知识库同步工具是受确认保护的写工具', () => {

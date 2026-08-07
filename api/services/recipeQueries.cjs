@@ -66,8 +66,13 @@ function createRecipeQueries({
         return { template, shellMeta };
     }
 
-    function getAllRecipes() {
-        return listRecipes();
+    function getAllRecipes(options = {}) {
+        const keyword = String(options.keyword || '').trim().toLocaleLowerCase();
+        if (!keyword) return listRecipes();
+        return listRecipes().filter(recipe => (
+            [recipe.name, recipe.spec]
+                .some(value => String(value || '').toLocaleLowerCase().includes(keyword))
+        ));
     }
 
     function getRecipe(rawRecipeId) {

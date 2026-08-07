@@ -313,6 +313,21 @@ test('AI 能力注册表：线圈库存调整已接入持久化命令安全协�
     assert.equal(capability.contractStatus, 'current');
 });
 
+test('AI 能力注册表：零件批量库存调整直接映射正式原子库存命令', () => {
+    const capability = getAiCapability('adjust_part_stock');
+    assert.equal(capability.access, 'write');
+    assert.equal(capability.riskLevel, 'critical');
+    assert.equal(capability.requiresConfirmation, true);
+    assert.equal(capability.supportsPreview, true);
+    assert.deepEqual(capability.formalCapabilityIds, ['inventory.parts.batch_adjust_stock']);
+    assert.equal(
+        capability.concurrencyControl,
+        'confirmationToken_bound_inventory_snapshot'
+    );
+    assert.match(capability.transactionality, /operation_receipt_atomic/);
+    assert.match(capability.audit, /strong_audit/);
+});
+
 test('AI 能力注册表：报价转订单工作流接入预览、确认和持久化业务协议', () => {
     const capability = getAiCapability('execute_factory_workflow_step');
     assert.equal(capability.riskLevel, 'critical');

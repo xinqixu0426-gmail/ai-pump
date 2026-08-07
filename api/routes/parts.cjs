@@ -19,6 +19,7 @@ const {
     buildPartStockPreview,
     executeConfirmedPartStockBatch,
 } = require('../services/inventoryCommands.cjs');
+const { listParts } = require('../services/partQueries.cjs');
 const {
     BATCH_CREATE_CAPABILITY_ID: PART_BATCH_CREATE_CAPABILITY_ID,
     BATCH_PRICE_CAPABILITY_ID,
@@ -57,8 +58,22 @@ function legacyPartCommandResponse(result) {
 }
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: dbGetAllParts() }); }
-    catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    try {
+        const data = listParts(dbGetAllParts(), {
+            keyword: req.query.keyword,
+            category: req.query.category,
+            supplier: req.query.supplier,
+            stockStatus: req.query.stockStatus,
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            error: error.message,
+            ...(error.code ? { code: error.code } : {}),
+            ...(req.requestId ? { requestId: req.requestId } : {}),
+        });
+    }
 });
 
 router.post('/', (req, res) => {

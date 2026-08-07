@@ -74,6 +74,7 @@ function issueAiToolConfirmation({
     toolName,
     args = {},
     subject,
+    executionContext = null,
     ttlMs = DEFAULT_CONFIRMATION_TTL_MS,
     now = Date.now(),
 }) {
@@ -97,6 +98,7 @@ function issueAiToolConfirmation({
         capabilityId: capability.capabilityId,
         toolName,
         args: argsSnapshot,
+        executionContext: cloneJson(executionContext),
         argsHash: argsHash(argsSnapshot),
         subjectHash: subjectHash(subject),
         resourceVersion,
@@ -204,6 +206,7 @@ function consumeAiToolConfirmation({
         capabilityId: entry.capabilityId,
         toolName: entry.toolName,
         args: cloneJson(entry.args),
+        executionContext: cloneJson(entry.executionContext),
         argsHash: entry.argsHash,
         resourceVersion: entry.resourceVersion,
         operationId: entry.operationId,

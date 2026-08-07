@@ -61,6 +61,20 @@ test('提示词分层：只展示排版后的结果且不省略确认、失败�
     assert.doesNotMatch(CORE_PROMPT, /120 个汉字/);
 });
 
+test('提示词分层：零件清单不擅自扩大库存判断且使用正式阈值', () => {
+    const accessors = emptyRuleAccessors();
+    const prompt = composeAiSystemPrompt({
+        domains: ['catalog'],
+        query: '列出所有零件',
+        dbAccessors: accessors,
+    });
+
+    assert.match(prompt, /只要求全量或品类清单时按工具结果列出/);
+    assert.match(prompt, /低库存为库存大于0且不超过5/);
+    assert.match(prompt, /不得自行发明其他阈值/);
+    accessors.db.close();
+});
+
 test('提示词分层：工厂配置不能改变核心规则优先级', () => {
     const accessors = emptyRuleAccessors();
     const prompt = composeAiSystemPrompt({

@@ -145,6 +145,14 @@ test('配方 Query 返回列表、详情及零件和正式线圈库存状态', (
             fixture.queries.getAllRecipes(),
             fixture.listedRecipes
         );
+        assert.deepEqual(
+            fixture.queries.getAllRecipes({ keyword: 'QDX' }),
+            fixture.listedRecipes
+        );
+        assert.deepEqual(
+            fixture.queries.getAllRecipes({ keyword: '不存在' }),
+            []
+        );
         assert.deepEqual(fixture.queries.getRecipe(1), {
             id: 1,
             name: 'QDX10',

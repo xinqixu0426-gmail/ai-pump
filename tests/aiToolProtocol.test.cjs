@@ -6,6 +6,7 @@ const {
     buildAiToolPlan,
     buildAiToolResultMessage,
     parseAiToolArguments,
+    prepareAiToolCalls,
     prioritizeBusinessEvidence,
     viewTypeForAiTool,
 } = require('../api/services/aiToolProtocol.cjs');
@@ -33,6 +34,60 @@ test('AI tool protocol：计划统一标识读写风险并压缩参数摘要', (
         { key: 'items', value: '共 1 项' },
     ]);
     assert.match(plan.summary, /1 个写操作需要确认/);
+});
+
+test('AI tool protocol：模型候选参数先规范化校验再进入执行计划', () => {
+    const prepared = prepareAiToolCalls([
+        buildAiToolCall('search_parts', { keyword: '有没有', stockStatus: 'out' }, 'read-1'),
+        buildAiToolCall('search_parts', { query: '轴承' }, 'read-2'),
+    ], 'model');
+
+    assert.deepEqual(parseAiToolArguments(prepared[0].toolCall.function.arguments), {
+        stockStatus: 'out',
+    });
+    assert.equal(prepared[0].validationStatus, 'validated');
+    assert.equal(prepared[1].validationStatus, 'rejected');
+    const plan = buildAiToolPlan(prepared, new Set());
+    assert.equal(plan.steps[0].source, 'model');
+    assert.equal(plan.steps[0].validationStatus, 'validated');
+    assert.equal(plan.steps[1].validationStatus, 'rejected');
+    assert.deepEqual(plan.steps[1].argsSummary, []);
+    assert.match(plan.summary, /不会执行/);
+});
+
+test('AI tool protocol：查询轮次拒绝模型越权调用库存写工具', () => {
+    const [prepared] = prepareAiToolCalls([{
+        id: 'call-write',
+        type: 'function',
+        function: {
+            name: 'adjust_part_stock',
+            arguments: JSON.stringify({
+                items: [{ model: 'TEST-机筒-1100', changeQty: 100 }],
+            }),
+        },
+    }], 'model', {
+        allowedToolNames: ['search_factory_knowledge'],
+        writeIntent: false,
+        writeTools: new Set(['adjust_part_stock']),
+    });
+
+    assert.equal(prepared.validationStatus, 'rejected');
+    assert.equal(prepared.validationCode, 'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN');
+
+    const [writeRejected] = prepareAiToolCalls([{
+        id: 'call-write-offered',
+        type: 'function',
+        function: {
+            name: 'adjust_part_stock',
+            arguments: '{}',
+        },
+    }], 'model', {
+        allowedToolNames: ['adjust_part_stock'],
+        writeIntent: false,
+        writeTools: new Set(['adjust_part_stock']),
+    });
+    assert.equal(writeRejected.validationStatus, 'rejected');
+    assert.equal(writeRejected.validationCode, 'AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN');
 });
 
 test('AI tool protocol：新增编排与事实草稿工具也从能力注册表取得展示名', () => {

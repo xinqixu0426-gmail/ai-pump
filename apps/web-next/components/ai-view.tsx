@@ -16,6 +16,7 @@ import {
   appendAiConversationMessage,
   createAiConversation,
   getAiSystemPrompt,
+  isRetryableAiStreamError,
   streamAiChat,
   updateAiConversationMessage,
   updateAiSystemPrompt,
@@ -53,6 +54,8 @@ import { useAiSpeechInput } from '@/components/ai/useAiSpeechInput';
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+const MAX_AI_STREAM_ATTEMPTS = 2;
 
 type AiViewProps = {
   variant?: 'workspace' | 'panel';
@@ -135,6 +138,7 @@ export function AiView({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
   const restoredConversationRef = useRef(false);
+  const sendInFlightRef = useRef(false);
   const restoreConversationActionsRef = useRef({
     openConversation,
     clearRestorableConversation,
@@ -194,7 +198,8 @@ export function AiView({
   async function sendMessage(text: string) {
     const attachments = pendingAttachments;
     const content = text.trim() || (attachments.length > 0 ? '请查看我上传的附件。' : '');
-    if (!content || loading || uploadingAttachment) return;
+    if (!content || loading || uploadingAttachment || sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
     if (isListening) stopVoiceInput();
 
     const userItem: ChatItem = { id: makeId(), role: 'user', content, attachments };
@@ -221,6 +226,7 @@ export function AiView({
 
     let conversationId = activeConversationId;
     let finalAssistantItem = assistantItem;
+    let streamCompleted = false;
 
     try {
       if (!conversationId) {
@@ -241,32 +247,63 @@ export function AiView({
       setHistoryError(message);
       restorePendingAttachments(attachments);
       setLoading(false);
+      sendInFlightRef.current = false;
       return;
     }
 
     try {
       const controller = beginStream();
-      await streamAiChat(nextMessages, (event) => {
-        finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
-        updateAssistant(assistantId, (item) => applyAiStreamEvent(item, event));
-      }, controller.signal, pageContext);
+      for (let attempt = 1; attempt <= MAX_AI_STREAM_ATTEMPTS; attempt += 1) {
+        try {
+          await streamAiChat(nextMessages, (event) => {
+            finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
+            updateAssistant(assistantId, (item) => applyAiStreamEvent(item, event));
+          }, controller.signal, pageContext);
+          streamCompleted = true;
+          break;
+        } catch (error) {
+          const canRetry = (
+            attempt < MAX_AI_STREAM_ATTEMPTS
+            && !controller.signal.aborted
+            && isRetryableAiStreamError(error)
+          );
+          if (!canRetry) throw error;
+
+          finalAssistantItem = {
+            ...assistantItem,
+            status: 'thinking',
+            statusMessage: '连接中断，正在自动重试...',
+          };
+          updateAssistant(assistantId, () => finalAssistantItem);
+        }
+      }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
+      if ((err as Error).name === 'AbortError') {
         finalAssistantItem = {
-          ...finalAssistantItem,
-          status: 'error',
-          statusMessage: (err as Error).message || 'AI 请求失败',
-          content: finalAssistantItem.content || 'AI 请求失败',
+          ...assistantItem,
+          status: 'cancelled',
+          statusMessage: '已停止',
         };
-        updateAssistant(assistantId, (item) => ({
-          ...item,
+        updateAssistant(assistantId, () => finalAssistantItem);
+      } else {
+        const message = isRetryableAiStreamError(err)
+          ? '连接中断，未取得完整结果。请再试一次。'
+          : ((err as Error).message || 'AI 请求失败');
+        finalAssistantItem = {
+          ...assistantItem,
           status: 'error',
-          statusMessage: (err as Error).message || 'AI 请求失败',
-          content: item.content || 'AI 请求失败',
-        }));
+          statusMessage: message,
+          content: message,
+        };
+        updateAssistant(assistantId, () => finalAssistantItem);
       }
     } finally {
-      if (conversationId && finalAssistantItem.content.trim()) {
+      if (
+        conversationId
+        && streamCompleted
+        && finalAssistantItem.status === 'done'
+        && finalAssistantItem.content.trim()
+      ) {
         try {
           const saved = await appendAiConversationMessage(conversationId, {
             role: 'assistant',
@@ -285,6 +322,7 @@ export function AiView({
         }
       }
       finishStream();
+      sendInFlightRef.current = false;
     }
   }
 

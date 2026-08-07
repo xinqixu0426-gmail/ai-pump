@@ -1,12 +1,26 @@
 const { getAiCapability } = require('../../capabilities/registry.cjs');
 const { issueAiToolConfirmation } = require('../../services/aiToolConfirmation.cjs');
-const { createInternalFetch } = require('./internalApiClient.cjs');
+const {
+    createInternalFetch,
+    getJson,
+    postJson,
+} = require('./internalApiClient.cjs');
 const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
 const { executeOrderTool } = require('./executors/orderExecutors.cjs');
 const { executeRecipeTool } = require('./executors/recipeExecutors.cjs');
 const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
-const { partUpdateInputError } = require('../../services/aiPartExecution.cjs');
+const {
+    partUpdateInputError,
+    preparePartStockAdjustment,
+} = require('../../services/aiPartExecution.cjs');
+const {
+    attachVerifiedFailureEvidence,
+    attachVerifiedExecutionEvidence,
+} = require('../../services/aiExecutionEvidence.cjs');
+const {
+    normalizeBusinessQueryArgs,
+} = require('../../services/aiBusinessQueryCompiler.cjs');
 
 const TOOL_EXECUTORS = Object.freeze({
     cost: executeCostTool,
@@ -60,6 +74,15 @@ function buildConfirmationRows(toolName, args = {}) {
         case 'batch_create_parts':
             addRow(rows, '新增数量', Array.isArray(args.parts) ? args.parts.length : 0);
             addRow(rows, '零件', previewItems(args.parts, 'model'));
+            break;
+        case 'adjust_part_stock':
+            addRow(rows, '零件库存', Array.isArray(args.items)
+                ? args.items.map(item => {
+                    const change = Number(item.changeQty);
+                    return `${item.model} ${change > 0 ? '+' : ''}${change} 件`;
+                }).join('，')
+                : '');
+            addRow(rows, '备注', args.note);
             break;
         case 'adjust_coil_stock':
             addRow(rows, '线圈成品', Array.isArray(args.items)
@@ -186,11 +209,14 @@ function buildConfirmationRows(toolName, args = {}) {
 function buildWriteConfirmation(toolName, args, options = {}) {
     const capability = getAiCapability(toolName);
     const title = capability?.displayName || toolName;
-    const rows = buildConfirmationRows(toolName, args);
+    const rows = Array.isArray(options.confirmationRows)
+        ? options.confirmationRows
+        : buildConfirmationRows(toolName, args);
     const token = issueAiToolConfirmation({
         toolName,
         args: args || {},
         subject: options.confirmationSubject || 'internal:executor',
+        executionContext: options.executionContext,
     });
     return {
         success: true,
@@ -227,18 +253,59 @@ async function executeToolCall(toolName, args, options = {}) {
     if (!capability) {
         return { success: false, error: `工具未登记到能力注册表，已拒绝执行: ${toolName}` };
     }
+    try {
+        args = normalizeBusinessQueryArgs(toolName, args);
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message,
+            code: error.code || 'INVALID_AI_BUSINESS_QUERY',
+            validation: {
+                status: 'rejected',
+                toolName,
+                ...(error.details || {}),
+            },
+        };
+    }
     if (toolName === 'update_part') {
         const inputError = partUpdateInputError(args);
         if (inputError) return inputError;
     }
 
+    let internalFetch = null;
     // 权限拦截：写操作需要 allowWrite=true
     if (capability.access === 'write' && !allowWrite) {
+        if (toolName === 'adjust_part_stock') {
+            internalFetch = createInternalFetch({
+                operationId: options.operationId,
+                capabilityId: capability.capabilityId,
+            });
+            try {
+                const prepared = await preparePartStockAdjustment(args, {
+                    internalFetch,
+                    getJson,
+                    postJson,
+                });
+                args = prepared.args;
+                return buildWriteConfirmation(toolName, args, {
+                    ...options,
+                    confirmationRows: prepared.confirmationRows,
+                    executionContext: prepared.executionContext,
+                });
+            } catch (error) {
+                return {
+                    success: false,
+                    code: error.code || 'part_stock_preflight_failed',
+                    error: error.message,
+                    ...(error.details || {}),
+                };
+            }
+        }
         return buildWriteConfirmation(toolName, args, options);
     }
     
     // 内部网络获取助手，注入系统秘钥并复用标准 API 鉴权入口。
-    const internalFetch = createInternalFetch({
+    internalFetch ||= createInternalFetch({
         operationId: options.operationId,
         capabilityId: capability.capabilityId,
     });
@@ -251,16 +318,35 @@ async function executeToolCall(toolName, args, options = {}) {
     }
 
     try {
-        const result = await executor(toolName, args, internalFetch);
+        const result = await executor(toolName, args, internalFetch, {
+            confirmationContext: options.confirmationContext,
+        });
         if (!result) {
             return {
                 success: false,
                 error: `能力 executorKey 与实现不一致，已拒绝执行: ${toolName}`,
             };
         }
-        return attachReadProvenance(capability, result);
+        const verifiedResult = attachVerifiedExecutionEvidence(
+            capability,
+            result,
+            typeof internalFetch.getApiTrace === 'function'
+                ? internalFetch.getApiTrace()
+                : []
+        );
+        return attachReadProvenance(capability, verifiedResult);
     } catch (err) {
-        return { success: false, error: err.message };
+        return attachVerifiedFailureEvidence(
+            capability,
+            {
+                success: false,
+                code: err.code || null,
+                error: err.message,
+            },
+            typeof internalFetch.getApiTrace === 'function'
+                ? internalFetch.getApiTrace()
+                : []
+        );
     }
 }
 

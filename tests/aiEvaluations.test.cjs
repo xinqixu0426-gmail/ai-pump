@@ -14,6 +14,12 @@ function createFixture() {
     const db = new Database(':memory:');
     db.exec(`
         CREATE TABLE parts (id INTEGER PRIMARY KEY, model TEXT, price REAL, deleted_at TEXT);
+        CREATE TABLE coils (
+            id INTEGER PRIMARY KEY,
+            spec TEXT,
+            sheets INTEGER,
+            scheme_status TEXT
+        );
         CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, deleted_at TEXT);
         CREATE TABLE quotations (id INTEGER PRIMARY KEY, customer_id INTEGER, deleted_at TEXT);
         CREATE TABLE recipes (id INTEGER PRIMARY KEY, name TEXT, deleted_at TEXT);
@@ -299,6 +305,97 @@ test('AI 评测：客户不存在时接受明确未找到结论而不要求伪�
     );
     const invented = evaluateRuleCase(caseItem, '当前共有 0 份报价。', [], fixture.db);
     assert.equal(invented.status, 'failed');
+    fixture.db.close();
+});
+
+test('AI 评测：零件不存在时接受明确未找到结论而不要求测试夹具', () => {
+    const fixture = createFixture();
+    fixture.db.prepare('DELETE FROM parts').run();
+    const caseItem = {
+        config: {
+            expectedMode: 'live_business',
+            requiredTools: ['search_parts'],
+            fact: {
+                type: 'part_price',
+                model: '800平刀切割泵壳',
+            },
+        },
+    };
+    const toolResults = [{
+        name: 'search_parts',
+        result: {
+            count: 0,
+            provenance: { kind: 'live_business' },
+        },
+    }];
+    const correct = evaluateRuleCase(
+        caseItem,
+        '未查询到“800平刀切割泵壳”的单价记录，检索零件库返回 0 条记录。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(correct.status, 'passed');
+    assert.equal(
+        correct.checks.find(check => check.key === 'fact:part_missing').passed,
+        true
+    );
+
+    const invented = evaluateRuleCase(
+        caseItem,
+        '800平刀切割泵壳当前单价为 0 元。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(invented.status, 'failed');
+    fixture.db.close();
+});
+
+test('AI 评测：线圈方案不存在时接受明确零结果，存在时恢复内容和来源检查', () => {
+    const fixture = createFixture();
+    const caseItem = {
+        config: {
+            prerequisite: {
+                type: 'coil_variants',
+                spec: '12',
+                sheets: 220,
+            },
+            unavailableTerms: ['未找到', '没有可列出'],
+            expectedMode: 'live_business',
+            requiredTerms: [['钢带'], ['小眼']],
+            requiredTools: ['search_coils'],
+            requiredSourceTables: ['coils'],
+        },
+    };
+    const unavailable = evaluateRuleCase(
+        caseItem,
+        '12-220 当前没有已登记的正式方案，本轮实时查询返回记录数为 0。',
+        [{
+            name: 'search_coils',
+            result: { provenance: { kind: 'live_business' }, count: 0 },
+        }],
+        fixture.db
+    );
+    assert.equal(unavailable.status, 'passed');
+    assert.equal(unavailable.checks.some(check => check.key.startsWith('required:')), false);
+    assert.equal(unavailable.checks.some(check => check.key.startsWith('source:')), false);
+
+    fixture.db.prepare(`
+        INSERT INTO coils (id, spec, sheets, scheme_status)
+        VALUES (1, '12', 220, 'official')
+    `).run();
+    const available = evaluateRuleCase(
+        caseItem,
+        '12-220 正式方案包含钢带、小眼。',
+        [{
+            name: 'search_coils',
+            result: {
+                provenance: { kind: 'live_business' },
+                sources: [{ sourceTable: 'coils', sourceId: 1 }],
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(available.status, 'passed');
     fixture.db.close();
 });
 

@@ -57,6 +57,22 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'search_coils',
+            description: '从正式线圈 API 查询线圈/定子成品的实时库存和方案。可按规格、片数、材质、槽眼筛选；不传条件时返回全部正式方案。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    spec: { type: 'string', description: '定子规格，如“150”' },
+                    sheets: { type: 'integer', description: '片数，如“96”' },
+                    material: { type: 'string', description: '材质（可选）' },
+                    slotType: { type: 'string', description: '槽眼（可选）' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'adjust_coil_stock',
             description: '批量调整线圈/定子成品库存。用户说“12-120”时表示规格俗称12、片数120，不是零件型号；入库传正数，出库传负数。同一简写存在多个正式材质或槽眼方案时必须先让用户明确，禁止默认选择。',
             parameters: {
@@ -85,9 +101,69 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'adjust_part_stock',
+            description: '批量调整零件库库存。按零件型号精确定位，多型号必须放在同一次原子批量调整中；入库传正数，出库传负数。只用于零件库，不用于“规格-片数”线圈成品。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    items: {
+                        type: 'array',
+                        description: '要调整的零件库存，最多100项',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                model: { type: 'string', description: '零件库中的精确型号' },
+                                changeQty: { type: 'integer', description: '库存变动件数；入库为正数，出库为负数，不能为0' }
+                            },
+                            required: ['model', 'changeQty']
+                        }
+                    },
+                    note: { type: 'string', description: '库存调整备注（可选）' }
+                },
+                required: ['items']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_all_recipes',
-            description: '获取所有配方列表',
-            parameters: { type: 'object', properties: {} }
+            description: '从正式配方 API 获取配方列表，可按配方名称或规格筛选。未提供 keyword 时返回全部配方。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    keyword: { type: 'string', description: '配方名称或规格关键词（可选）' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_recipe_detail',
+            description: '读取指定配方的正式明细和 BOM；需要当前完整成本时同时调用正式 cost-preview API。按配方ID或完整名称定位，只读，不使用保存成本冒充当前成本。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeName: { type: 'string', description: '完整配方名称，未提供ID时用于匹配' },
+                    includeCurrentCost: { type: 'boolean', description: '是否同时查询当前完整成本' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_recipe_technical_files',
+            description: '读取指定配方的正式技术档案和性能测试报告摘要。按配方ID或名称定位后调用正式配方技术档案 API；只读，不上传、修改或删除文件。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeName: { type: 'string', description: '配方名称，未提供ID时用于精确匹配' }
+                }
+            }
         }
     },
     {
@@ -117,7 +193,10 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    limit: { type: 'number', description: '返回的订单数量，默认10' }
+                    limit: { type: 'number', description: '返回的订单数量，默认10，最大100' },
+                    status: { type: 'string', description: '订单状态精确筛选（可选）' },
+                    customerName: { type: 'string', description: '客户名称模糊筛选（可选）' },
+                    contractNo: { type: 'string', description: '合同号模糊筛选（可选）' }
                 }
             }
         }
@@ -170,6 +249,21 @@ const AI_TOOLS = [
                     }
                 },
                 required: ['parts']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_purchase_overview',
+            description: '读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。只读，不修改采购、订单或库存。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    limit: { type: 'number', description: '最多返回的采购任务数量，最大100（可选）' },
+                    supplier: { type: 'string', description: '供应商名称模糊筛选（可选）' },
+                    pendingOnly: { type: 'boolean', description: '仅返回待采购数量大于0的任务（可选）' }
+                }
             }
         }
     },
@@ -1046,12 +1140,18 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_parts',
-            description: '按关键词或类别搜索零件。当用户说"找所有密封件""有没有叫XX的零件"时使用',
+            description: '按关键词、类别或库存状态查询正式零件库。当用户说“找所有密封件”“有没有叫XX的零件”“低库存零件有哪些”时使用；低库存按正式口径为库存大于0且不超过5。',
             parameters: {
                 type: 'object',
                 properties: {
                     keyword: { type: 'string', description: '搜索关键词（模糊匹配型号/名称）' },
-                    category: { type: 'string', description: '按类别筛选（可选）' }
+                    category: { type: 'string', description: '按类别筛选（可选）' },
+                    supplier: { type: 'string', description: '按供应商名称筛选（可选）' },
+                    stockStatus: {
+                        type: 'string',
+                        enum: ['low', 'out', 'attention', 'ok'],
+                        description: '库存状态：low=1到5，out=0或负数，attention=不超过5（含缺货），ok=大于5'
+                    }
                 }
             }
         }

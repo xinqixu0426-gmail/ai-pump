@@ -38,7 +38,15 @@ export function useAiMessageStream() {
 
   const apiMessages = useMemo<AiChatMessage[]>(() => (
     items
-      .filter((item) => item.role === 'user' || (item.role === 'assistant' && item.content.trim()))
+      .filter((item) => (
+        item.role === 'user'
+        || (
+          item.role === 'assistant'
+          && item.content.trim()
+          && item.status !== 'error'
+          && item.status !== 'cancelled'
+        )
+      ))
       .map((item) => ({
         role: item.role,
         content: item.content,

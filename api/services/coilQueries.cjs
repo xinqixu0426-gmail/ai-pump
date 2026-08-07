@@ -40,8 +40,22 @@ function createCoilQueries({
         throw new Error('线圈查询服务缺少 movementRow');
     }
 
-    function getAllCoils() {
-        return listCoils();
+    function getAllCoils(options = {}) {
+        const spec = String(options.spec || '').trim();
+        const material = String(options.material || '').trim();
+        const slotType = String(options.slotType || '').trim();
+        const hasSheets = options.sheets !== undefined && options.sheets !== '';
+        const sheets = hasSheets ? parsePositiveId(options.sheets) : null;
+        if (hasSheets && !sheets) {
+            throw new CoilQueryError('sheets 必须是正整数');
+        }
+        if (!spec && !material && !slotType && !hasSheets) return listCoils();
+        return listCoils().filter(coil => (
+            (!spec || String(coil.spec || '').trim() === spec)
+            && (!sheets || Number(coil.sheets) === sheets)
+            && (!material || String(coil.material || '').trim() === material)
+            && (!slotType || String(coil.slotType || '').trim() === slotType)
+        ));
     }
 
     function getAllStatorVariants() {
