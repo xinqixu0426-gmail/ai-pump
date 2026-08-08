@@ -38,6 +38,10 @@ function normalizeString(value, schema, path) {
 }
 
 function normalizeNumber(value, schema, path, integer = false) {
+    if (typeof value === 'string' && value.trim()) {
+        const trimmed = value.trim();
+        if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) value = Number(trimmed);
+    }
     if (typeof value !== 'number' || !Number.isFinite(value)) {
         fail(`${path} 必须是有效数字`, path);
     }

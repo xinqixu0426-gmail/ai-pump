@@ -299,6 +299,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const dataAwareCoilQueryMigration = MIGRATIONS.find(migration => migration.version === 51);
         const equivalentCablePhrasingMigration = MIGRATIONS.find(migration => migration.version === 52);
         const explicitUnconfirmedCuttingMigration = MIGRATIONS.find(migration => migration.version === 53);
+        const pollutedFeedbackRegressionMigration = MIGRATIONS.find(migration => migration.version === 54);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -306,6 +307,19 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(dataAwareCoilQueryMigration);
         assert.ok(equivalentCablePhrasingMigration);
         assert.ok(explicitUnconfirmedCuttingMigration);
+        assert.ok(pollutedFeedbackRegressionMigration);
+        db.prepare(`
+            INSERT INTO ai_evaluation_cases (
+                case_key, title, category, question, evaluator_type, config_json,
+                enabled, sort_order, source_type, review_status,
+                confidence_score, created_at, updated_at
+            ) VALUES (
+                'polluted-customer-count', '纠错回归：确定有18个客户？', '反馈',
+                '确定有18个客户？', 'rules',
+                '{"requiredTerms":[["18个"]]}', 1, 1001, 'feedback',
+                'approved', 90, ?, ?
+            )
+        `).run(FIXED_NOW, FIXED_NOW);
         restoreMigration.up(db);
         restoreMigration.up(db);
         dataAwareMigration.up(db);
@@ -320,6 +334,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         equivalentCablePhrasingMigration.up(db);
         explicitUnconfirmedCuttingMigration.up(db);
         explicitUnconfirmedCuttingMigration.up(db);
+        pollutedFeedbackRegressionMigration.up(db);
+        pollutedFeedbackRegressionMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, review_status, source_type
@@ -410,6 +426,17 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
                 enabled: 0,
                 review_status: 'pending',
                 confidence_score: 70,
+            }
+        );
+        assert.deepEqual(
+            db.prepare(`
+                SELECT enabled, review_status
+                FROM ai_evaluation_cases
+                WHERE case_key = 'polluted-customer-count'
+            `).get(),
+            {
+                enabled: 0,
+                review_status: 'rejected',
             }
         );
     } finally {

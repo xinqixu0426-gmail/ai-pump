@@ -2584,6 +2584,26 @@ const MIGRATIONS = Object.freeze([
             );
         },
     },
+    {
+        version: 54,
+        name: 'disable_polluted_customer_count_feedback_regression',
+        signature: 'disable-feedback-regression-derived-from-polluted-customer-count-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET enabled = 0,
+                    review_status = 'rejected',
+                    updated_at = ?
+                WHERE source_type = 'feedback'
+                  AND enabled = 1
+                  AND (
+                      source_feedback_id = 6
+                      OR title = '纠错回归：确定有18个客户？'
+                  )
+                  AND config_json LIKE '%18个%'
+            `).run(new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

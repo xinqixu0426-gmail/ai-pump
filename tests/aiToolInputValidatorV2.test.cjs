@@ -53,6 +53,14 @@ test('V2 工具输入：按 AI_TOOLS schema 统一规范化所有字段', () => 
     }), {
         items: [{ model: 'TEST-机筒-1100', changeQty: 100 }],
     });
+
+    assert.deepEqual(validateAiToolArgs('search_coils', {
+        spec: ' 12 ',
+        sheets: '220',
+    }), {
+        spec: '12',
+        sheets: 220,
+    });
 });
 
 test('V2 工具输入：未知字段、非法枚举和缺失必填统一在执行前拒绝', () => {
