@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `54`：
+当前版本为 `55`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -74,6 +74,7 @@
 | 52 | `accept_equivalent_complete_cable_phrasing` | 成品电缆回归接受“共同组成一条”“单一整体业务项”等等价正确表述，避免语义正确回答被固定措辞误判 |
 | 53 | `accept_explicit_unconfirmed_cutting_evidence_phrasing` | 切割用途回归接受“系统未确认”这一明确不确定性表述，避免安全回答被固定措辞误判 |
 | 54 | `disable_polluted_customer_count_feedback_regression` | 停用由污染客户数量反馈生成的“18个客户”回归，避免清理生产基础数据后被旧反馈用例反向阻断发布 |
+| 55 | `accept_no_explicit_cutting_accessory_marking` | 切割用途回归接受“无明确标注”这一等价安全表述，避免正确说明无专用配件时被固定措辞误判 |
 
 ## 数据治理
 

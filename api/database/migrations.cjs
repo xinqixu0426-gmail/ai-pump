@@ -2604,6 +2604,39 @@ const MIGRATIONS = Object.freeze([
             `).run(new Date().toISOString());
         },
     },
+    {
+        version: 55,
+        name: 'accept_no_explicit_cutting_accessory_marking',
+        signature: 'system-ai-cutting-evidence-accepts-no-explicit-marking-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json
+                FROM ai_evaluation_cases
+                WHERE case_key = ? AND source_type = 'system'
+            `).get('cutting-shell-purpose-evidence');
+            if (!row) return;
+
+            const config = JSON.parse(row.config_json || '{}');
+            const uncertaintyTerms = Array.isArray(config.requiredTerms)
+                ? config.requiredTerms.find(group => (
+                    Array.isArray(group)
+                    && (group.includes('系统未明确记录') || group.includes('没有明确记录'))
+                ))
+                : null;
+            if (!uncertaintyTerms || uncertaintyTerms.includes('无明确标注')) return;
+
+            uncertaintyTerms.push('无明确标注');
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `).run(
+                JSON.stringify(config),
+                new Date().toISOString(),
+                'cutting-shell-purpose-evidence'
+            );
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

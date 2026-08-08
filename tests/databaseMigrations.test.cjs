@@ -300,6 +300,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const equivalentCablePhrasingMigration = MIGRATIONS.find(migration => migration.version === 52);
         const explicitUnconfirmedCuttingMigration = MIGRATIONS.find(migration => migration.version === 53);
         const pollutedFeedbackRegressionMigration = MIGRATIONS.find(migration => migration.version === 54);
+        const noExplicitCuttingMarkingMigration = MIGRATIONS.find(migration => migration.version === 55);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -308,6 +309,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(equivalentCablePhrasingMigration);
         assert.ok(explicitUnconfirmedCuttingMigration);
         assert.ok(pollutedFeedbackRegressionMigration);
+        assert.ok(noExplicitCuttingMarkingMigration);
         db.prepare(`
             INSERT INTO ai_evaluation_cases (
                 case_key, title, category, question, evaluator_type, config_json,
@@ -336,6 +338,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         explicitUnconfirmedCuttingMigration.up(db);
         pollutedFeedbackRegressionMigration.up(db);
         pollutedFeedbackRegressionMigration.up(db);
+        noExplicitCuttingMarkingMigration.up(db);
+        noExplicitCuttingMarkingMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, review_status, source_type
@@ -414,6 +418,9 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         `).get();
         assert.ok(
             JSON.parse(cuttingCase.config_json).requiredTerms[1].includes('系统未确认')
+        );
+        assert.ok(
+            JSON.parse(cuttingCase.config_json).requiredTerms[1].includes('无明确标注')
         );
         assert.deepEqual(
             db.prepare(`
