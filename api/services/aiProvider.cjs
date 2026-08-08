@@ -525,7 +525,7 @@ function providerRouteKey(config) {
 function isUnsupportedToolChoiceResponse(status, responseText) {
     return status === 400
         && /tool_choice/i.test(responseText)
-        && /(not support|does not support|unsupported)/i.test(responseText);
+        && /(not support|does not support|unsupported|incompatible)/i.test(responseText);
 }
 
 async function fetchAiProvider(messages, options = {}) {
@@ -558,43 +558,49 @@ async function fetchAiProvider(messages, options = {}) {
             retryDelayMs: options.retryDelayMs,
             onRetry: info => notifyProvider(config, { retry: true, ...info }),
         });
-        const send = async includeToolChoice => fetchProviderWithRetry(`${config.baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.apiKey}`,
-            },
-            body: JSON.stringify({
-                model: config.model,
-                ...(config.provider === 'deepseek'
-                    ? { thinking: { type: 'disabled' } }
-                    : {}),
-                messages: prepareAiProviderMessages(messages, {
-                    config,
-                    dbAccessors: options.dbAccessors,
-                    attachmentMode: options.attachmentMode,
-                    externalFileContents,
+        const send = async includeToolChoice => {
+            const isKimiK3 = config.provider === 'kimi' && /^kimi-k3(?:$|-)/i.test(config.model);
+            return fetchProviderWithRetry(`${config.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    ...(config.provider === 'deepseek'
+                        ? { thinking: { type: 'disabled' } }
+                        : {}),
+                    messages: prepareAiProviderMessages(messages, {
+                        config,
+                        dbAccessors: options.dbAccessors,
+                        attachmentMode: options.attachmentMode,
+                        externalFileContents,
+                    }),
+                    ...(isKimiK3 && includeToolChoice
+                        ? { thinking: { type: 'disabled' } }
+                        : {}),
+                    ...(isKimiK3 && !includeToolChoice
+                        ? { reasoning_effort: config.reasoningEffort || 'low' }
+                        : {}),
+                    ...(Array.isArray(options.tools) && options.tools.length > 0
+                        ? { tools: options.tools }
+                        : {}),
+                    ...(includeToolChoice ? {
+                        tool_choice: isKimiK3
+                            ? 'required'
+                            : options.toolChoice,
+                    } : {}),
+                    stream: Boolean(options.stream),
                 }),
-                ...(config.provider === 'kimi' && /^kimi-k3(?:$|-)/i.test(config.model)
-                    ? { reasoning_effort: config.reasoningEffort || 'low' }
-                    : {}),
-                ...(Array.isArray(options.tools) && options.tools.length > 0
-                    ? { tools: options.tools }
-                    : {}),
-                ...(includeToolChoice ? {
-                    tool_choice: config.provider === 'kimi' && /^kimi-k3(?:$|-)/i.test(config.model)
-                        ? 'required'
-                        : options.toolChoice,
-                } : {}),
-                stream: Boolean(options.stream),
-            }),
-        }, {
-            fetchImpl,
-            config,
-            action: '对话',
-            retryDelayMs: options.retryDelayMs,
-            onRetry: info => notifyProvider(config, { retry: true, ...info }),
-        });
+            }, {
+                fetchImpl,
+                config,
+                action: '对话',
+                retryDelayMs: options.retryDelayMs,
+                onRetry: info => notifyProvider(config, { retry: true, ...info }),
+            });
+        };
         const includeToolChoice = Boolean(options.toolChoice)
             && !TOOL_CHOICE_UNSUPPORTED_ROUTES.has(routeKey);
         let response = await send(includeToolChoice);

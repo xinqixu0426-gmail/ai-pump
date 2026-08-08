@@ -268,6 +268,42 @@ test('V2 意图规划：模型请求透传强制结构化 tool_choice', async ()
     assert.deepEqual(requestBody.thinking, { type: 'disabled' });
 });
 
+test('AI provider：Kimi K3 强制工具选择时关闭 thinking 且不发送 reasoning_effort', async () => {
+    let requestBody;
+    const response = await fetchAiProvider([{ role: 'user', content: '查询缺货零件' }], {
+        env: {
+            AI_PROVIDER: 'kimi',
+            KIMI_API_KEY: 'kimi-key',
+            KIMI_BASE_URL: 'https://api.kimi-tool-choice.test/v1',
+            KIMI_MODEL: 'kimi-k3',
+            KIMI_REASONING_EFFORT: 'high',
+        },
+        tools: [{
+            type: 'function',
+            function: {
+                name: 'submit_ai_intent_plan',
+                parameters: { type: 'object', properties: {} },
+            },
+        }],
+        toolChoice: {
+            type: 'function',
+            function: { name: 'submit_ai_intent_plan' },
+        },
+        fetchImpl: async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return new Response(JSON.stringify({ choices: [] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(requestBody.tool_choice, 'required');
+    assert.deepEqual(requestBody.thinking, { type: 'disabled' });
+    assert.equal(Object.hasOwn(requestBody, 'reasoning_effort'), false);
+});
+
 test('AI provider：供应商拒绝 tool_choice 时同模型自动降级且不影响结构化工具', async () => {
     const bodies = [];
     const response = await fetchAiProvider([{ role: 'user', content: '查询订单' }], {
