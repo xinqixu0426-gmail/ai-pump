@@ -17,6 +17,10 @@ test('Mac Mini 一键发布：Windows 入口只部署已推送提交并通过 st
     assert.match(wrapper, /-RedirectStandardInput \$remoteScript/);
     assert.doesNotMatch(wrapper, /Get-Content[\s\S]*\|\s*& ssh/);
     assert.match(wrapper, /ServerAliveInterval=30/);
+    assert.match(wrapper, /MaxSshAttempts = 3/);
+    assert.match(wrapper, /ConnectTimeout=20/);
+    assert.match(wrapper, /ExitCode -ne 255/);
+    assert.match(wrapper, /Start-Sleep -Seconds \$RetryDelaySeconds/);
     assert.match(wrapper, /\/bin\/zsh -s/);
 });
 

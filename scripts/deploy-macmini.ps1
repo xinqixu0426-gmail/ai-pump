@@ -1,7 +1,9 @@
 ﻿[CmdletBinding()]
 param(
     [string]$SshHost = 'macmini',
-    [string]$Branch = 'master'
+    [string]$Branch = 'master',
+    [ValidateRange(1, 5)][int]$MaxSshAttempts = 3,
+    [ValidateRange(1, 60)][int]$RetryDelaySeconds = 5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,20 +47,31 @@ try {
     }
 
     Write-Host "准备部署 $($localCommit.Substring(0, 7)) 到 $SshHost。"
-    $sshProcess = Start-Process `
-        -FilePath 'ssh' `
-        -ArgumentList @(
-            '-o', 'ServerAliveInterval=30',
-            '-o', 'ServerAliveCountMax=6',
-            $SshHost,
-            "PUMP_DEPLOY_BRANCH=$Branch /bin/zsh -s"
-        ) `
-        -RedirectStandardInput $remoteScript `
-        -NoNewWindow `
-        -Wait `
-        -PassThru
-    if ($sshProcess.ExitCode -ne 0) {
-        throw "Mac Mini 发布失败，退出码：$($sshProcess.ExitCode)。"
+    for ($attempt = 1; $attempt -le $MaxSshAttempts; $attempt += 1) {
+        if ($attempt -gt 1) {
+            Write-Host "正在重试 Mac Mini SSH 发布（$attempt/$MaxSshAttempts）..."
+        }
+        $sshProcess = Start-Process `
+            -FilePath 'ssh' `
+            -ArgumentList @(
+                '-o', 'ConnectTimeout=20',
+                '-o', 'ServerAliveInterval=30',
+                '-o', 'ServerAliveCountMax=6',
+                $SshHost,
+                "PUMP_DEPLOY_BRANCH=$Branch /bin/zsh -s"
+            ) `
+            -RedirectStandardInput $remoteScript `
+            -NoNewWindow `
+            -Wait `
+            -PassThru
+        if ($sshProcess.ExitCode -eq 0) {
+            break
+        }
+        if ($sshProcess.ExitCode -ne 255 -or $attempt -eq $MaxSshAttempts) {
+            throw "Mac Mini 发布失败，退出码：$($sshProcess.ExitCode)，尝试次数：$attempt。"
+        }
+        Write-Warning "SSH 隧道连接失败（退出码 255），$RetryDelaySeconds 秒后自动重试。远端发布脚本具备提交校验，可安全重放。"
+        Start-Sleep -Seconds $RetryDelaySeconds
     }
 } finally {
     Pop-Location
