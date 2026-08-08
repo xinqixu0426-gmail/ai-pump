@@ -12,6 +12,17 @@ const {
 function createFixture(overrides = {}) {
     const db = new Database(':memory:');
     runMigrations(db, { now: '2026-08-03T12:00:00.000Z' });
+    db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, sort_order, source_type, review_status, confidence_score,
+            created_at, updated_at
+        ) VALUES (
+            'command-fixture-case', '命令测试用例', '测试', '测试问题',
+            'rules', '{}', 1, 9999, 'feedback', 'approved', 100,
+            '2026-08-03T12:00:00.000Z', '2026-08-03T12:00:00.000Z'
+        )
+    `).run();
     let tick = 0;
     const nextTime = () => (
         `2026-08-03T12:00:${String(++tick).padStart(2, '0')}.000Z`

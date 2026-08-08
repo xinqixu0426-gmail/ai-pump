@@ -34,6 +34,20 @@ test('AI 发布门禁：全部通过时生成可验收报告', () => {
     assert.deepEqual(report.cases[0].failedChecks, []);
 });
 
+test('AI 发布门禁：没有启用知识回归时跳过且不阻止发布', () => {
+    const report = buildReleaseGateReport({
+        generatedAt: '2026-08-08T10:00:00.000Z',
+        health: { runtime: { gitCommit: 'def456' } },
+        skipped: true,
+    });
+
+    assert.equal(report.status, 'skipped');
+    assert.equal(report.blocked, false);
+    assert.equal(report.gitCommit, 'def456');
+    assert.deepEqual(report.totals, { total: 0, passed: 0, failed: 0, review: 0 });
+    assert.deepEqual(report.cases, []);
+});
+
 test('AI 发布门禁：失败和待确认都会阻止验收且只保存失败依据', () => {
     const report = buildReleaseGateReport({
         run: {

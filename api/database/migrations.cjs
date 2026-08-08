@@ -2655,6 +2655,20 @@ const MIGRATIONS = Object.freeze([
             `).run(new Date().toISOString());
         },
     },
+    {
+        version: 57,
+        name: 'disable_system_ai_release_cases',
+        signature: 'disable-all-system-ai-release-cases-after-production-data-cleanup-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET enabled = 0,
+                    review_status = 'rejected',
+                    updated_at = ?
+                WHERE source_type = 'system'
+            `).run(new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

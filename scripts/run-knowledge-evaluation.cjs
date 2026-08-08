@@ -26,6 +26,25 @@ function parseCliOptions(argv = process.argv.slice(2)) {
 }
 
 function buildReleaseGateReport(input = {}) {
+    if (input.skipped) {
+        return {
+            schemaVersion: 1,
+            generatedAt: input.generatedAt || new Date().toISOString(),
+            status: 'skipped',
+            blocked: false,
+            baseUrl: input.baseUrl || baseUrl,
+            gitCommit: String(input.health?.runtime?.gitCommit || ''),
+            runId: null,
+            totals: {
+                total: 0,
+                passed: 0,
+                failed: 0,
+                review: 0,
+            },
+            cases: [],
+            error: '',
+        };
+    }
     const run = input.run || null;
     const failedCount = Number(run?.failedCount || 0);
     const reviewCount = Number(run?.reviewCount || 0);
@@ -188,6 +207,13 @@ async function main() {
     const health = await requestJson('GET', '/api/health');
     if (health.ready !== true && !['ok', 'ready'].includes(health.status)) {
         throw new Error('API 健康检查未通过');
+    }
+
+    const overview = await requestJson('GET', '/api/ai/evaluations/overview');
+    const enabledCases = Number(overview?.caseStats?.enabled || 0);
+    if (enabledCases === 0) {
+        console.log('知识库 AI 回归：没有启用用例，本次发布跳过 AI 回归门禁');
+        return buildReleaseGateReport({ health, skipped: true });
     }
 
     const created = await requestJson(

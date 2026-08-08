@@ -302,6 +302,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const pollutedFeedbackRegressionMigration = MIGRATIONS.find(migration => migration.version === 54);
         const noExplicitCuttingMarkingMigration = MIGRATIONS.find(migration => migration.version === 55);
         const nonCoreReleaseCasesMigration = MIGRATIONS.find(migration => migration.version === 56);
+        const systemReleaseCasesMigration = MIGRATIONS.find(migration => migration.version === 57);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -312,6 +313,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(pollutedFeedbackRegressionMigration);
         assert.ok(noExplicitCuttingMarkingMigration);
         assert.ok(nonCoreReleaseCasesMigration);
+        assert.ok(systemReleaseCasesMigration);
         db.prepare(`
             INSERT INTO ai_evaluation_cases (
                 case_key, title, category, question, evaluator_type, config_json,
@@ -344,6 +346,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         noExplicitCuttingMarkingMigration.up(db);
         nonCoreReleaseCasesMigration.up(db);
         nonCoreReleaseCasesMigration.up(db);
+        systemReleaseCasesMigration.up(db);
+        systemReleaseCasesMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, review_status, source_type
@@ -363,42 +367,11 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
                 'cutting-shell-purpose-evidence',
             ]
         );
-        const coreSystemCases = systemCases.filter(item => ![
-            'customer-quotation-display-order',
-            'cutting-shell-purpose-evidence',
-        ].includes(item.case_key));
-        assert.ok(coreSystemCases.every(item => (
-            item.enabled === 1
-            && item.review_status === 'approved'
+        assert.ok(systemCases.every(item => (
+            item.enabled === 0
+            && item.review_status === 'rejected'
             && item.source_type === 'system'
         )));
-        assert.deepEqual(
-            systemCases
-                .filter(item => [
-                    'customer-quotation-display-order',
-                    'cutting-shell-purpose-evidence',
-                ].includes(item.case_key))
-                .map(item => ({
-                    case_key: item.case_key,
-                    enabled: item.enabled,
-                    review_status: item.review_status,
-                    source_type: item.source_type,
-                })),
-            [
-                {
-                    case_key: 'customer-quotation-display-order',
-                    enabled: 0,
-                    review_status: 'rejected',
-                    source_type: 'system',
-                },
-                {
-                    case_key: 'cutting-shell-purpose-evidence',
-                    enabled: 0,
-                    review_status: 'rejected',
-                    source_type: 'system',
-                },
-            ]
-        );
         const testReportCase = db.prepare(`
             SELECT config_json FROM ai_evaluation_cases
             WHERE case_key = 'test-report-file-type'

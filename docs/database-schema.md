@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `56`：
+当前版本为 `57`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -76,6 +76,7 @@
 | 54 | `disable_polluted_customer_count_feedback_regression` | 停用由污染客户数量反馈生成的“18个客户”回归，避免清理生产基础数据后被旧反馈用例反向阻断发布 |
 | 55 | `accept_no_explicit_cutting_accessory_marking` | 切割用途回归接受“无明确标注”这一等价安全表述，避免正确说明无专用配件时被固定措辞误判 |
 | 56 | `disable_non_core_system_ai_release_cases` | 停用客户报价展示和切割用途证据两条非核心系统 AI 发布回归，避免知识库/AI 抖动阻断基础业务部署 |
+| 57 | `disable_system_ai_release_cases` | 停用全部系统 AI 发布回归；生产发布保留 API、测试、构建、启动备份和公网验收，知识问答回归不再作为硬门禁 |
 
 ## 数据治理
 
@@ -87,7 +88,7 @@
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
 - `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；只有 `approved + enabled` 的案例进入无人值守检查。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
-- 7 条 `source_type=system` 的内置 AI 发布回归用例属于代码版本化的发布基线。迁移 47 会在缺失时恢复，并校准为当前确定性规则；迁移 56 会停用其中不适合作为生产部署硬门禁的非核心知识/AI 回归；`source_type=feedback` 的用户纠错案例不受影响。
+- 7 条 `source_type=system` 的内置 AI 发布回归用例属于代码版本化的发布基线。迁移 47 会在缺失时恢复，并校准为当前确定性规则；迁移 57 会统一停用系统 AI 回归，使知识问答评测不再作为生产部署硬门禁；`source_type=feedback` 的用户纠错案例不受影响。
 - `NODE_ENV=test` 时 `api/db.cjs` 只打开 `PUMP_TEST_DATABASE_PATH` 指定的按进程临时 SQLite；`npm test` 自动创建并清理这些数据库。发布验证不会迁移或写入生产 `pump.db`，生产迁移只随 API 服务启动执行。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
