@@ -1,4 +1,11 @@
 const { parsePositiveId } = require('./validation.cjs');
+const { ORDER_STATUSES } = require('./orderWorkflow.cjs');
+const {
+    normalizeOptionalBoolean,
+    normalizeOptionalEnum,
+    normalizeOptionalLimit,
+    normalizeQueryText,
+} = require('./queryValidation.cjs');
 
 class OrderQueryError extends Error {
     constructor(message, statusCode = 400) {
@@ -42,13 +49,10 @@ function createOrderQueries({
     }
 
     function getAllOrders(options = {}) {
-        const status = String(options.status || '').trim().toLocaleLowerCase();
-        const customerName = String(options.customerName || '').trim().toLocaleLowerCase();
-        const contractNo = String(options.contractNo || '').trim().toLocaleLowerCase();
-        const requestedLimit = Number.parseInt(options.limit, 10);
-        const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
-            ? Math.min(requestedLimit, 100)
-            : null;
+        const status = normalizeOptionalEnum(options.status, '订单状态', ORDER_STATUSES);
+        const customerName = normalizeQueryText(options.customerName, 'customerName').toLocaleLowerCase();
+        const contractNo = normalizeQueryText(options.contractNo, 'contractNo').toLocaleLowerCase();
+        const limit = normalizeOptionalLimit(options.limit);
         const source = listOrdersWithCurrentPurchasePlans();
         if (!status && !customerName && !contractNo && !limit) return source;
         const orders = source
@@ -102,8 +106,8 @@ function createOrderQueries({
             }
         }
 
-        const supplier = String(options.supplier || '').trim().toLocaleLowerCase();
-        const pendingOnly = options.pendingOnly === true || String(options.pendingOnly).toLowerCase() === 'true';
+        const supplier = normalizeQueryText(options.supplier, 'supplier').toLocaleLowerCase();
+        const pendingOnly = normalizeOptionalBoolean(options.pendingOnly, 'pendingOnly') ?? false;
         const allTasks = [...tasksByKey.values()]
             .map(task => ({ ...task, orderCount: task.orderIds.length }))
             .filter(task => (
@@ -116,10 +120,8 @@ function createOrderQueries({
                 || left.supplierLabel.localeCompare(right.supplierLabel, 'zh-CN')
                 || left.model.localeCompare(right.model, 'zh-CN')
             ));
-        const requestedLimit = Number.parseInt(options.limit, 10);
-        const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
-            ? Math.min(requestedLimit, 100)
-            : allTasks.length;
+        const requestedLimit = normalizeOptionalLimit(options.limit);
+        const limit = requestedLimit ?? allTasks.length;
         const tasks = allTasks.slice(0, limit);
         const sum = field => allTasks.reduce((total, task) => total + task[field], 0);
         return {

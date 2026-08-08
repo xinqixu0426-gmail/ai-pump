@@ -49,8 +49,23 @@ function legacyCustomerCommandResponse(result) {
 }
 
 router.get('/', (req, res) => {
-    try { res.json({ success: true, data: customerQueries.getAllCustomers() }); }
-    catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    try {
+        res.json({
+            success: true,
+            data: customerQueries.getAllCustomers({
+                id: req.query.id,
+                name: req.query.name,
+                limit: req.query.limit,
+            }),
+        });
+    } catch (err) {
+        res.status(err.statusCode || 500).json({
+            success: false,
+            code: err.code || 'CUSTOMER_QUERY_FAILED',
+            error: err.message,
+            requestId: req.requestId || null,
+        });
+    }
 });
 
 router.get('/:id/context', (req, res) => {

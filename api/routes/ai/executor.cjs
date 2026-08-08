@@ -11,7 +11,6 @@ const { executeOrderTool } = require('./executors/orderExecutors.cjs');
 const { executeRecipeTool } = require('./executors/recipeExecutors.cjs');
 const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
 const {
-    partUpdateInputError,
     preparePartStockAdjustment,
 } = require('../../services/aiPartExecution.cjs');
 const {
@@ -19,8 +18,8 @@ const {
     attachVerifiedExecutionEvidence,
 } = require('../../services/aiExecutionEvidence.cjs');
 const {
-    normalizeBusinessQueryArgs,
-} = require('../../services/aiBusinessQueryCompiler.cjs');
+    validateAiToolArgs,
+} = require('../../services/aiToolInputValidatorV2.cjs');
 
 const TOOL_EXECUTORS = Object.freeze({
     cost: executeCostTool,
@@ -63,13 +62,18 @@ function buildConfirmationRows(toolName, args = {}) {
 
     switch (toolName) {
         case 'create_part':
-        case 'update_part':
             addRow(rows, '型号', args.model);
             addRow(rows, '类别', args.category);
             addRow(rows, '供应商', args.supplier);
             addRow(rows, '单价', args.price, hasValue(args.price) ? ' 元' : '');
             addRow(rows, '库存', args.stock);
-            addRow(rows, '库存变动', args.stockDelta);
+            break;
+        case 'update_part':
+            addRow(rows, '型号', args.model);
+            addRow(rows, '类别', args.category);
+            addRow(rows, '二级分类', args.subcategory);
+            addRow(rows, '供应商', args.supplier);
+            addRow(rows, '单价', args.price, hasValue(args.price) ? ' 元' : '');
             break;
         case 'batch_create_parts':
             addRow(rows, '新增数量', Array.isArray(args.parts) ? args.parts.length : 0);
@@ -254,12 +258,12 @@ async function executeToolCall(toolName, args, options = {}) {
         return { success: false, error: `工具未登记到能力注册表，已拒绝执行: ${toolName}` };
     }
     try {
-        args = normalizeBusinessQueryArgs(toolName, args);
+        args = validateAiToolArgs(toolName, args);
     } catch (error) {
         return {
             success: false,
             error: error.message,
-            code: error.code || 'INVALID_AI_BUSINESS_QUERY',
+            code: error.code || 'INVALID_AI_TOOL_INPUT',
             validation: {
                 status: 'rejected',
                 toolName,
@@ -267,11 +271,6 @@ async function executeToolCall(toolName, args, options = {}) {
             },
         };
     }
-    if (toolName === 'update_part') {
-        const inputError = partUpdateInputError(args);
-        if (inputError) return inputError;
-    }
-
     let internalFetch = null;
     // 权限拦截：写操作需要 allowWrite=true
     if (capability.access === 'write' && !allowWrite) {

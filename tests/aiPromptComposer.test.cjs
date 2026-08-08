@@ -52,10 +52,11 @@ test('提示词分层：核心规则始终存在且只加载当前领域', () =>
     accessors.db.close();
 });
 
-test('提示词分层：只展示排版后的结果且不省略确认、失败和关键风险', () => {
-    assert.match(CORE_PROMPT, /默认保留结论、关键数字或异常、必要下一步、风险或不确定性/);
-    assert.match(CORE_PROMPT, /没有必要的下一步时不要强行补建议/);
-    assert.match(CORE_PROMPT, /工具结果很多时先归纳再回答/);
+test('提示词分层：默认只展示排版后的结果且不省略影响可靠性的风险', () => {
+    assert.match(CORE_PROMPT, /默认只保留当前问题的结论和关键数字/);
+    assert.match(CORE_PROMPT, /风险、不确定性、异常和下一步仅在用户明确询问，或它们会影响本次写入确认与结论可靠性时展示/);
+    assert.match(CORE_PROMPT, /普通列表查询不得主动补库存风险、相似项判断或建议/);
+    assert.match(CORE_PROMPT, /用户明确要求完整清单时必须完整列出/);
     assert.match(CORE_PROMPT, /用户询问原因时给出可核验的关键依据，不展示内部推理链/);
     assert.match(CORE_PROMPT, /写入确认、失败原因、关键风险和必须补充的参数不得为了简洁而省略/);
     assert.doesNotMatch(CORE_PROMPT, /120 个汉字/);
@@ -72,6 +73,21 @@ test('提示词分层：零件清单不擅自扩大库存判断且使用正式�
     assert.match(prompt, /只要求全量或品类清单时按工具结果列出/);
     assert.match(prompt, /低库存为库存大于0且不超过5/);
     assert.match(prompt, /不得自行发明其他阈值/);
+    accessors.db.close();
+});
+
+test('提示词分层：订单口语查询按订单数量和简报回答而不扩展采购任务统计', () => {
+    const accessors = emptyRuleAccessors();
+    const prompt = composeAiSystemPrompt({
+        domains: ['order'],
+        query: '采购中的单子有几个',
+        dbAccessors: accessors,
+    });
+
+    assert.match(prompt, /“订单、单子、单据”均按订单理解/);
+    assert.match(prompt, /status=采购中的订单/);
+    assert.match(prompt, /先直接回答命中数量，再逐单简报客户和创建日期/);
+    assert.match(prompt, /不要附带采购任务数、供应商数或待采购数量/);
     accessors.db.close();
 });
 

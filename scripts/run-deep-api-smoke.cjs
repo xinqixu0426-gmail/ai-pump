@@ -184,10 +184,69 @@ function readGetPuritySnapshot(databasePath) {
 
 async function testCoreGetEndpointsDoNotWrite(databasePath) {
     const before = readGetPuritySnapshot(databasePath);
-    await request('GET纯度-订单列表', 'GET', '/api/orders');
+    const orders = (await request('GET纯度-订单列表', 'GET', '/api/orders')).payload.data;
     const orderId = before.orders[0]?.id;
     if (orderId) await request('GET纯度-订单详情', 'GET', `/api/orders/${orderId}`);
     await request('GET纯度-报价列表', 'GET', '/api/quotations');
+    const activeQuotations = (await request(
+        '报价正式状态筛选',
+        'GET',
+        `/api/quotations?status=${encodeURIComponent('报价中')}&limit=100`
+    )).payload.data;
+    assert(
+        activeQuotations.every(quotation => quotation.status === '报价中'),
+        '报价状态筛选返回了非报价中记录'
+    );
+    await request(
+        '报价非法状态筛选拒绝',
+        'GET',
+        `/api/quotations?status=${encodeURIComponent('采购中')}`,
+        undefined,
+        [400]
+    );
+    const parts = (await request('零件正式全量查询', 'GET', '/api/parts')).payload.data;
+    if (parts[0]?.category) {
+        const filteredParts = (await request(
+            '零件正式类别和数量筛选',
+            'GET',
+            `/api/parts?category=${encodeURIComponent(parts[0].category)}&limit=1`
+        )).payload.data;
+        assert(filteredParts.length <= 1, '零件 limit 未生效');
+        assert(filteredParts.every(part => part.category.includes(parts[0].category)), '零件类别筛选未生效');
+    }
+    const customers = (await request('客户正式全量查询', 'GET', '/api/customers')).payload.data;
+    if (customers[0]?.name) {
+        const filteredCustomers = (await request(
+            '客户正式名称筛选',
+            'GET',
+            `/api/customers?name=${encodeURIComponent(customers[0].name)}`
+        )).payload.data;
+        assert(filteredCustomers.some(customer => customer.id === customers[0].id), '客户名称筛选未命中');
+    }
+    const templates = (await request('模板正式全量查询', 'GET', '/api/templates')).payload.data;
+    if (templates[0]?.shellModel) {
+        const filteredTemplates = (await request(
+            '模板正式型号筛选',
+            'GET',
+            `/api/templates?shellModel=${encodeURIComponent(templates[0].shellModel)}`
+        )).payload.data;
+        assert(filteredTemplates.every(template => template.shellModel.includes(templates[0].shellModel)), '模板型号筛选未生效');
+    }
+    if (orders[0]?.status) {
+        const filteredOrders = (await request(
+            '订单正式状态筛选',
+            'GET',
+            `/api/orders?status=${encodeURIComponent(orders[0].status)}`
+        )).payload.data;
+        assert(filteredOrders.every(order => order.status === orders[0].status), '订单状态筛选未生效');
+    }
+    await request(
+        '订单非法状态筛选拒绝',
+        'GET',
+        `/api/orders?status=${encodeURIComponent('不存在')}`,
+        undefined,
+        [400]
+    );
     const after = readGetPuritySnapshot(databasePath);
     assert(
         JSON.stringify(after.orders) === JSON.stringify(before.orders),
@@ -336,6 +395,15 @@ async function testResourceDetails(resources) {
     const recipe = recipes[0];
     const template = templates[0];
     const coil = coils[0];
+    const recipesWithTechnicalFiles = (await request(
+        '有技术档案的配方筛选',
+        'GET',
+        '/api/recipes?hasTechnicalFiles=true'
+    )).payload.data;
+    assert(
+        recipesWithTechnicalFiles.every(item => Number(item.technicalFileCount) > 0),
+        '有技术档案的配方筛选返回了无有效档案的配方'
+    );
     await request('配方详情', 'GET', `/api/recipes/${recipe.id}`);
     const inventoryStatus = (await request(
         '配方库存状态',

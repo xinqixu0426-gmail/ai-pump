@@ -35,18 +35,22 @@
 
 | 流程 | 主要入口 | 是否写库 | 写入内容 |
 |---|---|---:|---|
-| 零件查询/新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 查询否/写入是 | 查询由零件 Query service 按关键词、类别和库存状态筛选；低库存统一为库存 1–5。正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
+| 零件查询/新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 查询否/写入是 | 查询由正式 `parts.list` 按关键词、类别、供应商、库存状态、数量和价格/库存数值边界筛选；无 `limit` 时返回全部，低库存统一为 1–5。正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
 | 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务 |
 | 批量库存增减 | `/api/parts/batch-stock-preview` → `/api/parts/batch-stock` | 预览否、执行是 | 只改 `parts.stock`；服务端确认 token 绑定 `partId/delta/expectedUpdatedAt`，库存、operation 和强审计同一事务；AI 的单个/多个型号统一经 `adjust_part_stock` 生成一张确认卡，缺少 operation/audit 回执不得报成功；普通 PATCH 的 `stock` 只保留历史兼容 |
 | 线圈新增/修改/删除 | `/api/coils`、`/api/coils/:id` | 是 | 定子组合、绕组方案状态、可选绕组技术备忘和计算后的 `cost` |
 | 模板新增/修改/删除 | `/api/templates`、`/api/templates/:id` | 是 | 泵壳模板、组件结构、工资默认值、转子默认参数；持久幂等，修改/删除绑定版本，模板与 operation/强审计同事务；任何历史配方引用都会阻止硬删除 |
 | 模板成本/默认配方预览 | `/api/templates/:id/cost`、`/api/templates/:id/default-recipe` | 否 | 只返回计算结果或草稿 |
+| 模板列表查询 | `GET /api/templates?shellModel?&description?&limit?` | 否 | 正式 `templates.list` 按型号、描述筛选；AI 不把模板查询误路由到零件或知识库 |
 | BOM 草稿 | `/api/recipes/bom-draft` | 否 | 只生成标准化 BOM 草稿 |
 | 配方成本草稿 | `/api/recipes/cost-draft` | 否 | 只生成保存前成本快照草稿 |
 | 配方保存/修改/删除 | `/api/recipes`、`/api/recipes/:id` | 是 | 配方 BOM、成本快照、技术参数；可能自动新增缺失长螺丝零件 |
 | 当前配方成本参考 | `/api/recipes/:id/cost` | 否 | 只按当前基础数据重算参考价 |
 | 报价覆盖试算 | `/api/recipes/:id/cost-preview` | 否 | 只按配方快照和覆盖项试算 |
 | 客户新增/修改/删除 | `/api/customers`、`/api/customers/:id` | 是 | 持久幂等；修改/删除使用 `expectedUpdatedAt`；软删除保留报价历史，客户与强审计同事务 |
+| 客户列表/历史查询 | `GET /api/customers?id?&name?&limit?`、`GET /api/customers/:id/context` | 否 | 正式 `customers.list/history`；名称多义时返回候选，不任取第一项 |
+| 报价列表查询 | `GET /api/quotations?status?&customerName?&limit?` | 否 | 正式 Query 按状态精确筛选、按客户名称模糊筛选；页面和 AI 不读取全量后自行判断状态 |
+| 订单列表/采购汇总查询 | `GET /api/orders?status?&customerName?&contractNo?&limit?`、`GET /api/orders/purchase-overview` | 否 | 状态枚举和参数严格校验；无 `limit` 时返回全部正式结果。V2 由模型理解“订单/单子/单据”等口语并提交结构化计划；“采购中的单子”选择 `get_recent_orders(status=采购中)`，只有明确询问采购任务、供应商、采购物料、待采购数量或采购进度时才选择采购总览。参数直接经 tool 唯一 schema 校验；`answerShape=count_with_brief` 时先回答数量，再给客户/创建日期简报 |
 | 报价新增/修改/状态/删除 | `/api/quotations`、`/api/quotations/:id`、`/api/quotations/:id/status` | 是 | 先用保存草稿取得正式成本快照和 `previewHash`；命令使用持久幂等，覆盖/删除使用 `expectedUpdatedAt`，报价与强审计同事务 |
 | 订单采购计划 | `/api/orders/purchase-plan` | 否 | 只生成采购清单和待办草稿 |
 | 活动订单准备总览 | `/api/orders/readiness-overview` | 否 | 一次平衡全部活动订单库存，汇总准备结论、问题和下一步 |
@@ -87,7 +91,8 @@
 3. 客户只可覆盖是否带浮球、电缆米数、外包装（牛皮纸箱/彩印箱/木箱）、泡沫型号和是否含珍珠棉；线圈直径、材质、槽眼、片数和线径沿用配方。
 4. 覆盖项通过 `POST /api/recipes/:id/cost-preview` 试算。
 5. 报价保存时后端重新试算，并把完整 `bomSnapshot`、`costSnapshot`、覆盖参数、单位成本和售价写入 `quotations.itemsJson`；新增/修改使用保存草稿的稳定 `previewHash`，网络重试复用同一幂等键，不会重复建报价。
-6. “报价中”超过一个月由 API 启动补跑及每天北京时间 00:05 的维护任务标记为“已过时”；读取列表不产生业务写入。
+6. 查询某一状态报价时，调用 `GET /api/quotations` 并传入正式 `status` 条件；“列出还在报价中的报价”直接使用 `status=报价中`，不先读取全量再由页面或 AI 归类。
+7. “报价中”超过一个月由 API 启动补跑及每天北京时间 00:05 的维护任务标记为“已过时”；读取列表不产生业务写入。
 
 禁止事项：
 
@@ -279,7 +284,7 @@
 - 健康检查只在自动同步关闭、等待或运行超时、未安排变化和失败未恢复时告警；没有业务变化不会因时间间隔产生假告警。人工恢复仍先确认再同步。
 - FTS 与知识条目在同一事务内刷新；同步失败时保留上一版完整索引。
 - AI 搜索结果必须能返回原始来源类型和来源 ID，业务判断仍以原资源 API 为准。
-- 零件、订单、采购和配方的明确事实查询先由统一业务查询编译器生成类型化条件，并在执行计划前通过同一参数校验器，再调用各自正式 API。疑问词、状态词和领域名不能通过删词残留变成关键词；模型提出的候选参数也必须经过同一校验。正式接口返回零结果、未找到或业务失败后不得扩大为宽泛知识搜索。只有用途、经验、制度、外部资料等知识型问题进入知识检索。
+- 零件、订单、采购和配方的事实查询先由模型提交结构化意图、上下文依赖和最小 capability 步骤，再按能力注册表生成本轮 allowlist。tool 参数直接通过唯一 JSON schema，服务端不再用疑问词/状态词删减规则重写语义。正式接口返回零结果、未找到或业务失败后不得扩大为宽泛知识搜索；只有用途、经验、制度、外部资料等知识型问题进入知识检索。
 - 系统外技术说明、文本、Excel、测试报告和 PDF 原件保存在 `knowledge_documents`，通过 `document` 知识条目进入现有检索；文本和 Excel 可检索提取正文，PDF 当前只使用人工填写的标题、说明和标签，不得推断未解析的图纸内容。
 - 配方智能检查的学习反馈绑定当时的泵壳模板和配方版本；内容修改或模板变化后，旧反馈停止影响规则并进入待重新检查队列。
 - 归档带有学习反馈的配方时，同一事务会立即刷新候选规则和已批准规则知识；归档证据只保留历史追溯，不再支持当前规则。

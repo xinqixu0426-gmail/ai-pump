@@ -93,8 +93,8 @@ test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', (
     assert.match(aiText, /del:/);
     assert.match(aiText, /input:/);
     assert.doesNotMatch(aiText, /function parseMarkdown/);
-    assert.match(readUtf8('api/routes/ai/chat.cjs'), /composeAiSystemPrompt/);
-    assert.match(readUtf8('api/routes/ai/chat.cjs'), /send\('tool_plan'/);
+    assert.match(readUtf8('api/services/aiDispatcherV2.cjs'), /composeAiSystemPrompt/);
+    assert.match(readUtf8('api/services/aiDispatcherV2.cjs'), /emit\('tool_plan'/);
     assert.match(readUtf8('api/services/aiPromptComposer.cjs'), /最终回复使用 Markdown/);
 });
 

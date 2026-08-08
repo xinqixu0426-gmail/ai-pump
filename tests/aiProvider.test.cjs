@@ -232,6 +232,81 @@ test('AI 工具路由：没有可用工具时模型请求不发送空 tools 字�
     assert.equal(Object.hasOwn(requestBody, 'tools'), false);
 });
 
+test('V2 意图规划：模型请求透传强制结构化 tool_choice', async () => {
+    let requestBody;
+    const toolChoice = {
+        type: 'function',
+        function: { name: 'submit_ai_intent_plan' },
+    };
+    const response = await fetchAiProvider([{ role: 'user', content: '查询缺货零件' }], {
+        env: {
+            AI_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://api.deepseek.test',
+        },
+        tools: [{
+            type: 'function',
+            function: {
+                name: 'submit_ai_intent_plan',
+                parameters: { type: 'object', properties: {} },
+            },
+        }],
+        toolChoice,
+        fetchImpl: async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return new Response(JSON.stringify({ choices: [] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.deepEqual(requestBody.tool_choice, toolChoice);
+    assert.deepEqual(requestBody.thinking, { type: 'disabled' });
+});
+
+test('AI provider：供应商拒绝 tool_choice 时同模型自动降级且不影响结构化工具', async () => {
+    const bodies = [];
+    const response = await fetchAiProvider([{ role: 'user', content: '查询订单' }], {
+        env: {
+            AI_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://api.deepseek-fallback.test',
+            DEEPSEEK_MODEL: 'deepseek-v4-flash-fallback-test',
+        },
+        tools: [{
+            type: 'function',
+            function: {
+                name: 'submit_ai_intent_plan',
+                parameters: { type: 'object', properties: {} },
+            },
+        }],
+        toolChoice: {
+            type: 'function',
+            function: { name: 'submit_ai_intent_plan' },
+        },
+        fetchImpl: async (_url, init) => {
+            bodies.push(JSON.parse(init.body));
+            if (bodies.length === 1) {
+                return new Response(JSON.stringify({
+                    error: { message: 'Thinking mode does not support this tool_choice' },
+                }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+            }
+            return new Response(JSON.stringify({ choices: [] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(bodies.length, 2);
+    assert.equal(Object.hasOwn(bodies[0], 'tool_choice'), true);
+    assert.equal(Object.hasOwn(bodies[1], 'tool_choice'), false);
+    assert.deepEqual(bodies[1].thinking, { type: 'disabled' });
+});
+
 test('V9.4 AI 附件：DeepSeek 不接收图片二进制但可读取本地 OCR 和文本附件', () => {
     const accessors = createFileAccessors();
     const messages = prepareAiProviderMessages([{

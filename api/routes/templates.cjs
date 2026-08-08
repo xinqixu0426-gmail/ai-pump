@@ -68,7 +68,14 @@ function legacyTemplateCommandResponse(result) {
 
 router.get('/', (req, res) => {
     try {
-        res.json({ success: true, data: templateQueries.getAllTemplates() });
+        res.json({
+            success: true,
+            data: templateQueries.getAllTemplates({
+                shellModel: req.query.shellModel,
+                description: req.query.description,
+                limit: req.query.limit,
+            }),
+        });
     } catch (error) {
         sendTemplateQueryError(res, error);
     }

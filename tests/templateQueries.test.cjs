@@ -69,7 +69,10 @@ function createFixture() {
     `);
 
     const costCalls = [];
-    const listedTemplates = [{ id: 1, shellModel: 'SHELL-1' }];
+    const listedTemplates = [
+        { id: 1, shellModel: 'SHELL-1', description: '常用泵壳' },
+        { id: 2, shellModel: 'SHELL-2', description: '套件泵壳' },
+    ];
     const partsCache = new Map([['6201', { price: 6 }]]);
     const partsByModel = {
         'BARREL-1': [
@@ -142,7 +145,7 @@ function createFixture() {
 test('泵壳模板 Query 统一返回列表、详情与关联配方', () => {
     const fixture = createFixture();
     try {
-        assert.equal(
+        assert.deepEqual(
             fixture.queries.getAllTemplates(),
             fixture.listedTemplates
         );
@@ -165,6 +168,26 @@ test('泵壳模板 Query 统一返回列表、详情与关联配方', () => {
         assert.deepEqual(
             fixture.queries.getTemplateRecipes(999),
             []
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('泵壳模板列表 Query 按型号、描述和数量字段筛选', () => {
+    const fixture = createFixture();
+    try {
+        assert.deepEqual(
+            fixture.queries.getAllTemplates({ shellModel: 'shell-2' }).map(item => item.id),
+            [2]
+        );
+        assert.deepEqual(
+            fixture.queries.getAllTemplates({ description: '泵壳', limit: 1 }).map(item => item.id),
+            [1]
+        );
+        assert.throws(
+            () => fixture.queries.getAllTemplates({ limit: '2abc' }),
+            /1 到 100/
         );
     } finally {
         fixture.db.close();

@@ -354,6 +354,18 @@ function prepareAiProviderMessages(messages, options = {}) {
     });
 }
 
+const TOOL_CHOICE_UNSUPPORTED_ROUTES = new Set();
+
+function providerRouteKey(config) {
+    return `${config.provider}|${config.baseUrl}|${config.model}`;
+}
+
+function isUnsupportedToolChoiceResponse(status, responseText) {
+    return status === 400
+        && /tool_choice/i.test(responseText)
+        && /(not support|does not support|unsupported)/i.test(responseText);
+}
+
 async function fetchAiProvider(messages, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const selectedConfig = options.config || resolveAiProviderRoute(messages, {
@@ -375,7 +387,8 @@ async function fetchAiProvider(messages, options = {}) {
             const keyName = config.provider === 'kimi' ? 'KIMI_API_KEY' : 'DEEPSEEK_API_KEY';
             throw new Error(`未配置 ${keyName}`);
         }
-        const response = await fetchImpl(`${config.baseUrl}/chat/completions`, {
+        const routeKey = providerRouteKey(config);
+        const send = async includeToolChoice => fetchImpl(`${config.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -383,6 +396,9 @@ async function fetchAiProvider(messages, options = {}) {
             },
             body: JSON.stringify({
                 model: config.model,
+                ...(config.provider === 'deepseek'
+                    ? { thinking: { type: 'disabled' } }
+                    : {}),
                 messages: prepareAiProviderMessages(messages, {
                     config,
                     dbAccessors: options.dbAccessors,
@@ -390,11 +406,22 @@ async function fetchAiProvider(messages, options = {}) {
                 ...(Array.isArray(options.tools) && options.tools.length > 0
                     ? { tools: options.tools }
                     : {}),
+                ...(includeToolChoice ? { tool_choice: options.toolChoice } : {}),
                 stream: Boolean(options.stream),
             }),
         });
+        const includeToolChoice = Boolean(options.toolChoice)
+            && !TOOL_CHOICE_UNSUPPORTED_ROUTES.has(routeKey);
+        let response = await send(includeToolChoice);
         if (!response.ok) {
-            const responseText = await response.text();
+            let responseText = await response.text();
+            if (includeToolChoice && isUnsupportedToolChoiceResponse(response.status, responseText)) {
+                TOOL_CHOICE_UNSUPPORTED_ROUTES.add(routeKey);
+                notifyProvider(config, { toolChoiceFallback: true });
+                response = await send(false);
+                if (response.ok) return response;
+                responseText = await response.text();
+            }
             throw new Error(`${config.displayName} API 错误: ${response.status} ${responseText.slice(0, 200)}`);
         }
         return response;
@@ -427,6 +454,7 @@ module.exports = {
     normalizeAttachmentIds,
     ocrCandidateNote,
     prepareAiProviderMessages,
+    isUnsupportedToolChoiceResponse,
     resolveAiProviderConfig,
     resolveAiProviderRoute,
     resolveProviderConfig,

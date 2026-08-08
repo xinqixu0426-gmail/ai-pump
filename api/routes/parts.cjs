@@ -64,6 +64,15 @@ router.get('/', (req, res) => {
             category: req.query.category,
             supplier: req.query.supplier,
             stockStatus: req.query.stockStatus,
+            limit: req.query.limit,
+            minPrice: req.query.minPrice,
+            maxPrice: req.query.maxPrice,
+            priceBelow: req.query.priceBelow,
+            priceAbove: req.query.priceAbove,
+            minStock: req.query.minStock,
+            maxStock: req.query.maxStock,
+            stockBelow: req.query.stockBelow,
+            stockAbove: req.query.stockAbove,
         });
         res.json({ success: true, data });
     } catch (error) {

@@ -307,25 +307,27 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
 
 test('关键 API 集成契约：AI 对话按当前轮次隔离上下文并二次校验工具权限', () => {
     const chat = readUtf8('api/routes/ai/chat.cjs');
-    const routing = readUtf8('api/routes/ai/toolRouting.cjs');
+    const dispatcher = readUtf8('api/services/aiDispatcherV2.cjs');
+    const planner = readUtf8('api/services/aiIntentPlannerV2.cjs');
+    const catalog = readUtf8('api/services/aiCapabilityCatalogV2.cjs');
     const context = readUtf8('api/services/aiContext.cjs');
     const protocol = readUtf8('api/services/aiToolProtocol.cjs');
     const provider = readUtf8('api/services/aiProvider.cjs');
 
-    assert.match(chat, /routeAiTools\(routingMessages/);
-    assert.match(chat, /scopeAiContextForTurn\(messages, initialToolRoute\)/);
-    assert.match(chat, /allowedToolNames: offeredTools\.map/);
-    assert.match(chat, /writeIntent: toolRoute\.writeIntent/);
-    assert.doesNotMatch(chat, /tools:\s*AI_TOOLS/);
-    assert.match(routing, /AI_DYNAMIC_TOOL_ROUTING_ENABLED/);
-    assert.match(routing, /WRITE_TOOLS\.has\(name\) && !classified\.writeIntent/);
-    assert.match(routing, /routing_disabled_safe_allowlist/);
-    assert.match(routing, /requiredToolNames/);
-    assert.match(routing, /priorToolNames/);
-    assert.match(context, /historical business state|executable business state/i);
+    assert.match(chat, /runAiDispatcherV2\(/);
+    assert.match(dispatcher, /planAiIntentV2\(messages/);
+    assert.match(dispatcher, /scopeAiContextForIntent\(messages, intent\)/);
+    assert.match(dispatcher, /selectToolsForIntent\(intent/);
+    assert.match(dispatcher, /allowedToolNames/);
+    assert.match(dispatcher, /writeIntent: intent\.mode === 'command'/);
+    assert.match(planner, /submit_ai_intent_plan/);
+    assert.match(planner, /toolChoice/);
+    assert.match(catalog, /capability\.access === 'write'/);
+    assert.match(context, /不是执行授权或事实证据/);
     assert.match(protocol, /AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN/);
     assert.match(protocol, /AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN/);
     assert.match(provider, /Array\.isArray\(options\.tools\) && options\.tools\.length > 0/);
+    assert.match(provider, /options\.toolChoice/);
 });
 
 test('关键 API 集成契约：V9.1 统一文件上传执行真实类型校验和哈希去重', () => {
@@ -515,6 +517,9 @@ test('关键 API 集成契约：泵壳模板查询和配方草稿由 Query servi
 
     assert.match(route, /createTemplateQueries/);
     assert.match(route, /templateQueries\.getAllTemplates/);
+    assert.match(route, /shellModel:\s*req\.query\.shellModel/);
+    assert.match(route, /description:\s*req\.query\.description/);
+    assert.match(route, /limit:\s*req\.query\.limit/);
     assert.match(route, /templateQueries\.getTemplateCost/);
     assert.match(route, /templateQueries\.getDefaultRecipe/);
     assert.match(route, /templateQueries\.applyTemplate/);
@@ -954,16 +959,23 @@ test('关键 API 集成契约：订单只读查询和处理方案不刷新采购
 
 test('关键 API 集成契约：报价列表只读，过期状态由独立维护服务处理', () => {
     const route = readUtf8('api/routes/quotations.cjs');
-    const service = readUtf8('api/services/quotationExpiry.cjs');
+    const queryService = readUtf8('api/services/quotationQueries.cjs');
+    const expiryService = readUtf8('api/services/quotationExpiry.cjs');
     const section = sliceBetween(route, "router.get('/'", "router.post('/'");
 
-    assert.match(section, /dbGetAllQuotations/);
+    assert.match(section, /quotationQueries\.list/);
+    assert.match(section, /status:\s*req\.query\.status/);
+    assert.match(section, /customerName:\s*req\.query\.customerName/);
+    assert.match(section, /limit:\s*req\.query\.limit/);
     assertNoWrites(section);
+    assertNoWrites(queryService);
+    assert.match(queryService, /quotation\.status.*=== status/s);
+    assert.match(queryService, /customerName.*includes\(normalizedCustomerName\)/s);
     assert.doesNotMatch(section, /expireOverdueQuotations/);
-    assert.match(service, /requireBusinessCapability/);
-    assert.match(service, /executePersistentCommand/);
-    assert.match(service, /safeUpdate\(\s*'quotations'/);
-    assert.match(service, /requiredAuditCount: quotationIds\.length/);
+    assert.match(expiryService, /requireBusinessCapability/);
+    assert.match(expiryService, /executePersistentCommand/);
+    assert.match(expiryService, /safeUpdate\(\s*'quotations'/);
+    assert.match(expiryService, /requiredAuditCount: quotationIds\.length/);
 });
 
 test('关键 API 集成契约：零件列表筛选委托只读 Query service', () => {
@@ -973,6 +985,9 @@ test('关键 API 集成契约：零件列表筛选委托只读 Query service', (
 
     assert.match(section, /listParts\(dbGetAllParts\(\),/);
     assert.match(section, /stockStatus:\s*req\.query\.stockStatus/);
+    assert.match(section, /limit:\s*req\.query\.limit/);
+    assert.match(section, /priceBelow:\s*req\.query\.priceBelow/);
+    assert.match(section, /stockAbove:\s*req\.query\.stockAbove/);
     assertNoWrites(section);
     assert.match(service, /stock > 0 && stock <= LOW_STOCK_MAX/);
     assert.match(service, /stockStatus === 'attention'/);
@@ -993,7 +1008,12 @@ test('关键 API 集成契约：客户历史由正式 Query 聚合，AI executor
         "case 'search_customer_history':",
         "case 'explain_cost_change':"
     );
+    const listRoute = sliceBetween(route, "router.get('/'", "router.get('/:id/context'");
 
+    assert.match(listRoute, /customerQueries\.getAllCustomers/);
+    assert.match(listRoute, /id:\s*req\.query\.id/);
+    assert.match(listRoute, /name:\s*req\.query\.name/);
+    assert.match(listRoute, /limit:\s*req\.query\.limit/);
     assert.match(contextRoute, /customerQueries\.getCustomerContext/);
     assertNoWrites(contextRoute);
     assert.match(queries, /listCustomers\(\)/);
@@ -1420,16 +1440,17 @@ test('V10.4 订单知识包契约：实时业务与人工确认事实统一只�
 
 test('关键 API 集成契约：AI chat 委托模型流与工具消息协议 service', () => {
     const chat = readUtf8('api/routes/ai/chat.cjs');
+    const dispatcher = readUtf8('api/services/aiDispatcherV2.cjs');
     const providerStream = readUtf8('api/services/aiProviderStream.cjs');
     const toolProtocol = readUtf8('api/services/aiToolProtocol.cjs');
 
-    assert.match(chat, /readAiProviderStream\(aiRes/);
-    assert.match(chat, /prepareAiToolCalls\(providerStream\.toolCalls, 'model', \{/);
-    assert.match(chat, /buildAiToolPlan\(preparedToolCalls, WRITE_TOOLS\)/);
-    assert.match(chat, /parseAiToolArguments\(tc\.function\.arguments\)/);
-    assert.match(chat, /buildAiToolResultMessage\(tc, result\)/);
-    assert.match(chat, /appendRefreshedBusinessEvidence/);
-    assert.match(chat, /prioritizeBusinessEvidence/);
+    assert.match(chat, /runAiDispatcherV2/);
+    assert.match(dispatcher, /readAiProviderStream\(response/);
+    assert.match(dispatcher, /prepareAiToolCalls\(rawToolCalls, 'model'/);
+    assert.match(dispatcher, /buildAiToolPlan\(preparedCalls, WRITE_TOOLS\)/);
+    assert.match(dispatcher, /parseAiToolArguments\(toolCall\.function\.arguments\)/);
+    assert.match(dispatcher, /buildAiToolResultMessage\(toolCall, result\)/);
+    assert.match(dispatcher, /prioritizeBusinessEvidence/);
     assert.doesNotMatch(chat, /new TextDecoder/);
     assert.doesNotMatch(chat, /JSON\.parse/);
 
@@ -1437,7 +1458,7 @@ test('关键 API 集成契约：AI chat 委托模型流与工具消息协议 ser
     assert.match(providerStream, /appendToolCallDelta/);
     assert.match(providerStream, /data\?\.choices\?\.\[0\]\?\.delta/);
     assert.match(toolProtocol, /writeTools\.has\(name\)/);
-    assert.match(toolProtocol, /normalizeBusinessQueryArgs/);
+    assert.match(toolProtocol, /validateAiToolArgs/);
     assert.match(toolProtocol, /prioritizeCurrentEvidence/);
     assertNoWrites(providerStream);
     assertNoWrites(toolProtocol);
@@ -1473,7 +1494,8 @@ test('关键 API 集成契约：AI 工具按注册表 executorKey 唯一分发',
     assert.match(executor, /const executor = TOOL_EXECUTORS\[capability\.executorKey\]/);
     assert.match(executor, /attachVerifiedExecutionEvidence\(/);
     assert.match(executor, /internalFetch\.getApiTrace\(\)/);
-    assert.match(executor, /return attachReadProvenance\(capability, verifiedResult\)/);
+    assert.match(executor, /validateAiToolArgs\(toolName, args\)/);
+    assert.match(executor, /return attachReadProvenance\(/);
     assert.doesNotMatch(executor, /const LIVE_BUSINESS_TOOLS/);
     assert.doesNotMatch(executor, /const costRes|const queryRes|const orderRes|const recipeRes|const businessRes/);
 

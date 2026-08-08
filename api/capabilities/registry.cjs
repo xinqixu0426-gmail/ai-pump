@@ -51,6 +51,8 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'execute_order_readiness_action',
     ]),
     quotation: Object.freeze([
+        'search_quotations',
+        'search_customers',
         'inspect_quotation_file',
         'build_quotation_draft',
         'search_customer_history',
@@ -69,6 +71,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'save_order_execution_draft',
     ]),
     recipe: Object.freeze([
+        'search_templates',
         'get_all_recipes',
         'get_recipe_detail',
         'get_recipe_technical_files',
@@ -157,6 +160,9 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     update_order_item: '修改订单产品',
     delete_order: '删除订单',
     inspect_quotation_file: '识别报价文件',
+    search_quotations: '查询报价列表',
+    search_customers: '查询客户列表',
+    search_templates: '查询泵壳模板',
     build_quotation_draft: '生成报价草稿',
     search_customer_history: '查询客户历史',
     explain_cost_change: '解释成本差异',
@@ -208,6 +214,9 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_recipe_detail',
         'get_recipe_technical_files',
         'get_recent_orders',
+        'search_quotations',
+        'search_customers',
+        'search_templates',
         'create_part',
         'batch_create_parts',
         'adjust_part_stock',
@@ -293,6 +302,9 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
     'full_calculate',
     'get_copper_price',
     'get_recent_orders',
+    'search_quotations',
+    'search_customers',
+    'search_templates',
     'get_purchase_overview',
     'get_order_detail',
     'get_order_knowledge_package',
@@ -359,6 +371,9 @@ const LIVE_CAPABILITY_NAMES = new Set([
     'get_recipe_technical_files',
     'dynamic_config_cost',
     'get_recent_orders',
+    'search_quotations',
+    'search_customers',
+    'search_templates',
     'get_purchase_overview',
     'get_order_detail',
     'generate_purchase_list',
@@ -425,13 +440,19 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 ]);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
+    search_parts: Object.freeze(['parts.list']),
+    search_coils: Object.freeze(['coils.list']),
+    get_recent_orders: Object.freeze(['orders.list']),
+    search_quotations: Object.freeze(['quotations.list']),
+    get_purchase_overview: Object.freeze(['purchasing.overview']),
+    get_all_recipes: Object.freeze(['recipes.list']),
+    search_customers: Object.freeze(['customers.list']),
+    search_templates: Object.freeze(['templates.list']),
+    search_customer_history: Object.freeze(['customers.list', 'customers.history']),
     create_part: Object.freeze(['parts.create']),
     batch_create_parts: Object.freeze(['parts.batch_create']),
     adjust_part_stock: Object.freeze(['inventory.parts.batch_adjust_stock']),
-    update_part: Object.freeze([
-        'parts.update',
-        'inventory.parts.batch_adjust_stock',
-    ]),
+    update_part: Object.freeze(['parts.update']),
     delete_part: Object.freeze(['parts.delete']),
     batch_update_prices: Object.freeze(['parts.batch_update_prices']),
     adjust_coil_stock: Object.freeze(['inventory.coils.adjust_stock']),
@@ -510,6 +531,23 @@ function defineBusinessCapability(definition) {
         concurrencyControl: 'expectedUpdatedAt',
         transactionality: 'business_write_audit_and_operation_receipt_atomic',
         audit: 'strong_audit_linked_by_operation_request_and_capability',
+        timeoutMs: 15_000,
+        deprecated: false,
+        contractStatus: 'current',
+        ...definition,
+    });
+}
+
+function defineQueryCapability(definition) {
+    return Object.freeze({
+        access: 'query',
+        operation: 'query',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        idempotency: 'inherent',
+        concurrencyControl: 'not_applicable',
+        transactionality: 'not_applicable',
+        audit: 'none',
         timeoutMs: 15_000,
         deprecated: false,
         contractStatus: 'current',
@@ -875,6 +913,87 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'high',
         requiresConfirmation: false,
         supportsPreview: false,
+    }),
+    'parts.list': defineQueryCapability({
+        capabilityId: 'parts.list',
+        domain: 'catalog',
+        inputSchema: 'GET /api/parts?keyword?&category?&supplier?&stockStatus?&limit?&minPrice?&maxPrice?&priceBelow?&priceAbove?&minStock?&maxStock?&stockBelow?&stockAbove?',
+        outputSchema: 'Part[]',
+        sourceOfTruth: 'parts',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'coils.list': defineQueryCapability({
+        capabilityId: 'coils.list',
+        domain: 'coil',
+        inputSchema: 'GET /api/coils?spec?&sheets?&material?&slotType?',
+        outputSchema: 'Coil[]',
+        sourceOfTruth: 'coils',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'orders.list': defineQueryCapability({
+        capabilityId: 'orders.list',
+        domain: 'order',
+        inputSchema: 'GET /api/orders?limit?&status?&customerName?&contractNo?',
+        outputSchema: 'Order[]',
+        sourceOfTruth: 'orders+currentPurchasePlan',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'quotations.list': defineQueryCapability({
+        capabilityId: 'quotations.list',
+        domain: 'quotation',
+        inputSchema: 'GET /api/quotations?status?&customerName?&limit?',
+        outputSchema: 'Quotation[]',
+        sourceOfTruth: 'customers+quotations',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'purchasing.overview': defineQueryCapability({
+        capabilityId: 'purchasing.overview',
+        domain: 'procurement',
+        inputSchema: 'GET /api/orders/purchase-overview?limit?&supplier?&pendingOnly?',
+        outputSchema: 'PurchaseOverview',
+        sourceOfTruth: 'orders.currentPurchasePlan',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'recipes.list': defineQueryCapability({
+        capabilityId: 'recipes.list',
+        domain: 'recipe',
+        inputSchema: 'GET /api/recipes?keyword?&hasTechnicalFiles?',
+        outputSchema: 'Recipe[] optionally including technicalFileCount',
+        sourceOfTruth: 'recipes+recipe_technical_files',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'customers.list': defineQueryCapability({
+        capabilityId: 'customers.list',
+        domain: 'customer',
+        inputSchema: 'GET /api/customers?id?&name?&limit?',
+        outputSchema: 'Customer[]',
+        sourceOfTruth: 'customers',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'customers.history': defineQueryCapability({
+        capabilityId: 'customers.history',
+        domain: 'customer',
+        inputSchema: 'GET /api/customers/:id/context?keyword?&limit?',
+        outputSchema: 'CustomerContext',
+        sourceOfTruth: 'customers+quotations+orders',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'templates.list': defineQueryCapability({
+        capabilityId: 'templates.list',
+        domain: 'template',
+        inputSchema: 'GET /api/templates?shellModel?&description?&limit?',
+        outputSchema: 'PumpShellTemplate[]',
+        sourceOfTruth: 'pump_shell_templates',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
     }),
     'quotations.create': defineBusinessCapability({
         capabilityId: 'quotations.create',
@@ -1602,12 +1721,8 @@ function buildRegistry() {
         const primaryFormalCapability = formalCapabilities[0] || null;
         const supportsPreview = PREVIEW_CAPABILITY_NAMES.has(name)
             || formalCapabilities.some(capability => capability.supportsPreview);
-        const concurrencyControl = name === 'update_part'
-            ? 'exclusive_input_mode_expectedUpdatedAt_or_confirmationToken_bound_inventory_snapshot'
-            : primaryFormalCapability?.concurrencyControl;
-        const transactionality = name === 'update_part'
-            ? 'single_formal_command_per_invocation_mixed_metadata_and_inventory_rejected'
-            : primaryFormalCapability?.transactionality;
+        const concurrencyControl = primaryFormalCapability?.concurrencyControl;
+        const transactionality = primaryFormalCapability?.transactionality;
         registry[name] = Object.freeze({
             capabilityId: `ai.${name}`,
             toolName: name,

@@ -625,17 +625,14 @@ test('API 静态契约：AI 零件写操作必须委托独立 service 和正式 
     assert.match(queryExecutor, /return executePartUpdate\(args/);
     assert.match(queryExecutor, /return executePartPriceBatch\(args/);
     assert.doesNotMatch(queryExecutor, /batch-stock-preview|prices-preview|requestedStockDelta|percentChange \/ 100|零件新建成功|找不到零件/);
-    assert.match(executor, /partUpdateInputError\(args\)/);
+    assert.doesNotMatch(executor, /partUpdateInputError|stockDelta/);
     assert.match(partExecution, /postJson\(\s*internalFetch,\s*'\/api\/parts'/);
     assert.match(partExecution, /deleteJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{target\.id \?\? target\.Id\}`/);
     assert.match(partExecution, /patchJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{targetId\}`/);
     assert.match(partExecution, /expectedUpdatedAt: target\.updatedAt \|\| target\.UpdatedAt/);
-    assert.match(partExecution, /\/api\/parts\/batch-stock-preview/);
-    assert.match(partExecution, /\/api\/parts\/batch-stock/);
-    assert.match(partExecution, /preview\.confirmationToken/);
+    assert.doesNotMatch(partExecution, /function partUpdateInputError/);
+    assert.doesNotMatch(partExecution, /一次 update_part 不能同时修改零件资料和库存/);
     assert.match(partExecution, /preview\.suggestedIdempotencyKey/);
-    assert.match(partExecution, /part_update_mixed_write_not_allowed/);
-    assert.match(partExecution, /suggestedOperations/);
     assert.match(partExecution, /oldPrice \* \(1 \+ percentChange \/ 100\)/);
     assert.match(partExecution, /\/api\/parts\/prices-preview/);
     assert.match(partExecution, /previewHash: preview\.previewHash/);
@@ -698,11 +695,11 @@ test('API 静态契约：AI executor 不得直接访问数据库 helper 或裸�
 });
 
 test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度', () => {
-    const chatRoute = readAiPromptContractSource();
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/services/aiDispatcherV2.cjs'));
     const promptRoute = readAiPromptContractSource();
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
 
-    assert.match(chatRoute, /hasPendingWriteConfirmation/);
+    assert.match(chatRoute, /pendingConfirmation/);
     assert.doesNotMatch(chatRoute, /buildToolCardReply/);
     assert.doesNotMatch(chatRoute, /整理在下面的卡片/);
     assert.match(promptRoute, /普通工具返回的数据是给你继续分析和编排使用的/);
@@ -1442,7 +1439,7 @@ test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
     const executor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/businessExecutors.cjs'));
     const prompt = readAiPromptContractSource();
-    const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
+    const catalog = readUtf8(path.join(repoRoot, 'api/services/aiCapabilityCatalogV2.cjs'));
 
     assert.match(service, /order_readiness/);
     assert.match(service, /business_risk/);
@@ -1454,7 +1451,7 @@ test('API 静态契约：V5.8 管理待办统一聚合并保持只读', () => {
     assert.match(tools, /name:\s*'get_management_action_center'/);
     assert.match(executor, /\/api\/workbench\/action-center/);
     assert.match(prompt, /今天先做什么/);
-    assert.match(freshness, /MANAGEMENT_ACTION_INTENT_RE/);
+    assert.match(catalog, /listAiCapabilities/);
     assert.equal(getAiCapability('get_management_action_center').access, 'read');
 });
 
@@ -1595,29 +1592,23 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
     assert.match(orderExecution, /执行前刷新订单计划失败/);
 });
 
-test('API 静态契约：易变业务数据查询必须强制刷新工具结果', () => {
-    const chatRoute = readAiPromptContractSource();
-    const freshness = readUtf8(path.join(repoRoot, 'api/services/aiFreshness.cjs'));
-    const businessCompiler = readUtf8(path.join(repoRoot, 'api/services/aiBusinessQueryCompiler.cjs'));
+test('API 静态契约：V2 易变业务数据必须经过模型计划、正式能力和证据门', () => {
+    const dispatcher = readUtf8(path.join(repoRoot, 'api/services/aiDispatcherV2.cjs'));
+    const planner = readUtf8(path.join(repoRoot, 'api/services/aiIntentPlannerV2.cjs'));
+    const catalog = readUtf8(path.join(repoRoot, 'api/services/aiCapabilityCatalogV2.cjs'));
+    const validator = readUtf8(path.join(repoRoot, 'api/services/aiToolInputValidatorV2.cjs'));
     const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
     const pageContext = readUtf8(path.join(repoRoot, 'api/services/aiPageContext.cjs'));
 
-    assert.match(chatRoute, /buildFreshLookupToolCalls/);
-    assert.match(chatRoute, /function toolsAfterDeterministicFreshLookup/);
-    assert.match(chatRoute, /if \(!lookupCompleted\) return tools;\s*return \[\];/);
-    assert.match(chatRoute, /normalizeAiPageContext\(req\.body\?\.pageContext\)/);
-    assert.match(chatRoute, /resolveMessagesWithPageContext/);
-    assert.match(chatRoute, /正在刷新.*易变业务数据/);
-    assert.match(chatRoute, /禁止直接复述历史会话里的数字/);
-    assert.match(chatRoute, /所有正式材质\+槽眼方案/);
-    assert.match(freshness, /function coilSpecSheetKey/);
-    assert.match(freshness, /entryType: 'coil'/);
-    assert.match(freshness, /compileBusinessQuery\(text\)/);
-    assert.match(businessCompiler, /function compilePartQuery/);
-    assert.match(businessCompiler, /function compileOrderQuery/);
-    assert.match(businessCompiler, /function compileProcurementQuery/);
-    assert.match(businessCompiler, /function compileRecipeQuery/);
-    assert.match(businessCompiler, /function normalizeBusinessQueryArgs/);
+    assert.match(dispatcher, /planAiIntentV2/);
+    assert.match(dispatcher, /selectToolsForIntent/);
+    assert.match(dispatcher, /requiredEvidenceSatisfied/);
+    assert.match(dispatcher, /hasVerifiedToolEvidence/);
+    assert.match(planner, /按语义理解，不按关键词机械匹配/);
+    assert.match(planner, /toolChoice/);
+    assert.match(catalog, /getAiCapability/);
+    assert.match(validator, /TOOL_SCHEMAS/);
+    assert.match(validator, /unknownFields/);
     assert.match(queryExecutor, /suppliers: \[\.\.\.supplierCounts\.entries\(\)\]/);
     assert.match(queryExecutor, /truncated: parts\.length < results\.length/);
     assert.match(pageContext, /仅用于理解/);
@@ -1693,13 +1684,13 @@ test('API 静态契约：AI 必须识别不锈钢机筒长度影响泵壳成本'
 
 test('API 静态契约：AI 成本与零件查询不再暴露旧重复工具', () => {
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
-    const routing = readUtf8(path.join(repoRoot, 'api/routes/ai/toolRouting.cjs'));
+    const catalog = readUtf8(path.join(repoRoot, 'api/services/aiCapabilityCatalogV2.cjs'));
     const costExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/costExecutors.cjs'));
     const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
 
     for (const retiredName of ['query_recipe_cost_by_name', 'query_recipe_cost_by_id', 'get_all_parts']) {
         assert.doesNotMatch(tools, new RegExp(retiredName));
-        assert.doesNotMatch(routing, new RegExp(retiredName));
+        assert.doesNotMatch(catalog, new RegExp(retiredName));
         assert.doesNotMatch(costExecutor, new RegExp(retiredName));
         assert.doesNotMatch(queryExecutor, new RegExp(retiredName));
     }

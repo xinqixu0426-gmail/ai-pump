@@ -97,10 +97,19 @@ router.get('/', (req, res) => {
     try {
         res.json({
             success: true,
-            data: recipeQueries.getAllRecipes({ keyword: req.query.keyword }),
+            data: recipeQueries.getAllRecipes({
+                keyword: req.query.keyword,
+                hasTechnicalFiles: req.query.hasTechnicalFiles,
+            }),
         });
     }
-    catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            error: error.message,
+            ...(error.code ? { code: error.code } : {}),
+        });
+    }
 });
 
 router.post('/cost-draft', (req, res) => {

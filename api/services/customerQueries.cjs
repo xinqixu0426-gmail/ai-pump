@@ -1,6 +1,9 @@
 const { parsePositiveId } = require('./validation.cjs');
+const {
+    normalizeOptionalLimit,
+    normalizeQueryText,
+} = require('./queryValidation.cjs');
 
-const DEFAULT_CONTEXT_LIMIT = 10;
 const MAX_CONTEXT_LIMIT = 50;
 
 class CustomerQueryError extends Error {
@@ -31,10 +34,7 @@ function parseJsonArray(value) {
 }
 
 function normalizeContextLimit(value) {
-    return Math.min(
-        MAX_CONTEXT_LIMIT,
-        Math.max(1, Number.parseInt(value, 10) || DEFAULT_CONTEXT_LIMIT)
-    );
+    return normalizeOptionalLimit(value, { max: MAX_CONTEXT_LIMIT });
 }
 
 function createCustomerQueries({
@@ -52,8 +52,17 @@ function createCustomerQueries({
         throw new Error('客户查询服务缺少报价列表依赖');
     }
 
-    function getAllCustomers() {
-        return listCustomers();
+    function getAllCustomers(options = {}) {
+        const name = normalizeQueryText(options.name, 'name').toLocaleLowerCase();
+        const hasId = options.id !== undefined && options.id !== '';
+        const id = hasId ? parsePositiveId(options.id) : null;
+        if (hasId && !id) throw new CustomerQueryError('非法客户ID');
+        const limit = normalizeOptionalLimit(options.limit);
+        const customers = listCustomers().filter(customer => (
+            (!id || Number(customer.id ?? customer.Id) === id)
+            && (!name || normalizeText(customer.name).toLocaleLowerCase().includes(name))
+        ));
+        return limit ? customers.slice(0, limit) : customers;
     }
 
     function getCustomerContext(rawCustomerId, options = {}) {
@@ -120,8 +129,8 @@ function createCustomerQueries({
 
         return {
             customer,
-            quotations: quotations.slice(0, limit),
-            orders: orders.slice(0, limit),
+            quotations: limit ? quotations.slice(0, limit) : quotations,
+            orders: limit ? orders.slice(0, limit) : orders,
             summary: `找到 ${customer.name} 的历史报价 ${quotations.length} 条、订单 ${orders.length} 条。`,
             query: {
                 keyword,

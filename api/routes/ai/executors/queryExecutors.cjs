@@ -21,6 +21,28 @@ function parseJsonArray(value) {
     }
 }
 
+function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
+    const normalizedReturnedCount = Number(returnedCount ?? 0);
+    const normalizedTotalCount = totalCount === null || totalCount === undefined
+        ? null
+        : Number(totalCount);
+    const requestedLimit = Number(filters?.limit);
+    return {
+        appliedFilters: Object.fromEntries(
+            Object.entries(filters).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+        ),
+        totalCount: normalizedTotalCount,
+        returnedCount: normalizedReturnedCount,
+        truncated: normalizedTotalCount === null
+            ? null
+            : normalizedReturnedCount < normalizedTotalCount,
+        possiblyTruncated: Number.isFinite(requestedLimit)
+            && requestedLimit > 0
+            && normalizedReturnedCount >= requestedLimit,
+        authoritative: true,
+    };
+}
+
 function resolveUniqueRecipe(recipes, args = {}) {
     const recipeId = Number.parseInt(args.recipeId, 10);
     const recipeName = String(args.recipeName || '').trim();
@@ -75,6 +97,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 success: true,
                 count: coils.length,
                 filters,
+                queryReceipt: buildQueryReceipt(filters, coils.length),
                 data: coils.map(coil => ({
                     id: coil.id ?? coil.Id,
                     spec: coil.spec,
@@ -100,6 +123,12 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             const query = new URLSearchParams();
             const keyword = String(args.keyword || '').trim();
             if (keyword) query.set('keyword', keyword);
+            const hasTechnicalFiles = args.hasTechnicalFiles === undefined
+                ? null
+                : Boolean(args.hasTechnicalFiles);
+            if (hasTechnicalFiles !== null) {
+                query.set('hasTechnicalFiles', String(hasTechnicalFiles));
+            }
             const recipes = await getJson(
                 internalFetch,
                 `/api/recipes${query.size ? `?${query.toString()}` : ''}`,
@@ -109,12 +138,17 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 id: r.id ?? r.Id,
                 name: r.name,
                 spec: r.spec,
-                savedCost: r.savedTotalCost || 0
+                savedCost: r.savedTotalCost || 0,
+                ...(hasTechnicalFiles !== null
+                    ? { technicalFileCount: Number(r.technicalFileCount || 0) }
+                    : {}),
             }));
+            const filters = { keyword, hasTechnicalFiles };
             return {
                 success: true,
                 count: summary.length,
-                filters: { keyword },
+                filters,
+                queryReceipt: buildQueryReceipt(filters, summary.length),
                 data: summary,
             };
         }
@@ -194,7 +228,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 customer: o.customerName || '未知',
                 contract: o.contractNo || '-',
                 status: o.status || '未知',
-                createdAt: o.createdAt || o.CreatedAt || new Date().toISOString()
+                createdAt: o.createdAt || o.CreatedAt || null
             }));
             return {
                 success: true,
@@ -203,9 +237,145 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     status: String(args.status || '').trim(),
                     customerName: String(args.customerName || '').trim(),
                     contractNo: String(args.contractNo || '').trim(),
-                    limit: Number(args.limit || 10),
+                    limit: args.limit === undefined ? null : Number(args.limit),
                 },
+                queryReceipt: buildQueryReceipt({
+                    status: String(args.status || '').trim(),
+                    customerName: String(args.customerName || '').trim(),
+                    contractNo: String(args.contractNo || '').trim(),
+                    limit: args.limit === undefined ? null : Number(args.limit),
+                }, args.limit === undefined ? formattedOrders.length : null, formattedOrders.length),
+                selectionBoundary: 'data 已由正式订单 API 按 filters 筛选。回答订单数量时必须使用 count，并逐单简报客户和创建日期；不得改用采购任务、供应商或待采购数量回答。',
                 data: formattedOrders,
+            };
+        }
+
+        case 'search_quotations': {
+            const query = new URLSearchParams();
+            for (const field of ['status', 'customerName', 'limit']) {
+                const value = String(args[field] ?? '').trim();
+                if (value) query.set(field, value);
+            }
+            const quotations = await getJson(
+                internalFetch,
+                `/api/quotations${query.size ? `?${query.toString()}` : ''}`,
+                '报价列表读取失败'
+            );
+            const data = quotations.map(quotation => ({
+                id: quotation.id ?? quotation.Id,
+                customerName: quotation.customerName || '未知',
+                status: quotation.status || '未知',
+                totalCost: Number(quotation.totalCost || 0),
+                totalPrice: Number(quotation.totalPrice || 0),
+                createdAt: quotation.createdAt || quotation.CreatedAt || null,
+                items: parseJsonArray(quotation.itemsJson).map(item => ({
+                    model: item.recipeName || item.model || item.name || '',
+                    quantity: Number(item.qty ?? item.quantity ?? 0),
+                })),
+            }));
+            return {
+                success: true,
+                count: data.length,
+                filters: {
+                    status: String(args.status || '').trim(),
+                    customerName: String(args.customerName || '').trim(),
+                    limit: args.limit === undefined ? null : Number(args.limit),
+                },
+                queryReceipt: buildQueryReceipt({
+                    status: String(args.status || '').trim(),
+                    customerName: String(args.customerName || '').trim(),
+                    limit: args.limit === undefined ? null : Number(args.limit),
+                }, args.limit === undefined ? data.length : null, data.length),
+                selectionBoundary: 'data 已由正式报价 API 按 filters 筛选；只能基于 data 回答，不能补充未返回的报价。id/sourceId 是内部关联字段，除非用户明确询问编号，否则不得展示为“报价 #N”。',
+                data,
+                sources: data.map(quotation => ({
+                    sourceTable: 'quotations',
+                    sourceId: quotation.id,
+                    title: `报价：${quotation.customerName}（${quotation.status}）`,
+                })),
+            };
+        }
+
+        case 'search_customers': {
+            const query = new URLSearchParams();
+            for (const field of ['name', 'limit']) {
+                const value = String(args[field] ?? '').trim();
+                if (value) query.set(field, value);
+            }
+            const customers = await getJson(
+                internalFetch,
+                `/api/customers${query.size ? `?${query.toString()}` : ''}`,
+                '客户列表读取失败'
+            );
+            const data = customers.map(customer => ({
+                id: customer.id ?? customer.Id,
+                name: customer.name,
+                contactInfo: customer.contactInfo || '',
+                defaultMargin: Number(customer.defaultMargin || 0),
+                remark: customer.remark || '',
+            }));
+            const filters = {
+                name: String(args.name || '').trim(),
+                limit: args.limit === undefined ? null : Number(args.limit),
+            };
+            return {
+                success: true,
+                count: data.length,
+                filters,
+                queryReceipt: buildQueryReceipt(
+                    filters,
+                    args.limit === undefined ? data.length : null,
+                    data.length
+                ),
+                selectionBoundary: 'data 已由正式客户 API 按 filters 筛选。',
+                data,
+                sources: data.map(customer => ({
+                    sourceTable: 'customers',
+                    sourceId: customer.id,
+                    title: customer.name,
+                })),
+            };
+        }
+
+        case 'search_templates': {
+            const query = new URLSearchParams();
+            for (const field of ['shellModel', 'description', 'limit']) {
+                const value = String(args[field] ?? '').trim();
+                if (value) query.set(field, value);
+            }
+            const templates = await getJson(
+                internalFetch,
+                `/api/templates${query.size ? `?${query.toString()}` : ''}`,
+                '泵壳模板列表读取失败'
+            );
+            const data = templates.map(template => ({
+                id: template.id ?? template.Id,
+                shellModel: template.shellModel,
+                description: template.description || '',
+                costMode: template.costMode || '',
+                updatedAt: template.updatedAt || template.UpdatedAt || null,
+            }));
+            const filters = {
+                shellModel: String(args.shellModel || '').trim(),
+                description: String(args.description || '').trim(),
+                limit: args.limit === undefined ? null : Number(args.limit),
+            };
+            return {
+                success: true,
+                count: data.length,
+                filters,
+                queryReceipt: buildQueryReceipt(
+                    filters,
+                    args.limit === undefined ? data.length : null,
+                    data.length
+                ),
+                selectionBoundary: 'data 已由正式泵壳模板 API 按 filters 筛选。',
+                data,
+                sources: data.map(template => ({
+                    sourceTable: 'pump_shell_templates',
+                    sourceId: template.id,
+                    title: template.shellModel,
+                })),
             };
         }
 
@@ -251,8 +421,13 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
 
         case 'search_parts': {
             const query = new URLSearchParams();
-            for (const field of ['keyword', 'category', 'supplier', 'stockStatus']) {
-                const value = String(args[field] || '').trim();
+            for (const field of [
+                'keyword', 'category', 'supplier', 'stockStatus',
+                'limit',
+                'minPrice', 'maxPrice', 'priceBelow', 'priceAbove',
+                'minStock', 'maxStock', 'stockBelow', 'stockAbove',
+            ]) {
+                const value = String(args[field] ?? '').trim();
                 if (value) query.set(field, value);
             }
             const queryString = query.toString();
@@ -267,7 +442,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 if (!supplier) continue;
                 supplierCounts.set(supplier, (supplierCounts.get(supplier) || 0) + 1);
             }
-            const parts = results.slice(0, 30).map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, subcategory: p.subcategory || '', price: p.price, supplier: p.supplier, stock: p.stock || 0 }));
+            const parts = results.map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, subcategory: p.subcategory || '', price: p.price, supplier: p.supplier, stock: p.stock || 0 }));
             return {
                 success: true,
                 count: results.length,
@@ -278,7 +453,31 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     category: String(args.category || '').trim(),
                     supplier: String(args.supplier || '').trim(),
                     stockStatus: String(args.stockStatus || '').trim(),
+                    limit: args.limit === undefined ? null : Number(args.limit),
+                    minPrice: args.minPrice ?? null,
+                    maxPrice: args.maxPrice ?? null,
+                    priceBelow: args.priceBelow ?? null,
+                    priceAbove: args.priceAbove ?? null,
+                    minStock: args.minStock ?? null,
+                    maxStock: args.maxStock ?? null,
+                    stockBelow: args.stockBelow ?? null,
+                    stockAbove: args.stockAbove ?? null,
                 },
+                queryReceipt: buildQueryReceipt({
+                    keyword: String(args.keyword || '').trim(),
+                    category: String(args.category || '').trim(),
+                    supplier: String(args.supplier || '').trim(),
+                    stockStatus: String(args.stockStatus || '').trim(),
+                    limit: args.limit === undefined ? null : Number(args.limit),
+                    minPrice: args.minPrice ?? null,
+                    maxPrice: args.maxPrice ?? null,
+                    priceBelow: args.priceBelow ?? null,
+                    priceAbove: args.priceAbove ?? null,
+                    minStock: args.minStock ?? null,
+                    maxStock: args.maxStock ?? null,
+                    stockBelow: args.stockBelow ?? null,
+                    stockAbove: args.stockAbove ?? null,
+                }, args.limit === undefined ? results.length : null, parts.length),
                 stockStatusDefinition: {
                     low: '库存大于0且不超过5',
                     out: '库存不大于0',

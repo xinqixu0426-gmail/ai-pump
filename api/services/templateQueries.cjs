@@ -1,4 +1,8 @@
 const { parsePositiveId } = require('./validation.cjs');
+const {
+    normalizeOptionalLimit,
+    normalizeQueryText,
+} = require('./queryValidation.cjs');
 
 class TemplateQueryError extends Error {
     constructor(message, statusCode = 400) {
@@ -158,8 +162,15 @@ function createTemplateQueries({
         };
     }
 
-    function getAllTemplates() {
-        return listTemplates();
+    function getAllTemplates(options = {}) {
+        const shellModel = normalizeQueryText(options.shellModel, 'shellModel').toLocaleLowerCase();
+        const description = normalizeQueryText(options.description, 'description').toLocaleLowerCase();
+        const limit = normalizeOptionalLimit(options.limit);
+        const templates = listTemplates().filter(template => (
+            (!shellModel || String(template.shellModel || '').toLocaleLowerCase().includes(shellModel))
+            && (!description || String(template.description || '').toLocaleLowerCase().includes(description))
+        ));
+        return limit ? templates.slice(0, limit) : templates;
     }
 
     function getTemplate(rawTemplateId) {

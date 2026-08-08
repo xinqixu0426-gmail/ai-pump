@@ -3,6 +3,7 @@ const {
     db,
     dbGetAllParts,
     dbGetAllQuotations,
+    dbGetAllCustomers,
     dbGetAllCoils,
     loadPartsData,
     calculateRecipeCost,
@@ -32,10 +33,17 @@ const {
     buildQuotationSavePayloadDraft,
 } = require('../services/quotationDraft.cjs');
 const {
+    createQuotationQueries,
+} = require('../services/quotationQueries.cjs');
+const {
     commandContextFromRequest,
     sendCommandError,
 } = require('../services/commandRequest.cjs');
 const router = express.Router();
+const quotationQueries = createQuotationQueries({
+    listQuotations: dbGetAllQuotations,
+    listCustomers: dbGetAllCustomers,
+});
 
 function quotationDependencies() {
     return {
@@ -60,9 +68,23 @@ function legacyQuotationCommandResponse(result) {
 
 router.get('/', (req, res) => {
     try {
-        res.json({ success: true, data: dbGetAllQuotations() });
+        res.json({
+            success: true,
+            data: quotationQueries.list({
+                status: req.query.status,
+                customerName: req.query.customerName,
+                limit: req.query.limit,
+            }),
+        });
     }
-    catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    catch (err) {
+        res.status(err.statusCode || 500).json({
+            success: false,
+            code: err.code || 'QUOTATION_QUERY_FAILED',
+            error: err.message,
+            requestId: req.requestId || null,
+        });
+    }
 });
 
 router.post('/', (req, res) => {

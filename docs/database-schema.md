@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `51`：
+当前版本为 `53`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -71,6 +71,8 @@
 | 49 | `formal_recipe_technical_file_ai_evaluation` | 测试报告类 AI 发布回归统一要求调用正式配方技术档案 API，不再依赖宽泛知识搜索 |
 | 50 | `formal_coil_query_ai_evaluation` | 线圈方案 AI 发布回归统一要求调用正式实时线圈 Query API，不再把知识快照作为库存和成本事实 |
 | 51 | `data_aware_formal_coil_ai_evaluation` | 目标线圈测试方案不存在时验收明确的不可用说明，存在时继续严格核对全部正式方案 |
+| 52 | `accept_equivalent_complete_cable_phrasing` | 成品电缆回归接受“共同组成一条”“单一整体业务项”等等价正确表述，避免语义正确回答被固定措辞误判 |
+| 53 | `accept_explicit_unconfirmed_cutting_evidence_phrasing` | 切割用途回归接受“系统未确认”这一明确不确定性表述，避免安全回答被固定措辞误判 |
 
 ## 数据治理
 

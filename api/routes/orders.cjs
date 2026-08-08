@@ -133,7 +133,14 @@ router.get('/', (req, res) => {
             }),
         });
     }
-    catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            code: error.code || 'ORDER_QUERY_FAILED',
+            error: error.message,
+            requestId: req.requestId || null,
+        });
+    }
 });
 
 router.get('/purchase-overview', (req, res) => {
@@ -147,7 +154,12 @@ router.get('/purchase-overview', (req, res) => {
             }),
         });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(error.statusCode || 500).json({
+            success: false,
+            code: error.code || 'PURCHASE_QUERY_FAILED',
+            error: error.message,
+            requestId: req.requestId || null,
+        });
     }
 });
 

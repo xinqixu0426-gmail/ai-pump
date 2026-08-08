@@ -1,5 +1,6 @@
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('./recipeBomEngine.cjs');
+const { normalizeOptionalBoolean } = require('./queryValidation.cjs');
 const { parseJsonArray, parsePositiveId } = require('./validation.cjs');
 
 class RecipeQueryError extends Error {
@@ -68,11 +69,37 @@ function createRecipeQueries({
 
     function getAllRecipes(options = {}) {
         const keyword = String(options.keyword || '').trim().toLocaleLowerCase();
-        if (!keyword) return listRecipes();
-        return listRecipes().filter(recipe => (
+        const hasTechnicalFiles = normalizeOptionalBoolean(
+            options.hasTechnicalFiles,
+            'hasTechnicalFiles'
+        );
+        const allRecipes = listRecipes();
+        if (!keyword && hasTechnicalFiles === null) return allRecipes;
+        const recipes = allRecipes.filter(recipe => (
             [recipe.name, recipe.spec]
-                .some(value => String(value || '').toLocaleLowerCase().includes(keyword))
+                .some(value => !keyword || String(value || '').toLocaleLowerCase().includes(keyword))
         ));
+        if (hasTechnicalFiles === null) return recipes;
+
+        const technicalFileCounts = new Map(db.prepare(`
+            SELECT recipe_id AS recipeId, COUNT(*) AS technicalFileCount
+            FROM recipe_technical_files
+            WHERE deleted_at IS NULL
+            GROUP BY recipe_id
+        `).all().map(row => [
+            Number(row.recipeId),
+            Number(row.technicalFileCount || 0),
+        ]));
+        return recipes
+            .map(recipe => ({
+                ...recipe,
+                technicalFileCount: technicalFileCounts.get(Number(recipe.id)) || 0,
+            }))
+            .filter(recipe => (
+                hasTechnicalFiles
+                    ? recipe.technicalFileCount > 0
+                    : recipe.technicalFileCount === 0
+            ));
     }
 
     function getRecipe(rawRecipeId) {

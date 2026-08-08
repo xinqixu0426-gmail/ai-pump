@@ -1,3 +1,26 @@
+const COST_OVERRIDE_SCHEMA = Object.freeze({
+    type: 'object',
+    properties: {
+        surfaceTreatmentMode: { type: 'string' },
+        surfaceTreatmentCost: { type: 'number', minimum: 0 },
+        hasFloat: { type: 'boolean' },
+        floatWire: { type: 'string' },
+        floatAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] },
+        hasCable: { type: 'boolean' },
+        cableLength: { type: 'number', minimum: 0 },
+        cableWire: { type: 'string' },
+        cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] },
+        coilSpec: { type: 'string' },
+        coilSheets: { type: 'number', minimum: 0 },
+        coilMaterial: { type: 'string' },
+        coilSlotType: { type: 'string' },
+        customBarrelLength: { type: 'number', minimum: 0 },
+        boxType: { type: 'string' },
+        packingPartsJson: { type: 'string' },
+        extraPartsJson: { type: 'string' },
+    },
+});
+
 const AI_TOOLS = [
     {
         type: 'function',
@@ -32,7 +55,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'calculate_coil_cost',
-            description: '查询或计算线圈转子数据与成本（支持插值）。未同时指定材质和槽眼时，会先返回该规格片数下全部正式方案，禁止默认选择小眼。',
+            description: '计算一个指定线圈方案的成本，支持自定义线重和插值。权威职责是 Calculation/Preview，不负责列出数据库中的全部正式方案或实时库存；用户要求“全部正式方案、有哪些方案、库存”时必须使用 search_coils。材质或槽眼不明确且会影响计算时，不得默认选择，应让用户确认或先用 search_coils 读取候选。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -58,7 +81,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_coils',
-            description: '从正式线圈 API 查询线圈/定子成品的实时库存和方案。可按规格、片数、材质、槽眼筛选；不传条件时返回全部正式方案。',
+            description: '从正式线圈 API 列出已有线圈/定子成品方案及实时库存。它是“全部正式方案、有哪些方案、列出材质槽眼成本、库存”的权威 List/Query 能力，可按规格、片数、材质、槽眼筛选；不传条件时返回全部正式方案。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -128,11 +151,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_all_recipes',
-            description: '从正式配方 API 获取配方列表，可按配方名称或规格筛选。未提供 keyword 时返回全部配方。',
+            description: '从正式配方 API 获取成品配方/产品型号列表，可按配方名称或规格筛选。只有用户明确询问配方、产品配方或成品型号时使用；电缆、电容、油封、机筒、轴承等具体物料名称或物料类别属于零件库，应使用 search_parts。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。',
             parameters: {
                 type: 'object',
                 properties: {
-                    keyword: { type: 'string', description: '配方名称或规格关键词（可选）' }
+                    keyword: { type: 'string', description: '配方名称或规格关键词（可选）' },
+                    hasTechnicalFiles: { type: 'boolean', description: '是否只返回至少关联一份有效技术档案或测试报告的配方' }
                 }
             }
         }
@@ -145,10 +169,11 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
                     recipeName: { type: 'string', description: '完整配方名称，未提供ID时用于匹配' },
                     includeCurrentCost: { type: 'boolean', description: '是否同时查询当前完整成本' }
-                }
+                },
+                anyOf: [{ required: ['recipeId'] }, { required: ['recipeName'] }]
             }
         }
     },
@@ -160,9 +185,10 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
                     recipeName: { type: 'string', description: '配方名称，未提供ID时用于精确匹配' }
-                }
+                },
+                anyOf: [{ required: ['recipeId'] }, { required: ['recipeName'] }]
             }
         }
     },
@@ -189,12 +215,16 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_recent_orders',
-            description: '获取最近的订单列表',
+            description: '读取正式订单列表。“订单、单子、单据”都指订单；“采购中的单子/单据”必须调用本工具并传 status=采购中。用户明确状态、客户或合同号时必须把条件传入，不得读取全量后由模型二次筛选。',
             parameters: {
                 type: 'object',
                 properties: {
-                    limit: { type: 'number', description: '返回的订单数量，默认10，最大100' },
-                    status: { type: 'string', description: '订单状态精确筛选（可选）' },
+                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回数量；仅用户明确“最近/前N个”时传入' },
+                    status: {
+                        type: 'string',
+                        enum: ['待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消'],
+                        description: '订单状态精确筛选（可选）'
+                    },
                     customerName: { type: 'string', description: '客户名称模糊筛选（可选）' },
                     contractNo: { type: 'string', description: '合同号模糊筛选（可选）' }
                 }
@@ -255,12 +285,68 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
-            name: 'get_purchase_overview',
-            description: '读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。只读，不修改采购、订单或库存。',
+            name: 'search_quotations',
+            description: '读取正式报价列表，权威职责是按报价状态、客户名称等条件筛选当前报价。状态查询必须传 status，API 只返回命中项，禁止先查全部再由模型筛选。若目标是某一个具名客户的全部报价、历史报价或报价与订单历史，应使用 search_customer_history，以区分客户不存在与客户存在但没有报价。',
             parameters: {
                 type: 'object',
                 properties: {
-                    limit: { type: 'number', description: '最多返回的采购任务数量，最大100（可选）' },
+                    status: {
+                        type: 'string',
+                        enum: ['草稿', '报价中', '已接受', '已拒绝', '已转订单', '已过时'],
+                        description: '报价状态精确筛选（可选）'
+                    },
+                    customerName: {
+                        type: 'string',
+                        description: '客户名称模糊筛选（可选）'
+                    },
+                    limit: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: 100,
+                        description: '最多返回数量；仅用户明确“最近/前N个”时传入'
+                    }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'search_customers',
+            description: '读取正式客户列表，可按客户名称筛选。查询客户列表时使用，不得退回知识库。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    name: { type: 'string', description: '客户名称模糊筛选（可选）' },
+                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回数量（可选）' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'search_templates',
+            description: '读取正式泵壳模板列表，可按泵壳型号或描述筛选。查询模板时使用，不得当作零件搜索。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    shellModel: { type: 'string', description: '泵壳型号模糊筛选（可选）' },
+                    description: { type: 'string', description: '模板描述模糊筛选（可选）' },
+                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回数量（可选）' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_purchase_overview',
+            description: '读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。仅当用户询问采购任务、供应商、采购物料、待采购数量或采购进度时使用；“采购中的订单/单子/单据有几个”属于订单状态查询，禁止使用本工具。只读，不修改采购、订单或库存。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回的采购任务数量（可选）' },
                     supplier: { type: 'string', description: '供应商名称模糊筛选（可选）' },
                     pendingOnly: { type: 'boolean', description: '仅返回待采购数量大于0的任务（可选）' }
                 }
@@ -316,14 +402,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'update_part',
-            description: '修改零件资料或调整库存。一次调用只能选择一种模式：资料字段（价格、供应商、类别）或库存字段（stock/stockDelta）；两种模式必须拆成两个分别确认的调用。',
+            description: '只修改一个零件的资料字段（价格、供应商、类别、包装二级分类），不修改库存。库存增减统一使用 adjust_part_stock，禁止通过本工具提交 stock 或 stockDelta。',
             parameters: {
                 type: 'object',
                 properties: {
                     model: { type: 'string', description: '要修改的零件型号/名称（用于查找）' },
                     price: { type: 'number', description: '新的单价（可选）' },
-                    stock: { type: 'number', description: '新的库存数量（可选）' },
-                    stockDelta: { type: 'number', description: '库存增减数量，正数增加负数减少（可选，与stock二选一）' },
                     supplier: { type: 'string', description: '新的供应商（可选）' },
                     category: { type: 'string', description: '新的类别（可选）' },
                     subcategory: { type: 'string', description: '新的包装二级分类（可选）' }
@@ -542,9 +626,9 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    recipeId: { type: 'number', description: '配方ID，优先使用' },
+                    recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
                     recipeName: { type: 'string', description: '配方名称，未提供ID时用于查找' },
-                    overrides: { type: 'object', description: '标准覆盖项对象，可包含 customBarrelLength/coilSheets/hasFloat/cableLength 等' },
+                    overrides: { ...COST_OVERRIDE_SCHEMA, description: '标准成本覆盖项对象' },
                     customBarrelLength: { type: 'number' },
                     coilSheets: { type: 'number' },
                     coilWireWeight: { type: 'number' },
@@ -555,7 +639,8 @@ const AI_TOOLS = [
                     cableLength: { type: 'number' },
                     cableWire: { type: 'string' },
                     cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }
-                }
+                },
+                anyOf: [{ required: ['recipeId'] }, { required: ['recipeName'] }]
             }
         }
     },
@@ -598,9 +683,10 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    orderId: { type: 'number', description: '订单ID，已知时优先使用' },
+                    orderId: { type: 'integer', minimum: 1, description: '订单ID，已知时优先使用' },
                     orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
-                }
+                },
+                anyOf: [{ required: ['orderId'] }, { required: ['orderQuery'] }]
             }
         }
     },
@@ -613,7 +699,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     customerName: { type: 'string', description: '客户名称' },
-                    customerId: { type: 'number', description: '客户ID，可选' },
+                    customerId: { type: 'integer', minimum: 1, description: '客户ID，可选' },
                     status: { type: 'string', description: '报价状态，默认报价中' },
                     margin: { type: 'number', description: '默认利润率倍数，如1.1' },
                     remark: { type: 'string', description: '备注' },
@@ -629,7 +715,7 @@ const AI_TOOLS = [
                                 unitCost: { type: 'number' },
                                 margin: { type: 'number' },
                                 unitPrice: { type: 'number' },
-                                overrides: { type: 'object', description: '成本覆盖项，不传 unitCost 时可用于试算' }
+                                overrides: { ...COST_OVERRIDE_SCHEMA, description: '成本覆盖项，不传 unitCost 时可用于试算' }
                             }
                         }
                     }
@@ -650,9 +736,25 @@ const AI_TOOLS = [
                     contractNo: { type: 'string' },
                     remark: { type: 'string' },
                     status: { type: 'string' },
-                    items: { type: 'array', description: '订单产品明细，结构同订单保存草稿' },
-                    purchaseList: { type: 'array' },
-                    todos: { type: 'array' }
+                    items: {
+                        type: 'array',
+                        minItems: 1,
+                        maxItems: 100,
+                        description: '订单产品明细；采购清单和待办由正式 API 生成',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                recipeId: { type: 'integer', minimum: 1 },
+                                recipeName: { type: 'string' },
+                                spec: { type: 'string' },
+                                qty: { type: 'number', minimum: 0 },
+                                unitCost: { type: 'number', minimum: 0 },
+                                unitPrice: { type: 'number', minimum: 0 },
+                                profitMargin: { type: 'number', minimum: 0 },
+                                partsJson: { type: 'string' },
+                            },
+                        },
+                    }
                 },
                 required: ['customerName', 'items']
             }
@@ -662,17 +764,21 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_customer_history',
-            description: '查询客户历史报价和订单，不写库。适合报价前查看同客户、同型号或相近产品的历史价格。',
+            description: '按具名客户查询正式客户身份及其历史报价和订单，不写库。它是“某客户的全部报价/历史报价/历史订单”的权威能力，能区分客户不存在与客户存在但记录为零；也适合报价前查看同客户、同型号或相近产品的历史价格。单纯按报价状态筛选当前报价列表时使用 search_quotations。',
             parameters: {
                 type: 'object',
                 properties: {
                     customerName: { type: 'string', description: '客户名称' },
-                    customerId: { type: 'number', description: '客户ID，可选' },
+                    customerId: { type: 'integer', minimum: 1, description: '客户ID，可选' },
                     keyword: { type: 'string', description: '型号/配方关键词，可选' },
                     recipeName: { type: 'string', description: '配方名称关键词，可选' },
                     model: { type: 'string', description: '型号关键词，可选' },
-                    limit: { type: 'number', description: '最多返回条数' }
-                }
+                    limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回条数' }
+                },
+                anyOf: [
+                    { required: ['customerName'] },
+                    { required: ['customerId'] }
+                ]
             }
         }
     },
@@ -731,7 +837,7 @@ const AI_TOOLS = [
                     findingType: { type: 'string', description: '智能检查返回的提醒类型' },
                     decision: { type: 'string', enum: ['confirmed', 'ignored', 'special_case', 'review'], description: '确认问题、忽略、特殊情况或恢复复核' },
                     note: { type: 'string', description: '用户说明，可选，最多500字' },
-                    findingSnapshot: { type: 'object', description: '本次提醒摘要，可选' },
+                    findingSnapshot: { type: 'object', additionalProperties: true, description: '本次提醒摘要，可选；必须原样来自最近一次正式检查结果' },
                     expectedUpdatedAt: { type: 'string', description: '最近一次智能检查返回的反馈 updatedAt；更新已有反馈时应传入' }
                 },
                 required: ['recipeId', 'findingKey', 'findingType', 'decision']
@@ -919,9 +1025,10 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    orderId: { type: 'number', description: '订单ID，已知时优先使用' },
+                    orderId: { type: 'integer', minimum: 1, description: '订单ID，已知时优先使用' },
                     orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
-                }
+                },
+                anyOf: [{ required: ['orderId'] }, { required: ['orderQuery'] }]
             }
         }
     },
@@ -933,9 +1040,10 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    orderId: { type: 'number', description: '订单ID，已知时优先使用' },
+                    orderId: { type: 'integer', minimum: 1, description: '订单ID，已知时优先使用' },
                     orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
-                }
+                },
+                anyOf: [{ required: ['orderId'] }, { required: ['orderQuery'] }]
             }
         }
     },
@@ -1078,7 +1186,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_knowledge',
-            description: '使用精确关键词和语义表达统一搜索工厂知识库，覆盖零件、模板、配方、配方性能测试报告、线圈、客户、报价、订单、质量问题、业务规则和独立工厂资料。结果 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义候选，不能单独证明用途、兼容性或专用配件关系；必须由标题、摘要、正文或 metadata 的明确文字证实后才能下结论。配方结果中的 Excel 是性能测试报告附件，不是图纸。查询“12-220”这类线圈键时传 entryType=coil，会返回所有材质和槽眼方案的完整详情。独立资料使用 entryType=document；parserStatus=metadata_only 表示知识条目只能使用标题、说明和标签，不得把聊天附件的解析能力误认为该资料正文已进入知识库。只读。',
+            description: '搜索工厂知识库中的业务规则、独立资料、已确认知识和历史快照，用于解释用途、兼容性、工厂约定或资料内容。若问题有零件、模板、配方、线圈、客户、报价、订单等正式实时 Query 能力，必须优先使用对应领域工具，禁止用知识快照代替当前价格、库存、状态、数量或正式列表。结果 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义候选，不能单独证明用途、兼容性或专用配件关系；必须由标题、摘要、正文或 metadata 的明确文字证实后才能下结论。配方结果中的 Excel 是性能测试报告附件，不是图纸。独立资料使用 entryType=document；parserStatus=metadata_only 表示知识条目只能使用标题、说明和标签，不得把聊天附件的解析能力误认为该资料正文已进入知识库。只读。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1140,7 +1248,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_parts',
-            description: '按关键词、类别或库存状态查询正式零件库。当用户说“找所有密封件”“有没有叫XX的零件”“低库存零件有哪些”时使用；低库存按正式口径为库存大于0且不超过5。',
+            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称或类别（如电缆、电容、油封、机筒、轴承、密封件），即使没有说“零件”，也属于本能力；只有明确询问配方或成品型号才使用 get_all_recipes。低库存按正式口径为库存大于0且不超过5。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1151,7 +1259,16 @@ const AI_TOOLS = [
                         type: 'string',
                         enum: ['low', 'out', 'attention', 'ok'],
                         description: '库存状态：low=1到5，out=0或负数，attention=不超过5（含缺货），ok=大于5'
-                    }
+                    },
+                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '仅当用户明确要求最近或前 N 项时传入' },
+                    minPrice: { type: 'number', description: '最低单价（可选）' },
+                    maxPrice: { type: 'number', description: '最高单价（可选）' },
+                    priceBelow: { type: 'number', description: '单价严格低于该值（可选）' },
+                    priceAbove: { type: 'number', description: '单价严格高于该值（可选）' },
+                    minStock: { type: 'number', description: '最低库存（可选）' },
+                    maxStock: { type: 'number', description: '最高库存（可选）' },
+                    stockBelow: { type: 'number', description: '库存严格低于该值（可选）' },
+                    stockAbove: { type: 'number', description: '库存严格高于该值（可选）' }
                 }
             }
         }

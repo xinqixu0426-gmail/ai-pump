@@ -209,6 +209,18 @@ test('AI 评测：禁用词允许明确否定，但拒绝反转后的肯定结�
     );
     assert.equal(unconfirmedConclusion.status, 'passed');
 
+    const unableToAnswer = evaluateRuleCase(
+        {
+            config: {
+                forbiddenTerms: ['全套含刀'],
+            },
+        },
+        '现有来源未确认是否随泵壳附带刀片，系统无法回答“是否全套含刀”。',
+        [],
+        fixture.db
+    );
+    assert.equal(unableToAnswer.status, 'passed');
+
     const wrong = evaluateRuleCase(
         caseItem,
         '附件不是性能测试报告，而是参考图纸。',
@@ -244,6 +256,14 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     assert.equal(unavailable.status, 'passed');
     assert.equal(unavailable.checks.some(check => check.key.startsWith('required:')), false);
     assert.equal(unavailable.checks.some(check => check.key.startsWith('source:')), false);
+
+    const naturalUnavailable = evaluateRuleCase(
+        caseItem,
+        '未在系统中找到目标配方，因此无法读取对应的性能测试报告。',
+        [{ name: 'search_factory_knowledge', result: {} }],
+        fixture.db
+    );
+    assert.equal(naturalUnavailable.status, 'passed');
 
     const unsupported = evaluateRuleCase(
         caseItem,
@@ -292,6 +312,13 @@ test('AI 评测：客户不存在时接受明确未找到结论而不要求伪�
         fixture.db
     );
     assert.equal(naturalWording.status, 'passed');
+    const equivalentWording = evaluateRuleCase(
+        caseItem,
+        '未匹配到客户“邱焕”的客户档案。',
+        [],
+        fixture.db
+    );
+    assert.equal(equivalentWording.status, 'passed');
     const uncertain = evaluateRuleCase(
         caseItem,
         '客户可能不存在，需要进一步核实。',
@@ -379,6 +406,17 @@ test('AI 评测：线圈方案不存在时接受明确零结果，存在时恢�
     assert.equal(unavailable.checks.some(check => check.key.startsWith('required:')), false);
     assert.equal(unavailable.checks.some(check => check.key.startsWith('source:')), false);
 
+    const equivalentZeroWording = evaluateRuleCase(
+        caseItem,
+        '系统中没有规格为 12、片数 220 的正式线圈方案，返回数量为 0。',
+        [{
+            name: 'search_coils',
+            result: { provenance: { kind: 'live_business' }, count: 0 },
+        }],
+        fixture.db
+    );
+    assert.equal(equivalentZeroWording.status, 'passed');
+
     fixture.db.prepare(`
         INSERT INTO coils (id, spec, sheets, scheme_status)
         VALUES (1, '12', 220, 'official')
@@ -465,6 +503,17 @@ test('AI 评测：切割泵壳必须使用明确证据且不得把 SPA 语义候
     );
 
     assert.equal(correct.status, 'passed');
+
+    const explicitWarning = evaluateRuleCase(
+        caseItem,
+        '系统未确认是否附带刀片，请勿推断为全套含刀。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(
+        explicitWarning.checks.find(check => check.key === 'forbidden:全套含刀').passed,
+        true
+    );
     assert.equal(incorrect.status, 'failed');
     fixture.db.close();
 });

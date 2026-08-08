@@ -36,6 +36,8 @@ function createFixture() {
         {
             id: 1,
             status: '待采购',
+            customerName: '华东泵业',
+            contractNo: 'HT-001',
             purchaseListJson: JSON.stringify([
                 {
                     identityKey: 'S||A',
@@ -56,6 +58,8 @@ function createFixture() {
         {
             id: 2,
             status: '采购中',
+            customerName: '华南设备',
+            contractNo: 'HT-002',
             purchaseList: [{
                 identityKey: 'S||A',
                 supplier: 'S',
@@ -69,6 +73,8 @@ function createFixture() {
         {
             id: 3,
             status: '已关闭',
+            customerName: '华东泵业二厂',
+            contractNo: 'HT-003',
             purchaseList: [{ supplier: '忽略', model: 'C', plannedQty: 99 }],
         },
     ];
@@ -105,6 +111,29 @@ test('订单 Query 返回实时列表、详情、准备度和准备度总览', (
         assert.deepEqual(fixture.queries.getReadinessOverview(), {
             total: 2,
         });
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单列表 Query 严格校验并组合状态、客户、合同号和数量字段', () => {
+    const fixture = createFixture();
+    try {
+        assert.deepEqual(
+            fixture.queries.getAllOrders({ customerName: '华东' }).map(order => order.id),
+            [3, 1]
+        );
+        assert.deepEqual(
+            fixture.queries.getAllOrders({ status: '采购中', contractNo: '002' }).map(order => order.id),
+            [2]
+        );
+        assert.deepEqual(fixture.queries.getAllOrders({ limit: 2 }).map(order => order.id), [3, 2]);
+        assert.throws(() => fixture.queries.getAllOrders({ status: '不存在' }), /订单状态无效/);
+        assert.throws(() => fixture.queries.getAllOrders({ limit: '2abc' }), /1 到 100/);
+        assert.throws(
+            () => fixture.queries.getPurchaseOverview({ pendingOnly: 'yes' }),
+            /true 或 false/
+        );
     } finally {
         fixture.db.close();
     }

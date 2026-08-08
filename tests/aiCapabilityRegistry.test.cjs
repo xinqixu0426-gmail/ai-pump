@@ -81,21 +81,12 @@ test('AI 能力注册表：每个写工具必须关联已登记的正式业务�
 test('AI 能力注册表：零件资料与库存使用互斥的正式命令模式', () => {
     const capability = getAiCapability('update_part');
 
-    assert.deepEqual(capability.formalCapabilityIds, [
-        'parts.update',
-        'inventory.parts.batch_adjust_stock',
-    ]);
-    assert.equal(
-        capability.concurrencyControl,
-        'exclusive_input_mode_expectedUpdatedAt_or_confirmationToken_bound_inventory_snapshot'
-    );
-    assert.equal(
-        capability.transactionality,
-        'single_formal_command_per_invocation_mixed_metadata_and_inventory_rejected'
-    );
+    assert.deepEqual(capability.formalCapabilityIds, ['parts.update']);
+    assert.equal(capability.concurrencyControl, 'expectedUpdatedAt');
+    assert.equal(capability.transactionality, 'business_write_audit_and_operation_receipt_atomic');
 });
 
-test('正式业务能力注册表：已迁移 command 统一登记完整安全契约', () => {
+test('正式业务能力注册表：已迁移 query 和 command 统一登记完整契约', () => {
     const expectedIds = [
         'inventory.parts.batch_adjust_stock',
         'inventory.coils.adjust_stock',
@@ -125,6 +116,15 @@ test('正式业务能力注册表：已迁移 command 统一登记完整安全�
         'settings.update_runtime',
         'market.sync_copper_price',
         'market.sync_indicators',
+        'parts.list',
+        'coils.list',
+        'orders.list',
+        'purchasing.overview',
+        'recipes.list',
+        'customers.list',
+        'customers.history',
+        'templates.list',
+        'quotations.list',
         'quotations.create',
         'quotations.update',
         'quotations.change_status',
@@ -193,6 +193,15 @@ test('正式业务能力注册表：已迁移 command 统一登记完整安全�
         const capability = getBusinessCapability(capabilityId);
         assert.ok(capability);
         assert.equal(capability.capabilityId, capabilityId);
+        if (capability.access === 'query') {
+            assert.equal(capability.operation, 'query');
+            assert.equal(capability.requiresConfirmation, false);
+            assert.equal(capability.riskLevel, 'low');
+            assert.match(capability.inputSchema, /^GET \/api\//);
+            assert.ok(capability.outputSchema);
+            assert.ok(capability.sourceOfTruth);
+            continue;
+        }
         assert.equal(capability.access, 'write');
         assert.ok(
             ['command', 'maintenance'].includes(capability.operation)
@@ -230,6 +239,40 @@ test('正式业务能力注册表：已迁移 command 统一登记完整安全�
         assert.equal(capability.contractStatus, 'current');
         if (capability.supportsPreview) {
             assert.match(capability.previewPath, /^\/api\//);
+        }
+    }
+});
+
+test('报价查询工具关联正式只读能力', () => {
+    const aiCapability = getAiCapability('search_quotations');
+    const formalCapability = getBusinessCapability('quotations.list');
+
+    assert.deepEqual(aiCapability.formalCapabilityIds, ['quotations.list']);
+    assert.equal(aiCapability.access, 'read');
+    assert.equal(formalCapability.access, 'query');
+    assert.equal(formalCapability.inputSchema, 'GET /api/quotations?status?&customerName?&limit?');
+    assert.equal(formalCapability.sourceOfTruth, 'customers+quotations');
+});
+
+test('全部核心列表工具都映射正式只读能力而不是依赖模型自行筛选', () => {
+    const expected = {
+        search_parts: ['parts.list'],
+        search_coils: ['coils.list'],
+        get_recent_orders: ['orders.list'],
+        search_quotations: ['quotations.list'],
+        get_purchase_overview: ['purchasing.overview'],
+        get_all_recipes: ['recipes.list'],
+        search_customers: ['customers.list'],
+        search_templates: ['templates.list'],
+        search_customer_history: ['customers.list', 'customers.history'],
+    };
+
+    for (const [toolName, capabilityIds] of Object.entries(expected)) {
+        const capability = getAiCapability(toolName);
+        assert.deepEqual(capability.formalCapabilityIds, capabilityIds, toolName);
+        assert.equal(capability.access, 'read', toolName);
+        for (const capabilityId of capabilityIds) {
+            assert.equal(getBusinessCapability(capabilityId).access, 'query', capabilityId);
         }
     }
 });

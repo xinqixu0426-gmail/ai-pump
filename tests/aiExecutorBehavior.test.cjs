@@ -9,12 +9,68 @@ const {
 
 const originalFetch = global.fetch;
 const originalSecret = process.env.INTERNAL_SECRET;
+const originalDeepseekApiKey = process.env.DEEPSEEK_API_KEY;
 
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
         status,
         headers: { 'Content-Type': 'application/json' },
     });
+}
+
+function aiMessageResponse(message) {
+    return jsonResponse({ choices: [{ message }] });
+}
+
+function intentPlanMessage(overrides = {}) {
+    const plan = {
+        goal: '处理当前用户目标',
+        mode: 'query',
+        domains: ['catalog'],
+        needsBusinessData: true,
+        contextMode: 'current_turn',
+        answerShape: 'direct',
+        requiresClarification: false,
+        ambiguities: [],
+        confidence: 'high',
+        steps: [{ capabilityName: 'search_parts', objective: '读取正式业务数据' }],
+        ...overrides,
+    };
+    return {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{
+            id: 'intent-plan',
+            type: 'function',
+            function: {
+                name: 'submit_ai_intent_plan',
+                arguments: JSON.stringify(plan),
+            },
+        }],
+    };
+}
+
+function toolCallMessage(name, args, id = 'business-tool') {
+    return {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{
+            id,
+            type: 'function',
+            function: { name, arguments: JSON.stringify(args) },
+        }],
+    };
+}
+
+function scriptedAiProvider(messages, inspect = null) {
+    let index = 0;
+    return async (_prompt, options) => {
+        if (typeof inspect === 'function') inspect(index, options);
+        const message = messages[index];
+        index += 1;
+        if (!message) throw new Error(`测试 AI provider 缺少第 ${index} 个响应`);
+        return aiMessageResponse(message);
+    };
 }
 
 let commandReceiptSequence = 0;
@@ -53,6 +109,8 @@ test.afterEach(() => {
     resetAiToolConfirmationsForTests();
     if (originalSecret === undefined) delete process.env.INTERNAL_SECRET;
     else process.env.INTERNAL_SECRET = originalSecret;
+    if (originalDeepseekApiKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = originalDeepseekApiKey;
 });
 
 test('AI executor 行为：写操作未确认时只返回确认卡片，不调用 API', async () => {
@@ -97,7 +155,7 @@ test('AI executor 行为：确认修改零件后通过标准 parts API 查询并
     ]);
 });
 
-test('AI executor 行为：零件资料和库存混合修改在确认前拒绝并建议拆分', async () => {
+test('AI executor 行为：零件资料工具不再接受旧版库存字段', async () => {
     const calls = installFetchStub(() => jsonResponse({
         success: false,
         error: '不应调用正式 API',
@@ -109,41 +167,11 @@ test('AI executor 行为：零件资料和库存混合修改在确认前拒绝�
         stockDelta: 3,
     };
 
-    const beforeConfirmation = await executeToolCall(
-        'update_part',
-        args,
-        { allowWrite: false }
-    );
-    const afterConfirmation = await executeToolCall(
-        'update_part',
-        args,
-        { allowWrite: true, operationId: 'operation-mixed-part-update' }
-    );
-
-    for (const result of [beforeConfirmation, afterConfirmation]) {
-        assert.equal(result.success, false);
-        assert.equal(result.code, 'part_update_mixed_write_not_allowed');
-        assert.equal(result.requiresConfirmation, undefined);
-        assert.deepEqual(result.suggestedOperations, [
-            {
-                toolName: 'update_part',
-                args: {
-                    model: 'A',
-                    price: 2,
-                    supplier: '新供应商',
-                },
-                purpose: '修改零件资料',
-            },
-            {
-                toolName: 'update_part',
-                args: {
-                    model: 'A',
-                    stockDelta: 3,
-                },
-                purpose: '调整零件库存',
-            },
-        ]);
-    }
+    const result = await executeToolCall('update_part', args, { allowWrite: false });
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'INVALID_AI_TOOL_INPUT');
+    assert.match(result.error, /stockDelta/);
+    assert.equal(result.requiresConfirmation, undefined);
     assert.equal(calls.length, 0);
 });
 
@@ -286,77 +314,6 @@ test('AI executor 行为：批量新增零件只生成一次确认并调用正�
             'POST /api/parts/batch-create',
         ]
     );
-});
-
-test('AI executor 行为：零件库存增减必须先预览再调用正式批量命令', async () => {
-    process.env.INTERNAL_SECRET = 'test-secret';
-    const calls = installFetchStub((call) => {
-        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
-            return jsonResponse({
-                success: true,
-                data: [{
-                    id: 7,
-                    model: 'A',
-                    category: '螺丝',
-                    price: 1,
-                    supplier: 'S',
-                    stock: 3,
-                    updatedAt: '2026-08-03 10:00:00',
-                }],
-            });
-        }
-        if (call.url.endsWith('/api/parts/batch-stock-preview') && call.method === 'POST') {
-            assert.deepEqual(call.body, {
-                operations: [{ partId: 7, delta: 2 }],
-                note: 'AI 零件库存调整',
-            });
-            return jsonResponse({
-                success: true,
-                data: {
-                    confirmationToken: 'stock-token',
-                    suggestedIdempotencyKey: 'stock-key',
-                },
-            });
-        }
-        if (call.url.endsWith('/api/parts/batch-stock') && call.method === 'POST') {
-            assert.deepEqual(call.body, {
-                confirmationToken: 'stock-token',
-                idempotencyKey: 'stock-key',
-            });
-            return jsonResponse({
-                success: true,
-                data: {
-                    operationId: 'formal-stock-operation',
-                    capabilityId: 'inventory.parts.batch_adjust_stock',
-                    status: 'completed',
-                    auditIds: [701],
-                    parts: [{
-                        id: 7,
-                        model: 'A',
-                        category: '螺丝',
-                        price: 1,
-                        supplier: 'S',
-                        stock: 5,
-                    }],
-                },
-            });
-        }
-        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
-    });
-
-    const result = await executeToolCall(
-        'update_part',
-        { model: 'A', stockDelta: 2 },
-        { allowWrite: true, operationId: 'operation-test-stock' }
-    );
-
-    assert.equal(result.success, true);
-    assert.equal(result.part.stock, 5);
-    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
-        'GET /api/parts',
-        'POST /api/parts/batch-stock-preview',
-        'POST /api/parts/batch-stock',
-    ]);
 });
 
 test('AI executor 行为：多型号零件库存使用一张确认卡和一次正式原子命令', async () => {
@@ -504,6 +461,22 @@ test('AI 对话行为：指代前一轮两个型号入库时直接停在真实�
                 role: 'assistant',
                 content: '| 型号 | 库存 |\n|---|---|\n| `TEST-机筒-1100` | 4 |\n| `TEST-电容-30uF` | 5 |',
             }],
+            fetchAiProvider: scriptedAiProvider([
+                intentPlanMessage({
+                    goal: '把上轮两个零件型号的库存各增加30件',
+                    mode: 'command',
+                    domains: ['catalog'],
+                    contextMode: 'previous_turn',
+                    answerShape: 'confirmation',
+                    steps: [{ capabilityName: 'adjust_part_stock', objective: '生成批量库存调整确认' }],
+                }),
+                toolCallMessage('adjust_part_stock', {
+                    items: [
+                        { model: 'TEST-机筒-1100', changeQty: 30 },
+                        { model: 'TEST-电容-30uF', changeQty: 30 },
+                    ],
+                }),
+            ]),
         }
     );
 
@@ -511,7 +484,7 @@ test('AI 对话行为：指代前一轮两个型号入库时直接停在真实�
         'GET /api/parts',
         'POST /api/parts/batch-stock-preview',
     ]);
-    assert.match(result.finalContent, /整批确认卡片/);
+    assert.match(result.finalContent, /待确认|正式确认卡片/);
     assert.equal(result.toolResults.length, 1);
     assert.equal(result.toolResults[0].name, 'adjust_part_stock');
     assert.equal(result.toolResults[0].result.requiresConfirmation, true);
@@ -548,7 +521,20 @@ test('AI 对话行为：“型号的库存”先去掉语法连接词，再以�
         return jsonResponse({ success: false, error: '不应调用外部模型' }, 500);
     });
 
-    const result = await processAiChat('TEST-电容-30uF的库存加30个');
+    const result = await processAiChat('TEST-电容-30uF的库存加30个', {
+        fetchAiProvider: scriptedAiProvider([
+            intentPlanMessage({
+                goal: '把零件 TEST-电容-30uF 的库存增加30件',
+                mode: 'command',
+                domains: ['catalog'],
+                answerShape: 'confirmation',
+                steps: [{ capabilityName: 'adjust_part_stock', objective: '生成库存调整确认' }],
+            }),
+            toolCallMessage('adjust_part_stock', {
+                items: [{ model: 'TEST-电容-30uF', changeQty: 30 }],
+            }),
+        ]),
+    });
 
     assert.equal(result.toolResults[0].result.requiresConfirmation, true);
     assert.deepEqual(result.toolResults[0].result.confirmation.args, {
@@ -587,7 +573,20 @@ test('AI 对话行为：符号库存增量直接生成服务端确认卡而不�
         return jsonResponse({ success: false, error: '不应调用外部模型' }, 500);
     });
 
-    const result = await processAiChat('TEST-机筒-1100库存+100');
+    const result = await processAiChat('TEST-机筒-1100库存+100', {
+        fetchAiProvider: scriptedAiProvider([
+            intentPlanMessage({
+                goal: '把零件 TEST-机筒-1100 的库存增加100件',
+                mode: 'command',
+                domains: ['catalog'],
+                answerShape: 'confirmation',
+                steps: [{ capabilityName: 'adjust_part_stock', objective: '生成库存调整确认' }],
+            }),
+            toolCallMessage('adjust_part_stock', {
+                items: [{ model: 'TEST-机筒-1100', changeQty: 100 }],
+            }),
+        ]),
+    });
 
     assert.equal(result.toolResults[0].name, 'adjust_part_stock');
     assert.equal(result.toolResults[0].result.requiresConfirmation, true);
@@ -637,11 +636,64 @@ test('AI 对话行为：强制业务查询失败时停止回答而不让模型�
         }, 500);
     });
 
-    const result = await processAiChat('列出所有零件');
+    const result = await processAiChat('列出所有零件', {
+        fetchAiProvider: scriptedAiProvider([
+            intentPlanMessage({
+                goal: '列出全部零件',
+                answerShape: 'list',
+                steps: [{ capabilityName: 'search_parts', objective: '读取全部正式零件' }],
+            }),
+            toolCallMessage('search_parts', {}),
+        ]),
+    });
     assert.equal(calls.length, 1);
     assert.match(result.finalContent, /没有取得正式业务 API 的有效结果/);
     assert.equal(result.toolResults[0].result.success, false);
     assert.doesNotMatch(result.finalContent, /共有\\s*\d+|库存为|单价/);
+});
+
+test('AI 对话行为：口语“采购中的单子”由模型选订单工具并在正式结果后关闭扩搜', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/orders?status=%E9%87%87%E8%B4%AD%E4%B8%AD')) {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 3,
+                    customerName: '测试客户',
+                    contractNo: 'HT-003',
+                    status: '采购中',
+                    createdAt: '2026-08-03T00:00:00.000Z',
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const provider = scriptedAiProvider([
+        intentPlanMessage({
+            goal: '查询采购中的订单数量并逐单简报',
+            mode: 'query',
+            domains: ['order'],
+            answerShape: 'count_with_brief',
+            steps: [{ capabilityName: 'get_recent_orders', objective: '按采购中状态读取订单' }],
+        }),
+        toolCallMessage('get_recent_orders', { status: '采购中' }, 'call-order-list'),
+        { role: 'assistant', content: '采购中的订单有 **1 个**：测试客户，创建日期 2026-8-3。' },
+    ], (index, options) => {
+        if (index !== 1) return;
+        assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_recent_orders']);
+        assert.equal(options.toolChoice.function.name, 'get_recent_orders');
+        assert.equal(options.tools.some(tool => tool.function.name === 'create_order'), false);
+    });
+    const result = await processAiChat('采购中的单子有几个', {
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(result.toolResults.length, 1);
+    assert.equal(result.toolResults[0].name, 'get_recent_orders');
+    assert.equal(result.intent.answerShape, 'count_with_brief');
+    assert.match(result.finalContent, /订单有 \*\*1 个\*\*/);
+    assert.equal(calls.some(call => call.url.includes('/api/orders/purchase-overview')), false);
 });
 
 test('AI executor 行为：正式库存命令缺少 operation/audit 回执时拒绝报成功', async () => {
@@ -817,9 +869,25 @@ test('AI executor 行为：线圈库存未确认时显示按套调整且不调�
 test('AI 对话行为：俗称批量入库直接停在确认步骤且不再调用模型', async () => {
     const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
 
-    const result = await processAiChat('12-120,12-140各入库50套');
+    const result = await processAiChat('12-120,12-140各入库50套', {
+        fetchAiProvider: scriptedAiProvider([
+            intentPlanMessage({
+                goal: '把12-120和12-140线圈成品各入库50套',
+                mode: 'command',
+                domains: ['coil'],
+                answerShape: 'confirmation',
+                steps: [{ capabilityName: 'adjust_coil_stock', objective: '生成批量线圈库存调整确认' }],
+            }),
+            toolCallMessage('adjust_coil_stock', {
+                items: [
+                    { model: '12-120', changeQty: 50 },
+                    { model: '12-140', changeQty: 50 },
+                ],
+            }),
+        ]),
+    });
 
-    assert.match(result.finalContent, /调整线圈成品库存/);
+    assert.match(result.finalContent, /待确认|确认卡片/);
     assert.equal(result.toolResults.length, 1);
     assert.equal(result.toolResults[0].name, 'adjust_coil_stock');
     assert.equal(result.toolResults[0].result.requiresConfirmation, true);
@@ -932,7 +1000,21 @@ test('AI executor 行为：零件搜索不传筛选时通过标准 parts API 返
     assert.equal(result.count, 1);
     assert.equal(result.returnedCount, 1);
     assert.equal(result.truncated, false);
-    assert.deepEqual(result.filters, { keyword: '', category: '', supplier: '', stockStatus: '' });
+    assert.deepEqual(result.filters, {
+        keyword: '',
+        category: '',
+        supplier: '',
+        stockStatus: '',
+        limit: null,
+        minPrice: null,
+        maxPrice: null,
+        priceBelow: null,
+        priceAbove: null,
+        minStock: null,
+        maxStock: null,
+        stockBelow: null,
+        stockAbove: null,
+    });
     assert.equal(result.stockStatusDefinition.low, '库存大于0且不超过5');
     assert.deepEqual(result.suppliers, [{ name: 'S', partCount: 1 }]);
     assert.deepEqual(result.parts, [{ id: 1, model: '6202', category: '轴承', subcategory: '', price: 1.5, supplier: 'S', stock: 8 }]);
@@ -965,6 +1047,185 @@ test('AI executor 行为：低库存筛选委托正式 parts API 而不在 execu
     assert.deepEqual(result.parts.map(part => part.stock), [1, 5]);
     assert.equal(calls.length, 1);
     assert.match(calls[0].url, /\/api\/parts\?stockStatus=low$/);
+});
+
+test('AI executor 行为：采购中订单只返回正式筛选结果且不伪造创建日期', async () => {
+    const calls = installFetchStub((call) => {
+        if (
+            call.url.endsWith('/api/orders?status=%E9%87%87%E8%B4%AD%E4%B8%AD')
+            && call.method === 'GET'
+        ) {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 9,
+                    customerName: '华东泵业',
+                    contractNo: 'HT-009',
+                    status: '采购中',
+                    createdAt: null,
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('get_recent_orders', {
+        status: '采购中',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.data, [{
+        id: 9,
+        customer: '华东泵业',
+        contract: 'HT-009',
+        status: '采购中',
+        createdAt: null,
+    }]);
+    assert.match(result.selectionBoundary, /不得改用采购任务/);
+    assert.deepEqual(calls.map(call => call.method), ['GET']);
+});
+
+test('AI executor 行为：报价状态筛选委托正式 quotations API 且只返回命中项', async () => {
+    const calls = installFetchStub((call) => {
+        if (
+            call.url.endsWith('/api/quotations?status=%E6%8A%A5%E4%BB%B7%E4%B8%AD&limit=50')
+            && call.method === 'GET'
+        ) {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 8,
+                    customerName: '华东泵业',
+                    status: '报价中',
+                    totalCost: 700,
+                    totalPrice: 1000,
+                    itemsJson: JSON.stringify([{ recipeName: 'V750', qty: 2 }]),
+                    createdAt: '2026-08-08T00:00:00.000Z',
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_quotations', {
+        status: '报价中',
+        limit: 50,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.filters, {
+        status: '报价中',
+        customerName: '',
+        limit: 50,
+    });
+    assert.deepEqual(result.data, [{
+        id: 8,
+        customerName: '华东泵业',
+        status: '报价中',
+        totalCost: 700,
+        totalPrice: 1000,
+        createdAt: '2026-08-08T00:00:00.000Z',
+        items: [{ model: 'V750', quantity: 2 }],
+    }]);
+    assert.match(result.selectionBoundary, /正式报价 API/);
+    assert.equal(result.provenance.kind, 'live_business');
+    assert.deepEqual(calls.map(call => call.method), ['GET']);
+});
+
+test('AI executor 行为：客户和模板列表只传正式筛选字段并返回查询回执', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/customers?name=%E5%8D%8E%E4%B8%9C&limit=2')) {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 7, name: '华东泵业', contactInfo: '138', defaultMargin: 1.1 }],
+            });
+        }
+        if (call.url.endsWith('/api/templates?shellModel=SHELL-1')) {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 3, shellModel: 'SHELL-1', description: '常用泵壳' }],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const customers = await executeToolCall('search_customers', {
+        name: '华东',
+        limit: 2,
+    }, { allowWrite: false });
+    const templates = await executeToolCall('search_templates', {
+        shellModel: 'SHELL-1',
+    }, { allowWrite: false });
+
+    assert.equal(customers.success, true);
+    assert.deepEqual(customers.queryReceipt.appliedFilters, { name: '华东', limit: 2 });
+    assert.equal(customers.queryReceipt.authoritative, true);
+    assert.deepEqual(customers.data.map(item => item.name), ['华东泵业']);
+    assert.equal(templates.success, true);
+    assert.deepEqual(templates.queryReceipt.appliedFilters, { shellModel: 'SHELL-1' });
+    assert.deepEqual(templates.data.map(item => item.shellModel), ['SHELL-1']);
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'GET']);
+});
+
+test('AI executor 行为：全量零件查询不在 executor 内隐式截断', async () => {
+    const source = Array.from({ length: 35 }, (_, index) => ({
+        id: index + 1,
+        model: `PART-${index + 1}`,
+        category: '测试',
+        supplier: 'S',
+        stock: index,
+    }));
+    installFetchStub(call => (
+        call.url.endsWith('/api/parts')
+            ? jsonResponse({ success: true, data: source })
+            : jsonResponse({ success: false, error: 'unexpected request' }, 500)
+    ));
+
+    const result = await executeToolCall('search_parts', {}, { allowWrite: false });
+
+    assert.equal(result.count, 35);
+    assert.equal(result.returnedCount, 35);
+    assert.equal(result.parts.length, 35);
+    assert.equal(result.queryReceipt.totalCount, 35);
+    assert.equal(result.queryReceipt.truncated, false);
+});
+
+test('AI executor 行为：有测试报告的配方由正式配方 API 筛选并返回报告数量', async () => {
+    const calls = installFetchStub(call => (
+        call.url.endsWith('/api/recipes?hasTechnicalFiles=true')
+            ? jsonResponse({
+                success: true,
+                data: [{
+                    id: 1,
+                    name: 'TEST-PUMP-750A',
+                    spec: '750W/220V 测试配方',
+                    technicalFileCount: 1,
+                }],
+            })
+            : jsonResponse({ success: false, error: 'unexpected request' }, 500)
+    ));
+
+    const result = await executeToolCall(
+        'get_all_recipes',
+        { hasTechnicalFiles: true },
+        { allowWrite: false }
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.queryReceipt.appliedFilters, { hasTechnicalFiles: true });
+    assert.deepEqual(result.data, [{
+        id: 1,
+        name: 'TEST-PUMP-750A',
+        spec: '750W/220V 测试配方',
+        savedCost: 0,
+        technicalFileCount: 1,
+    }]);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes?hasTechnicalFiles=true',
+    ]);
 });
 
 test('AI executor 行为：配方技术档案按正式配方和附件 API 读取', async () => {
@@ -1015,7 +1276,7 @@ test('AI executor 行为：配方技术档案按正式配方和附件 API 读取
 
 test('AI executor 行为：客户报价使用连续展示顺序且不返回内部 ID', async () => {
     const calls = installFetchStub((call) => {
-        if (call.url.endsWith('/api/customers')) {
+        if (call.url.endsWith('/api/customers?name=%E9%82%B1%E7%84%95')) {
             return jsonResponse({ success: true, data: [{ id: 7, name: '邱焕' }] });
         }
         if (call.url.endsWith('/api/customers/7/context')) {
@@ -1047,7 +1308,7 @@ test('AI executor 行为：客户报价使用连续展示顺序且不返回内�
     assert.deepEqual(
         calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`),
         [
-            'GET /api/customers',
+            'GET /api/customers?name=%E9%82%B1%E7%84%95',
             'GET /api/customers/7/context',
         ]
     );
@@ -1169,7 +1430,7 @@ test('AI executor 行为：订单准备总览通过只读标准 API 返回全部
 
 test('AI executor 行为：采购总览通过只读标准 API 返回当前采购事实', async () => {
     const calls = installFetchStub((call) => {
-        if (call.url.endsWith('/api/orders/purchase-overview?limit=20') && call.method === 'GET') {
+        if (call.url.endsWith('/api/orders/purchase-overview') && call.method === 'GET') {
             return jsonResponse({
                 success: true,
                 data: {
@@ -1185,6 +1446,9 @@ test('AI executor 行为：采购总览通过只读标准 API 返回当前采购
                         orderedQty: 4,
                         pendingQty: 6,
                     }],
+                    returnedCount: 1,
+                    truncated: false,
+                    filters: { supplier: '', pendingOnly: false, limit: null },
                 },
             });
         }
@@ -1196,9 +1460,13 @@ test('AI executor 行为：采购总览通过只读标准 API 返回当前采购
     assert.equal(result.success, true);
     assert.equal(result.data.summary.pendingTaskCount, 1);
     assert.equal(result.data.tasks[0].pendingQty, 6);
+    assert.deepEqual(result.queryReceipt.appliedFilters, { pendingOnly: false });
+    assert.equal(result.queryReceipt.totalCount, 3);
+    assert.equal(result.queryReceipt.returnedCount, 1);
+    assert.equal(result.queryReceipt.authoritative, true);
     assert.equal(result.provenance.kind, 'live_business');
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
-        'GET /api/orders/purchase-overview?limit=20',
+        'GET /api/orders/purchase-overview',
     ]);
 });
 

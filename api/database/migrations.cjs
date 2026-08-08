@@ -2515,6 +2515,75 @@ const MIGRATIONS = Object.freeze([
             }), now, 'coil-all-official-variants');
         },
     },
+    {
+        version: 52,
+        name: 'accept_equivalent_complete_cable_phrasing',
+        signature: 'system-ai-release-gate-accepts-equivalent-complete-cable-wording-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `).run(JSON.stringify({
+                requiredTerms: [
+                    ['成品电缆'],
+                    ['整体', '一体'],
+                    ['不应该', '不宜', '不能', '不得', '不应'],
+                    [
+                        '共同组成一个',
+                        '共同组成一条',
+                        '共同构成',
+                        '一个整体业务项',
+                        '单一整体业务项',
+                        '单一业务项',
+                        '同属一个',
+                        '属于一个',
+                        '作为一个',
+                        '作为一条成品电缆',
+                        '一个计费项目',
+                        '一项成品电缆',
+                        '一个收费项目',
+                    ],
+                ],
+                requiredTools: ['search_factory_knowledge'],
+                requiredSourceTables: ['business_rules'],
+            }), now, 'complete-cable-semantics');
+        },
+    },
+    {
+        version: 53,
+        name: 'accept_explicit_unconfirmed_cutting_evidence_phrasing',
+        signature: 'system-ai-cutting-evidence-accepts-system-unconfirmed-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json
+                FROM ai_evaluation_cases
+                WHERE case_key = ? AND source_type = 'system'
+            `).get('cutting-shell-purpose-evidence');
+            if (!row) return;
+
+            const config = JSON.parse(row.config_json || '{}');
+            const uncertaintyTerms = Array.isArray(config.requiredTerms)
+                ? config.requiredTerms.find(group => (
+                    Array.isArray(group)
+                    && (group.includes('不能确认') || group.includes('无法确认'))
+                ))
+                : null;
+            if (!uncertaintyTerms || uncertaintyTerms.includes('系统未确认')) return;
+
+            uncertaintyTerms.push('系统未确认');
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `).run(
+                JSON.stringify(config),
+                new Date().toISOString(),
+                'cutting-shell-purpose-evidence'
+            );
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

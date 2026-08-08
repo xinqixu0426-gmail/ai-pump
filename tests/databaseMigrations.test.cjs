@@ -194,6 +194,7 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
             group.includes('未明确记录')
             && group.includes('未记录')
             && group.includes('不能确认')
+            && group.includes('系统未确认')
         )));
         const coilsSql = db.prepare(`
             SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'coils'
@@ -296,11 +297,15 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const formalTechnicalFileMigration = MIGRATIONS.find(migration => migration.version === 49);
         const formalCoilQueryMigration = MIGRATIONS.find(migration => migration.version === 50);
         const dataAwareCoilQueryMigration = MIGRATIONS.find(migration => migration.version === 51);
+        const equivalentCablePhrasingMigration = MIGRATIONS.find(migration => migration.version === 52);
+        const explicitUnconfirmedCuttingMigration = MIGRATIONS.find(migration => migration.version === 53);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
         assert.ok(formalCoilQueryMigration);
         assert.ok(dataAwareCoilQueryMigration);
+        assert.ok(equivalentCablePhrasingMigration);
+        assert.ok(explicitUnconfirmedCuttingMigration);
         restoreMigration.up(db);
         restoreMigration.up(db);
         dataAwareMigration.up(db);
@@ -311,6 +316,10 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         formalCoilQueryMigration.up(db);
         dataAwareCoilQueryMigration.up(db);
         dataAwareCoilQueryMigration.up(db);
+        equivalentCablePhrasingMigration.up(db);
+        equivalentCablePhrasingMigration.up(db);
+        explicitUnconfirmedCuttingMigration.up(db);
+        explicitUnconfirmedCuttingMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, review_status, source_type
@@ -374,6 +383,21 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
                 requiredTools: ['search_coils'],
                 requiredSourceTables: ['coils'],
             }
+        );
+        const cableCase = db.prepare(`
+            SELECT config_json FROM ai_evaluation_cases
+            WHERE case_key = 'complete-cable-semantics'
+        `).get();
+        const cableRequiredTerms = JSON.parse(cableCase.config_json).requiredTerms[3];
+        assert.ok(cableRequiredTerms.includes('共同组成一条'));
+        assert.ok(cableRequiredTerms.includes('单一整体业务项'));
+        assert.ok(cableRequiredTerms.includes('作为一条成品电缆'));
+        const cuttingCase = db.prepare(`
+            SELECT config_json FROM ai_evaluation_cases
+            WHERE case_key = 'cutting-shell-purpose-evidence'
+        `).get();
+        assert.ok(
+            JSON.parse(cuttingCase.config_json).requiredTerms[1].includes('系统未确认')
         );
         assert.deepEqual(
             db.prepare(`

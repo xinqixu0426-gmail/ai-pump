@@ -1,8 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-    appendRefreshedBusinessEvidence,
-    buildAiToolCall,
     buildAiToolPlan,
     buildAiToolResultMessage,
     parseAiToolArguments,
@@ -10,6 +8,14 @@ const {
     prioritizeBusinessEvidence,
     viewTypeForAiTool,
 } = require('../api/services/aiToolProtocol.cjs');
+
+function buildAiToolCall(name, args, id) {
+    return {
+        id,
+        type: 'function',
+        function: { name, arguments: JSON.stringify(args || {}) },
+    };
+}
 
 test('AI tool protocol：参数只接受 JSON 对象并对异常输入安全降级', () => {
     assert.deepEqual(parseAiToolArguments('{"orderId":27}'), { orderId: 27 });
@@ -36,13 +42,14 @@ test('AI tool protocol：计划统一标识读写风险并压缩参数摘要', (
     assert.match(plan.summary, /1 个写操作需要确认/);
 });
 
-test('AI tool protocol：模型候选参数先规范化校验再进入执行计划', () => {
+test('AI tool protocol：模型候选参数只按统一 schema 校验，不用正则二次猜语义', () => {
     const prepared = prepareAiToolCalls([
         buildAiToolCall('search_parts', { keyword: '有没有', stockStatus: 'out' }, 'read-1'),
         buildAiToolCall('search_parts', { query: '轴承' }, 'read-2'),
     ], 'model');
 
     assert.deepEqual(parseAiToolArguments(prepared[0].toolCall.function.arguments), {
+        keyword: '有没有',
         stockStatus: 'out',
     });
     assert.equal(prepared[0].validationStatus, 'validated');
@@ -115,23 +122,22 @@ test('AI tool protocol：工具调用与模型回执使用同一序列化格式'
     assert.doesNotMatch(message.content, /120 个汉字/);
 });
 
-test('AI tool protocol：实时证据统一注入并移除历史 assistant 事实干扰', () => {
-    const messages = appendRefreshedBusinessEvidence([
+test('AI tool protocol：取得本轮证据后移除历史 assistant 事实干扰', () => {
+    const messages = [
         { role: 'system', content: '系统规则' },
         { role: 'user', content: '旧问题' },
         { role: 'assistant', content: '旧库存 10' },
-        { role: 'user', content: '现在库存多少' },
-    ], [{ name: 'search_parts', result: { stock: 8 } }]);
+        { role: 'assistant', content: '', tool_calls: [{ id: 'parts' }] },
+        { role: 'tool', tool_call_id: 'parts', content: '{"stock":8}' },
+    ];
     const prioritized = prioritizeBusinessEvidence(messages, 2);
 
-    assert.match(prioritized[0].content, /本轮服务端已刷新数据/);
-    assert.match(prioritized[0].content, /"stock":8/);
     assert.match(prioritized[0].content, /本轮证据优先/);
     assert.match(prioritized[0].content, /只输出面向用户的结果/);
     assert.match(prioritized[0].content, /不展示内部推理链/);
     assert.match(prioritized[0].content, /确认、失败和关键风险不得省略/);
     assert.equal(prioritized.some(message => message.content === '旧库存 10'), false);
-    assert.equal(prioritized.at(-1).content, '现在库存多少');
+    assert.equal(prioritized.at(-1).content, '{"stock":8}');
 });
 
 test('AI tool protocol：工具详情视图映射集中且未知工具安全回退', () => {

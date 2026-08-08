@@ -110,56 +110,6 @@ async function executePartDelete(args = {}, dependencies = {}) {
     };
 }
 
-function partUpdateInputError(args = {}) {
-    const metadataKeys = ['price', 'supplier', 'category', 'subcategory'];
-    const inventoryKeys = ['stock', 'stockDelta'];
-    const metadataArgs = Object.fromEntries(
-        metadataKeys
-            .filter(key => args[key] !== undefined)
-            .map(key => [key, args[key]])
-    );
-    const inventoryArgs = Object.fromEntries(
-        inventoryKeys
-            .filter(key => args[key] !== undefined)
-            .map(key => [key, args[key]])
-    );
-    const hasMetadata = Object.keys(metadataArgs).length > 0;
-    const hasInventory = Object.keys(inventoryArgs).length > 0;
-
-    if (args.stock !== undefined && args.stockDelta !== undefined) {
-        return {
-            success: false,
-            code: 'part_stock_input_conflict',
-            error: '库存目标值 stock 与库存增量 stockDelta 不能同时提交，请只选择一种库存调整方式。',
-        };
-    }
-    if (!hasMetadata || !hasInventory) return null;
-
-    return {
-        success: false,
-        code: 'part_update_mixed_write_not_allowed',
-        error: '一次 update_part 不能同时修改零件资料和库存，请拆成两个分别确认的操作。',
-        suggestedOperations: [
-            {
-                toolName: 'update_part',
-                args: {
-                    model: args.model,
-                    ...metadataArgs,
-                },
-                purpose: '修改零件资料',
-            },
-            {
-                toolName: 'update_part',
-                args: {
-                    model: args.model,
-                    ...inventoryArgs,
-                },
-                purpose: '调整零件库存',
-            },
-        ],
-    };
-}
-
 function assertPartStockCommandReceipt(result = {}) {
     const auditIds = Array.isArray(result.auditIds)
         ? result.auditIds.filter(Boolean)
@@ -504,14 +454,11 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     const {
         internalFetch,
         getJson,
-        postJson,
         patchJson,
     } = dependencies;
     const {
         model,
         price,
-        stock,
-        stockDelta,
         supplier,
         category,
         subcategory,
@@ -519,9 +466,6 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     if (!model) {
         return { success: false, error: '缺少必要参数：零件型号' };
     }
-    const inputError = partUpdateInputError(args);
-    if (inputError) return inputError;
-
     const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
     const target = allParts.find(part => (part.model || '') === model);
     if (!target) {
@@ -533,16 +477,6 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     if (price !== undefined) {
         updates.price = price;
         changes.push(`单价: ${target.price} → ${price}`);
-    }
-    const currentStock = Number(target.stock || 0);
-    const requestedStockDelta = stock !== undefined
-        ? Math.max(0, Number(stock)) - currentStock
-        : stockDelta !== undefined
-            ? Number(stockDelta)
-            : 0;
-    if (stock !== undefined || stockDelta !== undefined) {
-        const nextStock = Math.max(0, currentStock + requestedStockDelta);
-        changes.push(`库存: ${currentStock} → ${nextStock} (${nextStock - currentStock > 0 ? '+' : ''}${nextStock - currentStock})`);
     }
     if (supplier !== undefined) {
         updates.supplier = supplier;
@@ -562,43 +496,15 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     }
 
     const targetId = target.id ?? target.Id;
-    let saved = target;
-    if (Object.keys(updates).length > 0) {
-        saved = await patchJson(
-            internalFetch,
-            `/api/parts/${targetId}`,
-            {
-                ...updates,
-                expectedUpdatedAt: target.updatedAt || target.UpdatedAt,
-            },
-            '零件修改失败'
-        );
-    }
-    if (requestedStockDelta !== 0) {
-        const preview = await postJson(
-            internalFetch,
-            '/api/parts/batch-stock-preview',
-            {
-                operations: [{
-                    partId: targetId,
-                    delta: requestedStockDelta,
-                }],
-                note: 'AI 零件库存调整',
-            },
-            '零件库存调整预览失败'
-        );
-        const stockResult = await postJson(
-            internalFetch,
-            '/api/parts/batch-stock',
-            {
-                confirmationToken: preview.confirmationToken,
-                idempotencyKey: preview.suggestedIdempotencyKey,
-            },
-            '零件库存调整失败'
-        );
-        assertPartStockCommandReceipt(stockResult);
-        saved = stockResult.parts?.[0] || saved;
-    }
+    const saved = await patchJson(
+        internalFetch,
+        `/api/parts/${targetId}`,
+        {
+            ...updates,
+            expectedUpdatedAt: target.updatedAt || target.UpdatedAt,
+        },
+        '零件修改失败'
+    );
 
     return {
         success: true,
@@ -693,7 +599,6 @@ module.exports = {
     executePartStockAdjustment,
     executePartUpdate,
     assertPartStockCommandReceipt,
-    partUpdateInputError,
     preparePartStockAdjustment,
     resolvePartStockTargets,
     similarPartCandidates,

@@ -83,7 +83,7 @@ function containsMissingCustomerConclusion(answer, configuredTerms) {
         .split(/[。！？\n]/)
         .some(sentence => (
             sentence.includes('客户')
-            && /(?:未找到|没有找到|未查询到|没有查询到|查无|不存在|未记录)/.test(sentence)
+            && /(?:未找到|没有找到|未查询到|没有查询到|未匹配到|没有匹配到|查无|不存在|未记录)/.test(sentence)
             && !/(?:可能|也许|或许|不确定|是否)/.test(sentence)
         ));
 }
@@ -116,7 +116,7 @@ function containsForbiddenAssertion(answer, termValue) {
             answer.lastIndexOf('\n', index - 1)
         ) + 1;
         const prefix = answer.slice(sentenceStart, index);
-        const negation = /(?:不是|并非|不属于|不应(?:该)?|不能|不会|不可|不得|不宜|无法确认|不能确认|未(?:明确)?记录|没有(?:明确)?记录)([^。！？\n]{0,24})$/.exec(prefix);
+        const negation = /(?:不是|并非|不属于|不应(?:该)?|不能|不会|不可|不得|不宜|请勿(?:推断|称为|视为|认定为)?|不得(?:推断|称为|视为|认定为)?|无法(?:确认|回答|断定)|不能(?:确认|回答|断定)|未(?:明确)?记录|没有(?:明确)?记录)([^。！？\n]{0,24})$/.exec(prefix);
         const reversedByPivot = negation
             && /(?:而是|却是|实际(?:上)?是|反而是|应是|属于)/.test(negation[1]);
         if (!negation || reversedByPivot) return true;
@@ -134,8 +134,8 @@ function containsUnavailableConclusion(answer, configuredTerms = []) {
     if (containsAny(answer, configuredTerms)) return true;
     const normalized = normalizeAnswerForChecks(answer);
     return (
-        /(?:未|没有|无|暂无).{0,24}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)/.test(normalized)
-        || /(?:返回|记录数|结果).{0,12}0\s*条/.test(normalized)
+        /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)/.test(normalized)
+        || /(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/.test(normalized)
     );
 }
 
@@ -196,7 +196,7 @@ function evaluatePrerequisite(config, answer, db) {
     return {
         type: prerequisite.type,
         available,
-        passed: available || containsAny(answer, unavailableTerms),
+        passed: available || containsUnavailableConclusion(answer, unavailableTerms),
         label: available ? `存在 ${recipeName} 性能测试报告` : `明确说明 ${recipeName} 性能测试报告不可用`,
         detail: available
             ? '已找到目标配方的性能测试报告'

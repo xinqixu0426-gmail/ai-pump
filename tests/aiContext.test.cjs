@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     AI_CONTEXT_MESSAGE_LIMIT,
-    scopeAiContextForTurn,
+    scopeAiContextForIntent,
     trimAiContext,
     prioritizeCurrentEvidence,
 } = require('../api/services/aiContext.cjs');
@@ -33,17 +33,15 @@ test('AI 上下文兼容空值和无效消息', () => {
 });
 
 test('AI 上下文：新的跨业务查询不携带历史库存写指令', () => {
-    const context = scopeAiContextForTurn([
+    const context = scopeAiContextForIntent([
         { role: 'user', content: 'TEST-机筒-1100库存加100' },
         { role: 'assistant', content: '请核对库存调整确认卡片' },
         { role: 'user', content: '150-96的线圈库存+30' },
         { role: 'assistant', content: '请核对线圈库存确认卡片' },
         { role: 'user', content: '查一下模板V的明细' },
     ], {
-        domains: ['recipe'],
-        businessIntent: true,
-        writeIntent: false,
-        writeIntentSource: 'none',
+        mode: 'query',
+        contextMode: 'current_turn',
     });
 
     assert.deepEqual(context, [
@@ -52,17 +50,15 @@ test('AI 上下文：新的跨业务查询不携带历史库存写指令', () =>
 });
 
 test('AI 上下文：缺参写入只继承紧邻的一轮而不是整段会话', () => {
-    const context = scopeAiContextForTurn([
+    const context = scopeAiContextForIntent([
         { role: 'user', content: '查一下库存' },
         { role: 'assistant', content: '库存明细如下' },
         { role: 'user', content: '帮我录入零件' },
         { role: 'assistant', content: '请提供型号和单价' },
         { role: 'user', content: '14*28*39，单价0.5，类别油封' },
     ], {
-        domains: ['catalog'],
-        businessIntent: true,
-        writeIntent: true,
-        writeIntentSource: 'history',
+        mode: 'command',
+        contextMode: 'previous_turn',
     });
 
     assert.deepEqual(context.map(message => message.content), [

@@ -277,9 +277,44 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         }
 
         case 'search_customer_history': {
-            const customers = await getJson(internalFetch, '/api/customers', '客户列表读取失败');
-            const customer = findByNameOrId(customers, args.customerName || args.customerId, ['name']);
-            if (!customer) return { success: false, error: `未找到客户：${args.customerName || args.customerId || ''}` };
+            const customerQuery = new URLSearchParams();
+            if (args.customerId != null) customerQuery.set('id', String(args.customerId));
+            else if (args.customerName) customerQuery.set('name', normalizeText(args.customerName));
+            const customers = await getJson(
+                internalFetch,
+                `/api/customers${customerQuery.size ? `?${customerQuery.toString()}` : ''}`,
+                '客户列表读取失败'
+            );
+            const target = normalizeText(args.customerName || args.customerId);
+            const exact = customers.filter(customer => (
+                String(customer.id ?? customer.Id) === target
+                || normalizeText(customer.name) === target
+            ));
+            const candidates = exact.length > 0 ? exact : customers;
+            if (candidates.length === 0) {
+                return { success: false, error: `未找到客户：${target}` };
+            }
+            if (candidates.length > 1) {
+                return {
+                    success: false,
+                    error: '客户名称不明确，请指定完整客户名称',
+                    queryReceipt: {
+                        appliedFilters: args.customerId != null
+                            ? { id: Number(args.customerId) }
+                            : { name: normalizeText(args.customerName) },
+                        totalCount: candidates.length,
+                        returnedCount: Math.min(candidates.length, 10),
+                        truncated: candidates.length > 10,
+                        possiblyTruncated: false,
+                        authoritative: true,
+                    },
+                    candidates: candidates.slice(0, 10).map(customer => ({
+                        id: customer.id ?? customer.Id,
+                        name: customer.name,
+                    })),
+                };
+            }
+            const customer = candidates[0];
             const customerId = customer.id ?? customer.Id;
             const query = new URLSearchParams();
             const keyword = normalizeText(args.keyword || args.recipeName || args.model);
@@ -291,6 +326,9 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 `/api/customers/${customerId}/context${suffix}`,
                 '客户历史读取失败'
             );
+            const quotations = Array.isArray(context.quotations) ? context.quotations : [];
+            const orders = Array.isArray(context.orders) ? context.orders : [];
+            const returnedCount = quotations.length + orders.length;
             return {
                 success: true,
                 intent: 'customer_history',
@@ -298,8 +336,21 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 display: { mode: 'compact', title: '客户历史' },
                 data: {
                     customer: context.customer,
-                    quotations: context.quotations,
-                    orders: context.orders,
+                    quotations,
+                    orders,
+                },
+                queryReceipt: {
+                    appliedFilters: {
+                        customerId: Number(customerId),
+                        ...(keyword ? { keyword } : {}),
+                        ...(args.limit != null ? { limit: Number(args.limit) } : {}),
+                    },
+                    totalCount: args.limit == null ? returnedCount : null,
+                    returnedCount,
+                    truncated: args.limit == null ? false : null,
+                    possiblyTruncated: args.limit != null
+                        && (quotations.length >= Number(args.limit) || orders.length >= Number(args.limit)),
+                    authoritative: true,
                 },
             };
         }

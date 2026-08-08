@@ -127,7 +127,6 @@ async function executeOrderTool(toolName, args, internalFetch) {
     switch (toolName) {
         case 'get_purchase_overview': {
             const query = new URLSearchParams();
-            query.set('limit', String(args.limit || 20));
             for (const field of ['limit', 'supplier', 'pendingOnly']) {
                 const value = String(args[field] ?? '').trim();
                 if (value) query.set(field, value);
@@ -137,7 +136,29 @@ async function executeOrderTool(toolName, args, internalFetch) {
                 `/api/orders/purchase-overview${query.size ? `?${query.toString()}` : ''}`,
                 '采购总览读取失败'
             );
-            return { success: true, data };
+            const returnedCount = Number(data.returnedCount ?? data.tasks?.length ?? 0);
+            const totalCount = Number(data.summary?.taskCount ?? returnedCount);
+            const appliedFilters = Object.fromEntries(
+                Object.entries(data.filters || {
+                    supplier: String(args.supplier || '').trim(),
+                    pendingOnly: Boolean(args.pendingOnly),
+                    limit: args.limit == null ? null : Number(args.limit),
+                }).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+            );
+            return {
+                success: true,
+                data,
+                queryReceipt: {
+                    appliedFilters,
+                    totalCount,
+                    returnedCount,
+                    truncated: Boolean(data.truncated),
+                    possiblyTruncated: args.limit != null
+                        && returnedCount >= Number(args.limit),
+                    authoritative: true,
+                },
+                selectionBoundary: 'data 已由正式采购总览 API 按 filters 聚合；不能补充未返回的采购任务。',
+            };
         }
 
         case 'save_order_requirement_draft': {

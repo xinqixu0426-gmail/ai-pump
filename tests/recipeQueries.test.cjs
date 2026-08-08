@@ -19,6 +19,11 @@ function createFixture() {
             coil_slot_type TEXT,
             deleted_at TEXT
         );
+        CREATE TABLE recipe_technical_files (
+            id INTEGER PRIMARY KEY,
+            recipe_id INTEGER NOT NULL,
+            deleted_at TEXT
+        );
         CREATE TABLE parts (
             id INTEGER PRIMARY KEY,
             model TEXT,
@@ -73,6 +78,7 @@ function createFixture() {
             '国标眼',
             NULL
         );
+        INSERT INTO recipe_technical_files VALUES (1, 1, NULL);
         INSERT INTO parts VALUES
             (10, '6201', '甲', '轴承', 5, NULL, NULL),
             (11, '6201', '乙', '轴承', 0, NULL, NULL),
@@ -152,6 +158,18 @@ test('配方 Query 返回列表、详情及零件和正式线圈库存状态', (
         assert.deepEqual(
             fixture.queries.getAllRecipes({ keyword: '不存在' }),
             []
+        );
+        assert.deepEqual(
+            fixture.queries.getAllRecipes({ hasTechnicalFiles: true }),
+            [{ id: 1, name: 'QDX10', technicalFileCount: 1 }]
+        );
+        assert.deepEqual(
+            fixture.queries.getAllRecipes({ hasTechnicalFiles: false }),
+            []
+        );
+        assert.throws(
+            () => fixture.queries.getAllRecipes({ hasTechnicalFiles: 'yes' }),
+            /hasTechnicalFiles 必须是 true 或 false/
         );
         assert.deepEqual(fixture.queries.getRecipe(1), {
             id: 1,
