@@ -47,7 +47,8 @@ const initialValues: RuntimeSettingsValues = {
   aiProvider: 'auto',
   deepseekModel: 'deepseek-v4-flash',
   deepseekBaseUrl: 'https://api.deepseek.com',
-  kimiModel: 'kimi-k2.7-code',
+  kimiModel: 'kimi-k3',
+  kimiReasoningEffort: 'low',
   kimiBaseUrl: 'https://api.moonshot.cn/v1',
   aiVisionEnabled: true,
   knowledgeAutoSyncEnabled: true,
@@ -278,7 +279,7 @@ export function SetupView() {
 
           {activeProvider === 'auto' ? (
             <InlineNotice tone="info">
-              普通对话、PDF 文字层和 Excel 默认使用 DeepSeek；只有图片原图需要视觉理解时才自动使用 Kimi。Kimi 不可用时回退到 DeepSeek 与本地 OCR。
+              普通对话默认使用 DeepSeek；图片原图、PDF、Excel/CSV 和文本附件自动使用 Kimi K3。Kimi 不可用时回退到 DeepSeek 与本地解析/OCR。
             </InlineNotice>
           ) : null}
 
@@ -313,7 +314,7 @@ export function SetupView() {
           {activeProvider !== 'deepseek' ? (
             <div className={`space-y-4 ${activeProvider === 'auto' ? 'border-t border-line pt-4' : ''}`}>
               <InlineNotice tone="warning">
-                {activeProvider === 'auto' ? 'Kimi 只处理图片原图。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。
+                {activeProvider === 'auto' ? 'Kimi K3 处理图片原图和文件。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。
               </InlineNotice>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="模型">
@@ -321,6 +322,16 @@ export function SetupView() {
                 </Field>
                 <Field label="服务地址">
                   <Input value={form.kimiBaseUrl} onChange={(event) => update('kimiBaseUrl', event.target.value)} />
+                </Field>
+                <Field label="K3 推理强度">
+                  <Select
+                    value={form.kimiReasoningEffort}
+                    onChange={(event) => update('kimiReasoningEffort', event.target.value as FormState['kimiReasoningEffort'])}
+                  >
+                    <option value="low">low（推荐，文件识别更快）</option>
+                    <option value="high">high</option>
+                    <option value="max">max</option>
+                  </Select>
                 </Field>
                 <Field
                   className="md:col-span-2"
@@ -340,14 +351,14 @@ export function SetupView() {
                   />
                 </Field>
               </div>
-              <ToggleRow checked={form.aiVisionEnabled} onChange={(value) => update('aiVisionEnabled', value)} label="图片输入" />
+              <ToggleRow checked={form.aiVisionEnabled} onChange={(value) => update('aiVisionEnabled', value)} label="K3 图片与文件输入" />
             </div>
           ) : null}
 
           <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
             <div className="text-xs text-muted">
               当前：{activeProvider === 'auto'
-                ? `${form.deepseekModel} 默认 · 图片使用 ${form.kimiModel}`
+                ? `${form.deepseekModel} 默认 · 图片和文件使用 ${form.kimiModel}`
                 : activeProvider === 'deepseek'
                   ? form.deepseekModel
                   : form.kimiModel}

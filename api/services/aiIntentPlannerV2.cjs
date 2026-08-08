@@ -99,7 +99,7 @@ function plannerPrompt(pageContext) {
 5. command 表示用户要求产生副作用；查询“有没有、多少、哪些、状态”等不是 command。
 6. 新增、修改、删除、库存增减等 command 必须选择写能力；服务端之后负责正式预览、确认和回执。
 7. 不要为了“了解情况”先读取全量再二次筛选；优先选择能直接表达用户条件的能力。
-8. requiresClarification 只在缺少会改变执行目标的关键信息、存在多个无法安全选择的正式对象时为 true。
+8. requiresClarification 只在缺少会改变执行目标的关键信息、存在多个无法安全选择的正式对象时为 true；此时 ambiguities 必须写清需要用户确认的内容，并且 steps 必须为空，禁止在澄清前读取或修改业务数据。
 9. answerShape=count_with_brief 表示先给数量，再给每个命中对象的最短简报；不要扩展成流水账。
 10. steps 只列取得答案或完成确认所需的业务能力，最多 5 步。
 11. 先按能力的权威职责选择：已有正式记录的列表、数量、状态和实时库存用领域 Query；指定组合的计算、插值、草稿和差异分析用 Preview；用途、适用工况、兼容性、原因、工厂约定、明确确认关系、业务规则和独立资料必须用 Knowledge，即使同一个问题还询问“系统中有哪些”当前记录，也不能只安排领域 Query。不得用 Preview 代替 List，也不得用知识快照代替现有正式记录。
@@ -160,6 +160,12 @@ function normalizeIntentPlan(raw, options = {}) {
     }
     if (!Array.isArray(raw.ambiguities) || raw.ambiguities.length > 3) {
         throw new AiIntentPlanError('ambiguities 必须是最多 3 项的数组');
+    }
+    if (raw.requiresClarification && raw.ambiguities.length === 0) {
+        throw new AiIntentPlanError('需要澄清时必须说明至少一项具体歧义');
+    }
+    if (raw.requiresClarification && raw.steps.length > 0) {
+        throw new AiIntentPlanError('需要澄清时不得规划业务能力步骤');
     }
 
     const steps = raw.steps.map((step, index) => {
@@ -230,6 +236,7 @@ async function planAiIntentV2(messages, options = {}) {
             onProvider: options.onProvider,
             env: options.env,
             dbAccessors: options.dbAccessors,
+            attachmentMode: 'metadata',
         });
         const data = await response.json();
         if (data.error) throw new AiIntentPlanError(data.error.message || '意图规划 API 错误');

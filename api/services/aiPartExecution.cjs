@@ -43,13 +43,13 @@ async function executePartCreate(args = {}, dependencies = {}) {
     };
 }
 
-async function executePartBatchCreate(args = {}, dependencies = {}) {
+async function preparePartBatchCreate(args = {}, dependencies = {}) {
     const {
         internalFetch,
         postJson,
     } = dependencies;
     if (!Array.isArray(args.parts) || args.parts.length === 0) {
-        return { success: false, error: '缺少必要参数：parts 必须是非空数组' };
+        throw new Error('缺少必要参数：parts 必须是非空数组');
     }
     const preview = await postJson(
         internalFetch,
@@ -57,15 +57,40 @@ async function executePartBatchCreate(args = {}, dependencies = {}) {
         { parts: args.parts },
         '批量新增零件预览失败'
     );
-    const saved = await postJson(
-        internalFetch,
-        '/api/parts/batch-create',
-        {
+    if (!preview?.confirmationToken || !preview?.suggestedIdempotencyKey) {
+        const error = new Error('正式批量新增预览没有返回完整确认凭证');
+        error.code = 'part_batch_create_preview_invalid';
+        throw error;
+    }
+    return {
+        args,
+        confirmationRows: [
+            { label: '正式预览新增', value: `${preview.createdCount ?? args.parts.length} 个零件` },
+            ...(Number(preview.skippedCount || 0) > 0
+                ? [{ label: '已存在跳过', value: `${preview.skippedCount} 个` }]
+                : []),
+        ],
+        executionContext: {
+            kind: 'part_batch_create_preview',
             confirmationToken: preview.confirmationToken,
             idempotencyKey: preview.suggestedIdempotencyKey,
+            skippedCount: preview.skippedCount || 0,
+            skippedExisting: preview.skippedExisting || [],
+            warnings: preview.warnings || [],
         },
-        '批量新增零件失败'
-    );
+    };
+}
+
+async function executePartBatchCreate(args = {}, dependencies = {}) {
+    const { internalFetch, postJson, confirmationContext } = dependencies;
+    const prepared = confirmationContext?.kind === 'part_batch_create_preview'
+        ? { executionContext: confirmationContext }
+        : await preparePartBatchCreate(args, { internalFetch, postJson });
+    const preview = prepared.executionContext;
+    const saved = await postJson(internalFetch, '/api/parts/batch-create', {
+        confirmationToken: preview.confirmationToken,
+        idempotencyKey: preview.idempotencyKey,
+    }, '批量新增零件失败');
     return {
         success: true,
         message: `已通过标准 API 批量新增 ${saved.createdCount} 个零件`,
@@ -522,12 +547,11 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     };
 }
 
-async function executePartPriceBatch(args = {}, dependencies = {}) {
+async function preparePartPriceBatch(args = {}, dependencies = {}) {
     const {
         internalFetch,
         getJson,
         postJson,
-        patchJson,
     } = dependencies;
     const {
         category,
@@ -535,7 +559,7 @@ async function executePartPriceBatch(args = {}, dependencies = {}) {
         absoluteChange,
     } = args;
     if (percentChange === undefined && absoluteChange === undefined) {
-        return { success: false, error: '需要指定percentChange或absoluteChange' };
+        throw new Error('需要指定percentChange或absoluteChange');
     }
 
     const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
@@ -544,7 +568,7 @@ async function executePartPriceBatch(args = {}, dependencies = {}) {
         || (part.category || '').includes(category)
     ));
     if (targets.length === 0) {
-        return { success: false, error: `没有找到类别包含"${category}"的零件` };
+        throw new Error(`没有找到类别包含"${category}"的零件`);
     }
 
     const updates = [];
@@ -568,22 +592,51 @@ async function executePartPriceBatch(args = {}, dependencies = {}) {
         { updates },
         '批量调价预览失败'
     );
-    const result = await patchJson(
-        internalFetch,
-        '/api/parts/prices',
-        {
+    if (!preview?.previewHash || !preview?.suggestedIdempotencyKey || !Array.isArray(preview.updates)) {
+        const error = new Error('正式批量调价预览没有返回完整版本和幂等凭证');
+        error.code = 'part_price_preview_invalid';
+        throw error;
+    }
+    return {
+        args,
+        confirmationRows: [
+            { label: '正式命中类别', value: `${category}（${targets.length} 个零件）` },
+            ...details.slice(0, 8).map(item => ({
+                label: item.model,
+                value: `${item.oldPrice} 元 → ${item.newPrice} 元`,
+            })),
+        ],
+        executionContext: {
+            kind: 'part_price_preview',
             updates: preview.updates,
             previewHash: preview.previewHash,
             idempotencyKey: preview.suggestedIdempotencyKey,
+            category,
+            details,
+            targetCount: targets.length,
         },
-        '批量调价失败'
-    );
+    };
+}
+
+async function executePartPriceBatch(args = {}, dependencies = {}) {
+    const { internalFetch, getJson, postJson, patchJson, confirmationContext } = dependencies;
+    const prepared = confirmationContext?.kind === 'part_price_preview'
+        ? { executionContext: confirmationContext }
+        : await preparePartPriceBatch(args, { internalFetch, getJson, postJson });
+    const preview = prepared.executionContext;
+    const result = await patchJson(internalFetch, '/api/parts/prices', {
+        updates: preview.updates,
+        previewHash: preview.previewHash,
+        idempotencyKey: preview.idempotencyKey,
+    }, '批量调价失败');
+    const { category, details, targetCount } = preview;
+    const { percentChange, absoluteChange } = args;
 
     return {
         success: true,
-        message: `已批量更新${result.updatedCount ?? targets.length}个"${category}"类零件的价格`,
+        message: `已批量更新${result.updatedCount ?? targetCount}个"${category}"类零件的价格`,
         category,
-        count: result.updatedCount ?? targets.length,
+        count: result.updatedCount ?? targetCount,
         changeType: percentChange !== undefined
             ? `${percentChange > 0 ? '+' : ''}${percentChange}%`
             : `${absoluteChange > 0 ? '+' : ''}${absoluteChange}元`,
@@ -599,6 +652,8 @@ module.exports = {
     executePartStockAdjustment,
     executePartUpdate,
     assertPartStockCommandReceipt,
+    preparePartBatchCreate,
+    preparePartPriceBatch,
     preparePartStockAdjustment,
     resolvePartStockTargets,
     similarPartCandidates,

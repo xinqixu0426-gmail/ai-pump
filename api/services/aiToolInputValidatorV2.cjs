@@ -21,6 +21,10 @@ function fail(message, path, details = {}) {
 function normalizeString(value, schema, path) {
     if (typeof value !== 'string') fail(`${path} 必须是字符串`, path);
     const normalized = value.trim().replace(/\s+/g, ' ');
+    const minLength = Number.isInteger(schema.minLength) ? schema.minLength : 0;
+    if (normalized.length < minLength) {
+        fail(`${path} 不能少于 ${minLength} 个字符`, path);
+    }
     const maxLength = Number.isInteger(schema.maxLength) ? schema.maxLength : 500;
     if (normalized.length > maxLength) {
         fail(`${path} 不能超过 ${maxLength} 个字符`, path);
@@ -64,7 +68,12 @@ function normalizeObject(value, schema, path) {
     }
     const normalized = {};
     for (const field of schema.required || []) {
-        if (!Object.hasOwn(value, field) || value[field] === null || value[field] === '') {
+        if (
+            !Object.hasOwn(value, field)
+            || value[field] === null
+            || value[field] === ''
+            || (typeof value[field] === 'string' && !value[field].trim())
+        ) {
             fail(`${path}.${field} 为必填字段`, `${path}.${field}`);
         }
     }
@@ -104,6 +113,29 @@ function normalizeArray(value, schema, path) {
 }
 
 function normalizeBySchema(value, schema = {}, path = 'args') {
+    if (Array.isArray(schema.oneOf) && schema.oneOf.length > 0) {
+        const { oneOf, ...baseSchema } = schema;
+        const matches = [];
+        const failures = [];
+        for (const candidate of oneOf) {
+            try {
+                matches.push(normalizeBySchema(value, {
+                    ...baseSchema,
+                    ...candidate,
+                    properties: baseSchema.properties || candidate.properties,
+                }, path));
+            } catch (error) {
+                failures.push(error.message);
+            }
+        }
+        if (matches.length !== 1) {
+            fail(`${path} 必须且只能符合一种输入形式`, path, {
+                matchedSchemas: matches.length,
+                failures,
+            });
+        }
+        return matches[0];
+    }
     if (Array.isArray(schema.anyOf) && schema.anyOf.length > 0) {
         const { anyOf, ...baseSchema } = schema;
         const failures = [];

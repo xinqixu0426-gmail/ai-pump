@@ -81,7 +81,7 @@ test('系统初始化：API Key 加密保存且读取接口不返回密钥原文
     }
 });
 
-test('系统初始化：智能路由默认使用 DeepSeek 并允许 Kimi 作为图片模型', () => {
+test('系统初始化：智能路由默认使用 DeepSeek 并允许 Kimi K3 处理图片和文件', () => {
     const accessors = createAccessors();
     const env = {
         NODE_ENV: 'test',
@@ -91,6 +91,8 @@ test('系统初始化：智能路由默认使用 DeepSeek 并允许 Kimi 作为�
     try {
         const snapshot = initializeRuntimeSettings({ env, dbAccessors: accessors });
         assert.equal(snapshot.values.aiProvider, 'auto');
+        assert.equal(snapshot.values.kimiModel, 'kimi-k3');
+        assert.equal(snapshot.values.kimiReasoningEffort, 'low');
         assert.equal(env.AI_PROVIDER, 'auto');
         assert.equal(normalizeValue('aiProvider', 'auto'), 'auto');
 
@@ -116,12 +118,14 @@ test('系统初始化：即时设置更新环境，重启设置保留待重启�
         let result = updateRuntimeSettings({
             aiProvider: 'kimi',
             kimiApiKey: 'sk-open-platform-example',
-            kimiModel: 'kimi-k2.7-code',
+            kimiModel: 'kimi-k3',
+            kimiReasoningEffort: 'high',
             knowledgeVectorEnabled: false,
         }, { env, dbAccessors: accessors });
 
         assert.equal(env.AI_PROVIDER, 'kimi');
-        assert.equal(env.KIMI_MODEL, 'kimi-k2.7-code');
+        assert.equal(env.KIMI_MODEL, 'kimi-k3');
+        assert.equal(env.KIMI_REASONING_EFFORT, 'high');
         assert.equal(env.KNOWLEDGE_VECTOR_ENABLED, 'false');
         assert.equal(result.config.restartRequired, true);
         assert.deepEqual(result.config.restartFields, ['knowledgeVectorEnabled']);

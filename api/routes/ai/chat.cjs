@@ -1,4 +1,5 @@
 const express = require('express');
+const { createLogger } = require('../../logger.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const { aiProviderCapabilities } = require('../../services/aiProvider.cjs');
@@ -13,6 +14,7 @@ const {
 const { hasVerifiedWriteExecution } = require('../../services/aiExecutionEvidence.cjs');
 
 const router = express.Router();
+const aiChatLogger = createLogger('ai-chat');
 
 function confirmAuth(req, res, next) {
     if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
@@ -57,6 +59,14 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
             onProvider,
         });
     } catch (error) {
+        aiChatLogger.error('AI 对话失败', {
+            code: error.code || 'ai_dispatcher_v2_error',
+            message: error.message,
+            causeCode: error.cause?.code || error.cause?.cause?.code || null,
+            provider: error.details?.provider || null,
+            action: error.details?.action || null,
+            requestId: req.requestId || null,
+        });
         send('error', { message: error.message, code: error.code || 'ai_dispatcher_v2_error' });
     } finally {
         res.end();

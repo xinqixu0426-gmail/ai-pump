@@ -63,6 +63,33 @@ test('V2 工具输入：未知字段、非法枚举和缺失必填统一在执�
     }
 });
 
+test('V2 写工具输入：拒绝空白目标、空批次、零变动和冲突调价方式', () => {
+    assert.throws(
+        () => validateAiToolArgs('adjust_part_stock', { items: [] }),
+        /至少需要 1 项/
+    );
+    assert.throws(
+        () => validateAiToolArgs('adjust_part_stock', { items: [{ model: '   ', changeQty: 1 }] }),
+        /必填字段|不能少于/
+    );
+    assert.throws(
+        () => validateAiToolArgs('adjust_coil_stock', { items: [{ model: '12-120', changeQty: 0 }] }),
+        /不符合任何允许的输入形式/
+    );
+    assert.throws(
+        () => validateAiToolArgs('batch_update_prices', { category: '轴承' }),
+        /必须且只能符合一种输入形式/
+    );
+    assert.throws(
+        () => validateAiToolArgs('batch_update_prices', {
+            category: '轴承',
+            percentChange: 10,
+            absoluteChange: 1,
+        }),
+        /必须且只能符合一种输入形式/
+    );
+});
+
 test('V2 工具输入：查询与写入不再维护第二份手写参数白名单', () => {
     assert.deepEqual(validateAiToolArgs('get_all_recipes', {
         hasTechnicalFiles: true,

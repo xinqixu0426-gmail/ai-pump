@@ -53,7 +53,7 @@ function createFixture() {
                 : 'Kimi',
             model: provider === 'deepseek'
                 ? 'deepseek-chat'
-                : 'kimi-k2',
+                : 'kimi-k3',
             apiKey: provider === 'deepseek'
                 ? 'configured'
                 : env.KIMI_KEY,
@@ -135,7 +135,7 @@ test('设置 Query 的 AI 探测统一编排自动路由提供商和耗时', asy
         assert.deepEqual(result, {
             provider: 'auto',
             displayName: '智能路由',
-            model: 'deepseek-chat / kimi-k2',
+            model: 'deepseek-chat / kimi-k3',
             testedProviders: [
                 {
                     provider: 'deepseek',
@@ -145,7 +145,7 @@ test('设置 Query 的 AI 探测统一编排自动路由提供商和耗时', asy
                 {
                     provider: 'kimi',
                     displayName: 'Kimi',
-                    model: 'kimi-k2',
+                    model: 'kimi-k3',
                 },
             ],
             latencyMs: 42,

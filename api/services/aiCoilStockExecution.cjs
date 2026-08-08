@@ -8,7 +8,7 @@ function parseCoilInventoryModel(value) {
     };
 }
 
-async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
+async function prepareCoilStockAdjustment(args = {}, dependencies = {}) {
     const {
         internalFetch,
         getJson,
@@ -16,10 +16,10 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
     } = dependencies;
     const items = Array.isArray(args.items) ? args.items : [];
     if (items.length === 0) {
-        return { success: false, error: '至少需要一个线圈库存调整项目' };
+        throw new Error('至少需要一个线圈库存调整项目');
     }
     if (items.length > 50) {
-        return { success: false, error: '单次最多调整 50 个线圈方案' };
+        throw new Error('单次最多调整 50 个线圈方案');
     }
 
     const coils = await getJson(internalFetch, '/api/coils', '线圈方案读取失败');
@@ -28,10 +28,10 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
         const parsed = parseCoilInventoryModel(item.model);
         const changeQty = Number(item.changeQty);
         if (!parsed) {
-            return { success: false, error: `线圈简写“${item.model || ''}”格式无效，应为“规格-片数”，例如 12-120` };
+            throw new Error(`线圈简写“${item.model || ''}”格式无效，应为“规格-片数”，例如 12-120`);
         }
         if (!Number.isInteger(changeQty) || changeQty === 0) {
-            return { success: false, error: `${parsed.model} 的库存变动必须是非零整数套数` };
+            throw new Error(`${parsed.model} 的库存变动必须是非零整数套数`);
         }
 
         const candidates = coils.filter(coil => (
@@ -42,19 +42,13 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
             && (!item.slotType || coil.slotType === item.slotType)
         ));
         if (candidates.length === 0) {
-            return {
-                success: false,
-                error: `未找到正式线圈方案“${parsed.model}”${item.material ? `、材质“${item.material}”` : ''}${item.slotType ? `、槽眼“${item.slotType}”` : ''}`,
-            };
+            throw new Error(`未找到正式线圈方案“${parsed.model}”${item.material ? `、材质“${item.material}”` : ''}${item.slotType ? `、槽眼“${item.slotType}”` : ''}`);
         }
         if (candidates.length > 1) {
             const options = candidates
                 .map(coil => `${coil.material || '未标材质'}/${coil.slotType || '未标槽眼'}`)
                 .join('、');
-            return {
-                success: false,
-                error: `线圈“${parsed.model}”存在多个正式方案（${options}），请明确材质和槽眼后再调整库存`,
-            };
+            throw new Error(`线圈“${parsed.model}”存在多个正式方案（${options}），请明确材质和槽眼后再调整库存`);
         }
 
         const coil = candidates[0];
@@ -70,7 +64,7 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
     }
 
     if (new Set(resolved.map(item => item.coilId)).size !== resolved.length) {
-        return { success: false, error: '同一线圈方案不能在一次操作中重复调整' };
+        throw new Error('同一线圈方案不能在一次操作中重复调整');
     }
 
     const preview = await postJson(
@@ -85,9 +79,43 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
         },
         '线圈库存调整预览失败'
     );
+    if (!preview?.confirmationToken || !preview?.suggestedIdempotencyKey) {
+        throw new Error('正式线圈库存预览没有返回完整确认凭证');
+    }
+    return {
+        args: {
+            ...args,
+            items: resolved.map(item => ({
+                model: item.model,
+                changeQty: item.changeQty,
+                material: item.material,
+                slotType: item.slotType,
+            })),
+        },
+        confirmationRows: resolved.map(item => ({
+            label: `${item.model}（${item.material}/${item.slotType}）`,
+            value: `当前 ${item.previousStock} → 预计 ${item.previousStock + item.changeQty}（${item.changeQty > 0 ? '+' : ''}${item.changeQty} 套）`,
+        })),
+        executionContext: {
+            kind: 'coil_stock_preview',
+            confirmationToken: preview.confirmationToken,
+            idempotencyKey: preview.suggestedIdempotencyKey,
+            resolved,
+            warnings: preview.warnings || [],
+        },
+    };
+}
+
+async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
+    const { internalFetch, getJson, postJson, confirmationContext } = dependencies;
+    const prepared = confirmationContext?.kind === 'coil_stock_preview'
+        ? { executionContext: confirmationContext }
+        : await prepareCoilStockAdjustment(args, { internalFetch, getJson, postJson });
+    const preview = prepared.executionContext;
+    const resolved = preview.resolved;
     const result = await postJson(internalFetch, '/api/coils/stock-adjustments', {
         confirmationToken: preview.confirmationToken,
-        idempotencyKey: preview.suggestedIdempotencyKey,
+        idempotencyKey: preview.idempotencyKey,
     }, '线圈库存调整失败');
     const savedById = new Map((result.adjustments || []).map(item => [
         item.coil?.id ?? item.coil?.Id,
@@ -116,4 +144,5 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
 module.exports = {
     executeCoilStockAdjustment,
     parseCoilInventoryModel,
+    prepareCoilStockAdjustment,
 };

@@ -341,7 +341,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 `/setup` 系统初始化页只开放业务运行参数。AI 提供商、模型、API Key 和图片输入设置保存后供 AI 工作台即时读取；混合检索和向量批量大小即时读取。知识自动同步、向量开关、向量自动生成、Embedding 模型/维度/精度、缓存目录和离线模式涉及已初始化的后台控制器或模型实例，保存后会返回 `restartRequired=true`，重启 API 服务后生效。管理密码、JWT、内部接口密钥、CORS、端口和生产模式只显示配置状态，仍必须由部署环境提供，不能在网页中读取或修改。
 
-Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k2.7-code`。`AI_PROVIDER=auto` 为默认模式：DeepSeek 处理普通对话和已解析的 PDF/Excel/文本，只有服务端确认的图片附件切换 Kimi；也可设为 `deepseek` 或 `kimi` 强制固定模型。
+Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k3`，`KIMI_REASONING_EFFORT` 支持 `low/high/max`，业务附件默认 `low`。`AI_PROVIDER=auto` 为默认模式：DeepSeek 处理普通对话；服务端确认的图片、PDF、Excel/CSV 和文本附件切换 Kimi K3。图片以 base64 原图输入，非图片文件按开放平台 `/v1/files` 的 `file-extract` 流程临时上传、抽取正文并立即删除远端临时文件；本机只缓存抽取结果 10 分钟，且正文作为不可信业务数据而不是系统指令进入模型。Kimi 不可用时回退 DeepSeek 与本地解析/OCR；也可设为 `deepseek` 或 `kimi` 强制固定模型。
 
 ## 14. 转子 Rotor
 
@@ -379,7 +379,9 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 | `GET` | `/api/ai/system-prompt` | 默认无参数；新调用使用 `includeMeta=1` | 兼容路径；默认继续返回配置字符串。`includeMeta=1` 返回 `{ prompt, version, sourceOfTruth }`，其中 `version` 是当前内容 SHA-256，供并发保存；不返回系统核心规则 |
 | `PUT` | `/api/ai/system-prompt` | `{ prompt, expectedVersion?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.factory_profile.update`。更新内存和 SQLite `config.ai-factory-profile`；不能为空，最大 8000 字符，不能覆盖核心安全、来源和写入确认边界。新 Web 调用先读内容版本再保存；配置、operation 和强审计同一事务提交，相同命令安全重放。旧无版本/幂等键调用继续执行并返回 warning |
 
-AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。文本、PDF/Excel 解析文字和图片/扫描 PDF OCR 文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无图片时使用 DeepSeek；存在图片且 Kimi API Key、视觉开关和视觉模型可用时，使用 Kimi 并按 OpenAI 兼容的 `image_url` 格式发送原图。Kimi 请求失败时回退 DeepSeek，本轮只使用本地 OCR 文字。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、工具调用增量和非 JSON 状态行；`chat.cjs` 不再自行解析模型流。
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。意图规划阶段只接收附件名称、类型和大小，不重复传正文、OCR 或图片二进制。执行阶段的附件文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无附件时使用 DeepSeek；存在图片或受支持文件且 Kimi API Key、视觉开关和 K3 可用时使用 Kimi。K3 成功接收图片原图时不再重复附加整段本地 OCR；Kimi 请求失败时回退 DeepSeek，本轮改用本地解析/OCR。供应商请求建立失败、429 和 5xx 最多重试 3 次；已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，也统一映射为 `AI_PROVIDER_NETWORK_ERROR`，并记录脱敏后的供应商、动作和底层错误码。前端对该错误自动重试完整响应流。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
+
+V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 
 模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 95 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
@@ -758,7 +760,7 @@ V6.2 在每次文字知识成功提交后请求独立后台队列，按 `knowled
 
 V6.3 的搜索先分别取得 FTS/BM25 与当前模型的新鲜向量候选，再使用稳定 RRF 融合。标题、来源标识和型号、规格、客户名、合同号等结构化元数据包含完整查询词时增加确定性优先级，不会被语义近似项挤出；已有精确关键词命中时不追加纯向量近似项，避免把相邻型号或规格混入回答。两条链路共同使用 `entryType/sourceTable` 过滤；查询 embedding、sqlite-vec 或模型加载失败时返回原 FTS/LIKE 结果，并将结果标记为 `keyword/exact` 而非伪造 `vector/hybrid`。`KNOWLEDGE_HYBRID_SEARCH_ENABLED=false` 可临时关闭混合检索，AI 仍使用原 `search_factory_knowledge` 工具入口。
 
-V6.4 使用 11 条固定中文样例验收检索层，覆盖精确泵壳型号、用途口语、错别字、菲律宾配方、线圈材质与槽眼、成品电缆、完整成本、客户报价和测试报告别名。`npm run test:knowledge-retrieval` 复用运行中 API 的本地 embedding 模型执行，不调用外部 AI；混合检索不得降低 FTS 的 Top 1/Top 3，精确样例必须保持 Top 1，且语义样例的 Top 3 必须得到提升。`npm run knowledge:backup-check` 使用 SQLite 在线备份创建临时恢复库，并自动验证完整性、外键、条目/向量数量和实际余弦查询，结束后删除临时文件。
+V6.4 使用 11 条固定中文样例验收检索层，覆盖精确泵壳型号、用途口语、错别字、菲律宾配方、线圈材质与槽眼、成品电缆、完整成本、客户报价和测试报告别名。`npm run test:knowledge-retrieval` 复用运行中 API 的本地 embedding 模型执行，不调用外部 AI；每条固定样例先以正式知识标题检查前置资料，测试库缺少目标资料时明确记为 `missing_prerequisite` 并从 Top1/Top3 分母排除，不再误报为检索算法失败。实际评测至少需要 2 条可用样例；混合检索不得降低 FTS 的 Top 1/Top 3，精确样例必须保持 Top 1，且语义样例的 Top 3 必须得到提升。`npm run knowledge:backup-check` 使用 SQLite 在线备份创建临时恢复库，并自动验证完整性、外键、条目/向量数量和实际余弦查询，结束后删除临时文件。
 
 向量结果只负责召回候选，不自动成为业务事实。搜索结果中的 `exact_text/text_match` 表示存在可核对的文本命中，`semantic_candidate` 表示仅语义相近；AI 只有在条目标题、摘要、正文或结构化元数据明确写出用途、兼容性或配件关系时，才能使用“适合、专用、自带、配套”等肯定表述。知识库内置“切割泵壳与配件识别”正式规则，区分 800平刀切割泵壳、SPA 清水泵壳、外六角切边长螺丝和不配刀泵壳；回归检查覆盖这些结论，防止普通螺丝或 SPA 被误称为切割专用，也禁止在来源未写明时声称“全套含刀”。
 
@@ -771,7 +773,7 @@ AI 工具：
 - `get_factory_knowledge_health`：只读诊断自动同步状态、失败原因和人工恢复建议。
 - `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
 - `adjust_part_stock`：按零件精确型号批量增减零件库库存；属于 critical 写工具。服务端统一识别文字和符号库存增量，在确认前通过正式零件 Query 唯一解析目标并调用正式库存 Preview；零匹配返回相似候选，多匹配返回真实候选，预览不完整时停止，均不签发确认。确认卡仅由结构化 executor 回执生成并展示标准型号和正式 API 的当前/预计库存，模型文字无确认效力。预览凭证作为不下发客户端的服务端上下文绑定 AI confirmation token，确认后只调用一次正式 Command 并整批事务执行；随后核对 operation/audit、逐项变更数量和值并通过正式零件 Query 回读最终库存，任一不一致不得输出成功。
-- `adjust_coil_stock`：按“规格俗称-片数”批量调整独立线圈成品库存，例如 `12-120` 表示规格 12、片数 120；属于写工具，确认后由 `aiCoilStockExecution` 唯一匹配正式材质/槽眼方案，再依次调用原子批量 Preview/Command。服务端确认凭证绑定当前库存与资源版本，建议幂等键和 AI `operationId` 随正式 API 调用传递；网络重试不会重复调整。不得改写零件库存，匹配多个方案时停止并要求明确。
+- `adjust_coil_stock`：按“规格俗称-片数”批量调整独立线圈成品库存，例如 `12-120` 表示规格 12、片数 120；属于写工具。确认卡生成前由 `aiCoilStockExecution` 唯一匹配正式材质/槽眼方案并调用正式 Preview，卡片展示数据库标准方案和变更前后库存；正式 Preview 凭证只绑定在服务端 AI confirmation token 中，确认后直接调用原子 Command，不再次信任模型参数。不得改写零件库存，匹配多个方案时停止并要求明确。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。
 - `save_order_requirement_draft`：经用户确认后保存订单客户要求草稿；草稿不属于正式知识，确认进入知识库和撤销确认只能在订单页面完成。
 - `save_order_execution_draft`：经用户确认后新建订单执行事实草稿；AI 无权确认、撤销或删除正式事实，知识确认只能在订单页面完成。

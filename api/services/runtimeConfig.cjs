@@ -38,7 +38,14 @@ const DEFINITIONS = Object.freeze({
     kimiModel: {
         env: 'KIMI_MODEL',
         type: 'model',
-        defaultValue: 'kimi-k2.7-code',
+        defaultValue: 'kimi-k3',
+        hot: true,
+    },
+    kimiReasoningEffort: {
+        env: 'KIMI_REASONING_EFFORT',
+        type: 'enum',
+        values: ['low', 'high', 'max'],
+        defaultValue: 'low',
         hot: true,
     },
     kimiBaseUrl: {
@@ -456,6 +463,7 @@ function buildCandidateAiEnvironment(input = {}, options = {}) {
         'deepseekBaseUrl',
         'kimiApiKey',
         'kimiModel',
+        'kimiReasoningEffort',
         'kimiBaseUrl',
         'aiVisionEnabled',
     ]) {

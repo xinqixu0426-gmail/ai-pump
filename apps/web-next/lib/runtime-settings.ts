@@ -9,6 +9,7 @@ export type RuntimeSettingsValues = {
   deepseekModel: string;
   deepseekBaseUrl: string;
   kimiModel: string;
+  kimiReasoningEffort: 'low' | 'high' | 'max';
   kimiBaseUrl: string;
   aiVisionEnabled: boolean;
   knowledgeAutoSyncEnabled: boolean;

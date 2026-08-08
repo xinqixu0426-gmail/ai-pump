@@ -32,6 +32,9 @@ function consumeProviderEvent(line, state, onContent) {
             state.content += delta.content;
             onContent(delta.content);
         }
+        if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+            state.reasoningContent += delta.reasoning_content;
+        }
         if (Array.isArray(delta.tool_calls)) {
             for (const toolCall of delta.tool_calls) {
                 appendToolCallDelta(state.toolCallsByIndex, toolCall);
@@ -40,6 +43,18 @@ function consumeProviderEvent(line, state, onContent) {
     } catch {
         // 第三方 OpenAI 兼容服务偶尔会混入非 JSON 状态行；忽略单行，不中断整轮对话。
     }
+}
+
+function providerStreamNetworkError(error) {
+    const causeCode = String(error?.cause?.code || error?.code || '').trim();
+    const detail = causeCode ? `（${causeCode}）` : '';
+    const wrapped = new Error(`AI 提供商响应流中断${detail}，请重试`);
+    wrapped.name = 'AiProviderNetworkError';
+    wrapped.code = 'AI_PROVIDER_NETWORK_ERROR';
+    wrapped.retryable = true;
+    wrapped.details = { provider: null, action: '响应流', causeCode: causeCode || null };
+    wrapped.cause = error;
+    return wrapped;
 }
 
 async function readAiProviderStream(response, options = {}) {
@@ -52,12 +67,20 @@ async function readAiProviderStream(response, options = {}) {
     const reader = response.body.getReader();
     const state = {
         content: '',
+        reasoningContent: '',
         toolCallsByIndex: new Map(),
     };
     let buffer = '';
 
     while (true) {
-        const { done, value } = await reader.read();
+        let chunk;
+        try {
+            chunk = await reader.read();
+        } catch (error) {
+            if (error?.name === 'AbortError') throw error;
+            throw providerStreamNetworkError(error);
+        }
+        const { done, value } = chunk;
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -75,6 +98,7 @@ async function readAiProviderStream(response, options = {}) {
 
     return {
         content: state.content,
+        reasoningContent: state.reasoningContent,
         toolCalls: [...state.toolCallsByIndex.entries()]
             .sort(([left], [right]) => left - right)
             .map(([, toolCall]) => toolCall),
@@ -82,5 +106,6 @@ async function readAiProviderStream(response, options = {}) {
 }
 
 module.exports = {
+    providerStreamNetworkError,
     readAiProviderStream,
 };

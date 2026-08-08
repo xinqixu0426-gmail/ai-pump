@@ -390,6 +390,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             return executePartBatchCreate(args, {
                 internalFetch,
                 postJson,
+                confirmationContext: options.confirmationContext,
             });
         }
 
@@ -416,6 +417,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 internalFetch,
                 getJson,
                 postJson,
+                confirmationContext: options.confirmationContext,
             });
         }
 
@@ -503,6 +505,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 getJson,
                 postJson,
                 patchJson,
+                confirmationContext: options.confirmationContext,
             });
         }
 

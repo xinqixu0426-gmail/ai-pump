@@ -1787,7 +1787,7 @@ test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () =
     assert.match(customerQueries, /delete quotation\.Id/);
 });
 
-test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', () => {
+test('API 静态契约：AI 智能路由默认 DeepSeek 且图片和文件自动 Kimi', () => {
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
     const rotorNaturalLanguage = readUtf8(
         path.join(repoRoot, 'api/services/rotorNaturalLanguage.cjs')
@@ -1799,10 +1799,11 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片自动 Kimi', (
     assert.match(provider, /text\(env\.DEEPSEEK_MODEL\) \|\| 'deepseek-v4-flash'/);
     assert.match(provider, /provider: 'deepseek'/);
     assert.match(provider, /resolveAiProviderRoute/);
-    assert.match(provider, /routeReason: 'image'/);
+    assert.match(provider, /routeReason: requiresVisionProvider\(messages, options\) \? 'image' : 'file'/);
+    assert.match(provider, /fileProvider: visionAvailable \? 'kimi' : null/);
     assert.match(provider, /routeReason: 'vision_fallback'/);
     assert.match(runtimeConfig, /values: \['auto', 'deepseek', 'kimi'\]/);
-    assert.match(setupView, /普通对话、PDF 文字层和 Excel 默认使用 DeepSeek/);
+    assert.match(setupView, /图片原图、PDF、Excel\/CSV 和文本附件自动使用 Kimi K3/);
     assert.match(aiMessageList, /item\.provider\.displayName/);
     assert.match(rotorNaturalLanguage, /DEFAULT_MODEL = 'deepseek-v4-flash'/);
     assert.match(rotorNaturalLanguage, /process\.env\.DEEPSEEK_MODEL \|\| DEFAULT_MODEL/);

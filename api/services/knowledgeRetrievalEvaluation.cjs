@@ -119,6 +119,20 @@ function topTitles(items) {
     return items.slice(0, 3).map(item => String(item?.title || ''));
 }
 
+function checkEvaluationPrerequisite(evaluationCase, options = {}) {
+    const database = options.db || require('../db.cjs').db;
+    const rows = database.prepare(`
+        SELECT title
+        FROM knowledge_entries
+        WHERE entry_type = ?
+    `).all(evaluationCase.entryType);
+    const available = rows.some(item => matchesExpected(item, evaluationCase));
+    return {
+        available,
+        reason: available ? '' : '当前数据库缺少该固定评测用例的预期业务资料',
+    };
+}
+
 function summarizeMode(caseResults, mode) {
     const ranks = caseResults.map(result => result.ranks[mode]);
     const top1Count = ranks.filter(rank => rank === 1).length;
@@ -134,25 +148,31 @@ function summarizeMode(caseResults, mode) {
 }
 
 function buildEvaluationReport(cases, caseResults, model = {}) {
+    const evaluatedResults = caseResults.filter(result => result.status !== 'missing_prerequisite');
+    const skippedResults = caseResults.filter(result => result.status === 'missing_prerequisite');
     const metrics = {
-        keyword: summarizeMode(caseResults, 'keyword'),
-        vector: summarizeMode(caseResults, 'vector'),
-        hybrid: summarizeMode(caseResults, 'hybrid'),
+        keyword: summarizeMode(evaluatedResults, 'keyword'),
+        vector: summarizeMode(evaluatedResults, 'vector'),
+        hybrid: summarizeMode(evaluatedResults, 'hybrid'),
     };
-    const exactCases = caseResults.filter(result => result.category === 'exact');
+    const exactCases = evaluatedResults.filter(result => result.category === 'exact');
     const exactTop1Passed = exactCases.every(result => result.ranks.hybrid === 1);
-    const noErrors = caseResults.every(result => !result.error);
+    const noErrors = evaluatedResults.every(result => !result.error);
     const hybridDoesNotRegress = (
         metrics.hybrid.top1Count >= metrics.keyword.top1Count
         && metrics.hybrid.top3Count >= metrics.keyword.top3Count
     );
     const semanticImproved = metrics.hybrid.top3Count > metrics.keyword.top3Count;
-    const passed = noErrors && exactTop1Passed && hybridDoesNotRegress && semanticImproved;
+    const coverageSufficient = evaluatedResults.length >= 2;
+    const passed = noErrors && exactTop1Passed && hybridDoesNotRegress
+        && semanticImproved && coverageSufficient;
     return {
         generatedAt: new Date().toISOString(),
         model: model.model || '',
         dimensions: Number(model.dimensions || 0),
         caseCount: cases.length,
+        evaluatedCount: evaluatedResults.length,
+        skippedCount: skippedResults.length,
         metrics,
         acceptance: {
             passed,
@@ -160,6 +180,7 @@ function buildEvaluationReport(cases, caseResults, model = {}) {
             exactTop1Passed,
             hybridDoesNotRegress,
             semanticImproved,
+            coverageSufficient,
         },
         regressions: caseResults
             .filter(result => (
@@ -217,8 +238,29 @@ async function executeRetrievalCase(evaluationCase, options = {}) {
 async function runKnowledgeRetrievalEvaluation(options = {}) {
     const cases = options.cases || FIXED_RETRIEVAL_CASES;
     const executor = options.executeCase || executeRetrievalCase;
+    const prerequisiteCheck = options.checkPrerequisite
+        || (options.executeCase ? null : checkEvaluationPrerequisite);
     const caseResults = [];
     for (const evaluationCase of cases) {
+        if (prerequisiteCheck) {
+            const prerequisite = await prerequisiteCheck(evaluationCase, options);
+            if (!prerequisite?.available) {
+                caseResults.push({
+                    id: evaluationCase.id,
+                    title: evaluationCase.title,
+                    category: evaluationCase.category,
+                    query: evaluationCase.query,
+                    entryType: evaluationCase.entryType,
+                    expectedTitleIncludes: evaluationCase.expectedTitleIncludes,
+                    status: 'missing_prerequisite',
+                    ranks: { keyword: null, vector: null, hybrid: null },
+                    top: { keyword: [], vector: [], hybrid: [] },
+                    error: '',
+                    prerequisite: prerequisite?.reason || '缺少固定评测资料',
+                });
+                continue;
+            }
+        }
         try {
             const results = await executor(evaluationCase, options);
             caseResults.push({
@@ -228,6 +270,7 @@ async function runKnowledgeRetrievalEvaluation(options = {}) {
                 query: evaluationCase.query,
                 entryType: evaluationCase.entryType,
                 expectedTitleIncludes: evaluationCase.expectedTitleIncludes,
+                status: 'evaluated',
                 ranks: {
                     keyword: expectedRank(results.keyword, evaluationCase),
                     vector: expectedRank(results.vector, evaluationCase),
@@ -248,6 +291,7 @@ async function runKnowledgeRetrievalEvaluation(options = {}) {
                 query: evaluationCase.query,
                 entryType: evaluationCase.entryType,
                 expectedTitleIncludes: evaluationCase.expectedTitleIncludes,
+                status: 'error',
                 ranks: { keyword: null, vector: null, hybrid: null },
                 top: { keyword: [], vector: [], hybrid: [] },
                 error: String(error?.message || error),
@@ -261,6 +305,7 @@ async function runKnowledgeRetrievalEvaluation(options = {}) {
 module.exports = {
     FIXED_RETRIEVAL_CASES,
     buildEvaluationReport,
+    checkEvaluationPrerequisite,
     executeRetrievalCase,
     expectedRank,
     matchesExpected,

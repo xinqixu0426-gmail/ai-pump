@@ -104,11 +104,20 @@ const AI_TOOLS = [
                     items: {
                         type: 'array',
                         description: '要调整的线圈成品库存',
+                        minItems: 1,
+                        maxItems: 50,
                         items: {
                             type: 'object',
                             properties: {
-                                model: { type: 'string', description: '规格俗称-片数，如“12-120”' },
-                                changeQty: { type: 'integer', description: '库存变动套数；入库为正数，出库为负数，不能为0' },
+                                model: { type: 'string', minLength: 1, description: '规格俗称-片数，如“12-120”' },
+                                changeQty: {
+                                    type: 'integer',
+                                    anyOf: [
+                                        { type: 'integer', maximum: -1 },
+                                        { type: 'integer', minimum: 1 },
+                                    ],
+                                    description: '库存变动套数；入库为正数，出库为负数，不能为0',
+                                },
                                 material: { type: 'string', enum: ['钢带', '冷轧'], description: '材质（可选；存在多个方案时必填）' },
                                 slotType: { type: 'string', enum: ['小眼', '国标眼'], description: '槽眼（可选；存在多个方案时必填）' }
                             },
@@ -132,11 +141,20 @@ const AI_TOOLS = [
                     items: {
                         type: 'array',
                         description: '要调整的零件库存，最多100项',
+                        minItems: 1,
+                        maxItems: 100,
                         items: {
                             type: 'object',
                             properties: {
-                                model: { type: 'string', description: '零件库中的精确型号' },
-                                changeQty: { type: 'integer', description: '库存变动件数；入库为正数，出库为负数，不能为0' }
+                                model: { type: 'string', minLength: 1, description: '零件库中的精确型号' },
+                                changeQty: {
+                                    type: 'integer',
+                                    anyOf: [
+                                        { type: 'integer', maximum: -1 },
+                                        { type: 'integer', minimum: 1 },
+                                    ],
+                                    description: '库存变动件数；入库为正数，出库为负数，不能为0',
+                                }
                             },
                             required: ['model', 'changeQty']
                         }
@@ -1294,12 +1312,15 @@ const AI_TOOLS = [
             description: '按类别批量调整零件价格。当用户说"把所有轴承涨价10%""密封件统一降2元"时使用',
             parameters: {
                 type: 'object',
+                oneOf: [
+                    { required: ['category', 'percentChange'] },
+                    { required: ['category', 'absoluteChange'] },
+                ],
                 properties: {
-                    category: { type: 'string', description: '零件类别' },
+                    category: { type: 'string', minLength: 1, description: '零件类别' },
                     percentChange: { type: 'number', description: '百分比变化（如10表示涨10%，-5表示降5%）' },
                     absoluteChange: { type: 'number', description: '绝对值变化（如2表示涨2元，-1表示降1元），与percentChange二选一' }
-                },
-                required: ['category']
+                }
             }
         }
     },

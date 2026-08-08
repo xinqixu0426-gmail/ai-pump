@@ -1,7 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const Database = require('better-sqlite3');
 const {
     buildEvaluationReport,
+    checkEvaluationPrerequisite,
     expectedRank,
     matchesExpected,
     runKnowledgeRetrievalEvaluation,
@@ -103,4 +105,53 @@ test('检索评测：精确查询退步或执行异常都会阻止验收', () =>
     assert.equal(report.acceptance.noErrors, false);
     assert.equal(report.acceptance.exactTop1Passed, false);
     assert.deepEqual(report.regressions, ['exact']);
+});
+
+test('检索评测：缺少固定业务资料时明确跳过，不再误判为检索失败', async () => {
+    const exact = item(1, '线圈：12-220 冷轧 国标眼');
+    const provider = { getStatus: () => ({ model: 'test/e5', dimensions: 3 }) };
+    const report = await runKnowledgeRetrievalEvaluation({
+        cases,
+        provider,
+        checkPrerequisite: evaluationCase => ({
+            available: evaluationCase.id === 'exact',
+            reason: '测试库缺少该资料',
+        }),
+        async executeCase() {
+            return { keyword: [], vector: [exact], hybrid: [exact] };
+        },
+    });
+    assert.equal(report.caseCount, 2);
+    assert.equal(report.evaluatedCount, 1);
+    assert.equal(report.skippedCount, 1);
+    assert.equal(report.metrics.hybrid.total, 1);
+    assert.equal(report.cases[1].status, 'missing_prerequisite');
+    assert.equal(report.acceptance.coverageSufficient, false);
+    assert.equal(report.acceptance.passed, false);
+});
+
+test('检索评测：前置资料检查兼容正式 knowledge_entries 表结构', () => {
+    const db = new Database(':memory:');
+    try {
+        db.exec(`
+            CREATE TABLE knowledge_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entry_type TEXT NOT NULL,
+                source_table TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                title TEXT NOT NULL
+            )
+        `);
+        db.prepare(`
+            INSERT INTO knowledge_entries(entry_type, source_table, source_id, title)
+            VALUES (?, ?, ?, ?)
+        `).run('coil', 'coils', '1', '线圈：12-220 冷轧 国标眼');
+        assert.deepEqual(checkEvaluationPrerequisite(cases[0], { db }), {
+            available: true,
+            reason: '',
+        });
+        assert.equal(checkEvaluationPrerequisite(cases[1], { db }).available, false);
+    } finally {
+        db.close();
+    }
 });

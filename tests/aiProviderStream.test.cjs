@@ -82,3 +82,31 @@ test('AI provider stream：缺少可读 body 时返回明确协议错误', async
         /AI 提供商未返回可读取的数据流/
     );
 });
+
+test('AI provider stream：保留 K3 reasoning_content 供后续工具轮原样回传', async () => {
+    const body = [
+        'data: {"choices":[{"delta":{"reasoning_content":"先核对附件"}}]}\n',
+        'data: {"choices":[{"delta":{"content":"完成"}}]}\n',
+        'data: [DONE]\n',
+    ].join('');
+    const result = await readAiProviderStream(streamResponse(body));
+    assert.equal(result.reasoningContent, '先核对附件');
+    assert.equal(result.content, '完成');
+});
+
+test('AI provider stream：响应体中断映射为前端可重试网络错误', async () => {
+    const socketError = Object.assign(new Error('socket ended'), { code: 'UND_ERR_SOCKET' });
+    const terminated = new TypeError('terminated', { cause: socketError });
+    const response = new Response(new ReadableStream({
+        start(controller) {
+            controller.error(terminated);
+        },
+    }));
+
+    await assert.rejects(
+        () => readAiProviderStream(response),
+        error => error.code === 'AI_PROVIDER_NETWORK_ERROR'
+            && error.retryable === true
+            && /UND_ERR_SOCKET/.test(error.message)
+    );
+});

@@ -43,6 +43,24 @@ test('V2 意图计划：查询轮不能夹带写能力，页面引用必须有�
     );
 });
 
+test('V2 意图计划：需要澄清时必须说明歧义且不能夹带执行步骤', () => {
+    assert.throws(() => normalizeIntentPlan(plan({
+        requiresClarification: true,
+        ambiguities: [],
+        steps: [],
+    })), /至少一项具体歧义/);
+    assert.throws(() => normalizeIntentPlan(plan({
+        requiresClarification: true,
+        ambiguities: ['请明确订单'],
+    })), /不得规划业务能力步骤/);
+    const normalized = normalizeIntentPlan(plan({
+        requiresClarification: true,
+        ambiguities: ['请明确订单ID'],
+        steps: [],
+    }));
+    assert.equal(normalized.requiresClarification, true);
+});
+
 test('V2 意图计划：模型必须通过强制结构化协议提交计划', async () => {
     let requestOptions;
     let requestMessages;
@@ -66,6 +84,7 @@ test('V2 意图计划：模型必须通过强制结构化协议提交计划', as
     });
     assert.equal(requestOptions.tools.length, 1);
     assert.equal(requestOptions.toolChoice.function.name, 'submit_ai_intent_plan');
+    assert.equal(requestOptions.attachmentMode, 'metadata');
     assert.match(requestMessages[0].content, /不得用 Preview 代替 List/);
     assert.match(requestMessages[0].content, /不得用知识快照代替现有正式记录/);
     assert.equal(result.steps[0].capabilityName, 'get_recent_orders');

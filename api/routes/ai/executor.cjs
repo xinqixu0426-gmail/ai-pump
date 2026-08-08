@@ -11,8 +11,13 @@ const { executeOrderTool } = require('./executors/orderExecutors.cjs');
 const { executeRecipeTool } = require('./executors/recipeExecutors.cjs');
 const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
 const {
+    preparePartBatchCreate,
+    preparePartPriceBatch,
     preparePartStockAdjustment,
 } = require('../../services/aiPartExecution.cjs');
+const {
+    prepareCoilStockAdjustment,
+} = require('../../services/aiCoilStockExecution.cjs');
 const {
     attachVerifiedFailureEvidence,
     attachVerifiedExecutionEvidence,
@@ -27,6 +32,13 @@ const TOOL_EXECUTORS = Object.freeze({
     order: executeOrderTool,
     recipe: executeRecipeTool,
     business: executeBusinessTool,
+});
+
+const WRITE_PREFLIGHTS = Object.freeze({
+    adjust_coil_stock: prepareCoilStockAdjustment,
+    adjust_part_stock: preparePartStockAdjustment,
+    batch_create_parts: preparePartBatchCreate,
+    batch_update_prices: preparePartPriceBatch,
 });
 
 function attachReadProvenance(capability, result) {
@@ -274,13 +286,14 @@ async function executeToolCall(toolName, args, options = {}) {
     let internalFetch = null;
     // 权限拦截：写操作需要 allowWrite=true
     if (capability.access === 'write' && !allowWrite) {
-        if (toolName === 'adjust_part_stock') {
+        const prepareWrite = WRITE_PREFLIGHTS[toolName];
+        if (prepareWrite) {
             internalFetch = createInternalFetch({
                 operationId: options.operationId,
                 capabilityId: capability.capabilityId,
             });
             try {
-                const prepared = await preparePartStockAdjustment(args, {
+                const prepared = await prepareWrite(args, {
                     internalFetch,
                     getJson,
                     postJson,
@@ -294,7 +307,7 @@ async function executeToolCall(toolName, args, options = {}) {
             } catch (error) {
                 return {
                     success: false,
-                    code: error.code || 'part_stock_preflight_failed',
+                    code: error.code || 'ai_write_preflight_failed',
                     error: error.message,
                     ...(error.details || {}),
                 };

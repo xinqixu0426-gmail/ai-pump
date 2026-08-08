@@ -248,10 +248,18 @@ test('AI executor 行为：批量新增零件只生成一次确认并调用正�
             { model: '10*22*5', category: '油封', price: 0.18, supplier: '鹏杰', stock: 0 },
         ],
     };
-    const beforeCalls = installFetchStub(() => jsonResponse({
-        success: false,
-        error: '确认前不应调用 API',
-    }, 500));
+    const beforeCalls = installFetchStub((call) => {
+        assert.equal(call.url.endsWith('/api/parts/batch-create-preview'), true);
+        return jsonResponse({
+            success: true,
+            data: {
+                confirmationToken: 'pre-confirm-batch-token',
+                suggestedIdempotencyKey: 'pre-confirm-batch-key',
+                createdCount: 2,
+                skippedCount: 0,
+            },
+        });
+    });
     const pending = await executeToolCall(
         'batch_create_parts',
         args,
@@ -259,7 +267,8 @@ test('AI executor 行为：批量新增零件只生成一次确认并调用正�
     );
     assert.equal(pending.requiresConfirmation, true);
     assert.equal(pending.confirmation.toolName, 'batch_create_parts');
-    assert.equal(beforeCalls.length, 0);
+    assert.equal(beforeCalls.length, 1);
+    assert.equal(beforeCalls[0].method, 'POST');
 
     const calls = installFetchStub((call) => {
         assert.equal(call.headers['x-internal-secret'], 'test-secret');
@@ -847,8 +856,22 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
     ]);
 });
 
-test('AI executor 行为：线圈库存未确认时显示按套调整且不调用 API', async () => {
-    const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
+test('AI executor 行为：线圈库存未确认时先正式预览再显示标准方案', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 21, commonName: '12', spec: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 3 },
+                { id: 22, commonName: '12', spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 7 },
+            ] });
+        }
+        if (call.url.endsWith('/api/coils/stock-adjustments-preview')) {
+            return jsonResponse({ success: true, data: {
+                confirmationToken: 'coil-pre-confirm-token',
+                suggestedIdempotencyKey: 'coil-pre-confirm-key',
+            } });
+        }
+        return jsonResponse({ success: false, error: 'unexpected call' }, 500);
+    });
 
     const result = await executeToolCall('adjust_coil_stock', {
         items: [
@@ -861,13 +884,28 @@ test('AI executor 行为：线圈库存未确认时显示按套调整且不调�
     assert.equal(result.requiresConfirmation, true);
     assert.equal(result.confirmation.toolName, 'adjust_coil_stock');
     assert.equal(result.confirmation.title, '调整线圈库存');
-    assert.match(result.confirmation.rows[0].value, /12-120 \+50 套/);
-    assert.match(result.confirmation.rows[0].value, /12-140 \+50 套/);
-    assert.equal(calls.length, 0);
+    assert.match(result.confirmation.rows[0].label, /12-120/);
+    assert.match(result.confirmation.rows[0].value, /当前 3 → 预计 53/);
+    assert.match(result.confirmation.rows[1].label, /12-140/);
+    assert.equal(calls.length, 2);
 });
 
-test('AI 对话行为：俗称批量入库直接停在确认步骤且不再调用模型', async () => {
-    const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
+test('AI 对话行为：俗称批量入库正式预览后停在确认步骤且不再调用模型', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 21, commonName: '12', spec: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 3 },
+                { id: 22, commonName: '12', spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 7 },
+            ] });
+        }
+        if (call.url.endsWith('/api/coils/stock-adjustments-preview')) {
+            return jsonResponse({ success: true, data: {
+                confirmationToken: 'coil-chat-pre-confirm-token',
+                suggestedIdempotencyKey: 'coil-chat-pre-confirm-key',
+            } });
+        }
+        return jsonResponse({ success: false, error: 'unexpected call' }, 500);
+    });
 
     const result = await processAiChat('12-120,12-140各入库50套', {
         fetchAiProvider: scriptedAiProvider([
@@ -892,10 +930,10 @@ test('AI 对话行为：俗称批量入库直接停在确认步骤且不再调�
     assert.equal(result.toolResults[0].name, 'adjust_coil_stock');
     assert.equal(result.toolResults[0].result.requiresConfirmation, true);
     assert.deepEqual(result.toolResults[0].result.confirmation.args.items, [
-        { model: '12-120', changeQty: 50 },
-        { model: '12-140', changeQty: 50 },
+        { model: '12-120', changeQty: 50, material: '钢带', slotType: '小眼' },
+        { model: '12-140', changeQty: 50, material: '钢带', slotType: '小眼' },
     ]);
-    assert.equal(calls.length, 0);
+    assert.equal(calls.length, 2);
 });
 
 test('AI executor 行为：确认后按俗称片数匹配正式方案并原子批量调整', async () => {

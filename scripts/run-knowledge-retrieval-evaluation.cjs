@@ -49,11 +49,18 @@ async function main() {
         signal: AbortSignal.timeout(180000),
     });
     const report = await responseJson(response, '知识检索评测');
-    console.log(`知识检索评测：${report.caseCount} 项，模型 ${report.model}`);
+    console.log(
+        `知识检索评测：固定用例 ${report.caseCount} 项，实际评测 ${report.evaluatedCount}`
+        + ` 项，缺少前置资料跳过 ${report.skippedCount} 项，模型 ${report.model}`
+    );
     console.log(metric('FTS', report.metrics.keyword));
     console.log(metric('向量', report.metrics.vector));
     console.log(metric('混合', report.metrics.hybrid));
     for (const item of report.cases) {
+        if (item.status === 'missing_prerequisite') {
+            console.log(`SKIP ${item.title}：${item.prerequisite}`);
+            continue;
+        }
         const marker = item.ranks.hybrid != null && item.ranks.hybrid <= 3 ? 'PASS' : 'FAIL';
         console.log(
             `${marker} ${item.title}：FTS ${item.ranks.keyword ?? '-'}`

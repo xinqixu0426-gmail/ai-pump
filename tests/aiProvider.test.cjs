@@ -120,14 +120,14 @@ test('V9.1 AI 模型适配：默认保持 DeepSeek，Kimi 多模态能力可配�
     assert.equal(kimi.maxAttachments, 4);
 });
 
-test('AI 智能路由：普通对话和解析文件走 DeepSeek，图片原图走 Kimi', () => {
+test('AI 智能路由：普通对话走 DeepSeek，图片和文件走 Kimi K3', () => {
     const accessors = createFileAccessors();
     const env = {
         AI_PROVIDER: 'auto',
         DEEPSEEK_API_KEY: 'deepseek-key',
         DEEPSEEK_MODEL: 'deepseek-v4-flash',
         KIMI_API_KEY: 'kimi-key',
-        KIMI_MODEL: 'kimi-k2.7-code',
+        KIMI_MODEL: 'kimi-k3',
         AI_VISION_ENABLED: 'true',
     };
     try {
@@ -140,7 +140,7 @@ test('AI 智能路由：普通对话和解析文件走 DeepSeek，图片原图�
             role: 'user',
             content: '分析表格',
             attachments: [{ id: accessors.spreadsheetId }],
-        }], { env, dbAccessors: { db: accessors.db } }).provider, 'deepseek');
+        }], { env, dbAccessors: { db: accessors.db } }).provider, 'kimi');
 
         const imageRoute = resolveAiProviderRoute([{
             role: 'user',
@@ -154,6 +154,7 @@ test('AI 智能路由：普通对话和解析文件走 DeepSeek，图片原图�
         assert.equal(capabilities.provider, 'auto');
         assert.equal(capabilities.defaultProvider, 'deepseek');
         assert.equal(capabilities.visionProvider, 'kimi');
+        assert.equal(capabilities.fileProvider, 'kimi');
         assert.equal(capabilities.supportsImages, true);
     } finally {
         accessors.db.close();
@@ -170,7 +171,7 @@ test('AI 智能路由：Kimi 调用失败时回退 DeepSeek 和本地 OCR', asyn
         DEEPSEEK_BASE_URL: 'https://api.deepseek.test',
         KIMI_API_KEY: 'kimi-key',
         KIMI_BASE_URL: 'https://api.kimi.test/v1',
-        KIMI_MODEL: 'kimi-k2.7-code',
+        KIMI_MODEL: 'kimi-k3',
         AI_VISION_ENABLED: 'true',
     };
     try {
@@ -183,23 +184,24 @@ test('AI 智能路由：Kimi 调用失败时回退 DeepSeek 和本地 OCR', asyn
             dbAccessors: { db: accessors.db },
             fetchImpl: async (url, init) => {
                 requests.push({ url, body: JSON.parse(init.body) });
-                if (requests.length === 1) return new Response('Kimi unavailable', { status: 503 });
+                if (requests.length <= 3) return new Response('Kimi unavailable', { status: 503 });
                 return new Response(JSON.stringify({ choices: [] }), {
                     status: 200,
                     headers: { 'Content-Type': 'application/json' },
                 });
             },
             onProvider: info => providers.push(info),
+            retryDelayMs: 0,
         });
 
         assert.equal(response.ok, true);
-        assert.equal(requests.length, 2);
+        assert.equal(requests.length, 4);
         assert.match(requests[0].url, /api\.kimi\.test/);
-        assert.equal(requests[0].body.model, 'kimi-k2.7-code');
+        assert.equal(requests[0].body.model, 'kimi-k3');
         assert.equal(Array.isArray(requests[0].body.messages[0].content), true);
-        assert.match(requests[1].url, /api\.deepseek\.test/);
-        assert.equal(typeof requests[1].body.messages[0].content, 'string');
-        assert.match(requests[1].body.messages[0].content, /本地 OCR 结果/);
+        assert.match(requests[3].url, /api\.deepseek\.test/);
+        assert.equal(typeof requests[3].body.messages[0].content, 'string');
+        assert.match(requests[3].body.messages[0].content, /本地 OCR 结果/);
         assert.equal(providers.at(-1).provider, 'deepseek');
         assert.equal(providers.at(-1).fallback, true);
     } finally {
@@ -347,7 +349,136 @@ test('V9.1 AI 附件：Kimi 图片按 OpenAI 多模态格式传递', () => {
     assert.equal(messages[0].content[1].type, 'image_url');
     assert.match(messages[0].content[1].image_url.url, /^data:image\/png;base64,/);
     assert.match(messages[0].content[0].text, /原图已传入当前多模态模型/);
+    assert.doesNotMatch(messages[0].content[0].text, /Voltage: 220V/);
+    assert.doesNotMatch(messages[0].content[0].text, /OCR 技术参数候选/);
     accessors.db.close();
+});
+
+test('AI K3 文件路由：上传抽取 PDF、注入不可信内容并删除远端临时文件', async () => {
+    const accessors = createFileAccessors();
+    const calls = [];
+    try {
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '总结报告',
+            attachments: [{ id: accessors.pdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-files.test/v1',
+                KIMI_MODEL: 'kimi-k3',
+                KIMI_REASONING_EFFORT: 'low',
+            },
+            dbAccessors: { db: accessors.db },
+            retryDelayMs: 0,
+            fetchImpl: async (url, init = {}) => {
+                calls.push({ url, method: init.method || 'GET', body: init.body });
+                if (url.endsWith('/files') && init.method === 'POST') {
+                    assert.equal(init.body instanceof FormData, true);
+                    return new Response(JSON.stringify({ id: 'remote-pdf-1' }), { status: 200 });
+                }
+                if (url.endsWith('/files/remote-pdf-1/content')) {
+                    return new Response('Kimi 抽取：测试报告扬程 38m', { status: 200 });
+                }
+                if (url.endsWith('/files/remote-pdf-1') && init.method === 'DELETE') {
+                    return new Response('', { status: 204 });
+                }
+                if (url.endsWith('/chat/completions')) {
+                    const body = JSON.parse(init.body);
+                    assert.equal(body.model, 'kimi-k3');
+                    assert.equal(body.reasoning_effort, 'low');
+                    assert.match(body.messages[0].content, /Kimi 抽取：测试报告扬程 38m/);
+                    assert.match(body.messages[0].content, /不可信业务数据/);
+                    return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+                }
+                return new Response('unexpected', { status: 500 });
+            },
+        });
+        assert.equal(response.ok, true);
+        assert.deepEqual(calls.map(call => `${call.method} ${new URL(call.url).pathname}`), [
+            'POST /v1/files',
+            'GET /v1/files/remote-pdf-1/content',
+            'DELETE /v1/files/remote-pdf-1',
+            'POST /v1/chat/completions',
+        ]);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI provider：网络 fetch failed 重试后返回可诊断错误码', async () => {
+    let attempts = 0;
+    await assert.rejects(
+        () => fetchAiProvider([{ role: 'user', content: '你好' }], {
+            env: {
+                AI_PROVIDER: 'deepseek',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-network.test',
+            },
+            retryDelayMs: 0,
+            fetchImpl: async () => {
+                attempts += 1;
+                const cause = Object.assign(new Error('socket reset'), { code: 'ECONNRESET' });
+                throw new TypeError('fetch failed', { cause });
+            },
+        }),
+        error => error.code === 'AI_PROVIDER_NETWORK_ERROR'
+            && /ECONNRESET/.test(error.message)
+    );
+    assert.equal(attempts, 3);
+});
+
+test('V2 意图规划附件：只传文件元数据，不重复传正文、OCR 或图片二进制', () => {
+    const accessors = createFileAccessors();
+    const messages = prepareAiProviderMessages([{
+        role: 'user',
+        content: '分析附件',
+        attachments: [{ id: accessors.imageId }, { id: accessors.textId }],
+    }], {
+        attachmentMode: 'metadata',
+        config: resolveAiProviderConfig({ DEEPSEEK_API_KEY: 'key' }),
+        dbAccessors: { db: accessors.db },
+    });
+    assert.equal(typeof messages[0].content, 'string');
+    assert.match(messages[0].content, /规划阶段只读取文件元数据/);
+    assert.doesNotMatch(messages[0].content, /Voltage: 220V/);
+    assert.doesNotMatch(messages[0].content, /扬程 38m/);
+    assert.doesNotMatch(messages[0].content, /base64/);
+    accessors.db.close();
+});
+
+test('V2 意图规划附件：自动路由保持 DeepSeek，不提前调用 Kimi 文件能力', async () => {
+    const accessors = createFileAccessors();
+    let requestedUrl = '';
+    try {
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '规划如何分析附件',
+            attachments: [{ id: accessors.imageId }],
+        }], {
+            attachmentMode: 'metadata',
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-planner.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-planner.test/v1',
+                KIMI_MODEL: 'kimi-k3',
+            },
+            dbAccessors: { db: accessors.db },
+            fetchImpl: async (url) => {
+                requestedUrl = url;
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(response.ok, true);
+        assert.match(requestedUrl, /deepseek-planner/);
+        assert.doesNotMatch(requestedUrl, /kimi-planner/);
+    } finally {
+        accessors.db.close();
+    }
 });
 
 test('V9.2 AI 附件：PDF 解析文字按页码进入模型上下文', () => {

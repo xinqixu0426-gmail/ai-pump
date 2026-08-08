@@ -288,7 +288,7 @@ export type AiStreamEvent =
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }
   | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; code?: string };
 
 export const AI_CONTEXT_MESSAGE_LIMIT = 10;
 export const AI_STREAM_INTERRUPTED_CODE = 'AI_STREAM_INTERRUPTED';
@@ -304,9 +304,14 @@ export class AiStreamTransportError extends Error {
 }
 
 class AiStreamServerError extends Error {
-  constructor(message: string) {
+  readonly code: string;
+  readonly retryable: boolean;
+
+  constructor(message: string, code = '') {
     super(message);
     this.name = 'AiStreamServerError';
+    this.code = code;
+    this.retryable = code === 'AI_PROVIDER_NETWORK_ERROR';
   }
 }
 
@@ -319,7 +324,7 @@ function isAbortError(error: unknown): boolean {
 function isFetchTransportError(error: unknown): boolean {
   if (error instanceof TypeError) return true;
   const message = error instanceof Error ? error.message : String(error || '');
-  return /load failed|failed to fetch|network|connection|terminated/i.test(message);
+  return /load failed|failed to fetch|fetch failed|network|connection|terminated/i.test(message);
 }
 
 export function isRetryableAiStreamError(error: unknown): boolean {
@@ -371,7 +376,7 @@ export async function streamAiChat(
   const decoder = new TextDecoder();
   let buffer = '';
   let completed = false;
-  let serverError = '';
+  let serverError: Extract<AiStreamEvent, { type: 'error' }> | null = null;
 
   function consumeLine(line: string) {
     const normalized = line.trimEnd();
@@ -381,7 +386,7 @@ export async function streamAiChat(
     try {
       const event = JSON.parse(raw) as AiStreamEvent;
       if (event.type === 'done') completed = true;
-      if (event.type === 'error') serverError = event.message;
+      if (event.type === 'error') serverError = event;
       onEvent(event);
     } catch (error) {
       if (error instanceof SyntaxError) return;
@@ -408,8 +413,9 @@ export async function streamAiChat(
     throw new AiStreamTransportError();
   }
 
-  if (serverError) {
-    throw new AiStreamServerError(serverError);
+  const terminalServerError = serverError as Extract<AiStreamEvent, { type: 'error' }> | null;
+  if (terminalServerError) {
+    throw new AiStreamServerError(terminalServerError.message, terminalServerError.code);
   }
   if (!completed) {
     throw new AiStreamTransportError();
