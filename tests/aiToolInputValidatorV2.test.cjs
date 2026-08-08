@@ -22,8 +22,13 @@ test('V2 工具目录：每个对象和数组都声明完整输入结构', () =>
             if (!schema.items) gaps.push(`${path}: array 缺少 items`);
             inspect(schema.items, `${path}[]`);
         }
-        for (const [index, child] of (schema.anyOf || []).entries()) {
-            inspect(child, `${path}.anyOf[${index}]`);
+        for (const keyword of ['anyOf', 'oneOf']) {
+            for (const [index, child] of (schema[keyword] || []).entries()) {
+                if (!child.type) {
+                    gaps.push(`${path}.${keyword}[${index}]: 组合分支缺少 type`);
+                }
+                inspect(child, `${path}.${keyword}[${index}]`);
+            }
         }
     }
     for (const tool of AI_TOOLS) {

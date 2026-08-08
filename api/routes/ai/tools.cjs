@@ -191,7 +191,10 @@ const AI_TOOLS = [
                     recipeName: { type: 'string', description: '完整配方名称，未提供ID时用于匹配' },
                     includeCurrentCost: { type: 'boolean', description: '是否同时查询当前完整成本' }
                 },
-                anyOf: [{ required: ['recipeId'] }, { required: ['recipeName'] }]
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['recipeId'] },
+                    { type: 'object', properties: {}, required: ['recipeName'] },
+                ]
             }
         }
     },
@@ -206,7 +209,10 @@ const AI_TOOLS = [
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
                     recipeName: { type: 'string', description: '配方名称，未提供ID时用于精确匹配' }
                 },
-                anyOf: [{ required: ['recipeId'] }, { required: ['recipeName'] }]
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['recipeId'] },
+                    { type: 'object', properties: {}, required: ['recipeName'] },
+                ]
             }
         }
     },
@@ -658,7 +664,10 @@ const AI_TOOLS = [
                     cableWire: { type: 'string' },
                     cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }
                 },
-                anyOf: [{ required: ['recipeId'] }, { required: ['recipeName'] }]
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['recipeId'] },
+                    { type: 'object', properties: {}, required: ['recipeName'] },
+                ]
             }
         }
     },
@@ -704,7 +713,10 @@ const AI_TOOLS = [
                     orderId: { type: 'integer', minimum: 1, description: '订单ID，已知时优先使用' },
                     orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
                 },
-                anyOf: [{ required: ['orderId'] }, { required: ['orderQuery'] }]
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['orderId'] },
+                    { type: 'object', properties: {}, required: ['orderQuery'] },
+                ]
             }
         }
     },
@@ -794,8 +806,8 @@ const AI_TOOLS = [
                     limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回条数' }
                 },
                 anyOf: [
-                    { required: ['customerName'] },
-                    { required: ['customerId'] }
+                    { type: 'object', properties: {}, required: ['customerName'] },
+                    { type: 'object', properties: {}, required: ['customerId'] }
                 ]
             }
         }
@@ -1046,7 +1058,10 @@ const AI_TOOLS = [
                     orderId: { type: 'integer', minimum: 1, description: '订单ID，已知时优先使用' },
                     orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
                 },
-                anyOf: [{ required: ['orderId'] }, { required: ['orderQuery'] }]
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['orderId'] },
+                    { type: 'object', properties: {}, required: ['orderQuery'] },
+                ]
             }
         }
     },
@@ -1061,7 +1076,10 @@ const AI_TOOLS = [
                     orderId: { type: 'integer', minimum: 1, description: '订单ID，已知时优先使用' },
                     orderQuery: { type: 'string', description: '订单ID未知时可传客户名或合同号；匹配多条时会要求用户明确' }
                 },
-                anyOf: [{ required: ['orderId'] }, { required: ['orderQuery'] }]
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['orderId'] },
+                    { type: 'object', properties: {}, required: ['orderQuery'] },
+                ]
             }
         }
     },
@@ -1266,7 +1284,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_parts',
-            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称或类别（如电缆、电容、油封、机筒、轴承、密封件），即使没有说“零件”，也属于本能力；只有明确询问配方或成品型号才使用 get_all_recipes。低库存按正式口径为库存大于0且不超过5。',
+            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称、类别、用途相关零件或专用配件（如电缆、电容、油封、机筒、轴承、密封件、切割泵壳/切割配件），即使没有说“零件”，也属于本能力；用途或专用关系结论还必须同时调用 search_factory_knowledge 检索 sourceTable=business_rules 的明确业务规则。只有明确询问配方或成品型号才使用 get_all_recipes。低库存按正式口径为库存大于0且不超过5。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1313,8 +1331,8 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 oneOf: [
-                    { required: ['category', 'percentChange'] },
-                    { required: ['category', 'absoluteChange'] },
+                    { type: 'object', properties: {}, required: ['category', 'percentChange'] },
+                    { type: 'object', properties: {}, required: ['category', 'absoluteChange'] },
                 ],
                 properties: {
                     category: { type: 'string', minLength: 1, description: '零件类别' },
