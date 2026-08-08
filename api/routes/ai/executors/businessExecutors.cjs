@@ -74,6 +74,32 @@ function buildKnowledgeSources(items, overview) {
         });
 }
 
+function buildBusinessRuleAnswerGuidance(items) {
+    const rules = (Array.isArray(items) ? items : [items]).filter(item => item?.entryType === 'business_rule');
+    if (rules.length === 0) return null;
+
+    const statements = [];
+    for (const rule of rules) {
+        const candidates = [
+            rule.summary,
+            ...(Array.isArray(rule.content) ? rule.content : [rule.content]),
+        ];
+        for (const candidate of candidates) {
+            const statement = normalizeText(candidate);
+            if (!statement || statements.includes(statement)) continue;
+            statements.push(statement);
+            if (statements.length >= 8) break;
+        }
+        if (statements.length >= 8) break;
+    }
+
+    if (statements.length === 0) return null;
+    return {
+        requiredEvidencePolicy: '回答必须同时说明业务规则里的明确肯定项和明确否定项；没有明确记录时使用“系统未明确记录”或“没有明确记录”，不得把语义候选当结论。',
+        businessRuleStatements: statements,
+    };
+}
+
 async function loadRecipes(internalFetch) {
     return getJson(internalFetch, '/api/recipes', '配方列表读取失败');
 }
@@ -733,10 +759,14 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const semanticCandidateCount = Array.isArray(data)
                 ? data.filter(item => item?.evidenceLevel === 'semantic_candidate' || item?.matchMode === 'vector').length
                 : 0;
+            const answerGuidance = buildBusinessRuleAnswerGuidance(data);
+            const businessRuleSummary = answerGuidance?.businessRuleStatements?.length
+                ? ` 业务规则要点：${answerGuidance.businessRuleStatements.join('；')}`
+                : '';
             return {
                 success: true,
                 intent: 'factory_knowledge_search',
-                summary: `工厂知识库返回 ${Array.isArray(data) ? data.length : 0} 条可用结果${semanticCandidateCount > 0 ? `，其中 ${semanticCandidateCount} 条仅为语义候选，不能单独作为业务结论` : ''}${omittedSemanticCandidateCount > 0 ? `；另有 ${omittedSemanticCandidateCount} 条纯语义候选因已有文本证据而未提供给回答模型` : ''}。`,
+                summary: `工厂知识库返回 ${Array.isArray(data) ? data.length : 0} 条可用结果${semanticCandidateCount > 0 ? `，其中 ${semanticCandidateCount} 条仅为语义候选，不能单独作为业务结论` : ''}${omittedSemanticCandidateCount > 0 ? `；另有 ${omittedSemanticCandidateCount} 条纯语义候选因已有文本证据而未提供给回答模型` : ''}。${businessRuleSummary}`,
                 display: { mode: 'compact', title: '工厂知识库' },
                 retrievalGuidance: {
                     semanticCandidatesAreEvidence: false,
@@ -744,6 +774,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     omittedSemanticCandidateCount,
                     message: '仅当标题、摘要、正文或 metadata 明确写出用途、兼容性或配件关系时才能据此下结论；纯向量候选只用于继续核对。',
                 },
+                answerGuidance,
                 provenance: {
                     kind: 'knowledge_snapshot',
                     label: '知识库快照',

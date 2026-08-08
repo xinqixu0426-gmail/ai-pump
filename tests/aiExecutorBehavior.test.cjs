@@ -2377,8 +2377,12 @@ test('AI executor 行为：已有文本证据时不把纯向量候选交给回�
                     sourceTable: 'business_rules',
                     sourceId: 'cutting_shell_semantics',
                     title: '业务规则：切割泵壳与配件识别',
-                    summary: '是否随泵壳附带刀片未明确，不得推断含刀。',
-                    content: '现有来源没有明确记录是否随泵壳附带刀片。',
+                    summary: '明确用于切割杂草的泵壳是 800平刀切割泵壳；切边6mm长螺丝是外六角螺丝。',
+                    content: [
+                        '“切边6mm长螺丝”属于外六角螺丝，不是刀片，也不是切割杂草的专用配件。',
+                        '系统未明确记录其它切割专用配件。',
+                        '现有来源没有明确记录是否随泵壳附带刀片。',
+                    ],
                     metadata: { bladeInclusionStatus: 'unconfirmed' },
                 },
             });
@@ -2395,9 +2399,12 @@ test('AI executor 行为：已有文本证据时不把纯向量候选交给回�
     }, { allowWrite: false });
 
     assert.deepEqual(result.data.map(item => item.title), ['业务规则：切割泵壳与配件识别']);
-    assert.match(result.data[0].content, /没有明确记录是否随泵壳附带刀片/);
+    assert.match(result.data[0].content.join('\n'), /没有明确记录是否随泵壳附带刀片/);
     assert.equal(result.data[0].metadata.bladeInclusionStatus, 'unconfirmed');
     assert.equal(result.retrievalGuidance.omittedSemanticCandidateCount, 1);
+    assert.match(result.answerGuidance.requiredEvidencePolicy, /明确肯定项和明确否定项/);
+    assert.match(result.answerGuidance.businessRuleStatements.join('\n'), /切边6mm长螺丝.*外六角螺丝/);
+    assert.match(result.summary, /系统未明确记录其它切割专用配件/);
     assert.equal(result.sources.some(source => /SPA/.test(source.title)), false);
     assert.match(result.summary, /纯语义候选因已有文本证据而未提供/);
 });
