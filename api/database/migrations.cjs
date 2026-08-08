@@ -2637,6 +2637,24 @@ const MIGRATIONS = Object.freeze([
             );
         },
     },
+    {
+        version: 56,
+        name: 'disable_non_core_system_ai_release_cases',
+        signature: 'disable-non-core-system-ai-release-cases-after-data-cleanup-v1',
+        up(db) {
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET enabled = 0,
+                    review_status = 'rejected',
+                    updated_at = ?
+                WHERE source_type = 'system'
+                  AND case_key IN (
+                      'customer-quotation-display-order',
+                      'cutting-shell-purpose-evidence'
+                  )
+            `).run(new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
