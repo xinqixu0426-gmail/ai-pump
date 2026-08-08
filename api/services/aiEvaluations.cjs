@@ -221,7 +221,8 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
             prerequisite.detail
         );
     }
-    if (!prerequisite || prerequisite.available) {
+    const strictEvidenceRequired = !prerequisite || prerequisite.available;
+    if (strictEvidenceRequired) {
         for (const terms of Array.isArray(config.requiredTerms) ? config.requiredTerms : []) {
             const group = Array.isArray(terms) ? terms : [terms];
             addCheck(checks, `required:${group.join('|')}`, `包含 ${group.join(' 或 ')}`, containsAny(answer, group), '回答必须包含至少一个指定词');
@@ -237,10 +238,10 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
             forbiddenAssertion ? `发现禁用结论：${term}` : '未发现肯定性禁用结论'
         );
     }
-    for (const toolName of Array.isArray(config.requiredTools) ? config.requiredTools : []) {
-        addCheck(checks, `tool:${toolName}`, `调用 ${toolName}`, toolNames.has(toolName), toolNames.has(toolName) ? '已调用' : '未调用要求的工具');
-    }
-    if (!prerequisite || prerequisite.available) {
+    if (strictEvidenceRequired) {
+        for (const toolName of Array.isArray(config.requiredTools) ? config.requiredTools : []) {
+            addCheck(checks, `tool:${toolName}`, `调用 ${toolName}`, toolNames.has(toolName), toolNames.has(toolName) ? '已调用' : '未调用要求的工具');
+        }
         for (const sourceTable of Array.isArray(config.requiredSourceTables) ? config.requiredSourceTables : []) {
             const matched = evidence.sources.some(source => source.sourceTable === sourceTable);
             addCheck(checks, `source:${sourceTable}`, `引用 ${sourceTable}`, matched, matched ? '已保存可追溯来源' : '没有保存要求的知识来源');

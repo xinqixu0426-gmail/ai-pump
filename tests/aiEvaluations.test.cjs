@@ -255,12 +255,13 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     );
     assert.equal(unavailable.status, 'passed');
     assert.equal(unavailable.checks.some(check => check.key.startsWith('required:')), false);
+    assert.equal(unavailable.checks.some(check => check.key.startsWith('tool:')), false);
     assert.equal(unavailable.checks.some(check => check.key.startsWith('source:')), false);
 
     const naturalUnavailable = evaluateRuleCase(
         caseItem,
         '未在系统中找到目标配方，因此无法读取对应的性能测试报告。',
-        [{ name: 'search_factory_knowledge', result: {} }],
+        [{ name: 'get_recipe_detail', result: {} }],
         fixture.db
     );
     assert.equal(naturalUnavailable.status, 'passed');
