@@ -304,6 +304,55 @@ test('AI provider：Kimi K3 强制工具选择时关闭 thinking 且不发送 re
     assert.equal(Object.hasOwn(requestBody, 'reasoning_effort'), false);
 });
 
+test('AI provider：Kimi 工具 schema 移除 Moonshot 不支持的组合约束', async () => {
+    let requestBody;
+    const response = await fetchAiProvider([{ role: 'user', content: '批量入库' }], {
+        env: {
+            AI_PROVIDER: 'kimi',
+            KIMI_API_KEY: 'kimi-key',
+            KIMI_BASE_URL: 'https://api.kimi-schema.test/v1',
+            KIMI_MODEL: 'kimi-k3',
+        },
+        tools: [{
+            type: 'function',
+            function: {
+                name: 'adjust_part_stock',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        changeQty: {
+                            type: 'integer',
+                            anyOf: [
+                                { type: 'integer', maximum: -1 },
+                                { type: 'integer', minimum: 1 },
+                            ],
+                        },
+                    },
+                    oneOf: [
+                        { type: 'object', properties: {}, required: ['changeQty'] },
+                    ],
+                },
+            },
+        }],
+        toolChoice: {
+            type: 'function',
+            function: { name: 'adjust_part_stock' },
+        },
+        fetchImpl: async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return new Response(JSON.stringify({ choices: [] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    const parametersText = JSON.stringify(requestBody.tools[0].function.parameters);
+    assert.doesNotMatch(parametersText, /anyOf|oneOf|allOf/);
+    assert.equal(requestBody.tools[0].function.parameters.properties.changeQty.type, 'integer');
+});
+
 test('AI provider：供应商拒绝 tool_choice 时同模型自动降级且不影响结构化工具', async () => {
     const bodies = [];
     const response = await fetchAiProvider([{ role: 'user', content: '查询订单' }], {

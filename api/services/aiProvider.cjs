@@ -528,6 +528,23 @@ function isUnsupportedToolChoiceResponse(status, responseText) {
         && /(not support|does not support|unsupported|incompatible)/i.test(responseText);
 }
 
+function normalizeKimiSchemaForMoonshot(value) {
+    if (Array.isArray(value)) return value.map(normalizeKimiSchemaForMoonshot);
+    if (!value || typeof value !== 'object') return value;
+    const result = {};
+    for (const [key, child] of Object.entries(value)) {
+        if (['anyOf', 'oneOf', 'allOf'].includes(key)) continue;
+        result[key] = normalizeKimiSchemaForMoonshot(child);
+    }
+    return result;
+}
+
+function prepareProviderTools(tools, config) {
+    if (!Array.isArray(tools) || tools.length === 0) return null;
+    if (config.provider !== 'kimi') return tools;
+    return tools.map(tool => normalizeKimiSchemaForMoonshot(tool));
+}
+
 async function fetchAiProvider(messages, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const selectedConfig = options.config || resolveAiProviderRoute(messages, {
@@ -560,6 +577,7 @@ async function fetchAiProvider(messages, options = {}) {
         });
         const send = async includeToolChoice => {
             const isKimiK3 = config.provider === 'kimi' && /^kimi-k3(?:$|-)/i.test(config.model);
+            const providerTools = prepareProviderTools(options.tools, config);
             return fetchProviderWithRetry(`${config.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
@@ -583,8 +601,8 @@ async function fetchAiProvider(messages, options = {}) {
                     ...(isKimiK3 && !includeToolChoice
                         ? { reasoning_effort: config.reasoningEffort || 'low' }
                         : {}),
-                    ...(Array.isArray(options.tools) && options.tools.length > 0
-                        ? { tools: options.tools }
+                    ...(providerTools
+                        ? { tools: providerTools }
                         : {}),
                     ...(includeToolChoice ? {
                         tool_choice: isKimiK3
