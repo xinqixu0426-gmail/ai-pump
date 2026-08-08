@@ -8,6 +8,7 @@ NODE_BIN=/opt/homebrew/bin/node
 USER_PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 PUBLIC_BASE_URL=${PUMP_PUBLIC_BASE_URL:-https://xuxinqi.xin}
 STARTED_AT=$(/bin/date +%s)
+CURL_HTTP_ARGS=(--http1.1)
 
 export PATH="$USER_PATH"
 
@@ -59,7 +60,7 @@ wait_for_http() {
   local url=$2
   local attempts=${3:-45}
   for ((i = 1; i <= attempts; i++)); do
-    if /usr/bin/curl --silent --show-error --fail --max-time 5 "$url" >/dev/null 2>&1; then
+    if /usr/bin/curl "${CURL_HTTP_ARGS[@]}" --silent --show-error --fail --max-time 5 "$url" >/dev/null 2>&1; then
       return 0
     fi
     /bin/sleep 1
@@ -72,7 +73,7 @@ validate_ready_commit() {
   local url=$1
   local expected_commit=$2
   local ready_json
-  ready_json=$(/usr/bin/curl --silent --show-error --fail --max-time 8 "$url")
+  ready_json=$(/usr/bin/curl "${CURL_HTTP_ARGS[@]}" --silent --show-error --fail --max-time 8 "$url")
   READY_JSON="$ready_json" EXPECTED_COMMIT="$expected_commit" "$NODE_BIN" -e '
     const payload = JSON.parse(process.env.READY_JSON || "{}");
     const expected = process.env.EXPECTED_COMMIT || "";
