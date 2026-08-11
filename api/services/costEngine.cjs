@@ -133,7 +133,8 @@ function roundLengthToStep(value, step = LONG_SCREW_LENGTH_STEP_MM) {
 }
 
 function isLongScrewPart(part) {
-    return `${part?.name || ''}${part?.model || ''}`.includes('长螺丝');
+    return part?.dynamicRule === 'longScrewByBarrelLength'
+        || `${part?.name || ''}${part?.model || ''}`.includes('长螺丝');
 }
 
 function longScrewModelFromBarrel(part, barrelLength, extraLength = DEFAULT_LONG_SCREW_EXTRA_LENGTH) {

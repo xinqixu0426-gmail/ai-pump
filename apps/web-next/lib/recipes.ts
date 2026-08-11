@@ -65,13 +65,17 @@ export type RecipeCurrentCostResult = {
 
 export type RecipeCurrentTotalCost = {
   recipeId: number;
-  currentTotalCost: number;
+  currentTotalCost: number | null;
   savedTotalCost: number | null;
   difference: number | null;
-  partsCost: number;
+  partsCost: number | null;
+  partialPartsCost: number;
+  partialTotalCost: number;
   laborCost: number;
   itemCount: number;
   missingParts: string[];
+  costComplete: boolean;
+  warnings: string[];
   fetchedAt?: string;
 };
 
@@ -617,13 +621,17 @@ export async function getAllRecipeCurrentCosts(): Promise<RecipeCurrentTotalCost
   return (result.data.items || []).map((item) => ({
     ...item,
     recipeId: Number(item.recipeId),
-    currentTotalCost: Number(item.currentTotalCost) || 0,
+    currentTotalCost: item.currentTotalCost == null ? null : Number(item.currentTotalCost),
     savedTotalCost: item.savedTotalCost == null ? null : Number(item.savedTotalCost),
     difference: item.difference == null ? null : Number(item.difference),
-    partsCost: Number(item.partsCost) || 0,
+    partsCost: item.partsCost == null ? null : Number(item.partsCost),
+    partialPartsCost: Number(item.partialPartsCost) || 0,
+    partialTotalCost: Number(item.partialTotalCost) || 0,
     laborCost: Number(item.laborCost) || 0,
     itemCount: Number(item.itemCount) || 0,
     missingParts: Array.isArray(item.missingParts) ? item.missingParts : [],
+    costComplete: item.costComplete !== false && !(item.missingParts || []).length && item.currentTotalCost != null,
+    warnings: Array.isArray(item.warnings) ? item.warnings : [],
     fetchedAt: result.data?.asOf,
   }));
 }
@@ -642,7 +650,6 @@ export async function previewRecipeBomDraft(input: {
   hasFloat?: boolean | number;
   floatWire?: string;
   floatAccessoryType?: CableAccessoryType;
-  floatAccessoryDelta?: number;
   hasCable?: boolean | number;
   cableLength?: number | string;
   cableWire?: string;

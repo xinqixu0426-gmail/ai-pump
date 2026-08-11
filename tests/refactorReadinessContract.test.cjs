@@ -1292,16 +1292,20 @@ test('Next UI 契约：BOM 预览集中管理参数、自动刷新和过期响�
     assert.match(recipesView, /canPreview: canPreviewBomDraft/);
     assert.match(recipesView, /runBomPreview/);
     assert.match(recipesView, /resetBomPreview/);
-    assert.match(recipesView, /replaceBomPreview/);
+    assert.doesNotMatch(recipesView, /replaceBomPreview/);
     assert.doesNotMatch(recipesView, /bomDraftRequestRef/);
     assert.doesNotMatch(recipesView, /floatAccessoryDelta: 0/);
     assert.doesNotMatch(recipesView, /void buildBomDraft\(\{ silent: true \}\)/);
     assert.match(bomPreviewHook, /previewRecipeBomDraft/);
     assert.match(bomPreviewHook, /function buildBomPreviewInput/);
+    assert.doesNotMatch(bomPreviewHook, /floatAccessoryDelta:\s*0/);
     assert.match(bomPreviewHook, /selectionToRecipeParts\(optionalParts\)/);
     assert.match(bomPreviewHook, /selectionToRecipeParts\(packingParts, true\)/);
     assert.match(bomPreviewHook, /autoDelayMs = 400/);
+    assert.match(bomPreviewHook, /activeRef = useRef\(false\)/);
+    assert.match(bomPreviewHook, /runImmediately = active && !activeRef\.current/);
     assert.match(bomPreviewHook, /window\.setTimeout/);
+    assert.match(bomPreviewHook, /runImmediately \? 0 : autoDelayMs/);
     assert.match(bomPreviewHook, /run\(\{ captureError: true \}\)/);
     assert.match(bomPreviewHook, /requestId === requestRef\.current/);
     assert.match(bomPreviewHook, /requestRef\.current \+= 1/);
@@ -1341,7 +1345,23 @@ test('Next UI 契约：配方草稿集中管理生命周期和纯草稿操作', 
     assert.match(recipeDraftHook, /未命名配方.*副本/);
     assert.match(recipeDraftHook, /variantId: ''/);
     assert.match(recipeDraftHook, /savedCoilWireWeight/);
-    assert.match(bomPreviewHook, /export function bomPreviewFromRecipe/);
+    assert.doesNotMatch(bomPreviewHook, /bomPreviewFromRecipe/);
+});
+
+test('Next UI 契约：编辑配方首次成本完成前不得展示历史快照或允许保存', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const bomPreviewHook = readUtf8('apps/web-next/components/recipe/useBomPreview.ts');
+    const costSummary = readUtf8('apps/web-next/components/recipe/CostSummaryPanel.tsx');
+    const recipeEditor = readUtf8('apps/web-next/components/recipe/RecipeEditor.tsx');
+
+    assert.match(recipesView, /const openEditDrawer[\s\S]*startEditDraft\(recipe\);[\s\S]*resetBomPreview\(\);[\s\S]*prepareRecipeEditorUi\(\)/);
+    assert.doesNotMatch(recipesView, /replaceBomPreview\(bomPreviewFromRecipe\(recipe\)\)/);
+    assert.doesNotMatch(bomPreviewHook, /parseRecipePartsJson/);
+    assert.match(recipesView, /costPreviewPending = canPreviewBomDraft && \(!bomDraft \|\| bomDraftLoading\)/);
+    assert.match(recipesView, /当前成本正在计算，请等待完成后再保存配方/);
+    assert.match(costSummary, /loading \? '正在计算' : ready \? money\(total\) : '—'/);
+    assert.match(costSummary, /ready \? money\(value\) : '—'/);
+    assert.match(recipeEditor, /costLoading \? '等待成本计算'/);
 });
 
 test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
@@ -1532,6 +1552,16 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /报价配置/);
     assert.match(quotationsView, /含税出厂价/);
     assert.match(quotationsView, /quotationTaxIncludedFactoryPrice/);
+    assert.match(quotationsView, /function PackingHoverSummary/);
+    assert.match(quotationsView, /createPortal/);
+    assert.match(quotationsView, /role="tooltip"/);
+    assert.match(quotationsView, /onMouseEnter/);
+    assert.match(quotationsView, /onFocus/);
+    assert.match(quotationsView, /\{rows\.length\} 项包材/);
+    assert.match(quotationsView, /title="单位成本">单价/);
+    assert.match(quotationsView, /title="产品出厂单价">出厂价/);
+    assert.match(quotationsView, /money\(Number\(item\.unitCost \|\| 0\)\)/);
+    assert.match(quotationsView, /money\(Number\(item\.unitPrice \|\| 0\)\)/);
     assert.doesNotMatch(quotationsView, /setDraftItems\(\(current\) => \[\.\.\.current, item\]\)/);
     assert.match(quotationsView, /item\.id === id \? \{ \.\.\.item, overrides: currentItem\.overrides \} : item/);
     assert.match(quotationsView, /surfaceTreatmentLabel/);
@@ -1628,7 +1658,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /customBarrelLength: hasStainlessBarrel \? form\.customBarrelLength \|\| null : null/);
     assert.match(recipesView, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);
     assert.match(recipeDraftHook, /longScrewExtraLength: String\(recipe\.longScrewExtraLength \|\| 0\)/);
-    assert.match(bomPreviewHook, /longScrewExtraLength: recipe\.longScrewExtraLength \|\| 0/);
+    assert.match(bomPreviewHook, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);
     assert.match(recipesView, /openCloneRecipe/);
     assert.match(recipeDraftHook, /副本/);
     assert.match(recipeWorkspace, /复制/);
@@ -1751,6 +1781,20 @@ test('Next UI 契约：配方工作区独立管理列表派生和筛选展示', 
     assert.doesNotMatch(recipeWorkspace, /proxyRequest|proxyFetch|fetch\(/);
 });
 
+test('Next UI 契约：不完整当日成本不得显示为正常金额', () => {
+    const workspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+    const detail = readUtf8('apps/web-next/components/recipe/RecipeDetailPanel.tsx');
+    const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
+
+    assert.match(workspace, /当日成本不完整/);
+    assert.match(workspace, /incompleteCost/);
+    assert.match(workspace, /row\.currentCost\?\.costComplete === false/);
+    assert.match(detail, /当日成本未生成完整金额/);
+    assert.match(detail, /currentSummary\?\.costComplete === false/);
+    assert.match(recipesLib, /currentTotalCost: number \| null/);
+    assert.match(recipesLib, /costComplete: boolean/);
+});
+
 test('Next UI 契约：配方详情独立展示成本、BOM、技术参数和库存', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const recipeDetailPanel = readUtf8('apps/web-next/components/recipe/RecipeDetailPanel.tsx');
@@ -1764,7 +1808,16 @@ test('Next UI 契约：配方详情独立展示成本、BOM、技术参数和库
     assert.doesNotMatch(recipesView, /const detailPartCompareRows = useMemo/);
     assert.match(recipeDetailPanel, /parseRecipePartsJson\(recipe\.partsJson\)/);
     assert.match(recipeDetailPanel, /parseTechnicalDataJson\(recipe\.technicalDataJson\)/);
+    assert.match(recipeDetailPanel, /getTechnicalDataEntries\(technicalData\)/);
+    assert.match(recipeDetailPanel, /representedKeys\.add\('pieceCount'\)/);
+    assert.match(recipeDetailPanel, /representedKeys\.add\('impellerDepth'\)/);
     assert.match(recipeDetailPanel, /const partCompareRows = useMemo/);
+    assert.match(recipeDetailPanel, /part\.barrelLength/);
+    assert.match(recipeDetailPanel, /未记录，请在编辑配方中补录/);
+    assert.match(recipeDetailPanel, /const bomSummary = useMemo/);
+    assert.match(recipeDetailPanel, /快照配件合计/);
+    assert.match(recipeDetailPanel, /当前配件合计/);
+    assert.match(recipeDetailPanel, /<tfoot/);
     assert.match(recipeDetailPanel, /BOM 快照/);
     assert.match(recipeDetailPanel, /配件与线圈库存/);
     assert.doesNotMatch(recipeDetailPanel, /proxyRequest|proxyFetch|fetch\(/);
@@ -2107,6 +2160,7 @@ test('Next UI 契约：剩余业务工作台压缩标题并补齐高频操作反
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
     const purchaseView = readUtf8('apps/web-next/components/purchase-view.tsx');
+    const orderDetail = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
     const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
     const customersView = readUtf8('apps/web-next/components/customers-view.tsx');
 
@@ -2121,6 +2175,19 @@ test('Next UI 契约：剩余业务工作台压缩标题并补齐高频操作反
     assert.match(ordersView, /event\.key === 'Enter' \|\| event\.key === ' '/);
     assert.match(rotorView, /按配方带入参数，生成并管理转子图纸/);
     assert.match(purchaseView, /searchLabel="搜索采购任务"/);
+    assert.match(purchaseView, /搜索供应商、型号、名称或来源订单/);
+    assert.match(purchaseView, />采购来源</);
+    assert.match(purchaseView, /purchaseSourceOrders\(task\)/);
+    assert.match(purchaseView, /\/orders\?orderId=\$\{encodeURIComponent\(order\.id\)\}&view=purchase/);
+    assert.match(purchaseView, /rounded-full/);
+    assert.match(purchaseView, /order\.contractNo \|\| `#\$\{order\.id\}`/);
+    assert.match(orderDetail, /实际采购单价/);
+    assert.match(orderDetail, /purchasePriceDraftValue/);
+    assert.match(orderDetail, /参考 \$\{referenceSource\} ¥/);
+    assert.match(orderDetail, /coil_total_cost'\) return '线圈页总成本'/);
+    assert.match(orderDetail, /<td className="px-1\.5 py-2 align-top">\s*<input\s*value=\{draft\?\.actualSupplier/);
+    assert.match(orderDetail, /<td className="px-3 py-2 text-right align-top">\s*<Button\s*size="sm"/);
+    assert.match(orderDetail, /无参考价/);
     assert.match(quotationsView, /searchLabel="搜索报价单"/);
     assert.match(customersView, /searchLabel="搜索客户"/);
     assert.doesNotMatch(customersView, />\s*新建\s*<\/Button>\s*<\/div>\s*<div className="border-b border-line p-4">/);

@@ -1,9 +1,12 @@
 const { Router } = require('express');
-const { db, dbGetAllRecipes, dbGetAllCoils, recipeRow, loadPartsData, calculateRecipeCost, safeUpdate, nextBjtTime, getSetting, setSetting } = require('../db.cjs');
+const { db, dbGetAllRecipes, dbGetAllCoils, dbGetAllParts, recipeRow, templateRow, modelVariantRow, loadPartsData, calculateRecipeCost, safeUpdate, nextBjtTime, getSetting, setSetting } = require('../db.cjs');
 const { createLogger } = require('../logger.cjs');
 const {
     createCostQueries,
 } = require('../services/costQueries.cjs');
+const {
+    createRecipeQueries,
+} = require('../services/recipeQueries.cjs');
 const router = Router();
 const costLogger = createLogger('cost');
 const copperLogger = createLogger('copper');
@@ -30,6 +33,16 @@ const marketSync = createMarketSyncService({
     safeUpdate,
     setSetting,
 });
+const recipeQueries = createRecipeQueries({
+    db,
+    listCoils: dbGetAllCoils,
+    listParts: dbGetAllParts,
+    listRecipes: dbGetAllRecipes,
+    modelVariantRow,
+    recipeRow,
+    templateRow,
+    getSetting,
+});
 const costQueries = createCostQueries({
     db,
     calculateRecipeCost,
@@ -38,6 +51,7 @@ const costQueries = createCostQueries({
     listRecipes: dbGetAllRecipes,
     loadPartsData,
     recipeRow,
+    buildBomDraft: recipeQueries.getBomDraft,
 });
 
 function sendCostQueryError(res, error, fallbackStatus = 500) {

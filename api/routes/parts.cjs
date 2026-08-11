@@ -73,6 +73,8 @@ router.get('/', (req, res) => {
             maxStock: req.query.maxStock,
             stockBelow: req.query.stockBelow,
             stockAbove: req.query.stockAbove,
+            sortBy: req.query.sortBy,
+            sortOrder: req.query.sortOrder,
         });
         res.json({ success: true, data });
     } catch (error) {

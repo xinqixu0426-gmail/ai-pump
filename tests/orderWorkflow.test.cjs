@@ -19,6 +19,15 @@ test('旧采购布尔值兼容为完整已下单数量', () => {
     assert.equal(item.purchased, true);
 });
 
+test('采购项保留线圈页面总成本参考价来源', () => {
+    const item = normalizePurchaseItem({
+        referencePrice: 146.8,
+        referencePriceSource: 'coil_total_cost',
+    });
+    assert.equal(item.referencePrice, 146.8);
+    assert.equal(item.referencePriceSource, 'coil_total_cost');
+});
+
 test('订单采购状态由数量自动推导且采购完成不等于订单关闭', () => {
     assert.equal(deriveProcurementStatus('待采购', [{ plannedQty: 5 }]), '待采购');
     assert.equal(deriveProcurementStatus('待采购', [{ plannedQty: 5, orderedQty: 2 }]), '采购中');
@@ -82,6 +91,8 @@ test('采购计划重算保留已经发生的分批进度和原计划数量', ()
             currentStock: 3,
             identityKey: 'part:1',
             partId: 1,
+            referencePrice: 9.2,
+            referencePriceSource: 'part_catalog',
         },
         {
             model: '轴承A',
@@ -101,6 +112,9 @@ test('采购计划重算保留已经发生的分批进度和原计划数量', ()
     assert.equal(merged.receivedQty, 2);
     assert.equal(merged.stockedQty, 1);
     assert.equal(merged.purchasePrice, 8.5);
+    assert.equal(merged.purchasePriceRecorded, true);
+    assert.equal(merged.referencePrice, 9.2);
+    assert.equal(merged.referencePriceSource, 'part_catalog');
     assert.equal(merged.currentStock, 3);
     assert.equal(merged.stockInHistory.length, 1);
 });

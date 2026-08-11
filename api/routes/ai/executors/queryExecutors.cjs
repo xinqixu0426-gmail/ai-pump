@@ -84,6 +84,13 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 material: String(args.material || '').trim(),
                 slotType: String(args.slotType || '').trim(),
             };
+            // 用户常说"12-120"（规格俗称-片数）。模型可能把它整体传进 spec，
+            // 这里确定性地拆分，避免漏匹配（adjust_coil_stock 遵循同一约定）。
+            const shorthand = filters.spec.match(/^(\d+)\s*[-—~]\s*(\d+)$/);
+            if (shorthand && filters.sheets === null) {
+                filters.spec = shorthand[1];
+                filters.sheets = Number(shorthand[2]);
+            }
             const query = new URLSearchParams();
             for (const [field, value] of Object.entries(filters)) {
                 if (value !== null && value !== '') query.set(field, String(value));
@@ -428,6 +435,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 'limit',
                 'minPrice', 'maxPrice', 'priceBelow', 'priceAbove',
                 'minStock', 'maxStock', 'stockBelow', 'stockAbove',
+                'sortBy', 'sortOrder',
             ]) {
                 const value = String(args[field] ?? '').trim();
                 if (value) query.set(field, value);
@@ -439,10 +447,14 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 '零件列表读取失败'
             );
             const supplierCounts = new Map();
+            const categoryCounts = new Map();
             for (const part of results) {
                 const supplier = String(part.supplier || '').trim();
-                if (!supplier) continue;
-                supplierCounts.set(supplier, (supplierCounts.get(supplier) || 0) + 1);
+                if (supplier) {
+                    supplierCounts.set(supplier, (supplierCounts.get(supplier) || 0) + 1);
+                }
+                const category = String(part.category || '').trim() || '未分类';
+                categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
             }
             const parts = results.map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, subcategory: p.subcategory || '', price: p.price, supplier: p.supplier, stock: p.stock || 0 }));
             return {
@@ -464,6 +476,8 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     maxStock: args.maxStock ?? null,
                     stockBelow: args.stockBelow ?? null,
                     stockAbove: args.stockAbove ?? null,
+                    sortBy: args.sortBy ?? null,
+                    sortOrder: args.sortOrder ?? null,
                 },
                 queryReceipt: buildQueryReceipt({
                     keyword: String(args.keyword || '').trim(),
@@ -479,6 +493,8 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     maxStock: args.maxStock ?? null,
                     stockBelow: args.stockBelow ?? null,
                     stockAbove: args.stockAbove ?? null,
+                    sortBy: args.sortBy ?? null,
+                    sortOrder: args.sortOrder ?? null,
                 }, args.limit === undefined ? results.length : null, parts.length),
                 stockStatusDefinition: {
                     low: '库存大于0且不超过5',
@@ -487,6 +503,8 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     ok: '库存大于5',
                 },
                 suppliers: [...supplierCounts.entries()].map(([name, partCount]) => ({ name, partCount })),
+                categorySummary: [...categoryCounts.entries()].map(([category, partCount]) => ({ category, partCount })),
+                aggregationNote: 'count、suppliers、categorySummary 均为服务端统计的权威数字；回答中引用数量或分类小计时必须使用这些值，不得自行逐条计数',
                 parts,
             };
         }

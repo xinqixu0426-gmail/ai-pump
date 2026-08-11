@@ -11,6 +11,29 @@ function parseParts(value) {
     }
 }
 
+function buildCurrentRecipeBomInput(recipe) {
+    return {
+        templateId: recipe.templateId ?? null,
+        modelVariantId: recipe.modelVariantId ?? null,
+        customBarrelLength: recipe.customBarrelLength ?? null,
+        longScrewExtraLength: recipe.longScrewExtraLength ?? 0,
+        coilSpec: recipe.coilSpec || '',
+        coilSheets: recipe.coilSheets || 0,
+        coilMaterial: recipe.coilMaterial || '钢带',
+        coilSlotType: recipe.coilSlotType || '小眼',
+        coilWireWeight: recipe.coilWireWeight ?? null,
+        optionalParts: parseParts(recipe.extraPartsJson),
+        hasFloat: Boolean(recipe.hasFloat),
+        floatWire: recipe.floatWire || '',
+        floatAccessoryType: recipe.floatAccessoryType || 'standard',
+        hasCable: Boolean(recipe.hasCable),
+        cableLength: recipe.cableLength || 0,
+        cableWire: recipe.cableWire || '',
+        cableAccessoryType: recipe.cableAccessoryType || 'standard',
+        packingParts: parseParts(recipe.packingPartsJson),
+    };
+}
+
 function calculateLaborTotal(recipe, getSetting = () => undefined) {
     const surfaceTreatmentCost = recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0;
     const managementFee = recipe.managementFee ?? getSetting('management_fee') ?? 0;
@@ -51,30 +74,52 @@ function calculateCurrentRecipeCost(recipe, dependencies = {}) {
         calculateRecipeCost,
         coils = [],
         getSetting = () => undefined,
+        buildBomDraft,
     } = dependencies;
     if (typeof calculateRecipeCost !== 'function') throw new Error('calculateRecipeCost dependency is required');
 
-    const parts = refreshCoilSnapshot(parseParts(recipe.partsJson), recipe, coils);
+    const currentBom = typeof buildBomDraft === 'function'
+        ? buildBomDraft(buildCurrentRecipeBomInput(recipe), recipe)
+        : null;
+    const sourceParts = Array.isArray(currentBom?.parts)
+        ? currentBom.parts
+        : parseParts(recipe.partsJson);
+    const parts = refreshCoilSnapshot(sourceParts, recipe, coils);
     const partsResult = calculateRecipeCost(parts, partsCache, partsByModel, { getSetting });
-    const partsCost = Number(partsResult.totalCost || 0);
+    const partialPartsCost = roundMoney(Number(partsResult.totalCost || 0));
     const laborCost = calculateLaborTotal(recipe, getSetting);
-    const currentTotalCost = roundMoney(partsCost + laborCost);
+    const partialTotalCost = roundMoney(partialPartsCost + laborCost);
     const savedTotalCost = Number(recipe.savedTotalCost || 0);
+    const missingParts = [...new Set(
+        (Array.isArray(partsResult.missingParts) ? partsResult.missingParts : [])
+            .map(value => String(value || '').trim())
+            .filter(Boolean)
+    )];
+    const costComplete = missingParts.length === 0;
 
     return {
         recipeId: recipe.id,
-        currentTotalCost,
+        currentTotalCost: costComplete ? partialTotalCost : null,
         savedTotalCost: savedTotalCost > 0 ? roundMoney(savedTotalCost) : null,
-        difference: savedTotalCost > 0 ? roundMoney(currentTotalCost - savedTotalCost) : null,
-        partsCost: roundMoney(partsCost),
+        difference: costComplete && savedTotalCost > 0
+            ? roundMoney(partialTotalCost - savedTotalCost)
+            : null,
+        partsCost: costComplete ? partialPartsCost : null,
+        partialPartsCost,
+        partialTotalCost,
         laborCost,
         itemCount: Number(partsResult.itemCount || parts.length),
-        missingParts: Array.isArray(partsResult.missingParts) ? partsResult.missingParts : [],
+        missingParts,
+        costComplete,
+        warnings: costComplete
+            ? []
+            : [`当前成本不完整，${missingParts.length} 个 BOM 型号缺少价格：${missingParts.join('、')}`],
     };
 }
 
 module.exports = {
     calculateCurrentRecipeCost,
     calculateLaborTotal,
+    buildCurrentRecipeBomInput,
     refreshCoilSnapshot,
 };

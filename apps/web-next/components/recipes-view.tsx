@@ -50,7 +50,7 @@ import {
   partFormulaLine,
   recipePartSubtotal,
 } from '@/components/recipe/recipe-cost-display';
-import { bomPreviewFromRecipe, useBomPreview } from '@/components/recipe/useBomPreview';
+import { useBomPreview } from '@/components/recipe/useBomPreview';
 import { useRecipeDraft, type RecipeFormState } from '@/components/recipe/useRecipeDraft';
 import { resolveCoilVariantSelection } from '@/components/recipe/coil-selection';
 import {
@@ -274,7 +274,6 @@ export function RecipesView() {
     error: bomDraftError,
     canPreview: canPreviewBomDraft,
     run: runBomPreview,
-    replace: replaceBomPreview,
     reset: resetBomPreview,
     clearError: clearBomPreviewError,
   } = useBomPreview({
@@ -353,9 +352,9 @@ export function RecipesView() {
 
   const openEditDrawer = useCallback((recipe: Recipe) => {
     startEditDraft(recipe);
-    replaceBomPreview(bomPreviewFromRecipe(recipe));
+    resetBomPreview();
     prepareRecipeEditorUi();
-  }, [prepareRecipeEditorUi, replaceBomPreview, startEditDraft]);
+  }, [prepareRecipeEditorUi, resetBomPreview, startEditDraft]);
 
   useEffect(() => {
     void load();
@@ -704,6 +703,7 @@ export function RecipesView() {
     return hints;
   }, [bomDraft?.coilSnapshot, laborCostWarnings, packingParts.length, relatedBomParts.length]);
   const recipeSaveBlockedByWarnings = costWarningHints.length > 0;
+  const costPreviewPending = canPreviewBomDraft && (!bomDraft || bomDraftLoading);
   const configurationStatus = useMemo(() => {
     const floatReady = !form.hasFloat || Boolean(form.floatWire);
     const cableReady = !form.hasCable || Boolean(form.cableWire && form.cableLength);
@@ -860,7 +860,7 @@ export function RecipesView() {
 
   function openCloneRecipe(recipe: Recipe) {
     startCloneDraft(recipe);
-    replaceBomPreview(bomPreviewFromRecipe(recipe));
+    resetBomPreview();
     prepareRecipeEditorUi();
   }
 
@@ -1261,6 +1261,10 @@ export function RecipesView() {
       setFormError('配方名称不能为空');
       return;
     }
+    if (costPreviewPending) {
+      setFormError('当前成本正在计算，请等待完成后再保存配方');
+      return;
+    }
     if (recipeSaveBlockedByWarnings) {
       setFormError('存在成本警告，请处理后再保存配方');
       scrollToCostWarningTarget();
@@ -1549,7 +1553,8 @@ export function RecipesView() {
         editing={Boolean(editingRecipe)}
         saving={saving}
         analysisLoading={recipeAnalysisLoading}
-        saveBlocked={recipeSaveBlockedByWarnings}
+        saveBlocked={recipeSaveBlockedByWarnings || costPreviewPending}
+        costLoading={costPreviewPending}
         formError={formError}
         onClose={() => setDrawerOpen(false)}
         onAnalyze={() => void runRecipeAnalysis()}
@@ -1686,6 +1691,7 @@ export function RecipesView() {
               <CostSummaryPanel
                 bomCount={bomDraft?.parts.length || 0}
                 loading={bomDraftLoading}
+                ready={Boolean(bomDraft)}
                 saving={saving}
                 total={liveTotal}
                 coilCost={Number(bomDraft?.coilSnapshot?.totalCost || 0)}

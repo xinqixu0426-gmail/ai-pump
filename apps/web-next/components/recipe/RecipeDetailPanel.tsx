@@ -14,7 +14,7 @@ import {
   type RecipeCurrentTotalCost,
   type RecipeInventoryStatusResult,
 } from '@/lib/recipes';
-import { parseTechnicalDataJson } from '@/lib/technical-data';
+import { getTechnicalDataEntries, parseTechnicalDataJson } from '@/lib/technical-data';
 
 type RecipeDetailPanelProps = {
   recipe: Recipe | null;
@@ -66,20 +66,11 @@ export function RecipeDetailPanel({
   const technicalEntries = useMemo(() => {
     if (!recipe) return [];
     const technicalData = parseTechnicalDataJson(recipe.technicalDataJson);
-    const fixedEntries = Object.entries(technicalData)
-      .filter(([key, value]) => key !== 'customFields' && String(value ?? '').trim())
-      .map(([key, value]) => ({ id: key, label: key, value: String(value), unit: '' }));
-    const customFields = Array.isArray(technicalData.customFields)
-      ? technicalData.customFields
-          .map((field, index) => ({
-            id: String(field?.id || `custom-${index}`),
-            label: String(field?.label || ''),
-            value: String(field?.value || ''),
-            unit: String(field?.unit || ''),
-          }))
-          .filter((field) => field.label || field.value || field.unit)
-      : [];
-    return [...fixedEntries, ...customFields];
+    const representedKeys = new Set<string>();
+    if (Number(recipe.coilSheets || 0) > 0) representedKeys.add('pieceCount');
+    if (recipe.impellerThickness != null) representedKeys.add('impellerDepth');
+    return getTechnicalDataEntries(technicalData)
+      .filter((entry) => !representedKeys.has(entry.id));
   }, [recipe]);
   const partCompareRows = useMemo(() => {
     return parts.map((part, index) => {
@@ -106,10 +97,42 @@ export function RecipeDetailPanel({
   }, [currentCost, parts]);
 
   const savedTotal = recipe ? getRecipeSavedTotal(recipe) : null;
-  const currentTotal = currentSummary?.currentTotalCost ?? null;
-  const costDiff = currentSummary?.difference ?? null;
+  const currentCostComplete = currentSummary?.costComplete !== false;
+  const currentTotal = currentCostComplete ? currentSummary?.currentTotalCost ?? null : null;
+  const costDiff = currentCostComplete ? currentSummary?.difference ?? null : null;
   const savedAt = recipe ? dateTimeShort(recipe.updatedAt || recipe.createdAt) : '-';
   const currentAt = currentSummary?.fetchedAt ? dateTimeShort(currentSummary.fetchedAt) : '-';
+  const barrelLength = useMemo(() => {
+    const savedLength = Number(recipe?.customBarrelLength || 0);
+    if (savedLength > 0) return { value: savedLength, source: 'recipe' as const };
+    const bomLengths = Array.from(new Set(parts
+      .map((part) => Number(part.barrelLength || 0))
+      .filter((value) => value > 0)));
+    return bomLengths.length === 1
+      ? { value: bomLengths[0], source: 'bom' as const }
+      : { value: null, source: 'missing' as const };
+  }, [parts, recipe?.customBarrelLength]);
+  const bomSummary = useMemo(() => {
+    const snapshotComplete = partCompareRows.length > 0
+      && partCompareRows.every((row) => row.savedSubtotal != null);
+    const currentComplete = currentCostComplete
+      && partCompareRows.length > 0
+      && partCompareRows.every((row) => row.currentSubtotal != null);
+    const snapshotSubtotal = snapshotComplete
+      ? partCompareRows.reduce((sum, row) => sum + Number(row.savedSubtotal), 0)
+      : null;
+    const currentSubtotal = currentComplete
+      ? partCompareRows.reduce((sum, row) => sum + Number(row.currentSubtotal), 0)
+      : null;
+    return {
+      totalQty: partCompareRows.reduce((sum, row) => sum + Number(row.qty || 0), 0),
+      snapshotSubtotal,
+      currentSubtotal,
+      difference: snapshotSubtotal != null && currentSubtotal != null
+        ? currentSubtotal - snapshotSubtotal
+        : null,
+    };
+  }, [currentCostComplete, partCompareRows]);
 
   return (
     <SlideOver open={Boolean(recipe)} onClose={onClose} size="workspace">
@@ -140,8 +163,10 @@ export function RecipeDetailPanel({
               </div>
               <div className="rounded-panel border border-line p-4">
                 <div className="text-xs text-muted">当日完整成本</div>
-                <div className="mt-1 text-xl font-semibold text-ink">{currentTotal != null ? money(currentTotal) : '-'}</div>
-                <div className="mt-1 text-xs text-muted">含人工及管理费 · {currentAt}</div>
+                <div className={`mt-1 text-xl font-semibold ${currentCostComplete ? 'text-ink' : 'text-amber-700'}`}>
+                  {currentCostComplete ? currentTotal != null ? money(currentTotal) : '-' : '成本不完整'}
+                </div>
+                <div className="mt-1 text-xs text-muted">{currentCostComplete ? '含人工及管理费' : `缺 ${currentSummary?.missingParts.length || 0} 项价格`} · {currentAt}</div>
               </div>
               <div className="rounded-panel border border-line p-4">
                 <div className="text-xs text-muted">成本差额</div>
@@ -153,7 +178,7 @@ export function RecipeDetailPanel({
               <div className="rounded-panel border border-line p-4">
                 <div className="text-xs text-muted">BOM 项数</div>
                 <div className="mt-1 text-xl font-semibold text-ink">{parts.length}</div>
-                <div className="mt-1 text-xs text-muted">{currentCost?.missingParts?.length ? `${currentCost.missingParts.length} 项缺当前价` : '当前价已匹配'}</div>
+                <div className="mt-1 text-xs text-muted">{currentSummary?.missingParts?.length ? `${currentSummary.missingParts.length} 项缺当前价` : '当前价已匹配'}</div>
               </div>
               <div className="rounded-panel border border-line p-4">
                 <div className="text-xs text-muted">泵壳模板</div>
@@ -168,11 +193,26 @@ export function RecipeDetailPanel({
               </div>
             ) : null}
 
+            {currentSummary?.costComplete === false ? (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <CircleAlert className="mt-0.5 shrink-0" size={16} />
+                <div>
+                  <div className="font-medium">当日成本未生成完整金额</div>
+                  <div className="mt-1">缺少价格：{currentSummary.missingParts.join('、')}</div>
+                </div>
+              </div>
+            ) : null}
+
             <section className="rounded-panel border border-line">
               <div className="border-b border-line p-4 text-sm font-semibold text-ink">关键参数</div>
               <div className="grid gap-3 p-4 text-sm md:grid-cols-2">
                 <div className="text-muted">线圈：<span className="text-ink">{[recipe.coilSpec, recipe.coilSheets ? `${recipe.coilSheets}片` : '', recipe.coilMaterial, recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '-'}</span></div>
-                <div className="text-muted">机筒长度：<span className="text-ink">{recipe.customBarrelLength ? `${recipe.customBarrelLength} mm` : '-'}</span></div>
+                <div className="text-muted">
+                  机筒长度：<span className={barrelLength.value ? 'text-ink' : 'text-amber-700'}>
+                    {barrelLength.value ? `${barrelLength.value} mm` : '未记录，请在编辑配方中补录'}
+                  </span>
+                  {barrelLength.source === 'bom' ? <span className="ml-1 text-xs text-muted">（来自 BOM 快照）</span> : null}
+                </div>
                 <div className="text-muted">叶轮：<span className="text-ink">{[recipe.impellerModel, recipe.impellerThickness ? `${recipe.impellerThickness}厚` : '', recipe.impellerDiameter ? `直径${recipe.impellerDiameter}` : '', recipe.impellerBladeCount ? `${recipe.impellerBladeCount}片` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
                 <div className="text-muted">动态配置：<span className="text-ink">{[recipe.hasFloat ? `浮球 ${recipe.floatWire || '-'}` : '', recipe.hasCable ? `电缆 ${recipe.cableWire || '-'} ${recipe.cableLength || 0}m` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
               </div>
@@ -199,8 +239,27 @@ export function RecipeDetailPanel({
               {parts.length === 0 ? (
                 <div className="p-5 text-sm text-muted">暂无 BOM 快照</div>
               ) : (
-                <div className="max-h-80 overflow-auto">
-                  <table className="min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
+                <>
+                  <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="bg-white px-4 py-3">
+                      <div className="text-xs text-muted">数量合计</div>
+                      <div className="mt-1 font-semibold text-ink">{bomSummary.totalQty}</div>
+                    </div>
+                    <div className="bg-white px-4 py-3">
+                      <div className="text-xs text-muted">快照配件合计</div>
+                      <div className="mt-1 font-semibold text-ink">{bomSummary.snapshotSubtotal != null ? money(bomSummary.snapshotSubtotal) : '不完整'}</div>
+                    </div>
+                    <div className="bg-white px-4 py-3">
+                      <div className="text-xs text-muted">当前配件合计</div>
+                      <div className="mt-1 font-semibold text-ink">{bomSummary.currentSubtotal != null ? money(bomSummary.currentSubtotal) : '不完整'}</div>
+                    </div>
+                    <div className="bg-white px-4 py-3">
+                      <div className="text-xs text-muted">配件差额</div>
+                      <div className="mt-1 font-semibold text-ink">{signedMoney(bomSummary.difference)}</div>
+                    </div>
+                  </div>
+                  <div className="max-h-80 overflow-auto">
+                    <table className="min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
                     <thead className="sticky top-0 bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                       <tr>
                         <th className="border-b border-line px-4 py-3">名称</th>
@@ -238,8 +297,21 @@ export function RecipeDetailPanel({
                         );
                       })}
                     </tbody>
-                  </table>
-                </div>
+                    <tfoot className="sticky bottom-0 bg-slate-50 font-semibold text-ink">
+                      <tr>
+                        <td colSpan={3} className="border-t border-line px-4 py-3">合计（{parts.length} 项）</td>
+                        <td className="border-t border-line px-4 py-3 text-right">{bomSummary.totalQty}</td>
+                        <td className="border-t border-line px-4 py-3 text-right text-muted">-</td>
+                        <td className="border-t border-line px-4 py-3 text-right text-muted">-</td>
+                        <td className="border-t border-line px-4 py-3 text-right">{bomSummary.snapshotSubtotal != null ? money(bomSummary.snapshotSubtotal) : '不完整'}</td>
+                        <td className="border-t border-line px-4 py-3 text-right">{bomSummary.currentSubtotal != null ? money(bomSummary.currentSubtotal) : '不完整'}</td>
+                        <td className="border-t border-line px-4 py-3 text-right">{signedMoney(bomSummary.difference)}</td>
+                        <td className="border-t border-line px-4 py-3 text-muted">-</td>
+                      </tr>
+                    </tfoot>
+                    </table>
+                  </div>
+                </>
               )}
             </section>
 

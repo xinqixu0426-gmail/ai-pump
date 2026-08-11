@@ -27,6 +27,10 @@ export type PurchaseTask = {
   affected: AffectedPurchase[];
 };
 
+export function purchaseSourceOrders(task: PurchaseTask): Order[] {
+  return [...new Map(task.affected.map(({ order }) => [order.id, order])).values()];
+}
+
 export type PurchaseStats = {
   activeOrderCount: number;
   supplierCount: number;

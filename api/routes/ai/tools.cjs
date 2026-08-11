@@ -85,7 +85,7 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    spec: { type: 'string', description: '定子规格，如“150”' },
+                    spec: { type: 'string', description: '定子规格（俗称），如“150”。用户说“12-120”时表示规格俗称12、片数120，可整体传入 spec，服务端会自动拆分' },
                     sheets: { type: 'integer', description: '片数，如“96”' },
                     material: { type: 'string', description: '材质（可选）' },
                     slotType: { type: 'string', description: '槽眼（可选）' }
@@ -445,13 +445,17 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_order_detail',
-            description: '查看某个订单的完整详情（含配方列表、采购清单、TODO）。当用户说"看看订单5""订单5的详情"时使用',
+            description: '查看某个订单的完整详情（含配方列表、采购清单、TODO）。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。禁止根据名称、消息序号或历史回答猜测订单ID。',
             parameters: {
                 type: 'object',
                 properties: {
-                    orderId: { type: 'number', description: '订单ID' }
+                    orderId: { type: 'integer', minimum: 1, description: '用户明确提供或当前订单页面上下文中的订单ID' },
+                    orderQuery: { type: 'string', minLength: 1, maxLength: 120, description: '订单ID未知时的客户名称或合同号' }
                 },
-                required: ['orderId']
+                oneOf: [
+                    { type: 'object', properties: {}, required: ['orderId'] },
+                    { type: 'object', properties: {}, required: ['orderQuery'] },
+                ]
             }
         }
     },
@@ -1284,7 +1288,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_parts',
-            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称、类别、用途相关零件或专用配件（如电缆、电容、油封、机筒、轴承、密封件、切割泵壳/切割配件），即使没有说“零件”，也属于本能力；用途或专用关系结论还必须同时调用 search_factory_knowledge 检索 sourceTable=business_rules 的明确业务规则。只有明确询问配方或成品型号才使用 get_all_recipes。低库存按正式口径为库存大于0且不超过5。',
+            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称、类别、用途相关零件或专用配件（如电缆、电容、油封、机筒、轴承、密封件、切割泵壳/切割配件），即使没有说“零件”，也属于本能力；用途或专用关系结论还必须同时调用 search_factory_knowledge 检索 sourceTable=business_rules 的明确业务规则。只有明确询问配方或成品型号才使用 get_all_recipes。低库存按正式口径为库存大于0且不超过5。查询最贵/最便宜/库存最多/最少/最近更新等最值或排名问题时，必须设置 sortBy 与 sortOrder 并配合 limit（如 limit=1 或 5）取排序后的前 N 项，不得在未排序的列表中自行挑选最值。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1296,7 +1300,7 @@ const AI_TOOLS = [
                         enum: ['low', 'out', 'attention', 'ok'],
                         description: '库存状态：low=1到5，out=0或负数，attention=不超过5（含缺货），ok=大于5'
                     },
-                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '仅当用户明确要求最近或前 N 项时传入' },
+                    limit: { type: 'integer', minimum: 1, maximum: 100, description: '仅当用户明确要求最近或前 N 项，或配合 sortBy/sortOrder 取最值排名时传入' },
                     minPrice: { type: 'number', description: '最低单价（可选）' },
                     maxPrice: { type: 'number', description: '最高单价（可选）' },
                     priceBelow: { type: 'number', description: '单价严格低于该值（可选）' },
@@ -1304,7 +1308,17 @@ const AI_TOOLS = [
                     minStock: { type: 'number', description: '最低库存（可选）' },
                     maxStock: { type: 'number', description: '最高库存（可选）' },
                     stockBelow: { type: 'number', description: '库存严格低于该值（可选）' },
-                    stockAbove: { type: 'number', description: '库存严格高于该值（可选）' }
+                    stockAbove: { type: 'number', description: '库存严格高于该值（可选）' },
+                    sortBy: {
+                        type: 'string',
+                        enum: ['price', 'stock', 'model', 'updatedAt'],
+                        description: '排序字段：price=单价，stock=库存，model=型号，updatedAt=最近更新时间。最值/排名问题必传'
+                    },
+                    sortOrder: {
+                        type: 'string',
+                        enum: ['asc', 'desc'],
+                        description: '排序方向：asc=升序，desc=降序（默认 desc）。最贵/最多用 desc，最便宜/最少用 asc'
+                    }
                 }
             }
         }

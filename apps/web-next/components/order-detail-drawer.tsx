@@ -79,6 +79,19 @@ function purchaseItemKey(item: { identityKey?: string; model: string; supplier: 
   return item.identityKey || `${item.model}|${item.supplier}`;
 }
 
+function purchasePriceDraftValue(item: Order['purchaseList'][number]) {
+  if (item.purchasePriceRecorded || Number(item.purchasePrice || 0) > 0) {
+    return String(Number(item.purchasePrice || 0));
+  }
+  return String(Number(item.referencePrice || 0));
+}
+
+function referencePriceSourceLabel(item: Order['purchaseList'][number]) {
+  if (item.referencePriceSource === 'part_catalog') return '零件库';
+  if (item.referencePriceSource === 'coil_total_cost') return '线圈页总成本';
+  return '';
+}
+
 const tabOptions: Array<{ value: TabKey; label: string }> = [
   { value: 'requirements', label: '客户要求' },
   { value: 'readiness', label: '生产准备' },
@@ -344,7 +357,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
         orderedQty: String(item.orderedQty ?? (item.purchased ? item.plannedQty ?? item.needToBuy : 0) ?? 0),
         receivedQty: String(item.receivedQty ?? 0),
         stockedQty: String(item.stockedQty ?? 0),
-        purchasePrice: String(item.purchasePrice ?? 0),
+        purchasePrice: purchasePriceDraftValue(item),
         actualSupplier: item.actualSupplier || item.supplier || '',
       },
     ])));
@@ -687,7 +700,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                         <th className="px-3 py-2 text-right">下单</th>
                         <th className="px-3 py-2 text-right">到货</th>
                         <th className="px-3 py-2 text-right">入库</th>
-                        <th className="px-3 py-2 text-right">采购单价</th>
+                        <th className="px-3 py-2 text-right">实际采购单价</th>
                         <th className="px-3 py-2">实际供应商</th>
                         <th className="px-3 py-2 text-right">操作</th>
                       </tr>
@@ -715,20 +728,30 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                             <td className="px-3 py-2 text-right font-medium">
                               {item.plannedQty ?? item.needToBuy}{item.purchaseUnit ? ` ${item.purchaseUnit}` : ''}
                             </td>
-                            {(['orderedQty', 'receivedQty', 'stockedQty', 'purchasePrice'] as const).map((field) => (
-                              <td key={field} className="px-1.5 py-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step={field === 'purchasePrice' ? '0.01' : '1'}
-                                value={draft?.[field] ?? '0'}
-                                disabled={saving || !editable}
-                                onChange={(event) => setDraft(field, event.target.value)}
-                                className="h-8 w-16 rounded-md border border-line px-2 text-right text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"
-                              />
-                              </td>
-                            ))}
-                            <td className="px-1.5 py-2">
+                            {(['orderedQty', 'receivedQty', 'stockedQty', 'purchasePrice'] as const).map((field) => {
+                              const referenceSource = referencePriceSourceLabel(item);
+                              return (
+                                <td key={field} className="px-1.5 py-2 align-top">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step={field === 'purchasePrice' ? '0.01' : '1'}
+                                    value={draft?.[field] ?? '0'}
+                                    disabled={saving || !editable}
+                                    onChange={(event) => setDraft(field, event.target.value)}
+                                    className="h-8 w-20 rounded-md border border-line px-2 text-right text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"
+                                  />
+                                  {field === 'purchasePrice' ? (
+                                    <div className="mt-1 whitespace-nowrap text-right text-[11px] text-muted">
+                                      {referenceSource && Number(item.referencePrice || 0) > 0
+                                        ? `参考 ${referenceSource} ¥${Number(item.referencePrice).toFixed(2)}`
+                                        : '无参考价'}
+                                    </div>
+                                  ) : null}
+                                </td>
+                              );
+                            })}
+                            <td className="px-1.5 py-2 align-top">
                               <input
                                 value={draft?.actualSupplier ?? ''}
                                 disabled={saving || !editable}
@@ -736,7 +759,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                                 className="h-8 w-28 rounded-md border border-line px-2 text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"
                               />
                             </td>
-                            <td className="px-3 py-2 text-right">
+                            <td className="px-3 py-2 text-right align-top">
                               <Button
                                 size="sm"
                                 variant="ghost"

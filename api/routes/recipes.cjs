@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const multer = require('multer');
-const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, recipeTechnicalFileRow, safeInsert, safeUpdate, templateRow, modelVariantRow, invalidatePartsCache } = require('../db.cjs');
+const { db, dbGetAllCoils, dbGetAllParts, dbGetAllRecipes, partRow, recipeRow, recipeTechnicalFileRow, safeInsert, safeUpdate, templateRow, modelVariantRow, invalidatePartsCache, getSetting } = require('../db.cjs');
 const { buildRecipeCostDraft } = require('../services/costEngine.cjs');
 const { parsePumpTestReport } = require('../services/pumpTestReport.cjs');
 const { parsePositiveId } = require('../services/validation.cjs');
@@ -43,6 +43,7 @@ const recipeQueries = createRecipeQueries({
     modelVariantRow,
     recipeRow,
     templateRow,
+    getSetting,
 });
 
 function recipeCommandDependencies() {

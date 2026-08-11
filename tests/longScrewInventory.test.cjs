@@ -75,3 +75,26 @@ test('配方保存可用已计算快照价沉淀长螺丝零件', () => {
     assert.equal(parts[0].supplier, '螺丝供应商');
     assert.match(parts[0].remark, /recipeLongScrew/);
 });
+
+test('配方保存通过 dynamicRule 识别名称为机筒螺丝的参数化长螺丝', () => {
+    const parts = buildLongScrewInventoryPartsFromRecipe({
+        recipeName: 'V750 配方',
+        parts: [{
+            model: '6*200',
+            name: '机筒螺丝',
+            supplier: '军军',
+            qty: 4,
+            snapshotPrice: 0.65,
+            dynamicRule: 'longScrewByBarrelLength',
+            barrelLength: 175,
+            longScrewExtraLength: 25,
+            screwLength: 200,
+        }],
+        partsCatalog: [],
+    });
+
+    assert.equal(parts.length, 1);
+    assert.equal(parts[0].model, '6*200');
+    assert.equal(parts[0].price, 0.65);
+    assert.equal(parts[0].supplier, '军军');
+});

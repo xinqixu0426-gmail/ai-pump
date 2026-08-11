@@ -296,6 +296,7 @@ test('采购单项进度草稿返回正式版本、预览哈希和库存影响�
             receivedQty: 3,
             stockedQty: 2,
             purchasePrice: 4.5,
+            purchasePriceRecorded: true,
             actualSupplier: '实际供应商',
         });
         assert.equal(draft.stockAddition.inventoryType, 'part');

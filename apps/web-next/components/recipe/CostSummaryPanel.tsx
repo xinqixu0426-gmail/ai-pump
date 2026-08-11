@@ -8,6 +8,7 @@ import { BomPreview } from './BomPreview';
 type CostSummaryPanelProps = {
   bomCount: number;
   loading?: boolean;
+  ready: boolean;
   saving?: boolean;
   total: number;
   coilCost: number;
@@ -26,11 +27,11 @@ type CostSummaryPanelProps = {
   onGoToCostWarnings?: () => void;
 };
 
-function CostLine({ label, value }: { label: string; value: number }) {
+function CostLine({ label, value, ready }: { label: string; value: number; ready: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm text-slate-500">
       <span>{label}</span>
-      <span className="font-medium text-slate-900">{money(value)}</span>
+      <span className="font-medium text-slate-900">{ready ? money(value) : '—'}</span>
     </div>
   );
 }
@@ -38,6 +39,7 @@ function CostLine({ label, value }: { label: string; value: number }) {
 export function CostSummaryPanel({
   bomCount,
   loading,
+  ready,
   saving,
   total,
   coilCost,
@@ -67,7 +69,7 @@ export function CostSummaryPanel({
           <div>
             <div className="text-base font-semibold text-slate-900">实时成本预览</div>
             <div className="mt-1 text-xs text-slate-500">
-              {loading ? '正在刷新...' : bomCount > 0 ? `${bomCount} 项 BOM` : '填写配置后自动预览'}
+              {loading ? '正在计算当前成本...' : ready && bomCount > 0 ? `${bomCount} 项 BOM` : '填写配置后自动预览'}
             </div>
           </div>
           <Button type="button" size="sm" onClick={onRefresh} disabled={saving || loading} icon={<Wand2 size={14} />}>
@@ -75,15 +77,15 @@ export function CostSummaryPanel({
           </Button>
         </div>
 
-        <CostSummaryCard total={total} bomCount={bomCount} loading={loading} />
+        <CostSummaryCard total={total} bomCount={bomCount} loading={loading} ready={ready} />
 
         <div className="mt-4 space-y-2.5">
-          <CostLine label="线圈成本" value={coilCost} />
-          <CostLine label="模板配件成本" value={templatePartsCost} />
-          <CostLine label="选配件成本" value={optionalPartsCost} />
-          <CostLine label="包装材料成本" value={packingPartsCost} />
-          <CostLine label="人工与管理费" value={laborAndManagementCost} />
-          <CostLine label="表面处理费" value={surfaceTreatmentCost} />
+          <CostLine label="线圈成本" value={coilCost} ready={ready && !loading} />
+          <CostLine label="模板配件成本" value={templatePartsCost} ready={ready && !loading} />
+          <CostLine label="选配件成本" value={optionalPartsCost} ready={ready && !loading} />
+          <CostLine label="包装材料成本" value={packingPartsCost} ready={ready && !loading} />
+          <CostLine label="人工与管理费" value={laborAndManagementCost} ready={ready && !loading} />
+          <CostLine label="表面处理费" value={surfaceTreatmentCost} ready={ready && !loading} />
         </div>
 
         <div className={`mt-4 rounded-md border p-3 ${pendingHints.length > 0 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/70'}`}>
@@ -158,18 +160,24 @@ export function CostSummaryPanel({
   );
 }
 
-function CostSummaryCard({ total, bomCount, loading }: { total: number; bomCount: number; loading?: boolean }) {
+function CostSummaryCard({ total, bomCount, loading, ready }: { total: number; bomCount: number; loading?: boolean; ready: boolean }) {
   return (
     <div className={`mt-5 rounded-md border border-sky-200 bg-cyan-50/70 p-4 pl-5 shadow-sm ${loading ? 'ring-4 ring-sky-100/70' : ''}`}>
       <div className="relative">
         <div className="absolute -left-3 top-0 h-full w-1 rounded-full bg-sky-500" />
         <div className="text-xs font-medium text-sky-700">总成本</div>
         <div className="mt-1 flex items-end gap-1">
-          <span className="text-3xl font-bold tracking-tight text-slate-950">{money(total)}</span>
-          <span className="pb-1 text-sm font-medium text-slate-600">/ 台</span>
+          <span className="text-3xl font-bold tracking-tight text-slate-950">
+            {loading ? '正在计算' : ready ? money(total) : '—'}
+          </span>
+          {ready && !loading ? <span className="pb-1 text-sm font-medium text-slate-600">/ 台</span> : null}
         </div>
         <div className="mt-2 text-xs text-sky-700">
-          {loading ? '正在根据当前 BOM 重新计算' : `根据当前 ${bomCount} 项 BOM 实时计算`}
+          {loading
+            ? '正在根据当前模板和配方参数生成 BOM'
+            : ready
+              ? `根据当前 ${bomCount} 项 BOM 实时计算`
+              : '完成必要配置后生成当前成本'}
         </div>
       </div>
     </div>

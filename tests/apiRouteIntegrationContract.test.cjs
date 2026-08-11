@@ -862,6 +862,8 @@ test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当
     assert.match(queries, /const coils = listCoils\(\)/);
     assert.match(queries, /getSetting/);
     assert.match(queries, /asOf: now\.toISOString\(\)/);
+    assert.match(queries, /sourceOfTruth: 'costEngine'/);
+    assert.match(queries, /basis: 'currentTemplateAndRecipeParameters'/);
     assertNoWrites(section);
     assertNoWrites(queries);
 });

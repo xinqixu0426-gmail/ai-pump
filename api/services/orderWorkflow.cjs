@@ -31,6 +31,7 @@ function normalizePurchaseItem(item = {}) {
     const orderedQty = finiteNonNegative(item.orderedQty, legacyOrderedQty);
     const receivedQty = finiteNonNegative(item.receivedQty);
     const stockedQty = finiteNonNegative(item.stockedQty);
+    const purchasePrice = finiteNonNegative(item.purchasePrice);
     return {
         ...item,
         plannedQty,
@@ -38,7 +39,13 @@ function normalizePurchaseItem(item = {}) {
         orderedQty,
         receivedQty,
         stockedQty,
-        purchasePrice: finiteNonNegative(item.purchasePrice),
+        purchasePrice,
+        purchasePriceRecorded: item.purchasePriceRecorded === true || purchasePrice > 0,
+        referencePrice: finiteNonNegative(item.referencePrice),
+        referencePriceSource: item.referencePriceSource === 'part_catalog'
+            || item.referencePriceSource === 'coil_total_cost'
+            ? item.referencePriceSource
+            : 'none',
         actualSupplier: String(item.actualSupplier || item.supplier || ''),
         orderedAt: item.orderedAt || null,
         receivedAt: item.receivedAt || null,
@@ -153,6 +160,8 @@ function mergePurchasePlanItem(nextItem, previousItem) {
         purchaseUnit: next.purchaseUnit,
         stockQtyPerUnit: next.stockQtyPerUnit,
         specification: next.specification,
+        referencePrice: next.referencePrice,
+        referencePriceSource: next.referencePriceSource,
         cableLength: next.cableLength,
         cableAccessoryType: next.cableAccessoryType,
         cableAccessoryName: next.cableAccessoryName,

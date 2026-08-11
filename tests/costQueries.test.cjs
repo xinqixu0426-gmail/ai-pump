@@ -111,6 +111,9 @@ function createFixture() {
             partsByModel: {},
         }),
         recipeRow,
+        buildBomDraft: (_input, recipe) => ({
+            parts: JSON.parse(recipe.partsJson || '[]'),
+        }),
     });
     return {
         costCalls,
@@ -184,6 +187,8 @@ test('成本 Query 统一按名称、ID 和批量当日口径读取配方', () =
             new Date('2026-08-03T00:00:00.000Z')
         );
         assert.equal(current.asOf, '2026-08-03T00:00:00.000Z');
+        assert.equal(current.sourceOfTruth, 'costEngine');
+        assert.equal(current.basis, 'currentTemplateAndRecipeParameters');
         assert.deepEqual(current.items.map(item => ({
             recipeId: item.recipeId,
             currentTotalCost: item.currentTotalCost,

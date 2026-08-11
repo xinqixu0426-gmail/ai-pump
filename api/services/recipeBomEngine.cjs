@@ -6,6 +6,7 @@ const {
     wireModel,
     inferPackingMaterial,
     getPartPriceFromCatalog,
+    getFloatAccessoryDelta,
 } = require('./costEngine.cjs');
 const {
     buildCompleteCablePart,
@@ -142,6 +143,7 @@ function buildRecipeBomDraft(input, context) {
     const variant = context.variant || null;
     const coils = context.coils || [];
     const shellMeta = context.shellMeta || null;
+    const getSetting = context.getSetting || (() => undefined);
 
     const customBarrelLength = resolveBarrelLength(input.customBarrelLength, variant);
     const longScrewExtraLength = input.longScrewExtraLength ?? variant?.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
@@ -289,7 +291,7 @@ function buildRecipeBomDraft(input, context) {
         const model = wireModel('浮球', input.floatWire || '');
         const accessoryType = input.floatAccessoryType || 'standard';
         const basePrice = getPriceByModelAndSupplier(partsCatalog, model, '');
-        const delta = accessoryType === 'xinjie' ? Number(input.floatAccessoryDelta || 0) : 0;
+        const delta = getFloatAccessoryDelta(accessoryType, getSetting);
         bomParts.push({
             model,
             name: accessoryType === 'xinjie' ? '浮球-新界式' : '浮球',

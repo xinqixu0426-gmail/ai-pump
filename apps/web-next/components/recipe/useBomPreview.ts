@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RecipeSelectionRow } from '@/components/recipe/RecipeDataTable';
 import {
-  parseRecipePartsJson,
   previewRecipeBomDraft,
-  validRecipeParts,
   type CableAccessoryType,
-  type Recipe,
   type RecipeBomDraftResult,
   type RecipePart,
 } from '@/lib/recipes';
@@ -99,25 +96,11 @@ function buildBomPreviewInput(
     hasFloat: form.hasFloat,
     floatWire: form.floatWire,
     floatAccessoryType: form.floatAccessoryType,
-    floatAccessoryDelta: 0,
     hasCable: form.hasCable,
     cableLength: form.cableLength,
     cableWire: form.cableWire,
     cableAccessoryType: form.cableAccessoryType,
     packingParts: selectionToRecipeParts(packingParts, true),
-  };
-}
-
-export function bomPreviewFromRecipe(recipe: Recipe): RecipeBomDraftResult {
-  return {
-    parts: validRecipeParts(parseRecipePartsJson(recipe.partsJson)),
-    shellPrice: 0,
-    templateParts: [],
-    shellComponents: [],
-    coilSnapshot: null,
-    capacitorModel: '',
-    customBarrelLength: recipe.customBarrelLength ?? null,
-    longScrewExtraLength: recipe.longScrewExtraLength || 0,
   };
 }
 
@@ -133,6 +116,7 @@ export function useBomPreview({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
+  const activeRef = useRef(false);
   const {
     templateId,
     variantId,
@@ -236,14 +220,24 @@ export function useBomPreview({
   }, [input, reset, runRequest]);
 
   useEffect(() => {
-    if (!active) return;
+    const runImmediately = active && !activeRef.current;
+    activeRef.current = active;
+    if (!active) {
+      requestRef.current += 1;
+      setLoading(false);
+      return;
+    }
     if (!input) {
       reset();
       return;
     }
+
+    requestRef.current += 1;
+    setLoading(true);
+    setError(null);
     const timer = window.setTimeout(() => {
       void run({ captureError: true }).catch(() => undefined);
-    }, autoDelayMs);
+    }, runImmediately ? 0 : autoDelayMs);
     return () => window.clearTimeout(timer);
   }, [active, autoDelayMs, input, reset, run]);
 

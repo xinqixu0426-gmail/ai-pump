@@ -166,6 +166,22 @@ test('通用配方成本计算支持参数化长螺丝', () => {
     assert.equal(result.details[0].source, '参数化螺丝(φ6 不锈钢长螺丝)');
 });
 
+test('通用配方成本按 dynamicRule 识别名称为机筒螺丝的长螺丝', () => {
+    const result = calculateRecipeCost([
+        {
+            name: '机筒螺丝',
+            model: '6*200',
+            supplier: '',
+            qty: 4,
+            dynamicRule: 'longScrewByBarrelLength',
+        },
+    ], {}, {});
+
+    assert.equal(result.totalCost, '2.60');
+    assert.equal(result.details[0].source, '长螺丝公式价');
+    assert.deepEqual(result.missingParts, []);
+});
+
 test('不锈钢泵壳套件整体价随机筒长度按 150mm 基准加价', () => {
     assert.equal(stainlessShellBundleExtraCost(150), 0);
     assert.equal(stainlessShellBundleExtraCost(170), 2);

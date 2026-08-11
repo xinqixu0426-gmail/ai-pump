@@ -73,6 +73,8 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 常用配置是历史兼容能力，用于保存同一模板下的高频线圈、机筒、长螺丝和叶轮组合；已有数据及 `POST /api/recipes/model-variant-draft` 接口继续保留，但不再作为日常新建配方的必经步骤。新流程直接选择泵壳模板和线圈，再完成浮球、电缆、包装、人工及费用配置；同泵壳的其他功率型号通过复制相近配方后修改线圈生成。长螺丝仍与不锈钢机筒绑定，目标长度 = 机筒长度 + 补偿长度；机筒长度和补偿长度均随配方持久化，重新编辑时恢复原值。泵壳套件模式由零件库泵壳“不锈钢机筒”元数据触发，自由搭配模式由“不锈钢拉伸筒”组件类型触发。铝机筒、铁机筒按普通零件型号和库存处理。
 
+参数化长螺丝以 `dynamicRule=longScrewByBarrelLength` 为正式识别依据；配方保存后会把已计算但零件库不存在的目标长度螺丝自动建档。历史遗漏可运行 `npm run maintenance:backfill-long-screws` 通过正式批量建档契约回填；活动订单会自动改用新零件的 `partId` 并保留原采购进度。
+
 ### 产品配方
 
 配方是一台产品的完整 BOM 与成本快照，包含：
@@ -86,7 +88,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 配方页以“泵壳模板 + 线圈配置 + 客户选配”为唯一可见主流程：泵壳模板提供结构成本包，线圈配置联动电容、电缆/浮球线径和叶轮参考，客户选配再覆盖电缆长度、浮球、包装材料、接轴和表面处理等 OEM 差异。需要复用时直接复制已有配方，不要求用户理解或维护额外的常用配置层级。
 
-BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只读聚合模板、常用配置、泵壳元数据、零件和正式线圈方案，再委托 `recipeBomEngine` 展开 BOM；前端展示零件时必须使用草稿中的 `snapshotPrice`、`costSource/source` 和 `formula` 标注成本价与计算来源，不得在页面或 Query 层另写正式成本公式。配方保存前，后端会逐项检查完整 BOM 的快照单价；任何项目价格缺失、无效或为 0 都会阻止保存并列出具体项目，避免浮球、电缆等自动匹配失败后漏算成本。客户指定线重使用配方字段 `coilWireWeight` 进入 BOM 草稿，由后端线圈服务重算成本并自动关联电容。叶轮参数只属于技术档案和出图参考，不参与成本计算。
+BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只读聚合模板、常用配置、泵壳元数据、零件、系统动态配置和正式线圈方案，再委托 `recipeBomEngine` 展开 BOM；新界式浮球差价统一读取全局 `float_accessory_delta`，前端不得自行传入成本差价。前端展示零件时必须使用草稿中的 `snapshotPrice`、`costSource/source` 和 `formula` 标注成本价与计算来源，不得在页面或 Query 层另写正式成本公式。配方保存前，后端会逐项检查完整 BOM 的快照单价；任何项目价格缺失、无效或为 0 都会阻止保存并列出具体项目，避免浮球、电缆等自动匹配失败后漏算成本。客户指定线重使用配方字段 `coilWireWeight` 进入 BOM 草稿，由后端线圈服务重算成本并自动关联电容。叶轮参数只属于技术档案和出图参考，不参与成本计算。
 
 表面处理支持：无、喷漆、电泳、喷塑。旧 `paintingWage` 字段只用于历史数据兼容，新逻辑使用 `surfaceTreatmentMode + surfaceTreatmentCost`。
 
@@ -192,7 +194,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度、参数化计价及成品电缆合并规则；不写库 |
 | 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前由 `costEngine` 根据 BOM 和费用字段重新生成权威成本快照，检查零价格项目，并返回版本、预览哈希和建议幂等键；不写库 |
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
-| 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按当前零件价格和当前铜价重算配方 BOM，再叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额 |
+| 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按配方参数和当前模板重建完整 BOM，再按当前零件、动态配置和线圈价格重算，叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额。任一 BOM 项缺价时不返回正式总成本，页面必须显示“成本不完整”和缺价型号，不能把缺失项按 ¥0 混入金额 |
 | 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |
 | AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 分别叠加配方配件、线圈和动态配置 |
 

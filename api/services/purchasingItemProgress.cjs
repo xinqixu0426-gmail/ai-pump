@@ -210,6 +210,9 @@ function buildProgressState(dependencies, orderId, progressInput, options = {}) 
         purchasePrice: progressInput.purchasePrice === undefined
             ? currentItem.purchasePrice
             : progressInput.purchasePrice,
+        purchasePriceRecorded: progressInput.purchasePrice === undefined
+            ? currentItem.purchasePriceRecorded
+            : true,
         actualSupplier: progressInput.actualSupplier === undefined
             ? currentItem.actualSupplier
             : progressInput.actualSupplier,
@@ -269,6 +272,7 @@ function buildPurchaseItemProgressDraft(dependencies, orderIdValue, input = {}) 
                 receivedQty: Number(state.currentItem.receivedQty || 0),
                 stockedQty: Number(state.currentItem.stockedQty || 0),
                 purchasePrice: Number(state.currentItem.purchasePrice || 0),
+                purchasePriceRecorded: state.currentItem.purchasePriceRecorded === true,
                 actualSupplier: String(state.currentItem.actualSupplier || ''),
             },
             after: {
@@ -276,6 +280,7 @@ function buildPurchaseItemProgressDraft(dependencies, orderIdValue, input = {}) 
                 receivedQty: Number(state.nextItem.receivedQty || 0),
                 stockedQty: Number(state.nextItem.stockedQty || 0),
                 purchasePrice: Number(state.nextItem.purchasePrice || 0),
+                purchasePriceRecorded: state.nextItem.purchasePriceRecorded === true,
                 actualSupplier: String(state.nextItem.actualSupplier || ''),
             },
         },

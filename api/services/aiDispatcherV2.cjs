@@ -34,6 +34,7 @@ const {
     buildAiPageContextNote,
     normalizeAiPageContext,
 } = require('./aiPageContext.cjs');
+const { validateAiToolIdentifierGrounding } = require('./aiToolIdentifierGrounding.cjs');
 
 const MAX_TOOL_ROUNDS = 7;
 const MAX_TOOL_CALLS = 10;
@@ -237,6 +238,7 @@ async function runAiDispatcherV2(input = {}) {
     let evidencePrioritized = false;
     let toolCallCount = 0;
     let readCorrectionUsed = false;
+    let identifierCorrectionUsed = false;
     let responseProtocolCorrectionUsed = false;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
@@ -319,6 +321,44 @@ async function runAiDispatcherV2(input = {}) {
             }
             toolCallCount += toolCalls.length;
             emit('tool_plan', buildAiToolPlan(preparedCalls, WRITE_TOOLS));
+            const groundingIssue = preparedCalls
+                .filter(prepared => prepared.validationStatus === 'validated')
+                .map(prepared => ({
+                    prepared,
+                    issue: validateAiToolIdentifierGrounding({
+                        toolName: prepared.toolCall.function.name,
+                        args: parseAiToolArguments(prepared.toolCall.function.arguments),
+                        messages: scopedMessages,
+                        pageContext,
+                    }),
+                }))
+                .find(item => item.issue);
+            if (groundingIssue) {
+                const toolCall = groundingIssue.prepared.toolCall;
+                const name = toolCall.function.name;
+                const args = parseAiToolArguments(toolCall.function.arguments);
+                const result = {
+                    success: false,
+                    code: groundingIssue.issue.code,
+                    error: groundingIssue.issue.error,
+                    validation: { status: 'rejected', toolName: name },
+                };
+                emit('tool_call', { name, args });
+                emit('tool_result', { name, result });
+                currentMessages.push(buildAiToolResultMessage(toolCall, result));
+                if (!identifierCorrectionUsed) {
+                    identifierCorrectionUsed = true;
+                    currentMessages.push({
+                        role: 'system',
+                        content: `${groundingIssue.issue.error} 请重新调用同一工具；保留用户给出的名称或合同号并改用 orderQuery，不得生成订单ID。`,
+                    });
+                    emit('status', { status: 'thinking', message: '正在按正式名称重新定位订单...' });
+                    continue;
+                }
+                toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
+                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+                break;
+            }
             for (const prepared of preparedCalls) {
                 const toolCall = prepared.toolCall;
                 const name = toolCall.function.name;

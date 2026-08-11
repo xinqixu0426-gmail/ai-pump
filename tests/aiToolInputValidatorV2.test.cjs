@@ -130,4 +130,12 @@ test('V2 工具输入：按 ID 或业务名称定位时至少要求一种正式�
     assert.deepEqual(validateAiToolArgs('check_order_readiness', { orderQuery: '测试客户' }), {
         orderQuery: '测试客户',
     });
+    assert.throws(() => validateAiToolArgs('get_order_detail', {}), /必须且只能符合一种输入形式/);
+    assert.deepEqual(validateAiToolArgs('get_order_detail', { orderQuery: '邱焕' }), {
+        orderQuery: '邱焕',
+    });
+    assert.throws(
+        () => validateAiToolArgs('get_order_detail', { orderId: 1, orderQuery: '邱焕' }),
+        /必须且只能符合一种输入形式/
+    );
 });

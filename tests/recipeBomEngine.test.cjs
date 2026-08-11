@@ -134,6 +134,23 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
     assert.ok(result.parts.find(part => part.model === '泡沫内衬' && part.packagingMaterial === '泡沫'));
 });
 
+test('后端 BOM draft 的新界式浮球统一读取全局附加费', () => {
+    const result = buildRecipeBomDraft({
+        hasFloat: true,
+        floatWire: '0.75',
+        floatAccessoryType: 'xinjie',
+    }, {
+        partsCatalog,
+        coils,
+        getSetting: key => key === 'float_accessory_delta' ? '0.6' : undefined,
+    });
+
+    const floatPart = result.parts.find(part => part.name === '浮球-新界式');
+    assert.equal(floatPart.snapshotPrice, 8.2);
+    assert.equal(floatPart.floatAccessoryDelta, 0.6);
+    assert.match(floatPart.formula, /7\.6\+新界差价 0\.6/);
+});
+
 test('后端 BOM draft 不再使用泵壳 notes 默认机筒长度', () => {
     const result = buildRecipeBomDraft({
         templateId: 1,

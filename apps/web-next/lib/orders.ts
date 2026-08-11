@@ -28,6 +28,9 @@ export type PurchaseItem = {
   receivedQty?: number;
   stockedQty?: number;
   purchasePrice?: number;
+  purchasePriceRecorded?: boolean;
+  referencePrice?: number;
+  referencePriceSource?: 'part_catalog' | 'coil_total_cost' | 'none';
   actualSupplier?: string;
   orderedAt?: string | null;
   receivedAt?: string | null;

@@ -69,7 +69,7 @@ async function loadOrder(internalFetch, orderId) {
     }
 }
 
-async function resolveOrderForReadiness(internalFetch, args = {}) {
+async function resolveOrderTarget(internalFetch, args = {}) {
     const explicitId = Number.parseInt(args.orderId, 10);
     if (Number.isInteger(explicitId) && explicitId > 0) {
         return { orderId: explicitId };
@@ -276,9 +276,16 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'get_order_detail': {
-            const { orderId } = args;
-            const row = await loadOrder(internalFetch, orderId);
-            if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
+            const resolved = await resolveOrderTarget(internalFetch, args);
+            if (resolved.error) {
+                return {
+                    success: false,
+                    error: resolved.error,
+                    candidates: resolved.candidates || [],
+                };
+            }
+            const row = await loadOrder(internalFetch, resolved.orderId);
+            if (!row) return { success: false, error: '找不到订单ID: ' + resolved.orderId };
             let items = parseJsonArray(row.itemsJson);
             let purchaseList = parseJsonArray(row.purchaseListJson);
             let todos = parseJsonArray(row.todosJson);
@@ -306,7 +313,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'get_order_knowledge_package': {
-            const resolved = await resolveOrderForReadiness(internalFetch, args);
+            const resolved = await resolveOrderTarget(internalFetch, args);
             if (resolved.error) {
                 return {
                     success: false,
@@ -329,7 +336,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'check_order_readiness': {
-            const resolved = await resolveOrderForReadiness(internalFetch, args);
+            const resolved = await resolveOrderTarget(internalFetch, args);
             if (resolved.error) {
                 return {
                     success: false,
@@ -367,7 +374,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'plan_order_readiness_actions': {
-            const resolved = await resolveOrderForReadiness(internalFetch, args);
+            const resolved = await resolveOrderTarget(internalFetch, args);
             if (resolved.error) {
                 return {
                     success: false,

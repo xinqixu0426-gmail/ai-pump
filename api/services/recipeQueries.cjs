@@ -19,6 +19,7 @@ function createRecipeQueries({
     modelVariantRow,
     recipeRow,
     templateRow,
+    getSetting = () => undefined,
     buildBomDraft = buildRecipeBomDraft,
 } = {}) {
     if (!db || typeof db.prepare !== 'function') {
@@ -214,6 +215,7 @@ function createRecipeQueries({
             shellMeta,
             partsCatalog: listParts(),
             coils: listCoils(),
+            getSetting,
         });
     }
 

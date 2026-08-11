@@ -45,6 +45,7 @@ function createCostQueries({
     listRecipes,
     loadPartsData,
     recipeRow,
+    buildBomDraft,
 } = {}) {
     if (!db || typeof db.prepare !== 'function') {
         throw new Error('成本查询服务缺少数据库依赖');
@@ -56,6 +57,7 @@ function createCostQueries({
         listRecipes,
         loadPartsData,
         recipeRow,
+        buildBomDraft,
     })) {
         if (typeof dependency !== 'function') {
             throw new Error(`成本查询服务缺少 ${name}`);
@@ -112,6 +114,8 @@ function createCostQueries({
         const coils = listCoils();
         return {
             asOf: now.toISOString(),
+            sourceOfTruth: 'costEngine',
+            basis: 'currentTemplateAndRecipeParameters',
             items: listRecipes().map(recipe => calculateCurrentRecipeCost(
                 recipe,
                 {
@@ -120,6 +124,7 @@ function createCostQueries({
                     calculateRecipeCost,
                     coils,
                     getSetting,
+                    buildBomDraft,
                 }
             )),
         };

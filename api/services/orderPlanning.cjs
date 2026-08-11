@@ -144,6 +144,16 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         const partId = exactPart?.Id || exactPart?.id;
         const resolvedSupplier = supplier || dbPart?.supplier || '';
         const inventoryType = coilPart ? (coilId ? 'coil' : 'none') : 'part';
+        const coilReferencePrice = coilId ? Number(exactCoil?.cost || 0) : 0;
+        const catalogReferencePrice = partId ? Number(exactPart?.price || 0) : 0;
+        const referencePrice = Number.isFinite(coilReferencePrice) && coilReferencePrice > 0
+            ? coilReferencePrice
+            : Number.isFinite(catalogReferencePrice) && catalogReferencePrice > 0
+                ? catalogReferencePrice
+                : 0;
+        const referencePriceSource = referencePrice > 0
+            ? coilId ? 'coil_total_cost' : 'part_catalog'
+            : 'none';
         const stockIdentityKey = coilId
             ? `coil:${coilId}`
             : purchaseIdentity(part.model, resolvedSupplier, partId);
@@ -167,6 +177,9 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             receivedQty: 0,
             stockedQty: 0,
             purchasePrice: 0,
+            purchasePriceRecorded: false,
+            referencePrice,
+            referencePriceSource,
             actualSupplier: supplier || dbPart?.supplier || '',
             purchased: false,
             partId,
@@ -230,12 +243,18 @@ function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
             item.identityKey || purchaseIdentity(item.model, item.supplier, item.partId),
             normalizePurchaseItem(item),
         ]));
-        plan.purchaseList = plan.purchaseList.map(item => mergePurchasePlanItem(
-            item,
-            previousByKey.get(item.identityKey)
+        plan.purchaseList = plan.purchaseList.map(item => {
+            const previousItem = previousByKey.get(item.identityKey)
                 || (item.inventoryType === 'coil'
                     ? previous.find(previousItem => (
                         !previousItem.inventoryType
+                        && previousItem.model === item.model
+                        && String(previousItem.supplier || '') === String(item.supplier || '')
+                    ))
+                    : undefined)
+                || (item.inventoryType === 'part' && item.partId
+                    ? previous.find(previousItem => (
+                        !previousItem.partId
                         && previousItem.model === item.model
                         && String(previousItem.supplier || '') === String(item.supplier || '')
                     ))
@@ -246,8 +265,9 @@ function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
                         && previousItem.model === item.model
                         && String(previousItem.supplier || '') === String(item.supplier || '')
                     ))
-                    : undefined),
-        ));
+                    : undefined);
+            return mergePurchasePlanItem(item, previousItem);
+        });
         plans.set(Number(order.id || order.Id), plan);
     }
     return plans;

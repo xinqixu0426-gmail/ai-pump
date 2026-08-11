@@ -11,6 +11,7 @@ type RecipeEditorProps = {
   saving: boolean;
   analysisLoading: boolean;
   saveBlocked: boolean;
+  costLoading: boolean;
   formError: string | null;
   children: ReactNode;
   onClose: () => void;
@@ -24,6 +25,7 @@ export function RecipeEditor({
   saving,
   analysisLoading,
   saveBlocked,
+  costLoading,
   formError,
   children,
   onClose,
@@ -81,10 +83,10 @@ export function RecipeEditor({
             type="submit"
             variant="primary"
             disabled={saving || saveBlocked}
-            title={saveBlocked ? '存在成本警告，请处理后再保存配方' : undefined}
+            title={costLoading ? '当前成本尚未计算完成' : saveBlocked ? '存在成本警告，请处理后再保存配方' : undefined}
             icon={<Save size={15} />}
           >
-            {saving ? '保存中' : saveBlocked ? '处理警告后保存' : '保存配方'}
+            {saving ? '保存中' : costLoading ? '等待成本计算' : saveBlocked ? '处理警告后保存' : '保存配方'}
           </Button>
         </div>
       </form>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { AnimatePresence } from 'motion/react';
 import { ArrowRight, CircleAlert, Eye, FileText, Pencil, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
@@ -196,6 +197,60 @@ function packingSummary(value: unknown): string {
       return `${material}${item.model || '未命名包材'}${supplier}${qty}`;
     })
     .join('；');
+}
+
+function PackingHoverSummary({ value }: { value: unknown }) {
+  const rows = normalizePackingParts(value);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  if (rows.length === 0) return <span className="text-muted">-</span>;
+
+  const showDetails = (target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    setPosition({
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - 348)),
+      top: rect.bottom + 8,
+    });
+  };
+  const hideDetails = () => setPosition(null);
+  const detailText = packingSummary(value);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`查看包材详情：${detailText}`}
+        className="inline-flex max-w-28 cursor-help items-center rounded-full border border-line bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 outline-none transition-colors hover:border-slate-300 hover:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+        onMouseEnter={(event) => showDetails(event.currentTarget)}
+        onMouseLeave={hideDetails}
+        onFocus={(event) => showDetails(event.currentTarget)}
+        onBlur={hideDetails}
+        onKeyDown={(event) => { if (event.key === 'Escape') hideDetails(); }}
+      >
+        {rows.length} 项包材
+      </button>
+      {position && typeof document !== 'undefined' ? createPortal(
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[100] w-80 rounded-md border border-slate-200 bg-white p-3 text-left shadow-xl"
+          style={{ left: position.left, top: position.top }}
+        >
+          <div className="text-xs font-semibold text-ink">包材详情</div>
+          <div className="mt-2 space-y-2">
+            {rows.map((item, index) => (
+              <div key={`${item.model}-${item.supplier || ''}-${index}`} className="border-t border-line pt-2 first:border-0 first:pt-0">
+                <div className="text-xs font-medium text-ink">{item.packagingMaterial || '其他包材'} · {item.model || '未命名包材'}</div>
+                <div className="mt-0.5 text-[11px] leading-4 text-muted">
+                  {item.supplier || '无供应商'} · 数量 {item.qty || 1}
+                  {item.snapshotPrice != null ? ` · ${money(Number(item.snapshotPrice))}` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+    </>
+  );
 }
 
 export function QuotationsView() {
@@ -967,15 +1022,17 @@ export function QuotationsView() {
                   <div className="mt-1 text-xs text-muted">只展示报价时的关键配置，不展开详细 BOM。</div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-[980px] border-separate border-spacing-0 text-left text-sm">
+                  <table className="min-w-[1080px] border-separate border-spacing-0 text-left text-sm">
                     <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                       <tr>
                         <th className="border-b border-line px-4 py-3">产品</th>
                         <th className="border-b border-line px-4 py-3">线圈</th>
                         <th className="border-b border-line px-4 py-3">浮球</th>
                         <th className="border-b border-line px-4 py-3">电缆</th>
-                        <th className="border-b border-line px-4 py-3">包材</th>
+                        <th className="w-32 border-b border-line px-4 py-3">包材</th>
                         <th className="border-b border-line px-4 py-3">表面处理</th>
+                        <th className="border-b border-line px-4 py-3 text-right" title="单位成本">单价</th>
+                        <th className="border-b border-line px-4 py-3 text-right" title="产品出厂单价">出厂价</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -999,11 +1056,15 @@ export function QuotationsView() {
                             </td>
                             <td className="border-b border-line px-4 py-3 align-top text-muted">{float}</td>
                             <td className="border-b border-line px-4 py-3 align-top text-muted">{cable}</td>
-                            <td className="border-b border-line px-4 py-3 align-top text-muted">{packingSummary(overrides.packingPartsJson)}</td>
+                            <td className="w-32 border-b border-line px-4 py-3 align-top text-muted">
+                              <PackingHoverSummary value={overrides.packingPartsJson} />
+                            </td>
                             <td className="border-b border-line px-4 py-3 align-top text-muted">
                               {surfaceTreatmentLabel(overrides.surfaceTreatmentMode)}
                               {overrides.surfaceTreatmentMode && overrides.surfaceTreatmentMode !== 'none' ? ` · ${money(Number(overrides.surfaceTreatmentCost || 0))}` : ''}
                             </td>
+                            <td className="border-b border-line px-4 py-3 text-right align-top font-medium tabular-nums text-ink">{money(Number(item.unitCost || 0))}</td>
+                            <td className="border-b border-line px-4 py-3 text-right align-top font-semibold tabular-nums text-ink">{money(Number(item.unitPrice || 0))}</td>
                           </tr>
                         );
                       })}

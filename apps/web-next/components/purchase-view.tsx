@@ -20,6 +20,7 @@ import {
   buildPurchaseStats,
   buildPurchaseTasks,
   getPurchaseOrders,
+  purchaseSourceOrders,
   statusText,
   taskStatus,
   type PurchaseFilter,
@@ -89,7 +90,10 @@ export function PurchaseView() {
     const normalizedQuery = query.trim().toLowerCase();
     return tasks.filter((task) => {
       const status = taskStatus(task);
-      const text = `${task.supplierLabel} ${task.model} ${task.name}`.toLowerCase();
+      const sourceText = purchaseSourceOrders(task)
+        .map((order) => `${order.customerName} ${order.contractNo || ''} ${order.id}`)
+        .join(' ');
+      const text = `${task.supplierLabel} ${task.model} ${task.name} ${sourceText}`.toLowerCase();
       return (filter === 'all' || status === filter) && (!normalizedQuery || text.includes(normalizedQuery));
     });
   }, [filter, query, tasks]);
@@ -164,7 +168,7 @@ export function PurchaseView() {
           query={query}
           onQueryChange={setQuery}
           searchLabel="搜索采购任务"
-          placeholder="搜索供应商、型号或名称"
+          placeholder="搜索供应商、型号、名称或来源订单"
           resultText={`显示 ${filteredTasks.length} / ${tasks.length} 项采购任务`}
           hasActiveFilters={Boolean(query.trim()) || filter !== 'pending'}
           onReset={() => {
@@ -199,17 +203,17 @@ export function PurchaseView() {
           />
         ) : (
           <TableScrollArea label="采购任务列表">
-            <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[1240px] border-separate border-spacing-0 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="border-b border-line px-4 py-3">供应商</th>
                   <th className="border-b border-line px-4 py-3">物料</th>
+                  <th className="border-b border-line px-4 py-3">采购来源</th>
                   <th className="border-b border-line px-4 py-3">状态</th>
                   <th className="border-b border-line px-4 py-3 text-right">计划</th>
                   <th className="border-b border-line px-4 py-3 text-right">下单</th>
                   <th className="border-b border-line px-4 py-3 text-right">到货</th>
                   <th className="border-b border-line px-4 py-3 text-right">入库</th>
-                  <th className="border-b border-line px-4 py-3 text-right">订单</th>
                   <th className="border-b border-line px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
@@ -218,6 +222,7 @@ export function PurchaseView() {
                   {filteredTasks.map((task) => {
                     const saving = savingKey === task.key;
                     const completed = taskStatus(task) === 'purchased';
+                    const sourceOrders = purchaseSourceOrders(task);
 
                     return (
                       <PresenceRow key={task.key} className="transition-colors hover:bg-slate-50">
@@ -234,13 +239,27 @@ export function PurchaseView() {
                           </div>
                         </td>
                         <td className="border-b border-line px-4 py-3">
+                          <div className="flex max-w-64 flex-wrap gap-1">
+                            {sourceOrders.map((order) => (
+                              <a
+                                key={order.id}
+                                href={`/orders?orderId=${encodeURIComponent(order.id)}&view=purchase`}
+                                className="inline-flex max-w-40 items-center gap-1 rounded-full border border-line bg-slate-50 px-2 py-1 text-xs transition-colors hover:border-sky-300 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                                aria-label={`查看来源订单 ${order.contractNo || `#${order.id}`} 的采购明细`}
+                              >
+                                <span className="truncate font-medium text-ink">{order.customerName || '未填写客户'}</span>
+                                <span className="shrink-0 text-muted">· {order.contractNo || `#${order.id}`}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="border-b border-line px-4 py-3">
                           <TaskStatusBadge task={task} />
                         </td>
                         <td className="border-b border-line px-4 py-3 text-right text-muted">{task.totalNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
                         <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{task.purchasedNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
                         <td className="border-b border-line px-4 py-3 text-right text-muted">{task.receivedNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
                         <td className="border-b border-line px-4 py-3 text-right text-muted">{task.stockedNeed}{task.purchaseUnit ? ` ${task.purchaseUnit}` : ''}</td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{task.orderCount}</td>
                         <td className="border-b border-line px-4 py-3">
                           <div className="flex justify-end">
                             <Button

@@ -37,6 +37,10 @@ test('采购清单按 BOM × 订单数量汇总并扣库存', () => {
     assert.equal(purchaseList[0].currentStock, 3);
     assert.equal(purchaseList[0].needToBuy, 1);
     assert.equal(purchaseList[0].partId, 1);
+    assert.equal(purchaseList[0].purchasePrice, 0);
+    assert.equal(purchaseList[0].purchasePriceRecorded, false);
+    assert.equal(purchaseList[0].referencePrice, 1.1);
+    assert.equal(purchaseList[0].referencePriceSource, 'part_catalog');
 });
 
 test('参数化长螺丝采购项可使用基础螺丝供应商且不扣基础库存', () => {
@@ -56,6 +60,40 @@ test('参数化长螺丝采购项可使用基础螺丝供应商且不扣基础�
     assert.equal(purchaseList[0].currentStock, 0);
     assert.equal(purchaseList[0].needToBuy, 4);
     assert.equal(purchaseList[0].partId, undefined);
+});
+
+test('参数化长螺丝补建零件后自动关联 partId 并保留原采购进度', () => {
+    const catalog = [
+        ...partsCatalog,
+        { Id: 4, model: '6*195', category: '螺丝', supplier: '螺丝供应商', stock: 0, price: 0.63 },
+    ];
+    const plans = buildBalancedOrderPlans([{
+        id: 1,
+        created_at: '2026-01-01',
+        items: [{
+            qty: 1,
+            partsJson: JSON.stringify([
+                { model: '6*195', name: '机筒螺丝', supplier: '螺丝供应商', qty: 4, dynamicRule: 'longScrewByBarrelLength' },
+            ]),
+        }],
+        purchase_list_json: JSON.stringify([{
+            model: '6*195',
+            name: '机筒螺丝',
+            supplier: '螺丝供应商',
+            plannedQty: 4,
+            orderedQty: 2,
+            receivedQty: 1,
+            stockedQty: 0,
+            identityKey: 'model:6*195|supplier:螺丝供应商',
+            inventoryType: 'part',
+        }]),
+    }], catalog);
+    const screw = plans.get(1).purchaseList[0];
+
+    assert.equal(screw.partId, 4);
+    assert.equal(screw.identityKey, 'part:4');
+    assert.equal(screw.orderedQty, 2);
+    assert.equal(screw.receivedQty, 1);
 });
 
 test('采购清单将旧电缆两行合并为按根采购的成品电缆', () => {
@@ -197,6 +235,7 @@ test('线圈转子按正式线圈方案分配库存，不要求写入零件库',
         slotType: '小眼',
         schemeStatus: 'official',
         stock: 8,
+        cost: 146.8,
     }];
     const item = {
         qty: 6,
@@ -222,8 +261,12 @@ test('线圈转子按正式线圈方案分配库存，不要求写入零件库',
     assert.equal(first.purchaseUnit, '套');
     assert.equal(first.currentStock, 8);
     assert.equal(first.needToBuy, 0);
+    assert.equal(first.referencePrice, 146.8);
+    assert.equal(first.referencePriceSource, 'coil_total_cost');
     assert.equal(second.currentStock, 2);
     assert.equal(second.needToBuy, 4);
+    assert.equal(second.referencePrice, 146.8);
+    assert.equal(second.referencePriceSource, 'coil_total_cost');
 });
 
 test('没有正式方案的计算型线圈保持非库存项', () => {
@@ -242,4 +285,6 @@ test('没有正式方案的计算型线圈保持非库存项', () => {
     assert.equal(purchaseList[0].inventoryType, 'none');
     assert.equal(purchaseList[0].coilId, undefined);
     assert.equal(purchaseList[0].plannedQty, 3);
+    assert.equal(purchaseList[0].referencePrice, 0);
+    assert.equal(purchaseList[0].referencePriceSource, 'none');
 });

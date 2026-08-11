@@ -24,7 +24,7 @@ import {
   type RecipeCurrentTotalCost,
 } from '@/lib/recipes';
 
-export type RecipeWorkspaceFilter = 'all' | 'risk' | 'missingCost' | 'float' | 'cable';
+export type RecipeWorkspaceFilter = 'all' | 'risk' | 'missingCost' | 'incompleteCost' | 'float' | 'cable';
 
 type RecipeWorkspaceProps = {
   recipes: Recipe[];
@@ -54,6 +54,7 @@ const quickFilters: Array<{ value: RecipeWorkspaceFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'risk', label: '铜价风险' },
   { value: 'missingCost', label: '无保存成本' },
+  { value: 'incompleteCost', label: '当日成本不完整' },
   { value: 'float', label: '带浮球' },
   { value: 'cable', label: '带电缆' },
 ];
@@ -135,6 +136,7 @@ export function RecipeWorkspace({
         quickFilter === 'all' ||
         (quickFilter === 'risk' && ['watch', 'review', 'critical'].includes(row.copperRisk.level)) ||
         (quickFilter === 'missingCost' && !row.savedTotal) ||
+        (quickFilter === 'incompleteCost' && row.currentCost?.costComplete === false) ||
         (quickFilter === 'float' && Boolean(recipe.hasFloat)) ||
         (quickFilter === 'cable' && Boolean(recipe.hasCable));
       return matchesTemplate && matchesQuick && (!normalizedQuery || text.includes(normalizedQuery));
@@ -144,9 +146,10 @@ export function RecipeWorkspace({
     const totalSavedCost = recipeRows.reduce((sum, row) => sum + (row.savedTotal || 0), 0);
     const riskyCount = recipeRows.filter((row) => ['watch', 'review', 'critical'].includes(row.copperRisk.level)).length;
     const missingCostCount = recipeRows.filter((row) => !row.savedTotal).length;
-    return { totalSavedCost, riskyCount, missingCostCount };
+    const incompleteCurrentCostCount = recipeRows.filter((row) => row.currentCost?.costComplete === false).length;
+    return { totalSavedCost, riskyCount, missingCostCount, incompleteCurrentCostCount };
   }, [recipeRows]);
-  const hasCostIssues = stats.riskyCount > 0 || stats.missingCostCount > 0;
+  const hasCostIssues = stats.riskyCount > 0 || stats.missingCostCount > 0 || stats.incompleteCurrentCostCount > 0;
 
   return (
     <>
@@ -155,11 +158,13 @@ export function RecipeWorkspace({
           <div className="min-w-0">
             <div className="text-sm font-semibold text-ink">{recipes.length} 个配方 · 保存成本 {money(stats.totalSavedCost)}</div>
             <div className={`mt-1 text-xs ${hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
-              {hasCostIssues ? `铜价关注 ${stats.riskyCount} 个 · 无保存成本 ${stats.missingCostCount} 个` : '成本状态正常'}
+              {hasCostIssues ? `当日成本不完整 ${stats.incompleteCurrentCostCount} 个 · 铜价关注 ${stats.riskyCount} 个 · 无保存成本 ${stats.missingCostCount} 个` : '成本状态正常'}
             </div>
           </div>
           {hasCostIssues ? (
-            <Button size="sm" onClick={() => onQuickFilterChange(stats.riskyCount > 0 ? 'risk' : 'missingCost')}>
+            <Button size="sm" onClick={() => onQuickFilterChange(
+              stats.incompleteCurrentCostCount > 0 ? 'incompleteCost' : stats.riskyCount > 0 ? 'risk' : 'missingCost'
+            )}>
               查看问题
             </Button>
           ) : (
@@ -182,13 +187,15 @@ export function RecipeWorkspace({
                 {hasCostIssues ? '成本数据需要处理' : '成本状态正常'}
               </div>
               <div className={`mt-1 text-xs ${hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
-                铜价关注 {stats.riskyCount} 个 · 无保存成本 {stats.missingCostCount} 个
+                当日成本不完整 {stats.incompleteCurrentCostCount} 个 · 铜价关注 {stats.riskyCount} 个 · 无保存成本 {stats.missingCostCount} 个
               </div>
             </div>
             {hasCostIssues ? (
               <Button
                 size="sm"
-                onClick={() => onQuickFilterChange(stats.riskyCount > 0 ? 'risk' : 'missingCost')}
+                onClick={() => onQuickFilterChange(
+                  stats.incompleteCurrentCostCount > 0 ? 'incompleteCost' : stats.riskyCount > 0 ? 'risk' : 'missingCost'
+                )}
               >
                 查看问题
               </Button>
@@ -283,7 +290,11 @@ export function RecipeWorkspace({
                       <span className="mt-0.5 block truncate text-xs text-muted">{row.recipe.spec || '无规格备注'}</span>
                     </button>
                     <div className="shrink-0 text-right">
-                      <div className="text-sm font-semibold text-ink">{row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}</div>
+                      <div className={`text-sm font-semibold ${row.currentCost?.costComplete === false ? 'text-amber-700' : 'text-ink'}`}>
+                        {row.currentCost?.costComplete === false
+                          ? '成本不完整'
+                          : row.currentCost?.currentTotalCost != null ? money(row.currentCost.currentTotalCost) : '-'}
+                      </div>
                       <div className={`mt-0.5 text-xs ${
                         Number(row.currentCost?.difference || 0) > 0
                           ? 'text-rose-700'
@@ -291,7 +302,9 @@ export function RecipeWorkspace({
                             ? 'text-emerald-700'
                             : 'text-muted'
                       }`}>
-                        {signedMoney(row.currentCost?.difference)}
+                        {row.currentCost?.costComplete === false
+                          ? `缺 ${row.currentCost.missingParts.length} 项价格`
+                          : signedMoney(row.currentCost?.difference)}
                       </div>
                     </div>
                   </div>
@@ -361,7 +374,11 @@ export function RecipeWorkspace({
                       </td>
                       <td className="whitespace-nowrap border-b border-line px-3 py-2 text-right text-ink">
                         <div className="flex items-baseline justify-end gap-2">
-                          <span className="font-medium">{row.currentCost ? money(row.currentCost.currentTotalCost) : '-'}</span>
+                          <span className={`font-medium ${row.currentCost?.costComplete === false ? 'text-amber-700' : ''}`}>
+                            {row.currentCost?.costComplete === false
+                              ? '成本不完整'
+                              : row.currentCost?.currentTotalCost != null ? money(row.currentCost.currentTotalCost) : '-'}
+                          </span>
                           <span className={`text-xs ${
                             Number(row.currentCost?.difference || 0) > 0
                               ? 'text-rose-700'
@@ -369,7 +386,9 @@ export function RecipeWorkspace({
                                 ? 'text-emerald-700'
                                 : 'text-muted'
                           }`}>
-                            {signedMoney(row.currentCost?.difference)}
+                            {row.currentCost?.costComplete === false
+                              ? `缺 ${row.currentCost.missingParts.length} 项价格`
+                              : signedMoney(row.currentCost?.difference)}
                           </span>
                         </div>
                         <div className="text-xs font-normal leading-4 text-muted">
