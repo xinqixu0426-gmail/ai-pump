@@ -314,11 +314,6 @@ function buildManagementActionProgress(center, options = {}) {
             recurringByKey.set(item.lifecycle.actionKey, item.lifecycle);
         }
     }
-    for (const item of resolvedItems) {
-        if (Number(item.occurrenceCount || 0) > 1) {
-            recurringByKey.set(item.actionKey, item);
-        }
-    }
     const recurringItems = [...recurringByKey.values()]
         .sort((left, right) => (
             Number(right.occurrenceCount || 0) - Number(left.occurrenceCount || 0)

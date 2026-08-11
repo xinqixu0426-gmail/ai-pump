@@ -269,7 +269,7 @@ export function OrdersView({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="space-y-4">
       <PageHeader
         title="订单"
         description="跟踪订单状态、销售金额与采购进度。"

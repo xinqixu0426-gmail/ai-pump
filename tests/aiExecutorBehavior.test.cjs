@@ -707,7 +707,7 @@ test('AI 对话行为：口语“采购中的单子”由模型选订单工具�
 
 test('AI 对话行为：按客户追问采购情况时阻止猜测订单ID并改用正式名称解析', async () => {
     const calls = installFetchStub((call) => {
-        if (call.url.endsWith('/api/orders/lookup?query=%E9%82%B1%E7%84%95')) {
+        if (call.url.endsWith('/api/orders?customerName=%E9%82%B1%E7%84%95')) {
             return jsonResponse({
                 success: true,
                 data: [{ id: 1, customerName: '邱焕', contractNo: '', status: '采购中' }],
@@ -783,7 +783,7 @@ test('AI 对话行为：按客户追问采购情况时阻止猜测订单ID并改
     assert.equal(result.toolResults[0].result.success, true);
     assert.match(result.finalContent, /12-120/);
     assert.equal(calls.some(call => call.url.endsWith('/api/orders/5')), false);
-    assert.equal(calls.some(call => call.url.includes('/api/orders/lookup?query=')), true);
+    assert.equal(calls.some(call => call.url.includes('/api/orders?customerName=')), true);
     assert.equal(calls.some(call => call.url.endsWith('/api/orders/1/knowledge-package')), true);
 });
 
@@ -2979,6 +2979,34 @@ test('AI executor 行为：配方明细与当前成本分别取自正式配方�
         'GET /api/recipes',
         'GET /api/recipes/5',
         'POST /api/recipes/5/cost-preview',
+    ]);
+});
+
+test('AI executor 行为：配方成本试算可用大小写不敏感简称唯一定位正式配方', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 2, name: 'v750-tokoy', spec: '12-140' }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/2/cost-preview') && call.method === 'POST') {
+            return jsonResponse({ success: true, data: { unitCost: 286.51, parts: [] } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeName: 'V750',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.recipeId, 2);
+    assert.equal(result.data.recipeName, 'v750-tokoy');
+    assert.equal(result.data.unitCost, 286.51);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'POST /api/recipes/2/cost-preview',
     ]);
 });
 

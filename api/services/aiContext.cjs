@@ -39,7 +39,7 @@ function immediateConversationThread(messages) {
 }
 
 /**
- * V2 只接受意图规划器给出的结构化 contextMode，不再用语义正则猜测
+ * V3 只接受意图规划器给出的结构化 contextMode，不再用语义正则猜测
  * 当前轮是否依赖历史。历史消息始终只是语言上下文，不是执行授权或事实证据。
  */
 function scopeAiContextForIntent(messages, intent = {}) {

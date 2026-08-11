@@ -3,7 +3,7 @@ const { createLogger } = require('../../logger.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 const { executeToolCall } = require('./executor.cjs');
 const { aiProviderCapabilities } = require('../../services/aiProvider.cjs');
-const { runAiDispatcherV2 } = require('../../services/aiDispatcherV2.cjs');
+const { runAiDispatcherV3 } = require('../../services/aiDispatcherV3.cjs');
 const {
     AiToolConfirmationError,
     completeAiToolConfirmation,
@@ -12,6 +12,8 @@ const {
     failAiToolConfirmation,
 } = require('../../services/aiToolConfirmation.cjs');
 const { hasVerifiedWriteExecution } = require('../../services/aiExecutionEvidence.cjs');
+const { normalizeResolutionContext } = require('../../services/aiResourceResolutionV3.cjs');
+const { normalizeAiTurnStateV3 } = require('../../services/aiTurnStateV3.cjs');
 
 const router = express.Router();
 const aiChatLogger = createLogger('ai-chat');
@@ -50,9 +52,11 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
     };
 
     try {
-        await runAiDispatcherV2({
+        await runAiDispatcherV3({
             messages: req.body?.messages,
             pageContext: req.body?.pageContext,
+            resolutionContext: normalizeResolutionContext(req.body?.resolutionContext),
+            turnState: normalizeAiTurnStateV3(req.body?.turnState),
             confirmationSubject: confirmationSubjectForRequest(req),
             stream: true,
             emit: send,
@@ -60,14 +64,14 @@ router.post('/api/ai/chat', confirmAuth, async (req, res) => {
         });
     } catch (error) {
         aiChatLogger.error('AI 对话失败', {
-            code: error.code || 'ai_dispatcher_v2_error',
+            code: error.code || 'ai_dispatcher_v3_error',
             message: error.message,
             causeCode: error.cause?.code || error.cause?.cause?.code || null,
             provider: error.details?.provider || null,
             action: error.details?.action || null,
             requestId: req.requestId || null,
         });
-        send('error', { message: error.message, code: error.code || 'ai_dispatcher_v2_error' });
+        send('error', { message: error.message, code: error.code || 'ai_dispatcher_v3_error' });
     } finally {
         res.end();
     }
@@ -161,7 +165,7 @@ router.post('/api/ai/confirm-tool', confirmAuth, async (req, res) => {
 });
 
 async function processAiChat(text, options = {}) {
-    return runAiDispatcherV2({
+    return runAiDispatcherV3({
         messages: [
             ...(Array.isArray(options.context) ? options.context : []),
             { role: 'user', content: text },
@@ -169,6 +173,8 @@ async function processAiChat(text, options = {}) {
         promptSuffix: options.promptSuffix,
         allowWrite: Boolean(options.allowWrite),
         pageContext: options.pageContext,
+        resolutionContext: options.resolutionContext,
+        turnState: options.turnState,
         confirmationSubject: options.confirmationSubject || 'internal:process-ai-chat',
         fetchAiProvider: options.fetchAiProvider,
         env: options.env,

@@ -98,6 +98,7 @@ export function useAiConversationHistory(locked: boolean) {
           toolResults: message.metadata?.toolResults || [],
           attachments: message.metadata?.attachments || [],
           provider: message.metadata?.provider,
+          turnState: message.metadata?.turnState,
           persistedMessageId: message.id,
           historical: true,
         })),

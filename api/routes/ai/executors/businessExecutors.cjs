@@ -3,6 +3,9 @@ const { recordWorkflowRun } = require('./workflowRunRecorder.cjs');
 const {
     executeFactoryWorkflowStep,
 } = require('../../../services/aiFactoryWorkflowExecution.cjs');
+const {
+    resolveUniqueRecipe,
+} = require('../../../services/aiRecipeResolution.cjs');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -137,9 +140,9 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         }
 
         case 'preview_recipe_cost': {
-            const matchedRecipe = args.recipeId ? null : findByNameOrId(await loadRecipes(internalFetch), args.recipeName);
-            const recipeId = args.recipeId || matchedRecipe?.id || matchedRecipe?.Id;
-            if (!recipeId) return { success: false, error: '缺少 recipeId，或未找到匹配配方' };
+            const resolved = resolveUniqueRecipe(await loadRecipes(internalFetch), args);
+            if (resolved.error) return { success: false, ...resolved };
+            const recipeId = resolved.recipe.id ?? resolved.recipe.Id;
             const data = await postJson(internalFetch, `/api/recipes/${recipeId}/cost-preview`, {
                 overrides: args.overrides || {
                     customBarrelLength: args.customBarrelLength,
@@ -159,7 +162,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 intent: 'recipe_cost_preview',
                 summary: `配方成本试算完成，单位成本 ${roundMoney(data.unitCost).toFixed(2)} 元。`,
                 display: { mode: 'compact', title: '成本试算' },
-                data: { recipeId, recipeName: args.recipeName || '', ...data },
+                data: { recipeId, recipeName: resolved.recipe.name || args.recipeName || '', ...data },
             };
         }
 

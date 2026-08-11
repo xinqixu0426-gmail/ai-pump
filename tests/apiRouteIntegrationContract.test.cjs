@@ -307,15 +307,15 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
 
 test('关键 API 集成契约：AI 对话按当前轮次隔离上下文并二次校验工具权限', () => {
     const chat = readUtf8('api/routes/ai/chat.cjs');
-    const dispatcher = readUtf8('api/services/aiDispatcherV2.cjs');
-    const planner = readUtf8('api/services/aiIntentPlannerV2.cjs');
+    const dispatcher = readUtf8('api/services/aiAgentRuntimeV3.cjs');
+    const planner = readUtf8('api/services/aiGoalPlannerV3.cjs');
     const catalog = readUtf8('api/services/aiCapabilityCatalogV2.cjs');
     const context = readUtf8('api/services/aiContext.cjs');
     const protocol = readUtf8('api/services/aiToolProtocol.cjs');
     const provider = readUtf8('api/services/aiProvider.cjs');
 
-    assert.match(chat, /runAiDispatcherV2\(/);
-    assert.match(dispatcher, /planAiIntentV2\(messages/);
+    assert.match(chat, /runAiDispatcherV3\(/);
+    assert.match(dispatcher, /planAiIntentV3\(messages/);
     assert.match(dispatcher, /scopeAiContextForIntent\(messages, intent\)/);
     assert.match(dispatcher, /selectToolsForIntent\(intent/);
     assert.match(dispatcher, /allowedToolNames/);
@@ -1443,13 +1443,13 @@ test('V10.4 订单知识包契约：实时业务与人工确认事实统一只�
 
 test('关键 API 集成契约：AI chat 委托模型流与工具消息协议 service', () => {
     const chat = readUtf8('api/routes/ai/chat.cjs');
-    const dispatcher = readUtf8('api/services/aiDispatcherV2.cjs');
+    const dispatcher = readUtf8('api/services/aiAgentRuntimeV3.cjs');
     const providerStream = readUtf8('api/services/aiProviderStream.cjs');
     const toolProtocol = readUtf8('api/services/aiToolProtocol.cjs');
 
-    assert.match(chat, /runAiDispatcherV2/);
+    assert.match(chat, /runAiDispatcherV3/);
     assert.match(dispatcher, /readAiProviderStream\(response/);
-    assert.match(dispatcher, /prepareAiToolCalls\(rawToolCalls, 'model'/);
+    assert.match(dispatcher, /prepareAiToolCalls\(resolutionBinding\.toolCalls, 'model'/);
     assert.match(dispatcher, /buildAiToolPlan\(preparedCalls, WRITE_TOOLS\)/);
     assert.match(dispatcher, /parseAiToolArguments\(toolCall\.function\.arguments\)/);
     assert.match(dispatcher, /buildAiToolResultMessage\(toolCall, result\)/);

@@ -1,7 +1,7 @@
 'use client';
 
 import type { RefObject } from 'react';
-import { Bot, Loader2, MessageSquareWarning, ThumbsUp, UserRound } from 'lucide-react';
+import { Bot, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound } from 'lucide-react';
 import type { AiAnswerFeedback, AiAttachment, AiToolResult } from '@/lib/ai';
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
 import { AiMessageAttachments } from '@/components/ai/AiAttachmentDisplays';
@@ -20,8 +20,10 @@ export function AiMessageList({
   onRunSample,
   onArchive,
   onConfirmed,
+  onRetry,
   onMarkHelpful,
   onReportIssue,
+  onScroll,
 }: {
   items: ChatItem[];
   panel: boolean;
@@ -32,11 +34,13 @@ export function AiMessageList({
   onRunSample: (prompt: string) => void;
   onArchive: (attachment: AiAttachment) => void;
   onConfirmed: (messageId: string, index: number, result: AiToolResult) => void;
+  onRetry: (item: ChatItem) => void;
   onMarkHelpful: (item: ChatItem) => void;
   onReportIssue: (item: ChatItem) => void;
+  onScroll: () => void;
 }) {
   return (
-    <div ref={scrollRef} className={`flex-1 overflow-y-auto ${panel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
+    <div ref={scrollRef} onScroll={onScroll} className={`flex-1 overflow-y-auto ${panel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
       {items.length === 0 ? (
         <div className={`flex h-full items-center justify-center ${panel ? 'min-h-[220px]' : 'min-h-[220px] md:min-h-[360px]'}`}>
           <div className={`w-full px-2 py-7 text-center ${panel ? 'max-w-lg' : 'max-w-2xl md:rounded-panel md:border md:border-line md:bg-white md:px-7 md:shadow-panel'}`}>
@@ -116,6 +120,21 @@ export function AiMessageList({
                 <div className="flex items-center gap-2 text-sm text-muted">
                   <Loader2 size={15} className="animate-spin" />
                   {item.statusMessage || '处理中...'}
+                </div>
+              ) : null}
+              {item.role === 'assistant' && item.retryable && (item.status === 'error' || item.status === 'cancelled') ? (
+                <div className="mt-3 flex items-center gap-2 border-t border-line pt-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8"
+                    icon={<RotateCcw size={14} />}
+                    onClick={() => onRetry(item)}
+                    disabled={loading}
+                  >
+                    重新回答
+                  </Button>
+                  <span className="text-xs text-muted">沿用上一个问题，不会重复保存提问</span>
                 </div>
               ) : null}
               {item.role === 'assistant' && item.persistedMessageId && item.status !== 'error' ? (

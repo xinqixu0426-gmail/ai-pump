@@ -696,7 +696,7 @@ test('API 静态契约：AI executor 不得直接访问数据库 helper 或裸�
 });
 
 test('API 静态契约：AI 普通工具结果不得以卡片展示短路调度', () => {
-    const chatRoute = readUtf8(path.join(repoRoot, 'api/services/aiDispatcherV2.cjs'));
+    const chatRoute = readUtf8(path.join(repoRoot, 'api/services/aiAgentRuntimeV3.cjs'));
     const promptRoute = readAiPromptContractSource();
     const tools = readUtf8(path.join(repoRoot, 'api/routes/ai/tools.cjs'));
 
@@ -1593,15 +1593,15 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
     assert.match(orderExecution, /执行前刷新订单计划失败/);
 });
 
-test('API 静态契约：V2 易变业务数据必须经过模型计划、正式能力和证据门', () => {
-    const dispatcher = readUtf8(path.join(repoRoot, 'api/services/aiDispatcherV2.cjs'));
-    const planner = readUtf8(path.join(repoRoot, 'api/services/aiIntentPlannerV2.cjs'));
+test('API 静态契约：V3 易变业务数据必须经过模型计划、正式能力和证据门', () => {
+    const dispatcher = readUtf8(path.join(repoRoot, 'api/services/aiAgentRuntimeV3.cjs'));
+    const planner = readUtf8(path.join(repoRoot, 'api/services/aiGoalPlannerV3.cjs'));
     const catalog = readUtf8(path.join(repoRoot, 'api/services/aiCapabilityCatalogV2.cjs'));
     const validator = readUtf8(path.join(repoRoot, 'api/services/aiToolInputValidatorV2.cjs'));
     const queryExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/queryExecutors.cjs'));
     const pageContext = readUtf8(path.join(repoRoot, 'api/services/aiPageContext.cjs'));
 
-    assert.match(dispatcher, /planAiIntentV2/);
+    assert.match(dispatcher, /planAiIntentV3/);
     assert.match(dispatcher, /selectToolsForIntent/);
     assert.match(dispatcher, /requiredEvidenceSatisfied/);
     assert.match(dispatcher, /hasVerifiedToolEvidence/);
@@ -1614,6 +1614,34 @@ test('API 静态契约：V2 易变业务数据必须经过模型计划、正式�
     assert.match(queryExecutor, /truncated: parts\.length < results\.length/);
     assert.match(pageContext, /仅用于理解/);
     assert.match(pageContext, /不得替代工具查询/);
+});
+
+test('API 静态契约：AI Agent V3 统一实体发现、零结果恢复和跨轮状态', () => {
+    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
+    const v3Entry = readUtf8(path.join(repoRoot, 'api/services/aiDispatcherV3.cjs'));
+    const dispatcher = readUtf8(path.join(repoRoot, 'api/services/aiAgentRuntimeV3.cjs'));
+    const graph = readUtf8(path.join(repoRoot, 'api/services/aiCapabilityGraphV3.cjs'));
+    const resolver = readUtf8(path.join(repoRoot, 'api/services/aiEntityResolverV3.cjs'));
+    const turnState = readUtf8(path.join(repoRoot, 'api/services/aiTurnStateV3.cjs'));
+    const aiClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts'));
+    const messageStream = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiMessageStream.ts'));
+
+    assert.match(chat, /runAiDispatcherV3/);
+    assert.match(v3Entry, /runAiAgentRuntimeV3/);
+    assert.match(dispatcher, /MAX_AGENT_RECOVERY_ROUNDS = 3/);
+    assert.match(dispatcher, /MAX_ENTITY_DISCOVERY_CALLS = 12/);
+    assert.match(dispatcher, /discoveryCapabilitiesForIntent/);
+    assert.match(dispatcher, /isVerifiedEmptyObservation/);
+    for (const entity of ['customer', 'order', 'recipe', 'part', 'coil', 'template']) {
+        assert.match(graph, new RegExp(`${entity}: Object\\.freeze`));
+    }
+    assert.match(resolver, /buildSearchProbes/);
+    assert.match(resolver, /resolutionReceipt/);
+    assert.match(resolver, /capability\?\.access === 'read'/);
+    assert.match(turnState, /buildAiTurnStateV3/);
+    assert.match(turnState, /normalizeAiTurnStateV3/);
+    assert.match(aiClient, /type: 'turn_state'/);
+    assert.match(messageStream, /event\.type === 'turn_state'/);
 });
 
 test('API 静态契约：PWA AI 流中断自动重试且不保存不完整回复', () => {

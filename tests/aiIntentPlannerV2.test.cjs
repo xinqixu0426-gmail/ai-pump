@@ -23,9 +23,9 @@ function plan(overrides = {}) {
     };
 }
 
-test('V2 意图计划：结构化目标、上下文和能力步骤通过服务端校验', () => {
+test('V3 意图计划：结构化目标、上下文和能力步骤通过服务端校验', () => {
     const normalized = normalizeIntentPlan(plan());
-    assert.equal(normalized.version, 2);
+    assert.equal(normalized.version, 3);
     assert.equal(normalized.mode, 'query');
     assert.equal(normalized.answerShape, 'count_with_brief');
     assert.equal(normalized.entityScope, 'collection');
@@ -88,8 +88,10 @@ test('V2 意图计划：模型必须通过强制结构化协议提交计划', as
     assert.equal(requestOptions.toolChoice.function.name, 'submit_ai_intent_plan');
     assert.equal(requestOptions.attachmentMode, 'metadata');
     assert.match(requestMessages[0].content, /不得用 Preview 代替 List/);
+    assert.match(requestMessages[0].content, /上一轮 assistant 已列出正式候选/);
     assert.match(requestMessages[0].content, /不得用知识快照代替现有正式记录/);
-    assert.match(requestMessages[0].content, /简称扩展为可能的标准客户名/);
+    assert.match(requestMessages[0].content, /正式目录主动尝试原词、较短前缀和候选评分/);
+    assert.match(requestMessages[0].content, /steps 是当前目标所需事实和起始调查能力/);
     assert.equal(result.steps[0].capabilityName, 'get_recent_orders');
 });
 

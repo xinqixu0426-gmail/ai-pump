@@ -183,12 +183,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_recipe_detail',
-            description: '读取指定配方的正式明细和 BOM；需要当前完整成本时同时调用正式 cost-preview API。按配方ID或完整名称定位，只读，不使用保存成本冒充当前成本。',
+            description: '读取指定配方的正式明细和 BOM；需要当前完整成本时同时调用正式 cost-preview API。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本冒充当前成本。',
             parameters: {
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
-                    recipeName: { type: 'string', description: '完整配方名称，未提供ID时用于匹配' },
+                    recipeName: { type: 'string', description: '配方名称或可唯一匹配的简称，未提供ID时用于匹配' },
                     includeCurrentCost: { type: 'boolean', description: '是否同时查询当前完整成本' }
                 },
                 anyOf: [
@@ -207,7 +207,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
-                    recipeName: { type: 'string', description: '配方名称，未提供ID时用于精确匹配' }
+                    recipeName: { type: 'string', description: '配方名称或可唯一匹配的简称，未提供ID时用于匹配' }
                 },
                 anyOf: [
                     { type: 'object', properties: {}, required: ['recipeId'] },
@@ -655,7 +655,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
-                    recipeName: { type: 'string', description: '配方名称，未提供ID时用于查找' },
+                    recipeName: { type: 'string', description: '配方名称或可唯一匹配的简称，名称匹配忽略大小写；多条命中时返回候选' },
                     overrides: { ...COST_OVERRIDE_SCHEMA, description: '标准成本覆盖项对象' },
                     customBarrelLength: { type: 'number' },
                     coilSheets: { type: 'number' },

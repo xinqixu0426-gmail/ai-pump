@@ -226,6 +226,31 @@ test('管理待办中心把最近 AI 回归失败作为稳定知识健康事项'
     assert.equal(item.resolution.expectedResult, '最新一次知识库回归全部通过。');
 });
 
+test('管理待办中心忽略已停用回归用例留下的历史失败', () => {
+    const result = buildManagementActionCenter({
+        sources: {
+            readiness: { items: [] },
+            businessAlerts: { alerts: [] },
+            quality: { issues: [] },
+            learningHealth: { items: [] },
+            candidates: [],
+            knowledgeHealth: { issues: [] },
+            evaluation: {
+                status: 'not_configured',
+                healthy: true,
+                latestRun: null,
+                issues: [],
+                activeCaseCount: 0,
+                activeFailedCount: 0,
+                activeReviewCount: 0,
+            },
+        },
+    });
+
+    assert.equal(result.items.some(item => item.id === 'knowledge-regression:release-gate'), false);
+    assert.match(result.summary, /没有需要处理/);
+});
+
 test('管理待办中心经营风险使用稳定业务键，不受列表顺序影响', () => {
     const businessAlerts = {
         alerts: [

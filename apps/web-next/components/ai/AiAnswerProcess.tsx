@@ -47,6 +47,8 @@ export type ChatItem = {
   historical?: boolean;
   attachments?: AiAttachment[];
   provider?: AiProviderInfo;
+  turnState?: import('@/lib/ai').AiTurnStateV3;
+  retryable?: boolean;
 };
 
 type ConfirmationResult = {

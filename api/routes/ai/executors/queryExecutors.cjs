@@ -10,6 +10,9 @@ const {
     executePartStockAdjustment,
     executePartUpdate,
 } = require('../../../services/aiPartExecution.cjs');
+const {
+    resolveUniqueRecipe,
+} = require('../../../services/aiRecipeResolution.cjs');
 
 function parseJsonArray(value) {
     if (Array.isArray(value)) return value;
@@ -41,33 +44,6 @@ function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
             && normalizedReturnedCount >= requestedLimit,
         authoritative: true,
     };
-}
-
-function resolveUniqueRecipe(recipes, args = {}) {
-    const recipeId = Number.parseInt(args.recipeId, 10);
-    const recipeName = String(args.recipeName || '').trim();
-    const exactMatches = recipes.filter(recipe => (
-        (Number.isInteger(recipeId) && recipeId > 0 && Number(recipe.id ?? recipe.Id) === recipeId)
-        || (recipeName && String(recipe.name || '').trim() === recipeName)
-    ));
-    const matches = exactMatches.length > 0
-        ? exactMatches
-        : recipes.filter(recipe => (
-            recipeName && String(recipe.name || '').includes(recipeName)
-        ));
-    if (matches.length === 0) {
-        return { error: `未找到配方：${recipeName || recipeId || '-'}` };
-    }
-    if (matches.length > 1) {
-        return {
-            error: '配方名称不明确，请指定完整名称或配方ID',
-            candidates: matches.slice(0, 10).map(recipe => ({
-                id: recipe.id ?? recipe.Id,
-                name: recipe.name,
-            })),
-        };
-    }
-    return { recipe: matches[0] };
 }
 
 async function executeQueryTool(toolName, args, internalFetch, options = {}) {

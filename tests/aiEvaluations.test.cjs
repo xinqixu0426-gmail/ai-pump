@@ -611,7 +611,49 @@ test('AI 评测：最近失败结果形成全局发布健康信号', () => {
     assert.equal(health.status, 'attention');
     assert.equal(health.healthy, false);
     assert.equal(health.latestRun.failedCount, 1);
+    assert.equal(health.activeFailedCount, 1);
     assert.equal(health.issues[0].caseTitle, '发布门禁术语');
     assert.equal(health.issues[0].checks[0].passed, false);
+    fixture.db.close();
+});
+
+test('AI 评测：已停用用例的历史失败不再形成当前健康告警', () => {
+    const fixture = createFixture();
+    const now = new Date().toISOString();
+    fixture.db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, sort_order, created_at, updated_at
+        ) VALUES
+            ('case-disabled-failure', '旧失败用例', '业务规则', '旧问题', 'rules', ?, 1, 10, ?, ?),
+            ('case-active-pass', '当前启用用例', '业务规则', '当前问题', 'rules', ?, 1, 20, ?, ?)
+    `).run(
+        JSON.stringify({ requiredTerms: [['正确答案']] }), now, now,
+        JSON.stringify({ requiredTerms: [['当前答案']] }), now, now
+    );
+
+    const created = createAiEvaluationRun('internal', { dbAccessors: fixture.accessors });
+    const oldCase = created.cases.find(item => item.caseKey === 'case-disabled-failure');
+    const activeCase = created.cases.find(item => item.caseKey === 'case-active-pass');
+    recordAiEvaluationResult('internal', created.run.id, {
+        caseId: oldCase.id,
+        answerText: '错误答案',
+        toolResults: [],
+    }, { dbAccessors: fixture.accessors });
+    recordAiEvaluationResult('internal', created.run.id, {
+        caseId: activeCase.id,
+        answerText: '当前答案',
+        toolResults: [],
+    }, { dbAccessors: fixture.accessors });
+    completeAiEvaluationRun('internal', created.run.id, { dbAccessors: fixture.accessors });
+    fixture.db.prepare('UPDATE ai_evaluation_cases SET enabled = 0 WHERE id = ?').run(oldCase.id);
+
+    const health = getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors });
+    assert.equal(health.status, 'healthy');
+    assert.equal(health.healthy, true);
+    assert.equal(health.activeCaseCount, 1);
+    assert.equal(health.evaluatedActiveCaseCount, 1);
+    assert.equal(health.activeFailedCount, 0);
+    assert.deepEqual(health.issues, []);
     fixture.db.close();
 });

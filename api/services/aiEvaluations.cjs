@@ -495,6 +495,24 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
 function getLatestAiEvaluationHealth(options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, aiEvaluationRunRow, aiEvaluationResultRow } = accessors;
+    const activeCases = db.prepare(`
+        SELECT id, title, category
+        FROM ai_evaluation_cases
+        WHERE enabled = 1 AND review_status = 'approved'
+        ORDER BY sort_order, id
+    `).all();
+    if (activeCases.length === 0) {
+        return {
+            status: 'not_configured',
+            healthy: true,
+            latestRun: null,
+            issues: [],
+            activeCaseCount: 0,
+            evaluatedActiveCaseCount: 0,
+            activeFailedCount: 0,
+            activeReviewCount: 0,
+        };
+    }
     const latestRunRow = db.prepare(`
         SELECT * FROM ai_evaluation_runs
         ORDER BY id DESC LIMIT 1
@@ -505,6 +523,10 @@ function getLatestAiEvaluationHealth(options = {}) {
             healthy: true,
             latestRun: null,
             issues: [],
+            activeCaseCount: activeCases.length,
+            evaluatedActiveCaseCount: 0,
+            activeFailedCount: 0,
+            activeReviewCount: 0,
         };
     }
     const latestRun = aiEvaluationRunRow(latestRunRow);
@@ -514,30 +536,57 @@ function getLatestAiEvaluationHealth(options = {}) {
             healthy: true,
             latestRun,
             issues: [],
+            activeCaseCount: activeCases.length,
+            evaluatedActiveCaseCount: 0,
+            activeFailedCount: 0,
+            activeReviewCount: 0,
         };
     }
-    const issueRows = db.prepare(`
+    const activeResultRows = db.prepare(`
         SELECT result.*, evaluation_case.title AS case_title, evaluation_case.category AS case_category
         FROM ai_evaluation_results AS result
         JOIN ai_evaluation_cases AS evaluation_case ON evaluation_case.id = result.case_id
-        WHERE result.run_id = ? AND result.status IN ('failed', 'review')
+        WHERE result.run_id = ?
+          AND evaluation_case.enabled = 1
+          AND evaluation_case.review_status = 'approved'
         ORDER BY CASE result.status WHEN 'failed' THEN 0 ELSE 1 END,
                  evaluation_case.sort_order,
                  evaluation_case.id
     `).all(latestRun.id);
-    const issues = issueRows.map(row => ({
+    const issues = activeResultRows
+        .filter(row => ['failed', 'review'].includes(row.status))
+        .map(row => ({
         ...resultView(row, aiEvaluationResultRow),
         caseTitle: row.case_title,
         caseCategory: row.case_category,
     }));
+    const evaluatedCaseIds = new Set(activeResultRows.map(row => Number(row.case_id)));
+    for (const evaluationCase of activeCases) {
+        if (evaluatedCaseIds.has(Number(evaluationCase.id))) continue;
+        issues.push({
+            caseId: Number(evaluationCase.id),
+            caseTitle: evaluationCase.title,
+            caseCategory: evaluationCase.category,
+            status: 'missing',
+            errorText: '当前启用用例未包含在最近一次回归运行中',
+            checks: [],
+        });
+    }
+    const activeFailedCount = activeResultRows.filter(row => row.status === 'failed').length;
+    const activeReviewCount = activeResultRows.filter(row => row.status === 'review').length;
     const healthy = latestRun.status === 'completed'
-        && Number(latestRun.failedCount || 0) === 0
-        && Number(latestRun.reviewCount || 0) === 0;
+        && activeResultRows.length === activeCases.length
+        && activeFailedCount === 0
+        && activeReviewCount === 0;
     return {
         status: healthy ? 'healthy' : 'attention',
         healthy,
         latestRun,
         issues,
+        activeCaseCount: activeCases.length,
+        evaluatedActiveCaseCount: activeResultRows.length,
+        activeFailedCount,
+        activeReviewCount,
     };
 }
 

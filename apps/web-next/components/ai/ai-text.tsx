@@ -54,14 +54,26 @@ export function MarkdownContent({
               {...props}
             />
           ),
-          code: ({ node: _node, ...props }) => (
-            <code className="rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-800" {...props} />
-          ),
+          code: ({ node: _node, children: codeChildren, ...props }) => {
+            const path = String(codeChildren || '').trim();
+            if (isSafeInternalHref(path)) {
+              return (
+                <a
+                  href={path}
+                  title={path}
+                  className="inline-flex rounded bg-sky-50 px-1.5 py-0.5 text-[0.92em] font-medium text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-100"
+                >
+                  打开页面
+                </a>
+              );
+            }
+            return <code className="rounded bg-slate-100 px-1 py-0.5 text-[0.92em] text-slate-800" {...props}>{codeChildren}</code>;
+          },
           a: ({ node: _node, href, children: linkChildren, ...props }) => href ? (
             <a
               href={href}
-              target="_blank"
-              rel="noreferrer"
+              target={isSafeInternalHref(href) ? undefined : '_blank'}
+              rel={isSafeInternalHref(href) ? undefined : 'noreferrer'}
               className="font-medium text-sky-700 underline underline-offset-2"
               {...props}
             >
@@ -134,4 +146,8 @@ function safeHref(value: string) {
   const href = value.trim();
   if (/^(https?:|mailto:|tel:|\/|#)/i.test(href)) return href;
   return '';
+}
+
+function isSafeInternalHref(value: string) {
+  return /^\/(?!\/)[^\s]*$/.test(value);
 }

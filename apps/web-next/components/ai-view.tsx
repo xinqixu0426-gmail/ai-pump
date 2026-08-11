@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  ArrowDown,
   Database,
   Maximize2,
   PanelLeft,
@@ -11,10 +12,13 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { FadePanel } from '@/components/motion/fade-panel';
 import {
   appendAiConversationMessage,
   createAiConversation,
+  findAiResolutionContext,
+  findAiTurnStateV3,
   getAiSystemPrompt,
   isRetryableAiStreamError,
   streamAiChat,
@@ -108,6 +112,8 @@ export function AiView({
   } = useAiConversationHistory(loading);
   const {
     aiCapabilities,
+    capabilitiesLoading,
+    capabilitiesError,
     pendingAttachments,
     uploadingAttachment,
     attachmentError,
@@ -134,11 +140,15 @@ export function AiView({
   const [knowledgeSyncResult, setKnowledgeSyncResult] = useState<KnowledgeSyncStats | null>(null);
   const [knowledgeSyncError, setKnowledgeSyncError] = useState('');
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
+  const [draftTransition, setDraftTransition] = useState<{ type: 'new' } | { type: 'open'; conversationId: number } | null>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
   const restoredConversationRef = useRef(false);
   const sendInFlightRef = useRef(false);
+  const restoreComposerFocusAfterSendRef = useRef(false);
+  const autoFollowRef = useRef(true);
   const restoreConversationActionsRef = useRef({
     openConversation,
     clearRestorableConversation,
@@ -154,6 +164,18 @@ export function AiView({
     stopVoiceInput,
     toggleVoiceInput,
   } = useAiSpeechInput(input, setInput);
+  const aiRoutingStatusText = capabilitiesLoading
+    ? '正在读取路由配置'
+    : capabilitiesError
+      ? '模型配置异常'
+      : aiCapabilities?.provider === 'auto'
+        ? '智能路由 · 默认 DeepSeek'
+        : `固定使用 ${aiCapabilities?.displayName || 'AI 模型'}`;
+  const aiRoutingStatusDetail = aiCapabilities?.provider === 'auto'
+    ? '普通对话使用 DeepSeek，图片和文件附件使用 Kimi'
+    : aiCapabilities?.displayName
+      ? `所有对话固定使用 ${aiCapabilities.displayName}`
+      : aiRoutingStatusText;
   const {
     feedbackByMessageId,
     feedbackTarget,
@@ -174,8 +196,33 @@ export function AiView({
   } = useAiAnswerFeedback(setHistoryError);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [items]);
+    if (!autoFollowRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const scroller = scrollRef.current;
+      if (!scroller) return;
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: loading ? 'auto' : 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [items, loading]);
+
+  useEffect(() => {
+    if (loading || !restoreComposerFocusAfterSendRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const composer = composerRef.current;
+      const activeElement = document.activeElement;
+      const userMovedFocus = Boolean(
+        activeElement
+        && activeElement !== document.body
+        && activeElement !== composer
+      );
+      const hasFinePointer = window.matchMedia?.('(pointer: fine)').matches ?? true;
+      if (composer && !userMovedFocus && hasFinePointer) {
+        composer.focus({ preventScroll: true });
+      }
+      restoreComposerFocusAfterSendRef.current = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading]);
 
   useEffect(() => {
     const prompt = initialPrompt.trim();
@@ -195,10 +242,13 @@ export function AiView({
     void restoreConversationActionsRef.current.openConversation(restorableConversationId);
   }, [conversations, historyLoading, restorableConversationId]);
 
-  async function sendMessage(text: string) {
-    const attachments = pendingAttachments;
+  async function sendMessage(text: string, options?: { retryAssistantId?: string; attachments?: AiAttachment[] }) {
+    const retryAssistantId = options?.retryAssistantId;
+    const retrying = Boolean(retryAssistantId && activeConversationId);
+    const attachments = retrying ? (options?.attachments || []) : pendingAttachments;
     const content = text.trim() || (attachments.length > 0 ? '请查看我上传的附件。' : '');
     if (!content || loading || uploadingAttachment || sendInFlightRef.current) return;
+    restoreComposerFocusAfterSendRef.current = document.activeElement === composerRef.current;
     sendInFlightRef.current = true;
     if (isListening) stopVoiceInput();
 
@@ -214,14 +264,28 @@ export function AiView({
       toolResults: [],
     };
 
-    const nextMessages = [...apiMessages, {
+    const nextMessages = retrying ? apiMessages : [...apiMessages, {
       role: 'user' as const,
       content,
       ...(attachments.length > 0 ? { attachments } : {}),
     }];
-    setItems((current) => [...current, userItem, assistantItem]);
-    setInput('');
-    clearPendingAttachments();
+    const latestAssistant = [...items].reverse().find((item) => item.role === 'assistant');
+    const resolutionContext = retrying
+      ? null
+      : findAiResolutionContext(latestAssistant?.toolResults);
+    const turnState = retrying
+      ? null
+      : latestAssistant?.turnState || findAiTurnStateV3(latestAssistant?.toolResults);
+    const streamAssistantId = retrying ? retryAssistantId! : assistantId;
+    setItems((current) => retrying
+      ? current.map((item) => (item.id === streamAssistantId ? { ...assistantItem, id: streamAssistantId } : item))
+      : [...current, userItem, assistantItem]);
+    if (!retrying) {
+      setInput('');
+      clearPendingAttachments();
+    }
+    autoFollowRef.current = true;
+    setShowJumpToLatest(false);
     setLoading(true);
 
     let conversationId = activeConversationId;
@@ -234,16 +298,18 @@ export function AiView({
         conversationId = conversation.id;
         addConversation(conversation);
       }
-      await appendAiConversationMessage(conversationId, {
-        role: 'user',
-        content,
-        metadata: attachments.length > 0 ? { attachments } : undefined,
-      });
-      markAttachmentsPersisted(attachments);
+      if (!retrying) {
+        await appendAiConversationMessage(conversationId, {
+          role: 'user',
+          content,
+          metadata: attachments.length > 0 ? { attachments } : undefined,
+        });
+        markAttachmentsPersisted(attachments);
+      }
       setHistoryError('');
     } catch (error) {
       const message = (error as Error).message || '保存会话失败';
-      updateAssistant(assistantId, (item) => ({ ...item, status: 'error', statusMessage: message, content: message }));
+      updateAssistant(streamAssistantId, (item) => ({ ...item, status: 'error', statusMessage: message, content: message, retryable: false }));
       setHistoryError(message);
       restorePendingAttachments(attachments);
       setLoading(false);
@@ -257,8 +323,8 @@ export function AiView({
         try {
           await streamAiChat(nextMessages, (event) => {
             finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
-            updateAssistant(assistantId, (item) => applyAiStreamEvent(item, event));
-          }, controller.signal, pageContext);
+            updateAssistant(streamAssistantId, (item) => applyAiStreamEvent(item, event));
+          }, controller.signal, pageContext, resolutionContext, turnState);
           streamCompleted = true;
           break;
         } catch (error) {
@@ -274,7 +340,7 @@ export function AiView({
             status: 'thinking',
             statusMessage: '连接中断，正在自动重试...',
           };
-          updateAssistant(assistantId, () => finalAssistantItem);
+          updateAssistant(streamAssistantId, () => ({ ...finalAssistantItem, id: streamAssistantId }));
         }
       }
     } catch (err) {
@@ -283,8 +349,9 @@ export function AiView({
           ...assistantItem,
           status: 'cancelled',
           statusMessage: '已停止',
+          retryable: true,
         };
-        updateAssistant(assistantId, () => finalAssistantItem);
+        updateAssistant(streamAssistantId, () => ({ ...finalAssistantItem, id: streamAssistantId }));
       } else {
         const message = isRetryableAiStreamError(err)
           ? '连接中断，未取得完整结果。请再试一次。'
@@ -294,8 +361,9 @@ export function AiView({
           status: 'error',
           statusMessage: message,
           content: message,
+          retryable: true,
         };
-        updateAssistant(assistantId, () => finalAssistantItem);
+        updateAssistant(streamAssistantId, () => ({ ...finalAssistantItem, id: streamAssistantId }));
       }
     } finally {
       if (
@@ -313,9 +381,10 @@ export function AiView({
               toolCalls: finalAssistantItem.toolCalls,
               toolResults: finalAssistantItem.toolResults,
               provider: finalAssistantItem.provider,
+              turnState: finalAssistantItem.turnState,
             },
           });
-          updateAssistant(assistantId, (item) => ({ ...item, persistedMessageId: saved.id }));
+          updateAssistant(streamAssistantId, (item) => ({ ...item, persistedMessageId: saved.id, retryable: false }));
           await refreshConversationList();
         } catch (error) {
           setHistoryError((error as Error).message || '保存 AI 回复失败');
@@ -339,7 +408,11 @@ export function AiView({
     }
   }
 
-  function startNewConversation() {
+  function hasPendingDraft() {
+    return Boolean(input.trim() || pendingAttachments.length > 0);
+  }
+
+  function performStartNewConversation() {
     if (loading) return;
     if (isListening) stopVoiceInput();
     discardAllPendingAttachments();
@@ -352,19 +425,85 @@ export function AiView({
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
-  async function openConversation(id: number) {
+  function startNewConversation() {
+    if (hasPendingDraft()) {
+      setDraftTransition({ type: 'new' });
+      return;
+    }
+    performStartNewConversation();
+  }
+
+  async function performOpenConversation(id: number) {
     const opened = await loadConversation(id);
     if (!opened) return;
+    discardAllPendingAttachments();
+    setInput('');
     setFeedbackByMessageId(opened.feedbackByMessageId);
     setItems(opened.items);
+    autoFollowRef.current = true;
+    setShowJumpToLatest(false);
     setMobileSidebarOpen(false);
+  }
+
+  function openConversation(id: number) {
+    if (id === activeConversationId) {
+      setMobileSidebarOpen(false);
+      return;
+    }
+    if (hasPendingDraft()) {
+      setDraftTransition({ type: 'open', conversationId: id });
+      return;
+    }
+    void performOpenConversation(id);
+  }
+
+  function confirmDraftTransition() {
+    if (!draftTransition) return;
+    const transition = draftTransition;
+    setDraftTransition(null);
+    if (transition.type === 'new') {
+      performStartNewConversation();
+      return;
+    }
+    void performOpenConversation(transition.conversationId);
+  }
+
+  function retryAssistant(item: ChatItem) {
+    const assistantIndex = items.findIndex((candidate) => candidate.id === item.id);
+    const userItem = items.slice(0, assistantIndex).reverse().find((candidate) => candidate.role === 'user');
+    if (!userItem) return;
+    void sendMessage(userItem.content, {
+      retryAssistantId: item.id,
+      attachments: userItem.attachments || [],
+    });
+  }
+
+  function handleMessageScroll() {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const nearBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 96;
+    autoFollowRef.current = nearBottom;
+    setShowJumpToLatest(!nearBottom);
+  }
+
+  function scrollToLatest() {
+    const scroller = scrollRef.current;
+    autoFollowRef.current = true;
+    setShowJumpToLatest(false);
+    scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+  }
+
+  function applyTaskTemplate(prompt: string) {
+    setInput((current) => current.trim() ? `${current.trimEnd()}\n${prompt}` : prompt);
+    setMobileSidebarOpen(false);
+    window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
   async function confirmDeleteConversation() {
     if (!deleteTarget) return;
     const removedActiveConversation = await removeConversation(deleteTarget.id);
     if (removedActiveConversation === null) return;
-    if (removedActiveConversation) startNewConversation();
+    if (removedActiveConversation) performStartNewConversation();
     setDeleteTarget(null);
   }
 
@@ -436,8 +575,8 @@ export function AiView({
               {conversations.find((conversation) => conversation.id === activeConversationId)?.title || (isPanel ? '业务 AI 助手' : 'AI 工作台')}
             </div>
             <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {aiCapabilities?.displayName || 'DeepSeek'}
+              <span className={`h-1.5 w-1.5 rounded-full ${capabilitiesLoading ? 'animate-pulse bg-slate-400' : capabilitiesError ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+              <span title={aiRoutingStatusDetail}>{aiRoutingStatusText}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -500,6 +639,10 @@ export function AiView({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <div className="mr-2 inline-flex items-center gap-1.5 text-xs text-muted" aria-label="AI 模型状态">
+              <span className={`h-1.5 w-1.5 rounded-full ${capabilitiesLoading ? 'animate-pulse bg-slate-400' : capabilitiesError ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+              <span title={aiRoutingStatusDetail}>{aiRoutingStatusText}</span>
+            </div>
             <Button variant="secondary" size="sm" icon={<Plus size={15} />} onClick={startNewConversation} disabled={loading}>
               新会话
             </Button>
@@ -525,11 +668,11 @@ export function AiView({
             onHistoryQueryChange={setHistoryQuery}
             onOpenConversation={(id) => void openConversation(id)}
             onDeleteConversation={setDeleteTarget}
-            onRunSample={(prompt) => void sendMessage(prompt)}
+            onRunSample={applyTaskTemplate}
             onEditPrompt={() => void openPromptEditor()}
           />
 
-          <section className="flex min-h-0 min-w-0 flex-col bg-white md:bg-slate-50">
+          <section className="relative flex min-h-0 min-w-0 flex-col bg-white md:bg-slate-50">
             <AiMessageList
               items={items}
               panel={isPanel}
@@ -540,9 +683,23 @@ export function AiView({
               onRunSample={(prompt) => void sendMessage(prompt)}
               onArchive={setArchiveAttachment}
               onConfirmed={replaceToolResult}
+              onRetry={retryAssistant}
               onMarkHelpful={(item) => void markAnswerHelpful(item)}
               onReportIssue={openAnswerIssue}
+              onScroll={handleMessageScroll}
             />
+
+            {showJumpToLatest ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute bottom-24 right-4 z-20 rounded-full shadow-lg md:bottom-28"
+                icon={<ArrowDown size={15} />}
+                onClick={scrollToLatest}
+              >
+                回到最新
+              </Button>
+            ) : null}
 
             <AiComposer
               panel={isPanel}
@@ -572,7 +729,8 @@ export function AiView({
 
       <AiMobileConversationDrawer
         open={mobileSidebarOpen}
-        panel={isPanel}
+        asideMode={asideMode}
+        activeSampleCategory={activeSampleCategory}
         conversations={conversations}
         filteredConversations={filteredConversations}
         activeConversationId={activeConversationId}
@@ -594,6 +752,9 @@ export function AiView({
           setMobileSidebarOpen(false);
           void openPromptEditor();
         }}
+        onAsideModeChange={setAsideMode}
+        onSampleCategoryChange={setActiveSampleCategory}
+        onRunSample={applyTaskTemplate}
       />
 
       <AiAttachmentArchiveController
@@ -622,6 +783,19 @@ export function AiView({
           deleting={deletingConversation}
           onConfirm={confirmDeleteConversation}
           onClose={() => setDeleteTarget(null)}
+        />
+      ) : null}
+
+      {draftTransition ? (
+        <ConfirmDialog
+          open
+          layer="assistant"
+          title="当前还有未发送内容"
+          description="切换会话会清除当前输入和待发送附件。要继续吗？"
+          confirmLabel={draftTransition.type === 'new' ? '丢弃并新建' : '丢弃并切换'}
+          confirmVariant="danger"
+          onConfirm={confirmDraftTransition}
+          onClose={() => setDraftTransition(null)}
         />
       ) : null}
 

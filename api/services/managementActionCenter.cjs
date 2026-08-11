@@ -279,8 +279,8 @@ function knowledgeHealthItems(knowledgeHealth = {}) {
 function knowledgeRegressionItems(evaluation = {}) {
     const run = evaluation.latestRun;
     if (!run || evaluation.healthy || run.status === 'running') return [];
-    const failedCount = Number(run.failedCount || 0);
-    const reviewCount = Number(run.reviewCount || 0);
+    const failedCount = Number(evaluation.activeFailedCount ?? run.failedCount ?? 0);
+    const reviewCount = Number(evaluation.activeReviewCount ?? run.reviewCount ?? 0);
     const issueCount = Math.max(failedCount + reviewCount, 1);
     const issueTitles = list(evaluation.issues)
         .map(issue => text(issue.caseTitle))

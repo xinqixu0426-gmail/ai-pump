@@ -242,6 +242,46 @@ test('V7.4：进展汇总区分仍待处理、暂时受阻和反复出现', () =
     }
 });
 
+test('V7.4：已归档的反复事项不再计入当前反复待办', () => {
+    const dbAccessors = createAccessors();
+    try {
+        const recurringItem = item();
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [recurringItem],
+            now: new Date('2026-07-28T01:00:00.000Z'),
+        });
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [],
+            now: new Date('2026-07-28T02:00:00.000Z'),
+        });
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [recurringItem],
+            now: new Date('2026-07-29T01:00:00.000Z'),
+        });
+        syncManagementActionLifecycles({
+            dbAccessors,
+            items: [],
+            now: new Date('2026-07-29T02:00:00.000Z'),
+        });
+
+        const progress = buildManagementActionProgress({
+            generatedAt: '2026-07-29T03:00:00.000Z',
+            items: [],
+        }, { dbAccessors });
+
+        assert.equal(progress.unresolvedCount, 0);
+        assert.equal(progress.recurringCount, 0);
+        assert.deepEqual(progress.recurringItems, []);
+        assert.equal(progress.resolvedItems[0].occurrenceCount, 2);
+        assert.doesNotMatch(progress.summary, /反复出现/);
+    } finally {
+        dbAccessors.db.close();
+    }
+});
+
 test('V7.4：只有成功的核心业务写请求触发自动复查', () => {
     assert.equal(shouldRecheckManagementActions({
         method: 'PATCH',

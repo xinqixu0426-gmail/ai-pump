@@ -52,6 +52,83 @@ export type AiToolResult = {
   result: unknown;
 };
 
+export type AiResourceClarification = {
+  version: 3;
+  kind: 'resource_selection';
+  entityType: string;
+  entityLabel?: string;
+  query?: string;
+  candidates: Array<{
+    index: number;
+    label: string;
+    description?: string;
+    canonicalId?: number | null;
+    canonicalName?: string;
+  }>;
+};
+
+export type AiResolutionContext = AiResourceClarification & {
+  sourceTool: string;
+};
+
+export type AiTurnStateV3 = {
+  version: 3;
+  kind: 'agent_turn_state';
+  resolvedEntities: Array<{
+    entityType: string;
+    id: number | null;
+    name: string;
+    originalMention: string;
+    confidence: number | null;
+    resolutionStatus: string;
+  }>;
+  capabilities: string[];
+};
+
+export function findAiResolutionContext(toolResults: AiToolResult[] = []): AiResolutionContext | null {
+  for (const tool of [...toolResults].reverse()) {
+    if (!tool.result || typeof tool.result !== 'object') continue;
+    const clarification = (tool.result as { clarification?: AiResourceClarification }).clarification;
+    if (
+      clarification?.version === 3
+      && clarification.kind === 'resource_selection'
+      && Array.isArray(clarification.candidates)
+      && clarification.candidates.length > 1
+    ) {
+      return { ...clarification, sourceTool: tool.name };
+    }
+  }
+  return null;
+}
+
+export function findAiTurnStateV3(toolResults: AiToolResult[] = []): AiTurnStateV3 | null {
+  const resolvedEntities: AiTurnStateV3['resolvedEntities'] = [];
+  for (const tool of toolResults) {
+    if (!tool.result || typeof tool.result !== 'object') continue;
+    const receipt = (tool.result as {
+      resolutionReceipt?: {
+        kind?: string;
+        entityType?: string;
+        originalMention?: string;
+        status?: string;
+        selected?: { id?: number | null; name?: string; score?: number } | null;
+      };
+    }).resolutionReceipt;
+    if (receipt?.kind !== 'entity_resolution' || !receipt.selected || !receipt.entityType) continue;
+    resolvedEntities.push({
+      entityType: receipt.entityType,
+      id: Number.isInteger(Number(receipt.selected.id)) ? Number(receipt.selected.id) : null,
+      name: String(receipt.selected.name || ''),
+      originalMention: String(receipt.originalMention || ''),
+      confidence: Number.isFinite(Number(receipt.selected.score)) ? Number(receipt.selected.score) : null,
+      resolutionStatus: String(receipt.status || ''),
+    });
+  }
+  const capabilities = [...new Set(toolResults.map(tool => tool.name).filter(Boolean))];
+  if (resolvedEntities.length === 0 && capabilities.length === 0) return null;
+  return { version: 3, kind: 'agent_turn_state', resolvedEntities, capabilities };
+}
+
 export type AiKnowledgeSource = {
   kind: 'knowledge_snapshot';
   knowledgeEntryId: number;
@@ -94,6 +171,7 @@ export type AiConversationMessage = {
     toolResults?: AiToolResult[];
     attachments?: AiAttachment[];
     provider?: AiProviderInfo;
+    turnState?: AiTurnStateV3;
   };
   createdAt: string;
   updatedAt: string;
@@ -287,6 +365,7 @@ export type AiStreamEvent =
   | { type: 'tool_call'; name: string; args: unknown }
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }
+  | { type: 'turn_state'; turnState: AiTurnStateV3 }
   | { type: 'done' }
   | { type: 'error'; message: string; code?: string };
 
@@ -346,7 +425,9 @@ export async function streamAiChat(
   messages: AiChatMessage[],
   onEvent: (event: AiStreamEvent) => void,
   signal?: AbortSignal,
-  pageContext?: AiPageContext | null
+  pageContext?: AiPageContext | null,
+  resolutionContext?: AiResolutionContext | null,
+  turnState?: AiTurnStateV3 | null
 ): Promise<void> {
   let response: Response;
   try {
@@ -362,6 +443,8 @@ export async function streamAiChat(
             view: pageContext.view,
           },
         } : {}),
+        ...(resolutionContext ? { resolutionContext } : {}),
+        ...(turnState ? { turnState } : {}),
       }),
       signal,
     });

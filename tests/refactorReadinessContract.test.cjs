@@ -563,6 +563,42 @@ test('Next UI 契约：AI 工作台提供可执行首屏、历史搜索和稳定
     assert.doesNotMatch(aiView, /AI Executor/);
 });
 
+test('Next UI 契约：AI 工作台保护中文输入、草稿和长回答阅读位置', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
+
+    assert.match(composer, /nativeEvent\.isComposing/);
+    assert.match(aiView, /autoFollowRef/);
+    assert.match(aiView, /nearBottom/);
+    assert.match(aiView, /回到最新/);
+    assert.match(aiView, /当前还有未发送内容/);
+    assert.match(aiView, /retryAssistantId/);
+    assert.match(aiView, /function applyTaskTemplate/);
+    assert.match(aiView, /current\.trimEnd\(\)/);
+    assert.match(aiView, /restoreComposerFocusAfterSendRef/);
+    assert.match(aiView, /composer\.focus\(\{ preventScroll: true \}\)/);
+    assert.match(aiView, /document\.activeElement === composerRef\.current/);
+    assert.match(aiView, /activeElement !== document\.body/);
+    assert.match(messageList, /重新回答/);
+    assert.match(messageList, /不会重复保存提问/);
+});
+
+test('Next UI 契约：AI 移动抽屉提供完整模板并复用统一无障碍 Drawer', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const sidebars = readUtf8('apps/web-next/components/ai/AiConversationSidebars.tsx');
+    const aiText = readUtf8('apps/web-next/components/ai/ai-text.tsx');
+
+    assert.match(sidebars, /import \{ Drawer \} from '@\/components\/ui\/dialog'/);
+    assert.match(sidebars, /ariaLabel="AI 会话与任务模板"/);
+    assert.match(sidebars, /移动端 AI 任务模板分类/);
+    assert.match(aiView, /模型配置异常/);
+    assert.match(aiView, /智能路由 · 默认 DeepSeek/);
+    assert.match(aiView, /固定使用/);
+    assert.match(aiText, /打开页面/);
+    assert.match(aiText, /isSafeInternalHref/);
+});
+
 test('Next UI 契约：订单生产准备检查展示结论、六步状态和缺料清单', () => {
     const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
     const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
@@ -770,6 +806,7 @@ test('Next UI 契约：P0 全局导航按业务域分组并统一页面骨架', 
     const pageHeader = readUtf8('apps/web-next/components/ui/page-header.tsx');
     const metricCard = readUtf8('apps/web-next/components/ui/metric-card.tsx');
     const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
+    const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const pageViews = [
         'recipes-view.tsx',
         'parts-view.tsx',
@@ -801,6 +838,8 @@ test('Next UI 契约：P0 全局导航按业务域分组并统一页面骨架', 
     assert.match(metricCard, /export function MetricGrid/);
     assert.match(metricCard, /grid grid-cols-2 gap-3 xl:grid-cols-4/);
     for (const pageView of pageViews) assert.match(pageView, /<PageHeader/);
+    assert.match(ordersView, /return \(\s*<div className="space-y-4">/);
+    assert.doesNotMatch(ordersView, /max-w-6xl/);
     assert.match(dashboard, /<MetricGrid>/);
     assert.match(dashboard, /outOfStockParts\.slice\(0, 6\)/);
     assert.doesNotMatch(dashboard, /供应商采购无需关注|当前没有待采购物料/);

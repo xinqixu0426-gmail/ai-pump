@@ -19,6 +19,8 @@ function storedFileAttachment(stored: Awaited<ReturnType<typeof getFactoryFile>>
 
 export function useAiAttachments(initialAttachmentId?: number) {
   const [aiCapabilities, setAiCapabilities] = useState<AiCapabilities | null>(null);
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
+  const [capabilitiesError, setCapabilitiesError] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<AiAttachment[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
@@ -28,8 +30,16 @@ export function useAiAttachments(initialAttachmentId?: number) {
 
   useEffect(() => {
     void getAiCapabilities()
-      .then(setAiCapabilities)
-      .catch((error) => setAttachmentError((error as Error).message || '读取模型能力失败'));
+      .then((capabilities) => {
+        setAiCapabilities(capabilities);
+        setCapabilitiesError('');
+      })
+      .catch((error) => {
+        const message = (error as Error).message || '读取模型能力失败';
+        setCapabilitiesError(message);
+        setAttachmentError(message);
+      })
+      .finally(() => setCapabilitiesLoading(false));
   }, []);
 
   useEffect(() => {
@@ -119,6 +129,8 @@ export function useAiAttachments(initialAttachmentId?: number) {
 
   return {
     aiCapabilities,
+    capabilitiesLoading,
+    capabilitiesError,
     pendingAttachments,
     uploadingAttachment,
     attachmentError,

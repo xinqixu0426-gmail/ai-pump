@@ -1,6 +1,5 @@
 'use client';
 
-import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
   ClipboardList,
@@ -22,6 +21,7 @@ import {
 import type { AiConversationSummary } from '@/lib/ai';
 import { dateText } from '@/components/ai/AiResultPrimitives';
 import { Button } from '@/components/ui/button';
+import { Drawer } from '@/components/ui/dialog';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 
@@ -266,16 +266,21 @@ export function AiDesktopSidebar({
 
 type AiMobileConversationDrawerProps = ConversationStateProps & {
   open: boolean;
-  panel: boolean;
+  asideMode: AiAsideMode;
+  activeSampleCategory: AiSampleCategory;
   promptBusy: boolean;
   onClose: () => void;
   onNewConversation: () => void;
   onEditPrompt: () => void;
+  onAsideModeChange: (value: AiAsideMode) => void;
+  onSampleCategoryChange: (value: AiSampleCategory) => void;
+  onRunSample: (prompt: string) => void;
 };
 
 export function AiMobileConversationDrawer({
   open,
-  panel,
+  asideMode,
+  activeSampleCategory,
   conversations,
   filteredConversations,
   activeConversationId,
@@ -291,31 +296,26 @@ export function AiMobileConversationDrawer({
   onOpenConversation,
   onDeleteConversation,
   onEditPrompt,
+  onAsideModeChange,
+  onSampleCategoryChange,
+  onRunSample,
 }: AiMobileConversationDrawerProps) {
+  const visibleSamples = aiTaskSamples.filter((sample) => sample.category === activeSampleCategory);
+
   return (
-    <AnimatePresence>
-      {open ? (
-        <div className={`fixed inset-0 z-40 ${panel ? '' : 'lg:hidden'}`}>
-          <motion.button
-            type="button"
-            aria-label="关闭会话记录"
-            className="absolute inset-0 bg-black/25"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.aside
-            className="ai-mobile-drawer absolute inset-y-0 left-0 flex w-[86vw] max-w-[340px] flex-col border-r border-line bg-white px-3 shadow-xl"
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
+    <Drawer
+      open={open}
+      onClose={onClose}
+      side="left"
+      width="sm"
+      layer="assistant"
+      ariaLabel="AI 会话与任务模板"
+      panelClassName="ai-mobile-drawer flex w-[86vw] max-w-[340px] flex-col overflow-hidden px-3"
+    >
+            <div className="flex items-center justify-between gap-3 border-b border-line pb-2 pt-2">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-ink">AI 工作台</div>
-                <div className="mt-0.5 text-xs text-muted">会话记录</div>
+                <div className="mt-0.5 text-xs text-muted">{asideMode === 'history' ? '会话记录' : '任务模板'}</div>
               </div>
               <Button variant="ghost" size="sm" className="h-9 w-9 px-0" icon={<X size={17} />} aria-label="关闭" title="关闭" onClick={onClose} />
             </div>
@@ -324,47 +324,79 @@ export function AiMobileConversationDrawer({
               新建会话
             </Button>
 
-            <label className="relative mt-3 block">
-              <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
-              <input
-                type="search"
-                value={historyQuery}
-                onChange={(event) => onHistoryQueryChange(event.target.value)}
-                placeholder="搜索会话"
-                aria-label="搜索会话"
-                className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-              />
-            </label>
-
-            {historyError ? (
-              <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
-                <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                <span>{historyError}</span>
-              </div>
-            ) : null}
-
-            <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
-              <ConversationList
-                conversations={conversations}
-                filteredConversations={filteredConversations}
-                activeConversationId={activeConversationId}
-                openingConversationId={openingConversationId}
-                historyLoading={historyLoading}
-                loading={loading}
-                mobile
-                onOpenConversation={onOpenConversation}
-                onDeleteConversation={onDeleteConversation}
-              />
+            <div className="mt-3">
+              <SegmentedControl value={asideMode} options={asideModeOptions} onChange={onAsideModeChange} ariaLabel="移动端 AI 侧栏内容" />
             </div>
+
+            {asideMode === 'history' ? (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <label className="relative mt-3 block">
+                  <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    type="search"
+                    value={historyQuery}
+                    onChange={(event) => onHistoryQueryChange(event.target.value)}
+                    placeholder="搜索会话"
+                    aria-label="搜索会话"
+                    className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                  />
+                </label>
+
+                {historyError ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{historyError}</span>
+                  </div>
+                ) : null}
+
+                <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
+                  <ConversationList
+                    conversations={conversations}
+                    filteredConversations={filteredConversations}
+                    activeConversationId={activeConversationId}
+                    openingConversationId={openingConversationId}
+                    historyLoading={historyLoading}
+                    loading={loading}
+                    mobile
+                    onOpenConversation={onOpenConversation}
+                    onDeleteConversation={onDeleteConversation}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto py-3">
+                <SegmentedControl value={activeSampleCategory} options={sampleCategoryOptions} onChange={onSampleCategoryChange} ariaLabel="移动端 AI 任务模板分类" />
+                <div className="mt-3 grid gap-2">
+                  {visibleSamples.map((sample) => {
+                    const Icon = sample.icon;
+                    return (
+                      <button
+                        key={sample.prompt}
+                        type="button"
+                        onClick={() => onRunSample(sample.prompt)}
+                        disabled={loading}
+                        className="flex min-h-16 items-center gap-3 rounded-md border border-line bg-slate-50 px-3 py-2.5 text-left disabled:opacity-60"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600"><Icon size={17} /></span>
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-ink">{sample.label}</span>
+                            <StatusBadge tone={sample.mode === 'write' ? 'amber' : 'blue'} className="h-5 min-w-0 px-1.5">{sample.mode === 'write' ? '确认' : '只读'}</StatusBadge>
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-muted">{sample.prompt}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="border-t border-line pt-2">
               <Button variant="ghost" className="w-full justify-start" icon={<Pencil size={16} />} onClick={onEditPrompt} disabled={promptBusy}>
                 编辑工厂配置
               </Button>
             </div>
-          </motion.aside>
-        </div>
-      ) : null}
-    </AnimatePresence>
+    </Drawer>
   );
 }
