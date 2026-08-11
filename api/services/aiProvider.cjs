@@ -339,6 +339,25 @@ function prepareAiProviderMessages(messages, options = {}) {
             }
 
             if (file.detectedType === 'text') {
+                if (['.doc', '.docx'].includes(file.extension)) {
+                    const content = getFactoryFileContent(id, { dbAccessors });
+                    if (content?.parserStatus === 'parsed' && content.parsedText) {
+                        const remaining = Math.max(0, MAX_INLINE_TEXT_BYTES - inlineTextBytes);
+                        const clipped = truncateUtf8(content.parsedText, remaining);
+                        inlineTextBytes += Buffer.byteLength(clipped.text, 'utf8');
+                        notes.push([
+                            attachmentNote(file, clipped.truncated
+                                ? '以下是本地提取的部分 Word 内容，超出本轮上限的内容已截断。'
+                                : '以下是本地提取的 Word 内容。'),
+                            clipped.text,
+                        ].join('\n'));
+                    } else {
+                        notes.push(attachmentNote(file, content?.parserStatus === 'failed'
+                            ? `Word 解析失败：${content.parserError || '未知错误'}`
+                            : 'Word 文件尚未完成解析。'));
+                    }
+                    continue;
+                }
                 const remaining = Math.max(0, MAX_INLINE_TEXT_BYTES - inlineTextBytes);
                 const clipped = truncateUtf8(blob.file_blob.toString('utf8'), remaining);
                 inlineTextBytes += Buffer.byteLength(clipped.text, 'utf8');

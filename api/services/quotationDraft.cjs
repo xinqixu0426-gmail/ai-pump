@@ -4,6 +4,9 @@ const { assertRecipeBomPrices } = require('./costEngine.cjs');
 const { calculateRecipeCostPreview } = require('./dynamicCostPreview.cjs');
 const { QUOTATION_STATUSES } = require('./orderWorkflow.cjs');
 const {
+    normalizeQuotationInquiryInput,
+} = require('./quotationAttachmentSummaries.cjs');
+const {
     parseJsonArray,
     parseNonNegativeNumber,
     parsePositiveId,
@@ -17,6 +20,11 @@ function roundMoney(value) {
 function parseOptionalNonNegativeNumber(value, field) {
     if (value === undefined || value === null || value === '') return '';
     return parseNonNegativeNumber(value, field);
+}
+
+function parseOptionalPositiveNumber(value, field) {
+    if (value === undefined || value === null || value === '') return null;
+    return parsePositiveNumber(value, field);
 }
 
 function normalizeAccessoryType(value) {
@@ -106,10 +114,9 @@ function normalizeQuotationItems(dependencies, items) {
     return items
         .filter(item => item && (item.baseRecipeId || item.baseRecipeName))
         .map((item, index) => {
-            const qty = parsePositiveNumber(
+            const qty = parseOptionalPositiveNumber(
                 item.qty,
-                `items[${index}].qty`,
-                { defaultValue: 1 }
+                `items[${index}].qty`
             );
             const recipeId = parsePositiveId(item.baseRecipeId);
             if (!recipeId) {
@@ -155,7 +162,7 @@ function normalizeQuotationItems(dependencies, items) {
                 unitCost: roundMoney(unitCost),
                 margin: unitCost > 0 ? roundMoney(unitPrice / unitCost) : margin,
                 unitPrice,
-                totalPrice: roundMoney(unitPrice * qty),
+                totalPrice: qty == null ? null : roundMoney(unitPrice * qty),
                 overrides,
                 snapshotVersion: 1,
                 snapshotAt: preview.costSnapshot.generatedAt,
@@ -183,6 +190,9 @@ function quotationSavePreviewHash(payload) {
         totalCost: payload.totalCost,
         totalPrice: payload.totalPrice,
         remark: payload.remark,
+        attachmentFileIds: payload.attachmentFileIds,
+        attachmentSummary: payload.attachmentSummary,
+        attachmentSourceFileIds: payload.attachmentSourceFileIds,
     });
 }
 
@@ -200,17 +210,25 @@ function buildQuotationSavePayloadDraft(dependencies, body = {}) {
     if (items.length === 0) throw new Error('至少添加一个报价明细');
     const status = String(body.status || '报价中');
     if (!QUOTATION_STATUSES.has(status)) throw new Error('报价状态无效');
+    const inquiry = normalizeQuotationInquiryInput(body, {
+        dbAccessors: dependencies,
+    });
+    const quantitiesConfirmed = items.every(item => item.qty != null);
     const payload = {
         customerId,
         status,
         itemsJson: JSON.stringify(items),
-        totalCost: roundMoney(
-            items.reduce((sum, item) => sum + item.unitCost * item.qty, 0)
-        ),
-        totalPrice: roundMoney(
-            items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0)
-        ),
+        totalCost: quantitiesConfirmed
+            ? roundMoney(items.reduce((sum, item) => sum + item.unitCost * item.qty, 0))
+            : null,
+        totalPrice: quantitiesConfirmed
+            ? roundMoney(items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0))
+            : null,
         remark: String(body.remark || ''),
+        attachmentFileIds: inquiry.attachmentFileIds,
+        attachmentSummary: inquiry.attachmentSummary,
+        attachmentSourceFileIds: inquiry.attachmentSourceFileIds,
+        quantitiesConfirmed,
     };
     return {
         ...payload,
@@ -228,9 +246,16 @@ function buildQuotationSavePayloadDraft(dependencies, body = {}) {
                 itemCount: items.length,
                 totalCost: payload.totalCost,
                 totalPrice: payload.totalPrice,
+                quantitiesConfirmed,
+                attachmentCount: inquiry.attachmentFileIds.length,
+                attachmentSummarySourceCount: inquiry.attachmentSourceFileIds.length,
+                hasAttachmentSummary: Boolean(inquiry.attachmentSummary),
             },
         }],
-        warnings: [],
+        warnings: quantitiesConfirmed ? [] : [{
+            code: 'quotation_quantity_pending',
+            message: '客户数量尚未确认，报价仅保存单位成本和出厂单价，不生成总金额',
+        }],
     };
 }
 

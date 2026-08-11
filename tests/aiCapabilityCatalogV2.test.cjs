@@ -48,3 +48,17 @@ test('V2 能力目录：重叠查询能力必须声明互斥的权威职责', ()
     assert.match(directory.get('search_parts').description, /电缆、电容、油封、机筒、轴承/);
     assert.match(directory.get('get_all_recipes').description, /具体物料名称.*应使用 search_parts/);
 });
+
+test('V2 能力目录：单对象查询不暴露全局经营和管理能力', () => {
+    const names = selectToolsForIntent({
+        mode: 'query',
+        domains: ['order', 'management'],
+        entityScope: 'single',
+        steps: [{ capabilityName: 'get_order_detail', objective: '读取单个订单' }],
+    }).map(tool => tool.function.name);
+    assert.ok(names.includes('get_order_detail'));
+    assert.equal(names.includes('get_business_alerts'), false);
+    assert.equal(names.includes('get_management_action_center'), false);
+    assert.equal(names.includes('get_order_readiness_overview'), false);
+    assert.equal(names.includes('get_dashboard_summary'), false);
+});

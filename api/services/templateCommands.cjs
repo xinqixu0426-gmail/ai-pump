@@ -118,12 +118,17 @@ function normalizeSubassemblyContents(value, field) {
                 400
             );
         }
+        const referenceUnitPrice = optionalNonNegative(
+            item?.referenceUnitPrice,
+            `${field}[${index}].referenceUnitPrice`
+        );
         return {
             name,
             qty: parsePositiveNumber(
                 item?.qty ?? 1,
                 `${field}[${index}].qty`
             ),
+            ...(referenceUnitPrice == null ? {} : { referenceUnitPrice }),
             ...(String(item?.note || '').trim()
                 ? { note: String(item.note).trim() }
                 : {}),

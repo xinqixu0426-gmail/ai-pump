@@ -8,12 +8,17 @@ import {
   SHELL_COMPONENT_CATEGORY,
   STAINLESS_STRETCH_BARREL_NAME,
   isBarrelComponentName,
+  type ShellComponentCatalogPart,
   type ShellComponentFormRow,
 } from '@/components/recipe/ShellCostEditor';
 import { Button } from '@/components/ui/button';
 import { money } from '@/lib/format';
 import { parsePumpShellMeta } from '@/lib/part-form-rules';
 import type { Part } from '@/lib/parts';
+import {
+  templatePartCatalogForName,
+  templatePartCategoryForName,
+} from '@/lib/template-part-category';
 import type {
   PumpShellTemplate,
   SurfaceTreatmentMode,
@@ -103,8 +108,17 @@ type PumpShellTemplateEditorProps = {
   saving: boolean;
   shellCatalogOptions: ShellCatalogOption[];
   shellComponentModelOptions: string[];
-  partModelOptions: string[];
+  shellComponentParts: ShellComponentCatalogPart[];
+  shellComponentPartsRefreshing: boolean;
+  partCatalog: Part[];
   getDefaultSupplier: (model: string, category?: string) => string;
+  getDefaultUnitPrice: (model: string, category?: string, supplier?: string) => number;
+  onRefreshShellComponentParts: () => Promise<void>;
+  onCreateShellComponentPart: (input: {
+    model: string;
+    supplier: string;
+    price: number;
+  }) => Promise<{ part: ShellComponentCatalogPart; created: boolean }>;
   onFormChange: (update: (form: TemplateFormState) => TemplateFormState) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -119,8 +133,13 @@ export function PumpShellTemplateEditor({
   saving,
   shellCatalogOptions,
   shellComponentModelOptions,
-  partModelOptions,
+  shellComponentParts,
+  shellComponentPartsRefreshing,
+  partCatalog,
   getDefaultSupplier,
+  getDefaultUnitPrice,
+  onRefreshShellComponentParts,
+  onCreateShellComponentPart,
   onFormChange,
   onClose,
   onSubmit,
@@ -181,8 +200,18 @@ export function PumpShellTemplateEditor({
       partRows: current.partRows.map((row) => {
         if (row.id !== id) return row;
         const next = { ...row, ...patch };
+        if (patch.name !== undefined) {
+          const allowedParts = templatePartCatalogForName(partCatalog, patch.name);
+          if (next.model && !allowedParts.some((part) => part.model === next.model)) {
+            next.model = '';
+            next.supplier = '';
+          }
+        }
         if (patch.model !== undefined && patch.supplier === undefined) {
-          next.supplier = getDefaultSupplier(String(patch.model || ''));
+          next.supplier = getDefaultSupplier(
+            String(patch.model || ''),
+            templatePartCategoryForName(next.name) || undefined
+          );
         }
         return next;
       }),
@@ -380,7 +409,12 @@ export function PumpShellTemplateEditor({
             bundleNote={form.bundleNote}
             componentRows={form.componentRows}
             modelOptions={shellComponentModelOptions}
+            catalogParts={shellComponentParts}
+            catalogRefreshing={shellComponentPartsRefreshing}
             getDefaultSupplier={(model) => getDefaultSupplier(model, SHELL_COMPONENT_CATEGORY)}
+            getDefaultUnitPrice={(model, supplier) => getDefaultUnitPrice(model, SHELL_COMPONENT_CATEGORY, supplier)}
+            onRefreshCatalog={onRefreshShellComponentParts}
+            onCreateCatalogPart={onCreateShellComponentPart}
             onBundleCostChange={(bundleCost) => updateForm({ bundleCost })}
             onBundleNoteChange={(bundleNote) => updateForm({ bundleNote })}
             onComponentRowsChange={(update) => onFormChange((current) => ({
@@ -398,19 +432,29 @@ export function PumpShellTemplateEditor({
               <Button type="button" size="sm" onClick={addPartRow} icon={<Plus size={14} />}>添加配件</Button>
             </div>
             <div className="mt-3 space-y-2">
-              {form.partRows.map((row) => (
+              {form.partRows.map((row) => {
+                const category = templatePartCategoryForName(row.name);
+                const modelOptions = Array.from(new Set(
+                  templatePartCatalogForName(partCatalog, row.name).map((part) => part.model).filter(Boolean)
+                )).sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'));
+                const modelListId = `template-part-model-options-${row.id}`;
+                return (
                 <div key={row.id} className="grid gap-2 lg:grid-cols-[minmax(130px,1fr)_minmax(180px,1.2fr)_minmax(120px,0.8fr)_96px_auto]">
-                  <input value={row.name} onChange={(event) => updatePartRow(row.id, { name: event.target.value })} placeholder="名称" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                  <input value={row.model} onChange={(event) => updatePartRow(row.id, { model: event.target.value })} placeholder="型号" list="template-part-model-options" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                  <input value={row.name} onChange={(event) => updatePartRow(row.id, { name: event.target.value })} placeholder="名称" aria-label={`固定配件名称 ${row.name || ''}`} className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                  <span className="min-w-0">
+                    <input value={row.model} onChange={(event) => updatePartRow(row.id, { model: event.target.value })} placeholder={category ? `${category}型号` : '型号'} aria-label={`${row.name || '固定配件'}型号${category ? `（${category}）` : ''}`} list={modelListId} className="h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                    <datalist id={modelListId}>
+                      {modelOptions.map((model) => <option key={model} value={model} />)}
+                    </datalist>
+                  </span>
                   <input value={row.supplier || ''} onChange={(event) => updatePartRow(row.id, { supplier: event.target.value })} placeholder="供应商" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <input value={String(row.qty)} onChange={(event) => updatePartRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <Button type="button" size="sm" variant="danger" onClick={() => removePartRow(row.id)} icon={<Trash2 size={14} />}>删除</Button>
                 </div>
-              ))}
+                );
+              })}
             </div>
-            <datalist id="template-part-model-options">
-              {partModelOptions.map((model) => <option key={model} value={model} />)}
-            </datalist>
+            <div className="mt-2 text-xs text-muted">型号候选会根据配件名称自动限定分类；无法识别的自定义名称保留全部非包装零件。</div>
           </section>
 
           <section className="rounded-panel border border-line p-4">

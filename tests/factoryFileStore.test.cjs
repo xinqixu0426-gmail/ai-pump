@@ -2,12 +2,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const XLSX = require('@e965/xlsx');
+const AdmZip = require('adm-zip');
 const {
+    MAX_WORD_UNCOMPRESSED_SIZE,
     deleteFactoryFile,
     inspectFactoryFile,
     listFactoryFiles,
     storeFactoryFile,
 } = require('../api/services/factoryFileStore.cjs');
+const {
+    needsFactoryFileParsing,
+    parseFactoryFile,
+} = require('../api/services/factoryFileParser.cjs');
 
 function createAccessors() {
     const db = new Database(':memory:');
@@ -25,6 +31,10 @@ function createAccessors() {
             source_type TEXT NOT NULL,
             duplicate_count INTEGER NOT NULL,
             metadata_json TEXT NOT NULL,
+            parsed_text TEXT NOT NULL DEFAULT '',
+            parsed_json TEXT NOT NULL DEFAULT '{}',
+            parser_error TEXT NOT NULL DEFAULT '',
+            parsed_at TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             deleted_at TEXT
@@ -74,6 +84,19 @@ function workbookBuffer() {
     return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
+function wordBuffer(bodyText = '客户要求：木箱包装，交期 30 天。') {
+    const zip = new AdmZip();
+    zip.addFile('[Content_Types].xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>`));
+    zip.addFile('word/document.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:body><w:p><w:r><w:t>${bodyText}</w:t></w:r></w:p></w:body>
+        </w:document>`));
+    return zip.toBuffer();
+}
+
 test('V9.1 文件识别：按真实内容识别 UTF-8 文本和 Excel', () => {
     const textFile = inspectFactoryFile({
         buffer: Buffer.from('技术参数：扬程 38m', 'utf8'),
@@ -115,6 +138,50 @@ test('V9.1 文件安全：拒绝扩展名伪装、危险文件名和超限文件
         }),
         /不能超过 10MB/
     );
+});
+
+test('报价附件 Word：校验真实 DOCX 结构并提取中文正文', async () => {
+    const accessors = createAccessors();
+    try {
+        const inspected = inspectFactoryFile({
+            buffer: wordBuffer(),
+            originalName: '客户报价要求.docx',
+        });
+        assert.equal(inspected.detectedType, 'text');
+        assert.equal(inspected.security.contentSignature, 'word_office_open_xml');
+        const stored = storeFactoryFile({
+            buffer: wordBuffer(),
+            originalName: '客户报价要求.docx',
+        }, { dbAccessors: accessors });
+        assert.equal(needsFactoryFileParsing(stored.file), true);
+        const parsed = await parseFactoryFile(stored.file.id, {
+            dbAccessors: accessors,
+        });
+        assert.equal(parsed.parsed.version, 'word-v1');
+        assert.match(parsed.extractedText, /木箱包装/);
+        assert.equal(needsFactoryFileParsing({
+            ...stored.file,
+            parserStatus: 'parsed',
+            parserSummary: { version: 'word-v1' },
+        }), false);
+        assert.throws(() => inspectFactoryFile({
+            buffer: workbookBuffer(),
+            originalName: '伪装报价.docx',
+        }), /DOCX 文件结构无效/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('报价附件 Word：拒绝压缩后小于上传上限但解压体积异常的 DOCX', () => {
+    const zip = new AdmZip(wordBuffer());
+    zip.addFile('word/media/oversized.bin', Buffer.alloc(MAX_WORD_UNCOMPRESSED_SIZE + 1));
+    const compressed = zip.toBuffer();
+    assert.ok(compressed.length < 10 * 1024 * 1024);
+    assert.throws(() => inspectFactoryFile({
+        buffer: compressed,
+        originalName: '压缩炸弹.docx',
+    }), /DOCX 文件结构无效/);
 });
 
 test('V9.1 文件去重：相同 SHA-256 复用文件对象并累计上传次数', () => {

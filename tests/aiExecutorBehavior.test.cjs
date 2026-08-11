@@ -730,6 +730,23 @@ test('AI 对话行为：按客户追问采购情况时阻止猜测订单ID并改
                 },
             });
         }
+        if (call.url.endsWith('/api/orders/1/knowledge-package')) {
+            return jsonResponse({
+                success: true,
+                data: {
+                    order: { id: 1, customerName: '邱焕', status: '采购中' },
+                    confirmedKnowledge: {
+                        customerRequirement: null,
+                        executionRecords: [],
+                    },
+                    coverage: {
+                        hasConfirmedCustomerRequirement: false,
+                        confirmedExecutionRecordCount: 0,
+                        sourceFileCount: 0,
+                    },
+                },
+            });
+        }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
     const provider = scriptedAiProvider([
@@ -758,12 +775,16 @@ test('AI 对话行为：按客户追问采购情况时阻止猜测订单ID并改
         fetchAiProvider: provider,
     });
 
-    assert.equal(result.toolResults.length, 1);
-    assert.equal(result.toolResults[0].name, 'get_order_detail');
+    assert.equal(result.toolResults.length, 2);
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_order_detail',
+        'get_order_knowledge_package',
+    ]);
     assert.equal(result.toolResults[0].result.success, true);
     assert.match(result.finalContent, /12-120/);
     assert.equal(calls.some(call => call.url.endsWith('/api/orders/5')), false);
     assert.equal(calls.some(call => call.url.includes('/api/orders/lookup?query=')), true);
+    assert.equal(calls.some(call => call.url.endsWith('/api/orders/1/knowledge-package')), true);
 });
 
 test('AI executor 行为：正式库存命令缺少 operation/audit 回执时拒绝报成功', async () => {

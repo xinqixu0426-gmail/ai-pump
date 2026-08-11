@@ -33,6 +33,12 @@ const {
     buildQuotationSavePayloadDraft,
 } = require('../services/quotationDraft.cjs');
 const {
+    getQuotationAttachmentSummary,
+} = require('../services/quotationAttachmentSummaries.cjs');
+const {
+    generateQuotationInquirySummary,
+} = require('../services/quotationInquiryAi.cjs');
+const {
     createQuotationQueries,
 } = require('../services/quotationQueries.cjs');
 const {
@@ -112,6 +118,44 @@ router.post('/save-payload-draft', (req, res) => {
     }
 });
 
+router.post('/inquiry-summary-draft', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: await generateQuotationInquirySummary(req.body || {}, {
+                dbAccessors: { db },
+            }),
+        });
+    } catch (err) {
+        res.status(err.statusCode || 502).json({
+            success: false,
+            code: err.code || 'KIMI_INQUIRY_SUMMARY_FAILED',
+            error: err.message,
+            requestId: req.requestId || null,
+        });
+    }
+});
+
+router.get('/:id/inquiry-summary', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法报价ID' });
+        res.json({
+            success: true,
+            data: getQuotationAttachmentSummary(id, {
+                dbAccessors: { db },
+            }),
+        });
+    } catch (err) {
+        res.status(err.statusCode || 500).json({
+            success: false,
+            code: err.code || 'QUOTATION_INQUIRY_SUMMARY_FAILED',
+            error: err.message,
+            requestId: req.requestId || null,
+        });
+    }
+});
+
 router.post('/:id/order-draft', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
@@ -120,7 +164,8 @@ router.post('/:id/order-draft', (req, res) => {
             success: true,
             data: buildQuotationOrderDraft(
                 { db, dbGetAllParts, dbGetAllCoils },
-                id
+                id,
+                { itemQuantities: req.body?.itemQuantities }
             ),
         });
     } catch (err) {

@@ -16,6 +16,7 @@ const {
     normalizeExpectedUpdatedAt,
 } = require('./resourceVersion.cjs');
 const { parsePositiveId } = require('./validation.cjs');
+const { attachQuotationInquiry } = require('./quotationAttachmentSummaries.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('quotations.create').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('quotations.update').capabilityId;
@@ -82,6 +83,9 @@ function executeQuotationCreate(dependencies, input = {}, commandContext = {}) {
             status: draft.status,
             previewHash: expectedPreviewHash,
             savePreviewHash: draft.previewHash,
+            attachmentFileIds: draft.attachmentFileIds,
+            attachmentSummary: draft.attachmentSummary,
+            attachmentSourceFileIds: draft.attachmentSourceFileIds,
         },
         warnings: [
             ...(commandContext.warnings || []),
@@ -114,6 +118,10 @@ function executeQuotationCreate(dependencies, input = {}, commandContext = {}) {
                     'SELECT * FROM quotations WHERE id = ?'
                 ).get(quotationId)
             );
+            const inquiry = attachQuotationInquiry(quotationId, currentDraft, {
+                dbAccessors: dependencies,
+                auditContext,
+            });
             return {
                 data: { quotation },
                 resource: { type: 'quotation', ids: [quotationId] },
@@ -127,9 +135,18 @@ function executeQuotationCreate(dependencies, input = {}, commandContext = {}) {
                         customerId: quotation.customerId,
                         totalPrice: quotation.totalPrice,
                     },
-                }],
-                auditIds: write.auditId ? [write.auditId] : [],
-                requiredAuditCount: 1,
+                }, ...inquiry.linkIds.map(linkId => ({
+                    resourceType: 'factory_file_link',
+                    resourceId: linkId,
+                    field: 'created',
+                    from: null,
+                    to: { quotationId, relationRole: 'quotation_source' },
+                }))],
+                auditIds: [
+                    ...(write.auditId ? [write.auditId] : []),
+                    ...inquiry.auditIds,
+                ],
+                requiredAuditCount: 1 + inquiry.expectedAuditCount,
             };
         },
     });

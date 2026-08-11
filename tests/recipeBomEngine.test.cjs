@@ -209,8 +209,8 @@ test('供应商小套件只生成父项 BOM，组成项不重复计价或扣库�
                 included: true,
                 componentType: 'subassembly',
                 subassemblyContents: [
-                    { name: '上帽', qty: 1 },
-                    { name: '铝机筒', qty: 1 },
+                    { name: '上帽', qty: 1, referenceUnitPrice: 12 },
+                    { name: '铝机筒', qty: 1, referenceUnitPrice: 20 },
                     { name: '油缸盖', qty: 1, note: '与上帽同厂' },
                 ],
             },
@@ -229,8 +229,8 @@ test('供应商小套件只生成父项 BOM，组成项不重复计价或扣库�
     assert.equal(subassembly.componentType, 'subassembly');
     assert.equal(subassembly.inventoryType, 'part');
     assert.deepEqual(subassembly.subassemblyContents, [
-        { name: '上帽', qty: 1 },
-        { name: '铝机筒', qty: 1 },
+        { name: '上帽', qty: 1, referenceUnitPrice: 12 },
+        { name: '铝机筒', qty: 1, referenceUnitPrice: 20 },
         { name: '油缸盖', qty: 1, note: '与上帽同厂' },
     ]);
     assert.match(subassembly.formula, /子项不单独计价/);

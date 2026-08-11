@@ -1,5 +1,6 @@
 const { parsePdfBuffer } = require('./factoryPdfParser.cjs');
 const { parseSpreadsheetBuffer } = require('./factorySpreadsheetParser.cjs');
+const { parseWordBuffer } = require('./factoryWordParser.cjs');
 const {
     parseImageBuffer,
     parseScannedPdfBuffer,
@@ -9,7 +10,8 @@ function loadDbAccessors() {
     return require('../db.cjs');
 }
 
-function expectedParserVersion(detectedType) {
+function expectedParserVersion(detectedType, extension = '') {
+    if (detectedType === 'text' && ['.doc', '.docx'].includes(extension)) return 'word-v1';
     if (detectedType === 'pdf') return 'pdf-ocr-v1';
     if (detectedType === 'spreadsheet') return 'spreadsheet-v1';
     if (detectedType === 'image') return 'image-ocr-v1';
@@ -17,7 +19,7 @@ function expectedParserVersion(detectedType) {
 }
 
 function needsFactoryFileParsing(file) {
-    const expected = expectedParserVersion(file?.detectedType);
+    const expected = expectedParserVersion(file?.detectedType, file?.extension);
     if (!expected) return false;
     return ['pending', 'failed'].includes(file?.parserStatus)
         || file?.parserSummary?.version !== expected;
@@ -122,8 +124,10 @@ async function parseFactoryFile(id, options = {}) {
         WHERE id = ? AND deleted_at IS NULL
     `).get(fileId);
     if (!row) throw new Error('文件不存在');
-    if (!['pdf', 'spreadsheet', 'image'].includes(row.detected_type)) {
-        throw new Error('当前只解析 PDF、Excel、CSV 和图片文件');
+    const isWord = row.detected_type === 'text'
+        && ['.doc', '.docx'].includes(row.extension);
+    if (!['pdf', 'spreadsheet', 'image'].includes(row.detected_type) && !isWord) {
+        throw new Error('当前只解析 PDF、Word、Excel、CSV 和图片文件');
     }
     const updateState = updates => {
         const execute = () => {
@@ -158,6 +162,8 @@ async function parseFactoryFile(id, options = {}) {
             result = await parsePdfWithOcr(row.file_blob, options);
         } else if (row.detected_type === 'image') {
             result = await parseImageBuffer(row.file_blob, options.ocrOptions);
+        } else if (isWord) {
+            result = await parseWordBuffer(row.file_blob, options.wordOptions);
         } else {
             result = parseSpreadsheetBuffer(row.file_blob, options.spreadsheetOptions);
         }

@@ -22,6 +22,7 @@ function plannerCapabilityDirectory() {
                 name: capability.toolName,
                 label: capability.displayName,
                 domains: capability.domains,
+                entityScopes: capability.entityScopes,
                 operation: capability.operation,
                 access: capability.access,
                 description,
@@ -39,7 +40,7 @@ function buildPlannerDirectoryPrompt() {
     return [...groups.entries()].map(([domain, items]) => [
         `[${domain}]`,
         ...items.map(item => (
-            `- ${item.name} | ${item.operation} | ${item.description}`
+            `- ${item.name} | ${item.operation} | scope=${item.entityScopes.join('/')} | ${item.description}`
         )),
     ].join('\n')).join('\n');
 }
@@ -53,6 +54,11 @@ function plannedCapabilityNames(intent = {}) {
 function capabilityAllowedForIntent(capability, intent = {}) {
     if (!capability || intent.mode === 'conversation') return false;
     if (intent.mode !== 'command' && capability.access === 'write') return false;
+    if (
+        intent.entityScope
+        && intent.entityScope !== 'none'
+        && !capability.entityScopes.includes(intent.entityScope)
+    ) return false;
     return true;
 }
 

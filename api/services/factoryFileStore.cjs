@@ -2,12 +2,17 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const { isUtf8 } = require('node:buffer');
 const XLSX = require('@e965/xlsx');
+const AdmZip = require('adm-zip');
 
 const MAX_FACTORY_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_WORD_ARCHIVE_ENTRIES = 2_000;
+const MAX_WORD_UNCOMPRESSED_SIZE = 40 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = new Set([
     '.pdf',
     '.xls',
     '.xlsx',
+    '.doc',
+    '.docx',
     '.csv',
     '.txt',
     '.md',
@@ -90,6 +95,38 @@ function validateSpreadsheet(buffer, extension) {
     return '';
 }
 
+function validateWordDocument(buffer, extension) {
+    if (extension === '.doc') {
+        const oleSignature = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+        const wordDirectoryName = Buffer.from('WordDocument', 'utf16le');
+        if (!startsWith(buffer, oleSignature) || !buffer.includes(wordDirectoryName)) {
+            throw new Error('文件扩展名与实际 Word DOC 格式不一致');
+        }
+        return 'word_ole_compound';
+    }
+    if (!startsWith(buffer, [0x50, 0x4b])) {
+        throw new Error('文件扩展名与实际 Word DOCX 格式不一致');
+    }
+    try {
+        const archive = new AdmZip(buffer);
+        const entries = archive.getEntries();
+        const uncompressedSize = entries.reduce(
+            (sum, entry) => sum + Number(entry.header?.size || 0),
+            0
+        );
+        if (entries.length > MAX_WORD_ARCHIVE_ENTRIES) {
+            throw new Error('too many entries');
+        }
+        if (uncompressedSize > MAX_WORD_UNCOMPRESSED_SIZE) {
+            throw new Error('archive too large');
+        }
+        if (!archive.getEntry('word/document.xml')) throw new Error('missing document');
+    } catch {
+        throw new Error('Word DOCX 文件结构无效或已损坏');
+    }
+    return 'word_office_open_xml';
+}
+
 function inspectFactoryFile(input = {}) {
     const buffer = input.buffer;
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
@@ -101,7 +138,7 @@ function inspectFactoryFile(input = {}) {
     const originalName = normalizeUploadName(input.originalName);
     const extension = path.extname(originalName).toLowerCase();
     if (!ALLOWED_FILE_EXTENSIONS.has(extension)) {
-        throw new Error('只支持 PDF、Excel、CSV、TXT、Markdown、PNG、JPG 和 WebP 文件');
+        throw new Error('只支持 PDF、Word、Excel、CSV、TXT、Markdown、PNG、JPG 和 WebP 文件');
     }
 
     let detectedType = '';
@@ -120,6 +157,12 @@ function inspectFactoryFile(input = {}) {
             ? 'application/vnd.ms-excel'
             : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
         contentSignature = validateSpreadsheet(buffer, extension);
+    } else if (['.doc', '.docx'].includes(extension)) {
+        detectedType = 'text';
+        mimeType = extension === '.doc'
+            ? 'application/msword'
+            : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        contentSignature = validateWordDocument(buffer, extension);
     } else if (extension === '.png') {
         if (!startsWith(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
             throw new Error('文件扩展名与实际 PNG 内容不一致');
@@ -426,6 +469,8 @@ function deleteFactoryFile(id, options = {}) {
 module.exports = {
     ALLOWED_FILE_EXTENSIONS,
     MAX_FACTORY_FILE_SIZE,
+    MAX_WORD_ARCHIVE_ENTRIES,
+    MAX_WORD_UNCOMPRESSED_SIZE,
     PARSER_STATUSES,
     SOURCE_TYPES,
     deleteFactoryFile,

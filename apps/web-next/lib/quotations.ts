@@ -13,12 +13,12 @@ export type QuotationItem = {
   baseRecipeId?: number | '';
   baseRecipeName?: string;
   spec?: string;
-  qty?: number;
+  qty?: number | null;
   overrides?: QuotationItemOverrides;
   unitCost?: number;
   margin?: number;
   unitPrice?: number;
-  totalPrice?: number;
+  totalPrice?: number | null;
   snapshotVersion?: number;
   snapshotAt?: string;
   bomSnapshot?: Array<Record<string, unknown>>;
@@ -68,8 +68,8 @@ type QuotationRow = {
   customerId?: number;
   status?: string;
   itemsJson?: string;
-  totalCost?: number;
-  totalPrice?: number;
+  totalCost?: number | null;
+  totalPrice?: number | null;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -84,6 +84,16 @@ export type QuotationDataset = {
   parts: Part[];
 };
 
+export type QuotationInquirySummaryDraft = {
+  preview: true;
+  summaryText: string;
+  sourceFileIds: number[];
+  provider: 'kimi';
+  model: string;
+  sourceMode: 'original_attachments';
+  warnings: string[];
+};
+
 export type QuotationOrderDraft = {
   capabilityId: 'workflow.quotation.convert_to_order';
   quotationId: number;
@@ -94,23 +104,56 @@ export type QuotationOrderDraft = {
   contractNo?: string;
   remark?: string;
   status?: string;
+  itemQuantities: QuotationItemQuantity[];
   items: OrderItem[];
   purchaseList: PurchaseItem[];
   todos: TodoItem[];
+};
+
+export type QuotationItemQuantity = {
+  quotationItemId: string;
+  qty: number;
 };
 
 export type QuotationSavePayloadDraft = {
   customerId: number;
   status: QuotationStatus;
   itemsJson: string;
-  totalCost: number;
-  totalPrice: number;
+  totalCost: number | null;
+  totalPrice: number | null;
   remark: string;
+  attachmentFileIds: number[];
+  attachmentSummary: string;
+  attachmentSourceFileIds: number[];
+  quantitiesConfirmed: boolean;
   preview: true;
   previewHash: string;
   suggestedIdempotencyKey: string;
   changes?: unknown[];
   warnings?: unknown[];
+};
+
+export type QuotationInquirySummary = {
+  id: number | null;
+  quotationId: number;
+  customerName: string;
+  quotationStatus: string;
+  hasRecord: boolean;
+  draftText: string;
+  sourceFileIds: number[];
+  createdAt: string | null;
+  updatedAt: string | null;
+  availableFiles: Array<{
+    id: number;
+    originalName: string;
+    extension: string;
+    detectedType: string;
+    mimeType: string;
+    fileSize: number;
+    parserStatus: string;
+    linkedAt: string;
+    downloadPath: string;
+  }>;
 };
 
 export const quotationStatusOptions: QuotationStatus[] = ['草稿', '报价中', '已接受', '已拒绝', '已转订单', '已过时'];
@@ -152,8 +195,10 @@ export function quotationItemSummary(quotation: Quotation): string {
   if (items.length === 0) return '无明细';
   return items
     .map((item) => {
-      const qty = Number(item.qty || 0);
-      return `${item.baseRecipeName || '未选配方'} x${qty || 0}`;
+      const qty = Number(item.qty);
+      return Number.isFinite(qty) && qty > 0
+        ? `${item.baseRecipeName || '未选配方'} x${qty}`
+        : `${item.baseRecipeName || '未选配方'}（数量待确认）`;
     })
     .join(' / ');
 }
@@ -175,8 +220,10 @@ export function buildQuotationStats(quotations: Quotation[]) {
   const acceptedOrConverted = quotations.filter((quotation) =>
     quotation.status === '已接受' || quotation.status === '已转订单'
   ).length;
-  const totalCost = quotations.reduce((sum, quotation) => sum + quotation.totalCost, 0);
-  const totalPrice = quotations.reduce((sum, quotation) => sum + quotation.totalPrice, 0);
+  const amountKnownCount = quotations.filter((quotation) => quotation.totalPrice != null).length;
+  const pendingAmountCount = quotations.length - amountKnownCount;
+  const totalCost = quotations.reduce((sum, quotation) => sum + (quotation.totalCost || 0), 0);
+  const totalPrice = quotations.reduce((sum, quotation) => sum + (quotation.totalPrice || 0), 0);
 
   return {
     quoteCount: quotations.length,
@@ -185,12 +232,13 @@ export function buildQuotationStats(quotations: Quotation[]) {
     totalCost,
     totalPrice,
     totalProfit: totalPrice - totalCost,
+    amountKnownCount,
+    pendingAmountCount,
   };
 }
 
-export function createQuotationItemFromRecipe(recipe: Recipe, qty: number, margin: number): QuotationItem {
+export function createQuotationItemFromRecipe(recipe: Recipe, margin: number): QuotationItem {
   const unitCost = Math.max(0, Number(recipe.savedTotalCost) || 0);
-  const safeQty = Math.max(1, Number(qty) || 1);
   const safeMargin = Math.max(0.01, Number(margin) || 1.1);
   const unitPrice = roundMoney(unitCost * safeMargin);
   return {
@@ -198,12 +246,12 @@ export function createQuotationItemFromRecipe(recipe: Recipe, qty: number, margi
     baseRecipeId: recipe.id,
     baseRecipeName: recipe.name,
     spec: recipe.spec,
-    qty: safeQty,
+    qty: null,
     overrides: buildRecipeDefaultQuotationOverrides(recipe),
     unitCost,
     margin: safeMargin,
     unitPrice,
-    totalPrice: roundMoney(unitPrice * safeQty),
+    totalPrice: null,
   };
 }
 
@@ -238,11 +286,18 @@ export async function previewQuotationItemCost(recipeId: number, overrides: Quot
 }
 
 export function calculateQuotationTotals(items: QuotationItem[]) {
+  const quantitiesConfirmed = items.length > 0 && items.every((item) => (
+    Number.isFinite(Number(item.qty)) && Number(item.qty) > 0
+  ));
+  if (!quantitiesConfirmed) {
+    return { totalCost: null, totalPrice: null, quantitiesConfirmed: false };
+  }
   const totalCost = items.reduce((sum, item) => sum + (Number(item.unitCost) || 0) * (Number(item.qty) || 0), 0);
   const totalPrice = items.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * (Number(item.qty) || 0), 0);
   return {
     totalCost: roundMoney(totalCost),
     totalPrice: roundMoney(totalPrice),
+    quantitiesConfirmed: true,
   };
 }
 
@@ -261,12 +316,17 @@ export async function createQuotation(input: {
   status: QuotationStatus;
   items: QuotationItem[];
   remark?: string;
+  attachmentFileIds?: number[];
+  attachmentSummary?: string;
+  attachmentSourceFileIds?: number[];
 }): Promise<Quotation> {
   const payload = await buildQuotationSavePayloadDraft(input);
   const result = await proxyRequest<ApiResponse<QuotationRow>>('/api/quotations', {
     method: 'POST',
     headers: { 'Idempotency-Key': payload.suggestedIdempotencyKey },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+    }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '报价创建失败');
   return rowToQuotation(result.data);
@@ -299,12 +359,38 @@ export async function buildQuotationSavePayloadDraft(input: {
   status: QuotationStatus;
   items: QuotationItem[];
   remark?: string;
+  attachmentFileIds?: number[];
+  attachmentSummary?: string;
+  attachmentSourceFileIds?: number[];
 }): Promise<QuotationSavePayloadDraft> {
   const result = await proxyRequest<ApiResponse<QuotationSavePayloadDraft>>('/api/quotations/save-payload-draft', {
     method: 'POST',
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '生成报价保存草稿失败');
+  return result.data;
+}
+
+export async function getQuotationInquirySummary(quotationId: number): Promise<QuotationInquirySummary> {
+  const result = await proxyRequest<ApiResponse<QuotationInquirySummary>>(
+    `/api/quotations/${quotationId}/inquiry-summary`
+  );
+  if (!result.success || !result.data) throw new Error(result.error || '读取询价资料失败');
+  return result.data;
+}
+
+export async function generateQuotationInquirySummaryDraft(input: {
+  fileIds: number[];
+  customerName?: string;
+}): Promise<QuotationInquirySummaryDraft> {
+  const result = await proxyRequest<ApiResponse<QuotationInquirySummaryDraft>>(
+    '/api/quotations/inquiry-summary-draft',
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }
+  );
+  if (!result.success || !result.data) throw new Error(result.error || 'Kimi 读取询价附件失败');
   return result.data;
 }
 
@@ -333,9 +419,13 @@ export async function deleteQuotation(quotation: Quotation): Promise<void> {
   if (!result.success) throw new Error(result.error || '报价删除失败');
 }
 
-export async function buildQuotationOrderDraft(quotationId: number): Promise<QuotationOrderDraft> {
+export async function buildQuotationOrderDraft(
+  quotationId: number,
+  itemQuantities: QuotationItemQuantity[],
+): Promise<QuotationOrderDraft> {
   const result = await proxyRequest<ApiResponse<QuotationOrderDraft>>(`/api/quotations/${quotationId}/order-draft`, {
     method: 'POST',
+    body: JSON.stringify({ itemQuantities }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '报价转订单草稿生成失败');
   return result.data;
@@ -356,6 +446,7 @@ export async function convertQuotationToOrder(input: {
     body: JSON.stringify({
       expectedUpdatedAt,
       ...(input.draft?.previewHash ? { previewHash: input.draft.previewHash } : {}),
+      ...(input.draft?.itemQuantities ? { itemQuantities: input.draft.itemQuantities } : {}),
     }),
   });
   if (!result.success) throw new Error(result.error || '报价转订单失败');

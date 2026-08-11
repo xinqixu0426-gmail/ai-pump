@@ -52,7 +52,7 @@
 
 要求：
 
-- 显式构造 `name/model/supplier/qty/unitCost/pricingMode/included/optional/componentType/subassemblyContents/note`；
+- 显式构造 `name/model/supplier/qty/unitCost/pricingMode/included/optional/componentType/subassemblyContents/note`；`subassemblyContents` 只允许 `name/qty/referenceUnitPrice/note`，其中参考单价不参与正式成本；
 - 历史兼容字段单独列出并只读迁移，不得通过对象展开继续扩散；
 - 对未知字段选择明确拒绝或忽略，并增加契约测试。
 

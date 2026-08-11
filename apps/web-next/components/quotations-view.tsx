@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, CircleAlert, Eye, FileText, Pencil, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ArrowRight, CircleAlert, Download, Eye, FileText, Pencil, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
-import { FactoryFileAttachments } from '@/components/factory-file-attachments';
+import { QuotationAttachmentSummaryPanel, type QuotationInquiryDraft } from '@/components/quotation-attachment-summary-panel';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Checkbox } from '@/components/ui/field';
@@ -35,6 +35,7 @@ import {
   createQuotationItemFromRecipe,
   deleteQuotation,
   getQuotationDataset,
+  getQuotationInquirySummary,
   parseQuotationItems,
   previewQuotationItemCost,
   quotationItemSummary,
@@ -45,6 +46,8 @@ import {
   type QuotationFilter,
   type QuotationItem,
   type QuotationItemOverrides,
+  type QuotationInquirySummary,
+  type QuotationItemQuantity,
   type QuotationOrderDraft,
   type QuotationPackingPart,
   type QuotationPackingRole,
@@ -161,8 +164,17 @@ function surfaceTreatmentLabel(mode: SurfaceTreatmentMode | undefined): string {
   return surfaceTreatmentLabels[mode || 'none'] || '无';
 }
 
-function quotationTaxIncludedFactoryPrice(quotation: Quotation): number {
-  return Math.round((Number(quotation.totalPrice || 0) / 0.9) * 100) / 100;
+function quotationTaxIncludedFactoryPrice(quotation: Quotation): number | null {
+  if (quotation.totalPrice == null) return null;
+  return Math.round((quotation.totalPrice / 0.9) * 100) / 100;
+}
+
+function quotationAmountText(value: number | null): string {
+  return value == null ? '待数量确认' : money(value);
+}
+
+function quotationItemKey(quotationId: number, item: QuotationItem, index: number): string {
+  return String(item.id || `quotation-${quotationId}-${index}`);
 }
 
 function marginMultiplierToPercent(value: unknown): number {
@@ -274,14 +286,23 @@ export function QuotationsView() {
   const [formStatus, setFormStatus] = useState<QuotationStatus>('报价中');
   const [remark, setRemark] = useState('');
   const [recipeId, setRecipeId] = useState('');
-  const [itemQty, setItemQty] = useState('1');
   const [itemMargin, setItemMargin] = useState('10');
   const [draftItems, setDraftItems] = useState<QuotationItem[]>([]);
+  const [inquiryDraft, setInquiryDraft] = useState<QuotationInquiryDraft>({
+    files: [],
+    summaryText: '',
+    sourceFileIds: [],
+  });
+  const [inquiryPanelOpen, setInquiryPanelOpen] = useState(false);
   const [calculatingItemId, setCalculatingItemId] = useState<string | null>(null);
   const [convertTarget, setConvertTarget] = useState<Quotation | null>(null);
   const [convertDraft, setConvertDraft] = useState<QuotationOrderDraft | null>(null);
+  const [convertQuantities, setConvertQuantities] = useState<Record<string, string>>({});
   const [convertError, setConvertError] = useState<string | null>(null);
   const [viewQuotation, setViewQuotation] = useState<Quotation | null>(null);
+  const [viewInquiry, setViewInquiry] = useState<QuotationInquirySummary | null>(null);
+  const [viewInquiryLoading, setViewInquiryLoading] = useState(false);
+  const [viewInquiryError, setViewInquiryError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
   const overridePreviewSeqRef = useRef(new Map<string, number>());
   const {
@@ -322,6 +343,30 @@ export function QuotationsView() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!viewQuotation) {
+      setViewInquiry(null);
+      setViewInquiryError('');
+      setViewInquiryLoading(false);
+      return () => { cancelled = true; };
+    }
+    setViewInquiry(null);
+    setViewInquiryError('');
+    setViewInquiryLoading(true);
+    void getQuotationInquirySummary(viewQuotation.id)
+      .then((result) => {
+        if (!cancelled) setViewInquiry(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setViewInquiryError(err instanceof Error ? err.message : '读取询价资料失败');
+      })
+      .finally(() => {
+        if (!cancelled) setViewInquiryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [viewQuotation]);
 
   const customerNameMap = useMemo(() => buildCustomerNameMap(customers), [customers]);
   const stats = useMemo(() => buildQuotationStats(quotations), [quotations]);
@@ -425,9 +470,10 @@ export function QuotationsView() {
     setFormStatus('报价中');
     setRemark('');
     setRecipeId('');
-    setItemQty('1');
     setItemMargin(customerMarginPercent(customer));
     setDraftItems([]);
+    setInquiryDraft({ files: [], summaryText: '', sourceFileIds: [] });
+    setInquiryPanelOpen(false);
     setFormError(null);
     setDrawerOpen(true);
   }, [customers, loading, prefillCustomerId, prefillKey, resetFormDirty, shouldCreateFromQuery]);
@@ -477,9 +523,10 @@ export function QuotationsView() {
     setFormStatus('报价中');
     setRemark('');
     setRecipeId('');
-    setItemQty('1');
     setItemMargin(customerMarginPercent(firstCustomer));
     setDraftItems([]);
+    setInquiryDraft({ files: [], summaryText: '', sourceFileIds: [] });
+    setInquiryPanelOpen(false);
     setFormError(null);
   }
 
@@ -497,9 +544,10 @@ export function QuotationsView() {
     setFormStatus(quotation.status as QuotationStatus);
     setRemark(quotation.remark || '');
     setRecipeId('');
-    setItemQty('1');
     setItemMargin(customerMarginPercent(customer));
     setDraftItems(hydrateQuotationItemsForEdit(parseQuotationItems(quotation.itemsJson)));
+    setInquiryDraft({ files: [], summaryText: '', sourceFileIds: [] });
+    setInquiryPanelOpen(false);
     setFormError(null);
     setDrawerOpen(true);
   }
@@ -509,7 +557,7 @@ export function QuotationsView() {
       const hasSavedOverrides = item.overrides && Object.keys(item.overrides).length > 0;
       if (hasSavedOverrides) return item;
       const recipe = recipes.find((next) => next.id === Number(item.baseRecipeId || 0));
-      return recipe ? { ...item, overrides: createQuotationItemFromRecipe(recipe, Number(item.qty || 1), Number(item.margin || 1.1)).overrides } : item;
+      return recipe ? { ...item, overrides: createQuotationItemFromRecipe(recipe, Number(item.margin || 1.1)).overrides } : item;
     });
   }
 
@@ -520,7 +568,7 @@ export function QuotationsView() {
   }
 
   function recostQuotationItem(item: QuotationItem, unitCost: number): QuotationItem {
-    const qty = Math.max(1, Number(item.qty) || 1);
+    const qty = item.qty == null ? null : Math.max(1, Number(item.qty) || 1);
     const margin = Math.max(0.01, Number(item.margin) || 1.1);
     const unitPrice = Math.round(unitCost * margin * 100) / 100;
     return {
@@ -529,7 +577,7 @@ export function QuotationsView() {
       unitCost,
       margin,
       unitPrice,
-      totalPrice: Math.round(unitPrice * qty * 100) / 100,
+      totalPrice: qty == null ? null : Math.round(unitPrice * qty * 100) / 100,
     };
   }
 
@@ -538,14 +586,13 @@ export function QuotationsView() {
       setFormError('请先选择配方');
       return;
     }
-    const item = createQuotationItemFromRecipe(selectedRecipe, Number(itemQty), marginPercentToMultiplier(itemMargin));
+    const item = createQuotationItemFromRecipe(selectedRecipe, marginPercentToMultiplier(itemMargin));
     setCalculatingItemId(item.id || null);
     setFormError(null);
     try {
       const unitCost = await previewQuotationItemCost(selectedRecipe.id, item.overrides || {});
       setDraftItems((current) => [...current, recostQuotationItem(item, unitCost)]);
       markFormDirty();
-      setItemQty('1');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '报价成本重算失败');
     } finally {
@@ -557,7 +604,7 @@ export function QuotationsView() {
     if (!id) return;
     setDraftItems((current) => current.map((item) => {
       if (item.id !== id) return item;
-      const qty = patch.qty == null ? Number(item.qty || 1) : Math.max(1, Number(patch.qty) || 1);
+      const qty = item.qty == null ? null : Math.max(1, Number(item.qty) || 1);
       const unitCost = Number(item.unitCost) || 0;
       const margin = patch.margin == null ? Number(item.margin || 1.1) : Math.max(0.01, Number(patch.margin) || 1.1);
       const unitPrice = patch.unitPrice == null ? unitCost * margin : Math.max(0, Number(patch.unitPrice) || 0);
@@ -566,7 +613,7 @@ export function QuotationsView() {
         qty,
         margin: patch.unitPrice == null ? margin : (unitCost > 0 ? unitPrice / unitCost : margin),
         unitPrice: Math.round(unitPrice * 100) / 100,
-        totalPrice: Math.round(unitPrice * qty * 100) / 100,
+        totalPrice: qty == null ? null : Math.round(unitPrice * qty * 100) / 100,
       };
     }));
   }
@@ -677,7 +724,15 @@ export function QuotationsView() {
           expectedUpdatedAt: editingQuotation.updatedAt,
         });
       } else {
-        await createQuotation({ customerId: numericCustomerId, status: formStatus, items: draftItems, remark });
+        await createQuotation({
+          customerId: numericCustomerId,
+          status: formStatus,
+          items: draftItems,
+          remark,
+          attachmentFileIds: inquiryDraft.files.map(file => file.id),
+          attachmentSummary: inquiryDraft.summaryText,
+          attachmentSourceFileIds: inquiryDraft.sourceFileIds,
+        });
       }
       await load(true);
       resetFormDirty();
@@ -709,15 +764,39 @@ export function QuotationsView() {
       setError('报价客户不存在，无法转订单');
       return;
     }
-    setSavingId(`convert-${quotation.id}`);
+    const quantities = Object.fromEntries(
+      parseQuotationItems(quotation.itemsJson).map((item, index) => [
+        quotationItemKey(quotation.id, item, index),
+        item.qty == null ? '' : String(item.qty),
+      ])
+    );
+    setConvertTarget(quotation);
+    setConvertDraft(null);
+    setConvertQuantities(quantities);
     setConvertError(null);
     setError(null);
+  }
+
+  async function generateConvertPreview() {
+    if (!convertTarget) return;
+    const items = parseQuotationItems(convertTarget.itemsJson);
+    const itemQuantities: QuotationItemQuantity[] = [];
+    for (const [index, item] of items.entries()) {
+      const quotationItemId = quotationItemKey(convertTarget.id, item, index);
+      const rawQty = convertQuantities[quotationItemId]?.trim() || '';
+      const qty = Number(rawQty);
+      if (!Number.isInteger(qty) || qty <= 0) {
+        setConvertError(`请填写「${item.baseRecipeName || `明细 ${index + 1}`}」的有效订单数量`);
+        return;
+      }
+      itemQuantities.push({ quotationItemId, qty });
+    }
+    setSavingId(`convert-preview-${convertTarget.id}`);
+    setConvertError(null);
     try {
-      const draft = await buildQuotationOrderDraft(quotation.id);
-      setConvertTarget(quotation);
-      setConvertDraft(draft);
+      setConvertDraft(await buildQuotationOrderDraft(convertTarget.id, itemQuantities));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '生成转单预览失败');
+      setConvertError(err instanceof Error ? err.message : '生成转单预览失败');
     } finally {
       setSavingId(null);
     }
@@ -727,6 +806,7 @@ export function QuotationsView() {
     if (savingId) return;
     setConvertTarget(null);
     setConvertDraft(null);
+    setConvertQuantities({});
     setConvertError(null);
   }
 
@@ -743,6 +823,7 @@ export function QuotationsView() {
       await convertQuotationToOrder({ quotation: convertTarget, customer, recipes, draft: convertDraft });
       setConvertTarget(null);
       setConvertDraft(null);
+      setConvertQuantities({});
       await load(true);
     } catch (err) {
       setConvertError(err instanceof Error ? err.message : '转订单失败');
@@ -752,6 +833,10 @@ export function QuotationsView() {
   }
 
   const convertPurchaseRows = convertDraft?.purchaseList.filter((item) => Number(item.needToBuy || 0) > 0) || [];
+  const convertTargetItems = useMemo(
+    () => parseQuotationItems(convertTarget?.itemsJson),
+    [convertTarget]
+  );
   const viewQuotationItems = useMemo(() => parseQuotationItems(viewQuotation?.itemsJson), [viewQuotation]);
 
   return (
@@ -786,7 +871,13 @@ export function QuotationsView() {
           delay={0.04}
         />
         <MetricCard value={String(stats.acceptedOrConverted)} label="已接受/转单" delay={0.06} />
-        <MetricCard value={money(stats.totalPrice)} label="总报价金额" delay={0.08} />
+        <MetricCard
+          value={money(stats.totalPrice)}
+          label={stats.pendingAmountCount > 0
+            ? `已确定报价金额（${stats.amountKnownCount} 张）`
+            : '总报价金额'}
+          delay={0.08}
+        />
       </MetricGrid>
 
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
@@ -858,14 +949,14 @@ export function QuotationsView() {
                     </div>
                     <div className="grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-xs">
                       <div>
-                        <div className="text-muted">总报价</div>
-                        <div className="mt-1 text-base font-semibold text-ink">{money(quotation.totalPrice)}</div>
+                        <div className="text-muted">报价金额</div>
+                        <div className="mt-1 text-base font-semibold text-ink">{quotationAmountText(quotation.totalPrice)}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-muted">含税出厂价</div>
-                        <div className="mt-1 text-base font-semibold text-ink">{money(quotationTaxIncludedFactoryPrice(quotation))}</div>
+                        <div className="mt-1 text-base font-semibold text-ink">{quotationAmountText(quotationTaxIncludedFactoryPrice(quotation))}</div>
                       </div>
-                      <div className="text-muted">成本 {money(quotation.totalCost)}</div>
+                      <div className="text-muted">成本 {quotationAmountText(quotation.totalCost)}</div>
                       <div className="text-right text-muted">{dateShort(quotation.createdAt)}</div>
                     </div>
                     {quotation.remark ? <div className="line-clamp-2 text-xs text-muted">备注：{quotation.remark}</div> : null}
@@ -935,9 +1026,9 @@ export function QuotationsView() {
                             ))}
                           </select>
                         </td>
-                        <td className="hidden border-b border-line px-4 py-3 text-right text-muted min-[1440px]:table-cell">{money(quotation.totalCost)}</td>
-                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(quotation.totalPrice)}</td>
-                        <td className="hidden border-b border-line px-4 py-3 text-right font-medium text-ink min-[1440px]:table-cell">{money(quotationTaxIncludedFactoryPrice(quotation))}</td>
+                        <td className="hidden border-b border-line px-4 py-3 text-right text-muted min-[1440px]:table-cell">{quotationAmountText(quotation.totalCost)}</td>
+                        <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{quotationAmountText(quotation.totalPrice)}</td>
+                        <td className="hidden border-b border-line px-4 py-3 text-right font-medium text-ink min-[1440px]:table-cell">{quotationAmountText(quotationTaxIncludedFactoryPrice(quotation))}</td>
                         <td className="border-b border-line px-4 py-3 text-muted">{dateShort(quotation.createdAt)}</td>
                         <td className="border-b border-line px-4 py-3">
                           <div className="flex justify-end gap-2">
@@ -1003,12 +1094,16 @@ export function QuotationsView() {
             <div className="flex-1 space-y-5 p-5">
               <section className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-panel border border-line p-4">
-                  <div className="text-xs text-muted">出厂价</div>
-                  <div className="mt-1 text-lg font-semibold text-ink">{money(viewQuotation.totalPrice)}</div>
+                  <div className="text-xs text-muted">报价方式</div>
+                  <div className="mt-1 text-lg font-semibold text-ink">
+                    {viewQuotation.totalPrice == null ? '按产品单价' : '按确认数量'}
+                  </div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
-                  <div className="text-xs text-muted">含税出厂价</div>
-                  <div className="mt-1 text-lg font-semibold text-ink">{money(quotationTaxIncludedFactoryPrice(viewQuotation))}</div>
+                  <div className="text-xs text-muted">数量与总金额</div>
+                  <div className={`mt-1 text-lg font-semibold ${viewQuotation.totalPrice == null ? 'text-amber-700' : 'text-ink'}`}>
+                    {viewQuotation.totalPrice == null ? '待客户确认' : money(viewQuotation.totalPrice)}
+                  </div>
                 </div>
                 <div className="rounded-panel border border-line p-4">
                   <div className="text-xs text-muted">状态</div>
@@ -1048,7 +1143,9 @@ export function QuotationsView() {
                           <tr key={item.id || `${item.baseRecipeName}-${index}`}>
                             <td className="border-b border-line px-4 py-3 align-top">
                               <div className="font-medium text-ink">{item.baseRecipeName || '未命名产品'}</div>
-                              <div className="mt-0.5 text-xs text-muted">{item.spec || '-'} · 数量 {item.qty || 0}</div>
+                              <div className="mt-0.5 text-xs text-muted">
+                                {item.spec || '-'} · {item.qty == null ? '数量待确认' : `数量 ${item.qty}`}
+                              </div>
                             </td>
                             <td className="border-b border-line px-4 py-3 align-top text-muted">
                               <div>{wireText(overrides.coilSpec)}</div>
@@ -1076,23 +1173,62 @@ export function QuotationsView() {
                 ) : null}
               </section>
 
+              <section className="rounded-panel border border-line">
+                <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+                  <div>
+                    <div className="text-sm font-semibold text-ink">客户询价资料</div>
+                    <div className="mt-1 text-xs text-muted">保存报价时归档的原始附件和经人工核对的摘要，只读展示。</div>
+                  </div>
+                  {viewInquiry?.availableFiles.length ? (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                      {viewInquiry.availableFiles.length} 个附件
+                    </span>
+                  ) : null}
+                </div>
+                {viewInquiryLoading ? (
+                  <div className="p-4 text-sm text-muted">正在读取询价资料…</div>
+                ) : viewInquiryError ? (
+                  <div className="p-4 text-sm text-rose-700">{viewInquiryError}</div>
+                ) : viewInquiry && (viewInquiry.availableFiles.length || viewInquiry.hasRecord) ? (
+                  <div className="grid gap-4 p-4 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted">原始附件</div>
+                      {viewInquiry.availableFiles.length ? viewInquiry.availableFiles.map((file) => (
+                        <a
+                          key={file.id}
+                          href={file.downloadPath}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm text-ink hover:bg-slate-50"
+                        >
+                          <span className="min-w-0 truncate">{file.originalName}</span>
+                          <Download size={14} className="shrink-0 text-muted" />
+                        </a>
+                      )) : <div className="text-sm text-muted">未归档原始附件。</div>}
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted">询价要求摘要</div>
+                      <div className="mt-2 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+                        {viewInquiry.draftText || '未保存询价摘要。'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 text-sm text-muted">这张报价没有归档询价附件或摘要。</div>
+                )}
+              </section>
+
               <div className="rounded-panel border border-line bg-slate-50 p-4 text-sm text-muted">
                 浮球：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasFloat))}；电缆：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasCable))}；备注：{viewQuotation.remark || '-'}
               </div>
 
-              <FactoryFileAttachments
-                targetType="quotation"
-                targetId={viewQuotation.id}
-                title="报价附件"
-                description="保存客户原始报价文件、价格表、图片和补充说明；不会自动修改正式报价。"
-              />
             </div>
           </div>
         ) : null}
       </SlideOver>
 
       <SlideOver open={Boolean(convertTarget)} onClose={closeConvertPreview}>
-        {convertTarget && convertDraft ? (
+        {convertTarget ? (convertDraft ? (
           <div className="flex min-h-full flex-col">
             <div className="flex items-start justify-between gap-4 border-b border-line p-5">
               <div>
@@ -1202,20 +1338,95 @@ export function QuotationsView() {
               <Button type="button" variant="ghost" onClick={closeConvertPreview} disabled={Boolean(savingId)}>
                 取消
               </Button>
+              <Button type="button" variant="secondary" onClick={() => setConvertDraft(null)} disabled={Boolean(savingId)}>
+                修改数量
+              </Button>
               <Button type="button" variant="primary" onClick={() => void confirmConvertToOrder()} disabled={Boolean(savingId)} icon={<ArrowRight size={15} />}>
                 {savingId ? '转单中' : '确认转订单'}
               </Button>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex min-h-full flex-col">
+            <div className="flex items-start justify-between gap-4 border-b border-line p-5">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Order Quantity</div>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">确认订单数量</h2>
+                <div className="mt-1 text-sm text-muted">报价阶段只确定单价；客户确认后在这里填写最终数量并生成订单预览。</div>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭"
+                disabled={Boolean(savingId)}
+                onClick={closeConvertPreview}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 p-5">
+              {convertError ? (
+                <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                  <CircleAlert size={16} />
+                  {convertError}
+                </div>
+              ) : null}
+              <div className="rounded-panel border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                数量只在转订单时确认，不会回写或改变原报价单价。订单、采购计划和待办将按本次最终数量生成。
+              </div>
+              <section className="overflow-hidden rounded-panel border border-line">
+                <div className="border-b border-line bg-slate-50 px-4 py-3 text-sm font-semibold text-ink">订单产品数量</div>
+                <div className="divide-y divide-line">
+                  {convertTargetItems.map((item, index) => {
+                    const itemKey = quotationItemKey(convertTarget.id, item, index);
+                    return (
+                      <label key={itemKey} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-ink">{item.baseRecipeName || `明细 ${index + 1}`}</span>
+                          <span className="mt-0.5 block text-xs text-muted">{item.spec || '-'} · 报价单价 {money(Number(item.unitPrice || 0))}</span>
+                        </span>
+                        <span>
+                          <span className="text-xs text-muted">最终数量</span>
+                          <input
+                            value={convertQuantities[itemKey] || ''}
+                            onChange={(event) => {
+                              setConvertQuantities((current) => ({ ...current, [itemKey]: event.target.value }));
+                              setConvertError(null);
+                            }}
+                            type="number"
+                            min="1"
+                            step="1"
+                            inputMode="numeric"
+                            placeholder="必填"
+                            className="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-right text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                          />
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-line p-5">
+              <Button type="button" variant="ghost" onClick={closeConvertPreview} disabled={Boolean(savingId)}>
+                取消
+              </Button>
+              <Button type="button" variant="primary" onClick={() => void generateConvertPreview()} disabled={Boolean(savingId)} icon={<ArrowRight size={15} />}>
+                {savingId ? '生成中' : '生成订单预览'}
+              </Button>
+            </div>
+          </div>
+        )) : null}
       </SlideOver>
 
       <SlideOver open={drawerOpen} onClose={requestDrawerClose} size="workspace" ariaLabelledBy="quotation-form-title">
         <form onSubmit={submitQuotation} onChange={markFormDirty} className="flex min-h-full flex-col">
-          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white px-5 py-4">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Quotation</div>
-              <h2 id="quotation-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">
+              <h2 id="quotation-form-title" className="mt-1 text-xl font-semibold tracking-tight text-ink">
                 {editingQuotation ? '编辑报价' : '新建报价'}
               </h2>
             </div>
@@ -1230,16 +1441,29 @@ export function QuotationsView() {
             </button>
           </div>
 
-          <div className="flex-1 space-y-5 p-5">
+          <div className={`flex-1 space-y-4 p-4 transition-[padding] duration-200 sm:p-5 ${!editingQuotation && inquiryPanelOpen ? 'lg:pr-[500px]' : ''}`}>
             <FormError message={formError} />
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {!editingQuotation ? (
+              <QuotationAttachmentSummaryPanel
+                customerName={customers.find(customer => String(customer.id) === customerId)?.name || ''}
+                value={inquiryDraft}
+                expanded={inquiryPanelOpen}
+                onExpandedChange={setInquiryPanelOpen}
+                onChange={(next) => {
+                  setInquiryDraft(next);
+                  markFormDirty();
+                }}
+              />
+            ) : null}
+
+            <section className="grid items-end gap-3 rounded-panel border border-line bg-slate-50/60 p-4 md:grid-cols-[minmax(14rem,22rem)_8rem] xl:grid-cols-[minmax(14rem,22rem)_8rem_minmax(18rem,1fr)]">
               <label className="block">
-                <span className="text-sm font-medium text-ink">客户</span>
+                <span className="text-xs font-medium text-ink">客户</span>
                 <select
                   value={customerId}
                   onChange={(event) => onCustomerChange(event.target.value)}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 >
                   <option value="">选择客户</option>
                   {customers.map((customer) => (
@@ -1249,42 +1473,42 @@ export function QuotationsView() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium text-ink">状态</span>
+                <span className="text-xs font-medium text-ink">状态</span>
                 <select
                   value={formStatus}
                   onChange={(event) => setFormStatus(event.target.value as QuotationStatus)}
-                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                 >
                   {(['草稿', '报价中'] as QuotationStatus[]).map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
               </label>
-            </div>
 
-            <label className="block">
-              <span className="text-sm font-medium text-ink">备注</span>
-              <textarea
-                value={remark}
-                onChange={(event) => setRemark(event.target.value)}
-                rows={3}
-                className="mt-2 w-full resize-none rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                placeholder="报价说明、客户特殊要求等"
-              />
-            </label>
+              <label className="block md:col-span-2 xl:col-span-1">
+                <span className="text-xs font-medium text-ink">备注</span>
+                <textarea
+                  value={remark}
+                  onChange={(event) => setRemark(event.target.value)}
+                  rows={1}
+                  className="mt-1 min-h-9 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-5 text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  placeholder="报价说明、客户特殊要求等"
+                />
+              </label>
+            </section>
 
             <div className="rounded-panel border border-line">
-              <div className="border-b border-line p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-3">
                 <div className="text-sm font-semibold text-ink">添加明细</div>
-                <div className="mt-1 text-xs text-muted">线圈、线径、铜套类型和表面处理沿用配方；客户只调整浮球、电缆米数和组合包材。</div>
+                <div className="text-xs text-muted">报价阶段只确定配置和单价，转订单时再填写数量。</div>
               </div>
-              <div className="grid gap-3 p-4 lg:grid-cols-[1fr_96px_120px_auto] lg:items-end">
+              <div className="grid gap-3 p-4 sm:grid-cols-[minmax(18rem,36rem)_6.5rem_max-content] sm:items-end">
                 <label className="block">
-                  <span className="text-sm font-medium text-ink">配方</span>
+                  <span className="text-xs font-medium text-ink">配方</span>
                   <select
                     value={recipeId}
                     onChange={(event) => setRecipeId(event.target.value)}
-                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     <option value="">选择配方</option>
                     {recipes.map((recipe) => (
@@ -1296,29 +1520,17 @@ export function QuotationsView() {
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-ink">数量</span>
-                  <input
-                    value={itemQty}
-                    onChange={(event) => setItemQty(event.target.value)}
-                    type="number"
-                    min="1"
-                    step="1"
-                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">利润率</span>
-                  <div className="relative mt-2">
+                  <span className="text-xs font-medium text-ink">利润率</span>
+                  <div className="relative mt-1">
                     <input
                       value={itemMargin}
                       onChange={(event) => setItemMargin(event.target.value)}
                       type="number"
                       min="0"
                       step="1"
-                      className="h-10 w-full rounded-md border border-line px-3 pr-8 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      className="h-9 w-full rounded-md border border-line px-2 pr-7 text-right text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                     />
-                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted">%</span>
+                    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted">%</span>
                   </div>
                 </label>
 
@@ -1351,20 +1563,10 @@ export function QuotationsView() {
                       </Button>
                     </div>
 
-                    <div className="grid gap-x-4 gap-y-3 border-t border-line px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <label className="block text-xs text-muted">
-                        数量
-                        <input
-                          value={Number(item.qty || 1)}
-                          onChange={(event) => updateDraftItem(item.id, { qty: Number(event.target.value) })}
-                          type="number"
-                          min="1"
-                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                        />
-                      </label>
+                    <div className="grid items-end gap-3 border-t border-line px-4 py-3 sm:grid-cols-[8rem_6.5rem_9rem]">
                       <div className="text-xs text-muted">
                         单位成本
-                        <div className="mt-1 flex h-9 items-center justify-end font-semibold tabular-nums text-ink">
+                        <div className="mt-1 flex h-9 items-center justify-end rounded-md bg-slate-50 px-2 text-right font-semibold tabular-nums text-ink">
                           {money(Number(item.unitCost) || 0)}
                         </div>
                       </div>
@@ -1422,7 +1624,7 @@ export function QuotationsView() {
                         <div className="text-xs font-medium text-ink">客户配置</div>
                         {calculatingItemId === item.id ? <div className="text-xs text-muted">成本重算中...</div> : null}
                       </div>
-                      <div className="mt-3 grid items-end gap-x-4 gap-y-3 sm:grid-cols-[7rem_minmax(0,1fr)]">
+                      <div className="mt-3 grid items-end gap-x-4 gap-y-3 sm:grid-cols-[7rem_minmax(16rem,28rem)] lg:grid-cols-[7rem_minmax(16rem,28rem)_minmax(18rem,1fr)]">
                         <label className="block text-xs text-muted">
                           电缆长度（米）
                           <input
@@ -1473,7 +1675,7 @@ export function QuotationsView() {
                             })}
                           </select>
                         </label>
-                        <div className="flex min-h-9 flex-wrap items-center gap-x-6 gap-y-2 sm:col-span-2">
+                        <div className="flex min-h-9 flex-wrap items-center gap-x-5 gap-y-2 sm:col-span-2 lg:col-span-1">
                           <label className="flex items-center gap-2 text-sm text-ink">
                             <Checkbox
                               checked={Boolean(item.overrides?.hasFloat)}
@@ -1511,12 +1713,16 @@ export function QuotationsView() {
 
             <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-2">
               <div>
-                <div className="text-xs text-muted">总成本</div>
-                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalCost)}</div>
+                <div className="text-xs text-muted">报价方式</div>
+                <div className="mt-1 font-semibold text-ink">按产品单价报价</div>
               </div>
               <div>
-                <div className="text-xs text-muted">总报价</div>
-                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalPrice)}</div>
+                <div className="text-xs text-muted">数量与总金额</div>
+                <div className="mt-1 font-semibold text-amber-700">
+                  {draftTotals.quantitiesConfirmed
+                    ? `${money(draftTotals.totalPrice ?? 0)}（历史已确认数量）`
+                    : '待客户确认，转订单时填写'}
+                </div>
               </div>
             </div>
           </div>

@@ -239,7 +239,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_recent_orders',
-            description: '读取正式订单列表。“订单、单子、单据”都指订单；“采购中的单子/单据”必须调用本工具并传 status=采购中。用户明确状态、客户或合同号时必须把条件传入，不得读取全量后由模型二次筛选。',
+            description: '读取正式订单列表。“订单、单子、单据”都指订单；“采购中的单子/单据”必须调用本工具并传 status=采购中。用户明确状态、客户或合同号时必须把条件传入，不得读取全量后由模型二次筛选。具名客户或合同号模糊筛选若唯一命中一张订单，服务端会自动伴随读取该订单知识包；多条命中不会猜选。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -445,7 +445,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_order_detail',
-            description: '查看某个订单的完整详情（含配方列表、采购清单、TODO）。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。禁止根据名称、消息序号或历史回答猜测订单ID。',
+            description: '读取某个订单的实时业务详情（配方列表、采购清单、TODO、金额和状态），不包含人工确认的客户要求、执行档案、历史异常或来源文件；这些知识事实由服务端自动伴随读取 get_order_knowledge_package。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。禁止根据名称、消息序号或历史回答猜测订单ID。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -710,7 +710,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_order_knowledge_package',
-            description: '读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。适合查询客户要求、历史调整、异常、质量或交付追溯、资料依据和订单整体情况。',
+            description: '读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。单订单业务查询存在本能力时由服务端自动伴随读取；没有相关知识记录时静默忽略，有记录时只提取与当前问题相关的已确认资料。',
             parameters: {
                 type: 'object',
                 properties: {

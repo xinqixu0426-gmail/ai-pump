@@ -289,6 +289,7 @@ function factoryFileLinkRow(row, accessors) {
         file: row.original_name ? {
             id: Number(row.file_id),
             originalName: row.original_name,
+            extension: row.extension || '',
             detectedType: row.detected_type,
             mimeType: row.mime_type,
             fileSize: Number(row.file_size || 0),
@@ -312,7 +313,7 @@ function listFactoryFileLinks(params = {}, options = {}) {
             ORDER BY l.updated_at DESC, l.id DESC
         `).all(fileId)
         : accessors.db.prepare(`
-            SELECT l.*, f.original_name, f.detected_type, f.mime_type, f.file_size
+            SELECT l.*, f.original_name, f.extension, f.detected_type, f.mime_type, f.file_size
             FROM factory_file_links l
             JOIN factory_files f ON f.id = l.file_id
             WHERE l.target_type = ? AND l.target_id = ?

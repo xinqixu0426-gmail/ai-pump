@@ -69,7 +69,7 @@ export type FactoryFileLink = {
   createdAt: string;
   updatedAt: string;
   target: FactoryFileArchiveTarget | null;
-  file?: Pick<FactoryFile, 'id' | 'originalName' | 'detectedType' | 'mimeType' | 'fileSize'>;
+  file?: Pick<FactoryFile, 'id' | 'originalName' | 'extension' | 'detectedType' | 'mimeType' | 'fileSize'>;
 };
 
 export type ArchiveFactoryFileInput = {

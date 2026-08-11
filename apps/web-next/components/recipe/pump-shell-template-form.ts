@@ -133,6 +133,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
         id: nextSelectionId(),
         name: item.name || '',
         qty: Number(item.qty || 1),
+        referenceUnitPrice: item.referenceUnitPrice == null ? null : Number(item.referenceUnitPrice),
         note: item.note || '',
       })),
       note: component.note || '',
@@ -203,6 +204,9 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
                 .map((item) => ({
                   name: item.name.trim(),
                   qty: numberValue(String(item.qty)) || 1,
+                  ...(item.referenceUnitPrice == null
+                    ? {}
+                    : { referenceUnitPrice: Math.max(0, numberValue(String(item.referenceUnitPrice))) }),
                   note: item.note?.trim() || '',
                 })),
             } : {}),

@@ -33,6 +33,55 @@ function conversionError(code, message, statusCode = 409) {
     return new CommandExecutionError(code, message, statusCode);
 }
 
+function normalizeItemQuantities(value) {
+    if (value === undefined || value === null) return new Map();
+    if (!Array.isArray(value)) {
+        throw conversionError(
+            'quotation_item_quantities_invalid',
+            'itemQuantities 必须是数组',
+            400
+        );
+    }
+    if (value.length > 100) {
+        throw conversionError(
+            'quotation_item_quantities_limit',
+            '一次最多确认 100 条报价明细数量',
+            400
+        );
+    }
+    const quantities = new Map();
+    value.forEach((entry, index) => {
+        const quotationItemId = String(entry?.quotationItemId || '').trim();
+        if (!quotationItemId) {
+            throw conversionError(
+                'quotation_item_quantity_id_required',
+                `itemQuantities[${index}].quotationItemId 不能为空`,
+                400
+            );
+        }
+        if (quantities.has(quotationItemId)) {
+            throw conversionError(
+                'quotation_item_quantity_duplicate',
+                `报价明细数量重复：${quotationItemId}`,
+                400
+            );
+        }
+        try {
+            quantities.set(
+                quotationItemId,
+                parsePositiveNumber(entry.qty, `itemQuantities[${index}].qty`)
+            );
+        } catch (error) {
+            throw conversionError(
+                'quotation_item_quantity_invalid',
+                error.message,
+                400
+            );
+        }
+    });
+    return quantities;
+}
+
 function withoutGeneratedIds(value) {
     if (Array.isArray(value)) return value.map(withoutGeneratedIds);
     if (!value || typeof value !== 'object') return value;
@@ -75,6 +124,8 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
     ).get(quotation.customer_id);
     if (!customer) throw conversionError('quotation_customer_not_found', '报价客户不存在', 409);
 
+    const requestedQuantities = normalizeItemQuantities(options.itemQuantities);
+    const consumedQuantityIds = new Set();
     let orderItems;
     try {
         const quotationItems = parseJsonArray(quotation.items_json);
@@ -94,11 +145,23 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
             const unitPrice = item.unitPrice == null
                 ? roundMoney(unitCost * margin)
                 : parseNonNegativeNumber(item.unitPrice, `quotationItems[${index}].unitPrice`);
-            const qty = parsePositiveNumber(
-                item.qty,
-                `quotationItems[${index}].qty`,
-                { defaultValue: 1 }
+            const quotationItemId = String(
+                item.id || `quotation-${quotationId}-${index}`
             );
+            const requestedQty = requestedQuantities.get(quotationItemId);
+            if (requestedQty != null) consumedQuantityIds.add(quotationItemId);
+            const qty = requestedQty == null
+                ? (item.qty == null || item.qty === ''
+                    ? null
+                    : parsePositiveNumber(item.qty, `quotationItems[${index}].qty`))
+                : requestedQty;
+            if (qty == null) {
+                throw conversionError(
+                    'quotation_item_quantity_required',
+                    `请先确认报价明细「${item.baseRecipeName || index + 1}」的订单数量`,
+                    422
+                );
+            }
             const bomSnapshot = Array.isArray(item.bomSnapshot) && item.bomSnapshot.length > 0
                 ? item.bomSnapshot
                 : parseJsonArray(item.partsJson || recipe?.parts_json);
@@ -106,7 +169,7 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
                 throw new Error(`报价明细「${item.baseRecipeName || index + 1}」缺少 BOM 快照`);
             }
             return {
-                id: String(item.id || `quotation-${quotationId}-${index}`),
+                id: quotationItemId,
                 recipeId: recipe?.id || recipeId || undefined,
                 recipeName: item.baseRecipeName || recipe?.name || '未命名产品',
                 spec: item.spec || recipe?.spec || '',
@@ -133,6 +196,15 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
     if (orderItems.length === 0) {
         throw conversionError('quotation_items_required', '报价没有可转订单的明细', 409);
     }
+    const unknownQuantityId = [...requestedQuantities.keys()]
+        .find(id => !consumedQuantityIds.has(id));
+    if (unknownQuantityId) {
+        throw conversionError(
+            'quotation_item_quantity_unknown',
+            `报价明细不存在：${unknownQuantityId}`,
+            400
+        );
+    }
     const activeOrders = db.prepare(`
         SELECT * FROM orders
         WHERE deleted_at IS NULL AND status NOT IN ('已关闭', '已取消')
@@ -158,6 +230,10 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
         contractNo: '',
         remark: `由报价 #${quotation.id} 转订单${quotation.remark ? `：${quotation.remark}` : ''}`,
         status: '待采购',
+        itemQuantities: orderItems.map(item => ({
+            quotationItemId: item.id,
+            qty: item.qty,
+        })),
         items: orderItems,
         purchaseList: plan.purchaseList,
         todos: plan.todos,
@@ -204,7 +280,12 @@ function executeQuotationConversion(dependencies, input = {}, commandContext = {
     return executePersistentCommand({
         db,
         ...commandContext,
-        input: { quotationId, expectedUpdatedAt, previewHash: expectedPreviewHash },
+        input: {
+            quotationId,
+            expectedUpdatedAt,
+            previewHash: expectedPreviewHash,
+            itemQuantities: input.itemQuantities,
+        },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext }) => {
             const quotation = db.prepare(
@@ -230,7 +311,7 @@ function executeQuotationConversion(dependencies, input = {}, commandContext = {
             const draft = buildQuotationOrderDraft(
                 { db, dbGetAllParts, dbGetAllCoils },
                 quotationId,
-                { quotation }
+                { quotation, itemQuantities: input.itemQuantities }
             );
             assertPreviewHash(
                 expectedPreviewHash,
@@ -295,4 +376,5 @@ module.exports = {
     buildQuotationOrderDraft,
     executeQuotationConversion,
     quotationConversionPreviewHash,
+    normalizeItemQuantities,
 };

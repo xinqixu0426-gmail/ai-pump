@@ -2669,6 +2669,24 @@ const MIGRATIONS = Object.freeze([
             `).run(new Date().toISOString());
         },
     },
+    {
+        version: 58,
+        name: 'quotation_attachment_summary_drafts',
+        signature: 'quotation-attachment-summary-drafts-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS quotation_attachment_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    quotation_id INTEGER NOT NULL UNIQUE,
+                    draft_text TEXT NOT NULL DEFAULT '',
+                    source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(quotation_id) REFERENCES quotations(id)
+                );
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

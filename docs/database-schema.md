@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `57`：
+当前版本为 `58`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -77,6 +77,7 @@
 | 55 | `accept_no_explicit_cutting_accessory_marking` | 切割用途回归接受“无明确标注”这一等价安全表述，避免正确说明无专用配件时被固定措辞误判 |
 | 56 | `disable_non_core_system_ai_release_cases` | 停用客户报价展示和切割用途证据两条非核心系统 AI 发布回归，避免知识库/AI 抖动阻断基础业务部署 |
 | 57 | `disable_system_ai_release_cases` | 停用全部系统 AI 发布回归；生产发布保留 API、测试、构建、启动备份和公网验收，知识问答回归不再作为硬门禁 |
+| 58 | `quotation_attachment_summary_drafts` | 保存新建报价时由客户询价附件生成并经人工核对的摘要，以及最多 4 个来源文件引用；不改变正式报价字段 |
 
 ## 数据治理
 
@@ -92,15 +93,17 @@
 - `NODE_ENV=test` 时 `api/db.cjs` 只打开 `PUMP_TEST_DATABASE_PATH` 指定的按进程临时 SQLite；`npm test` 自动创建并清理这些数据库。发布验证不会迁移或写入生产 `pump.db`，生产迁移只随 API 服务启动执行。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
-- `pump_shell_templates.shell_components_json` 的自由搭配计价项支持 `componentType=subassembly`。小套件父项仍绑定零件库“泵壳搭配”型号；一级 `subassemblyContents: [{ name, qty, note? }]` 仅保存组成说明，不建立子零件价格或库存关系，因此本功能不新增数据表或迁移。
+- `pump_shell_templates.shell_components_json` 的自由搭配计价项支持 `componentType=subassembly`。小套件父项仍绑定零件库“泵壳搭配”型号；一级 `subassemblyContents: [{ name, qty, referenceUnitPrice?, note? }]` 保存组成说明和可选非负参考单价。`referenceUnitPrice` 只用于页面查询、小计和差额比较，不建立子零件价格、正式成本或库存关系；旧记录缺少该字段时按“未填写”兼容，因此本功能不新增数据表或迁移。
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。
 - `knowledge_embeddings` 是可重建的派生索引，使用 `entry_id + model` 唯一约束并通过外键级联删除；只有 `content_hash` 与当前 `knowledge_entries` 一致的向量才可参与检索。
 - `knowledge_vector_sync_runs` 只记录派生向量任务结果，最多保留最近 200 次；记录失败不能反向破坏已生成向量。
 - `management_action_lifecycles` 以稳定 `action_key` 保存首次出现、当前连续出现起点、消失时间和累计出现次数；状态只允许 `active/resolved`。
 - `management_action_events` 追加保存 `appeared/resolved/reopened`，用于追溯事项反复发生；生命周期只记录检查结果变化，不替代原业务事实和人工处理记录。
-- `factory_files` 按 SHA-256 唯一保存 PDF、Excel、文本和图片原件；`parsed_text/parsed_json/parser_error/parsed_at` 保存 PDF 文字层与逐页定位、Excel/CSV 的工作表/行列/单元格/公式/表格块，或图片与扫描 PDF 的 OCR 页码、文字框、置信度和只读技术参数候选，以及失败原因和完成时间。报价文件字段映射是从这些解析结果实时生成的只读草稿，不增加报价写入或复制一份解析表。`knowledge_documents.file_id` 与 `recipe_technical_files.file_id` 复用同一文件对象。AI 会话消息在 `metadata_json.attachments` 保存经过服务端校验的文件引用，聊天历史可继续预览和下载；被会话引用的文件不能直接删除。
+- `factory_files` 按 SHA-256 唯一保存 PDF、Word、Excel、文本和图片原件；`parsed_text/parsed_json/parser_error/parsed_at` 保存 PDF 文字层与逐页定位、Word 正文及附属文字、Excel/CSV 的工作表/行列/单元格/公式/表格块，或图片与扫描 PDF 的 OCR 页码、文字框、置信度和只读技术参数候选，以及失败原因和完成时间。报价文件字段映射是从这些解析结果实时生成的只读草稿，不增加报价写入或复制一份解析表。`knowledge_documents.file_id` 与 `recipe_technical_files.file_id` 复用同一文件对象。AI 会话消息在 `metadata_json.attachments` 保存经过服务端校验的文件引用，聊天历史可继续预览和下载；被会话引用的文件不能直接删除。
 - `factory_file_links` 保存文件与客户、报价、订单、配方、配方检查反馈、AI 回答反馈或知识资料的逻辑关联。订单客户原始资料使用 `customer_requirement`，现场图片、质量记录和交付凭证使用 `execution_evidence`。业务目标由归档服务按固定类型查询校验，不使用动态表名；同一有效文件、目标和关系角色唯一，解除关联使用 `deleted_at`，被有效关联的文件不能直接删除。归档到知识库时只创建或复用 `knowledge_documents` 引用，不复制 `file_blob`。
 - `order_requirement_summaries` 对每张订单只保存一条当前记录。`draft_text/source_file_ids_json` 是可反复修改的工作草稿，`confirmed_text/confirmed_source_file_ids_json/confirmed_at` 是最后一次人工确认版本；知识同步只读取确认版本。确认后继续编辑草稿时，旧确认版本保持可检索，直到重新确认或明确撤销。
+- `quotation_attachment_summaries` 对每张报价最多保存一条在新建报价表单中经人工核对的询价摘要。`source_file_ids_json` 只能引用本次报价保存的 `quotation_source` 附件且最多 4 个；摘要与报价、附件关联、持久化 operation 和强审计在 `quotations.create` 同一事务提交。建单后仅通过正式 Query 只读查看，不提供独立上传或编辑入口，也不自动进入知识库。
+- `quotations.items_json` 的明细数量在报价阶段允许为 `null`；此时明细仍保存单位成本、出厂单价、BOM 和成本快照，但报价顶层 `total_cost/total_price` 同样为 `NULL`，表示总金额尚未形成而不是 0 元。客户确认后，最终数量在报价转订单预览和命令中提交并绑定预览哈希，不回写原报价的单价快照。
 - `order_execution_records` 对同一订单保存多条时间线事实。当前 `phase/record_type/title/draft_text/occurred_at/source_file_ids_json` 与 `confirmed_*` 快照独立；知识同步只读取未删除且 `confirmed_text` 非空的记录。已确认记录必须先撤销确认才能软删除。
 - `runtime_settings` 只保存系统初始化页白名单内的 AI 与知识检索运行参数，不参与工厂知识同步；API Key 通过 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密，接口不返回原文或密文。
 - 文件上传必须在写库前完成大小、文件名、允许扩展名、真实内容签名和 UTF-8/Excel 结构检查；只有 `parser_status=parsed` 的 PDF 文字层或 OCR 文字可以进入 AI 上下文。OCR 无可靠文字时保存为 `metadata_only + ocrApplied=true`，不得推断原图参数。

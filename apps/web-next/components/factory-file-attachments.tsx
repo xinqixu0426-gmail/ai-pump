@@ -24,7 +24,7 @@ type FactoryFileAttachmentsProps = {
   onChanged?: () => void;
 };
 
-const ACCEPTED_FILE_TYPES = '.pdf,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
+const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
 
 function fileSizeLabel(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -32,7 +32,8 @@ function fileSizeLabel(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function fileTypeLabel(type?: string) {
+function fileTypeLabel(type?: string, extension?: string) {
+  if (extension === '.doc' || extension === '.docx') return 'Word';
   if (type === 'spreadsheet') return '表格';
   if (type === 'image') return '图片';
   if (type === 'pdf') return 'PDF';
@@ -190,7 +191,7 @@ export function FactoryFileAttachments({
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-ink">{link.file?.originalName || link.title || `文件 #${link.fileId}`}</div>
                 <div className="mt-0.5 text-xs text-muted">
-                  {fileTypeLabel(link.file?.detectedType)} · {fileSizeLabel(link.file?.fileSize || 0)}
+                  {fileTypeLabel(link.file?.detectedType, link.file?.extension)} · {fileSizeLabel(link.file?.fileSize || 0)}
                 </div>
               </div>
               <a

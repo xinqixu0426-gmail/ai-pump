@@ -152,7 +152,7 @@ export function CustomersView() {
   const selectedStats = useMemo(() => calculateCustomerQuotationStats(customerQuotations), [customerQuotations]);
 
   const totalQuotationPrice = useMemo(
-    () => quotations.reduce((sum, quotation) => sum + quotation.totalPrice, 0),
+    () => quotations.reduce((sum, quotation) => sum + (quotation.totalPrice || 0), 0),
     [quotations]
   );
 
@@ -243,7 +243,11 @@ export function CustomersView() {
       <MetricGrid>
         <MetricCard value={String(customers.length)} label="客户数量" delay={0.02} />
         <MetricCard value={String(quotations.length)} label="报价总数" delay={0.04} />
-        <MetricCard value={money(totalQuotationPrice)} label="总报价额" delay={0.06} />
+        <MetricCard
+          value={money(totalQuotationPrice)}
+          label={quotations.some((quotation) => quotation.totalPrice == null) ? '已确定报价额' : '总报价额'}
+          delay={0.06}
+        />
         <MetricCard value={selectedCustomer ? selectedCustomer.name : '-'} label="当前客户" delay={0.08} />
       </MetricGrid>
 
@@ -381,11 +385,11 @@ export function CustomersView() {
                     <div className="grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3">
                       <div>
                         <div className="text-xs text-muted">总报价</div>
-                        <div className="mt-1 text-base font-semibold text-ink">{money(quotation.totalPrice)}</div>
+                        <div className="mt-1 text-base font-semibold text-ink">{quotation.totalPrice == null ? '待数量确认' : money(quotation.totalPrice)}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-muted">总成本</div>
-                        <div className="mt-1 text-sm font-medium text-muted">{money(quotation.totalCost)}</div>
+                        <div className="mt-1 text-sm font-medium text-muted">{quotation.totalCost == null ? '待数量确认' : money(quotation.totalCost)}</div>
                       </div>
                     </div>
                     {quotation.remark ? <div className="line-clamp-2 text-xs leading-5 text-muted">备注：{quotation.remark}</div> : null}
@@ -410,8 +414,8 @@ export function CustomersView() {
                       <td className="border-b border-line px-4 py-3 whitespace-nowrap">
                         <StatusBadge tone={quotationStatusTone(quotation.status)}>{quotation.status}</StatusBadge>
                       </td>
-                      <td className="border-b border-line px-4 py-3 text-right text-muted">{money(quotation.totalCost)}</td>
-                      <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(quotation.totalPrice)}</td>
+                      <td className="border-b border-line px-4 py-3 text-right text-muted">{quotation.totalCost == null ? '待数量确认' : money(quotation.totalCost)}</td>
+                      <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{quotation.totalPrice == null ? '待数量确认' : money(quotation.totalPrice)}</td>
                       <td className="border-b border-line px-4 py-3 text-muted">{quotation.remark || '-'}</td>
                       <td className="border-b border-line px-4 py-3 text-muted">{dateShort(quotation.createdAt)}</td>
                     </tr>

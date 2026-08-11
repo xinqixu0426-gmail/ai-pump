@@ -1545,7 +1545,8 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /maxLength=\{2\}/);
     assert.match(quotationsView, /replace\(\/\\D\/g, ''\)\.slice\(0, 2\)/);
     assert.match(quotationsView, /w-24 rounded-md[^"]+text-left/);
-    assert.match(quotationsView, /sm:grid-cols-\[7rem_minmax\(0,1fr\)\]/);
+    assert.match(quotationsView, /sm:grid-cols-\[7rem_minmax\(16rem,28rem\)\]/);
+    assert.match(quotationsView, /lg:grid-cols-\[7rem_minmax\(16rem,28rem\)_minmax\(18rem,1fr\)\]/);
     assert.match(quotationsView, /hasCable:\s*Number\(nextLength\) > 0/);
     assert.match(quotationsView, /packingPartsJson/);
     assert.match(quotationsView, /包装/);
@@ -2070,6 +2071,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     const templateForm = readUtf8('apps/web-next/components/recipe/pump-shell-template-form.ts');
     const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
     const partFormRules = readUtf8('apps/web-next/lib/part-form-rules.ts');
+    const templatePartCategory = readUtf8('apps/web-next/lib/template-part-category.ts');
     const templateCommands = readUtf8('api/services/templateCommands.cjs');
     const schema = readUtf8('api/database/schema.cjs');
 
@@ -2087,7 +2089,18 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(shellCostEditor, /不锈钢拉伸筒/);
     assert.match(shellCostEditor, /aria-label="机筒类型"/);
     assert.match(shellCostEditor, /modelOptions\.map/);
-    assert.doesNotMatch(shellCostEditor, /id="shell-component-model-options"/);
+    assert.match(shellCostEditor, /id="shell-component-model-options"/);
+    assert.match(shellCostEditor, /输入或检索零件型号/);
+    assert.match(shellCostEditor, /输入或检索供应商/);
+    assert.match(shellCostEditor, /存入零件库/);
+    assert.match(shellCostEditor, /findCatalogPart/);
+    assert.match(recipesView, /createShellComponentPart/);
+    assert.match(recipesView, /category:\s*SHELL_COMPONENT_CATEGORY/);
+    assert.match(recipesView, /stock:\s*0/);
+    assert.match(recipesView, /const beforeCreate = await readPartsFresh\(\)/);
+    assert.match(recipesView, /const afterCreate = await readPartsFresh\(\)/);
+    assert.match(recipesView, /window\.addEventListener\('focus', refreshWhenVisible\)/);
+    assert.match(recipesView, /document\.addEventListener\('visibilitychange', refreshWhenVisible\)/);
     assert.doesNotMatch(shellCostEditor, /checked=\{Boolean\(row\.isStainlessStretchBarrel\)\}/);
     assert.match(shellCostEditor, /supplier/);
     assert.doesNotMatch(recipesView, /function addSubassemblyContentRow/);
@@ -2114,6 +2127,14 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(templateEditor, /整体喷塑/);
     assert.match(templateEditor, /表面处理费用/);
     assert.match(templateEditor, /form\.surfaceTreatmentCost/);
+    assert.match(templateEditor, /templatePartCatalogForName/);
+    assert.match(templateEditor, /templatePartCategoryForName/);
+    assert.match(templateEditor, /template-part-model-options-\$\{row\.id\}/);
+    assert.match(templateEditor, /型号候选会根据配件名称自动限定分类/);
+    assert.match(templatePartCategory, /category: '轴承', keywords: \['轴承'\]/);
+    assert.match(templatePartCategory, /category: '油封'/);
+    assert.match(templatePartCategory, /category: '螺丝'/);
+    assert.match(templatePartCategory, /part\.category !== '包装'/);
     assert.doesNotMatch(recipesView, /喷漆工资/);
     assert.match(recipesLib, /electrophoresis_powder_coating/);
     assert.match(templateCommands, /surfaceTreatmentMode:\s*'surface_treatment_mode'/);

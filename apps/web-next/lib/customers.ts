@@ -23,8 +23,8 @@ export type Quotation = {
   customerId: number;
   status: string;
   itemsJson: string;
-  totalCost: number;
-  totalPrice: number;
+  totalCost: number | null;
+  totalPrice: number | null;
   remark?: string;
   convertedOrderId?: number | null;
   convertedAt?: string | null;
@@ -51,8 +51,8 @@ type QuotationRow = {
   customerId?: number;
   status?: string;
   itemsJson?: string;
-  totalCost?: number;
-  totalPrice?: number;
+  totalCost?: number | null;
+  totalPrice?: number | null;
   remark?: string;
   convertedOrderId?: number | null;
   convertedAt?: string | null;
@@ -90,8 +90,8 @@ export function rowToQuotation(row: QuotationRow): Quotation {
     customerId: Number(row.customerId) || 0,
     status: row.status || '报价中',
     itemsJson: row.itemsJson || '[]',
-    totalCost: Number(row.totalCost) || 0,
-    totalPrice: Number(row.totalPrice) || 0,
+    totalCost: row.totalCost == null ? null : Number(row.totalCost) || 0,
+    totalPrice: row.totalPrice == null ? null : Number(row.totalPrice) || 0,
     remark: row.remark || '',
     convertedOrderId: row.convertedOrderId || null,
     convertedAt: row.convertedAt || null,
@@ -163,7 +163,7 @@ export function quotationCountByCustomer(quotations: Quotation[]): Map<number, n
 }
 
 export function calculateCustomerQuotationStats(quotations: Quotation[]): CustomerQuotationStats {
-  const totalPrice = quotations.reduce((sum, quotation) => sum + quotation.totalPrice, 0);
+  const totalPrice = quotations.reduce((sum, quotation) => sum + (quotation.totalPrice || 0), 0);
   const latest = quotations
     .map((quotation) => (quotation.createdAt ? new Date(quotation.createdAt) : null))
     .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))

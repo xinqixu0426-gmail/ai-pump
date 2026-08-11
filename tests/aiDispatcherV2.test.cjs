@@ -144,6 +144,379 @@ test('V2 调度器：模型理解口语后只调用计划内正式能力并以�
     assert.match(result.finalContent, /\*\*1 个\*\*/);
 });
 
+test('V2 调度器：单订单详情自动伴随读取知识包并交给同一次回答', async () => {
+    let providerCalls = 0;
+    const provider = async (messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询订单ID 2 当前有什么问题',
+                mode: 'query',
+                domains: ['order'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'get_order_detail', objective: '读取订单实时详情' }],
+            });
+        }
+        if (providerCalls === 2) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_order_detail']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'order-detail-2',
+                    type: 'function',
+                    function: {
+                        name: 'get_order_detail',
+                        arguments: JSON.stringify({ orderId: 2 }),
+                    },
+                }],
+            });
+        }
+        assert.deepEqual(options.tools, []);
+        const payload = messages.find(message => (
+            typeof message.content === 'string'
+            && message.content.includes('不可信业务数据载荷')
+        ));
+        assert.match(payload.content, /get_order_detail/);
+        assert.match(payload.content, /get_order_knowledge_package/);
+        assert.match(payload.content, /human_confirmed_order_knowledge/);
+        assert.match(payload.content, /30个上帽忘记刻字/);
+        return providerResponse({
+            content: '泵壳已经到货，但有 30 个上帽忘记刻字，孚元会在下一批货中补上。',
+        });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.endsWith('/api/orders/2/knowledge-package')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    order: { id: 2, customerName: '台州叶总', status: '采购完成' },
+                    confirmedKnowledge: {
+                        customerRequirement: null,
+                        executionRecords: [{
+                            phase: 'pre_production',
+                            title: '泵壳已经到货，但是还缺30个上帽',
+                            text: '孚元送货时有30个上帽忘记刻字，下一批货补上',
+                        }],
+                    },
+                    coverage: { confirmedExecutionRecordCount: 1 },
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.endsWith('/api/orders/2')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    id: 2,
+                    customerName: '台州叶总',
+                    status: '采购完成',
+                    itemsJson: '[]',
+                    purchaseListJson: '[]',
+                    todosJson: '[]',
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ success: false, error: `unexpected ${value}` }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV2({
+        messages: [{ role: 'user', content: '订单ID 2 有什么问题吗' }],
+        fetchAiProvider: provider,
+    });
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_order_detail',
+        'get_order_knowledge_package',
+    ]);
+    assert.ok(result.toolResults.every(item => item.result.executionEvidence.verified));
+    assert.match(result.finalContent, /30 个上帽/);
+    assert.equal(providerCalls, 3);
+});
+
+test('V2 调度器：模型可扩展客户简称且正式订单ID可供后续就绪检查使用', async () => {
+    let providerCalls = 0;
+    const provider = async (messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询叶总订单当前问题',
+                mode: 'query',
+                domains: ['order'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [
+                    { capabilityName: 'get_order_detail', objective: '按客户简称解析正式订单' },
+                    { capabilityName: 'check_order_readiness', objective: '检查该订单生产准备问题' },
+                ],
+            });
+        }
+        if (providerCalls === 2) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_order_detail']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'resolve-order-by-short-name',
+                    type: 'function',
+                    function: {
+                        name: 'get_order_detail',
+                        arguments: JSON.stringify({ orderQuery: '台州叶总' }),
+                    },
+                }],
+            });
+        }
+        if (providerCalls === 3) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['check_order_readiness']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'readiness-for-resolved-order',
+                    type: 'function',
+                    function: {
+                        name: 'check_order_readiness',
+                        arguments: JSON.stringify({ orderId: 2 }),
+                    },
+                }],
+            });
+        }
+        const payload = messages.find(message => (
+            typeof message.content === 'string'
+            && message.content.includes('不可信业务数据载荷')
+        ));
+        assert.match(payload.content, /check_order_readiness/);
+        assert.match(payload.content, /human_confirmed_order_knowledge/);
+        assert.match(payload.content, /30个上帽/);
+        return providerResponse({ content: '台州叶总订单仍缺 30 个已确认漏刻字的上帽。' });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.includes('/api/orders/lookup?query=')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{
+                    id: 2,
+                    customerName: '台州叶总',
+                    contractNo: '20260100',
+                    status: '采购完成',
+                }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.endsWith('/api/orders/2')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    id: 2,
+                    customerName: '台州叶总',
+                    contractNo: '20260100',
+                    status: '采购完成',
+                    itemsJson: '[]',
+                    purchaseListJson: '[]',
+                    todosJson: '[]',
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.endsWith('/api/orders/2/knowledge-package')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    order: { id: 2, customerName: '台州叶总' },
+                    confirmedKnowledge: {
+                        executionRecords: [{ title: '泵壳到货，但缺30个上帽' }],
+                    },
+                    coverage: { confirmedExecutionRecordCount: 1 },
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.endsWith('/api/orders/2/readiness')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    order: { id: 2, customerName: '台州叶总' },
+                    verdict: 'waiting_materials',
+                    canProduce: false,
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ success: false, error: `unexpected ${value}` }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV2({
+        messages: [{ role: 'user', content: '叶总的订单有什么问题' }],
+        fetchAiProvider: provider,
+    });
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_order_detail',
+        'get_order_knowledge_package',
+        'check_order_readiness',
+    ]);
+    assert.ok(result.toolResults.every(item => item.result.executionEvidence.verified));
+    assert.doesNotMatch(result.finalContent, /没有取得正式业务 API/);
+    assert.match(result.finalContent, /30 个/);
+    assert.equal(providerCalls, 4);
+});
+
+test('V2 调度器：客户简称模糊筛选唯一订单时自动补充知识包', async () => {
+    let providerCalls = 0;
+    const provider = async (messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询叶总订单有什么问题',
+                mode: 'query',
+                domains: ['order'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'get_recent_orders', objective: '按客户简称查找订单' }],
+            });
+        }
+        if (providerCalls === 2) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_recent_orders']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'orders-by-short-name',
+                    type: 'function',
+                    function: {
+                        name: 'get_recent_orders',
+                        arguments: JSON.stringify({ customerName: '叶' }),
+                    },
+                }],
+            });
+        }
+        const payload = messages.find(message => (
+            typeof message.content === 'string'
+            && message.content.includes('不可信业务数据载荷')
+        ));
+        assert.match(payload.content, /get_order_knowledge_package/);
+        assert.match(payload.content, /30个上帽/);
+        return providerResponse({ content: '泵壳已到货，但缺少 30 个已确认漏刻字的上帽。' });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.includes('/api/orders?customerName=')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{
+                    id: 2,
+                    customerName: '台州叶总',
+                    contractNo: '20260100',
+                    status: '采购完成',
+                }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.endsWith('/api/orders/2/knowledge-package')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    confirmedKnowledge: {
+                        customerRequirement: null,
+                        executionRecords: [{
+                            title: '泵壳已经到货，但是还缺30个上帽',
+                            text: '孚元下一批货补上',
+                        }],
+                    },
+                    coverage: { confirmedExecutionRecordCount: 1 },
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ success: false, error: `unexpected ${value}` }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV2({
+        messages: [{ role: 'user', content: '叶总的订单有什么问题' }],
+        fetchAiProvider: provider,
+    });
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_recent_orders',
+        'get_order_knowledge_package',
+    ]);
+    assert.match(result.finalContent, /30 个/);
+});
+
+test('V2 调度器：关联知识读取失败时停止回答而不是声称没有异常', async () => {
+    let providerCalls = 0;
+    const provider = async (_messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询订单ID 2 是否有异常',
+                mode: 'query',
+                domains: ['order'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'get_order_detail', objective: '读取订单实时详情' }],
+            });
+        }
+        assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_order_detail']);
+        return providerResponse({
+            content: '',
+            tool_calls: [{
+                id: 'order-detail-failed-knowledge',
+                type: 'function',
+                function: {
+                    name: 'get_order_detail',
+                    arguments: JSON.stringify({ orderId: 2 }),
+                },
+            }],
+        });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.endsWith('/api/orders/2/knowledge-package')) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: '订单知识包暂时不可用',
+            }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({
+            success: true,
+            data: {
+                id: 2,
+                customerName: '台州叶总',
+                status: '采购完成',
+                itemsJson: '[]',
+                purchaseListJson: '[]',
+                todosJson: '[]',
+            },
+        }), { headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const result = await runAiDispatcherV2({
+        messages: [{ role: 'user', content: '订单ID 2 有异常吗' }],
+        fetchAiProvider: provider,
+    });
+    assert.equal(providerCalls, 2);
+    assert.equal(result.toolResults.length, 2);
+    assert.equal(result.toolResults[1].result.success, false);
+    assert.match(result.finalContent, /订单知识包暂时不可用/);
+    assert.doesNotMatch(result.finalContent, /没有异常/);
+    assert.equal(result.telemetry.outcome, 'failed_evidence');
+});
+
 test('V2 调度器：需要业务事实但模型不调用工具时拒绝编造', async () => {
     let calls = 0;
     const provider = async () => {

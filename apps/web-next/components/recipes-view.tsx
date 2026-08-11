@@ -66,7 +66,7 @@ import { ConfirmDialog } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { money } from '@/lib/format';
-import { getAllParts, type Part } from '@/lib/parts';
+import { createPart, getAllParts, type Part } from '@/lib/parts';
 import {
   analyzeRecipeConfiguration,
   getFactoryLearningHealth,
@@ -293,6 +293,7 @@ export function RecipesView() {
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecOption[]>([]);
   const [coilRecords, setCoilRecords] = useState<CoilRecord[]>([]);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
+  const [shellComponentPartsRefreshing, setShellComponentPartsRefreshing] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<PumpShellTemplate | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RecipeDeleteTarget | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
@@ -307,6 +308,7 @@ export function RecipesView() {
   const autoWireSelectionRef = useRef({ floatWire: '', cableWire: '' });
   const autoAnalysisStartedRef = useRef<number | null>(null);
   const deepLinkHandledRef = useRef(false);
+  const partsReadPromiseRef = useRef<Promise<Part[]> | null>(null);
   const runRecipeAnalysisRef = useLatestValue(runRecipeAnalysis);
   const reviewEvidenceTarget = reviewEvidenceTargets[0] || null;
   const reviewEvidenceCompletedCount = Math.max(0, reviewEvidenceBatchTotal - reviewEvidenceTargets.length);
@@ -334,6 +336,71 @@ export function RecipesView() {
     }
   }
 
+  const readPartsFresh = useCallback(async () => {
+    if (partsReadPromiseRef.current) return partsReadPromiseRef.current;
+    const request = getAllParts();
+    partsReadPromiseRef.current = request;
+    try {
+      return await request;
+    } finally {
+      partsReadPromiseRef.current = null;
+    }
+  }, []);
+
+  const refreshShellComponentParts = useCallback(async () => {
+    setShellComponentPartsRefreshing(true);
+    try {
+      const freshParts = await readPartsFresh();
+      setParts(freshParts);
+    } catch (refreshError) {
+      setFormError(refreshError instanceof Error ? refreshError.message : '零件刷新失败');
+    } finally {
+      setShellComponentPartsRefreshing(false);
+    }
+  }, [readPartsFresh]);
+
+  const createShellComponentPart = useCallback(async (input: {
+    model: string;
+    supplier: string;
+    price: number;
+  }) => {
+    const model = input.model.trim();
+    const supplier = input.supplier.trim();
+    const price = Number(input.price);
+    if (!model) throw new Error('请先填写零件型号');
+    if (!supplier) throw new Error('请先填写供应商');
+    if (!Number.isFinite(price) || price <= 0) throw new Error('请输入大于 0 的零件单价');
+
+    const identityMatches = (part: Part) => (
+      part.model.trim().localeCompare(model, undefined, { sensitivity: 'accent' }) === 0
+      && part.supplier.trim().localeCompare(supplier, undefined, { sensitivity: 'accent' }) === 0
+    );
+    const beforeCreate = await readPartsFresh();
+    setParts(beforeCreate);
+    const existing = beforeCreate.find(identityMatches);
+    if (existing) {
+      if (existing.category !== SHELL_COMPONENT_CATEGORY) {
+        throw new Error(`该型号和供应商已存在于“${existing.category}”分类，请先在零件库调整分类`);
+      }
+      return { part: existing, created: false };
+    }
+
+    const created = await createPart({
+      model,
+      category: SHELL_COMPONENT_CATEGORY,
+      price,
+      supplier,
+      stock: 0,
+      notes: '从泵壳模板自由搭配中就地建档',
+    });
+    const afterCreate = await readPartsFresh();
+    setParts(afterCreate);
+    return {
+      part: afterCreate.find((part) => part.id === created.id) || created,
+      created: true,
+    };
+  }, [readPartsFresh]);
+
   const prepareRecipeEditorUi = useCallback(() => {
     setReviewEvidenceTargets([]);
     setReviewEvidenceBatchTotal(0);
@@ -359,6 +426,20 @@ export function RecipesView() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!templateDrawerOpen) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshShellComponentParts();
+    };
+    void refreshShellComponentParts();
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [refreshShellComponentParts, templateDrawerOpen]);
 
   useEffect(() => {
     if (loading || deepLinkHandledRef.current) return;
@@ -850,6 +931,22 @@ export function RecipesView() {
       .filter((part) => String(part.supplier || '').trim());
     if (candidates.length === 0) return '';
     return candidates.reduce((lowest, part) => Number(part.price || 0) < Number(lowest.price || 0) ? part : lowest, candidates[0]).supplier || '';
+  }
+
+  function defaultUnitPriceForModel(model: string, category?: string, supplier?: string): number {
+    const candidates = parts.filter((part) => (
+      part.model === model
+      && (!category || part.category === category)
+    ));
+    const exact = supplier
+      ? candidates.find((part) => String(part.supplier || '').trim() === String(supplier).trim())
+      : null;
+    if (exact) return Number(exact.price || 0);
+    if (candidates.length === 0) return 0;
+    return Number(candidates.reduce(
+      (lowest, part) => Number(part.price || 0) < Number(lowest.price || 0) ? part : lowest,
+      candidates[0]
+    ).price || 0);
   }
 
   function openCreateDrawer() {
@@ -1541,8 +1638,13 @@ export function RecipesView() {
         saving={saving}
         shellCatalogOptions={shellCatalogOptions}
         shellComponentModelOptions={shellComponentModelOptions}
-        partModelOptions={partModelOptions}
+        shellComponentParts={shellComponentParts}
+        shellComponentPartsRefreshing={shellComponentPartsRefreshing}
+        partCatalog={parts}
         getDefaultSupplier={defaultSupplierForModel}
+        getDefaultUnitPrice={defaultUnitPriceForModel}
+        onRefreshShellComponentParts={refreshShellComponentParts}
+        onCreateShellComponentPart={createShellComponentPart}
         onFormChange={(update) => setTemplateForm(update)}
         onClose={() => setTemplateDrawerOpen(false)}
         onSubmit={submitTemplate}

@@ -396,7 +396,8 @@ test('API 静态契约：报价转订单必须由后端生成订单草稿', () =
     assert.match(service, /buildBalancedOrderPlans/);
     assert.match(route, /router\.post\('\/:id\/convert'/);
     assert.match(service, /converted_order_id/);
-    assert.match(nextClient, /buildQuotationOrderDraft\(quotationId: number\)/);
+    assert.match(nextClient, /buildQuotationOrderDraft\(\s*quotationId: number,\s*itemQuantities: QuotationItemQuantity\[\]/);
+    assert.match(nextClient, /body: JSON\.stringify\(\{ itemQuantities \}\)/);
     assert.match(nextClient, /\/api\/quotations\/\$\{quotationId\}\/order-draft/);
     assert.match(nextClient, /\/api\/quotations\/\$\{input\.quotation\.id\}\/convert/);
     assert.match(nextClient, /expectedUpdatedAt/);
@@ -1811,6 +1812,22 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片和文件自动
     assert.doesNotMatch(rotorNaturalLanguage, /model:\s*'deepseek-chat'/);
 });
 
+test('API 静态契约：报价询价助手直接使用 Kimi 原始附件且不走通用 AI 对话', () => {
+    const route = readUtf8(path.join(repoRoot, 'api/routes/quotations.cjs'));
+    const service = readUtf8(path.join(repoRoot, 'api/services/quotationInquiryAi.cjs'));
+    const client = readUtf8(path.join(repoRoot, 'apps/web-next/lib/quotations.ts'));
+    const panel = readUtf8(path.join(repoRoot, 'apps/web-next/components/quotation-attachment-summary-panel.tsx'));
+
+    assert.match(route, /router\.post\('\/inquiry-summary-draft'/);
+    assert.match(service, /options\.resolveProviderConfig \|\| resolveProviderConfig/);
+    assert.match(service, /\n\s*'kimi',/);
+    assert.match(service, /attachmentMode: 'content'/);
+    assert.doesNotMatch(service, /vision_fallback|deepseek|factoryOcrParser/);
+    assert.match(client, /\/api\/quotations\/inquiry-summary-draft/);
+    assert.match(panel, /generateQuotationInquirySummaryDraft/);
+    assert.doesNotMatch(panel, /generateAiDraftFromAttachments/);
+});
+
 test('API 静态契约：生产环境不得使用默认 JWT 密钥且必须校验关键环境变量', () => {
     const api = readUtf8(path.join(repoRoot, 'api.cjs'));
     const auth = readUtf8(path.join(repoRoot, 'api/routes/auth.cjs'));
@@ -1918,6 +1935,7 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     const attachmentPanel = readUtf8(path.join(repoRoot, 'apps/web-next/components/factory-file-attachments.tsx'));
     const customersView = readUtf8(path.join(repoRoot, 'apps/web-next/components/customers-view.tsx'));
     const quotationsView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quotations-view.tsx'));
+    const quotationAttachmentSummary = readUtf8(path.join(repoRoot, 'apps/web-next/components/quotation-attachment-summary-panel.tsx'));
     const qualityView = readUtf8(path.join(repoRoot, 'apps/web-next/components/quality-view.tsx'));
     const knowledgeView = readUtf8(path.join(repoRoot, 'apps/web-next/components/knowledge-view.tsx'));
     const orderDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
@@ -1959,7 +1977,16 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     assert.match(attachmentPanel, /archiveFactoryFile/);
     assert.match(attachmentPanel, /deleteFactoryFileLink/);
     assert.match(customersView, /targetType="customer"/);
-    assert.match(quotationsView, /targetType="quotation"/);
+    assert.match(quotationsView, /QuotationAttachmentSummaryPanel/);
+    assert.match(quotationAttachmentSummary, /uploadFactoryFile/);
+    assert.match(quotationAttachmentSummary, /generateQuotationInquirySummaryDraft/);
+    assert.match(quotationAttachmentSummary, /询价助手/);
+    assert.match(quotationAttachmentSummary, /lg:w-\[480px\]/);
+    assert.match(quotationAttachmentSummary, /原始附件/);
+    assert.match(quotationAttachmentSummary, /AI 归纳/);
+    assert.match(quotationAttachmentSummary, /待确认/);
+    assert.match(quotationsView, /attachmentFileIds: inquiryDraft\.files/);
+    assert.match(quotationsView, /!editingQuotation/);
     assert.match(qualityView, /targetType="recipe_analysis_feedback"/);
     assert.match(knowledgeView, /targetType="ai_answer_feedback"/);
     assert.match(orderDrawer, /OrderRequirementsPanel/);

@@ -427,10 +427,20 @@ export async function generateAiDraftFromAttachment(
   attachment: AiAttachment,
   pageContext?: AiPageContext | null
 ): Promise<string> {
+  return generateAiDraftFromAttachments(prompt, [attachment], pageContext);
+}
+
+export async function generateAiDraftFromAttachments(
+  prompt: string,
+  attachments: AiAttachment[],
+  pageContext?: AiPageContext | null
+): Promise<string> {
+  if (!attachments.length) throw new Error('请至少选择一个附件');
+  if (attachments.length > 4) throw new Error('一次最多归纳 4 个附件');
   let content = '';
   let errorMessage = '';
   await streamAiChat(
-    [{ role: 'user', content: prompt, attachments: [attachment] }],
+    [{ role: 'user', content: prompt, attachments }],
     event => {
       if (event.type === 'content') content += event.content;
       if (event.type === 'error') errorMessage = event.message;
@@ -835,4 +845,3 @@ export async function confirmAiTool(confirmationToken: string): Promise<AiToolRe
   if (!result.success || !result.data) throw new Error(result.error || '确认执行失败');
   return result.data;
 }
-

@@ -315,6 +315,16 @@ const CANONICAL_TABLES_SQL = `
         CHECK(total_price IS NULL OR total_price >= 0)
     );
 
+    CREATE TABLE IF NOT EXISTS quotation_attachment_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quotation_id INTEGER NOT NULL UNIQUE,
+        draft_text TEXT NOT NULL DEFAULT '',
+        source_file_ids_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(quotation_id) REFERENCES quotations(id)
+    );
+
     CREATE TABLE IF NOT EXISTS pump_model_variants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         model_name TEXT NOT NULL UNIQUE,
@@ -967,6 +977,7 @@ const APPLICATION_TABLES = Object.freeze([
     'pump_model_variants',
     'pump_shell_templates',
     'quotations',
+    'quotation_attachment_summaries',
     'recipe_analysis_feedback',
     'recipe_technical_files',
     'recipes',

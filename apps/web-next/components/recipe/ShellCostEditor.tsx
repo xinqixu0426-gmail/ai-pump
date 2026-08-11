@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, ChevronDown, Package, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Check, ChevronDown, Package, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Checkbox } from '@/components/ui/field';
+import { money } from '@/lib/format';
 import type { ShellComponentInput, SubassemblyContentInput } from '@/lib/recipes';
 
 export type ShellComponentRow = {
@@ -82,7 +83,16 @@ type ShellCostEditorProps = {
   bundleNote: string;
   componentRows: ShellComponentFormRow[];
   modelOptions: string[];
+  catalogParts: ShellComponentCatalogPart[];
+  catalogRefreshing: boolean;
   getDefaultSupplier: (model: string) => string;
+  getDefaultUnitPrice: (model: string, supplier?: string) => number;
+  onRefreshCatalog: () => Promise<void>;
+  onCreateCatalogPart: (input: {
+    model: string;
+    supplier: string;
+    price: number;
+  }) => Promise<{ part: ShellComponentCatalogPart; created: boolean }>;
   onBundleCostChange: (value: string) => void;
   onBundleNoteChange: (value: string) => void;
   onComponentRowsChange: (
@@ -90,18 +100,102 @@ type ShellCostEditorProps = {
   ) => void;
 };
 
+export type ShellComponentCatalogPart = {
+  id: number;
+  model: string;
+  supplier: string;
+  price: number;
+};
+
+function normalizedCatalogText(value: string | undefined) {
+  return String(value || '').trim().toLocaleLowerCase();
+}
+
+function findCatalogPart(
+  parts: ShellComponentCatalogPart[],
+  model: string | undefined,
+  supplier: string | undefined
+) {
+  const modelKey = normalizedCatalogText(model);
+  const supplierKey = normalizedCatalogText(supplier);
+  if (!modelKey || !supplierKey) return null;
+  return parts.find((part) => (
+    normalizedCatalogText(part.model) === modelKey
+    && normalizedCatalogText(part.supplier) === supplierKey
+  )) || null;
+}
+
 export function ShellCostEditor({
   costMode,
   bundleCost,
   bundleNote,
   componentRows,
   modelOptions,
+  catalogParts,
+  catalogRefreshing,
   getDefaultSupplier,
+  getDefaultUnitPrice,
+  onRefreshCatalog,
+  onCreateCatalogPart,
   onBundleCostChange,
   onBundleNoteChange,
   onComponentRowsChange,
 }: ShellCostEditorProps) {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [catalogSavingRowId, setCatalogSavingRowId] = useState<string | null>(null);
+  const [catalogNotices, setCatalogNotices] = useState<Record<string, { tone: 'success' | 'error'; text: string }>>({});
+  const supplierOptions = useMemo(
+    () => Array.from(new Set(catalogParts.map((part) => part.supplier.trim()).filter(Boolean)))
+      .sort((left, right) => left.localeCompare(right, 'zh-Hans-CN')),
+    [catalogParts]
+  );
+
+  function suppliersForModel(model: string) {
+    const modelKey = normalizedCatalogText(model);
+    const matched = modelKey
+      ? catalogParts
+        .filter((part) => normalizedCatalogText(part.model) === modelKey)
+        .map((part) => part.supplier.trim())
+        .filter(Boolean)
+      : [];
+    return Array.from(new Set(matched.length > 0 ? matched : supplierOptions));
+  }
+
+  function setCatalogNotice(rowId: string, notice: { tone: 'success' | 'error'; text: string } | null) {
+    setCatalogNotices((current) => {
+      const next = { ...current };
+      if (notice) next[rowId] = notice;
+      else delete next[rowId];
+      return next;
+    });
+  }
+
+  async function createCatalogPart(row: ShellComponentFormRow) {
+    const model = String(row.model || '').trim();
+    const supplier = String(row.supplier || '').trim();
+    const price = Number(row.unitCost || 0);
+    setCatalogSavingRowId(row.id);
+    setCatalogNotice(row.id, null);
+    try {
+      const result = await onCreateCatalogPart({ model, supplier, price });
+      updateComponentRow(row.id, {
+        model: result.part.model,
+        supplier: result.part.supplier,
+        unitCost: result.part.price,
+      });
+      setCatalogNotice(row.id, {
+        tone: 'success',
+        text: result.created ? '已存入零件库并选中' : '零件库已有该型号和供应商，已直接选中',
+      });
+    } catch (error) {
+      setCatalogNotice(row.id, {
+        tone: 'error',
+        text: error instanceof Error ? error.message : '零件保存失败',
+      });
+    } finally {
+      setCatalogSavingRowId(null);
+    }
+  }
 
   function addComponentRow(componentType: 'standard' | 'subassembly' = 'standard') {
     const isSubassembly = componentType === 'subassembly';
@@ -118,7 +212,7 @@ export function ShellCostEditor({
       optional: false,
       componentType,
       subassemblyContents: isSubassembly
-        ? [{ id: nextRowId(), name: '', qty: 1, note: '' }]
+        ? [{ id: nextRowId(), name: '', qty: 1, referenceUnitPrice: null, note: '' }]
         : [],
       note: '',
     }]);
@@ -130,7 +224,13 @@ export function ShellCostEditor({
       if (row.id !== id) return row;
       const next = { ...row, ...patch };
       if (patch.model !== undefined && patch.supplier === undefined) {
-        next.supplier = getDefaultSupplier(String(patch.model || ''));
+        const model = String(patch.model || '');
+        next.supplier = getDefaultSupplier(model);
+        next.unitCost = getDefaultUnitPrice(model, next.supplier);
+      }
+      if (patch.supplier !== undefined && patch.model === undefined && patch.unitCost === undefined) {
+        const exact = findCatalogPart(catalogParts, String(next.model || ''), String(patch.supplier || ''));
+        next.unitCost = exact ? Number(exact.price || 0) : 0;
       }
       if (patch.name !== undefined) {
         if (row.componentType === 'subassembly') return next;
@@ -149,13 +249,16 @@ export function ShellCostEditor({
         next.pricingMode = 'fixed';
         next.subassemblyContents = row.subassemblyContents.length > 0
           ? row.subassemblyContents
-          : [{ id: nextRowId(), name: '', qty: 1, note: '' }];
+          : [{ id: nextRowId(), name: '', qty: 1, referenceUnitPrice: null, note: '' }];
       } else if (patch.componentType === 'standard') {
         next.pricingMode = 'fixed';
         next.subassemblyContents = [];
       }
       return next;
     }));
+    if (patch.model !== undefined || patch.supplier !== undefined || patch.unitCost !== undefined) {
+      setCatalogNotice(id, null);
+    }
   }
 
   function addSubassemblyContentRow(componentId: string) {
@@ -164,7 +267,7 @@ export function ShellCostEditor({
           ...row,
           subassemblyContents: [
             ...row.subassemblyContents,
-            { id: nextRowId(), name: '', qty: 1, note: '' },
+            { id: nextRowId(), name: '', qty: 1, referenceUnitPrice: null, note: '' },
           ],
         }
       : row));
@@ -234,6 +337,15 @@ export function ShellCostEditor({
         </div>
         {costMode === 'components' && componentRows.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void onRefreshCatalog()}
+              disabled={catalogRefreshing || catalogSavingRowId !== null}
+              icon={<RefreshCw size={14} className={catalogRefreshing ? 'animate-spin' : ''} />}
+            >
+              刷新零件
+            </Button>
             <Button type="button" size="sm" onClick={() => addComponentRow('standard')} icon={<Plus size={14} />}>添加单件</Button>
             <Button type="button" size="sm" onClick={() => addComponentRow('subassembly')} icon={<Plus size={14} />}>添加小套件</Button>
           </div>
@@ -320,7 +432,7 @@ export function ShellCostEditor({
               </div>
               {expandedRowId === row.id ? (
                 <div id={`shell-component-${row.id}`} className="p-3 md:p-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(160px,1fr)_minmax(220px,1.35fr)_minmax(160px,1fr)_110px_120px] xl:items-end">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(200px,1.25fr)_minmax(150px,1fr)_100px_minmax(210px,1.15fr)] xl:items-end">
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">{row.componentType === 'subassembly' ? '小套件名称' : '组件名称'}</span>
                       {row.componentType !== 'subassembly' && isBarrelComponentName(row.name) ? (
@@ -334,25 +446,66 @@ export function ShellCostEditor({
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">零件型号</span>
-                      <select value={row.model || ''} onChange={(event) => updateComponentRow(row.id, { model: event.target.value })} aria-label={`${row.name || '组件'}零件型号`} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400">
-                        <option value="">{row.componentType === 'subassembly' ? '请选择小套件型号' : '请选择零件型号'}</option>
-                        {row.model && !modelOptions.includes(row.model) ? <option value={row.model} disabled>{row.model}（不在泵壳搭配类别）</option> : null}
-                        {modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
-                      </select>
+                      <input
+                        value={row.model || ''}
+                        onChange={(event) => updateComponentRow(row.id, { model: event.target.value })}
+                        aria-label={`${row.name || '组件'}零件型号`}
+                        list="shell-component-model-options"
+                        placeholder={row.componentType === 'subassembly' ? '输入或检索小套件型号' : '输入或检索零件型号'}
+                        autoComplete="off"
+                        className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      />
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">供应商</span>
-                      <input value={row.supplier || ''} onChange={(event) => updateComponentRow(row.id, { supplier: event.target.value })} placeholder="选择型号后自动带入" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <input
+                        value={row.supplier || ''}
+                        onChange={(event) => updateComponentRow(row.id, { supplier: event.target.value })}
+                        list={`shell-component-supplier-options-${row.id}`}
+                        placeholder="输入或检索供应商"
+                        autoComplete="off"
+                        className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      />
+                      <datalist id={`shell-component-supplier-options-${row.id}`}>
+                        {suppliersForModel(String(row.model || '')).map((supplier) => <option key={supplier} value={supplier} />)}
+                      </datalist>
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">{row.componentType === 'stainlessStretchBarrel' ? '基准长度(cm)' : '数量'}</span>
                       <input value={String(row.qty)} onChange={(event) => updateComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" title={row.componentType === 'stainlessStretchBarrel' ? '不锈钢拉伸筒的基准长度，单位 cm' : '计价数量'} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                     </label>
                     <label className="block min-w-0">
-                      <span className="mb-1 block text-xs font-medium text-muted">备用单价</span>
-                      <input value={String(row.unitCost)} onChange={(event) => updateComponentRow(row.id, { unitCost: numberValue(event.target.value) })} type="number" min="0" step="0.01" title="零件库没有有效价格时使用此单价" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <span className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-muted">
+                        <span>备用单价</span>
+                        {findCatalogPart(catalogParts, row.model, row.supplier) ? <span className="text-emerald-700">零件库已有</span> : null}
+                      </span>
+                      <span className="flex gap-2">
+                        <input value={String(row.unitCost)} onChange={(event) => updateComponentRow(row.id, { unitCost: numberValue(event.target.value) })} type="number" min="0" step="0.01" title="零件库没有有效价格时使用此单价" className="h-9 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                        {!findCatalogPart(catalogParts, row.model, row.supplier)
+                          && String(row.model || '').trim()
+                          && String(row.supplier || '').trim()
+                          && Number(row.unitCost || 0) > 0 ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="primary"
+                              onClick={() => void createCatalogPart(row)}
+                              disabled={catalogSavingRowId !== null || catalogRefreshing}
+                              icon={<Save size={14} />}
+                              title="以泵壳搭配分类和零库存存入零件库"
+                              className="h-9 shrink-0"
+                            >
+                              {catalogSavingRowId === row.id ? '保存中' : '存入零件库'}
+                            </Button>
+                          ) : null}
+                      </span>
                     </label>
                   </div>
+                  {catalogNotices[row.id] ? (
+                    <div className={`mt-2 rounded-md px-3 py-2 text-xs ${catalogNotices[row.id].tone === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                      {catalogNotices[row.id].text}
+                    </div>
+                  ) : null}
                   {row.componentType === 'subassembly' ? (
                     <div className="mt-4 border-l-2 border-slate-200 bg-slate-50/70 py-3 pl-4 pr-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
@@ -364,15 +517,17 @@ export function ShellCostEditor({
                   </div>
                   <div className="space-y-2">
                     {row.subassemblyContents.length > 0 ? (
-                      <div className="hidden grid-cols-[minmax(180px,1fr)_90px_minmax(220px,1.2fr)_36px] gap-2 px-1 text-xs font-medium text-muted md:grid">
+                      <div className="hidden grid-cols-[minmax(150px,1fr)_76px_110px_110px_minmax(160px,1.1fr)_36px] gap-2 px-1 text-xs font-medium text-muted md:grid">
                         <span>组件名称</span>
                         <span>数量</span>
+                        <span>参考单价</span>
+                        <span className="text-right">参考小计</span>
                         <span>备注</span>
                         <span />
                       </div>
                     ) : null}
                     {row.subassemblyContents.map((item) => (
-                      <div key={item.id} className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_90px_minmax(220px,1.2fr)_36px] md:items-end">
+                      <div key={item.id} className="grid gap-2 md:grid-cols-[minmax(150px,1fr)_76px_110px_110px_minmax(160px,1.1fr)_36px] md:items-end">
                         <label className="block min-w-0">
                           <span className="mb-1 block text-xs font-medium text-muted md:sr-only">组件名称</span>
                           <input value={item.name} onChange={(event) => updateSubassemblyContentRow(row.id, item.id, { name: event.target.value })} placeholder="例如：上帽" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
@@ -381,6 +536,26 @@ export function ShellCostEditor({
                           <span className="mb-1 block text-xs font-medium text-muted md:sr-only">数量</span>
                           <input value={String(item.qty)} onChange={(event) => updateSubassemblyContentRow(row.id, item.id, { qty: numberValue(event.target.value) })} type="number" min="0.01" step="0.01" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                         </label>
+                        <label className="block min-w-0">
+                          <span className="mb-1 block text-xs font-medium text-muted md:sr-only">参考单价</span>
+                          <input
+                            value={item.referenceUnitPrice ?? ''}
+                            onChange={(event) => updateSubassemblyContentRow(row.id, item.id, {
+                              referenceUnitPrice: event.target.value === '' ? null : numberValue(event.target.value),
+                            })}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="选填"
+                            title="仅用于查询和比较，不参与正式成本"
+                            className="h-9 w-full rounded-md border border-line bg-white px-2 text-right text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                          />
+                        </label>
+                        <div className="flex h-9 items-center justify-end rounded-md bg-white/70 px-2 text-sm tabular-nums text-muted">
+                          {item.referenceUnitPrice == null
+                            ? '—'
+                            : money(Number(item.qty || 0) * Number(item.referenceUnitPrice))}
+                        </div>
                         <label className="block min-w-0">
                           <span className="mb-1 block text-xs font-medium text-muted md:sr-only">备注</span>
                           <input value={item.note || ''} onChange={(event) => updateSubassemblyContentRow(row.id, item.id, { note: event.target.value })} placeholder="可选，例如：与上帽同厂采购" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
@@ -398,6 +573,29 @@ export function ShellCostEditor({
                       </div>
                     ))}
                   </div>
+                  {(() => {
+                    const pricedContents = row.subassemblyContents.filter((item) => item.referenceUnitPrice != null);
+                    const referenceTotal = pricedContents.reduce(
+                      (sum, item) => sum + Number(item.qty || 0) * Number(item.referenceUnitPrice || 0),
+                      0
+                    );
+                    const complete = row.subassemblyContents.length > 0 && pricedContents.length === row.subassemblyContents.length;
+                    const catalogUnitPrice = getDefaultUnitPrice(row.model || '', row.supplier || '');
+                    const kitUnitPrice = catalogUnitPrice > 0 ? catalogUnitPrice : Number(row.unitCost || 0);
+                    return (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-1 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs">
+                        <span className="text-blue-800">
+                          组成参考合计：<strong>{pricedContents.length > 0 ? money(referenceTotal) : '未填写'}</strong>
+                          <span className="ml-1 text-blue-600">（已录 {pricedContents.length}/{row.subassemblyContents.length} 项）</span>
+                        </span>
+                        <span className={complete ? 'font-medium text-blue-800' : 'text-blue-600'}>
+                          {complete
+                            ? `套件价 ${money(kitUnitPrice)}，与组成参考差额 ${money(kitUnitPrice - referenceTotal)}`
+                            : '补全参考单价后显示套件差额'}
+                        </span>
+                      </div>
+                    );
+                  })()}
                     </div>
                   ) : null}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
@@ -422,12 +620,15 @@ export function ShellCostEditor({
           <datalist id="shell-component-name-options">
             {shellComponentNameOptions.map((name) => <option key={name} value={name} />)}
           </datalist>
+          <datalist id="shell-component-model-options">
+            {modelOptions.map((model) => <option key={model} value={model} />)}
+          </datalist>
           {modelOptions.length === 0 ? (
             <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">零件库暂无“泵壳搭配”类别零件，请先到零件管理中建立组件型号。</div>
           ) : null}
           {componentRows.length > 0 ? (
             <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-muted">
-              单件和小套件型号只读取“泵壳搭配”类别。小套件的组成项仅作说明，不重复计价或扣库存；不锈钢拉伸筒按型号变体中的机筒长度计价。
+              单件和小套件型号只检索“泵壳搭配”类别。可以直接输入新型号、供应商和正数单价，再存入零件库（初始库存为 0）；选择已有型号会带入目录价。小套件组成项的参考单价仅作查询和比较，不重复计价或扣库存；不锈钢拉伸筒按型号变体中的机筒长度计价。
             </div>
           ) : null}
         </div>

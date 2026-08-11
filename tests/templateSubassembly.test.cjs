@@ -16,8 +16,8 @@ test('泵壳模板可保存一级供应商小套件组成', () => {
             included: true,
             componentType: 'subassembly',
             subassemblyContents: [
-                { name: ' 上帽 ', qty: 1 },
-                { name: '油缸盖', qty: 2, note: ' 同厂采购 ' },
+                { name: ' 上帽 ', qty: 1, referenceUnitPrice: 12.5 },
+                { name: '油缸盖', qty: 2, referenceUnitPrice: 0, note: ' 同厂采购 ' },
             ],
         },
     ]));
@@ -27,8 +27,8 @@ test('泵壳模板可保存一级供应商小套件组成', () => {
     assert.equal(normalized[0].supplier, '张启彪');
     assert.equal(normalized[0].pricingMode, 'fixed');
     assert.deepEqual(normalized[0].subassemblyContents, [
-        { name: '上帽', qty: 1 },
-        { name: '油缸盖', qty: 2, note: '同厂采购' },
+        { name: '上帽', qty: 1, referenceUnitPrice: 12.5 },
+        { name: '油缸盖', qty: 2, referenceUnitPrice: 0, note: '同厂采购' },
     ]);
 });
 
@@ -63,5 +63,40 @@ test('供应商小套件组成数量必须为正数', () => {
             },
         ]),
         /必须是正数/
+    );
+});
+
+test('供应商小套件组成参考单价必须是非负数且允许省略', () => {
+    const normalized = JSON.parse(normalizeShellComponentsJson([
+        {
+            name: '铝铸件小套件',
+            model: 'V750铝铸件小套件',
+            qty: 1,
+            unitCost: 45,
+            included: true,
+            componentType: 'subassembly',
+            subassemblyContents: [
+                { name: '上帽', qty: 1 },
+                { name: '油缸盖', qty: 1, referenceUnitPrice: 11.25 },
+            ],
+        },
+    ]));
+    assert.deepEqual(normalized[0].subassemblyContents, [
+        { name: '上帽', qty: 1 },
+        { name: '油缸盖', qty: 1, referenceUnitPrice: 11.25 },
+    ]);
+    assert.throws(
+        () => normalizeShellComponentsJson([
+            {
+                name: '铝铸件小套件',
+                model: 'V750铝铸件小套件',
+                qty: 1,
+                unitCost: 45,
+                included: true,
+                componentType: 'subassembly',
+                subassemblyContents: [{ name: '上帽', qty: 1, referenceUnitPrice: -1 }],
+            },
+        ]),
+        /必须是非负数字/
     );
 });

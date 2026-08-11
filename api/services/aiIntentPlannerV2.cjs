@@ -19,6 +19,7 @@ const ANSWER_SHAPES = Object.freeze([
     'explanation',
     'confirmation',
 ]);
+const ENTITY_SCOPES = Object.freeze(['none', 'single', 'collection', 'global']);
 const DOMAIN_NAMES = Object.freeze(Object.keys(DOMAIN_CAPABILITY_NAMES));
 
 class AiIntentPlanError extends Error {
@@ -56,6 +57,7 @@ function plannerTool() {
                     needsBusinessData: { type: 'boolean' },
                     contextMode: { type: 'string', enum: CONTEXT_MODES },
                     answerShape: { type: 'string', enum: ANSWER_SHAPES },
+                    entityScope: { type: 'string', enum: ENTITY_SCOPES },
                     requiresClarification: { type: 'boolean' },
                     ambiguities: {
                         type: 'array',
@@ -78,7 +80,7 @@ function plannerTool() {
                 },
                 required: [
                     'goal', 'mode', 'domains', 'needsBusinessData', 'contextMode',
-                    'answerShape', 'requiresClarification', 'ambiguities', 'confidence', 'steps',
+                    'answerShape', 'entityScope', 'requiresClarification', 'ambiguities', 'confidence', 'steps',
                 ],
             },
         },
@@ -105,7 +107,9 @@ function plannerPrompt(pageContext) {
 11. 先按能力的权威职责选择：已有正式记录的列表、数量、状态和实时库存用领域 Query；指定组合的计算、插值、草稿和差异分析用 Preview；用途、适用工况、兼容性、原因、工厂约定、明确确认关系、业务规则和独立资料必须用 Knowledge，即使同一个问题还询问“系统中有哪些”当前记录，也不能只安排领域 Query。不得用 Preview 代替 List，也不得用知识快照代替现有正式记录。
 12. 能力名称相近时比较 description 中的权威职责、适用目标和明确排除项；选择能直接回答目标且能区分关键零结果语义的最小能力，不并列安排职责重复的工具。
 13. 用户一个问题包含多个子目标时，逐项判断事实权威来源并为每种不同职责安排必要步骤。例如“当前有哪些正式记录”使用领域 Query，“用途、经验、规则依据、明确确认关系”使用 Knowledge；不能指望执行阶段临时扩搜计划外能力。
-14. 用户用客户名、合同号、型号或名称指代资源但没有明确提供内部ID时，必须选择或使用支持名称查询的参数，不得从消息长度、列表顺序、历史回答或常识生成ID。ID只能来自用户明确编号、当前页面资源ID或本轮正式查询结果。
+14. 用户用客户名、合同号、型号、简称或称呼指代资源但没有明确提供内部ID时，必须选择支持名称查询的参数。只读查询允许保留用户简称，或把简称扩展为可能的标准客户名/合同号候选，再交给正式 API 做唯一解析；零匹配或多匹配必须停止并请求明确。不得从消息长度、列表顺序、历史回答或常识生成ID。ID只能来自用户明确编号、当前页面资源ID或本轮正式查询结果。
+15. 具名客户或合同号的单订单详情、问题、异常和生产情况使用支持 orderQuery 的单订单能力；get_recent_orders 用于列表、数量和跨订单筛选。名称可以是用户输入的简称并由正式 API 模糊匹配；唯一命中时继续，多条命中时必须请求用户明确，不能猜选。
+16. entityScope 必须表达当前目标的对象范围：纯对话用 none；明确一个客户、合同、订单或“这个订单”用 single；要求若干筛选结果用 collection；明确全部、整体、所有订单总览用 global。每项能力目录中的 scope 是硬边界，single 目标不得使用经营异常、管理待办、订单准备总览或运营看板等 collection/global 能力。
 
 ${pageNote}
 
@@ -146,6 +150,8 @@ function normalizeIntentPlan(raw, options = {}) {
     assertEnum(raw.mode, INTENT_MODES, 'mode');
     assertEnum(raw.contextMode, CONTEXT_MODES, 'contextMode');
     assertEnum(raw.answerShape, ANSWER_SHAPES, 'answerShape');
+    const entityScope = raw.entityScope || 'none';
+    assertEnum(entityScope, ENTITY_SCOPES, 'entityScope');
     assertEnum(raw.confidence, ['high', 'medium', 'low'], 'confidence');
     if (typeof raw.needsBusinessData !== 'boolean') {
         throw new AiIntentPlanError('needsBusinessData 必须是布尔值');
@@ -184,6 +190,15 @@ function normalizeIntentPlan(raw, options = {}) {
         };
     });
     const stepNames = plannedCapabilityNames({ steps });
+    const incompatibleStep = steps.find(step => (
+        entityScope !== 'none'
+        && !getAiCapability(step.capabilityName).entityScopes.includes(entityScope)
+    ));
+    if (incompatibleStep) {
+        throw new AiIntentPlanError(
+            `能力 ${incompatibleStep.capabilityName} 不支持 ${entityScope} 对象范围`
+        );
+    }
     if (raw.needsBusinessData && !raw.requiresClarification && stepNames.length === 0) {
         throw new AiIntentPlanError('需要业务数据时必须规划至少一个正式能力');
     }
@@ -206,6 +221,7 @@ function normalizeIntentPlan(raw, options = {}) {
         needsBusinessData: raw.needsBusinessData,
         contextMode: raw.contextMode,
         answerShape: raw.answerShape,
+        entityScope,
         requiresClarification: raw.requiresClarification,
         ambiguities: Object.freeze(raw.ambiguities.map((item, index) => (
             normalizeText(item, `ambiguities[${index}]`, 160)
@@ -250,7 +266,7 @@ async function planAiIntentV2(messages, options = {}) {
             lastError = error;
             plannerMessages.push({
                 role: 'system',
-                content: '上一次提交未通过结构化协议校验。请重新调用 submit_ai_intent_plan，并只提交符合 schema 的有效 JSON 参数。',
+                content: `上一次提交未通过结构化协议校验：${error.message}。请重新调用 submit_ai_intent_plan，并只提交符合 schema 的有效 JSON 参数。`,
             });
         }
     }
@@ -262,6 +278,7 @@ module.exports = {
     AiIntentPlanError,
     CONTEXT_MODES,
     DOMAIN_NAMES,
+    ENTITY_SCOPES,
     INTENT_MODES,
     normalizeIntentPlan,
     planAiIntentV2,

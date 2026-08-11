@@ -215,7 +215,9 @@ export function PumpShellTemplateWorkspace({
                       </div>
                       {isSubassemblyComponent(component) ? (
                         <div className="mt-2 text-xs text-muted">
-                          包含：{(component.subassemblyContents || []).map((item) => `${item.name}×${item.qty}`).join('、') || '-'}（子项不单独计价）
+                          包含：{(component.subassemblyContents || []).map((item) => (
+                            `${item.name}×${item.qty}${item.referenceUnitPrice == null ? '' : ` @ ${money(item.referenceUnitPrice)}`}`
+                          )).join('、') || '-'}（参考单价仅供查询，子项不单独计价）
                         </div>
                       ) : null}
                     </div>

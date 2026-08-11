@@ -197,6 +197,37 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     print_rotor_drawing: '打印转子图纸',
 });
 
+const DEFAULT_AI_ENTITY_SCOPES = Object.freeze([
+    'single',
+    'collection',
+    'global',
+]);
+const AI_ENTITY_SCOPES = Object.freeze({
+    get_business_alerts: Object.freeze(['collection', 'global']),
+    get_management_action_center: Object.freeze(['collection', 'global']),
+    get_order_readiness_overview: Object.freeze(['collection', 'global']),
+    get_dashboard_summary: Object.freeze(['global']),
+});
+
+const AI_KNOWLEDGE_COMPANIONS = Object.freeze({
+    get_recent_orders: Object.freeze({
+        capabilityName: 'get_order_knowledge_package',
+        argumentProjection: 'single_order_result',
+    }),
+    get_order_detail: Object.freeze({
+        capabilityName: 'get_order_knowledge_package',
+        argumentProjection: 'order_target',
+    }),
+    check_order_readiness: Object.freeze({
+        capabilityName: 'get_order_knowledge_package',
+        argumentProjection: 'order_target',
+    }),
+    plan_order_readiness_actions: Object.freeze({
+        capabilityName: 'get_order_knowledge_package',
+        argumentProjection: 'order_target',
+    }),
+});
+
 const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
     cost: Object.freeze([
         'full_calculate',
@@ -555,6 +586,23 @@ function defineQueryCapability(definition) {
     });
 }
 
+function definePreviewCapability(definition) {
+    return Object.freeze({
+        access: 'preview',
+        operation: 'preview',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        idempotency: 'inherent',
+        concurrencyControl: 'not_applicable',
+        transactionality: 'not_applicable',
+        audit: 'none',
+        timeoutMs: 15_000,
+        deprecated: false,
+        contractStatus: 'current',
+        ...definition,
+    });
+}
+
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'inventory.parts.batch_adjust_stock': defineBusinessCapability({
         capabilityId: 'inventory.parts.batch_adjust_stock',
@@ -581,12 +629,14 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'workflow.quotation.convert_to_order': defineBusinessCapability({
         capabilityId: 'workflow.quotation.convert_to_order',
         domain: 'quotation',
-        inputSchema: 'POST /api/quotations/:id/convert',
+        inputSchema:
+            'POST /api/quotations/:id/convert { expectedUpdatedAt?, previewHash?, itemQuantities? }',
         outputSchema: 'CommandReceipt<QuotationConversionResult>',
         sourceOfTruth: 'quotationSnapshot+orderPlanning+orders',
         riskLevel: 'critical',
         supportsPreview: true,
-        previewPath: '/api/quotations/:id/order-draft',
+        previewPath:
+            '/api/quotations/:id/order-draft { itemQuantities?: [{ quotationItemId, qty }] }',
     }),
     'customers.create': defineBusinessCapability({
         capabilityId: 'customers.create',
@@ -715,7 +765,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'templates.create': defineBusinessCapability({
         capabilityId: 'templates.create',
         domain: 'recipe',
-        inputSchema: 'POST /api/templates',
+        inputSchema: 'POST /api/templates TemplateInput(shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
         outputSchema: 'CommandReceipt<TemplateCreateResult>',
         sourceOfTruth: 'pump_shell_templates+partsCatalog',
         riskLevel: 'medium',
@@ -726,7 +776,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'templates.update': defineBusinessCapability({
         capabilityId: 'templates.update',
         domain: 'recipe',
-        inputSchema: 'PATCH /api/templates/:id',
+        inputSchema: 'PATCH /api/templates/:id TemplatePatch(shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
         outputSchema: 'CommandReceipt<TemplateUpdateResult>',
         sourceOfTruth: 'pump_shell_templates+partsCatalog',
         riskLevel: 'high',
@@ -950,6 +1000,26 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'ai', 'internal']),
     }),
+    'quotations.inquiry_summary': defineQueryCapability({
+        capabilityId: 'quotations.inquiry_summary',
+        domain: 'quotation',
+        inputSchema: 'GET /api/quotations/:id/inquiry-summary',
+        outputSchema: 'QuotationInquirySummary',
+        sourceOfTruth:
+            'quotations+customers+factory_file_links+factory_files+quotation_attachment_summaries',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
+    'quotations.inquiry_summary_draft': definePreviewCapability({
+        capabilityId: 'quotations.inquiry_summary_draft',
+        domain: 'quotation',
+        inputSchema: 'POST /api/quotations/inquiry-summary-draft { fileIds[1..4], customerName? }',
+        outputSchema: 'QuotationInquirySummaryDraft',
+        sourceOfTruth: 'factory_files.original_blob+Kimi API',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+        timeoutMs: 120000,
+    }),
     'purchasing.overview': defineQueryCapability({
         capabilityId: 'purchasing.overview',
         domain: 'procurement',
@@ -1000,7 +1070,8 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         domain: 'quotation',
         inputSchema: 'POST /api/quotations',
         outputSchema: 'CommandReceipt<QuotationCreateResult>',
-        sourceOfTruth: 'quotationSaveDraft+costEngine+quotations',
+        sourceOfTruth:
+            'quotationSaveDraft+costEngine+quotations+factory_files+quotation_attachment_summaries',
         riskLevel: 'high',
         supportsPreview: true,
         previewPath: '/api/quotations/save-payload-draft',
@@ -1730,6 +1801,7 @@ function buildRegistry() {
             executorKey: AI_EXECUTOR_BY_CAPABILITY_NAME[name] || null,
             domain: domains[0],
             domains: Object.freeze([...domains]),
+            entityScopes: AI_ENTITY_SCOPES[name] || DEFAULT_AI_ENTITY_SCOPES,
             inputSchema: `AI_TOOLS.${name}.parameters`,
             outputSchema: `executor.${name}.result`,
             access,
@@ -1742,6 +1814,7 @@ function buildRegistry() {
                     label: '实时业务数据',
                 })
                 : null,
+            knowledgeCompanion: AI_KNOWLEDGE_COMPANIONS[name] || null,
             riskLevel: riskLevelFor(name, access),
             requiresConfirmation: access === 'write',
             supportsPreview,

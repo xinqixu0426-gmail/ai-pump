@@ -77,6 +77,11 @@ function normalizeSubassemblyContents(component) {
         .map(item => ({
             name: String(item?.name || '').trim(),
             qty: Number(item?.qty || 1),
+            ...(item?.referenceUnitPrice != null
+                && Number.isFinite(Number(item.referenceUnitPrice))
+                && Number(item.referenceUnitPrice) >= 0
+                ? { referenceUnitPrice: Number(item.referenceUnitPrice) }
+                : {}),
             ...(String(item?.note || '').trim()
                 ? { note: String(item.note).trim() }
                 : {}),

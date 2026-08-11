@@ -39,6 +39,11 @@ test('AI 能力注册表：全部工具唯一登记且具备强制契约字段',
         assert.match(capability.capabilityId, /^ai\.[a-z0-9_]+$/);
         assert.equal(capability.domain, capability.domains[0]);
         assert.ok(capability.domains.length > 0);
+        assert.ok(Array.isArray(capability.entityScopes));
+        assert.ok(capability.entityScopes.length > 0);
+        assert.ok(capability.entityScopes.every(scope => (
+            ['single', 'collection', 'global'].includes(scope)
+        )));
         assert.ok(['read', 'write'].includes(capability.access));
         assert.ok(['query', 'command', 'preview'].includes(capability.operation));
         assert.ok(['low', 'medium', 'high', 'critical'].includes(capability.riskLevel));
@@ -86,6 +91,16 @@ test('AI 能力注册表：零件资料与库存使用互斥的正式命令模�
     assert.equal(capability.transactionality, 'business_write_audit_and_operation_receipt_atomic');
 });
 
+test('AI 能力注册表：关联知识能力只指向已登记只读能力', () => {
+    for (const capability of listAiCapabilities()) {
+        if (!capability.knowledgeCompanion) continue;
+        const companion = getAiCapability(capability.knowledgeCompanion.capabilityName);
+        assert.ok(companion, `${capability.toolName} 的关联知识能力未登记`);
+        assert.equal(companion.access, 'read');
+        assert.ok(capability.knowledgeCompanion.argumentProjection);
+    }
+});
+
 test('正式业务能力注册表：已迁移 query 和 command 统一登记完整契约', () => {
     const expectedIds = [
         'inventory.parts.batch_adjust_stock',
@@ -125,6 +140,8 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'customers.history',
         'templates.list',
         'quotations.list',
+        'quotations.inquiry_summary',
+        'quotations.inquiry_summary_draft',
         'quotations.create',
         'quotations.update',
         'quotations.change_status',
@@ -200,6 +217,18 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             assert.match(capability.inputSchema, /^GET \/api\//);
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);
+            continue;
+        }
+        if (capability.access === 'preview') {
+            assert.equal(capability.operation, 'preview');
+            assert.equal(capability.requiresConfirmation, false);
+            assert.equal(capability.riskLevel, 'low');
+            assert.match(capability.inputSchema, /^POST \/api\//);
+            assert.ok(capability.outputSchema);
+            assert.ok(capability.sourceOfTruth);
+            assert.equal(capability.idempotency, 'inherent');
+            assert.equal(capability.transactionality, 'not_applicable');
+            assert.equal(capability.audit, 'none');
             continue;
         }
         assert.equal(capability.access, 'write');

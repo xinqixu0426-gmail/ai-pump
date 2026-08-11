@@ -14,6 +14,7 @@ function plan(overrides = {}) {
         needsBusinessData: true,
         contextMode: 'current_turn',
         answerShape: 'count_with_brief',
+        entityScope: 'collection',
         requiresClarification: false,
         ambiguities: [],
         confidence: 'high',
@@ -27,6 +28,7 @@ test('V2 意图计划：结构化目标、上下文和能力步骤通过服务�
     assert.equal(normalized.version, 2);
     assert.equal(normalized.mode, 'query');
     assert.equal(normalized.answerShape, 'count_with_brief');
+    assert.equal(normalized.entityScope, 'collection');
     assert.deepEqual(normalized.steps.map(step => step.capabilityName), ['get_recent_orders']);
 });
 
@@ -87,6 +89,7 @@ test('V2 意图计划：模型必须通过强制结构化协议提交计划', as
     assert.equal(requestOptions.attachmentMode, 'metadata');
     assert.match(requestMessages[0].content, /不得用 Preview 代替 List/);
     assert.match(requestMessages[0].content, /不得用知识快照代替现有正式记录/);
+    assert.match(requestMessages[0].content, /简称扩展为可能的标准客户名/);
     assert.equal(result.steps[0].capabilityName, 'get_recent_orders');
 });
 
@@ -111,4 +114,22 @@ test('V2 意图计划：模型首次返回非法 JSON 时协议层自动重试�
     });
     assert.equal(calls, 2);
     assert.equal(result.goal, plan().goal);
+});
+
+test('V2 意图计划：单订单目标禁止使用全局经营和准备总览', () => {
+    for (const capabilityName of [
+        'get_order_readiness_overview',
+        'get_business_alerts',
+        'get_management_action_center',
+        'get_dashboard_summary',
+    ]) {
+        assert.throws(() => normalizeIntentPlan(plan({
+            goal: '查询叶总订单有什么问题',
+            entityScope: 'single',
+            steps: [{
+                capabilityName,
+                objective: '读取全局信息',
+            }],
+        })), new RegExp(`能力 ${capabilityName} 不支持 single 对象范围`));
+    }
 });

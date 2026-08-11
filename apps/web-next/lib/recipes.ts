@@ -152,6 +152,7 @@ export type TemplatePartInput = {
 export type SubassemblyContentInput = {
   name: string;
   qty: number;
+  referenceUnitPrice?: number | null;
   note?: string;
 };
 

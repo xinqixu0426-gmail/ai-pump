@@ -91,6 +91,22 @@ test('提示词分层：订单口语查询按订单数量和简报回答而不�
     accessors.db.close();
 });
 
+test('提示词分层：关联知识只补充相关确认事实且不覆盖实时数据', () => {
+    const accessors = emptyRuleAccessors();
+    const prompt = composeAiSystemPrompt({
+        domains: ['order'],
+        query: '台州叶总的订单有什么问题',
+        dbAccessors: accessors,
+    });
+
+    assert.match(prompt, /只提取与当前问题相关/);
+    assert.match(prompt, /没有相关确认记录时静默忽略/);
+    assert.match(prompt, /库存、金额、成本和当前状态仍以实时业务结果为准/);
+    assert.match(prompt, /冲突且不能由时间解释时必须明确提示不一致/);
+    assert.match(prompt, /关联知识读取失败时不得回答“没有问题、没有异常或没有特殊要求”/);
+    accessors.db.close();
+});
+
 test('提示词分层：工厂配置不能改变核心规则优先级', () => {
     const accessors = emptyRuleAccessors();
     const prompt = composeAiSystemPrompt({

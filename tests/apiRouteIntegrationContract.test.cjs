@@ -1254,7 +1254,7 @@ test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字
 
     assert.match(quotationDraft, /parseNonNegativeNumber\(\s*preview\.unitCost,\s*`items\[\$\{index\}\]\.unitCost`/);
     assert.match(quotationDraft, /parseNonNegativeNumber\(\s*item\.unitPrice,\s*`items\[\$\{index\}\]\.unitPrice`/);
-    assert.match(quotationDraft, /parsePositiveNumber\(\s*item\.qty,\s*`items\[\$\{index\}\]\.qty`/);
+    assert.match(quotationDraft, /parseOptionalPositiveNumber\(\s*item\.qty,\s*`items\[\$\{index\}\]\.qty`/);
     assert.match(quotationDraft, /parsePositiveNumber\(\s*item\.margin,\s*`items\[\$\{index\}\]\.margin`/);
     assert.match(quotationDraft, /normalizeQuotationItemOverrides\(item\.overrides, index\)/);
     assert.match(quotationDraft, /const overrides = normalizeQuotationItemOverrides\(item\.overrides, index\)/);

@@ -225,6 +225,73 @@ test('报价转订单草稿返回版本令牌和建议幂等键且保持只读',
     }
 });
 
+test('报价未确认数量时拒绝直接生成订单草稿', () => {
+    const fixture = createFixture();
+    try {
+        const items = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM quotations WHERE id = 3').get().items_json
+        );
+        items[0].qty = null;
+        fixture.db.prepare('UPDATE quotations SET items_json = ? WHERE id = 3')
+            .run(JSON.stringify(items));
+
+        assert.throws(
+            () => buildQuotationOrderDraft(fixture.dependencies, 3),
+            error => error.code === 'quotation_item_quantity_required'
+                && error.statusCode === 422
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('报价转单以客户确认后的数量生成预览并绑定正式命令', () => {
+    const fixture = createFixture();
+    try {
+        const items = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM quotations WHERE id = 3').get().items_json
+        );
+        items[0].qty = null;
+        fixture.db.prepare('UPDATE quotations SET items_json = ? WHERE id = 3')
+            .run(JSON.stringify(items));
+        const itemQuantities = [{ quotationItemId: 'quote-item-1', qty: 7 }];
+        const draft = buildQuotationOrderDraft(fixture.dependencies, 3, {
+            itemQuantities,
+        });
+
+        assert.equal(draft.items[0].qty, 7);
+        assert.deepEqual(draft.itemQuantities, itemQuantities);
+        const result = executeQuotationConversion(fixture.dependencies, {
+            quotationId: 3,
+            expectedUpdatedAt: draft.expectedUpdatedAt,
+            previewHash: draft.previewHash,
+            itemQuantities,
+        }, context('confirmed-quantity'));
+        const orderItems = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM orders WHERE id = ?')
+                .get(result.order.id).items_json
+        );
+        assert.equal(orderItems[0].qty, 7);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('报价转单拒绝不属于当前报价的数量明细', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => buildQuotationOrderDraft(fixture.dependencies, 3, {
+                itemQuantities: [{ quotationItemId: 'unknown-item', qty: 2 }],
+            }),
+            error => error.code === 'quotation_item_quantity_unknown'
+                && error.statusCode === 400
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('报价转订单命令原子创建订单、更新报价、强审计并可安全重放', () => {
     const fixture = createFixture();
     try {
