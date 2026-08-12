@@ -1,6 +1,6 @@
 # API 接口总表
 
-> 更新于 2026-08-03。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，未完成风险和优化顺序见 [当前技术债与优化清单](./technical-debt.md)。
+> 更新于 2026-08-12。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，未完成风险和优化顺序见 [当前技术债与优化清单](./technical-debt.md)。
 
 文档分工：
 
@@ -40,8 +40,7 @@
 | `GET /api/health`、`GET /api/health/live`、`GET /api/health/ready` | 公开 | 存活/就绪监控 |
 | 常规 `/api/*` | JWT Cookie | `app.use('/api', authMiddleware)` 后保护 |
 | 内部服务 | `x-internal-secret` | 与 `INTERNAL_SECRET` 匹配时绕过 JWT |
-| AI / 语音 / 工厂配置 | JWT Cookie 或 `x-internal-secret` | 路由内部单独校验 |
-| Siri | `x-siri-token` | 配置 `SIRI_API_TOKEN` 后强制校验 |
+| AI / 工厂配置 | JWT Cookie 或 `x-internal-secret` | 路由内部单独校验 |
 
 ## 3. 认证
 
@@ -74,7 +73,7 @@
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/parts` | 可选 query：`keyword`、`category`、`supplier`、`stockStatus=low\|out\|attention\|ok`、`limit`（1–100）、`minPrice/maxPrice/priceBelow/priceAbove/minStock/maxStock/stockBelow/stockAbove` | 正式能力 `parts.list`。无 `limit` 时返回全部有效零件；文本字段模糊筛选，`min/max` 为包含边界，`Below/Above` 为严格边界。库存口径：`low`=1–5、`out`=不大于 0、`attention`=不大于 5、`ok`=大于 5。Row Adapter 输出 camelCase；包装零件额外返回 `subcategory`，并临时保留 `Id/CreatedAt/UpdatedAt` |
+| `GET` | `/api/parts` | 可选 query：`keyword`、`category`、`supplier`、`stockStatus=low\|out\|attention\|ok`、`limit`（1–100）、`minPrice/maxPrice/priceBelow/priceAbove/minStock/maxStock/stockBelow/stockAbove`、`sortBy=price\|stock\|model\|updatedAt`、`sortOrder=asc\|desc` | 正式能力 `parts.list`。无 `limit` 时返回全部有效零件；文本字段模糊筛选，`min/max` 为包含边界，`Below/Above` 为严格边界。指定 `sortBy` 时先排序再应用 `limit`，`sortOrder` 默认 `desc`。库存口径：`low`=1–5、`out`=不大于 0、`attention`=不大于 5、`ok`=大于 5。Row Adapter 输出 camelCase；包装零件额外返回 `subcategory`，并临时保留 `Id/CreatedAt/UpdatedAt` |
 | `POST` | `/api/parts` | 请求头 `Idempotency-Key`；`model, category, subcategory?, price, supplier, stock, remark/notes` | 能力 `parts.create`。新增零件并返回原零件顶层字段和标准 operation receipt；允许设置建档初始库存。Web 调用方包括零件资料页和泵壳自由搭配的就地建档：后者保存前重新读取正式零件列表，按“型号 + 供应商”防重复，固定写入 `category=泵壳搭配`、`stock=0`，成功后重新读取零件列表并选中正式记录。`category=包装` 时二级分类为 `外包装/内衬/固定包材`，未传时按现有字段适配规则处理 |
 | `POST` | `/api/parts/batch-create-preview` | `{ parts: [{ model, category?, subcategory?, price, supplier?, stock?, remark? }] }` | 能力 `parts.batch_create` 的正式只读预览，单次 1-100 项。完整校验每项，按“型号 + 供应商”识别现有建档：同型号不同供应商允许新增，同型号同供应商跳过并返回 warning；返回服务端签发的 `confirmationToken/previewHash/suggestedIdempotencyKey`，不写库 |
 | `POST` | `/api/parts/batch-create` | 请求头 `Idempotency-Key`；`{ confirmationToken, idempotencyKey? }` | 执行预览固化的待新增零件，不接受客户端重传清单。执行时重验“型号 + 供应商”仍不存在；任一冲突、校验或强审计失败时整批回滚。成功返回 `createdCount/parts` 和标准 operation receipt |
@@ -124,7 +123,7 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `GET` | `/api/templates/:id/default-recipe` | 无 | 经 `templateQueries` 基于模板生成配方草稿、配件、转子参数和正式成本结果；`recipeDraft.templateId` 使用标准 `id`，不写库 |
 | `POST` | `/api/templates/:id/apply` | `{ recipe? }` | 经 `templateQueries` 把模板默认项应用到传入配方草稿；只生成草稿，不写库 |
 | `GET` | `/api/templates/:id/recipes` | 无 | 经 `templateQueries` 返回引用该模板的配方列表 |
-| `POST` | `/api/templates` | 请求头 `Idempotency-Key`；`shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合计价项，公共字段可含 `name/model/supplier/qty/unitCost/pricingMode/included/componentType/note`；每个计入项的 `model` 必须存在于零件库“泵壳搭配”分类，否则返回 400。普通单件使用 `componentType=standard`；不锈钢拉伸筒使用 `stainlessStretchBarrel`；供应商小套件使用 `subassembly` 并带一级 `subassemblyContents: [{ name, qty, referenceUnitPrice?, note? }]`，其中 `referenceUnitPrice` 可省略、提供时必须为非负数。计入的小套件至少 1 个、最多 30 个组成项，组成项数量必须为正数。自由搭配最多 50 个计价项。`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 能力 `templates.create`。新增模板并返回原模板顶层字段和标准 operation receipt；模板、operation 与强审计同一事务。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的单件或小套件父项必须引用“泵壳搭配”零件。Web 选择父型号时将该型号当前目录价带入 `unitCost` 作为备用单价；正式计价仍优先读取当前零件库价格。小套件父项是唯一计价和库存单位，组成项的 `referenceUnitPrice` 只用于查询、小计和套件差额比较，不生成独立 BOM、不重复计价或扣库存；历史组件名称和缺少参考单价的组成项继续兼容读取 |
+| `POST` | `/api/templates` | 请求头 `Idempotency-Key`；`shellModel/shell_model` 等模板字段；`bundleNote` 为泵壳套件备注；`shellComponentsJson` 在 `components` 模式下保存自由组合计价项，只接收 `name/model/supplier/qty/unitCost/pricingMode/included/optional/componentType/subassemblyContents/note`，未知字段明确忽略；历史 `isStainlessStretchBarrel` 仅用于只读识别，不保存。每个计入项的 `qty` 必须为正数，`model` 必须存在于零件库“泵壳搭配”分类，否则返回 400。普通单件使用 `componentType=standard`；不锈钢拉伸筒使用 `stainlessStretchBarrel`；供应商小套件使用 `subassembly` 并带一级 `subassemblyContents: [{ name, qty, referenceUnitPrice?, note? }]`，其中 `referenceUnitPrice` 可省略、提供时必须为非负数。计入的小套件至少 1 个、最多 30 个组成项，组成项数量必须为正数。自由搭配最多 50 个计价项。`surfaceTreatmentMode` 支持 `none/painting/electrophoresis/electrophoresis_powder_coating/powder_coating`，`surfaceTreatmentCost` 为非负费用 | 能力 `templates.create`。新增模板并返回原模板顶层字段和标准 operation receipt；模板、operation 与强审计同一事务。`bundle` 模式的 `shellModel` 应引用零件库泵壳整套型号；`components` 模式的单件或小套件父项必须引用“泵壳搭配”零件。Web 选择父型号时将该型号当前目录价带入 `unitCost` 作为备用单价；正式计价仍优先读取当前零件库价格。小套件父项是唯一计价和库存单位，组成项的 `referenceUnitPrice` 只用于查询、小计和套件差额比较，不生成独立 BOM、不重复计价或扣库存；历史组件名称和缺少参考单价的组成项继续兼容读取 |
 | `PATCH` | `/api/templates/:id` | 请求头 `Idempotency-Key`；同新增模板字段及 `expectedUpdatedAt` | 能力 `templates.update`。资源版本、组件目录校验、模板更新、operation 与强审计同一事务；原 URL 和模板字段保持兼容 |
 | `DELETE` | `/api/templates/:id` | 请求头 `Idempotency-Key`；请求体或查询参数 `expectedUpdatedAt` | 能力 `templates.delete`。无任何历史配方引用时硬删除并返回标准回执；有引用返回 `409 template_in_use`。原删除保护语义保持不变 |
 
@@ -160,7 +159,6 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `GET` | `/api/recipes/:id/cost` | 无 | 经 `costQueries` 读取正式配方并委托 `costEngine` 重算当前配件参考；不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 经 `costQueries` 批量返回所有配方的当日完整成本；先按配方参数和当前泵壳模板完整重建 BOM，再由成本引擎按当前零件库价格、全局动态配置和当前线圈数据重算，并叠加配方人工、表面处理与管理费。响应顶层返回 `asOf/sourceOfTruth=costEngine/basis=currentTemplateAndRecipeParameters`；每项返回 `costComplete/warnings/missingParts`。存在未定价项目时 `currentTotalCost/partsCost/difference` 为 `null`，只保留明确标记为诊断用途的 `partialPartsCost/partialTotalCost`，禁止把缺失项按 ¥0 形成正式成本 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 经 `costQueries` 读取正式配方，再委托 `dynamicCostPreview` 以保存成本为基线替换被覆盖的动态项；返回 `unitCost/parts/costSnapshot`，其中 `parts` 是应用覆盖后的可采购 BOM 快照。包材按完整有效清单重算，表面处理替换原工艺成本 |
-| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 经 `costQueries` 和 `costDifference` 比较两个正式配方的当前成本，返回总差额和主要差异驱动项；不写库 |
 
 配方列表、详情、库存状态、型号变体草稿和 BOM 草稿的数据库聚合统一在 `recipeQueries`。BOM 规则仍只由 `recipeBomEngine` 展开，正式保存成本仍只由 `costEngine` 重建；Query/Preview 不写配方、库存、operation、审计或知识索引。
 
@@ -171,14 +169,10 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 经 `costQueries` 委托 `costEngine` 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
-| `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 应用常用配置时生成配方草稿，统一带入模板工资、表面处理、线圈、机筒和叶轮字段；不写库 |
-| `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength? }` | 配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化 `parts`，并应用长螺丝长度与参数化计价规则；旧式“电缆线 + 电缆配件费”会合并为一条成品电缆 |
-| `POST` | `/api/recipes/save-payload-draft` | `{ recipeId?, expectedUpdatedAt?, form, costDraft, packingParts?, optionalParts?, technicalData? }` | 配方保存前由 `costEngine` 重建权威成本快照、检查完整 BOM 并生成带版本/预览哈希的标准保存 payload；未定价或版本冲突时不写库 |
-| `GET` | `/api/recipes/current-costs` | 无 | `costQueries` 先经 `recipeQueries/recipeBomEngine` 按当前模板重建 BOM，再由成本引擎批量重算当日完整成本；完整时返回正式金额，缺价时返回 `costComplete=false`、金额字段 `null`、`missingParts/warnings` 和仅供诊断的部分汇总 |
-| `GET` | `/api/recipes/:id/cost` | 无 | 同第 8 节；`costQueries` 只重算配件当前参考价 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides }` | 同第 8 节；`costQueries` 委托 `dynamicCostPreview`，报价页只提交浮球开关、电缆米数和组合包材覆盖，线圈、线径、铜套类型与表面处理沿用配方快照 |
 | `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | `costQueries` 为 AI/N8N 编排配方、线圈和动态配置；各分项公式仍来自正式成本 services |
-| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | `costQueries` 委托 `costDifference` 按金额差异输出主要驱动项 |
+| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 经 `costQueries` 和 `costDifference` 比较两个正式配方的当前成本，返回总差额和主要差异驱动项；不写库 |
+
+配方域的型号变体草稿、成本草稿、保存 payload、当前成本和覆盖试算接口统一登记在第 8 节，本节不重复维护同一 Method + Path。
 
 ### 9.2 拆分估算入口
 
@@ -371,7 +365,7 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 转子只读数据边界统一在 `rotorQueries` 与 `rotorHistory`：订单型号、关联目标、配方/模板草稿和历史状态只聚合正式 SQLite 数据，不调用 AI、不写库；参数标准化统一在 `rotorParameters`。自然语言候选提取、DeepSeek 超时/重试、JSON 容错、正则纠偏、基础参数合并和安全告警统一在 `rotorNaturalLanguage`；模型输出不是正式图纸参数事实，必须经过确定性校验和 `/draw-preview` 确认。FreeCAD 与打印设备执行已抽入 `rotorExternalCommands`，通过 `businessConfirmation` 绑定 Preview 参数，并用 `api_operations` 持久化 `accepted/processing/completed/failed` 回执。路由只保留鉴权主体、命令上下文、service 调用和响应适配。
 
-## 15. AI、语音与 Siri
+## 15. AI
 
 ### AI
 
@@ -387,7 +381,7 @@ AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上�
 
 V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 
-模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 95 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 97 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -563,7 +557,7 @@ V3 将“语言理解、正式发现、实体绑定、事实执行”分层。`a
 
 能力注册表为每个 AI capability 声明 `entityScopes`，能力目录、意图计划校验和执行期 allowlist 共同执行该作用域边界。`single` 单对象问题不得调用仅面向 `collection/global` 的全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总，避免把其他订单的异常混入具名订单回答；需要跨订单汇总时，意图必须明确为 `collection` 或 `global`。
 
-`/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/turn_state/done/error`。`turn_state` 在 `done` 前返回下一轮可携带的结构化实体状态；完整成功流仍必须以 `done` 结束。`error` 表示服务端已明确失败，连接提前结束且未收到 `done` 则视为传输中断。Next Web/PWA 在连接中断时自动重试一次，重试前清空本轮不完整的正文、工具结果和轮次状态；第二次仍失败时仅显示本地错误，不保存半截回复。自动重试只重新请求 `/api/ai/chat`；写工具只生成确认请求，实际写入仍必须通过 `/api/ai/confirm-tool`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。流式 Web 与 Siri 使用的非流式 `processAiChat` 共享同一运行时、参数校验和证据口径。
+`/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/turn_state/done/error`。`turn_state` 在 `done` 前返回下一轮可携带的结构化实体状态；完整成功流仍必须以 `done` 结束。`error` 表示服务端已明确失败，连接提前结束且未收到 `done` 则视为传输中断。Next Web/PWA 在连接中断时自动重试一次，重试前清空本轮不完整的正文、工具结果和轮次状态；第二次仍失败时仅显示本地错误，不保存半截回复。自动重试只重新请求 `/api/ai/chat`；写工具只生成确认请求，实际写入仍必须通过 `/api/ai/confirm-tool`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。
 
 AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：
 
@@ -617,35 +611,6 @@ Next iPhone PWA `/ai` 复用本节接口：
 - 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
 - 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力必须先登记能力注册表，再扩展 `tools.cjs`、对应 executor、正式 API、文档和契约测试。
 - PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
-- `/voice` 页面已弃用并跳转到 `/ai`，当前工作台不再提供语音输入。
-
-### Voice
-
-| 方法 | 路径 | 入参 | 返回/说明 |
-|---|---|---|---|
-| `POST` | `/api/voice/asr` | `multipart/form-data`，文件字段 `audio`，可带 `format`、`sampleRate` | 调阿里云一句话识别；成功返回 `{ success: true, text }` |
-
-该接口仅为旧客户端兼容保留，当前 `/ai` 工作台不调用；阿里云密钥只保留在后端环境变量中，不暴露到前端。
-
-### Siri
-
-| 方法 | 路径 | 入参 | 返回/说明 |
-|---|---|---|---|
-| `POST` | `/api/siri/chat` | `{ text, project?, context? }` | Siri 快捷指令统一入口；Siri 只传自然语言，内部仍由 AI tools 调度标准业务 API；`project=cad` 时转发到 `CAD_API_URL` |
-| `POST` | `/api/siri/confirm` | `{ confirmationId, confirm: true }` | Siri 写操作二次确认入口；外部继续使用兼容 `confirmationId`，服务端内部映射并消费与 Web 相同的参数绑定 `confirmationToken`，并发重复确认不会重复执行 |
-| `GET` | `/api/siri/result/:id` | 无 | 读取 5 分钟内缓存的 Siri 结构化结果 |
-| `GET` | `/siri-result?id=xxx` | 查询参数 `id` | 返回 `public/siri-result.html` 页面 |
-| `GET` | `/public/*` | 静态路径 | AI 路由内挂载的 `public` 静态文件兼容入口 |
-
-`POST /api/siri/chat` 兼容旧字段 `success/speech/content/toolResults/resultUrl`，并新增 `status`：
-
-- `success`：查询或执行完成。
-- `failed`：AI、权限或业务工具执行失败。
-- `processing`：后台任务已提交，例如转子出图，返回 `task.id/statusUrl`。
-- `confirmation_required`：写操作等待确认，返回 `confirmationId` 和 `confirmation`。
-
-Siri 回复要求简短，`speech` 用于快捷指令朗读，结构化明细应通过 `resultUrl` 或 PWA 查看。写操作不得由第一次自然语言请求直接落库。
-
 ## 16. 数据质量
 
 | 方法 | 路径 | 入参 | 返回/说明 |
@@ -724,7 +689,7 @@ V9.1 使用 `factory_files` 作为 PDF、Word、Excel、文本和图片的统一
 | `POST` | `/api/files/:id/parse` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `files.parse`。重新解析 PDF、Word、Excel、CSV 或图片；解析状态登记和外部解析使用持久化回执，同键重放不会重复 OCR 或文本提取。新调用绑定文件版本；旧空请求兼容但回执带版本/幂等保护缺失 warning。成功 `data` 保留文件字段并追加标准回执，失败仍返回当前文件状态 |
 | `POST` | `/api/files/:id/quotation-draft` | `{ customerName? }` | 只读把已解析 Excel/CSV 报价文件映射为客户、配方、数量、文件单价和待确认项；只有全部精确匹配时返回 `quotationDraftInput`，不创建客户、配方或报价。文件待解析、解析失败、正在解析或解析器版本过期时返回 `409 factory_file_parse_required` 及 `parsePath`，调用方必须先显式执行 `/parse`，本接口不暗中写解析状态 |
 | `GET` | `/api/files/:id/content` | 无 | 读取完整解析结果；PDF 包含逐页 `lines/tables`，表格包含逐工作表 `rows/cells/tables`，均保留原文定位且不返回原二进制 |
-| `GET` | `/api/files/:id/download` | 无 | 下载原文件 |
+| `GET` | `/api/files/:id/download` | 可选 query：`inline=1` | 下载原文件；`inline=1` 时以浏览器内联方式返回，其他情况作为附件下载 |
 | `DELETE` | `/api/files/:id` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `files.delete`。软删除未被业务资料引用的文件；引用检查、文件、operation 和强审计原子提交。仍被知识资料、配方测试报告、聊天历史或 `factory_file_links` 引用时返回 `409`；旧空请求兼容但回执带版本/幂等保护缺失 warning |
 
 PDF 上传在上传命令提交后自动完成解析：有文字层的页面使用 `【第 N 页】`，无文字层页面自动渲染并使用 `【第 N 页 OCR】`；混合 PDF 按页面合并。文件字节及上传回执先提交，CPU 密集解析和 OCR 不占用 SQLite 长事务；解析状态、结果或失败各自使用强审计，并与同一解析 operation 关联。增加解析中断恢复：结果已经落库时重建终态回执，仍在新鲜锁内时返回 `processing`，锁超时后用原 operation 继续解析。PDF 文字层最多处理 100 页和 30 万字符，OCR 最多处理 12 个扫描页、单页最多约 700 万渲染像素。图片 OCR 支持 PNG、JPG 和 WebP，原图超过 4000 万像素会拒绝解析。OCR 结果保存逐页/逐行文字框与置信度，并生成只读 `drawingCandidates`；低于 85% 标记 `needsReview`。未识别到文字时为 `metadata_only + ocrApplied=true`，AI 不得猜测原图内容。表格最多处理 20 个工作表、5000 个非空行、100 列、5 万个非空单元格和 30 万字符；保留工作表名、行号、列号、单元格引用、公式与合并区域，超出部分通过 `truncated=true` 明示。
@@ -753,7 +718,7 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 | `POST` | `/api/knowledge/documents` | `multipart/form-data`: `documentType`, `title`, `description?`, `contentText?`, `tags?`, `file?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `knowledge.documents.upload`。导入独立工厂资料；必须填写技术内容或上传文件，文件最大 10MB，支持 `.txt/.md/.csv/.xls/.xlsx/.pdf`。上传是用户主动选取资料的 medium command，不额外要求确认；资料、统一文件对象、operation 和强审计在同一事务提交。返回保留原资料顶层字段，并增加标准命令回执 |
 | `GET` | `/api/knowledge/documents/:id/download` | 无 | 下载独立工厂资料原文件 |
 | `DELETE` | `/api/knowledge/documents/:id` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `knowledge.documents.delete`。软删除原始资料并触发对应派生知识移除；页面继续显式确认。新调用传资源版本和幂等键，旧无 body 调用兼容执行但回执带并发/重试保护缺失 warning |
-| `GET` | `/api/knowledge` | 查询参数 `query?`, `entryType?`, `sourceTable?`, `limit?` | 使用 FTS/BM25 + 向量混合搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。每项附带 `matchMode/evidenceLevel/exactMatch/keywordRank/vectorDistance/finalScore`；`evidenceLevel=semantic_candidate` 表示纯语义候选，不能单独证明用途、兼容性或专用配件关系。型号、规格、客户名和合同号等精确命中优先。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径” |
+| `GET` | `/api/knowledge` | 标准 query：`query?`, `entryType?`, `sourceTable?`, `limit?`；兼容别名：`keyword?`=`query?`、`type?`=`entryType?` | 使用 FTS/BM25 + 向量混合搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。每项附带 `matchMode/evidenceLevel/exactMatch/keywordRank/vectorDistance/finalScore`；`evidenceLevel=semantic_candidate` 表示纯语义候选，不能单独证明用途、兼容性或专用配件关系。型号、规格、客户名和合同号等精确命中优先。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径”；新增调用只使用标准参数名 |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
 | `POST` | `/api/knowledge/sync-preview` | 无 | 能力 `knowledge.sync_derived` 的只读预览。计算正式业务来源和当前派生条目的内容哈希快照，返回新增/更新/移除明细、`previewHash`、服务端 `confirmationToken/operationId` 和建议幂等键；不写库 |
 | `POST` | `/api/knowledge/sync` | 请求头 `Idempotency-Key`；`{ confirmationToken }` | 消费同步预览凭证并重新核对快照；漂移返回 409。派生条目、FTS、同步运行历史、operation 与强审计原子提交；提交后只调度可重建的向量增量任务。相同 key 重试返回原回执，不重复同步，不修改原业务资源 |
@@ -800,7 +765,7 @@ AI 工具：
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。
 - 成本正式场景入口为 `/api/cost/parts`、`/api/recipes/cost-draft`、`/api/recipes/:id/cost-preview` 和 `/api/cost/full-estimate`；`/api/cost/dynamic` 仍有 AI executor 调用，继续兼容保留。
 - `/api/cost/coil`、`/api/cost/float`、`/api/cost/cable`、`/api/cost/packing`、`/api/cost/overhead` 和 `/api/cost/recipe/by-name` 是待核对外部调用的兼容候选。当前阶段不得删除；新增调用不得依赖这些入口。
-- `/api/model-variants` 有当前 Web 调用方，`/api/voice/asr` 有微信小程序调用方，均不是删除候选。
+- `/api/model-variants` 有当前 Web 调用方，不是删除候选。
 - `/api/rotor/order-pump-models` 当前仓库内主要剩余测试依赖，列为兼容观察项；确认外部调用和迁移路径前不得删除。
 - `GET /api/rotor/history` 已输出 camelCase 标准字段；snake_case 字段仅作为历史兼容字段。
 - `POST /api/rotor/draw`、`POST /api/rotor/chat` 标准响应为 `{ success, data/error }`。

@@ -100,3 +100,70 @@ test('供应商小套件组成参考单价必须是非负数且允许省略', ()
         /必须是非负数字/
     );
 });
+
+test('计入成本的泵壳组件数量必须为正数且允许合法小数', () => {
+    for (const qty of [0, -1]) {
+        assert.throws(
+            () => normalizeShellComponentsJson([{
+                name: '上帽',
+                model: 'V750上帽',
+                qty,
+                unitCost: 10,
+                included: true,
+                componentType: 'standard',
+            }]),
+            /必须是正数/
+        );
+    }
+
+    const [normalized] = JSON.parse(normalizeShellComponentsJson([{
+        name: '上帽',
+        model: 'V750上帽',
+        qty: 0.25,
+        unitCost: 10,
+        included: true,
+        componentType: 'standard',
+    }]));
+    assert.equal(normalized.qty, 0.25);
+});
+
+test('未计入成本的组件仍可暂存数量 0', () => {
+    const [normalized] = JSON.parse(normalizeShellComponentsJson([{
+        name: '待选上帽',
+        model: 'V750上帽',
+        qty: 0,
+        unitCost: 10,
+        included: false,
+        componentType: 'standard',
+    }]));
+    assert.equal(normalized.qty, 0);
+});
+
+test('泵壳组件只保存正式字段并只读兼容历史不锈钢标记', () => {
+    const [normalized] = JSON.parse(normalizeShellComponentsJson([{
+        id: 'client-row-id',
+        name: ' 不锈钢拉伸筒 ',
+        model: ' 不锈钢机筒 ',
+        supplier: ' 机筒供应商 ',
+        qty: 17,
+        unitCost: 0.8,
+        included: true,
+        optional: true,
+        isStainlessStretchBarrel: true,
+        note: ' 按厘米计价 ',
+        unexpected: { clientOnly: true },
+    }]));
+
+    assert.deepEqual(normalized, {
+        name: '不锈钢拉伸筒',
+        model: '不锈钢机筒',
+        supplier: '机筒供应商',
+        qty: 17,
+        unitCost: 0.8,
+        pricingMode: 'lengthCm',
+        included: true,
+        optional: true,
+        componentType: 'stainlessStretchBarrel',
+        note: '按厘米计价',
+    });
+});

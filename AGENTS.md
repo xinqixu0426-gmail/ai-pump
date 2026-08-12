@@ -37,7 +37,6 @@
 - 登录限流：5 次/分钟 per IP
 - JWT Cookie：生产环境 `secure: true` + `sameSite: strict`
 - AI 工具调用：`tools.cjs` 中的 `WRITE_TOOLS` 白名单控制写操作权限
-- 微信小程序鉴权：通过 `INTERNAL_SECRET` header 认证（后续迁移至 OpenID）
 
 ## 3. 定时任务
 
@@ -50,7 +49,6 @@
 - Web 前端只使用 `apps/web-next`，当前技术栈为 Next.js + Tailwind CSS + 本地基础组件
 - 不得重新引入 MUI / Emotion / 旧 Vite 前端依赖
 - 全局样式与设计 Token 以 `apps/web-next/app/globals.css` 和本地 UI 组件为准
-- 微信小程序组件放在 `wechat-miniprogram/components/` 下，使用组件化开发
 
 ## 5. 服务端口
 

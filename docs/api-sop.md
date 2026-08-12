@@ -59,8 +59,7 @@
 2. 搜索真实调用方：
    - `apps/web-next/`
    - `api/routes/ai/` 和 executors
-   - `wechat-miniprogram/`
-   - Siri、内部服务、脚本和测试
+   - 内部服务、脚本和测试
 3. 阅读相关 route、service、数据库表、迁移、测试和文档。
 4. 确认是否已有相同或可复用能力，禁止为了调用方便复制业务逻辑。
 5. 成本相关先确认能否复用 `costEngine`；库存、订单、报价和配方必须确认正式 sourceOfTruth。
@@ -107,7 +106,7 @@ deprecated:
 - 正式写入回执是否与 Preview 的资源、数量和前后值一致；可回读资源是否通过正式 Query 验收最终状态，而不是只相信模型或 executor 文案。
 - 是否由领域 service 实现，而不是继续增加胖 route。
 - 是否保持现有路径、请求和响应兼容。
-- AI、Web、微信和 Siri 是否都能复用同一正式能力。
+- AI、Web 和内部调用是否都能复用同一正式能力。
 
 ## 3. 实现顺序
 
@@ -178,7 +177,7 @@ deprecated:
 
 1. 优先在原路径内保持兼容。
 2. 必须新增路径时，先增加标准接口。
-3. 将 Web、AI、微信、Siri 和内部调用迁移到标准接口。
+3. 将 Web、AI 和内部调用迁移到标准接口。
 4. 在 `api-reference.md` 标记旧入口 `deprecated`、替代能力和删除条件。
 5. 增加调用遥测或完成全仓库调用方核对。
 6. 至少经过一个兼容周期后再删除。
@@ -262,7 +261,7 @@ npm run verify:release
 - [ ] Query 确认无写副作用。
 - [ ] Command 已按风险实现事务、幂等、版本、确认和审计。
 - [ ] route 只负责边界工作，业务逻辑在 service。
-- [ ] AI/微信/Siri 复用正式 API。
+- [ ] AI 和内部调用复用正式 API。
 - [ ] 正式成本只由 `costEngine` 计算。
 - [ ] 动态写入使用 safe helper。
 - [ ] Web 请求使用 proxyRequest 系列。

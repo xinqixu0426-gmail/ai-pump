@@ -13,7 +13,7 @@
 | 数据 | SQLite、better-sqlite3、可选 FTS5、sqlite-vec |
 | AI | DeepSeek/Kimi Chat API、SSE、Function Calling、多模态附件 |
 | 出图 | FreeCAD Python Worker、PDF |
-| 移动入口 | `/ai` PWA、微信小程序、Siri 快捷指令 |
+| 移动入口 | `/ai` PWA |
 
 ## 目录
 
@@ -21,12 +21,11 @@
 api.cjs                         Express 入口、鉴权和路由挂载
 api/db.cjs                      SQLite 建表、迁移、Row Adapter 和安全写入
 api/routes/                     业务 API
-api/routes/ai/                  AI 对话、工具、会话、Siri 和 ASR
+api/routes/ai/                  AI 对话、工具、会话和评测
 api/services/knowledge.cjs      工厂知识条目构建、同步和搜索
 api/services/aiConversations.cjs AI 会话持久化
 apps/web-next/                  唯一 Web 前端
 freecad/                        转子模板和出图 Worker
-wechat-miniprogram/             微信小程序
 scripts/                        本地重启、生产校验和 LaunchDaemon 安装
 tests/                          Node 测试与架构契约
 docs/                           业务、API、前端和部署文档
@@ -92,15 +91,11 @@ KNOWLEDGE_EMBEDDING_DTYPE=q8
 KNOWLEDGE_MODEL_CACHE_DIR=
 KNOWLEDGE_MODEL_OFFLINE=false
 
-ALI_ACCESS_KEY_ID=xxx
-ALI_ACCESS_KEY_SECRET=xxx
-ALI_ASR_APPKEY=xxx
-SIRI_API_TOKEN=xxx
 FREECAD_BIN=
 PYTHONPATH=
 ```
 
-生产环境必须配置 `ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN` 和 `SIRI_API_TOKEN`。
+生产环境必须配置 `ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET` 和 `CORS_ORIGIN`。
 
 登录后可从顶部导航进入 `/setup` 系统初始化页，维护 AI 提供商、模型、API Key 和知识检索运行参数。网页保存的 API Key 使用 `JWT_SECRET` 派生密钥加密，接口只返回“已配置”状态。管理密码、JWT、CORS、端口等部署安全项保持只读，仍由 `.env` 或进程环境提供。Kimi Coding 会员订阅凭证不能替代 Kimi 开放平台 API Key。
 
@@ -121,8 +116,6 @@ PYTHONPATH=
 - 对方案中当前可执行的 AI 步骤，可以继续要求执行并在确认卡片中批准。服务端会重新生成实时方案，只执行仍为 `confirmable + available` 的步骤，完成后返回新的检查结果；不会自动执行生产或扣减库存。
 - 手机端使用全屏会话、历史抽屉和安全区输入框。
 - 输入框可附加 PDF、Excel、CSV、文本和图片；文件分析、业务附件关联与知识入库是三个不同动作，具体见 [业务流程：统一文件与知识边界](./docs/business-flow.md#81-统一文件与知识边界)。
-
-旧 `/voice` 页面只保留跳转到 `/ai`。旧 Web 语音组件已经删除；`POST /api/voice/asr` 仍供微信小程序兼容使用。
 
 PWA Manifest 位于 `apps/web-next/public/manifest.json`，主屏幕入口为 `/ai`。
 

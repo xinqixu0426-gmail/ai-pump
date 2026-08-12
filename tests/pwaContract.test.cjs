@@ -23,9 +23,17 @@ test('PWA 契约：manifest 指向真实 Next 移动助手入口', () => {
     assert.ok(fs.existsSync(path.join(repoRoot, 'apps/web-next/public/icons/apple-touch-icon.png')));
     assert.equal(fs.existsSync(path.join(repoRoot, 'public/manifest.json')), false);
     assert.equal(fs.existsSync(path.join(repoRoot, 'apps/web-next/components/basic-ai-assistant.tsx')), false);
-    assert.equal(fs.existsSync(path.join(repoRoot, 'apps/web-next/lib/voice.ts')), false);
-    assert.match(readUtf8('apps/web-next/app/voice/page.tsx'), /redirect\('\/ai'\)/);
-    assert.doesNotMatch(readUtf8('apps/web-next/app/voice/page.tsx'), /BasicAiAssistant/);
+    for (const removedPath of [
+        'wechat-miniprogram',
+        'apps/web-next/app/voice',
+        'apps/web-next/lib/voice.ts',
+        'api/routes/ai/voice.cjs',
+        'api/routes/ai/siri.cjs',
+        'api/routes/ai/siriResponse.cjs',
+        'public/siri-result.html',
+    ]) {
+        assert.equal(fs.existsSync(path.join(repoRoot, removedPath)), false, `${removedPath} should stay removed`);
+    }
 });
 
 test('PWA 契约：/ai 在移动端隐藏全局业务导航并接管完整视口', () => {

@@ -119,7 +119,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
         : component.name || '',
       model: component.model || '',
       supplier: component.supplier || '',
-      qty: Number(component.qty || 1),
+      qty: Number(component.qty ?? 1),
       unitCost: Number(component.unitCost || 0),
       pricingMode: isStainlessBarrel ? 'lengthCm' as const : 'fixed' as const,
       included: component.included !== false,
@@ -132,7 +132,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
       subassemblyContents: (component.subassemblyContents || []).map((item) => ({
         id: nextSelectionId(),
         name: item.name || '',
-        qty: Number(item.qty || 1),
+        qty: Number(item.qty ?? 1),
         referenceUnitPrice: item.referenceUnitPrice == null ? null : Number(item.referenceUnitPrice),
         note: item.note || '',
       })),
@@ -188,7 +188,7 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
             name: row.name.trim(),
             model: row.model?.trim() || '',
             supplier: row.supplier?.trim() || '',
-            qty: numberValue(String(row.qty)) || 1,
+            qty: numberValue(String(row.qty)),
             unitCost: Math.max(0, numberValue(String(row.unitCost))),
             pricingMode: isStainlessBarrel ? 'lengthCm' : 'fixed',
             included: row.included !== false,
@@ -203,7 +203,7 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
                 .filter((item) => item.name.trim())
                 .map((item) => ({
                   name: item.name.trim(),
-                  qty: numberValue(String(item.qty)) || 1,
+                  qty: numberValue(String(item.qty)),
                   ...(item.referenceUnitPrice == null
                     ? {}
                     : { referenceUnitPrice: Math.max(0, numberValue(String(item.referenceUnitPrice))) }),

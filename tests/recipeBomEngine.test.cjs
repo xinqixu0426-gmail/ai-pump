@@ -238,6 +238,31 @@ test('供应商小套件只生成父项 BOM，组成项不重复计价或扣库�
     assert.equal(result.shellPrice, 45);
 });
 
+test('BOM 引擎拒绝历史模板中的显式零数量，不再静默改成 1', () => {
+    const invalidTemplate = {
+        ...template,
+        partsJson: '[]',
+        shellComponentsJson: JSON.stringify([{
+            name: '铝机筒',
+            model: '铝机筒',
+            qty: 0,
+            unitCost: 8,
+            pricingMode: 'fixed',
+            included: true,
+            componentType: 'standard',
+        }]),
+    };
+
+    assert.throws(
+        () => buildRecipeBomDraft({}, {
+            template: invalidTemplate,
+            partsCatalog,
+            coils,
+        }),
+        /component\.qty 必须是正数/
+    );
+});
+
 test('不锈钢泵壳套件按机筒长度在整体价上加价', () => {
     const bundleTemplate = {
         ...template,

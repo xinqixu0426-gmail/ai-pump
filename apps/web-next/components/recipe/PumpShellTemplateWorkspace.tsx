@@ -72,7 +72,7 @@ export function PumpShellTemplateWorkspace({
             const unitCost = Number(catalogPart?.price || 0) > 0
               ? Number(catalogPart?.price || 0)
               : Number(component.unitCost || 0);
-            return sum + unitCost * Number(component.qty || 1);
+            return sum + unitCost * Number(component.qty ?? 1);
           }, 0);
     return {
       template,
@@ -207,7 +207,7 @@ export function PumpShellTemplateWorkspace({
                         <span className="font-medium text-ink">{component.name || '-'}</span>
                         <span className="text-muted">{component.model || '-'}</span>
                         <span className="text-muted">{component.supplier || '-'}</span>
-                        <span className="text-muted">x{component.qty || 1}</span>
+                        <span className="text-muted">x{component.qty ?? 1}</span>
                         <span className="text-muted">{money(component.unitCost || 0)}</span>
                         <span className="text-muted">
                           {isSubassemblyComponent(component) ? '供应商小套件' : isStainlessStretchBarrelComponent(component) ? '按机筒长度' : '单件'}

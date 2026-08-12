@@ -57,7 +57,6 @@ test('文档契约：生产发布清单必须被根 README 引用并覆盖关键
         'JWT_SECRET',
         'INTERNAL_SECRET',
         'CORS_ORIGIN',
-        'SIRI_API_TOKEN',
         'npm run verify:release',
         'npm run verify:prod-env',
         'npm run db:backup:release',
@@ -195,8 +194,16 @@ test('文档契约：当前技术债只保留未完成事项并明确巨型组�
     assert.doesNotMatch(debt, /recipes-view\.tsx/);
     assert.match(debt, /ai-view\.tsx/);
     assert.match(debt, /需要，但应渐进拆分，禁止一次性重写/);
-    assert.match(debt, /qty=0/);
-    assert.match(debt, /字段白名单/);
+    assert.doesNotMatch(debt, /qty=0/);
+    assert.doesNotMatch(debt, /shellComponentsJson.*字段白名单/);
+
+    const templateCommands = readUtf8('api/services/templateCommands.cjs');
+    const bomEngine = readUtf8('api/services/recipeBomEngine.cjs');
+    const shellEditor = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
+    assert.doesNotMatch(templateCommands, /const normalized = \{\s*\.\.\.component,/);
+    assert.match(templateCommands, /included \? parsePositiveNumber : parseNonNegativeNumber/);
+    assert.doesNotMatch(bomEngine, /component\.qty \|\| 1/);
+    assert.match(shellEditor, /type="number" min="0\.01" step="0\.01" title=\{row\.componentType/);
     assert.match(stateBoundary, /超过约 1,500 行/);
     assert.match(stateBoundary, /\[当前技术债与优化清单\]\(\.\/technical-debt\.md/);
     assert.match(docsReadme, /\[当前技术债与优化清单\]\(\.\/technical-debt\.md\)/);

@@ -3,7 +3,6 @@ const REQUIRED_PRODUCTION_ENV = Object.freeze([
     'JWT_SECRET',
     'INTERNAL_SECRET',
     'CORS_ORIGIN',
-    'SIRI_API_TOKEN',
 ]);
 
 const DISALLOWED_JWT_SECRETS = new Set(['dev_jwt_secret', 'fallback_secret']);

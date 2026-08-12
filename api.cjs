@@ -113,7 +113,7 @@ app.use('/api/health', healthRouter);
 
 const costRouter = require('./api/routes/cost.cjs');
 
-// AI 路由内部按端点鉴权；Siri 使用独立的 SIRI_API_TOKEN 验证
+// AI 路由内部按端点校验 JWT Cookie 或 INTERNAL_SECRET。
 const aiRouter = require('./api/routes/ai.cjs');
 const { requestFullAutoKnowledgeSync } = require('./api/services/knowledgeAutoSync.cjs');
 const {
@@ -299,7 +299,6 @@ function shutdown(signal, exitCode = 0) {
   stopBackupScheduler();
   costRouter.stopCopperPriceScheduler?.();
   quotationExpiryMaintenance.stop();
-  aiRouter.stopBackgroundTasks?.();
   stopAutoKnowledgeSync();
   stopKnowledgeVectorSync();
   stopManagementActionLifecycleMonitor();

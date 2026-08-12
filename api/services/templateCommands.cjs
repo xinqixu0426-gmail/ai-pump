@@ -136,7 +136,7 @@ function normalizeSubassemblyContents(value, field) {
     });
 }
 
-function normalizeShellComponentsJson(value) {
+function normalizeShellComponentsJsonValue(value) {
     const components = JSON.parse(stringifyJsonArray(
         value,
         'shell_components_json'
@@ -160,12 +160,12 @@ function normalizeShellComponentsJson(value) {
                 400
             );
         }
+        const included = component?.included !== false;
         const normalized = {
-            ...component,
             name: String(component?.name || '').trim(),
             model: String(component?.model || '').trim(),
             supplier: String(component?.supplier || '').trim(),
-            qty: parseNonNegativeNumber(
+            qty: (included ? parsePositiveNumber : parseNonNegativeNumber)(
                 component?.qty ?? 1,
                 `shell_components_json[${index}].qty`
             ),
@@ -173,8 +173,13 @@ function normalizeShellComponentsJson(value) {
                 component?.unitCost ?? 0,
                 `shell_components_json[${index}].unitCost`
             ),
-            included: component?.included !== false,
+            pricingMode: componentType === 'stainlessStretchBarrel'
+                ? 'lengthCm'
+                : 'fixed',
+            included,
+            optional: component?.optional === true,
             componentType,
+            note: String(component?.note || '').trim(),
         };
         if (componentType === 'subassembly') {
             const contents = normalizeSubassemblyContents(
@@ -188,16 +193,23 @@ function normalizeShellComponentsJson(value) {
                     400
                 );
             }
-            normalized.pricingMode = 'fixed';
             normalized.subassemblyContents = contents;
-        } else {
-            normalized.pricingMode = componentType === 'stainlessStretchBarrel'
-                ? 'lengthCm'
-                : 'fixed';
-            delete normalized.subassemblyContents;
         }
         return normalized;
     }));
+}
+
+function normalizeShellComponentsJson(value) {
+    try {
+        return normalizeShellComponentsJsonValue(value);
+    } catch (error) {
+        if (error instanceof CommandExecutionError) throw error;
+        throw templateCommandError(
+            'template_shell_components_invalid',
+            error?.message || 'shell_components_json 不合法',
+            400
+        );
+    }
 }
 
 function validateShellComponents(db, costMode, componentsJson) {

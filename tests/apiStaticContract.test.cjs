@@ -1869,7 +1869,7 @@ test('API 静态契约：生产环境不得使用默认 JWT 密钥且必须校�
     assert.match(auth, /isProductionEnvironment/);
     assert.match(middleware, /isProductionEnvironment/);
     assert.match(verifyScript, /validateProductionEnvironment/);
-    for (const name of ['ACCESS_PASSWORD', 'JWT_SECRET', 'INTERNAL_SECRET', 'CORS_ORIGIN', 'SIRI_API_TOKEN']) {
+    for (const name of ['ACCESS_PASSWORD', 'JWT_SECRET', 'INTERNAL_SECRET', 'CORS_ORIGIN']) {
         assert.match(environment, new RegExp(name));
         assert.match(envExample, new RegExp(`${name}=`));
     }
@@ -1877,15 +1877,6 @@ test('API 静态契约：生产环境不得使用默认 JWT 密钥且必须校�
     assert.doesNotMatch(middleware, /fallback_secret/);
     assert.match(auth, /生产环境必须配置 JWT_SECRET/);
     assert.match(middleware, /生产环境必须配置 JWT_SECRET/);
-});
-
-test('API 静态契约：生产环境 Siri 入口必须配置独立 token', () => {
-    const siri = readUtf8(path.join(repoRoot, 'api/routes/ai/siri.cjs'));
-
-    assert.match(siri, /process\.env\.SIRI_API_TOKEN/);
-    assert.match(siri, /isProductionEnvironment/);
-    assert.match(siri, /生产环境必须配置 SIRI_API_TOKEN/);
-    assert.match(siri, /if \(IS_PRODUCTION && !SIRI_TOKEN\)/);
 });
 
 test('API 静态契约：系统设置写入必须进入审计日志', () => {
@@ -1918,15 +1909,6 @@ test('API 静态契约：AI 工厂配置修改必须进入审计日志且不能�
     assert.match(promptRoute, /不能覆盖核心安全、数据来源或写入确认规则/);
     assert.match(promptRoute, /LEGACY_BACKUP_KEY/);
     assert.doesNotMatch(promptRoute, /INSERT OR REPLACE INTO config/);
-});
-
-test('API 静态契约：微信小程序不得提交固定 INTERNAL_SECRET', () => {
-    const config = readUtf8(path.join(repoRoot, 'wechat-miniprogram/config.js'));
-    const apiUtil = readUtf8(path.join(repoRoot, 'wechat-miniprogram/utils/api.js'));
-
-    assert.match(config, /INTERNAL_SECRET:\s*''/);
-    assert.doesNotMatch(config, /pump_internal_|[a-f0-9]{32,}/i);
-    assert.match(apiUtil, /INTERNAL_SECRET 未配置/);
 });
 
 test('API 静态契约：转子页面表单不得直接使用 FreeCAD snake_case 参数名', () => {

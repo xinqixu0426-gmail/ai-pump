@@ -301,6 +301,7 @@ export function ShellCostEditor({
 
   function isComponentComplete(row: ShellComponentFormRow) {
     if (!row.name.trim() || !String(row.model || '').trim()) return false;
+    if (row.included !== false && Number(row.qty) <= 0) return false;
     if (row.componentType !== 'subassembly') return true;
     return row.subassemblyContents.length > 0
       && row.subassemblyContents.every((item) => item.name.trim() && Number(item.qty) > 0);
@@ -472,7 +473,7 @@ export function ShellCostEditor({
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">{row.componentType === 'stainlessStretchBarrel' ? '基准长度(cm)' : '数量'}</span>
-                      <input value={String(row.qty)} onChange={(event) => updateComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" title={row.componentType === 'stainlessStretchBarrel' ? '不锈钢拉伸筒的基准长度，单位 cm' : '计价数量'} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <input value={String(row.qty)} onChange={(event) => updateComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0.01" step="0.01" title={row.componentType === 'stainlessStretchBarrel' ? '不锈钢拉伸筒的基准长度，单位 cm' : '计价数量'} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-muted">

@@ -837,6 +837,82 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(template.capabilityId === 'templates.create', '新增模板缺少正式 capability 回执');
     assert(template.auditId, '新增模板缺少强审计回执');
     assert(templateReplay.idempotentReplay === true, '新增模板重复请求没有命中幂等回执');
+
+    const shellComponent = (await request(
+        '新增泵壳搭配零件',
+        'POST',
+        '/api/parts',
+        {
+            model: `${unique}-SHELL-COMPONENT`,
+            category: '泵壳搭配',
+            price: 8,
+            supplier: '自动验收',
+            stock: 0,
+            idempotencyKey: `deep:shell-component-create:${unique}`,
+        }
+    )).payload.data;
+    const componentTemplate = (await request(
+        '新增自由搭配模板并忽略未知组件字段',
+        'POST',
+        '/api/templates',
+        {
+            shellModel: `${unique}-COMPONENT-SHELL`,
+            description: '组件数量与字段白名单验收',
+            partsJson: '[]',
+            shellComponentsJson: JSON.stringify([{
+                id: 'client-only-row-id',
+                name: '验收组件',
+                model: shellComponent.model,
+                supplier: shellComponent.supplier,
+                qty: 0.25,
+                unitCost: 8,
+                included: true,
+                componentType: 'standard',
+                unexpected: { clientOnly: true },
+            }]),
+            rotorParamsJson: '{}',
+            assemblyWage: 0,
+            packingWage: 0,
+            surfaceTreatmentMode: 'none',
+            surfaceTreatmentCost: 0,
+            costMode: 'components',
+            bundleCost: 0,
+            idempotencyKey: `deep:component-template-create:${unique}`,
+        }
+    )).payload.data;
+    const componentTemplateDetail = (await request(
+        '读取自由搭配模板字段白名单结果',
+        'GET',
+        `/api/templates/${componentTemplate.id}`
+    )).payload.data;
+    const [savedComponent] = JSON.parse(componentTemplateDetail.shellComponentsJson);
+    assert(savedComponent.qty === 0.25, '自由搭配模板合法小数数量未原样保存');
+    assert(savedComponent.id === undefined, '自由搭配模板保存了客户端临时 id');
+    assert(savedComponent.unexpected === undefined, '自由搭配模板保存了未知字段');
+    const invalidQuantity = await request(
+        '拒绝自由搭配模板零数量',
+        'POST',
+        '/api/templates',
+        {
+            shellModel: `${unique}-INVALID-QTY`,
+            partsJson: '[]',
+            shellComponentsJson: JSON.stringify([{
+                name: '验收组件',
+                model: shellComponent.model,
+                supplier: shellComponent.supplier,
+                qty: 0,
+                unitCost: 8,
+                included: true,
+                componentType: 'standard',
+            }]),
+            rotorParamsJson: '{}',
+            costMode: 'components',
+            idempotencyKey: `deep:invalid-component-template:${unique}`,
+        },
+        [400]
+    );
+    assert(/必须是正数/.test(invalidQuantity.payload?.error || ''), '零数量模板未返回明确校验错误');
+
     const updatedTemplate = (await request(
         '修改模板正式命令',
         'PATCH',

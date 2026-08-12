@@ -4,7 +4,7 @@
 >
 > 规范等级：强制（Normative）
 >
-> 适用范围：所有 `/api/*`、`/siri-result`、AI tool 对应能力、微信小程序和内部服务调用。
+> 适用范围：所有 `/api/*`、AI tool 对应能力和内部服务调用。
 
 本文定义水泵订单及生产管理系统所有 API 必须遵守的稳定契约。它约束的是“能力应该怎样工作”，不是当前接口清单，也不是开发步骤。
 
@@ -26,7 +26,7 @@
 2. HTTP route 只负责鉴权、兼容适配、参数校验、调用 service 和转换响应。
 3. 业务计算、状态机、跨表编排和事务必须位于领域 service；禁止在多个 route、AI executor 或页面重复实现。
 4. `api/services/costEngine.cjs` 是正式成本计算的唯一权威。
-5. AI、Siri、微信小程序和内部自动化必须调用正式 API，不得直接生成 SQL、调用数据库 helper 或绕过状态机。
+5. AI 和内部自动化必须调用正式 API，不得直接生成 SQL、调用数据库 helper 或绕过状态机。
 6. 知识库和 RAG 只能提供背景、经验和检索候选，不能作为实时库存、价格、成本、报价金额或订单状态的最终来源。
 7. Web 前端 API 请求必须通过 `proxyRequest()`、`proxyFetch()` 或 `proxyStreamFetch()`。
 8. API 对外字段使用 camelCase；SQLite 列名保持 snake_case。
@@ -56,7 +56,7 @@
   transactionality,
   audit,
   timeoutMs,
-  callers,               // web / ai / wechat / siri / internal
+  callers,               // web / ai / internal
   deprecated
 }
 ```
@@ -144,7 +144,7 @@ HTTP route 必须只包含：
 - 文件、CAD、打印或外部 API 编排。
 - AI 调查聚合和业务规则配置。
 
-同一业务动作不得在 Web route、AI executor、Siri handler 和定时任务中各写一套实现。
+同一业务动作不得在 Web route、AI executor 和定时任务中各写一套实现。
 
 ## 5. 数据事实来源
 
@@ -324,7 +324,7 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
 - High/Critical 命令的审计写入失败必须使命令失败并回滚；其他命令是否允许尽力审计必须在能力登记中明确。
 - 系统初始化和基础设施 UPSERT 是有限例外，不能作为业务表绕过 helper 的先例。
 
-## 10. AI、Siri 和自动化契约
+## 10. AI 和自动化契约
 
 1. AI tool 必须映射已登记 capability，不得拥有独立业务实现。
 2. executor 只能通过内部 HTTP client 调用正式 API。
@@ -334,7 +334,7 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
 6. CAD 出图、打印、文件变更、知识同步等非 SQL 副作用也必须标记为 command/write。
 7. AI 不得直接生成 SQL，不得把知识库文本当作实时业务事实。
 8. AI 调查接口只能聚合正式 service 输出；AI 可以解释，不能重算成本、库存或状态机。
-9. Siri、微信小程序和内部调用必须遵守同一幂等、版本、确认和回执协议，不能另开低安全入口。
+9. 内部调用必须遵守同一幂等、版本、确认和回执协议，不能另开低安全入口。
 10. AI 工具的 executor 归属和结果 provenance 必须从能力注册表读取；禁止在 dispatcher、领域 executor 或 UI 中维护重复名单。
 11. 自然语言理解由模型负责。每轮必须先提交结构化目标/风险信封，至少包含当前目标、`conversation/query/analysis/command` 模式、业务域、上下文依赖、回答形式、歧义、所需事实和初始调查假设；不得用业务关键词正则、停用词删除或型号模式替代语义理解。正则只允许用于 ID、数值、单位、token 和传输协议等确定性语法校验。
 12. 模型只选择能力注册表中的稳定 capability/tool 名称，不得选择或生成原始 URL。服务端能力目录根据意图信封和注册表生成本轮 allowlist；新增能力完成登记和 tool schema 后应自动进入规划目录，不得再修改分支式关键词路由。
@@ -353,7 +353,6 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
 - 默认所有 `/api/*` 都需要 JWT Cookie 或明确登记的服务身份。
 - 公开入口必须逐项登记，不允许因为挂载顺序意外公开。
 - 内部调用使用 `x-internal-secret` 或后续正式服务身份，不依赖来源 IP。
-- Siri 使用独立 token；微信小程序应从共享 secret 迁移到 OpenID/服务端会话。
 - 认证只证明“是谁”，能力注册与领域权限决定“能做什么”。
 - 高风险命令必须在 service 再检查目标资源和业务状态，不能只依赖前端隐藏按钮。
 - 日志、错误和响应不得泄露密钥、Cookie、完整 token 或敏感文件内容。
@@ -365,7 +364,7 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
 - `Id/CreatedAt/UpdatedAt`、snake_case 入参、`paintingWage`、`boxType` 等只允许读取旧数据或服务旧调用方。
 - 正式字段使用 `id/createdAt/updatedAt`、camelCase、`surfaceTreatmentMode`、`surfaceTreatmentCost`、`packingPartsJson`。
 - 废弃必须登记 `deprecated=true`、替代入口、已知调用方和删除条件。
-- 删除前必须检查 Web、AI、微信小程序、Siri、内部服务和外部自动化，并至少经过一个兼容周期。
+- 删除前必须检查 Web、AI、内部服务和外部自动化，并至少经过一个兼容周期。
 - 不得擅自删除 voice、model-variants 等仍有真实调用方的能力。
 
 ## 13. 超时、重试和资源限制
@@ -407,7 +406,7 @@ API 变更只有同时满足以下条件才算完成：
 - sourceOfTruth 唯一且明确。
 - Query 无副作用。
 - Command 的风险、事务、幂等、并发、确认和审计符合本契约。
-- AI/微信/Siri 只调用正式 API。
+- AI 和内部自动化只调用正式 API。
 - `api-reference.md` 已更新。
 - `api-sop.md` 的变更流程已执行。
 - 自动化测试和构建通过。

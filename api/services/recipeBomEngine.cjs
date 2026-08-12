@@ -51,12 +51,30 @@ function getCableAccessoryName(partsCatalog, cableModel, supplier = '', accessor
     return getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier, accessoryType);
 }
 
-function lengthCmQty(component, customBarrelLength) {
-    if (component.pricingMode !== 'lengthCm') return Number(component.qty || 1);
-    if (isStainlessStretchBarrelComponent(component)) {
-        return Number(customBarrelLength || Number(component.qty || 0) * 10) / 10;
+function positiveTemplateQuantity(value, field = 'component.qty') {
+    const quantity = value === undefined || value === null || value === ''
+        ? 1
+        : Number(value);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new Error(`${field} 必须是正数`);
     }
-    return Number(component.qty || 1);
+    return quantity;
+}
+
+function lengthCmQty(component, customBarrelLength) {
+    const templateQty = positiveTemplateQuantity(component?.qty);
+    if (component.pricingMode !== 'lengthCm') return templateQty;
+    if (isStainlessStretchBarrelComponent(component)) {
+        const customLength = customBarrelLength === undefined
+            || customBarrelLength === null
+            || customBarrelLength === ''
+            ? null
+            : Number(customBarrelLength);
+        return Number.isFinite(customLength) && customLength > 0
+            ? customLength / 10
+            : templateQty;
+    }
+    return templateQty;
 }
 
 function isStainlessStretchBarrelComponent(component) {
@@ -74,9 +92,12 @@ function normalizeSubassemblyContents(component) {
         ? component.subassemblyContents
         : [];
     return contents
-        .map(item => ({
+        .map((item, index) => ({
             name: String(item?.name || '').trim(),
-            qty: Number(item?.qty || 1),
+            qty: positiveTemplateQuantity(
+                item?.qty,
+                `component.subassemblyContents[${index}].qty`
+            ),
             ...(item?.referenceUnitPrice != null
                 && Number.isFinite(Number(item.referenceUnitPrice))
                 && Number(item.referenceUnitPrice) >= 0

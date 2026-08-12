@@ -27,9 +27,8 @@ export PATH=/opt/homebrew/bin:$PATH
 
 - 确认当前机器上的真实 `.env` 已按 `.env.example` 补齐，真实密钥不得提交到仓库。
 - 配置 `DB_BACKUP_MIRROR_DIR` 指向另一块磁盘或备份设备；未配置时明确记录本次发布只有本机备份。
-- 生产环境必填：`ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN`、`SIRI_API_TOKEN`。
-- 如启用 AI、语音或出图，确认 `DEEPSEEK_API_KEY`、`ALI_ACCESS_KEY_ID`、`ALI_ACCESS_KEY_SECRET`、`ALI_ASR_APPKEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
-- 确认微信小程序包内没有真实 `INTERNAL_SECRET`；当前小程序鉴权仍是兼容方案，后续应迁移到 OpenID 或服务端会话。
+- 生产环境必填：`ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN`。
+- 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
 
 ```bash

@@ -148,7 +148,6 @@ pilot-a profile（试点工厂 A）
 | `float-cable` | 浮球与电缆 | 线径、长度、铜套类型、新界式差价、电缆配件费 | `catalog`、`product-bom` |
 | `rotor-drawing` | 转子出图 | 模板参数、FreeCAD 出图、历史、关联与打印 | 可独立启用；启用 `pump-shell` 时可读取模板贡献 |
 | `ai-assistant` | AI 助手 | 查询、受控写操作、成本和订单工具 | 按启用模块动态注册工具 |
-| `voice-channels` | 语音入口 | PWA、Siri、微信小程序语音入口 | `ai-assistant` |
 
 初始拆分时可以把高度关联的 `pump-shell`、`pump-model-variant`、`barrel-long-screw` 作为一个发布包，但代码边界仍应分别保留，方便后续根据试点反馈重新组合。
 

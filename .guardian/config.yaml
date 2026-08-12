@@ -16,7 +16,6 @@ project:
     - "freecad"
     - "scripts"
     - "tests"
-    - "wechat-miniprogram"
 
   modules:
     - id: "governance"
@@ -46,9 +45,6 @@ project:
     - id: "freecad"
       paths:
         - "freecad/**"
-    - id: "wechat-miniprogram"
-      paths:
-        - "wechat-miniprogram/**"
 
   authorities:
     architecture:
@@ -208,7 +204,6 @@ technicalDebt:
     - "freecad/**"
     - "scripts/**"
     - "tests/**"
-    - "wechat-miniprogram/**"
   markers:
     - "TODO"
     - "FIXME"

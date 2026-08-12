@@ -17,7 +17,6 @@ function validProductionEnv(overrides = {}) {
         JWT_SECRET: 'production-jwt-secret',
         INTERNAL_SECRET: 'internal-secret',
         CORS_ORIGIN: 'https://pump.example.com',
-        SIRI_API_TOKEN: 'siri-token',
         PORT: '3002',
         INTERNAL_API_TIMEOUT_MS: '15000',
         ...overrides,
@@ -66,7 +65,6 @@ test('运行环境：生产校验集中报告缺失项、默认密钥和无效�
         'JWT_SECRET',
         'INTERNAL_SECRET',
         'CORS_ORIGIN',
-        'SIRI_API_TOKEN',
     ]);
 
     const errors = validateProductionEnvironment(validProductionEnv({

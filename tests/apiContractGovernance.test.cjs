@@ -14,11 +14,32 @@ function escapeRegex(value) {
 }
 
 function routeDeclarations(source) {
-    return [...source.matchAll(
+    const matches = [...source.matchAll(
         /router\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g
+    )];
+    return matches.map((match, index) => {
+        const routeSource = source.slice(
+            match.index,
+            matches[index + 1]?.index ?? source.length
+        );
+        return {
+            method: match[1].toUpperCase(),
+            path: match[2],
+            queryParams: [...new Set(
+                [...routeSource.matchAll(/req\.query(?:\?\.)?\.([A-Za-z][A-Za-z0-9]*)/g)]
+                    .map((queryMatch) => queryMatch[1])
+            )],
+        };
+    });
+}
+
+function collectReferenceEndpoints(reference) {
+    return [...reference.matchAll(
+        /^\|\s*`(GET|POST|PUT|PATCH|DELETE)`\s*\|\s*`([^`]+)`\s*\|([^\n]*)$/gm
     )].map((match) => ({
-        method: match[1].toUpperCase(),
-        path: match[2],
+        method: match[1],
+        path: match[2].split('?')[0],
+        row: match[0],
     }));
 }
 
@@ -167,29 +188,75 @@ test('API 治理契约：能力必须声明读写、事实来源和完整写操�
     assert.match(contract, /未声明 `access` 的能力按写操作处理，默认拒绝执行/);
 });
 
-test('API 当前契约：每个 Express Method 与 Path 都必须出现在 api-reference', () => {
+test('API 当前契约：Express 路由与 api-reference 必须双向唯一对应', () => {
     const reference = readUtf8('docs/api-reference.md');
     const endpoints = collectHttpEndpoints();
-    const seen = new Set();
+    const referenceEndpoints = collectReferenceEndpoints(reference);
+    const codeByKey = new Map();
+    const referenceByKey = new Map();
 
     assert.ok(endpoints.length > 0, 'HTTP endpoint inventory must not be empty');
+    assert.ok(referenceEndpoints.length > 0, 'API reference inventory must not be empty');
 
     for (const endpoint of endpoints) {
         const key = `${endpoint.method} ${endpoint.path}`;
         assert.equal(
-            seen.has(key),
+            codeByKey.has(key),
             false,
             `duplicate HTTP endpoint declaration: ${key} (${endpoint.source})`
         );
-        seen.add(key);
-
-        const rowPattern = new RegExp(
-            `\\| \`${escapeRegex(endpoint.method)}\` \\| \`${escapeRegex(endpoint.path)}(?:\\?[^\\\`]*)?\``
-        );
-        assert.match(
-            reference,
-            rowPattern,
-            `${key} from ${endpoint.source} is missing from docs/api-reference.md`
-        );
+        codeByKey.set(key, endpoint);
     }
+
+    for (const endpoint of referenceEndpoints) {
+        const key = `${endpoint.method} ${endpoint.path}`;
+        assert.equal(
+            referenceByKey.has(key),
+            false,
+            `duplicate API reference row: ${key}`
+        );
+        referenceByKey.set(key, endpoint);
+    }
+
+    assert.deepEqual(
+        [...referenceByKey.keys()].sort(),
+        [...codeByKey.keys()].sort(),
+        'docs/api-reference.md and Express routes must contain the same Method + Path set'
+    );
+
+    assert.match(
+        reference,
+        new RegExp(`当前源码共有 ${endpoints.length} 个 Express 路由声明`),
+        'documented Express route count must match source'
+    );
+
+    for (const [key, endpoint] of codeByKey) {
+        const referenceRow = referenceByKey.get(key).row;
+        for (const queryParam of endpoint.queryParams) {
+            assert.match(
+                referenceRow,
+                new RegExp(`\\b${escapeRegex(queryParam)}\\b`),
+                `${key} from ${endpoint.source} is missing documented query parameter ${queryParam}`
+            );
+        }
+    }
+});
+
+test('API 当前契约：文档中的 AI 与业务能力数量必须来自注册表', () => {
+    const reference = readUtf8('docs/api-reference.md');
+    const {
+        AI_CAPABILITY_REGISTRY,
+        BUSINESS_CAPABILITY_REGISTRY,
+    } = require('../api/capabilities/registry.cjs');
+
+    assert.match(
+        reference,
+        new RegExp(`${Object.keys(AI_CAPABILITY_REGISTRY).length} 个 AI 工具`),
+        'documented AI tool count must match the capability registry'
+    );
+    assert.match(
+        reference,
+        new RegExp(`当前 ${Object.keys(BUSINESS_CAPABILITY_REGISTRY).length} 个已迁移正式业务`),
+        'documented business capability count must match the capability registry'
+    );
 });
