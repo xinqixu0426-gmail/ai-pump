@@ -8,6 +8,7 @@
     "build": "npm run web-next:build",
     "lint": "eslint api.cjs \"api/**/*.cjs\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\" && npm --prefix apps/web-next run lint",
     "test": "node scripts/run-tests.cjs",
+    "test:mcp": "node --test tests/hermesMcp.test.cjs",
     "verify:api-contract": "node --test tests/apiContractGovernance.test.cjs tests/aiCapabilityRegistry.test.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs --scope=manual",
@@ -51,6 +52,7 @@
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
     "@huggingface/transformers": "4.2.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@napi-rs/canvas": "0.1.100",
     "@tesseract.js-data/chi_sim": "1.0.0",
     "@tesseract.js-data/eng": "1.0.0",
@@ -66,7 +68,8 @@
     "pdfjs-dist": "5.4.296",
     "sqlite-vec": "0.1.9",
     "tesseract.js": "7.0.0",
-    "word-extractor": "^1.0.4"
+    "word-extractor": "^1.0.4",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

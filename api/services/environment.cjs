@@ -48,11 +48,79 @@ function getInternalApiTimeoutMs(env = process.env) {
     });
 }
 
+function isHermesMcpEnabled(env = process.env) {
+    return String(env.HERMES_MCP_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
+function getHermesMcpRateLimit(env = process.env) {
+    return parseInteger(env.HERMES_MCP_RATE_LIMIT_PER_MINUTE, {
+        name: 'HERMES_MCP_RATE_LIMIT_PER_MINUTE',
+        defaultValue: 60,
+        min: 1,
+        max: 600,
+    });
+}
+
+function getHermesMcpMaxResultBytes(env = process.env) {
+    return parseInteger(env.HERMES_MCP_MAX_RESULT_BYTES, {
+        name: 'HERMES_MCP_MAX_RESULT_BYTES',
+        defaultValue: 262144,
+        min: 16384,
+        max: 1048576,
+    });
+}
+
 function parseCorsOrigins(value) {
     return String(value || '')
         .split(',')
         .map(origin => origin.trim())
         .filter(Boolean);
+}
+
+function parseHostList(value) {
+    return String(value || '')
+        .split(',')
+        .map(host => host.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function getHermesMcpAllowedHosts(env = process.env) {
+    const hosts = new Set(['localhost', '127.0.0.1', '::1']);
+    for (const origin of parseCorsOrigins(env.CORS_ORIGIN)) {
+        try {
+            hosts.add(new URL(origin).hostname.toLowerCase());
+        } catch {
+            // CORS_ORIGIN 的整体合法性仍由生产环境校验负责。
+        }
+    }
+    for (const host of parseHostList(env.HERMES_MCP_ALLOWED_HOSTS)) hosts.add(host);
+    return [...hosts];
+}
+
+function validateHermesMcpConfiguration(env = process.env) {
+    if (!isHermesMcpEnabled(env)) return [];
+    const errors = [];
+    const token = String(env.HERMES_MCP_TOKEN || '').trim();
+    if (token.length < 32) {
+        errors.push('启用 Hermes MCP 时 HERMES_MCP_TOKEN 至少需要 32 个字符');
+    }
+    for (const name of ['INTERNAL_SECRET', 'JWT_SECRET', 'ACCESS_PASSWORD']) {
+        const other = String(env[name] || '').trim();
+        if (token && other && token === other) {
+            errors.push(`HERMES_MCP_TOKEN 不能与 ${name} 相同`);
+        }
+    }
+    try {
+        getHermesMcpRateLimit(env);
+    } catch (error) {
+        errors.push(error.message);
+    }
+    try {
+        getHermesMcpMaxResultBytes(env);
+    } catch (error) {
+        errors.push(error.message);
+    }
+    return errors;
 }
 
 function validateProductionEnvironment(env = process.env) {
@@ -77,6 +145,7 @@ function validateProductionEnvironment(env = process.env) {
     } catch (error) {
         errors.push(error.message);
     }
+    errors.push(...validateHermesMcpConfiguration(env));
     return errors;
 }
 
@@ -92,7 +161,13 @@ module.exports = {
     isProductionEnvironment,
     getServerPort,
     getInternalApiTimeoutMs,
+    getHermesMcpAllowedHosts,
+    getHermesMcpMaxResultBytes,
+    getHermesMcpRateLimit,
+    isHermesMcpEnabled,
     parseCorsOrigins,
+    parseHostList,
+    validateHermesMcpConfiguration,
     validateProductionEnvironment,
     assertProductionEnvironment,
 };

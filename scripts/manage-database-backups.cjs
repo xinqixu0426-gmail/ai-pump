@@ -53,6 +53,8 @@ function selectedBackup(options, root) {
 }
 
 async function create(options, root) {
+    const gitCommit = optionValue(options, 'git-commit');
+    const mirrorRoot = optionValue(options, 'mirror-dir');
     const sourcePath = resolveProjectPath(options.source || 'pump.db');
     const db = new Database(sourcePath, { readonly: true, fileMustExist: true });
     try {
@@ -60,8 +62,8 @@ async function create(options, root) {
             type: options.type || 'release',
             root,
             sourcePath,
-            gitCommit: optionValue(options, 'git-commit'),
-            mirrorRoot: optionValue(options, 'mirror-dir'),
+            gitCommit,
+            mirrorRoot,
         });
         return {
             success: true,

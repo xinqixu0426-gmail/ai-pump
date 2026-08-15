@@ -1,6 +1,6 @@
 # 生产发布检查清单
 
-> 更新于 2026-08-05。
+> 更新于 2026-08-16。
 
 日常发布优先在 Windows 项目根目录运行：
 
@@ -29,6 +29,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 配置 `DB_BACKUP_MIRROR_DIR` 指向另一块磁盘或备份设备；未配置时明确记录本次发布只有本机备份。
 - 生产环境必填：`ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN`。
 - 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
+- 如启用 Hermes MCP V1，设置 `HERMES_MCP_ENABLED=true`，并使用独立随机 `HERMES_MCP_TOKEN`；该 token 至少 32 字符且不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `HERMES_MCP_ALLOWED_HOSTS`。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
 
 ```bash
@@ -72,6 +73,28 @@ npm run verify:release
 
 `verify:prod-env` 会检查生产必填环境变量、拒绝开发默认密钥，并校验 `PORT` 与
 `INTERNAL_API_TIMEOUT_MS`（允许 1000-120000 毫秒）。任一环节失败都不要继续重启生产服务。
+
+Hermes NAS 的 `~/.hermes/.env` 只保存 MCP 专用 token：
+
+```dotenv
+PUMP_FACTORY_MCP_TOKEN=<与 Mac Mini HERMES_MCP_TOKEN 相同的独立随机值>
+```
+
+`~/.hermes/config.yaml` 使用远程 Streamable HTTP，并明确禁止并行工具调用：
+
+```yaml
+mcp_servers:
+  pump_factory:
+    url: "https://xuxinqi.xin/mcp"
+    headers:
+      Authorization: "Bearer ${PUMP_FACTORY_MCP_TOKEN}"
+    enabled: true
+    supports_parallel_tool_calls: false
+    timeout: 30
+    connect_timeout: 15
+```
+
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，应发现 12 个只读工具；未授权请求应返回 `401`，写工具不应出现在列表中。回滚时先在 Mac Mini 设置 `HERMES_MCP_ENABLED=false` 并重启 API，再从 Hermes 配置中禁用 `pump_factory`；不需要回滚数据库。
 
 ## 3. 重启服务
 

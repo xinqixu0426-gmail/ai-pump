@@ -5,6 +5,10 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const Database = require('better-sqlite3');
 const XLSX = require('@e965/xlsx');
+const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const {
+    StreamableHTTPClientTransport,
+} = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
 const {
     createCanvas,
     loadImage,
@@ -15,10 +19,16 @@ const { buildPdfBuffer } = require('../tests/helpers/pdfFixture.cjs');
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
 const root = process.cwd();
+const sourceDatabasePath = path.resolve(
+    process.env.DEEP_API_SOURCE_DATABASE_PATH || path.join(root, 'pump.db')
+);
 const results = [];
 let child = null;
 let cookie = '';
 let baseUrl = '';
+const HERMES_MCP_TEST_TOKEN = 'deep-hermes-mcp-token-0123456789abcdef';
+const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
+const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access-password';
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -159,6 +169,53 @@ async function requestDownload(label, pathname) {
     }
     results.push({ label, status: response.status, ms: Date.now() - startedAt });
     return bytes;
+}
+
+async function testHermesMcpReadOnlyFlow() {
+    const startedAt = Date.now();
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
+        requestInit: {
+            headers: { Authorization: `Bearer ${HERMES_MCP_TEST_TOKEN}` },
+        },
+    });
+    const client = new Client({ name: 'pump-deep-api-smoke', version: '1.0.0' });
+    try {
+        await client.connect(transport);
+        const listed = await client.listTools();
+        assert(listed.tools.length === 12, 'Hermes MCP 未返回 12 个 V1 只读工具');
+        assert(
+            listed.tools.every(tool => tool.annotations?.readOnlyHint === true),
+            'Hermes MCP 暴露了非只读工具'
+        );
+        assert(
+            !listed.tools.some(tool => tool.name === 'create_part'),
+            'Hermes MCP 暴露了写工具 create_part'
+        );
+
+        const result = await client.callTool({
+            name: 'get_copper_price',
+            arguments: {},
+        });
+        assert(
+            result.isError !== true,
+            `Hermes MCP 正式铜价查询失败: ${JSON.stringify(result).slice(0, 500)}`
+        );
+        assert(
+            result.structuredContent?.mcp?.capabilityId === 'ai.get_copper_price',
+            'Hermes MCP 返回缺少 capabilityId'
+        );
+        assert(
+            result.structuredContent?.mcp?.verified === true,
+            'Hermes MCP 返回缺少正式 API 证据'
+        );
+        results.push({
+            label: 'Hermes MCP真实只读调用',
+            status: 200,
+            ms: Date.now() - startedAt,
+        });
+    } finally {
+        await client.close();
+    }
 }
 
 function readGetPuritySnapshot(databasePath) {
@@ -2716,7 +2773,10 @@ async function run() {
         fs.cpSync(path.join(root, 'api'), path.join(temp, 'api'), { recursive: true });
         fs.copyFileSync(path.join(root, 'api.cjs'), path.join(temp, 'api.cjs'));
         fs.mkdirSync(path.join(temp, 'public', 'drawings'), { recursive: true });
-        const sourceDb = new Database(path.join(root, 'pump.db'), { readonly: true });
+        if (!fs.existsSync(sourceDatabasePath)) {
+            throw new Error(`深度 API 测试源数据库不存在: ${sourceDatabasePath}`);
+        }
+        const sourceDb = new Database(sourceDatabasePath, { readonly: true });
         await sourceDb.backup(path.join(temp, 'pump.db'));
         sourceDb.close();
 
@@ -2732,6 +2792,11 @@ async function run() {
                 NEXT_ORIGIN: `http://127.0.0.1:${unavailableNextPort}`,
                 KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED: 'false',
                 KNOWLEDGE_HYBRID_SEARCH_ENABLED: 'false',
+                HERMES_MCP_ENABLED: 'true',
+                HERMES_MCP_TOKEN: HERMES_MCP_TEST_TOKEN,
+                HERMES_MCP_ALLOWED_HOSTS: '127.0.0.1',
+                INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,
+                ACCESS_PASSWORD: DEEP_API_ACCESS_PASSWORD,
                 NODE_PATH: path.join(root, 'node_modules'),
             },
             stdio: ['ignore', 'pipe', 'pipe'],
@@ -2752,8 +2817,16 @@ async function run() {
         const proxyFailure = await request('前端转发失败返回 502', 'GET', '/frontend-proxy-check', undefined, [502]);
         assert(String(proxyFailure.payload).includes('前端服务暂时不可用'), '前端转发失败提示不明确');
         await request('未登录访问保护', 'GET', '/api/parts', undefined, [401]);
+        await request(
+            'Hermes MCP未授权访问',
+            'POST',
+            '/mcp',
+            { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+            [401]
+        );
+        await testHermesMcpReadOnlyFlow();
         const login = await request('登录', 'POST', '/api/auth/login', {
-            password: process.env.ACCESS_PASSWORD,
+            password: DEEP_API_ACCESS_PASSWORD,
         });
         cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
         assert(cookie.startsWith('token='), '登录未返回 token Cookie');

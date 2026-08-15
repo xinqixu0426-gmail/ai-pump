@@ -4,8 +4,12 @@ const assert = require('node:assert/strict');
 const {
     REQUIRED_PRODUCTION_ENV,
     assertProductionEnvironment,
+    getHermesMcpAllowedHosts,
+    getHermesMcpMaxResultBytes,
+    getHermesMcpRateLimit,
     getInternalApiTimeoutMs,
     getServerPort,
+    isHermesMcpEnabled,
     isProductionEnvironment,
     parseCorsOrigins,
     validateProductionEnvironment,
@@ -56,6 +60,47 @@ test('运行环境：CORS 来源去空白并排除空项', () => {
         ['https://a.example.com', 'https://b.example.com']
     );
     assert.deepEqual(parseCorsOrigins(''), []);
+});
+
+test('运行环境：Hermes MCP 默认关闭，启用时使用独立强 token 和有界资源参数', () => {
+    assert.equal(isHermesMcpEnabled({}), false);
+    assert.equal(isHermesMcpEnabled({ HERMES_MCP_ENABLED: 'true' }), true);
+    assert.equal(getHermesMcpRateLimit({}), 60);
+    assert.equal(getHermesMcpMaxResultBytes({}), 262144);
+    assert.throws(
+        () => getHermesMcpRateLimit({ HERMES_MCP_RATE_LIMIT_PER_MINUTE: '0' }),
+        /1-600/
+    );
+    assert.throws(
+        () => getHermesMcpMaxResultBytes({ HERMES_MCP_MAX_RESULT_BYTES: '1000' }),
+        /16384-1048576/
+    );
+    assert.deepEqual(
+        getHermesMcpAllowedHosts({
+            CORS_ORIGIN: 'https://pump.example.com',
+            HERMES_MCP_ALLOWED_HOSTS: 'mcp.internal.example',
+        }),
+        ['localhost', '127.0.0.1', '::1', 'pump.example.com', 'mcp.internal.example']
+    );
+
+    const shortTokenErrors = validateProductionEnvironment(validProductionEnv({
+        HERMES_MCP_ENABLED: 'true',
+        HERMES_MCP_TOKEN: 'short',
+    }));
+    assert.ok(shortTokenErrors.some(error => error.includes('至少需要 32 个字符')));
+
+    const reusedToken = 'shared-hermes-token-0123456789abcdef';
+    const reusedTokenErrors = validateProductionEnvironment(validProductionEnv({
+        INTERNAL_SECRET: reusedToken,
+        HERMES_MCP_ENABLED: 'true',
+        HERMES_MCP_TOKEN: reusedToken,
+    }));
+    assert.ok(reusedTokenErrors.some(error => error.includes('不能与 INTERNAL_SECRET 相同')));
+
+    assert.deepEqual(validateProductionEnvironment(validProductionEnv({
+        HERMES_MCP_ENABLED: 'true',
+        HERMES_MCP_TOKEN: 'independent-hermes-token-0123456789abcdef',
+    })), []);
 });
 
 test('运行环境：生产校验集中报告缺失项、默认密钥和无效数值', () => {

@@ -222,6 +222,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 常规接口：JWT Cookie。
 - 内部服务：`x-internal-secret`，服务端必须配置 `INTERNAL_SECRET`。
 - AI 和工厂配置：JWT Cookie 或内部 Secret。
+- Hermes MCP V1：独立 Bearer token，默认关闭，只开放固定的只读 Query/Preview 白名单；Hermes 不接触 `INTERNAL_SECRET`。
 - 登录限流：每个 IP 每分钟最多 5 次。
 - 外部市场、AI、CAD 和内部 API 请求统一设置超时；只有幂等 GET 可按策略有限重试。
 - 部署环境判断、端口、CORS 来源和内部 API 超时统一由 `api/services/environment.cjs` 解析；无效数值在启动或发布校验阶段直接失败，避免运行时出现隐蔽超时。
@@ -255,6 +256,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 工厂知识库 | `/api/knowledge` | SQLite 知识条目同步、独立资料导入、搜索和详情读取，供 AI 检索 |
 | 设置 | `/api/settings/:key`、`/api/settings/runtime` | `settingsQueries` 只读提供业务白名单、公开运行快照和 AI 连接探测；两类写入都使用幂等、版本、事务回执和强审计，运行配置提交成功后才应用进程环境 |
 | AI | `/api/ai` | 对话、工具调用、会话和评测；模型流解析与工具消息协议由独立 service 统一 |
+| Hermes MCP V1 | `/mcp` | 远程 Streamable HTTP；把 12 个已登记只读 AI capability 提供给 Hermes，仍由 executor 调用正式 API，不开放写工具 |
 
 配方、订单、模板和型号变体的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
 
@@ -359,6 +361,7 @@ POST /api/rotor/save
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
 - AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。74 个 AI 工具、29 个 AI 写工具和 95 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。列表查询统一经过“意图编译 → 严格字段校验 → 正式 Query API → 查询回执”；全量语义不隐式截断，明确数量才传 `limit`，客户/模板也不再回退知识搜索。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
+- Hermes MCP V1 从同一 capability registry 和 `AI_TOOLS` schema 生成固定白名单，通过现有统一 executor、internal API client 与执行证据门读取正式事实。独立 Bearer token 只用于 `/mcp`，不能调用普通 `/api/*`；V1 遇到未列入能力、写能力、确认令牌或缺少正式 API 证据时默认拒绝。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。
 - 零件资料修改与库存调整是两个独立 Command；AI 的 `update_part` 只接受资料字段，库存统一走 `adjust_part_stock`。报价转订单、采购下单/入库、配方保存、转子出图、文件归档和知识同步均调用对应正式 service。
