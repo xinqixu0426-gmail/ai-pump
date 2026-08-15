@@ -15,6 +15,7 @@ import {
   emptyTemplateForm,
   parseTemplateJsonArray,
   templateFormFromTemplate,
+  templateFormForReuse,
   templateFormToInput,
 } from '@/components/recipe/pump-shell-template-form';
 import {
@@ -295,6 +296,7 @@ export function RecipesView() {
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [shellComponentPartsRefreshing, setShellComponentPartsRefreshing] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<PumpShellTemplate | null>(null);
+  const [templateReuseSource, setTemplateReuseSource] = useState<PumpShellTemplate | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RecipeDeleteTarget | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
   const [autoAnalyzeRecipeId, setAutoAnalyzeRecipeId] = useState<number | null>(null);
@@ -1133,6 +1135,7 @@ export function RecipesView() {
 
   function openCreateTemplate() {
     setEditingTemplate(null);
+    setTemplateReuseSource(null);
     setTemplateForm(emptyTemplateForm());
     setFormError(null);
     setTemplateDrawerOpen(true);
@@ -1140,9 +1143,23 @@ export function RecipesView() {
 
   function openEditTemplate(template: PumpShellTemplate) {
     setEditingTemplate(template);
+    setTemplateReuseSource(null);
     setTemplateForm(templateFormFromTemplate(template));
     setFormError(null);
     setTemplateDrawerOpen(true);
+  }
+
+  function openReuseTemplate(template: PumpShellTemplate) {
+    setEditingTemplate(null);
+    setTemplateReuseSource(template);
+    setTemplateForm(templateFormForReuse(template, templates));
+    setFormError(null);
+    setTemplateDrawerOpen(true);
+  }
+
+  function closeTemplateEditor() {
+    setTemplateDrawerOpen(false);
+    setTemplateReuseSource(null);
   }
 
   async function submitTemplate(event: FormEvent<HTMLFormElement>) {
@@ -1187,6 +1204,7 @@ export function RecipesView() {
       else await createTemplate(input);
       await load(true);
       setTemplateDrawerOpen(false);
+      setTemplateReuseSource(null);
       setActiveSection('templates');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '泵壳模板保存失败');
@@ -1590,6 +1608,7 @@ export function RecipesView() {
         parts={parts}
         saving={saving}
         onEdit={openEditTemplate}
+        onReuse={openReuseTemplate}
         onRemove={(template) => setDeleteTarget({ kind: 'template', item: template })}
       />
 
@@ -1632,6 +1651,7 @@ export function RecipesView() {
       <PumpShellTemplateEditor
         open={templateDrawerOpen}
         editingTemplate={editingTemplate}
+        reuseSource={templateReuseSource}
         templates={templates}
         form={templateForm}
         formError={formError}
@@ -1646,7 +1666,7 @@ export function RecipesView() {
         onRefreshShellComponentParts={refreshShellComponentParts}
         onCreateShellComponentPart={createShellComponentPart}
         onFormChange={(update) => setTemplateForm(update)}
-        onClose={() => setTemplateDrawerOpen(false)}
+        onClose={closeTemplateEditor}
         onSubmit={submitTemplate}
       />
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Eye, Pencil, Trash2, X } from 'lucide-react';
+import { Copy, Eye, Pencil, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ type PumpShellTemplateWorkspaceProps = {
   parts: Part[];
   saving: boolean;
   onEdit: (template: PumpShellTemplate) => void;
+  onReuse: (template: PumpShellTemplate) => void;
   onRemove: (template: PumpShellTemplate) => void;
 };
 
@@ -53,6 +54,7 @@ export function PumpShellTemplateWorkspace({
   parts,
   saving,
   onEdit,
+  onReuse,
   onRemove,
 }: PumpShellTemplateWorkspaceProps) {
   const [detail, setDetail] = useState<PumpShellTemplate | null>(null);
@@ -99,7 +101,7 @@ export function PumpShellTemplateWorkspace({
           <div className="flex items-center justify-between gap-3 border-b border-line p-4">
             <div>
               <div className="text-sm font-semibold text-ink">泵壳模板</div>
-              <div className="mt-1 text-xs text-muted">模板决定泵壳固定配件、计价方式、安装/打包工资和表面处理，可在当前页面新建、编辑和删除。</div>
+              <div className="mt-1 text-xs text-muted">模板决定泵壳固定配件、计价方式、安装/打包工资和表面处理，可直接复用现有模板建立新模板。</div>
             </div>
             <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">{templates.length} 套</span>
           </div>
@@ -143,6 +145,16 @@ export function PumpShellTemplateWorkspace({
                           <Button size="sm" variant="ghost" onClick={() => onEdit(row.template)} disabled={saving} icon={<Pencil size={14} />}>
                             编辑
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="!w-8 !p-0"
+                            aria-label={`复用泵壳模板 ${row.template.shellModel || ''}`}
+                            title="复用模板"
+                            onClick={() => onReuse(row.template)}
+                            disabled={saving}
+                            icon={<Copy size={15} />}
+                          />
                           <Button size="sm" variant="danger" onClick={() => onRemove(row.template)} disabled={saving} icon={<Trash2 size={14} />}>
                             删除
                           </Button>
@@ -166,14 +178,28 @@ export function PumpShellTemplateWorkspace({
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">{detail.shellModel}</h2>
                 <div className="mt-1 text-sm text-muted">{detail.description || '无说明'}</div>
               </div>
-              <button
-                type="button"
-                aria-label="关闭"
-                onClick={() => setDetail(null)}
-                className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink"
-              >
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={() => {
+                    onReuse(detail);
+                    setDetail(null);
+                  }}
+                  icon={<Copy size={14} />}
+                >
+                  复用模板
+                </Button>
+                <button
+                  type="button"
+                  aria-label="关闭"
+                  onClick={() => setDetail(null)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
             <div className="flex-1 space-y-5 p-5">
               <section className="rounded-panel border border-line">

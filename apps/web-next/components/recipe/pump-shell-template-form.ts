@@ -169,6 +169,32 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
   };
 }
 
+function nextReusableTemplateName(sourceName: string, templates: PumpShellTemplate[]): string {
+  const baseName = sourceName.trim() || '未命名泵壳模板';
+  const existingNames = new Set(templates.map((template) => template.shellModel.trim().toLocaleLowerCase()));
+  const firstCandidate = `${baseName} - 副本`;
+  if (!existingNames.has(firstCandidate.toLocaleLowerCase())) return firstCandidate;
+
+  let copyNumber = 2;
+  while (existingNames.has(`${firstCandidate} ${copyNumber}`.toLocaleLowerCase())) {
+    copyNumber += 1;
+  }
+  return `${firstCandidate} ${copyNumber}`;
+}
+
+export function templateFormForReuse(
+  template: PumpShellTemplate,
+  templates: PumpShellTemplate[]
+): TemplateFormState {
+  const form = templateFormFromTemplate(template);
+  return {
+    ...form,
+    shellModel: template.costMode === 'bundle'
+      ? ''
+      : nextReusableTemplateName(template.shellModel, templates),
+  };
+}
+
 export function templateFormToInput(form: TemplateFormState): TemplateInput {
   const partsPayload: TemplatePartInput[] = form.partRows
     .filter((row) => row.name.trim() && row.model.trim())

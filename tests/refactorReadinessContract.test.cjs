@@ -1919,6 +1919,7 @@ test('Next UI 契约：泵壳模板工作区独立派生列表成本并展示详
     assert.match(recipesView, /visible=\{activeSection === 'templates'\}/);
     assert.match(recipesView, /parts=\{parts\}/);
     assert.match(recipesView, /onEdit=\{openEditTemplate\}/);
+    assert.match(recipesView, /onReuse=\{openReuseTemplate\}/);
     assert.match(recipesView, /onRemove=\{\(template\) => setDeleteTarget\(\{ kind: 'template', item: template \}\)\}/);
     assert.doesNotMatch(recipesView, /const templateRows = useMemo/);
     assert.doesNotMatch(recipesView, /templateDetail|setTemplateDetail/);
@@ -1926,6 +1927,8 @@ test('Next UI 契约：泵壳模板工作区独立派生列表成本并展示详
     assert.match(templateWorkspace, /Number\(catalogPart\?\.price \|\| 0\) > 0/);
     assert.match(templateWorkspace, /Number\(component\.unitCost \|\| 0\)/);
     assert.match(templateWorkspace, /<SlideOver open=\{Boolean\(detail\)\}/);
+    assert.match(templateWorkspace, /onReuse\(row\.template\)/);
+    assert.match(templateWorkspace, /复用模板/);
     assert.match(templateWorkspace, /固定配件/);
     assert.match(templateWorkspace, /泵壳计价/);
     assert.match(templateWorkspace, /供应商小套件/);
@@ -1959,6 +1962,7 @@ test('Next UI 契约：泵壳模板表单转换独立管理默认值、回填和
     assert.match(recipesView, /from '@\/components\/recipe\/pump-shell-template-form'/);
     assert.match(recipesView, /setTemplateForm\(emptyTemplateForm\(\)\)/);
     assert.match(recipesView, /setTemplateForm\(templateFormFromTemplate\(template\)\)/);
+    assert.match(recipesView, /setTemplateForm\(templateFormForReuse\(template, templates\)\)/);
     assert.match(recipesView, /const input = templateFormToInput\(templateForm\)/);
     assert.match(recipesView, /await (?:createTemplate|updateTemplate)/);
     assert.match(recipesView, /await load\(true\)/);
@@ -1966,6 +1970,9 @@ test('Next UI 契约：泵壳模板表单转换独立管理默认值、回填和
     assert.doesNotMatch(recipesView, /function templateFormFromTemplate|function templateFormToInput/);
     assert.match(templateForm, /export function emptyTemplateForm/);
     assert.match(templateForm, /export function templateFormFromTemplate/);
+    assert.match(templateForm, /export function templateFormForReuse/);
+    assert.match(templateForm, /template\.costMode === 'bundle'/);
+    assert.match(templateForm, /nextReusableTemplateName/);
     assert.match(templateForm, /export function templateFormToInput/);
     assert.match(templateForm, /partsJson: JSON\.stringify\(partsPayload\)/);
     assert.match(templateForm, /shellComponentsJson: JSON\.stringify\(componentsPayload\)/);

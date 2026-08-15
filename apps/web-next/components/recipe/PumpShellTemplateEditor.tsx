@@ -102,6 +102,7 @@ function defaultStainlessBarrelComponent(rows: ShellComponentFormRow[]): ShellCo
 type PumpShellTemplateEditorProps = {
   open: boolean;
   editingTemplate: PumpShellTemplate | null;
+  reuseSource: PumpShellTemplate | null;
   templates: PumpShellTemplate[];
   form: TemplateFormState;
   formError: string | null;
@@ -127,6 +128,7 @@ type PumpShellTemplateEditorProps = {
 export function PumpShellTemplateEditor({
   open,
   editingTemplate,
+  reuseSource,
   templates,
   form,
   formError,
@@ -232,8 +234,14 @@ export function PumpShellTemplateEditor({
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Template</div>
             <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
-              {editingTemplate ? '编辑泵壳模板' : '新建泵壳模板'}
+              {editingTemplate ? '编辑泵壳模板' : reuseSource ? '复用泵壳模板' : '新建泵壳模板'}
             </h2>
+            {reuseSource ? (
+              <div className="mt-1 text-sm text-muted">
+                基于“{reuseSource.shellModel}”创建新模板，原模板不会改变。
+                {reuseSource.costMode === 'bundle' ? ' 请重新选择新的零件库泵壳型号。' : ''}
+              </div>
+            ) : null}
           </div>
           <button
             type="button"
