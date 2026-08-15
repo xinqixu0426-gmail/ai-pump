@@ -98,7 +98,15 @@ test('AI 发布门禁：命令参数和 JSON 报告路径可无人值守使用',
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pump-ai-gate-'));
     const reportPath = path.join(directory, 'gate.json');
     try {
-        assert.deepEqual(parseCliOptions([`--report=${reportPath}`]), { reportPath });
+        assert.deepEqual(parseCliOptions([`--report=${reportPath}`]), {
+            reportPath,
+            scope: 'manual',
+        });
+        assert.deepEqual(parseCliOptions(['--scope=release']), {
+            reportPath: '',
+            scope: 'release',
+        });
+        assert.throws(() => parseCliOptions(['--scope=unknown']), /manual 或 release/);
         const absolutePath = writeReleaseGateReport(reportPath, buildReleaseGateReport({
             error: '模型服务不可用',
         }));

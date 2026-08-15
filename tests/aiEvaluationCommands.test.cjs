@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const { runMigrations } = require('../api/database/migrations.cjs');
 const {
     executeCompleteAiEvaluationRun,
+    executeConfigureAiSystemEvaluationCase,
     executeRecordAiEvaluationResult,
     executeReviewAiEvaluationCase,
     executeStartAiEvaluationRun,
@@ -90,6 +91,7 @@ function createFixture(overrides = {}) {
                 evaluatorType: row.evaluator_type,
                 configJson: row.config_json || '{}',
                 enabled: Boolean(row.enabled),
+                releaseGateEnabled: Boolean(row.release_gate_enabled),
                 sortOrder: Number(row.sort_order || 0),
                 sourceType: row.source_type || 'system',
                 sourceFeedbackId: row.source_feedback_id || null,
@@ -184,6 +186,68 @@ test('AI 评测命令：启动运行持久幂等并原子结束同 owner 旧运�
             ).get().count,
             2
         );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 评测命令：手动检查包含系统项，发布门禁只包含显式门禁项', () => {
+    const fixture = createFixture();
+    try {
+        const manual = executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual' },
+            context('ai-evaluation-scope-manual-0001')
+        );
+        assert.ok(manual.cases.some(item => item.sourceType === 'system'));
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'release' },
+            context('ai-evaluation-scope-forbidden-0001')
+        ), error => error.code === 'ai_evaluation_release_scope_forbidden');
+
+        const release = executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            { scope: 'release' },
+            context('ai-evaluation-scope-release-0001')
+        );
+        assert.equal(release.cases.length, 1);
+        assert.ok(release.cases.every(item => item.sourceType === 'feedback'));
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 评测命令：系统检查项可配置且绑定资源版本和强审计', () => {
+    const fixture = createFixture();
+    try {
+        const systemCase = fixture.db.prepare(`
+            SELECT * FROM ai_evaluation_cases
+            WHERE source_type = 'system'
+            ORDER BY id LIMIT 1
+        `).get();
+        const configured = executeConfigureAiSystemEvaluationCase(
+            fixture.dependencies,
+            systemCase.id,
+            {
+                enabled: false,
+                expectedUpdatedAt: systemCase.updated_at,
+            },
+            context('ai-evaluation-system-configure-0001')
+        );
+        assert.equal(configured.capabilityId, 'ai.evaluations.system_cases.configure');
+        assert.equal(configured.enabled, false);
+        assert.equal(configured.releaseGateEnabled, false);
+        assert.equal(configured.auditIds.length, 1);
+        assert.throws(() => executeConfigureAiSystemEvaluationCase(
+            fixture.dependencies,
+            systemCase.id,
+            { enabled: true, expectedUpdatedAt: systemCase.updated_at },
+            context('ai-evaluation-system-configure-0002')
+        ), /已被其他操作修改/);
     } finally {
         fixture.db.close();
     }

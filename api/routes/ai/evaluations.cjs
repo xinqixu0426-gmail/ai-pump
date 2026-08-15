@@ -18,10 +18,12 @@ const {
 } = require('../../services/aiEvaluations.cjs');
 const {
     COMPLETE_RUN_CAPABILITY_ID,
+    CONFIGURE_SYSTEM_CASE_CAPABILITY_ID,
     RECORD_RESULT_CAPABILITY_ID,
     REVIEW_CASE_CAPABILITY_ID,
     START_RUN_CAPABILITY_ID,
     executeCompleteAiEvaluationRun,
+    executeConfigureAiSystemEvaluationCase,
     executeRecordAiEvaluationResult,
     executeReviewAiEvaluationCase,
     executeStartAiEvaluationRun,
@@ -129,6 +131,22 @@ router.patch('/api/ai/evaluations/cases/:id', (req, res) => {
             id,
             req.body || {},
             commandContextFromRequest(req, REVIEW_CASE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.patch('/api/ai/evaluations/system-cases/:id', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法系统检查项ID' });
+        const data = executeConfigureAiSystemEvaluationCase(
+            aiEvaluationDependencies,
+            id,
+            req.body || {},
+            commandContextFromRequest(req, CONFIGURE_SYSTEM_CASE_CAPABILITY_ID)
         );
         res.json({ success: true, data });
     } catch (error) {

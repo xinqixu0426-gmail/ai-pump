@@ -17,12 +17,19 @@ function commandHeaders(prefix) {
 
 function parseCliOptions(argv = process.argv.slice(2)) {
     let reportPath = '';
+    let scope = 'manual';
     for (let index = 0; index < argv.length; index += 1) {
         const argument = String(argv[index] || '');
         if (argument.startsWith('--report=')) reportPath = argument.slice('--report='.length);
         if (argument === '--report') reportPath = String(argv[index + 1] || '');
+        if (argument.startsWith('--scope=')) scope = argument.slice('--scope='.length);
+        if (argument === '--scope') scope = String(argv[index + 1] || '');
     }
-    return { reportPath: reportPath.trim() };
+    scope = scope.trim().toLowerCase();
+    if (!['manual', 'release'].includes(scope)) {
+        throw new Error('scope 只允许 manual 或 release');
+    }
+    return { reportPath: reportPath.trim(), scope };
 }
 
 function buildReleaseGateReport(input = {}) {
@@ -202,7 +209,8 @@ async function streamQuestionWithRetry(question, options = {}) {
     throw lastError || new Error('AI 查询失败');
 }
 
-async function main() {
+async function main(options = {}) {
+    const scope = options.scope === 'release' ? 'release' : 'manual';
     await authenticate();
     const health = await requestJson('GET', '/api/health');
     if (health.ready !== true && !['ok', 'ready'].includes(health.status)) {
@@ -210,7 +218,11 @@ async function main() {
     }
 
     const overview = await requestJson('GET', '/api/ai/evaluations/overview');
-    const enabledCases = Number(overview?.caseStats?.enabled || 0);
+    const enabledCases = Number(
+        scope === 'release'
+            ? overview?.caseStats?.releaseEnabled
+            : overview?.caseStats?.enabled
+    ) || 0;
     if (enabledCases === 0) {
         console.log('知识库 AI 回归：没有启用用例，本次发布跳过 AI 回归门禁');
         return buildReleaseGateReport({ health, skipped: true });
@@ -219,7 +231,7 @@ async function main() {
     const created = await requestJson(
         'POST',
         '/api/ai/evaluations/runs',
-        undefined,
+        { scope },
         commandHeaders('ai-evaluation-run-start')
     );
     const runId = Number(created.run?.id);
@@ -284,7 +296,7 @@ async function main() {
 
 if (require.main === module) {
     const options = parseCliOptions();
-    main().then(report => {
+    main(options).then(report => {
         const savedPath = writeReleaseGateReport(options.reportPath, report);
         if (savedPath) console.log(`发布门禁报告：${savedPath}`);
         if (report.blocked) process.exitCode = 1;

@@ -1454,7 +1454,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         capabilityId: 'ai.evaluations.runs.start',
         domain: 'ai',
         operation: 'maintenance',
-        inputSchema: 'POST /api/ai/evaluations/runs',
+        inputSchema: 'POST /api/ai/evaluations/runs { scope?: manual|release }',
         outputSchema: 'CommandReceipt<AiEvaluationRunStartResult>',
         sourceOfTruth:
             'approved_ai_evaluation_cases+ai_evaluation_runs',
@@ -1507,6 +1507,20 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         supportsPreview: false,
         transactionality:
             'evaluation_case_review_audit_and_operation_receipt_atomic',
+    }),
+    'ai.evaluations.system_cases.configure': defineBusinessCapability({
+        capabilityId: 'ai.evaluations.system_cases.configure',
+        domain: 'ai',
+        operation: 'maintenance',
+        inputSchema:
+            'PATCH /api/ai/evaluations/system-cases/:id { enabled, expectedUpdatedAt? }',
+        outputSchema: 'CommandReceipt<AiEvaluationCase>',
+        sourceOfTruth: 'ai_evaluation_cases.enabled',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality:
+            'system_evaluation_case_configuration_audit_and_operation_receipt_atomic',
     }),
     'ai.feedback.submit': defineBusinessCapability({
         capabilityId: 'ai.feedback.submit',

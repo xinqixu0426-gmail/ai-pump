@@ -44,6 +44,7 @@ import {
   type KnowledgeVectorHealth,
 } from '@/lib/knowledge';
 import {
+  configureAiSystemEvaluationCase,
   diagnoseAiAnswerFeedback,
   completeAiEvaluationRun,
   createAiEvaluationRun,
@@ -140,6 +141,7 @@ export function KnowledgeView({
   const [evaluationProgress, setEvaluationProgress] = useState({ completed: 0, total: 0, title: '' });
   const [evaluationError, setEvaluationError] = useState('');
   const [reviewingEvaluationCaseId, setReviewingEvaluationCaseId] = useState<number | null>(null);
+  const [updatingSystemEvaluationCaseId, setUpdatingSystemEvaluationCaseId] = useState<number | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolving, setResolving] = useState(false);
   const [feedbackAttachmentId, setFeedbackAttachmentId] = useState<number | null>(null);
@@ -542,6 +544,20 @@ export function KnowledgeView({
     }
   }
 
+  async function toggleSystemEvaluationCase(id: number, enabled: boolean) {
+    if (updatingSystemEvaluationCaseId !== null || evaluationRunning) return;
+    setUpdatingSystemEvaluationCaseId(id);
+    setEvaluationError('');
+    try {
+      await configureAiSystemEvaluationCase(id, enabled);
+      await loadEvaluation();
+    } catch (err) {
+      setEvaluationError(err instanceof Error ? err.message : '系统检查项更新失败');
+    } finally {
+      setUpdatingSystemEvaluationCaseId(null);
+    }
+  }
+
   const documentDownloadPath = selected?.sourceTable === 'knowledge_documents'
     && typeof detail?.metadata?.downloadPath === 'string'
     ? detail.metadata.downloadPath
@@ -884,26 +900,64 @@ export function KnowledgeView({
                 <StatusBadge tone="amber">{evaluation.caseStats.feedbackPending} 条待确认</StatusBadge>
               ) : null}
               {evaluation?.latestRun?.status === 'completed' ? (
-                <StatusBadge tone={evaluation.latestRun.failedCount || evaluation.latestRun.reviewCount ? 'amber' : 'green'}>
-                  {evaluation.latestRun.passedCount}/{evaluation.latestRun.totalCount} 通过
+                <StatusBadge tone={!evaluation.latestRunMatchesConfiguration ? 'slate' : evaluation.latestRun.failedCount || evaluation.latestRun.reviewCount ? 'amber' : 'green'}>
+                  {evaluation.latestRunMatchesConfiguration
+                    ? `${evaluation.latestRun.passedCount}/${evaluation.latestRun.totalCount} 通过`
+                    : '历史记录'}
                 </StatusBadge>
               ) : null}
             </div>
             <div className="mt-1 text-xs text-muted">
-              当前启用 {evaluation?.caseStats.enabled || 0} 项，其中纠错回归 {evaluation?.caseStats.feedbackApproved || 0} 项。
+              手动检查启用 {evaluation?.caseStats.enabled || 0} 项；自动发布门禁 {evaluation?.caseStats.releaseEnabled || 0} 项。
             </div>
           </div>
           <Button
             variant="primary"
             icon={evaluationRunning ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
             onClick={() => void runEvaluationSuite()}
-            disabled={evaluationRunning || evaluationLoading}
+            disabled={evaluationRunning || evaluationLoading || !evaluation?.caseStats.enabled}
           >
-            {evaluationRunning ? '检查中' : '运行知识库检查'}
+            {evaluationRunning ? '检查中' : evaluation?.caseStats.enabled ? '运行知识库检查' : '暂无启用检查项'}
           </Button>
         </div>
         {evaluationError ? (
           <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{evaluationError}</div>
+        ) : null}
+        {evaluation?.systemCases.length ? (
+          <details className="group border-b border-line">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50 px-4 py-3">
+              <div>
+                <div className="text-sm font-medium text-ink">系统检查项管理</div>
+                <div className="mt-1 text-xs text-muted">
+                  已启用 {evaluation.caseStats.systemEnabled}/{evaluation.caseStats.systemTotal} 项；只影响手动检查，不阻塞自动发布。
+                </div>
+              </div>
+              <span className="shrink-0 text-xs text-muted group-open:hidden">展开管理</span>
+            </summary>
+            <div className="divide-y divide-line">
+              {evaluation.systemCases.map(item => {
+                const busy = updatingSystemEvaluationCaseId === item.id;
+                return (
+                  <div key={item.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-center">
+                    <div><StatusBadge tone={item.enabled ? 'green' : 'slate'}>{item.enabled ? '已启用' : '已停用'}</StatusBadge></div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-ink">{item.title}</div>
+                      <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{item.question}</div>
+                    </div>
+                    <Button
+                      variant={item.enabled ? 'ghost' : 'secondary'}
+                      size="sm"
+                      icon={busy ? <Loader2 size={14} className="animate-spin" /> : item.enabled ? <PowerOff size={14} /> : <Power size={14} />}
+                      onClick={() => void toggleSystemEvaluationCase(item.id, !item.enabled)}
+                      disabled={updatingSystemEvaluationCaseId !== null || evaluationRunning}
+                    >
+                      {item.enabled ? '停用' : '启用'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         ) : null}
         {evaluation?.feedbackCases.length ? (
           <div className="border-b border-line">
@@ -979,9 +1033,14 @@ export function KnowledgeView({
           </div>
         ) : evaluation?.latestRun ? (
           <div>
+            {!evaluation.latestRunMatchesConfiguration ? (
+              <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                以下是旧配置的历史结果，不代表当前状态。请运行一次知识库检查生成最新结果。
+              </div>
+            ) : null}
             <div className="grid grid-cols-2 border-b border-line bg-slate-50 sm:grid-cols-4">
               <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">通过</div><div className="mt-1 text-lg font-semibold text-emerald-700">{evaluation.latestRun.passedCount}</div></div>
-              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">需要修复</div><div className="mt-1 text-lg font-semibold text-rose-700">{evaluation.latestRun.failedCount}</div></div>
+              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">{evaluation.latestRunMatchesConfiguration ? '需要修复' : '历史未通过'}</div><div className="mt-1 text-lg font-semibold text-rose-700">{evaluation.latestRun.failedCount}</div></div>
               <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">需要确认</div><div className="mt-1 text-lg font-semibold text-amber-700">{evaluation.latestRun.reviewCount}</div></div>
               <div className="px-4 py-3"><div className="text-xs text-muted">运行时间</div><div className="mt-1 text-sm font-medium text-ink">{dateTime(evaluation.latestRun.completedAt || evaluation.latestRun.startedAt)}</div></div>
             </div>

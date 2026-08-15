@@ -427,6 +427,7 @@ function aiEvaluationCaseRow(r) {
         evaluatorType: r.evaluator_type,
         configJson: r.config_json || '{}',
         enabled: Boolean(r.enabled),
+        releaseGateEnabled: Boolean(r.release_gate_enabled),
         sortOrder: Number(r.sort_order || 0),
         sourceType: r.source_type || 'system',
         sourceFeedbackId: r.source_feedback_id || null,

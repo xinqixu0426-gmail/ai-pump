@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 214 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 215 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -381,7 +381,7 @@ AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上�
 
 V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 
-模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 97 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 98 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -455,10 +455,11 @@ V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空
 | `ai.conversations.messages.append` | HTTP/Web | command/write | 当前会话 + `ai_conversation_messages` + 有效附件 | medium | 发送消息本身是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 消息、会话摘要、operation 和两条强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.conversations.messages.update_metadata` | HTTP/Web | command/write | 当前会话消息 | medium | 保存模型、工具和展示元数据，无额外确认 | 无 | 90 天持久化幂等 + 消息 `expectedUpdatedAt` | 消息元数据、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.conversations.delete` | HTTP/Web | command/write | `ai_conversations` | medium | 页面删除确认是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 会话软删除、operation 和强审计同一 SQLite 事务；消息留存追溯 | 默认 HTTP |
-| `ai.evaluations.runs.start` | HTTP/Web/发布门禁脚本 | maintenance/write | 已审核启用的评测用例 + `ai_evaluation_runs` | medium | 启动检查本身是明确动作 | 无 | 90 天持久化幂等；新运行无版本 | 同 owner 未结束运行、当前运行、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.evaluations.runs.start` | HTTP/Web/发布门禁脚本 | maintenance/write | 手动启用或发布门禁启用的评测用例 + `ai_evaluation_runs` | medium | 启动检查本身是明确动作；`release` scope 只允许内部主体 | 无 | 90 天持久化幂等；新运行无版本 | 同 owner 未结束运行、当前运行、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.results.record` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前正式业务只读事实 + 评测用例 + `ai_evaluation_results` | medium | 自动评测记录，无额外确认 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` + `(runId, caseId)` 唯一约束 | 单项结果、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.runs.complete` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前运行及其已保存结果 | medium | 完成检查本身是明确动作 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` | 汇总状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.cases.review` | HTTP/Web | maintenance/write | 纠错回归用例 + 关联纠正规则状态 | medium | 审核按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 审核状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
+| `ai.evaluations.system_cases.configure` | HTTP/Web | maintenance/write | 内置系统评测用例的手动检查开关 | medium | 启用或停用按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 开关、operation 和强审计同一 SQLite 事务；不改变发布门禁开关 | 默认 HTTP |
 | `ai.feedback.submit` | HTTP/Web | maintenance/write | 已保存 AI 回复 + 回答反馈 + 可选纠正规则/回归用例 | medium | 点赞或提交问题本身是明确动作 | 无 | 90 天持久化幂等；已有反馈绑定 `expectedUpdatedAt` | 反馈、派生规则、回归用例、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.feedback.diagnose` | HTTP/Web | maintenance/write | 当前反馈 + 当前知识同步状态 | medium | 诊断按钮本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 诊断快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.feedback.retest` | HTTP/Web | maintenance/write | 当前复测回答/工具依据 + 回答反馈 | medium | 复测流程本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 复测快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
@@ -531,15 +532,16 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
-| `GET` | `/api/ai/evaluations/overview` | 无 | 返回启用用例、当前登录身份最近一次运行和逐项结果 |
-| `POST` | `/api/ai/evaluations/runs` | 推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.start`。创建一次检查运行并返回待执行用例；同 owner 未完成旧运行会在同一事务标为失败。相同命令重放不会重复建运行 |
+| `GET` | `/api/ai/evaluations/overview` | 无 | 返回手动启用用例、全部内置系统检查项、手动/发布门禁统计、当前登录身份最近一次运行和逐项结果；`latestRunMatchesConfiguration` 标记历史结果是否仍对应当前配置 |
+| `POST` | `/api/ai/evaluations/runs` | `{ scope?: 'manual' | 'release' }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.start`。页面默认 `manual`，运行所有已审核且手动启用的用例；内部发布脚本使用 `release`，只运行额外启用发布门禁的用例。`release` scope 拒绝登录用户调用。同 owner 未完成旧运行会在同一事务标为失败，相同命令重放不会重复建运行 |
 | `POST` | `/api/ai/evaluations/runs/:id/results` | `{ caseId, answerText?, toolResults?, errorText?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.results.record`。保存单项 AI 回答并执行后端确定性判定；新调用绑定运行版本，同一运行和用例只记录一次 |
 | `POST` | `/api/ai/evaluations/runs/:id/complete` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.complete`。汇总通过、需修复和需确认数量并结束运行；已结束运行使用新键再次提交会拒绝，同键重试返回原回执 |
 | `PATCH` | `/api/ai/evaluations/cases/:id` | `{ reviewStatus, reviewNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.cases.review`。审核回答纠错生成的候选回归用例；`reviewStatus` 为 `pending/approved/rejected`，只有带确定性检查项且关联纠正规则仍启用的案例可以进入运行；新调用绑定用例版本 |
+| `PATCH` | `/api/ai/evaluations/system-cases/:id` | `{ enabled, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.system_cases.configure`。只允许启停内置系统检查项，并绑定用例版本；不会修改知识内容、用户纠错案例或发布门禁开关 |
 
-运行记录按登录身份隔离。`part_price` 规则直接读取当前 `parts.price`，不会把历史固定价格写入用例；客户报价规则读取当前有效报价数量，并检查回答是否把 `#3/#5` 这类数据库 ID 当成业务展示顺序。检查运行过程只读取业务数据，运行结果仅写入 `ai_evaluation_runs/results` 运维证据；案例审核只更新 `ai_evaluation_cases`，不会修改被检查的业务数据。四项写入均返回 operation、强审计和幂等回执。为兼容原页面和脚本，结果/运行自身的业务 `status` 保持原字段，标准命令状态另以 `operationStatus` 返回；旧调用缺少幂等键或版本时仍执行并返回 warning。
+运行记录按登录身份隔离。`part_price` 规则直接读取当前 `parts.price`，不会把历史固定价格写入用例；客户报价规则读取当前有效报价数量，并检查回答是否把 `#3/#5` 这类数据库 ID 当成业务展示顺序。检查运行过程只读取业务数据，运行结果仅写入 `ai_evaluation_runs/results` 运维证据；案例审核和系统检查项配置只更新 `ai_evaluation_cases`，不会修改被检查的业务数据。五项写入均返回 operation、强审计和幂等回执。为兼容原页面和脚本，结果/运行自身的业务 `status` 保持原字段，标准命令状态另以 `operationStatus` 返回；旧调用缺少幂等键或版本时仍执行并返回 warning。
 
-生产发布后执行 `npm run verify:ai-release`。该命令复用上述 API 运行所有已批准案例，失败、待确认或没有启用案例时返回非零状态，并将不含完整回答的判定摘要写入 `logs/ai-release-gate-latest.json`。7 条内置系统案例由迁移 47 作为代码版本化发布基线恢复和校准，用户反馈案例不受该迁移影响。迁移 48 起，依赖指定配方测试报告的案例会先读取当前业务库：资料存在时继续严格核对内容和来源，资料不存在时只接受明确的未找到或无法确认说明；客户或目标零件不存在时同样要求明确说明未找到，不把不存在的客户伪装成“0 份报价”，也不把不存在的零件伪装成“0 元”。Mac Mini LaunchDaemon 安装脚本在 API ready 和 Web 登录页通过后自动执行该门禁。
+生产发布后执行 `npm run verify:ai-release`。该命令以内部 `release` scope 只运行 `approved + enabled + release_gate_enabled` 的案例；失败或待确认返回非零状态，没有发布门禁用例时记录 skipped 并正常通过。7 条内置系统案例由迁移 47 维护确定性规则，迁移 59 恢复为页面可手动执行，但保持 `release_gate_enabled=0`，因此不会阻断 Mac Mini 发布；已批准的用户反馈案例仍可按发布门禁开关参与。结果摘要写入 `logs/ai-release-gate-latest.json`，不含完整回答。迁移 48 起，依赖指定配方测试报告的案例会先读取当前业务库：资料存在时继续严格核对内容和来源，资料不存在时只接受明确的未找到或无法确认说明；客户或目标零件不存在时同样要求明确说明未找到，不把不存在的客户伪装成“0 份报价”，也不把不存在的零件伪装成“0 元”。Mac Mini LaunchDaemon 安装脚本在 API ready 和 Web 登录页通过后自动执行该门禁。
 
 迁移 50 将线圈正式方案回归从 `search_factory_knowledge` 改为 `search_coils`，要求实时正式 API 返回全部材质、槽眼和成本方案；知识快照不再作为线圈库存或当前成本的验收来源。迁移 51 进一步让该用例感知生产库是否存在目标规格：不存在时只接受明确零结果，存在时恢复材质、槽眼、成本和来源的严格检查。迁移 52 保留成品电缆的事实、工具和来源要求，同时接受“共同组成一条”“单一整体业务项”等等价正确措辞，避免发布门禁因表面词形产生假失败。
 

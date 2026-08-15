@@ -844,7 +844,9 @@ test('关键 API 集成契约：知识库回归检查提供运行、记录和汇
     assert.match(route, /router\.post\('\/api\/ai\/evaluations\/runs'/);
     assert.match(route, /router\.post\('\/api\/ai\/evaluations\/runs\/:id\/results'/);
     assert.match(route, /router\.post\('\/api\/ai\/evaluations\/runs\/:id\/complete'/);
+    assert.match(route, /router\.patch\('\/api\/ai\/evaluations\/system-cases\/:id'/);
     assert.match(route, /evaluationAuth/);
+    assert.match(route, /executeConfigureAiSystemEvaluationCase/);
     assert.match(route, /executeRecordAiEvaluationResult/);
     assert.match(route, /executeCompleteAiEvaluationRun/);
     assert.match(route, /commandContextFromRequest/);

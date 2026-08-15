@@ -276,6 +276,7 @@ export type AiEvaluationCase = {
   evaluatorType: 'rules';
   config: Record<string, unknown>;
   enabled: boolean;
+  releaseGateEnabled: boolean;
   sortOrder: number;
   sourceType: 'system' | 'feedback';
   sourceFeedbackId: number | null;
@@ -328,15 +329,20 @@ export type AiEvaluationResult = {
 
 export type AiEvaluationOverview = {
   cases: AiEvaluationCase[];
+  systemCases: AiEvaluationCase[];
   feedbackCases: AiEvaluationCase[];
   caseStats: {
     enabled: number;
+    systemTotal: number;
+    systemEnabled: number;
+    releaseEnabled: number;
     feedbackTotal: number;
     feedbackApproved: number;
     feedbackPending: number;
     feedbackRejected: number;
   };
   latestRun: AiEvaluationRun | null;
+  latestRunMatchesConfiguration: boolean;
   results: AiEvaluationResult[];
 };
 
@@ -852,6 +858,7 @@ export async function getAiEvaluationOverview(): Promise<AiEvaluationOverview> {
   const result = await proxyRequest<ApiResponse<AiEvaluationOverview>>('/api/ai/evaluations/overview');
   if (!result.success || !result.data) throw new Error(result.error || '读取知识库检查结果失败');
   result.data.cases.forEach(rememberAiEvaluationCaseVersion);
+  (result.data.systemCases || []).forEach(rememberAiEvaluationCaseVersion);
   result.data.feedbackCases.forEach(rememberAiEvaluationCaseVersion);
   if (result.data.latestRun) rememberAiEvaluationRunVersion(result.data.latestRun);
   return result.data;
@@ -917,6 +924,24 @@ export async function reviewAiEvaluationCase(
     }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '审核纠错回归用例失败');
+  return rememberAiEvaluationCaseVersion(result.data);
+}
+
+export async function configureAiSystemEvaluationCase(
+  id: number,
+  enabled: boolean
+): Promise<AiEvaluationCase> {
+  const result = await proxyRequest<ApiResponse<AiEvaluationCase>>(`/api/ai/evaluations/system-cases/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey(`ai-evaluation-system-case:${id}`),
+    },
+    body: JSON.stringify({
+      enabled,
+      expectedUpdatedAt: aiEvaluationCaseVersions.get(id) || null,
+    }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '更新系统检查项失败');
   return rememberAiEvaluationCaseVersion(result.data);
 }
 

@@ -1079,15 +1079,21 @@ test('Next UI 契约：知识库回归检查支持一键运行和失败明细', 
     assert.match(knowledgeView, /纠错回归用例/);
     assert.match(knowledgeView, /纳入回归/);
     assert.match(knowledgeView, /reviewEvaluationCase/);
+    assert.match(knowledgeView, /系统检查项管理/);
+    assert.match(knowledgeView, /toggleSystemEvaluationCase/);
+    assert.match(knowledgeView, /历史记录/);
     assert.match(knowledgeView, /streamAiChat/);
     assert.match(aiLib, /createAiEvaluationRun/);
     assert.match(aiLib, /recordAiEvaluationResult/);
     assert.match(aiLib, /completeAiEvaluationRun/);
     assert.match(aiLib, /reviewAiEvaluationCase/);
+    assert.match(aiLib, /configureAiSystemEvaluationCase/);
     assert.match(liveRunner, /\/api\/ai\/evaluations\/runs/);
     assert.match(liveRunner, /\/api\/ai\/chat/);
     assert.match(liveRunner, /process\.exitCode = 1/);
     assert.match(packageJson, /"test:knowledge-live"/);
+    assert.match(packageJson, /--scope=manual/);
+    assert.match(packageJson, /--scope=release/);
 });
 
 test('Next UI 契约：业务页面使用自适应三栏工作台并提供可复用 AI 助手', () => {

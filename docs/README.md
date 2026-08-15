@@ -374,7 +374,7 @@ POST /api/rotor/save
 - 待复核任务按配方聚合并逐条处理；每次保存后展示规则学习刷新结果，暂时跳过只改变页面处理顺序，不改变反馈状态。
 - FTS/BM25 与本地向量使用 RRF 混合检索，精确型号、规格、客户名和合同号优先；向量异常时回退 FTS/LIKE。向量同步状态与 `knowledge_vector_sync_runs` 可追溯，固定检索评测由 `/api/knowledge/retrieval-evaluation` 和 `npm run test:knowledge-retrieval` 执行。
 - 独立工厂资料、业务附件和原始文件保留来源追溯。语义命中只表示候选相关，不能证明用途、兼容性、库存、价格、成本或订单事实。
-- AI 回答反馈可以形成可审核的纠正规则与回归案例；发布门禁使用真实对话流复测，具体见 [AI 学习发布门禁](./ai-learning-release-gate-guide.md)。
+- AI 回答反馈可以形成可审核的纠正规则与回归案例；知识库页面可自行启停并运行内置系统检查，生产发布仅复测额外启用发布门禁的纠错案例，具体见 [AI 学习发布门禁](./ai-learning-release-gate-guide.md)。
 
 ### 8.3 AI、文件与订单追溯
 

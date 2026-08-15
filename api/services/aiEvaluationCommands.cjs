@@ -5,6 +5,7 @@ const {
 } = require('./commandExecution.cjs');
 const {
     completeAiEvaluationRun,
+    configureAiSystemEvaluationCase,
     createAiEvaluationRun,
     recordAiEvaluationResult,
 } = require('./aiEvaluations.cjs');
@@ -27,6 +28,9 @@ const COMPLETE_RUN_CAPABILITY_ID = requireBusinessCapability(
 ).capabilityId;
 const REVIEW_CASE_CAPABILITY_ID = requireBusinessCapability(
     'ai.evaluations.cases.review'
+).capabilityId;
+const CONFIGURE_SYSTEM_CASE_CAPABILITY_ID = requireBusinessCapability(
+    'ai.evaluations.system_cases.configure'
 ).capabilityId;
 
 function evaluationCommandError(code, message, statusCode = 409) {
@@ -94,17 +98,45 @@ function feedbackCaseRow(dependencies, caseId) {
     `).get(caseId);
 }
 
+function systemCaseRow(dependencies, caseId) {
+    return dependencies.db.prepare(`
+        SELECT *
+        FROM ai_evaluation_cases
+        WHERE id = ? AND source_type = 'system'
+    `).get(caseId);
+}
+
+function normalizeRunScope(value) {
+    const scope = String(value || 'manual').trim();
+    if (!['manual', 'release'].includes(scope)) {
+        throw evaluationCommandError(
+            'ai_evaluation_scope_invalid',
+            '检查范围必须是 manual 或 release',
+            400
+        );
+    }
+    return scope;
+}
+
 function executeStartAiEvaluationRun(
     dependencies,
     owner,
     _input = {},
     commandContext = {}
 ) {
+    const scope = normalizeRunScope(_input.scope);
+    if (scope === 'release' && normalizeOwnerKey(owner) !== 'internal') {
+        throw evaluationCommandError(
+            'ai_evaluation_release_scope_forbidden',
+            '发布门禁检查只允许内部服务启动',
+            403
+        );
+    }
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId: START_RUN_CAPABILITY_ID,
-        input: { owner: normalizeOwnerKey(owner) },
+        input: { owner: normalizeOwnerKey(owner), scope },
         warnings: commandContext.warnings || [],
         execute: ({ auditContext }) => {
             const writes = collectAudits();
@@ -112,6 +144,7 @@ function executeStartAiEvaluationRun(
             try {
                 created = createAiEvaluationRun(owner, {
                     dbAccessors: dependencies,
+                    scope,
                     auditContext,
                     onWrite: writes.onWrite,
                 });
@@ -143,6 +176,91 @@ function executeStartAiEvaluationRun(
                 ],
                 auditIds: writes.auditIds,
                 requiredAuditCount: supersededRunIds.length + 1,
+            };
+        },
+    });
+}
+
+function executeConfigureAiSystemEvaluationCase(
+    dependencies,
+    caseIdValue,
+    input = {},
+    commandContext = {}
+) {
+    const caseId = positiveId(caseIdValue, '系统检查项ID');
+    if (typeof input.enabled !== 'boolean') {
+        throw evaluationCommandError(
+            'ai_evaluation_enabled_invalid',
+            'enabled 必须是布尔值',
+            400
+        );
+    }
+    const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+        input.expectedUpdatedAt,
+        'expectedUpdatedAt'
+    );
+    const commandInput = {
+        caseId,
+        enabled: input.enabled,
+        expectedUpdatedAt,
+    };
+    return executePersistentCommand({
+        db: dependencies.db,
+        ...commandContext,
+        capabilityId: CONFIGURE_SYSTEM_CASE_CAPABILITY_ID,
+        input: commandInput,
+        warnings: versionWarnings(
+            commandContext,
+            expectedUpdatedAt,
+            '系统检查项'
+        ),
+        execute: ({ auditContext }) => {
+            const current = systemCaseRow(dependencies, caseId);
+            if (!current) {
+                throw evaluationCommandError(
+                    'ai_evaluation_system_case_not_found',
+                    '系统检查项不存在',
+                    404
+                );
+            }
+            assertExpectedUpdatedAt(
+                current,
+                expectedUpdatedAt,
+                '系统检查项'
+            );
+            const writes = collectAudits();
+            let configured;
+            try {
+                configured = configureAiSystemEvaluationCase(
+                    caseId,
+                    commandInput,
+                    {
+                        dbAccessors: dependencies,
+                        auditContext,
+                        onWrite: writes.onWrite,
+                    }
+                );
+            } catch (error) {
+                throw mapEvaluationError(
+                    error,
+                    'ai_evaluation_system_case_configure_failed'
+                );
+            }
+            return {
+                data: configured,
+                resource: {
+                    type: 'aiEvaluationCase',
+                    ids: [configured.id],
+                },
+                changes: [{
+                    resourceType: 'aiEvaluationCase',
+                    resourceId: configured.id,
+                    field: 'enabled',
+                    from: Boolean(current.enabled),
+                    to: configured.enabled,
+                }],
+                auditIds: writes.auditIds,
+                requiredAuditCount: 1,
             };
         },
     });
@@ -396,10 +514,12 @@ function executeReviewAiEvaluationCase(
 
 module.exports = {
     COMPLETE_RUN_CAPABILITY_ID,
+    CONFIGURE_SYSTEM_CASE_CAPABILITY_ID,
     RECORD_RESULT_CAPABILITY_ID,
     REVIEW_CASE_CAPABILITY_ID,
     START_RUN_CAPABILITY_ID,
     executeCompleteAiEvaluationRun,
+    executeConfigureAiSystemEvaluationCase,
     executeRecordAiEvaluationResult,
     executeReviewAiEvaluationCase,
     executeStartAiEvaluationRun,

@@ -338,18 +338,53 @@ function runForOwner(db, ownerKey, runId) {
 
 function listAiEvaluationCases(options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
+    const releaseGateOnly = options.scope === 'release';
     return accessors.db.prepare(`
         SELECT * FROM ai_evaluation_cases
         WHERE enabled = 1 AND review_status = 'approved'
+          AND (? = 0 OR release_gate_enabled = 1)
+        ORDER BY sort_order, id
+    `).all(releaseGateOnly ? 1 : 0)
+        .map(row => caseView(row, accessors.aiEvaluationCaseRow));
+}
+
+function listAiSystemEvaluationCases(options = {}) {
+    const accessors = options.dbAccessors || loadDbAccessors();
+    return accessors.db.prepare(`
+        SELECT * FROM ai_evaluation_cases
+        WHERE source_type = 'system'
         ORDER BY sort_order, id
     `).all().map(row => caseView(row, accessors.aiEvaluationCaseRow));
+}
+
+function configureAiSystemEvaluationCase(caseIdValue, input = {}, options = {}) {
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const { db, safeUpdate, aiEvaluationCaseRow } = accessors;
+    const caseId = positiveId(caseIdValue, '系统检查项ID');
+    if (typeof input.enabled !== 'boolean') throw new Error('enabled 必须是布尔值');
+    const current = db.prepare(`
+        SELECT * FROM ai_evaluation_cases
+        WHERE id = ? AND source_type = 'system'
+    `).get(caseId);
+    if (!current) return null;
+    const write = safeUpdate('ai_evaluation_cases', caseId, {
+        enabled: input.enabled ? 1 : 0,
+    }, options.auditContext || {});
+    options.onWrite?.(write);
+    return caseView(
+        db.prepare('SELECT * FROM ai_evaluation_cases WHERE id = ?').get(caseId),
+        aiEvaluationCaseRow
+    );
 }
 
 function createAiEvaluationRun(ownerKey, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, safeInsert, safeUpdate, aiEvaluationRunRow } = accessors;
     const execute = () => {
-        const cases = listAiEvaluationCases({ dbAccessors: accessors });
+        const cases = listAiEvaluationCases({
+            dbAccessors: accessors,
+            scope: options.scope,
+        });
         if (cases.length === 0) throw new Error('没有启用的知识库检查用例');
         const now = new Date().toISOString();
         const owner = normalizeOwnerKey(ownerKey);
@@ -461,11 +496,19 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, aiEvaluationRunRow, aiEvaluationResultRow } = accessors;
     const cases = listAiEvaluationCases({ dbAccessors: accessors });
+    const releaseCases = listAiEvaluationCases({
+        dbAccessors: accessors,
+        scope: 'release',
+    });
+    const systemCases = listAiSystemEvaluationCases({ dbAccessors: accessors });
     const feedbackCases = require('./aiRegressionCases.cjs').listFeedbackEvaluationCases({
         dbAccessors: accessors,
     });
     const caseStats = {
         enabled: cases.length,
+        systemTotal: systemCases.length,
+        systemEnabled: systemCases.filter(item => item.enabled).length,
+        releaseEnabled: releaseCases.length,
         feedbackTotal: feedbackCases.length,
         feedbackApproved: feedbackCases.filter(item => item.reviewStatus === 'approved').length,
         feedbackPending: feedbackCases.filter(item => item.reviewStatus === 'pending').length,
@@ -476,7 +519,17 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
         WHERE owner_key = ?
         ORDER BY id DESC LIMIT 1
     `).get(normalizeOwnerKey(ownerKey));
-    if (!latestRunRow) return { cases, feedbackCases, caseStats, latestRun: null, results: [] };
+    if (!latestRunRow) {
+        return {
+            cases,
+            systemCases,
+            feedbackCases,
+            caseStats,
+            latestRun: null,
+            latestRunMatchesConfiguration: false,
+            results: [],
+        };
+    }
     const latestRun = aiEvaluationRunRow(latestRunRow);
     const results = db.prepare(`
         SELECT result.*, evaluation_case.title AS case_title, evaluation_case.category AS case_category
@@ -489,7 +542,19 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
         caseTitle: row.case_title,
         caseCategory: row.case_category,
     }));
-    return { cases, feedbackCases, caseStats, latestRun, results };
+    const configuredCaseIds = new Set(cases.map(item => Number(item.id)));
+    const resultCaseIds = new Set(results.map(item => Number(item.caseId)));
+    const latestRunMatchesConfiguration = configuredCaseIds.size === resultCaseIds.size
+        && [...configuredCaseIds].every(id => resultCaseIds.has(id));
+    return {
+        cases,
+        systemCases,
+        feedbackCases,
+        caseStats,
+        latestRun,
+        latestRunMatchesConfiguration,
+        results,
+    };
 }
 
 function getLatestAiEvaluationHealth(options = {}) {
@@ -498,7 +563,9 @@ function getLatestAiEvaluationHealth(options = {}) {
     const activeCases = db.prepare(`
         SELECT id, title, category
         FROM ai_evaluation_cases
-        WHERE enabled = 1 AND review_status = 'approved'
+        WHERE enabled = 1
+          AND release_gate_enabled = 1
+          AND review_status = 'approved'
         ORDER BY sort_order, id
     `).all();
     if (activeCases.length === 0) {
@@ -515,6 +582,7 @@ function getLatestAiEvaluationHealth(options = {}) {
     }
     const latestRunRow = db.prepare(`
         SELECT * FROM ai_evaluation_runs
+        WHERE owner_key = 'internal'
         ORDER BY id DESC LIMIT 1
     `).get();
     if (!latestRunRow) {
@@ -548,6 +616,7 @@ function getLatestAiEvaluationHealth(options = {}) {
         JOIN ai_evaluation_cases AS evaluation_case ON evaluation_case.id = result.case_id
         WHERE result.run_id = ?
           AND evaluation_case.enabled = 1
+          AND evaluation_case.release_gate_enabled = 1
           AND evaluation_case.review_status = 'approved'
         ORDER BY CASE result.status WHEN 'failed' THEN 0 ELSE 1 END,
                  evaluation_case.sort_order,
@@ -591,7 +660,9 @@ function getLatestAiEvaluationHealth(options = {}) {
 }
 
 module.exports = {
+    configureAiSystemEvaluationCase,
     listAiEvaluationCases,
+    listAiSystemEvaluationCases,
     createAiEvaluationRun,
     recordAiEvaluationResult,
     completeAiEvaluationRun,

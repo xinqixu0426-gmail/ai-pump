@@ -2687,6 +2687,31 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 59,
+        name: 'separate_manual_ai_checks_from_release_gate',
+        signature: 'manual-system-ai-checks-enabled-release-gate-opt-in-v1',
+        up(db) {
+            const columns = new Set(
+                db.pragma('table_info(ai_evaluation_cases)').map(column => column.name)
+            );
+            if (!columns.has('release_gate_enabled')) {
+                db.exec(`
+                    ALTER TABLE ai_evaluation_cases
+                    ADD COLUMN release_gate_enabled INTEGER NOT NULL DEFAULT 1
+                        CHECK(release_gate_enabled IN (0, 1));
+                `);
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET enabled = 1,
+                    release_gate_enabled = 0,
+                    review_status = 'approved',
+                    updated_at = ?
+                WHERE source_type = 'system'
+            `).run(new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
