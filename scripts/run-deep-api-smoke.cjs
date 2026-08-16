@@ -488,7 +488,19 @@ async function testResourceDetails(resources) {
         '核心基础资料为空'
     );
 
-    const recipe = recipes[0];
+    const recipe = recipes.find(candidate => {
+        const parts = JSON.parse(candidate.partsJson || '[]');
+        const hasCoilPart = parts.some(item => item.name === '线圈转子');
+        const hasOfficialCoil = coils.some(item => (
+            String(item.spec || '').trim() === String(candidate.coilSpec || '').trim()
+            && Number(item.sheets) === Number(candidate.coilSheets)
+            && String(item.material || '').trim() === String(candidate.coilMaterial || '').trim()
+            && String(item.slotType || '').trim() === String(candidate.coilSlotType || '').trim()
+            && (!item.schemeStatus || item.schemeStatus === 'official')
+        ));
+        return hasCoilPart && hasOfficialCoil;
+    });
+    assert(recipe, '深度测试数据缺少关联正式线圈方案的配方');
     const template = templates[0];
     const coil = coils[0];
     const recipesWithTechnicalFiles = (await request(
