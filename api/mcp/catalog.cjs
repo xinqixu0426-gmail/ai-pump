@@ -24,6 +24,29 @@ const MCP_OPEN_WORLD_TOOL_NAMES = Object.freeze([
 
 const toolsByName = new Map(AI_TOOLS.map(tool => [tool?.function?.name, tool]));
 
+function buildMcpInputSchema(schema) {
+    if (Array.isArray(schema)) return schema.map(buildMcpInputSchema);
+    if (!schema || typeof schema !== 'object') return schema;
+
+    const normalized = Object.fromEntries(Object.entries(schema).map(([key, value]) => [
+        key,
+        buildMcpInputSchema(value),
+    ]));
+    if (
+        schema.type === 'object'
+        && schema.properties
+        && schema.additionalProperties === undefined
+        && !(
+            Object.keys(schema.properties).length === 0
+            && Array.isArray(schema.required)
+            && schema.required.length > 0
+        )
+    ) {
+        normalized.additionalProperties = false;
+    }
+    return normalized;
+}
+
 const MCP_TOOL_OUTPUT_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
@@ -80,7 +103,7 @@ function listMcpTools() {
             name,
             title: capability.displayName,
             description: tool.function.description,
-            inputSchema: tool.function.parameters,
+            inputSchema: buildMcpInputSchema(tool.function.parameters),
             outputSchema: MCP_TOOL_OUTPUT_SCHEMA,
             annotations: {
                 title: capability.displayName,
@@ -108,6 +131,7 @@ module.exports = {
     MCP_OPEN_WORLD_TOOL_NAMES,
     MCP_TOOL_OUTPUT_SCHEMA,
     assertMcpCatalogSafe,
+    buildMcpInputSchema,
     listMcpTools,
     requireMcpCapability,
 };

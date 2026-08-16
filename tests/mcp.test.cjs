@@ -15,6 +15,7 @@ const { AI_TOOLS } = require('../api/routes/ai/tools.cjs');
 const {
     MCP_OPEN_WORLD_TOOL_NAMES,
     MCP_READ_ONLY_TOOL_NAMES,
+    buildMcpInputSchema,
     listMcpTools,
 } = require('../api/mcp/catalog.cjs');
 const {
@@ -92,7 +93,12 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         assert.equal(capability.access, 'read', tool.name);
         assert.equal(capability.requiresConfirmation, false, tool.name);
         assert.ok(['query', 'preview'].includes(capability.operation), tool.name);
-        assert.deepEqual(tool.inputSchema, aiTools.get(tool.name).function.parameters, tool.name);
+        assert.deepEqual(
+            tool.inputSchema,
+            buildMcpInputSchema(aiTools.get(tool.name).function.parameters),
+            tool.name
+        );
+        assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
         assert.equal(tool.outputSchema.type, 'object', tool.name);
         assert.equal(tool.annotations.readOnlyHint, true, tool.name);
         assert.equal(tool.annotations.destructiveHint, false, tool.name);
@@ -103,6 +109,12 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         );
     }
     assert.deepEqual(MCP_OPEN_WORLD_TOOL_NAMES, ['get_copper_price']);
+
+    const orderDetailSchema = listed.find(tool => tool.name === 'get_order_detail').inputSchema;
+    assert.equal(orderDetailSchema.additionalProperties, false);
+    assert.ok(orderDetailSchema.oneOf.every(branch => (
+        branch.additionalProperties === undefined
+    )));
 });
 
 test('通用 MCP：越过白名单或缺少正式 API 证据时默认拒绝', async () => {
@@ -324,6 +336,17 @@ test('通用 MCP：2026 客户端自动协商现代无状态协议并调用同�
         });
         assert.equal(invalidInput.isError, true);
         assert.match(invalidInput.content[0].text, /validation|expected number/i);
+        assert.deepEqual(calls, []);
+
+        const unknownInput = await client.callTool({
+            name: 'search_coils',
+            arguments: { spec: '12', limit: 10 },
+        });
+        assert.equal(unknownInput.isError, true);
+        assert.match(
+            unknownInput.content[0].text,
+            /validation|additional|unrecognized|unknown/i
+        );
         assert.deepEqual(calls, []);
 
         const result = await client.callTool({ name: 'get_copper_price', arguments: {} });
