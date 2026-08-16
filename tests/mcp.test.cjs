@@ -13,6 +13,7 @@ const {
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
 const { AI_TOOLS } = require('../api/routes/ai/tools.cjs');
 const {
+    MCP_OPEN_WORLD_TOOL_NAMES,
     MCP_READ_ONLY_TOOL_NAMES,
     listMcpTools,
 } = require('../api/mcp/catalog.cjs');
@@ -20,6 +21,7 @@ const {
     createMcpAccessMiddleware,
 } = require('../api/mcp/auth.cjs');
 const {
+    classifyMcpToolResponse,
     executeMcpTool,
 } = require('../api/mcp/server.cjs');
 const {
@@ -94,7 +96,13 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         assert.equal(tool.outputSchema.type, 'object', tool.name);
         assert.equal(tool.annotations.readOnlyHint, true, tool.name);
         assert.equal(tool.annotations.destructiveHint, false, tool.name);
+        assert.equal(
+            tool.annotations.openWorldHint,
+            MCP_OPEN_WORLD_TOOL_NAMES.includes(tool.name),
+            tool.name
+        );
     }
+    assert.deepEqual(MCP_OPEN_WORLD_TOOL_NAMES, ['get_copper_price']);
 });
 
 test('通用 MCP：越过白名单或缺少正式 API 证据时默认拒绝', async () => {
@@ -138,6 +146,37 @@ test('通用 MCP：正式 API 已确认资源不存在时保留业务负结果',
     assert.equal(response.structuredContent.code, 'AI_RESOURCE_NOT_FOUND');
     assert.equal(response.structuredContent.mcp.verified, true);
     assert.doesNotMatch(response.structuredContent.code, /mcp_execution_evidence_missing/);
+});
+
+test('通用 MCP：已验证业务负结果不触发系统告警，协议或执行错误仍告警', () => {
+    assert.deepEqual(classifyMcpToolResponse({ structuredContent: { success: true } }), {
+        level: 'info',
+        outcome: 'success',
+        errorCode: null,
+    });
+    assert.deepEqual(classifyMcpToolResponse({
+        isError: true,
+        structuredContent: {
+            success: false,
+            code: 'AI_RESOURCE_NOT_FOUND',
+            mcp: { verified: true },
+        },
+    }), {
+        level: 'info',
+        outcome: 'verified_negative',
+        errorCode: 'AI_RESOURCE_NOT_FOUND',
+    });
+    assert.deepEqual(classifyMcpToolResponse({
+        isError: true,
+        structuredContent: {
+            success: false,
+            code: 'mcp_tool_execution_failed',
+        },
+    }), {
+        level: 'warn',
+        outcome: 'error',
+        errorCode: 'mcp_tool_execution_failed',
+    });
 });
 
 test('通用 MCP：每个 Agent 使用独立 Bearer token，并校验 Host 与 Origin', () => {

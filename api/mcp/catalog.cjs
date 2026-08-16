@@ -17,6 +17,11 @@ const MCP_READ_ONLY_TOOL_NAMES = Object.freeze([
     'search_factory_knowledge',
 ]);
 
+// 只有会访问管理域外实时数据源的工具才标记为 open world；该标注仅供 MCP 客户端决策。
+const MCP_OPEN_WORLD_TOOL_NAMES = Object.freeze([
+    'get_copper_price',
+]);
+
 const toolsByName = new Map(AI_TOOLS.map(tool => [tool?.function?.name, tool]));
 
 const MCP_TOOL_OUTPUT_SCHEMA = Object.freeze({
@@ -82,7 +87,7 @@ function listMcpTools() {
                 readOnlyHint: true,
                 destructiveHint: false,
                 idempotentHint: true,
-                openWorldHint: false,
+                openWorldHint: MCP_OPEN_WORLD_TOOL_NAMES.includes(name),
             },
         };
     });
@@ -100,6 +105,7 @@ assertMcpCatalogSafe();
 
 module.exports = {
     MCP_READ_ONLY_TOOL_NAMES,
+    MCP_OPEN_WORLD_TOOL_NAMES,
     MCP_TOOL_OUTPUT_SCHEMA,
     assertMcpCatalogSafe,
     listMcpTools,

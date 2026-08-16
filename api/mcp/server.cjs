@@ -53,6 +53,25 @@ function serializeMcpResult(payload, maxResultBytes) {
     };
 }
 
+function classifyMcpToolResponse(response) {
+    if (response?.isError !== true) {
+        return { level: 'info', outcome: 'success', errorCode: null };
+    }
+    const payload = response?.structuredContent;
+    if (payload?.success === false && payload?.mcp?.verified === true) {
+        return {
+            level: 'info',
+            outcome: 'verified_negative',
+            errorCode: payload.code || null,
+        };
+    }
+    return {
+        level: 'warn',
+        outcome: 'error',
+        errorCode: payload?.code || null,
+    };
+}
+
 async function executeMcpTool(name, args, options = {}) {
     let capability;
     try {
@@ -127,6 +146,7 @@ function createMcpProtocolServer(options = {}) {
             async args => {
                 const startedAt = Date.now();
                 const response = await executeMcpTool(tool.name, args, options);
+                const classification = classifyMcpToolResponse(response);
                 const meta = {
                     requestId: options.requestId || null,
                     actor: options.actor || 'mcp:unknown',
@@ -134,9 +154,11 @@ function createMcpProtocolServer(options = {}) {
                     protocolEra: options.protocolEra || null,
                     toolName: tool.name,
                     success: response.isError !== true,
+                    outcome: classification.outcome,
+                    errorCode: classification.errorCode,
                     durationMs: Date.now() - startedAt,
                 };
-                if (response.isError) mcpLogger.warn('MCP 工具调用失败', meta);
+                if (classification.level === 'warn') mcpLogger.warn('MCP 工具调用失败', meta);
                 else mcpLogger.info('MCP 工具调用完成', meta);
                 return response;
             }
@@ -147,6 +169,7 @@ function createMcpProtocolServer(options = {}) {
 }
 
 module.exports = {
+    classifyMcpToolResponse,
     createMcpProtocolServer,
     errorResult,
     executeMcpTool,
