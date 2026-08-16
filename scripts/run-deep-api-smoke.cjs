@@ -2839,6 +2839,7 @@ async function run() {
             env: {
                 ...process.env,
                 NODE_ENV: 'development',
+                BEHIND_PROXY: 'false',
                 PORT: String(port),
                 NEXT_ORIGIN: `http://127.0.0.1:${unavailableNextPort}`,
                 KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED: 'false',
@@ -2846,6 +2847,7 @@ async function run() {
                 MCP_ENABLED: 'true',
                 MCP_CLIENT_ID: 'deep-api',
                 MCP_TOKEN: MCP_TEST_TOKEN,
+                MCP_SERVICE_TOKENS: '',
                 MCP_ALLOWED_HOSTS: '127.0.0.1',
                 INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,
                 ACCESS_PASSWORD: DEEP_API_ACCESS_PASSWORD,
@@ -2857,7 +2859,15 @@ async function run() {
         child.stderr.on('data', chunk => {
             childErrors += chunk.toString();
         });
-        await waitForHealth();
+        try {
+            await waitForHealth();
+        } catch (error) {
+            const startupError = childErrors.trim();
+            if (!startupError) throw error;
+            throw new Error(`${error.message}\n隔离 API stderr: ${startupError.slice(0, 2000)}`, {
+                cause: error,
+            });
+        }
 
         await request('公开健康检查', 'GET', '/api/health');
         await request('进程存活检查', 'GET', '/api/health/live');
