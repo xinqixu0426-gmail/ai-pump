@@ -19,6 +19,7 @@ const {
     PDFDocument,
 } = require('@napi-rs/canvas');
 const { buildPdfBuffer } = require('../tests/helpers/pdfFixture.cjs');
+const { MCP_READ_ONLY_TOOL_NAMES } = require('../api/mcp/catalog.cjs');
 
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
@@ -26,20 +27,7 @@ const root = process.cwd();
 const sourceDatabasePath = path.resolve(
     process.env.DEEP_API_SOURCE_DATABASE_PATH || path.join(root, 'pump.db')
 );
-const MCP_EXPECTED_TOOL_NAMES = Object.freeze([
-    'get_copper_price',
-    'search_parts',
-    'search_coils',
-    'get_all_recipes',
-    'get_recipe_detail',
-    'preview_recipe_cost',
-    'get_recent_orders',
-    'get_order_detail',
-    'check_order_readiness',
-    'get_order_readiness_overview',
-    'get_management_action_center',
-    'search_factory_knowledge',
-]);
+const MCP_EXPECTED_TOOL_NAMES = MCP_READ_ONLY_TOOL_NAMES;
 const results = [];
 let child = null;
 let cookie = '';
@@ -95,12 +83,20 @@ async function request(label, method, pathname, body, expectedStatuses = [200]) 
     const headers = {};
     if (cookie) headers.Cookie = cookie;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const response = await fetch(`${baseUrl}${pathname}`, {
-        method,
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(20000),
-    });
+    let response;
+    try {
+        response = await fetch(`${baseUrl}${pathname}`, {
+            method,
+            headers,
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: AbortSignal.timeout(20000),
+        });
+    } catch (error) {
+        throw new Error(
+            `${label} ${method} ${pathname} 请求失败: ${error.message}`,
+            { cause: error }
+        );
+    }
     const text = await response.text();
     let payload = null;
     try {
@@ -202,7 +198,15 @@ async function requestDownload(label, pathname) {
 
 async function callVerifiedMcpTool(client, clientLabel, name, args, options = {}) {
     const startedAt = Date.now();
-    const result = await client.callTool({ name, arguments: args });
+    let result;
+    try {
+        result = await client.callTool({ name, arguments: args });
+    } catch (error) {
+        throw new Error(
+            `${clientLabel} / ${name} MCP 调用失败: ${error.message}`,
+            { cause: error }
+        );
+    }
     const structured = result.structuredContent;
     assert(structured?.mcp?.capabilityId, `${clientLabel} / ${name} 缺少 capabilityId`);
     assert(structured?.mcp?.verified === true, `${clientLabel} / ${name} 缺少正式 API 证据`);
@@ -229,6 +233,10 @@ function mcpDataArray(result) {
     return Array.isArray(result?.structuredContent?.data)
         ? result.structuredContent.data
         : [];
+}
+
+function mcpData(result) {
+    return result?.structuredContent?.data;
 }
 
 async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolVersion) {
@@ -260,61 +268,198 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             '通用 MCP 暴露了写工具 create_part'
         );
 
-        await callVerifiedMcpTool(client, label, 'get_copper_price', {});
-        await callVerifiedMcpTool(client, label, 'search_parts', { limit: 3 });
-        await callVerifiedMcpTool(client, label, 'search_coils', {});
+        const calledNames = new Set();
+        const call = async (name, args = {}, callOptions = {}) => {
+            const result = await callVerifiedMcpTool(
+                client,
+                label,
+                name,
+                args,
+                callOptions
+            );
+            calledNames.add(name);
+            return result;
+        };
+        const notFound = { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] };
 
-        const recipesResult = await callVerifiedMcpTool(client, label, 'get_all_recipes', {});
+        const templatesResult = await call('search_templates', { limit: 3 });
+        const template = mcpDataArray(templatesResult)[0] || null;
+        const customersResult = await call('search_customers', { limit: 3 });
+        const customer = mcpDataArray(customersResult)[0] || null;
+        await call('search_quotations', { limit: 3 });
+        await call('get_copper_price');
+        await call('get_coil_specs');
+        await call('search_parts', { limit: 3 });
+        const coilsResult = await call('search_coils');
+        const coil = mcpDataArray(coilsResult)[0] || null;
+
+        const recipesResult = await call('get_all_recipes');
+        const recipes = mcpDataArray(recipesResult);
+        const recipe = recipes[0] || null;
         const recipeId = Number(mcpDataArray(recipesResult)[0]?.id || 999999999);
         const recipeErrorOptions = recipeId === 999999999
-            ? { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] }
+            ? notFound
             : {};
-        await callVerifiedMcpTool(
-            client,
-            label,
+        const recipeDetailResult = await call(
             'get_recipe_detail',
             { recipeId },
             recipeErrorOptions
         );
-        await callVerifiedMcpTool(
-            client,
-            label,
+        await call(
+            'get_recipe_technical_files',
+            { recipeId },
+            recipeErrorOptions
+        );
+        await call(
             'preview_recipe_cost',
             { recipeId },
             recipeErrorOptions
         );
 
-        const ordersResult = await callVerifiedMcpTool(
-            client,
-            label,
+        const shellModel = template?.shellModel || template?.description || 'MCP-NOT-FOUND';
+        const templateArgs = template
+            ? { templateId: Number(template.id), customBarrelLength: 180 }
+            : { shellModel, customBarrelLength: 180 };
+        const templateErrorOptions = template ? {} : notFound;
+        const coilArgs = coil
+            ? {
+                spec: coil.spec,
+                sheets: Number(coil.sheets),
+                material: coil.material,
+                slotType: coil.slotType,
+            }
+            : { spec: 'MCP-NOT-FOUND', sheets: 1, material: '钢带', slotType: '小眼' };
+        await call('calculate_coil_cost', coilArgs, coil ? {} : notFound);
+        await call('full_calculate', {
+            pumphousing_model: shellModel,
+            ...(coil ? { stator: `${coil.spec}-${coil.sheets}` } : {}),
+            hasFloat: false,
+            cableLength: 0,
+        }, templateErrorOptions);
+        await call('dynamic_config_cost', {
+            ...(coil ? { stator: `${coil.spec}-${coil.sheets}` } : {}),
+            hasFloat: false,
+            cableLength: 0,
+        });
+        await call('build_recipe_bom_draft', {
+            ...(template ? { templateId: Number(template.id) } : {}),
+            ...(coil ? {
+                coilSpec: coil.spec,
+                coilSheets: Number(coil.sheets),
+                coilMaterial: coil.material,
+                coilSlotType: coil.slotType,
+            } : {}),
+        });
+        await call('preview_pump_shell_cost', templateArgs, templateErrorOptions);
+
+        const comparisonRecipe = recipes[1] || recipe;
+        const comparisonArgs = recipe && comparisonRecipe
+            ? { recipe1: recipe.name, recipe2: comparisonRecipe.name }
+            : { recipe1: 'MCP-NOT-FOUND-A', recipe2: 'MCP-NOT-FOUND-B' };
+        const comparisonErrorOptions = recipe && comparisonRecipe ? {} : notFound;
+        await call('compare_recipes', comparisonArgs, comparisonErrorOptions);
+        await call('explain_cost_change', recipe && comparisonRecipe
+            ? { leftRecipeId: Number(recipe.id), rightRecipeId: Number(comparisonRecipe.id) }
+            : { leftRecipeId: 999999998, rightRecipeId: 999999999 }, comparisonErrorOptions);
+        await call('analyze_recipe_configuration', { recipeId }, recipeErrorOptions);
+
+        await call('inspect_quotation_file', { fileId: 999999999 }, notFound);
+        await call('build_quotation_draft', {
+            ...(customer ? { customerId: Number(customer.id) } : { customerName: 'MCP-NOT-FOUND' }),
+            items: [{
+                ...(recipe ? { recipeId: Number(recipe.id) } : { recipeName: 'MCP-NOT-FOUND' }),
+                qty: 1,
+                margin: 1.1,
+            }],
+        }, customer && recipe ? {} : notFound);
+        await call('build_order_draft', {
+            customerName: customer?.name || 'MCP 本地验收客户',
+            items: [{
+                ...(recipe ? { recipeId: Number(recipe.id), recipeName: recipe.name } : {}),
+                spec: recipe?.spec || 'MCP-SMOKE',
+                qty: 1,
+                unitCost: Number(
+                    mcpData(recipeDetailResult)?.currentCost?.unitCost
+                    || recipe?.savedTotalCost
+                    || 1
+                ),
+                unitPrice: Number(
+                    mcpData(recipeDetailResult)?.currentCost?.unitCost
+                    || recipe?.savedTotalCost
+                    || 1
+                ) * 1.1,
+                partsJson: recipe?.partsJson || '[]',
+            }],
+        });
+        await call('search_customer_history', customer
+            ? { customerId: Number(customer.id), limit: 3 }
+            : { customerName: 'MCP-NOT-FOUND', limit: 3 }, customer ? {} : notFound);
+
+        const ordersResult = await call(
             'get_recent_orders',
             { limit: 3 }
         );
         const orderId = Number(mcpDataArray(ordersResult)[0]?.id || 999999999);
         const orderErrorOptions = orderId === 999999999
-            ? { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] }
+            ? notFound
             : {};
-        await callVerifiedMcpTool(
-            client,
-            label,
+        await call(
             'get_order_detail',
             { orderId },
             orderErrorOptions
         );
-        await callVerifiedMcpTool(
-            client,
-            label,
+        await call(
+            'get_order_knowledge_package',
+            { orderId },
+            orderErrorOptions
+        );
+        await call(
             'check_order_readiness',
             { orderId },
             orderErrorOptions
         );
-        await callVerifiedMcpTool(client, label, 'get_order_readiness_overview', {});
-        await callVerifiedMcpTool(client, label, 'get_management_action_center', {});
-        await callVerifiedMcpTool(
-            client,
-            label,
+        await call('plan_order_readiness_actions', { orderId }, orderErrorOptions);
+        await call('get_purchase_overview', { limit: 3 });
+        await call('get_order_readiness_overview');
+        await call('get_dashboard_summary');
+        await call('get_business_alerts');
+        await call('get_management_action_center');
+        await call('plan_factory_workflow', {
+            workflowType: 'order_readiness',
+            orderId,
+        }, orderErrorOptions);
+
+        await call('get_data_quality_summary');
+        await call('get_factory_learning_health', { limit: 3 });
+        const ruleCandidatesResult = await call('get_factory_rule_candidates');
+        const ruleCandidates = mcpDataArray(ruleCandidatesResult);
+        const candidateId = Number(ruleCandidates[0]?.id || 999999999);
+        await call('get_factory_rule_impact', { candidateId }, candidateId === 999999999
+            ? notFound
+            : {});
+        await call('get_factory_rule_compliance');
+        await call('get_factory_rule_history', { limit: 3 });
+
+        await call('search_factory_file_archive_targets', {
+            targetType: 'recipe',
+            query: recipe?.name || '',
+            limit: 3,
+        });
+        const knowledgeResult = await call(
             'search_factory_knowledge',
             { query: '本地 MCP 验收', limit: 3 }
+        );
+        const knowledgeId = Number(mcpDataArray(knowledgeResult)[0]?.id || 999999999);
+        await call('get_factory_knowledge_detail', { id: knowledgeId }, knowledgeId === 999999999
+            ? notFound
+            : {});
+        await call('get_factory_knowledge_health');
+        await call('get_rotor_drawing_history', { limit: 3 });
+
+        assert(
+            calledNames.size === MCP_EXPECTED_TOOL_NAMES.length
+                && MCP_EXPECTED_TOOL_NAMES.every(name => calledNames.has(name)),
+            `${label} 未真实调用完整 MCP 目录: ${[...calledNames].join(', ')}`
         );
 
         for (const name of ['get_order_detail', 'check_order_readiness']) {
@@ -2995,6 +3140,7 @@ async function run() {
                 MCP_TOKEN: MCP_TEST_TOKEN,
                 MCP_SERVICE_TOKENS: '',
                 MCP_ALLOWED_HOSTS: '127.0.0.1',
+                MCP_RATE_LIMIT_PER_MINUTE: '600',
                 INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,
                 ACCESS_PASSWORD: DEEP_API_ACCESS_PASSWORD,
                 NODE_PATH: path.join(root, 'node_modules'),
@@ -3002,6 +3148,9 @@ async function run() {
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true,
         });
+        // 隔离 API 会输出请求和 MCP 工具日志；必须持续排空 stdout，避免管道写满后
+        // 子进程被反压阻塞，进而把后续业务请求误报为超时。
+        child.stdout.resume();
         child.stderr.on('data', chunk => {
             childErrors += chunk.toString();
         });

@@ -361,7 +361,7 @@ POST /api/rotor/save
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
 - AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。74 个 AI 工具、29 个 AI 写工具和 95 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。列表查询统一经过“意图编译 → 严格字段校验 → 正式 Query API → 查询回执”；全量语义不隐式截断，明确数量才传 `limit`，客户/模板也不再回退知识搜索。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
-- 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成固定白名单，通过现有统一 executor、internal API client 与执行证据门读取正式事实。每个 Agent 的独立 Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；未列入能力、写能力、确认令牌或缺少正式 API 证据时默认拒绝。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议，避免两个目录随时间漂移。
+- 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成完整的 45 项只读 Query/Preview 白名单，通过现有统一 executor、internal API client 与执行证据门读取正式事实；目录测试保证注册表中的安全读能力不会静默遗漏。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力、确认执行或缺少正式 API 证据时默认拒绝。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议，避免两个目录随时间漂移。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。
 - 零件资料修改与库存调整是两个独立 Command；AI 的 `update_part` 只接受资料字段，库存统一走 `adjust_part_stock`。报价转订单、采购下单/入库、配方保存、转子出图、文件归档和知识同步均调用对应正式 service。

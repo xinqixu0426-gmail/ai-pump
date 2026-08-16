@@ -34,9 +34,11 @@ npm run verify:mcp-local
 
 该命令依次执行 MCP 协议/安全单测、官方 conformance 场景，并从本地
 `pump.db` 只读备份出临时数据库，启动隔离 API 后通过真实 HTTP 让 Hermes
-兼容的 2025 客户端和通用 2026 客户端分别发现并调用全部 12 个只读工具。
+兼容的 2025 客户端和通用 2026 客户端分别发现并调用全部 45 个只读工具。
 隔离验收同时覆盖未授权请求、畸形 JSON、请求体上限、已验证业务负结果、
 数据库完整性和外键检查；完成后停止子进程并清理临时目录，不修改源数据库。
+为容纳两个客户端在一分钟内连续执行 90 次工具调用，隔离进程把测试限流设为
+600；该值不会写入环境文件，也不改变生产默认的每分钟 60 次限制。
 
 Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”
 后，于进程退出阶段触发 `UV_HANDLE_CLOSING` 断言。测试脚本只在 Windows、
@@ -62,7 +64,7 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 
 ## 4. 变更边界
 
-- V1 只开放固定的 Query/Preview；写工具、资源和 Prompt 不因客户端支持而自动开放。
+- V1 白名单覆盖注册表中全部已登记、无需确认的安全 Query/Preview；目录测试保证新增安全读能力不会静默遗漏，写工具、资源和 Prompt 不因客户端支持而自动开放。
 - 新增工具必须同时补 capability/schema、白名单审查、正式 API 证据测试、文档和两代客户端发现测试。
 - `MCP_SERVICE_TOKENS` 中每个 clientId/token 必须唯一。轮换某一 Agent token 不应影响其他 Agent。
 - `HERMES_MCP_*` 仅为一个兼容周期的部署别名；新部署统一使用 `MCP_*`。

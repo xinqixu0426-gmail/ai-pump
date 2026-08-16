@@ -115,7 +115,7 @@ async function executeMcpTool(name, args, options = {}) {
 
 function createMcpProtocolServer(options = {}) {
     const server = new McpServer(
-        { name: 'pump-factory-mcp', version: '1.1.0' },
+        { name: 'pump-factory-mcp', version: '1.2.0' },
         {
             instructions: [
                 '只使用已列出的只读工具读取水泵工厂正式事实。',

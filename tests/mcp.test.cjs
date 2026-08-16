@@ -86,8 +86,23 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
     const listed = listMcpTools();
     const aiTools = new Map(AI_TOOLS.map(tool => [tool.function.name, tool]));
 
-    assert.equal(listed.length, 12);
+    const eligibleReadTools = AI_TOOLS
+        .map(tool => getAiCapability(tool.function.name))
+        .filter(capability => (
+            capability
+            && capability.access === 'read'
+            && capability.requiresConfirmation === false
+            && ['query', 'preview'].includes(capability.operation)
+        ))
+        .map(capability => capability.toolName);
+
+    assert.equal(listed.length, 45);
     assert.deepEqual(listed.map(tool => tool.name), MCP_READ_ONLY_TOOL_NAMES);
+    assert.deepEqual(
+        new Set(listed.map(tool => tool.name)),
+        new Set(eligibleReadTools),
+        'MCP 只读目录必须覆盖全部已登记的安全 Query/Preview'
+    );
     for (const tool of listed) {
         const capability = getAiCapability(tool.name);
         assert.equal(capability.access, 'read', tool.name);
