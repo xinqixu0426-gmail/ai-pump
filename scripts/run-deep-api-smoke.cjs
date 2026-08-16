@@ -26,6 +26,20 @@ const root = process.cwd();
 const sourceDatabasePath = path.resolve(
     process.env.DEEP_API_SOURCE_DATABASE_PATH || path.join(root, 'pump.db')
 );
+const MCP_EXPECTED_TOOL_NAMES = Object.freeze([
+    'get_copper_price',
+    'search_parts',
+    'search_coils',
+    'get_all_recipes',
+    'get_recipe_detail',
+    'preview_recipe_cost',
+    'get_recent_orders',
+    'get_order_detail',
+    'check_order_readiness',
+    'get_order_readiness_overview',
+    'get_management_action_center',
+    'search_factory_knowledge',
+]);
 const results = [];
 let child = null;
 let cookie = '';
@@ -33,6 +47,17 @@ let baseUrl = '';
 const MCP_TEST_TOKEN = 'deep-generic-mcp-token-0123456789abcdef';
 const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
 const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access-password';
+
+function readScope(args) {
+    const scopeArg = args.find(arg => arg.startsWith('--scope='));
+    const scope = String(scopeArg?.slice('--scope='.length) || 'all').trim().toLowerCase();
+    if (!['all', 'mcp'].includes(scope)) {
+        throw new Error(`未知深度验收范围: ${scope || '(empty)'}`);
+    }
+    return scope;
+}
+
+const DEEP_API_SCOPE = readScope(process.argv.slice(2));
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -175,6 +200,37 @@ async function requestDownload(label, pathname) {
     return bytes;
 }
 
+async function callVerifiedMcpTool(client, clientLabel, name, args, options = {}) {
+    const startedAt = Date.now();
+    const result = await client.callTool({ name, arguments: args });
+    const structured = result.structuredContent;
+    assert(structured?.mcp?.capabilityId, `${clientLabel} / ${name} 缺少 capabilityId`);
+    assert(structured?.mcp?.verified === true, `${clientLabel} / ${name} 缺少正式 API 证据`);
+
+    if (result.isError === true) {
+        const allowedErrorCodes = options.allowedErrorCodes || [];
+        assert(
+            allowedErrorCodes.includes(structured?.code),
+            `${clientLabel} / ${name} 意外失败: ${JSON.stringify(result).slice(0, 500)}`
+        );
+    } else {
+        assert(structured?.success === true, `${clientLabel} / ${name} 未返回 success=true`);
+    }
+
+    results.push({
+        label: `${clientLabel} / ${name}`,
+        status: 200,
+        ms: Date.now() - startedAt,
+    });
+    return result;
+}
+
+function mcpDataArray(result) {
+    return Array.isArray(result?.structuredContent?.data)
+        ? result.structuredContent.data
+        : [];
+}
+
 async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolVersion) {
     const startedAt = Date.now();
     try {
@@ -186,7 +242,15 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             );
         }
         const listed = await client.listTools();
-        assert(listed.tools.length === 12, '通用 MCP 未返回 12 个只读工具');
+        const listedNames = listed.tools.map(tool => tool.name);
+        assert(
+            listedNames.length === MCP_EXPECTED_TOOL_NAMES.length,
+            `通用 MCP 未返回 ${MCP_EXPECTED_TOOL_NAMES.length} 个只读工具`
+        );
+        assert(
+            MCP_EXPECTED_TOOL_NAMES.every(name => listedNames.includes(name)),
+            `通用 MCP 工具目录不完整: ${listedNames.join(', ')}`
+        );
         assert(
             listed.tools.every(tool => tool.annotations?.readOnlyHint === true),
             '通用 MCP 暴露了非只读工具'
@@ -196,36 +260,70 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             '通用 MCP 暴露了写工具 create_part'
         );
 
-        const result = await client.callTool({
-            name: 'get_copper_price',
-            arguments: {},
-        });
-        assert(
-            result.isError !== true,
-            `通用 MCP 正式铜价查询失败: ${JSON.stringify(result).slice(0, 500)}`
+        await callVerifiedMcpTool(client, label, 'get_copper_price', {});
+        await callVerifiedMcpTool(client, label, 'search_parts', { limit: 3 });
+        await callVerifiedMcpTool(client, label, 'search_coils', {});
+
+        const recipesResult = await callVerifiedMcpTool(client, label, 'get_all_recipes', {});
+        const recipeId = Number(mcpDataArray(recipesResult)[0]?.id || 999999999);
+        const recipeErrorOptions = recipeId === 999999999
+            ? { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] }
+            : {};
+        await callVerifiedMcpTool(
+            client,
+            label,
+            'get_recipe_detail',
+            { recipeId },
+            recipeErrorOptions
         );
-        assert(
-            result.structuredContent?.mcp?.capabilityId === 'ai.get_copper_price',
-            '通用 MCP 返回缺少 capabilityId'
+        await callVerifiedMcpTool(
+            client,
+            label,
+            'preview_recipe_cost',
+            { recipeId },
+            recipeErrorOptions
         );
-        assert(
-            result.structuredContent?.mcp?.verified === true,
-            '通用 MCP 返回缺少正式 API 证据'
+
+        const ordersResult = await callVerifiedMcpTool(
+            client,
+            label,
+            'get_recent_orders',
+            { limit: 3 }
+        );
+        const orderId = Number(mcpDataArray(ordersResult)[0]?.id || 999999999);
+        const orderErrorOptions = orderId === 999999999
+            ? { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] }
+            : {};
+        await callVerifiedMcpTool(
+            client,
+            label,
+            'get_order_detail',
+            { orderId },
+            orderErrorOptions
+        );
+        await callVerifiedMcpTool(
+            client,
+            label,
+            'check_order_readiness',
+            { orderId },
+            orderErrorOptions
+        );
+        await callVerifiedMcpTool(client, label, 'get_order_readiness_overview', {});
+        await callVerifiedMcpTool(client, label, 'get_management_action_center', {});
+        await callVerifiedMcpTool(
+            client,
+            label,
+            'search_factory_knowledge',
+            { query: '本地 MCP 验收', limit: 3 }
         );
 
         for (const name of ['get_order_detail', 'check_order_readiness']) {
-            const notFound = await client.callTool({
+            await callVerifiedMcpTool(
+                client,
+                `${label} 已核验负结果`,
                 name,
-                arguments: { orderId: 999999999 },
-            });
-            assert(notFound.isError === true, `${name} 未把不存在订单标记为业务失败`);
-            assert(
-                notFound.structuredContent?.code === 'AI_RESOURCE_NOT_FOUND',
-                `${name} 未保留资源不存在错误码`
-            );
-            assert(
-                notFound.structuredContent?.mcp?.verified === true,
-                `${name} 未返回已验证负结果`
+                { orderId: 999999999 },
+                { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] }
             );
         }
         results.push({
@@ -241,6 +339,53 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
 async function testMcpReadOnlyFlows() {
     const url = new URL(`${baseUrl}/mcp`);
     const requestInit = { headers: { Authorization: `Bearer ${MCP_TEST_TOKEN}` } };
+    const unauthorizedMalformed = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+    });
+    assert(unauthorizedMalformed.status === 401, 'MCP 畸形 JSON 在鉴权前被解析');
+
+    const malformed = await fetch(url, {
+        method: 'POST',
+        headers: {
+            ...requestInit.headers,
+            'Content-Type': 'application/json',
+        },
+        body: '{',
+    });
+    assert(malformed.status === 400, 'MCP 畸形 JSON 未返回 HTTP 400');
+    const malformedPayload = await malformed.json();
+    assert(malformedPayload?.jsonrpc === '2.0', 'MCP 畸形 JSON 未返回 JSON-RPC 错误');
+    assert(malformedPayload?.error?.code === -32700, 'MCP 畸形 JSON 未返回 Parse error');
+    assert(Boolean(malformedPayload?.error?.data?.requestId), 'MCP Parse error 缺少 requestId');
+    results.push({
+        label: '通用 MCP 畸形 JSON 协议错误',
+        status: malformed.status,
+        ms: 0,
+    });
+
+    const oversizedBody = await fetch(url, {
+        method: 'POST',
+        headers: {
+            ...requestInit.headers,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ value: 'x'.repeat(262_144) }),
+    });
+    assert(oversizedBody.status === 413, 'MCP 超大 JSON 未返回 HTTP 413');
+    const oversizedPayload = await oversizedBody.json();
+    assert(oversizedPayload?.error?.code === -32600, 'MCP 超大 JSON 未返回 Invalid Request');
+    assert(
+        oversizedPayload?.error?.data?.maxRequestBytes === 262_144,
+        'MCP 超大 JSON 未返回请求上限'
+    );
+    results.push({
+        label: '通用 MCP 请求体上限',
+        status: oversizedBody.status,
+        ms: 0,
+    });
+
     await verifyMcpReadOnlyFlow(
         new LegacyMcpClient({ name: 'hermes-compatible-smoke', version: '1.0.0' }),
         new LegacyMcpTransport(url, { requestInit }),
@@ -2818,7 +2963,8 @@ async function testCrossModuleWriteFlow(baseResources) {
 }
 
 async function run() {
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'pump-deep-test-'));
+    const tempPrefix = DEEP_API_SCOPE === 'mcp' ? 'pump-mcp-local-' : 'pump-deep-test-';
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), tempPrefix));
     let childErrors = '';
     try {
         fs.cpSync(path.join(root, 'api'), path.join(temp, 'api'), { recursive: true });
@@ -2876,9 +3022,11 @@ async function run() {
         assert(readiness.response.headers.get('x-request-id'), '服务就绪检查缺少 X-Request-ID');
         assert(readiness.payload?.data?.runtime?.gitCommit, '服务就绪检查缺少运行版本');
         assert(readiness.payload?.data?.background?.databaseBackup, '服务就绪检查缺少后台任务状态');
-        const proxyFailure = await request('前端转发失败返回 502', 'GET', '/frontend-proxy-check', undefined, [502]);
-        assert(String(proxyFailure.payload).includes('前端服务暂时不可用'), '前端转发失败提示不明确');
-        await request('未登录访问保护', 'GET', '/api/parts', undefined, [401]);
+        if (DEEP_API_SCOPE === 'all') {
+            const proxyFailure = await request('前端转发失败返回 502', 'GET', '/frontend-proxy-check', undefined, [502]);
+            assert(String(proxyFailure.payload).includes('前端服务暂时不可用'), '前端转发失败提示不明确');
+            await request('未登录访问保护', 'GET', '/api/parts', undefined, [401]);
+        }
         await request(
             '通用 MCP 未授权访问',
             'POST',
@@ -2887,46 +3035,48 @@ async function run() {
             [401]
         );
         await testMcpReadOnlyFlows();
-        const login = await request('登录', 'POST', '/api/auth/login', {
-            password: DEEP_API_ACCESS_PASSWORD,
-        });
-        cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
-        assert(cookie.startsWith('token='), '登录未返回 token Cookie');
-        await request('登录状态', 'GET', '/api/auth/check');
-        const legacyConfirmation = await request(
-            'AI旧确认参数不能直接执行',
-            'POST',
-            '/api/ai/confirm-tool',
-            { toolName: 'delete_part', args: { id: 1 } },
-            [409]
-        );
-        assert(
-            legacyConfirmation.payload?.code === 'confirmation_token_required',
-            'AI旧确认请求未返回 confirmation_token_required'
-        );
-        const invalidConfirmation = await request(
-            'AI伪造确认token被拒绝',
-            'POST',
-            '/api/ai/confirm-tool',
-            { confirmationToken: 'not-a-valid-confirmation-token' },
-            [400]
-        );
-        assert(
-            invalidConfirmation.payload?.code === 'confirmation_token_invalid',
-            'AI伪造确认 token 未被拒绝'
-        );
-        const missingApi = await request('不存在 API 返回 JSON 404', 'GET', '/api/not-found', undefined, [404]);
-        assert(missingApi.payload?.success === false, '不存在 API 未返回标准 JSON 错误');
+        if (DEEP_API_SCOPE === 'all') {
+            const login = await request('登录', 'POST', '/api/auth/login', {
+                password: DEEP_API_ACCESS_PASSWORD,
+            });
+            cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
+            assert(cookie.startsWith('token='), '登录未返回 token Cookie');
+            await request('登录状态', 'GET', '/api/auth/check');
+            const legacyConfirmation = await request(
+                'AI旧确认参数不能直接执行',
+                'POST',
+                '/api/ai/confirm-tool',
+                { toolName: 'delete_part', args: { id: 1 } },
+                [409]
+            );
+            assert(
+                legacyConfirmation.payload?.code === 'confirmation_token_required',
+                'AI旧确认请求未返回 confirmation_token_required'
+            );
+            const invalidConfirmation = await request(
+                'AI伪造确认token被拒绝',
+                'POST',
+                '/api/ai/confirm-tool',
+                { confirmationToken: 'not-a-valid-confirmation-token' },
+                [400]
+            );
+            assert(
+                invalidConfirmation.payload?.code === 'confirmation_token_invalid',
+                'AI伪造确认 token 未被拒绝'
+            );
+            const missingApi = await request('不存在 API 返回 JSON 404', 'GET', '/api/not-found', undefined, [404]);
+            assert(missingApi.payload?.success === false, '不存在 API 未返回标准 JSON 错误');
 
-        await testCoreGetEndpointsDoNotWrite(path.join(temp, 'pump.db'));
-        const resources = await readCoreResources();
-        await testBusinessSettingCommand();
-        const baseResources = await testResourceDetails(resources);
-        await testCrossModuleWriteFlow(baseResources);
+            await testCoreGetEndpointsDoNotWrite(path.join(temp, 'pump.db'));
+            const resources = await readCoreResources();
+            await testBusinessSettingCommand();
+            const baseResources = await testResourceDetails(resources);
+            await testCrossModuleWriteFlow(baseResources);
 
-        await request('退出登录', 'POST', '/api/auth/logout', {});
-        cookie = '';
-        await request('退出后状态', 'GET', '/api/auth/check', undefined, [401]);
+            await request('退出登录', 'POST', '/api/auth/logout', {});
+            cookie = '';
+            await request('退出后状态', 'GET', '/api/auth/check', undefined, [401]);
+        }
 
         const cloneDb = new Database(path.join(temp, 'pump.db'), { readonly: true });
         const integrity = cloneDb.prepare('PRAGMA integrity_check').get().integrity_check;
@@ -2937,6 +3087,7 @@ async function run() {
 
         const slowest = [...results].sort((left, right) => right.ms - left.ms).slice(0, 8);
         console.log(JSON.stringify({
+            scope: DEEP_API_SCOPE,
             passed: results.length,
             failed: 0,
             tempDatabaseIntegrity: integrity,
@@ -2948,7 +3099,7 @@ async function run() {
         }
     } finally {
         if (child && !child.killed) child.kill();
-        if (temp.startsWith(os.tmpdir()) && path.basename(temp).startsWith('pump-deep-test-')) {
+        if (temp.startsWith(os.tmpdir()) && path.basename(temp).startsWith(tempPrefix)) {
             for (let attempt = 0; attempt < 20; attempt += 1) {
                 try {
                     fs.rmSync(temp, { recursive: true, force: true });

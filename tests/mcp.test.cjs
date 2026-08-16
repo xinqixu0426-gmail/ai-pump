@@ -26,6 +26,7 @@ const {
     executeMcpTool,
 } = require('../api/mcp/server.cjs');
 const {
+    MCP_MAX_REQUEST_BYTES,
     createMcpRouter,
 } = require('../api/routes/mcp.cjs');
 
@@ -58,7 +59,6 @@ function verifiedResult(data = {}) {
 
 async function listen(router) {
     const app = express();
-    app.use(express.json());
     app.use((req, res, next) => {
         req.requestId = 'mcp-test-request';
         next();
@@ -376,6 +376,55 @@ test('通用 MCP：HTTP 认证错误与协议错误按标准分层返回', async
         assert.equal(unauthorized.status, 401);
         assert.match(unauthorized.headers.get('www-authenticate'), /^Bearer /);
         assert.equal((await unauthorized.json()).error, 'invalid_token');
+
+        const unauthorizedMalformed = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{',
+        });
+        assert.equal(unauthorizedMalformed.status, 401);
+
+        const malformed = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+            body: '{',
+        });
+        assert.equal(malformed.status, 400);
+        assert.match(malformed.headers.get('content-type'), /^application\/json/);
+        assert.deepEqual(await malformed.json(), {
+            jsonrpc: '2.0',
+            id: null,
+            error: {
+                code: -32700,
+                message: 'Parse error',
+                data: { requestId: 'mcp-test-request' },
+            },
+        });
+
+        const oversizedBody = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ value: 'x'.repeat(MCP_MAX_REQUEST_BYTES) }),
+        });
+        assert.equal(oversizedBody.status, 413);
+        assert.deepEqual(await oversizedBody.json(), {
+            jsonrpc: '2.0',
+            id: null,
+            error: {
+                code: -32600,
+                message: 'Request body too large',
+                data: {
+                    requestId: 'mcp-test-request',
+                    maxRequestBytes: MCP_MAX_REQUEST_BYTES,
+                },
+            },
+        });
 
         const wrongMediaType = await fetch(url, {
             method: 'POST',

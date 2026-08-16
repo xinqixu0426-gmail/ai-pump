@@ -75,14 +75,16 @@ app.use(cors({
   origin: IS_DEV ? true : corsOrigins,
   credentials: true,
 }));
+
+// 通用 MCP 同时兼容当前协议与 2025 Streamable HTTP，只暴露显式白名单内的只读 Query/Preview。
+// MCP 在独立限流和鉴权后解析 JSON，使畸形或超大请求不能绕过该入口保护。
+app.use('/mcp', require('./api/routes/mcp.cjs'));
+
 app.use(express.json());
 app.use(cookieParser());
 
 // 网页保存的运行设置覆盖 .env 默认值；部署鉴权密钥仍只允许来自环境变量。
 require('./api/services/runtimeConfig.cjs').initializeRuntimeSettings();
-
-// 通用 MCP 同时兼容当前协议与 2025 Streamable HTTP，只暴露显式白名单内的只读 Query/Preview。
-app.use('/mcp', require('./api/routes/mcp.cjs'));
 
 // 静态文件服务 — 转子出图 PDF 下载
 const path = require('path');

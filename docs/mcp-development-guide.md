@@ -26,9 +26,27 @@
 
 ## 3. 本项目门禁
 
+日常开发先运行本地 MCP 专项门禁：
+
 ```bash
-npm run test:mcp
-npm run test:mcp:conformance
+npm run verify:mcp-local
+```
+
+该命令依次执行 MCP 协议/安全单测、官方 conformance 场景，并从本地
+`pump.db` 只读备份出临时数据库，启动隔离 API 后通过真实 HTTP 让 Hermes
+兼容的 2025 客户端和通用 2026 客户端分别发现并调用全部 12 个只读工具。
+隔离验收同时覆盖未授权请求、畸形 JSON、请求体上限、已验证业务负结果、
+数据库完整性和外键检查；完成后停止子进程并清理临时目录，不修改源数据库。
+
+Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”
+后，于进程退出阶段触发 `UV_HANDLE_CLOSING` 断言。测试脚本只在 Windows、
+成功摘要完整、没有 `FAILURE`、且断言是输出末尾唯一退出异常时将其记为明确的
+CLI 兼容警告；任何场景失败、摘要缺失或其他非零退出仍使门禁失败。该问题对应
+Node.js 的 Windows `fetch`/强制退出竞态，而不是放宽 MCP 场景判定。
+
+专项门禁通过后，提交/发布前继续运行项目级门禁：
+
+```bash
 npm run verify:api-contract
 npm test
 npm run test:deep-api
@@ -56,3 +74,4 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 - [MCP Authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
 - [TypeScript SDK v2 迁移与双协议兼容](https://ts.sdk.modelcontextprotocol.io/v2/migration/support-2026-07-28)
 - [官方 Conformance Suite](https://github.com/modelcontextprotocol/conformance)
+- [Node.js Windows fetch 退出阶段 libuv 断言](https://github.com/nodejs/node/issues/58091)

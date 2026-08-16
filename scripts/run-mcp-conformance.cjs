@@ -5,6 +5,7 @@ const express = require('express');
 const { createMcpRouter } = require('../api/routes/mcp.cjs');
 
 const TOKEN = 'mcp-conformance-token-0123456789abcdef';
+const WINDOWS_LIBUV_ASSERTION = 'Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)';
 
 function verifiedResult() {
     return {
@@ -33,6 +34,24 @@ async function closeServer(server) {
     )));
 }
 
+function isSuccessfulConformanceOutput(output) {
+    const summary = output.match(/Passed:\s+(\d+)\/(\d+),\s+0 failed,\s+0 warnings/);
+    return Boolean(
+        summary
+        && Number(summary[1]) > 0
+        && summary[1] === summary[2]
+        && !/"status"\s*:\s*"FAILURE"/.test(output)
+    );
+}
+
+function isKnownWindowsTeardownFailure(exitCode, output) {
+    return process.platform === 'win32'
+        && exitCode !== 0
+        && isSuccessfulConformanceOutput(output)
+        && output.includes(WINDOWS_LIBUV_ASSERTION)
+        && /win\\async\.c, line \d+\s*$/.test(output);
+}
+
 async function run() {
     const router = createMcpRouter({
         env: {
@@ -54,6 +73,7 @@ async function run() {
     app.use('/mcp', router);
     const server = await listen(app);
     let failed = false;
+    const windowsTeardownWarnings = [];
     try {
         const address = server.address();
         const cli = path.join(
@@ -91,11 +111,21 @@ async function run() {
             });
             clearTimeout(timeout);
             process.stdout.write(output);
-            if (exitCode !== 0 || /"status"\s*:\s*"FAILURE"/.test(output)) failed = true;
+            if (isKnownWindowsTeardownFailure(exitCode, output)) {
+                windowsTeardownWarnings.push(scenario);
+            } else if (exitCode !== 0 || !isSuccessfulConformanceOutput(output)) {
+                failed = true;
+            }
         }
     } finally {
         await closeServer(server);
         await router.closeMcpHandler();
+    }
+    if (windowsTeardownWarnings.length > 0) {
+        console.warn(
+            `[mcp-conformance] Windows Node 在官方 CLI 完整输出成功摘要后的退出阶段触发已知 libuv 断言；`
+            + `场景结果保留为通过，退出兼容警告: ${windowsTeardownWarnings.join(', ')}`
+        );
     }
     if (failed) process.exitCode = 1;
 }
