@@ -212,6 +212,22 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             result.structuredContent?.mcp?.verified === true,
             '通用 MCP 返回缺少正式 API 证据'
         );
+
+        for (const name of ['get_order_detail', 'check_order_readiness']) {
+            const notFound = await client.callTool({
+                name,
+                arguments: { orderId: 999999999 },
+            });
+            assert(notFound.isError === true, `${name} 未把不存在订单标记为业务失败`);
+            assert(
+                notFound.structuredContent?.code === 'AI_RESOURCE_NOT_FOUND',
+                `${name} 未保留资源不存在错误码`
+            );
+            assert(
+                notFound.structuredContent?.mcp?.verified === true,
+                `${name} 未返回已验证负结果`
+            );
+        }
         results.push({
             label,
             status: 200,

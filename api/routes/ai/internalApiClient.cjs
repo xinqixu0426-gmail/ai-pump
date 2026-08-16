@@ -21,6 +21,7 @@ function createInternalFetch(context = {}) {
                 method: String(entry?.method || 'GET').toUpperCase(),
                 path: String(entry?.path || ''),
                 ok: entry?.ok !== false,
+                outcome: entry?.outcome === 'not_found' ? 'not_found' : null,
                 result: entry?.result,
                 error: entry?.error || null,
             }),
@@ -42,8 +43,12 @@ async function readApiJson(response, fallbackError) {
     }
     if (!response.ok || result.success === false) {
         const error = new Error(result.error || fallbackError || `API 调用失败：${response.status}`);
-        error.code = result.code || 'internal_api_request_failed';
+        error.code = result.code
+            || (response.status === 404 ? 'AI_RESOURCE_NOT_FOUND' : 'internal_api_request_failed');
         error.statusCode = response.status;
+        error.formalApiOutcome = response.status === 404 && result.success === false
+            ? 'not_found'
+            : 'failed';
         throw error;
     }
     return result.data ?? result;
@@ -67,6 +72,7 @@ async function requestJson(internalFetch, method, url, body, fallbackError) {
                 method,
                 path: url,
                 ok: false,
+                outcome: error.formalApiOutcome,
                 error: {
                     code: error.code || 'internal_api_request_failed',
                     statusCode: error.statusCode || null,

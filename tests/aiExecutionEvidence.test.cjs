@@ -68,6 +68,25 @@ test('AI 统一证据门：正式查询后的未找到可如实回答，API 故�
         path: '/api/parts?keyword=A',
         ok: false,
     }]).verified, false);
+
+    const formalNotFound = buildReadFailureEvidence([{
+        method: 'GET',
+        path: '/api/orders/999999999',
+        ok: false,
+        outcome: 'not_found',
+    }]);
+    assert.equal(formalNotFound.verified, true);
+    assert.deepEqual(formalNotFound.calls, [{
+        method: 'GET',
+        path: '/api/orders/999999999',
+        outcome: 'not_found',
+    }]);
+    assert.equal(buildReadExecutionEvidence([{
+        method: 'GET',
+        path: '/api/orders/999999999',
+        ok: false,
+        outcome: 'not_found',
+    }]).verified, false);
 });
 
 test('AI 统一证据门：写工具只接受登记能力对应的 operation/audit 回执', () => {

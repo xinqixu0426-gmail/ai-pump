@@ -1501,6 +1501,61 @@ test('AI executor 行为：订单生产准备通过只读标准 API 并返回实
     ]);
 });
 
+test('AI executor 行为：订单详情和生产准备的正式 404 是已验证负结果', async () => {
+    const calls = installFetchStub((call) => {
+        if (
+            call.method === 'GET'
+            && (
+                call.url.endsWith('/api/orders/999999999')
+                || call.url.endsWith('/api/orders/999999999/readiness')
+            )
+        ) {
+            return jsonResponse({ success: false, error: '订单不存在' }, 404);
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const detail = await executeToolCall(
+        'get_order_detail',
+        { orderId: 999999999 },
+        { allowWrite: false }
+    );
+    const readiness = await executeToolCall(
+        'check_order_readiness',
+        { orderId: 999999999 },
+        { allowWrite: false }
+    );
+
+    for (const result of [detail, readiness]) {
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'AI_RESOURCE_NOT_FOUND');
+        assert.equal(result.executionEvidence.verified, true);
+        assert.equal(result.executionEvidence.kind, 'formal_api_query_failure');
+        assert.equal(result.executionEvidence.calls[0].outcome, 'not_found');
+    }
+    assert.match(detail.error, /找不到订单ID: 999999999/);
+    assert.equal(readiness.error, '订单不存在');
+    assert.equal(calls.length, 2);
+});
+
+test('AI executor 行为：订单详情的正式 API 故障不能冒充订单不存在', async () => {
+    installFetchStub((call) => jsonResponse({
+        success: false,
+        error: `订单服务故障：${call.method} ${call.url}`,
+    }, 500));
+
+    const result = await executeToolCall(
+        'get_order_detail',
+        { orderId: 999999999 },
+        { allowWrite: false }
+    );
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'internal_api_request_failed');
+    assert.match(result.error, /订单服务故障/);
+    assert.equal(result.executionEvidence, undefined);
+});
+
 test('AI executor 行为：订单知识包通过只读标准 API 并保留双层依据', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/orders/12/knowledge-package') && call.method === 'GET') {

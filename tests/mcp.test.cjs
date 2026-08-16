@@ -116,6 +116,30 @@ test('通用 MCP：越过白名单或缺少正式 API 证据时默认拒绝', as
     assert.equal(missingEvidence.structuredContent.code, 'mcp_execution_evidence_missing');
 });
 
+test('通用 MCP：正式 API 已确认资源不存在时保留业务负结果', async () => {
+    const response = await executeMcpTool('get_order_detail', { orderId: 999999999 }, {
+        executeToolCall: async () => ({
+            success: false,
+            code: 'AI_RESOURCE_NOT_FOUND',
+            error: '找不到订单ID: 999999999',
+            executionEvidence: {
+                verified: true,
+                kind: 'formal_api_query_failure',
+                calls: [{
+                    method: 'GET',
+                    path: '/api/orders/999999999',
+                    outcome: 'not_found',
+                }],
+            },
+        }),
+    });
+
+    assert.equal(response.isError, true);
+    assert.equal(response.structuredContent.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.equal(response.structuredContent.mcp.verified, true);
+    assert.doesNotMatch(response.structuredContent.code, /mcp_execution_evidence_missing/);
+});
+
 test('通用 MCP：每个 Agent 使用独立 Bearer token，并校验 Host 与 Origin', () => {
     const middleware = createMcpAccessMiddleware({ env: enabledEnv() });
     const invoke = headers => {

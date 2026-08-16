@@ -64,8 +64,9 @@ async function loadOrder(internalFetch, orderId) {
     if (!Number.isFinite(id) || id <= 0) return null;
     try {
         return await getJson(internalFetch, `/api/orders/${id}`, '订单读取失败');
-    } catch {
-        return null;
+    } catch (error) {
+        if (error.code === 'AI_RESOURCE_NOT_FOUND') return null;
+        throw error;
     }
 }
 
@@ -285,7 +286,13 @@ async function executeOrderTool(toolName, args, internalFetch) {
                 };
             }
             const row = await loadOrder(internalFetch, resolved.orderId);
-            if (!row) return { success: false, error: '找不到订单ID: ' + resolved.orderId };
+            if (!row) {
+                return {
+                    success: false,
+                    code: 'AI_RESOURCE_NOT_FOUND',
+                    error: '找不到订单ID: ' + resolved.orderId,
+                };
+            }
             let items = parseJsonArray(row.itemsJson);
             let purchaseList = parseJsonArray(row.purchaseListJson);
             let todos = parseJsonArray(row.todosJson);

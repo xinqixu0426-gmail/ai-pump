@@ -43,6 +43,7 @@ function apiCallEvidence(trace = []) {
         method: item.method,
         path: item.path,
         ok: item.ok !== false,
+        outcome: item.outcome === 'not_found' ? 'not_found' : null,
         receipt: commandReceiptFrom(item.result),
     }));
 }
@@ -68,7 +69,10 @@ function buildReadExecutionEvidence(trace = []) {
 
 function buildReadFailureEvidence(trace = []) {
     const calls = apiCallEvidence(trace);
-    if (calls.length === 0 || calls.some(call => !call.ok)) {
+    if (
+        calls.length === 0
+        || calls.some(call => !call.ok && call.outcome !== 'not_found')
+    ) {
         return {
             verified: false,
             code: 'ai_read_evidence_missing',
@@ -81,6 +85,7 @@ function buildReadFailureEvidence(trace = []) {
         calls: calls.map(call => ({
             method: call.method,
             path: call.path,
+            ...(call.outcome ? { outcome: call.outcome } : {}),
         })),
     };
 }
