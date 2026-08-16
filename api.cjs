@@ -81,7 +81,7 @@ app.use(cookieParser());
 // 网页保存的运行设置覆盖 .env 默认值；部署鉴权密钥仍只允许来自环境变量。
 require('./api/services/runtimeConfig.cjs').initializeRuntimeSettings();
 
-// Hermes MCP V1 使用独立 Bearer token，只暴露显式白名单内的只读 Query/Preview。
+// 通用 MCP 同时兼容当前协议与 2025 Streamable HTTP，只暴露显式白名单内的只读 Query/Preview。
 app.use('/mcp', require('./api/routes/mcp.cjs'));
 
 // 静态文件服务 — 转子出图 PDF 下载

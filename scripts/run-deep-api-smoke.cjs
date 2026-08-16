@@ -5,10 +5,14 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const Database = require('better-sqlite3');
 const XLSX = require('@e965/xlsx');
-const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const { Client: LegacyMcpClient } = require('@modelcontextprotocol/sdk/client/index.js');
 const {
-    StreamableHTTPClientTransport,
+    StreamableHTTPClientTransport: LegacyMcpTransport,
 } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
+const {
+    Client: ModernMcpClient,
+    StreamableHTTPClientTransport: ModernMcpTransport,
+} = require('@modelcontextprotocol/client');
 const {
     createCanvas,
     loadImage,
@@ -26,7 +30,7 @@ const results = [];
 let child = null;
 let cookie = '';
 let baseUrl = '';
-const HERMES_MCP_TEST_TOKEN = 'deep-hermes-mcp-token-0123456789abcdef';
+const MCP_TEST_TOKEN = 'deep-generic-mcp-token-0123456789abcdef';
 const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
 const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access-password';
 
@@ -171,25 +175,25 @@ async function requestDownload(label, pathname) {
     return bytes;
 }
 
-async function testHermesMcpReadOnlyFlow() {
+async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolVersion) {
     const startedAt = Date.now();
-    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
-        requestInit: {
-            headers: { Authorization: `Bearer ${HERMES_MCP_TEST_TOKEN}` },
-        },
-    });
-    const client = new Client({ name: 'pump-deep-api-smoke', version: '1.0.0' });
     try {
         await client.connect(transport);
+        if (expectedProtocolVersion) {
+            assert(
+                client.getNegotiatedProtocolVersion() === expectedProtocolVersion,
+                `通用 MCP 未协商到 ${expectedProtocolVersion}`
+            );
+        }
         const listed = await client.listTools();
-        assert(listed.tools.length === 12, 'Hermes MCP 未返回 12 个 V1 只读工具');
+        assert(listed.tools.length === 12, '通用 MCP 未返回 12 个只读工具');
         assert(
             listed.tools.every(tool => tool.annotations?.readOnlyHint === true),
-            'Hermes MCP 暴露了非只读工具'
+            '通用 MCP 暴露了非只读工具'
         );
         assert(
             !listed.tools.some(tool => tool.name === 'create_part'),
-            'Hermes MCP 暴露了写工具 create_part'
+            '通用 MCP 暴露了写工具 create_part'
         );
 
         const result = await client.callTool({
@@ -198,24 +202,43 @@ async function testHermesMcpReadOnlyFlow() {
         });
         assert(
             result.isError !== true,
-            `Hermes MCP 正式铜价查询失败: ${JSON.stringify(result).slice(0, 500)}`
+            `通用 MCP 正式铜价查询失败: ${JSON.stringify(result).slice(0, 500)}`
         );
         assert(
             result.structuredContent?.mcp?.capabilityId === 'ai.get_copper_price',
-            'Hermes MCP 返回缺少 capabilityId'
+            '通用 MCP 返回缺少 capabilityId'
         );
         assert(
             result.structuredContent?.mcp?.verified === true,
-            'Hermes MCP 返回缺少正式 API 证据'
+            '通用 MCP 返回缺少正式 API 证据'
         );
         results.push({
-            label: 'Hermes MCP真实只读调用',
+            label,
             status: 200,
             ms: Date.now() - startedAt,
         });
     } finally {
         await client.close();
     }
+}
+
+async function testMcpReadOnlyFlows() {
+    const url = new URL(`${baseUrl}/mcp`);
+    const requestInit = { headers: { Authorization: `Bearer ${MCP_TEST_TOKEN}` } };
+    await verifyMcpReadOnlyFlow(
+        new LegacyMcpClient({ name: 'hermes-compatible-smoke', version: '1.0.0' }),
+        new LegacyMcpTransport(url, { requestInit }),
+        'Hermes 2025 MCP 真实只读调用'
+    );
+    await verifyMcpReadOnlyFlow(
+        new ModernMcpClient(
+            { name: 'generic-agent-smoke', version: '2.0.0' },
+            { versionNegotiation: { mode: 'auto' } }
+        ),
+        new ModernMcpTransport(url, { requestInit }),
+        '通用 2026 MCP 真实只读调用',
+        '2026-07-28'
+    );
 }
 
 function readGetPuritySnapshot(databasePath) {
@@ -2792,9 +2815,10 @@ async function run() {
                 NEXT_ORIGIN: `http://127.0.0.1:${unavailableNextPort}`,
                 KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED: 'false',
                 KNOWLEDGE_HYBRID_SEARCH_ENABLED: 'false',
-                HERMES_MCP_ENABLED: 'true',
-                HERMES_MCP_TOKEN: HERMES_MCP_TEST_TOKEN,
-                HERMES_MCP_ALLOWED_HOSTS: '127.0.0.1',
+                MCP_ENABLED: 'true',
+                MCP_CLIENT_ID: 'deep-api',
+                MCP_TOKEN: MCP_TEST_TOKEN,
+                MCP_ALLOWED_HOSTS: '127.0.0.1',
                 INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,
                 ACCESS_PASSWORD: DEEP_API_ACCESS_PASSWORD,
                 NODE_PATH: path.join(root, 'node_modules'),
@@ -2818,13 +2842,13 @@ async function run() {
         assert(String(proxyFailure.payload).includes('前端服务暂时不可用'), '前端转发失败提示不明确');
         await request('未登录访问保护', 'GET', '/api/parts', undefined, [401]);
         await request(
-            'Hermes MCP未授权访问',
+            '通用 MCP 未授权访问',
             'POST',
             '/mcp',
             { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
             [401]
         );
-        await testHermesMcpReadOnlyFlow();
+        await testMcpReadOnlyFlows();
         const login = await request('登录', 'POST', '/api/auth/login', {
             password: DEEP_API_ACCESS_PASSWORD,
         });

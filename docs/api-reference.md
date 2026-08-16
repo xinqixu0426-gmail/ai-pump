@@ -41,7 +41,7 @@
 | 常规 `/api/*` | JWT Cookie | `app.use('/api', authMiddleware)` 后保护 |
 | 内部服务 | `x-internal-secret` | 与 `INTERNAL_SECRET` 匹配时绕过 JWT |
 | AI / 工厂配置 | JWT Cookie 或 `x-internal-secret` | 路由内部单独校验 |
-| Hermes MCP V1 `/mcp` | 独立 Bearer token | 默认关闭；仅开放固定只读白名单，不接受 JWT 或 `INTERNAL_SECRET` |
+| 通用 MCP `/mcp` | 每个 Agent 独立 Bearer service token | 默认关闭；仅开放固定只读白名单，不接受 JWT 或 `INTERNAL_SECRET`；不以客户端自报名称作为授权身份 |
 
 ## 3. 认证
 
@@ -377,15 +377,17 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 | `POST` | `/api/ai/confirm-tool` | `{ confirmationToken, toolName?, args? }` | 使用确认卡片中的服务端 token 执行写工具；token 绑定当前登录会话、capability、规范化参数哈希和 operationId，5 分钟有效且单次消费。新客户端只提交 `confirmationToken`；可选 `toolName/args` 仅用于检测篡改。没有 token 的旧请求返回 `409 confirmation_token_required`，不会执行。正式 API 还必须返回匹配 capability 的 `operationId`、完成状态和非空审计 ID；缺失时返回 `502 ai_write_evidence_missing`，token 记为失败，不会向客户端宣称完成 |
 | `GET` | `/api/ai/system-prompt` | 默认无参数；新调用使用 `includeMeta=1` | 兼容路径；默认继续返回配置字符串。`includeMeta=1` 返回 `{ prompt, version, sourceOfTruth }`，其中 `version` 是当前内容 SHA-256，供并发保存；不返回系统核心规则 |
 | `PUT` | `/api/ai/system-prompt` | `{ prompt, expectedVersion?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.factory_profile.update`。更新内存和 SQLite `config.ai-factory-profile`；不能为空，最大 8000 字符，不能覆盖核心安全、来源和写入确认边界。新 Web 调用先读内容版本再保存；配置、operation 和强审计同一事务提交，相同命令安全重放。旧无版本/幂等键调用继续执行并返回 warning |
-| `POST` | `/mcp` | MCP Streamable HTTP JSON-RPC；请求头 `Authorization: Bearer <HERMES_MCP_TOKEN>` | Hermes MCP V1 唯一协议入口。无状态处理 `initialize`、`tools/list` 和 `tools/call`；工具结果同时返回文本 JSON 与 `structuredContent`。只导出下列固定 Query/Preview 白名单，复用现有 AI tool schema、capability registry、executor、internal API client 和正式 API 证据门 |
-| `GET` | `/mcp` | 同上鉴权 | V1 不提供服务器通知流，鉴权通过后返回 `405` 和 `Allow: POST` |
-| `DELETE` | `/mcp` | 同上鉴权 | V1 无会话状态可删除，鉴权通过后返回 `405` 和 `Allow: POST` |
+| `POST` | `/mcp` | MCP Streamable HTTP JSON-RPC；请求头 `Authorization: Bearer <service-token>`；现代客户端同时发送协议 `_meta`/标准 MCP 头 | 通用无状态入口。官方 SDK v2 原生服务 `2026-07-28` 协议，并以同一 server factory 兼容 2025 版 `initialize` 流程。支持 `server/discover`、`tools/list`、`tools/call`；工具同时声明 `inputSchema/outputSchema`，结果同时返回文本 JSON 与 `structuredContent`。只导出下列固定 Query/Preview 白名单，复用现有 AI tool schema、capability registry、executor、internal API client 和正式 API 证据门 |
+| `GET` | `/mcp` | 同上鉴权 | 当前为无状态服务，不建立旧协议 SSE 会话；返回 `405` |
+| `DELETE` | `/mcp` | 同上鉴权 | 当前不签发 `Mcp-Session-Id`，没有可删除会话；返回 `405` |
 
 AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。意图规划阶段只接收附件名称、类型和大小，不重复传正文、OCR 或图片二进制。执行阶段的附件文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无附件时使用 DeepSeek；存在图片或受支持文件且 Kimi API Key、视觉开关和 K3 可用时使用 Kimi。K3 成功接收图片原图时不再重复附加整段本地 OCR；Kimi 请求失败时回退 DeepSeek，本轮改用本地解析/OCR。供应商请求建立失败、429 和 5xx 最多重试 3 次；已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，也统一映射为 `AI_PROVIDER_NETWORK_ERROR`，并记录脱敏后的供应商、动作和底层错误码。前端对该错误自动重试完整响应流。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
 
-Hermes MCP V1 白名单固定为：`get_copper_price`、`search_parts`、`search_coils`、`get_all_recipes`、`get_recipe_detail`、`preview_recipe_cost`、`get_recent_orders`、`get_order_detail`、`check_order_readiness`、`get_order_readiness_overview`、`get_management_action_center`、`search_factory_knowledge`。`api/mcp/catalog.cjs` 只允许 capability registry 中 `access=read`、`operation=query/preview` 且 `requiresConfirmation=false` 的能力，任何未列入工具、写能力或意外返回确认令牌的调用都会在 executor 前后双重拒绝。MCP 层不持有业务实现，不访问数据库，不接收原始 URL，也不向 Hermes 下发 `INTERNAL_SECRET`；它使用服务器内部 executor → internal API client → 正式 API 链路，并要求 `aiExecutionEvidence` 证明本轮正式 API 已成功完成后才返回业务事实。
+通用 MCP 白名单固定为：`get_copper_price`、`search_parts`、`search_coils`、`get_all_recipes`、`get_recipe_detail`、`preview_recipe_cost`、`get_recent_orders`、`get_order_detail`、`check_order_readiness`、`get_order_readiness_overview`、`get_management_action_center`、`search_factory_knowledge`。`api/mcp/catalog.cjs` 只允许 capability registry 中 `access=read`、`operation=query/preview` 且 `requiresConfirmation=false` 的能力，任何未列入工具、写能力或意外返回确认令牌的调用都会在 executor 前后双重拒绝。MCP 层不持有业务实现，不访问数据库，不接收原始 URL，也不向任何 Agent 下发 `INTERNAL_SECRET`；它使用服务器内部 executor → internal API client → 正式 API 链路，并要求 `aiExecutionEvidence` 证明本轮正式 API 已成功完成后才返回业务事实。
 
-MCP 默认 `HERMES_MCP_ENABLED=false`。启用时 `HERMES_MCP_TOKEN` 至少 32 字符，且不能与 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码相同；Host/Origin 必须位于 `CORS_ORIGIN` hostname 或 `HERMES_MCP_ALLOWED_HOSTS`。默认每 IP 每分钟 60 次、单次结果上限 262144 bytes；可分别通过 `HERMES_MCP_RATE_LIMIT_PER_MINUTE`（1-600）和 `HERMES_MCP_MAX_RESULT_BYTES`（16384-1048576）收紧或调整。日志只记录 requestId、Hermes token 的短 SHA-256 指纹、工具名、成功状态和耗时，不记录 token、工具参数或业务结果。V1 不支持写工具、确认令牌、资源、Prompt、服务器通知和会话恢复；回滚只需设为 `HERMES_MCP_ENABLED=false` 并重启 API，不涉及数据库迁移或业务数据回滚。
+MCP 默认 `MCP_ENABLED=false`。单 Agent 可配置 `MCP_CLIENT_ID + MCP_TOKEN`；多 Agent 推荐使用 `MCP_SERVICE_TOKENS={"clientId":"token"}`，每个 token 至少 32 字符、不得跨身份复用，也不能与 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码相同。Host/Origin 必须位于 `CORS_ORIGIN` hostname 或 `MCP_ALLOWED_HOSTS`。默认每 IP 每分钟 60 次、单次结果上限 262144 bytes；可分别通过 `MCP_RATE_LIMIT_PER_MINUTE`（1-600）和 `MCP_MAX_RESULT_BYTES`（16384-1048576）调整。日志只记录 requestId、服务身份、token 短 SHA-256 指纹、协议代际、工具名、成功状态和耗时，不记录 token、工具参数或业务结果。旧 `HERMES_MCP_*` 在一个兼容周期内仍可读取，通用变量一旦出现即优先。
+
+当前认证是面向同一管理域内 Agent/CI 的静态 service-token 模式，不等同于 MCP Authorization 规范中的完整 OAuth 2.1 Resource Server。不得把该入口直接作为不受控多租户公网平台；若未来开放第三方用户授权，必须先实现 OAuth Protected Resource Metadata、audience 绑定、scope 与 token 生命周期，并继续禁止 token passthrough。当前不支持写工具、确认令牌、资源或 Prompt；回滚只需设为 `MCP_ENABLED=false` 并重启 API，不涉及数据库迁移或业务数据回滚。
 
 V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 

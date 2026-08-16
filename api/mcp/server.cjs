@@ -1,20 +1,19 @@
-const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const {
-    CallToolRequestSchema,
-    ListToolsRequestSchema,
-} = require('@modelcontextprotocol/sdk/types.js');
+    McpServer,
+    fromJsonSchema,
+} = require('@modelcontextprotocol/server');
 const { createLogger } = require('../logger.cjs');
 const { executeToolCall } = require('../routes/ai/executor.cjs');
 const { hasVerifiedExecution } = require('../services/aiExecutionEvidence.cjs');
 const {
-    getHermesMcpMaxResultBytes,
+    getMcpMaxResultBytes,
 } = require('../services/environment.cjs');
 const {
-    listHermesMcpTools,
-    requireHermesMcpCapability,
+    listMcpTools,
+    requireMcpCapability,
 } = require('./catalog.cjs');
 
-const mcpLogger = createLogger('hermes-mcp');
+const mcpLogger = createLogger('mcp');
 
 function errorResult(code, message) {
     const payload = { success: false, code, error: message };
@@ -45,7 +44,7 @@ function serializeMcpResult(payload, maxResultBytes) {
     if (Buffer.byteLength(serialized, 'utf8') > maxResultBytes) {
         return errorResult(
             'mcp_result_too_large',
-            '查询结果超过 MCP V1 返回上限，请增加筛选条件或缩小 limit'
+            '查询结果超过 MCP 返回上限，请增加筛选条件或缩小 limit'
         );
     }
     return {
@@ -54,10 +53,10 @@ function serializeMcpResult(payload, maxResultBytes) {
     };
 }
 
-async function executeHermesMcpTool(name, args, options = {}) {
+async function executeMcpTool(name, args, options = {}) {
     let capability;
     try {
-        ({ capability } = requireHermesMcpCapability(name));
+        ({ capability } = requireMcpCapability(name));
     } catch (error) {
         return errorResult(error.code || 'mcp_tool_not_allowed', error.message);
     }
@@ -68,7 +67,7 @@ async function executeHermesMcpTool(name, args, options = {}) {
     try {
         result = await execute(name, args || {}, {
             allowWrite: false,
-            caller: 'hermes-mcp',
+            caller: `mcp:${options.clientId || 'unknown'}`,
         });
     } catch (error) {
         return errorResult(error.code || 'mcp_tool_execution_failed', error.message);
@@ -77,7 +76,7 @@ async function executeHermesMcpTool(name, args, options = {}) {
     if (result?.requiresConfirmation) {
         return errorResult(
             'mcp_write_capability_rejected',
-            'MCP V1 禁止写操作和确认令牌签发'
+            'MCP 只读目录禁止写操作和确认令牌签发'
         );
     }
     if (!verifyEvidence(result)) {
@@ -89,56 +88,71 @@ async function executeHermesMcpTool(name, args, options = {}) {
 
     const payload = publicExecutionResult(result, capability);
     const maxResultBytes = options.maxResultBytes
-        || getHermesMcpMaxResultBytes(options.env || process.env);
+        || getMcpMaxResultBytes(options.env || process.env);
     const response = serializeMcpResult(payload, maxResultBytes);
     if (result.success === false) response.isError = true;
     return response;
 }
 
-function createHermesMcpProtocolServer(options = {}) {
-    const server = new Server(
-        { name: 'pump-factory-hermes-mcp', version: '1.0.0' },
+function createMcpProtocolServer(options = {}) {
+    const server = new McpServer(
+        { name: 'pump-factory-mcp', version: '1.1.0' },
         {
-            capabilities: { tools: {} },
             instructions: [
                 '只使用已列出的只读工具读取水泵工厂正式事实。',
-                'MCP V1 不支持任何写操作；不得把知识候选当作实时库存、价格、成本或订单事实。',
+                '本服务不支持写操作；不得把知识候选当作实时库存、价格、成本或订单事实。',
                 '工具失败或未找到时如实报告，不得根据历史消息补写业务数据。',
             ].join(''),
+            cacheHints: {
+                'tools/list': { ttlMs: 300000, cacheScope: 'private' },
+                'server/discover': { ttlMs: 300000, cacheScope: 'private' },
+            },
         }
     );
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({
-        tools: listHermesMcpTools(),
-    }));
-
-    server.setRequestHandler(CallToolRequestSchema, async request => {
-        const name = request.params.name;
-        const startedAt = Date.now();
-        const response = await executeHermesMcpTool(
-            name,
-            request.params.arguments,
-            options
+    for (const tool of listMcpTools()) {
+        server.registerTool(
+            tool.name,
+            {
+                title: tool.title,
+                description: tool.description,
+                inputSchema: fromJsonSchema(tool.inputSchema),
+                outputSchema: fromJsonSchema(tool.outputSchema),
+                annotations: tool.annotations,
+                _meta: {
+                    'com.pump-factory/capability-id': requireMcpCapability(tool.name)
+                        .capability.capabilityId,
+                },
+            },
+            async args => {
+                const startedAt = Date.now();
+                const response = await executeMcpTool(tool.name, args, options);
+                const meta = {
+                    requestId: options.requestId || null,
+                    actor: options.actor || 'mcp:unknown',
+                    clientId: options.clientId || null,
+                    protocolEra: options.protocolEra || null,
+                    toolName: tool.name,
+                    success: response.isError !== true,
+                    durationMs: Date.now() - startedAt,
+                };
+                if (response.isError) mcpLogger.warn('MCP 工具调用失败', meta);
+                else mcpLogger.info('MCP 工具调用完成', meta);
+                return response;
+            }
         );
-        const meta = {
-            requestId: options.requestId || null,
-            actor: options.actor || 'hermes:unknown',
-            toolName: name,
-            success: response.isError !== true,
-            durationMs: Date.now() - startedAt,
-        };
-        if (response.isError) mcpLogger.warn('MCP 工具调用失败', meta);
-        else mcpLogger.info('MCP 工具调用完成', meta);
-        return response;
-    });
+    }
 
     return server;
 }
 
 module.exports = {
-    createHermesMcpProtocolServer,
+    createMcpProtocolServer,
     errorResult,
-    executeHermesMcpTool,
+    executeMcpTool,
     publicExecutionResult,
     serializeMcpResult,
 };
+
+module.exports.createHermesMcpProtocolServer = createMcpProtocolServer;
+module.exports.executeHermesMcpTool = executeMcpTool;

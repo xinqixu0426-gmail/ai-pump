@@ -1,81 +1,64 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const {
-    StreamableHTTPServerTransport,
-} = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
+const { createMcpHandler } = require('@modelcontextprotocol/server');
+const { toNodeHandler } = require('@modelcontextprotocol/node');
 const { createLogger } = require('../logger.cjs');
-const { createHermesMcpAccessMiddleware } = require('../mcp/auth.cjs');
-const { createHermesMcpProtocolServer } = require('../mcp/server.cjs');
-const { getHermesMcpRateLimit } = require('../services/environment.cjs');
+const { createMcpAccessMiddleware } = require('../mcp/auth.cjs');
+const { createMcpProtocolServer } = require('../mcp/server.cjs');
+const { getMcpRateLimit } = require('../services/environment.cjs');
 
-const mcpRouteLogger = createLogger('hermes-mcp-http');
+const mcpRouteLogger = createLogger('mcp-http');
 
-function methodNotAllowed(res) {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({
-        jsonrpc: '2.0',
-        error: { code: -32000, message: 'Method not allowed' },
-        id: null,
+function reportProtocolRejection(error) {
+    mcpRouteLogger.warn('MCP 协议请求被拒绝', {
+        error: error?.message || String(error),
     });
 }
 
-function createHermesMcpRouter(options = {}) {
+function createMcpRouter(options = {}) {
     const router = express.Router();
     const env = options.env || process.env;
-    const access = createHermesMcpAccessMiddleware({ env });
+    const access = createMcpAccessMiddleware({ env });
     const limiter = rateLimit({
         windowMs: 60_000,
-        max: getHermesMcpRateLimit(env),
+        max: getMcpRateLimit(env),
         standardHeaders: true,
         legacyHeaders: false,
         message: {
-            jsonrpc: '2.0',
-            error: { code: -32029, message: 'MCP request rate limit exceeded' },
-            id: null,
+            error: 'rate_limit_exceeded',
+            error_description: 'MCP request rate limit exceeded',
         },
     });
 
-    // 鉴权失败也必须计入限流，避免独立 token 入口被无上限试探。
-    router.post('/', limiter, access, async (req, res) => {
-        const server = createHermesMcpProtocolServer({
-            actor: req.mcpActor,
-            env,
-            executeToolCall: options.executeToolCall,
-            hasVerifiedExecution: options.hasVerifiedExecution,
-            maxResultBytes: options.maxResultBytes,
-            requestId: req.requestId,
-        });
-        const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: undefined,
-        });
-        const cleanup = () => {
-            void transport.close();
-            void server.close();
-        };
-        res.once('close', cleanup);
-        try {
-            await server.connect(transport);
-            await transport.handleRequest(req, res, req.body);
-        } catch (error) {
-            mcpRouteLogger.error('MCP 协议请求失败', {
-                requestId: req.requestId,
-                actor: req.mcpActor,
-                error,
-            });
-            if (!res.headersSent) {
-                res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: { code: -32603, message: 'Internal MCP server error' },
-                    id: null,
-                });
-            }
-        }
+    const protocolHandler = createMcpHandler(ctx => createMcpProtocolServer({
+        actor: ctx.authInfo?.actor || 'mcp:unknown',
+        clientId: ctx.authInfo?.clientId || 'unknown',
+        env,
+        executeToolCall: options.executeToolCall,
+        hasVerifiedExecution: options.hasVerifiedExecution,
+        maxResultBytes: options.maxResultBytes,
+        protocolEra: ctx.era,
+        requestId: ctx.authInfo?.requestId || null,
+    }), {
+        legacy: 'stateless',
+        responseMode: 'auto',
+        onerror: reportProtocolRejection,
+    });
+    const nodeHandler = toNodeHandler(protocolHandler, {
+        onerror: error => mcpRouteLogger.error('MCP HTTP 适配失败', { error }),
     });
 
-    router.get('/', access, (req, res) => methodNotAllowed(res));
-    router.delete('/', access, (req, res) => methodNotAllowed(res));
+    // 鉴权失败也必须计入限流，避免独立 token 入口被无上限试探。
+    router.use('/', limiter, access);
+    const handleProtocol = (req, res) => nodeHandler(req, res, req.body);
+
+    router.post('/', handleProtocol);
+    router.get('/', handleProtocol);
+    router.delete('/', handleProtocol);
+    router.closeMcpHandler = () => protocolHandler.close();
     return router;
 }
 
-module.exports = createHermesMcpRouter();
-module.exports.createHermesMcpRouter = createHermesMcpRouter;
+module.exports = createMcpRouter();
+module.exports.createMcpRouter = createMcpRouter;
+module.exports.createHermesMcpRouter = createMcpRouter;

@@ -4,14 +4,15 @@ const assert = require('node:assert/strict');
 const {
     REQUIRED_PRODUCTION_ENV,
     assertProductionEnvironment,
-    getHermesMcpAllowedHosts,
-    getHermesMcpMaxResultBytes,
-    getHermesMcpRateLimit,
+    getMcpAllowedHosts,
+    getMcpMaxResultBytes,
+    getMcpRateLimit,
     getInternalApiTimeoutMs,
     getServerPort,
-    isHermesMcpEnabled,
+    isMcpEnabled,
     isProductionEnvironment,
     parseCorsOrigins,
+    parseMcpServiceTokens,
     validateProductionEnvironment,
 } = require('../api/services/environment.cjs');
 
@@ -62,45 +63,77 @@ test('运行环境：CORS 来源去空白并排除空项', () => {
     assert.deepEqual(parseCorsOrigins(''), []);
 });
 
-test('运行环境：Hermes MCP 默认关闭，启用时使用独立强 token 和有界资源参数', () => {
-    assert.equal(isHermesMcpEnabled({}), false);
-    assert.equal(isHermesMcpEnabled({ HERMES_MCP_ENABLED: 'true' }), true);
-    assert.equal(getHermesMcpRateLimit({}), 60);
-    assert.equal(getHermesMcpMaxResultBytes({}), 262144);
+test('运行环境：通用 MCP 默认关闭，支持多 Agent 独立强 token 和有界资源参数', () => {
+    assert.equal(isMcpEnabled({}), false);
+    assert.equal(isMcpEnabled({ MCP_ENABLED: 'true' }), true);
+    assert.equal(getMcpRateLimit({}), 60);
+    assert.equal(getMcpMaxResultBytes({}), 262144);
     assert.throws(
-        () => getHermesMcpRateLimit({ HERMES_MCP_RATE_LIMIT_PER_MINUTE: '0' }),
+        () => getMcpRateLimit({ MCP_RATE_LIMIT_PER_MINUTE: '0' }),
         /1-600/
     );
     assert.throws(
-        () => getHermesMcpMaxResultBytes({ HERMES_MCP_MAX_RESULT_BYTES: '1000' }),
+        () => getMcpMaxResultBytes({ MCP_MAX_RESULT_BYTES: '1000' }),
         /16384-1048576/
     );
     assert.deepEqual(
-        getHermesMcpAllowedHosts({
+        getMcpAllowedHosts({
             CORS_ORIGIN: 'https://pump.example.com',
-            HERMES_MCP_ALLOWED_HOSTS: 'mcp.internal.example',
+            MCP_ALLOWED_HOSTS: 'mcp.internal.example',
         }),
         ['localhost', '127.0.0.1', '::1', 'pump.example.com', 'mcp.internal.example']
     );
 
     const shortTokenErrors = validateProductionEnvironment(validProductionEnv({
-        HERMES_MCP_ENABLED: 'true',
-        HERMES_MCP_TOKEN: 'short',
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'short',
     }));
     assert.ok(shortTokenErrors.some(error => error.includes('至少需要 32 个字符')));
 
-    const reusedToken = 'shared-hermes-token-0123456789abcdef';
+    const reusedToken = 'shared-mcp-token-0123456789abcdef';
     const reusedTokenErrors = validateProductionEnvironment(validProductionEnv({
         INTERNAL_SECRET: reusedToken,
-        HERMES_MCP_ENABLED: 'true',
-        HERMES_MCP_TOKEN: reusedToken,
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: reusedToken,
     }));
     assert.ok(reusedTokenErrors.some(error => error.includes('不能与 INTERNAL_SECRET 相同')));
 
     assert.deepEqual(validateProductionEnvironment(validProductionEnv({
-        HERMES_MCP_ENABLED: 'true',
-        HERMES_MCP_TOKEN: 'independent-hermes-token-0123456789abcdef',
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: '',
+        MCP_SERVICE_TOKENS: JSON.stringify({
+            hermes: 'independent-hermes-token-0123456789abcdef',
+            codex: 'independent-codex-token-0123456789abcdef',
+        }),
     })), []);
+    assert.deepEqual(parseMcpServiceTokens({
+        MCP_SERVICE_TOKENS: JSON.stringify({
+            hermes: 'independent-hermes-token-0123456789abcdef',
+            codex: 'independent-codex-token-0123456789abcdef',
+        }),
+    }).map(entry => entry.clientId), ['hermes', 'codex']);
+
+    // 旧 NAS 部署可在一个兼容周期内不改环境变量直接升级。
+    assert.equal(isMcpEnabled({ HERMES_MCP_ENABLED: 'true' }), true);
+    assert.deepEqual(parseMcpServiceTokens({
+        HERMES_MCP_TOKEN: 'legacy-hermes-token-0123456789abcdef',
+    }), [{ clientId: 'hermes', token: 'legacy-hermes-token-0123456789abcdef' }]);
+
+    const invalidJsonErrors = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_SERVICE_TOKENS: '{invalid',
+    }));
+    assert.ok(invalidJsonErrors.some(error => error.includes('JSON 对象')));
+
+    const duplicatedToken = 'duplicate-agent-token-0123456789abcdef';
+    const duplicateErrors = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_SERVICE_TOKENS: JSON.stringify({
+            hermes: duplicatedToken,
+            codex: duplicatedToken,
+        }),
+    }));
+    assert.ok(duplicateErrors.some(error => error.includes('不能复用同一个 token')));
 });
 
 test('运行环境：生产校验集中报告缺失项、默认密钥和无效数值', () => {

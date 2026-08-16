@@ -29,7 +29,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 配置 `DB_BACKUP_MIRROR_DIR` 指向另一块磁盘或备份设备；未配置时明确记录本次发布只有本机备份。
 - 生产环境必填：`ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN`。
 - 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
-- 如启用 Hermes MCP V1，设置 `HERMES_MCP_ENABLED=true`，并使用独立随机 `HERMES_MCP_TOKEN`；该 token 至少 32 字符且不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `HERMES_MCP_ALLOWED_HOSTS`。
+- 如启用通用 MCP，设置 `MCP_ENABLED=true`。单 Agent 配置 `MCP_CLIENT_ID + MCP_TOKEN`；多个 Agent 使用 `MCP_SERVICE_TOKENS` JSON 为 Hermes、Codex 等分别分配独立 token。每个 token 至少 32 字符，不得跨 Agent 复用，也不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `MCP_ALLOWED_HOSTS`。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
 
 ```bash
@@ -77,7 +77,7 @@ npm run verify:release
 Hermes NAS 的 `~/.hermes/.env` 只保存 MCP 专用 token：
 
 ```dotenv
-PUMP_FACTORY_MCP_TOKEN=<与 Mac Mini HERMES_MCP_TOKEN 相同的独立随机值>
+PUMP_FACTORY_MCP_TOKEN=<与 Mac Mini 上 Hermes 身份对应的 MCP service token 相同>
 ```
 
 `~/.hermes/config.yaml` 使用远程 Streamable HTTP，并明确禁止并行工具调用：
@@ -94,7 +94,7 @@ mcp_servers:
     connect_timeout: 15
 ```
 
-不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，应发现 12 个只读工具；未授权请求应返回 `401`，写工具不应出现在列表中。回滚时先在 Mac Mini 设置 `HERMES_MCP_ENABLED=false` 并重启 API，再从 Hermes 配置中禁用 `pump_factory`；不需要回滚数据库。
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，应发现 12 个只读工具；其他 Agent 也应使用各自 token 连接同一 `/mcp`，不得共享 Hermes token。未授权请求应返回 `401`，写工具不应出现在列表中。当前 service-token 模式只适合受同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚时先在 Mac Mini 设置 `MCP_ENABLED=false` 并重启 API，再从各 Agent 配置中禁用 `pump_factory`；不需要回滚数据库。
 
 ## 3. 重启服务
 

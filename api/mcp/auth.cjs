@@ -1,8 +1,9 @@
 const crypto = require('node:crypto');
 const {
-    getHermesMcpAllowedHosts,
-    isHermesMcpEnabled,
-    validateHermesMcpConfiguration,
+    getMcpAllowedHosts,
+    isMcpEnabled,
+    parseMcpServiceTokens,
+    validateMcpConfiguration,
 } = require('../services/environment.cjs');
 
 function firstHeader(value) {
@@ -13,7 +14,7 @@ function normalizeHost(value) {
     const candidate = firstHeader(value).toLowerCase();
     if (!candidate) return '';
     try {
-        return new URL(`http://${candidate}`).hostname.toLowerCase();
+        return new URL(`http://${candidate}`).hostname.toLowerCase().replace(/^\[|\]$/g, '');
     } catch {
         return '';
     }
@@ -26,10 +27,9 @@ function bearerToken(req) {
 }
 
 function constantTimeEqual(left, right) {
-    const leftBuffer = Buffer.from(String(left || ''), 'utf8');
-    const rightBuffer = Buffer.from(String(right || ''), 'utf8');
-    return leftBuffer.length === rightBuffer.length
-        && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+    const leftDigest = crypto.createHash('sha256').update(String(left || ''), 'utf8').digest();
+    const rightDigest = crypto.createHash('sha256').update(String(right || ''), 'utf8').digest();
+    return crypto.timingSafeEqual(leftDigest, rightDigest);
 }
 
 function tokenFingerprint(token) {
@@ -37,54 +37,73 @@ function tokenFingerprint(token) {
 }
 
 function sendHttpError(res, statusCode, code, message) {
-    if (statusCode === 401) res.setHeader('WWW-Authenticate', 'Bearer realm="pump-hermes-mcp"');
-    return res.status(statusCode).json({
-        jsonrpc: '2.0',
-        error: { code, message },
-        id: null,
-    });
+    if (statusCode === 401) {
+        res.setHeader(
+            'WWW-Authenticate',
+            'Bearer realm="pump-factory-mcp", error="invalid_token"'
+        );
+    }
+    return res.status(statusCode).json({ error: code, error_description: message });
 }
 
-function createHermesMcpAccessMiddleware(options = {}) {
+function findServiceCredential(suppliedToken, credentials) {
+    let matched = null;
+    for (const credential of credentials) {
+        if (constantTimeEqual(suppliedToken, credential.token)) matched = credential;
+    }
+    return matched;
+}
+
+function createMcpAccessMiddleware(options = {}) {
     const env = options.env || process.env;
-    const configurationErrors = validateHermesMcpConfiguration(env);
-    if (isHermesMcpEnabled(env) && configurationErrors.length > 0) {
+    const configurationErrors = validateMcpConfiguration(env);
+    if (isMcpEnabled(env) && configurationErrors.length > 0) {
         throw new Error(configurationErrors.join('；'));
     }
+    const credentials = isMcpEnabled(env) ? parseMcpServiceTokens(env) : [];
+    const allowedHosts = new Set(getMcpAllowedHosts(env));
 
-    return function hermesMcpAccess(req, res, next) {
-        if (!isHermesMcpEnabled(env)) {
-            return sendHttpError(res, 404, -32004, 'MCP endpoint is disabled');
+    return function mcpAccess(req, res, next) {
+        if (!isMcpEnabled(env)) {
+            return sendHttpError(res, 404, 'not_found', 'MCP endpoint is disabled');
         }
 
-        const allowedHosts = new Set(getHermesMcpAllowedHosts(env));
-        const requestHost = normalizeHost(
-            req.headers?.['x-forwarded-host'] || req.headers?.host
-        );
+        const requestHost = normalizeHost(req.headers?.host);
         if (!requestHost || !allowedHosts.has(requestHost)) {
-            return sendHttpError(res, 403, -32003, 'MCP request host is not allowed');
+            return sendHttpError(res, 403, 'access_denied', 'MCP request host is not allowed');
         }
 
         const origin = firstHeader(req.headers?.origin);
         if (origin) {
             let originHost = '';
             try {
-                originHost = new URL(origin).hostname.toLowerCase();
+                originHost = new URL(origin).hostname.toLowerCase().replace(/^\[|\]$/g, '');
             } catch {
-                return sendHttpError(res, 403, -32003, 'MCP request origin is invalid');
+                return sendHttpError(res, 403, 'access_denied', 'MCP request origin is invalid');
             }
             if (!allowedHosts.has(originHost)) {
-                return sendHttpError(res, 403, -32003, 'MCP request origin is not allowed');
+                return sendHttpError(res, 403, 'access_denied', 'MCP request origin is not allowed');
             }
         }
 
         const suppliedToken = bearerToken(req);
-        const configuredToken = String(env.HERMES_MCP_TOKEN || '').trim();
-        if (!suppliedToken || !constantTimeEqual(suppliedToken, configuredToken)) {
-            return sendHttpError(res, 401, -32001, 'MCP authentication required');
+        const credential = suppliedToken
+            ? findServiceCredential(suppliedToken, credentials)
+            : null;
+        if (!credential) {
+            return sendHttpError(res, 401, 'invalid_token', 'MCP authentication required');
         }
 
-        req.mcpActor = `hermes:${tokenFingerprint(configuredToken)}`;
+        const fingerprint = tokenFingerprint(credential.token);
+        req.mcpActor = `mcp:${credential.clientId}:${fingerprint}`;
+        req.auth = {
+            token: fingerprint,
+            clientId: credential.clientId,
+            scopes: ['mcp:read'],
+            expiresAt: Number.MAX_SAFE_INTEGER,
+            actor: req.mcpActor,
+            requestId: req.requestId || null,
+        };
         next();
     };
 }
@@ -92,7 +111,10 @@ function createHermesMcpAccessMiddleware(options = {}) {
 module.exports = {
     bearerToken,
     constantTimeEqual,
-    createHermesMcpAccessMiddleware,
+    createMcpAccessMiddleware,
+    findServiceCredential,
     normalizeHost,
     tokenFingerprint,
 };
+
+module.exports.createHermesMcpAccessMiddleware = createMcpAccessMiddleware;

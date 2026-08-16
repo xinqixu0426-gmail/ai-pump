@@ -8,7 +8,8 @@
     "build": "npm run web-next:build",
     "lint": "eslint api.cjs \"api/**/*.cjs\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\" && npm --prefix apps/web-next run lint",
     "test": "node scripts/run-tests.cjs",
-    "test:mcp": "node --test tests/hermesMcp.test.cjs",
+    "test:mcp": "node --test tests/mcp.test.cjs",
+    "test:mcp:conformance": "node scripts/run-mcp-conformance.cjs",
     "verify:api-contract": "node --test tests/apiContractGovernance.test.cjs tests/aiCapabilityRegistry.test.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs --scope=manual",
@@ -52,7 +53,8 @@
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
     "@huggingface/transformers": "4.2.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@napi-rs/canvas": "0.1.100",
     "@tesseract.js-data/chi_sim": "1.0.0",
     "@tesseract.js-data/eng": "1.0.0",
@@ -72,6 +74,9 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/conformance": "^0.1.16",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "concurrently": "^8.2.2",
     "eslint": "^8.55.0"
   },
