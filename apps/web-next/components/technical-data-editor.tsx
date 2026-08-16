@@ -14,7 +14,7 @@ import {
 } from '@/lib/recipes';
 import {
   createCustomTechnicalField,
-  getTechnicalDataEntries,
+  getRecipeTechnicalProgress,
   TECHNICAL_DATA_LABELS,
   type CustomTechnicalField,
   type FixedTechnicalDataKey,
@@ -106,7 +106,13 @@ export function TechnicalDataEditor({
   const [deleteFileTarget, setDeleteFileTarget] = useState<RecipeTechnicalFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const customFields = value.customFields || [];
-  const filledCount = getTechnicalDataEntries(value).length;
+  const technicalProgress = getRecipeTechnicalProgress({
+    technicalData: value,
+    impellerModel,
+    impellerThickness,
+    impellerDiameter,
+    impellerBladeCount,
+  });
   const impellerEntries = [
     impellerModel ? `叶轮 ${impellerModel}` : '',
     impellerThickness ? `${impellerThickness}mm厚` : '',
@@ -195,11 +201,11 @@ export function TechnicalDataEditor({
           <div className="mt-1 text-xs text-muted">
             {expanded
               ? '技术档案结构化保存，叶轮与转子出图参数可直接被报价、订单和出图流程复用。'
-              : `${filledCount > 0 ? `已填 ${filledCount} 项` : '未填写'}${technicalFiles.length > 0 ? `，报告 ${technicalFiles.length} 份` : ''}${referenceFields.length > 0 ? `，参考 ${referenceFields.length}` : ''}`}
+              : `${technicalProgress.completed > 0 ? `已填 ${technicalProgress.completed}/${technicalProgress.total}` : `未填写 0/${technicalProgress.total}`}${technicalFiles.length > 0 ? `，报告 ${technicalFiles.length} 份` : ''}${referenceFields.length > 0 ? `，参考 ${referenceFields.length}` : ''}`}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {expanded && filledCount > 0 ? <span className="rounded-full border border-line bg-slate-50 px-2 py-1 text-muted">已填 {filledCount}</span> : null}
+          {expanded ? <span className="rounded-full border border-line bg-slate-50 px-2 py-1 text-muted">已填 {technicalProgress.completed}/{technicalProgress.total}</span> : null}
           {expanded && referenceFields.length > 0 ? <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-sky-700">参考 {referenceFields.length}</span> : null}
           <ChevronDown size={16} className={`text-muted transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} />
         </div>

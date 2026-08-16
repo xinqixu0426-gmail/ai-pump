@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import { CheckCircle2, CircleAlert, Copy, Eye, GitCompare, Package, Pencil, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -11,6 +12,7 @@ import { MetricCard } from '@/components/ui/metric-card';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { dateShort, money } from '@/lib/format';
+import { getRecipeTechnicalProgress, parseTechnicalDataJson, type RecipeTechnicalProgress } from '@/lib/technical-data';
 import {
   buildRecipeCopperRisk,
   buildTemplateNameMap,
@@ -73,6 +75,76 @@ function signedMoney(value: number | null | undefined): string {
   return `${sign}${money(Math.abs(value))}`;
 }
 
+function TechnicalProgress({ progress, tooltipId }: { progress: RecipeTechnicalProgress; tooltipId: string }) {
+  const [position, setPosition] = useState<{ left: number; top: number; above: boolean } | null>(null);
+  const complete = progress.completed === progress.total;
+  const barColor = complete ? 'bg-emerald-500' : progress.completed > 0 ? 'bg-sky-500' : 'bg-slate-300';
+  const textColor = complete ? 'text-emerald-700' : progress.completed > 0 ? 'text-sky-700' : 'text-muted';
+
+  function showDetails(target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    setPosition({
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - 460)),
+      top: rect.bottom > window.innerHeight / 2 ? rect.top - 8 : rect.bottom + 8,
+      above: rect.bottom > window.innerHeight / 2,
+    });
+  }
+
+  return (
+    <>
+    <button
+      type="button"
+      className="min-w-24 cursor-help rounded-md text-left outline-none transition-colors focus:ring-2 focus:ring-sky-100"
+      aria-label={`技术参数已填写 ${progress.completed} 项，共 ${progress.total} 项`}
+      aria-describedby={position ? tooltipId : undefined}
+      onMouseEnter={(event) => showDetails(event.currentTarget)}
+      onMouseLeave={() => setPosition(null)}
+      onFocus={(event) => showDetails(event.currentTarget)}
+      onBlur={() => setPosition(null)}
+      onKeyDown={(event) => { if (event.key === 'Escape') setPosition(null); }}
+    >
+      <div className={`flex items-center justify-between gap-2 text-xs font-medium ${textColor}`}>
+        <span>技术参数</span>
+        <span>{progress.completed}/{progress.total}</span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${progress.percent}%` }} />
+      </div>
+    </button>
+    {position && typeof document !== 'undefined' ? createPortal(
+      <div
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none fixed z-[100] w-[28rem] max-w-[calc(100vw-1.5rem)] rounded-md border border-slate-200 bg-white p-3 text-left shadow-xl"
+        style={{
+          left: position.left,
+          top: position.top,
+          transform: position.above ? 'translateY(-100%)' : undefined,
+        }}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
+          <span className="text-xs font-semibold text-ink">已填技术参数</span>
+          <span className={`text-xs font-medium ${textColor}`}>{progress.completed}/{progress.total}</span>
+        </div>
+        {progress.entries.length > 0 ? (
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+            {progress.entries.map((entry) => (
+              <div key={entry.id} className="min-w-0 border-b border-slate-100 pb-1.5">
+                <div className="truncate text-[11px] text-muted">{entry.label}</div>
+                <div className="mt-0.5 break-words text-xs font-medium text-ink">{entry.value}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-3 text-xs text-muted">暂无已填参数</div>
+        )}
+      </div>,
+      document.body,
+    ) : null}
+    </>
+  );
+}
+
 export function RecipeWorkspace({
   recipes,
   templates,
@@ -112,6 +184,13 @@ export function RecipeWorkspace({
         laborTotal: getRecipeLaborTotal(recipe),
         templateName: recipe.templateId ? templateNameMap.get(recipe.templateId) || '' : '',
         copperRisk: buildRecipeCopperRisk(parts, currentCopperPricePerKg),
+        technicalProgress: getRecipeTechnicalProgress({
+          technicalData: parseTechnicalDataJson(recipe.technicalDataJson),
+          impellerModel: recipe.impellerModel,
+          impellerThickness: recipe.impellerThickness,
+          impellerDiameter: recipe.impellerDiameter,
+          impellerBladeCount: recipe.impellerBladeCount,
+        }),
       };
     });
   }, [currentCopperPricePerKg, currentCostMap, recipes, templateNameMap]);
@@ -315,6 +394,7 @@ export function RecipeWorkspace({
                       <div className="mt-0.5 truncate text-muted">
                         {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
                       </div>
+                      <div className="mt-2 max-w-44"><TechnicalProgress progress={row.technicalProgress} tooltipId={`recipe-technical-progress-mobile-${row.recipe.id}`} /></div>
                     </div>
                     <div className="flex items-end justify-between gap-3 sm:flex-col sm:items-end">
                       <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
@@ -331,12 +411,13 @@ export function RecipeWorkspace({
               ))}
             </div>
             <div className="hidden overflow-x-auto min-[1180px]:block">
-            <table className="w-full min-w-[900px] table-fixed border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[1020px] table-fixed border-separate border-spacing-0 text-left text-sm">
               <thead className="whitespace-nowrap bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="w-10 border-b border-line px-3 py-2">对比</th>
                   <th className="w-40 border-b border-line px-3 py-2">配方</th>
                   <th className="w-44 border-b border-line px-3 py-2">模板/线圈</th>
+                  <th className="w-32 border-b border-line px-3 py-2">技术参数</th>
                   <th className="w-48 border-b border-line px-3 py-2 text-right">成本（当日 / 保存）</th>
                   <th className="w-20 border-b border-line px-3 py-2">铜价</th>
                   <th className="w-14 border-b border-line px-3 py-2">创建</th>
@@ -371,6 +452,9 @@ export function RecipeWorkspace({
                         <div className="text-xs leading-4 text-muted">
                           {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
                         </div>
+                      </td>
+                      <td className="border-b border-line px-3 py-2">
+                        <TechnicalProgress progress={row.technicalProgress} tooltipId={`recipe-technical-progress-desktop-${row.recipe.id}`} />
                       </td>
                       <td className="whitespace-nowrap border-b border-line px-3 py-2 text-right text-ink">
                         <div className="flex items-baseline justify-end gap-2">

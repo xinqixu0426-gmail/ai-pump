@@ -65,6 +65,85 @@ export const TECHNICAL_DATA_LABELS: Record<FixedTechnicalDataKey, string> = {
 
 export const TECHNICAL_DATA_KEYS = Object.keys(TECHNICAL_DATA_LABELS) as FixedTechnicalDataKey[];
 
+const IMPELLER_PROGRESS_FIELDS = [
+  { key: 'impellerModel', label: '叶轮' },
+  { key: 'impellerThickness', label: '叶轮厚度', unit: 'mm' },
+  { key: 'impellerDiameter', label: '叶轮直径', unit: 'mm' },
+  { key: 'impellerBladeCount', label: '叶片数', unit: '片' },
+] as const;
+
+const TECHNICAL_DATA_UNITS: Partial<Record<FixedTechnicalDataKey, string>> = {
+  rotorLength: 'mm',
+  rotorDiameter: 'mm',
+  shaftDiameter: 'mm',
+  pieceCount: '片',
+  bearingSpan: 'mm',
+  stackOffset: 'mm',
+  oilSealDiameter: 'mm',
+  impellerBoreDiameter: 'mm',
+  impellerSpan: 'mm',
+  impellerDepth: 'mm',
+  threadLength: 'mm',
+  threadDiameter: 'mm',
+  voltage: 'V',
+  current: 'A',
+  frequency: 'Hz',
+};
+
+type RecipeTechnicalProgressSource = {
+  technicalData: RecipeTechnicalData;
+  impellerModel?: string | number | null;
+  impellerThickness?: string | number | null;
+  impellerDiameter?: string | number | null;
+  impellerBladeCount?: string | number | null;
+};
+
+export type RecipeTechnicalProgress = {
+  completed: number;
+  total: number;
+  percent: number;
+  entries: Array<{
+    id: string;
+    label: string;
+    value: string;
+  }>;
+};
+
+function hasTechnicalValue(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+export function getRecipeTechnicalProgress(source: RecipeTechnicalProgressSource): RecipeTechnicalProgress {
+  const fixedEntries = TECHNICAL_DATA_KEYS.flatMap((key) => {
+    const rawValue = source.technicalData[key];
+    if (!hasTechnicalValue(rawValue)) return [];
+    const unit = TECHNICAL_DATA_UNITS[key];
+    return [{
+      id: key,
+      label: TECHNICAL_DATA_LABELS[key],
+      value: `${String(rawValue).trim()}${unit ? ` ${unit}` : ''}`,
+    }];
+  });
+  const impellerEntries = IMPELLER_PROGRESS_FIELDS.flatMap((field) => {
+    const rawValue = source[field.key];
+    if (!hasTechnicalValue(rawValue)) return [];
+    return [{
+      id: field.key,
+      label: field.label,
+      value: `${String(rawValue).trim()}${'unit' in field ? ` ${field.unit}` : ''}`,
+    }];
+  });
+  const total = TECHNICAL_DATA_KEYS.length + IMPELLER_PROGRESS_FIELDS.length;
+  const entries = [...fixedEntries, ...impellerEntries];
+  const completed = entries.length;
+  return {
+    completed,
+    total,
+    percent: total > 0 ? Math.round((completed / total) * 100) : 0,
+    entries,
+  };
+}
+
 export function createCustomTechnicalField(): CustomTechnicalField {
   return {
     id: `custom_${Date.now()}_${Math.random().toString(16).slice(2)}`,

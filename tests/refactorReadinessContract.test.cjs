@@ -1222,6 +1222,23 @@ test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手
     assert.match(editor, /accept="\.xls,\.xlsx/);
     assert.match(recipesView, /recipeId=\{editingRecipe\?\.id\}/);
     assert.match(technicalLib, /customFields/);
+    assert.match(technicalLib, /export function getRecipeTechnicalProgress/);
+    assert.match(technicalLib, /TECHNICAL_DATA_KEYS\.length \+ IMPELLER_PROGRESS_FIELDS\.length/);
+    assert.match(editor, /technicalProgress\.completed/);
+});
+
+test('Next UI 契约：配方列表在桌面和窄屏均展示技术参数进度', () => {
+    const workspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+
+    assert.match(workspace, /getRecipeTechnicalProgress/);
+    assert.match(workspace, /parseTechnicalDataJson\(recipe\.technicalDataJson\)/);
+    assert.match(workspace, /function TechnicalProgress/);
+    assert.match(workspace, /\{progress\.completed\}\/\{progress\.total\}/);
+    assert.match(workspace, /progress\.entries\.map/);
+    assert.match(workspace, /role="tooltip"/);
+    assert.match(workspace, /createPortal/);
+    assert.match(workspace, /<th[^>]*>\u6280术参数<\/th>/);
+    assert.ok((workspace.match(/<TechnicalProgress progress=\{row\.technicalProgress\}/g) || []).length >= 2);
 });
 
 test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式', () => {
@@ -2316,7 +2333,7 @@ test('Next UI 契约：P1 配方窄屏首屏和质量问题聚焦保持紧凑', 
     assert.match(recipeWorkspace, /sm:hidden/);
     assert.match(recipeWorkspace, /min-\[1180px\]:hidden/);
     assert.match(recipeWorkspace, /hidden overflow-x-auto min-\[1180px\]:block/);
-    assert.match(recipeWorkspace, /min-w-\[900px\]/);
+    assert.match(recipeWorkspace, /min-w-\[1020px\]/);
     assert.match(recipeWorkspace, /保存成本 \{money\(stats\.totalSavedCost\)\}/);
     assert.match(qualityView, /const itemLimit = activeKey === 'all' \? 4 : 12/);
     assert.match(qualityView, /focusIssueGroup/);
