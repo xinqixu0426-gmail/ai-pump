@@ -101,6 +101,15 @@ test('AI 能力注册表：关联知识能力只指向已登记只读能力', ()
     }
 });
 
+test('AI 能力注册表：当日成本对比工具统一登记实时业务证据', () => {
+    for (const name of ['compare_recipes', 'explain_cost_change']) {
+        const capability = getAiCapability(name);
+        assert.equal(capability.dataMode, 'live', `${name} 未登记为 live`);
+        assert.equal(capability.sourceOfTruth, 'costEngine');
+        assert.equal(capability.resultProvenance?.kind, 'live_business');
+    }
+});
+
 test('正式业务能力注册表：已迁移 query 和 command 统一登记完整契约', () => {
     const expectedIds = [
         'inventory.parts.batch_adjust_stock',

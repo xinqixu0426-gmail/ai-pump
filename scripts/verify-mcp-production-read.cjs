@@ -40,8 +40,17 @@ const DOMAIN_SCENARIOS = Object.freeze([
             }),
             Object.freeze({
                 name: 'preview_recipe_cost',
+                contract: 'current',
                 args: costReport => ({
                     recipeId: Number(costReport.scenarios.fullEstimateBindsRecipe.recipeId),
+                }),
+            }),
+            Object.freeze({
+                name: 'preview_recipe_cost',
+                contract: 'override',
+                args: costReport => ({
+                    recipeId: Number(costReport.scenarios.fullEstimateBindsRecipe.recipeId),
+                    customBarrelLength: 180,
                 }),
             }),
         ]),
@@ -92,9 +101,10 @@ const DOMAIN_SCENARIOS = Object.freeze([
     }),
 ]);
 
-const REPRESENTATIVE_TOOL_NAMES = Object.freeze(
+const REPRESENTATIVE_CALL_NAMES = Object.freeze(
     DOMAIN_SCENARIOS.flatMap(domain => domain.calls.map(call => call.name))
 );
+const REPRESENTATIVE_TOOL_NAMES = Object.freeze([...new Set(REPRESENTATIVE_CALL_NAMES)]);
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -159,6 +169,25 @@ function validateRecipeCostPreviewContract(envelope, costReport) {
     };
 }
 
+function validateRecipeCostOverrideContract(envelope) {
+    const preview = envelope?.data;
+    assert(preview?.costBasis === 'overridePreview', 'preview_recipe_cost 覆盖结果不是 overridePreview');
+    assert(preview?.sourceOfTruth === 'costEngine', 'preview_recipe_cost 覆盖结果不是 costEngine');
+    const actual = Number(preview.currentTotalCost);
+    assert(Number.isFinite(actual), 'preview_recipe_cost 覆盖结果 currentTotalCost 缺失');
+    assert(Math.abs(actual - Number(preview.unitCost)) < 0.01, 'preview_recipe_cost 覆盖结果兼容 unitCost 不等于 currentTotalCost');
+    assert(
+        String(preview.deprecatedFields?.unitCost || '').includes('currentTotalCost'),
+        'preview_recipe_cost 覆盖结果缺少 unitCost 废弃说明'
+    );
+    return {
+        costBasis: preview.costBasis,
+        sourceOfTruth: preview.sourceOfTruth,
+        currentTotalCost: actual,
+        compatibilityAliasMatches: true,
+    };
+}
+
 function returnedCount(envelope) {
     const candidates = [
         envelope?.queryReceipt?.returnedCount,
@@ -210,11 +239,15 @@ async function evaluateRepresentativeReadDomains(client, costReport, options = {
             const startedAt = performance.now();
             const result = await client.callTool({ name: call.name, arguments: args });
             const evidence = verifiedToolEvidence(call.name, result, roundDuration(startedAt));
+            evidence.scenario = call.contract || 'representative';
             if (call.name === 'get_recipe_detail') {
                 evidence.contract = validateRecipeDetailContract(result.structuredContent, costReport);
             }
-            if (call.name === 'preview_recipe_cost') {
+            if (call.name === 'preview_recipe_cost' && call.contract === 'current') {
                 evidence.contract = validateRecipeCostPreviewContract(result.structuredContent, costReport);
+            }
+            if (call.name === 'preview_recipe_cost' && call.contract === 'override') {
+                evidence.contract = validateRecipeCostOverrideContract(result.structuredContent);
             }
             tools.push(evidence);
         }
@@ -271,8 +304,8 @@ async function runProductionReadVerification(options = {}) {
             const attemptedPairs = Number(
                 costReport.scenarios.comparisonUsesSameFullCostBasis.attemptedPairs || 0
             );
-            const actualToolCalls = REPRESENTATIVE_TOOL_NAMES.length + 4 + attemptedPairs;
-            const maximumRequests = 1 + REPRESENTATIVE_TOOL_NAMES.length + MAXIMUM_COST_TOOL_CALLS;
+            const actualToolCalls = REPRESENTATIVE_CALL_NAMES.length + 4 + attemptedPairs;
+            const maximumRequests = 1 + REPRESENTATIVE_CALL_NAMES.length + MAXIMUM_COST_TOOL_CALLS;
             assert(maximumRequests <= PRODUCTION_RATE_LIMIT_PER_MINUTE, '生产验收矩阵超过 MCP 限流预算');
             return {
                 schemaVersion: 1,
@@ -357,6 +390,7 @@ if (require.main === module) {
 
 module.exports = {
     DEFAULT_REPORT_PATH,
+    REPRESENTATIVE_CALL_NAMES,
     DOMAIN_SCENARIOS,
     REPRESENTATIVE_TOOL_NAMES,
     evaluateRepresentativeReadDomains,
@@ -364,5 +398,6 @@ module.exports = {
     runProductionReadVerification,
     validateRecipeDetailContract,
     validateRecipeCostPreviewContract,
+    validateRecipeCostOverrideContract,
     verifiedToolEvidence,
 };

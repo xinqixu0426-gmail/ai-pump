@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+    REPRESENTATIVE_CALL_NAMES,
     REPRESENTATIVE_TOOL_NAMES,
     evaluateRepresentativeReadDomains,
     runProductionReadVerification,
@@ -49,10 +50,22 @@ function successfulResult(name, options = {}) {
             },
         }
         : {};
+    const overrideCurrentTotalCost = options.overrideMissingCurrentTotalCost
+        ? undefined
+        : (options.overrideCurrentTotalCost ?? 273.17);
     const data = name === 'get_recent_orders'
         ? []
         : name === 'preview_recipe_cost'
-            ? {
+            ? options.overridePreview ? {
+                recipeId: 1,
+                currentTotalCost: overrideCurrentTotalCost,
+                unitCost: options.overrideUnitCost ?? overrideCurrentTotalCost,
+                costBasis: 'overridePreview',
+                sourceOfTruth: 'costEngine',
+                deprecatedFields: options.omitOverrideDeprecated
+                    ? {}
+                    : { unitCost: '兼容字段；请改用 currentTotalCost' },
+            } : {
                 recipeId: 1,
                 currentTotalCost: options.previewCurrentTotalCost ?? 272.18,
                 costBasis: 'currentFullCost',
@@ -94,6 +107,12 @@ function createFakeClient(options = {}) {
                 duplicateRecipeKeys: call.name === 'get_recipe_detail' && options.duplicateRecipeKeys,
                 recipeDetailCurrentTotalCost: options.recipeDetailCurrentTotalCost,
                 previewCurrentTotalCost: options.previewCurrentTotalCost,
+                overridePreview: call.name === 'preview_recipe_cost'
+                    && call.arguments.customBarrelLength !== undefined,
+                overrideCurrentTotalCost: options.overrideCurrentTotalCost,
+                overrideMissingCurrentTotalCost: options.overrideMissingCurrentTotalCost,
+                overrideUnitCost: options.overrideUnitCost,
+                omitOverrideDeprecated: options.omitOverrideDeprecated,
             });
         },
     };
@@ -109,8 +128,8 @@ test('生产 MCP 全领域只读验收：单连接覆盖代表工具且报告不
 
     assert.equal(report.status, 'passed');
     assert.equal(report.toolDirectory.representativeToolCount, 17);
-    assert.equal(report.requestBudget.maximumRequests, 34);
-    assert.equal(report.requestBudget.actualRequests, 23);
+    assert.equal(report.requestBudget.maximumRequests, 35);
+    assert.equal(report.requestBudget.actualRequests, 24);
     assert.equal(report.domains.orders.resourceSpecificCoverage.status, 'not_applicable');
     const recipeDetail = report.domains.recipes.tools.find(tool => tool.name === 'get_recipe_detail');
     assert.deepEqual(recipeDetail.contract, {
@@ -120,19 +139,52 @@ test('生产 MCP 全领域只读验收：单连接覆盖代表工具且报告不
         currentTotalCost: 272.18,
         matchesComparison: true,
     });
-    const recipePreview = report.domains.recipes.tools.find(tool => tool.name === 'preview_recipe_cost');
+    const recipePreview = report.domains.recipes.tools.find(tool => (
+        tool.name === 'preview_recipe_cost' && tool.scenario === 'current'
+    ));
     assert.deepEqual(recipePreview.contract, {
         costBasis: 'currentFullCost',
         sourceOfTruth: 'costEngine',
         currentTotalCost: 272.18,
         matchesComparison: true,
     });
-    assert.deepEqual(client.calls.map(call => call.name), REPRESENTATIVE_TOOL_NAMES);
+    const recipeOverride = report.domains.recipes.tools.find(tool => (
+        tool.name === 'preview_recipe_cost' && tool.scenario === 'override'
+    ));
+    assert.deepEqual(recipeOverride.contract, {
+        costBasis: 'overridePreview',
+        sourceOfTruth: 'costEngine',
+        currentTotalCost: 273.17,
+        compatibilityAliasMatches: true,
+    });
+    assert.deepEqual(client.calls.map(call => call.name), REPRESENTATIVE_CALL_NAMES);
     assert.deepEqual(
         client.calls.find(call => call.name === 'get_recipe_detail').arguments,
         { recipeId: 1, includeCurrentCost: true }
     );
+    assert.deepEqual(
+        client.calls.find(call => (
+            call.name === 'preview_recipe_cost' && call.arguments.customBarrelLength !== undefined
+        )).arguments,
+        { recipeId: 1, customBarrelLength: 180 }
+    );
     assert.doesNotMatch(JSON.stringify(report), /production-read-verifier-token/);
+});
+
+test('生产 MCP 全领域只读验收：覆盖试算缺少 currentTotalCost 必须失败', async () => {
+    const client = createFakeClient({ overrideMissingCurrentTotalCost: true });
+    await assert.rejects(
+        () => evaluateRepresentativeReadDomains(client, costReport()),
+        /preview_recipe_cost 覆盖结果 currentTotalCost 缺失/
+    );
+});
+
+test('生产 MCP 全领域只读验收：覆盖试算兼容别名不一致必须失败', async () => {
+    const client = createFakeClient({ overrideUnitCost: 271.89 });
+    await assert.rejects(
+        () => evaluateRepresentativeReadDomains(client, costReport()),
+        /兼容 unitCost 不等于 currentTotalCost/
+    );
 });
 
 test('生产 MCP 全领域只读验收：配方明细存在大小写重复键必须失败', async () => {

@@ -26,26 +26,39 @@ function resolveUniqueRecipe(recipes, args = {}) {
         : resolved;
 }
 
+function normalizeRecipeCostContract(costResult, metadata = {}) {
+    const source = costResult && typeof costResult === 'object' ? costResult : {};
+    const currentTotalCost = Object.prototype.hasOwnProperty.call(source, 'currentTotalCost')
+        ? source.currentTotalCost
+        : source.unitCost;
+    return {
+        ...source,
+        currentTotalCost,
+        unitCost: currentTotalCost,
+        ...metadata,
+        deprecatedFields: {
+            ...(source.deprecatedFields || {}),
+            unitCost: '兼容字段；请改用 currentTotalCost',
+        },
+    };
+}
+
 function selectCurrentRecipeCost(currentCosts, recipeId) {
     const item = (Array.isArray(currentCosts?.items) ? currentCosts.items : [])
         .find(candidate => Number(candidate.recipeId) === Number(recipeId));
     if (!item) {
         throw new Error(`配方 ${recipeId} 的当前完整成本结果缺失`);
     }
-    return {
-        ...item,
-        unitCost: item.currentTotalCost,
+    return normalizeRecipeCostContract(item, {
         costBasis: 'currentFullCost',
         sourceOfTruth: currentCosts.sourceOfTruth,
         basis: currentCosts.basis,
         asOf: currentCosts.asOf,
-        deprecatedFields: {
-            unitCost: '兼容字段；请改用 currentTotalCost',
-        },
-    };
+    });
 }
 
 module.exports = {
+    normalizeRecipeCostContract,
     normalizeRecipeName,
     resolveUniqueRecipe,
     selectCurrentRecipeCost,

@@ -3163,9 +3163,11 @@ test('AI executor 行为：有覆盖的配方成本查询保持正式 overridePr
     }, { allowWrite: false });
 
     assert.equal(result.success, true);
+    assert.equal(result.data.currentTotalCost, 292.35);
     assert.equal(result.data.unitCost, 292.35);
     assert.equal(result.data.sourceOfTruth, 'costEngine');
     assert.equal(result.data.costBasis, 'overridePreview');
+    assert.match(result.data.deprecatedFields.unitCost, /currentTotalCost/);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/recipes',
         'POST /api/recipes/2/cost-preview',

@@ -29,6 +29,14 @@ function assert(condition, message) {
     if (!condition) throw new Error(message);
 }
 
+function assertLiveMcpEvidence(result, name) {
+    const evidence = result?.structuredContent?.mcp;
+    assert(evidence?.verified === true, `${name} 缺少已验证 MCP 证据`);
+    assert(evidence?.dataMode === 'live', `${name} dataMode 不是 live`);
+    assert(evidence?.sourceOfTruth === 'costEngine', `${name} MCP sourceOfTruth 不是 costEngine`);
+    return evidence;
+}
+
 function resultBody(result) {
     const structured = result?.structuredContent ?? null;
     return structured?.data ?? structured;
@@ -161,6 +169,7 @@ async function evaluateProductionCostScenarios(client, env = process.env, option
 
     const comparable = await findComparablePair(client, recipes, env);
     const { left, right, body: compared } = comparable;
+    const compareEvidence = assertLiveMcpEvidence(comparable.call.result, 'compare_recipes');
 
     const fullCall = await timedToolCall(client, 'full_calculate', {
         recipeId: Number(left.id),
@@ -193,6 +202,7 @@ async function evaluateProductionCostScenarios(client, env = process.env, option
     });
     const explained = resultBody(explainCall.result);
     assert(!explainCall.result?.isError, 'explain_cost_change 调用失败');
+    const explainEvidence = assertLiveMcpEvidence(explainCall.result, 'explain_cost_change');
     assert(compared?.sourceOfTruth === 'costEngine', 'compare_recipes sourceOfTruth 不是 costEngine');
     assert(compared?.costBasis === 'currentFullCost', 'compare_recipes costBasis 不是 currentFullCost');
     assert(explained?.sourceOfTruth === 'costEngine', 'explain_cost_change sourceOfTruth 不是 costEngine');
@@ -260,6 +270,8 @@ async function evaluateProductionCostScenarios(client, env = process.env, option
                 totalDiff: Number(compared.costDiff),
                 costBasis: compared.costBasis,
                 sourceOfTruth: compared.sourceOfTruth,
+                compareDataMode: compareEvidence.dataMode,
+                explainDataMode: explainEvidence.dataMode,
                 detailCount: (compared.comparison || []).length,
                 compareClientRoundTripMs: comparable.call.roundTripMs,
                 explainClientRoundTripMs: explainCall.roundTripMs,

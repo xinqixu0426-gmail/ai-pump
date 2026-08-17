@@ -16,6 +16,17 @@ function result(body, isError = false) {
     };
 }
 
+function mcpEvidence(name, dataMode = 'live') {
+    return {
+        capabilityId: `ai.${name}`,
+        operation: 'query',
+        sourceOfTruth: 'costEngine',
+        dataMode,
+        verified: true,
+        fetchedAt: '2026-08-17T00:00:00.000Z',
+    };
+}
+
 function createFakeClient(options = {}) {
     const calls = [];
     const compareDiff = options.compareDiff ?? 19.55;
@@ -51,6 +62,7 @@ function createFakeClient(options = {}) {
                         amount2: 291.73,
                         diff: detailDiff,
                     }],
+                    mcp: mcpEvidence('compare_recipes', options.compareDataMode),
                 });
             }
             if (call.name === 'full_calculate' && call.arguments.recipeId) {
@@ -85,6 +97,7 @@ function createFakeClient(options = {}) {
                         right: { totalCost: 291.73 },
                         totalDiff: 19.55,
                     },
+                    mcp: mcpEvidence('explain_cost_change', options.explainDataMode),
                 });
             }
             throw new Error(`unexpected tool call: ${call.name}`);
@@ -106,6 +119,8 @@ test('生产 MCP 成本验收：三个只读场景共用正式口径且报告不
     assert.equal(report.scenarios.fullEstimateBindsRecipe.costBasis, 'composedEstimate');
     assert.equal(report.scenarios.pumpShellNameFailsExplicitly.errorCode, 'FULL_ESTIMATE_RECIPE_NOT_FOUND');
     assert.equal(report.scenarios.comparisonUsesSameFullCostBasis.totalDiff, 19.55);
+    assert.equal(report.scenarios.comparisonUsesSameFullCostBasis.compareDataMode, 'live');
+    assert.equal(report.scenarios.comparisonUsesSameFullCostBasis.explainDataMode, 'live');
     assert.equal(report.timingBoundary.serverDurationMs, null);
     assert.doesNotMatch(JSON.stringify(report), /production-verifier-token/);
     assert.deepEqual(client.calls.map(call => call.name), [
@@ -115,6 +130,14 @@ test('生产 MCP 成本验收：三个只读场景共用正式口径且报告不
         'full_calculate',
         'explain_cost_change',
     ]);
+});
+
+test('生产 MCP 成本验收：同源成本对比工具不是 live 时必须失败', async () => {
+    const client = createFakeClient({ compareDataMode: 'stable' });
+    await assert.rejects(
+        () => evaluateProductionCostScenarios(client, verificationEnv),
+        /compare_recipes dataMode 不是 live/
+    );
 });
 
 test('生产 MCP 成本验收：明细差额不是配方2减配方1时必须失败', async () => {

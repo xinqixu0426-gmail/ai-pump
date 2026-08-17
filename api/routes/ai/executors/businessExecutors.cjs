@@ -4,6 +4,7 @@ const {
     executeFactoryWorkflowStep,
 } = require('../../../services/aiFactoryWorkflowExecution.cjs');
 const {
+    normalizeRecipeCostContract,
     resolveUniqueRecipe,
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
@@ -171,11 +172,10 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 const preview = await postJson(internalFetch, `/api/recipes/${recipeId}/cost-preview`, {
                     overrides: normalizedOverrides,
                 }, '配方成本试算失败');
-                data = {
-                    ...preview,
+                data = normalizeRecipeCostContract(preview, {
                     sourceOfTruth: 'costEngine',
                     costBasis: 'overridePreview',
-                };
+                });
             }
             const displayedCost = data.currentTotalCost ?? data.unitCost;
             return {
