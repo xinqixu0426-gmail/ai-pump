@@ -147,8 +147,8 @@ async function findComparablePair(client, recipes, env) {
     throw new Error(`未找到可用于生产成本对比验收的两个完整配方；已尝试 ${attempts.length} 组`);
 }
 
-async function evaluateProductionCostScenarios(client, env = process.env) {
-    const listed = await client.listTools();
+async function evaluateProductionCostScenarios(client, env = process.env, options = {}) {
+    const listed = options.listedTools || await client.listTools();
     const toolNames = new Set((listed.tools || []).map(tool => tool.name));
     for (const required of REQUIRED_TOOLS) {
         assert(toolNames.has(required), `MCP 工具目录缺少 ${required}`);

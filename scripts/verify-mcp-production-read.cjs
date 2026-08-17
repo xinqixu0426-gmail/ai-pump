@@ -1,0 +1,297 @@
+const path = require('node:path');
+const { performance } = require('node:perf_hooks');
+const {
+    Client,
+    StreamableHTTPClientTransport,
+} = require('@modelcontextprotocol/client');
+const {
+    evaluateProductionCostScenarios,
+    resolveVerificationCredential,
+    resolveVerificationUrl,
+    writeReport,
+} = require('./verify-mcp-production-cost.cjs');
+
+const DEFAULT_REPORT_PATH = path.join('logs', 'mcp-production-read-latest.json');
+const DEFAULT_COST_REPORT_PATH = path.join('logs', 'mcp-production-cost-latest.json');
+const PRODUCTION_RATE_LIMIT_PER_MINUTE = 60;
+const MAXIMUM_COST_TOOL_CALLS = 16;
+
+const DOMAIN_SCENARIOS = Object.freeze([
+    Object.freeze({
+        id: 'inventory',
+        label: '库存与物料',
+        calls: Object.freeze([
+            Object.freeze({ name: 'search_parts', args: Object.freeze({ limit: 1 }) }),
+            Object.freeze({ name: 'search_coils', args: Object.freeze({}) }),
+        ]),
+    }),
+    Object.freeze({
+        id: 'recipes',
+        label: '配方与泵壳模板',
+        calls: Object.freeze([
+            Object.freeze({ name: 'search_templates', args: Object.freeze({ limit: 1 }) }),
+            Object.freeze({ name: 'get_all_recipes', args: Object.freeze({}) }),
+            Object.freeze({
+                name: 'get_recipe_detail',
+                args: costReport => ({
+                    recipeId: Number(costReport.scenarios.fullEstimateBindsRecipe.recipeId),
+                    includeCurrentCost: true,
+                }),
+            }),
+        ]),
+    }),
+    Object.freeze({
+        id: 'commercial',
+        label: '客户与报价',
+        calls: Object.freeze([
+            Object.freeze({ name: 'search_customers', args: Object.freeze({ limit: 1 }) }),
+            Object.freeze({ name: 'search_quotations', args: Object.freeze({ limit: 1 }) }),
+        ]),
+    }),
+    Object.freeze({
+        id: 'orders',
+        label: '订单与采购',
+        calls: Object.freeze([
+            Object.freeze({ name: 'get_recent_orders', args: Object.freeze({ limit: 1 }) }),
+            Object.freeze({
+                name: 'get_purchase_overview',
+                args: Object.freeze({ limit: 10, pendingOnly: true }),
+            }),
+            Object.freeze({ name: 'get_order_readiness_overview', args: Object.freeze({}) }),
+        ]),
+    }),
+    Object.freeze({
+        id: 'management',
+        label: '管理与数据质量',
+        calls: Object.freeze([
+            Object.freeze({ name: 'get_dashboard_summary', args: Object.freeze({}) }),
+            Object.freeze({ name: 'get_business_alerts', args: Object.freeze({}) }),
+            Object.freeze({ name: 'get_management_action_center', args: Object.freeze({}) }),
+            Object.freeze({ name: 'get_data_quality_summary', args: Object.freeze({}) }),
+        ]),
+    }),
+    Object.freeze({
+        id: 'knowledge',
+        label: '工厂知识',
+        calls: Object.freeze([
+            Object.freeze({ name: 'get_factory_knowledge_health', args: Object.freeze({}) }),
+        ]),
+    }),
+    Object.freeze({
+        id: 'drawings',
+        label: '转子出图历史',
+        calls: Object.freeze([
+            Object.freeze({ name: 'get_rotor_drawing_history', args: Object.freeze({ limit: 1 }) }),
+        ]),
+    }),
+]);
+
+const REPRESENTATIVE_TOOL_NAMES = Object.freeze(
+    DOMAIN_SCENARIOS.flatMap(domain => domain.calls.map(call => call.name))
+);
+
+function assert(condition, message) {
+    if (!condition) throw new Error(message);
+}
+
+function roundDuration(startedAt) {
+    return Math.round((performance.now() - startedAt) * 10) / 10;
+}
+
+function returnedCount(envelope) {
+    const candidates = [
+        envelope?.queryReceipt?.returnedCount,
+        envelope?.returnedCount,
+        envelope?.count,
+    ];
+    for (const candidate of candidates) {
+        if (Number.isFinite(Number(candidate))) return Number(candidate);
+    }
+    if (Array.isArray(envelope?.data)) return envelope.data.length;
+    if (Array.isArray(envelope?.history)) return envelope.history.length;
+    return null;
+}
+
+function verifiedToolEvidence(name, result, roundTripMs) {
+    const envelope = result?.structuredContent;
+    assert(result?.isError !== true, `${name} 返回 MCP 错误`);
+    assert(envelope && typeof envelope === 'object' && !Array.isArray(envelope), `${name} 缺少 structuredContent`);
+    assert(envelope.success !== false, `${name} 返回业务失败: ${envelope.code || envelope.error || 'unknown_error'}`);
+    assert(envelope.mcp?.verified === true, `${name} 缺少已验证执行证据`);
+    assert(String(envelope.mcp.capabilityId || '').startsWith('ai.'), `${name} 缺少 capabilityId`);
+    assert(['query', 'preview'].includes(envelope.mcp.operation), `${name} 不是只读 Query/Preview`);
+    assert(String(envelope.mcp.sourceOfTruth || '').trim(), `${name} 缺少 sourceOfTruth`);
+    assert(String(envelope.mcp.dataMode || '').trim(), `${name} 缺少 dataMode`);
+    return {
+        name,
+        status: 'passed',
+        clientRoundTripMs: roundTripMs,
+        capabilityId: envelope.mcp.capabilityId,
+        operation: envelope.mcp.operation,
+        sourceOfTruth: envelope.mcp.sourceOfTruth,
+        dataMode: envelope.mcp.dataMode,
+        returnedCount: returnedCount(envelope),
+    };
+}
+
+async function evaluateRepresentativeReadDomains(client, costReport, options = {}) {
+    const listed = options.listedTools || await client.listTools();
+    const toolNames = new Set((listed.tools || []).map(tool => tool.name));
+    for (const required of REPRESENTATIVE_TOOL_NAMES) {
+        assert(toolNames.has(required), `MCP 工具目录缺少生产代表工具 ${required}`);
+    }
+
+    const domains = {};
+    for (const domain of DOMAIN_SCENARIOS) {
+        const tools = [];
+        for (const call of domain.calls) {
+            const args = typeof call.args === 'function' ? call.args(costReport) : call.args;
+            const startedAt = performance.now();
+            const result = await client.callTool({ name: call.name, arguments: args });
+            tools.push(verifiedToolEvidence(call.name, result, roundDuration(startedAt)));
+        }
+        domains[domain.id] = {
+            status: 'passed',
+            label: domain.label,
+            tools,
+        };
+    }
+
+    const recentOrders = domains.orders.tools.find(tool => tool.name === 'get_recent_orders');
+    domains.orders.resourceSpecificCoverage = recentOrders?.returnedCount === 0
+        ? {
+            status: 'not_applicable',
+            reason: '正式环境当前没有可供只读详情验收的订单；未创建测试订单',
+        }
+        : {
+            status: 'covered_by_isolated_suite',
+            reason: '生产矩阵只验收订单列表、采购总览和准备总览；订单详情由隔离全工具套件覆盖',
+        };
+    return domains;
+}
+
+async function runProductionReadVerification(options = {}) {
+    const env = options.env || process.env;
+    const credential = resolveVerificationCredential(env);
+    const url = resolveVerificationUrl(env);
+    const client = options.client || new Client(
+        { name: 'pump-production-read-verifier', version: '1.0.0' },
+        { versionNegotiation: { mode: 'auto' } }
+    );
+    const ownsClient = !options.client;
+    const costEvaluator = options.costEvaluator || evaluateProductionCostScenarios;
+    try {
+        if (ownsClient) {
+            await client.connect(new StreamableHTTPClientTransport(url, {
+                requestInit: {
+                    headers: { Authorization: `Bearer ${credential.token}` },
+                },
+            }));
+        }
+        const listed = await client.listTools();
+        const costReport = await costEvaluator(client, env, { listedTools: listed });
+        costReport.endpoint = `${url.origin}${url.pathname}`;
+        costReport.credential = {
+            clientId: credential.clientId,
+            source: credential.source,
+        };
+
+        try {
+            const readDomains = await evaluateRepresentativeReadDomains(client, costReport, {
+                listedTools: listed,
+            });
+            const attemptedPairs = Number(
+                costReport.scenarios.comparisonUsesSameFullCostBasis.attemptedPairs || 0
+            );
+            const actualToolCalls = REPRESENTATIVE_TOOL_NAMES.length + 4 + attemptedPairs;
+            const maximumRequests = 1 + REPRESENTATIVE_TOOL_NAMES.length + MAXIMUM_COST_TOOL_CALLS;
+            assert(maximumRequests <= PRODUCTION_RATE_LIMIT_PER_MINUTE, '生产验收矩阵超过 MCP 限流预算');
+            return {
+                schemaVersion: 1,
+                status: 'passed',
+                generatedAt: new Date().toISOString(),
+                endpoint: `${url.origin}${url.pathname}`,
+                credential: {
+                    clientId: credential.clientId,
+                    source: credential.source,
+                },
+                protocolVersion: typeof client.getNegotiatedProtocolVersion === 'function'
+                    ? client.getNegotiatedProtocolVersion()
+                    : costReport.protocolVersion,
+                toolDirectory: {
+                    toolCount: (listed.tools || []).length,
+                    representativeToolCount: REPRESENTATIVE_TOOL_NAMES.length,
+                },
+                requestBudget: {
+                    productionRateLimitPerMinute: PRODUCTION_RATE_LIMIT_PER_MINUTE,
+                    maximumRequests,
+                    actualRequests: 1 + actualToolCalls,
+                    listRequests: 1,
+                    toolCalls: actualToolCalls,
+                },
+                productionDataPolicy: {
+                    readOnly: true,
+                    createsFakeData: false,
+                    mutatesProduction: false,
+                    resourceSpecificEmptyDataIsNotFailure: true,
+                },
+                domains: {
+                    cost: costReport,
+                    ...readDomains,
+                },
+            };
+        } catch (error) {
+            error.costReport = costReport;
+            throw error;
+        }
+    } finally {
+        if (ownsClient) await client.close();
+    }
+}
+
+async function main() {
+    require('dotenv').config({ path: path.join(process.cwd(), '.env'), quiet: true });
+    const reportPath = String(process.env.MCP_VERIFY_READ_REPORT || DEFAULT_REPORT_PATH).trim();
+    const costReportPath = String(process.env.MCP_VERIFY_REPORT || DEFAULT_COST_REPORT_PATH).trim();
+    try {
+        const report = await runProductionReadVerification();
+        const resolvedReportPath = writeReport(report, reportPath);
+        writeReport(report.domains.cost, costReportPath);
+        console.log(JSON.stringify({
+            status: report.status,
+            protocolVersion: report.protocolVersion,
+            toolCount: report.toolDirectory.toolCount,
+            representativeToolCount: report.toolDirectory.representativeToolCount,
+            actualRequests: report.requestBudget.actualRequests,
+            domains: Object.fromEntries(Object.entries(report.domains).map(([key, value]) => [
+                key,
+                value.status,
+            ])),
+            report: resolvedReportPath,
+        }, null, 2));
+    } catch (error) {
+        const failure = {
+            schemaVersion: 1,
+            status: 'failed',
+            generatedAt: new Date().toISOString(),
+            error: error.message,
+        };
+        const resolvedReportPath = writeReport(failure, reportPath);
+        writeReport(error.costReport || failure, costReportPath);
+        console.error(JSON.stringify({ ...failure, report: resolvedReportPath }, null, 2));
+        process.exitCode = 1;
+    }
+}
+
+if (require.main === module) {
+    main();
+}
+
+module.exports = {
+    DEFAULT_REPORT_PATH,
+    DOMAIN_SCENARIOS,
+    REPRESENTATIVE_TOOL_NAMES,
+    evaluateRepresentativeReadDomains,
+    runProductionReadVerification,
+    verifiedToolEvidence,
+};

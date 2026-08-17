@@ -143,10 +143,12 @@ LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失�
 3 次不能完成才按错误阻止验收。
 
 日常发布在公网 ready、登录页和 AI 页面通过后，还会执行
-`npm run verify:mcp-prod-cost`。该门禁只读验证正式配方绑定、模板名误传失败、
-`compare_recipes/explain_cost_change` 的 `currentFullCost` 口径和差额方向，
-不创建缺价样本，不修改任何生产数据。失败报告同样会以非零状态阻止发布完成，
-脱敏结果保存在 `logs/mcp-production-cost-latest.json`。
+`npm run verify:mcp-prod-read`。该门禁在单个连接内复用三个正式成本场景，并用 16 个
+代表工具覆盖库存、配方、客户/报价、订单/采购、管理/质量、知识和出图历史；逐次验证
+`mcp.verified`、能力 ID 和正式数据源。最坏 33 个请求，低于每分钟 60 次生产限流。
+它不创建缺价、订单或其他测试样本，也不修改任何生产数据。失败会以非零状态阻止发布完成，
+脱敏综合报告保存在 `logs/mcp-production-read-latest.json`，成本子报告继续保存在
+`logs/mcp-production-cost-latest.json`。
 
 `npm test` 会为每个测试进程创建独立临时 SQLite，发布门禁不会再运行迁移或
 测试写入生产 `pump.db`；真实生产迁移只在 API 服务重启时执行，并由拉取前的

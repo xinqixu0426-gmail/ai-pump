@@ -208,8 +208,8 @@ wait_for_http "公网登录页" "$PUBLIC_BASE_URL/login"
 wait_for_http "公网 AI 页面" "$PUBLIC_BASE_URL/ai"
 validate_ready_commit "$PUBLIC_BASE_URL/api/health/ready" "$new_commit"
 
-echo "[9/9] 执行生产 MCP 成本只读验收"
-MCP_VERIFY_URL="$PUBLIC_BASE_URL/mcp" "$NPM_BIN" run verify:mcp-prod-cost
+echo "[9/9] 执行生产 MCP 全领域只读验收"
+MCP_VERIFY_URL="$PUBLIC_BASE_URL/mcp" "$NPM_BIN" run verify:mcp-prod-read
 
 elapsed=$(( $(/bin/date +%s) - STARTED_AT ))
 echo "发布完成：commit ${new_commit[1,12]}，用时 ${elapsed} 秒。"

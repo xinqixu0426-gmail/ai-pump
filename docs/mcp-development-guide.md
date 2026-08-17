@@ -57,17 +57,20 @@ Node.js 的 Windows `fetch`/强制退出竞态，而不是放宽 MCP 场景判�
 生产发布在公网 ready 通过后自动运行：
 
 ```bash
-npm run verify:mcp-prod-cost
+npm run verify:mcp-prod-read
 ```
 
 该命令从进程环境的 `MCP_VERIFY_TOKEN` 或正式 `.env` 中已有的
-`MCP_SERVICE_TOKENS` 选取凭证，不输出或写入 token。它只调用
-`get_all_recipes/full_calculate/compare_recipes/explain_cost_change`，自动选择一对
-成本完整的正式配方，验证配方绑定、泵壳模板名误传整体失败、
-完整成本口径和配方2减配方1的差额方向。结果写入
-`logs/mcp-production-cost-latest.json`；报告仅记录客户端 round-trip，
-服务端耗时仍只以 API 日志 `durationMs` 为准。缺价失败路径由隔离测试库覆盖，
-生产验收不会为造样本而修改价格或配方。
+`MCP_SERVICE_TOKENS` 选取凭证，不输出或写入 token。它在同一个 MCP 连接中先复用
+三个正式成本场景，再覆盖库存/物料、配方/模板、客户/报价、订单/采购、
+管理/质量、工厂知识和转子出图历史的 16 个代表性只读工具。每次调用都必须返回
+`mcp.verified=true`、能力 ID、正式数据源和数据模式。最坏 33 个请求，低于生产默认
+每分钟 60 次限制。综合结果写入 `logs/mcp-production-read-latest.json`，成本子报告仍同步到
+`logs/mcp-production-cost-latest.json`；两份报告仅记录客户端 round-trip，服务端耗时仍只以
+API 日志 `durationMs` 为准。空订单/报价/出图历史是允许的正式业务状态，不为覆盖详情而
+制造生产数据；全部 45 个只读工具和缺价失败路径继续由隔离套件覆盖。
+
+需要单独复核三个成本场景时仍可运行 `npm run verify:mcp-prod-cost`。
 
 专项门禁通过后，提交/发布前继续运行项目级门禁：
 
