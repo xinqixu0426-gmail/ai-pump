@@ -3,6 +3,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const dotenv = require('dotenv');
 const {
+    Client,
+    StreamableHTTPClientTransport,
+} = require('@modelcontextprotocol/client');
+const {
     getMcpWriteClientIds,
     getMcpWriteToolsForClient,
     isMcpWriteEnabled,
@@ -428,6 +432,66 @@ async function rpcCall({
     };
 }
 
+async function verifyModernIdentity({
+    entry,
+    url,
+    host,
+    protocolVersion,
+    expectedToolCount,
+    timeoutMs,
+}) {
+    const client = new Client(
+        { name: 'mcp-identity-verifier', version: '1.0.0' },
+        { versionNegotiation: { mode: 'auto' } }
+    );
+    try {
+        const headers = { Authorization: `Bearer ${entry.token}` };
+        if (host) headers.Host = host;
+        await client.connect(new StreamableHTTPClientTransport(new URL(url), {
+            requestInit: {
+                headers,
+                signal: AbortSignal.timeout(timeoutMs),
+            },
+        }));
+        const listed = await client.listTools();
+        const tools = Array.isArray(listed?.tools) ? listed.tools : [];
+        const negotiated = typeof client.getNegotiatedProtocolVersion === 'function'
+            ? client.getNegotiatedProtocolVersion()
+            : null;
+        const toolCountMatches = expectedToolCount === undefined
+            || tools.length === expectedToolCount;
+        const protocolMatches = negotiated === protocolVersion;
+        return {
+            clientId: entry.clientId,
+            initialized: true,
+            toolsListed: true,
+            protocolVersion: negotiated,
+            protocolMatches,
+            toolCount: tools.length,
+            toolCountMatches,
+            success: protocolMatches && toolCountMatches,
+        };
+    } catch (error) {
+        return {
+            clientId: entry.clientId,
+            initialized: false,
+            toolsListed: false,
+            protocolVersion: null,
+            protocolMatches: false,
+            toolCount: 0,
+            toolCountMatches: false,
+            success: false,
+            error: error instanceof Error ? error.message : 'unknown MCP verification error',
+        };
+    } finally {
+        try {
+            await client.close();
+        } catch {
+            // Connection may have failed before the transport was fully opened.
+        }
+    }
+}
+
 async function verifyLiveIdentities({
     env,
     url,
@@ -443,6 +507,17 @@ async function verifyLiveIdentities({
     const results = [];
     let requestId = 1;
     for (const entry of entries) {
+        if (protocolVersion === '2026-07-28') {
+            results.push(await verifyModernIdentity({
+                entry,
+                url,
+                host,
+                protocolVersion,
+                expectedToolCount,
+                timeoutMs,
+            }));
+            continue;
+        }
         const initialized = await rpcCall({
             url,
             token: entry.token,

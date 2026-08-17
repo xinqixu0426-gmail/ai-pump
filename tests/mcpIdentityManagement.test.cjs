@@ -356,6 +356,64 @@ test('MCP 身份管理：live verify 逐身份握手和列目录但不返回凭�
     }
 });
 
+test('MCP 身份管理：2026 live verify 使用官方 SDK 会话并核对协商版本', async () => {
+    const server = http.createServer((request, response) => {
+        if (request.method === 'DELETE') {
+            response.writeHead(200).end();
+            return;
+        }
+        const chunks = [];
+        request.on('data', chunk => chunks.push(chunk));
+        request.on('end', () => {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            if (body.method === 'notifications/initialized') {
+                response.writeHead(202).end();
+                return;
+            }
+            const result = body.method === 'server/discover'
+                ? {
+                    supportedVersions: ['2026-07-28'],
+                    capabilities: { tools: {} },
+                    serverInfo: { name: 'test-mcp-modern', version: '1.0.0' },
+                }
+                : {
+                    resultType: 'complete',
+                    ttlMs: 0,
+                    cacheScope: 'private',
+                    tools: [
+                        { name: 'read_one', inputSchema: { type: 'object' } },
+                        { name: 'write_one', inputSchema: { type: 'object' } },
+                    ],
+                };
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }));
+        });
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        const address = server.address();
+        const result = await verifyLiveIdentities({
+            env: dotenv.parse(envText()),
+            url: `http://127.0.0.1:${address.port}/mcp`,
+            clientId: 'codex',
+            protocolVersion: '2026-07-28',
+            expectedToolCount: 2,
+        });
+        assert.deepEqual(result, [{
+            clientId: 'codex',
+            initialized: true,
+            toolsListed: true,
+            protocolVersion: '2026-07-28',
+            protocolMatches: true,
+            toolCount: 2,
+            toolCountMatches: true,
+            success: true,
+        }]);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
 test('MCP 身份管理 CLI：显式拒绝命令行明文 token 且错误不回显值', () => {
     const fixture = tempFixture();
     try {
