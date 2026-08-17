@@ -368,10 +368,8 @@ test('MCP 身份管理 CLI：stdin 预览和显式确认写入均保持脱敏', 
 });
 
 test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境变量', () => {
-    const script = fs.readFileSync(
-        path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities-macmini.ps1'),
-        'utf8'
-    );
+    const scriptPath = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities-macmini.ps1');
+    const script = fs.readFileSync(scriptPath, 'utf8');
     assert.match(script, /--token-stdin/);
     assert.match(script, /GetEnvironmentVariable\(\$ClientTokenEnvVar, 'User'\)/);
     assert.match(script, /SetEnvironmentVariable\(\$ClientTokenEnvVar/);
@@ -379,4 +377,27 @@ test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境�
     assert.match(script, /ROLLBACK_MCP_IDENTITY_CHANGE/);
     assert.doesNotMatch(script, /--token\s+\$/);
     assert.doesNotMatch(script, /Write-(Output|Host).*Token/i);
+});
+
+test('MCP 身份管理 Mac Mini 包装器：Windows PowerShell 5.1 可解析无 BOM 脚本', () => {
+    const scriptPath = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities-macmini.ps1');
+    if (process.platform !== 'win32') {
+        const script = fs.readFileSync(scriptPath, 'utf8');
+        assert.doesNotMatch(script, /[^\x00-\x7F]/);
+        return;
+    }
+    const command = '$tokens = $null; $errors = $null; '
+        + '[void][System.Management.Automation.Language.Parser]::ParseFile('
+        + '$env:MCP_IDENTITY_SCRIPT, [ref]$tokens, [ref]$errors); '
+        + 'if ($errors.Count -gt 0) { '
+        + '$errors | ForEach-Object { [Console]::Error.WriteLine($_.Message) }; exit 1 }';
+    const result = spawnSync('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command', command,
+    ], {
+        encoding: 'utf8',
+        env: { ...process.env, MCP_IDENTITY_SCRIPT: scriptPath },
+    });
+    assert.equal(result.status, 0, result.stderr);
 });

@@ -16,19 +16,19 @@ $ErrorActionPreference = 'Stop'
 $applyConfirmation = 'APPLY_MCP_IDENTITY_CHANGE'
 $rollbackConfirmation = 'ROLLBACK_MCP_IDENTITY_CHANGE'
 
-if ($SshHost -notmatch '^[a-zA-Z0-9._-]+$') { throw 'SshHost 格式不合法' }
-if ($RemoteRoot -notmatch '^[~a-zA-Z0-9_./-]+$') { throw 'RemoteRoot 格式不合法' }
+if ($SshHost -notmatch '^[a-zA-Z0-9._-]+$') { throw 'Invalid SshHost' }
+if ($RemoteRoot -notmatch '^[~a-zA-Z0-9_./-]+$') { throw 'Invalid RemoteRoot' }
 if ($ClientId -and $ClientId -notmatch '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$') {
-    throw 'ClientId 格式不合法'
+    throw 'Invalid ClientId'
 }
 if ($ClientTokenEnvVar -and $ClientTokenEnvVar -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
-    throw 'ClientTokenEnvVar 格式不合法'
+    throw 'Invalid ClientTokenEnvVar'
 }
 if ($BackupFile -and $BackupFile -notmatch '^[/~a-zA-Z0-9_ .-]+$') {
-    throw 'BackupFile 格式不合法'
+    throw 'Invalid BackupFile'
 }
 if ($ExpectedToolCount -lt 0 -or $ExpectedToolCount -gt 1000) {
-    throw 'ExpectedToolCount 必须是 0-1000 的整数'
+    throw 'ExpectedToolCount must be an integer from 0 to 1000'
 }
 
 function New-McpToken {
@@ -48,7 +48,7 @@ function Invoke-MacMini {
     } else {
         $output = & ssh $SshHost $Command
     }
-    if ($LASTEXITCODE -ne 0) { throw "Mac Mini 命令失败，退出码 $LASTEXITCODE" }
+    if ($LASTEXITCODE -ne 0) { throw "Mac Mini command failed with exit code $LASTEXITCODE" }
     return ($output -join "`n")
 }
 
@@ -68,13 +68,13 @@ function Verify-AllIdentities {
     $args += " --host xuxinqi.xin --expect-tool-count $ExpectedToolCount"
     $raw = Invoke-MacMini -Command (IdentityCommand $args)
     $result = $raw | ConvertFrom-Json
-    if (-not $result.success) { throw 'MCP identity 在线验证失败' }
+    if (-not $result.success) { throw 'MCP identity live verification failed' }
     return $result
 }
 
 function Restore-RemoteBackup {
     param([Parameter(Mandatory = $true)][string]$File)
-    if ($File -notmatch '^[/~a-zA-Z0-9_ .-]+$') { throw '远端备份路径格式不合法' }
+    if ($File -notmatch '^[/~a-zA-Z0-9_ .-]+$') { throw 'Invalid remote backup path' }
     $args = "rollback --env-file .env --file '$File' --apply --confirm $rollbackConfirmation"
     Invoke-MacMini -Command (IdentityCommand $args) | Out-Null
     Restart-Api
@@ -94,18 +94,18 @@ process.stdout.write(token);
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($source))
     $command = "cd $RemoteRoot && /opt/homebrew/bin/node -e `"eval(Buffer.from('$encoded','base64').toString())`" $Identity"
     $token = Invoke-MacMini -Command $command
-    if ([string]::IsNullOrWhiteSpace($token)) { throw '回滚后未找到客户端 token' }
+    if ([string]::IsNullOrWhiteSpace($token)) { throw 'Client token was not found after rollback' }
     return $token
 }
 
 if ($Action -in @('add', 'rotate', 'revoke') -and -not $ClientId) {
-    throw "$Action 必须提供 -ClientId"
+    throw "$Action requires -ClientId"
 }
 if ($Action -in @('add', 'rotate') -and -not $ClientTokenEnvVar) {
-    throw "$Action 必须提供 -ClientTokenEnvVar"
+    throw "$Action requires -ClientTokenEnvVar"
 }
 if ($Action -eq 'rollback' -and $Apply -and (-not $ClientId -or -not $ClientTokenEnvVar)) {
-    throw 'rollback -Apply 必须提供 -ClientId 和 -ClientTokenEnvVar，以同步恢复客户端凭证'
+    throw 'rollback -Apply requires -ClientId and -ClientTokenEnvVar'
 }
 
 $oldUserToken = if ($ClientTokenEnvVar) {
@@ -118,7 +118,7 @@ if ($Action -in @('add', 'rotate')) {
     if ($UseExistingToken) {
         $newToken = $oldUserToken
         if ([string]::IsNullOrWhiteSpace($newToken)) {
-            throw "用户环境变量未设置: $ClientTokenEnvVar"
+            throw "User environment variable is not set: $ClientTokenEnvVar"
         }
     } else {
         $newToken = New-McpToken
@@ -134,7 +134,7 @@ if ($Action -in @('add', 'rotate')) {
     $remoteResult = $raw | ConvertFrom-Json
 } elseif ($Action -eq 'rollback') {
     $selector = if ($BackupFile) { "--file '$BackupFile'" } elseif ($Latest) { '--latest' } else {
-        throw 'rollback 必须提供 -BackupFile 或 -Latest'
+        throw 'rollback requires -BackupFile or -Latest'
     }
     $args = "rollback --env-file .env $selector"
     if ($Apply) { $args += " --apply --confirm $rollbackConfirmation" }
