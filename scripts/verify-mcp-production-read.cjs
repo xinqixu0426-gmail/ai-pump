@@ -10,11 +10,61 @@ const {
     resolveVerificationUrl,
     writeReport,
 } = require('./verify-mcp-production-cost.cjs');
+const {
+    MCP_READ_ONLY_TOOL_NAMES,
+    MCP_WRITE_TOOL_NAMES,
+} = require('../api/mcp/catalog.cjs');
+const {
+    getMcpWriteToolsForClient,
+} = require('../api/services/environment.cjs');
 
 const DEFAULT_REPORT_PATH = path.join('logs', 'mcp-production-read-latest.json');
 const DEFAULT_COST_REPORT_PATH = path.join('logs', 'mcp-production-cost-latest.json');
 const PRODUCTION_RATE_LIMIT_PER_MINUTE = 60;
 const MAXIMUM_COST_TOOL_CALLS = 16;
+
+function validateProductionToolDirectory(listed, credential, env) {
+    const tools = Array.isArray(listed?.tools) ? listed.tools : [];
+    const names = tools.map(tool => String(tool?.name || '').trim());
+    assert(new Set(names).size === names.length, '生产 MCP 工具目录存在重复名称');
+
+    const readToolSet = new Set(MCP_READ_ONLY_TOOL_NAMES);
+    const writeToolSet = new Set(MCP_WRITE_TOOL_NAMES);
+    const expectedWriteTools = getMcpWriteToolsForClient(credential.clientId, env);
+    const expectedWriteSet = new Set(expectedWriteTools);
+
+    for (const name of MCP_READ_ONLY_TOOL_NAMES) {
+        const tool = tools.find(item => item.name === name);
+        assert(tool, `生产 MCP 工具目录缺少只读工具 ${name}`);
+        assert(tool.annotations?.readOnlyHint === true, `生产 MCP 只读工具 annotation 错误: ${name}`);
+    }
+    for (const tool of tools) {
+        const name = String(tool?.name || '').trim();
+        assert(readToolSet.has(name) || writeToolSet.has(name), `生产 MCP 工具目录出现未知工具 ${name || '(empty)'}`);
+        if (readToolSet.has(name)) continue;
+        assert(expectedWriteSet.has(name), `生产 MCP 工具目录暴露未授权写工具 ${name}`);
+        assert(tool.annotations?.readOnlyHint === false, `生产 MCP 写工具 annotation 错误: ${name}`);
+    }
+
+    const actualWriteTools = MCP_WRITE_TOOL_NAMES.filter(name => names.includes(name));
+    const expectedWriteDirectory = MCP_WRITE_TOOL_NAMES.filter(name => expectedWriteSet.has(name));
+    assert(
+        JSON.stringify(actualWriteTools) === JSON.stringify(expectedWriteDirectory),
+        '生产 MCP 写工具目录与当前服务身份 allowlist 不一致'
+    );
+    assert(
+        tools.length === MCP_READ_ONLY_TOOL_NAMES.length + expectedWriteTools.length,
+        '生产 MCP 工具目录数量与授权契约不一致'
+    );
+
+    return {
+        toolCount: tools.length,
+        readToolCount: MCP_READ_ONLY_TOOL_NAMES.length,
+        writeToolCount: actualWriteTools.length,
+        writeTools: actualWriteTools,
+        hiddenWriteToolCount: MCP_WRITE_TOOL_NAMES.length - actualWriteTools.length,
+    };
+}
 
 const DOMAIN_SCENARIOS = Object.freeze([
     Object.freeze({
@@ -290,6 +340,7 @@ async function runProductionReadVerification(options = {}) {
             }));
         }
         const listed = await client.listTools();
+        const toolDirectory = validateProductionToolDirectory(listed, credential, env);
         const costReport = await costEvaluator(client, env, { listedTools: listed });
         costReport.endpoint = `${url.origin}${url.pathname}`;
         costReport.credential = {
@@ -320,7 +371,7 @@ async function runProductionReadVerification(options = {}) {
                     ? client.getNegotiatedProtocolVersion()
                     : costReport.protocolVersion,
                 toolDirectory: {
-                    toolCount: (listed.tools || []).length,
+                    ...toolDirectory,
                     representativeToolCount: REPRESENTATIVE_TOOL_NAMES.length,
                 },
                 requestBudget: {
@@ -362,6 +413,9 @@ async function main() {
             status: report.status,
             protocolVersion: report.protocolVersion,
             toolCount: report.toolDirectory.toolCount,
+            readToolCount: report.toolDirectory.readToolCount,
+            writeToolCount: report.toolDirectory.writeToolCount,
+            writeTools: report.toolDirectory.writeTools,
             representativeToolCount: report.toolDirectory.representativeToolCount,
             actualRequests: report.requestBudget.actualRequests,
             domains: Object.fromEntries(Object.entries(report.domains).map(([key, value]) => [
@@ -396,6 +450,7 @@ module.exports = {
     evaluateRepresentativeReadDomains,
     findCaseInsensitiveDuplicateKeys,
     runProductionReadVerification,
+    validateProductionToolDirectory,
     validateRecipeDetailContract,
     validateRecipeCostPreviewContract,
     validateRecipeCostOverrideContract,

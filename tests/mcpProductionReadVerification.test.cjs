@@ -1,10 +1,14 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+    MCP_READ_ONLY_TOOL_NAMES,
+} = require('../api/mcp/catalog.cjs');
+const {
     REPRESENTATIVE_CALL_NAMES,
     REPRESENTATIVE_TOOL_NAMES,
     evaluateRepresentativeReadDomains,
     runProductionReadVerification,
+    validateProductionToolDirectory,
 } = require('../scripts/verify-mcp-production-read.cjs');
 
 const verificationEnv = Object.freeze({
@@ -97,7 +101,17 @@ function createFakeClient(options = {}) {
         calls,
         getNegotiatedProtocolVersion: () => '2026-07-28',
         listTools: async () => ({
-            tools: REPRESENTATIVE_TOOL_NAMES.map(name => ({ name })),
+            tools: [
+                ...MCP_READ_ONLY_TOOL_NAMES.map(name => ({
+                    name,
+                    annotations: { readOnlyHint: true },
+                })),
+                ...(options.writeTools || []).map(name => ({
+                    name,
+                    annotations: { readOnlyHint: false },
+                })),
+                ...(options.extraTools || []),
+            ],
         }),
         callTool: async call => {
             calls.push(call);
@@ -128,6 +142,9 @@ test('生产 MCP 全领域只读验收：单连接覆盖代表工具且报告不
 
     assert.equal(report.status, 'passed');
     assert.equal(report.toolDirectory.representativeToolCount, 17);
+    assert.equal(report.toolDirectory.readToolCount, 45);
+    assert.equal(report.toolDirectory.writeToolCount, 0);
+    assert.deepEqual(report.toolDirectory.writeTools, []);
     assert.equal(report.requestBudget.maximumRequests, 35);
     assert.equal(report.requestBudget.actualRequests, 24);
     assert.equal(report.domains.orders.resourceSpecificCoverage.status, 'not_applicable');
@@ -169,6 +186,59 @@ test('生产 MCP 全领域只读验收：单连接覆盖代表工具且报告不
         { recipeId: 1, customBarrelLength: 180 }
     );
     assert.doesNotMatch(JSON.stringify(report), /production-read-verifier-token/);
+});
+
+test('生产 MCP 全领域只读验收：允许当前身份显式授权的单个写工具但不调用它', async () => {
+    const env = {
+        ...verificationEnv,
+        MCP_VERIFY_CLIENT_ID: 'canary-agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'canary-agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            'canary-agent': ['sync_factory_knowledge'],
+        }),
+    };
+    const client = createFakeClient({ writeTools: ['sync_factory_knowledge'] });
+    const report = await runProductionReadVerification({
+        client,
+        env,
+        costEvaluator: async () => costReport(),
+    });
+
+    assert.equal(report.toolDirectory.toolCount, 46);
+    assert.equal(report.toolDirectory.readToolCount, 45);
+    assert.equal(report.toolDirectory.writeToolCount, 1);
+    assert.deepEqual(report.toolDirectory.writeTools, ['sync_factory_knowledge']);
+    assert.equal(report.toolDirectory.hiddenWriteToolCount, 16);
+    assert.deepEqual(client.calls.map(call => call.name), REPRESENTATIVE_CALL_NAMES);
+});
+
+test('生产 MCP 全领域只读验收：拒绝当前身份未授权或未知的目录工具', () => {
+    const listed = writeTools => ({
+        tools: [
+            ...MCP_READ_ONLY_TOOL_NAMES.map(name => ({
+                name,
+                annotations: { readOnlyHint: true },
+            })),
+            ...writeTools,
+        ],
+    });
+    const credential = { clientId: 'read-only-agent' };
+
+    assert.throws(
+        () => validateProductionToolDirectory(listed([{
+            name: 'sync_factory_knowledge',
+            annotations: { readOnlyHint: false },
+        }]), credential, verificationEnv),
+        /暴露未授权写工具/
+    );
+    assert.throws(
+        () => validateProductionToolDirectory(listed([{
+            name: 'unexpected_tool',
+            annotations: { readOnlyHint: true },
+        }]), credential, verificationEnv),
+        /出现未知工具/
+    );
 });
 
 test('生产 MCP 全领域只读验收：覆盖试算缺少 currentTotalCost 必须失败', async () => {

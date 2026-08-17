@@ -83,7 +83,10 @@ npm run verify:mcp-prod-read
 大小写不敏感的重复键，且 `currentCost.currentTotalCost` 与 `compare_recipes` 同一配方的
 `currentFullCost` 一致；无覆盖的 `preview_recipe_cost` 也必须返回同一口径，覆盖试算必须返回
 `currentTotalCost/costBasis=overridePreview`、等值 `unitCost` 废弃别名及迁移说明；
-`compare_recipes` 和 `explain_cost_change` 都必须是 `dataMode=live`。最坏 35 个请求，低于生产默认
+`compare_recipes` 和 `explain_cost_change` 都必须是 `dataMode=live`。目录验收固定要求 45 个只读工具完整且
+`readOnlyHint=true`；若验收身份已获得生产写灰度，只允许额外出现该 `clientId` 在
+`MCP_WRITE_TOOL_ALLOWLISTS` 中的写工具，并要求 `readOnlyHint=false`，任何未知或越权工具都会使门禁失败。
+使用显式 `MCP_VERIFY_TOKEN` 时必须同步设置其真实 `MCP_VERIFY_CLIENT_ID`，否则不能核对逐工具授权。最坏 35 个请求，低于生产默认
 每分钟 60 次限制。综合结果写入 `logs/mcp-production-read-latest.json`，成本子报告仍同步到
 `logs/mcp-production-cost-latest.json`；两份报告仅记录客户端 round-trip，服务端耗时仍只以
 API 日志 `durationMs` 为准。空订单/报价/出图历史是允许的正式业务状态，不为覆盖详情而
