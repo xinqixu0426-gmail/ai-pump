@@ -222,7 +222,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 常规接口：JWT Cookie。
 - 内部服务：`x-internal-secret`，服务端必须配置 `INTERNAL_SECRET`。
 - AI 和工厂配置：JWT Cookie 或内部 Secret。
-- 通用 MCP：默认关闭，以 Bearer service token 提供 45 项固定只读 Query/Preview；V2 写能力另行默认关闭，只向显式 allowlist 身份暴露 17 个带正式 Preview 和 MCP 原生人工确认的命令。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
+- 通用 MCP：默认关闭，以 Bearer service token 提供 45 项固定只读 Query/Preview；V2 写能力另行默认关闭，只向显式 allowlist 身份暴露 17 个带正式 Preview 和 MCP 原生人工确认的命令。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，在内存数据库、临时文件和外部命令替身中覆盖 17/17，不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
 - 登录限流：每个 IP 每分钟最多 5 次。
 - 外部市场、AI、CAD 和内部 API 请求统一设置超时；只有幂等 GET 可按策略有限重试。
 - 部署环境判断、端口、CORS 来源和内部 API 超时统一由 `api/services/environment.cjs` 解析；无效数值在启动或发布校验阶段直接失败，避免运行时出现隐蔽超时。

@@ -43,6 +43,20 @@ npm run verify:mcp-local
 为容纳两个客户端在一分钟内连续执行 90 次只读工具调用及写验收，隔离进程把测试限流设为
 600；该值不会写入环境文件，也不改变生产默认的每分钟 60 次限制。
 
+涉及 MCP 写目录、确认协议、executor 或正式 command 时，还必须运行完整的 17 工具写入矩阵：
+
+```bash
+npm run verify:mcp-write-local
+```
+
+该门禁把 `api/mcp/catalog.cjs` 的 17 个正式写工具与验收清单做严格集合比对，逐工具验证
+`mcp:write` scope、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
+正式执行证据、幂等重放、拒绝后无副作用。业务层复用正式 executor 和 command service 测试：
+数据库写入使用独立内存 SQLite，文件归档使用临时文件，出图和打印停在外部命令替身，
+不会读取生产 MCP token、连接 Mac Mini、修改正式数据库或调用物理打印机。脱敏结果写入
+`logs/mcp-write-local-latest.json`。该结果证明本地协议和业务组合链路，不等于批准生产写入；
+生产 `MCP_WRITE_ENABLED` 仍保持关闭，直到负责人明确批准并另做一笔可回滚的生产验收。
+
 Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”
 后，于进程退出阶段触发 `UV_HANDLE_CLOSING` 断言。测试脚本只在 Windows、
 成功摘要完整、没有 `FAILURE`、且断言是输出末尾唯一退出异常时将其记为明确的
@@ -101,6 +115,7 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 - 多轮 `requestState` 使用官方 SDK HMAC codec，并绑定已验证服务身份和方法；客户端篡改、换身份、换参数、过期或并发重放都会拒绝。状态密钥为单进程临时密钥，服务重启后未完成确认自动失效，符合当前 Mac Mini 单进程部署；改为多实例前必须配置共享持久状态。
 - 2025 无状态客户端没有服务端到客户端 elicitation 回路，因此只读兼容不变，写工具不进入其 `tools/list`，直接调用也返回安全错误且不会执行。不能用普通 tool 参数或 Agent 文字降级绕过确认。
 - 新增工具必须同时补 capability/schema、白名单审查、正式 API 证据测试、文档和两代客户端发现测试。
+- 新增、删除或调整 MCP 写工具时必须同步更新 `scripts/mcp-write-acceptance-manifest.cjs`；清单与正式目录不一致会使 `verify:mcp-write-local` 失败，禁止只增加工具而没有隔离业务证据。
 - `MCP_SERVICE_TOKENS` 中每个 clientId/token 必须唯一。轮换某一 Agent token 不应影响其他 Agent。
 - `HERMES_MCP_*` 仅为一个兼容周期的部署别名；新部署统一使用 `MCP_*`。
 

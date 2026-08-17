@@ -31,6 +31,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
 - 如启用通用 MCP，设置 `MCP_ENABLED=true`。单 Agent 配置 `MCP_CLIENT_ID + MCP_TOKEN`；多个 Agent 使用 `MCP_SERVICE_TOKENS` JSON 为 Hermes、Codex 等分别分配独立 token。每个 token 至少 32 字符，不得跨 Agent 复用，也不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `MCP_ALLOWED_HOSTS`。
 - MCP 写能力保持 `MCP_WRITE_ENABLED=false`，除非本次发布明确批准写入。批准后还必须设置 `MCP_WRITE_CLIENT_IDS=<clientId,...>`；只有这些已配置 token 的身份获得 `mcp:write` 并看到 17 个写工具。首次只向支持 2026 form elicitation 的客户端开放；2025 无状态客户端只能使用只读工具，写调用会安全拒绝。
+- 任何批准生产 MCP 写能力的发布，必须先在待发布 commit 上通过 `npm run verify:mcp-write-local` 并检查 `logs/mcp-write-local-latest.json` 为 `passed`、`toolsCovered=17`、`productionTouched=false`。该本地门禁不授权修改生产 `.env`；启用开关和身份 allowlist 仍需本次发布单独明确批准。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
 
 ```bash
@@ -150,6 +151,10 @@ LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失�
 它不创建缺价、订单或其他测试样本，也不修改任何生产数据。失败会以非零状态阻止发布完成，
 脱敏综合报告保存在 `logs/mcp-production-read-latest.json`，成本子报告继续保存在
 `logs/mcp-production-cost-latest.json`。
+
+若本次发布包含 MCP 写目录、确认协议或 executor/command 变更，部署前还必须执行
+`npm run verify:mcp-write-local`。它只在内存数据库、临时文件和外部命令替身中覆盖 17/17 写工具；
+不得为了通过门禁临时打开生产写开关，也不得把本地通过等同于生产写入已授权。
 
 `npm test` 会为每个测试进程创建独立临时 SQLite，发布门禁不会再运行迁移或
 测试写入生产 `pump.db`；真实生产迁移只在 API 服务重启时执行，并由拉取前的
