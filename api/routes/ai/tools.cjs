@@ -1279,7 +1279,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'compare_recipes',
-            description: '按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；名称必须唯一匹配，缺价时明确失败。当用户说"对比V750和V550"时使用',
+            description: '按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；costDiff 和明细 diff 均按“配方2减配方1”计算，正数表示配方2更贵。名称必须唯一匹配，缺价时明确失败。当用户说"对比V750和V550"时使用',
             parameters: {
                 type: 'object',
                 properties: {

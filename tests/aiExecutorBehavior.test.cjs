@@ -2277,7 +2277,7 @@ test('AI executor 行为：配方对比统一复用完整当前成本差异 API'
     assert.equal(result.recipe1.laborCost, 6);
     assert.equal(result.recipe2.cost, 24);
     assert.equal(result.recipe2.laborCost, 8);
-    assert.equal(result.costDiff, '5.00');
+    assert.equal(result.costDiff, '-5.00');
     assert.equal(result.costBasis, 'currentFullCost');
     const coilRows = result.comparison.filter(row => row.model === '线圈转子');
     assert.equal(coilRows.length, 1);
@@ -2291,7 +2291,7 @@ test('AI executor 行为：配方对比统一复用完整当前成本差异 API'
         amount1: 20,
         qty2: 1,
         amount2: 10,
-        diff: 10,
+        diff: -10,
         difference: '数量不同',
         onlyIn: '两者共有',
     });
@@ -2307,13 +2307,13 @@ test('AI executor 行为：配方对比统一复用完整当前成本差异 API'
         amount1: 3,
         qty2: 2,
         amount2: 6,
-        diff: -3,
+        diff: 3,
         difference: '型号不同',
         onlyIn: '两者共有',
     });
     const wageRows = result.comparison.filter(row => row.name === '打包工资');
     assert.equal(wageRows.length, 1);
-    assert.equal(wageRows[0].diff, -2);
+    assert.equal(wageRows[0].diff, 2);
 });
 
 test('AI executor 行为：报价草稿工具复用客户、配方、成本预览和报价草稿 API 且不写库', async () => {

@@ -88,7 +88,7 @@ function buildRecipeComparison(recipe1, recipe2, drivers = []) {
         amount1: Number(driver.leftAmount || 0),
         qty2: Number(driver.rightQty || 0),
         amount2: Number(driver.rightAmount || 0),
-        diff: Number((-Number(driver.diff || 0)).toFixed(2)),
+        diff: Number(Number(driver.diff || 0).toFixed(2)),
         difference: driver.reason === '只存在于基准配方'
             ? '仅配方1有'
             : driver.reason === '只存在于对比配方'
@@ -284,7 +284,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
                     laborCost: difference.right.laborCost,
                     partsCount: difference.right.itemCount,
                 },
-                costDiff: (-Number(difference.totalDiff || 0)).toFixed(2),
+                costDiff: Number(difference.totalDiff || 0).toFixed(2),
                 costBasis: difference.costBasis,
                 sourceOfTruth: difference.sourceOfTruth,
                 generatedAt: difference.generatedAt,

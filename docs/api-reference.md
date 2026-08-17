@@ -586,7 +586,7 @@ AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：
 - `build_quotation_draft`：调用 `/api/quotations/save-payload-draft` 生成报价保存草稿。
 - `build_order_draft`：调用 `/api/orders/save-payload-draft` 生成订单保存草稿、采购清单和待办。
 - `search_customer_history`：调用 `/api/customers/:id/context` 查询正式客户、报价和订单历史，供报价前参考；AI executor 不再拉取全量报价/订单自行拼接。
-- `compare_recipes` / `explain_cost_change`：统一调用 `/api/cost/recipe-difference`，按当日完整成本比较两个配方，包含工资、表面处理和管理费；两者不再各自重算配件小计。
+- `compare_recipes` / `explain_cost_change`：统一调用 `/api/cost/recipe-difference`，按当日完整成本比较两个配方，包含工资、表面处理和管理费；两者不再各自重算配件小计。差额统一按“对比配方（配方2/right）减基准配方（配方1/left）”计算，正数表示对比配方更贵。
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
 - `analyze_recipe_configuration`：调用 `/api/quality/recipe-analysis`，只读分析相似配方、配置矛盾、同类高频项和固定件价格异常。
 - `set_recipe_analysis_feedback`：保存“确认问题/忽略/特殊情况/恢复复核”判断；必须使用智能检查返回的精确提醒键，并在用户确认后写入。
