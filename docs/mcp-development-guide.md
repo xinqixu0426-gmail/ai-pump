@@ -122,7 +122,92 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 - `MCP_SERVICE_TOKENS` 中每个 clientId/token 必须唯一。轮换某一 Agent token 不应影响其他 Agent。
 - `HERMES_MCP_*` 仅为一个兼容周期的部署别名；新部署统一使用 `MCP_*`。
 
-## 5. 官方依据
+## 5. 身份与凭证运维
+
+MCP 身份不得再通过手工编辑生产 `.env` 维护。正式命令为：
+
+```bash
+npm run mcp:identity -- status --env-file .env
+npm run mcp:identity -- verify --env-file .env
+npm run mcp:identity -- list-backups --env-file .env
+```
+
+`add`、`rotate`、`revoke` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
+只能通过 stdin 或命名环境变量取得 token，命令显式拒绝 `--token <明文>`：
+
+```bash
+# 预览，不写文件
+node scripts/manage-mcp-identities.cjs rotate \
+  --env-file .env --client-id codex --token-stdin
+
+# 正式写入
+node scripts/manage-mcp-identities.cjs rotate \
+  --env-file .env --client-id codex --token-stdin \
+  --apply --confirm APPLY_MCP_IDENTITY_CHANGE
+```
+
+每次正式变更先在 `backups/config/mcp-identities/` 创建完整 `.env` 安全备份；Unix/macOS
+目录权限为 `700`、文件权限为 `600`，不生成含 token、token 指纹或 token 哈希的备份元数据。
+新配置先复用 `validateMcpConfiguration()` 验证，再以同目录临时文件原子替换。撤销身份会同时
+删除它的 `MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS` 投影；撤销最后一个写身份时
+自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
+
+回滚同样默认预览，并在正式恢复前再创建一份当前状态安全备份：
+
+```bash
+node scripts/manage-mcp-identities.cjs rollback \
+  --env-file .env --latest \
+  --apply --confirm ROLLBACK_MCP_IDENTITY_CHANGE
+```
+
+Windows 日常维护 Mac Mini 使用包装命令；它在内存生成 48 字节随机 token，通过 SSH stdin
+传给服务端，不把 token 放入参数或输出。远端写入成功后才更新指定的 Windows User 环境变量，
+随后重启 API 并以 2025 兼容协议逐身份执行 `initialize + tools/list`。重启或在线验证失败时，
+命令自动恢复服务端备份和原客户端环境变量：
+
+```powershell
+# 查询和在线验证
+npm run mcp:identity:macmini -- -Action status
+npm run mcp:identity:macmini -- -Action verify
+
+# 轮换：先预览，再显式 Apply
+npm run mcp:identity:macmini -- -Action rotate `
+  -ClientId codex `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_CODEX_TOKEN
+npm run mcp:identity:macmini -- -Action rotate `
+  -ClientId codex `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_CODEX_TOKEN `
+  -Apply
+
+# 已存在于客户端环境变量的 token 可用 -UseExistingToken 登记；仍不输出 token
+npm run mcp:identity:macmini -- -Action add `
+  -ClientId new-agent `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_NEW_AGENT_TOKEN `
+  -UseExistingToken -Apply
+
+# 撤销身份；提供 ClientTokenEnvVar 时同步删除 Windows User 环境变量
+npm run mcp:identity:macmini -- -Action revoke `
+  -ClientId new-agent `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_NEW_AGENT_TOKEN `
+  -Apply
+```
+
+正式回滚必须指定对应 `ClientId` 与 `ClientTokenEnvVar`。包装器从已恢复的 Mac Mini `.env`
+经 SSH 内存通道取回该身份 token，并同步恢复 Windows User 环境变量，不在终端显示凭证：
+
+```powershell
+npm run mcp:identity:macmini -- -Action list-backups
+npm run mcp:identity:macmini -- -Action rollback `
+  -BackupFile /Users/dan/pump-cost-accounting-system/backups/config/mcp-identities/<backup> `
+  -ClientId codex `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_CODEX_TOKEN `
+  -Apply
+```
+
+身份命令只管理认证映射和现有写权限投影，不负责扩大写工具集合。新增写工具仍必须走本指南
+第 3、4 节的 capability、确认、隔离验收和单独生产授权流程。
+
+## 6. 官方依据
 
 - [MCP 2026-07-28 规范](https://modelcontextprotocol.io/specification/2026-07-28)
 - [MCP 2025-06-18 Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)

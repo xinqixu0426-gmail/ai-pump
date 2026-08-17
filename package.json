@@ -14,6 +14,8 @@
     "verify:mcp-write-local": "node scripts/verify-mcp-write-local.cjs",
     "verify:mcp-prod-cost": "node scripts/verify-mcp-production-cost.cjs",
     "verify:mcp-prod-read": "node scripts/verify-mcp-production-read.cjs",
+    "mcp:identity": "node scripts/manage-mcp-identities.cjs",
+    "mcp:identity:macmini": "powershell -ExecutionPolicy Bypass -File scripts/manage-mcp-identities-macmini.ps1",
     "verify:api-contract": "node --test tests/apiContractGovernance.test.cjs tests/aiCapabilityRegistry.test.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs --scope=manual",
