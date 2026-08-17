@@ -112,11 +112,11 @@ if [[ "$(git branch --show-current)" != "$BRANCH" ]]; then
 fi
 
 old_commit=$(git rev-parse HEAD)
-echo "[1/8] 验证并备份当前版本 ${old_commit[1,7]}"
+echo "[1/9] 验证并备份当前版本 ${old_commit[1,7]}"
 "$NPM_BIN" run db:backup:release -- --git-commit "$old_commit"
 "$NPM_BIN" run db:backup:verify -- --latest --type release --expect-commit "$old_commit"
 
-echo "[2/8] 获取 origin/$BRANCH"
+echo "[2/9] 获取 origin/$BRANCH"
 git fetch origin "$BRANCH"
 target_commit=$(git rev-parse "origin/$BRANCH")
 if [[ "$old_commit" != "$target_commit" ]] &&
@@ -141,7 +141,7 @@ if [[ "$system_service_changed" == true ]]; then
   exit 1
 fi
 
-echo "[3/8] 安装发生变化的依赖"
+echo "[3/9] 安装发生变化的依赖"
 if [[ ! -d node_modules ]] ||
    files_changed '^(package\.json|package-lock\.json)$'; then
   "$NPM_BIN" ci
@@ -155,7 +155,7 @@ else
   echo "Web 依赖锁未变化，跳过 npm ci。"
 fi
 
-echo "[4/8] 执行代码发布门禁"
+echo "[4/9] 执行代码发布门禁"
 gate_file="$PROJECT_DIR/logs/release-code-gate-$new_commit.json"
 gate_reusable=false
 if [[ -f "$gate_file" ]]; then
@@ -182,7 +182,7 @@ else
   '
 fi
 
-echo "[5/8] 使用现有系统级 LaunchDaemon 重启"
+echo "[5/9] 使用现有系统级 LaunchDaemon 重启"
 if ! /bin/launchctl print system/com.pumpfactory.api >/dev/null 2>&1 ||
    ! /bin/launchctl print system/com.pumpfactory.web >/dev/null 2>&1; then
   echo "系统级服务尚未安装；首次安装请运行 sudo ./scripts/install-macmini-launchdaemons.sh。" >&2
@@ -193,20 +193,23 @@ fi
 wait_for_daemon com.pumpfactory.api
 wait_for_daemon com.pumpfactory.web
 
-echo "[6/8] 验证本机 ready、Web 和启动备份"
+echo "[6/9] 验证本机 ready、Web 和启动备份"
 wait_for_http "API ready" "http://127.0.0.1:3002/api/health/ready"
 wait_for_http "Web 登录页" "http://127.0.0.1:3000/login"
 validate_ready_commit "http://127.0.0.1:3002/api/health/ready" "$new_commit"
 "$NPM_BIN" run db:backup:verify -- --latest --type startup
 
-echo "[7/8] 执行真实 AI 发布门禁"
+echo "[7/9] 执行真实 AI 发布门禁"
 "$NPM_BIN" run verify:ai-release
 
-echo "[8/8] 验证公网 ready、登录页和 AI 页面"
+echo "[8/9] 验证公网 ready、登录页和 AI 页面"
 wait_for_http "公网 API ready" "$PUBLIC_BASE_URL/api/health/ready"
 wait_for_http "公网登录页" "$PUBLIC_BASE_URL/login"
 wait_for_http "公网 AI 页面" "$PUBLIC_BASE_URL/ai"
 validate_ready_commit "$PUBLIC_BASE_URL/api/health/ready" "$new_commit"
+
+echo "[9/9] 执行生产 MCP 成本只读验收"
+MCP_VERIFY_URL="$PUBLIC_BASE_URL/mcp" "$NPM_BIN" run verify:mcp-prod-cost
 
 elapsed=$(( $(/bin/date +%s) - STARTED_AT ))
 echo "发布完成：commit ${new_commit[1,12]}，用时 ${elapsed} 秒。"

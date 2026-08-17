@@ -11,6 +11,7 @@
     "test:mcp": "node --test tests/mcp.test.cjs",
     "test:mcp:conformance": "node scripts/run-mcp-conformance.cjs",
     "verify:mcp-local": "npm run test:mcp && npm run test:mcp:conformance && node scripts/run-deep-api-smoke.cjs --scope=mcp",
+    "verify:mcp-prod-cost": "node scripts/verify-mcp-production-cost.cjs",
     "verify:api-contract": "node --test tests/apiContractGovernance.test.cjs tests/aiCapabilityRegistry.test.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs --scope=manual",

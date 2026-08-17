@@ -54,6 +54,21 @@ Node.js 的 Windows `fetch`/强制退出竞态，而不是放宽 MCP 场景判�
 延迟发生在客户端模型规划、连续多工具选择或最终回答生成阶段，不应通过缓存或改写
 正式业务 Query 掩盖。只有服务端 `durationMs` 本身持续超标时，才进入 MCP/API 性能优化。
 
+生产发布在公网 ready 通过后自动运行：
+
+```bash
+npm run verify:mcp-prod-cost
+```
+
+该命令从进程环境的 `MCP_VERIFY_TOKEN` 或正式 `.env` 中已有的
+`MCP_SERVICE_TOKENS` 选取凭证，不输出或写入 token。它只调用
+`get_all_recipes/full_calculate/compare_recipes/explain_cost_change`，自动选择一对
+成本完整的正式配方，验证配方绑定、泵壳模板名误传整体失败、
+完整成本口径和配方2减配方1的差额方向。结果写入
+`logs/mcp-production-cost-latest.json`；报告仅记录客户端 round-trip，
+服务端耗时仍只以 API 日志 `durationMs` 为准。缺价失败路径由隔离测试库覆盖，
+生产验收不会为造样本而修改价格或配方。
+
 专项门禁通过后，提交/发布前继续运行项目级门禁：
 
 ```bash
