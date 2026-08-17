@@ -83,6 +83,22 @@ test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照
     assertNoWrites(queries);
 });
 
+test('关键 API 集成契约：完整估算只在 route 兼容旧字段且选择失败整体返回错误', () => {
+    const source = readUtf8('api/routes/cost.cjs');
+    const queries = readUtf8('api/services/costQueries.cjs');
+    const section = sliceBetween(source, "router.post('/cost/full-estimate'", "router.post('/cost/recipe-difference'");
+
+    assert.match(section, /input\.recipeName = input\.pumphousing_model/);
+    assert.match(section, /delete input\.pumphousing_model/);
+    assert.match(section, /costQueries\.calculateFullEstimate\(input\)/);
+    assert.doesNotMatch(queries, /pumphousing_model/);
+    assert.match(queries, /FULL_ESTIMATE_RECIPE_REQUIRED/);
+    assert.match(queries, /FULL_ESTIMATE_RECIPE_NOT_FOUND/);
+    assert.match(queries, /FULL_ESTIMATE_RECIPE_AMBIGUOUS/);
+    assert.doesNotMatch(queries, /recipeCost\s*=\s*\{\s*error:/);
+    assertNoWrites(section);
+});
+
 test('报价动态试算契约：组合包材和表面处理按覆盖配置替换', () => {
     const source = readUtf8('api/services/dynamicCostPreview.cjs');
     const semantics = readUtf8('api/services/packagingSemantics.cjs');
@@ -413,6 +429,7 @@ test('关键 API 集成契约：/api/cost/recipe-difference 只生成成本差�
 
     assert.match(section, /costQueries\.getRecipeDifference\(req\.body \|\| \{\}\)/);
     assert.match(queries, /buildCostDifference\(input, \{/);
+    assert.match(queries, /currentCostDependencies/);
     assert.match(section, /res\.json\(\{\s*success:\s*true,\s*data:/);
     assert.match(section, /sendCostQueryError\(res, error, 400\)/);
     assertNoWrites(section);

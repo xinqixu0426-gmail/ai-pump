@@ -170,8 +170,8 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 经 `costQueries` 委托 `costEngine` 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |
-| `POST` | `/api/cost/full-estimate` | `{ pumphousing_model?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | `costQueries` 为 AI/N8N 编排配方、线圈和动态配置；各分项公式仍来自正式成本 services |
-| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 经 `costQueries` 和 `costDifference` 比较两个正式配方的当前成本，返回总差额和主要差异驱动项；不写库 |
+| `POST` | `/api/cost/full-estimate` | `{ recipeId? | recipeName?, stator?, statorMaterial?/material?, cableLength?, hasFloat?, floatWire?, cableWire?, floatAccessoryType?, cableAccessoryType?, boxType? }` | `costQueries` 为 AI/N8N 编排配方配件、线圈和动态配置；`recipeId/recipeName` 至少提供一个，名称只允许唯一匹配正式配方。未找到、匹配多条或把泵壳模板名当配方名时整体返回 4xx，禁止保留 `recipeCost.error` 后把缺失配方按 0 元静默合计。兼容字段 ~~`pumphousing_model`~~ 仅在 route adapter 中按 `recipeName` 读取一个周期，不代表泵壳模板；泵壳本体使用 `POST /api/recipes/bom-draft`/`preview_pump_shell_cost`。成功响应标记 `sourceOfTruth=costEngine/costBasis=composedEstimate`；各分项公式仍来自正式成本 services |
+| `POST` | `/api/cost/recipe-difference` | `{ leftRecipeId?/leftRecipeName?, rightRecipeId?/rightRecipeName?, limit? }` | 经 `costQueries` 和 `costDifference` 比较两个正式配方的当日完整成本；名称片段只允许唯一匹配，多条命中返回 `409 RECIPE_SELECTOR_AMBIGUOUS`。成本统一按当前模板/BOM、线圈和零件价格计算，并包含安装工资、打包工资、表面处理和管理费；返回 `sourceOfTruth=costEngine/costBasis=currentFullCost`、双方配件/人工小计、总差额和主要差异驱动项。任一配方存在未定价 BOM 时返回 `422 RECIPE_COST_INCOMPLETE`，禁止按 0 元形成正式对比；不写库 |
 
 配方域的型号变体草稿、成本草稿、保存 payload、当前成本和覆盖试算接口统一登记在第 8 节，本节不重复维护同一 Method + Path。
 
@@ -582,10 +582,11 @@ AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：
 - `build_recipe_bom_draft`：调用 `/api/recipes/bom-draft` 生成联动 BOM 草稿。
 - `preview_recipe_cost`：复用 V3 统一资源解析器按配方 ID、名称或可唯一匹配的简称解析已有配方，调用 `/api/recipes/:id/cost-preview` 查询当前完整参考成本或做报价覆盖试算；名称匹配忽略大小写，多条命中时返回结构化候选，用户以序号、完整名称、后缀或规格确认后绑定正式 ID 并继续原成本目标。
 - `preview_pump_shell_cost`：调用 `/api/recipes/bom-draft` 试算指定泵壳模板在某个机筒长度下的泵壳本体成本；适用于不锈钢机筒整体泵壳随长度加价。
+- `full_calculate`：调用 `/api/cost/full-estimate` 组合估算正式配方配件、另行指定的线圈与动态配置；必须传 `recipeId` 或可唯一匹配的 `recipeName`。兼容字段 ~~`pumphousing_model`~~ 只按配方名解析，泵壳模板必须改用 `preview_pump_shell_cost`。配方未命中或歧义时整个工具失败，不能从子字段错误中继续读取总成本。
 - `build_quotation_draft`：调用 `/api/quotations/save-payload-draft` 生成报价保存草稿。
 - `build_order_draft`：调用 `/api/orders/save-payload-draft` 生成订单保存草稿、采购清单和待办。
 - `search_customer_history`：调用 `/api/customers/:id/context` 查询正式客户、报价和订单历史，供报价前参考；AI executor 不再拉取全量报价/订单自行拼接。
-- `explain_cost_change`：调用 `/api/cost/recipe-difference` 解释两个配方的成本差异。
+- `compare_recipes` / `explain_cost_change`：统一调用 `/api/cost/recipe-difference`，按当日完整成本比较两个配方，包含工资、表面处理和管理费；两者不再各自重算配件小计。
 - `get_data_quality_summary`：调用 `/api/quality/summary` 汇总基础资料健康度。
 - `analyze_recipe_configuration`：调用 `/api/quality/recipe-analysis`，只读分析相似配方、配置矛盾、同类高频项和固定件价格异常。
 - `set_recipe_analysis_feedback`：保存“确认问题/忽略/特殊情况/恢复复核”判断；必须使用智能检查返回的精确提醒键，并在用户确认后写入。

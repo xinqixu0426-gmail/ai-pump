@@ -35,14 +35,45 @@ function buildCurrentRecipeBomInput(recipe) {
 }
 
 function calculateLaborTotal(recipe, getSetting = () => undefined) {
+    return roundMoney(buildLaborCostDetails(recipe, getSetting).reduce(
+        (sum, item) => sum + Number(item.subtotal || 0),
+        0
+    ));
+}
+
+function buildLaborCostDetails(recipe, getSetting = () => undefined) {
     const surfaceTreatmentCost = recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0;
     const managementFee = recipe.managementFee ?? getSetting('management_fee') ?? 0;
-    return roundMoney(
-        Number(recipe.assemblyWage || 0)
-        + Number(recipe.packingWage || 0)
-        + Number(surfaceTreatmentCost || 0)
-        + Number(managementFee || 0)
-    );
+    return [
+        {
+            model: '__assembly_wage__',
+            name: '安装工资',
+            qty: 1,
+            subtotal: roundMoney(recipe.assemblyWage || 0),
+            source: '配方人工费用',
+        },
+        {
+            model: '__packing_wage__',
+            name: '打包工资',
+            qty: 1,
+            subtotal: roundMoney(recipe.packingWage || 0),
+            source: '配方人工费用',
+        },
+        {
+            model: '__surface_treatment__',
+            name: '表面处理',
+            qty: 1,
+            subtotal: roundMoney(surfaceTreatmentCost || 0),
+            source: '配方工艺费用',
+        },
+        {
+            model: '__management_fee__',
+            name: '管理费',
+            qty: 1,
+            subtotal: roundMoney(managementFee || 0),
+            source: recipe.managementFee == null ? '系统默认管理费' : '配方管理费',
+        },
+    ];
 }
 
 function refreshCoilSnapshot(parts, recipe, coils) {
@@ -67,7 +98,7 @@ function refreshCoilSnapshot(parts, recipe, coils) {
         : part);
 }
 
-function calculateCurrentRecipeCost(recipe, dependencies = {}) {
+function buildCurrentRecipeCostBasis(recipe, dependencies = {}) {
     const {
         partsCache = {},
         partsByModel = {},
@@ -87,9 +118,12 @@ function calculateCurrentRecipeCost(recipe, dependencies = {}) {
     const parts = refreshCoilSnapshot(sourceParts, recipe, coils);
     const partsResult = calculateRecipeCost(parts, partsCache, partsByModel, { getSetting });
     const partialPartsCost = roundMoney(Number(partsResult.totalCost || 0));
-    const laborCost = calculateLaborTotal(recipe, getSetting);
+    const laborDetails = buildLaborCostDetails(recipe, getSetting);
+    const laborCost = roundMoney(laborDetails.reduce(
+        (sum, item) => sum + Number(item.subtotal || 0),
+        0
+    ));
     const partialTotalCost = roundMoney(partialPartsCost + laborCost);
-    const savedTotalCost = Number(recipe.savedTotalCost || 0);
     const missingParts = [...new Set(
         (Array.isArray(partsResult.missingParts) ? partsResult.missingParts : [])
             .map(value => String(value || '').trim())
@@ -98,26 +132,44 @@ function calculateCurrentRecipeCost(recipe, dependencies = {}) {
     const costComplete = missingParts.length === 0;
 
     return {
-        recipeId: recipe.id,
-        currentTotalCost: costComplete ? partialTotalCost : null,
-        savedTotalCost: savedTotalCost > 0 ? roundMoney(savedTotalCost) : null,
-        difference: costComplete && savedTotalCost > 0
-            ? roundMoney(partialTotalCost - savedTotalCost)
-            : null,
-        partsCost: costComplete ? partialPartsCost : null,
+        parts,
+        partsResult,
+        laborDetails,
+        laborCost,
         partialPartsCost,
         partialTotalCost,
-        laborCost,
-        itemCount: Number(partsResult.itemCount || parts.length),
         missingParts,
         costComplete,
-        warnings: costComplete
+    };
+}
+
+function calculateCurrentRecipeCost(recipe, dependencies = {}) {
+    const basis = buildCurrentRecipeCostBasis(recipe, dependencies);
+    const savedTotalCost = Number(recipe.savedTotalCost || 0);
+
+    return {
+        recipeId: recipe.id,
+        currentTotalCost: basis.costComplete ? basis.partialTotalCost : null,
+        savedTotalCost: savedTotalCost > 0 ? roundMoney(savedTotalCost) : null,
+        difference: basis.costComplete && savedTotalCost > 0
+            ? roundMoney(basis.partialTotalCost - savedTotalCost)
+            : null,
+        partsCost: basis.costComplete ? basis.partialPartsCost : null,
+        partialPartsCost: basis.partialPartsCost,
+        partialTotalCost: basis.partialTotalCost,
+        laborCost: basis.laborCost,
+        itemCount: Number(basis.partsResult.itemCount || basis.parts.length),
+        missingParts: basis.missingParts,
+        costComplete: basis.costComplete,
+        warnings: basis.costComplete
             ? []
-            : [`当前成本不完整，${missingParts.length} 个 BOM 型号缺少价格：${missingParts.join('、')}`],
+            : [`当前成本不完整，${basis.missingParts.length} 个 BOM 型号缺少价格：${basis.missingParts.join('、')}`],
     };
 }
 
 module.exports = {
+    buildCurrentRecipeCostBasis,
+    buildLaborCostDetails,
     calculateCurrentRecipeCost,
     calculateLaborTotal,
     buildCurrentRecipeBomInput,

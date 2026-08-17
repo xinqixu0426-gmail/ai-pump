@@ -49,6 +49,11 @@ Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed
 CLI 兼容警告；任何场景失败、摘要缺失或其他非零退出仍使门禁失败。该问题对应
 Node.js 的 Windows `fetch`/强制退出竞态，而不是放宽 MCP 场景判定。
 
+生产性能排查以 API 日志中的 `MCP 工具调用完成.durationMs` 为服务端耗时依据。
+如果 Agent 界面显示 20–40 秒，而相同 `requestId/toolName` 的服务端耗时只有数毫秒，
+延迟发生在客户端模型规划、连续多工具选择或最终回答生成阶段，不应通过缓存或改写
+正式业务 Query 掩盖。只有服务端 `durationMs` 本身持续超标时，才进入 MCP/API 性能优化。
+
 专项门禁通过后，提交/发布前继续运行项目级门禁：
 
 ```bash

@@ -58,6 +58,9 @@ function sendCostQueryError(res, error, fallbackStatus = 500) {
     res.status(error.statusCode || fallbackStatus).json({
         success: false,
         error: error.message,
+        ...(error.code ? { code: error.code } : {}),
+        ...(error.details !== undefined ? { details: error.details } : {}),
+        ...(res.req?.requestId ? { requestId: res.req.requestId } : {}),
     });
 }
 
@@ -201,9 +204,14 @@ router.post('/recipes/:id/cost-preview', (req, res) => {
 // ── POST /cost/full-estimate ──
 router.post('/cost/full-estimate', (req, res) => {
     try {
+        const input = { ...(req.body || {}) };
+        if (!input.recipeName && input.pumphousing_model) {
+            input.recipeName = input.pumphousing_model;
+        }
+        delete input.pumphousing_model;
         res.json({
             success: true,
-            data: costQueries.calculateFullEstimate(req.body || {}),
+            data: costQueries.calculateFullEstimate(input),
         });
     } catch (error) {
         sendCostQueryError(res, error);

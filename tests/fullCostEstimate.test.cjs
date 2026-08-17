@@ -67,6 +67,9 @@ test('full-estimate 结果组装保持 breakdown 字段', () => {
     });
 
     assert.equal(result.totalCost, '39.10');
+    assert.equal(result.sourceOfTruth, 'costEngine');
+    assert.equal(result.costBasis, 'composedEstimate');
+    assert.deepEqual(result.warnings, []);
     assert.deepEqual(result.breakdown, {
         recipeCost: '10.00',
         statorCost: '25.80',

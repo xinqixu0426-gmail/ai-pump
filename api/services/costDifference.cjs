@@ -1,14 +1,9 @@
+const {
+    buildCurrentRecipeCostBasis,
+} = require('./currentRecipeCost.cjs');
+
 function loadDbAccessors() {
     return require('../db.cjs');
-}
-
-function parseJsonArray(value) {
-    try {
-        const parsed = JSON.parse(value || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
 }
 
 function normalize(value) {
@@ -19,14 +14,43 @@ function roundMoney(value) {
     return Math.round(Number(value || 0) * 100) / 100;
 }
 
-function findRecipe(recipes, idOrName) {
+function resolveRecipe(recipes, idOrName, role) {
     const text = normalize(idOrName);
-    if (!text) return null;
-    const id = Number.parseInt(text, 10);
-    return recipes.find(recipe => {
-        if (Number.isFinite(id) && (recipe.id === id || recipe.Id === id)) return true;
-        return normalize(recipe.name) === text || normalize(recipe.name).includes(text);
+    const label = role === 'left' ? '基准配方' : '对比配方';
+    if (!text) throw Object.assign(new Error(`未找到${label}`), {
+        statusCode: 404,
+        code: 'RECIPE_SELECTOR_NOT_FOUND',
     });
+    const id = /^\d+$/.test(text) ? Number.parseInt(text, 10) : null;
+    const exact = recipes.filter(recipe => (
+        (id != null && Number(recipe.id ?? recipe.Id) === id)
+        || normalize(recipe.name).toLowerCase() === text.toLowerCase()
+    ));
+    const matches = exact.length > 0
+        ? exact
+        : recipes.filter(recipe => normalize(recipe.name).toLowerCase().includes(text.toLowerCase()));
+    if (matches.length === 0) throw Object.assign(new Error(`未找到${label}`), {
+        statusCode: 404,
+        code: 'RECIPE_SELECTOR_NOT_FOUND',
+        details: { role, selector: text },
+    });
+    if (matches.length > 1) throw Object.assign(
+        new Error(`${label}“${text}”匹配到 ${matches.length} 条记录，请使用配方ID或完整名称`),
+        {
+            statusCode: 409,
+            code: 'RECIPE_SELECTOR_AMBIGUOUS',
+            details: {
+                role,
+                selector: text,
+                candidates: matches.slice(0, 10).map(recipe => ({
+                    id: recipe.id ?? recipe.Id,
+                    name: recipe.name,
+                    spec: recipe.spec,
+                })),
+            },
+        }
+    );
+    return matches[0];
 }
 
 function itemKey(item) {
@@ -69,11 +93,36 @@ function driverReason(left, right) {
     return '单价或动态成本不同';
 }
 
-function buildRecipeCost(recipe, dbAccessors = loadDbAccessors()) {
-    const { loadPartsData, calculateRecipeCost } = dbAccessors;
-    const { partsCache, partsByModel } = loadPartsData();
-    const parts = parseJsonArray(recipe.partsJson);
-    return calculateRecipeCost(parts, partsCache, partsByModel);
+function incompleteRecipeCostError(recipe, missingParts) {
+    const error = new Error(
+        `配方“${recipe.name}”当前成本不完整，缺少价格：${missingParts.join('、')}`
+    );
+    error.statusCode = 422;
+    error.code = 'RECIPE_COST_INCOMPLETE';
+    error.details = {
+        recipeId: recipe.id ?? recipe.Id,
+        recipeName: recipe.name,
+        missingParts,
+    };
+    return error;
+}
+
+function buildRecipeCost(recipe, dependencies = {}) {
+    const basis = buildCurrentRecipeCostBasis(recipe, dependencies);
+    if (!basis.costComplete) {
+        throw incompleteRecipeCostError(recipe, basis.missingParts);
+    }
+    return {
+        totalCost: basis.partialTotalCost,
+        itemCount: Number(basis.partsResult.itemCount || basis.parts.length),
+        details: [
+            ...(basis.partsResult.details || []),
+            ...basis.laborDetails,
+        ],
+        partsCost: basis.partialPartsCost,
+        laborCost: basis.laborCost,
+        missingParts: [],
+    };
 }
 
 function buildCostDifference(input = {}, options = {}) {
@@ -85,17 +134,23 @@ function buildCostDifference(input = {}, options = {}) {
     const recipes = Object.prototype.hasOwnProperty.call(options, 'recipes')
         ? options.recipes
         : getDb().dbGetAllRecipes();
-    const left = findRecipe(recipes, input.leftRecipeId || input.leftRecipeName || input.recipe1);
-    const right = findRecipe(recipes, input.rightRecipeId || input.rightRecipeName || input.recipe2);
-    if (!left) throw new Error('未找到基准配方');
-    if (!right) throw new Error('未找到对比配方');
+    const left = resolveRecipe(
+        recipes,
+        input.leftRecipeId || input.leftRecipeName || input.recipe1,
+        'left'
+    );
+    const right = resolveRecipe(
+        recipes,
+        input.rightRecipeId || input.rightRecipeName || input.recipe2,
+        'right'
+    );
 
     const leftCost = Object.prototype.hasOwnProperty.call(options, 'leftCost')
         ? options.leftCost
-        : buildRecipeCost(left, getDb());
+        : buildRecipeCost(left, options.currentCostDependencies || getDb());
     const rightCost = Object.prototype.hasOwnProperty.call(options, 'rightCost')
         ? options.rightCost
-        : buildRecipeCost(right, getDb());
+        : buildRecipeCost(right, options.currentCostDependencies || getDb());
     const leftMap = aggregateDetails(leftCost.details || []);
     const rightMap = aggregateDetails(rightCost.details || []);
     const keys = [...new Set([...leftMap.keys(), ...rightMap.keys()])];
@@ -112,6 +167,8 @@ function buildCostDifference(input = {}, options = {}) {
             diff: roundMoney(rightAmount - leftAmount),
             leftQty: roundMoney(leftItem?.qty || 0),
             rightQty: roundMoney(rightItem?.qty || 0),
+            leftIdentities: [...(leftItem?.identities || [])],
+            rightIdentities: [...(rightItem?.identities || [])],
             reason: driverReason(leftItem, rightItem),
         };
     }).filter(item => item.diff !== 0)
@@ -124,11 +181,30 @@ function buildCostDifference(input = {}, options = {}) {
 
     return {
         generatedAt: new Date().toISOString(),
-        left: { id: left.id ?? left.Id, name: left.name, spec: left.spec, totalCost: leftTotal },
-        right: { id: right.id ?? right.Id, name: right.name, spec: right.spec, totalCost: rightTotal },
+        sourceOfTruth: 'costEngine',
+        costBasis: 'currentFullCost',
+        left: {
+            id: left.id ?? left.Id,
+            name: left.name,
+            spec: left.spec,
+            totalCost: leftTotal,
+            partsCost: roundMoney(leftCost.partsCost ?? leftTotal),
+            laborCost: roundMoney(leftCost.laborCost || 0),
+            itemCount: Number(leftCost.itemCount || 0),
+        },
+        right: {
+            id: right.id ?? right.Id,
+            name: right.name,
+            spec: right.spec,
+            totalCost: rightTotal,
+            partsCost: roundMoney(rightCost.partsCost ?? rightTotal),
+            laborCost: roundMoney(rightCost.laborCost || 0),
+            itemCount: Number(rightCost.itemCount || 0),
+        },
         totalDiff,
         direction,
         drivers: drivers.slice(0, input.limit || 20),
+        warnings: [],
         summary: `对比 ${right.name} 相对 ${left.name} 成本${direction} ${Math.abs(totalDiff).toFixed(2)} 元。`,
     };
 }

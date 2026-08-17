@@ -199,9 +199,9 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
 | 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按配方参数和当前模板重建完整 BOM，再按当前零件、动态配置和线圈价格重算，叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额。任一 BOM 项缺价时不返回正式总成本，页面必须显示“成本不完整”和缺价型号，不能把缺失项按 ¥0 混入金额 |
 | 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |
-| AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 分别叠加配方配件、线圈和动态配置 |
+| AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 以 `recipeId/recipeName` 唯一绑定正式配方，再分别叠加配方配件、线圈和动态配置；配方未命中或歧义时整体失败 |
 
-`full-estimate` 的基础配方若已经包含相同线圈或动态项，不应再次传入，否则会重复计价。成本 HTTP 路由的正式数据读取和组合编排统一在只读 `costQueries`，配件、人工和包装公式仍唯一委托 `api/services/costEngine.cjs`，线圈与动态项分别委托现有领域 service；前端和 AI 不新增独立成本计算口径。
+`full-estimate` 的基础配方若已经包含相同线圈或动态项，不应再次传入，否则会重复计价。历史字段 ~~`pumphousing_model`~~ 仅兼容按配方名解析，不再描述为泵壳型号；泵壳模板试算统一使用 `preview_pump_shell_cost`。配方不存在、名称多匹配或错误传入模板名时接口整体返回失败，禁止把配方分项按 0 元继续形成总成本。成本 HTTP 路由的正式数据读取和组合编排统一在只读 `costQueries`，配件、人工和包装公式仍唯一委托 `api/services/costEngine.cjs`，线圈与动态项分别委托现有领域 service；前端和 AI 不新增独立成本计算口径。`compare_recipes` 与 `explain_cost_change` 统一复用当日完整配方成本，包含安装/打包工资、表面处理和管理费；任一 BOM 未定价时明确失败，不输出不完整对比。
 
 ## 4. API 与鉴权
 

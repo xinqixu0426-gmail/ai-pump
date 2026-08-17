@@ -331,12 +331,20 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             }
             : { spec: 'MCP-NOT-FOUND', sheets: 1, material: '钢带', slotType: '小眼' };
         await call('calculate_coil_cost', coilArgs, coil ? {} : notFound);
-        await call('full_calculate', {
-            pumphousing_model: shellModel,
+        const fullEstimateResult = await call('full_calculate', {
+            ...(recipe ? { recipeId: Number(recipe.id) } : { recipeName: 'MCP-NOT-FOUND' }),
             ...(coil ? { stator: `${coil.spec}-${coil.sheets}` } : {}),
             hasFloat: false,
             cableLength: 0,
-        }, templateErrorOptions);
+        }, recipeErrorOptions);
+        if (recipe) {
+            const fullEstimate = mcpData(fullEstimateResult);
+            assert(fullEstimate?.recipeCost?.recipeId === Number(recipe.id), '完整估算未绑定请求的正式配方');
+            assert(!fullEstimate?.recipeCost?.error, '完整估算把配方错误静默嵌入成功响应');
+        }
+        await call('full_calculate', {
+            pumphousing_model: 'MCP-PUMP-SHELL-TEMPLATE-NOT-RECIPE',
+        }, { allowedErrorCodes: ['FULL_ESTIMATE_RECIPE_NOT_FOUND'] });
         await call('dynamic_config_cost', {
             ...(coil ? { stator: `${coil.spec}-${coil.sheets}` } : {}),
             hasFloat: false,
@@ -358,10 +366,22 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             ? { recipe1: recipe.name, recipe2: comparisonRecipe.name }
             : { recipe1: 'MCP-NOT-FOUND-A', recipe2: 'MCP-NOT-FOUND-B' };
         const comparisonErrorOptions = recipe && comparisonRecipe ? {} : notFound;
-        await call('compare_recipes', comparisonArgs, comparisonErrorOptions);
-        await call('explain_cost_change', recipe && comparisonRecipe
+        const compared = await call('compare_recipes', comparisonArgs, comparisonErrorOptions);
+        if (recipe && comparisonRecipe) {
+            assert(
+                compared.structuredContent?.costBasis === 'currentFullCost',
+                '配方对比未使用完整当前成本口径'
+            );
+        }
+        const explained = await call('explain_cost_change', recipe && comparisonRecipe
             ? { leftRecipeId: Number(recipe.id), rightRecipeId: Number(comparisonRecipe.id) }
             : { leftRecipeId: 999999998, rightRecipeId: 999999999 }, comparisonErrorOptions);
+        if (recipe && comparisonRecipe) {
+            assert(
+                mcpData(explained)?.costBasis === 'currentFullCost',
+                '成本差异解释未使用完整当前成本口径'
+            );
+        }
         await call('analyze_recipe_configuration', { recipeId }, recipeErrorOptions);
 
         await call('inspect_quotation_file', { fileId: 999999999 }, notFound);

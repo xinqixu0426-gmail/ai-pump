@@ -2194,58 +2194,76 @@ test('AI executor 行为：确认转子出图后通过模板草稿 API 补全参
     ]);
 });
 
-test('AI executor 行为：配方对比按零件聚合数量和金额差额', async () => {
-    let costCall = 0;
+test('AI executor 行为：配方对比统一复用完整当前成本差异 API', async () => {
     installFetchStub((call) => {
-        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
-            return jsonResponse({
-                success: true,
-                data: [
-                    {
-                        id: 1,
-                        name: 'A配方',
-                        spec: 'A',
-                        partsJson: JSON.stringify([
-                            { model: '线圈转子', name: '线圈转子', qty: 1 },
-                            { model: '线圈转子', name: '线圈转子', qty: 1 },
-                            { model: '6202', name: '轴承', qty: 1 },
-                        ]),
-                    },
-                    {
-                        id: 2,
-                        name: 'B配方',
-                        spec: 'B',
-                        partsJson: JSON.stringify([
-                            { model: '线圈转子', name: '线圈转子', qty: 1 },
-                            { model: '6203', name: '轴承', qty: 2 },
-                        ]),
-                    },
-                ],
+        if (call.url.endsWith('/api/cost/recipe-difference') && call.method === 'POST') {
+            assert.deepEqual(call.body, {
+                leftRecipeName: 'A配方',
+                rightRecipeName: 'B配方',
+                limit: 20,
             });
-        }
-        if (call.url.endsWith('/api/cost/parts') && call.method === 'POST') {
-            costCall += 1;
-            if (costCall === 1) {
-                return jsonResponse({
-                    success: true,
-                    data: {
-                        totalCost: '23.00',
-                        details: [
-                            { model: '线圈转子', name: '线圈转子', qty: 1, price: '10.00', subtotal: '10.00' },
-                            { model: '线圈转子', name: '线圈转子', qty: 1, price: '10.00', subtotal: '10.00' },
-                            { model: '6202', name: '轴承', qty: 1, price: '3.00', subtotal: '3.00' },
-                        ],
-                    },
-                });
-            }
             return jsonResponse({
                 success: true,
                 data: {
-                    totalCost: '16.00',
-                    details: [
-                        { model: '线圈转子', name: '线圈转子', qty: 1, price: '10.00', subtotal: '10.00' },
-                        { model: '6203', name: '轴承', qty: 2, price: '3.00', subtotal: '6.00' },
+                    generatedAt: '2026-08-17T00:00:00.000Z',
+                    sourceOfTruth: 'costEngine',
+                    costBasis: 'currentFullCost',
+                    left: {
+                        name: 'A配方',
+                        spec: 'A',
+                        totalCost: 29,
+                        partsCost: 23,
+                        laborCost: 6,
+                        itemCount: 3,
+                    },
+                    right: {
+                        name: 'B配方',
+                        spec: 'B',
+                        totalCost: 24,
+                        partsCost: 16,
+                        laborCost: 8,
+                        itemCount: 2,
+                    },
+                    totalDiff: -5,
+                    drivers: [
+                        {
+                            key: '线圈转子',
+                            name: '线圈转子',
+                            leftAmount: 20,
+                            rightAmount: 10,
+                            diff: -10,
+                            leftQty: 2,
+                            rightQty: 1,
+                            leftIdentities: ['线圈转子'],
+                            rightIdentities: ['线圈转子'],
+                            reason: '数量不同',
+                        },
+                        {
+                            key: '轴承',
+                            name: '轴承',
+                            leftAmount: 3,
+                            rightAmount: 6,
+                            diff: 3,
+                            leftQty: 1,
+                            rightQty: 2,
+                            leftIdentities: ['6202'],
+                            rightIdentities: ['6203'],
+                            reason: '型号或供应商不同',
+                        },
+                        {
+                            key: '打包工资',
+                            name: '打包工资',
+                            leftAmount: 3,
+                            rightAmount: 5,
+                            diff: 2,
+                            leftQty: 1,
+                            rightQty: 1,
+                            leftIdentities: ['__packing_wage__'],
+                            rightIdentities: ['__packing_wage__'],
+                            reason: '单价或动态成本不同',
+                        },
                     ],
+                    warnings: [],
                 },
             });
         }
@@ -2255,6 +2273,12 @@ test('AI executor 行为：配方对比按零件聚合数量和金额差额', as
     const result = await executeToolCall('compare_recipes', { recipe1: 'A配方', recipe2: 'B配方' }, { allowWrite: false });
 
     assert.equal(result.success, true);
+    assert.equal(result.recipe1.cost, 29);
+    assert.equal(result.recipe1.laborCost, 6);
+    assert.equal(result.recipe2.cost, 24);
+    assert.equal(result.recipe2.laborCost, 8);
+    assert.equal(result.costDiff, '5.00');
+    assert.equal(result.costBasis, 'currentFullCost');
     const coilRows = result.comparison.filter(row => row.model === '线圈转子');
     assert.equal(coilRows.length, 1);
     assert.deepEqual(coilRows[0], {
@@ -2287,6 +2311,9 @@ test('AI executor 行为：配方对比按零件聚合数量和金额差额', as
         difference: '型号不同',
         onlyIn: '两者共有',
     });
+    const wageRows = result.comparison.filter(row => row.name === '打包工资');
+    assert.equal(wageRows.length, 1);
+    assert.equal(wageRows[0].diff, -2);
 });
 
 test('AI executor 行为：报价草稿工具复用客户、配方、成本预览和报价草稿 API 且不写库', async () => {

@@ -77,81 +77,33 @@ function buildFormFromRecipe(recipe, overrides = {}) {
     };
 }
 
-function toNumber(value) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : 0;
-}
-
-function compareItemKey(item) {
-    const name = String(item.name || '').trim();
-    if (name) return `name:${name.replace(/\s+/g, '')}`;
-    const model = String(item.model || '').trim();
-    if (model) return `model:${model.replace(/\s+/g, '')}`;
-    return '';
-}
-
-function compareItemIdentity(item) {
-    return [item.model, item.supplier].filter(Boolean).join(' / ') || item.name || '-';
-}
-
-function aggregateCostDetails(details = []) {
-    const map = new Map();
-    for (const item of details || []) {
-        const key = compareItemKey(item);
-        if (!key) continue;
-        const current = map.get(key) || {
-            key,
-            name: item.name || item.model || '-',
-            qty: 0,
-            amount: 0,
-            models: new Set(),
-            suppliers: new Set(),
-        };
-        current.qty += toNumber(item.qty);
-        current.amount += toNumber(item.subtotal);
-        current.models.add(compareItemIdentity(item));
-        if (item.supplier && item.supplier !== '-') current.suppliers.add(item.supplier);
-        map.set(key, current);
-    }
-    return map;
-}
-
-function comparisonDifference(leftItem, rightItem) {
-    if (leftItem && !rightItem) return '仅配方1有';
-    if (!leftItem && rightItem) return '仅配方2有';
-    const model1 = Array.from(leftItem?.models || []).join('、') || '-';
-    const model2 = Array.from(rightItem?.models || []).join('、') || '-';
-    if (model1 !== model2) return '型号不同';
-    if (Number((leftItem?.qty || 0).toFixed(3)) !== Number((rightItem?.qty || 0).toFixed(3))) return '数量不同';
-    return '金额不同';
-}
-
-function buildRecipeComparison(recipe1, recipe2, cost1, cost2) {
-    const left = aggregateCostDetails(cost1.details);
-    const right = aggregateCostDetails(cost2.details);
-    const keys = [...new Set([...left.keys(), ...right.keys()])];
-    return keys.map(key => {
-        const leftItem = left.get(key);
-        const rightItem = right.get(key);
-        const amount1 = leftItem?.amount || 0;
-        const amount2 = rightItem?.amount || 0;
-        const model1 = Array.from(leftItem?.models || []).join('、') || '-';
-        const model2 = Array.from(rightItem?.models || []).join('、') || '-';
-        return {
-            key,
-            model: leftItem?.name || rightItem?.name || key,
-            name: leftItem?.name || rightItem?.name || key,
-            model1,
-            model2,
-            qty1: Number((leftItem?.qty || 0).toFixed(3)),
-            amount1: Number(amount1.toFixed(2)),
-            qty2: Number((rightItem?.qty || 0).toFixed(3)),
-            amount2: Number(amount2.toFixed(2)),
-            diff: Number((amount1 - amount2).toFixed(2)),
-            difference: comparisonDifference(leftItem, rightItem),
-            onlyIn: leftItem && !rightItem ? recipe1 : (!leftItem && rightItem ? recipe2 : '两者共有'),
-        };
-    }).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || a.name.localeCompare(b.name, 'zh-CN'));
+function buildRecipeComparison(recipe1, recipe2, drivers = []) {
+    return drivers.map(driver => ({
+        key: `name:${driver.key}`,
+        model: driver.name,
+        name: driver.name,
+        model1: (driver.leftIdentities || []).join('、') || '-',
+        model2: (driver.rightIdentities || []).join('、') || '-',
+        qty1: Number(driver.leftQty || 0),
+        amount1: Number(driver.leftAmount || 0),
+        qty2: Number(driver.rightQty || 0),
+        amount2: Number(driver.rightAmount || 0),
+        diff: Number((-Number(driver.diff || 0)).toFixed(2)),
+        difference: driver.reason === '只存在于基准配方'
+            ? '仅配方1有'
+            : driver.reason === '只存在于对比配方'
+                ? '仅配方2有'
+                : driver.reason === '型号或供应商不同'
+                    ? '型号不同'
+                    : driver.reason === '数量不同'
+                        ? '数量不同'
+                        : '金额不同',
+        onlyIn: driver.reason === '只存在于基准配方'
+            ? recipe1
+            : driver.reason === '只存在于对比配方'
+                ? recipe2
+                : '两者共有',
+    }));
 }
 
 async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}) {
@@ -303,25 +255,41 @@ async function executeRecipeTool(toolName, args, internalFetch) {
 
         case 'compare_recipes': {
             const { recipe1, recipe2 } = args;
-            const allRecipes = await loadRecipes(internalFetch);
-            const r1 = findRecipe(allRecipes, recipe1);
-            const r2 = findRecipe(allRecipes, recipe2);
-            if (!r1) return { success: false, error: '找不到配方: ' + recipe1 };
-            if (!r2) return { success: false, error: '找不到配方: ' + recipe2 };
-
-            let p1 = []; try { p1 = JSON.parse(r1.partsJson || '[]'); } catch (e) { }
-            let p2 = []; try { p2 = JSON.parse(r2.partsJson || '[]'); } catch (e) { }
-            const cost1 = await postJson(internalFetch, '/api/cost/parts', { parts: p1 }, '配方1成本计算失败');
-            const cost2 = await postJson(internalFetch, '/api/cost/parts', { parts: p2 }, '配方2成本计算失败');
-
-            const comparison = buildRecipeComparison(recipe1, recipe2, cost1, cost2);
+            const difference = await postJson(internalFetch, '/api/cost/recipe-difference', {
+                leftRecipeName: recipe1,
+                rightRecipeName: recipe2,
+                limit: 20,
+            }, '配方成本对比失败');
+            const comparison = buildRecipeComparison(
+                difference.left.name,
+                difference.right.name,
+                difference.drivers
+            );
 
             return {
                 success: true,
-                recipe1: { name: r1.name, spec: r1.spec, cost: cost1.totalCost, partsCount: p1.length },
-                recipe2: { name: r2.name, spec: r2.spec, cost: cost2.totalCost, partsCount: p2.length },
-                costDiff: (parseFloat(cost1.totalCost) - parseFloat(cost2.totalCost)).toFixed(2),
-                comparison
+                recipe1: {
+                    name: difference.left.name,
+                    spec: difference.left.spec,
+                    cost: difference.left.totalCost,
+                    partsCost: difference.left.partsCost,
+                    laborCost: difference.left.laborCost,
+                    partsCount: difference.left.itemCount,
+                },
+                recipe2: {
+                    name: difference.right.name,
+                    spec: difference.right.spec,
+                    cost: difference.right.totalCost,
+                    partsCost: difference.right.partsCost,
+                    laborCost: difference.right.laborCost,
+                    partsCount: difference.right.itemCount,
+                },
+                costDiff: (-Number(difference.totalDiff || 0)).toFixed(2),
+                costBasis: difference.costBasis,
+                sourceOfTruth: difference.sourceOfTruth,
+                generatedAt: difference.generatedAt,
+                warnings: difference.warnings || [],
+                comparison,
             };
         }
 

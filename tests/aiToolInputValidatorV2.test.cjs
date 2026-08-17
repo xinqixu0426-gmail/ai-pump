@@ -122,6 +122,14 @@ test('V2 工具输入：查询与写入不再维护第二份手写参数白名�
 });
 
 test('V2 工具输入：按 ID 或业务名称定位时至少要求一种正式标识', () => {
+    assert.throws(() => validateAiToolArgs('full_calculate', {}), /不符合任何允许的输入形式/);
+    assert.deepEqual(validateAiToolArgs('full_calculate', { recipeId: 7 }), { recipeId: 7 });
+    assert.deepEqual(validateAiToolArgs('full_calculate', { recipeName: 'V750 12-140' }), {
+        recipeName: 'V750 12-140',
+    });
+    assert.deepEqual(validateAiToolArgs('full_calculate', { pumphousing_model: 'V750 12-140' }), {
+        pumphousing_model: 'V750 12-140',
+    });
     assert.throws(() => validateAiToolArgs('get_recipe_detail', {}), /不符合任何允许的输入形式/);
     assert.deepEqual(validateAiToolArgs('get_recipe_detail', { recipeName: 'TEST-PUMP-750A' }), {
         recipeName: 'TEST-PUMP-750A',

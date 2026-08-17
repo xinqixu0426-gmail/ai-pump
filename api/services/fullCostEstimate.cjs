@@ -17,6 +17,8 @@ function buildFullEstimateResult({ recipeCost, statorCost, dynamicCost }) {
     const dynamicTotal = Number(dynamicCost?.totalCost || 0);
     const totalCost = recipeTotal + statorTotal + dynamicTotal;
     return {
+        sourceOfTruth: 'costEngine',
+        costBasis: 'composedEstimate',
         recipeCost: recipeCost || null,
         statorCost: statorCost || null,
         dynamicCost: dynamicCost || null,
@@ -26,6 +28,7 @@ function buildFullEstimateResult({ recipeCost, statorCost, dynamicCost }) {
             statorCost: statorCost?.cost || '0',
             dynamicCost: dynamicCost?.totalCost || '0',
         },
+        warnings: [],
     };
 }
 

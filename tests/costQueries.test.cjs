@@ -259,12 +259,29 @@ test('成本 Query 统一承接线圈、动态项和完整估算编排', () => {
             details: [],
         });
         const full = fixture.queries.calculateFullEstimate({
-            pumphousing_model: 'PUMP-A',
+            recipeName: 'PUMP-A',
         });
+        assert.equal(full.sourceOfTruth, 'costEngine');
+        assert.equal(full.costBasis, 'composedEstimate');
+        assert.equal(full.recipeCost.recipeId, 1);
         assert.equal(full.recipeCost.recipeName, 'PUMP-A');
         assert.equal(full.recipeCost.totalCost, '10.00');
         assert.equal(full.dynamicCost.totalCost, '0.00');
         assert.equal(full.totalCost, '10.00');
+        assert.throws(
+            () => fixture.queries.calculateFullEstimate({}),
+            error => error.code === 'FULL_ESTIMATE_RECIPE_REQUIRED' && error.statusCode === 400
+        );
+        assert.throws(
+            () => fixture.queries.calculateFullEstimate({ recipeName: 'PUMP' }),
+            error => error.code === 'FULL_ESTIMATE_RECIPE_AMBIGUOUS' && error.statusCode === 409
+        );
+        assert.throws(
+            () => fixture.queries.calculateFullEstimate({ recipeName: 'V750-大脚板-2寸' }),
+            error => error.code === 'FULL_ESTIMATE_RECIPE_NOT_FOUND'
+                && error.statusCode === 404
+                && /泵壳模板名不能作为配方名称/.test(error.message)
+        );
     } finally {
         fixture.db.close();
     }
@@ -300,6 +317,12 @@ test('成本差异解释通过注入的正式配方和成本依赖完成', () =>
         });
         assert.equal(result.left.name, 'PUMP-A');
         assert.equal(result.right.name, 'PUMP-B');
+        assert.equal(result.costBasis, 'currentFullCost');
+        assert.equal(result.sourceOfTruth, 'costEngine');
+        assert.equal(result.left.totalCost, 16);
+        assert.equal(result.right.totalCost, 21);
+        assert.equal(result.left.laborCost, 6);
+        assert.equal(result.right.laborCost, 6);
         assert.equal(result.totalDiff, 5);
         assert.equal(result.direction, '增加');
     } finally {

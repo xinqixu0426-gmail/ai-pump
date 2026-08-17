@@ -30,7 +30,9 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    pumphousing_model: { type: 'string', description: '泵壳型号' },
+                    recipeId: { type: 'integer', minimum: 1, description: '正式配方ID，已知时优先使用' },
+                    recipeName: { type: 'string', description: '正式配方名称或可唯一匹配的名称片段；不是泵壳模板名' },
+                    pumphousing_model: { type: 'string', description: '兼容字段：实际含义为配方名称片段，已废弃；泵壳模板应使用 preview_pump_shell_cost' },
                     stator: { type: 'string', description: '定子规格-片数，如"12-120"' },
                     hasFloat: { type: 'boolean', description: '是否带浮球' },
                     cableLength: { type: 'number', description: '电缆长度（米）' },
@@ -39,7 +41,11 @@ const AI_TOOLS = [
                     cableWire: { type: 'string', description: '电缆线径（可选）' },
                     cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '铜套规格：普通铜套 standard，新界式 xinjie' }
                 },
-                required: ['pumphousing_model']
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['recipeId'] },
+                    { type: 'object', properties: {}, required: ['recipeName'] },
+                    { type: 'object', properties: {}, required: ['pumphousing_model'] },
+                ]
             }
         }
     },
@@ -445,7 +451,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_order_detail',
-            description: '读取某个订单的实时业务详情（配方列表、采购清单、TODO、金额和状态），不包含人工确认的客户要求、执行档案、历史异常或来源文件；这些知识事实由服务端自动伴随读取 get_order_knowledge_package。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。禁止根据名称、消息序号或历史回答猜测订单ID。',
+            description: '读取某个订单的实时业务详情（配方列表、采购清单、待办、金额和状态），不包含人工确认的客户要求、执行档案、历史异常或来源文件。仅需这些详情时单次调用即可；若问题同时需要上述人工确认知识，直接改用 get_order_knowledge_package，不要重复调用两者。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。禁止根据名称、消息序号或历史回答猜测订单ID。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -710,7 +716,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_order_knowledge_package',
-            description: '读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。单订单业务查询存在本能力时由服务端自动伴随读取；没有相关知识记录时静默忽略，有记录时只提取与当前问题相关的已确认资料。',
+            description: '读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。本工具已包含 get_order_detail、check_order_readiness 和 plan_order_readiness_actions 的核心结果，需要完整上下文时单次调用即可，不要再顺序重复调用这些工具。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -820,7 +826,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'explain_cost_change',
-            description: '解释两个配方之间的成本差异，不写库。适合用户问“为什么12-140比12-120贵”“两个型号贵在哪里”。返回总差额和主要差异驱动项。',
+            description: '按当日完整成本解释两个配方之间的差异，不写库。包含当前BOM、线圈、安装/打包工资、表面处理和管理费；任一配方缺价时明确失败。适合用户问“为什么12-140比12-120贵”“两个型号贵在哪里”。返回总差额和主要差异驱动项。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1055,7 +1061,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'check_order_readiness',
-            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
+            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，改用已包含本结果的 get_order_knowledge_package。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1073,7 +1079,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'plan_order_readiness_actions',
-            description: '根据订单实时生产准备检查结果生成按依赖排序的处理方案。区分AI可发起确认、人工补资料、采购跟进和等待状态；本工具只生成方案，不执行写操作。用户问“这个订单的问题怎么处理”“给出处理方案”“下一步做什么”时使用。',
+            description: '根据订单实时生产准备检查结果生成按依赖排序的处理方案。区分AI可发起确认、人工补资料、采购跟进和等待状态；本工具会自行完成所需的准备检查，只生成方案，不执行写操作，无需先调用 check_order_readiness。若还需要人工确认的客户要求和执行事实，改用已包含本结果的 get_order_knowledge_package。用户问“这个订单的问题怎么处理”“给出处理方案”“下一步做什么”时使用。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1273,7 +1279,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'compare_recipes',
-            description: '对比两个配方的BOM和成本差异。当用户说"对比V750和V550"时使用',
+            description: '按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；名称必须唯一匹配，缺价时明确失败。当用户说"对比V750和V550"时使用',
             parameters: {
                 type: 'object',
                 properties: {

@@ -52,3 +52,55 @@ test('成本差异解释缺少配方标识时不得误匹配第一条配方', ()
         /未找到基准配方/
     );
 });
+
+test('成本差异解释的名称片段匹配多条时返回明确歧义', () => {
+    assert.throws(
+        () => buildCostDifference(
+            { leftRecipeName: 'V750', rightRecipeId: 3 },
+            {
+                recipes: [
+                    { id: 1, name: 'V750 12-120' },
+                    { id: 2, name: 'V750 12-140' },
+                    { id: 3, name: 'V550 12-120' },
+                ],
+                leftCost: { totalCost: 0, details: [] },
+                rightCost: { totalCost: 0, details: [] },
+            }
+        ),
+        error => error.statusCode === 409
+            && error.code === 'RECIPE_SELECTOR_AMBIGUOUS'
+            && error.details.candidates.length === 2
+    );
+});
+
+test('成本差异解释遇到未定价配方时整体失败而不是按零元比较', () => {
+    assert.throws(
+        () => buildCostDifference(
+            { leftRecipeId: 1, rightRecipeId: 2 },
+            {
+                recipes: [
+                    { id: 1, name: '完整配方', partsJson: '[]' },
+                    { id: 2, name: '缺价配方', partsJson: '[{"model":"缺价零件"}]' },
+                ],
+                currentCostDependencies: {
+                    partsCache: {},
+                    partsByModel: {},
+                    coils: [],
+                    getSetting: () => 0,
+                    buildBomDraft: (_input, recipe) => ({
+                        parts: JSON.parse(recipe.partsJson),
+                    }),
+                    calculateRecipeCost: parts => ({
+                        totalCost: '0.00',
+                        itemCount: parts.length,
+                        details: [],
+                        missingParts: parts.map(item => item.model),
+                    }),
+                },
+            }
+        ),
+        error => error.statusCode === 422
+            && error.code === 'RECIPE_COST_INCOMPLETE'
+            && error.details.recipeName === '缺价配方'
+    );
+});

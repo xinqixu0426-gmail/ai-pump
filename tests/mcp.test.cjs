@@ -141,6 +141,22 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
     assert.ok(orderDetailSchema.oneOf.every(branch => (
         branch.additionalProperties === undefined
     )));
+    assert.match(
+        listed.find(tool => tool.name === 'get_order_detail').description,
+        /不要重复调用两者/
+    );
+    assert.match(
+        listed.find(tool => tool.name === 'get_order_knowledge_package').description,
+        /不要再顺序重复调用/
+    );
+    assert.match(
+        listed.find(tool => tool.name === 'check_order_readiness').description,
+        /无需先调用 get_order_detail/
+    );
+    assert.match(
+        listed.find(tool => tool.name === 'plan_order_readiness_actions').description,
+        /无需先调用 check_order_readiness/
+    );
 });
 
 test('通用 MCP V2：写目录只包含显式审核过的 Preview + Confirmation 命令', () => {
@@ -199,8 +215,10 @@ test('通用 MCP V2：多轮确认状态使用 HMAC 并绑定服务身份', asyn
     const verified = await verifyMcpRequestState(first.requestState, ctx);
     assert.equal(verified.toolName, 'sync_factory_knowledge');
 
-    const last = first.requestState.at(-1);
-    const tampered = `${first.requestState.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`;
+    const stateSegments = first.requestState.split('.');
+    const mac = stateSegments.at(-1);
+    stateSegments[stateSegments.length - 1] = `${mac[0] === 'A' ? 'B' : 'A'}${mac.slice(1)}`;
+    const tampered = stateSegments.join('.');
     await assert.rejects(() => verifyMcpRequestState(tampered, ctx), /mac|malformed/);
     await assert.rejects(() => verifyMcpRequestState(first.requestState, {
         ...ctx,

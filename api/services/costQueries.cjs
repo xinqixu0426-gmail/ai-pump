@@ -22,10 +22,12 @@ const {
 const { calculateCurrentRecipeCost } = require('./currentRecipeCost.cjs');
 
 class CostQueryError extends Error {
-    constructor(message, statusCode = 400) {
+    constructor(message, statusCode = 400, code = null, details = undefined) {
         super(message);
         this.name = 'CostQueryError';
         this.statusCode = statusCode;
+        if (code) this.code = code;
+        if (details !== undefined) this.details = details;
     }
 }
 
@@ -286,7 +288,8 @@ function createCostQueries({
 
     function calculateFullEstimate(input = {}) {
         const {
-            pumphousing_model,
+            recipeId,
+            recipeName,
             stator,
             cableLength = 0,
             floatAccessoryType = 'standard',
@@ -308,41 +311,59 @@ function createCostQueries({
         );
         const { partsCache, partsByModel } = loadPartsData();
         const getPrice = createPartPriceGetter(partsByModel);
-        let recipeCost = null;
-
-        if (pumphousing_model) {
-            try {
-                const recipe = listRecipes().find(item => (
-                    String(item.name || '').includes(pumphousing_model)
-                ));
-                if (recipe) {
-                    const parts = (() => {
-                        try {
-                            return JSON.parse(recipe.partsJson || '[]');
-                        } catch {
-                            return [];
-                        }
-                    })();
-                    recipeCost = {
-                        recipeName: recipe.name,
-                        recipeSpec: recipe.spec,
-                        ...calculateRecipeCost(
-                            parts,
-                            partsCache,
-                            partsByModel
-                        ),
-                    };
-                } else {
-                    recipeCost = {
-                        error: `未找到名称包含 "${pumphousing_model}" 的配方`,
-                    };
-                }
-            } catch (error) {
-                recipeCost = {
-                    error: `查询配方失败: ${error.message}`,
-                };
-            }
+        const selectorName = String(recipeName || '').trim();
+        const selectorId = Number(recipeId);
+        if ((!Number.isInteger(selectorId) || selectorId <= 0) && !selectorName) {
+            throw new CostQueryError(
+                '完整成本估算必须提供 recipeId 或 recipeName；泵壳模板请使用泵壳成本试算能力',
+                400,
+                'FULL_ESTIMATE_RECIPE_REQUIRED'
+            );
         }
+        const recipes = listRecipes();
+        const exactMatches = Number.isInteger(selectorId) && selectorId > 0
+            ? recipes.filter(item => Number(item.id ?? item.Id) === selectorId)
+            : recipes.filter(item => String(item.name || '').trim().toLowerCase() === selectorName.toLowerCase());
+        const candidates = exactMatches.length > 0
+            ? exactMatches
+            : recipes.filter(item => String(item.name || '').toLowerCase().includes(selectorName.toLowerCase()));
+        if (candidates.length === 0) {
+            throw new CostQueryError(
+                Number.isInteger(selectorId) && selectorId > 0
+                    ? `未找到配方ID ${selectorId}`
+                    : `未找到名称包含“${selectorName}”的配方；泵壳模板名不能作为配方名称`,
+                404,
+                'FULL_ESTIMATE_RECIPE_NOT_FOUND',
+                { recipeId: Number.isInteger(selectorId) && selectorId > 0 ? selectorId : null, recipeName: selectorName || null }
+            );
+        }
+        if (candidates.length > 1) {
+            throw new CostQueryError(
+                `配方名称“${selectorName}”匹配到 ${candidates.length} 条记录，请改用 recipeId 或完整名称`,
+                409,
+                'FULL_ESTIMATE_RECIPE_AMBIGUOUS',
+                {
+                    recipeName: selectorName,
+                    candidates: candidates.slice(0, 10).map(item => ({
+                        id: item.id ?? item.Id,
+                        name: item.name,
+                        spec: item.spec,
+                    })),
+                }
+            );
+        }
+        const recipe = candidates[0];
+        const parts = parseRecipeParts(recipe.partsJson);
+        const recipeCost = {
+            recipeId: recipe.id ?? recipe.Id,
+            recipeName: recipe.name,
+            recipeSpec: recipe.spec,
+            ...calculateRecipeCost(
+                parts,
+                partsCache,
+                partsByModel
+            ),
+        };
 
         const { statorSpec, statorSheets } = parseStatorInput(stator);
         const coils = listCoils();
@@ -395,11 +416,14 @@ function createCostQueries({
 
     function getRecipeDifference(input = {}) {
         return buildCostDifference(input, {
-            dbAccessors: {
-                calculateRecipeCost,
-                loadPartsData,
-            },
             recipes: listRecipes(),
+            currentCostDependencies: {
+                calculateRecipeCost,
+                ...loadPartsData(),
+                coils: listCoils(),
+                getSetting,
+                buildBomDraft,
+            },
         });
     }
 
