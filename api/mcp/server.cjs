@@ -121,8 +121,12 @@ async function executeMcpTool(name, args, options = {}) {
 }
 
 function createMcpProtocolServer(options = {}) {
-    const includeWrite = options.protocolEra === 'modern'
-        && options.scopes?.includes('mcp:write') === true;
+    const authorizedWriteTools = options.protocolEra === 'modern'
+        && options.scopes?.includes('mcp:write') === true
+        && Array.isArray(options.writeTools)
+        ? options.writeTools
+        : [];
+    const includeWrite = authorizedWriteTools.length > 0;
     const server = new McpServer(
         { name: 'pump-factory-mcp', version: '2.0.0' },
         {
@@ -144,8 +148,10 @@ function createMcpProtocolServer(options = {}) {
         }
     );
 
-    for (const tool of listMcpTools({ includeWrite })) {
-        const registered = requireMcpCapability(tool.name, { allowWrite: includeWrite });
+    for (const tool of listMcpTools({ writeToolNames: authorizedWriteTools })) {
+        const registered = requireMcpCapability(tool.name, {
+            allowWrite: authorizedWriteTools.includes(tool.name),
+        });
         server.registerTool(
             tool.name,
             {

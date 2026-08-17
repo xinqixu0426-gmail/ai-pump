@@ -97,6 +97,7 @@ function createMcpRouter(options = {}) {
         protocolEra: ctx.era,
         requestId: ctx.authInfo?.requestId || null,
         scopes: ctx.authInfo?.scopes || [],
+        writeTools: ctx.authInfo?.writeTools || [],
     }), {
         legacy: 'stateless',
         responseMode: 'auto',

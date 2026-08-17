@@ -39,6 +39,9 @@ const {
 
 const TOKEN = 'generic-mcp-test-token-0123456789abcdef';
 const SECOND_TOKEN = 'second-agent-test-token-0123456789abcdef';
+const GENERIC_WRITE_TOOL_ALLOWLISTS = JSON.stringify({
+    'generic-test': ['sync_factory_knowledge'],
+});
 
 test.beforeEach(() => {
     resetMcpWriteFlowsForTests();
@@ -179,6 +182,20 @@ test('通用 MCP V2：写目录只包含显式审核过的 Preview + Confirmatio
     }
     assert.ok(!MCP_WRITE_TOOL_NAMES.includes('create_part'));
     assert.ok(!MCP_WRITE_TOOL_NAMES.includes('delete_order'));
+
+    const subset = listMcpTools({
+        writeToolNames: ['create_order', 'sync_factory_knowledge'],
+    });
+    assert.deepEqual(
+        subset.filter(tool => tool.annotations.readOnlyHint === false).map(tool => tool.name),
+        MCP_WRITE_TOOL_NAMES.filter(name => (
+            name === 'create_order' || name === 'sync_factory_knowledge'
+        ))
+    );
+    assert.throws(
+        () => listMcpTools({ writeToolNames: ['unknown_write_tool'] }),
+        /未获目录授权/
+    );
 });
 
 test('通用 MCP V2：多轮确认状态使用 HMAC 并绑定服务身份', async () => {
@@ -195,6 +212,7 @@ test('通用 MCP V2：多轮确认状态使用 HMAC 并绑定服务身份', asyn
         actor,
         clientId: 'generic-test',
         scopes: ['mcp:read', 'mcp:write'],
+        writeTools: ['sync_factory_knowledge'],
         executeToolCall: async (name, args) => ({
             success: true,
             requiresConfirmation: true,
@@ -357,6 +375,7 @@ test('通用 MCP：每个 Agent 使用独立 Bearer token，并校验 Host 与 O
         env: enabledEnv({
             MCP_WRITE_ENABLED: 'true',
             MCP_WRITE_CLIENT_IDS: 'generic-test',
+            MCP_WRITE_TOOL_ALLOWLISTS: GENERIC_WRITE_TOOL_ALLOWLISTS,
         }),
     });
     const invokeWrite = headers => {
@@ -376,6 +395,7 @@ test('通用 MCP：每个 Agent 使用独立 Bearer token，并校验 Host 与 O
     });
     assert.equal(writeAccepted.nextCalled, true);
     assert.deepEqual(writeAccepted.req.auth.scopes, ['mcp:read', 'mcp:write']);
+    assert.deepEqual(writeAccepted.req.auth.writeTools, ['sync_factory_knowledge']);
     const readOnlyIdentity = invokeWrite({
         host: 'pump.example.com',
         authorization: `Bearer ${SECOND_TOKEN}`,
@@ -502,12 +522,54 @@ test('通用 MCP：2026 客户端自动协商现代无状态协议并调用同�
     }
 });
 
+test('通用 MCP V2：两个服务身份只发现各自获授权的写工具', async () => {
+    const router = createMcpRouter({
+        env: enabledEnv({
+            MCP_WRITE_ENABLED: 'true',
+            MCP_WRITE_CLIENT_IDS: 'generic-test,second-agent',
+            MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+                'generic-test': ['sync_factory_knowledge'],
+                'second-agent': ['create_order'],
+            }),
+        }),
+    });
+    const { server, url } = await listen(router);
+    const createClient = token => {
+        const transport = new ModernStreamableHTTPClientTransport(new URL(url), {
+            requestInit: { headers: { Authorization: `Bearer ${token}` } },
+        });
+        const client = new ModernClient(
+            { name: 'allowlist-agent-test', version: '2.0.0' },
+            { versionNegotiation: { mode: 'auto' } }
+        );
+        return { client, transport };
+    };
+    const generic = createClient(TOKEN);
+    const second = createClient(SECOND_TOKEN);
+    try {
+        await generic.client.connect(generic.transport);
+        await second.client.connect(second.transport);
+        const genericNames = (await generic.client.listTools()).tools.map(tool => tool.name);
+        const secondNames = (await second.client.listTools()).tools.map(tool => tool.name);
+        assert.deepEqual(genericNames, [...MCP_READ_ONLY_TOOL_NAMES, 'sync_factory_knowledge']);
+        assert.deepEqual(secondNames, [...MCP_READ_ONLY_TOOL_NAMES, 'create_order']);
+        assert.equal(genericNames.includes('create_order'), false);
+        assert.equal(secondNames.includes('sync_factory_knowledge'), false);
+    } finally {
+        await generic.client.close();
+        await second.client.close();
+        await closeServer(server);
+        await router.closeMcpHandler();
+    }
+});
+
 test('通用 MCP V2：2025 无状态客户端缺少交互回路时安全拒绝写入', async () => {
     let executed = 0;
     const router = createMcpRouter({
         env: enabledEnv({
             MCP_WRITE_ENABLED: 'true',
             MCP_WRITE_CLIENT_IDS: 'generic-test',
+            MCP_WRITE_TOOL_ALLOWLISTS: GENERIC_WRITE_TOOL_ALLOWLISTS,
         }),
         executeToolCall: async (name, args) => ({
             success: true,
@@ -559,6 +621,7 @@ test('通用 MCP V2：2026 客户端必须完成人工 elicitation 才执行写�
     const env = enabledEnv({
         MCP_WRITE_ENABLED: 'true',
         MCP_WRITE_CLIENT_IDS: 'generic-test',
+        MCP_WRITE_TOOL_ALLOWLISTS: GENERIC_WRITE_TOOL_ALLOWLISTS,
     });
     const router = createMcpRouter({
         env,
@@ -628,8 +691,9 @@ test('通用 MCP V2：2026 客户端必须完成人工 elicitation 才执行写�
         const listed = await client.listTools();
         assert.deepEqual(
             listed.tools.map(tool => tool.name),
-            [...MCP_READ_ONLY_TOOL_NAMES, ...MCP_WRITE_TOOL_NAMES]
+            [...MCP_READ_ONLY_TOOL_NAMES, 'sync_factory_knowledge']
         );
+        assert.equal(listed.tools.some(tool => tool.name === 'create_order'), false);
         const writeTool = listed.tools.find(tool => tool.name === 'sync_factory_knowledge');
         assert.equal(writeTool.annotations.readOnlyHint, false);
 
@@ -661,6 +725,7 @@ test('通用 MCP V2：用户拒绝确认和未授权身份均不会执行写命�
         env: enabledEnv({
             MCP_WRITE_ENABLED: 'true',
             MCP_WRITE_CLIENT_IDS: 'generic-test',
+            MCP_WRITE_TOOL_ALLOWLISTS: GENERIC_WRITE_TOOL_ALLOWLISTS,
         }),
         executeToolCall: async (name, args) => ({
             success: true,

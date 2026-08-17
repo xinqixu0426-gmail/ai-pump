@@ -71,9 +71,41 @@ function getMcpWriteClientIds(env = process.env) {
         .filter(Boolean);
 }
 
+function parseMcpWriteToolAllowlists(env = process.env) {
+    const raw = String(env.MCP_WRITE_TOOL_ALLOWLISTS || '').trim();
+    if (!raw) return {};
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw new Error('MCP_WRITE_TOOL_ALLOWLISTS 必须是 clientId 到写工具数组的 JSON 对象');
+    }
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        throw new Error('MCP_WRITE_TOOL_ALLOWLISTS 必须是 clientId 到写工具数组的 JSON 对象');
+    }
+    const allowlists = {};
+    for (const [clientId, toolNames] of Object.entries(parsed)) {
+        if (!Array.isArray(toolNames)) {
+            throw new Error(`MCP 写工具白名单必须是数组: ${clientId}`);
+        }
+        allowlists[clientId] = toolNames.map(toolName => String(toolName || '').trim());
+    }
+    return allowlists;
+}
+
+function getMcpWriteToolsForClient(clientId, env = process.env) {
+    const normalizedClientId = String(clientId || '').trim();
+    if (
+        !isMcpWriteEnabled(env)
+        || !getMcpWriteClientIds(env).includes(normalizedClientId)
+    ) {
+        return [];
+    }
+    return parseMcpWriteToolAllowlists(env)[normalizedClientId] || [];
+}
+
 function isMcpWriteAllowedForClient(clientId, env = process.env) {
-    return isMcpWriteEnabled(env)
-        && getMcpWriteClientIds(env).includes(String(clientId || '').trim());
+    return getMcpWriteToolsForClient(clientId, env).length > 0;
 }
 
 function getMcpRateLimit(env = process.env) {
@@ -218,6 +250,41 @@ function validateMcpConfiguration(env = process.env) {
                 errors.push(`MCP 写权限身份没有对应 token: ${clientId}`);
             }
         }
+        let writeToolAllowlists = null;
+        try {
+            writeToolAllowlists = parseMcpWriteToolAllowlists(env);
+        } catch (error) {
+            errors.push(error.message);
+        }
+        if (writeToolAllowlists) {
+            const { MCP_WRITE_TOOL_NAMES } = require('../mcp/catalog.cjs');
+            const knownWriteTools = new Set(MCP_WRITE_TOOL_NAMES);
+            for (const [clientId, toolNames] of Object.entries(writeToolAllowlists)) {
+                if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(clientId)) {
+                    errors.push(`MCP 写工具白名单 clientId 不合法: ${clientId || '(empty)'}`);
+                } else if (!seenClientIds.has(clientId)) {
+                    errors.push(`MCP 写工具白名单身份没有对应 token: ${clientId}`);
+                } else if (!writeClientIds.includes(clientId)) {
+                    errors.push(`MCP 写工具白名单身份未列入 MCP_WRITE_CLIENT_IDS: ${clientId}`);
+                }
+                if (toolNames.length === 0) {
+                    errors.push(`MCP 写工具白名单不能为空: ${clientId}`);
+                }
+                if (new Set(toolNames).size !== toolNames.length) {
+                    errors.push(`MCP 写工具白名单不能包含重复工具: ${clientId}`);
+                }
+                for (const toolName of toolNames) {
+                    if (!knownWriteTools.has(toolName)) {
+                        errors.push(`MCP 写工具白名单包含未知工具: ${clientId}/${toolName || '(empty)'}`);
+                    }
+                }
+            }
+            for (const clientId of writeClientIds) {
+                if (!Object.prototype.hasOwnProperty.call(writeToolAllowlists, clientId)) {
+                    errors.push(`MCP 写权限身份缺少工具白名单: ${clientId}`);
+                }
+            }
+        }
     }
     try {
         getMcpRateLimit(env);
@@ -277,6 +344,8 @@ module.exports = {
     isMcpWriteAllowedForClient,
     isMcpWriteEnabled,
     getMcpWriteClientIds,
+    getMcpWriteToolsForClient,
+    parseMcpWriteToolAllowlists,
     parseMcpServiceTokens,
     parseCorsOrigins,
     parseHostList,

@@ -8,6 +8,7 @@ const {
     getMcpMaxResultBytes,
     getMcpRateLimit,
     getMcpWriteClientIds,
+    getMcpWriteToolsForClient,
     getInternalApiTimeoutMs,
     getServerPort,
     isMcpEnabled,
@@ -16,6 +17,7 @@ const {
     isProductionEnvironment,
     parseCorsOrigins,
     parseMcpServiceTokens,
+    parseMcpWriteToolAllowlists,
     validateProductionEnvironment,
 } = require('../api/services/environment.cjs');
 
@@ -121,8 +123,16 @@ test('运行环境：通用 MCP 默认关闭，支持多 Agent 独立强 token �
     const writeEnv = {
         MCP_WRITE_ENABLED: 'true',
         MCP_WRITE_CLIENT_IDS: 'hermes',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            hermes: ['sync_factory_knowledge'],
+        }),
     };
     assert.deepEqual(getMcpWriteClientIds(writeEnv), ['hermes']);
+    assert.deepEqual(parseMcpWriteToolAllowlists(writeEnv), {
+        hermes: ['sync_factory_knowledge'],
+    });
+    assert.deepEqual(getMcpWriteToolsForClient('hermes', writeEnv), ['sync_factory_knowledge']);
+    assert.deepEqual(getMcpWriteToolsForClient('codex', writeEnv), []);
     assert.equal(isMcpWriteAllowedForClient('hermes', writeEnv), true);
     assert.equal(isMcpWriteAllowedForClient('codex', writeEnv), false);
 
@@ -140,6 +150,9 @@ test('运行环境：通用 MCP 默认关闭，支持多 Agent 独立强 token �
         MCP_CLIENT_ID: 'agent',
         MCP_WRITE_ENABLED: 'true',
         MCP_WRITE_CLIENT_IDS: 'unknown',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            unknown: ['sync_factory_knowledge'],
+        }),
     }));
     assert.ok(unknownWriteIdentity.some(error => error.includes('没有对应 token')));
 
@@ -149,7 +162,78 @@ test('运行环境：通用 MCP 默认关闭，支持多 Agent 独立强 token �
         MCP_CLIENT_ID: 'agent',
         MCP_WRITE_ENABLED: 'true',
         MCP_WRITE_CLIENT_IDS: 'agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            agent: ['sync_factory_knowledge'],
+        }),
     })), []);
+
+    const missingWriteToolAllowlist = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+    }));
+    assert.ok(missingWriteToolAllowlist.some(error => error.includes('缺少工具白名单')));
+
+    const invalidWriteToolAllowlists = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            agent: ['unknown_write_tool'],
+        }),
+    }));
+    assert.ok(invalidWriteToolAllowlists.some(error => error.includes('未知工具')));
+
+    const emptyWriteToolAllowlist = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({ agent: [] }),
+    }));
+    assert.ok(emptyWriteToolAllowlist.some(error => error.includes('不能为空')));
+
+    const duplicateWriteToolAllowlist = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            agent: ['sync_factory_knowledge', 'sync_factory_knowledge'],
+        }),
+    }));
+    assert.ok(duplicateWriteToolAllowlist.some(error => error.includes('重复工具')));
+
+    const malformedWriteToolAllowlists = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: '{invalid',
+    }));
+    assert.ok(malformedWriteToolAllowlists.some(error => error.includes('JSON 对象')));
+
+    const unlistedWriteToolIdentity = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_SERVICE_TOKENS: JSON.stringify({
+            agent: 'write-agent-token-0123456789abcdef',
+            observer: 'observer-agent-token-0123456789abcdef',
+        }),
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            agent: ['sync_factory_knowledge'],
+            observer: ['create_order'],
+        }),
+    }));
+    assert.ok(unlistedWriteToolIdentity.some(error => error.includes('未列入 MCP_WRITE_CLIENT_IDS')));
 
     // 旧 NAS 部署可在一个兼容周期内不改环境变量直接升级。
     assert.equal(isMcpEnabled({ HERMES_MCP_ENABLED: 'true' }), true);

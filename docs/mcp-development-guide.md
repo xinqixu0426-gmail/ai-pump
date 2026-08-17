@@ -18,11 +18,11 @@
 2. **能力登记**：工具必须先存在于 AI capability registry 和唯一 `AI_TOOLS` schema。MCP 只维护显式允许列表，不复制业务实现。
 3. **Schema**：`inputSchema` 直接复用唯一 AI schema；公开 `outputSchema`；结果同时返回 `structuredContent` 和等价文本 JSON。
 4. **执行链**：`tools/call` 只委托统一 executor → internal API client → 正式 API；没有 `aiExecutionEvidence` 不得返回业务事实。
-5. **安全**：默认关闭；Host/Origin 校验、每 Agent 独立 token、恒定时间比较、限流、结果大小上限、脱敏日志。写能力还必须默认关闭、按服务身份授予 `mcp:write`、使用 MCP 原生 form elicitation，并以 HMAC 状态绑定主体、工具、参数和有效期。禁止 token passthrough，禁止使用 `INTERNAL_SECRET`。
+5. **安全**：默认关闭；Host/Origin 校验、每 Agent 独立 token、恒定时间比较、限流、结果大小上限、脱敏日志。写能力还必须默认关闭，同时按服务身份和工具名授予最小权限；目录与执行层分别校验同一逐工具 allowlist，再使用 MCP 原生 form elicitation，并以 HMAC 状态绑定主体、工具、参数和有效期。禁止 token passthrough，禁止使用 `INTERNAL_SECRET`。
 6. **协议实现**：使用官方 SDK；一个 server factory 同时服务 modern/legacy，避免能力漂移；无状态服务不签发 `Mcp-Session-Id`。
 7. **测试**：目录安全单测、输入/输出 schema、读写 scope、确认拒绝/篡改/过期/重放、证据门、认证/限流/Origin、超大结果；再用旧版客户端和当前客户端各做一次真实 HTTP 发现与调用。
 8. **一致性**：运行官方 conformance 中与本服务声明能力相符的 `server-initialize`、`ping`、`tools-list`、`dns-rebinding-protection`。完整 active suite需要测试专用图片/音频/资源/Prompt 夹具，不得把缺少未声明能力误判为产品失败，也不得因 CLI 返回码为 0 把失败摘要误判为通过。
-9. **文档与发布**：同步 `api-reference`、部署清单、`.env.example`；先保持默认关闭。发布后先验收每个身份的发现、只读调用、401 和审计身份。只有明确接受写风险后才设置 `MCP_WRITE_ENABLED=true` 和 `MCP_WRITE_CLIENT_IDS`，并使用支持 form elicitation 的 2026 客户端做一笔可回滚写入验收。
+9. **文档与发布**：同步 `api-reference`、部署清单、`.env.example`；先保持默认关闭。发布后先验收每个身份的发现、只读调用、401 和审计身份。只有明确接受写风险后才设置 `MCP_WRITE_ENABLED=true`、`MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS`，并使用支持 form elicitation 的 2026 客户端做一笔白名单内、可回滚的写入验收。
 
 ## 3. 本项目门禁
 
@@ -50,7 +50,7 @@ npm run verify:mcp-write-local
 ```
 
 该门禁把 `api/mcp/catalog.cjs` 的 17 个正式写工具与验收清单做严格集合比对，逐工具验证
-`mcp:write` scope、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
+`mcp:write` scope、逐工具 allowlist、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
 正式执行证据、幂等重放、拒绝后无副作用。业务层复用正式 executor 和 command service 测试：
 数据库写入使用独立内存 SQLite，文件归档使用临时文件，出图和打印停在外部命令替身，
 不会读取生产 MCP token、连接 Mac Mini、修改正式数据库或调用物理打印机。脱敏结果写入
@@ -110,7 +110,7 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 ## 4. 变更边界
 
 - V1 白名单覆盖注册表中全部已登记、无需确认的安全 Query/Preview；目录测试保证新增安全读能力不会静默遗漏，写工具、资源和 Prompt 不因客户端支持而自动开放。
-- V2 写目录当前显式审核 17 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。配置未启用或身份不在 `MCP_WRITE_CLIENT_IDS` 时，这些工具不会出现在 `tools/list`。
+- V2 可授权写目录当前显式审核 17 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。配置未启用、身份不在 `MCP_WRITE_CLIENT_IDS` 或工具未列入该身份的 `MCP_WRITE_TOOL_ALLOWLISTS` 时，该工具不会出现在 `tools/list`，直接调用也由执行层拒绝。
 - 写调用第一轮只执行正式 Preview 并签发主体绑定的短时确认；2026 客户端通过 `input_required`/form elicitation 展示给用户，明确接受后才由共享确认执行 service 调用正式 API。Agent 的文字、第二个“确认工具”或客户端自报名称都不能授权执行。
 - 多轮 `requestState` 使用官方 SDK HMAC codec，并绑定已验证服务身份和方法；客户端篡改、换身份、换参数、过期或并发重放都会拒绝。状态密钥为单进程临时密钥，服务重启后未完成确认自动失效，符合当前 Mac Mini 单进程部署；改为多实例前必须配置共享持久状态。
 - 2025 无状态客户端没有服务端到客户端 elicitation 回路，因此只读兼容不变，写工具不进入其 `tools/list`，直接调用也返回安全错误且不会执行。不能用普通 tool 参数或 Agent 文字降级绕过确认。

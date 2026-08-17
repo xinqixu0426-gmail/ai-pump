@@ -224,6 +224,9 @@ async function executeMcpWriteTool(name, args, ctx, options = {}) {
     if (!options.scopes?.includes('mcp:write')) {
         return writeError('mcp_write_scope_required', '该服务身份没有 mcp:write 权限');
     }
+    if (!Array.isArray(options.writeTools) || !options.writeTools.includes(name)) {
+        return writeError('mcp_write_tool_not_allowed', '该服务身份未获授权使用此写工具');
+    }
     try {
         const state = ctx.mcpReq.requestState();
         return state

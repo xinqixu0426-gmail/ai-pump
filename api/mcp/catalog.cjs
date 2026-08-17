@@ -179,12 +179,31 @@ function requireMcpCapability(name, options = {}) {
 }
 
 function listMcpTools(options = {}) {
-    const names = options.includeWrite === true
-        ? [...MCP_READ_ONLY_TOOL_NAMES, ...MCP_WRITE_TOOL_NAMES]
-        : MCP_READ_ONLY_TOOL_NAMES;
+    let requestedWriteNames = [];
+    if (options.writeToolNames !== undefined) {
+        if (!Array.isArray(options.writeToolNames)) {
+            throw new Error('MCP 写工具目录必须是数组');
+        }
+        const requested = options.writeToolNames.map(name => String(name || '').trim());
+        if (new Set(requested).size !== requested.length) {
+            throw new Error('MCP 写工具目录不能包含重复工具');
+        }
+        for (const name of requested) {
+            if (!MCP_WRITE_TOOL_NAMES.includes(name)) {
+                const error = new Error(`MCP 写工具未获目录授权: ${name || '(empty)'}`);
+                error.code = 'mcp_write_tool_not_allowed';
+                throw error;
+            }
+        }
+        const requestedSet = new Set(requested);
+        requestedWriteNames = MCP_WRITE_TOOL_NAMES.filter(name => requestedSet.has(name));
+    } else if (options.includeWrite === true) {
+        requestedWriteNames = MCP_WRITE_TOOL_NAMES;
+    }
+    const names = [...MCP_READ_ONLY_TOOL_NAMES, ...requestedWriteNames];
     return names.map(name => {
         const { capability, tool, write } = requireMcpCapability(name, {
-            allowWrite: options.includeWrite === true,
+            allowWrite: requestedWriteNames.includes(name),
         });
         return {
             name,

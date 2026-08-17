@@ -118,6 +118,7 @@ for (const [index, item] of MCP_WRITE_ACCEPTANCE_CASES.entries()) {
             actor: ACTOR,
             clientId: CLIENT_ID,
             scopes: SCOPES,
+            writeTools: [item.name],
             executeToolCall: async (name, args, callOptions) => {
                 prepared.push({ name, args, callOptions });
                 return prepareResult(name, args, sequence);
@@ -136,6 +137,15 @@ for (const [index, item] of MCP_WRITE_ACCEPTANCE_CASES.entries()) {
         );
         assert.equal(unauthorized.isError, true);
         assert.equal(unauthorized.structuredContent.code, 'mcp_write_scope_required');
+
+        const unauthorizedTool = await executeMcpWriteTool(
+            item.name,
+            item.args,
+            context(),
+            { ...options, writeTools: [] }
+        );
+        assert.equal(unauthorizedTool.isError, true);
+        assert.equal(unauthorizedTool.structuredContent.code, 'mcp_write_tool_not_allowed');
 
         const preview = await executeMcpWriteTool(item.name, item.args, context(), options);
         assert.equal(preview.resultType, 'input_required');

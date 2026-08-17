@@ -32,6 +32,7 @@ try {
             MCP_SERVICE_TOKENS: '',
             MCP_VERIFY_TOKEN: '',
             MCP_WRITE_CLIENT_IDS: '',
+            MCP_WRITE_TOOL_ALLOWLISTS: '',
             HERMES_MCP_ENABLED: 'false',
             HERMES_MCP_TOKEN: '',
         },

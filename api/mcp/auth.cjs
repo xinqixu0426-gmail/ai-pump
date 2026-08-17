@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const {
     getMcpAllowedHosts,
-    isMcpWriteAllowedForClient,
+    getMcpWriteToolsForClient,
     isMcpEnabled,
     parseMcpServiceTokens,
     validateMcpConfiguration,
@@ -98,11 +98,13 @@ function createMcpAccessMiddleware(options = {}) {
         const fingerprint = tokenFingerprint(credential.token);
         req.mcpActor = `mcp:${credential.clientId}:${fingerprint}`;
         const scopes = ['mcp:read'];
-        if (isMcpWriteAllowedForClient(credential.clientId, env)) scopes.push('mcp:write');
+        const writeTools = getMcpWriteToolsForClient(credential.clientId, env);
+        if (writeTools.length > 0) scopes.push('mcp:write');
         req.auth = {
             token: fingerprint,
             clientId: credential.clientId,
             scopes,
+            writeTools,
             expiresAt: Number.MAX_SAFE_INTEGER,
             actor: req.mcpActor,
             requestId: req.requestId || null,

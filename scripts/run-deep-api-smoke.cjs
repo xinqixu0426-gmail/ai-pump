@@ -3212,6 +3212,9 @@ async function run() {
                 }),
                 MCP_WRITE_ENABLED: 'true',
                 MCP_WRITE_CLIENT_IDS: 'deep-api-write',
+                MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+                    'deep-api-write': ['sync_factory_knowledge'],
+                }),
                 MCP_ALLOWED_HOSTS: '127.0.0.1',
                 MCP_RATE_LIMIT_PER_MINUTE: '600',
                 INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,
