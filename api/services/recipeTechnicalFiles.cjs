@@ -33,6 +33,62 @@ function parseJsonObject(value) {
     }
 }
 
+function finiteNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeTestPoint(point, index) {
+    if (!point || typeof point !== 'object' || Array.isArray(point)) return null;
+    const flow = finiteNumber(point.flow);
+    const head = finiteNumber(point.head);
+    if (flow === null || head === null) return null;
+    const sequence = Number.isInteger(Number(point.sequence)) && Number(point.sequence) > 0
+        ? Number(point.sequence)
+        : index + 1;
+    const normalized = { sequence, flow, head };
+    for (const field of [
+        'voltage',
+        'current',
+        'powerFactor',
+        'inputPower',
+        'speed',
+        'unitEfficiency',
+    ]) {
+        const value = finiteNumber(point[field]);
+        if (value !== null) normalized[field] = value;
+    }
+    return normalized;
+}
+
+function buildTestCurve(parsedJson) {
+    const parsed = parseJsonObject(parsedJson);
+    const testPoints = Array.isArray(parsed.testPoints)
+        ? parsed.testPoints
+            .map(normalizeTestPoint)
+            .filter(Boolean)
+        : [];
+    if (testPoints.length === 0) return null;
+    const maxHeadPoint = testPoints.reduce((best, point) => (
+        point.head > best.head ? point : best
+    ));
+    const maxFlowPoint = testPoints.reduce((best, point) => (
+        point.flow > best.flow ? point : best
+    ));
+    return {
+        dataBasis: 'measuredTestPoints',
+        pointCount: testPoints.length,
+        flowUnit: 'm3/h',
+        headUnit: 'm',
+        maxHead: maxHeadPoint.head,
+        maxHeadAtFlow: maxHeadPoint.flow,
+        maxFlow: maxFlowPoint.flow,
+        headAtMaxFlow: maxFlowPoint.head,
+        testPoints,
+    };
+}
+
 function technicalFileResponse(row, recipeTechnicalFileRow) {
     const file = recipeTechnicalFileRow(row);
     return {
@@ -45,6 +101,7 @@ function technicalFileResponse(row, recipeTechnicalFileRow) {
         fileSha256: file.fileSha256,
         reportType: file.reportType,
         summary: parseJsonObject(file.summaryJson),
+        testCurve: buildTestCurve(file.parsedJson),
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
     };
@@ -388,5 +445,6 @@ module.exports = {
     executeRecipeTechnicalFileUpload,
     getRecipeTechnicalFileDownload,
     listRecipeTechnicalFiles,
+    buildTestCurve,
     technicalFileResponse,
 };

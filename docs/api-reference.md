@@ -153,7 +153,7 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `POST` | `/api/recipes` | 请求头 `Idempotency-Key`；请求体为 `/save-payload-draft` 返回 payload，并携带 `previewHash?` | 能力 `recipes.create`。`recipeCommands` 再次通过 `costEngine` 固化 BOM/成本快照；配方、自动补齐的参数化长螺丝零件、operation 和强审计同一事务提交。相同请求安全重放，预览篡改、异参复用、未定价 BOM 或审计缺失不会产生部分写入。响应顶层继续提供完整配方字段和旧 `createdLongScrewParts`，同时增加标准回执；旧请求缺少协议字段仍兼容并返回 warnings |
 | `PATCH` | `/api/recipes/:id` | 请求头 `Idempotency-Key`；请求体为 `/save-payload-draft` 返回 payload，并携带 `{ expectedUpdatedAt?, previewHash? }`；历史部分字段 PATCH 继续兼容 | 能力 `recipes.update`。保存前合并当前配方快照，再由 `costEngine` 重建权威成本；版本、预览、异参复用或审计冲突返回 409。配方、参数化长螺丝补齐、规则学习刷新、operation 和强审计在同一事务内执行；响应保持顶层配方字段兼容并增加标准回执。旧请求缺少协议字段仍兼容并返回 warnings |
 | `DELETE` | `/api/recipes/:id` | 请求头 `Idempotency-Key`；请求体或 query `{ expectedUpdatedAt? }`，也兼容 `If-Unmodified-Since` | 能力 `recipes.delete`。配方软删除、规则学习刷新、operation 和强审计同一事务提交；相同请求安全重放，版本、异参复用或审计冲突返回 409。Web/AI 传递当前资源版本；旧请求缺少协议字段仍兼容并返回 warnings |
-| `GET` | `/api/recipes/:id/technical-files` | 无 | 通过技术档案 Query service 列出配方性能测试报告附件及解析摘要；严格只读，不返回文件二进制和完整解析文本 |
+| `GET` | `/api/recipes/:id/technical-files` | 无 | 通过技术档案 Query service 列出配方性能测试报告附件、解析摘要和可信测试曲线；`testCurve` 只从逐条有效测试点生成，包含 `dataBasis=measuredTestPoints`、`pointCount`、单位、`maxHead/maxHeadAtFlow`、`maxFlow/headAtMaxFlow` 及白名单测试点字段。规定点、实测点和偏差不参与极值；历史已解析附件读取时即时生成，无需重新上传。严格只读，不返回文件二进制和完整解析文本 |
 | `POST` | `/api/recipes/:id/technical-files` | 请求头 `Idempotency-Key`；`multipart/form-data` 字段 `file`、`expectedUpdatedAt?`，支持 `.xls/.xlsx`，最大 10MB | 能力 `recipes.technical_files.upload`。验证真实文件类型并解析水泵性能报告；统一文件对象、配方附件、operation 和强审计同一事务提交。相同幂等键安全重放，同一配方重复上传相同 SHA-256 返回现有附件；版本或审计冲突不留下部分文件。响应继续在顶层返回原附件字段并增加标准回执；旧请求缺少协议字段仍兼容并返回 warnings。规定点、实测点和偏差不进入 API 摘要或知识检索文本 |
 | `GET` | `/api/recipes/:id/technical-files/:fileId/download` | 无 | 通过技术档案 Query service 下载原始测试报告；优先读取统一文件对象，兼容历史附件 BLOB |
 | `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt? }` | 能力 `recipes.technical_files.delete`。软删除附件关联，不删除可能被其他业务引用的统一文件对象；附件、operation 和强审计同一事务提交，相同请求安全重放，版本或审计冲突返回 409。变更自动触发现有知识派生同步；旧请求仍兼容并返回 warnings |
@@ -609,7 +609,7 @@ AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：
 - `get_order_knowledge_package`：按订单 ID、客户名或合同号读取 V10.4 只读订单知识包。除直接知识查询外，`get_order_detail`、`check_order_readiness`、`plan_order_readiness_actions` 在能力注册表声明本工具为只读伴随能力，调度器会复用同一订单目标自动调用；`get_recent_orders` 使用客户简称或合同号模糊筛选且唯一命中时，也会按正式结果 ID 自动伴随调用，多条命中不猜选。有确认知识时，调度器在回答合成载荷中把人工确认的客户要求和执行事实提升为优先证据，模型必须提取与当前问题相关的资料，不能因实时库存或准备度数据较长而漏掉；无记录时不主动展开，读取失败时整体证据不完整且不能作“没有异常”等否定结论；不属于 `WRITE_TOOLS`。
 - `get_purchase_overview`：调用 `/api/orders/purchase-overview` 读取活动订单的当前采购汇总；支持 `supplier/pendingOnly/limit` 类型化筛选，默认最多 20 条重点任务。只读，不生成采购清单、不下单、不入库。
 - `search_quotations`：调用正式 `GET /api/quotations`，支持 `status/customerName/limit` 类型化筛选。“报价中的报价”“还在报价中的报价”直接传 `status=报价中`；不先读取全量报价再由模型二次判断状态。
-- `get_recipe_technical_files`：先用正式配方列表按 ID 或完整名称定位配方，再调用 `/api/recipes/:id/technical-files` 读取性能测试报告摘要；返回配方来源，只读且不修改附件。
+- `get_recipe_technical_files`：先用正式配方列表按 ID 或完整名称定位配方，再调用 `/api/recipes/:id/technical-files` 读取性能测试报告摘要、可信测试曲线和服务端确定的最高扬程/最大流量；AI 必须使用 `files[].testCurve` 回答流量、扬程、电流和效率问题，不得从模板中的规定点、实测点或偏差推断。返回配方来源，只读且不修改附件。
 
 AI 工具表不再暴露旧的 `query_recipe_cost_by_name`、`query_recipe_cost_by_id` 和 `get_all_parts`。零件、线圈、订单、采购、配方等自然语言事实查询由模型归纳为结构化意图和最小能力步骤，再生成类型化 tool 参数。参数直接按 `AI_TOOLS` 唯一 JSON schema 校验；未知字段、错误类型、非法枚举、缺失必填或越界数值不会执行。服务端不再剥离语义标签、删除停用词或把剩余文本重写成关键词；无法可靠映射时由模型明确歧义并请求必要信息。
 

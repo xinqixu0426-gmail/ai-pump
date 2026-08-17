@@ -1413,7 +1413,21 @@ test('AI executor 行为：配方技术档案按正式配方和附件 API 读取
                     id: 21,
                     reportType: 'performance_test',
                     originalName: 'V1600测试报告.xlsx',
-                    summary: { testPoints: [{ flow: 10, head: 20 }] },
+                    summary: { testPointCount: 2 },
+                    testCurve: {
+                        dataBasis: 'measuredTestPoints',
+                        pointCount: 2,
+                        flowUnit: 'm3/h',
+                        headUnit: 'm',
+                        maxHead: 20,
+                        maxHeadAtFlow: 0,
+                        maxFlow: 10,
+                        headAtMaxFlow: 18,
+                        testPoints: [
+                            { sequence: 1, flow: 0, head: 20 },
+                            { sequence: 2, flow: 10, head: 18 },
+                        ],
+                    },
                 }],
             });
         }
@@ -1429,6 +1443,9 @@ test('AI executor 行为：配方技术档案按正式配方和附件 API 读取
     assert.equal(result.success, true);
     assert.equal(result.recipe.id, 8);
     assert.equal(result.files[0].reportType, 'performance_test');
+    assert.equal(result.files[0].testCurve.maxHead, 20);
+    assert.equal(result.files[0].testCurve.maxFlow, 10);
+    assert.equal(result.files[0].testCurve.testPoints.length, 2);
     assert.deepEqual(result.sources, [{
         sourceTable: 'recipes',
         sourceId: 8,

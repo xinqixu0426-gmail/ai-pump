@@ -172,7 +172,12 @@ function createFixture() {
         }),
         parsePumpTestReport: () => ({
             summary: { model: 'V750', testPointCount: 1 },
-            parsed: { points: [{ flow: 10, head: 20 }] },
+            parsed: {
+                testPoints: [
+                    { sequence: 1, flow: 0, head: 20, current: 2.1 },
+                    { sequence: 2, flow: 10, head: 18, current: 2.4 },
+                ],
+            },
             extractedText: '型号：V750',
         }),
         recipeTechnicalFileRow,
@@ -235,10 +240,60 @@ test('配方技术档案 Query 只读返回摘要和原文件', () => {
 
     assert.equal(files.length, 1);
     assert.equal(files[0].summary.model, 'V750');
+    assert.deepEqual(files[0].testCurve, {
+        dataBasis: 'measuredTestPoints',
+        pointCount: 2,
+        flowUnit: 'm3/h',
+        headUnit: 'm',
+        maxHead: 20,
+        maxHeadAtFlow: 0,
+        maxFlow: 10,
+        headAtMaxFlow: 18,
+        testPoints: [
+            { sequence: 1, flow: 0, head: 20, current: 2.1 },
+            { sequence: 2, flow: 10, head: 18, current: 2.4 },
+        ],
+    });
     assert.equal(download.originalName, '性能测试.xlsx');
     assert.deepEqual(download.buffer, FILE_BUFFER);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, auditCount);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, operationCount);
+});
+
+test('配方技术档案 Query 忽略模板汇总和无效点，只按真实曲线生成极值', () => {
+    const { dependencies } = createFixture();
+    dependencies.parsePumpTestReport = () => ({
+        summary: { model: 'V750', testPointCount: 4 },
+        parsed: {
+            performance: {
+                specified: { flow: '99m3/h', head: '99m' },
+                measured: { flow: '88m3/h', head: '88m' },
+            },
+            testPoints: [
+                { sequence: 1, flow: '0', head: '9.35' },
+                { sequence: 2, flow: 17.67, head: 2.43, unitEfficiency: 16.13 },
+                { sequence: 3, flow: 'bad', head: 50 },
+                { sequence: 4, flow: 18, head: null },
+            ],
+        },
+        extractedText: '测试曲线',
+    });
+    executeRecipeTechnicalFileUpload(
+        dependencies,
+        1,
+        uploadInput(),
+        uploadContext()
+    );
+
+    const [file] = listRecipeTechnicalFiles(dependencies, 1);
+
+    assert.equal(file.testCurve.maxHead, 9.35);
+    assert.equal(file.testCurve.maxHeadAtFlow, 0);
+    assert.equal(file.testCurve.maxFlow, 17.67);
+    assert.equal(file.testCurve.headAtMaxFlow, 2.43);
+    assert.equal(file.testCurve.pointCount, 2);
+    assert.equal(JSON.stringify(file.testCurve).includes('99'), false);
+    assert.equal(JSON.stringify(file.testCurve).includes('88'), false);
 });
 
 test('配方技术档案上传使用版本、持久幂等、内容去重和强审计', () => {
