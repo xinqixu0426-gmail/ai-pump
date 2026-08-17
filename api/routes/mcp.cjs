@@ -90,10 +90,13 @@ function createMcpRouter(options = {}) {
         clientId: ctx.authInfo?.clientId || 'unknown',
         env,
         executeToolCall: options.executeToolCall,
+        executeConfirmedAiTool: options.executeConfirmedAiTool,
         hasVerifiedExecution: options.hasVerifiedExecution,
+        hasVerifiedWriteExecution: options.hasVerifiedWriteExecution,
         maxResultBytes: options.maxResultBytes,
         protocolEra: ctx.era,
         requestId: ctx.authInfo?.requestId || null,
+        scopes: ctx.authInfo?.scopes || [],
     }), {
         legacy: 'stateless',
         responseMode: 'auto',

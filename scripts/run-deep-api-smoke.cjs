@@ -33,6 +33,7 @@ let child = null;
 let cookie = '';
 let baseUrl = '';
 const MCP_TEST_TOKEN = 'deep-generic-mcp-token-0123456789abcdef';
+const MCP_WRITE_TEST_TOKEN = 'deep-write-mcp-token-0123456789abcdef';
 const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
 const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access-password';
 
@@ -545,6 +546,53 @@ async function testMcpReadOnlyFlows() {
         '通用 2026 MCP 真实只读调用',
         '2026-07-28'
     );
+
+    const writeClient = new ModernMcpClient(
+        { name: 'generic-write-agent-smoke', version: '2.0.0' },
+        { versionNegotiation: { mode: 'auto' } }
+    );
+    writeClient.registerCapabilities({ elicitation: { form: {} } });
+    writeClient.setRequestHandler('elicitation/create', async elicitation => {
+        assert(elicitation.params.mode === 'form', 'MCP 写确认未使用 form elicitation');
+        assert(
+            String(elicitation.params.message).includes('同步工厂知识库'),
+            'MCP 写确认没有展示正式能力摘要'
+        );
+        return { action: 'accept', content: { confirm: true } };
+    });
+    const writeStartedAt = Date.now();
+    try {
+        await writeClient.connect(new ModernMcpTransport(url, {
+            requestInit: {
+                headers: { Authorization: `Bearer ${MCP_WRITE_TEST_TOKEN}` },
+            },
+        }));
+        assert(
+            writeClient.getNegotiatedProtocolVersion() === '2026-07-28',
+            'MCP 写验收未协商到 2026-07-28'
+        );
+        const listed = await writeClient.listTools();
+        const writeTool = listed.tools.find(tool => tool.name === 'sync_factory_knowledge');
+        assert(writeTool, '具备 mcp:write 的身份看不到写工具');
+        assert(writeTool.annotations?.readOnlyHint === false, '写工具 readOnlyHint 错误');
+        const result = await writeClient.callTool({
+            name: 'sync_factory_knowledge',
+            arguments: {},
+        });
+        assert(result.isError !== true, `MCP 正式写调用失败: ${JSON.stringify(result).slice(0, 500)}`);
+        assert(result.structuredContent?.success === true, 'MCP 正式写调用未返回 success=true');
+        assert(result.structuredContent?.data?.status === 'completed', 'MCP 正式写回执未完成');
+        assert(result.structuredContent?.data?.operationId, 'MCP 正式写回执缺少 operationId');
+        assert(result.structuredContent?.data?.auditId, 'MCP 正式写回执缺少 auditId');
+        assert(result.structuredContent?.mcp?.verified === true, 'MCP 正式写回执缺少执行证据');
+        results.push({
+            label: '通用 2026 MCP 正式写入与人工确认',
+            status: 200,
+            ms: Date.now() - writeStartedAt,
+        });
+    } finally {
+        await writeClient.close();
+    }
 }
 
 function readGetPuritySnapshot(databasePath) {
@@ -3136,9 +3184,14 @@ async function run() {
                 KNOWLEDGE_VECTOR_AUTO_SYNC_ENABLED: 'false',
                 KNOWLEDGE_HYBRID_SEARCH_ENABLED: 'false',
                 MCP_ENABLED: 'true',
-                MCP_CLIENT_ID: 'deep-api',
-                MCP_TOKEN: MCP_TEST_TOKEN,
-                MCP_SERVICE_TOKENS: '',
+                MCP_CLIENT_ID: '',
+                MCP_TOKEN: '',
+                MCP_SERVICE_TOKENS: JSON.stringify({
+                    'deep-api-read': MCP_TEST_TOKEN,
+                    'deep-api-write': MCP_WRITE_TEST_TOKEN,
+                }),
+                MCP_WRITE_ENABLED: 'true',
+                MCP_WRITE_CLIENT_IDS: 'deep-api-write',
                 MCP_ALLOWED_HOSTS: '127.0.0.1',
                 MCP_RATE_LIMIT_PER_MINUTE: '600',
                 INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,

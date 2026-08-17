@@ -14,7 +14,9 @@ const { getAiCapability } = require('../api/capabilities/registry.cjs');
 const { AI_TOOLS } = require('../api/routes/ai/tools.cjs');
 const {
     MCP_OPEN_WORLD_TOOL_NAMES,
+    MCP_POTENTIALLY_DESTRUCTIVE_TOOL_NAMES,
     MCP_READ_ONLY_TOOL_NAMES,
+    MCP_WRITE_TOOL_NAMES,
     buildMcpInputSchema,
     listMcpTools,
 } = require('../api/mcp/catalog.cjs');
@@ -26,12 +28,21 @@ const {
     executeMcpTool,
 } = require('../api/mcp/server.cjs');
 const {
+    executeMcpWriteTool,
+    resetMcpWriteFlowsForTests,
+    verifyMcpRequestState,
+} = require('../api/mcp/write.cjs');
+const {
     MCP_MAX_REQUEST_BYTES,
     createMcpRouter,
 } = require('../api/routes/mcp.cjs');
 
 const TOKEN = 'generic-mcp-test-token-0123456789abcdef';
 const SECOND_TOKEN = 'second-agent-test-token-0123456789abcdef';
+
+test.beforeEach(() => {
+    resetMcpWriteFlowsForTests();
+});
 
 function enabledEnv(overrides = {}) {
     return {
@@ -130,6 +141,71 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
     assert.ok(orderDetailSchema.oneOf.every(branch => (
         branch.additionalProperties === undefined
     )));
+});
+
+test('通用 MCP V2：写目录只包含显式审核过的 Preview + Confirmation 命令', () => {
+    const listed = listMcpTools({ includeWrite: true });
+    const writes = listed.filter(tool => tool.annotations.readOnlyHint === false);
+    assert.equal(listed.length, MCP_READ_ONLY_TOOL_NAMES.length + MCP_WRITE_TOOL_NAMES.length);
+    assert.deepEqual(writes.map(tool => tool.name), MCP_WRITE_TOOL_NAMES);
+    for (const tool of writes) {
+        const capability = getAiCapability(tool.name);
+        assert.equal(capability.access, 'write', tool.name);
+        assert.equal(capability.operation, 'command', tool.name);
+        assert.equal(capability.requiresConfirmation, true, tool.name);
+        assert.equal(capability.supportsPreview, true, tool.name);
+        assert.equal(tool.annotations.idempotentHint, false, tool.name);
+        assert.equal(
+            tool.annotations.destructiveHint,
+            MCP_POTENTIALLY_DESTRUCTIVE_TOOL_NAMES.includes(tool.name),
+            tool.name
+        );
+    }
+    assert.ok(!MCP_WRITE_TOOL_NAMES.includes('create_part'));
+    assert.ok(!MCP_WRITE_TOOL_NAMES.includes('delete_order'));
+});
+
+test('通用 MCP V2：多轮确认状态使用 HMAC 并绑定服务身份', async () => {
+    const actor = 'mcp:generic-test:fingerprint';
+    const ctx = {
+        mcpReq: {
+            method: 'tools/call',
+            requestState: () => undefined,
+            inputResponses: undefined,
+        },
+        http: { authInfo: { actor, clientId: 'generic-test' } },
+    };
+    const first = await executeMcpWriteTool('sync_factory_knowledge', {}, ctx, {
+        actor,
+        clientId: 'generic-test',
+        scopes: ['mcp:read', 'mcp:write'],
+        executeToolCall: async (name, args) => ({
+            success: true,
+            requiresConfirmation: true,
+            confirmation: {
+                confirmationToken: 'state-confirmation-token-0123456789abcdefghi',
+                operationId: '44444444-4444-4444-8444-444444444444',
+                argsHash: '3'.repeat(64),
+                expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                toolName: name,
+                args,
+                title: '同步工厂知识库',
+                summary: '准备同步工厂知识库',
+            },
+        }),
+    });
+    assert.equal(first.resultType, 'input_required');
+    assert.match(first.requestState, /^v1\./);
+    const verified = await verifyMcpRequestState(first.requestState, ctx);
+    assert.equal(verified.toolName, 'sync_factory_knowledge');
+
+    const last = first.requestState.at(-1);
+    const tampered = `${first.requestState.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`;
+    await assert.rejects(() => verifyMcpRequestState(tampered, ctx), /mac|malformed/);
+    await assert.rejects(() => verifyMcpRequestState(first.requestState, {
+        ...ctx,
+        http: { authInfo: { actor: 'mcp:other:fingerprint', clientId: 'other' } },
+    }), /bind/);
 });
 
 test('通用 MCP：越过白名单或缺少正式 API 证据时默认拒绝', async () => {
@@ -258,6 +334,35 @@ test('通用 MCP：每个 Agent 使用独立 Bearer token，并校验 Host 与 O
     });
     assert.match(secondAgent.req.mcpActor, /^mcp:second-agent:[a-f0-9]{16}$/);
     assert.notEqual(secondAgent.req.mcpActor, accepted.req.mcpActor);
+
+    const writeMiddleware = createMcpAccessMiddleware({
+        env: enabledEnv({
+            MCP_WRITE_ENABLED: 'true',
+            MCP_WRITE_CLIENT_IDS: 'generic-test',
+        }),
+    });
+    const invokeWrite = headers => {
+        const req = { headers };
+        const res = {
+            setHeader: () => {},
+            status: () => res,
+            json: body => body,
+        };
+        let nextCalled = false;
+        writeMiddleware(req, res, () => { nextCalled = true; });
+        return { req, nextCalled };
+    };
+    const writeAccepted = invokeWrite({
+        host: 'pump.example.com',
+        authorization: `Bearer ${TOKEN}`,
+    });
+    assert.equal(writeAccepted.nextCalled, true);
+    assert.deepEqual(writeAccepted.req.auth.scopes, ['mcp:read', 'mcp:write']);
+    const readOnlyIdentity = invokeWrite({
+        host: 'pump.example.com',
+        authorization: `Bearer ${SECOND_TOKEN}`,
+    });
+    assert.deepEqual(readOnlyIdentity.req.auth.scopes, ['mcp:read']);
 });
 
 test('通用 MCP：无效凭证也计入独立入口限流', async () => {
@@ -374,6 +479,224 @@ test('通用 MCP：2026 客户端自动协商现代无状态协议并调用同�
         }]);
     } finally {
         await client.close();
+        await closeServer(server);
+        await router.closeMcpHandler();
+    }
+});
+
+test('通用 MCP V2：2025 无状态客户端缺少交互回路时安全拒绝写入', async () => {
+    let executed = 0;
+    const router = createMcpRouter({
+        env: enabledEnv({
+            MCP_WRITE_ENABLED: 'true',
+            MCP_WRITE_CLIENT_IDS: 'generic-test',
+        }),
+        executeToolCall: async (name, args) => ({
+            success: true,
+            requiresConfirmation: true,
+            confirmation: {
+                confirmationToken: 'legacy-confirmation-token-0123456789abcdefghi',
+                operationId: '33333333-3333-4333-8333-333333333333',
+                argsHash: '2'.repeat(64),
+                expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                toolName: name,
+                args,
+                title: '同步工厂知识库',
+                summary: '准备同步工厂知识库',
+            },
+        }),
+        executeConfirmedAiTool: async () => {
+            executed += 1;
+            throw new Error('不应执行');
+        },
+    });
+    const { server, url } = await listen(router);
+    const transport = new LegacyStreamableHTTPClientTransport(new URL(url), {
+        requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+    });
+    const client = new LegacyClient({ name: 'legacy-write-test', version: '1.0.0' });
+    try {
+        await client.connect(transport);
+        const listed = await client.listTools();
+        assert.deepEqual(listed.tools.map(tool => tool.name), MCP_READ_ONLY_TOOL_NAMES);
+        await assert.rejects(
+            () => client.callTool(
+                { name: 'sync_factory_knowledge', arguments: {} },
+                undefined,
+                { timeout: 2_000 }
+            ),
+            /not found|unknown|未找到/i
+        );
+        assert.equal(executed, 0);
+    } finally {
+        await client.close();
+        await closeServer(server);
+        await router.closeMcpHandler();
+    }
+});
+
+test('通用 MCP V2：2026 客户端必须完成人工 elicitation 才执行写命令', async () => {
+    const prepared = [];
+    const executed = [];
+    const env = enabledEnv({
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'generic-test',
+    });
+    const router = createMcpRouter({
+        env,
+        executeToolCall: async (name, args, options) => {
+            prepared.push({ name, args, options });
+            return {
+                success: true,
+                requiresConfirmation: true,
+                confirmation: {
+                    capabilityId: 'ai.sync_factory_knowledge',
+                    riskLevel: 'high',
+                    confirmationToken: 'test-confirmation-token-0123456789abcdefghi',
+                    operationId: '11111111-1111-4111-8111-111111111111',
+                    argsHash: '0'.repeat(64),
+                    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                    toolName: name,
+                    args,
+                    title: '同步工厂知识库',
+                    rows: [{ label: '范围', value: '正式知识库' }],
+                    summary: '准备同步工厂知识库',
+                    warning: '请核对后确认。',
+                },
+            };
+        },
+        executeConfirmedAiTool: async input => {
+            executed.push(input);
+            return {
+                name: 'sync_factory_knowledge',
+                result: {
+                    success: true,
+                    data: { synced: 3 },
+                    executionEvidence: {
+                        verified: true,
+                        kind: 'formal_api_command',
+                        receipts: [{ auditIds: [71] }],
+                    },
+                },
+                capabilityId: 'ai.sync_factory_knowledge',
+                operationId: '11111111-1111-4111-8111-111111111111',
+                status: 'completed',
+                changes: [{ type: 'knowledge_sync', count: 3 }],
+                warnings: [],
+                auditId: 71,
+                auditIds: [71],
+                idempotentReplay: false,
+                completedAt: new Date().toISOString(),
+            };
+        },
+    });
+    const { server, url } = await listen(router);
+    const transport = new ModernStreamableHTTPClientTransport(new URL(url), {
+        requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+    });
+    const client = new ModernClient(
+        { name: 'write-agent-test', version: '2.0.0' },
+        { versionNegotiation: { mode: 'auto' } }
+    );
+    client.registerCapabilities({ elicitation: { form: {} } });
+    client.setRequestHandler('elicitation/create', async request => {
+        assert.equal(request.params.mode, 'form');
+        assert.match(request.params.message, /准备同步工厂知识库/);
+        return { action: 'accept', content: { confirm: true } };
+    });
+    try {
+        await client.connect(transport);
+        assert.equal(client.getNegotiatedProtocolVersion(), '2026-07-28');
+        const listed = await client.listTools();
+        assert.deepEqual(
+            listed.tools.map(tool => tool.name),
+            [...MCP_READ_ONLY_TOOL_NAMES, ...MCP_WRITE_TOOL_NAMES]
+        );
+        const writeTool = listed.tools.find(tool => tool.name === 'sync_factory_knowledge');
+        assert.equal(writeTool.annotations.readOnlyHint, false);
+
+        const result = await client.callTool({
+            name: 'sync_factory_knowledge',
+            arguments: {},
+        });
+        assert.equal(result.isError, undefined);
+        assert.equal(result.structuredContent.success, true);
+        assert.equal(result.structuredContent.data.status, 'completed');
+        assert.equal(result.structuredContent.data.auditId, 71);
+        assert.equal(result.structuredContent.mcp.verified, true);
+        assert.equal(prepared.length, 1);
+        assert.equal(prepared[0].options.allowWrite, false);
+        assert.match(prepared[0].options.confirmationSubject, /^mcp:generic-test:/);
+        assert.equal(executed.length, 1);
+        assert.equal(executed[0].expectedToolName, 'sync_factory_knowledge');
+        assert.deepEqual(executed[0].expectedArgs, {});
+    } finally {
+        await client.close();
+        await closeServer(server);
+        await router.closeMcpHandler();
+    }
+});
+
+test('通用 MCP V2：用户拒绝确认和未授权身份均不会执行写命令', async () => {
+    let executed = 0;
+    const router = createMcpRouter({
+        env: enabledEnv({
+            MCP_WRITE_ENABLED: 'true',
+            MCP_WRITE_CLIENT_IDS: 'generic-test',
+        }),
+        executeToolCall: async (name, args) => ({
+            success: true,
+            requiresConfirmation: true,
+            confirmation: {
+                confirmationToken: 'declined-confirmation-token-0123456789abcdef',
+                operationId: '22222222-2222-4222-8222-222222222222',
+                argsHash: '1'.repeat(64),
+                expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                toolName: name,
+                args,
+                title: '同步工厂知识库',
+                summary: '准备同步工厂知识库',
+            },
+        }),
+        executeConfirmedAiTool: async () => {
+            executed += 1;
+            throw new Error('不应执行');
+        },
+    });
+    const { server, url } = await listen(router);
+    const writeTransport = new ModernStreamableHTTPClientTransport(new URL(url), {
+        requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+    });
+    const writeClient = new ModernClient(
+        { name: 'decline-agent-test', version: '2.0.0' },
+        { versionNegotiation: { mode: 'auto' } }
+    );
+    writeClient.registerCapabilities({ elicitation: { form: {} } });
+    writeClient.setRequestHandler('elicitation/create', async () => ({ action: 'decline' }));
+    const readTransport = new ModernStreamableHTTPClientTransport(new URL(url), {
+        requestInit: { headers: { Authorization: `Bearer ${SECOND_TOKEN}` } },
+    });
+    const readClient = new ModernClient(
+        { name: 'read-agent-test', version: '2.0.0' },
+        { versionNegotiation: { mode: 'auto' } }
+    );
+    try {
+        await writeClient.connect(writeTransport);
+        const declined = await writeClient.callTool({
+            name: 'sync_factory_knowledge',
+            arguments: {},
+        });
+        assert.equal(declined.isError, undefined);
+        assert.equal(declined.structuredContent.code, 'mcp_write_declined');
+        assert.equal(executed, 0);
+
+        await readClient.connect(readTransport);
+        const listed = await readClient.listTools();
+        assert.deepEqual(listed.tools.map(tool => tool.name), MCP_READ_ONLY_TOOL_NAMES);
+        assert.equal(listed.tools.some(tool => tool.name === 'sync_factory_knowledge'), false);
+    } finally {
+        await writeClient.close();
+        await readClient.close();
         await closeServer(server);
         await router.closeMcpHandler();
     }

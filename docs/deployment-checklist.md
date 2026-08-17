@@ -30,6 +30,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 生产环境必填：`ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN`。
 - 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
 - 如启用通用 MCP，设置 `MCP_ENABLED=true`。单 Agent 配置 `MCP_CLIENT_ID + MCP_TOKEN`；多个 Agent 使用 `MCP_SERVICE_TOKENS` JSON 为 Hermes、Codex 等分别分配独立 token。每个 token 至少 32 字符，不得跨 Agent 复用，也不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `MCP_ALLOWED_HOSTS`。
+- MCP 写能力保持 `MCP_WRITE_ENABLED=false`，除非本次发布明确批准写入。批准后还必须设置 `MCP_WRITE_CLIENT_IDS=<clientId,...>`；只有这些已配置 token 的身份获得 `mcp:write` 并看到 17 个写工具。首次只向支持 2026 form elicitation 的客户端开放；2025 无状态客户端只能使用只读工具，写调用会安全拒绝。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
 
 ```bash
@@ -94,7 +95,7 @@ mcp_servers:
     connect_timeout: 15
 ```
 
-不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，应发现 12 个只读工具；其他 Agent 也应使用各自 token 连接同一 `/mcp`，不得共享 Hermes token。未授权请求应返回 `401`，写工具不应出现在列表中。当前 service-token 模式只适合受同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚时先在 Mac Mini 设置 `MCP_ENABLED=false` 并重启 API，再从各 Agent 配置中禁用 `pump_factory`；不需要回滚数据库。
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 45 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`，未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到写工具。当前 service-token 模式只适合受同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
 
 ## 3. 重启服务
 

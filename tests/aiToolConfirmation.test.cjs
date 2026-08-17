@@ -10,6 +10,7 @@ const {
     resetAiToolConfirmationsForTests,
 } = require('../api/services/aiToolConfirmation.cjs');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
+const { executeConfirmedAiTool } = require('../api/services/aiConfirmedToolExecution.cjs');
 
 test.beforeEach(() => {
     resetAiToolConfirmationsForTests();
@@ -152,6 +153,53 @@ test('AI 确认协议：并发重复消费被阻止，完成后重放只返回�
     assert.deepEqual(replay.receipt, receipt);
 });
 
+test('AI 确认协议：Web 与 MCP 复用同一确认执行服务和正式回执门', async () => {
+    const confirmation = issue({ now: Date.now() });
+    const calls = [];
+    const receipt = await executeConfirmedAiTool({
+        confirmationToken: confirmation.confirmationToken,
+        subject: 'session-a',
+        expectedToolName: 'update_part',
+        expectedArgs: { price: 12.5, model: 'A-1' },
+        execute: async (name, args, options) => {
+            calls.push({ name, args, options });
+            return {
+                success: true,
+                auditId: 91,
+                changes: [{ field: 'price', from: 10, to: 12.5 }],
+                executionEvidence: {
+                    verified: true,
+                    receipts: [{ auditIds: [91] }],
+                },
+            };
+        },
+        verifyWriteExecution: result => result.executionEvidence?.verified === true,
+    });
+
+    assert.equal(receipt.status, 'completed');
+    assert.equal(receipt.auditId, 91);
+    assert.equal(receipt.operationId, confirmation.operationId);
+    assert.deepEqual(calls, [{
+        name: 'update_part',
+        args: { model: 'A-1', price: 12.5 },
+        options: {
+            allowWrite: true,
+            operationId: confirmation.operationId,
+            confirmationContext: null,
+        },
+    }]);
+
+    const replay = await executeConfirmedAiTool({
+        confirmationToken: confirmation.confirmationToken,
+        subject: 'session-a',
+        execute: async () => {
+            throw new Error('重放不应再次执行');
+        },
+    });
+    assert.equal(replay.idempotentReplay, true);
+    assert.equal(replay.auditId, 91);
+});
+
 test('AI 确认协议：executor 返回短时 token，未确认仍不执行写能力', async () => {
     const result = await executeToolCall(
         'print_rotor_drawing',
@@ -188,8 +236,6 @@ test('AI 确认协议：正式确认路由只执行 token 中的服务端参数'
     );
 
     assert.match(route, /confirmation_token_required/);
-    assert.match(route, /consumeAiToolConfirmation/);
-    assert.match(route, /executeToolCall\(consumed\.toolName, consumed\.args/);
-    assert.match(route, /confirmationContext:\s*consumed\.executionContext/);
-    assert.doesNotMatch(route, /executeToolCall\(toolName,\s*args/);
+    assert.match(route, /executeConfirmedAiTool/);
+    assert.doesNotMatch(route, /executeToolCall/);
 });

@@ -7,9 +7,12 @@ const {
     getMcpAllowedHosts,
     getMcpMaxResultBytes,
     getMcpRateLimit,
+    getMcpWriteClientIds,
     getInternalApiTimeoutMs,
     getServerPort,
     isMcpEnabled,
+    isMcpWriteAllowedForClient,
+    isMcpWriteEnabled,
     isProductionEnvironment,
     parseCorsOrigins,
     parseMcpServiceTokens,
@@ -66,6 +69,8 @@ test('运行环境：CORS 来源去空白并排除空项', () => {
 test('运行环境：通用 MCP 默认关闭，支持多 Agent 独立强 token 和有界资源参数', () => {
     assert.equal(isMcpEnabled({}), false);
     assert.equal(isMcpEnabled({ MCP_ENABLED: 'true' }), true);
+    assert.equal(isMcpWriteEnabled({}), false);
+    assert.equal(isMcpWriteEnabled({ MCP_WRITE_ENABLED: 'true' }), true);
     assert.equal(getMcpRateLimit({}), 60);
     assert.equal(getMcpMaxResultBytes({}), 262144);
     assert.throws(
@@ -112,6 +117,39 @@ test('运行环境：通用 MCP 默认关闭，支持多 Agent 独立强 token �
             codex: 'independent-codex-token-0123456789abcdef',
         }),
     }).map(entry => entry.clientId), ['hermes', 'codex']);
+
+    const writeEnv = {
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'hermes',
+    };
+    assert.deepEqual(getMcpWriteClientIds(writeEnv), ['hermes']);
+    assert.equal(isMcpWriteAllowedForClient('hermes', writeEnv), true);
+    assert.equal(isMcpWriteAllowedForClient('codex', writeEnv), false);
+
+    const missingWriteIdentity = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+    }));
+    assert.ok(missingWriteIdentity.some(error => error.includes('MCP_WRITE_CLIENT_IDS')));
+
+    const unknownWriteIdentity = validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'unknown',
+    }));
+    assert.ok(unknownWriteIdentity.some(error => error.includes('没有对应 token')));
+
+    assert.deepEqual(validateProductionEnvironment(validProductionEnv({
+        MCP_ENABLED: 'true',
+        MCP_TOKEN: 'write-agent-token-0123456789abcdef',
+        MCP_CLIENT_ID: 'agent',
+        MCP_WRITE_ENABLED: 'true',
+        MCP_WRITE_CLIENT_IDS: 'agent',
+    })), []);
 
     // 旧 NAS 部署可在一个兼容周期内不改环境变量直接升级。
     assert.equal(isMcpEnabled({ HERMES_MCP_ENABLED: 'true' }), true);

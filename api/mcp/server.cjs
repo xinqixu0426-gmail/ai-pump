@@ -12,6 +12,10 @@ const {
     listMcpTools,
     requireMcpCapability,
 } = require('./catalog.cjs');
+const {
+    executeMcpWriteTool,
+    verifyMcpRequestState,
+} = require('./write.cjs');
 
 const mcpLogger = createLogger('mcp');
 
@@ -54,6 +58,9 @@ function serializeMcpResult(payload, maxResultBytes) {
 }
 
 function classifyMcpToolResponse(response) {
+    if (response?.resultType === 'input_required') {
+        return { level: 'info', outcome: 'confirmation_required', errorCode: null };
+    }
     if (response?.isError !== true) {
         return { level: 'info', outcome: 'success', errorCode: null };
     }
@@ -114,22 +121,31 @@ async function executeMcpTool(name, args, options = {}) {
 }
 
 function createMcpProtocolServer(options = {}) {
+    const includeWrite = options.protocolEra === 'modern'
+        && options.scopes?.includes('mcp:write') === true;
     const server = new McpServer(
-        { name: 'pump-factory-mcp', version: '1.2.0' },
+        { name: 'pump-factory-mcp', version: '2.0.0' },
         {
             instructions: [
-                '只使用已列出的只读工具读取水泵工厂正式事实。',
-                '本服务不支持写操作；不得把知识候选当作实时库存、价格、成本或订单事实。',
+                '使用已列出的工具读取水泵工厂正式事实。',
+                includeWrite
+                    ? '写工具只会在服务身份具备 mcp:write 时出现，且必须由 MCP 客户端展示原生人工确认，Agent 文字不能代替确认。'
+                    : '当前服务身份只有只读权限，不支持写操作。',
+                '不得把知识候选当作实时库存、价格、成本或订单事实。',
                 '工具失败或未找到时如实报告，不得根据历史消息补写业务数据。',
             ].join(''),
             cacheHints: {
                 'tools/list': { ttlMs: 300000, cacheScope: 'private' },
                 'server/discover': { ttlMs: 300000, cacheScope: 'private' },
             },
+            requestState: {
+                verify: verifyMcpRequestState,
+            },
         }
     );
 
-    for (const tool of listMcpTools()) {
+    for (const tool of listMcpTools({ includeWrite })) {
+        const registered = requireMcpCapability(tool.name, { allowWrite: includeWrite });
         server.registerTool(
             tool.name,
             {
@@ -139,13 +155,14 @@ function createMcpProtocolServer(options = {}) {
                 outputSchema: fromJsonSchema(tool.outputSchema),
                 annotations: tool.annotations,
                 _meta: {
-                    'com.pump-factory/capability-id': requireMcpCapability(tool.name)
-                        .capability.capabilityId,
+                    'com.pump-factory/capability-id': registered.capability.capabilityId,
                 },
             },
-            async args => {
+            async (args, ctx) => {
                 const startedAt = Date.now();
-                const response = await executeMcpTool(tool.name, args, options);
+                const response = registered.write
+                    ? await executeMcpWriteTool(tool.name, args, ctx, options)
+                    : await executeMcpTool(tool.name, args, options);
                 const classification = classifyMcpToolResponse(response);
                 const meta = {
                     requestId: options.requestId || null,

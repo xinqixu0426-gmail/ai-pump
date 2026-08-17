@@ -60,6 +60,22 @@ function isMcpEnabled(env = process.env) {
     return String(configured.value || '').trim().toLowerCase() === 'true';
 }
 
+function isMcpWriteEnabled(env = process.env) {
+    return String(env.MCP_WRITE_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
+function getMcpWriteClientIds(env = process.env) {
+    return String(env.MCP_WRITE_CLIENT_IDS || '')
+        .split(',')
+        .map(clientId => clientId.trim())
+        .filter(Boolean);
+}
+
+function isMcpWriteAllowedForClient(clientId, env = process.env) {
+    return isMcpWriteEnabled(env)
+        && getMcpWriteClientIds(env).includes(String(clientId || '').trim());
+}
+
 function getMcpRateLimit(env = process.env) {
     const configured = configuredEnv(
         env,
@@ -150,7 +166,11 @@ function parseMcpServiceTokens(env = process.env) {
 }
 
 function validateMcpConfiguration(env = process.env) {
-    if (!isMcpEnabled(env)) return [];
+    if (!isMcpEnabled(env)) {
+        return isMcpWriteEnabled(env)
+            ? ['MCP_WRITE_ENABLED=true 时必须同时启用 MCP_ENABLED=true']
+            : [];
+    }
     const errors = [];
     let serviceTokens = [];
     try {
@@ -180,6 +200,22 @@ function validateMcpConfiguration(env = process.env) {
             const other = String(env[name] || '').trim();
             if (token && other && token === other) {
                 errors.push(`MCP token 不能与 ${name} 相同: ${clientId}`);
+            }
+        }
+    }
+    if (isMcpWriteEnabled(env)) {
+        const writeClientIds = getMcpWriteClientIds(env);
+        if (writeClientIds.length === 0) {
+            errors.push('启用 MCP 写能力时必须配置 MCP_WRITE_CLIENT_IDS');
+        }
+        if (new Set(writeClientIds).size !== writeClientIds.length) {
+            errors.push('MCP_WRITE_CLIENT_IDS 不能包含重复身份');
+        }
+        for (const clientId of writeClientIds) {
+            if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(clientId)) {
+                errors.push(`MCP 写权限 clientId 不合法: ${clientId || '(empty)'}`);
+            } else if (!seenClientIds.has(clientId)) {
+                errors.push(`MCP 写权限身份没有对应 token: ${clientId}`);
             }
         }
     }
@@ -238,6 +274,9 @@ module.exports = {
     getMcpMaxResultBytes,
     getMcpRateLimit,
     isMcpEnabled,
+    isMcpWriteAllowedForClient,
+    isMcpWriteEnabled,
+    getMcpWriteClientIds,
     parseMcpServiceTokens,
     parseCorsOrigins,
     parseHostList,
