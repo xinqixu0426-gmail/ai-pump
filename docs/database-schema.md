@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `59`：
+当前版本为 `60`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -79,6 +79,7 @@
 | 57 | `disable_system_ai_release_cases` | 停用全部系统 AI 发布回归；生产发布保留 API、测试、构建、启动备份和公网验收，知识问答回归不再作为硬门禁 |
 | 58 | `quotation_attachment_summary_drafts` | 保存新建报价时由客户询价附件生成并经人工核对的摘要，以及最多 4 个来源文件引用；不改变正式报价字段 |
 | 59 | `separate_manual_ai_checks_from_release_gate` | 恢复 7 条内置系统知识库检查供页面手动运行，并用独立开关将其排除在生产发布门禁之外 |
+| 60 | `calibrate_ai_governance_cutting_accessory_check` | 切割泵壳检查接受“没有明确专用配件”的安全结论，不再要求复述被排除的螺丝名称 |
 
 ## 数据治理
 

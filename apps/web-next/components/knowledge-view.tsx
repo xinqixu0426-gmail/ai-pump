@@ -150,6 +150,7 @@ export function KnowledgeView({
   const [learningRulesError, setLearningRulesError] = useState('');
   const [updatingLearningRuleId, setUpdatingLearningRuleId] = useState<number | null>(null);
   const openedInitialEntryRef = useRef(false);
+  const systemCaseManagementRef = useRef<HTMLDetailsElement>(null);
   const onRefreshCompleteRef = useRef(onRefreshComplete);
 
   useEffect(() => {
@@ -558,11 +559,26 @@ export function KnowledgeView({
     }
   }
 
+  function openSystemCaseManagement() {
+    const target = systemCaseManagementRef.current;
+    if (!target) return;
+    target.open = true;
+    requestAnimationFrame(() => target.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  }
+
   const documentDownloadPath = selected?.sourceTable === 'knowledge_documents'
     && typeof detail?.metadata?.downloadPath === 'string'
     ? detail.metadata.downloadPath
     : '';
   const sourcePath = selected ? SOURCE_PATHS[selected.sourceTable] : undefined;
+  const evaluationRetryCount = evaluation?.results.filter(result => (
+    result.status === 'review' && Boolean(result.errorText)
+  )).length || 0;
+  const evaluationNeedsAttention = Boolean(
+    evaluation?.latestRunMatchesConfiguration
+    && evaluation.latestRun
+    && (evaluation.latestRun.failedCount > 0 || evaluation.latestRun.reviewCount > 0)
+  );
 
   return (
     <div className="space-y-4">
@@ -924,7 +940,7 @@ export function KnowledgeView({
           <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{evaluationError}</div>
         ) : null}
         {evaluation?.systemCases.length ? (
-          <details className="group border-b border-line">
+          <details ref={systemCaseManagementRef} className="group border-b border-line">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50 px-4 py-3">
               <div>
                 <div className="text-sm font-medium text-ink">系统检查项管理</div>
@@ -1041,16 +1057,38 @@ export function KnowledgeView({
             <div className="grid grid-cols-2 border-b border-line bg-slate-50 sm:grid-cols-4">
               <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">通过</div><div className="mt-1 text-lg font-semibold text-emerald-700">{evaluation.latestRun.passedCount}</div></div>
               <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">{evaluation.latestRunMatchesConfiguration ? '需要修复' : '历史未通过'}</div><div className="mt-1 text-lg font-semibold text-rose-700">{evaluation.latestRun.failedCount}</div></div>
-              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">需要确认</div><div className="mt-1 text-lg font-semibold text-amber-700">{evaluation.latestRun.reviewCount}</div></div>
+              <div className="border-r border-line px-4 py-3"><div className="text-xs text-muted">{evaluationRetryCount === evaluation.latestRun.reviewCount && evaluationRetryCount > 0 ? '需要重试' : '需要确认/重试'}</div><div className="mt-1 text-lg font-semibold text-amber-700">{evaluation.latestRun.reviewCount}</div></div>
               <div className="px-4 py-3"><div className="text-xs text-muted">运行时间</div><div className="mt-1 text-sm font-medium text-ink">{dateTime(evaluation.latestRun.completedAt || evaluation.latestRun.startedAt)}</div></div>
             </div>
+            {evaluationNeedsAttention ? (
+              <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-amber-900">
+                  检查结果不能手工勾选完成。修复原因后重新检查即可刷新；不适用于当前工厂的系统项可以进入检查项管理停用。
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={evaluationRunning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    onClick={() => void runEvaluationSuite()}
+                    disabled={evaluationRunning || evaluationLoading}
+                  >
+                    重新检查
+                  </Button>
+                  <Button variant="ghost" size="sm" icon={<PowerOff size={14} />} onClick={openSystemCaseManagement}>
+                    管理检查项
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="divide-y divide-line">
               {evaluation.results.map(result => {
                 const failedChecks = result.checks.filter(check => !check.passed);
+                const needsRetry = result.status === 'review' && Boolean(result.errorText);
                 return (
                   <details key={result.id} className="group">
                     <summary className="grid cursor-pointer list-none gap-2 px-4 py-3 hover:bg-slate-50 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-center">
-                      <div><StatusBadge tone={result.status === 'passed' ? 'green' : result.status === 'failed' ? 'red' : 'amber'}>{result.status === 'passed' ? '通过' : result.status === 'failed' ? '需要修复' : '需要确认'}</StatusBadge></div>
+                      <div><StatusBadge tone={result.status === 'passed' ? 'green' : result.status === 'failed' ? 'red' : 'amber'}>{result.status === 'passed' ? '通过' : result.status === 'failed' ? '需要修复' : needsRetry ? '需要重试' : '需要确认'}</StatusBadge></div>
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-ink">{result.caseTitle}</div>
                         <div className="mt-1 line-clamp-1 text-xs text-muted">

@@ -2712,6 +2712,40 @@ const MIGRATIONS = Object.freeze([
             `).run(new Date().toISOString());
         },
     },
+    {
+        version: 60,
+        name: 'calibrate_ai_governance_cutting_accessory_check',
+        signature: 'cutting-check-accepts-explicit-no-dedicated-accessory-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json
+                FROM ai_evaluation_cases
+                WHERE case_key = ? AND source_type = 'system'
+            `).get('cutting-shell-purpose-evidence');
+            if (!row) return;
+
+            const config = JSON.parse(row.config_json || '{}');
+            const requiredTerms = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            const calibratedTerms = requiredTerms.filter(group => {
+                const terms = Array.isArray(group) ? group : [group];
+                return !terms.includes('切边6mm长螺丝')
+                    && !terms.includes('外六角')
+                    && !terms.includes('外六角螺丝');
+            });
+            if (calibratedTerms.length === requiredTerms.length) return;
+            config.requiredTerms = calibratedTerms;
+
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = ? AND source_type = 'system'
+            `).run(
+                JSON.stringify(config),
+                new Date().toISOString(),
+                'cutting-shell-purpose-evidence'
+            );
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

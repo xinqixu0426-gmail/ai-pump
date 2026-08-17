@@ -139,7 +139,15 @@ function containsUnavailableConclusion(answer, configuredTerms = []) {
     );
 }
 
-function evaluatePrerequisite(config, answer, db) {
+function hasSafeResourceClarification(toolResults = []) {
+    return toolResults.some(tool => {
+        const result = tool?.result && typeof tool.result === 'object' ? tool.result : {};
+        return result.requiresClarification === true
+            && result.code === 'AI_RESOURCE_AMBIGUOUS';
+    });
+}
+
+function evaluatePrerequisite(config, answer, db, toolResults = []) {
     const prerequisite = config?.prerequisite;
     if (!prerequisite) return null;
     if (prerequisite.type === 'coil_variants') {
@@ -193,14 +201,17 @@ function evaluatePrerequisite(config, answer, db) {
     const unavailableTerms = Array.isArray(config.unavailableTerms)
         ? config.unavailableTerms
         : ['未找到', '没有找到', '未记录', '没有记录', '无法确认', '无法提供', '尚未归档'];
+    const safeClarification = !available && hasSafeResourceClarification(toolResults);
     return {
         type: prerequisite.type,
         available,
-        passed: available || containsUnavailableConclusion(answer, unavailableTerms),
+        passed: available || safeClarification || containsUnavailableConclusion(answer, unavailableTerms),
         label: available ? `存在 ${recipeName} 性能测试报告` : `明确说明 ${recipeName} 性能测试报告不可用`,
         detail: available
             ? '已找到目标配方的性能测试报告'
-            : '目标资料不存在时必须明确说明未找到或无法确认',
+            : safeClarification
+                ? '目标资料不存在或不可唯一定位，AI 已基于正式查询要求确认'
+                : '目标资料不存在时必须明确说明未找到或无法确认',
     };
 }
 
@@ -210,7 +221,7 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
     const checks = [];
     const evidence = collectEvidence(toolResults);
     const toolNames = new Set(toolResults.map(item => item?.name).filter(Boolean));
-    const prerequisite = evaluatePrerequisite(config, answer, db);
+    const prerequisite = evaluatePrerequisite(config, answer, db, toolResults);
 
     if (prerequisite) {
         addCheck(
@@ -531,13 +542,16 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
         };
     }
     const latestRun = aiEvaluationRunRow(latestRunRow);
-    const results = db.prepare(`
-        SELECT result.*, evaluation_case.title AS case_title, evaluation_case.category AS case_category
+    const resultRows = db.prepare(`
+        SELECT result.*, evaluation_case.title AS case_title,
+               evaluation_case.category AS case_category,
+               evaluation_case.updated_at AS case_updated_at
         FROM ai_evaluation_results AS result
         JOIN ai_evaluation_cases AS evaluation_case ON evaluation_case.id = result.case_id
         WHERE result.run_id = ?
         ORDER BY evaluation_case.sort_order, evaluation_case.id
-    `).all(latestRun.id).map(row => ({
+    `).all(latestRun.id);
+    const results = resultRows.map(row => ({
         ...resultView(row, aiEvaluationResultRow),
         caseTitle: row.case_title,
         caseCategory: row.case_category,
@@ -545,7 +559,12 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
     const configuredCaseIds = new Set(cases.map(item => Number(item.id)));
     const resultCaseIds = new Set(results.map(item => Number(item.caseId)));
     const latestRunMatchesConfiguration = configuredCaseIds.size === resultCaseIds.size
-        && [...configuredCaseIds].every(id => resultCaseIds.has(id));
+        && [...configuredCaseIds].every(id => resultCaseIds.has(id))
+        && resultRows.every(row => {
+            const resultAt = Date.parse(row.created_at || '');
+            const caseAt = Date.parse(row.case_updated_at || '');
+            return !Number.isFinite(resultAt) || !Number.isFinite(caseAt) || resultAt >= caseAt;
+        });
     return {
         cases,
         systemCases,

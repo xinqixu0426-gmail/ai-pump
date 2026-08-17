@@ -268,6 +268,26 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     );
     assert.equal(naturalUnavailable.status, 'passed');
 
+    const safeClarification = evaluateRuleCase(
+        caseItem,
+        '匹配到多个配方，请确认具体对象后继续查询。',
+        [{
+            name: 'get_recipe_technical_files',
+            result: {
+                success: false,
+                code: 'AI_RESOURCE_AMBIGUOUS',
+                requiresClarification: true,
+                candidates: [{ id: 1, name: '其他配方' }],
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(safeClarification.status, 'passed');
+    assert.match(
+        safeClarification.checks.find(check => check.key === 'prerequisite:recipe_test_report').detail,
+        /要求确认/
+    );
+
     const unsupported = evaluateRuleCase(
         caseItem,
         '附件内容已经确认。',
@@ -586,6 +606,18 @@ test('AI 评测：运行生命周期保存结果、汇总并按 owner 隔离', (
     assert.equal(completed.status, 'completed');
     assert.equal(completed.passedCount, 1);
     assert.equal(getAiEvaluationOverview('admin', { dbAccessors: fixture.accessors }).results.length, 1);
+    assert.equal(
+        getAiEvaluationOverview('admin', { dbAccessors: fixture.accessors }).latestRunMatchesConfiguration,
+        true
+    );
+    fixture.db.prepare(`
+        UPDATE ai_evaluation_cases SET updated_at = '2999-01-01T00:00:00.000Z'
+        WHERE id = ?
+    `).run(created.cases[0].id);
+    assert.equal(
+        getAiEvaluationOverview('admin', { dbAccessors: fixture.accessors }).latestRunMatchesConfiguration,
+        false
+    );
     assert.equal(getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors }).healthy, true);
     fixture.db.close();
 });
