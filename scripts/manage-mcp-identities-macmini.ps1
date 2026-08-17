@@ -1,7 +1,8 @@
 param(
-    [ValidateSet('status', 'add', 'rotate', 'revoke', 'verify', 'list-backups', 'rollback')]
+    [ValidateSet('status', 'add', 'rotate', 'revoke', 'grant-write', 'revoke-write', 'verify', 'list-backups', 'rollback')]
     [string]$Action = 'status',
     [string]$ClientId,
+    [string]$Tool,
     [string]$ClientTokenEnvVar,
     [switch]$UseExistingToken,
     [switch]$Apply,
@@ -21,6 +22,7 @@ if ($RemoteRoot -notmatch '^[~a-zA-Z0-9_./-]+$') { throw 'Invalid RemoteRoot' }
 if ($ClientId -and $ClientId -notmatch '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$') {
     throw 'Invalid ClientId'
 }
+if ($Tool -and $Tool -notmatch '^[a-z][a-z0-9_]{0,63}$') { throw 'Invalid Tool' }
 if ($ClientTokenEnvVar -and $ClientTokenEnvVar -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
     throw 'Invalid ClientTokenEnvVar'
 }
@@ -98,8 +100,11 @@ process.stdout.write(token);
     return $token
 }
 
-if ($Action -in @('add', 'rotate', 'revoke') -and -not $ClientId) {
+if ($Action -in @('add', 'rotate', 'revoke', 'grant-write', 'revoke-write') -and -not $ClientId) {
     throw "$Action requires -ClientId"
+}
+if ($Action -in @('grant-write', 'revoke-write') -and -not $Tool) {
+    throw "$Action requires -Tool"
 }
 if ($Action -in @('add', 'rotate') -and -not $ClientTokenEnvVar) {
     throw "$Action requires -ClientTokenEnvVar"
@@ -132,6 +137,11 @@ if ($Action -in @('add', 'rotate')) {
     if ($Apply) { $args += " --apply --confirm $applyConfirmation" }
     $raw = Invoke-MacMini -Command (IdentityCommand $args)
     $remoteResult = $raw | ConvertFrom-Json
+} elseif ($Action -in @('grant-write', 'revoke-write')) {
+    $args = "$Action --env-file .env --client-id $ClientId --tool $Tool"
+    if ($Apply) { $args += " --apply --confirm $applyConfirmation" }
+    $raw = Invoke-MacMini -Command (IdentityCommand $args)
+    $remoteResult = $raw | ConvertFrom-Json
 } elseif ($Action -eq 'rollback') {
     $selector = if ($BackupFile) { "--file '$BackupFile'" } elseif ($Latest) { '--latest' } else {
         throw 'rollback requires -BackupFile or -Latest'
@@ -147,7 +157,7 @@ if ($Action -in @('add', 'rotate')) {
     $remoteResult = $raw | ConvertFrom-Json
 }
 
-if (-not $Apply -or $Action -notin @('add', 'rotate', 'revoke', 'rollback')) {
+if (-not $Apply -or $Action -notin @('add', 'rotate', 'revoke', 'grant-write', 'revoke-write', 'rollback')) {
     $remoteResult | ConvertTo-Json -Depth 20
     exit 0
 }
@@ -182,6 +192,7 @@ try {
     success = $true
     action = $Action
     clientId = $ClientId
+    tool = $Tool
     applied = $true
     backup = if ($remoteResult.backup) { $remoteResult.backup } else { $remoteResult.safetyBackup }
     clientEnvironmentUpdated = [bool]$ClientTokenEnvVar

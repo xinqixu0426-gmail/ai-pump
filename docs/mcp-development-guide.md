@@ -132,7 +132,7 @@ npm run mcp:identity -- verify --env-file .env
 npm run mcp:identity -- list-backups --env-file .env
 ```
 
-`add`、`rotate`、`revoke` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
+`add`、`rotate`、`revoke`、`grant-write`、`revoke-write` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
 只能通过 stdin 或命名环境变量取得 token，命令显式拒绝 `--token <明文>`：
 
 ```bash
@@ -152,6 +152,21 @@ node scripts/manage-mcp-identities.cjs rotate \
 删除它的 `MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS` 投影；撤销最后一个写身份时
 自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
 
+`grant-write` 只能把已经存在于当前生产灰度集合中的写工具授予另一个已登记身份，不能借此
+引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该身份最后一个写工具时同时把身份
+移出 `MCP_WRITE_CLIENT_IDS`：
+
+```bash
+node scripts/manage-mcp-identities.cjs grant-write \
+  --env-file .env --client-id codex --tool sync_factory_knowledge
+node scripts/manage-mcp-identities.cjs grant-write \
+  --env-file .env --client-id codex --tool sync_factory_knowledge \
+  --apply --confirm APPLY_MCP_IDENTITY_CHANGE
+node scripts/manage-mcp-identities.cjs revoke-write \
+  --env-file .env --client-id codex --tool sync_factory_knowledge \
+  --apply --confirm APPLY_MCP_IDENTITY_CHANGE
+```
+
 回滚同样默认预览，并在正式恢复前再创建一份当前状态安全备份：
 
 ```bash
@@ -169,6 +184,12 @@ Windows 日常维护 Mac Mini 使用包装命令；它在内存生成 48 字节�
 # 查询和在线验证
 npm run mcp:identity:macmini -- -Action status
 npm run mcp:identity:macmini -- -Action verify
+
+# 将当前已灰度的写工具授权给另一个身份；同样先预览，再 Apply
+npm run mcp:identity:macmini -- -Action grant-write `
+  -ClientId codex -Tool sync_factory_knowledge
+npm run mcp:identity:macmini -- -Action grant-write `
+  -ClientId codex -Tool sync_factory_knowledge -Apply
 
 # 轮换：先预览，再显式 Apply
 npm run mcp:identity:macmini -- -Action rotate `

@@ -72,7 +72,7 @@ function publicResult(result) {
 }
 
 function usage() {
-    return '用法: status|add|rotate|revoke|verify|list-backups|rollback；'
+    return '用法: status|add|rotate|revoke|grant-write|revoke-write|verify|list-backups|rollback；'
         + `写入确认 ${APPLY_CONFIRMATION}；回滚确认 ${ROLLBACK_CONFIRMATION}`;
 }
 
@@ -93,13 +93,16 @@ async function main() {
             envFile,
             ...identitySummary(readEnvArtifact(envFile).env),
         };
-    } else if (['add', 'rotate', 'revoke'].includes(command)) {
+    } else if (['add', 'rotate', 'revoke', 'grant-write', 'revoke-write'].includes(command)) {
         result = executeIdentityChange({
             command,
             envFile,
             backupRoot,
             clientId: value(options, 'client-id', { required: true }),
-            token: command === 'revoke' ? undefined : readToken(options),
+            token: ['add', 'rotate'].includes(command) ? readToken(options) : undefined,
+            tool: ['grant-write', 'revoke-write'].includes(command)
+                ? value(options, 'tool', { required: true })
+                : undefined,
             apply: booleanOption(options, 'apply'),
             confirmation: value(options, 'confirm'),
         });

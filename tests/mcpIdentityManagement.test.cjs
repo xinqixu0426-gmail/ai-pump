@@ -168,6 +168,70 @@ test('MCP 身份管理：撤销身份同时清除写权限并关闭空写灰度'
     assert.equal(planned.plan.after.valid, true);
 });
 
+test('MCP 身份管理：按身份授予和撤销单个写工具且不扩大其他权限', () => {
+    const granted = planIdentityChange({
+        command: 'grant-write',
+        envText: envText(),
+        clientId: 'codex',
+        tool: 'sync_factory_knowledge',
+    });
+    const grantedEnv = dotenv.parse(granted.nextText);
+    assert.equal(grantedEnv.MCP_WRITE_ENABLED, 'true');
+    assert.deepEqual(grantedEnv.MCP_WRITE_CLIENT_IDS.split(','), ['hermes', 'codex']);
+    assert.deepEqual(JSON.parse(grantedEnv.MCP_WRITE_TOOL_ALLOWLISTS), {
+        hermes: ['sync_factory_knowledge'],
+        codex: ['sync_factory_knowledge'],
+    });
+    assert.equal(granted.plan.change, 'write-tool-granted');
+    assert.equal(granted.plan.tool, 'sync_factory_knowledge');
+    assert.deepEqual(granted.plan.after.identities.find(item => item.clientId === 'codex'), {
+        clientId: 'codex',
+        access: 'read-write',
+        writeTools: ['sync_factory_knowledge'],
+    });
+
+    const revoked = planIdentityChange({
+        command: 'revoke-write',
+        envText: granted.nextText,
+        clientId: 'codex',
+        tool: 'sync_factory_knowledge',
+    });
+    const revokedEnv = dotenv.parse(revoked.nextText);
+    assert.equal(revokedEnv.MCP_WRITE_CLIENT_IDS, 'hermes');
+    assert.deepEqual(JSON.parse(revokedEnv.MCP_WRITE_TOOL_ALLOWLISTS), {
+        hermes: ['sync_factory_knowledge'],
+    });
+    assert.equal(revoked.plan.change, 'write-tool-revoked');
+    assert.equal(revoked.plan.writeDisabled, false);
+});
+
+test('MCP 身份管理：写工具授权拒绝未知工具、未知身份和重复授权', () => {
+    assert.throws(() => planIdentityChange({
+        command: 'grant-write',
+        envText: envText(),
+        clientId: 'codex',
+        tool: 'unknown_write_tool',
+    }), /不在当前灰度集合/);
+    assert.throws(() => planIdentityChange({
+        command: 'grant-write',
+        envText: envText(),
+        clientId: 'codex',
+        tool: 'create_order',
+    }), /不在当前灰度集合/);
+    assert.throws(() => planIdentityChange({
+        command: 'grant-write',
+        envText: envText(),
+        clientId: 'missing-agent',
+        tool: 'sync_factory_knowledge',
+    }), /identity 不存在/);
+    assert.throws(() => planIdentityChange({
+        command: 'grant-write',
+        envText: envText(),
+        clientId: 'hermes',
+        tool: 'sync_factory_knowledge',
+    }), /写工具已授权/);
+});
+
 test('MCP 身份管理：拒绝重复 token、原 token 轮换和旧单 token 写配置', () => {
     assert.throws(() => planIdentityChange({
         command: 'add',
@@ -318,7 +382,10 @@ test('MCP 身份管理 CLI：help 正常退出并列出安全确认词', () => {
     const result = spawnSync(process.execPath, [cli, '--help'], { encoding: 'utf8' });
     assert.equal(result.status, 0);
     assert.equal(result.stderr, '');
-    assert.match(result.stdout, /status\|add\|rotate\|revoke\|verify\|list-backups\|rollback/);
+    assert.match(
+        result.stdout,
+        /status\|add\|rotate\|revoke\|grant-write\|revoke-write\|verify\|list-backups\|rollback/
+    );
     assert.match(result.stdout, new RegExp(APPLY_CONFIRMATION));
     assert.match(result.stdout, new RegExp(ROLLBACK_CONFIRMATION));
 });
@@ -367,6 +434,40 @@ test('MCP 身份管理 CLI：stdin 预览和显式确认写入均保持脱敏', 
     }
 });
 
+test('MCP 身份管理 CLI：写工具授权默认预览且确认后原子写入', () => {
+    const fixture = tempFixture();
+    try {
+        const cli = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities.cjs');
+        const args = [
+            cli,
+            'grant-write',
+            '--env-file', fixture.envFile,
+            '--backup-root', fixture.backupRoot,
+            '--client-id', 'codex',
+            '--tool', 'sync_factory_knowledge',
+        ];
+        const preview = spawnSync(process.execPath, args, { encoding: 'utf8' });
+        assert.equal(preview.status, 0);
+        assert.equal(JSON.parse(preview.stdout).applied, false);
+        assert.equal(dotenv.parse(fs.readFileSync(fixture.envFile, 'utf8')).MCP_WRITE_CLIENT_IDS, 'hermes');
+
+        const applied = spawnSync(process.execPath, [
+            ...args,
+            '--apply',
+            '--confirm', APPLY_CONFIRMATION,
+        ], { encoding: 'utf8' });
+        assert.equal(applied.status, 0);
+        assert.equal(JSON.parse(applied.stdout).applied, true);
+        const env = dotenv.parse(fs.readFileSync(fixture.envFile, 'utf8'));
+        assert.deepEqual(env.MCP_WRITE_CLIENT_IDS.split(','), ['hermes', 'codex']);
+        assert.deepEqual(JSON.parse(env.MCP_WRITE_TOOL_ALLOWLISTS).codex, [
+            'sync_factory_knowledge',
+        ]);
+    } finally {
+        fixture.cleanup();
+    }
+});
+
 test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境变量', () => {
     const scriptPath = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities-macmini.ps1');
     const script = fs.readFileSync(scriptPath, 'utf8');
@@ -375,6 +476,8 @@ test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境�
     assert.match(script, /SetEnvironmentVariable\(\$ClientTokenEnvVar/);
     assert.match(script, /APPLY_MCP_IDENTITY_CHANGE/);
     assert.match(script, /ROLLBACK_MCP_IDENTITY_CHANGE/);
+    assert.match(script, /grant-write/);
+    assert.match(script, /revoke-write/);
     assert.doesNotMatch(script, /--token\s+\$/);
     assert.doesNotMatch(script, /Write-(Output|Host).*Token/i);
 });

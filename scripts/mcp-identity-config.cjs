@@ -118,8 +118,8 @@ function validateTokenInput(token) {
     return normalized;
 }
 
-function planIdentityChange({ command, envText, clientId, token }) {
-    if (!['add', 'rotate', 'revoke'].includes(command)) {
+function planIdentityChange({ command, envText, clientId, token, tool }) {
+    if (!['add', 'rotate', 'revoke', 'grant-write', 'revoke-write'].includes(command)) {
         throw new Error(`不支持的身份变更命令: ${command}`);
     }
     const normalizedClientId = assertClientId(clientId);
@@ -129,6 +129,7 @@ function planIdentityChange({ command, envText, clientId, token }) {
     const writeClientIds = getMcpWriteClientIds(env);
     const allowlists = parseMcpWriteToolAllowlists(env);
     const removedWriteTools = allowlists[normalizedClientId] || [];
+    const normalizedTool = String(tool || '').trim();
     let nextText = envText;
     let writeDisabled = false;
 
@@ -142,11 +143,58 @@ function planIdentityChange({ command, envText, clientId, token }) {
             throw new Error('轮换后的 token 必须与当前 token 不同');
         }
         tokens[normalizedClientId] = nextToken;
-    } else {
+    } else if (command === 'revoke') {
         if (!exists) throw new Error(`MCP identity 不存在: ${normalizedClientId}`);
         delete tokens[normalizedClientId];
         const nextWriteClientIds = writeClientIds.filter(id => id !== normalizedClientId);
         delete allowlists[normalizedClientId];
+        nextText = setEnvValue(nextText, 'MCP_WRITE_CLIENT_IDS', nextWriteClientIds.join(','));
+        nextText = setEnvValue(
+            nextText,
+            'MCP_WRITE_TOOL_ALLOWLISTS',
+            JSON.stringify(allowlists)
+        );
+        if (isMcpWriteEnabled(env) && nextWriteClientIds.length === 0) {
+            nextText = setEnvValue(nextText, 'MCP_WRITE_ENABLED', 'false');
+            writeDisabled = true;
+        }
+    } else if (command === 'grant-write') {
+        if (!exists) throw new Error(`MCP identity 不存在: ${normalizedClientId}`);
+        if (!normalizedTool) throw new Error('授予写权限必须提供 tool');
+        const approvedWriteTools = new Set(Object.values(allowlists).flat());
+        if (!approvedWriteTools.has(normalizedTool)) {
+            throw new Error(`MCP 写工具不在当前灰度集合: ${normalizedTool}`);
+        }
+        const currentTools = allowlists[normalizedClientId] || [];
+        if (currentTools.includes(normalizedTool)) {
+            throw new Error(`MCP 写工具已授权: ${normalizedClientId}/${normalizedTool}`);
+        }
+        allowlists[normalizedClientId] = [...currentTools, normalizedTool];
+        const nextWriteClientIds = writeClientIds.includes(normalizedClientId)
+            ? writeClientIds
+            : [...writeClientIds, normalizedClientId];
+        nextText = setEnvValue(nextText, 'MCP_WRITE_ENABLED', 'true');
+        nextText = setEnvValue(nextText, 'MCP_WRITE_CLIENT_IDS', nextWriteClientIds.join(','));
+        nextText = setEnvValue(
+            nextText,
+            'MCP_WRITE_TOOL_ALLOWLISTS',
+            JSON.stringify(allowlists)
+        );
+    } else {
+        if (!exists) throw new Error(`MCP identity 不存在: ${normalizedClientId}`);
+        if (!normalizedTool) throw new Error('撤销写权限必须提供 tool');
+        const currentTools = allowlists[normalizedClientId] || [];
+        if (!currentTools.includes(normalizedTool)) {
+            throw new Error(`MCP 写工具未授权: ${normalizedClientId}/${normalizedTool}`);
+        }
+        const nextTools = currentTools.filter(toolName => toolName !== normalizedTool);
+        let nextWriteClientIds = writeClientIds;
+        if (nextTools.length > 0) {
+            allowlists[normalizedClientId] = nextTools;
+        } else {
+            delete allowlists[normalizedClientId];
+            nextWriteClientIds = writeClientIds.filter(id => id !== normalizedClientId);
+        }
         nextText = setEnvValue(nextText, 'MCP_WRITE_CLIENT_IDS', nextWriteClientIds.join(','));
         nextText = setEnvValue(
             nextText,
@@ -171,7 +219,10 @@ function planIdentityChange({ command, envText, clientId, token }) {
             clientId: normalizedClientId,
             change: command === 'add' ? 'identity-added'
                 : command === 'rotate' ? 'credential-rotated'
-                    : 'identity-revoked',
+                    : command === 'revoke' ? 'identity-revoked'
+                        : command === 'grant-write' ? 'write-tool-granted'
+                            : 'write-tool-revoked',
+            tool: ['grant-write', 'revoke-write'].includes(command) ? normalizedTool : null,
             removedWriteTools: command === 'revoke' ? removedWriteTools : [],
             writeDisabled,
             before: identitySummary(env),
@@ -238,6 +289,7 @@ function executeIdentityChange({
     envFile,
     clientId,
     token,
+    tool,
     apply = false,
     confirmation,
     backupRoot,
@@ -249,6 +301,7 @@ function executeIdentityChange({
         envText: artifact.text,
         clientId,
         token,
+        tool,
     });
     if (!apply) return { applied: false, backup: null, ...planned.plan };
     if (confirmation !== APPLY_CONFIRMATION) {
