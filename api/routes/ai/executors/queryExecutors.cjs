@@ -12,6 +12,7 @@ const {
 } = require('../../../services/aiPartExecution.cjs');
 const {
     resolveUniqueRecipe,
+    selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
 
 function parseJsonArray(value) {
@@ -22,6 +23,19 @@ function parseJsonArray(value) {
     } catch {
         return [];
     }
+}
+
+function canonicalRecipeResource(recipe) {
+    const entries = Object.entries(recipe || {});
+    const canonicalKeys = new Set(
+        entries
+            .map(([key]) => key)
+            .filter(key => /^[a-z]/.test(key))
+            .map(key => key.toLowerCase())
+    );
+    return Object.fromEntries(entries.filter(([key]) => (
+        /^[a-z]/.test(key) || !canonicalKeys.has(key.toLowerCase())
+    )));
 }
 
 function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
@@ -146,20 +160,21 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/recipes/${recipeId}`,
                 '配方明细读取失败'
             );
-            const parts = parseJsonArray(recipe.partsJson);
+            const canonicalRecipe = canonicalRecipeResource(recipe);
+            const parts = parseJsonArray(canonicalRecipe.partsJson);
             let currentCost = null;
             if (args.includeCurrentCost) {
-                currentCost = await postJson(
+                const currentCosts = await getJson(
                     internalFetch,
-                    `/api/recipes/${recipeId}/cost-preview`,
-                    { overrides: {} },
+                    '/api/recipes/current-costs',
                     '配方当前成本读取失败'
                 );
+                currentCost = selectCurrentRecipeCost(currentCosts, recipeId);
             }
             return {
                 success: true,
                 recipe: {
-                    ...recipe,
+                    ...canonicalRecipe,
                     parts,
                     partCount: parts.length,
                 },

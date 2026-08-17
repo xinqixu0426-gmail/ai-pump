@@ -79,7 +79,7 @@ const DOMAIN_PROMPTS = Object.freeze({
 
     recipe: `【配方与 BOM】
 - 创建或修改配方前先使用后端 BOM 草稿、成本草稿或预览工具，AI 不自行组装正式保存 payload。
-- 查询配方明细或用了哪些零件时使用 get_recipe_detail；同时询问明细和当前成本时设置 includeCurrentCost=true，必须分别使用正式配方明细和 cost-preview 结果，禁止用 savedTotalCost 冒充当前成本。
+- 查询配方明细或用了哪些零件时使用 get_recipe_detail；同时询问明细和当前成本时设置 includeCurrentCost=true，必须使用 currentCost.currentTotalCost（costBasis=currentFullCost），禁止用 savedTotalCost 或废弃别名 unitCost 冒充当前成本。
 - 整个配方、报价或订单在指定机筒长度下的总成本使用 preview_recipe_cost，并传 customBarrelLength 或 overrides.customBarrelLength。
 - 配方智能检查只提供证据和建议，不自动修改任何业务数据。
 - 性能测试报告属于配方技术档案，不得标为图纸；回答时遵守文件领域对测试模板字段的限制。`,

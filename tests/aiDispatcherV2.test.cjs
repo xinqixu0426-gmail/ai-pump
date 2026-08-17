@@ -910,10 +910,22 @@ test('AI V3 调度器：用户从上一轮候选中确认后继续原成本目�
                 ],
             }), { headers: { 'Content-Type': 'application/json' } });
         }
-        if (value.endsWith('/api/recipes/2/cost-preview')) {
+        if (value.endsWith('/api/recipes/current-costs') && (!options.method || options.method === 'GET')) {
             return new Response(JSON.stringify({
                 success: true,
-                data: { unitCost: 286.51, parts: [] },
+                data: {
+                    asOf: '2026-08-17T02:00:00.000Z',
+                    sourceOfTruth: 'costEngine',
+                    basis: 'currentTemplateAndRecipeParameters',
+                    items: [{
+                        recipeId: 2,
+                        currentTotalCost: 286.51,
+                        savedTotalCost: 286.22,
+                        difference: 0.29,
+                        costComplete: true,
+                        warnings: [],
+                    }],
+                },
             }), { headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({ success: false, error: `unexpected ${value}` }), {

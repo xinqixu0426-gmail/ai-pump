@@ -26,7 +26,27 @@ function resolveUniqueRecipe(recipes, args = {}) {
         : resolved;
 }
 
+function selectCurrentRecipeCost(currentCosts, recipeId) {
+    const item = (Array.isArray(currentCosts?.items) ? currentCosts.items : [])
+        .find(candidate => Number(candidate.recipeId) === Number(recipeId));
+    if (!item) {
+        throw new Error(`配方 ${recipeId} 的当前完整成本结果缺失`);
+    }
+    return {
+        ...item,
+        unitCost: item.currentTotalCost,
+        costBasis: 'currentFullCost',
+        sourceOfTruth: currentCosts.sourceOfTruth,
+        basis: currentCosts.basis,
+        asOf: currentCosts.asOf,
+        deprecatedFields: {
+            unitCost: '兼容字段；请改用 currentTotalCost',
+        },
+    };
+}
+
 module.exports = {
     normalizeRecipeName,
     resolveUniqueRecipe,
+    selectCurrentRecipeCost,
 };

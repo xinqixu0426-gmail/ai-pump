@@ -38,6 +38,12 @@ const DOMAIN_SCENARIOS = Object.freeze([
                     includeCurrentCost: true,
                 }),
             }),
+            Object.freeze({
+                name: 'preview_recipe_cost',
+                args: costReport => ({
+                    recipeId: Number(costReport.scenarios.fullEstimateBindsRecipe.recipeId),
+                }),
+            }),
         ]),
     }),
     Object.freeze({
@@ -98,6 +104,61 @@ function roundDuration(startedAt) {
     return Math.round((performance.now() - startedAt) * 10) / 10;
 }
 
+function findCaseInsensitiveDuplicateKeys(value, pathPrefix = '$') {
+    if (!value || typeof value !== 'object') return [];
+    if (Array.isArray(value)) {
+        return value.flatMap((item, index) => (
+            findCaseInsensitiveDuplicateKeys(item, `${pathPrefix}[${index}]`)
+        ));
+    }
+    const seen = new Map();
+    const duplicates = [];
+    for (const [key, child] of Object.entries(value)) {
+        const normalized = key.toLowerCase();
+        if (seen.has(normalized)) {
+            duplicates.push(`${pathPrefix}.${seen.get(normalized)}/${key}`);
+        } else {
+            seen.set(normalized, key);
+        }
+        duplicates.push(...findCaseInsensitiveDuplicateKeys(child, `${pathPrefix}.${key}`));
+    }
+    return duplicates;
+}
+
+function validateRecipeDetailContract(envelope, costReport) {
+    const duplicates = findCaseInsensitiveDuplicateKeys(envelope?.recipe);
+    assert(duplicates.length === 0, `get_recipe_detail 存在大小写重复键: ${duplicates.join(', ')}`);
+    assert(envelope?.currentCost?.costBasis === 'currentFullCost', 'get_recipe_detail currentCost 不是 currentFullCost');
+    assert(envelope?.currentCost?.sourceOfTruth === 'costEngine', 'get_recipe_detail currentCost 不是 costEngine');
+    const expected = Number(costReport.scenarios.comparisonUsesSameFullCostBasis.left.totalCost);
+    const actual = Number(envelope.currentCost.currentTotalCost);
+    assert(Number.isFinite(actual), 'get_recipe_detail currentTotalCost 缺失');
+    assert(Math.abs(actual - expected) < 0.01, 'get_recipe_detail 与 compare_recipes 当前完整成本不一致');
+    return {
+        canonicalKeys: true,
+        costBasis: envelope.currentCost.costBasis,
+        sourceOfTruth: envelope.currentCost.sourceOfTruth,
+        currentTotalCost: actual,
+        matchesComparison: true,
+    };
+}
+
+function validateRecipeCostPreviewContract(envelope, costReport) {
+    const currentCost = envelope?.data;
+    assert(currentCost?.costBasis === 'currentFullCost', 'preview_recipe_cost 无覆盖结果不是 currentFullCost');
+    assert(currentCost?.sourceOfTruth === 'costEngine', 'preview_recipe_cost 无覆盖结果不是 costEngine');
+    const expected = Number(costReport.scenarios.comparisonUsesSameFullCostBasis.left.totalCost);
+    const actual = Number(currentCost.currentTotalCost);
+    assert(Number.isFinite(actual), 'preview_recipe_cost currentTotalCost 缺失');
+    assert(Math.abs(actual - expected) < 0.01, 'preview_recipe_cost 与 compare_recipes 当前完整成本不一致');
+    return {
+        costBasis: currentCost.costBasis,
+        sourceOfTruth: currentCost.sourceOfTruth,
+        currentTotalCost: actual,
+        matchesComparison: true,
+    };
+}
+
 function returnedCount(envelope) {
     const candidates = [
         envelope?.queryReceipt?.returnedCount,
@@ -148,7 +209,14 @@ async function evaluateRepresentativeReadDomains(client, costReport, options = {
             const args = typeof call.args === 'function' ? call.args(costReport) : call.args;
             const startedAt = performance.now();
             const result = await client.callTool({ name: call.name, arguments: args });
-            tools.push(verifiedToolEvidence(call.name, result, roundDuration(startedAt)));
+            const evidence = verifiedToolEvidence(call.name, result, roundDuration(startedAt));
+            if (call.name === 'get_recipe_detail') {
+                evidence.contract = validateRecipeDetailContract(result.structuredContent, costReport);
+            }
+            if (call.name === 'preview_recipe_cost') {
+                evidence.contract = validateRecipeCostPreviewContract(result.structuredContent, costReport);
+            }
+            tools.push(evidence);
         }
         domains[domain.id] = {
             status: 'passed',
@@ -292,6 +360,9 @@ module.exports = {
     DOMAIN_SCENARIOS,
     REPRESENTATIVE_TOOL_NAMES,
     evaluateRepresentativeReadDomains,
+    findCaseInsensitiveDuplicateKeys,
     runProductionReadVerification,
+    validateRecipeDetailContract,
+    validateRecipeCostPreviewContract,
     verifiedToolEvidence,
 };

@@ -5,6 +5,7 @@ const {
 } = require('../../../services/aiFactoryWorkflowExecution.cjs');
 const {
     resolveUniqueRecipe,
+    selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
 
 function normalizeText(value) {
@@ -143,24 +144,44 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const resolved = resolveUniqueRecipe(await loadRecipes(internalFetch), args);
             if (resolved.error) return { success: false, ...resolved };
             const recipeId = resolved.recipe.id ?? resolved.recipe.Id;
-            const data = await postJson(internalFetch, `/api/recipes/${recipeId}/cost-preview`, {
-                overrides: args.overrides || {
-                    customBarrelLength: args.customBarrelLength,
-                    coilSheets: args.coilSheets,
-                    coilWireWeight: args.coilWireWeight,
-                    hasFloat: args.hasFloat,
-                    floatWire: args.floatWire,
-                    floatAccessoryType: args.floatAccessoryType,
-                    hasCable: args.hasCable,
-                    cableLength: args.cableLength,
-                    cableWire: args.cableWire,
-                    cableAccessoryType: args.cableAccessoryType,
-                },
-            }, '配方成本试算失败');
+            const overrides = args.overrides || {
+                customBarrelLength: args.customBarrelLength,
+                coilSheets: args.coilSheets,
+                coilWireWeight: args.coilWireWeight,
+                hasFloat: args.hasFloat,
+                floatWire: args.floatWire,
+                floatAccessoryType: args.floatAccessoryType,
+                hasCable: args.hasCable,
+                cableLength: args.cableLength,
+                cableWire: args.cableWire,
+                cableAccessoryType: args.cableAccessoryType,
+            };
+            const normalizedOverrides = Object.fromEntries(
+                Object.entries(overrides).filter(([, value]) => value !== undefined)
+            );
+            let data;
+            if (Object.keys(normalizedOverrides).length === 0) {
+                const currentCosts = await getJson(
+                    internalFetch,
+                    '/api/recipes/current-costs',
+                    '配方当前成本读取失败'
+                );
+                data = selectCurrentRecipeCost(currentCosts, recipeId);
+            } else {
+                const preview = await postJson(internalFetch, `/api/recipes/${recipeId}/cost-preview`, {
+                    overrides: normalizedOverrides,
+                }, '配方成本试算失败');
+                data = {
+                    ...preview,
+                    sourceOfTruth: 'costEngine',
+                    costBasis: 'overridePreview',
+                };
+            }
+            const displayedCost = data.currentTotalCost ?? data.unitCost;
             return {
                 success: true,
                 intent: 'recipe_cost_preview',
-                summary: `配方成本试算完成，单位成本 ${roundMoney(data.unitCost).toFixed(2)} 元。`,
+                summary: `配方成本试算完成，单位成本 ${roundMoney(displayedCost).toFixed(2)} 元。`,
                 display: { mode: 'compact', title: '成本试算' },
                 data: { recipeId, recipeName: resolved.recipe.name || args.recipeName || '', ...data },
             };

@@ -189,7 +189,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_recipe_detail',
-            description: '读取指定配方的正式明细和 BOM；需要当前完整成本时同时调用正式 cost-preview API。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本冒充当前成本。',
+            description: '读取指定配方的正式明细和 BOM；需要当前完整成本时设置 includeCurrentCost=true，结果以 currentCost.currentTotalCost 和 costBasis=currentFullCost 返回。currentCost.unitCost 仅为一个兼容周期的废弃别名。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本或覆盖试算冒充当前成本。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -656,7 +656,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'preview_recipe_cost',
-            description: '查询已有配方的当前完整参考成本，或基于该配方做动态成本试算，不写库。适合用户问“V750当前成本是多少”或“某配方在180mm机筒/140片/带浮球时总成本是多少”。如果只问泵壳本身成本，用 preview_pump_shell_cost。',
+            description: '查询已有配方的当前完整参考成本，或基于该配方做动态成本试算，不写库。无覆盖参数时返回 currentTotalCost、sourceOfTruth=costEngine、costBasis=currentFullCost；有覆盖参数时返回 costBasis=overridePreview。适合用户问“V750当前成本是多少”或“某配方在180mm机筒/140片/带浮球时总成本是多少”。如果只问泵壳本身成本，用 preview_pump_shell_cost。',
             parameters: {
                 type: 'object',
                 properties: {

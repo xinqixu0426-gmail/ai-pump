@@ -28,18 +28,44 @@ function costReport() {
             comparisonUsesSameFullCostBasis: {
                 status: 'passed',
                 attemptedPairs: 1,
+                left: { id: 1, name: 'v550-tokoy', totalCost: 272.18 },
             },
         },
     };
 }
 
 function successfulResult(name, options = {}) {
+    const recipeDetail = name === 'get_recipe_detail'
+        ? {
+            recipe: {
+                id: 1,
+                name: 'v550-tokoy',
+                ...(options.duplicateRecipeKeys ? { Id: 1 } : {}),
+            },
+            currentCost: {
+                currentTotalCost: options.recipeDetailCurrentTotalCost ?? 272.18,
+                costBasis: 'currentFullCost',
+                sourceOfTruth: 'costEngine',
+            },
+        }
+        : {};
+    const data = name === 'get_recent_orders'
+        ? []
+        : name === 'preview_recipe_cost'
+            ? {
+                recipeId: 1,
+                currentTotalCost: options.previewCurrentTotalCost ?? 272.18,
+                costBasis: 'currentFullCost',
+                sourceOfTruth: 'costEngine',
+            }
+            : [{ id: 1 }];
     return {
         content: [{ type: 'text', text: '{}' }],
         structuredContent: {
             success: true,
             count: name === 'get_recent_orders' ? (options.orderCount ?? 0) : 1,
-            data: name === 'get_recent_orders' ? [] : [{ id: 1 }],
+            data,
+            ...recipeDetail,
             mcp: options.omitEvidence ? undefined : {
                 capabilityId: `ai.${name}`,
                 operation: 'query',
@@ -65,6 +91,9 @@ function createFakeClient(options = {}) {
             return successfulResult(call.name, {
                 omitEvidence: call.name === options.omitEvidenceFor,
                 orderCount: options.orderCount,
+                duplicateRecipeKeys: call.name === 'get_recipe_detail' && options.duplicateRecipeKeys,
+                recipeDetailCurrentTotalCost: options.recipeDetailCurrentTotalCost,
+                previewCurrentTotalCost: options.previewCurrentTotalCost,
             });
         },
     };
@@ -79,16 +108,55 @@ test('生产 MCP 全领域只读验收：单连接覆盖代表工具且报告不
     });
 
     assert.equal(report.status, 'passed');
-    assert.equal(report.toolDirectory.representativeToolCount, 16);
-    assert.equal(report.requestBudget.maximumRequests, 33);
-    assert.equal(report.requestBudget.actualRequests, 22);
+    assert.equal(report.toolDirectory.representativeToolCount, 17);
+    assert.equal(report.requestBudget.maximumRequests, 34);
+    assert.equal(report.requestBudget.actualRequests, 23);
     assert.equal(report.domains.orders.resourceSpecificCoverage.status, 'not_applicable');
+    const recipeDetail = report.domains.recipes.tools.find(tool => tool.name === 'get_recipe_detail');
+    assert.deepEqual(recipeDetail.contract, {
+        canonicalKeys: true,
+        costBasis: 'currentFullCost',
+        sourceOfTruth: 'costEngine',
+        currentTotalCost: 272.18,
+        matchesComparison: true,
+    });
+    const recipePreview = report.domains.recipes.tools.find(tool => tool.name === 'preview_recipe_cost');
+    assert.deepEqual(recipePreview.contract, {
+        costBasis: 'currentFullCost',
+        sourceOfTruth: 'costEngine',
+        currentTotalCost: 272.18,
+        matchesComparison: true,
+    });
     assert.deepEqual(client.calls.map(call => call.name), REPRESENTATIVE_TOOL_NAMES);
     assert.deepEqual(
         client.calls.find(call => call.name === 'get_recipe_detail').arguments,
         { recipeId: 1, includeCurrentCost: true }
     );
     assert.doesNotMatch(JSON.stringify(report), /production-read-verifier-token/);
+});
+
+test('生产 MCP 全领域只读验收：配方明细存在大小写重复键必须失败', async () => {
+    const client = createFakeClient({ duplicateRecipeKeys: true });
+    await assert.rejects(
+        () => evaluateRepresentativeReadDomains(client, costReport()),
+        /get_recipe_detail 存在大小写重复键/
+    );
+});
+
+test('生产 MCP 全领域只读验收：配方明细成本与正式对比口径不一致必须失败', async () => {
+    const client = createFakeClient({ recipeDetailCurrentTotalCost: 271.89 });
+    await assert.rejects(
+        () => evaluateRepresentativeReadDomains(client, costReport()),
+        /get_recipe_detail 与 compare_recipes 当前完整成本不一致/
+    );
+});
+
+test('生产 MCP 全领域只读验收：无覆盖试算与正式对比口径不一致必须失败', async () => {
+    const client = createFakeClient({ previewCurrentTotalCost: 271.89 });
+    await assert.rejects(
+        () => evaluateRepresentativeReadDomains(client, costReport()),
+        /preview_recipe_cost 与 compare_recipes 当前完整成本不一致/
+    );
 });
 
 test('生产 MCP 全领域只读验收：缺少执行证据必须失败', async () => {

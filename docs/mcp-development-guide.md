@@ -63,8 +63,10 @@ npm run verify:mcp-prod-read
 该命令从进程环境的 `MCP_VERIFY_TOKEN` 或正式 `.env` 中已有的
 `MCP_SERVICE_TOKENS` 选取凭证，不输出或写入 token。它在同一个 MCP 连接中先复用
 三个正式成本场景，再覆盖库存/物料、配方/模板、客户/报价、订单/采购、
-管理/质量、工厂知识和转子出图历史的 16 个代表性只读工具。每次调用都必须返回
-`mcp.verified=true`、能力 ID、正式数据源和数据模式。最坏 33 个请求，低于生产默认
+管理/质量、工厂知识和转子出图历史的 17 个代表性只读工具。每次调用都必须返回
+`mcp.verified=true`、能力 ID、正式数据源和数据模式；`get_recipe_detail` 还必须没有
+大小写不敏感的重复键，且 `currentCost.currentTotalCost` 与 `compare_recipes` 同一配方的
+`currentFullCost` 一致；无覆盖的 `preview_recipe_cost` 也必须返回同一口径。最坏 34 个请求，低于生产默认
 每分钟 60 次限制。综合结果写入 `logs/mcp-production-read-latest.json`，成本子报告仍同步到
 `logs/mcp-production-cost-latest.json`；两份报告仅记录客户端 round-trip，服务端耗时仍只以
 API 日志 `durationMs` 为准。空订单/报价/出图历史是允许的正式业务状态，不为覆盖详情而

@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
 const { processAiChat } = require('../api/routes/ai/chat.cjs');
 const {
@@ -16,6 +17,23 @@ function jsonResponse(body, status = 200) {
         status,
         headers: { 'Content-Type': 'application/json' },
     });
+}
+
+function assertJsonParserCompatibility(value) {
+    const serialized = JSON.stringify(value);
+    assert.deepEqual(JSON.parse(serialized), value);
+    if (process.platform !== 'win32') return;
+    const parsed = spawnSync('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '[Console]::InputEncoding=[Text.Encoding]::UTF8; $json=[Console]::In.ReadToEnd(); $null=ConvertFrom-Json -InputObject $json',
+    ], {
+        input: serialized,
+        encoding: 'utf8',
+        windowsHide: true,
+    });
+    assert.equal(parsed.status, 0, parsed.stderr || parsed.stdout || 'PowerShell ConvertFrom-Json 失败');
 }
 
 function aiMessageResponse(message) {
@@ -3015,7 +3033,7 @@ test('AI executor 行为：线圈简称拆分不覆盖显式传入的片数', as
     assert.deepEqual(result.filters, { spec: '12-120', sheets: 96, material: '', slotType: '' });
 });
 
-test('AI executor 行为：配方明细与当前成本分别取自正式配方和成本预览 API', async () => {
+test('AI executor 行为：配方明细只输出 camelCase，当前成本取自正式当日完整成本 API', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
             return jsonResponse({
@@ -3028,6 +3046,7 @@ test('AI executor 行为：配方明细与当前成本分别取自正式配方�
                 success: true,
                 data: {
                     id: 5,
+                    Id: 5,
                     name: 'TEST-PUMP-750A',
                     spec: '750A',
                     partsJson: JSON.stringify([
@@ -3035,14 +3054,31 @@ test('AI executor 行为：配方明细与当前成本分别取自正式配方�
                         { model: 'TEST-电容-20', quantity: 1 },
                     ]),
                     savedTotalCost: 438.8,
+                    createdAt: '2026-08-17T00:00:00.000Z',
+                    CreatedAt: '2026-08-17T00:00:00.000Z',
+                    updatedAt: '2026-08-17T01:00:00.000Z',
+                    UpdatedAt: '2026-08-17T01:00:00.000Z',
                 },
             });
         }
-        if (call.url.endsWith('/api/recipes/5/cost-preview') && call.method === 'POST') {
-            assert.deepEqual(call.body, { overrides: {} });
+        if (call.url.endsWith('/api/recipes/current-costs') && call.method === 'GET') {
             return jsonResponse({
                 success: true,
-                data: { unitCost: 451.2, parts: [{ model: 'TEST-机筒-1100', quantity: 1 }] },
+                data: {
+                    asOf: '2026-08-17T02:00:00.000Z',
+                    sourceOfTruth: 'costEngine',
+                    basis: 'currentTemplateAndRecipeParameters',
+                    items: [{
+                        recipeId: 5,
+                        currentTotalCost: 451.2,
+                        savedTotalCost: 438.8,
+                        difference: 12.4,
+                        partsCost: 430.2,
+                        laborCost: 21,
+                        costComplete: true,
+                        warnings: [],
+                    }],
+                },
             });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -3056,15 +3092,22 @@ test('AI executor 行为：配方明细与当前成本分别取自正式配方�
     assert.equal(result.success, true);
     assert.equal(result.recipe.partCount, 2);
     assert.equal(result.recipe.parts[0].model, 'TEST-机筒-1100');
+    assert.equal(result.recipe.Id, undefined);
+    assert.equal(result.recipe.CreatedAt, undefined);
+    assert.equal(result.recipe.UpdatedAt, undefined);
+    assert.equal(result.currentCost.currentTotalCost, 451.2);
     assert.equal(result.currentCost.unitCost, 451.2);
+    assert.equal(result.currentCost.costBasis, 'currentFullCost');
+    assert.equal(result.currentCost.sourceOfTruth, 'costEngine');
+    assertJsonParserCompatibility(result);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/recipes',
         'GET /api/recipes/5',
-        'POST /api/recipes/5/cost-preview',
+        'GET /api/recipes/current-costs',
     ]);
 });
 
-test('AI executor 行为：配方成本试算可用大小写不敏感简称唯一定位正式配方', async () => {
+test('AI executor 行为：无覆盖的配方成本查询使用当日完整成本口径', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
             return jsonResponse({
@@ -3072,8 +3115,16 @@ test('AI executor 行为：配方成本试算可用大小写不敏感简称唯�
                 data: [{ id: 2, name: 'v750-tokoy', spec: '12-140' }],
             });
         }
-        if (call.url.endsWith('/api/recipes/2/cost-preview') && call.method === 'POST') {
-            return jsonResponse({ success: true, data: { unitCost: 286.51, parts: [] } });
+        if (call.url.endsWith('/api/recipes/current-costs') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    asOf: '2026-08-17T02:00:00.000Z',
+                    sourceOfTruth: 'costEngine',
+                    basis: 'currentTemplateAndRecipeParameters',
+                    items: [{ recipeId: 2, currentTotalCost: 286.8, savedTotalCost: 286.51 }],
+                },
+            });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
@@ -3085,7 +3136,36 @@ test('AI executor 行为：配方成本试算可用大小写不敏感简称唯�
     assert.equal(result.success, true);
     assert.equal(result.data.recipeId, 2);
     assert.equal(result.data.recipeName, 'v750-tokoy');
-    assert.equal(result.data.unitCost, 286.51);
+    assert.equal(result.data.currentTotalCost, 286.8);
+    assert.equal(result.data.unitCost, 286.8);
+    assert.equal(result.data.costBasis, 'currentFullCost');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'GET /api/recipes/current-costs',
+    ]);
+});
+
+test('AI executor 行为：有覆盖的配方成本查询保持正式 overridePreview', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 2, name: 'v750-tokoy', spec: '12-140' }] });
+        }
+        if (call.url.endsWith('/api/recipes/2/cost-preview') && call.method === 'POST') {
+            assert.deepEqual(call.body, { overrides: { customBarrelLength: 180 } });
+            return jsonResponse({ success: true, data: { unitCost: 292.35, parts: [] } });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeId: 2,
+        customBarrelLength: 180,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.unitCost, 292.35);
+    assert.equal(result.data.sourceOfTruth, 'costEngine');
+    assert.equal(result.data.costBasis, 'overridePreview');
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/recipes',
         'POST /api/recipes/2/cost-preview',
