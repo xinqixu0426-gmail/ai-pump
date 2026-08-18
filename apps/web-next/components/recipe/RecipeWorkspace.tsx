@@ -75,9 +75,18 @@ function signedMoney(value: number | null | undefined): string {
   return `${sign}${money(Math.abs(value))}`;
 }
 
-function TechnicalProgress({ progress, tooltipId }: { progress: RecipeTechnicalProgress; tooltipId: string }) {
+function TechnicalProgress({
+  progress,
+  technicalFileCount = 0,
+  tooltipId,
+}: {
+  progress: RecipeTechnicalProgress;
+  technicalFileCount?: number;
+  tooltipId: string;
+}) {
   const [position, setPosition] = useState<{ left: number; top: number; above: boolean } | null>(null);
   const complete = progress.completed === progress.total;
+  const hasReports = technicalFileCount > 0;
   const barColor = complete ? 'bg-emerald-500' : progress.completed > 0 ? 'bg-sky-500' : 'bg-slate-300';
   const textColor = complete ? 'text-emerald-700' : progress.completed > 0 ? 'text-sky-700' : 'text-muted';
 
@@ -109,6 +118,9 @@ function TechnicalProgress({ progress, tooltipId }: { progress: RecipeTechnicalP
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${progress.percent}%` }} />
+      </div>
+      <div className={`mt-1 text-[11px] font-medium ${hasReports ? 'text-emerald-700' : 'text-slate-400'}`}>
+        {hasReports ? `报告 ${technicalFileCount} 份` : '无测试报告'}
       </div>
     </button>
     {position && typeof document !== 'undefined' ? createPortal(
@@ -394,7 +406,13 @@ export function RecipeWorkspace({
                       <div className="mt-0.5 truncate text-muted">
                         {[row.recipe.coilSpec, row.recipe.coilSheets, row.recipe.coilMaterial, row.recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '无线圈快照'}
                       </div>
-                      <div className="mt-2 max-w-44"><TechnicalProgress progress={row.technicalProgress} tooltipId={`recipe-technical-progress-mobile-${row.recipe.id}`} /></div>
+                      <div className="mt-2 max-w-44">
+                        <TechnicalProgress
+                          progress={row.technicalProgress}
+                          technicalFileCount={row.recipe.technicalFileCount}
+                          tooltipId={`recipe-technical-progress-mobile-${row.recipe.id}`}
+                        />
+                      </div>
                     </div>
                     <div className="flex items-end justify-between gap-3 sm:flex-col sm:items-end">
                       <StatusBadge tone={copperRiskTone(row.copperRisk.level)}>{row.copperRisk.label}</StatusBadge>
@@ -454,7 +472,11 @@ export function RecipeWorkspace({
                         </div>
                       </td>
                       <td className="border-b border-line px-3 py-2">
-                        <TechnicalProgress progress={row.technicalProgress} tooltipId={`recipe-technical-progress-desktop-${row.recipe.id}`} />
+                        <TechnicalProgress
+                          progress={row.technicalProgress}
+                          technicalFileCount={row.recipe.technicalFileCount}
+                          tooltipId={`recipe-technical-progress-desktop-${row.recipe.id}`}
+                        />
                       </td>
                       <td className="whitespace-nowrap border-b border-line px-3 py-2 text-right text-ink">
                         <div className="flex items-baseline justify-end gap-2">

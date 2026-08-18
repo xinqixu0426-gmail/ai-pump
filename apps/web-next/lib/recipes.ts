@@ -124,6 +124,7 @@ export type Recipe = {
   surfaceTreatmentCost?: number;
   managementFee?: number;
   technicalDataJson?: string;
+  technicalFileCount?: number;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -383,6 +384,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     surfaceTreatmentCost: Number(row.surfaceTreatmentCost) || 0,
     managementFee: Number(row.managementFee) || 0,
     technicalDataJson: row.technicalDataJson || '{}',
+    technicalFileCount: Number(row.technicalFileCount) || 0,
     createdAt: row.createdAt || row.CreatedAt,
     updatedAt: row.updatedAt || row.UpdatedAt,
   };

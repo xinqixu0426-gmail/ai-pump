@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "clean": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev','.next-preview']) fs.rmSync(dir,{recursive:true,force:true})\"",
-    "clean:build": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "clean:build": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev/types','.next-preview/types']) fs.rmSync(dir,{recursive:true,force:true})\"",
     "clean:dev": "node -e \"const fs=require('fs'); for (const dir of ['.next-dev','.next-preview']) fs.rmSync(dir,{recursive:true,force:true})\"",
     "dev:primary": "node scripts/run-next-dev.cjs 3000 .next-dev",
     "dev": "node scripts/run-next-dev.cjs 3001 .next-preview",

@@ -233,6 +233,10 @@ test('文档契约：Next 当前启动和生产脚本保持可用', () => {
     assert.equal(packageJson.scripts['restart:local'], 'powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1');
     assert.match(nextPackageJson.scripts['dev:primary'], /\.next-dev/);
     assert.match(nextPackageJson.scripts.dev, /\.next-preview/);
+    assert.match(nextPackageJson.scripts['clean:build'], /\.next-dev\/types/);
+    assert.match(nextPackageJson.scripts['clean:build'], /\.next-preview\/types/);
+    assert.doesNotMatch(nextPackageJson.scripts['clean:build'], /['"]\.next-dev['"]/);
+    assert.doesNotMatch(nextPackageJson.scripts['clean:build'], /['"]\.next-preview['"]/);
     assert.match(nextConfig, /process\.env\.NEXT_DIST_DIR \|\| '\.next'/);
     assert.match(nextDevRunner, /NEXT_DIST_DIR: distDir/);
     assert.match(rootReadme, /npm start/);
@@ -1229,16 +1233,23 @@ test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手
 
 test('Next UI 契约：配方列表在桌面和窄屏均展示技术参数进度', () => {
     const workspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+    const recipesLib = readUtf8('apps/web-next/lib/recipes.ts');
 
     assert.match(workspace, /getRecipeTechnicalProgress/);
     assert.match(workspace, /parseTechnicalDataJson\(recipe\.technicalDataJson\)/);
     assert.match(workspace, /function TechnicalProgress/);
     assert.match(workspace, /\{progress\.completed\}\/\{progress\.total\}/);
+    assert.match(workspace, /technicalFileCount/);
+    assert.match(workspace, /报告 \$\{technicalFileCount\} 份/);
+    assert.match(workspace, /无测试报告/);
+    assert.match(recipesLib, /technicalFileCount\?: number/);
+    assert.match(recipesLib, /technicalFileCount: Number\(row\.technicalFileCount\) \|\| 0/);
     assert.match(workspace, /progress\.entries\.map/);
     assert.match(workspace, /role="tooltip"/);
     assert.match(workspace, /createPortal/);
     assert.match(workspace, /<th[^>]*>\u6280术参数<\/th>/);
-    assert.ok((workspace.match(/<TechnicalProgress progress=\{row\.technicalProgress\}/g) || []).length >= 2);
+    assert.ok((workspace.match(/progress=\{row\.technicalProgress\}/g) || []).length >= 2);
+    assert.ok((workspace.match(/technicalFileCount=\{row\.recipe\.technicalFileCount\}/g) || []).length >= 2);
 });
 
 test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式', () => {
