@@ -425,6 +425,19 @@ export function RecipesView() {
     prepareRecipeEditorUi();
   }, [prepareRecipeEditorUi, resetBomPreview, startEditDraft]);
 
+  const syncRecipeTechnicalFileCount = useCallback((recipeId: number | null | undefined, technicalFileCount: number) => {
+    if (!recipeId) return;
+    setRecipes((prev) => prev.map((recipe) => (
+      recipe.id === recipeId ? { ...recipe, technicalFileCount } : recipe
+    )));
+    setDetailRecipe((prev) => (
+      prev?.id === recipeId ? { ...prev, technicalFileCount } : prev
+    ));
+  }, []);
+  const handleTechnicalFileCountChange = useCallback((count: number) => {
+    syncRecipeTechnicalFileCount(editingRecipe?.id, count);
+  }, [editingRecipe?.id, syncRecipeTechnicalFileCount]);
+
   useEffect(() => {
     void load();
   }, []);
@@ -1806,6 +1819,7 @@ export function RecipesView() {
                   ? { bearingSpan: `机筒长度 - 开档系数 ${shellOpenFactor}` }
                   : {}),
               }}
+              onTechnicalFileCountChange={handleTechnicalFileCountChange}
               onImpellerChange={(patch) => updateForm(patch)}
             />
               </div>

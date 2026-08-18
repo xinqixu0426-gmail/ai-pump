@@ -1036,7 +1036,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         capabilityId: 'recipes.list',
         domain: 'recipe',
         inputSchema: 'GET /api/recipes?keyword?&hasTechnicalFiles?',
-        outputSchema: 'Recipe[] optionally including technicalFileCount',
+        outputSchema: 'Recipe[] including technicalFileCount',
         sourceOfTruth: 'recipes+recipe_technical_files',
         riskLevel: 'low',
         callers: Object.freeze(['web', 'ai', 'internal']),

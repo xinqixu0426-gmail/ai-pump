@@ -92,6 +92,7 @@ function createFixture() {
              150, 5, '叶轮A', 2, 100, 6, NULL);
     `);
     const listedRecipes = [{ id: 1, name: 'QDX10' }];
+    const listedRecipesWithTechnicalCount = [{ id: 1, name: 'QDX10', technicalFileCount: 1 }];
     const listedParts = [{ id: 10, model: '6201' }];
     const listedCoils = [{ id: 20, spec: '12' }];
     const bomCalls = [];
@@ -140,6 +141,7 @@ function createFixture() {
         listedCoils,
         listedParts,
         listedRecipes,
+        listedRecipesWithTechnicalCount,
         queries,
     };
 }
@@ -147,13 +149,13 @@ function createFixture() {
 test('配方 Query 返回列表、详情及零件和正式线圈库存状态', () => {
     const fixture = createFixture();
     try {
-        assert.equal(
+        assert.deepEqual(
             fixture.queries.getAllRecipes(),
-            fixture.listedRecipes
+            fixture.listedRecipesWithTechnicalCount
         );
         assert.deepEqual(
             fixture.queries.getAllRecipes({ keyword: 'QDX' }),
-            fixture.listedRecipes
+            fixture.listedRecipesWithTechnicalCount
         );
         assert.deepEqual(
             fixture.queries.getAllRecipes({ keyword: '不存在' }),

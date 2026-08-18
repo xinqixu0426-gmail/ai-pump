@@ -73,14 +73,6 @@ function createRecipeQueries({
             options.hasTechnicalFiles,
             'hasTechnicalFiles'
         );
-        const allRecipes = listRecipes();
-        if (!keyword && hasTechnicalFiles === null) return allRecipes;
-        const recipes = allRecipes.filter(recipe => (
-            [recipe.name, recipe.spec]
-                .some(value => !keyword || String(value || '').toLocaleLowerCase().includes(keyword))
-        ));
-        if (hasTechnicalFiles === null) return recipes;
-
         const technicalFileCounts = new Map(db.prepare(`
             SELECT recipe_id AS recipeId, COUNT(*) AS technicalFileCount
             FROM recipe_technical_files
@@ -90,11 +82,16 @@ function createRecipeQueries({
             Number(row.recipeId),
             Number(row.technicalFileCount || 0),
         ]));
+        const allRecipes = listRecipes().map(recipe => ({
+            ...recipe,
+            technicalFileCount: technicalFileCounts.get(Number(recipe.id)) || 0,
+        }));
+        const recipes = allRecipes.filter(recipe => (
+            [recipe.name, recipe.spec]
+                .some(value => !keyword || String(value || '').toLocaleLowerCase().includes(keyword))
+        ));
+        if (hasTechnicalFiles === null) return recipes;
         return recipes
-            .map(recipe => ({
-                ...recipe,
-                technicalFileCount: technicalFileCounts.get(Number(recipe.id)) || 0,
-            }))
             .filter(recipe => (
                 hasTechnicalFiles
                     ? recipe.technicalFileCount > 0

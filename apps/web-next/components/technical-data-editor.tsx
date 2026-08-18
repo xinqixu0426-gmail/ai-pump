@@ -60,6 +60,7 @@ type TechnicalDataEditorProps = {
   impellerDiameter: string;
   impellerBladeCount: string;
   linkedRotorFields?: Partial<Record<FixedTechnicalDataKey, string>>;
+  onTechnicalFileCountChange?: (count: number) => void;
   onImpellerChange: (patch: {
     impellerModel?: string;
     impellerThickness?: string;
@@ -96,6 +97,7 @@ export function TechnicalDataEditor({
   impellerDiameter,
   impellerBladeCount,
   linkedRotorFields = {},
+  onTechnicalFileCountChange,
   onImpellerChange,
 }: TechnicalDataEditorProps) {
   const [expanded, setExpanded] = useState(false);
@@ -123,17 +125,28 @@ export function TechnicalDataEditor({
   useEffect(() => {
     if (!recipeId) {
       setTechnicalFiles([]);
+      onTechnicalFileCountChange?.(0);
       return;
     }
     let cancelled = false;
     setFilesLoading(true);
     setFileError('');
     void getRecipeTechnicalFiles(recipeId)
-      .then((files) => { if (!cancelled) setTechnicalFiles(files); })
+      .then((files) => {
+        if (!cancelled) {
+          setTechnicalFiles(files);
+          onTechnicalFileCountChange?.(files.length);
+        }
+      })
       .catch((error) => { if (!cancelled) setFileError(error instanceof Error ? error.message : '测试报告加载失败'); })
       .finally(() => { if (!cancelled) setFilesLoading(false); });
     return () => { cancelled = true; };
-  }, [recipeId]);
+  }, [recipeId, onTechnicalFileCountChange]);
+
+  function syncTechnicalFiles(files: RecipeTechnicalFile[]) {
+    setTechnicalFiles(files);
+    onTechnicalFileCountChange?.(files.length);
+  }
 
   async function uploadTestReport(file?: File) {
     if (!recipeId || !file) return;
@@ -141,7 +154,7 @@ export function TechnicalDataEditor({
     setFileError('');
     try {
       await uploadRecipeTechnicalFile(recipeId, file, recipeUpdatedAt);
-      setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
+      syncTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '测试报告上传失败');
     } finally {
@@ -156,7 +169,7 @@ export function TechnicalDataEditor({
     setFileError('');
     try {
       await deleteRecipeTechnicalFile(recipeId, file.id, file.updatedAt);
-      setTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
+      syncTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
       setDeleteFileTarget(null);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '测试报告删除失败');

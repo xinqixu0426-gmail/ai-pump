@@ -1224,7 +1224,12 @@ test('Next UI 契约：配方技术参数必须结构化编辑，不回退到手
     assert.match(editor, /expanded \? <div/);
     assert.match(editor, /uploadRecipeTechnicalFile/);
     assert.match(editor, /accept="\.xls,\.xlsx/);
+    assert.match(editor, /onTechnicalFileCountChange\?: \(count: number\) => void/);
+    assert.match(editor, /onTechnicalFileCountChange\?\.\(files\.length\)/);
     assert.match(recipesView, /recipeId=\{editingRecipe\?\.id\}/);
+    assert.match(recipesView, /syncRecipeTechnicalFileCount/);
+    assert.match(recipesView, /recipe\.id === recipeId \? \{ \.\.\.recipe, technicalFileCount \} : recipe/);
+    assert.match(recipesView, /onTechnicalFileCountChange=\{handleTechnicalFileCountChange\}/);
     assert.match(technicalLib, /customFields/);
     assert.match(technicalLib, /export function getRecipeTechnicalProgress/);
     assert.match(technicalLib, /TECHNICAL_DATA_KEYS\.length \+ IMPELLER_PROGRESS_FIELDS\.length/);
