@@ -87,10 +87,13 @@ function legacyTechnicalFileCommandResponse(result) {
     };
 }
 
-function sendRecipeQueryError(res, error) {
-    res.status(error.statusCode || 500).json({
+function sendRecipeQueryError(res, error, fallbackStatus = 500) {
+    res.status(error.statusCode || fallbackStatus).json({
         success: false,
         error: error.message,
+        ...(error.code ? { code: error.code } : {}),
+        ...(error.details !== undefined ? { details: error.details } : {}),
+        ...(res.req?.requestId ? { requestId: res.req.requestId } : {}),
     });
 }
 
@@ -118,7 +121,7 @@ router.post('/cost-draft', (req, res) => {
         const data = buildRecipeCostDraft(req.body || {}, { partsCatalog: dbGetAllParts() });
         res.json({ success: true, data });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendRecipeQueryError(res, error, 400);
     }
 });
 
@@ -127,7 +130,7 @@ router.post('/bom-draft', (req, res) => {
         const data = recipeQueries.getBomDraft(req.body || {});
         res.json({ success: true, data });
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        sendRecipeQueryError(res, error, 400);
     }
 });
 

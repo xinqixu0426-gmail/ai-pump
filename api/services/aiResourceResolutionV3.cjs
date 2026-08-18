@@ -88,6 +88,8 @@ function ambiguousResourceResolution(input = {}) {
     const query = String(input.query || '').trim();
     return {
         code: 'AI_RESOURCE_AMBIGUOUS',
+        entityType,
+        query,
         error: query
             ? `“${query}”匹配到 ${candidates.length} 个${label}，需要确认具体对象`
             : `匹配到 ${candidates.length} 个${label}，需要确认具体对象`,
@@ -121,7 +123,12 @@ function resolveUniqueResource(rows, options = {}) {
         const resource = resources.find(row => idKeys.some(key => Number(row?.[key]) === explicitId));
         return resource
             ? { resource }
-            : { code: 'AI_RESOURCE_NOT_FOUND', error: `未找到${entityLabel}：${explicitId}` };
+            : {
+                code: 'AI_RESOURCE_NOT_FOUND',
+                entityType,
+                query: String(explicitId),
+                error: `未找到${entityLabel}：${explicitId}`,
+            };
     }
 
     const normalizedQuery = normalizeResourceText(query);
@@ -139,6 +146,8 @@ function resolveUniqueResource(rows, options = {}) {
     if (matches.length === 0) {
         return {
             code: 'AI_RESOURCE_NOT_FOUND',
+            entityType,
+            query,
             error: `未找到${entityLabel}：${query || '-'}`,
         };
     }

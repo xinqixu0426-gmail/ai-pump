@@ -151,6 +151,78 @@ test('后端 BOM draft 的新界式浮球统一读取全局附加费', () => {
     assert.match(floatPart.formula, /7\.6\+新界差价 0\.6/);
 });
 
+test('后端 BOM draft 的成品电缆统一读取全局名称和配件费', () => {
+    const result = buildRecipeBomDraft({
+        hasCable: true,
+        cableWire: '0.75',
+        cableLength: 3,
+        cableAccessoryType: 'xinjie',
+    }, {
+        partsCatalog,
+        coils,
+        getSetting: key => key === 'cable_accessories'
+            ? JSON.stringify({ xinjie: { name: '全局防水接头', fee: 2.6 } })
+            : undefined,
+    });
+
+    const cable = result.parts.find(part => part.cableAssembly);
+    assert.equal(cable.name, '成品电缆（全局防水接头）');
+    assert.equal(cable.snapshotPrice, 8.24);
+    assert.equal(cable.cableAccessorySource, 'system_settings');
+    assert.equal(cable.formulaVersion, 'complete-cable-v1');
+});
+
+test('后端 BOM draft 兼容配方保存的完整电缆型号且不重复拼接线径前缀', () => {
+    const result = buildRecipeBomDraft({
+        hasCable: true,
+        cableWire: '电缆-线径0.75',
+        cableLength: 3,
+        cableAccessoryType: 'standard',
+    }, {
+        partsCatalog,
+        coils,
+    });
+
+    const cable = result.parts.find(part => part.cableAssembly);
+    assert.equal(cable.model, '电缆-线径0.75');
+    assert.equal(cable.pricingComplete, true);
+});
+
+test('后端 BOM draft 兼容带业务前缀的完整电缆型号', () => {
+    const catalog = [
+        ...partsCatalog,
+        { model: 'TEST-电缆-3x1.0', supplier: '测试供应商', price: 5.8, category: '电缆' },
+    ];
+    const result = buildRecipeBomDraft({
+        hasCable: true,
+        cableWire: 'TEST-电缆-3x1.0',
+        cableLength: 3,
+        cableAccessoryType: 'standard',
+    }, {
+        partsCatalog: catalog,
+        coils,
+    });
+
+    const cable = result.parts.find(part => part.cableAssembly);
+    assert.equal(cable.model, 'TEST-电缆-3x1.0');
+    assert.equal(cable.pricingComplete, true);
+});
+
+test('后端 BOM draft 启用电缆时拒绝空线径、非正长度和非法配件类型', () => {
+    assert.throws(
+        () => buildRecipeBomDraft({ hasCable: true, cableLength: 3 }, { partsCatalog, coils }),
+        error => error?.code === 'CABLE_MODEL_REQUIRED'
+    );
+    assert.throws(
+        () => buildRecipeBomDraft({ hasCable: true, cableWire: '0.75', cableLength: 0 }, { partsCatalog, coils }),
+        error => error?.code === 'CABLE_LENGTH_INVALID'
+    );
+    assert.throws(
+        () => buildRecipeBomDraft({ hasCable: true, cableWire: '0.75', cableLength: 3, cableAccessoryType: 'unknown' }, { partsCatalog, coils }),
+        error => error?.code === 'CABLE_ACCESSORY_TYPE_INVALID'
+    );
+});
+
 test('后端 BOM draft 不再使用泵壳 notes 默认机筒长度', () => {
     const result = buildRecipeBomDraft({
         templateId: 1,

@@ -1828,9 +1828,12 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片和文件自动
     assert.match(provider, /text\(env\.DEEPSEEK_MODEL\) \|\| 'deepseek-v4-flash'/);
     assert.match(provider, /provider: 'deepseek'/);
     assert.match(provider, /resolveAiProviderRoute/);
-    assert.match(provider, /routeReason: requiresVisionProvider\(messages, options\) \? 'image' : 'file'/);
-    assert.match(provider, /fileProvider: visionAvailable \? 'kimi' : null/);
-    assert.match(provider, /routeReason: 'vision_fallback'/);
+    assert.match(provider, /needsVision \? kimi\.supportsImages : kimi\.supportsFileExtraction/);
+    assert.match(provider, /routeReason: needsVision \? 'image' : 'file'/);
+    assert.match(provider, /fileProvider: fileAvailable \? 'kimi' : null/);
+    assert.match(provider, /selectedConfig\.routeReason === 'file'/);
+    assert.match(provider, /'file_fallback'/);
+    assert.match(provider, /'vision_fallback'/);
     assert.match(runtimeConfig, /values: \['auto', 'deepseek', 'kimi'\]/);
     assert.match(setupView, /图片原图、PDF、Excel\/CSV 和文本附件自动使用 Kimi K3/);
     assert.match(aiMessageList, /item\.provider\.displayName/);

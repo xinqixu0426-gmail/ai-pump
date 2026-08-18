@@ -76,7 +76,11 @@ test('检索评测：自动比较 FTS、向量和混合 Top1/Top3', async () => 
     });
     assert.equal(report.metrics.hybrid.top1Percent, 100);
     assert.equal(report.metrics.hybrid.top3Percent, 100);
+    assert.equal(report.status, 'passed');
     assert.equal(report.acceptance.passed, true);
+    assert.equal(report.acceptance.exactCoveragePresent, true);
+    assert.equal(report.acceptance.categoryCoverageComplete, true);
+    assert.equal(report.coverage.evaluatedPercent, 100);
     assert.deepEqual(report.improvements, ['semantic']);
     assert.deepEqual(report.regressions, []);
 });
@@ -128,6 +132,51 @@ test('检索评测：缺少固定业务资料时明确跳过，不再误判为�
     assert.equal(report.cases[1].status, 'missing_prerequisite');
     assert.equal(report.acceptance.coverageSufficient, false);
     assert.equal(report.acceptance.passed, false);
+    assert.equal(report.status, 'incomplete');
+    assert.equal(report.coverage.minimumEvaluatedCount, 2);
+    assert.deepEqual(report.coverage.missingCategories, ['semantic']);
+});
+
+test('检索评测：少量用例不能掩盖大部分前置资料缺失', () => {
+    const manyCases = [
+        ...cases,
+        ...Array.from({ length: 9 }, (_value, index) => ({
+            id: `extra-${index}`,
+            title: `补充用例 ${index}`,
+            category: index % 2 ? 'typo' : 'alias',
+            query: `查询 ${index}`,
+            entryType: 'recipe',
+            expectedTitleIncludes: [`目标 ${index}`],
+        })),
+    ];
+    const caseResults = manyCases.map((evaluationCase, index) => (
+        index < 2
+            ? {
+                id: evaluationCase.id,
+                category: evaluationCase.category,
+                status: 'evaluated',
+                ranks: index === 0
+                    ? { keyword: 1, vector: 1, hybrid: 1 }
+                    : { keyword: null, vector: 1, hybrid: 1 },
+                error: '',
+            }
+            : {
+                id: evaluationCase.id,
+                category: evaluationCase.category,
+                status: 'missing_prerequisite',
+                ranks: { keyword: null, vector: null, hybrid: null },
+                error: '',
+            }
+    ));
+
+    const report = buildEvaluationReport(manyCases, caseResults, {});
+
+    assert.equal(report.status, 'incomplete');
+    assert.equal(report.acceptance.passed, false);
+    assert.equal(report.acceptance.coverageSufficient, false);
+    assert.equal(report.coverage.minimumEvaluatedCount, 8);
+    assert.equal(report.coverage.evaluatedPercent, 18.2);
+    assert.deepEqual(report.coverage.missingCategories.sort(), ['alias', 'typo']);
 });
 
 test('检索评测：前置资料检查兼容正式 knowledge_entries 表结构', () => {

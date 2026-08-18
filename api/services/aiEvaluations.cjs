@@ -135,16 +135,89 @@ function containsUnavailableConclusion(answer, configuredTerms = []) {
     const normalized = normalizeAnswerForChecks(answer);
     return (
         /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)/.test(normalized)
+        || /(?:尚未|还未|没有|暂无).{0,24}(?:归档|上传|建立档案)/.test(normalized)
         || /(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/.test(normalized)
     );
 }
 
-function hasSafeResourceClarification(toolResults = []) {
-    return toolResults.some(tool => {
+function normalizeTargetText(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLocaleLowerCase('zh-CN')
+        .replace(/(\d)\s*(?:英寸|inches|inch|[″”"])/g, '$1in')
+        .replace(/[\s“'`]+/g, '');
+}
+
+function verifiedRecipeReportObservation(config, prerequisite, toolResults = []) {
+    const requiredTools = new Set(
+        (Array.isArray(config?.requiredTools) && config.requiredTools.length > 0
+            ? config.requiredTools
+            : ['get_recipe_technical_files'])
+            .map(String)
+    );
+    const targetName = normalizeTargetText(prerequisite?.recipeName);
+    for (const tool of toolResults) {
+        if (!requiredTools.has(String(tool?.name || ''))) continue;
         const result = tool?.result && typeof tool.result === 'object' ? tool.result : {};
-        return result.requiresClarification === true
-            && result.code === 'AI_RESOURCE_AMBIGUOUS';
-    });
+        if (result.executionEvidence?.verified !== true) continue;
+        const entityType = String(
+            result.entityType
+            || result.clarification?.entityType
+            || result.resolutionReceipt?.entityType
+            || ''
+        );
+        const query = normalizeTargetText(
+            result.query
+            || result.clarification?.query
+            || result.resolutionReceipt?.originalMention
+            || result.recipe?.name
+        );
+        if (entityType && entityType !== 'recipe') continue;
+        if (!targetName || !query || query !== targetName) continue;
+        if (
+            result.requiresClarification === true
+            && result.code === 'AI_RESOURCE_AMBIGUOUS'
+        ) {
+            return { kind: 'needs_confirmation', toolName: tool.name };
+        }
+        if (result.code === 'AI_RESOURCE_NOT_FOUND') {
+            return { kind: 'verified_unavailable', toolName: tool.name };
+        }
+        if (result.success !== false && Array.isArray(result.files)) {
+            const hasReport = result.files.some(file => (
+                file?.reportType === 'pump_performance_test'
+            ));
+            if (!hasReport) {
+                return { kind: 'verified_unavailable', toolName: tool.name };
+            }
+        }
+    }
+    return null;
+}
+
+function verifiedCoilObservation(config, prerequisite, toolResults = []) {
+    const requiredTools = new Set(
+        (Array.isArray(config?.requiredTools) && config.requiredTools.length > 0
+            ? config.requiredTools
+            : ['search_coils'])
+            .map(String)
+    );
+    const targetSpec = normalizeTargetText(prerequisite?.spec);
+    const targetSheets = Number.parseInt(prerequisite?.sheets, 10);
+    for (const tool of toolResults) {
+        if (!requiredTools.has(String(tool?.name || ''))) continue;
+        const result = tool?.result && typeof tool.result === 'object' ? tool.result : {};
+        if (result.executionEvidence?.verified !== true) continue;
+        const filters = result.filters && typeof result.filters === 'object'
+            ? result.filters
+            : result.queryReceipt?.appliedFilters || {};
+        if (normalizeTargetText(filters.spec) !== targetSpec) continue;
+        if (Number.parseInt(filters.sheets, 10) !== targetSheets) continue;
+        if (Number(result.count ?? result.queryReceipt?.totalCount) === 0) {
+            return { kind: 'verified_unavailable', toolName: tool.name };
+        }
+    }
+    return null;
 }
 
 function evaluatePrerequisite(config, answer, db, toolResults = []) {
@@ -172,16 +245,28 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
             '返回结果为 0',
             '返回结果为0',
         ];
+        const observation = !available
+            ? verifiedCoilObservation(config, prerequisite, toolResults)
+            : null;
+        const unavailableConclusion = containsUnavailableConclusion(
+            answer,
+            unavailableResultTerms
+        );
         return {
             type: prerequisite.type,
             available,
-            passed: available || containsUnavailableConclusion(answer, unavailableResultTerms),
+            passed: available || (Boolean(observation) && unavailableConclusion),
+            observation,
             label: available
                 ? `存在 ${spec}-${sheets} 正式线圈方案`
                 : `明确说明 ${spec}-${sheets} 正式线圈方案不可用`,
             detail: available
                 ? '已找到目标规格片数的正式线圈方案'
-                : '目标方案不存在时必须明确说明未找到',
+                : observation
+                    ? unavailableConclusion
+                        ? '正式线圈查询已验证目标方案不可用，回答已明确说明'
+                        : '正式线圈查询已验证目标方案不可用，但回答没有明确说明'
+                    : '没有取得目标规格和片数的正式线圈查询证据',
         };
     }
     if (prerequisite.type !== 'recipe_test_report') return null;
@@ -201,17 +286,28 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
     const unavailableTerms = Array.isArray(config.unavailableTerms)
         ? config.unavailableTerms
         : ['未找到', '没有找到', '未记录', '没有记录', '无法确认', '无法提供', '尚未归档'];
-    const safeClarification = !available && hasSafeResourceClarification(toolResults);
+    const observation = !available
+        ? verifiedRecipeReportObservation(config, prerequisite, toolResults)
+        : null;
+    const unavailableConclusion = containsUnavailableConclusion(answer, unavailableTerms);
+    const needsConfirmation = observation?.kind === 'needs_confirmation';
+    const verifiedUnavailable = observation?.kind === 'verified_unavailable';
     return {
         type: prerequisite.type,
         available,
-        passed: available || safeClarification || containsUnavailableConclusion(answer, unavailableTerms),
+        passed: available || needsConfirmation || (verifiedUnavailable && unavailableConclusion),
+        reviewRequired: needsConfirmation,
+        observation,
         label: available ? `存在 ${recipeName} 性能测试报告` : `明确说明 ${recipeName} 性能测试报告不可用`,
         detail: available
             ? '已找到目标配方的性能测试报告'
-            : safeClarification
-                ? '目标资料不存在或不可唯一定位，AI 已基于正式查询要求确认'
-                : '目标资料不存在时必须明确说明未找到或无法确认',
+            : needsConfirmation
+                ? '正式技术档案查询无法唯一定位目标配方，需要人工确认后复测'
+                : verifiedUnavailable
+                    ? unavailableConclusion
+                        ? '正式技术档案查询已验证目标资料不可用，回答已明确说明'
+                        : '正式技术档案查询已验证目标资料不可用，但回答没有明确说明'
+                    : '没有取得针对目标配方的正式技术档案查询证据',
     };
 }
 
@@ -231,6 +327,17 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
             prerequisite.passed,
             prerequisite.detail
         );
+        if (!prerequisite.available) {
+            addCheck(
+                checks,
+                `prerequisite-evidence:${prerequisite.type}`,
+                '取得目标资料的正式查询证据',
+                Boolean(prerequisite.observation),
+                prerequisite.observation
+                    ? `已通过 ${prerequisite.observation.toolName} 取得目标范围内的正式结果`
+                    : '未调用要求的正式工具，或工具结果不属于当前检查目标'
+            );
+        }
     }
     const strictEvidenceRequired = !prerequisite || prerequisite.available;
     if (strictEvidenceRequired) {
@@ -333,8 +440,11 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
         }
     }
 
+    const checksPassed = checks.length > 0 && checks.every(check => check.passed);
     return {
-        status: checks.length > 0 && checks.every(check => check.passed) ? 'passed' : 'failed',
+        status: checksPassed
+            ? prerequisite?.reviewRequired ? 'review' : 'passed'
+            : 'failed',
         checks,
         sources: evidence.sources,
     };

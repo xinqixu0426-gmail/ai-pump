@@ -245,7 +245,7 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
             unavailableTerms: ['未找到', '无法确认'],
             requiredTerms: [['性能测试报告'], ['流量'], ['扬程']],
             forbiddenTerms: ['参考图纸'],
-            requiredTools: ['search_factory_knowledge'],
+            requiredTools: ['get_recipe_technical_files'],
             requiredSourceTables: ['recipes'],
         },
     };
@@ -255,10 +255,14 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
         [{ name: 'search_factory_knowledge', result: {} }],
         fixture.db
     );
-    assert.equal(unavailable.status, 'passed');
+    assert.equal(unavailable.status, 'failed');
     assert.equal(unavailable.checks.some(check => check.key.startsWith('required:')), false);
     assert.equal(unavailable.checks.some(check => check.key.startsWith('tool:')), false);
     assert.equal(unavailable.checks.some(check => check.key.startsWith('source:')), false);
+    assert.equal(
+        unavailable.checks.find(check => check.key === 'prerequisite-evidence:recipe_test_report').passed,
+        false
+    );
 
     const naturalUnavailable = evaluateRuleCase(
         caseItem,
@@ -266,7 +270,53 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
         [{ name: 'get_recipe_detail', result: {} }],
         fixture.db
     );
-    assert.equal(naturalUnavailable.status, 'passed');
+    assert.equal(naturalUnavailable.status, 'failed');
+
+    const verifiedUnavailable = evaluateRuleCase(
+        caseItem,
+        '未在系统中找到目标配方，因此无法读取对应的性能测试报告。',
+        [{
+            name: 'get_recipe_technical_files',
+            result: {
+                success: false,
+                code: 'AI_RESOURCE_NOT_FOUND',
+                entityType: 'recipe',
+                query: 'V1600-3英寸-12-180',
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query_failure',
+                    calls: [{ method: 'GET', path: '/api/recipes' }],
+                },
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(verifiedUnavailable.status, 'passed');
+
+    fixture.db.prepare(`INSERT INTO recipes VALUES (1, ?, NULL)`).run('V1600-3”-12-180');
+    const verifiedEmptyFiles = evaluateRuleCase(
+        caseItem,
+        '该配方当前尚未归档性能测试报告。',
+        [{
+            name: 'get_recipe_technical_files',
+            result: {
+                success: true,
+                recipe: { id: 1, name: 'V1600-3”-12-180' },
+                files: [],
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query',
+                    calls: [
+                        { method: 'GET', path: '/api/recipes' },
+                        { method: 'GET', path: '/api/recipes/1/technical-files' },
+                    ],
+                },
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(verifiedEmptyFiles.status, 'passed');
+    fixture.db.prepare('DELETE FROM recipes WHERE id = 1').run();
 
     const safeClarification = evaluateRuleCase(
         caseItem,
@@ -277,16 +327,45 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
                 success: false,
                 code: 'AI_RESOURCE_AMBIGUOUS',
                 requiresClarification: true,
+                entityType: 'recipe',
+                query: 'V1600-3”-12-180',
                 candidates: [{ id: 1, name: '其他配方' }],
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query_failure',
+                    calls: [{ method: 'GET', path: '/api/recipes' }],
+                },
             },
         }],
         fixture.db
     );
-    assert.equal(safeClarification.status, 'passed');
+    assert.equal(safeClarification.status, 'review');
     assert.match(
         safeClarification.checks.find(check => check.key === 'prerequisite:recipe_test_report').detail,
-        /要求确认/
+        /确认/
     );
+
+    const unrelatedClarification = evaluateRuleCase(
+        caseItem,
+        '匹配到多个客户，请确认具体对象。',
+        [{
+            name: 'search_customer_history',
+            result: {
+                success: false,
+                code: 'AI_RESOURCE_AMBIGUOUS',
+                requiresClarification: true,
+                entityType: 'customer',
+                query: 'V1600-3”-12-180',
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query_failure',
+                    calls: [{ method: 'GET', path: '/api/customers' }],
+                },
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(unrelatedClarification.status, 'failed');
 
     const unsupported = evaluateRuleCase(
         caseItem,
@@ -304,7 +383,7 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
         caseItem,
         '附件是性能测试报告，测试点包含流量和扬程。',
         [{
-            name: 'search_factory_knowledge',
+            name: 'get_recipe_technical_files',
             result: { sources: [{ sourceTable: 'recipes' }] },
         }],
         fixture.db
@@ -421,7 +500,16 @@ test('AI 评测：线圈方案不存在时接受明确零结果，存在时恢�
         '12-220 当前没有已登记的正式方案，本轮实时查询返回记录数为 0。',
         [{
             name: 'search_coils',
-            result: { provenance: { kind: 'live_business' }, count: 0 },
+            result: {
+                provenance: { kind: 'live_business' },
+                count: 0,
+                filters: { spec: '12', sheets: 220 },
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query',
+                    calls: [{ method: 'GET', path: '/api/coils?spec=12&sheets=220' }],
+                },
+            },
         }],
         fixture.db
     );
@@ -434,7 +522,16 @@ test('AI 评测：线圈方案不存在时接受明确零结果，存在时恢�
         '系统中没有规格为 12、片数 220 的正式线圈方案，返回数量为 0。',
         [{
             name: 'search_coils',
-            result: { provenance: { kind: 'live_business' }, count: 0 },
+            result: {
+                provenance: { kind: 'live_business' },
+                count: 0,
+                filters: { spec: '12', sheets: 220 },
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query',
+                    calls: [{ method: 'GET', path: '/api/coils?spec=12&sheets=220' }],
+                },
+            },
         }],
         fixture.db
     );

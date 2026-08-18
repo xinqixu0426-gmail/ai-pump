@@ -42,7 +42,7 @@ test('关键 API 集成契约：/api/recipes/cost-draft 只生成保存成本草
 
     assert.match(section, /buildRecipeCostDraft\(req\.body \|\| \{\}, \{ partsCatalog: dbGetAllParts\(\) \}\)/);
     assert.match(section, /res\.json\(\{ success: true, data \}\)/);
-    assert.match(section, /res\.status\(400\)\.json\(\{ success: false, error: error\.message \}\)/);
+    assert.match(section, /sendRecipeQueryError\(res, error, 400\)/);
     assertNoWrites(section);
 });
 
@@ -60,6 +60,7 @@ test('关键 API 集成契约：/api/recipes/bom-draft 只生成 BOM 草稿不�
     assert.match(queries, /templateRow\(/);
     assert.match(queries, /modelVariantRow\(/);
     assert.match(section, /res\.json\(\{ success: true, data \}\)/);
+    assert.match(section, /sendRecipeQueryError\(res, error, 400\)/);
     assertNoWrites(section);
     assertNoWrites(queries);
 });

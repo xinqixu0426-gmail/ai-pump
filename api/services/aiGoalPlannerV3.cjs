@@ -40,6 +40,47 @@ function latestUserText(messages = []) {
     ))?.content?.trim() || '';
 }
 
+function explicitKnowledgeSearchRequested(value) {
+    const text = String(value || '').toLocaleLowerCase('zh-CN').replace(/\s+/g, '');
+    if (!text) return false;
+    if (/(?:不要|无需|不用|禁止|别).{0,12}(?:search_factory_knowledge|知识库|工厂经验|业务规则)/.test(text)) {
+        return false;
+    }
+    return text.includes('search_factory_knowledge')
+        || /(?:查|查询|搜索|检索|使用|调用|根据|依据).{0,12}(?:知识库|工厂经验|业务规则)/.test(text)
+        || /(?:知识库|工厂经验|业务规则).{0,12}(?:查|查询|搜索|检索)/.test(text)
+        || /(?:哪些|哪个|什么|是否|能否|能不能|可以|怎么|如何|为什么|说明|查询|核对).{0,24}(?:用途|适用|适合|工况|兼容|配套|专用|用来|用于)/.test(text)
+        || /(?:用途|适用|适合|工况|兼容|配套|专用|用来|用于).{0,24}(?:哪些|哪个|什么|是否|能否|能不能|可以|怎么|如何|为什么|说明|查询|核对)/.test(text);
+}
+
+function enforceExplicitReadRequirements(intent, userText) {
+    if (!explicitKnowledgeSearchRequested(userText) || intent.requiresClarification) return intent;
+    if (plannedCapabilityNames(intent).includes('search_factory_knowledge')) return intent;
+    const capability = getAiCapability('search_factory_knowledge');
+    if (
+        !capability
+        || capability.access !== 'read'
+        || intent.steps.length >= 5
+        || (
+            intent.entityScope !== 'none'
+            && !capability.entityScopes.includes(intent.entityScope)
+        )
+    ) return intent;
+    return Object.freeze({
+        ...intent,
+        mode: intent.mode === 'conversation' ? 'query' : intent.mode,
+        needsBusinessData: true,
+        domains: Object.freeze([...new Set([...intent.domains, 'knowledge'])]),
+        steps: Object.freeze([
+            ...intent.steps,
+            Object.freeze({
+                capabilityName: 'search_factory_knowledge',
+                objective: '读取用户明确要求的工厂知识或业务规则依据',
+            }),
+        ]),
+    });
+}
+
 function plannerTool() {
     const capabilityNames = listAiCapabilities().map(capability => capability.toolName);
     return {
@@ -272,9 +313,10 @@ async function planAiGoalV3(messages, options = {}) {
         const data = await response.json();
         if (data.error) throw new AiIntentPlanError(data.error.message || '意图规划 API 错误');
         try {
-            return normalizeIntentPlan(parsePlanArguments(data.choices?.[0]?.message), {
+            const normalized = normalizeIntentPlan(parsePlanArguments(data.choices?.[0]?.message), {
                 pageContext: options.pageContext,
             });
+            return enforceExplicitReadRequirements(normalized, latestUserText(messages));
         } catch (error) {
             if (!(error instanceof AiIntentPlanError) || attempt > 0) throw error;
             lastError = error;
@@ -298,6 +340,8 @@ module.exports = {
     DOMAIN_NAMES,
     ENTITY_SCOPES,
     INTENT_MODES,
+    enforceExplicitReadRequirements,
+    explicitKnowledgeSearchRequested,
     normalizeIntentPlan,
     planAiGoalV3,
     planAiIntentV2,

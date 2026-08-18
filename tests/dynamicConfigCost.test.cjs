@@ -42,6 +42,8 @@ test('动态配置成本服务将线材和插头规格合并为成品电缆', ()
     assert.equal(result.details[0].price, '2.60');
     assert.equal(result.details[1].price, '3.30');
     assert.equal(result.details[1].inventoryQty, 2);
+    assert.equal(result.details[1].cableAccessorySource, 'system_settings');
+    assert.equal(result.details[1].formulaVersion, 'complete-cable-v1');
     assert.equal(result.details[2].model, '小纸箱');
 });
 
@@ -60,4 +62,29 @@ test('单独电缆估算复用全局配件配置', () => {
     assert.equal(result.accessoryName, '新界式');
     assert.equal(result.accessoryFee, 0.9);
     assert.equal(result.totalCost, 3.3);
+    assert.equal(result.cableAccessorySource, 'system_settings');
+    assert.equal(result.formulaVersion, 'complete-cable-v1');
+});
+
+test('动态配置和单独电缆估算使用同一套校验', () => {
+    assert.throws(
+        () => calculateDynamicConfigCost({ hasCable: true, cableWire: '0.55', cableLength: 0 }, { partsCache, partsByModel, getSetting }),
+        error => error?.code === 'CABLE_LENGTH_INVALID'
+    );
+    assert.throws(
+        () => calculateCableEstimate({ wire: '不存在', length: 2 }, partsByModel, getSetting),
+        error => error?.code === 'CABLE_PRICE_MISSING'
+    );
+});
+
+test('动态配置兼容完整电缆型号且不重复拼接线径前缀', () => {
+    const result = calculateDynamicConfigCost({
+        hasCable: true,
+        cableWire: '电缆-线径0.55',
+        cableLength: 2,
+    }, { partsCache, partsByModel, getSetting });
+
+    const cable = result.details.find(item => item.cableAssembly);
+    assert.equal(cable.model, '电缆-线径0.55');
+    assert.equal(cable.pricingComplete, true);
 });

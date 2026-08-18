@@ -70,7 +70,8 @@ async function main() {
     }
     if (!report.acceptance.passed) {
         throw new Error(
-            `检索验收未通过：${JSON.stringify(report.acceptance)}`
+            `${report.status === 'incomplete' ? '检索评测覆盖不完整' : '检索验收未通过'}：`
+            + `${JSON.stringify({ acceptance: report.acceptance, coverage: report.coverage })}`
         );
     }
 }

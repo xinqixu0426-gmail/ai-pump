@@ -7,6 +7,7 @@ const { searchKnowledgeEntries } = require('./knowledge.cjs');
 const { searchStoredEmbeddings } = require('./knowledgeVectorStore.cjs');
 
 const RETRIEVAL_LIMIT = 10;
+const MINIMUM_COVERAGE_RATIO = 0.7;
 const FIXED_RETRIEVAL_CASES = Object.freeze([
     {
         id: 'exact_part_model',
@@ -156,18 +157,35 @@ function buildEvaluationReport(cases, caseResults, model = {}) {
         hybrid: summarizeMode(evaluatedResults, 'hybrid'),
     };
     const exactCases = evaluatedResults.filter(result => result.category === 'exact');
-    const exactTop1Passed = exactCases.every(result => result.ranks.hybrid === 1);
+    const exactCoveragePresent = exactCases.length > 0;
+    const exactTop1Passed = exactCoveragePresent
+        && exactCases.every(result => result.ranks.hybrid === 1);
     const noErrors = evaluatedResults.every(result => !result.error);
     const hybridDoesNotRegress = (
         metrics.hybrid.top1Count >= metrics.keyword.top1Count
         && metrics.hybrid.top3Count >= metrics.keyword.top3Count
     );
     const semanticImproved = metrics.hybrid.top3Count > metrics.keyword.top3Count;
-    const coverageSufficient = evaluatedResults.length >= 2;
+    const requiredCategories = [...new Set(cases.map(item => item.category).filter(Boolean))];
+    const evaluatedCategories = [...new Set(evaluatedResults.map(item => item.category).filter(Boolean))];
+    const missingCategories = requiredCategories.filter(category => !evaluatedCategories.includes(category));
+    const categoryCoverageComplete = missingCategories.length === 0;
+    const minimumEvaluatedCount = Math.max(2, Math.ceil(cases.length * MINIMUM_COVERAGE_RATIO));
+    const coveragePercent = cases.length > 0
+        ? Number(((evaluatedResults.length / cases.length) * 100).toFixed(1))
+        : 0;
+    const coverageSufficient = evaluatedResults.length >= minimumEvaluatedCount
+        && categoryCoverageComplete;
     const passed = noErrors && exactTop1Passed && hybridDoesNotRegress
         && semanticImproved && coverageSufficient;
+    const status = passed
+        ? 'passed'
+        : !coverageSufficient && noErrors
+            ? 'incomplete'
+            : 'failed';
     return {
         generatedAt: new Date().toISOString(),
+        status,
         model: model.model || '',
         dimensions: Number(model.dimensions || 0),
         caseCount: cases.length,
@@ -177,10 +195,20 @@ function buildEvaluationReport(cases, caseResults, model = {}) {
         acceptance: {
             passed,
             noErrors,
+            exactCoveragePresent,
             exactTop1Passed,
             hybridDoesNotRegress,
             semanticImproved,
             coverageSufficient,
+            categoryCoverageComplete,
+        },
+        coverage: {
+            minimumRatio: MINIMUM_COVERAGE_RATIO,
+            minimumEvaluatedCount,
+            evaluatedPercent: coveragePercent,
+            requiredCategories,
+            evaluatedCategories,
+            missingCategories,
         },
         regressions: caseResults
             .filter(result => (

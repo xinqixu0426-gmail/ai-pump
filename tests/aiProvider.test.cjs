@@ -161,6 +161,41 @@ test('AI 智能路由：普通对话走 DeepSeek，图片和文件走 Kimi K3', 
     }
 });
 
+test('AI 智能路由：关闭视觉只影响图片，PDF和表格仍使用 Kimi 文件抽取', () => {
+    const accessors = createFileAccessors();
+    const env = {
+        AI_PROVIDER: 'auto',
+        DEEPSEEK_API_KEY: 'deepseek-key',
+        KIMI_API_KEY: 'kimi-key',
+        KIMI_MODEL: 'kimi-k3',
+        AI_VISION_ENABLED: 'false',
+    };
+    try {
+        const spreadsheetRoute = resolveAiProviderRoute([{
+            role: 'user',
+            content: '分析表格',
+            attachments: [{ id: accessors.spreadsheetId }],
+        }], { env, dbAccessors: { db: accessors.db } });
+        assert.equal(spreadsheetRoute.provider, 'kimi');
+        assert.equal(spreadsheetRoute.routeReason, 'file');
+
+        const imageRoute = resolveAiProviderRoute([{
+            role: 'user',
+            content: '识别图片',
+            attachments: [{ id: accessors.imageId }],
+        }], { env, dbAccessors: { db: accessors.db } });
+        assert.equal(imageRoute.provider, 'deepseek');
+        assert.equal(imageRoute.routeReason, 'vision_unavailable');
+
+        const capabilities = aiProviderCapabilities(env);
+        assert.equal(capabilities.supportsImages, false);
+        assert.equal(capabilities.visionProvider, null);
+        assert.equal(capabilities.fileProvider, 'kimi');
+    } finally {
+        accessors.db.close();
+    }
+});
+
 test('AI 智能路由：Kimi 调用失败时回退 DeepSeek 和本地 OCR', async () => {
     const accessors = createFileAccessors();
     const requests = [];
@@ -204,6 +239,7 @@ test('AI 智能路由：Kimi 调用失败时回退 DeepSeek 和本地 OCR', asyn
         assert.match(requests[3].body.messages[0].content, /本地 OCR 结果/);
         assert.equal(providers.at(-1).provider, 'deepseek');
         assert.equal(providers.at(-1).fallback, true);
+        assert.equal(providers.at(-1).routeReason, 'vision_fallback');
     } finally {
         accessors.db.close();
     }

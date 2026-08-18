@@ -22,17 +22,19 @@ function parseCableAccessoryName(notes, accessoryType = 'standard') {
 }
 
 function getGlobalCableAccessory(getSetting = () => undefined, accessoryType = 'standard') {
+    const fallbackName = accessoryType === 'xinjie' ? '新界式' : '普通铜套';
     try {
         const config = JSON.parse(getSetting('cable_accessories') || '{}')?.[accessoryType];
         const fee = Number(config?.fee);
         return {
             name: typeof config?.name === 'string' && config.name.trim()
                 ? config.name.trim()
-                : (accessoryType === 'xinjie' ? '新界式' : '普通铜套'),
+                : fallbackName,
             fee: Number.isFinite(fee) && fee >= 0 ? fee : null,
+            configured: Boolean(config && typeof config === 'object'),
         };
     } catch {
-        return { name: accessoryType === 'xinjie' ? '新界式' : '普通铜套', fee: null };
+        return { name: fallbackName, fee: null, configured: false };
     }
 }
 
@@ -62,7 +64,7 @@ function getCableAccessoryFeeFromPartsByModel(partsByModel, cableModel, supplier
 
 function getCableAccessoryNameFromPartsByModel(partsByModel, cableModel, supplier = '', accessoryType = 'standard', getSetting = () => undefined) {
     const globalAccessory = getGlobalCableAccessory(getSetting, accessoryType);
-    if (globalAccessory.name) return globalAccessory.name;
+    if (globalAccessory.configured) return globalAccessory.name;
     const candidates = partsByModel?.[cableModel] || [];
     const matched = findSupplierPart(candidates, supplier);
     const name = parseCableAccessoryName(matched?.notes, accessoryType);
@@ -70,7 +72,9 @@ function getCableAccessoryNameFromPartsByModel(partsByModel, cableModel, supplie
     return accessoryType === 'xinjie' ? '新界式' : '普通铜套';
 }
 
-function getCableAccessoryFeeFromCatalog(partsCatalog, cableModel, supplier = '', accessoryType = 'standard') {
+function getCableAccessoryFeeFromCatalog(partsCatalog, cableModel, supplier = '', accessoryType = 'standard', getSetting = () => undefined) {
+    const globalAccessory = getGlobalCableAccessory(getSetting, accessoryType);
+    if (globalAccessory.fee != null) return globalAccessory.fee;
     const matched = getCablePartFromCatalog(partsCatalog, cableModel, supplier);
     const fee = parseCableAccessoryFee(matched?.notes, accessoryType);
     if (fee != null) return fee;
@@ -79,7 +83,9 @@ function getCableAccessoryFeeFromCatalog(partsCatalog, cableModel, supplier = ''
     return Number(findSupplierPart(legacy, supplier)?.price || 0);
 }
 
-function getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier = '', accessoryType = 'standard') {
+function getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier = '', accessoryType = 'standard', getSetting = () => undefined) {
+    const globalAccessory = getGlobalCableAccessory(getSetting, accessoryType);
+    if (globalAccessory.configured) return globalAccessory.name;
     const matched = getCablePartFromCatalog(partsCatalog, cableModel, supplier);
     const name = parseCableAccessoryName(matched?.notes, accessoryType);
     if (name) return name;
@@ -130,8 +136,14 @@ function buildCompleteCablePart({
 
 function collapseLegacyCableParts(parts) {
     if (!Array.isArray(parts)) return [];
-    if (parts.some(part => part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆'))) {
-        return parts;
+    const completeCableIndex = parts.findIndex(
+        part => part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆')
+    );
+    if (completeCableIndex >= 0) {
+        return parts.filter((part, index) => (
+            index === completeCableIndex
+            || (!isCableWirePart(part) && !isLegacyCableAccessoryPart(part))
+        ));
     }
     const cableIndex = parts.findIndex(isCableWirePart);
     const accessoryIndex = parts.findIndex(isLegacyCableAccessoryPart);
@@ -159,7 +171,7 @@ function collapseLegacyCableParts(parts) {
     };
     return parts.flatMap((part, index) => {
         if (index === cableIndex) return [completeCable];
-        if (index === accessoryIndex) return [];
+        if (isCableWirePart(part) || isLegacyCableAccessoryPart(part)) return [];
         return [part];
     });
 }

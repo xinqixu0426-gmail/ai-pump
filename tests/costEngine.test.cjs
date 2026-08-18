@@ -3,7 +3,10 @@ const assert = require('node:assert/strict');
 const {
     applyLongScrewRule,
     calculateRecipeCost,
+    calculateCompleteCableCost,
+    configuredWireModel,
     buildRecipeCostDraft,
+    assertRecipeBomPrices,
     calculateScrewUnitPrice,
     findScrewPricingPart,
     getPartPriceFromCatalog,
@@ -153,6 +156,74 @@ test('通用配方成本计算兼容旧电缆两行并合并重算成品电缆',
     assert.equal(result.details[0].price, '3.30');
     assert.equal(result.details[0].qty, 1);
     assert.match(result.details[0].source, /新界式/);
+});
+
+test('成品电缆统一计价返回公式来源、库存单位和全局配件配置', () => {
+    const result = calculateCompleteCableCost({
+        model: '电缆-线径0.55',
+        cableLength: 2,
+        cableAccessoryType: 'xinjie',
+    }, {
+        partsByModel: {
+            '电缆-线径0.55': [{ model: '电缆-线径0.55', supplier: 'A', price: 1.2 }],
+        },
+        getSetting: key => key === 'cable_accessories'
+            ? JSON.stringify({ xinjie: { name: '全局新界式', fee: 0.9 } })
+            : undefined,
+    });
+
+    assert.equal(result.snapshotPrice, 3.3);
+    assert.equal(result.inventoryQty, 2);
+    assert.equal(result.inventoryUnit, 'm');
+    assert.equal(result.cableAccessoryName, '全局新界式');
+    assert.equal(result.cableAccessorySource, 'system_settings');
+    assert.equal(result.costSource, 'cable_formula');
+    assert.equal(result.formulaVersion, 'complete-cable-v1');
+});
+
+test('线径配置同时兼容裸线径、标准型号和带业务前缀的完整电缆型号', () => {
+    assert.equal(configuredWireModel('电缆', '0.55', ''), '电缆-线径0.55');
+    assert.equal(configuredWireModel('电缆', '电缆-线径0.75', ''), '电缆-线径0.75');
+    assert.equal(configuredWireModel('电缆', 'TEST-电缆-3x1.0', ''), 'TEST-电缆-3x1.0');
+});
+
+test('成品电缆启用但参数或目录价缺失时返回稳定错误码', () => {
+    assert.throws(
+        () => calculateCompleteCableCost({ model: '电缆-线径0.55', cableLength: 0 }, { partsByModel: {} }),
+        error => error?.code === 'CABLE_LENGTH_INVALID' && error?.statusCode === 400
+    );
+    assert.throws(
+        () => calculateCompleteCableCost({ model: '电缆-线径0.55', cableLength: 2 }, { partsByModel: {} }),
+        error => error?.code === 'CABLE_PRICE_MISSING' && error?.statusCode === 422
+    );
+});
+
+test('当前成本重算不使用旧电缆快照掩盖目录缺价', () => {
+    const result = calculateRecipeCost([{
+        name: '成品电缆（普通铜套）',
+        model: '电缆-线径0.55',
+        qty: 1,
+        cableAssembly: true,
+        cableLength: 2,
+        snapshotPrice: 9.9,
+    }], {}, {});
+
+    assert.equal(result.totalCost, '0.00');
+    assert.deepEqual(result.missingParts, ['电缆-线径0.55']);
+    assert.equal(result.details[0].source, '未找到');
+});
+
+test('电缆仅有配件费但缺少每米价时仍被保存门禁识别为未定价', () => {
+    assert.throws(
+        () => assertRecipeBomPrices([{
+            name: '成品电缆（普通铜套）',
+            model: '电缆-线径0.55',
+            snapshotPrice: 3,
+            pricingComplete: false,
+        }]),
+        error => error?.code === 'RECIPE_BOM_UNPRICED'
+            && error?.items?.[0]?.model === '电缆-线径0.55'
+    );
 });
 
 test('通用配方成本计算支持参数化长螺丝', () => {

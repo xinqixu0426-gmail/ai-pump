@@ -36,7 +36,12 @@ export type RecipePart = {
   cableAccessoryName?: string;
   cableAccessoryFee?: number;
   inventoryQty?: number;
+  inventoryUnit?: 'm';
   inventoryType?: string;
+  cablePriceSource?: string;
+  cableAccessorySource?: string;
+  formulaVersion?: string;
+  pricingComplete?: boolean;
   componentType?: 'standard' | 'stainlessStretchBarrel' | 'subassembly';
   subassemblyContents?: SubassemblyContentInput[];
   packingRole?: 'container' | 'foam' | 'pearlCotton' | 'fixed';

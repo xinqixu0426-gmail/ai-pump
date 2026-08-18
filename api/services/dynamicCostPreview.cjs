@@ -4,12 +4,8 @@ const {
     findPartByModelAndSupplierFromCatalog,
     lengthPricedPartSubtotal,
     buildRecipeCostDraft,
-    getCableAccessoryFee: getCableAccessoryFeeFromEngine,
+    calculateCompleteCableCost,
 } = require('./costEngine.cjs');
-const {
-    buildCompleteCablePart,
-    getCableAccessoryNameFromCatalog,
-} = require('./cableAccessory.cjs');
 const {
     DEFAULT_COIL_MATERIAL,
     calculateCoilCost,
@@ -85,10 +81,6 @@ function managedPartType(part) {
 function partSnapshotSubtotal(part, partsCache, partsByModel, calculateRecipeCost) {
     if (part?.snapshotPrice !== undefined) return Number(part.snapshotPrice || 0) * Number(part.qty || 0);
     return Number(calculateRecipeCost([part], partsCache, partsByModel).totalCost || 0);
-}
-
-function getCableAccessoryFee(partsByModel, cableModel, supplier, getSetting, accessoryType = 'standard') {
-    return getCableAccessoryFeeFromEngine(partsByModel, cableModel, supplier, accessoryType, getSetting);
 }
 
 function getFloatAccessoryDelta(getSetting, accessoryType = 'standard') {
@@ -261,6 +253,17 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const effectiveSurfaceCost = recipeData.surface_treatment_mode === 'none' ? 0 : Number(recipeData.surface_treatment_cost || 0);
     const surfaceChanged = !sameText(recipeData.surface_treatment_mode, baseSurfaceMode)
         || !sameNumber(effectiveSurfaceCost, baseSurfaceCost);
+    const cableOverridePart = cableChanged && toBool(recipeData.has_cable)
+        ? calculateCompleteCableCost({
+            model: configuredWireModel('电缆', recipeData.cable_wire, resolvedWire),
+            cableLength: recipeData.cable_length,
+            cableAccessoryType: recipeData.cable_accessory_type,
+        }, {
+            partsCatalog,
+            partsByModel,
+            getSetting,
+        })
+        : null;
 
     totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, getCoils) : managedTotals.coil;
 
@@ -272,10 +275,8 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
 
     if (!cableChanged) {
         totalCost += managedTotals.cable;
-    } else if (toBool(recipeData.has_cable) && Number(recipeData.cable_length) > 0) {
-        const cableModel = configuredWireModel('电缆', recipeData.cable_wire, resolvedWire);
-        totalCost += getPrice(cableModel) * Number(recipeData.cable_length);
-        totalCost += getCableAccessoryFee(partsByModel, cableModel, '', getSetting, recipeData.cable_accessory_type);
+    } else if (cableOverridePart) {
+        totalCost += cableOverridePart.snapshotPrice;
     }
 
     totalCost += boxChanged
@@ -334,22 +335,9 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
 
     if (!cableChanged) {
         snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'cable'));
-    } else if (toBool(recipeData.has_cable) && Number(recipeData.cable_length) > 0) {
-        const cableModel = configuredWireModel('电缆', recipeData.cable_wire, resolvedWire);
-        const matchedCable = findPartByModelAndSupplierFromCatalog(partsCatalog, cableModel, '');
-        const supplier = String(matchedCable?.supplier || '');
-        const accessoryType = recipeData.cable_accessory_type;
+    } else if (cableOverridePart) {
         snapshotParts.push({
-            ...buildCompleteCablePart({
-                model: cableModel,
-                supplier,
-                cableLength: recipeData.cable_length,
-                cableUnitPrice: getPrice(cableModel),
-                accessoryType,
-                accessoryName: getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier, accessoryType),
-                accessoryFee: getCableAccessoryFee(partsByModel, cableModel, supplier, getSetting, accessoryType),
-            }),
-            cableAssembly: true,
+            ...cableOverridePart,
             source: 'quotation_override',
         });
     }

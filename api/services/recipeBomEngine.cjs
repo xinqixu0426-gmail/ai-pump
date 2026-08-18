@@ -4,15 +4,12 @@ const {
     applyStainlessShellBundleRule,
     roundMoney,
     wireModel,
+    configuredWireModel,
     inferPackingMaterial,
     getPartPriceFromCatalog,
     getFloatAccessoryDelta,
+    calculateCompleteCableCost,
 } = require('./costEngine.cjs');
-const {
-    buildCompleteCablePart,
-    getCableAccessoryFeeFromCatalog,
-    getCableAccessoryNameFromCatalog,
-} = require('./cableAccessory.cjs');
 const {
     DEFAULT_COIL_MATERIAL,
     calculateCoilCost,
@@ -42,14 +39,6 @@ function capacitorValueFromModel(model) {
 }
 
 const getPriceByModelAndSupplier = getPartPriceFromCatalog;
-
-function getCableAccessoryFee(partsCatalog, cableModel, supplier = '', accessoryType = 'standard') {
-    return getCableAccessoryFeeFromCatalog(partsCatalog, cableModel, supplier, accessoryType);
-}
-
-function getCableAccessoryName(partsCatalog, cableModel, supplier = '', accessoryType = 'standard') {
-    return getCableAccessoryNameFromCatalog(partsCatalog, cableModel, supplier, accessoryType);
-}
 
 function positiveTemplateQuantity(value, field = 'component.qty') {
     const quantity = value === undefined || value === null || value === ''
@@ -330,19 +319,17 @@ function buildRecipeBomDraft(input, context) {
         });
     }
 
-    if (toBool(input.hasCable) && Number(input.cableLength || 0) > 0) {
-        const model = wireModel('电缆', input.cableWire || '');
-        const accessoryType = input.cableAccessoryType || 'standard';
-        const cableLength = Number(input.cableLength || 0);
-        const cablePrice = getPriceByModelAndSupplier(partsCatalog, model, '');
+    if (toBool(input.hasCable)) {
+        const model = configuredWireModel('电缆', input.cableWire, '');
         bomParts.push({
-            ...buildCompleteCablePart({
+            ...calculateCompleteCableCost({
                 model,
-                cableLength,
-                cableUnitPrice: cablePrice,
-                accessoryType,
-                accessoryName: getCableAccessoryName(partsCatalog, model, '', accessoryType),
-                accessoryFee: getCableAccessoryFee(partsCatalog, model, '', accessoryType),
+                cableLength: input.cableLength,
+                cableAccessoryType: input.cableAccessoryType,
+            }, {
+                partsCatalog,
+                getSetting,
+                allowMissingPrice: true,
             }),
             cableAssembly: true,
         });

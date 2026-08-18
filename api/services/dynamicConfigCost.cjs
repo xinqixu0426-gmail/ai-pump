@@ -1,20 +1,16 @@
 const {
     parseNonNegativeNumber,
     createPartPriceGetter,
-    getCableAccessoryFee,
     getFloatAccessoryDelta,
     wireModel,
+    configuredWireModel,
+    roundMoney,
+    normalizeCableAccessoryType,
+    calculateCompleteCableCost,
 } = require('./costEngine.cjs');
 const {
-    buildCompleteCablePart,
     getCableAccessoryNameFromPartsByModel,
 } = require('./cableAccessory.cjs');
-
-function normalizeCableAccessoryType(value) {
-    const type = value || 'standard';
-    if (!['standard', 'xinjie'].includes(type)) throw new Error('cableAccessoryType 必须是 standard 或 xinjie');
-    return type;
-}
 
 function normalizeFloatAccessoryType(value) {
     const type = value || 'standard';
@@ -51,6 +47,7 @@ function findBoxMatch(boxType, partsCache, getPrice) {
 function calculateDynamicConfigCost(input, dependencies = {}) {
     const {
         hasFloat,
+        hasCable,
         floatWire,
         floatAccessoryType = 'standard',
         cableLength,
@@ -85,22 +82,21 @@ function calculateDynamicConfigCost(input, dependencies = {}) {
         });
     }
 
-    const needCable = cableLength && Number(cableLength) > 0;
+    const cableLengthProvided = cableLength !== undefined && cableLength !== null && cableLength !== '';
+    if (cableLengthProvided && (!Number.isFinite(Number(cableLength)) || Number(cableLength) < 0)) {
+        throw new Error('cableLength 必须是非负数字');
+    }
+    const needCable = hasCable === true || hasCable === 1 || hasCable === '1' || Number(cableLength || 0) > 0;
     if (needCable) {
         const wire = cableWire || resolvedWire;
-        const cableModel = wireModel('电缆', wire);
-        const unitPrice = getPrice(cableModel);
-        const length = Number(cableLength);
-        const normalizedCableAccessoryType = normalizeCableAccessoryType(cableAccessoryType);
-        const accessoryFee = getCableAccessoryFee(partsByModel, cableModel, '', normalizedCableAccessoryType, getSetting);
-        const accessoryName = getCableAccessoryName(partsByModel, cableModel, '', normalizedCableAccessoryType, getSetting);
-        const completeCable = buildCompleteCablePart({
+        const cableModel = configuredWireModel('电缆', wire, resolvedWire);
+        const completeCable = calculateCompleteCableCost({
             model: cableModel,
-            cableLength: length,
-            cableUnitPrice: unitPrice,
-            accessoryType: normalizedCableAccessoryType,
-            accessoryName,
-            accessoryFee,
+            cableLength,
+            cableAccessoryType,
+        }, {
+            partsByModel,
+            getSetting,
         });
         totalCost += completeCable.snapshotPrice;
         details.push({
@@ -122,7 +118,7 @@ function calculateDynamicConfigCost(input, dependencies = {}) {
         });
     }
 
-    return { totalCost, details };
+    return { totalCost: roundMoney(totalCost), details };
 }
 
 function calculateFloatEstimate(body, partsByModel, getSetting = () => undefined) {
@@ -139,20 +135,31 @@ function calculateFloatEstimate(body, partsByModel, getSetting = () => undefined
 
 function calculateCableEstimate(body, partsByModel, getSetting = () => undefined) {
     const wire = String(body.wire || body.cableWire || '0.55').trim();
-    const model = String(body.model || wireModel('电缆', wire)).trim();
+    const model = String(body.model || configuredWireModel('电缆', wire, '')).trim();
     const supplier = String(body.supplier || '').trim();
-    const length = parseNonNegativeNumber(body.length ?? body.cableLength, 'length', { required: true });
-    const cableAccessoryType = normalizeCableAccessoryType(body.cableAccessoryType);
-    const getPrice = createPartPriceGetter(partsByModel);
-    const unitPrice = getPrice(model, supplier);
-    const cableSubtotal = unitPrice * length;
-    const accessoryFee = getCableAccessoryFee(partsByModel, model, supplier, cableAccessoryType, getSetting);
-    const accessoryName = getCableAccessoryName(partsByModel, model, supplier, cableAccessoryType, getSetting);
+    const completeCable = calculateCompleteCableCost({
+        model,
+        supplier,
+        cableLength: body.length ?? body.cableLength,
+        cableAccessoryType: body.cableAccessoryType,
+    }, {
+        partsByModel,
+        getSetting,
+    });
     return {
-        model, wire, supplier, length, unitPrice,
-        cableSubtotal: Number(cableSubtotal.toFixed(2)),
-        cableAccessoryType, accessoryName, accessoryFee,
-        totalCost: Number((cableSubtotal + accessoryFee).toFixed(2))
+        model: completeCable.model,
+        wire,
+        supplier: completeCable.supplier,
+        length: completeCable.cableLength,
+        unitPrice: completeCable.cableUnitPrice,
+        cableSubtotal: roundMoney(completeCable.cableUnitPrice * completeCable.cableLength),
+        cableAccessoryType: completeCable.cableAccessoryType,
+        accessoryName: completeCable.cableAccessoryName,
+        accessoryFee: completeCable.cableAccessoryFee,
+        totalCost: completeCable.snapshotPrice,
+        cablePriceSource: completeCable.cablePriceSource,
+        cableAccessorySource: completeCable.cableAccessorySource,
+        formulaVersion: completeCable.formulaVersion,
     };
 }
 

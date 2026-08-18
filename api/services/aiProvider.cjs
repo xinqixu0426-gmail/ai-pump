@@ -106,17 +106,22 @@ function resolveAiProviderRoute(messages, options = {}) {
     }
 
     const kimi = resolveProviderConfig('kimi', env);
-    if (kimi.apiKey && kimi.supportsImages) {
+    const needsVision = requiresVisionProvider(messages, options);
+    const providerAvailable = Boolean(
+        kimi.apiKey
+        && (needsVision ? kimi.supportsImages : kimi.supportsFileExtraction)
+    );
+    if (providerAvailable) {
         return {
             ...kimi,
             routingMode: 'auto',
-            routeReason: requiresVisionProvider(messages, options) ? 'image' : 'file',
+            routeReason: needsVision ? 'image' : 'file',
         };
     }
     return {
         ...deepseek,
         routingMode: 'auto',
-        routeReason: 'vision_unavailable',
+        routeReason: needsVision ? 'vision_unavailable' : 'file_unavailable',
     };
 }
 
@@ -126,6 +131,7 @@ function aiProviderCapabilities(env = process.env) {
         const deepseek = resolveProviderConfig('deepseek', env);
         const kimi = resolveProviderConfig('kimi', env);
         const visionAvailable = Boolean(kimi.apiKey && kimi.supportsImages);
+        const fileAvailable = Boolean(kimi.apiKey && kimi.supportsFileExtraction);
         return {
             provider: 'auto',
             displayName: '智能路由',
@@ -137,7 +143,7 @@ function aiProviderCapabilities(env = process.env) {
             maxFileSize: 10 * 1024 * 1024,
             defaultProvider: 'deepseek',
             visionProvider: visionAvailable ? 'kimi' : null,
-            fileProvider: visionAvailable ? 'kimi' : null,
+            fileProvider: fileAvailable ? 'kimi' : null,
         };
     }
     const config = resolveAiProviderConfig(env);
@@ -665,7 +671,9 @@ async function fetchAiProvider(messages, options = {}) {
         const fallback = {
             ...resolveProviderConfig('deepseek', options.env || process.env),
             routingMode: 'auto',
-            routeReason: 'vision_fallback',
+            routeReason: selectedConfig.routeReason === 'file'
+                ? 'file_fallback'
+                : 'vision_fallback',
         };
         notifyProvider(fallback, {
             fallback: true,

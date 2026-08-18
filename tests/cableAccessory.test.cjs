@@ -38,6 +38,23 @@ test('电缆配件 helper 支持 partsByModel 和全局配置', () => {
     assert.equal(getCableAccessoryNameFromPartsByModel(partsByModel, '电缆-线径0.55', '', 'xinjie', getSetting), '全局新界式');
 });
 
+test('未配置全局电缆设置时保留型号 notes 中的自定义配件名称', () => {
+    const partsByModel = {
+        '电缆-线径0.55': [{
+            model: '电缆-线径0.55',
+            supplier: 'A',
+            price: 1.2,
+            notes: JSON.stringify({
+                cableAccessoryFees: { standard: 0.8 },
+                cableAccessoryNames: { standard: '防水铜套' },
+            }),
+        }],
+    };
+
+    assert.equal(getCableAccessoryFeeFromPartsByModel(partsByModel, '电缆-线径0.55'), 0.8);
+    assert.equal(getCableAccessoryNameFromPartsByModel(partsByModel, '电缆-线径0.55'), '防水铜套');
+});
+
 test('电缆配件 helper 支持扁平 partsCatalog', () => {
     const catalog = [
         { model: '电缆-线径0.75', supplier: 'A', price: 1.8, notes },
@@ -71,4 +88,16 @@ test('成品电缆 helper 将线材和插头规格保存为一个业务项', () 
     assert.equal(collapsed.length, 1);
     assert.equal(collapsed[0].snapshotPrice, 18.44);
     assert.equal(collapsed[0].cableAssembly, true);
+});
+
+test('历史新旧电缆行混合时只保留一个成品电缆业务项', () => {
+    const collapsed = collapseLegacyCableParts([
+        { model: '电缆-线径0.75', name: '成品电缆（新界式）', qty: 1, cableAssembly: true, snapshotPrice: 18.44 },
+        { model: '电缆-线径0.75', name: '电缆线', qty: 8, snapshotPrice: 1.88 },
+        { model: '电缆配件费', name: '电缆接头配件', qty: 1, snapshotPrice: 3.4 },
+        { model: '轴承', name: '轴承', qty: 1, snapshotPrice: 2 },
+    ]);
+
+    assert.deepEqual(collapsed.map(part => part.model), ['电缆-线径0.75', '轴承']);
+    assert.equal(collapsed.filter(part => part.cableAssembly).length, 1);
 });

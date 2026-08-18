@@ -62,6 +62,14 @@ function normalizeTestPoint(point, index) {
     return normalized;
 }
 
+function maximumPoint(testPoints, field) {
+    const candidates = testPoints.filter(point => Number.isFinite(point[field]));
+    if (candidates.length === 0) return null;
+    return candidates.reduce((best, point) => (
+        point[field] > best[field] ? point : best
+    ));
+}
+
 function buildTestCurve(parsedJson) {
     const parsed = parseJsonObject(parsedJson);
     const testPoints = Array.isArray(parsed.testPoints)
@@ -76,6 +84,8 @@ function buildTestCurve(parsedJson) {
     const maxFlowPoint = testPoints.reduce((best, point) => (
         point.flow > best.flow ? point : best
     ));
+    const maxCurrentPoint = maximumPoint(testPoints, 'current');
+    const maxEfficiencyPoint = maximumPoint(testPoints, 'unitEfficiency');
     return {
         dataBasis: 'measuredTestPoints',
         pointCount: testPoints.length,
@@ -85,6 +95,20 @@ function buildTestCurve(parsedJson) {
         maxHeadAtFlow: maxHeadPoint.flow,
         maxFlow: maxFlowPoint.flow,
         headAtMaxFlow: maxFlowPoint.head,
+        ...(maxCurrentPoint ? {
+            currentUnit: 'A',
+            maxCurrent: maxCurrentPoint.current,
+            maxCurrentAtFlow: maxCurrentPoint.flow,
+            maxCurrentAtHead: maxCurrentPoint.head,
+            maxCurrentSequence: maxCurrentPoint.sequence,
+        } : {}),
+        ...(maxEfficiencyPoint ? {
+            unitEfficiencyUnit: '%',
+            maxUnitEfficiency: maxEfficiencyPoint.unitEfficiency,
+            maxUnitEfficiencyAtFlow: maxEfficiencyPoint.flow,
+            maxUnitEfficiencyAtHead: maxEfficiencyPoint.head,
+            maxUnitEfficiencySequence: maxEfficiencyPoint.sequence,
+        } : {}),
         testPoints,
     };
 }

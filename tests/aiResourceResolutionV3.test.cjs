@@ -18,6 +18,8 @@ test('AI V3 资源解析：关键词多候选返回结构化澄清而不是普�
 
     assert.equal(result.code, 'AI_RESOURCE_AMBIGUOUS');
     assert.equal(result.requiresClarification, true);
+    assert.equal(result.entityType, 'recipe');
+    assert.equal(result.query, 'V750');
     assert.equal(result.clarification.version, 3);
     assert.deepEqual(result.clarification.candidates.map(item => item.label), [
         'v750-tokoy',

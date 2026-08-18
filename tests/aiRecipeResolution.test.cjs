@@ -21,6 +21,8 @@ test('AI 配方解析：简称命中多条时返回候选而不猜选', () => {
     assert.match(result.error, /匹配到 2 个配方/);
     assert.equal(result.code, 'AI_RESOURCE_AMBIGUOUS');
     assert.equal(result.requiresClarification, true);
+    assert.equal(result.entityType, 'recipe');
+    assert.equal(result.query, 'v750');
     assert.deepEqual(result.candidates, [
         { id: 2, name: 'v750-tokoy', spec: '' },
         { id: 3, name: 'V750-出口版', spec: '' },
@@ -33,5 +35,8 @@ test('AI 配方解析：简称命中多条时返回候选而不猜选', () => {
 
 test('AI 配方解析：显式 ID 优先并保持零匹配语义', () => {
     assert.equal(resolveUniqueRecipe(recipes, { recipeId: 1, recipeName: 'V750' }).recipe.id, 1);
-    assert.match(resolveUniqueRecipe(recipes, { recipeId: 99 }).error, /99/);
+    const missing = resolveUniqueRecipe(recipes, { recipeId: 99 });
+    assert.match(missing.error, /99/);
+    assert.equal(missing.entityType, 'recipe');
+    assert.equal(missing.query, '99');
 });

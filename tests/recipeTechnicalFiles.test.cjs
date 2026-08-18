@@ -249,6 +249,11 @@ test('配方技术档案 Query 只读返回摘要和原文件', () => {
         maxHeadAtFlow: 0,
         maxFlow: 10,
         headAtMaxFlow: 18,
+        currentUnit: 'A',
+        maxCurrent: 2.4,
+        maxCurrentAtFlow: 10,
+        maxCurrentAtHead: 18,
+        maxCurrentSequence: 2,
         testPoints: [
             { sequence: 1, flow: 0, head: 20, current: 2.1 },
             { sequence: 2, flow: 10, head: 18, current: 2.4 },
@@ -291,6 +296,11 @@ test('配方技术档案 Query 忽略模板汇总和无效点，只按真实曲�
     assert.equal(file.testCurve.maxHeadAtFlow, 0);
     assert.equal(file.testCurve.maxFlow, 17.67);
     assert.equal(file.testCurve.headAtMaxFlow, 2.43);
+    assert.equal(file.testCurve.maxUnitEfficiency, 16.13);
+    assert.equal(file.testCurve.maxUnitEfficiencyAtFlow, 17.67);
+    assert.equal(file.testCurve.maxUnitEfficiencyAtHead, 2.43);
+    assert.equal(file.testCurve.maxUnitEfficiencySequence, 2);
+    assert.equal(file.testCurve.unitEfficiencyUnit, '%');
     assert.equal(file.testCurve.pointCount, 2);
     assert.equal(JSON.stringify(file.testCurve).includes('99'), false);
     assert.equal(JSON.stringify(file.testCurve).includes('88'), false);

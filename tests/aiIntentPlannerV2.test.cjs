@@ -118,6 +118,89 @@ test('V2 意图计划：模型首次返回非法 JSON 时协议层自动重试�
     assert.equal(result.goal, plan().goal);
 });
 
+test('V3 意图计划：用户明确要求知识依据时补齐只读知识步骤且不放宽其他工具', async () => {
+    const providerPlan = plan({
+        goal: '核对切割泵壳的正式用途记录',
+        domains: ['catalog'],
+        steps: [{ capabilityName: 'search_parts', objective: '查询切割相关零件' }],
+    });
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: '先使用 search_factory_knowledge 查询业务规则，再说明哪些泵壳明确用于切割。',
+    }], {
+        fetchAiProvider: async () => new Response(JSON.stringify({
+            choices: [{
+                message: {
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_ai_intent_plan',
+                            arguments: JSON.stringify(providerPlan),
+                        },
+                    }],
+                },
+            }],
+        }), { headers: { 'Content-Type': 'application/json' } }),
+    });
+    assert.deepEqual(
+        result.steps.map(step => step.capabilityName),
+        ['search_parts', 'search_factory_knowledge']
+    );
+    assert.ok(result.domains.includes('knowledge'));
+    assert.equal(result.needsBusinessData, true);
+});
+
+test('V3 意图计划：用户明确拒绝知识检索时不自动追加知识步骤', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: '不要查知识库，只查询当前零件库里的切割泵壳。',
+    }], {
+        fetchAiProvider: async () => new Response(JSON.stringify({
+            choices: [{
+                message: {
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_ai_intent_plan',
+                            arguments: JSON.stringify(plan({
+                                domains: ['catalog'],
+                                steps: [{ capabilityName: 'search_parts', objective: '查询切割泵壳' }],
+                            })),
+                        },
+                    }],
+                },
+            }],
+        }), { headers: { 'Content-Type': 'application/json' } }),
+    });
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['search_parts']);
+});
+
+test('V3 意图计划：用途与兼容性问题即使模型漏规划也补齐知识证据', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: '说明哪些泵壳明确用于切割工况。',
+    }], {
+        fetchAiProvider: async () => new Response(JSON.stringify({
+            choices: [{
+                message: {
+                    tool_calls: [{
+                        function: {
+                            name: 'submit_ai_intent_plan',
+                            arguments: JSON.stringify(plan({
+                                goal: '查询切割泵壳',
+                                domains: ['catalog'],
+                                steps: [{ capabilityName: 'search_parts', objective: '查询切割泵壳' }],
+                            })),
+                        },
+                    }],
+                },
+            }],
+        }), { headers: { 'Content-Type': 'application/json' } }),
+    });
+    assert.deepEqual(
+        result.steps.map(step => step.capabilityName),
+        ['search_parts', 'search_factory_knowledge']
+    );
+});
+
 test('V2 意图计划：单订单目标禁止使用全局经营和准备总览', () => {
     for (const capabilityName of [
         'get_order_readiness_overview',

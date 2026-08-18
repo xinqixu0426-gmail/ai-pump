@@ -2,6 +2,10 @@ const {
     parseCableAccessoryFee,
     getGlobalCableAccessory,
     getCableAccessoryFeeFromPartsByModel,
+    getCableAccessoryNameFromPartsByModel,
+    getCableAccessoryFeeFromCatalog,
+    getCableAccessoryNameFromCatalog,
+    buildCompleteCablePart,
     collapseLegacyCableParts,
 } = require('./cableAccessory.cjs');
 const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
@@ -65,9 +69,112 @@ function wireModel(prefix, wire) {
 
 function configuredWireModel(prefix, wireOrModel, resolvedWire) {
     const value = String(wireOrModel || '').trim();
-    if (value.startsWith(prefix)) return value;
+    if (value.includes(prefix)) return value;
     const wire = value || resolvedWire;
     return wire ? wireModel(prefix, wire) : '';
+}
+
+function createCablePricingError(code, message, statusCode = 400, details) {
+    const error = new Error(message);
+    error.code = code;
+    error.statusCode = statusCode;
+    if (details !== undefined) error.details = details;
+    return error;
+}
+
+function normalizeCableAccessoryType(value) {
+    const accessoryType = String(value || 'standard').trim();
+    if (!['standard', 'xinjie'].includes(accessoryType)) {
+        throw createCablePricingError(
+            'CABLE_ACCESSORY_TYPE_INVALID',
+            'cableAccessoryType 必须是 standard 或 xinjie'
+        );
+    }
+    return accessoryType;
+}
+
+function cableAccessorySource({ partsCatalog, matchedPart, accessoryType, getSetting }) {
+    const globalAccessory = getGlobalCableAccessory(getSetting, accessoryType);
+    if (globalAccessory.configured && globalAccessory.fee != null) return 'system_settings';
+    if (parseCableAccessoryFee(matchedPart?.notes, accessoryType) != null) return 'part_notes';
+    if ((partsCatalog || []).some(part => String(part?.model || '') === '电缆配件费')) return 'legacy_part';
+    return 'default_zero';
+}
+
+function calculateCompleteCableCost(input = {}, options = {}) {
+    const model = String(input.model || configuredWireModel('电缆', input.wire || input.cableWire, '')).trim();
+    if (!model || model === '电缆-线径') {
+        throw createCablePricingError('CABLE_MODEL_REQUIRED', '启用电缆时必须提供有效 cableWire 或 model');
+    }
+
+    const cableLength = parseNonNegativeNumber(
+        input.cableLength ?? input.length,
+        'cableLength',
+        { required: true }
+    );
+    if (cableLength <= 0) {
+        throw createCablePricingError('CABLE_LENGTH_INVALID', '启用电缆时 cableLength 必须大于 0');
+    }
+
+    const accessoryType = normalizeCableAccessoryType(input.accessoryType ?? input.cableAccessoryType);
+    const getSetting = options.getSetting || (() => undefined);
+    const partsCatalog = Array.isArray(options.partsCatalog)
+        ? options.partsCatalog
+        : partsCatalogFromPartsByModel(options.partsByModel || {});
+    const requestedSupplier = String(input.supplier || '').trim();
+    const matchedPart = findPartByModelAndSupplierFromCatalog(partsCatalog, model, requestedSupplier);
+    const supplier = requestedSupplier || String(matchedPart?.supplier || '').trim();
+
+    const hasInputUnitPrice = input.cableUnitPrice !== undefined && input.cableUnitPrice !== null;
+    const cableUnitPrice = hasInputUnitPrice
+        ? parseNonNegativeNumber(input.cableUnitPrice, 'cableUnitPrice')
+        : Number(matchedPart?.price || 0);
+    const pricingComplete = Number.isFinite(cableUnitPrice) && cableUnitPrice > 0;
+    if (!pricingComplete && options.allowMissingPrice !== true) {
+        throw createCablePricingError(
+            'CABLE_PRICE_MISSING',
+            `电缆型号“${model}”缺少有效的每米价格`,
+            422,
+            { model, supplier }
+        );
+    }
+
+    const accessoryFee = input.accessoryFee !== undefined
+        ? parseNonNegativeNumber(input.accessoryFee, 'accessoryFee')
+        : (Array.isArray(options.partsCatalog)
+            ? getCableAccessoryFeeFromCatalog(partsCatalog, model, supplier, accessoryType, getSetting)
+            : getCableAccessoryFeeFromPartsByModel(options.partsByModel || {}, model, supplier, accessoryType, getSetting));
+    const accessoryName = input.accessoryName || (Array.isArray(options.partsCatalog)
+        ? getCableAccessoryNameFromCatalog(partsCatalog, model, supplier, accessoryType, getSetting)
+        : getCableAccessoryNameFromPartsByModel(options.partsByModel || {}, model, supplier, accessoryType, getSetting));
+    const priceSource = hasInputUnitPrice
+        ? 'input_unit_price'
+        : requestedSupplier
+            ? 'catalog_supplier'
+            : (partsCatalog.filter(part => String(part?.model || '') === model).length > 1
+                ? 'catalog_lowest_price'
+                : 'catalog_model');
+
+    return {
+        ...buildCompleteCablePart({
+            model,
+            supplier,
+            cableLength,
+            cableUnitPrice,
+            accessoryType,
+            accessoryName,
+            accessoryFee,
+        }),
+        cableAssembly: true,
+        inventoryUnit: 'm',
+        costSource: 'cable_formula',
+        cablePriceSource: pricingComplete ? priceSource : 'missing',
+        cableAccessorySource: input.accessoryFee !== undefined
+            ? 'input_accessory_fee'
+            : cableAccessorySource({ partsCatalog, matchedPart, accessoryType, getSetting }),
+        formulaVersion: 'complete-cable-v1',
+        pricingComplete,
+    };
 }
 
 function inferPackingMaterial(model = '', material, supplier = '') {
@@ -320,26 +427,27 @@ function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options
             price = p.snapshotPrice;
             source = p.costSource === 'manual' ? '手动估算价' : '模板手动价';
         } else if (p.cableAssembly === true || String(p.name || '').startsWith('成品电缆')) {
-            let cableUnitPrice = 0;
-            if (match && p.supplier) {
-                cableUnitPrice = Number(match.price || 0);
-                source = '精确匹配';
-            } else if (suppliers.length > 0) {
-                const fallback = suppliers.reduce((min, candidate) => candidate.price < min.price ? candidate : min, suppliers[0]);
-                cableUnitPrice = Number(fallback.price || 0);
-                source = '型号回退(取最低价)';
-            } else if (p.snapshotPrice !== undefined) {
-                price = Number(p.snapshotPrice || 0);
-                source = '快照价格';
-            } else {
+            const completeCable = calculateCompleteCableCost({
+                model: p.model,
+                supplier: p.supplier,
+                cableLength: p.cableLength ?? p.inventoryQty,
+                cableAccessoryType: p.cableAccessoryType,
+            }, {
+                partsByModel,
+                getSetting,
+                allowMissingPrice: true,
+            });
+            if (!completeCable.pricingComplete) {
                 missingParts.push(p.model);
                 source = '未找到';
-            }
-            if (source !== '快照价格' && source !== '未找到') {
-                const cableLength = Number(p.cableLength ?? p.inventoryQty ?? 0);
-                const accessoryFee = getCableAccessoryFee(partsByModel, p.model, p.supplier || '', p.cableAccessoryType, getSetting);
-                price = roundMoney(cableUnitPrice * cableLength + accessoryFee);
-                source += `+${p.cableAccessoryName || (p.cableAccessoryType === 'xinjie' ? '新界式' : '普通铜套')}`;
+            } else {
+                price = completeCable.snapshotPrice;
+                const priceSourceLabel = {
+                    catalog_supplier: '精确供应商',
+                    catalog_lowest_price: '型号回退(取最低价)',
+                    catalog_model: '型号价格',
+                }[completeCable.cablePriceSource] || completeCable.cablePriceSource;
+                source = `${priceSourceLabel}+${completeCable.cableAccessoryName}`;
             }
         } else if (isCableAccessoryPart(p)) {
             const cablePart = findCablePart(parts);
@@ -419,6 +527,7 @@ function normalizeRecipeParts(parts) {
 function findUnpricedRecipeParts(parts) {
     if (!Array.isArray(parts)) return [];
     return parts.filter(part => {
+        if (part?.pricingComplete === false) return true;
         const price = Number(part?.snapshotPrice);
         return !Number.isFinite(price) || price <= 0;
     });
@@ -535,6 +644,8 @@ module.exports = {
     getPartPriceFromCatalog,
     wireModel,
     configuredWireModel,
+    normalizeCableAccessoryType,
+    calculateCompleteCableCost,
     inferPackingMaterial,
     lengthPricedPartSubtotal,
     calculatePackingEstimate,

@@ -208,7 +208,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_recipe_technical_files',
-            description: '读取指定配方的正式技术档案和性能测试报告数据。按配方ID或名称定位后调用正式配方技术档案 API；files[].testCurve 返回逐点流量/扬程及确定性计算的 maxHead/maxFlow，回答最高扬程、最大流量、电流或效率时必须使用该正式结果。只读，不上传、修改或删除文件。',
+            description: '读取指定配方的正式技术档案和性能测试报告数据。按配方ID或名称定位后调用正式配方技术档案 API；files[].testCurve 返回逐点流量、扬程、电流、效率，以及服务端确定性计算的 maxHead、maxFlow、maxCurrent、maxUnitEfficiency 和对应测试点。回答最高扬程、最大流量、最大电流或最高效率时必须直接使用这些正式统计，不得让模型自行挑选极值。只读，不上传、修改或删除文件。',
             parameters: {
                 type: 'object',
                 properties: {

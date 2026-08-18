@@ -243,7 +243,7 @@ test('报价电缆覆盖同时生成实际长度 BOM 快照', () => {
         partsByModel: { '电缆-线径0.75': [cable] },
         partsCatalog: [cable],
         calculateRecipeCost,
-        getSetting: key => key === 'cable_accessories' ? JSON.stringify({ standard: { name: '普通铜套', fee: 3 } }) : undefined,
+        getSetting: key => key === 'cable_accessories' ? JSON.stringify({ standard: { name: '全局防水接头', fee: 3 } }) : undefined,
         getCoils: () => [],
     });
 
@@ -251,5 +251,7 @@ test('报价电缆覆盖同时生成实际长度 BOM 快照', () => {
     assert.equal(result.unitCost, 123);
     assert.equal(cableSnapshot.inventoryQty, 10);
     assert.equal(cableSnapshot.snapshotPrice, 23);
+    assert.equal(cableSnapshot.name, '成品电缆（全局防水接头）');
+    assert.equal(cableSnapshot.cableAccessorySource, 'system_settings');
     assert.equal(result.costSnapshot.unitCost, 123);
 });
