@@ -330,6 +330,47 @@ function versionCompatibilityWarning(partId, expectedUpdatedAt) {
     }] : [];
 }
 
+function cascadePumpShellTemplateModel(dependencies, current, updates, auditContext) {
+    const nextModel = updates.model ?? current.model;
+    const nextCategory = updates.category ?? current.category;
+    if (current.category !== '泵壳'
+        || nextCategory !== '泵壳'
+        || nextModel === current.model) {
+        return [];
+    }
+    const oldModelStillExists = dependencies.db.prepare(`
+        SELECT 1
+        FROM parts
+        WHERE id != ?
+          AND model = ? COLLATE NOCASE
+          AND category = '泵壳'
+          AND deleted_at IS NULL
+        LIMIT 1
+    `).get(current.id, current.model);
+    if (oldModelStillExists) return [];
+
+    const templates = dependencies.db.prepare(`
+        SELECT id, shell_model
+        FROM pump_shell_templates
+        WHERE shell_model = ? COLLATE NOCASE
+        ORDER BY id
+    `).all(current.model);
+    return templates.map(template => {
+        const write = dependencies.safeUpdate(
+            'pump_shell_templates',
+            template.id,
+            { shell_model: nextModel },
+            auditContext
+        );
+        return {
+            templateId: Number(template.id),
+            from: template.shell_model,
+            to: nextModel,
+            auditId: write.auditId,
+        };
+    });
+}
+
 function executePartCreate(dependencies, input = {}, commandContext = {}) {
     const normalized = normalizeCreateInput(dependencies, input);
     return executePersistentCommand({
@@ -425,11 +466,20 @@ function executePartUpdate(
                 updates,
                 auditContext
             );
+            const linkedTemplates = cascadePumpShellTemplateModel(
+                dependencies,
+                record,
+                updates,
+                auditContext
+            );
             const part = dependencies.partRow(
                 dependencies.db.prepare('SELECT * FROM parts WHERE id = ?').get(partId)
             );
             return {
-                data: { part },
+                data: {
+                    part,
+                    linkedTemplateIds: linkedTemplates.map(item => item.templateId),
+                },
                 resource: { type: 'part', ids: [partId] },
                 changes: [{
                     resourceType: 'part',
@@ -437,9 +487,16 @@ function executePartUpdate(
                     field: includesStock ? 'fieldsIncludingLegacyStock' : 'fields',
                     from: null,
                     to: Object.keys(updates),
-                }],
-                auditIds: write.auditId ? [write.auditId] : [],
-                requiredAuditCount: 1,
+                }, ...linkedTemplates.map(item => ({
+                    resourceType: 'pump_shell_template',
+                    resourceId: item.templateId,
+                    field: 'shellModel',
+                    from: item.from,
+                    to: item.to,
+                }))],
+                auditIds: [write.auditId, ...linkedTemplates.map(item => item.auditId)]
+                    .filter(Boolean),
+                requiredAuditCount: 1 + linkedTemplates.length,
             };
         },
     });

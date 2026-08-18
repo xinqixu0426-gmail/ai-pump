@@ -56,10 +56,24 @@ function normalizeShellModel(value: string) {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-function shellModelCandidates(value: string) {
-  const normalized = normalizeShellModel(value);
-  const withoutSuffix = normalized.replace(/-[a-z0-9]+$/i, '');
-  return withoutSuffix === normalized ? [normalized] : [normalized, withoutSuffix];
+function describeShellModel(value: string) {
+  const exact = normalizeShellModel(value);
+  const base = exact.replace(/-\d+(?:\.\d+)?(?:mm|cm)?$/i, '');
+  return { exact, base, hasDimensionSuffix: base !== exact };
+}
+
+function findShellPartForTemplate(shellModel: string, parts: Part[]) {
+  const target = describeShellModel(shellModel);
+  const shellParts = parts.filter((part) => part.category === '泵壳');
+  const exact = shellParts.find((part) => normalizeShellModel(part.model) === target.exact);
+  if (exact) return exact;
+  const compatible = shellParts.filter((part) => {
+    const candidate = describeShellModel(part.model);
+    return candidate.base === target.base
+      && candidate.hasDimensionSuffix !== target.hasDimensionSuffix;
+  });
+  const distinctModels = new Set(compatible.map((part) => normalizeShellModel(part.model)));
+  return distinctModels.size === 1 ? compatible[0] : undefined;
 }
 
 function addReference(refs: TechnicalReferenceField[], id: string, label: string, value: unknown, unit = '') {
@@ -69,10 +83,7 @@ function addReference(refs: TechnicalReferenceField[], id: string, label: string
 
 export function findShellMetaForTemplate(template: PumpShellTemplate | null | undefined, parts: Part[]): PumpShellMeta | null {
   if (!template) return null;
-  const candidates = shellModelCandidates(template.shellModel);
-  const shellPart = candidates
-    .map((candidate) => parts.find((part) => part.category === '泵壳' && normalizeShellModel(part.model) === candidate))
-    .find(Boolean);
+  const shellPart = findShellPartForTemplate(template.shellModel, parts);
   if (!shellPart?.notes) return null;
   try {
     const parsed = JSON.parse(shellPart.notes);

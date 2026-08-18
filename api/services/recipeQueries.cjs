@@ -1,5 +1,6 @@
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('./recipeBomEngine.cjs');
+const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
 const { normalizeOptionalBoolean } = require('./queryValidation.cjs');
 const { parseJsonArray, parsePositiveId } = require('./validation.cjs');
 
@@ -50,15 +51,13 @@ function createRecipeQueries({
         if (!template) {
             return { template: null, shellMeta: null };
         }
-        const shellPart = db.prepare(`
+        const shellPart = findPumpShellPart(db.prepare(`
             SELECT *
             FROM parts
-            WHERE model = ?
-              AND category = ?
+            WHERE category = ?
               AND deleted_at IS NULL
             ORDER BY id
-            LIMIT 1
-        `).get(template.shellModel, '泵壳');
+        `).all('泵壳'), template.shellModel);
         let shellMeta = null;
         try {
             shellMeta = shellPart?.remark ? JSON.parse(shellPart.remark) : null;

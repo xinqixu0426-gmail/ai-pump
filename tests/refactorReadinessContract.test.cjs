@@ -1688,6 +1688,7 @@ test('Next UI 契约：转子页支持配方技术档案带入并支持历史关
 
 test('Next UI 契约：配方页必须保留模板入口并支持直接复制配方', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const technicalReferences = readUtf8('apps/web-next/lib/technical-references.ts');
     const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
     const recipeComparePanel = readUtf8('apps/web-next/components/recipe/RecipeComparePanel.tsx');
     const modelVariantPanel = readUtf8('apps/web-next/components/recipe/ModelVariantCompatibilityPanel.tsx');
@@ -1724,6 +1725,8 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /const hasStainlessStretchBarrelComponent = formTemplateShellComponents\.some/);
     assert.match(recipesView, /isStainlessStretchBarrelComponent\(component\)/);
     assert.match(recipesView, /const hasStainlessBarrel = formTemplate\?\.costMode === 'components'/);
+    assert.match(technicalReferences, /candidate\.hasDimensionSuffix !== target\.hasDimensionSuffix/);
+    assert.match(technicalReferences, /distinctModels\.size === 1/);
     assert.match(recipeBasicSection, /\{hasStainlessBarrel \? \(/);
     assert.match(recipesView, /customBarrelLength: hasStainlessBarrel \? form\.customBarrelLength \|\| null : null/);
     assert.match(recipesView, /longScrewExtraLength: hasStainlessBarrel \? form\.longScrewExtraLength \|\| 0 : 0/);

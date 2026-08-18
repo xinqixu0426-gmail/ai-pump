@@ -59,6 +59,11 @@ function createFixture() {
             updated_at TEXT,
             deleted_at TEXT
         );
+        CREATE TABLE pump_shell_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shell_model TEXT UNIQUE,
+            updated_at TEXT
+        );
     `);
     let version = 0;
 
@@ -97,11 +102,11 @@ function createFixture() {
     }
 
     function safeUpdate(table, id, updates, context) {
-        assert.equal(table, 'parts');
+        assert.ok(['parts', 'pump_shell_templates'].includes(table));
         const columns = Object.keys(updates);
         const updatedAt = nextUpdatedAt();
         const result = db.prepare(`
-            UPDATE parts
+            UPDATE ${table}
             SET ${columns.map(column => `${column} = ?`).join(', ')}, updated_at = ?
             WHERE id = ?
         `).run(...columns.map(column => updates[column]), updatedAt, id);
@@ -222,6 +227,104 @@ test('零件 CRUD 使用持久幂等、资源版本和强审计并保持软删�
         assert.ok(deleted.auditId);
         assert.ok(fixture.db.prepare('SELECT deleted_at FROM parts WHERE id = ?')
             .get(created.part.id).deleted_at);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('泵壳零件型号修改与关联模板在同一命令内同步', () => {
+    const fixture = createFixture();
+    try {
+        const created = executePartCreate(
+            fixture.dependencies,
+            {
+                model: 'V750-DY款-圆底脚',
+                category: '泵壳',
+                price: 98,
+                supplier: '供应商A',
+                stock: 0,
+            },
+            commandContext(CREATE_CAPABILITY_ID, 'create-shell')
+        );
+        const templateId = Number(fixture.db.prepare(`
+            INSERT INTO pump_shell_templates (shell_model, updated_at)
+            VALUES (?, ?)
+        `).run('V750-DY款-圆底脚', '2026-08-03T00:00:00.000Z').lastInsertRowid);
+
+        const updated = executePartUpdate(
+            fixture.dependencies,
+            created.part.id,
+            {
+                model: 'V750-DY款-圆底脚-12',
+                expectedUpdatedAt: created.part.updatedAt,
+            },
+            commandContext(UPDATE_CAPABILITY_ID, 'rename-shell')
+        );
+
+        assert.deepEqual(updated.linkedTemplateIds, [templateId]);
+        assert.equal(
+            fixture.db.prepare('SELECT shell_model FROM pump_shell_templates WHERE id = ?')
+                .get(templateId).shell_model,
+            'V750-DY款-圆底脚-12'
+        );
+        assert.equal(updated.auditIds.length, 2);
+        assert.ok(updated.changes.some(change => (
+            change.resourceType === 'pump_shell_template'
+            && change.resourceId === templateId
+            && change.field === 'shellModel'
+        )));
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('旧型号仍有其他有效泵壳零件时不迁移关联模板', () => {
+    const fixture = createFixture();
+    try {
+        const created = executePartCreate(
+            fixture.dependencies,
+            {
+                model: 'V750-DY款-圆底脚',
+                category: '泵壳',
+                price: 98,
+                supplier: '供应商A',
+                stock: 0,
+            },
+            commandContext(CREATE_CAPABILITY_ID, 'create-shared-shell-a')
+        );
+        executePartCreate(
+            fixture.dependencies,
+            {
+                model: 'V750-DY款-圆底脚',
+                category: '泵壳',
+                price: 99,
+                supplier: '供应商B',
+                stock: 0,
+            },
+            commandContext(CREATE_CAPABILITY_ID, 'create-shared-shell-b')
+        );
+        const templateId = Number(fixture.db.prepare(`
+            INSERT INTO pump_shell_templates (shell_model, updated_at)
+            VALUES (?, ?)
+        `).run('V750-DY款-圆底脚', '2026-08-03T00:00:00.000Z').lastInsertRowid);
+
+        const updated = executePartUpdate(
+            fixture.dependencies,
+            created.part.id,
+            {
+                model: 'V750-DY款-圆底脚-12',
+                expectedUpdatedAt: created.part.updatedAt,
+            },
+            commandContext(UPDATE_CAPABILITY_ID, 'rename-one-shared-shell')
+        );
+
+        assert.deepEqual(updated.linkedTemplateIds, []);
+        assert.equal(
+            fixture.db.prepare('SELECT shell_model FROM pump_shell_templates WHERE id = ?')
+                .get(templateId).shell_model,
+            'V750-DY款-圆底脚'
+        );
+        assert.equal(updated.auditIds.length, 1);
     } finally {
         fixture.db.close();
     }

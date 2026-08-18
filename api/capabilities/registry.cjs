@@ -699,7 +699,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         domain: 'catalog',
         inputSchema: 'PATCH /api/parts/:id',
         outputSchema: 'CommandReceipt<PartUpdateResult>',
-        sourceOfTruth: 'parts',
+        sourceOfTruth: 'parts+pump_shell_templates',
         riskLevel: 'medium',
         requiresConfirmation: false,
         supportsPreview: false,

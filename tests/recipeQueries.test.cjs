@@ -82,11 +82,11 @@ function createFixture() {
         INSERT INTO parts VALUES
             (10, '6201', '甲', '轴承', 5, NULL, NULL),
             (11, '6201', '乙', '轴承', 0, NULL, NULL),
-            (12, 'SHELL-1', '', '泵壳', 0, '{"barrelLength":150}', NULL);
+            (12, 'SHELL-DY款-圆底脚-12', '', '泵壳', 0, '{"barrelLength":150}', NULL);
         INSERT INTO coils VALUES
             (20, '12', 160, '冷轧', '国标眼', 'official', 3);
         INSERT INTO pump_shell_templates VALUES
-            (30, 'SHELL-1', 4, 2, 3, 'painting', 3);
+            (30, 'SHELL-DY款-圆底脚', 4, 2, 3, 'painting', 3);
         INSERT INTO pump_model_variants VALUES
             (40, 30, 'QDX10-A', '常用配置', '12', 160, '冷轧', '国标眼',
              150, 5, '叶轮A', 2, 100, 6, NULL);

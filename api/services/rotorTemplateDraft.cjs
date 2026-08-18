@@ -1,3 +1,5 @@
+const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
+
 const emptyRotorPatchKeys = new Set([
     'upper_bearing',
     'lower_bearing',
@@ -21,16 +23,6 @@ function normalizeBearing(value) {
     if (normalized === '204') return '6204';
     if (normalized === '205') return '6205';
     return normalized;
-}
-
-function normalizeShellModel(value) {
-    return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function shellModelCandidates(value) {
-    const normalized = normalizeShellModel(value);
-    const withoutSuffix = normalized.replace(/-[a-z0-9]+$/i, '');
-    return withoutSuffix === normalized ? [normalized] : [normalized, withoutSuffix];
 }
 
 function safeParseObject(value) {
@@ -72,10 +64,10 @@ function stainlessBarrelDrawingText(barrelLength) {
 }
 
 function findShellMeta(template, parts) {
-    const candidates = shellModelCandidates(template?.shell_model ?? template?.shellModel);
-    const shellPart = candidates
-        .map(candidate => (parts || []).find(part => part.category === '泵壳' && normalizeShellModel(part.model) === candidate))
-        .find(Boolean);
+    const shellPart = findPumpShellPart(
+        parts,
+        template?.shell_model ?? template?.shellModel
+    );
     return safeParseObject(shellPart?.notes ?? shellPart?.remark ?? '{}');
 }
 
