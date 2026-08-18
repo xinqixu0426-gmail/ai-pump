@@ -279,6 +279,21 @@ async function resolveAiToolTargetV3(input = {}) {
     }
 
     const selected = ranked[0];
+    if (selected.score < AUTO_BIND_SCORE) {
+        return {
+            status: 'not_found',
+            args: input.args,
+            receipt: resolutionReceipt({
+                entityType: target.entityType,
+                originalMention: mention,
+                probes,
+                status: 'not_found',
+                candidates: ranked,
+                sourceCapability: discoveryCapability,
+                sourceEvidence,
+            }),
+        };
+    }
     const exact = selected.score === 1;
     const uniqueExact = exact && ranked.filter(candidate => candidate.score === 1).length === 1;
     const margin = selected.score - Number(ranked[1]?.score || 0);

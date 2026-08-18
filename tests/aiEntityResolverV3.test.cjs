@@ -117,6 +117,25 @@ test('AI V3 实体解析：多个相近客户必须澄清而不是猜选', async
     assert.equal(result.result.clarification.candidates.length, 2);
 });
 
+test('AI V3 实体解析：型号分词只命中低相关候选时返回未找到', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'get_recipe_technical_files',
+        args: { recipeName: 'V1600-3”-12-180' },
+        executeToolCall: async (_name, args) => verified(args.keyword === '12'
+            ? [
+                { id: 1, name: 'v550-tokoy', spec: '12-120' },
+                { id: 2, name: 'v750-tokoy', spec: '12-140' },
+                { id: 3, name: 'V1100-2寸', spec: '12-160' },
+            ]
+            : []),
+    });
+
+    assert.equal(result.status, 'not_found');
+    assert.equal(result.receipt.status, 'not_found');
+    assert.equal(result.receipt.originalMention, 'V1600-3”-12-180');
+    assert.ok(result.receipt.candidates.every(candidate => candidate.score < 0.6));
+});
+
 test('AI V3 实体解析：订单客户简称通过正式订单候选绑定订单 ID', async () => {
     const result = await resolveAiToolTargetV3({
         toolName: 'get_order_detail',
