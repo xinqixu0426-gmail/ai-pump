@@ -196,6 +196,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'ai.evaluations.runs.complete',
         'ai.evaluations.cases.review',
         'ai.evaluations.system_cases.configure',
+        'ai.feedback.list',
         'ai.feedback.submit',
         'ai.feedback.diagnose',
         'ai.feedback.retest',

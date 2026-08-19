@@ -155,6 +155,20 @@ test('通用纠错学习：只向当前问题注入相关规则', () => {
     fixture.db.close();
 });
 
+test('通用纠错学习：原问题只是适用示例，换成同类业务问题仍遵守提炼规则', () => {
+    const fixture = createFixture();
+    const prompt = buildFactoryAiRulesPrompt({
+        dbAccessors: fixture.accessors,
+        query: '请把 18-160 的成品线圈增加 20 套',
+        domains: ['coil'],
+    });
+
+    assert.match(prompt, /规格-片数表示线圈成品/);
+    assert.match(prompt, /原问题只作为适用示例和来源追溯/);
+    assert.match(prompt, /不依赖原对话继续存在/);
+    fixture.db.close();
+});
+
 test('通用纠错学习：相同正确做法只注入优先级最高的一条', () => {
     const selected = selectRelevantFactoryAiRules([
         {

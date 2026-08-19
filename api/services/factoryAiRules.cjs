@@ -251,7 +251,8 @@ function buildFactoryAiRulesPrompt(options = {}) {
     const lines = [
         '',
         '【用户确认的长期操作习惯与纠正规则】',
-        '以下规则来自用户对历史错误回答的明确纠正。相关场景下优先遵守；不得因为模型惯例、相似知识或旧会话回答而忽略。',
+        '以下规则是从用户对历史错误回答的纠正中提炼出的长期业务约束。原问题只作为适用示例和来源追溯，不限制规则范围，也不依赖原对话继续存在；后续相似场景同样必须遵守。',
+        '相关场景下优先遵守；不得因为模型惯例、相似知识或旧会话回答而忽略。',
     ];
     let length = lines.join('\n').length;
     for (const [index, rule] of rules.entries()) {

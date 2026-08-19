@@ -306,6 +306,67 @@ test('AI 回答反馈：列表统计按 owner 隔离并可处理问题', () => {
     fixture.db.close();
 });
 
+test('AI 回答反馈：删除原会话后保留快照并可继续诊断复测和处理', () => {
+    const fixture = createFixture();
+    const feedback = submitAiAnswerFeedback('admin', {
+        messageId: fixture.assistantMessage,
+        rating: 'incorrect',
+        note: '以后必须只匹配带测试报告的配方。',
+        learnFromCorrection: true,
+    }, { dbAccessors: fixture.accessors });
+    fixture.db.prepare(`
+        UPDATE ai_conversations SET deleted_at = ? WHERE id = ?
+    `).run('2026-08-19T01:17:10.138Z', fixture.ownerConversation);
+
+    assert.equal(submitAiAnswerFeedback('admin', {
+        messageId: fixture.assistantMessage,
+        rating: 'outdated',
+    }, { dbAccessors: fixture.accessors }), null);
+
+    const listed = listAiAnswerFeedback(
+        'admin',
+        { status: 'open' },
+        { dbAccessors: fixture.accessors }
+    );
+    assert.equal(listed.items.length, 1);
+    assert.equal(listed.items[0].conversationDeleted, true);
+    assert.equal(listed.items[0].questionText, 'V750 配方详情是什么？');
+    assert.equal(listed.items[0].learningRule.status, 'active');
+
+    const diagnosed = diagnoseAiAnswerFeedback('admin', feedback.id, {
+        dbAccessors: fixture.accessors,
+        knowledgeService: {
+            inspectKnowledgeOverview() {
+                return { stats: { pendingTotal: 0 }, changes: [] };
+            },
+            searchKnowledgeEntries() {
+                return [];
+            },
+        },
+    });
+    assert.equal(diagnosed.conversationDeleted, true);
+    assert.ok(diagnosed.diagnosis);
+
+    const retested = recordAiAnswerFeedbackRetest('admin', feedback.id, {
+        answerText: '复测后的正式回答。',
+        toolResults: [],
+    }, { dbAccessors: fixture.accessors });
+    assert.equal(retested.conversationDeleted, true);
+
+    const resolved = reviewAiAnswerFeedback('admin', feedback.id, {
+        status: 'resolved',
+        resolutionNote: '删除会话后完成复测并归档',
+    }, { dbAccessors: fixture.accessors });
+    assert.equal(resolved.conversationDeleted, true);
+    assert.equal(resolved.status, 'resolved');
+    assert.equal(listAiAnswerFeedback(
+        'admin',
+        { status: 'open' },
+        { dbAccessors: fixture.accessors }
+    ).items.length, 0);
+    fixture.db.close();
+});
+
 test('AI 回答反馈：诊断识别待同步来源并保存建议动作', () => {
     const fixture = createFixture();
     const feedback = submitAiAnswerFeedback('admin', {

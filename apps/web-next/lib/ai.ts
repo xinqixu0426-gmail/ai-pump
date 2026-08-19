@@ -235,6 +235,7 @@ export type AiAnswerFeedbackDiagnosis = {
 export type AiAnswerFeedback = {
   id: number;
   conversationId: number;
+  conversationDeleted: boolean;
   messageId: number;
   rating: AiAnswerFeedbackRating;
   note: string;

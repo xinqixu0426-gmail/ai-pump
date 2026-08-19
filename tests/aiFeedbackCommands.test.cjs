@@ -256,6 +256,60 @@ test('AI 反馈命令：改判、诊断和复测依次绑定最新版本', () =>
     }
 });
 
+test('AI 反馈命令：原会话软删除后反馈仍按 owner 隔离并可处理', () => {
+    const fixture = createFixture();
+    try {
+        const submitted = executeSubmitAiAnswerFeedback(
+            fixture.dependencies,
+            'admin',
+            {
+                messageId: fixture.messageId,
+                rating: 'incorrect',
+                note: '正确分类是性能测试报告。',
+                learnFromCorrection: true,
+            },
+            context('ai-feedback-submit-deleted-conversation')
+        ).feedback;
+        fixture.db.prepare(`
+            UPDATE ai_conversations
+            SET deleted_at = '2026-08-19T01:17:10.138Z'
+            WHERE id = ?
+        `).run(submitted.conversationId);
+
+        const diagnosed = executeDiagnoseAiAnswerFeedback(
+            fixture.dependencies,
+            'admin',
+            submitted.id,
+            { expectedUpdatedAt: submitted.updatedAt },
+            context('ai-feedback-diagnose-deleted-conversation')
+        ).feedback;
+        assert.equal(diagnosed.conversationDeleted, true);
+        assert.throws(() => executeDiagnoseAiAnswerFeedback(
+            fixture.dependencies,
+            'operator',
+            submitted.id,
+            { expectedUpdatedAt: diagnosed.updatedAt },
+            context('ai-feedback-diagnose-wrong-owner')
+        ), /反馈不存在/);
+
+        const reviewed = executeReviewAiAnswerFeedback(
+            fixture.dependencies,
+            'admin',
+            submitted.id,
+            {
+                status: 'resolved',
+                resolutionNote: '已根据反馈快照完成处理',
+                expectedUpdatedAt: diagnosed.updatedAt,
+            },
+            context('ai-feedback-review-deleted-conversation')
+        ).feedback;
+        assert.equal(reviewed.status, 'resolved');
+        assert.equal(reviewed.conversationDeleted, true);
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('AI 反馈命令：长期规则修改同步回归用例并逐项强审计', () => {
     const fixture = createFixture();
     try {

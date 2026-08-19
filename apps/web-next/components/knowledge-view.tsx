@@ -1165,10 +1165,16 @@ export function KnowledgeView({
                     <div className="text-sm font-medium text-ink">{item.questionText || '未保存用户问题'}</div>
                     <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">AI：{item.answerText || '未保存回答内容'}</div>
                     {item.note ? <div className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900">反馈：{item.note}</div> : null}
+                    {item.conversationDeleted ? (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                        <History size={13} />
+                        原对话已删除；反馈快照、长期规则和回归案例仍保留，可继续诊断与处理。
+                      </div>
+                    ) : null}
                     {item.learningRule ? (
                       <div className="mt-2 flex items-center gap-2 text-xs text-sky-700">
                         <Brain size={13} />
-                        {item.learningRule.status === 'active' ? '已作为长期规则生效' : '长期规则已停用'}
+                        {item.learningRule.status === 'active' ? '已提炼为独立长期规则并生效' : '长期规则已停用'}
                       </div>
                     ) : null}
                     {item.regressionCase ? (

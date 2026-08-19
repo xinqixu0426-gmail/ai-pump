@@ -2351,8 +2351,73 @@ async function testCrossModuleWriteFlow(baseResources) {
         `/api/ai/conversations/${conversation.id}/messages/${message.id}`,
         { metadata: { test: true } }
     );
+    const assistantMessage = (await request(
+        '保存 AI 回答消息',
+        'POST',
+        `/api/ai/conversations/${conversation.id}/messages`,
+        { role: 'assistant', content: '自动验收回答' },
+        [201]
+    )).payload.data;
+    const answerFeedback = (await request(
+        '提交 AI 回答反馈',
+        'POST',
+        '/api/ai/feedback',
+        {
+            messageId: assistantMessage.id,
+            rating: 'incorrect',
+            note: '自动验收正确做法',
+            learnFromCorrection: true,
+            idempotencyKey: `deep:ai-feedback-submit:${unique}`,
+        },
+        [201]
+    )).payload.data;
     await request('读取 AI 会话', 'GET', `/api/ai/conversations/${conversation.id}`);
     await request('删除 AI 会话', 'DELETE', `/api/ai/conversations/${conversation.id}`);
+    const feedbackAfterConversationDelete = (await request(
+        '原会话删除后读取 AI 回答反馈',
+        'GET',
+        `/api/ai/feedback?conversationId=${conversation.id}&status=open&limit=5`
+    )).payload.data.items.find(item => item.id === answerFeedback.id);
+    assert(
+        feedbackAfterConversationDelete?.conversationDeleted === true,
+        '原会话删除后反馈快照未保留或缺少删除状态'
+    );
+    const diagnosedFeedback = (await request(
+        '原会话删除后诊断 AI 回答反馈',
+        'POST',
+        `/api/ai/feedback/${answerFeedback.id}/diagnose`,
+        {
+            expectedUpdatedAt: feedbackAfterConversationDelete.updatedAt,
+            idempotencyKey: `deep:ai-feedback-diagnose:${unique}`,
+        }
+    )).payload.data;
+    assert(diagnosedFeedback.conversationDeleted === true, '诊断结果丢失原会话删除状态');
+    await request(
+        '原会话删除后禁止新增 AI 回答反馈',
+        'POST',
+        '/api/ai/feedback',
+        {
+            messageId: assistantMessage.id,
+            rating: 'outdated',
+            idempotencyKey: `deep:ai-feedback-resubmit:${unique}`,
+        },
+        [404]
+    );
+    const reviewedFeedback = (await request(
+        '原会话删除后处理 AI 回答反馈',
+        'PATCH',
+        `/api/ai/feedback/${answerFeedback.id}`,
+        {
+            status: 'resolved',
+            resolutionNote: '自动验收完成',
+            expectedUpdatedAt: diagnosedFeedback.updatedAt,
+            idempotencyKey: `deep:ai-feedback-review:${unique}`,
+        }
+    )).payload.data;
+    assert(
+        reviewedFeedback.status === 'resolved' && reviewedFeedback.conversationDeleted === true,
+        '原会话删除后反馈未能完成处理'
+    );
 
     const documentText = `型号 ${unique}\n泵壳材料 304\n叶轮直径 120mm`;
     const factoryFileForm = new FormData();

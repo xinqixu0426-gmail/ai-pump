@@ -577,8 +577,9 @@ function activeFactoryAiRuleEntries(rows) {
         summary: row.instruction,
         content: [
             row.instruction,
-            row.triggerText || row.trigger_text ? `来源问题：${row.triggerText || row.trigger_text}` : '',
+            row.triggerText || row.trigger_text ? `适用示例（仅用于相关性匹配和来源追溯）：${row.triggerText || row.trigger_text}` : '',
             '来源：用户通过 AI 回答反馈明确确认的长期纠正规则。',
+            '生命周期：规则独立于原对话；删除聊天记录不会停用或删除本规则。',
             '执行边界：本条知识仅用于检索和追溯；实际生效内容由本轮相关纠错提示词注入，不得从知识副本重复执行。',
         ],
         tags: ['业务规则', 'AI纠错学习', '操作习惯'],

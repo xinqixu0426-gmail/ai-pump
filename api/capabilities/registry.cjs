@@ -1525,6 +1525,16 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         transactionality:
             'system_evaluation_case_configuration_audit_and_operation_receipt_atomic',
     }),
+    'ai.feedback.list': defineQueryCapability({
+        capabilityId: 'ai.feedback.list',
+        domain: 'ai',
+        inputSchema: 'GET /api/ai/feedback?conversationId?&status?&rating?&limit?',
+        outputSchema: 'AiAnswerFeedbackList including conversationDeleted',
+        sourceOfTruth:
+            'ai_answer_feedback_snapshots+ai_conversations.owner_key_and_deleted_at',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'ai.feedback.submit': defineBusinessCapability({
         capabilityId: 'ai.feedback.submit',
         domain: 'ai',

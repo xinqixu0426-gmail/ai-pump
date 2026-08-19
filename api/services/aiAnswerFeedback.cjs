@@ -68,6 +68,11 @@ function collectSources(metadataJson) {
 function feedbackRow(row, rowAdapter, db = null, evaluationCaseAdapter = null) {
     if (!row) return null;
     const adapted = rowAdapter(row);
+    const conversationDeleted = Object.hasOwn(row, 'conversation_deleted_at')
+        ? Boolean(row.conversation_deleted_at)
+        : Boolean(db?.prepare(`
+            SELECT deleted_at FROM ai_conversations WHERE id = ?
+        `).get(adapted.conversationId)?.deleted_at);
     let sources = [];
     try {
         const parsed = JSON.parse(adapted.sourcesJson || '[]');
@@ -102,7 +107,15 @@ function feedbackRow(row, rowAdapter, db = null, evaluationCaseAdapter = null) {
             evaluationCaseAdapter
         )
         : null;
-    return { ...adapted, sources, diagnosis, retestSources, learningRule, regressionCase };
+    return {
+        ...adapted,
+        conversationDeleted,
+        sources,
+        diagnosis,
+        retestSources,
+        learningRule,
+        regressionCase,
+    };
 }
 
 function assistantMessageForOwner(db, ownerKey, messageId) {
@@ -209,7 +222,7 @@ function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
     const { db, aiAnswerFeedbackRow, aiEvaluationCaseRow } = accessors;
     const owner = normalizeOwnerKey(ownerKey);
     const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 100);
-    const clauses = ['conversation.owner_key = ?', 'conversation.deleted_at IS NULL'];
+    const clauses = ['conversation.owner_key = ?'];
     const params = [owner];
     if (filters.conversationId !== undefined && filters.conversationId !== '') {
         clauses.push('feedback.conversation_id = ?');
@@ -226,7 +239,7 @@ function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
         params.push(normalizeRating(filters.rating));
     }
     const items = db.prepare(`
-        SELECT feedback.*
+        SELECT feedback.*, conversation.deleted_at AS conversation_deleted_at
         FROM ai_answer_feedback AS feedback
         JOIN ai_conversations AS conversation ON conversation.id = feedback.conversation_id
         WHERE ${clauses.join(' AND ')}
@@ -243,7 +256,7 @@ function listAiAnswerFeedback(ownerKey, filters = {}, options = {}) {
             SUM(CASE WHEN feedback.status = 'open' AND feedback.rating = 'missing_source' THEN 1 ELSE 0 END) AS missing_source
         FROM ai_answer_feedback AS feedback
         JOIN ai_conversations AS conversation ON conversation.id = feedback.conversation_id
-        WHERE conversation.owner_key = ? AND conversation.deleted_at IS NULL
+        WHERE conversation.owner_key = ?
     `).get(owner);
     return {
         items,
@@ -269,7 +282,7 @@ function reviewAiAnswerFeedback(ownerKey, idValue, input = {}, options = {}) {
         SELECT feedback.id
         FROM ai_answer_feedback AS feedback
         JOIN ai_conversations AS conversation ON conversation.id = feedback.conversation_id
-        WHERE feedback.id = ? AND conversation.owner_key = ? AND conversation.deleted_at IS NULL
+        WHERE feedback.id = ? AND conversation.owner_key = ?
     `).get(id, normalizeOwnerKey(ownerKey));
     if (!owned) return null;
     const write = safeUpdate('ai_answer_feedback', id, {
@@ -291,7 +304,7 @@ function feedbackForOwner(db, ownerKey, id) {
         SELECT feedback.*
         FROM ai_answer_feedback AS feedback
         JOIN ai_conversations AS conversation ON conversation.id = feedback.conversation_id
-        WHERE feedback.id = ? AND conversation.owner_key = ? AND conversation.deleted_at IS NULL
+        WHERE feedback.id = ? AND conversation.owner_key = ?
     `).get(id, normalizeOwnerKey(ownerKey));
 }
 

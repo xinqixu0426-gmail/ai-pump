@@ -89,7 +89,6 @@ function feedbackById(dependencies, owner, feedbackId) {
           ON conversation.id = feedback.conversation_id
         WHERE feedback.id = ?
           AND conversation.owner_key = ?
-          AND conversation.deleted_at IS NULL
     `).get(feedbackId, ownerKey(owner));
 }
 

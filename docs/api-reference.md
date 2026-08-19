@@ -397,7 +397,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 
-模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 98 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。74 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 99 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -476,6 +476,7 @@ V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空
 | `ai.evaluations.runs.complete` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前运行及其已保存结果 | medium | 完成检查本身是明确动作 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` | 汇总状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.cases.review` | HTTP/Web | maintenance/write | 纠错回归用例 + 关联纠正规则状态 | medium | 审核按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 审核状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.system_cases.configure` | HTTP/Web | maintenance/write | 内置系统评测用例的手动检查开关 | medium | 启用或停用按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 开关、operation 和强审计同一 SQLite 事务；不改变发布门禁开关 | 默认 HTTP |
+| `ai.feedback.list` | HTTP/Web | query/read | 回答反馈快照 + 原会话 owner/删除状态 | low | 无 | 无 | 查询天然幂等 | 只读；原会话软删除后反馈继续保留并按 owner 隔离 | 15s |
 | `ai.feedback.submit` | HTTP/Web | maintenance/write | 已保存 AI 回复 + 回答反馈 + 可选纠正规则/回归用例 | medium | 点赞或提交问题本身是明确动作 | 无 | 90 天持久化幂等；已有反馈绑定 `expectedUpdatedAt` | 反馈、派生规则、回归用例、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.feedback.diagnose` | HTTP/Web | maintenance/write | 当前反馈 + 当前知识同步状态 | medium | 诊断按钮本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 诊断快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.feedback.retest` | HTTP/Web | maintenance/write | 当前复测回答/工具依据 + 回答反馈 | medium | 复测流程本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 复测快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
@@ -518,11 +519,11 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 ### AI 回答反馈
 
-用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。只有用户选择“内容错误”、填写以后应遵守的正确做法并明确勾选“让 AI 长期记住”时，系统才会生成一条全局纠正规则；其他反馈不会自动学习。纠正规则只约束后续 AI 回答和工具选择，不修改知识原文或业务数据。
+用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。只有用户选择“内容错误”、填写以后应遵守的可复用正确做法并明确勾选“让 AI 长期记住”时，系统才会生成一条全局纠正规则；其他反馈不会自动学习。规则正文以正确做法为准，原问题只作为适用示例和来源追溯：运行时规则独立于会话，在后续相似问题中同样生效，删除原对话不会停用规则。纠正规则只约束后续 AI 回答和工具选择，不修改知识原文或业务数据。
 
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
-| `GET` | `/api/ai/feedback?conversationId=&status=&rating=&limit=50` | 无 | 按当前登录身份查询反馈和汇总；`status` 为 `open/resolved`，最大 100 条 |
+| `GET` | `/api/ai/feedback?conversationId=&status=&rating=&limit=50` | 无 | 能力 `ai.feedback.list`。按当前登录身份查询反馈和汇总；`status` 为 `open/resolved`，最大 100 条。每项返回 `conversationDeleted`；原会话已软删除的反馈仍返回并可继续处理 |
 | `POST` | `/api/ai/feedback` | `{ messageId, rating, note?, learnFromCorrection?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.submit`。新增或改判指定 AI 回复；`rating` 为 `helpful/incorrect/outdated/missing_source`。`learnFromCorrection=true` 仅允许用于 `incorrect` 且必须填写正确做法；反馈、规则和回归用例原子提交 |
 | `POST` | `/api/ai/feedback/:id/diagnose` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.diagnose`。对照当前知识概况并保存诊断快照；诊断不是业务事实，绑定反馈版本 |
 | `POST` | `/api/ai/feedback/:id/retest` | `{ answerText, toolResults, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.retest`。保存使用原问题重新查询所得的新回答和来源，供人工对比；不自动归档 |
@@ -530,7 +531,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | `GET` | `/api/ai/learning-rules?status=&limit=100` | 无 | 列出全局长期纠正规则和生效/停用统计；`status` 可为 `active/disabled` |
 | `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.learning_rules.update`。更新规则或启停并同步关联回归用例；启用规则会在相关问题中优先加载，停用后立即不再生效 |
 
-同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。
+同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。删除原 AI 会话只隐藏聊天历史，不删除已经提交的反馈快照、纠正规则、回归案例、诊断或复测记录；这些记录继续按原会话 owner 隔离并可治理，但已删除会话不能再新增或改判反馈。
 
 启用的纠正规则按本轮问题文本和业务领域评分，只把最多 8 条相关规则加入系统上下文，并以 `sourceTable=factory_ai_rules` 的业务规则条目进入知识索引；在知识库管理中心可随时停用或恢复。它适用于术语、操作习惯、回答口径和工具选择等通用纠错，不局限于线圈。自由文本规则仍由模型执行，且优先级低于核心安全和领域规则；涉及库存、订单、报价等写操作继续受工具参数校验和人工确认保护。
 
