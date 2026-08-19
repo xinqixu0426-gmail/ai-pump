@@ -112,7 +112,11 @@ function createCustomerQueries({
         const customerName = normalizeText(customer.name);
         const orders = listOrders()
             .filter(row => (
-                normalizeText(row.customerName || row.customer_name) === customerName
+                Number(row.customerId ?? row.customer_id ?? 0) === customerId
+                || (
+                    !Number(row.customerId ?? row.customer_id ?? 0)
+                    && normalizeText(row.customerName || row.customer_name) === customerName
+                )
             ))
             .map(row => ({
                 ...row,

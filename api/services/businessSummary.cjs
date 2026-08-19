@@ -1,5 +1,4 @@
-const { dbGetAllOrders, dbGetAllParts, dbGetAllRecipes } = require('../db.cjs');
-
+const STATUS_UNCONFIRMED = '待确认';
 const STATUS_PENDING = '待采购';
 const STATUS_PURCHASING = '采购中';
 const STATUS_PURCHASED = '采购完成';
@@ -19,6 +18,26 @@ function roundMoney(value) {
     return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function financialTotals(orders) {
+    const lockedTotalCost = roundMoney(orders.reduce((sum, order) => sum + order.lockedTotalCost, 0));
+    const procurementVariance = roundMoney(orders.reduce((sum, order) => sum + order.procurementVariance, 0));
+    const totalCost = roundMoney(lockedTotalCost + procurementVariance);
+    const totalRevenue = roundMoney(orders.reduce((sum, order) => sum + order.totalPrice, 0));
+    const totalProfit = roundMoney(totalRevenue - totalCost);
+    return {
+        totalCost,
+        lockedTotalCost,
+        procurementVariance,
+        totalRevenue,
+        totalProfit,
+        profitRate: totalRevenue > 0 ? roundMoney((totalProfit / totalRevenue) * 100) : 0,
+    };
+}
+
+function loadDbAccessors() {
+    return require('../db.cjs');
+}
+
 function sameLocalDay(value, now = new Date()) {
     if (!value) return false;
     const date = new Date(value);
@@ -32,8 +51,23 @@ function normalizeOrder(order) {
     const items = parseJsonArray(order.itemsJson);
     const purchaseList = parseJsonArray(order.purchaseListJson);
     const todos = parseJsonArray(order.todosJson);
-    const totalCost = items.reduce((sum, item) => sum + Number(item.unitCost || 0) * Number(item.qty || 0), 0);
+    const lockedTotalCost = items.reduce((sum, item) => sum + Number(item.unitCost || 0) * Number(item.qty || 0), 0);
     const totalPrice = items.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.qty || 0), 0);
+    const comparablePurchases = purchaseList.filter(item => (
+        item.purchasePriceRecorded === true
+        && Number(item.referencePrice || 0) > 0
+        && Number(item.orderedQty ?? (item.purchased ? (item.plannedQty ?? item.needToBuy ?? 0) : 0)) > 0
+    ));
+    const procurementReferenceCost = comparablePurchases.reduce((sum, item) => {
+        const qty = Number(item.orderedQty ?? (item.purchased ? (item.plannedQty ?? item.needToBuy ?? 0) : 0));
+        return sum + Number(item.referencePrice || 0) * qty;
+    }, 0);
+    const procurementActualCost = comparablePurchases.reduce((sum, item) => {
+        const qty = Number(item.orderedQty ?? (item.purchased ? (item.plannedQty ?? item.needToBuy ?? 0) : 0));
+        return sum + Number(item.purchasePrice || 0) * qty;
+    }, 0);
+    const procurementVariance = roundMoney(procurementActualCost - procurementReferenceCost);
+    const totalCost = roundMoney(lockedTotalCost + procurementVariance);
 
     return {
         id: String(order.Id),
@@ -45,7 +79,11 @@ function normalizeOrder(order) {
         items,
         purchaseList,
         todos,
-        totalCost: roundMoney(totalCost),
+        lockedTotalCost: roundMoney(lockedTotalCost),
+        procurementReferenceCost: roundMoney(procurementReferenceCost),
+        procurementActualCost: roundMoney(procurementActualCost),
+        procurementVariance,
+        totalCost,
         totalPrice: roundMoney(totalPrice),
         totalProfit: roundMoney(totalPrice - totalCost),
         createdAt: order.CreatedAt,
@@ -168,12 +206,18 @@ function buildPendingPurchaseItems(purchaseOrders) {
 
 function buildBusinessSummary(options = {}) {
     const now = options.now || new Date();
-    const orders = (options.orders || dbGetAllOrders()).map(normalizeOrder)
+    const accessors = options.dbAccessors || (
+        options.orders && options.parts && options.recipes ? null : loadDbAccessors()
+    );
+    const orders = (options.orders || accessors.dbGetAllOrders()).map(normalizeOrder)
         .sort((a, b) => b.numericId - a.numericId);
-    const parts = options.parts || dbGetAllParts();
-    const recipes = options.recipes || dbGetAllRecipes();
+    const parts = options.parts || accessors.dbGetAllParts();
+    const recipes = options.recipes || accessors.dbGetAllRecipes();
 
-    const activeOrders = orders.filter(order => order.status !== STATUS_CLOSED && order.status !== '已取消');
+    const validOrders = orders.filter(order => order.status !== '已取消');
+    const confirmedOrders = validOrders.filter(order => order.status !== STATUS_UNCONFIRMED);
+    const completedOrders = validOrders.filter(order => order.status === STATUS_CLOSED);
+    const activeOrders = validOrders.filter(order => order.status !== STATUS_CLOSED);
     const purchaseOrders = activeOrders.filter(order =>
         order.purchaseList.some(item => {
             const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
@@ -190,9 +234,9 @@ function buildBusinessSummary(options = {}) {
     const outOfStockParts = parts.filter(part => Number(part.stock || 0) <= 0);
     const lowStockParts = parts.filter(part => Number(part.stock || 0) > 0 && Number(part.stock || 0) <= 5);
 
-    const totalCost = roundMoney(orders.reduce((sum, order) => sum + order.totalCost, 0));
-    const totalRevenue = roundMoney(orders.reduce((sum, order) => sum + order.totalPrice, 0));
-    const totalProfit = roundMoney(totalRevenue - totalCost);
+    const orderBookFinancials = financialTotals(validOrders);
+    const expectedFinancials = financialTotals(confirmedOrders);
+    const completedFinancials = financialTotals(completedOrders);
 
     const ordersByStatus = {
         [STATUS_PENDING]: orders.filter(order => order.status === STATUS_PENDING).length,
@@ -208,9 +252,9 @@ function buildBusinessSummary(options = {}) {
             activeOrders: activeOrders.length,
             recipeCount: recipes.length,
             partCount: parts.length,
-            totalCost,
-            totalRevenue,
-            totalProfit,
+            totalCost: expectedFinancials.totalCost,
+            totalRevenue: expectedFinancials.totalRevenue,
+            totalProfit: expectedFinancials.totalProfit,
             lowStockPartCount: lowStockParts.length,
             outOfStockPartCount: outOfStockParts.length,
             todayOrderCount: todayOrders.length,
@@ -245,10 +289,10 @@ function buildBusinessSummary(options = {}) {
             outOfStock: outOfStockParts.length,
         },
         financials: {
-            totalCost,
-            totalRevenue,
-            totalProfit,
-            profitRate: totalRevenue > 0 ? roundMoney((totalProfit / totalRevenue) * 100) : 0,
+            ...expectedFinancials,
+            basis: 'confirmed_orders_locked_cost_plus_recorded_procurement_variance',
+            orderBook: orderBookFinancials,
+            completed: completedFinancials,
         },
         workbench: {
             items: [

@@ -63,8 +63,22 @@ function createFixture() {
             stock INTEGER,
             updated_at TEXT
         );
+        CREATE TABLE customers (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            deleted_at TEXT
+        );
+        CREATE TABLE recipes (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            spec TEXT,
+            parts_json TEXT NOT NULL,
+            saved_total_cost REAL NOT NULL,
+            deleted_at TEXT
+        );
         CREATE TABLE orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
             customer_name TEXT,
             contract_no TEXT,
             remark TEXT,
@@ -78,6 +92,9 @@ function createFixture() {
             status_changed_at TEXT,
             closed_at TEXT,
             cancelled_at TEXT,
+            inventory_disposition TEXT,
+            inventory_disposition_at TEXT,
+            inventory_disposition_note TEXT,
             created_at TEXT,
             updated_at TEXT,
             deleted_at TEXT
@@ -86,6 +103,17 @@ function createFixture() {
             id, model, name, supplier, price, stock, updated_at
         ) VALUES (
             1, 'P-1', '测试零件', '供应商A', 5, 0, '${FIXED_UPDATED_AT}'
+        );
+        INSERT INTO customers (id, name) VALUES
+            (1, '测试客户'),
+            (2, '待确认客户'),
+            (3, '修改后客户');
+        INSERT INTO recipes (
+            id, name, spec, parts_json, saved_total_cost
+        ) VALUES (
+            1, '测试水泵', '测试规格',
+            '[{"model":"P-1","name":"测试零件","supplier":"供应商A","qty":1,"inventoryQty":1}]',
+            5
         );
     `);
 
@@ -138,6 +166,9 @@ function createFixture() {
         contractNo: row.contract_no,
         status: row.status,
         statusReason: row.status_reason || '',
+        inventoryDisposition: row.inventory_disposition || null,
+        inventoryDispositionAt: row.inventory_disposition_at || null,
+        inventoryDispositionNote: row.inventory_disposition_note || '',
         itemsJson: row.items_json,
         purchaseListJson: row.purchase_list_json,
         todosJson: row.todos_json,
@@ -159,11 +190,13 @@ function createFixture() {
 
 function draftInput() {
     return {
+        customerId: 1,
         customerName: '测试客户',
         contractNo: 'HT-001',
         remark: '服务测试',
         items: [{
             id: 'order-item-test',
+            recipeId: 1,
             recipeName: '测试水泵',
             qty: 2,
             unitCost: 5,
@@ -253,7 +286,7 @@ test('直接建单拒绝已变化的预览且不产生业务或命令记录', ()
         assert.throws(
             () => executeOrderCreate(
                 fixture.dependencies,
-                { ...draft, customerName: '被修改客户' },
+                { ...draft, customerId: 3, customerName: '修改后客户' },
                 commandContext(CREATE_CAPABILITY_ID, 'preview-conflict')
             ),
             error => error.code === 'preview_changed' && error.statusCode === 409
@@ -315,6 +348,57 @@ test('确认订单重新计算采购计划并生成可重放的标准回执', ()
     }
 });
 
+test('关闭订单必须明确库存去向，释放预留必须填写原因', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        fixture.db.prepare(`UPDATE orders SET status = '采购完成' WHERE id = ?`).run(orderId);
+        const context = commandContext(STATUS_CAPABILITY_ID, 'close-with-disposition');
+
+        assert.throws(
+            () => executeOrderStatus(
+                fixture.dependencies,
+                orderId,
+                { status: '已关闭', expectedUpdatedAt: FIXED_UPDATED_AT },
+                context
+            ),
+            error => error.code === 'order_close_inventory_disposition_required'
+                && error.statusCode === 422
+        );
+        assert.throws(
+            () => executeOrderStatus(
+                fixture.dependencies,
+                orderId,
+                {
+                    status: '已关闭',
+                    inventoryDisposition: 'reservation_released',
+                    expectedUpdatedAt: FIXED_UPDATED_AT,
+                },
+                context
+            ),
+            error => error.code === 'order_close_release_note_required'
+                && error.statusCode === 422
+        );
+
+        const result = executeOrderStatus(
+            fixture.dependencies,
+            orderId,
+            {
+                status: '已关闭',
+                inventoryDisposition: 'reservation_released',
+                inventoryDispositionNote: '客户取消后续生产安排',
+                expectedUpdatedAt: FIXED_UPDATED_AT,
+            },
+            context
+        );
+        assert.equal(result.order.status, '已关闭');
+        assert.equal(result.order.inventoryDisposition, 'reservation_released');
+        assert.equal(result.order.inventoryDispositionNote, '客户取消后续生产安排');
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('订单状态强审计缺失时回滚状态和 operation', () => {
     const fixture = createFixture();
     try {
@@ -361,6 +445,7 @@ test('待确认订单编辑绑定草稿、版本、幂等和强审计', () => {
         const orderId = insertPendingOrder(fixture);
         const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
             ...draftInput(),
+            customerId: 3,
             customerName: '修改后客户',
         });
         const input = {

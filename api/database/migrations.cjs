@@ -178,7 +178,10 @@ function migrateCoilDomain(db) {
 
 function ordersNeedRebuild(db) {
     const status = db.pragma('table_info(orders)').find((column) => column.name === 'status');
-    return status?.dflt_value !== "'待确认'";
+    const hasCustomerForeignKey = db.pragma('foreign_key_list(orders)').some((fk) => (
+        fk.table === 'customers' && fk.from === 'customer_id' && fk.to === 'id'
+    ));
+    return status?.dflt_value !== "'待确认'" || !hasCustomerForeignKey;
 }
 
 function coilsNeedRebuild(db) {
@@ -189,6 +192,10 @@ function coilsNeedRebuild(db) {
 
 function rebuildOrders(db) {
     if (!ordersNeedRebuild(db)) return;
+    const legacyColumns = columnNames(db, 'orders');
+    const disposition = legacyColumns.has('inventory_disposition') ? 'inventory_disposition' : 'NULL';
+    const dispositionAt = legacyColumns.has('inventory_disposition_at') ? 'inventory_disposition_at' : 'NULL';
+    const dispositionNote = legacyColumns.has('inventory_disposition_note') ? 'inventory_disposition_note' : "''";
     db.exec(`
         DROP TABLE IF EXISTS orders_schema_legacy;
         ALTER TABLE orders RENAME TO orders_schema_legacy;
@@ -207,23 +214,31 @@ function rebuildOrders(db) {
             status_changed_at TEXT,
             closed_at TEXT,
             cancelled_at TEXT,
+            inventory_disposition TEXT,
+            inventory_disposition_at TEXT,
+            inventory_disposition_note TEXT DEFAULT '',
             created_at TEXT,
             updated_at TEXT,
-            deleted_at TEXT
+            deleted_at TEXT,
+            customer_id INTEGER,
+            FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+            CHECK(status IN ('待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消'))
         );
         INSERT INTO orders (
             id, customer_name, contract_no, remark, status,
             items_json, purchase_list_json, todos_json,
             purchase_completed_at, purchase_receipt_id,
             status_reason, status_changed_at, closed_at, cancelled_at,
-            created_at, updated_at, deleted_at
+            inventory_disposition, inventory_disposition_at, inventory_disposition_note,
+            created_at, updated_at, deleted_at, customer_id
         )
         SELECT
             id, customer_name, contract_no, remark, status,
             items_json, purchase_list_json, todos_json,
             purchase_completed_at, purchase_receipt_id,
             status_reason, status_changed_at, closed_at, cancelled_at,
-            created_at, updated_at, deleted_at
+            ${disposition}, ${dispositionAt}, ${dispositionNote},
+            created_at, updated_at, deleted_at, customer_id
         FROM orders_schema_legacy;
         DROP TABLE orders_schema_legacy;
     `);
@@ -2744,6 +2759,73 @@ const MIGRATIONS = Object.freeze([
                 new Date().toISOString(),
                 'cutting-shell-purpose-evidence'
             );
+        },
+    },
+    {
+        version: 61,
+        name: 'orders_stable_customer_identity',
+        signature: 'orders-customer-id-backfill-and-index-v1',
+        foreignKeysOff: true,
+        up(db) {
+            const columns = columnNames(db, 'orders');
+            if (!columns.has('customer_id')) {
+                db.exec(`
+                    ALTER TABLE orders
+                    ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE RESTRICT;
+                `);
+            }
+            // 当前权威 Schema 已包含下一版订单关闭字段；在重建整表前先补齐，
+            // 使从 60 及更早版本顺序升级时仍能完成 v61 的约束重建。
+            if (!columns.has('inventory_disposition')) {
+                db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition TEXT;`);
+            }
+            if (!columns.has('inventory_disposition_at')) {
+                db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition_at TEXT;`);
+            }
+            if (!columns.has('inventory_disposition_note')) {
+                db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition_note TEXT DEFAULT '';`);
+            }
+            db.exec(`
+                UPDATE orders
+                SET customer_id = (
+                    SELECT customers.id
+                    FROM customers
+                    WHERE TRIM(customers.name) = TRIM(orders.customer_name)
+                    ORDER BY CASE WHEN customers.deleted_at IS NULL THEN 0 ELSE 1 END, customers.id
+                    LIMIT 1
+                )
+                WHERE customer_id IS NULL
+                  AND EXISTS (
+                    SELECT 1 FROM customers
+                    WHERE TRIM(customers.name) = TRIM(orders.customer_name)
+                );
+            `);
+            rebuildOrders(db);
+            db.exec(CANONICAL_INDEXES_SQL);
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_orders_customer
+                    ON orders(customer_id, deleted_at, created_at);
+            `);
+        },
+    },
+    {
+        version: 62,
+        name: 'order_inventory_disposition_on_close',
+        signature: 'order-close-inventory-disposition-v1',
+        foreignKeysOff: true,
+        up(db) {
+            const columns = columnNames(db, 'orders');
+            if (!columns.has('inventory_disposition')) {
+                db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition TEXT;`);
+            }
+            if (!columns.has('inventory_disposition_at')) {
+                db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition_at TEXT;`);
+            }
+            if (!columns.has('inventory_disposition_note')) {
+                db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition_note TEXT DEFAULT '';`);
+            }
+            rebuildOrders(db);
+            db.exec(CANONICAL_INDEXES_SQL);
         },
     },
 ]);

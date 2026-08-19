@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `60`：
+当前版本为 `62`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -80,6 +80,8 @@
 | 58 | `quotation_attachment_summary_drafts` | 保存新建报价时由客户询价附件生成并经人工核对的摘要，以及最多 4 个来源文件引用；不改变正式报价字段 |
 | 59 | `separate_manual_ai_checks_from_release_gate` | 恢复 7 条内置系统知识库检查供页面手动运行，并用独立开关将其排除在生产发布门禁之外 |
 | 60 | `calibrate_ai_governance_cutting_accessory_check` | 切割泵壳检查接受“没有明确专用配件”的安全结论，不再要求复述被排除的螺丝名称 |
+| 61 | `orders_stable_customer_identity` | 为订单增加稳定客户 ID、按历史名称回填并建立客户关系索引 |
+| 62 | `order_inventory_disposition_on_close` | 保存订单关闭时“已人工领用出库”或“释放库存预留”的明确去向、时间和说明 |
 
 ## 数据治理
 
@@ -87,6 +89,7 @@
 - `api_operations` 以 `actor_key + capability_id + idempotency_key` 唯一保存高风险命令请求哈希和成功回执，默认保留 90 天；幂等记录、业务变更、领域流水和强审计在同一 `BEGIN IMMEDIATE` 事务提交。相同键但请求哈希不同必须拒绝。
 - `audit_log.request_id/operation_id/capability_id` 把一次 HTTP 请求、业务命令和各资源审计串联起来。未接入统一命令执行器的历史写入口仍使用尽力审计，不能宣称具备强审计回执。
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
+- `orders.customer_id` 是订单归属客户的稳定关系，`customer_name` 仅保留建单时名称快照。`inventory_disposition/inventory_disposition_at/inventory_disposition_note` 保存关闭时的库存去向；关闭动作本身不隐式扣减库存。
 - `coils.scheme_status` 只允许 `official/testing/disabled`；`disabled` 表示停用历史方案，不删除库存追溯事实，也不参与正式方案选择。
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。

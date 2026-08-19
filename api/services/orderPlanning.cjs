@@ -1,10 +1,11 @@
+const crypto = require('node:crypto');
 const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { mergePurchasePlanItem, normalizePurchaseItem } = require('./orderWorkflow.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 
-function makeId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function makeId(value) {
+    return `purchase-${crypto.createHash('sha256').update(String(value || '')).digest('hex').slice(0, 16)}`;
 }
 
 function parsePartsJson(partsJson) {
@@ -18,15 +19,37 @@ function parsePartsJson(partsJson) {
 
 function buildPartIndexes(partsCatalog) {
     const partIndex = new Map();
-    const partByModel = new Map();
+    const partsByModel = new Map();
+    const partsById = new Map();
     for (const part of partsCatalog || []) {
         const model = String(part.model || '').trim();
         const supplier = String(part.supplier || '').trim();
         if (!model) continue;
         partIndex.set(`${model}|${supplier}`, part);
-        if (!partByModel.has(model)) partByModel.set(model, part);
+        const modelParts = partsByModel.get(model) || [];
+        modelParts.push(part);
+        partsByModel.set(model, modelParts);
+        const id = Number(part.id || part.Id || 0);
+        if (id > 0) partsById.set(id, part);
     }
-    return { partIndex, partByModel };
+    return { partIndex, partsByModel, partsById };
+}
+
+function resolveInventoryPart(part, supplier, indexes) {
+    const explicitPartId = Number(part?.partId || 0);
+    if (explicitPartId > 0) {
+        const byId = indexes.partsById.get(explicitPartId) || null;
+        return byId && String(byId.model || '').trim() === String(part?.model || '').trim()
+            ? byId
+            : null;
+    }
+    const model = String(part?.model || '').trim();
+    const normalizedSupplier = String(supplier || '').trim();
+    if (normalizedSupplier) {
+        return indexes.partIndex.get(`${model}|${normalizedSupplier}`) || null;
+    }
+    const candidates = indexes.partsByModel.get(model) || [];
+    return candidates.length === 1 ? candidates[0] : null;
 }
 
 function buildCoilIndexes(coilsCatalog) {
@@ -88,7 +111,7 @@ function completeCableIdentity(part, supplier, partId) {
 }
 
 function buildPurchaseList(items, partsCatalog, options = {}) {
-    const { partIndex, partByModel } = buildPartIndexes(partsCatalog);
+    const partIndexes = buildPartIndexes(partsCatalog);
     const coilIndexes = buildCoilIndexes(options.coilsCatalog);
     const merged = new Map();
     const reservedDemand = options.reservedDemand instanceof Map ? options.reservedDemand : new Map();
@@ -105,11 +128,12 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             const qty = completeCable ? Number(part.qty ?? 1) : Number(part.inventoryQty ?? part.qty ?? 0);
             if (qty <= 0) continue;
             const supplier = String(part.supplier || '').trim();
+            const explicitPartId = Number(part.partId || 0);
             const mergeKey = isCoilAssemblyPart(part)
                 ? `${model}|${part.material || '钢带'}|${part.slotType || '小眼'}`
                 : completeCable
-                ? `${model}|${supplier}|${cableLength}|${part.cableAccessoryType || part.cableAccessoryName || 'standard'}`
-                : `${model}|${supplier}`;
+                ? `${explicitPartId > 0 ? `part:${explicitPartId}` : `${model}|${supplier}`}|${cableLength}|${part.cableAccessoryType || part.cableAccessoryName || 'standard'}`
+                : explicitPartId > 0 ? `part:${explicitPartId}` : `${model}|${supplier}`;
             const purchasePart = completeCable
                 ? {
                     ...part,
@@ -132,7 +156,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         const coilPart = isCoilAssemblyPart(part);
         const exactCoil = coilPart ? resolveCoilForPart(part, coilIndexes) : null;
         const coilId = Number(exactCoil?.id || exactCoil?.Id || 0) || undefined;
-        const exactPart = partIndex.get(`${part.model}|${supplier}`) || partByModel.get(part.model) || null;
+        const exactPart = resolveInventoryPart(part, supplier, partIndexes);
         const screwPricingPart = !exactPart && isLongScrewPart(part)
             ? findScrewPricingPart(partsCatalog, part.model, supplier)?.part || null
             : null;
@@ -142,7 +166,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             ? Number(exactCoil.stock || 0)
             : exactPart ? Number(exactPart.stock || 0) : 0;
         const partId = exactPart?.Id || exactPart?.id;
-        const resolvedSupplier = supplier || dbPart?.supplier || '';
+        const resolvedSupplier = exactPart?.supplier || supplier || dbPart?.supplier || '';
         const inventoryType = coilPart ? (coilId ? 'coil' : 'none') : 'part';
         const coilReferencePrice = coilId ? Number(exactCoil?.cost || 0) : 0;
         const catalogReferencePrice = partId ? Number(exactPart?.price || 0) : 0;
@@ -212,7 +236,12 @@ function buildTodos(purchaseList) {
     const todos = [];
     for (const [supplier, parts] of bySupplier) {
         const detail = parts.map(part => `${part.model}×${part.needToBuy}${part.purchaseUnit || ''}`).join(', ');
-        todos.push({ id: makeId(), supplier, description: `联系【${supplier}】采购：${detail}`, done: false });
+        todos.push({
+            id: makeId(`${supplier}|${detail}`),
+            supplier,
+            description: `联系【${supplier}】采购：${detail}`,
+            done: false,
+        });
     }
     return todos;
 }

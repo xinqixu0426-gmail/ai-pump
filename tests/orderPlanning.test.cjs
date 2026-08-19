@@ -210,6 +210,62 @@ test('同型号不同供应商按独立物料采购', () => {
     ]);
 });
 
+test('指定供应商不存在时不得借用同型号其他供应商的库存身份', () => {
+    const catalog = [
+        { Id: 10, model: '轴承X', supplier: '供应商A', stock: 8, price: 1 },
+        { Id: 11, model: '轴承X', supplier: '供应商B', stock: 6, price: 1.2 },
+    ];
+    const [item] = buildPurchaseList([{
+        qty: 1,
+        partsJson: JSON.stringify([
+            { model: '轴承X', supplier: '供应商C', qty: 2 },
+        ]),
+    }], catalog);
+
+    assert.equal(item.supplier, '供应商C');
+    assert.equal(item.partId, undefined);
+    assert.equal(item.currentStock, 0);
+    assert.equal(item.needToBuy, 2);
+    assert.equal(item.referencePriceSource, 'none');
+});
+
+test('BOM 已绑定 partId 时以稳定身份为准并使用当前目录供应商', () => {
+    const catalog = [
+        { Id: 10, model: '轴承X', supplier: '供应商A-新', stock: 8, price: 1 },
+        { Id: 11, model: '轴承X', supplier: '供应商B', stock: 6, price: 1.2 },
+    ];
+    const [item] = buildPurchaseList([{
+        qty: 1,
+        partsJson: JSON.stringify([
+            { partId: 10, model: '轴承X', supplier: '供应商A-旧', qty: 2 },
+        ]),
+    }], catalog);
+
+    assert.equal(item.partId, 10);
+    assert.equal(item.supplier, '供应商A-新');
+    assert.equal(item.currentStock, 8);
+    assert.equal(item.needToBuy, 0);
+});
+
+test('BOM 未指定供应商时只有同型号唯一候选才允许自动绑定库存', () => {
+    const one = buildPurchaseList([{
+        qty: 1,
+        partsJson: JSON.stringify([{ model: '轴承Y', qty: 2 }]),
+    }], [{ Id: 20, model: '轴承Y', supplier: '唯一供应商', stock: 3, price: 1 }]);
+    assert.equal(one[0].partId, 20);
+
+    const multiple = buildPurchaseList([{
+        qty: 1,
+        partsJson: JSON.stringify([{ model: '轴承Y', qty: 2 }]),
+    }], [
+        { Id: 20, model: '轴承Y', supplier: '供应商A', stock: 3, price: 1 },
+        { Id: 21, model: '轴承Y', supplier: '供应商B', stock: 3, price: 1.1 },
+    ]);
+    assert.equal(multiple[0].partId, undefined);
+    assert.equal(multiple[0].currentStock, 0);
+    assert.equal(multiple[0].needToBuy, 2);
+});
+
 test('多个活动订单按顺序共享库存且不会重复占用', () => {
     const catalog = [{ Id: 20, model: '机械密封', supplier: '供应商A', stock: 10, price: 5 }];
     const item = {

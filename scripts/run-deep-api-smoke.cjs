@@ -2002,17 +2002,48 @@ async function testCrossModuleWriteFlow(baseResources) {
         `/api/orders/lookup?query=${encodeURIComponent(order.customerName)}`
     )).payload.data;
     assert(lookupOrders.some(item => Number(item.id) === Number(order.id)), '订单只读查询未返回目标订单');
+    const actionRecipe = (await request(
+        '新增订单方案执行专用配方',
+        'POST',
+        '/api/recipes',
+        {
+            ...baseRecipe,
+            id: undefined,
+            name: `${unique}-ACTION-RECIPE`,
+            spec: '订单方案执行自动验收',
+            templateId: null,
+            modelVariantId: null,
+            coilSpec: '',
+            coilSheets: 0,
+            coilWireWeight: null,
+            partsJson: JSON.stringify([{
+                name: '深度验收零件',
+                model: part.model,
+                supplier: part.supplier,
+                partId: part.id,
+                qty: 1,
+                snapshotPrice: 14.56,
+            }]),
+            assemblyWage: 0,
+            packingWage: 0,
+            surfaceTreatmentMode: 'none',
+            surfaceTreatmentCost: 0,
+            managementFee: 0,
+            idempotencyKey: `deep:action-recipe-create:${unique}`,
+        }
+    )).payload.data;
     const pendingOrder = (await request(
         '新增待确认订单用于方案执行',
         'POST',
         '/api/orders',
         {
-            customerName: `${order.customerName}-方案执行`,
+            customerId: order.customerId,
+            customerName: order.customerName,
             contractNo: `${unique}-ACTION`,
             remark: '订单方案执行自动验收',
             items: [{
-                recipeId: recipe.id,
-                recipeName: recipe.name,
+                recipeId: actionRecipe.id,
+                recipeName: actionRecipe.name,
                 qty: 20,
                 unitCost: 14.56,
                 unitPrice: 20,
@@ -2140,7 +2171,12 @@ async function testCrossModuleWriteFlow(baseResources) {
         '结束方案执行测试订单',
         'POST',
         `/api/orders/${pendingOrder.id}/status`,
-        { status: '已关闭' }
+        {
+            status: '已关闭',
+            inventoryDisposition: 'manual_outbound_confirmed',
+            inventoryDispositionNote: '深度验收已核对仓库领用流程',
+            expectedUpdatedAt: purchaseReceipt.order.updatedAt,
+        }
     );
     const purchaseList = JSON.parse(order.purchaseListJson || '[]');
     const purchaseItem = purchaseList.find(

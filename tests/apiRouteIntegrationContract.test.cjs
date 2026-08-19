@@ -1266,7 +1266,9 @@ test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字
     const quotationDraft = readUtf8('api/services/quotationDraft.cjs');
 
     assert.match(orders, /buildOrderSavePayloadDraft/);
-    assert.match(orderCommands, /parseNonNegativeNumber\(\s*item\.unitCost,\s*`items\[\$\{index\}\]\.unitCost`/);
+    assert.match(orderCommands, /SELECT id, name, spec, parts_json, saved_total_cost/);
+    assert.match(orderCommands, /const unitCost = Number\(recipe\.saved_total_cost\)/);
+    assert.doesNotMatch(orderCommands, /parseNonNegativeNumber\(\s*item\.unitCost/);
     assert.match(orderCommands, /parseNonNegativeNumber\(\s*item\.unitPrice,\s*`items\[\$\{index\}\]\.unitPrice`/);
     assert.match(orderCommands, /parsePositiveNumber\(\s*item\.qty,\s*`items\[\$\{index\}\]\.qty`/);
     assert.match(orderCommands, /parsePositiveNumber\(\s*item\.profitMargin,\s*`items\[\$\{index\}\]\.profitMargin`/);

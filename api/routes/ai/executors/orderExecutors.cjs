@@ -21,17 +21,14 @@ function findRecipe(recipes, recipeName) {
     return (recipes || []).find(r => (r.name) === recipeName || r.id === Number(recipeName) || r.Id === Number(recipeName) || (r.name || '').includes(recipeName));
 }
 
-async function resolveRecipeUnitCost(internalFetch, recipe) {
+function resolveRecipeUnitCost(recipe) {
     const savedCost = Number(recipe?.savedTotalCost || 0);
     if (Number.isFinite(savedCost) && savedCost > 0) return savedCost;
-    const recipeId = recipe?.id ?? recipe?.Id;
-    if (!recipeId) return 0;
-    const result = await getJson(internalFetch, `/api/recipes/${recipeId}/cost`, '配方成本计算失败');
-    return Number.parseFloat(result.totalCost || 0) || 0;
+    throw new Error(`配方“${recipe?.name || recipe?.id || recipe?.Id || ''}”缺少完整保存成本，请先重新保存配方`);
 }
 
 async function buildOrderItemFromRecipe(internalFetch, recipe, qty = 1) {
-    const unitCost = await resolveRecipeUnitCost(internalFetch, recipe);
+    const unitCost = resolveRecipeUnitCost(recipe);
     const profitMargin = 1.10;
     const unitPrice = Math.round(unitCost * profitMargin * 100) / 100;
     return {
@@ -413,7 +410,13 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'update_order_status': {
-            const { orderId, status, reason } = args;
+            const {
+                orderId,
+                status,
+                reason,
+                inventoryDisposition,
+                inventoryDispositionNote,
+            } = args;
             const validStatuses = ['待采购', '已关闭', '已取消'];
             if (!validStatuses.includes(status)) return { success: false, error: `无效状态: ${status}，可选: ${validStatuses.join('/')}` };
             const row = await loadOrder(internalFetch, orderId);
@@ -423,6 +426,8 @@ async function executeOrderTool(toolName, args, internalFetch) {
                 await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, {
                     status,
                     reason,
+                    inventoryDisposition,
+                    inventoryDispositionNote,
                     expectedUpdatedAt: row.updatedAt || row.UpdatedAt,
                 }, '订单状态更新失败');
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.customerName };

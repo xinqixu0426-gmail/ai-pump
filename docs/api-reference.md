@@ -210,7 +210,7 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `GET` | `/api/customers/:id/context` | 查询参数 `keyword?`, `limit?`（1–50） | 正式能力 `customers.history`；从实时 `customers/quotations/orders` 聚合客户、按创建时间排列且使用连续 `displaySequence` 的报价历史和订单历史。无 `limit` 时返回全部，明确“最近/前 N 份”才限制数量；可按配方/型号关键词筛选。响应含 `summary/query/sourceOfTruth/asOf/provenance`，不读取知识条目、不计算成本且不写库 |
 | `POST` | `/api/customers` | 请求头 `Idempotency-Key`；`{ name, contactInfo?, defaultMargin?, remark? }` | `customers.create`；客户名称唯一，默认利润率必须非负；客户、operation 与强审计同一事务。同键同参重试返回原客户，旧请求仍兼容 |
 | `PATCH` | `/api/customers/:id` | 请求头 `Idempotency-Key`；客户字段及 `{ expectedUpdatedAt? }` | `customers.update`；支持部分字段更新，使用资源版本阻止并发覆盖；客户、operation 与强审计同一事务。旧请求仍兼容并返回缺失保护 warning |
-| `DELETE` | `/api/customers/:id` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `customers.delete`；软删除客户但不级联删除历史报价，存在有效报价时回执给出 warning；使用资源版本、持久幂等和强审计。旧空请求仍兼容 |
+| `DELETE` | `/api/customers/:id` | 请求头 `Idempotency-Key`；`{ expectedUpdatedAt? }` | `customers.delete`；存在活动订单时返回 409，防止正式归属失效；只有历史订单或报价时允许软删除并在回执给出关系保留 warning，不级联删除历史事实。使用资源版本、持久幂等和强审计 |
 
 ### Quotations
 
@@ -256,10 +256,10 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `POST` | `/api/orders/:id/readiness-actions/:actionId` | 请求头建议 `Idempotency-Key`；路径动作仅支持 `confirm_order/generate_purchase_plan`；标准请求体 `{ expectedUpdatedAt, previewHash, idempotencyKey? }` | `orders.execute_readiness_action` 正式命令；事务内重新生成实时检查和方案，仅执行仍为 `confirmable + available` 的步骤。订单/库存/采购事实或版本漂移、步骤已完成/受阻时返回 `409`；订单、operation 和强审计原子提交，相同请求安全重放。旧空请求仍兼容，但回执会标记缺少版本、预览绑定或幂等保护 |
 | `GET` | `/api/orders/history-price/:recipeName` | 路径参数 `recipeName` | 经 `orderQueries` 查该配方最近历史售价和利润率；历史坏 JSON 会跳过，不作为事实返回 |
 | `POST` | `/api/orders/purchase-plan` | `{ items: [{ partsJson, qty }] }` | 按订单明细生成采购清单和供应商待办；“外包装估算”等成本占位项不进入正式采购；不写库 |
-| `POST` | `/api/orders/save-payload-draft` | `{ customerName, contractNo?, remark?, status?, items, purchaseList?, todos? }` | 能力 `orders.create` 的正式只读预览兼保存 payload 草稿；统一校验数量、成本、售价和利润率，未传采购清单/待办时自动生成；返回 `preview=true`、`changes/warnings`、`previewHash` 和建议幂等键，不写订单、operation 或审计。该草稿继续兼容待确认订单编辑，直接建单固定从“待确认”开始 |
+| `POST` | `/api/orders/save-payload-draft` | `{ customerId?, customerName?, contractNo?, remark?, status?, items: [{ recipeId, qty, profitMargin?, unitPrice? }], purchaseList?, todos? }` | 能力 `orders.create` 的正式只读预览兼保存 payload 草稿。新增调用提交稳定 `customerId`；历史 `customerName` 仅用于精确兼容解析。每个产品必须引用有效配方，服务端从配方保存快照重建名称、规格、完整 BOM 和单位成本；客户端 `unitCost/partsJson/recipeName/spec` 不作为事实。采购清单和待办始终按服务端 BOM、供应商身份及全部活动订单实时库存重建，客户端同名字段被忽略并返回 warning。返回 `preview=true`、`changes/warnings`、`previewHash` 和建议幂等键，不写订单、operation 或审计；直接建单固定从“待确认”开始 |
 | `POST` | `/api/orders/purchase-items/batch-draft` | `{ identityKey?, model, supplier?, purchased }` | 只读重算全部活动订单平衡计划，返回受影响订单、各订单版本、下单数量变化、`previewHash` 和建议幂等键；不写库 |
 | `POST` | `/api/orders/purchase-items/batch` | 请求头 `Idempotency-Key`；请求体为草稿入参并增加 `{ expectedVersions?, previewHash? }` | 按采购规格身份跨订单整项下单/取消；活动订单平衡快照、受影响订单、operation 和强审计同一事务提交。相同请求安全重放，订单集合、版本、预览或审计变化返回 409。旧调用不传协议字段仍兼容并返回 warnings |
-| `POST` | `/api/orders/:id/status` | 请求头 `Idempotency-Key`；请求体 `{ status, reason?, expectedUpdatedAt? }` | 能力 `orders.change_status`；人工动作只允许确认订单、关闭订单或取消订单，取消必须填写原因。确认订单时在事务内重算并保存全部受影响活动订单的平衡采购计划，采购中/采购完成继续由数量自动推导；订单、operation 和全部强审计原子提交。相同请求安全重放，版本、状态、异参复用或审计冲突返回 409；旧调用缺少幂等键/版本仍兼容并返回 warnings |
+| `POST` | `/api/orders/:id/status` | 请求头 `Idempotency-Key`；请求体 `{ status, reason?, expectedUpdatedAt?, inventoryDisposition?, inventoryDispositionNote? }` | 能力 `orders.change_status`；人工动作只允许确认订单、关闭订单或取消订单。取消必须填写原因；关闭必须明确 `inventoryDisposition=manual_outbound_confirmed/reservation_released`，释放预留还必须填写 `inventoryDispositionNote`。前者只记录仓库已在线下完成领用，不重复扣库；后者不扣库并明确释放订单计划占用。确认订单时在事务内重算并保存全部受影响活动订单的平衡采购计划，采购中/采购完成继续由数量自动推导；订单、operation 和全部强审计原子提交 |
 | `POST` | `/api/orders/:id/purchase-items/progress-draft` | `{ identityKey?, model, supplier?, orderedQty, receivedQty, stockedQty, purchasePrice?, actualSupplier?, allowOverPurchase? }` | 只读重算活动订单平衡计划，校验 `入库 ≤ 到货 ≤ 下单` 与库存映射，返回变更前后数量、库存影响、`expectedUpdatedAt/previewHash/suggestedIdempotencyKey`；不写订单、库存、operation 或审计 |
 | `POST` | `/api/orders/:id/purchase-items/progress` | 请求头 `Idempotency-Key`；请求体为草稿入参并增加 `{ expectedUpdatedAt?, previewHash? }` | 保存单项采购进度；入库增量、其他活动订单平衡快照、当前订单、operation 回执和强审计同一事务提交。相同请求安全重放，版本、确认预览、异参复用或审计冲突返回 409。旧调用不传协议字段仍兼容，但响应 warnings 会说明保护缺失 |
 | `POST` | `/api/orders/:id/purchase-items/toggle` | `{ model, supplier?, purchased? }` | 旧客户端兼容动作；由 `purchasingItemProgress` 在 service 内按当前正式采购项映射为整项下单/取消下单，再委托 `purchasing.order.item_progress` command；已有到货或入库时不能取消，旧响应仍只返回订单 |
@@ -290,7 +290,7 @@ V10.4 订单知识包不新建业务事实，也不依赖知识同步时点。`o
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/workbench/summary` | 无 | 经营、库存、采购和待办汇总 |
+| `GET` | `/api/workbench/summary` | 无 | 经营、库存、采购和待办汇总。财务分为 `orderBook`（非取消订单额）、顶层已确认有效订单预计值和 `completed`（已关闭订单）；`totalCost=lockedTotalCost+procurementVariance`，采购价差只计已记录实际采购价且已有正式参考价的下单数量 |
 | `GET` | `/api/workbench/action-center` | 无 | 聚合订单准备、经营风险、数据质量、规则学习和知识库健康检查，返回完整待办、今日执行队列、生命周期和最近 24 小时处理进展 |
 | `GET` | `/api/workbench/action-history` | 查询参数 `status?=active/resolved`, `limit?` | 只读查询管理事项生命周期历史和汇总，默认最近 20 条、最多 100 条 |
 | `POST` | `/api/workbench/execution-plan` | `{ workflowType, goal?, orderId?, quotationId?, actionId? }` | V8 只读生成统一工厂执行计划；`workflowType` 支持 `order_readiness/quotation_to_order/management_action` |
@@ -437,8 +437,8 @@ V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空
 | `purchasing.order.item_progress` | HTTP/Web；旧 toggle 兼容层 | command/write | 活动订单平衡计划 + 订单采购项 + `parts.stock`/`coils.stock` | critical | Web 保存是明确动作；增加库存时再显示正式预览中的数量、换算和库存后值；尚无 AI 调用方 | `/api/orders/:id/purchase-items/progress-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` + 预览哈希 | 平衡快照、库存/流水、订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `purchasing.task.batch_order` | HTTP/Web | command/write | 全部活动订单平衡采购计划 | high | Web 显示物料、影响订单数和数量变化；尚无 AI 调用方 | `/api/orders/purchase-items/batch-draft` + `previewHash` | 90 天持久化幂等 + 每个受影响订单 `expectedVersions` + 预览哈希 | 全部计划快照、订单状态、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `purchasing.order.complete_inbound` | HTTP/Web | command/write | 活动订单平衡计划 + `parts.stock` + `coils.stock`/流水 | critical | Web 必须先显示正式预览；尚无 AI 调用方 | `/api/orders/:id/complete-purchase-draft` + `previewHash` | 90 天持久化幂等 + `expectedUpdatedAt` + 预览哈希 | 平衡快照、库存、流水、订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
-| `orders.create` | HTTP/Web/`create_order` | command/write | 订单保存草稿 + 活动订单采购平衡 + `orders` | high | Web 保存是明确动作；AI 必须确认 | `/api/orders/save-payload-draft` + `previewHash` | 90 天持久化幂等；新资源无版本 | 订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
-| `orders.change_status` | HTTP/Web/`update_order_status` | command/write | 订单状态机 + 活动订单采购平衡 | critical | Web/AI 都需明确动作 | 暂无独立预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 状态、相关采购计划、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.create` | HTTP/Web/`create_order` | command/write | 稳定客户 ID + 配方保存成本/BOM + 活动订单采购平衡 + `orders` | high | Web 保存是明确动作；AI 必须确认 | `/api/orders/save-payload-draft` + `previewHash` | 90 天持久化幂等；新资源无版本 | 订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
+| `orders.change_status` | HTTP/Web/`update_order_status` | command/write | 订单状态机 + 活动订单采购平衡 + 关闭库存去向 | critical | Web/AI 都需明确动作；关闭必须确认库存去向 | 暂无独立预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 状态、库存去向、相关采购计划、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `orders.execute_readiness_action` | HTTP/`execute_order_readiness_action` | command/write | 实时准备度 + 活动订单采购平衡 + `orders` | critical | AI 外层确认；正式 API 绑定实时计划预览 | `/api/orders/:id/readiness-plan` | 90 天持久化幂等 + `expectedUpdatedAt` + `previewHash` 绑定订单、库存和采购事实 | 订单、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `orders.requirements.save_draft` | HTTP/Web/`save_order_requirement_draft` | command/write | 订单 + 客户要求草稿 + 已关联来源文件 | medium | 页面保存或 AI 外层确认 | 无 | 90 天持久化幂等 + 已有草稿 `expectedUpdatedAt` | 草稿、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `orders.requirements.confirm` | HTTP/Web | command/write | 客户要求确认快照 + 知识同步来源 | high | 订单页“确认进入知识库”是明确动作 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 可选草稿更新、确认快照、operation、逐项强审计同一 SQLite 事务 | 默认 HTTP |
@@ -453,7 +453,7 @@ V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空
 | `orders.delete` | HTTP/Web/`delete_order` | command/write | `orders` | high | Web/AI 都需明确动作 | 暂无独立预览 | 90 天持久化幂等 + `expectedUpdatedAt` | 软删除、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `customers.create` | HTTP/Web | command/write | `customers` | medium | 页面保存是明确动作，无额外弹窗 | 无 | 90 天持久化幂等；新资源无版本 | 客户、operation、强审计同一 SQLite 事务 | 默认 HTTP |
 | `customers.update` | HTTP/Web | command/write | `customers` | medium | 页面保存是明确动作，无额外弹窗 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 客户、operation、强审计同一 SQLite 事务 | 默认 HTTP |
-| `customers.delete` | HTTP/Web | command/write | `customers` + 报价历史 | medium | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 客户软删除、operation、强审计同一 SQLite 事务；历史报价保留 | 默认 HTTP |
+| `customers.delete` | HTTP/Web | command/write | `customers` + 稳定客户关系 + 报价/订单历史 | medium | 页面删除确认 | 无 | 90 天持久化幂等 + `expectedUpdatedAt` | 活动订单阻止删除；否则客户软删除、operation、强审计同一 SQLite 事务并保留历史关系 | 默认 HTTP |
 | `quotations.inquiry_summary` | HTTP/Web | query/read | 报价 + 客户 + `quotation_source` 附件 + 询价摘要 | low | 无 | 无 | 固有只读 | 不适用；严格不写库 | 默认 HTTP |
 | `quotations.inquiry_summary_draft` | HTTP/Web | preview/read | 统一文件库原始附件 + Kimi API | low | 无 | 无 | 单次只读调用 | 不适用；严格不写库 | 120 秒 |
 | `quotations.create` | HTTP/Web | command/write | 客户 + 配方 + `costEngine` + `quotations` + 可选询价附件/摘要 | high | 页面保存是明确动作 | `/api/quotations/save-payload-draft` + `previewHash` | 90 天持久化幂等；新资源无版本 | 报价、询价附件关联、摘要、operation、强审计同一 SQLite 事务 | 默认 HTTP |

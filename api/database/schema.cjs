@@ -116,9 +116,14 @@ const CANONICAL_TABLES_SQL = `
         status_changed_at TEXT,
         closed_at TEXT,
         cancelled_at TEXT,
+        inventory_disposition TEXT,
+        inventory_disposition_at TEXT,
+        inventory_disposition_note TEXT DEFAULT '',
         created_at TEXT,
         updated_at TEXT,
         deleted_at TEXT,
+        customer_id INTEGER,
+        FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
         CHECK(status IN ('待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消'))
     );
 
@@ -879,12 +884,16 @@ const LEGACY_COLUMN_UPGRADES = {
         ['deleted_at', 'TEXT'],
     ],
     orders: [
+        ['customer_id', 'INTEGER'],
         ['purchase_completed_at', 'TEXT'],
         ['purchase_receipt_id', 'TEXT'],
         ['status_reason', "TEXT DEFAULT ''"],
         ['status_changed_at', 'TEXT'],
         ['closed_at', 'TEXT'],
         ['cancelled_at', 'TEXT'],
+        ['inventory_disposition', 'TEXT'],
+        ['inventory_disposition_at', 'TEXT'],
+        ['inventory_disposition_note', "TEXT DEFAULT ''"],
         ['deleted_at', 'TEXT'],
     ],
     coils: [

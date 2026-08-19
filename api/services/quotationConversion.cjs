@@ -226,6 +226,7 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
         quotationId,
         expectedUpdatedAt: quotation.updated_at,
         suggestedIdempotencyKey: `quotation-convert:${quotationId}:${crypto.randomUUID()}`,
+        customerId: Number(customer.id),
         customerName: customer.name || 'Unknown',
         contractNo: '',
         remark: `由报价 #${quotation.id} 转订单${quotation.remark ? `：${quotation.remark}` : ''}`,
@@ -320,6 +321,7 @@ function executeQuotationConversion(dependencies, input = {}, commandContext = {
             );
             const now = new Date().toISOString();
             const orderWrite = safeInsert('orders', {
+                customer_id: draft.customerId,
                 customer_name: draft.customerName,
                 contract_no: draft.contractNo || '',
                 remark: draft.remark || '',

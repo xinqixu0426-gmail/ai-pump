@@ -8,8 +8,6 @@ import {
   calcOrderTotals,
   createOrder,
   createOrderItemFromRecipe,
-  createOrderItemWithUnitCost,
-  getRecipeCurrentPartsCost,
   getAllOrders,
   type Order,
   type OrderItem,
@@ -205,10 +203,10 @@ export function OrdersView({
     setFormError(null);
     try {
       const savedCost = Number(selectedRecipe.savedTotalCost || 0);
-      const unitCost = savedCost > 0 ? savedCost : await getRecipeCurrentPartsCost(selectedRecipe.id);
-      const item = savedCost > 0
-        ? createOrderItemFromRecipe(selectedRecipe, Number(itemQty), Number(itemMargin))
-        : createOrderItemWithUnitCost(selectedRecipe, Number(itemQty), Number(itemMargin), unitCost);
+      if (!Number.isFinite(savedCost) || savedCost <= 0) {
+        throw new Error('该配方缺少完整保存成本，请先重新保存配方后再建单');
+      }
+      const item = createOrderItemFromRecipe(selectedRecipe, Number(itemQty), Number(itemMargin));
       setDraftItems((current) => [...current, item]);
       markFormDirty();
       setItemQty('1');
@@ -237,7 +235,7 @@ export function OrdersView({
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const customerName = selectedCustomer?.name || '';
-    if (!customerName) {
+    if (!selectedCustomer || !customerName) {
       setFormError('请选择客户');
       return;
     }
@@ -252,6 +250,7 @@ export function OrdersView({
 
     try {
       const created = await createOrder({
+        customerId: Number(selectedCustomer.id),
         customerName,
         contractNo,
         remark,

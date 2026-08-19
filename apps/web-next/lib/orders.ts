@@ -3,6 +3,7 @@ import { createIdempotencyKey, proxyRequest } from './api';
 import type { Recipe } from './recipes';
 
 export type OrderStatus = '待确认' | '待采购' | '采购中' | '采购完成' | '已关闭' | '已取消';
+export type OrderInventoryDisposition = 'manual_outbound_confirmed' | 'reservation_released';
 
 export type OrderItem = {
   id: string;
@@ -58,6 +59,7 @@ export type TodoItem = {
 
 export type Order = {
   id: string;
+  customerId: number | null;
   customerName: string;
   contractNo?: string;
   remark?: string;
@@ -71,6 +73,9 @@ export type Order = {
   statusChangedAt?: string | null;
   closedAt?: string | null;
   cancelledAt?: string | null;
+  inventoryDisposition?: OrderInventoryDisposition | null;
+  inventoryDispositionAt?: string | null;
+  inventoryDispositionNote?: string;
   totalCost: number;
   totalPrice: number;
   totalProfit: number;
@@ -81,6 +86,7 @@ export type Order = {
 type OrderRow = {
   id?: number;
   Id?: number;
+  customerId?: number | null;
   customerName?: string;
   contractNo?: string;
   remark?: string;
@@ -94,6 +100,9 @@ type OrderRow = {
   statusChangedAt?: string | null;
   closedAt?: string | null;
   cancelledAt?: string | null;
+  inventoryDisposition?: OrderInventoryDisposition | null;
+  inventoryDispositionAt?: string | null;
+  inventoryDispositionNote?: string;
   createdAt?: string;
   updatedAt?: string;
   CreatedAt?: string;
@@ -142,6 +151,7 @@ export function rowToOrder(row: OrderRow): Order {
 
   return {
     id: String(id),
+    customerId: row.customerId == null ? null : Number(row.customerId),
     customerName: row.customerName || '',
     contractNo: row.contractNo || undefined,
     remark: row.remark || undefined,
@@ -155,6 +165,9 @@ export function rowToOrder(row: OrderRow): Order {
     statusChangedAt: row.statusChangedAt || null,
     closedAt: row.closedAt || null,
     cancelledAt: row.cancelledAt || null,
+    inventoryDisposition: row.inventoryDisposition || null,
+    inventoryDispositionAt: row.inventoryDispositionAt || null,
+    inventoryDispositionNote: row.inventoryDispositionNote || '',
     totalCost: totals.totalCost,
     totalPrice: totals.totalPrice,
     totalProfit: totals.totalProfit,
@@ -171,10 +184,6 @@ export async function getAllOrders(): Promise<Order[]> {
 
 export function createOrderItemFromRecipe(recipe: Recipe, qty: number, profitMargin: number): OrderItem {
   const unitCost = Math.max(0, Number(recipe.savedTotalCost) || 0);
-  return createOrderItemWithUnitCost(recipe, qty, profitMargin, unitCost);
-}
-
-export function createOrderItemWithUnitCost(recipe: Recipe, qty: number, profitMargin: number, unitCost: number): OrderItem {
   const margin = Math.max(0.01, Number(profitMargin) || 1.1);
   return {
     id: genId(),
@@ -187,12 +196,6 @@ export function createOrderItemWithUnitCost(recipe: Recipe, qty: number, profitM
     profitMargin: margin,
     partsJson: recipe.partsJson || '[]',
   };
-}
-
-export async function getRecipeCurrentPartsCost(recipeId: number): Promise<number> {
-  const result = await proxyRequest<ApiResponse<{ totalCost?: string | number }>>(`/api/recipes/${recipeId}/cost`);
-  if (!result.success || !result.data) throw new Error(result.error || '配方当前成本计算失败');
-  return roundMoney(Number(result.data.totalCost) || 0);
 }
 
 export async function generatePurchasePlan(items: OrderItem[]): Promise<{ purchaseList: PurchaseItem[]; todos: TodoItem[] }> {
@@ -210,6 +213,7 @@ export async function generatePurchasePlan(items: OrderItem[]): Promise<{ purcha
 }
 
 export async function createOrder(input: {
+  customerId: number;
   customerName: string;
   contractNo?: string;
   remark?: string;
@@ -218,6 +222,7 @@ export async function createOrder(input: {
   todos?: TodoItem[];
 }): Promise<Order> {
   const payload = await buildOrderSavePayloadDraft({
+    customerId: input.customerId,
     customerName: input.customerName,
     contractNo: input.contractNo,
     remark: input.remark,
@@ -266,6 +271,7 @@ function orderId(order: Order): number {
 }
 
 export async function buildOrderSavePayloadDraft(input: {
+  customerId?: number | null;
   customerName: string;
   contractNo?: string;
   remark?: string;
@@ -282,7 +288,13 @@ export async function buildOrderSavePayloadDraft(input: {
   return result.data;
 }
 
-export async function setOrderStatus(order: Order, status: OrderStatus, reason?: string): Promise<Order> {
+export async function setOrderStatus(
+  order: Order,
+  status: OrderStatus,
+  reason?: string,
+  inventoryDisposition?: OrderInventoryDisposition,
+  inventoryDispositionNote?: string
+): Promise<Order> {
   const result = await proxyRequest<ApiResponse<OrderRow>>(`/api/orders/${orderId(order)}/status`, {
     method: 'POST',
     headers: {
@@ -291,6 +303,8 @@ export async function setOrderStatus(order: Order, status: OrderStatus, reason?:
     body: JSON.stringify({
       status,
       reason,
+      inventoryDisposition,
+      inventoryDispositionNote,
       expectedUpdatedAt: order.updatedAt,
     }),
   });

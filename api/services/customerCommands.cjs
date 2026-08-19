@@ -263,6 +263,26 @@ function executeCustomerDelete(
                  FROM quotations
                  WHERE customer_id = ? AND deleted_at IS NULL`
             ).get(customerId)?.count || 0);
+            const activeOrderCount = Number(dependencies.db.prepare(`
+                SELECT COUNT(*) AS count
+                FROM orders
+                WHERE deleted_at IS NULL
+                  AND status NOT IN ('已关闭', '已取消')
+                  AND (customer_id = ? OR (customer_id IS NULL AND customer_name = ?))
+            `).get(customerId, record.name)?.count || 0);
+            if (activeOrderCount > 0) {
+                throw customerCommandError(
+                    'customer_active_orders_conflict',
+                    `该客户仍有 ${activeOrderCount} 张活动订单，不能删除`,
+                    409
+                );
+            }
+            const orderCount = Number(dependencies.db.prepare(`
+                SELECT COUNT(*) AS count
+                FROM orders
+                WHERE deleted_at IS NULL
+                  AND (customer_id = ? OR (customer_id IS NULL AND customer_name = ?))
+            `).get(customerId, record.name)?.count || 0);
             const deletedAt = new Date().toISOString();
             const write = dependencies.safeUpdate(
                 'customers',
@@ -282,10 +302,16 @@ function executeCustomerDelete(
                 }],
                 auditIds: write.auditId ? [write.auditId] : [],
                 requiredAuditCount: 1,
-                warnings: quotationCount > 0 ? [{
-                    code: 'customer_quotation_history_retained',
-                    message: `该客户仍有 ${quotationCount} 张有效报价，历史报价继续保留客户 ID`,
-                }] : [],
+                warnings: [
+                    ...(quotationCount > 0 ? [{
+                        code: 'customer_quotation_history_retained',
+                        message: `该客户仍有 ${quotationCount} 张有效报价，历史报价继续保留客户 ID`,
+                    }] : []),
+                    ...(orderCount > 0 ? [{
+                        code: 'customer_order_history_retained',
+                        message: `该客户仍有 ${orderCount} 张历史订单，订单继续保留客户 ID 和建单时名称快照`,
+                    }] : []),
+                ],
             };
         },
     });

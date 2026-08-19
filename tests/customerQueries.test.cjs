@@ -42,7 +42,8 @@ function createFixture() {
     const orders = [
         {
             id: 12,
-            customerName: '邱焕',
+            customerId: 7,
+            customerName: '邱焕旧称',
             itemsJson: JSON.stringify([{ recipeName: 'V750 菲律宾' }]),
         },
         {

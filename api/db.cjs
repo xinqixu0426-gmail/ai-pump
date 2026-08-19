@@ -178,7 +178,8 @@ function modelVariantRow(r) {
 function orderRow(r) {
     if (!r) return r;
     return {
-        id: r.id, Id: r.id, customerName: r.customer_name, contractNo: r.contract_no,
+        id: r.id, Id: r.id, customerId: r.customer_id || null,
+        customerName: r.customer_name, contractNo: r.contract_no,
         remark: r.remark, status: r.status, itemsJson: r.items_json,
         purchaseListJson: r.purchase_list_json, todosJson: r.todos_json,
         purchaseCompletedAt: r.purchase_completed_at || null,
@@ -187,6 +188,9 @@ function orderRow(r) {
         statusChangedAt: r.status_changed_at || null,
         closedAt: r.closed_at || null,
         cancelledAt: r.cancelled_at || null,
+        inventoryDisposition: r.inventory_disposition || null,
+        inventoryDispositionAt: r.inventory_disposition_at || null,
+        inventoryDispositionNote: r.inventory_disposition_note || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };

@@ -12,6 +12,7 @@ import {
   updateOrderPurchaseItem,
   type CompletePurchaseDraft,
   type Order,
+  type OrderInventoryDisposition,
   type OrderStatus,
   type PurchaseItemProgressDraft,
   type PurchaseItemProgressInput,
@@ -323,8 +324,20 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [readinessError, setReadinessError] = useState('');
   const [purchaseConfirmTarget, setPurchaseConfirmTarget] = useState<PurchaseProgressConfirmTarget | null>(null);
+  const [closeDispositionTarget, setCloseDispositionTarget] = useState<{
+    disposition: OrderInventoryDisposition;
+    note: string;
+  } | null>(null);
   const previousOrderIdRef = useRef<string | null>(null);
   const readinessRequestRef = useRef(0);
+  const procurementVariance = useMemo(() => (localOrder?.purchaseList || []).reduce((sum, item) => {
+    const plannedQty = Number(item.plannedQty ?? item.needToBuy ?? 0);
+    const orderedQty = Number(item.orderedQty ?? (item.purchased ? plannedQty : 0));
+    if (item.purchasePriceRecorded !== true || Number(item.referencePrice || 0) <= 0 || orderedQty <= 0) {
+      return sum;
+    }
+    return sum + (Number(item.purchasePrice || 0) - Number(item.referencePrice || 0)) * orderedQty;
+  }, 0), [localOrder?.purchaseList]);
 
   async function loadReadiness(orderId: string) {
     const requestId = ++readinessRequestRef.current;
@@ -369,6 +382,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
       setReadiness(null);
       setReadinessPlan(null);
       setPurchaseConfirmTarget(null);
+      setCloseDispositionTarget(null);
     }
     if (order?.id) {
       void loadReadiness(order.id);
@@ -412,9 +426,17 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     }
   }
 
-  async function handleStatus(status: OrderStatus, reason?: string) {
+  async function handleStatus(
+    status: OrderStatus,
+    reason?: string,
+    inventoryDisposition?: OrderInventoryDisposition,
+    inventoryDispositionNote?: string
+  ) {
     if (!localOrder) return;
-    await runAction(() => setOrderStatus(localOrder, status, reason), `订单状态已更新为 ${status}`);
+    await runAction(
+      () => setOrderStatus(localOrder, status, reason, inventoryDisposition, inventoryDispositionNote),
+      `订单状态已更新为 ${status}`
+    );
   }
 
   async function commitPurchaseProgress(
@@ -662,10 +684,11 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                     </div>
                   </div>
                 ))}
-                <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-3">
-                  <div>总成本 <b className="text-ink">{money(localOrder.totalCost)}</b></div>
+                <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-4">
+                  <div>锁定成本 <b className="text-ink">{money(localOrder.totalCost)}</b></div>
+                  <div>采购价差 <b className={procurementVariance > 0 ? 'text-rose-700' : 'text-emerald-700'}>{money(procurementVariance)}</b></div>
                   <div>总出厂价 <b className="text-ink">{money(localOrder.totalPrice)}</b></div>
-                  <div>总利润 <b className="text-ink">{money(localOrder.totalProfit)}</b></div>
+                  <div>调整后利润 <b className="text-ink">{money(localOrder.totalProfit - procurementVariance)}</b></div>
                 </div>
               </div>
             )}
@@ -835,13 +858,33 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
               </Button>
             )}
             {localOrder.status === '采购完成' && (
-              <Button
-                variant="primary"
-                disabled={saving}
-                onClick={() => void handleStatus('已关闭')}
-              >
-                关闭订单
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  disabled={saving}
+                  onClick={() => setCloseDispositionTarget({
+                    disposition: 'manual_outbound_confirmed',
+                    note: '',
+                  })}
+                >
+                  已领用出库并关闭
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={() => {
+                    const note = window.prompt('请输入释放库存预留的原因');
+                    if (note?.trim()) {
+                      setCloseDispositionTarget({
+                        disposition: 'reservation_released',
+                        note: note.trim(),
+                      });
+                    }
+                  }}
+                >
+                  释放预留并关闭
+                </Button>
+              </>
             )}
             {(['待确认', '待采购', '采购中'] as OrderStatus[]).includes(localOrder.status) && (
               <Button
@@ -987,6 +1030,26 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
         } else if (target?.kind === 'stock-addition') {
           void commitPurchaseProgress(target.item, target.progressInput, target.commandDraft);
         }
+      }}
+    />
+    <ConfirmDialog
+      open={Boolean(closeDispositionTarget)}
+      title={closeDispositionTarget?.disposition === 'manual_outbound_confirmed'
+        ? '确认已完成领用出库？'
+        : '确认释放库存预留？'}
+      description={closeDispositionTarget?.disposition === 'manual_outbound_confirmed'
+        ? '系统只记录仓库已经在线下完成领用出库，不会再次自动扣减库存。确认后订单关闭并释放其计划占用。'
+        : `系统不会扣减库存，订单关闭后释放其计划占用。原因：${closeDispositionTarget?.note || '-'}`}
+      confirmLabel="确认并关闭"
+      confirmVariant={closeDispositionTarget?.disposition === 'manual_outbound_confirmed' ? 'primary' : 'danger'}
+      busy={saving}
+      layer="top"
+      onClose={() => setCloseDispositionTarget(null)}
+      onConfirm={() => {
+        const target = closeDispositionTarget;
+        if (!target) return;
+        setCloseDispositionTarget(null);
+        void handleStatus('已关闭', undefined, target.disposition, target.note);
       }}
     />
     </>

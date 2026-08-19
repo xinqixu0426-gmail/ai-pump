@@ -254,8 +254,8 @@ export function DashboardView({
               href="/orders"
               ariaLabel="查看累计利润对应订单"
               value={money(summary.financials.totalProfit)}
-              label="累计利润"
-              note={`利润率 ${summary.financials.profitRate}%`}
+              label="预计利润"
+              note={`锁定成本已计采购价差 ${money(summary.financials.procurementVariance)}，利润率 ${summary.financials.profitRate}%`}
               delay={0.04}
             />
             <MetricCard

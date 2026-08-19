@@ -77,9 +77,28 @@ export type BusinessSummary = {
   parts: { total: number; lowStock: number; outOfStock: number };
   financials: {
     totalCost: number;
+    lockedTotalCost: number;
+    procurementVariance: number;
     totalRevenue: number;
     totalProfit: number;
     profitRate: number;
+    basis?: 'confirmed_orders_locked_cost_plus_recorded_procurement_variance';
+    orderBook?: {
+      totalCost: number;
+      lockedTotalCost: number;
+      procurementVariance: number;
+      totalRevenue: number;
+      totalProfit: number;
+      profitRate: number;
+    };
+    completed?: {
+      totalCost: number;
+      lockedTotalCost: number;
+      procurementVariance: number;
+      totalRevenue: number;
+      totalProfit: number;
+      profitRate: number;
+    };
   };
   workbench: {
     items: WorkbenchSummaryItem[];

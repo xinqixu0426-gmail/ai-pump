@@ -35,6 +35,7 @@ const CREATE_CAPABILITY_ID = requireBusinessCapability('orders.create').capabili
 const STATUS_CAPABILITY_ID = requireBusinessCapability('orders.change_status').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('orders.update_draft').capabilityId;
 const DELETE_CAPABILITY_ID = requireBusinessCapability('orders.delete').capabilityId;
+const CLOSE_INVENTORY_DISPOSITIONS = new Set(['manual_outbound_confirmed', 'reservation_released']);
 
 function orderCommandError(code, message, statusCode = 409) {
     return new CommandExecutionError(code, message, statusCode);
@@ -44,24 +45,49 @@ function roundMoney(value) {
     return Math.round(value * 100) / 100;
 }
 
-function normalizeOrderItems(items) {
+function normalizeOrderItems(db, items) {
     if (!Array.isArray(items)) return [];
     return items
-        .filter(item => item && (item.recipeName || item.recipeId || item.partsJson))
+        .filter(Boolean)
         .map((item, index) => {
-            const unitCost = parseNonNegativeNumber(
-                item.unitCost,
-                `items[${index}].unitCost`
+            const recipeId = parsePositiveId(item.recipeId);
+            if (!recipeId) throw orderCommandError(
+                'order_recipe_required',
+                `items[${index}].recipeId 必须引用有效配方`,
+                422
             );
-            const unitPrice = parseNonNegativeNumber(
-                item.unitPrice,
-                `items[${index}].unitPrice`
+            const recipe = db.prepare(`
+                SELECT id, name, spec, parts_json, saved_total_cost
+                FROM recipes
+                WHERE id = ? AND deleted_at IS NULL
+            `).get(recipeId);
+            if (!recipe) throw orderCommandError(
+                'order_recipe_not_found',
+                `配方 #${recipeId} 不存在或已停用`,
+                422
             );
+            const parts = parseJsonArray(recipe.parts_json);
+            const unitCost = Number(recipe.saved_total_cost);
+            if (!Number.isFinite(unitCost) || unitCost <= 0 || parts.length === 0) {
+                throw orderCommandError(
+                    'order_recipe_snapshot_incomplete',
+                    `配方“${recipe.name || recipeId}”缺少完整保存成本或 BOM，请先重新保存配方`,
+                    422
+                );
+            }
+            const profitMargin = parsePositiveNumber(
+                item.profitMargin,
+                `items[${index}].profitMargin`,
+                { defaultValue: 1.1 }
+            );
+            const unitPrice = item.unitPrice === undefined
+                ? roundMoney(unitCost * profitMargin)
+                : parseNonNegativeNumber(item.unitPrice, `items[${index}].unitPrice`);
             return {
-                id: String(item.id || `order-item-${Date.now()}-${index}`),
-                recipeId: parsePositiveId(item.recipeId) || undefined,
-                recipeName: String(item.recipeName || '未命名产品'),
-                spec: String(item.spec || ''),
+                id: String(item.id || `order-item-${recipeId}-${index}`),
+                recipeId,
+                recipeName: String(recipe.name || '未命名产品'),
+                spec: String(recipe.spec || ''),
                 qty: parsePositiveNumber(
                     item.qty,
                     `items[${index}].qty`,
@@ -69,20 +95,15 @@ function normalizeOrderItems(items) {
                 ),
                 unitCost: roundMoney(unitCost),
                 unitPrice: roundMoney(unitPrice),
-                profitMargin: unitCost > 0
-                    ? roundMoney(unitPrice / unitCost)
-                    : parsePositiveNumber(
-                        item.profitMargin,
-                        `items[${index}].profitMargin`,
-                        { defaultValue: 1.1 }
-                    ),
-                partsJson: String(item.partsJson || '[]'),
+                profitMargin: roundMoney(unitPrice / unitCost),
+                partsJson: JSON.stringify(parts),
             };
         });
 }
 
 function normalizeOrderDraftInput(body = {}) {
     return {
+        customerId: body.customerId ?? body.customer_id,
         customerName: body.customerName ?? body.customer_name,
         contractNo: body.contractNo ?? body.contract_no,
         remark: body.remark,
@@ -91,6 +112,34 @@ function normalizeOrderDraftInput(body = {}) {
         purchaseList: body.purchaseList
             ?? parseJsonArray(body.purchaseListJson ?? body.purchase_list_json),
         todos: body.todos ?? parseJsonArray(body.todosJson ?? body.todos_json),
+    };
+}
+
+function resolveOrderCustomer(db, input = {}) {
+    const rawCustomerId = input.customerId;
+    const customerId = rawCustomerId === undefined || rawCustomerId === null || rawCustomerId === ''
+        ? null
+        : parsePositiveId(rawCustomerId);
+    if (rawCustomerId !== undefined && rawCustomerId !== null && rawCustomerId !== '' && !customerId) {
+        throw orderCommandError('order_customer_id_invalid', '非法客户ID', 400);
+    }
+    const customerName = String(input.customerName || '').trim();
+    const customer = customerId
+        ? db.prepare('SELECT id, name FROM customers WHERE id = ? AND deleted_at IS NULL').get(customerId)
+        : customerName
+            ? db.prepare('SELECT id, name FROM customers WHERE name = ? AND deleted_at IS NULL').get(customerName)
+            : null;
+    if (!customer) {
+        throw orderCommandError(
+            'order_customer_not_found',
+            customerId ? `客户 #${customerId} 不存在或已停用` : '请选择有效客户',
+            422
+        );
+    }
+    return {
+        customerId: Number(customer.id),
+        customerName: String(customer.name || '').trim(),
+        resolvedByLegacyName: !customerId,
     };
 }
 
@@ -112,15 +161,10 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
         dbGetAllParts,
     } = dependencies;
     const input = normalizeOrderDraftInput(body);
-    const customerName = String(input.customerName || '').trim();
-    if (!customerName) throw orderCommandError(
-        'order_customer_required',
-        '客户名称不能为空',
-        400
-    );
+    const customer = resolveOrderCustomer(db, input);
     let items;
     try {
-        items = normalizeOrderItems(input.items);
+        items = normalizeOrderItems(db, input.items);
     } catch (error) {
         if (error instanceof CommandExecutionError) throw error;
         throw orderCommandError(
@@ -137,29 +181,26 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
 
     const providedPurchaseList = parseJsonArray(input.purchaseList);
     const providedTodos = parseJsonArray(input.todos);
-    const plan = (providedPurchaseList.length > 0 || providedTodos.length > 0)
-        ? { purchaseList: providedPurchaseList, todos: providedTodos }
-        : (() => {
-            const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
-            const draftOrder = {
-                id: -1,
-                created_at: new Date().toISOString(),
-                items,
-                purchase_list_json: '[]',
-            };
-            return buildBalancedOrderPlans(
-                [...activeOrders, draftOrder],
-                dbGetAllParts(),
-                { coilsCatalog: dbGetAllCoils() }
-            ).get(-1);
-        })();
+    const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
+    const draftOrder = {
+        id: -1,
+        created_at: new Date().toISOString(),
+        items,
+        purchase_list_json: '[]',
+    };
+    const plan = buildBalancedOrderPlans(
+        [...activeOrders, draftOrder],
+        dbGetAllParts(),
+        { coilsCatalog: dbGetAllCoils() }
+    ).get(-1);
     const status = input.status || '待确认';
     if (!ORDER_STATUSES.has(status)) {
         throw orderCommandError('order_status_invalid', '非法订单状态', 400);
     }
 
     const payload = {
-        customerName,
+        customerId: customer.customerId,
+        customerName: customer.customerName,
         contractNo: String(input.contractNo || '').trim(),
         remark: String(input.remark || ''),
         status,
@@ -179,12 +220,22 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
             field: 'created',
             from: null,
             to: {
-                customerName,
+                customerId: customer.customerId,
+                customerName: customer.customerName,
                 status: '待确认',
                 itemCount: items.length,
             },
         }],
-        warnings: [],
+        warnings: [
+            ...(customer.resolvedByLegacyName ? [{
+                code: 'customer_name_compatibility_resolved',
+                message: '兼容请求已按客户名称解析为稳定 customerId；新增调用请直接提交 customerId',
+            }] : []),
+            ...((providedPurchaseList.length > 0 || providedTodos.length > 0) ? [{
+                code: 'client_plan_ignored',
+                message: '客户端采购清单和待办已忽略，正式结果由服务端按订单 BOM 和实时库存重新生成',
+            }] : []),
+        ],
     };
 }
 
@@ -217,6 +268,7 @@ function executeOrderCreate(dependencies, input = {}, commandContext = {}) {
         ...commandContext,
         input: {
             payload: {
+                customerId: draft.customerId,
                 customerName: draft.customerName,
                 contractNo: draft.contractNo,
                 remark: draft.remark,
@@ -236,6 +288,7 @@ function executeOrderCreate(dependencies, input = {}, commandContext = {}) {
             );
             const now = new Date().toISOString();
             const write = safeInsert('orders', {
+                customer_id: draft.customerId,
                 customer_name: draft.customerName,
                 contract_no: draft.contractNo,
                 remark: draft.remark,
@@ -322,6 +375,7 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
             expectedUpdatedAt,
             previewHash: expectedPreviewHash,
             payload: {
+                customerId: draft.customerId,
                 customerName: draft.customerName,
                 contractNo: draft.contractNo,
                 remark: draft.remark,
@@ -347,6 +401,7 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
                 '订单保存草稿已经变化，请重新预览并确认'
             );
             const write = safeUpdate('orders', orderId, {
+                customer_id: draft.customerId,
                 customer_name: draft.customerName,
                 contract_no: draft.contractNo,
                 remark: draft.remark,
@@ -451,9 +506,27 @@ function normalizeStatusInput(input = {}) {
     if (!ORDER_STATUSES.has(status)) {
         throw orderCommandError('order_status_invalid', '非法订单状态', 400);
     }
+    const inventoryDisposition = String(input.inventoryDisposition || '').trim();
+    const inventoryDispositionNote = String(input.inventoryDispositionNote || '').trim();
+    if (status === '已关闭' && !CLOSE_INVENTORY_DISPOSITIONS.has(inventoryDisposition)) {
+        throw orderCommandError(
+            'order_close_inventory_disposition_required',
+            '关闭订单前必须明确选择“已人工领用出库”或“释放库存预留”',
+            422
+        );
+    }
+    if (status === '已关闭' && inventoryDisposition === 'reservation_released' && !inventoryDispositionNote) {
+        throw orderCommandError(
+            'order_close_release_note_required',
+            '释放库存预留时必须填写原因',
+            422
+        );
+    }
     return {
         status,
         reason: String(input.reason || '').trim(),
+        inventoryDisposition,
+        inventoryDispositionNote,
     };
 }
 
@@ -493,6 +566,15 @@ function applyOrderStatusChange(dependencies, orderId, input = {}, options = {})
         status_changed_at: now,
         closed_at: nextStatus === '已关闭' ? now : record.closed_at,
         cancelled_at: nextStatus === '已取消' ? now : record.cancelled_at,
+        inventory_disposition: nextStatus === '已关闭'
+            ? statusInput.inventoryDisposition
+            : record.inventory_disposition,
+        inventory_disposition_at: nextStatus === '已关闭'
+            ? now
+            : record.inventory_disposition_at,
+        inventory_disposition_note: nextStatus === '已关闭'
+            ? statusInput.inventoryDispositionNote
+            : record.inventory_disposition_note,
         purchase_list_json: JSON.stringify(purchaseList),
     }, options.auditContext);
     return {
@@ -595,6 +677,7 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
                 from: statusResult.previousStatus,
                 to: statusResult.nextStatus,
                 reason: statusInput.reason || null,
+                inventoryDisposition: statusInput.inventoryDisposition || null,
             });
 
             return {
@@ -624,4 +707,5 @@ module.exports = {
     executeOrderUpdate,
     normalizeOrderItems,
     orderCreatePreviewHash,
+    resolveOrderCustomer,
 };

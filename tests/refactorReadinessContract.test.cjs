@@ -1523,16 +1523,14 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/complete-purchase/);
 });
 
-test('Next UI 契约：订单新增产品保存成本为空时必须后端兜底试算', () => {
+test('Next UI 契约：直接建单只接受完整配方保存成本，采购计划由服务端生成', () => {
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const ordersLib = readUtf8('apps/web-next/lib/orders.ts');
 
-    assert.match(ordersLib, /getRecipeCurrentPartsCost/);
-    assert.match(ordersLib, /\/api\/recipes\/\$\{recipeId\}\/cost/);
-    assert.match(ordersLib, /createOrderItemWithUnitCost/);
-    assert.match(ordersView, /getRecipeCurrentPartsCost\(selectedRecipe\.id\)/);
-    assert.match(ordersView, /保存成本为空时调用后端当前配件价作为参考/);
-    assert.doesNotMatch(ordersView, /保存成本为空时该产品成本为 0/);
+    assert.doesNotMatch(ordersLib, /getRecipeCurrentPartsCost/);
+    assert.doesNotMatch(ordersLib, /createOrderItemWithUnitCost/);
+    assert.match(ordersView, /该配方缺少完整保存成本，请先重新保存配方后再建单/);
+    assert.match(ordersLib, /\/api\/orders\/purchase-plan/);
 });
 
 test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批量改单价', () => {
