@@ -6,7 +6,7 @@ type SlideOverProps = {
   open: boolean;
   children: React.ReactNode;
   onClose: () => void;
-  size?: 'standard' | 'wide' | 'workspace';
+  size?: 'standard' | 'wide' | 'workspace' | 'fullscreen';
   closeOnBackdrop?: boolean;
   ariaLabel?: string;
   ariaLabelledBy?: string;
@@ -21,12 +21,12 @@ export function SlideOver({
   ariaLabel = '操作面板',
   ariaLabelledBy,
 }: SlideOverProps) {
-  if (size === 'workspace') {
+  if (size === 'workspace' || size === 'fullscreen') {
     return (
       <Dialog
         open={open}
         onClose={onClose}
-        size="workspace"
+        size={size}
         closeOnBackdrop={closeOnBackdrop}
         ariaLabel={ariaLabel}
         ariaLabelledBy={ariaLabelledBy}

@@ -37,6 +37,14 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import { replacePageLocation } from '@/lib/page-context';
 import { createLatestPreviewCoordinator } from '@/lib/latest-preview.cjs';
+import {
+  appendPendingOrderItem,
+  applyOrderItemPreview,
+  buildPendingOrderItem,
+  removeCalculatingItemId,
+  removeOrderDraftItem,
+  rollbackOrderItemConfiguration,
+} from '@/lib/order-draft-state.cjs';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { OrderItemConfigurationEditor } from '@/components/order-item-configuration-editor';
 
@@ -90,9 +98,12 @@ export function OrdersView({
   const [recipeId, setRecipeId] = useState('');
   const [itemQty, setItemQty] = useState('1');
   const [itemMargin, setItemMargin] = useState('1.10');
+  const [pendingItem, setPendingItem] = useState<OrderItem | null>(null);
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
   const [calculatingItemIds, setCalculatingItemIds] = useState<Set<string>>(() => new Set());
   const configurationPreviewCoordinatorRef = useRef(createLatestPreviewCoordinator<string>());
+  const pendingItemIdRef = useRef<string | null>(null);
+  const draftItemIdsRef = useRef<Set<string>>(new Set());
   const initialOrderHandledRef = useRef<number | null>(null);
   const {
     dirty: formDirty,
@@ -164,7 +175,10 @@ export function OrdersView({
     setRemark('');
     setRecipeId('');
     setItemQty('1');
+    pendingItemIdRef.current = null;
+    setPendingItem(null);
     setDraftItems([]);
+    draftItemIdsRef.current = new Set();
     setCalculatingItemIds(new Set());
     configurationPreviewCoordinatorRef.current.clear();
     setDrawerOpen(true);
@@ -210,25 +224,83 @@ export function OrdersView({
   function onCustomerChange(nextId: string) {
     setCustomerId(nextId);
     const customer = customers.find((item) => String(item.id) === nextId);
-    setItemMargin(customerMarginMultiplier(customer).toFixed(2));
+    const nextMargin = customerMarginMultiplier(customer);
+    setItemMargin(nextMargin.toFixed(2));
+    setPendingItem(current => current ? {
+      ...current,
+      profitMargin: nextMargin,
+      unitPrice: Math.round(current.unitCost * nextMargin * 100) / 100,
+    } : current);
+  }
+
+  function onRecipeChange(nextId: string) {
+    const previousPendingId = pendingItemIdRef.current;
+    if (previousPendingId) {
+      configurationPreviewCoordinatorRef.current.clear(previousPendingId);
+      setCalculatingItemIds(current => removeCalculatingItemId(current, previousPendingId));
+    }
+    setRecipeId(nextId);
+    setFormError(null);
+    const recipe = recipes.find(item => String(item.id) === nextId);
+    if (!recipe) {
+      pendingItemIdRef.current = null;
+      setPendingItem(null);
+      return;
+    }
+    try {
+      const nextPendingItem = buildPendingOrderItem(
+        recipe,
+        itemQty,
+        itemMargin,
+        createOrderItemFromRecipe,
+      );
+      pendingItemIdRef.current = nextPendingItem.id;
+      setPendingItem(nextPendingItem);
+    } catch (err) {
+      pendingItemIdRef.current = null;
+      setPendingItem(null);
+      setFormError(err instanceof Error ? err.message : '订单产品成本初始化失败');
+    }
+  }
+
+  function onPendingQtyChange(value: string) {
+    setItemQty(value);
+    setPendingItem(current => current ? {
+      ...current,
+      qty: Math.max(1, Number(value) || 1),
+    } : current);
+  }
+
+  function onPendingMarginChange(value: string) {
+    setItemMargin(value);
+    const nextMargin = Math.max(0.01, Number(value) || 1);
+    setPendingItem(current => current ? {
+      ...current,
+      profitMargin: nextMargin,
+      unitPrice: Math.round(current.unitCost * nextMargin * 100) / 100,
+    } : current);
   }
 
   async function addDraftItem() {
-    if (!selectedRecipe) {
+    if (!selectedRecipe || !pendingItem) {
       setFormError('请先选择配方');
+      return;
+    }
+    if (calculatingItemIds.has(pendingItem.id)) {
+      setFormError('客户配置成本正在重算，请稍候再添加');
       return;
     }
     setAuxLoading(true);
     setFormError(null);
     try {
-      const savedCost = Number(selectedRecipe.savedTotalCost || 0);
-      if (!Number.isFinite(savedCost) || savedCost <= 0) {
-        throw new Error('该配方缺少完整保存成本，请先重新保存配方后再建单');
-      }
-      const item = createOrderItemFromRecipe(selectedRecipe, Number(itemQty), Number(itemMargin));
-      setDraftItems((current) => [...current, item]);
+      draftItemIdsRef.current.add(pendingItem.id);
+      setDraftItems((current) => appendPendingOrderItem(current, pendingItem));
       markFormDirty();
+      setRecipeId('');
       setItemQty('1');
+      configurationPreviewCoordinatorRef.current.clear(pendingItem.id);
+      pendingItemIdRef.current = null;
+      setPendingItem(null);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '订单产品成本计算失败');
     } finally {
@@ -251,56 +323,89 @@ export function OrdersView({
     }));
   }
 
+  function removeDraftItem(id: string) {
+    configurationPreviewCoordinatorRef.current.clear(id);
+    setCalculatingItemIds(current => removeCalculatingItemId(current, id));
+    draftItemIdsRef.current.delete(id);
+    markFormDirty();
+    setDraftItems(current => removeOrderDraftItem(current, id));
+  }
+
+  async function runConfigurationPreview(
+    item: OrderItem,
+    configurationOverrides: RecipeConfigurationOverrides,
+    handlers: {
+      onSuccess: (preview: Awaited<ReturnType<typeof previewRecipeConfiguration>>) => void;
+      onError: () => boolean;
+    },
+  ) {
+    const recipeIdForPreview = Number(item.recipeId || 0);
+    if (!recipeIdForPreview) return;
+    const itemId = item.id;
+    setCalculatingItemIds(current => new Set(current).add(itemId));
+    setFormError(null);
+    await configurationPreviewCoordinatorRef.current.run(
+      itemId,
+      () => previewRecipeConfiguration(recipeIdForPreview, configurationOverrides),
+      {
+        onSuccess: handlers.onSuccess,
+        onError: (err) => {
+          if (handlers.onError()) {
+            setFormError(err instanceof Error ? err.message : '订单配置成本重算失败');
+          }
+        },
+        onSettled: () => {
+          setCalculatingItemIds(current => {
+            const next = new Set(current);
+            next.delete(itemId);
+            return next;
+          });
+        },
+      },
+    );
+  }
+
   async function updateDraftItemConfiguration(id: string, patch: RecipeConfigurationOverrides) {
     const currentItem = draftItems.find(item => item.id === id);
-    const recipeIdForPreview = Number(currentItem?.recipeId || 0);
-    if (!currentItem || !recipeIdForPreview) return;
+    if (!currentItem?.recipeId) return;
 
     const configurationOverrides = { ...(currentItem.configurationOverrides || {}), ...patch };
     markFormDirty();
     setDraftItems(current => current.map(item => (
       item.id === id ? { ...item, configurationOverrides } : item
     )));
-    setCalculatingItemIds(current => new Set(current).add(id));
-    setFormError(null);
-    await configurationPreviewCoordinatorRef.current.run(
-      id,
-      () => previewRecipeConfiguration(recipeIdForPreview, configurationOverrides),
-      {
-        onSuccess: (preview) => {
-          setDraftItems(current => current.map(item => {
-            if (item.id !== id) return item;
-            const unitCost = preview.unitCost;
-            const profitMargin = Math.max(0.01, Number(item.profitMargin) || 1.1);
-            return {
-              ...item,
-              unitCost,
-              unitPrice: Math.round(unitCost * profitMargin * 100) / 100,
-              configurationWarnings: preview.warnings,
-            };
-          }));
-        },
-        onError: (err) => {
-          setDraftItems(current => current.map(item => (
-            item.id === id ? {
-              ...item,
-              configurationOverrides: currentItem.configurationOverrides,
-              configurationWarnings: currentItem.configurationWarnings,
-              unitCost: currentItem.unitCost,
-              unitPrice: currentItem.unitPrice,
-            } : item
-          )));
-          setFormError(err instanceof Error ? err.message : '订单配置成本重算失败');
-        },
-        onSettled: () => {
-        setCalculatingItemIds(current => {
-          const next = new Set(current);
-          next.delete(id);
-          return next;
-        });
-        },
+    await runConfigurationPreview(currentItem, configurationOverrides, {
+      onSuccess: (preview) => {
+        setDraftItems(current => current.map(item => applyOrderItemPreview(item, id, preview)));
       },
-    );
+      onError: () => {
+        if (!draftItemIdsRef.current.has(id)) return false;
+        setDraftItems(current => current.map(item => (
+          rollbackOrderItemConfiguration(item, id, currentItem)
+        )));
+        return true;
+      },
+    });
+  }
+
+  async function updatePendingItemConfiguration(patch: RecipeConfigurationOverrides) {
+    const currentItem = pendingItem;
+    if (!currentItem?.recipeId) return;
+
+    const configurationOverrides = { ...(currentItem.configurationOverrides || {}), ...patch };
+    const currentId = currentItem.id;
+    markFormDirty();
+    setPendingItem(current => current?.id === currentId ? { ...current, configurationOverrides } : current);
+    await runConfigurationPreview(currentItem, configurationOverrides, {
+      onSuccess: (preview) => {
+        setPendingItem(current => applyOrderItemPreview(current, currentId, preview));
+      },
+      onError: () => {
+        if (pendingItemIdRef.current !== currentId) return false;
+        setPendingItem(current => rollbackOrderItemConfiguration(current, currentId, currentItem));
+        return true;
+      },
+    });
   }
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
@@ -481,7 +586,7 @@ export function OrdersView({
         onSaved={() => void load(true)}
       />
 
-      <SlideOver open={drawerOpen} onClose={requestDrawerClose} ariaLabelledBy="order-form-title">
+      <SlideOver open={drawerOpen} onClose={requestDrawerClose} size="workspace" ariaLabelledBy="order-form-title">
         <form onSubmit={submitOrder} onChange={markFormDirty} className="flex min-h-full flex-col">
           <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
             <div>
@@ -545,12 +650,12 @@ export function OrdersView({
                 <div className="text-sm font-semibold text-ink">添加产品</div>
                 <div className="mt-1 text-xs text-muted">选择配方后可按客户要求调整选配；保存时由后端重新锁定最终成本和 BOM。</div>
               </div>
-              <div className="grid gap-3 p-4 lg:grid-cols-[1fr_96px_120px_auto] lg:items-end">
+              <div className="grid gap-3 p-4 lg:grid-cols-[minmax(18rem,1fr)_8rem_10rem] lg:items-end">
                 <label className="block">
                   <span className="text-sm font-medium text-ink">配方</span>
                   <select
                     value={recipeId}
-                    onChange={(event) => setRecipeId(event.target.value)}
+                    onChange={(event) => onRecipeChange(event.target.value)}
                     disabled={auxLoading}
                     className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
                   >
@@ -567,7 +672,7 @@ export function OrdersView({
                   <span className="text-sm font-medium text-ink">数量</span>
                   <input
                     value={itemQty}
-                    onChange={(event) => setItemQty(event.target.value)}
+                    onChange={(event) => onPendingQtyChange(event.target.value)}
                     type="number"
                     min="1"
                     step="1"
@@ -579,7 +684,7 @@ export function OrdersView({
                   <span className="text-sm font-medium text-ink">加价倍数</span>
                   <input
                     value={itemMargin}
-                    onChange={(event) => setItemMargin(event.target.value)}
+                    onChange={(event) => onPendingMarginChange(event.target.value)}
                     type="number"
                     min="0.01"
                     step="0.01"
@@ -587,10 +692,33 @@ export function OrdersView({
                   />
                 </label>
 
-                <Button type="button" onClick={() => void addDraftItem()} disabled={auxLoading || saving} icon={<Plus size={15} />}>
-                  {auxLoading ? '计算中' : '添加'}
-                </Button>
               </div>
+              {pendingItem ? (
+                <>
+                  <OrderItemConfigurationEditor
+                    item={pendingItem}
+                    recipe={selectedRecipe}
+                    packingOptions={packingOptions}
+                    calculating={calculatingItemIds.has(pendingItem.id)}
+                    onChange={patch => void updatePendingItemConfiguration(patch)}
+                    onError={setFormError}
+                  />
+                  <div className="flex flex-col gap-3 border-t border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+                      <span>预览成本 <b className="text-ink">{money(pendingItem.unitCost)}</b></span>
+                      <span>销售单价 <b className="text-ink">{money(pendingItem.unitPrice)}</b></span>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => void addDraftItem()}
+                      disabled={auxLoading || saving || calculatingItemIds.has(pendingItem.id)}
+                      icon={<Plus size={15} />}
+                    >
+                      {calculatingItemIds.has(pendingItem.id) ? '成本重算中' : auxLoading ? '添加中' : '加入订单'}
+                    </Button>
+                  </div>
+                </>
+              ) : null}
             </div>
 
             {draftItems.length > 0 ? (
@@ -645,10 +773,7 @@ export function OrdersView({
                         size="sm"
                         variant="danger"
                         type="button"
-                        onClick={() => {
-                          markFormDirty();
-                          setDraftItems((current) => current.filter((next) => next.id !== item.id));
-                        }}
+                        onClick={() => removeDraftItem(item.id)}
                         icon={<Trash2 size={14} />}
                       >
                         删除

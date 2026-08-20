@@ -49,10 +49,11 @@
 | 内容 | 使用组件 |
 |---|---|
 | 短表单、轻量查看 | `Dialog` |
-| 详情、历史、较长编辑 | `Drawer` |
+| 单一上下文的辅助详情、历史 | `Drawer` |
+| 多页签详情、宽表格、跨分区操作 | `SlideOver size="workspace"`；需要持续操作的大型工作台使用 `size="fullscreen"` |
 | 删除、覆盖、重复创建、放弃修改 | `ConfirmDialog` |
 
-所有弹层由统一组件处理 Portal、Escape、焦点循环、焦点恢复、滚动锁定与层级。业务页面不得手写 `fixed inset-0` 遮罩，也不得使用 `window.confirm()`。
+所有弹层由统一组件处理 Portal、Escape、焦点循环、焦点恢复、滚动锁定与层级。近全屏工作台必须固定标题和分区导航，只让主内容区独立滚动，并在窄屏限制在可视区域内。业务页面不得手写 `fixed inset-0` 遮罩，也不得使用 `window.confirm()`。
 
 ```tsx
 <ConfirmDialog
@@ -91,5 +92,5 @@
 - 没有新增业务页面原生复选框或字段视觉样式常量。
 - 新增、编辑、删除成功后仍重新拉取正式数据。
 - 390px 没有页面级横向溢出。
-- Dialog/Drawer 可通过 Escape 关闭并恢复焦点。
+- Dialog、Drawer 和 SlideOver 可通过 Escape 关闭并恢复焦点；多分区 workspace/fullscreen 固定标题与分区导航，单一长表单固定标题和操作区，两者都只保留一个主滚动区，并在 390px 窄屏内保持弹层不超出可视区域。
 - `npm run lint`、相关契约测试、完整测试和 `npm run build` 通过。

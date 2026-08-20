@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/button';
 
-type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | 'workspace';
+type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | 'workspace' | 'fullscreen';
 type DialogLayer = 'base' | 'assistant' | 'top';
 
 type DialogProps = {
@@ -32,6 +32,7 @@ const sizeClasses: Record<DialogSize, string> = {
   lg: 'max-w-3xl',
   xl: 'max-w-5xl',
   workspace: 'max-w-[min(1280px,calc(100vw-2rem))]',
+  fullscreen: 'h-[calc(100dvh-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:h-[calc(100dvh-2rem)] sm:max-w-[min(1600px,calc(100vw-2rem))]',
 };
 
 const drawerWidthClasses: Record<NonNullable<DrawerProps['width']>, string> = {
