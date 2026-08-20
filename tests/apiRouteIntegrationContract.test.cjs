@@ -1262,25 +1262,26 @@ test('关键 API 集成契约：线圈规格批量更新路由必须先于 ID �
 test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字', () => {
     const orders = readUtf8('api/routes/orders.cjs');
     const orderCommands = readUtf8('api/services/orderCommands.cjs');
+    const configuredSnapshot = readUtf8('api/services/configuredRecipeSnapshot.cjs');
     const quotations = readUtf8('api/routes/quotations.cjs');
     const quotationDraft = readUtf8('api/services/quotationDraft.cjs');
 
     assert.match(orders, /buildOrderSavePayloadDraft/);
-    assert.match(orderCommands, /SELECT id, name, spec, parts_json, saved_total_cost/);
-    assert.match(orderCommands, /const unitCost = Number\(recipe\.saved_total_cost\)/);
+    assert.match(orderCommands, /buildConfiguredRecipeSnapshot/);
+    assert.match(orderCommands, /const unitCost = configured\?\.unitCost \?\? Number\(recipe\.saved_total_cost\)/);
     assert.doesNotMatch(orderCommands, /parseNonNegativeNumber\(\s*item\.unitCost/);
     assert.match(orderCommands, /parseNonNegativeNumber\(\s*item\.unitPrice,\s*`items\[\$\{index\}\]\.unitPrice`/);
     assert.match(orderCommands, /parsePositiveNumber\(\s*item\.qty,\s*`items\[\$\{index\}\]\.qty`/);
     assert.match(orderCommands, /parsePositiveNumber\(\s*item\.profitMargin,\s*`items\[\$\{index\}\]\.profitMargin`/);
     assert.doesNotMatch(orderCommands, /Number\(item\.(unitCost|unitPrice|qty|profitMargin)\) \|\|/);
 
-    assert.match(quotationDraft, /parseNonNegativeNumber\(\s*preview\.unitCost,\s*`items\[\$\{index\}\]\.unitCost`/);
+    assert.match(quotationDraft, /parseNonNegativeNumber\(\s*configured\.unitCost,\s*`items\[\$\{index\}\]\.unitCost`/);
     assert.match(quotationDraft, /parseNonNegativeNumber\(\s*item\.unitPrice,\s*`items\[\$\{index\}\]\.unitPrice`/);
     assert.match(quotationDraft, /parseOptionalPositiveNumber\(\s*item\.qty,\s*`items\[\$\{index\}\]\.qty`/);
     assert.match(quotationDraft, /parsePositiveNumber\(\s*item\.margin,\s*`items\[\$\{index\}\]\.margin`/);
-    assert.match(quotationDraft, /normalizeQuotationItemOverrides\(item\.overrides, index\)/);
-    assert.match(quotationDraft, /const overrides = normalizeQuotationItemOverrides\(item\.overrides, index\)/);
-    assert.match(quotationDraft, /bomSnapshot: preview\.parts/);
+    assert.match(quotationDraft, /buildConfiguredRecipeSnapshot\(dependencies, recipeId, item\.overrides/);
+    assert.match(configuredSnapshot, /normalizeRecipeConfigurationOverrides\(rawOverrides, fieldPrefix\)/);
+    assert.match(quotationDraft, /bomSnapshot: configured\.bomSnapshot/);
     assert.match(quotationDraft, /function parseQuotationItemsInput\(value\)/);
     assert.match(quotations, /buildQuotationSavePayloadDraft/);
     assert.doesNotMatch(quotationDraft, /total_cost:\s*totalCost \|\| 0/);

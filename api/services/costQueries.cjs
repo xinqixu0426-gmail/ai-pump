@@ -5,6 +5,7 @@ const {
 } = require('./costEngine.cjs');
 const { calculateCoilCost } = require('./coilCost.cjs');
 const { calculateRecipeCostPreview } = require('./dynamicCostPreview.cjs');
+const { normalizeRecipeConfigurationOverrides } = require('./configuredRecipeSnapshot.cjs');
 const { buildCostDifference } = require('./costDifference.cjs');
 const {
     calculateDynamicConfigCost,
@@ -264,9 +265,10 @@ function createCostQueries({
             throw new CostQueryError('Recipe not found', 404);
         }
         const { partsCache, partsByModel } = loadPartsData();
+        const normalizedOverrides = normalizeRecipeConfigurationOverrides(overrides);
         const result = calculateRecipeCostPreview(
             row,
-            overrides,
+            normalizedOverrides,
             {
                 partsCache,
                 partsByModel,
@@ -282,6 +284,7 @@ function createCostQueries({
                 unitCost: result.unitCost,
                 parts: result.parts,
                 costSnapshot: result.costSnapshot,
+                warnings: result.warnings || [],
             },
         };
     }

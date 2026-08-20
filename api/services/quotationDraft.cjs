@@ -1,7 +1,6 @@
 const crypto = require('node:crypto');
 const { requestHash } = require('./commandExecution.cjs');
-const { assertRecipeBomPrices } = require('./costEngine.cjs');
-const { calculateRecipeCostPreview } = require('./dynamicCostPreview.cjs');
+const { buildConfiguredRecipeSnapshot } = require('./configuredRecipeSnapshot.cjs');
 const { QUOTATION_STATUSES } = require('./orderWorkflow.cjs');
 const {
     normalizeQuotationInquiryInput,
@@ -12,76 +11,15 @@ const {
     parsePositiveId,
     parsePositiveNumber,
 } = require('./validation.cjs');
+const { stablePreviewValue } = require('./previewIntegrity.cjs');
 
 function roundMoney(value) {
     return Math.round(value * 100) / 100;
 }
 
-function parseOptionalNonNegativeNumber(value, field) {
-    if (value === undefined || value === null || value === '') return '';
-    return parseNonNegativeNumber(value, field);
-}
-
 function parseOptionalPositiveNumber(value, field) {
     if (value === undefined || value === null || value === '') return null;
     return parsePositiveNumber(value, field);
-}
-
-function normalizeAccessoryType(value) {
-    return value === 'xinjie' ? 'xinjie' : 'standard';
-}
-
-function normalizeSurfaceTreatmentMode(value) {
-    const allowed = new Set([
-        'none',
-        'painting',
-        'electrophoresis',
-        'electrophoresis_powder_coating',
-        'powder_coating',
-        'custom',
-    ]);
-    return allowed.has(value) ? value : 'none';
-}
-
-function normalizeQuotationItemOverrides(overrides, index) {
-    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return {};
-    if (Object.keys(overrides).length === 0) return {};
-    const surfaceTreatmentMode = normalizeSurfaceTreatmentMode(
-        overrides.surfaceTreatmentMode
-    );
-    return {
-        hasFloat: Boolean(overrides.hasFloat),
-        floatWire: String(overrides.floatWire || ''),
-        floatAccessoryType: normalizeAccessoryType(overrides.floatAccessoryType),
-        hasCable: Boolean(overrides.hasCable),
-        cableLength: parseOptionalNonNegativeNumber(
-            overrides.cableLength,
-            `items[${index}].overrides.cableLength`
-        ),
-        cableWire: String(overrides.cableWire || ''),
-        cableAccessoryType: normalizeAccessoryType(overrides.cableAccessoryType),
-        coilSpec: String(overrides.coilSpec || ''),
-        coilSheets: parseOptionalNonNegativeNumber(
-            overrides.coilSheets,
-            `items[${index}].overrides.coilSheets`
-        ),
-        coilMaterial: String(overrides.coilMaterial || '钢带'),
-        coilSlotType: String(overrides.coilSlotType || '小眼'),
-        customBarrelLength: parseOptionalNonNegativeNumber(
-            overrides.customBarrelLength,
-            `items[${index}].overrides.customBarrelLength`
-        ),
-        boxType: String(overrides.boxType || ''),
-        packingPartsJson: JSON.stringify(parseJsonArray(overrides.packingPartsJson)),
-        surfaceTreatmentMode,
-        surfaceTreatmentCost: surfaceTreatmentMode === 'none'
-            ? 0
-            : parseNonNegativeNumber(
-                overrides.surfaceTreatmentCost,
-                `items[${index}].overrides.surfaceTreatmentCost`,
-                { defaultValue: 0 }
-            ),
-    };
 }
 
 function parseQuotationItemsInput(value) {
@@ -102,15 +40,7 @@ function parseQuotationItemsInput(value) {
 
 function normalizeQuotationItems(dependencies, items) {
     if (!Array.isArray(items)) return [];
-    const {
-        calculateRecipeCost,
-        db,
-        dbGetAllCoils,
-        getSetting,
-        loadPartsData,
-    } = dependencies;
-    const { partsCache, partsByModel } = loadPartsData();
-    const partsCatalog = Object.values(partsByModel).flat();
+    const { db } = dependencies;
     return items
         .filter(item => item && (item.baseRecipeId || item.baseRecipeName))
         .map((item, index) => {
@@ -126,18 +56,13 @@ function normalizeQuotationItems(dependencies, items) {
                 'SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL'
             ).get(recipeId);
             if (!recipe) throw new Error(`报价明细配方不存在：${recipeId}`);
-            const overrides = normalizeQuotationItemOverrides(item.overrides, index);
-            const preview = calculateRecipeCostPreview(recipe, overrides, {
-                partsCache,
-                partsByModel,
-                partsCatalog,
-                calculateRecipeCost,
-                getCoils: dbGetAllCoils,
-                getSetting,
+            const configured = buildConfiguredRecipeSnapshot(dependencies, recipeId, item.overrides, {
+                recipe,
+                overridesField: `items[${index}].overrides`,
             });
-            assertRecipeBomPrices(preview.parts);
+            const overrides = configured.configurationOverrides;
             const unitCost = parseNonNegativeNumber(
-                preview.unitCost,
+                configured.unitCost,
                 `items[${index}].unitCost`
             );
             const margin = parsePositiveNumber(
@@ -165,28 +90,20 @@ function normalizeQuotationItems(dependencies, items) {
                 totalPrice: qty == null ? null : roundMoney(unitPrice * qty),
                 overrides,
                 snapshotVersion: 1,
-                snapshotAt: preview.costSnapshot.generatedAt,
-                bomSnapshot: preview.parts,
-                costSnapshot: preview.costSnapshot,
+                snapshotAt: configured.costSnapshot.generatedAt,
+                bomSnapshot: configured.bomSnapshot,
+                costSnapshot: configured.costSnapshot,
+                configurationSnapshot: configured.configurationSnapshot,
+                warnings: configured.warnings,
             };
         });
-}
-
-function stableQuotationValue(value) {
-    if (Array.isArray(value)) return value.map(stableQuotationValue);
-    if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(
-        Object.entries(value)
-            .filter(([key]) => !['id', 'snapshotAt', 'generatedAt'].includes(key))
-            .map(([key, nested]) => [key, stableQuotationValue(nested)])
-    );
 }
 
 function quotationSavePreviewHash(payload) {
     return requestHash({
         customerId: payload.customerId,
         status: payload.status,
-        items: stableQuotationValue(parseJsonArray(payload.itemsJson)),
+        items: stablePreviewValue(parseJsonArray(payload.itemsJson)),
         totalCost: payload.totalCost,
         totalPrice: payload.totalPrice,
         remark: payload.remark,

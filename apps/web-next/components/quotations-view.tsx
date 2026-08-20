@@ -22,9 +22,19 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { dateShort, money } from '@/lib/format';
+import { createLatestPreviewCoordinator } from '@/lib/latest-preview.cjs';
 import type { Customer, Quotation } from '@/lib/customers';
 import type { Part } from '@/lib/parts';
 import type { Recipe, SurfaceTreatmentMode } from '@/lib/recipes';
+import {
+  buildPackingOptions,
+  inferPackingMaterial,
+  inferPackingRole,
+  normalizePackingParts,
+  packingOptionKey,
+  updatePackingRole,
+  type RecipePackingOption,
+} from '@/lib/recipe-configurations';
 import {
   buildCustomerNameMap,
   buildQuotationOrderDraft,
@@ -49,7 +59,6 @@ import {
   type QuotationInquirySummary,
   type QuotationItemQuantity,
   type QuotationOrderDraft,
-  type QuotationPackingPart,
   type QuotationPackingRole,
   type QuotationStatus,
 } from '@/lib/quotations';
@@ -66,89 +75,6 @@ function quotationStatusSelectClassName(status: string): string {
   if (status === '已拒绝') return '!border-rose-200 !bg-rose-50 !text-rose-700';
   if (status === '已过时') return '!border-slate-200 !bg-slate-50 !text-slate-600';
   return '!border-sky-200 !bg-sky-50 !text-sky-700';
-}
-
-function parseJsonArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  try {
-    const parsed = JSON.parse(String(value || '[]'));
-    return Array.isArray(parsed) ? parsed as T[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function inferPackingMaterial(model: string): string {
-  if (model.includes('木箱')) return '木箱';
-  if (model.includes('彩印') || model.includes('彩箱')) return '彩印箱';
-  if (model.includes('牛皮') || model.includes('纸箱')) return '牛皮纸箱';
-  if (model.includes('泡沫')) return '泡沫';
-  if (model.includes('商标') || model.includes('贴纸')) return '商标';
-  if (model.includes('说明书')) return '说明书';
-  if (model.includes('珍珠棉')) return '珍珠棉';
-  if (model.includes('包装')) return '纸箱';
-  return '其他包材';
-}
-
-function packingMaterialForPart(part: QuotationPackingPart): string {
-  const model = `${part.model || ''} ${part.supplier || ''}`;
-  if (
-    model.includes('木箱')
-    || model.includes('纸箱')
-    || model.includes('泡沫')
-    || model.includes('商标')
-    || model.includes('贴纸')
-    || model.includes('说明书')
-    || model.includes('珍珠棉')
-  ) {
-    return inferPackingMaterial(model);
-  }
-  return part.packagingMaterial || inferPackingMaterial(model);
-}
-
-function inferPackingRole(part: QuotationPackingPart): QuotationPackingRole {
-  if (part.packingRole) return part.packingRole;
-  const model = part.model || '';
-  if (model.includes('珍珠棉')) return 'pearlCotton';
-  if (model.includes('泡沫')) return 'foam';
-  if (model.includes('说明书') || model.includes('贴纸') || model.includes('商标')) return 'fixed';
-  if (model.includes('木箱') || model.includes('纸箱') || model.includes('外包装')) return 'container';
-  const material = part.packagingMaterial || '';
-  if (material.includes('珍珠棉')) return 'pearlCotton';
-  if (material.includes('泡沫')) return 'foam';
-  if (material.includes('木箱') || material.includes('纸箱')) return 'container';
-  return 'fixed';
-}
-
-type PackingOption = Required<Pick<QuotationPackingPart, 'model' | 'supplier' | 'packagingMaterial' | 'packingRole'>> & {
-  price: number;
-};
-
-function packingOptionKey(option: Pick<PackingOption, 'model' | 'supplier' | 'packagingMaterial' | 'price'>): string {
-  return `${option.model}||${option.supplier}||${option.packagingMaterial}||${option.price}`;
-}
-
-function normalizePackingParts(value: unknown): QuotationPackingPart[] {
-  return parseJsonArray<QuotationPackingPart>(value)
-    .filter((part) => part?.model)
-    .map((part) => ({
-      ...part,
-      supplier: part.supplier || '',
-      qty: Number(part.qty || 1),
-      packagingMaterial: packingMaterialForPart(part),
-      packingRole: inferPackingRole({ ...part, packagingMaterial: packingMaterialForPart(part) }),
-    }));
-}
-
-function packingPartFromOption(option: PackingOption): QuotationPackingPart {
-  return {
-    model: option.model,
-    supplier: option.supplier,
-    qty: 1,
-    packagingMaterial: option.packagingMaterial,
-    packingRole: option.packingRole,
-    snapshotPrice: option.price,
-  };
 }
 
 const surfaceTreatmentLabels: Record<SurfaceTreatmentMode, string> = {
@@ -304,7 +230,7 @@ export function QuotationsView() {
   const [viewInquiryLoading, setViewInquiryLoading] = useState(false);
   const [viewInquiryError, setViewInquiryError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
-  const overridePreviewSeqRef = useRef(new Map<string, number>());
+  const overridePreviewCoordinatorRef = useRef(createLatestPreviewCoordinator<string>());
   const {
     dirty: formDirty,
     discardPromptOpen,
@@ -317,7 +243,10 @@ export function QuotationsView() {
   } = useConfirmDiscard({
     open: drawerOpen,
     busy: Boolean(savingId),
-    onDiscard: () => setDrawerOpen(false),
+    onDiscard: () => {
+      overridePreviewCoordinatorRef.current.clear();
+      setDrawerOpen(false);
+    },
   });
 
   async function load(force = false) {
@@ -376,75 +305,7 @@ export function QuotationsView() {
   const shouldCreateFromQuery = searchParams.get('create') === '1';
   const prefillKey = `${shouldCreateFromQuery}:${prefillCustomerId}`;
   const viewQuotationId = searchParams.get('quotationId') || '';
-  const packagingOptions = useMemo(() => {
-    const options = new Map<string, PackingOption>();
-    const packingUsageCounts = new Map<string, Map<string, { count: number; part: QuotationPackingPart }>>();
-    recipes.forEach((recipe) => {
-      normalizePackingParts(recipe.packingPartsJson).forEach((packing) => {
-        const usageKey = `${packing.model || ''}||${packing.supplier || ''}`;
-        const usageSignature = `${inferPackingRole(packing)}||${packing.packagingMaterial || ''}`;
-        const counts = packingUsageCounts.get(usageKey) || new Map();
-        const existing = counts.get(usageSignature);
-        counts.set(usageSignature, { count: (existing?.count || 0) + 1, part: packing });
-        packingUsageCounts.set(usageKey, counts);
-      });
-    });
-    const packingUsage = new Map<string, QuotationPackingPart>();
-    packingUsageCounts.forEach((counts, key) => {
-      const ranked = Array.from(counts.values()).sort((a, b) => b.count - a.count);
-      if (ranked[0]) packingUsage.set(key, ranked[0].part);
-    });
-    const addOption = (packing: QuotationPackingPart, price = 0) => {
-      const model = packing.model || '';
-      const supplier = packing.supplier || '';
-      if (!model) return;
-      const packagingMaterial = packingMaterialForPart(packing);
-      const packingRole = inferPackingRole({ ...packing, packagingMaterial });
-      const option = { model, supplier, price, packagingMaterial, packingRole };
-      options.set(packingOptionKey(option), option);
-    };
-
-    parts.forEach((part) => {
-      const model = part.model || '';
-      const category = part.category || '';
-      const looksLikePacking = category === '包装' || model.includes('木箱') || model.includes('纸箱') || model.includes('包装');
-      if (!looksLikePacking) return;
-      const usage = packingUsage.get(`${model}||${part.supplier || ''}`);
-      const partIdentity = `${model} ${part.notes || ''}`;
-      const classifiedRole = part.subcategory === '外包装'
-        ? 'container'
-        : part.subcategory === '固定包材'
-          ? 'fixed'
-          : undefined;
-      addOption({
-        model,
-        supplier: part.supplier || '',
-        packagingMaterial: usage?.packagingMaterial || inferPackingMaterial(partIdentity),
-        packingRole: usage ? inferPackingRole(usage) : classifiedRole,
-      }, Number(part.price || 0));
-    });
-
-    recipes.forEach((recipe) => {
-      normalizePackingParts(recipe.packingPartsJson).forEach((packing) => {
-        const model = packing.model || '';
-        const supplier = packing.supplier || '';
-        const partPrice = parts.find((part) => part.model === model && (!supplier || part.supplier === supplier))?.price || 0;
-        addOption(packing, Number(packing.snapshotPrice ?? partPrice ?? 0));
-      });
-      if (recipe.boxType) addOption({
-        model: recipe.boxType,
-        supplier: '',
-        packagingMaterial: inferPackingMaterial(recipe.boxType),
-        packingRole: 'container',
-      }, 0);
-    });
-
-    return Array.from(options.values()).sort((a, b) => (
-      a.packingRole.localeCompare(b.packingRole)
-      || a.packagingMaterial.localeCompare(b.packagingMaterial, 'zh-Hans-CN')
-      || a.model.localeCompare(b.model, 'zh-Hans-CN')
-    ));
-  }, [parts, recipes]);
+  const packagingOptions = useMemo(() => buildPackingOptions(parts, recipes), [parts, recipes]);
   const containerOptions = useMemo(() => packagingOptions.filter((option) => option.packingRole === 'container'), [packagingOptions]);
   const foamOptions = useMemo(() => packagingOptions.filter((option) => option.packingRole === 'foam'), [packagingOptions]);
   const pearlCottonOptions = useMemo(() => packagingOptions.filter((option) => option.packingRole === 'pearlCotton'), [packagingOptions]);
@@ -464,6 +325,7 @@ export function QuotationsView() {
     if (!customer) return;
 
     consumedPrefillRef.current = prefillKey;
+    overridePreviewCoordinatorRef.current.clear();
     resetFormDirty();
     setEditingQuotation(null);
     setCustomerId(String(customer.id));
@@ -493,6 +355,7 @@ export function QuotationsView() {
     }
 
     consumedViewQuotationRef.current = viewQuotationId;
+    overridePreviewCoordinatorRef.current.clear();
     setDrawerOpen(false);
     setEditingQuotation(null);
     setConvertTarget(null);
@@ -517,6 +380,7 @@ export function QuotationsView() {
   }
 
   function resetForm() {
+    overridePreviewCoordinatorRef.current.clear();
     const firstCustomer = customers[0];
     setEditingQuotation(null);
     setCustomerId(firstCustomer ? String(firstCustomer.id) : '');
@@ -537,6 +401,7 @@ export function QuotationsView() {
   }
 
   function openEditDrawer(quotation: Quotation) {
+    overridePreviewCoordinatorRef.current.clear();
     resetFormDirty();
     const customer = customers.find((item) => item.id === quotation.customerId);
     setEditingQuotation(quotation);
@@ -590,8 +455,11 @@ export function QuotationsView() {
     setCalculatingItemId(item.id || null);
     setFormError(null);
     try {
-      const unitCost = await previewQuotationItemCost(selectedRecipe.id, item.overrides || {});
-      setDraftItems((current) => [...current, recostQuotationItem(item, unitCost)]);
+      const preview = await previewQuotationItemCost(selectedRecipe.id, item.overrides || {});
+      setDraftItems((current) => [...current, {
+        ...recostQuotationItem(item, preview.unitCost),
+        configurationWarnings: preview.warnings,
+      }]);
       markFormDirty();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '报价成本重算失败');
@@ -625,31 +493,39 @@ export function QuotationsView() {
     if (!currentItem || !recipeIdForPreview) return;
 
     const overrides = { ...(currentItem.overrides || {}), ...patch };
-    const requestSeq = (overridePreviewSeqRef.current.get(id) || 0) + 1;
-    overridePreviewSeqRef.current.set(id, requestSeq);
     setDraftItems((current) => current.map((item) => (
       item.id === id ? { ...item, overrides } : item
     )));
     setCalculatingItemId(id);
     setFormError(null);
-    try {
-      const unitCost = await previewQuotationItemCost(recipeIdForPreview, overrides);
-      if (overridePreviewSeqRef.current.get(id) !== requestSeq) return;
-      setDraftItems((current) => current.map((item) => (
-        item.id === id ? recostQuotationItem(item, unitCost) : item
-      )));
-    } catch (err) {
-      if (overridePreviewSeqRef.current.get(id) !== requestSeq) return;
-      setDraftItems((current) => current.map((item) => (
-        item.id === id ? { ...item, overrides: currentItem.overrides } : item
-      )));
-      setFormError(err instanceof Error ? err.message : '报价覆盖成本重算失败');
-    } finally {
-      if (overridePreviewSeqRef.current.get(id) === requestSeq) setCalculatingItemId(null);
-    }
+    await overridePreviewCoordinatorRef.current.run(
+      id,
+      () => previewQuotationItemCost(recipeIdForPreview, overrides),
+      {
+        onSuccess: (preview) => {
+          setDraftItems((current) => current.map((item) => (
+            item.id === id ? {
+              ...recostQuotationItem(item, preview.unitCost),
+              configurationWarnings: preview.warnings,
+            } : item
+          )));
+        },
+        onError: (err) => {
+          setDraftItems((current) => current.map((item) => (
+            item.id === id ? {
+              ...item,
+              overrides: currentItem.overrides,
+              configurationWarnings: currentItem.configurationWarnings,
+            } : item
+          )));
+          setFormError(err instanceof Error ? err.message : '报价覆盖成本重算失败');
+        },
+        onSettled: () => setCalculatingItemId(null),
+      },
+    );
   }
 
-  function defaultPackingOption(item: QuotationItem, role: QuotationPackingRole): PackingOption | undefined {
+  function defaultPackingOption(item: QuotationItem, role: QuotationPackingRole): RecipePackingOption | undefined {
     const recipe = recipes.find((next) => next.id === Number(item.baseRecipeId || 0));
     const basePart = normalizePackingParts(recipe?.packingPartsJson).find((part) => inferPackingRole(part) === role);
     if (basePart?.model) {
@@ -673,15 +549,8 @@ export function QuotationsView() {
     return roleOptions[0];
   }
 
-  function updatePackingConfiguration(item: QuotationItem, role: QuotationPackingRole, option?: PackingOption) {
-    const currentParts = normalizePackingParts(item.overrides?.packingPartsJson);
-    const nextParts = currentParts.filter((part) => inferPackingRole(part) !== role);
-    if (option) nextParts.push(packingPartFromOption(option));
-    const container = nextParts.find((part) => inferPackingRole(part) === 'container');
-    void updateDraftItemOverrides(item.id, {
-      boxType: container?.model || '',
-      packingPartsJson: JSON.stringify(nextParts),
-    });
+  function updatePackingConfiguration(item: QuotationItem, role: QuotationPackingRole, option?: RecipePackingOption) {
+    void updateDraftItemOverrides(item.id, updatePackingRole(item.overrides || {}, role, option));
   }
 
   function togglePackingConfiguration(item: QuotationItem, role: 'foam' | 'pearlCotton', enabled: boolean) {
@@ -736,6 +605,7 @@ export function QuotationsView() {
       }
       await load(true);
       resetFormDirty();
+      overridePreviewCoordinatorRef.current.clear();
       setDrawerOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '报价保存失败');
@@ -1705,6 +1575,11 @@ export function QuotationsView() {
                             .filter((part) => inferPackingRole(part) === 'fixed'),
                         ))}
                       </div>
+                      {item.configurationWarnings?.map((warning) => (
+                        <div key={warning.code} className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                          {warning.message}
+                        </div>
+                      ))}
                     </div>
                   </section>
                 ))}

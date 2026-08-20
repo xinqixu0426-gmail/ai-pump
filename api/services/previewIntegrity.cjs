@@ -22,7 +22,18 @@ function assertPreviewHash(expectedHash, currentHash, message) {
     );
 }
 
+function stablePreviewValue(value) {
+    if (Array.isArray(value)) return value.map(stablePreviewValue);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([key]) => !['id', 'snapshotAt', 'generatedAt'].includes(key))
+            .map(([key, nested]) => [key, stablePreviewValue(nested)])
+    );
+}
+
 module.exports = {
     assertPreviewHash,
     normalizePreviewHash,
+    stablePreviewValue,
 };

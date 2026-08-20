@@ -12,6 +12,7 @@ const {
     executeOrderStatus,
     executeOrderUpdate,
 } = require('../api/services/orderCommands.cjs');
+const { buildOrderReadiness } = require('../api/services/orderReadiness.cjs');
 
 const FIXED_UPDATED_AT = '2026-08-02T00:00:00.000Z';
 const NEXT_UPDATED_AT = '2026-08-02T00:01:00.000Z';
@@ -74,6 +75,26 @@ function createFixture() {
             spec TEXT,
             parts_json TEXT NOT NULL,
             saved_total_cost REAL NOT NULL,
+            coil_spec TEXT,
+            coil_sheets INTEGER,
+            coil_material TEXT,
+            coil_slot_type TEXT,
+            has_float INTEGER,
+            float_wire TEXT,
+            float_accessory_type TEXT,
+            has_cable INTEGER,
+            cable_length REAL,
+            cable_wire TEXT,
+            cable_accessory_type TEXT,
+            box_type TEXT,
+            packing_parts_json TEXT,
+            custom_barrel_length REAL,
+            assembly_wage REAL,
+            packing_wage REAL,
+            painting_wage REAL,
+            surface_treatment_mode TEXT,
+            surface_treatment_cost REAL,
+            management_fee REAL,
             deleted_at TEXT
         );
         CREATE TABLE orders (
@@ -101,9 +122,9 @@ function createFixture() {
         );
         INSERT INTO parts (
             id, model, name, supplier, price, stock, updated_at
-        ) VALUES (
-            1, 'P-1', '测试零件', '供应商A', 5, 0, '${FIXED_UPDATED_AT}'
-        );
+        ) VALUES
+            (1, 'P-1', '测试零件', '供应商A', 5, 0, '${FIXED_UPDATED_AT}'),
+            (2, 'BOX-1', '测试纸箱', '包装供应商', 12, 0, '${FIXED_UPDATED_AT}');
         INSERT INTO customers (id, name) VALUES
             (1, '测试客户'),
             (2, '待确认客户'),
@@ -114,6 +135,17 @@ function createFixture() {
             1, '测试水泵', '测试规格',
             '[{"model":"P-1","name":"测试零件","supplier":"供应商A","qty":1,"inventoryQty":1}]',
             5
+        );
+        INSERT INTO recipes (
+            id, name, spec, parts_json, saved_total_cost,
+            coil_spec, coil_sheets, coil_material, coil_slot_type,
+            has_float, float_wire, float_accessory_type, has_cable,
+            packing_parts_json, surface_treatment_mode
+        ) VALUES (
+            2, '可配置水泵', '配置规格',
+            '[{"model":"P-1","name":"测试零件","supplier":"供应商A","qty":1,"snapshotPrice":5},{"model":"浮球-0.55","name":"浮球","supplier":"供应商A","qty":1,"snapshotPrice":10}]',
+            15, 'Y90', 10, '钢带', '小眼', 1, '0.55', 'standard', 0,
+            '[]', 'none'
         );
     `);
 
@@ -175,12 +207,31 @@ function createFixture() {
         updatedAt: row.updated_at,
     });
     const dependencies = {
+        calculateRecipeCost: parts => ({
+            totalCost: (parts || []).reduce((sum, part) => sum + Number(part.snapshotPrice || 0) * Number(part.qty || 1), 0),
+        }),
         db,
         dbGetAllParts: () => db.prepare(`
             SELECT id, model, name, supplier, price, stock, updated_at AS updatedAt
             FROM parts WHERE deleted_at IS NULL
         `).all(),
-        dbGetAllCoils: () => [],
+        dbGetAllCoils: () => [
+            { id: 10, spec: 'Y90', material: '钢带', slotType: '小眼', sheets: 10, unitPrice: 0.2, wireWeight: 0.2, copperBase: 70, coilFee: 2, rotorFee: 3, schemeStatus: 'official' },
+            { id: 20, spec: 'Y90', material: '钢带', slotType: '小眼', sheets: 20, unitPrice: 0.2, wireWeight: 0.4, copperBase: 70, coilFee: 4, rotorFee: 5, schemeStatus: 'official' },
+        ],
+        getSetting: () => undefined,
+        loadPartsData: () => ({
+            partsCache: {
+                'P-1': { price: 5, supplier: '供应商A', category: '测试' },
+                '浮球-0.55': { price: 10, supplier: '供应商A', category: '选配' },
+                'BOX-1': { price: 12, supplier: '包装供应商', category: '包装' },
+            },
+            partsByModel: {
+                'P-1': [{ id: 1, model: 'P-1', name: '测试零件', supplier: '供应商A', price: 5 }],
+                '浮球-0.55': [{ id: 2, model: '浮球-0.55', name: '浮球', supplier: '供应商A', price: 10 }],
+                'BOX-1': [{ id: 3, model: 'BOX-1', name: '测试纸箱', supplier: '包装供应商', price: 12, category: '包装' }],
+            },
+        }),
         orderRow,
         safeInsert,
         safeUpdate,
@@ -250,6 +301,164 @@ test('订单保存草稿返回正式建单能力元数据且保持只读', () =>
         assert.equal(JSON.parse(draft.purchaseListJson)[0].plannedQty, 2);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('直接建单按客户配置覆盖锁定最终成本、配置和 BOM 快照', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{
+                id: 'configured-order-item',
+                recipeId: 2,
+                qty: 3,
+                profitMargin: 1.2,
+                configurationOverrides: { hasFloat: false },
+            }],
+        });
+        const [item] = JSON.parse(draft.itemsJson);
+        assert.equal(item.unitCost, 5);
+        assert.equal(item.configurationOverrides.hasFloat, false);
+        assert.equal(item.configurationSnapshot.hasFloat, false);
+        assert.equal(item.configurationSnapshot.coilSpec, 'Y90');
+        assert.equal(item.snapshotSource, 'direct_order');
+        assert.equal(item.snapshotVersion, 2);
+        assert.deepEqual(JSON.parse(item.partsJson).map(part => part.model), ['P-1']);
+        assert.equal(JSON.parse(draft.purchaseListJson)[0].plannedQty, 3);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配置订单正式创建复用完整依赖、稳定预览哈希并忽略客户端包材价格', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{
+                id: 'configured-create-item',
+                recipeId: 2,
+                qty: 2,
+                profitMargin: 1.2,
+                configurationOverrides: {
+                    hasFloat: false,
+                    boxType: 'BOX-1',
+                    packingPartsJson: JSON.stringify([{
+                        model: 'BOX-1',
+                        supplier: '包装供应商',
+                        qty: 1,
+                        packingRole: 'container',
+                        snapshotPrice: 999,
+                    }]),
+                },
+            }],
+        });
+        const first = executeOrderCreate(
+            fixture.dependencies,
+            draft,
+            commandContext(CREATE_CAPABILITY_ID, 'configured-create')
+        );
+        const [storedItem] = JSON.parse(first.order.itemsJson);
+        const storedBom = JSON.parse(storedItem.partsJson);
+        const packingPart = storedBom.find(part => part.model === 'BOX-1');
+
+        assert.equal(storedItem.unitCost, 17);
+        assert.equal(packingPart.snapshotPrice, 12);
+        assert.equal(storedItem.configurationOverrides.packingPartsJson.includes('999'), false);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配置订单正式更新复用共享快照依赖且确认哈希保持稳定', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            customerId: 3,
+            items: [{
+                id: 'configured-update-item',
+                recipeId: 2,
+                qty: 1,
+                profitMargin: 1.2,
+                configurationOverrides: { hasFloat: false },
+            }],
+        });
+        const result = executeOrderUpdate(
+            fixture.dependencies,
+            orderId,
+            { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+            commandContext(UPDATE_CAPABILITY_ID, 'configured-update')
+        );
+        const [storedItem] = JSON.parse(result.order.itemsJson);
+
+        assert.equal(storedItem.configurationSnapshot.hasFloat, false);
+        assert.equal(storedItem.snapshotSource, 'direct_order');
+        assert.equal(result.order.customerName, '修改后客户');
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('插值线圈 warning 贯穿订单草稿、持久化、采购计划和生产准备阻塞', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{
+                id: 'configured-coil-item',
+                recipeId: 2,
+                qty: 1,
+                profitMargin: 1.2,
+                configurationOverrides: { hasFloat: false, coilSheets: 15 },
+            }],
+        });
+        assert.equal(draft.warnings.some(warning => warning.code === 'coil_inventory_scheme_required'), true);
+        assert.equal(JSON.parse(draft.purchaseListJson).some(item => item.inventoryType === 'none'), true);
+
+        const result = executeOrderCreate(
+            fixture.dependencies,
+            draft,
+            commandContext(CREATE_CAPABILITY_ID, 'configured-coil')
+        );
+        const [storedItem] = JSON.parse(result.order.itemsJson);
+        assert.equal(storedItem.configurationWarnings.some(warning => warning.code === 'coil_inventory_scheme_required'), true);
+
+        const readiness = buildOrderReadiness({
+            order: result.order,
+            plan: { purchaseList: JSON.parse(result.order.purchaseListJson) },
+            recipes: [{ id: 2, name: '可配置水泵' }],
+            now: new Date('2026-08-02T00:02:00.000Z'),
+        });
+        assert.equal(readiness.verdict, 'blocked');
+        assert.equal(readiness.blockers.some(blocker => blocker.code === 'coil_inventory_unresolved'), true);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('直接建单严格拒绝字符串布尔值和未知客户配置字段', () => {
+    const fixture = createFixture();
+    try {
+        for (const configurationOverrides of [
+            { hasFloat: 'false' },
+            { unsupportedOption: true },
+        ]) {
+            assert.throws(
+                () => buildOrderSavePayloadDraft(fixture.dependencies, {
+                    ...draftInput(),
+                    items: [{ recipeId: 2, qty: 1, configurationOverrides }],
+                }),
+                error => error.statusCode === 400
+                    && ['RECIPE_CONFIGURATION_OVERRIDES_INVALID', 'RECIPE_CONFIGURATION_OVERRIDE_UNKNOWN'].includes(error.code)
+            );
+        }
     } finally {
         fixture.db.close();
     }

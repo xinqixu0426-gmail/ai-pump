@@ -182,6 +182,9 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
                 snapshotVersion: Number(item.snapshotVersion || 0),
                 snapshotSource: item.snapshotVersion ? 'quotation' : 'legacy_recipe_fallback',
                 costSnapshot: item.costSnapshot || null,
+                configurationOverrides: item.overrides || {},
+                configurationSnapshot: item.configurationSnapshot || item.overrides || null,
+                configurationWarnings: Array.isArray(item.warnings) ? item.warnings : [],
             };
         });
     } catch (error) {

@@ -1523,13 +1523,23 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/complete-purchase/);
 });
 
-test('Next UI 契约：直接建单只接受完整配方保存成本，采购计划由服务端生成', () => {
+test('Next UI 契约：直接建单基于完整配方支持客户配置并由服务端锁定成本和采购计划', () => {
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
     const ordersLib = readUtf8('apps/web-next/lib/orders.ts');
+    const configurationEditor = readUtf8('apps/web-next/components/order-item-configuration-editor.tsx');
+    const recipeConfigurations = readUtf8('apps/web-next/lib/recipe-configurations.ts');
 
     assert.doesNotMatch(ordersLib, /getRecipeCurrentPartsCost/);
     assert.doesNotMatch(ordersLib, /createOrderItemWithUnitCost/);
     assert.match(ordersView, /该配方缺少完整保存成本，请先重新保存配方后再建单/);
+    assert.match(ordersLib, /configurationOverrides/);
+    assert.match(ordersView, /previewRecipeConfiguration/);
+    assert.match(ordersView, /configurationPreviewCoordinatorRef\.current\.run/);
+    assert.match(configurationEditor, /线圈片数/);
+    assert.match(configurationEditor, /电缆长度（米）/);
+    assert.match(configurationEditor, /外包装/);
+    assert.match(configurationEditor, /带浮球/);
+    assert.match(recipeConfigurations, /\/api\/recipes\/\$\{recipeId\}\/cost-preview/);
     assert.match(ordersLib, /\/api\/orders\/purchase-plan/);
 });
 
@@ -1600,15 +1610,17 @@ test('Next UI 契约：报价转订单必须先预览后确认', () => {
 test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     const quotationsView = readUtf8('apps/web-next/components/quotations-view.tsx');
     const quotationsLib = readUtf8('apps/web-next/lib/quotations.ts');
+    const recipeConfigurations = readUtf8('apps/web-next/lib/recipe-configurations.ts');
 
     assert.match(quotationsLib, /previewQuotationItemCost/);
-    assert.match(quotationsLib, /\/api\/recipes\/\$\{recipeId\}\/cost-preview/);
+    assert.match(quotationsLib, /previewRecipeConfiguration/);
+    assert.match(recipeConfigurations, /\/api\/recipes\/\$\{recipeId\}\/cost-preview/);
     assert.match(quotationsLib, /buildRecipeDefaultQuotationOverrides/);
     assert.match(quotationsView, /previewQuotationItemCost/);
     assert.match(quotationsView, /updateDraftItemOverrides/);
     assert.match(quotationsView, /hydrateQuotationItemsForEdit/);
-    assert.match(quotationsView, /overridePreviewSeqRef/);
-    assert.match(quotationsView, /overridePreviewSeqRef\.current\.get\(id\) !== requestSeq/);
+    assert.match(quotationsView, /overridePreviewCoordinatorRef\.current\.run/);
+    assert.match(quotationsView, /configurationWarnings/);
     assert.match(quotationsView, /hasFloat/);
     assert.match(quotationsView, /hasCable/);
     assert.doesNotMatch(quotationsView, /updateDraftItemOverrides\(item\.id,\s*\{\s*customBarrelLength/);
@@ -1617,6 +1629,8 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /foamOptions/);
     assert.match(quotationsView, /pearlCottonOptions/);
     assert.match(quotationsView, /packingRole/);
+    assert.match(quotationsView, /buildPackingOptions\(parts, recipes\)/);
+    assert.doesNotMatch(quotationsView, /function inferPackingRole/);
     assert.doesNotMatch(quotationsView, /coilOptions/);
     assert.doesNotMatch(quotationsView, /floatWireOptions/);
     assert.doesNotMatch(quotationsView, /cableWireOptions/);
@@ -1650,11 +1664,14 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /money\(Number\(item\.unitCost \|\| 0\)\)/);
     assert.match(quotationsView, /money\(Number\(item\.unitPrice \|\| 0\)\)/);
     assert.doesNotMatch(quotationsView, /setDraftItems\(\(current\) => \[\.\.\.current, item\]\)/);
-    assert.match(quotationsView, /item\.id === id \? \{ \.\.\.item, overrides: currentItem\.overrides \} : item/);
+    assert.match(quotationsView, /overrides: currentItem\.overrides/);
+    assert.match(quotationsView, /configurationWarnings: currentItem\.configurationWarnings/);
+    assert.match(quotationsView, /function resetForm\(\) \{\s+overridePreviewCoordinatorRef\.current\.clear\(\)/);
+    assert.match(quotationsView, /function openEditDrawer\(quotation: Quotation\) \{\s+overridePreviewCoordinatorRef\.current\.clear\(\)/);
     assert.match(quotationsView, /surfaceTreatmentLabel/);
     assert.match(quotationsLib, /getAllParts/);
     assert.doesNotMatch(quotationsLib, /getAllCoils/);
-    assert.match(quotationsLib, /surfaceTreatmentMode/);
+    assert.match(recipeConfigurations, /surfaceTreatmentMode/);
     assert.doesNotMatch(quotationsView, /动态覆盖项稍后单独迁移/);
 });
 

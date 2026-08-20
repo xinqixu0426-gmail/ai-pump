@@ -4,7 +4,10 @@ const {
     dbGetAllCoils,
     dbGetAllParts,
     dbGetAllRecipes,
+    calculateRecipeCost,
+    getSetting,
     invalidatePartsCache,
+    loadPartsData,
     orderRow,
     safeInsert,
     safeUpdate,
@@ -454,7 +457,14 @@ router.post('/save-payload-draft', (req, res) => {
         res.json({
             success: true,
             data: buildOrderSavePayloadDraft(
-                { db, dbGetAllCoils, dbGetAllParts },
+                {
+                    calculateRecipeCost,
+                    db,
+                    dbGetAllCoils,
+                    dbGetAllParts,
+                    getSetting,
+                    loadPartsData,
+                },
                 req.body || {}
             ),
         });
@@ -507,6 +517,9 @@ router.post('/:id/status', (req, res) => {
                 db,
                 dbGetAllCoils,
                 dbGetAllParts,
+                calculateRecipeCost,
+                getSetting,
+                loadPartsData,
                 orderRow,
                 safeUpdate,
             },
@@ -675,6 +688,9 @@ router.post('/', (req, res) => {
                 db,
                 dbGetAllCoils,
                 dbGetAllParts,
+                calculateRecipeCost,
+                getSetting,
+                loadPartsData,
                 orderRow,
                 safeInsert,
             },
@@ -696,9 +712,12 @@ router.patch('/:id', (req, res) => {
         if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
         const result = executeOrderUpdate(
             {
+                calculateRecipeCost,
                 db,
                 dbGetAllCoils,
                 dbGetAllParts,
+                getSetting,
+                loadPartsData,
                 orderRow,
                 safeUpdate,
             },

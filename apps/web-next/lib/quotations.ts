@@ -3,7 +3,17 @@ import { createIdempotencyKey, proxyRequest } from './api';
 import { getAllCustomers, getAllQuotations, rowToQuotation, type Customer, type Quotation } from './customers';
 import type { OrderItem, PurchaseItem, TodoItem } from './orders';
 import { getAllParts, type Part } from './parts';
-import { getAllRecipes, type Recipe, type SurfaceTreatmentMode } from './recipes';
+import { getAllRecipes, type Recipe } from './recipes';
+import {
+  buildRecipeDefaultConfiguration,
+  previewRecipeConfiguration,
+  type RecipeConfigurationOverrides,
+  type RecipeConfigurationPreview,
+  type RecipeConfigurationSnapshot,
+  type RecipeConfigurationWarning,
+  type RecipePackingPart,
+  type RecipePackingRole,
+} from './recipe-configurations';
 
 export type QuotationStatus = '草稿' | '报价中' | '已接受' | '已拒绝' | '已转订单' | '已过时';
 export type QuotationFilter = QuotationStatus | '全部';
@@ -15,6 +25,10 @@ export type QuotationItem = {
   spec?: string;
   qty?: number | null;
   overrides?: QuotationItemOverrides;
+  configurationOverrides?: RecipeConfigurationOverrides;
+  configurationSnapshot?: RecipeConfigurationSnapshot;
+  configurationWarnings?: RecipeConfigurationWarning[];
+  warnings?: RecipeConfigurationWarning[];
   unitCost?: number;
   margin?: number;
   unitPrice?: number;
@@ -31,36 +45,10 @@ export type QuotationItem = {
   };
 };
 
-export type QuotationItemOverrides = {
-  hasFloat?: boolean;
-  floatWire?: string;
-  floatAccessoryType?: 'standard' | 'xinjie';
-  hasCable?: boolean;
-  cableLength?: number | string;
-  cableWire?: string;
-  cableAccessoryType?: 'standard' | 'xinjie';
-  coilSpec?: string;
-  coilSheets?: number | string;
-  coilMaterial?: string;
-  coilSlotType?: '小眼' | '国标眼';
-  customBarrelLength?: number | string;
-  boxType?: string;
-  packingPartsJson?: string;
-  surfaceTreatmentMode?: SurfaceTreatmentMode;
-  surfaceTreatmentCost?: number | string;
-};
+export type QuotationItemOverrides = RecipeConfigurationOverrides;
 
-export type QuotationPackingRole = 'container' | 'foam' | 'pearlCotton' | 'fixed';
-
-export type QuotationPackingPart = {
-  model?: string;
-  supplier?: string;
-  qty?: number;
-  packagingMaterial?: string;
-  packingRole?: QuotationPackingRole;
-  snapshotPrice?: number;
-  costSource?: string;
-};
+export type QuotationPackingRole = RecipePackingRole;
+export type QuotationPackingPart = RecipePackingPart;
 
 type QuotationRow = {
   id?: number;
@@ -184,7 +172,12 @@ export function parseQuotationItems(itemsJson: string | undefined): QuotationIte
   if (!itemsJson) return [];
   try {
     const parsed = JSON.parse(itemsJson);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed)
+      ? parsed.map((item) => ({
+        ...item,
+        configurationWarnings: item.configurationWarnings || item.warnings || [],
+      }))
+      : [];
   } catch {
     return [];
   }
@@ -256,33 +249,11 @@ export function createQuotationItemFromRecipe(recipe: Recipe, margin: number): Q
 }
 
 export function buildRecipeDefaultQuotationOverrides(recipe: Recipe): QuotationItemOverrides {
-  return {
-    hasFloat: Number(recipe.hasFloat || 0) === 1,
-    floatWire: recipe.floatWire || '',
-    floatAccessoryType: recipe.floatAccessoryType || 'standard',
-    hasCable: Number(recipe.hasCable || 0) === 1,
-    cableLength: recipe.cableLength || '',
-    cableWire: recipe.cableWire || '',
-    cableAccessoryType: recipe.cableAccessoryType || 'standard',
-    coilSpec: recipe.coilSpec || '',
-    coilSheets: recipe.coilSheets || '',
-    coilMaterial: recipe.coilMaterial || '钢带',
-    coilSlotType: recipe.coilSlotType || '小眼',
-    customBarrelLength: recipe.customBarrelLength ?? '',
-    boxType: recipe.boxType || '',
-    packingPartsJson: recipe.packingPartsJson || '[]',
-    surfaceTreatmentMode: recipe.surfaceTreatmentMode || 'none',
-    surfaceTreatmentCost: recipe.surfaceTreatmentMode === 'none' ? 0 : Number(recipe.surfaceTreatmentCost || 0),
-  };
+  return buildRecipeDefaultConfiguration(recipe);
 }
 
-export async function previewQuotationItemCost(recipeId: number, overrides: QuotationItemOverrides): Promise<number> {
-  const result = await proxyRequest<ApiResponse<{ unitCost: number }>>(`/api/recipes/${recipeId}/cost-preview`, {
-    method: 'POST',
-    body: JSON.stringify({ overrides }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '报价覆盖成本重算失败');
-  return roundMoney(Number(result.data.unitCost) || 0);
+export async function previewQuotationItemCost(recipeId: number, overrides: QuotationItemOverrides): Promise<RecipeConfigurationPreview> {
+  return previewRecipeConfiguration(recipeId, overrides);
 }
 
 export function calculateQuotationTotals(items: QuotationItem[]) {

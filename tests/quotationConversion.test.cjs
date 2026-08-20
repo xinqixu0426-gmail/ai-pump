@@ -100,6 +100,24 @@ function createFixture() {
             unitCost: 5,
             unitPrice: 6,
             margin: 1.2,
+            snapshotVersion: 1,
+            overrides: {
+                hasFloat: false,
+                cableLength: 20,
+            },
+            configurationSnapshot: {
+                hasFloat: false,
+                cableLength: 20,
+            },
+            costSnapshot: {
+                version: 1,
+                generatedAt: '2026-08-02T00:00:00.000Z',
+                unitCost: 5,
+            },
+            warnings: [{
+                code: 'coil_inventory_scheme_required',
+                message: '需要正式线圈库存方案',
+            }],
             bomSnapshot: [{
                 model: 'P-1',
                 name: '配件',
@@ -196,6 +214,52 @@ function createFixture() {
     };
     return { db, dependencies };
 }
+
+test('报价转订单保留报价保存时的客户配置快照', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildQuotationOrderDraft(fixture.dependencies, 3);
+        assert.equal(draft.items[0].configurationOverrides.cableLength, 20);
+        assert.equal(draft.items[0].configurationSnapshot.hasFloat, false);
+        assert.equal(draft.items[0].snapshotSource, 'quotation');
+        assert.equal(draft.items[0].costSnapshot.unitCost, 5);
+        assert.equal(draft.items[0].configurationWarnings[0].code, 'coil_inventory_scheme_required');
+        assert.deepEqual(JSON.parse(draft.items[0].partsJson), [{
+            model: 'P-1',
+            name: '配件',
+            supplier: '供应商',
+            qty: 1,
+            snapshotPrice: 5,
+        }]);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('报价转订单仅对没有当前快照字段的历史报价使用配方 fallback', () => {
+    const fixture = createFixture();
+    try {
+        const currentItems = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM quotations WHERE id = 3').get().items_json
+        );
+        const legacyItems = currentItems.map(item => {
+            const legacy = { ...item };
+            delete legacy.snapshotVersion;
+            delete legacy.configurationSnapshot;
+            delete legacy.costSnapshot;
+            delete legacy.warnings;
+            return legacy;
+        });
+        fixture.db.prepare('UPDATE quotations SET items_json = ? WHERE id = 3')
+            .run(JSON.stringify(legacyItems));
+
+        const draft = buildQuotationOrderDraft(fixture.dependencies, 3);
+        assert.equal(draft.items[0].snapshotSource, 'legacy_recipe_fallback');
+        assert.equal(draft.items[0].configurationWarnings.length, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
 
 function context(suffix) {
     return {
@@ -312,6 +376,11 @@ test('报价转订单命令原子创建订单、更新报价、强审计并可�
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 1);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 2);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 1);
+        const [storedItem] = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM orders WHERE id = 1').get().items_json
+        );
+        assert.equal(storedItem.snapshotSource, 'quotation');
+        assert.equal(storedItem.configurationWarnings[0].code, 'coil_inventory_scheme_required');
         const auditCapabilities = fixture.db.prepare(
             'SELECT DISTINCT capability_id FROM audit_log'
         ).all().map(row => row.capability_id);

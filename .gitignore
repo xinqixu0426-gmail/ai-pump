@@ -11,7 +11,17 @@ logs/
 uploads/
 .cert/
 .claude/
-.codex/
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/architecture-reviewer.toml
+!.codex/agents/code-explorer.toml
+!.codex/agents/docs-reviewer.toml
+!.codex/agents/test-reviewer.toml
+!.codex/hooks.json
+!.codex/hooks/
+.codex/hooks/*
+!.codex/hooks/adf-stop.mjs
 .playwright-mcp/
 
 pump.db
@@ -41,9 +51,6 @@ Document.xml
 
 # IDE / 工具私有配置
 .vscode/
-
-# Guardian 本地运行证据
-.guardian/sessions/
 
 # 由 Markdown 生成的本地文档产物
 /docs/api-reference.pdf

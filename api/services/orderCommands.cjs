@@ -19,6 +19,7 @@ const {
 const {
     assertPreviewHash,
     normalizePreviewHash,
+    stablePreviewValue,
 } = require('./previewIntegrity.cjs');
 const {
     assertExpectedUpdatedAt,
@@ -30,6 +31,7 @@ const {
     parsePositiveId,
     parsePositiveNumber,
 } = require('./validation.cjs');
+const { buildConfiguredRecipeSnapshot } = require('./configuredRecipeSnapshot.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('orders.create').capabilityId;
 const STATUS_CAPABILITY_ID = requireBusinessCapability('orders.change_status').capabilityId;
@@ -45,9 +47,11 @@ function roundMoney(value) {
     return Math.round(value * 100) / 100;
 }
 
-function normalizeOrderItems(db, items) {
-    if (!Array.isArray(items)) return [];
-    return items
+function normalizeOrderItems(dependencies, items) {
+    if (!Array.isArray(items)) return { items: [], warnings: [] };
+    const { db } = dependencies;
+    const warnings = [];
+    const normalizedItems = items
         .filter(Boolean)
         .map((item, index) => {
             const recipeId = parsePositiveId(item.recipeId);
@@ -57,7 +61,7 @@ function normalizeOrderItems(db, items) {
                 422
             );
             const recipe = db.prepare(`
-                SELECT id, name, spec, parts_json, saved_total_cost
+                SELECT *
                 FROM recipes
                 WHERE id = ? AND deleted_at IS NULL
             `).get(recipeId);
@@ -66,8 +70,21 @@ function normalizeOrderItems(db, items) {
                 `配方 #${recipeId} 不存在或已停用`,
                 422
             );
-            const parts = parseJsonArray(recipe.parts_json);
-            const unitCost = Number(recipe.saved_total_cost);
+            const hasConfigurationOverrides = Object.prototype.hasOwnProperty.call(item, 'configurationOverrides')
+                || Object.prototype.hasOwnProperty.call(item, 'overrides');
+            const configured = hasConfigurationOverrides
+                ? buildConfiguredRecipeSnapshot(
+                    dependencies,
+                    recipeId,
+                    item.configurationOverrides ?? item.overrides,
+                    {
+                        recipe,
+                        overridesField: `items[${index}].configurationOverrides`,
+                    }
+                )
+                : null;
+            const parts = configured?.bomSnapshot || parseJsonArray(recipe.parts_json);
+            const unitCost = configured?.unitCost ?? Number(recipe.saved_total_cost);
             if (!Number.isFinite(unitCost) || unitCost <= 0 || parts.length === 0) {
                 throw orderCommandError(
                     'order_recipe_snapshot_incomplete',
@@ -83,6 +100,14 @@ function normalizeOrderItems(db, items) {
             const unitPrice = item.unitPrice === undefined
                 ? roundMoney(unitCost * profitMargin)
                 : parseNonNegativeNumber(item.unitPrice, `items[${index}].unitPrice`);
+            if (configured?.warnings?.length) {
+                warnings.push(...configured.warnings.map(warning => ({
+                    ...warning,
+                    itemIndex: index,
+                    recipeId,
+                    recipeName: String(recipe.name || recipeId),
+                })));
+            }
             return {
                 id: String(item.id || `order-item-${recipeId}-${index}`),
                 recipeId,
@@ -97,8 +122,17 @@ function normalizeOrderItems(db, items) {
                 unitPrice: roundMoney(unitPrice),
                 profitMargin: roundMoney(unitPrice / unitCost),
                 partsJson: JSON.stringify(parts),
+                ...(configured ? {
+                    configurationOverrides: configured.configurationOverrides,
+                    configurationSnapshot: configured.configurationSnapshot,
+                    costSnapshot: configured.costSnapshot,
+                    configurationWarnings: configured.warnings,
+                    snapshotVersion: 2,
+                    snapshotSource: 'direct_order',
+                } : {}),
             };
         });
+    return { items: normalizedItems, warnings };
 }
 
 function normalizeOrderDraftInput(body = {}) {
@@ -144,13 +178,17 @@ function resolveOrderCustomer(db, input = {}) {
 }
 
 function orderCreatePreviewHash(payload) {
+    const { itemsJson, ...stablePayload } = payload;
     return requestHash({
         capabilityId: CREATE_CAPABILITY_ID,
-        payload: {
-            ...payload,
+        payload: stablePreviewValue({
+            ...stablePayload,
+            // itemsJson 内含服务端生成时间；先恢复结构再过滤瞬时字段，
+            // 避免同一业务输入在确认执行时产生伪 preview_changed。
+            items: parseJsonArray(itemsJson),
             // 兼容草稿也用于编辑：直接建单始终从“待确认”开始。
             status: '待确认',
-        },
+        }),
     });
 }
 
@@ -163,10 +201,20 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
     const input = normalizeOrderDraftInput(body);
     const customer = resolveOrderCustomer(db, input);
     let items;
+    let configurationWarnings = [];
     try {
-        items = normalizeOrderItems(db, input.items);
+        const normalized = normalizeOrderItems(dependencies, input.items);
+        items = normalized.items;
+        configurationWarnings = normalized.warnings;
     } catch (error) {
         if (error instanceof CommandExecutionError) throw error;
+        if (error?.statusCode || error?.code) {
+            throw orderCommandError(
+                error.code || 'order_configuration_invalid',
+                error.message || '订单配置参数无效',
+                error.statusCode || 400
+            );
+        }
         throw orderCommandError(
             'order_draft_invalid',
             error?.message || '订单草稿参数无效',
@@ -235,6 +283,7 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
                 code: 'client_plan_ignored',
                 message: '客户端采购清单和待办已忽略，正式结果由服务端按订单 BOM 和实时库存重新生成',
             }] : []),
+            ...configurationWarnings,
         ],
     };
 }
@@ -242,13 +291,11 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
 function executeOrderCreate(dependencies, input = {}, commandContext = {}) {
     const {
         db,
-        dbGetAllCoils,
-        dbGetAllParts,
         orderRow,
         safeInsert,
     } = dependencies;
     const draft = buildOrderSavePayloadDraft(
-        { db, dbGetAllCoils, dbGetAllParts },
+        dependencies,
         {
             ...input,
             status: '待确认',
@@ -335,8 +382,6 @@ function getOrderRecord(db, orderId) {
 function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandContext = {}) {
     const {
         db,
-        dbGetAllCoils,
-        dbGetAllParts,
         orderRow,
         safeUpdate,
     } = dependencies;
@@ -348,7 +393,7 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
     );
     const expectedPreviewHash = normalizePreviewHash(input.previewHash);
     const draft = buildOrderSavePayloadDraft(
-        { db, dbGetAllCoils, dbGetAllParts },
+        dependencies,
         input
     );
     const compatibilityWarnings = [];

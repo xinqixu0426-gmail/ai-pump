@@ -100,6 +100,36 @@ test('报价覆盖线圈片数后复用线圈插值规则', () => {
     });
 
     assert.equal(result.unitCost, 31);
+    assert.equal(result.parts[0].inventoryType, 'none');
+    assert.equal(result.warnings[0].code, 'coil_inventory_scheme_required');
+});
+
+test('报价或订单覆盖到无法计价的线圈配置时明确拒绝', () => {
+    const row = {
+        id: 20,
+        name: '线圈无效覆盖配方',
+        parts_json: JSON.stringify([
+            { name: '线圈转子', model: 'Y90-10', qty: 1, snapshotPrice: 26 },
+        ]),
+        saved_total_cost: 26,
+        coil_spec: 'Y90',
+        coil_sheets: 10,
+        coil_material: '钢带',
+        coil_slot_type: '小眼',
+        has_float: 0,
+        has_cable: 0,
+    };
+
+    assert.throws(
+        () => calculateRecipeCostPreview(row, { coilSpec: '不存在的规格', coilSheets: 15 }, {
+            partsCache: {},
+            partsByModel: {},
+            calculateRecipeCost,
+            getSetting: () => undefined,
+            getCoils: () => [],
+        }),
+        error => error.code === 'COIL_CONFIGURATION_UNPRICED' && error.statusCode === 422
+    );
 });
 
 test('报价覆盖 customBarrelLength 后重算不锈钢泵壳套件整体价', () => {

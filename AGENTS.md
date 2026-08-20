@@ -2,6 +2,18 @@
 
 本项目为「水泵 BOM 管理与出图系统」。以下为开发铁律。
 
+## 0. ADF 协作边界
+
+- 项目代码、SQLite schema、API 契约、测试和 `docs/` 权威文档保存业务事实。
+- 非简单任务统一使用仓库内 `.agents/skills/adf-workflow/`；L2/L3 在实现前形成被 Git ignore 的 Task Contract。
+- Main Codex 默认是唯一业务代码写入者；按风险使用只读 Explorer 和独立 Architecture/Test/Docs Reviewer，整改后重跑受影响 review。
+- Bugfix 必须追踪完整调用链和同类模式，在最低正确公共层修复，并覆盖缺陷家族、失败路径和边界。
+- 文档描述当前事实：更新原权威章节，删除过时说明并合并重复内容；触达 Markdown 不等于完成整理。
+- 项目 tests、API 契约、deep API、build、真实 AI 或生产验收按风险提供证据；AI review 不能替代确定性验证。
+- 不覆盖用户已有修改，不做无关重构；contract、review、gate 和 lifecycle 未满足前不宣告完成。
+
+详细分类、Ready、Systemic Diagnosis、review loop 和 delivery SOP 只维护在 `adf-workflow` Skill，不在本文件复制第二套流程。
+
 ## 1. 架构红线
 
 ### 数据库写操作
@@ -85,44 +97,31 @@
 - API 变更至少必须运行 `npm run verify:api-contract` 和 `npm test`；涉及业务 API/数据库时运行 `npm run test:deep-api`，涉及 Web 契约时运行 `npm run build`。
 - 能力登记、实现、文档和自动化契约测试任一缺失，API 变更不视为完成。
 
-# Guardian v0.1 工作流
+# ADF v0.3 开发工作流
 
-Guardian 只观察、映射和验证，不定义水泵业务事实，也不修改业务代码或文档。项目事实继续以本文件、正式代码和 `docs/` 权威文档为准。
+Guardian 只观察、映射和执行确定性验证，不定义水泵业务事实、不调用 AI，也不修改项目。Codex 负责理解、实现、审阅和文档归纳；Stop Hook 只检查 lifecycle 是否完整，不执行开发、commit、push 或部署。
 
-当前水泵项目处于 `report-only` 试运行阶段。Guardian 报告中的 failure 必须处理或解释，但暂不以退出码阻断开发；未经项目负责人确认，不得改为强制门禁。
+当前继续保持 `policy.reportOnly: true`。failure 必须处理或解释，但在真实任务校准完成前不切换为强制退出码。commit、push、PR、staging 和 production 均为 manual；production、破坏性数据库操作、不可逆数据写入和 secret 变化始终需要当前人工确认。
 
-本机已构建的 Guardian CLI：
-
-```powershell
-$guardian = "C:\Users\Dan\Documents\AI Development Framework\guardian\dist\src\cli.js"
-```
-
-在其他机器运行时，先定位并构建同版本 Framework，再把 `$guardian` 指向对应 `dist/src/cli.js`；不要把 Guardian Core 复制进本项目。
-
-## 任务开始
-
-阅读本文件和相关权威文档、检查 Git 状态并区分已有修改后，运行：
+Guardian Core 只保留在 Framework 仓库。每台机器通过 `AI_DEV_FRAMEWORK_ROOT` 指向已构建的 ADF clone：
 
 ```powershell
-node $guardian start `
-  --request "<需求摘要>" `
-  --modules "<预计模块，逗号分隔>" `
-  --types "<变更类型，逗号分隔>" `
-  --success "<成功标准>"
+$guardian = Join-Path $env:AI_DEV_FRAMEWORK_ROOT "scripts\guardian.ps1"
+& $guardian --version
+& $guardian doctor --root (Get-Location)
 ```
 
-如果当前任务正在修复 Guardian 配置，允许先完成最小配置修复再补做快照，但必须明确哪些文件早于快照存在。
+禁止把 Framework 源码、`guardian/dist`、依赖、绝对机器路径或运行报告复制进本项目。
 
-## 开发中和完成前
+## 生命周期
 
-- 重要或高风险修改后：`node $guardian check --phase focused`
-- 准备提交前：`node $guardian check --phase commit --doc-review "<文档更新、合并、删除或无需调整的说明>"`
-- 内部等价重构且权威文档确实不受影响时，可改用 `--no-doc-impact "<明确理由>"`
-- 准备 push 前：`node $guardian check --phase push`
-- 查看最近报告：`node $guardian report`
+- 恢复任务先只读运行 `doctor`；active session 不得静默 replace。
+- 新任务在 Ready 后由 `adf-workflow` 用显式 `task-type`、`risk`、`required-gate` 和适用 Task Contract 运行 `start`。
+- 重要变化后运行 focused；完成前运行 commit；当前任务要求 push、PR 或 staging 时再运行 push。focused 不代表可提交，commit 不代表可 push。
+- L2/L3 的 commit/push 记录独立 architecture 和 tests review；项目事实或权威文档受影响时再记录 docs review，否则提供明确的 `no-doc-impact`。API 变化提供分类归纳后的 `api-review`，bugfix 提供系统性 `root-cause-review`。
+- 交付完成且当前报告仍有效后运行 `guardian complete`。它验证 effective gate；gate 至少为 commit 时再验证完整 commit，gate 为 push 时还验证本地 push tracking evidence，然后归档并清除 active lifecycle。
+- 项目级 `.codex/hooks.json` 只有在 Codex 中 review/trust 后才生效；首次设置用户级 `AI_DEV_FRAMEWORK_ROOT` 后需要重启 Codex，让 Hook 子进程继承环境变量。Hook 文件存在不等于已经启用。
 
-Guardian 配置的验证命令按阶段递增运行：focused 包含 API 契约检查，commit 增加 lint 和完整测试，push 再增加深度 API 检查和 Web 构建。
+`.guardian/config.yaml` 中的验证按阶段递增：focused 包含 API 契约，commit 增加 lint 和完整测试，push 再增加 deep API 与 Web build。涉及 AI tool、executor、知识检索或 AI 发布门禁时，仍按 `docs/ai-learning-release-gate-guide.md` 单独运行 `npm run verify:ai-release`，不得用普通 push gate 冒充真实 AI 验收。
 
-`verify:ai-release` 依赖真实 AI，当前 Guardian v0.1 不能按变更模块条件触发，因此不配置为每次 push 都运行。涉及 AI tool、executor、知识检索或 AI 发布门禁的高风险变化时，Codex 仍必须按 `docs/ai-learning-release-gate-guide.md` 单独运行并报告 `npm run verify:ai-release`。
-
-Guardian 的运行报告和 session 属于本地证据，不提交。任何未运行、超时或失败的验证都必须如实报告，不能描述为通过。commit、push 和部署仍只在当前任务明确授权时执行。
+Guardian session、历史报告和 Task Contract 属于本地执行证据并由 ignore 规则保护。最终报告必须分别说明 implemented、tested、built、documented、committed、pushed、deployed、verified；未运行不能描述为通过，push 不能描述为部署。

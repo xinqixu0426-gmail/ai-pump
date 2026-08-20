@@ -14,6 +14,12 @@ import {
   type OrderStatus,
 } from '@/lib/orders';
 import { getAllRecipes, type Recipe } from '@/lib/recipes';
+import { getAllParts, type Part } from '@/lib/parts';
+import {
+  buildPackingOptions,
+  previewRecipeConfiguration,
+  type RecipeConfigurationOverrides,
+} from '@/lib/recipe-configurations';
 import { dateShort, money } from '@/lib/format';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
@@ -30,7 +36,9 @@ import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import { replacePageLocation } from '@/lib/page-context';
+import { createLatestPreviewCoordinator } from '@/lib/latest-preview.cjs';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
+import { OrderItemConfigurationEditor } from '@/components/order-item-configuration-editor';
 
 const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
   { value: '全部', label: '全部状态' },
@@ -65,6 +73,7 @@ export function OrdersView({
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -82,6 +91,8 @@ export function OrdersView({
   const [itemQty, setItemQty] = useState('1');
   const [itemMargin, setItemMargin] = useState('1.10');
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
+  const [calculatingItemIds, setCalculatingItemIds] = useState<Set<string>>(() => new Set());
+  const configurationPreviewCoordinatorRef = useRef(createLatestPreviewCoordinator<string>());
   const initialOrderHandledRef = useRef<number | null>(null);
   const {
     dirty: formDirty,
@@ -125,12 +136,17 @@ export function OrdersView({
   }, [load]);
 
   async function loadAuxiliary() {
-    if (customers.length > 0 && recipes.length > 0) return;
+    if (customers.length > 0 && recipes.length > 0 && parts.length > 0) return;
     setAuxLoading(true);
     try {
-      const [nextCustomers, nextRecipes] = await Promise.all([getAllCustomers(), getAllRecipes()]);
+      const [nextCustomers, nextRecipes, nextParts] = await Promise.all([
+        getAllCustomers(),
+        getAllRecipes(),
+        getAllParts(),
+      ]);
       setCustomers(nextCustomers);
       setRecipes(nextRecipes);
+      setParts(nextParts);
       const firstCustomer = nextCustomers[0];
       setCustomerId((current) => current || (firstCustomer ? String(firstCustomer.id) : ''));
       setItemMargin((current) => current || customerMarginMultiplier(firstCustomer).toFixed(2));
@@ -149,6 +165,8 @@ export function OrdersView({
     setRecipeId('');
     setItemQty('1');
     setDraftItems([]);
+    setCalculatingItemIds(new Set());
+    configurationPreviewCoordinatorRef.current.clear();
     setDrawerOpen(true);
     void loadAuxiliary();
   }
@@ -187,6 +205,7 @@ export function OrdersView({
   const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
   const selectedRecipe = recipes.find((recipe) => String(recipe.id) === recipeId);
   const draftTotals = useMemo(() => calcOrderTotals(draftItems), [draftItems]);
+  const packingOptions = useMemo(() => buildPackingOptions(parts, recipes), [parts, recipes]);
 
   function onCustomerChange(nextId: string) {
     setCustomerId(nextId);
@@ -230,6 +249,58 @@ export function OrdersView({
         unitPrice: patch.unitPrice == null ? Math.round(item.unitCost * nextMargin * 100) / 100 : unitPrice,
       };
     }));
+  }
+
+  async function updateDraftItemConfiguration(id: string, patch: RecipeConfigurationOverrides) {
+    const currentItem = draftItems.find(item => item.id === id);
+    const recipeIdForPreview = Number(currentItem?.recipeId || 0);
+    if (!currentItem || !recipeIdForPreview) return;
+
+    const configurationOverrides = { ...(currentItem.configurationOverrides || {}), ...patch };
+    markFormDirty();
+    setDraftItems(current => current.map(item => (
+      item.id === id ? { ...item, configurationOverrides } : item
+    )));
+    setCalculatingItemIds(current => new Set(current).add(id));
+    setFormError(null);
+    await configurationPreviewCoordinatorRef.current.run(
+      id,
+      () => previewRecipeConfiguration(recipeIdForPreview, configurationOverrides),
+      {
+        onSuccess: (preview) => {
+          setDraftItems(current => current.map(item => {
+            if (item.id !== id) return item;
+            const unitCost = preview.unitCost;
+            const profitMargin = Math.max(0.01, Number(item.profitMargin) || 1.1);
+            return {
+              ...item,
+              unitCost,
+              unitPrice: Math.round(unitCost * profitMargin * 100) / 100,
+              configurationWarnings: preview.warnings,
+            };
+          }));
+        },
+        onError: (err) => {
+          setDraftItems(current => current.map(item => (
+            item.id === id ? {
+              ...item,
+              configurationOverrides: currentItem.configurationOverrides,
+              configurationWarnings: currentItem.configurationWarnings,
+              unitCost: currentItem.unitCost,
+              unitPrice: currentItem.unitPrice,
+            } : item
+          )));
+          setFormError(err instanceof Error ? err.message : '订单配置成本重算失败');
+        },
+        onSettled: () => {
+        setCalculatingItemIds(current => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+        },
+      },
+    );
   }
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
@@ -472,7 +543,7 @@ export function OrdersView({
             <div className="rounded-panel border border-line">
               <div className="border-b border-line p-4">
                 <div className="text-sm font-semibold text-ink">添加产品</div>
-                <div className="mt-1 text-xs text-muted">成本优先使用配方保存成本；保存成本为空时调用后端当前配件价作为参考。</div>
+                <div className="mt-1 text-xs text-muted">选择配方后可按客户要求调整选配；保存时由后端重新锁定最终成本和 BOM。</div>
               </div>
               <div className="grid gap-3 p-4 lg:grid-cols-[1fr_96px_120px_auto] lg:items-end">
                 <label className="block">
@@ -523,75 +594,76 @@ export function OrdersView({
             </div>
 
             {draftItems.length > 0 ? (
-              <div className="overflow-x-auto rounded-panel border border-line">
-                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                  <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
-                    <tr>
-                      <th className="border-b border-line px-4 py-3">产品</th>
-                      <th className="border-b border-line px-4 py-3 text-right">数量</th>
-                      <th className="border-b border-line px-4 py-3 text-right">成本</th>
-                      <th className="border-b border-line px-4 py-3 text-right">加价</th>
-                      <th className="border-b border-line px-4 py-3 text-right">单价</th>
-                      <th className="border-b border-line px-4 py-3 text-right">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {draftItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="border-b border-line px-4 py-3">
+              <div className="space-y-3">
+                {draftItems.map((item) => (
+                  <section key={item.id} className="overflow-hidden rounded-panel border border-line bg-white">
+                    <div className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(12rem,1fr)_5rem_7rem_7rem_7rem_auto] sm:items-end">
+                      <div>
+                        <div className="text-xs text-muted">产品</div>
+                        <div className="mt-1">
                           <div className="font-medium text-ink">{item.recipeName}</div>
                           <div className="mt-0.5 text-xs text-muted">{item.spec || '-'}</div>
-                        </td>
-                        <td className="border-b border-line px-4 py-3 text-right">
-                          <input
-                            value={item.qty}
-                            onChange={(event) => updateDraftItem(item.id, { qty: Number(event.target.value) })}
-                            type="number"
-                            min="1"
-                            className="h-8 w-20 rounded-md border border-line px-2 text-right text-sm outline-none"
-                          />
-                        </td>
-                        <td className="border-b border-line px-4 py-3 text-right text-muted">{money(item.unitCost)}</td>
-                        <td className="border-b border-line px-4 py-3 text-right">
-                          <input
-                            value={Number(item.profitMargin).toFixed(2)}
-                            onChange={(event) => updateDraftItem(item.id, { profitMargin: Number(event.target.value) })}
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            className="h-8 w-24 rounded-md border border-line px-2 text-right text-sm outline-none"
-                          />
-                        </td>
-                        <td className="border-b border-line px-4 py-3 text-right">
-                          <input
-                            value={item.unitPrice}
-                            onChange={(event) => updateDraftItem(item.id, { unitPrice: Number(event.target.value) })}
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            className="h-8 w-28 rounded-md border border-line px-2 text-right text-sm outline-none"
-                          />
-                        </td>
-                        <td className="border-b border-line px-4 py-3">
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              type="button"
-                              onClick={() => {
-                                markFormDirty();
-                                setDraftItems((current) => current.filter((next) => next.id !== item.id));
-                              }}
-                              icon={<Trash2 size={14} />}
-                            >
-                              删除
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                      <label className="block text-xs text-muted">
+                        数量
+                        <input
+                          value={item.qty}
+                          onChange={(event) => updateDraftItem(item.id, { qty: Number(event.target.value) })}
+                          type="number"
+                          min="1"
+                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"
+                        />
+                      </label>
+                      <div className="text-right">
+                        <div className="text-xs text-muted">锁定成本</div>
+                        <div className="mt-2 text-sm font-medium text-ink">{money(item.unitCost)}</div>
+                      </div>
+                      <label className="block text-xs text-muted">
+                        加价倍数
+                        <input
+                          value={Number(item.profitMargin).toFixed(2)}
+                          onChange={(event) => updateDraftItem(item.id, { profitMargin: Number(event.target.value) })}
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"
+                        />
+                      </label>
+                      <label className="block text-xs text-muted">
+                        销售单价
+                        <input
+                          value={item.unitPrice}
+                          onChange={(event) => updateDraftItem(item.id, { unitPrice: Number(event.target.value) })}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"
+                        />
+                      </label>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        type="button"
+                        onClick={() => {
+                          markFormDirty();
+                          setDraftItems((current) => current.filter((next) => next.id !== item.id));
+                        }}
+                        icon={<Trash2 size={14} />}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                    <OrderItemConfigurationEditor
+                      item={item}
+                      recipe={recipes.find(recipe => recipe.id === item.recipeId)}
+                      packingOptions={packingOptions}
+                      calculating={calculatingItemIds.has(item.id)}
+                      onChange={patch => void updateDraftItemConfiguration(item.id, patch)}
+                      onError={setFormError}
+                    />
+                  </section>
+                ))}
               </div>
             ) : null}
 
@@ -617,7 +689,7 @@ export function OrdersView({
               <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={saving}>
                 取消
               </Button>
-              <Button type="submit" variant="primary" disabled={saving || auxLoading} icon={<Save size={15} />}>
+              <Button type="submit" variant="primary" disabled={saving || auxLoading || calculatingItemIds.size > 0} icon={<Save size={15} />}>
                 {saving ? '创建中' : '创建订单'}
               </Button>
             </div>

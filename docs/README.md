@@ -1,6 +1,8 @@
 # 水泵 BOM 订单及生产管理系统
 
-> 当前版本说明，更新于 2026-08-03。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
+> 当前版本说明，更新于 2026-08-20。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
+
+开发治理入口为根目录 [AGENTS.md](../AGENTS.md)、[ADF workflow skill](../.agents/skills/adf-workflow/SKILL.md) 和 [Guardian 配置](../.guardian/config.yaml)。它们分别保存项目协作边界、通用执行 SOP 与路径/验证映射；业务规则、API、数据库和成本事实仍只维护在本页下列权威文档与正式代码中。
 
 API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”：
 
@@ -98,7 +100,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 客户默认利润率按小数保存（`0.10` 表示 `10%`）；生成报价时转换为 `1.10` 倍售价，系统未配置时默认利润率为 `10%`。
 - 客户新增、修改和软删除保留原 URL，统一由 `customerCommands` 执行；Web 新调用使用持久幂等，修改/删除携带 `expectedUpdatedAt`。活动订单通过稳定 `customerId` 归属客户，因此存在活动订单时禁止删除；只有历史订单或报价时允许软删除并保留关系与 warning。
 - 客户列表由 `GET /api/customers?id?&name?&limit?` 持有正式筛选语义；客户报价和订单历史由只读 `GET /api/customers/:id/context` 从正式业务表实时聚合，无 `limit` 时返回全部。AI 将“客户某某现有的全部报价/历史报价”直接编译为客户历史查询，先按 ID 或名称唯一定位客户；存在多个候选时要求确认，不任取第一项。
-- 报价以配方保存成本为锁定基线。客户只允许调整是否带浮球、电缆米数、纸箱/木箱、泡沫和珍珠棉；线圈、浮球/电缆线径、普通/新界式铜套、表面处理、机筒长度及固定 BOM 均沿用配方。
+- 报价与直接订单以配方保存成本为锁定基线，共用后端受控配置快照，但页面按业务需要开放不同子集：报价页可改浮球、电缆长度及纸箱/木箱、泡沫、珍珠棉；直接订单页还可改线圈片数、机筒长度和表面处理。线圈规格、材质和槽眼目前仅展示配方值；完整 API 受控字段见 `api-reference.md`。固定 BOM 及包材目录价格仍由服务端权威数据决定，浏览器提交的成本、BOM 或包材快照价不作为事实。线圈配置可以计算但没有正式库存方案时必须显示 warning，并在生产准备检查中阻塞为可生产状态。
 - 组合包材按完整有效清单保存：外包装在纸箱/木箱中选择，泡沫和珍珠棉独立启用，说明书、贴纸等固定包材继续沿用。
 - 报价界面使用利润率百分比（如 10%），保存及价格计算仍兼容历史加价倍数（如 1.10）。
 - 新建报价表单通过默认收起、可展开为右侧辅助面板的“询价助手”上传图片、Word、Excel、PDF、CSV 和文本附件；多模态模型可生成单文件或最多 4 个来源的联合要求摘要，并独立展示待确认事项，主报价表单保持可操作。创建报价时原件和摘要一并归档，不自动修改正式报价字段。
@@ -109,7 +111,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 报价新增、修改、状态变更和软删除保留原 URL，现统一委托 `quotationCommands`；新页面调用携带 `Idempotency-Key`，覆盖已有报价时同时携带 `expectedUpdatedAt`，核心明细保存还绑定 `previewHash`。报价、operation 和强审计在同一 SQLite 事务提交；旧请求暂时兼容并返回缺失保护 warning。
 - 报价转订单时先填写客户确认的最终数量，再通过 `POST /api/quotations/:id/order-draft` 提交 `itemQuantities` 并取得报价版本、绑定数量的确认内容哈希和建议幂等键，最后以同一数量调用 `POST /api/quotations/:id/convert`。执行前会重算订单及采购清单，数量、其他活动订单或库存变化导致预览漂移时要求重新确认；建单、报价关联、持久化 operation 回执和两条强审计在同一事务内提交。
 - 报价超过一个月自动过期由 API 启动补跑及每天北京时间 00:05 的维护任务执行；`GET /api/quotations` 已是严格只读，不会因页面或 AI 查看而改状态。
-- 订单保存前通过 `POST /api/orders/save-payload-draft` 统一生成 `itemsJson`、`purchaseListJson` 和 `todosJson`。新增调用提交稳定 `customerId` 和产品 `recipeId/qty`；服务端从正式配方读取名称、规格、保存成本与 BOM，并按实时库存重建采购计划，客户端成本、BOM、采购清单和待办不作为权威事实。
+- 订单保存前通过 `POST /api/orders/save-payload-draft` 统一生成 `itemsJson`、`purchaseListJson` 和 `todosJson`。新增调用提交稳定 `customerId`、产品 `recipeId/qty` 及可选 `configurationOverrides`；页面可按客户要求调整浮球、电缆、包装、线圈片数、机筒和表面处理。服务端与报价共用配置快照和成本权威，重新锁定最终配置、成本与 BOM，并按实时库存重建采购计划；客户端成本、BOM、采购清单和待办不作为权威事实。无法计价的线圈配置拒绝保存，只有计算成本但没有正式库存方案时明确警告并阻止进入可生产状态。
 - 直接创建的订单先进入“待确认”；确认后才可登记采购进度。采购中和采购完成由采购数量自动推导。关闭订单必须明确“仓库已人工领用出库”或“释放库存预留”；前者只留痕不重复扣库，后者必须填写释放原因。
 - 采购项记录计划、下单、到货、入库数量、采购单价、实际供应商和时间；数量必须满足 `入库 ≤ 到货 ≤ 下单`，超采需要明确确认。
 - `POST /api/orders/:id/purchase-items/progress-draft` 是单项采购进度的正式只读预览，返回订单版本、确认哈希、建议幂等键、数量变更和库存影响。
@@ -199,7 +201,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前由 `costEngine` 根据 BOM 和费用字段重新生成权威成本快照，检查零价格项目，并返回版本、预览哈希和建议幂等键；不写库 |
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
 | 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按配方参数和当前模板重建完整 BOM，再按当前零件、动态配置和线圈价格重算，叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额。任一 BOM 项缺价时不返回正式总成本，页面必须显示“成本不完整”和缺价型号，不能把缺失项按 ¥0 混入金额 |
-| 报价覆盖试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算被覆盖的动态项 |
+| 报价/订单配置试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算客户覆盖的浮球、电缆、包装、线圈、机筒和表面处理等动态项；返回最终 BOM、成本及库存方案 warning |
 | AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 以 `recipeId/recipeName` 唯一绑定正式配方，再分别叠加配方配件、线圈和动态配置；配方未命中或歧义时整体失败 |
 
 `full-estimate` 的基础配方若已经包含相同线圈或动态项，不应再次传入，否则会重复计价。历史字段 ~~`pumphousing_model`~~ 仅兼容按配方名解析，不再描述为泵壳型号；泵壳模板试算统一使用 `preview_pump_shell_cost`。配方不存在、名称多匹配或错误传入模板名时接口整体返回失败，禁止把配方分项按 0 元继续形成总成本。成本 HTTP 路由的正式数据读取和组合编排统一在只读 `costQueries`，配件、人工和包装公式仍唯一委托 `api/services/costEngine.cjs`，线圈与动态项分别委托现有领域 service；前端和 AI 不新增独立成本计算口径。`compare_recipes` 与 `explain_cost_change` 统一复用当日完整配方成本，包含安装/打包工资、表面处理和管理费；任一 BOM 未定价时明确失败，不输出不完整对比。

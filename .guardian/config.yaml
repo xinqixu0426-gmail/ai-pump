@@ -1,4 +1,4 @@
-# 水泵项目 Guardian v0.1 配置
+# 水泵项目 ADF / Guardian v0.3 配置；schemaVersion 仍为 0.1 以保持兼容。
 # 这里只保存路径、权威位置引用、检查模式和项目验证命令。
 # 业务规则、API 字段、数据库结构和成本公式仍以项目代码及正式文档为准。
 
@@ -7,6 +7,23 @@ schemaVersion: "0.1"
 policy:
   # 首次真实项目试运行只报告，不以规则失败阻断开发。
   reportOnly: true
+  delivery:
+    commit: manual
+    pushFeatureBranch: manual
+    createPullRequest: manual
+    deployStaging: manual
+    deployProduction: manual
+    protectedBranches:
+      - "main"
+      - "master"
+
+workflow:
+  enabled: true
+  contractPath: ".adf/tasks/current.md"
+  requiredReviews:
+    - "architecture"
+    - "tests"
+    - "docs"
 
 project:
   name: "水泵 BOM 订单及生产管理系统"
@@ -16,10 +33,17 @@ project:
     - "freecad"
     - "scripts"
     - "tests"
+    - ".adf"
+    - ".agents/skills"
+    - ".codex"
 
   modules:
     - id: "governance"
       paths:
+        - ".gitignore"
+        - ".adf/**"
+        - ".agents/**"
+        - ".codex/**"
         - "AGENTS.md"
         - ".guardian/**"
         - "docs/guardian-*"
@@ -79,17 +103,23 @@ documentation:
       changedPaths:
         - "api/routes/**"
         - "api/capabilities/**"
+        - "api/services/*Commands.cjs"
+        - "api/services/*Queries.cjs"
+        - "api/services/*Draft.cjs"
+        - "api/services/*Preview.cjs"
+        - "api/services/*Snapshot.cjs"
       authorityDocuments:
         - "docs/api-contract.md"
         - "docs/api-reference.md"
       testPaths:
         - "tests/**"
       severity: "failure"
+      reviewKind: "api"
 
     - id: "database-schema"
       changedPaths:
         - "api/db.cjs"
-        - "api/migrations/**"
+        - "api/database/migrations.cjs"
       authorityDocuments:
         - "docs/database-schema.md"
       testPaths:
@@ -108,13 +138,18 @@ documentation:
       testPaths:
         - "tests/**"
       severity: "failure"
+      reviewKind: "api"
 
     - id: "ai-capability"
       changedPaths:
         - "api/capabilities/**"
-        - "api/routes/ai/tools.cjs"
-        - "api/routes/ai/executor.cjs"
-        - "api/routes/ai/executors/**"
+        - "api/routes/ai.cjs"
+        - "api/routes/knowledge.cjs"
+        - "api/routes/ai/**"
+        - "api/services/ai*.cjs"
+        - "api/services/knowledge*.cjs"
+        - "api/services/*Ai*.cjs"
+        - "api/services/*Knowledge*.cjs"
       authorityDocuments:
         - "docs/api-contract.md"
         - "docs/api-reference.md"
@@ -122,17 +157,22 @@ documentation:
       testPaths:
         - "tests/**"
       severity: "failure"
+      reviewKind: "api"
 
     - id: "business-workflow"
       changedPaths:
         - "api/services/order*.cjs"
         - "api/services/quotation*.cjs"
         - "api/services/recipe*.cjs"
+        - "api/services/*Recipe*Snapshot.cjs"
       authorityDocuments:
         - "docs/business-flow.md"
+        - "docs/api-contract.md"
+        - "docs/api-reference.md"
       testPaths:
         - "tests/**"
-      severity: "warning"
+      severity: "failure"
+      reviewKind: "api"
 
 architecture:
   rules:
@@ -251,3 +291,4 @@ report:
   outputDirectory: ".guardian/reports"
   redactPatterns:
     - '(DEEPSEEK|KIMI|ALI)_[A-Z0-9_]*KEY\s*=\s*\S+'
+    - '(?:ACCESS_PASSWORD|JWT_SECRET|INTERNAL_SECRET|MCP_TOKEN|MCP_SERVICE_TOKENS)\s*=\s*.*'

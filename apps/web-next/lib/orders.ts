@@ -1,6 +1,12 @@
 import type { ApiResponse } from './api';
 import { createIdempotencyKey, proxyRequest } from './api';
 import type { Recipe } from './recipes';
+import {
+  buildRecipeDefaultConfiguration,
+  type RecipeConfigurationOverrides,
+  type RecipeConfigurationSnapshot,
+  type RecipeConfigurationWarning,
+} from './recipe-configurations';
 
 export type OrderStatus = '待确认' | '待采购' | '采购中' | '采购完成' | '已关闭' | '已取消';
 export type OrderInventoryDisposition = 'manual_outbound_confirmed' | 'reservation_released';
@@ -15,6 +21,12 @@ export type OrderItem = {
   unitPrice: number;
   profitMargin: number;
   partsJson: string;
+  configurationOverrides?: RecipeConfigurationOverrides;
+  configurationSnapshot?: RecipeConfigurationSnapshot | null;
+  configurationWarnings?: RecipeConfigurationWarning[];
+  costSnapshot?: Record<string, unknown> | null;
+  snapshotVersion?: number;
+  snapshotSource?: 'direct_order' | 'quotation' | 'legacy_recipe_fallback';
 };
 
 export type PurchaseItem = {
@@ -195,6 +207,7 @@ export function createOrderItemFromRecipe(recipe: Recipe, qty: number, profitMar
     unitPrice: roundMoney(unitCost * margin),
     profitMargin: margin,
     partsJson: recipe.partsJson || '[]',
+    configurationOverrides: buildRecipeDefaultConfiguration(recipe),
   };
 }
 

@@ -18,6 +18,7 @@ import {
   type PurchaseItemProgressInput,
 } from '@/lib/orders';
 import { money } from '@/lib/format';
+import { configurationSummary } from '@/lib/recipe-configurations';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
@@ -682,6 +683,19 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                       <div>利润率 <b className="text-ink">{Math.round(((item.profitMargin || 1) - 1) * 100)}%</b></div>
                       <div className="md:text-right">小计 <b className="text-ink">{money(item.unitPrice * item.qty)}</b></div>
                     </div>
+                    {(item.configurationSnapshot || item.configurationOverrides) ? (
+                      <div className="mt-3 border-t border-line pt-3">
+                        <div className="text-xs font-medium text-ink">订单锁定配置</div>
+                        <div className="mt-1 text-xs leading-5 text-muted">
+                          {configurationSummary(item.configurationSnapshot || item.configurationOverrides).join('；')}
+                        </div>
+                        {item.configurationWarnings?.map(warning => (
+                          <div key={warning.code} className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                            {warning.message}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
                 <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-4">

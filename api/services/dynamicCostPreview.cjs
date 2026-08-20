@@ -105,20 +105,22 @@ function findBoxPrice(boxType, getPrice, partsCache) {
     return cands.length > 0 ? cands.reduce((min, c) => c.price < min.price ? c : min, cands[0]).price : 0;
 }
 
-function calculatePackingPartsCost(packingPartsJson, getPrice) {
+function calculatePackingPartsCost(packingPartsJson, getPrice, partsCatalog = []) {
     let packingParts = [];
     try { packingParts = JSON.parse(packingPartsJson || '[]'); } catch { packingParts = []; }
     return packingParts.reduce((sum, part) => {
         if (!part?.model) return sum;
-        const price = part.snapshotPrice !== undefined ? Number(part.snapshotPrice || 0) : getPrice(part.model);
+        const matched = findPartByModelAndSupplierFromCatalog(partsCatalog, part.model, part.supplier || '');
+        const price = part.snapshotPrice !== undefined
+            ? Number(part.snapshotPrice || 0)
+            : Number(matched?.price ?? getPrice(part.model));
         return sum + price * Number(part.qty || 1);
     }, 0);
 }
 
-function calculateCoilCostValue(spec, sheets, material = DEFAULT_COIL_MATERIAL, slotType = '小眼', getCoils = () => []) {
-    if (!spec || !sheets) return 0;
-    const result = calculateCoilCost(getCoils(), { spec, sheets, material, slotType });
-    return result.success ? Number(result.data.totalCost || 0) : 0;
+function calculateCoilCostSnapshot(spec, sheets, material = DEFAULT_COIL_MATERIAL, slotType = '小眼', getCoils = () => []) {
+    if (!spec || !sheets) return { success: false, error: '线圈规格和片数不能为空' };
+    return calculateCoilCost(getCoils(), { spec, sheets, material, slotType });
 }
 
 function resolveWire(dbWire, explicitWire) {
@@ -253,6 +255,21 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const effectiveSurfaceCost = recipeData.surface_treatment_mode === 'none' ? 0 : Number(recipeData.surface_treatment_cost || 0);
     const surfaceChanged = !sameText(recipeData.surface_treatment_mode, baseSurfaceMode)
         || !sameNumber(effectiveSurfaceCost, baseSurfaceCost);
+    const coilCalculation = coilChanged
+        ? calculateCoilCostSnapshot(
+            recipeData.coil_spec,
+            recipeData.coil_sheets,
+            recipeData.coil_material,
+            recipeData.coil_slot_type,
+            getCoils
+        )
+        : null;
+    if (coilChanged && (!coilCalculation?.success || Number(coilCalculation.data?.totalCost || 0) <= 0)) {
+        const error = new Error(coilCalculation?.error || '线圈配置无法生成有效成本');
+        error.statusCode = 422;
+        error.code = 'COIL_CONFIGURATION_UNPRICED';
+        throw error;
+    }
     const cableOverridePart = cableChanged && toBool(recipeData.has_cable)
         ? calculateCompleteCableCost({
             model: configuredWireModel('电缆', recipeData.cable_wire, resolvedWire),
@@ -265,7 +282,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         })
         : null;
 
-    totalCost += coilChanged ? calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, getCoils) : managedTotals.coil;
+    totalCost += coilChanged ? Number(coilCalculation.data.totalCost || 0) : managedTotals.coil;
 
     if (!floatChanged) {
         totalCost += managedTotals.float;
@@ -280,7 +297,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     }
 
     totalCost += boxChanged
-        ? (calculatePackingPartsCost(recipeData.packing_parts_json, getPrice) || findBoxPrice(recipeData.box_type, getPrice, partsCache))
+        ? (calculatePackingPartsCost(recipeData.packing_parts_json, getPrice, partsCatalog) || findBoxPrice(recipeData.box_type, getPrice, partsCache))
         : managedTotals.packing;
 
     totalCost += lengthPricedParts.reduce((sum, part) => sum + lengthPricedPartSubtotal(part, recipeData.custom_barrel_length), 0);
@@ -302,7 +319,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     if (!coilChanged) {
         snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'coil'));
     } else if (recipeData.coil_spec && recipeData.coil_sheets) {
-        const coilCost = calculateCoilCostValue(recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, getCoils);
+        const coilCost = Number(coilCalculation.data.totalCost || 0);
         if (coilCost > 0) {
             snapshotParts.push({
                 model: `${recipeData.coil_spec}-${recipeData.coil_sheets}`,
@@ -310,9 +327,13 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
                 supplier: '',
                 qty: 1,
                 snapshotPrice: coilCost,
+                coilId: coilCalculation.data.coilId || null,
+                inventoryType: coilCalculation.data.coilId ? 'coil' : 'none',
                 material: recipeData.coil_material,
                 slotType: recipeData.coil_slot_type,
-                source: 'quotation_override',
+                formula: coilCalculation.data.formula,
+                coilCostSource: coilCalculation.data.source,
+                source: 'configuration_override',
             });
         }
     }
@@ -329,7 +350,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
             qty: 1,
             snapshotPrice: getFloatPrice(floatModel, getPrice, getSetting, recipeData.float_accessory_type),
             floatAccessoryType: recipeData.float_accessory_type,
-            source: 'quotation_override',
+            source: 'configuration_override',
         });
     }
 
@@ -338,7 +359,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     } else if (cableOverridePart) {
         snapshotParts.push({
             ...cableOverridePart,
-            source: 'quotation_override',
+            source: 'configuration_override',
         });
     }
 
@@ -371,6 +392,10 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         unitCost: Number(totalCost.toFixed(2)),
         parts: snapshotParts,
         costSnapshot,
+        warnings: coilChanged && !coilCalculation.data.coilId ? [{
+            code: 'coil_inventory_scheme_required',
+            message: `线圈 ${recipeData.coil_spec}-${recipeData.coil_sheets} 已按${coilCalculation.data.source}计价，但没有精确匹配的正式库存方案；订单确认前需先建立正式线圈方案`,
+        }] : [],
     };
 }
 
