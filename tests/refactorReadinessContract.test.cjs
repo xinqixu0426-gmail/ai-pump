@@ -350,12 +350,13 @@ test('Next UI 契约：按钮链接必须走基础组件且不得引入 MUI', ()
     assert.match(doc, /prefetch=\{false\}/);
 });
 
-test('Next UI 契约：详情编辑面板统一使用 Dialog 或右侧 Drawer', () => {
+test('Next UI 契约：详情编辑面板统一通过 SlideOver 映射标准 Drawer 或 workspace/fullscreen Dialog', () => {
     const slideOver = readUtf8('apps/web-next/components/motion/slide-over.tsx');
     const dialog = readUtf8('apps/web-next/components/ui/dialog.tsx');
 
     assert.match(slideOver, /import \{ Dialog, Drawer \}/);
     assert.match(slideOver, /size === 'workspace'/);
+    assert.match(slideOver, /size === 'fullscreen'/);
     assert.match(slideOver, /<Drawer/);
     assert.doesNotMatch(slideOver, /lg:left-56|min-\[1600px\]:right|min-\[1920px\]:right/);
     assert.match(dialog, /export function Dialog/);
@@ -918,7 +919,10 @@ test('Next UI 契约：P2 长表单保护未保存修改并固定关键操作', 
         assert.match(view, /有未保存修改/);
         assert.match(view, /<ConfirmDialog/);
     }
-    assert.match(formViews[0], /markFormDirty\(\);[\s\S]*setDraftItems\(\(current\) => current\.filter/);
+    assert.match(formViews[0], /function removeDraftItem\(id: string\)/);
+    assert.match(formViews[0], /configurationPreviewCoordinatorRef\.current\.clear\(id\)/);
+    assert.match(formViews[0], /setCalculatingItemIds\(current => removeCalculatingItemId\(current, id\)\)/);
+    assert.match(formViews[0], /setDraftItems\(current => removeOrderDraftItem\(current, id\)\)/);
 });
 
 test('Next UI 契约：P1 高频 CRUD 使用统一字段与确认弹层', () => {
@@ -1525,6 +1529,7 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
 
 test('Next UI 契约：直接建单基于完整配方支持客户配置并由服务端锁定成本和采购计划', () => {
     const ordersView = readUtf8('apps/web-next/components/orders-view.tsx');
+    const orderDraftState = readUtf8('apps/web-next/lib/order-draft-state.cjs');
     const ordersLib = readUtf8('apps/web-next/lib/orders.ts');
     const configurationEditor = readUtf8('apps/web-next/components/order-item-configuration-editor.tsx');
     const recipeConfigurations = readUtf8('apps/web-next/lib/recipe-configurations.ts');
@@ -1532,10 +1537,27 @@ test('Next UI 契约：直接建单基于完整配方支持客户配置并由服
 
     assert.doesNotMatch(ordersLib, /getRecipeCurrentPartsCost/);
     assert.doesNotMatch(ordersLib, /createOrderItemWithUnitCost/);
-    assert.match(ordersView, /该配方缺少完整保存成本，请先重新保存配方后再建单/);
+    assert.match(orderDraftState, /该配方缺少完整保存成本，请先重新保存配方后再建单/);
+    assert.match(ordersView, /buildPendingOrderItem/);
     assert.match(ordersLib, /configurationOverrides/);
     assert.match(ordersView, /previewRecipeConfiguration/);
     assert.match(ordersView, /configurationPreviewCoordinatorRef\.current\.run/);
+    assert.match(ordersView, /pendingItem/);
+    assert.match(ordersView, /updatePendingItemConfiguration/);
+    assert.match(ordersView, /configurationPreviewCoordinatorRef\.current\.clear\(previousPendingId\)/);
+    assert.match(ordersView, /removeCalculatingItemId\(current, previousPendingId\)/);
+    assert.match(ordersView, /pendingItemIdRef\.current !== currentId/);
+    assert.match(orderDraftState, /configurationOverrides: previousItem\?\.configurationOverrides/);
+    assert.match(orderDraftState, /configurationWarnings: previousItem\?\.configurationWarnings/);
+    assert.match(ordersView, /appendPendingOrderItem\(current, pendingItem\)/);
+    assert.match(ordersView, /pendingItemIdRef\.current = null/);
+    assert.match(ordersView, /recipe=\{selectedRecipe\}/);
+    assert.match(ordersView, /'加入订单'/);
+    assert.match(ordersView, /size="workspace"/);
+    const orderDetail = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+    assert.match(orderDetail, /size="fullscreen"/);
+    assert.match(orderDetail, /className="flex h-full min-h-0 flex-col"/);
+    assert.match(orderDetail, /min-h-0 flex-1 space-y-4 overflow-y-auto/);
     assert.match(configurationEditor, /线圈片数/);
     assert.match(configurationEditor, /电缆长度（米）/);
     assert.match(configurationEditor, /外包装/);
@@ -1794,7 +1816,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(editableValueSelect, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
     assert.match(editableValueSelect, /function EditableNumberSelect/);
-    assert.match(editableValueSelect, /onFocus=\{\(\) => \{/);
+    assert.match(editableValueSelect, /onFocus=\{\(event\) => \{/);
     assert.match(recipesView, /const exactCoilRecord = useMemo/);
     assert.match(recipesView, /coilWireWeight: String\(exactCoilRecord\.wireWeight\)/);
     assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
@@ -2404,4 +2426,49 @@ test('Next UI 契约：P2 系统设置按任务分区并保护未保存修改', 
     assert.match(setupView, /有未保存修改/);
     assert.match(guidelines, /共享同一份草稿和统一保存动作/);
     assert.match(guidelines, /刷新或关闭页面前阻止静默丢弃/);
+});
+
+test('Next UI 契约：整值数字输入显式复用首次聚焦全选，精细编辑字段保持原生定位', () => {
+    const field = readUtf8('apps/web-next/components/ui/field.tsx');
+    const guide = readUtf8('docs/ui-component-guide.md');
+    const orders = readUtf8('apps/web-next/components/orders-view.tsx');
+    const orderConfiguration = readUtf8('apps/web-next/components/order-item-configuration-editor.tsx');
+    const orderDetail = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+    const quotations = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const parts = readUtf8('apps/web-next/components/parts-view.tsx');
+    const coils = readUtf8('apps/web-next/components/coils-view.tsx');
+    const rotor = readUtf8('apps/web-next/components/rotor-view.tsx');
+    const technicalData = readUtf8('apps/web-next/components/technical-data-editor.tsx');
+    const editableValueSelect = readUtf8('apps/web-next/components/recipe/EditableValueSelect.tsx');
+    const recipeData = readUtf8('apps/web-next/components/recipe/RecipeDataTable.tsx');
+    const shellCost = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
+    const setup = readUtf8('apps/web-next/components/setup-view.tsx');
+
+    assert.match(field, /selectOnFirstFocus\?: boolean/);
+    assert.match(field, /if \(selectOnFirstFocus\) selectInputValueOnFocus\(event\)/);
+    assert.match(field, /onFocus\?\.\(event\)/);
+    assert.doesNotMatch(field, /type\s*===?\s*['"]number['"]/);
+
+    assert.equal((orders.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 2);
+    assert.equal((orderConfiguration.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 3);
+    assert.match(orderDetail, /onFocus=\{field === 'purchasePrice' \? undefined : selectInputValueOnFocus\}/);
+    assert.equal((quotations.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 2);
+    assert.ok((parts.match(/selectOnFirstFocus|onFocus=\{selectInputValueOnFocus\}/g) || []).length >= 7);
+    assert.ok((coils.match(/selectOnFirstFocus/g) || []).length >= 9);
+    assert.match(rotor, /field\.key === 'pieceCount' \? selectInputValueOnFocus : undefined/);
+    assert.match(technicalData, /field\.integer \? selectInputValueOnFocus : undefined/);
+    assert.match(editableValueSelect, /compact selectOnFirstFocus/);
+    assert.equal((recipeData.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 2);
+    assert.ok((shellCost.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length >= 4);
+    assert.match(shellCost, /row\.componentType === 'stainlessStretchBarrel' \? undefined : selectInputValueOnFocus/);
+    assert.equal((setup.match(/selectOnFirstFocus/g) || []).length, 2);
+
+    assert.match(parts, /value=\{form\.openOffset\}[\s\S]{0,220}type="number"/);
+    assert.doesNotMatch(parts, /value=\{form\.openOffset\}[\s\S]{0,220}selectInputValueOnFocus/);
+    assert.match(parts, /value=\{form\.screwDiameter\}[\s\S]{0,220}onFocus=\{selectInputValueOnFocus\}/);
+    assert.match(coils, /value=\{calcWireWeight\}[\s\S]{0,220}type="number"/);
+    assert.doesNotMatch(coils, /value=\{calcWireWeight\}[\s\S]{0,220}selectOnFirstFocus/);
+    assert.match(guide, /不得根据 `type="number"` 全局套用/);
+    assert.match(guide, /保持焦点后的再次点击仍可精确定位/);
+    assert.match(guide, /螺丝直径是整体替换的名义规格，而拉伸筒基准长度是精密尺寸/);
 });

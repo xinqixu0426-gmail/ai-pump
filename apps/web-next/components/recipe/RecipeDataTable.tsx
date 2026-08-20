@@ -2,6 +2,7 @@
 
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 
 export type RecipeSelectionRow = {
@@ -109,6 +110,7 @@ export function RecipeDataTable({
                 <input
                   value={row.qty}
                   onChange={(event) => onUpdate(row.id, { qty: event.target.value })}
+                  onFocus={selectInputValueOnFocus}
                   type="number"
                   min="0"
                   step="0.01"
@@ -140,6 +142,7 @@ export function RecipeDataTable({
                 <input
                   value={row.snapshotPrice}
                   onChange={(event) => onUpdate(row.id, { snapshotPrice: event.target.value })}
+                  onFocus={selectInputValueOnFocus}
                   type="number"
                   min="0"
                   step="0.01"

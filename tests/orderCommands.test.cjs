@@ -12,6 +12,7 @@ const {
     executeOrderStatus,
     executeOrderUpdate,
 } = require('../api/services/orderCommands.cjs');
+const { createCostQueries } = require('../api/services/costQueries.cjs');
 const { buildOrderReadiness } = require('../api/services/orderReadiness.cjs');
 
 const FIXED_UPDATED_AT = '2026-08-02T00:00:00.000Z';
@@ -329,6 +330,59 @@ test('直接建单按客户配置覆盖锁定最终成本、配置和 BOM 快照
         assert.deepEqual(JSON.parse(item.partsJson).map(part => part.model), ['P-1']);
         assert.equal(JSON.parse(draft.purchaseListJson)[0].plannedQty, 3);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('直接建单选配预览与最终锁定的成本、BOM 和成本快照一致', () => {
+    const fixture = createFixture();
+    try {
+        const costQueries = createCostQueries({
+            db: fixture.db,
+            calculateRecipeCost: fixture.dependencies.calculateRecipeCost,
+            getSetting: fixture.dependencies.getSetting,
+            listCoils: fixture.dependencies.dbGetAllCoils,
+            listRecipes: () => [],
+            loadPartsData: fixture.dependencies.loadPartsData,
+            recipeRow: row => row,
+            buildBomDraft: () => ({ parts: [] }),
+        });
+        const configurationOverrides = {
+            hasFloat: false,
+            boxType: 'BOX-1',
+            packingPartsJson: JSON.stringify([{
+                model: 'BOX-1',
+                supplier: '包装供应商',
+                qty: 1,
+                packingRole: 'container',
+                snapshotPrice: 999,
+            }]),
+        };
+        const basePreview = costQueries.previewRecipeCost(2, {});
+        const configuredPreview = costQueries.previewRecipeCost(2, configurationOverrides);
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{
+                id: 'configured-consistency-item',
+                recipeId: 2,
+                qty: 2,
+                profitMargin: 1.2,
+                configurationOverrides,
+            }],
+        });
+        const [item] = JSON.parse(draft.itemsJson);
+
+        assert.notEqual(configuredPreview.data.unitCost, basePreview.data.unitCost);
+        assert.equal(item.unitCost, configuredPreview.data.unitCost);
+        assert.deepEqual(JSON.parse(item.partsJson), configuredPreview.data.parts);
+        const { generatedAt: lockedGeneratedAt, ...lockedCostSnapshot } = item.costSnapshot;
+        const { generatedAt: previewGeneratedAt, ...previewCostSnapshot } = configuredPreview.data.costSnapshot;
+        assert.equal(Number.isNaN(Date.parse(lockedGeneratedAt)), false);
+        assert.equal(Number.isNaN(Date.parse(previewGeneratedAt)), false);
+        assert.deepEqual(lockedCostSnapshot, previewCostSnapshot);
+        assert.equal(item.configurationOverrides.packingPartsJson.includes('999'), false);
+        assert.equal(JSON.parse(draft.purchaseListJson).find(part => part.model === 'BOX-1').plannedQty, 2);
     } finally {
         fixture.db.close();
     }

@@ -12,6 +12,7 @@ import {
   type ShellComponentFormRow,
 } from '@/components/recipe/ShellCostEditor';
 import { Button } from '@/components/ui/button';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 import { parsePumpShellMeta } from '@/lib/part-form-rules';
 import type { Part } from '@/lib/parts';
@@ -456,7 +457,7 @@ export function PumpShellTemplateEditor({
                     </datalist>
                   </span>
                   <input value={row.supplier || ''} onChange={(event) => updatePartRow(row.id, { supplier: event.target.value })} placeholder="供应商" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                  <input value={String(row.qty)} onChange={(event) => updatePartRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                  <input value={String(row.qty)} onChange={(event) => updatePartRow(row.id, { qty: numberValue(event.target.value) })} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <Button type="button" size="sm" variant="danger" onClick={() => removePartRow(row.id)} icon={<Trash2 size={14} />}>删除</Button>
                 </div>
                 );
@@ -470,11 +471,11 @@ export function PumpShellTemplateEditor({
             <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <label className="block">
                 <span className="text-xs font-medium text-muted">安装工资</span>
-                <input value={form.assemblyWage} onChange={(event) => updateForm({ assemblyWage: event.target.value })} type="number" min="0" step="0.01" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                <input value={form.assemblyWage} onChange={(event) => updateForm({ assemblyWage: event.target.value })} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-muted">打包工资</span>
-                <input value={form.packingWage} onChange={(event) => updateForm({ packingWage: event.target.value })} type="number" min="0" step="0.01" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                <input value={form.packingWage} onChange={(event) => updateForm({ packingWage: event.target.value })} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-muted">表面处理</span>
@@ -501,6 +502,7 @@ export function PumpShellTemplateEditor({
                 <input
                   value={form.surfaceTreatmentCost}
                   onChange={(event) => updateForm({ surfaceTreatmentCost: event.target.value })}
+                  onFocus={selectInputValueOnFocus}
                   disabled={form.surfaceTreatmentMode === 'none'}
                   type="number"
                   min="0"

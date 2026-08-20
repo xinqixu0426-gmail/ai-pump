@@ -613,6 +613,7 @@ export function CoilsView() {
                   type="number"
                   min="0"
                   step="1"
+                  selectOnFirstFocus
                 />
               </Field>
               <Field label="自定义线重" hint="可选；留空时使用配方记录中的线重。">
@@ -732,6 +733,7 @@ export function CoilsView() {
                           min="0"
                           step="0.0001"
                           autoFocus
+                          selectOnFirstFocus
                           compact
                           className="w-28"
                         />
@@ -875,7 +877,7 @@ export function CoilsView() {
                 />
               </Field>
               <Field label="定子直径 mm" hint="俗称 12 对应标准直径 120mm。">
-                <Input value={form.diameterMm} onChange={(event) => updateForm({ diameterMm: event.target.value })} type="number" min="1" step="1" placeholder="例如 120" />
+                <Input value={form.diameterMm} onChange={(event) => updateForm({ diameterMm: event.target.value })} type="number" min="1" step="1" placeholder="例如 120" selectOnFirstFocus />
               </Field>
               <Field label="材质">
                 <Select value={form.material} onChange={(event) => updateFormMaterial(event.target.value)}>
@@ -890,7 +892,7 @@ export function CoilsView() {
                 </Select>
               </Field>
               <Field label="片数">
-                <Input value={form.sheets} onChange={(event) => updateForm({ sheets: event.target.value })} type="number" min="0" step="1" />
+                <Input value={form.sheets} onChange={(event) => updateForm({ sheets: event.target.value })} type="number" min="0" step="1" selectOnFirstFocus />
               </Field>
               <Field label="方案状态" hint="同一定子组合和片数只能有一套正式方案。">
                 <Select value={form.schemeStatus} onChange={(event) => updateForm({ schemeStatus: event.target.value as CoilFormState['schemeStatus'] })}>
@@ -906,19 +908,19 @@ export function CoilsView() {
                 label="单片价"
                 hint={editingCoil ? '单片价请在定子组合里批量修改，保持同直径、材质和槽眼一致。' : undefined}
               >
-                <Input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={Boolean(editingCoil)} />
+                <Input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={Boolean(editingCoil)} selectOnFirstFocus />
               </Field>
               <Field label="线重 kg">
                 <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
               </Field>
               <Field label="铜价基数">
-                <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" />
+                <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
               </Field>
               <Field label="线圈加工费">
-                <Input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" />
+                <Input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
               </Field>
               <Field label="转子加工费">
-                <Input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" />
+                <Input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
               </Field>
               <Field label="默认搭配电缆线径">
                 <Input value={form.defaultWireGauge} onChange={(event) => updateForm({ defaultWireGauge: event.target.value })} />
@@ -1006,6 +1008,7 @@ export function CoilsView() {
                     type="number"
                     min="1"
                     step="1"
+                    selectOnFirstFocus
                   />
                 </Field>
                 <Field label="备注">

@@ -1,6 +1,6 @@
 # UI/交互约束
 
-> 更新日期：2026-08-06。本文定义当前 Next 前端的视觉、动效和交互原则。目标是简洁、克制、可操作，避免“AI 味”的装饰堆叠。
+> 更新日期：2026-08-20。本文定义当前 Next 前端的视觉、动效和交互原则。目标是简洁、克制、可操作，避免“AI 味”的装饰堆叠。
 >
 > 具体组件选择与代码示例见 [`docs/ui-component-guide.md`](./ui-component-guide.md)。
 
@@ -49,7 +49,7 @@
 - “全部类别”视图用于扫描，不用于完整铺开每类明细；默认展示少量代表项，并提供明确的单类别聚焦入口。
 - 系统设置等低频高风险长表单按任务域拆分工作区，但共享同一份草稿和统一保存动作；切换工作区不得丢失输入。
 - 设置未变化时禁用保存；存在未保存修改时必须给出可见状态，并在刷新或关闭页面前阻止静默丢弃。
-- 弹窗：只承载短表单、确认操作和轻量查看；复杂编辑使用独立页面或抽屉。
+- 弹窗：只承载短表单、确认操作和轻量查看；单一上下文的辅助详情可使用抽屉。需要额外宽度的单一详情或长表单使用 workspace，并固定标题与操作区；多分区或需要持续操作的大型详情固定标题与分区导航、只滚动主内容，必要时使用 fullscreen。
 - 空态：说明当前没有什么，以及下一步可以做什么；不放大段教学文案。
 
 ## 4. 组件约束
@@ -57,7 +57,7 @@
 - Next 前端使用 Tailwind + 本地基础组件，不新增 MUI / Emotion 依赖。
 - motion-primitives 风格组件放在 `apps/web-next/components/motion/`，以源码组件方式沉淀，不把动效逻辑散落到页面里。
 - Next 前端的按钮、链接、导航项必须优先复用 `apps/web-next/components/ui/` 下的基础组件，避免每个页面手写 hover 和跳转行为。
-- 弹层统一使用 `Dialog`、`ConfirmDialog`、`Drawer`；由基础组件负责 Portal、焦点陷阱、Escape、焦点恢复、滚动锁定和层级。页面不得再次手写 `fixed inset-0` 遮罩。
+- 弹层统一使用 `Dialog`、`ConfirmDialog`、`Drawer` 或组合入口 `SlideOver`；`SlideOver` 的 standard/wide 复用 Drawer，workspace/fullscreen 复用 Dialog，Portal、焦点陷阱、Escape、焦点恢复、滚动锁定和层级仍由基础组件负责。页面不得再次手写 `fixed inset-0` 遮罩。
 - 删除、覆盖、重复创建和放弃未保存修改必须使用 `ConfirmDialog`，不得调用浏览器原生 `window.confirm()`；确认文案要明确对象、后果和不可撤销性。
 - 表单字段优先使用 `Field`、`Input`、`Select`、`Textarea`，统一高度、焦点、禁用和错误状态。
 - 工具容器优先使用 `Panel`、`PanelHeader`、`PanelBody`；状态反馈优先使用 `InlineNotice`、`FormError`，避免复制整段边框和颜色类。

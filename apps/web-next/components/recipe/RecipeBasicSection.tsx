@@ -3,6 +3,7 @@
 import { ChevronDown, CircleHelp } from 'lucide-react';
 import { TemplateMatchSummary } from '@/components/recipe/TemplateMatchSummary';
 import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/components/recipe/RecipeSection';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import type { PumpShellTemplate, RecipePart } from '@/lib/recipes';
 
 export type LinkedChangeAnnotation = {
@@ -111,6 +112,7 @@ export function RecipeBasicSection({
               <input
                 value={form.customBarrelLength}
                 onChange={(event) => onChange({ customBarrelLength: event.target.value })}
+                onFocus={selectInputValueOnFocus}
                 type="number"
                 min="0"
                 step="1"
@@ -123,6 +125,7 @@ export function RecipeBasicSection({
               <input
                 value={form.longScrewExtraLength}
                 onChange={(event) => onChange({ longScrewExtraLength: event.target.value })}
+                onFocus={selectInputValueOnFocus}
                 type="number"
                 min="0"
                 step="1"

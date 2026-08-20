@@ -2,12 +2,14 @@
 
 import {
   forwardRef,
+  type FocusEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import clsx from 'clsx';
+import { selectEditableInputValue } from '@/lib/input-selection.cjs';
 
 type FieldProps = {
   label: ReactNode;
@@ -46,16 +48,29 @@ export function Field({
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   invalid?: boolean;
   compact?: boolean;
+  selectOnFirstFocus?: boolean;
 };
 
+export function selectInputValueOnFocus(event: FocusEvent<HTMLInputElement>) {
+  selectEditableInputValue(event.currentTarget);
+}
+
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { invalid, compact, className, ...props },
+  { invalid, compact, selectOnFirstFocus, onFocus, className, ...props },
   ref
 ) {
+  const handleFocus = selectOnFirstFocus || onFocus
+    ? (event: FocusEvent<HTMLInputElement>) => {
+        if (selectOnFirstFocus) selectInputValueOnFocus(event);
+        onFocus?.(event);
+      }
+    : undefined;
+
   return (
     <input
       ref={ref}
       aria-invalid={invalid || undefined}
+      onFocus={handleFocus}
       className={clsx(controlClasses, compact ? 'h-8 px-2' : 'h-10 px-3', invalid && 'border-rose-400 focus:border-rose-500 focus:ring-rose-100', className)}
       {...props}
     />

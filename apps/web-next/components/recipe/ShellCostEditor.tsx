@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Check, ChevronDown, Package, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Checkbox } from '@/components/ui/field';
+import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 import type { ShellComponentInput, SubassemblyContentInput } from '@/lib/recipes';
 
@@ -356,7 +356,7 @@ export function ShellCostEditor({
         <div className="mt-3 grid gap-4 md:grid-cols-2">
           <label className="block">
             <span className="text-sm font-medium text-ink">泵壳套件价格</span>
-            <input value={bundleCost} onChange={(event) => onBundleCostChange(event.target.value)} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+            <input value={bundleCost} onChange={(event) => onBundleCostChange(event.target.value)} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
             <span className="mt-1 block text-xs text-muted">选择泵壳型号时默认带入零件库最低有效价格，可在模板中覆盖。</span>
           </label>
           <label className="block">
@@ -473,7 +473,7 @@ export function ShellCostEditor({
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">{row.componentType === 'stainlessStretchBarrel' ? '基准长度(cm)' : '数量'}</span>
-                      <input value={String(row.qty)} onChange={(event) => updateComponentRow(row.id, { qty: numberValue(event.target.value) })} type="number" min="0.01" step="0.01" title={row.componentType === 'stainlessStretchBarrel' ? '不锈钢拉伸筒的基准长度，单位 cm' : '计价数量'} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                      <input value={String(row.qty)} onChange={(event) => updateComponentRow(row.id, { qty: numberValue(event.target.value) })} onFocus={row.componentType === 'stainlessStretchBarrel' ? undefined : selectInputValueOnFocus} type="number" min="0.01" step="0.01" title={row.componentType === 'stainlessStretchBarrel' ? '不锈钢拉伸筒的基准长度，单位 cm' : '计价数量'} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-muted">
@@ -481,7 +481,7 @@ export function ShellCostEditor({
                         {findCatalogPart(catalogParts, row.model, row.supplier) ? <span className="text-emerald-700">零件库已有</span> : null}
                       </span>
                       <span className="flex gap-2">
-                        <input value={String(row.unitCost)} onChange={(event) => updateComponentRow(row.id, { unitCost: numberValue(event.target.value) })} type="number" min="0" step="0.01" title="零件库没有有效价格时使用此单价" className="h-9 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                        <input value={String(row.unitCost)} onChange={(event) => updateComponentRow(row.id, { unitCost: numberValue(event.target.value) })} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" title="零件库没有有效价格时使用此单价" className="h-9 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                         {!findCatalogPart(catalogParts, row.model, row.supplier)
                           && String(row.model || '').trim()
                           && String(row.supplier || '').trim()
@@ -535,7 +535,7 @@ export function ShellCostEditor({
                         </label>
                         <label className="block min-w-0">
                           <span className="mb-1 block text-xs font-medium text-muted md:sr-only">数量</span>
-                          <input value={String(item.qty)} onChange={(event) => updateSubassemblyContentRow(row.id, item.id, { qty: numberValue(event.target.value) })} type="number" min="0.01" step="0.01" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                          <input value={String(item.qty)} onChange={(event) => updateSubassemblyContentRow(row.id, item.id, { qty: numberValue(event.target.value) })} onFocus={selectInputValueOnFocus} type="number" min="0.01" step="0.01" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                         </label>
                         <label className="block min-w-0">
                           <span className="mb-1 block text-xs font-medium text-muted md:sr-only">参考单价</span>
@@ -544,6 +544,7 @@ export function ShellCostEditor({
                             onChange={(event) => updateSubassemblyContentRow(row.id, item.id, {
                               referenceUnitPrice: event.target.value === '' ? null : numberValue(event.target.value),
                             })}
+                            onFocus={selectInputValueOnFocus}
                             type="number"
                             min="0"
                             step="0.01"

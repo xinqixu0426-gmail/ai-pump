@@ -53,7 +53,7 @@ import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
-import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/field';
+import { Checkbox, Field, Input, Select, Textarea, selectInputValueOnFocus } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { PageHeader } from '@/components/ui/page-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -984,6 +984,7 @@ export function PartsView({
                   <input
                     value={form.capacitorUf}
                     onChange={(event) => setForm((current) => ({ ...current, capacitorUf: event.target.value }))}
+                    onFocus={selectInputValueOnFocus}
                     type="number"
                     min="0"
                     step="0.1"
@@ -1033,6 +1034,7 @@ export function PartsView({
                   type="number"
                   min="0"
                   step="0.001"
+                  selectOnFirstFocus
                 />
               </Field>
 
@@ -1043,6 +1045,7 @@ export function PartsView({
                   type="number"
                   min="0"
                   step="1"
+                  selectOnFirstFocus
                 />
               </Field>
             </div>
@@ -1064,6 +1067,7 @@ export function PartsView({
                     <input
                       value={form.standardCableAccessoryFee}
                       onChange={(event) => setForm((current) => ({ ...current, standardCableAccessoryFee: event.target.value }))}
+                      onFocus={selectInputValueOnFocus}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1083,6 +1087,7 @@ export function PartsView({
                     <input
                       value={form.xinjieCableAccessoryFee}
                       onChange={(event) => setForm((current) => ({ ...current, xinjieCableAccessoryFee: event.target.value }))}
+                      onFocus={selectInputValueOnFocus}
                       type="number"
                       min="0"
                       step="0.01"
@@ -1101,6 +1106,7 @@ export function PartsView({
                   <input
                     value={form.floatAccessoryDelta}
                     onChange={(event) => setForm((current) => ({ ...current, floatAccessoryDelta: event.target.value }))}
+                    onFocus={selectInputValueOnFocus}
                     type="number"
                     min="0"
                     step="0.01"
@@ -1126,6 +1132,7 @@ export function PartsView({
                     <input
                       value={form.screwDiameter}
                       onChange={(event) => setForm((current) => ({ ...current, screwDiameter: event.target.value }))}
+                      onFocus={selectInputValueOnFocus}
                       type="number"
                       min="0"
                       step="0.1"

@@ -66,6 +66,7 @@ export function RecipeLaborCostSection({
             type="number"
             min="0"
             step="0.01"
+            selectOnFirstFocus
           />
         </Field>
         <Field label="打包工资">
@@ -75,6 +76,7 @@ export function RecipeLaborCostSection({
             type="number"
             min="0"
             step="0.01"
+            selectOnFirstFocus
           />
         </Field>
         <Field label="管理费">
@@ -84,6 +86,7 @@ export function RecipeLaborCostSection({
             type="number"
             min="0"
             step="0.01"
+            selectOnFirstFocus
           />
         </Field>
         <Field label="表面处理">
@@ -104,6 +107,7 @@ export function RecipeLaborCostSection({
             min="0"
             step="0.01"
             disabled={form.surfaceTreatmentMode === 'none'}
+            selectOnFirstFocus
           />
         </Field>
       </div>

@@ -22,7 +22,7 @@ import { configurationSummary } from '@/lib/recipe-configurations';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/field';
+import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
@@ -591,16 +591,17 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     <SlideOver
       open={open && Boolean(localOrder)}
       onClose={onClose}
-      size="workspace"
+      size="fullscreen"
       closeOnBackdrop={false}
+      ariaLabelledBy="order-detail-title"
     >
       {localOrder && (
-        <div className="flex min-h-full flex-col">
-          <header className="border-b border-line px-5 py-4">
+        <div className="flex h-full min-h-0 flex-col">
+          <header className="shrink-0 border-b border-line px-5 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold tracking-tight text-ink">{localOrder.customerName || '未命名客户'}</h2>
+                  <h2 id="order-detail-title" className="text-lg font-semibold tracking-tight text-ink">{localOrder.customerName || '未命名客户'}</h2>
                   <StatusBadge tone={statusTones[localOrder.status]}>{localOrder.status}</StatusBadge>
                 </div>
                 <div className="mt-1 text-sm text-muted">
@@ -619,7 +620,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
             </div>
           </header>
 
-          <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line px-5 py-3">
+          <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-line px-5 py-3">
             <div className="min-w-0 flex-1 overflow-x-auto">
               <SegmentedControl
                 value={tab}
@@ -636,7 +637,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
             </div>
           </div>
 
-          <main className="flex-1 space-y-4 p-5">
+          <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
             {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
             {message && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div>}
 
@@ -774,6 +775,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                                     min="0"
                                     step={field === 'purchasePrice' ? '0.01' : '1'}
                                     value={draft?.[field] ?? '0'}
+                                    onFocus={field === 'purchasePrice' ? undefined : selectInputValueOnFocus}
                                     disabled={saving || !editable}
                                     onChange={(event) => setDraft(field, event.target.value)}
                                     className="h-8 w-20 rounded-md border border-line px-2 text-right text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"

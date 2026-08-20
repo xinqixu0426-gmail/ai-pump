@@ -75,3 +75,31 @@ test('latest preview coordinator 清空后不会让旧请求与新请求发生�
 
     assert.deepEqual(applied, ['after-reset']);
 });
+
+test('latest preview coordinator 按 key 清空旧产品预览且不影响新产品', async () => {
+    const coordinator = createLatestPreviewCoordinator();
+    const oldRecipe = deferred();
+    const newRecipe = deferred();
+    const applied = [];
+    const settled = [];
+
+    const oldRun = coordinator.run('old-item', () => oldRecipe.promise, {
+        onSuccess: value => applied.push(value),
+        onError: error => applied.push(error.message),
+        onSettled: () => settled.push('old'),
+    });
+    coordinator.clear('old-item');
+    const newRun = coordinator.run('new-item', () => newRecipe.promise, {
+        onSuccess: value => applied.push(value),
+        onError: error => applied.push(error.message),
+        onSettled: () => settled.push('new'),
+    });
+
+    oldRecipe.reject(new Error('旧配方失败'));
+    newRecipe.resolve('新配方成本');
+
+    assert.equal(await oldRun, false);
+    assert.equal(await newRun, true);
+    assert.deepEqual(applied, ['新配方成本']);
+    assert.deepEqual(settled, ['new']);
+});

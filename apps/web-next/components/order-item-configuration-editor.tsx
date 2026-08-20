@@ -1,6 +1,6 @@
 'use client';
 
-import { Checkbox } from '@/components/ui/field';
+import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import type { OrderItem } from '@/lib/orders';
 import type { Recipe, SurfaceTreatmentMode } from '@/lib/recipes';
 import {
@@ -104,6 +104,7 @@ export function OrderItemConfigurationEditor({
             min="1"
             step="1"
             value={overrides.coilSheets ?? ''}
+            onFocus={selectInputValueOnFocus}
             onChange={event => onChange({ coilSheets: event.target.value })}
             className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400"
           />
@@ -117,6 +118,7 @@ export function OrderItemConfigurationEditor({
             min="0"
             step="1"
             value={overrides.cableLength ?? ''}
+            onFocus={selectInputValueOnFocus}
             onChange={event => {
               const cableLength = event.target.value;
               onChange({ cableLength, hasCable: Number(cableLength) > 0 });
@@ -152,6 +154,7 @@ export function OrderItemConfigurationEditor({
             min="0"
             step="1"
             value={overrides.customBarrelLength ?? ''}
+            onFocus={selectInputValueOnFocus}
             onChange={event => onChange({ customBarrelLength: event.target.value })}
             className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400"
           />
