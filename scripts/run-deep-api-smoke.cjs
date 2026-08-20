@@ -3282,6 +3282,7 @@ async function run() {
     let childErrors = '';
     try {
         fs.cpSync(path.join(root, 'api'), path.join(temp, 'api'), { recursive: true });
+        fs.cpSync(path.join(root, 'shared'), path.join(temp, 'shared'), { recursive: true });
         fs.copyFileSync(path.join(root, 'api.cjs'), path.join(temp, 'api.cjs'));
         fs.mkdirSync(path.join(temp, 'public', 'drawings'), { recursive: true });
         if (!fs.existsSync(sourceDatabasePath)) {

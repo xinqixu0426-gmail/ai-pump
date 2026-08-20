@@ -1571,6 +1571,12 @@ test('Next UI 契约：直接建单基于完整配方支持客户配置并由服
     assert.match(ordersLib, /\/api\/orders\/purchase-plan/);
 });
 
+test('深度 API 隔离沙箱包含服务端共享模块', () => {
+    const deepApi = readUtf8('scripts/run-deep-api-smoke.cjs');
+    assert.match(deepApi, /path\.join\(root, 'shared'\)/);
+    assert.match(deepApi, /path\.join\(temp, 'shared'\)/);
+});
+
 test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批量改单价', () => {
     const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
     const coilsLib = readUtf8('apps/web-next/lib/coils.ts');
