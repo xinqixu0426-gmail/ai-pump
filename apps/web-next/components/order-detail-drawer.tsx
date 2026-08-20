@@ -22,7 +22,7 @@ import { configurationSummary } from '@/lib/recipe-configurations';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/field';
+import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
@@ -775,6 +775,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                                     min="0"
                                     step={field === 'purchasePrice' ? '0.01' : '1'}
                                     value={draft?.[field] ?? '0'}
+                                    onFocus={field === 'purchasePrice' ? undefined : selectInputValueOnFocus}
                                     disabled={saving || !editable}
                                     onChange={(event) => setDraft(field, event.target.value)}
                                     className="h-8 w-20 rounded-md border border-line px-2 text-right text-sm outline-none focus:border-sky-400 disabled:bg-slate-50"

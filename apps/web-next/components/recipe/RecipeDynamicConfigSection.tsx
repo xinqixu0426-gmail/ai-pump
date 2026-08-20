@@ -3,7 +3,7 @@
 import { EditableWireSelect } from '@/components/recipe/EditableValueSelect';
 import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/components/recipe/RecipeSection';
 import { partCostLine, partFormulaLine, recipePartSubtotal } from '@/components/recipe/recipe-cost-display';
-import { Checkbox } from '@/components/ui/field';
+import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 import type { CableAccessoryType, RecipePart } from '@/lib/recipes';
 
@@ -198,6 +198,7 @@ export function RecipeDynamicConfigSection({
               <input
                 value={form.cableLength}
                 onChange={(event) => onChange({ cableLength: event.target.value })}
+                onFocus={selectInputValueOnFocus}
                 type="number"
                 min="0"
                 step="0.1"

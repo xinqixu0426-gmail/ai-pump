@@ -14,7 +14,7 @@ import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { QuotationAttachmentSummaryPanel, type QuotationInquiryDraft } from '@/components/quotation-attachment-summary-panel';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Checkbox } from '@/components/ui/field';
+import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 import { PageHeader } from '@/components/ui/page-header';
@@ -1264,6 +1264,7 @@ export function QuotationsView() {
                               setConvertQuantities((current) => ({ ...current, [itemKey]: event.target.value }));
                               setConvertError(null);
                             }}
+                            onFocus={selectInputValueOnFocus}
                             type="number"
                             min="1"
                             step="1"
@@ -1506,6 +1507,7 @@ export function QuotationsView() {
                                 hasCable: Number(nextLength) > 0,
                               });
                             }}
+                            onFocus={selectInputValueOnFocus}
                             type="text"
                             inputMode="numeric"
                             maxLength={2}

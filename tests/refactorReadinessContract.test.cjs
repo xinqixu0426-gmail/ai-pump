@@ -1808,7 +1808,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(editableValueSelect, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
     assert.match(editableValueSelect, /function EditableNumberSelect/);
-    assert.match(editableValueSelect, /onFocus=\{\(\) => \{/);
+    assert.match(editableValueSelect, /onFocus=\{\(event\) => \{/);
     assert.match(recipesView, /const exactCoilRecord = useMemo/);
     assert.match(recipesView, /coilWireWeight: String\(exactCoilRecord\.wireWeight\)/);
     assert.doesNotMatch(recipesView, /recipe-coil-wire-weight-options/);
@@ -2418,4 +2418,49 @@ test('Next UI 契约：P2 系统设置按任务分区并保护未保存修改', 
     assert.match(setupView, /有未保存修改/);
     assert.match(guidelines, /共享同一份草稿和统一保存动作/);
     assert.match(guidelines, /刷新或关闭页面前阻止静默丢弃/);
+});
+
+test('Next UI 契约：整值数字输入显式复用首次聚焦全选，精细编辑字段保持原生定位', () => {
+    const field = readUtf8('apps/web-next/components/ui/field.tsx');
+    const guide = readUtf8('docs/ui-component-guide.md');
+    const orders = readUtf8('apps/web-next/components/orders-view.tsx');
+    const orderConfiguration = readUtf8('apps/web-next/components/order-item-configuration-editor.tsx');
+    const orderDetail = readUtf8('apps/web-next/components/order-detail-drawer.tsx');
+    const quotations = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const parts = readUtf8('apps/web-next/components/parts-view.tsx');
+    const coils = readUtf8('apps/web-next/components/coils-view.tsx');
+    const rotor = readUtf8('apps/web-next/components/rotor-view.tsx');
+    const technicalData = readUtf8('apps/web-next/components/technical-data-editor.tsx');
+    const editableValueSelect = readUtf8('apps/web-next/components/recipe/EditableValueSelect.tsx');
+    const recipeData = readUtf8('apps/web-next/components/recipe/RecipeDataTable.tsx');
+    const shellCost = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
+    const setup = readUtf8('apps/web-next/components/setup-view.tsx');
+
+    assert.match(field, /selectOnFirstFocus\?: boolean/);
+    assert.match(field, /if \(selectOnFirstFocus\) selectInputValueOnFocus\(event\)/);
+    assert.match(field, /onFocus\?\.\(event\)/);
+    assert.doesNotMatch(field, /type\s*===?\s*['"]number['"]/);
+
+    assert.equal((orders.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 2);
+    assert.equal((orderConfiguration.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 3);
+    assert.match(orderDetail, /onFocus=\{field === 'purchasePrice' \? undefined : selectInputValueOnFocus\}/);
+    assert.equal((quotations.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 2);
+    assert.ok((parts.match(/selectOnFirstFocus|onFocus=\{selectInputValueOnFocus\}/g) || []).length >= 7);
+    assert.ok((coils.match(/selectOnFirstFocus/g) || []).length >= 9);
+    assert.match(rotor, /field\.key === 'pieceCount' \? selectInputValueOnFocus : undefined/);
+    assert.match(technicalData, /field\.integer \? selectInputValueOnFocus : undefined/);
+    assert.match(editableValueSelect, /compact selectOnFirstFocus/);
+    assert.equal((recipeData.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length, 2);
+    assert.ok((shellCost.match(/onFocus=\{selectInputValueOnFocus\}/g) || []).length >= 4);
+    assert.match(shellCost, /row\.componentType === 'stainlessStretchBarrel' \? undefined : selectInputValueOnFocus/);
+    assert.equal((setup.match(/selectOnFirstFocus/g) || []).length, 2);
+
+    assert.match(parts, /value=\{form\.openOffset\}[\s\S]{0,220}type="number"/);
+    assert.doesNotMatch(parts, /value=\{form\.openOffset\}[\s\S]{0,220}selectInputValueOnFocus/);
+    assert.match(parts, /value=\{form\.screwDiameter\}[\s\S]{0,220}onFocus=\{selectInputValueOnFocus\}/);
+    assert.match(coils, /value=\{calcWireWeight\}[\s\S]{0,220}type="number"/);
+    assert.doesNotMatch(coils, /value=\{calcWireWeight\}[\s\S]{0,220}selectOnFirstFocus/);
+    assert.match(guide, /不得根据 `type="number"` 全局套用/);
+    assert.match(guide, /保持焦点后的再次点击仍可精确定位/);
+    assert.match(guide, /螺丝直径是整体替换的名义规格，而拉伸筒基准长度是精密尺寸/);
 });

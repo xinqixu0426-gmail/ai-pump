@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog, Dialog, Drawer } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import { dateShort } from '@/lib/format';
 import { getAllRecipes, type Recipe } from '@/lib/recipes';
 import {
@@ -518,6 +519,7 @@ export function RotorView() {
                     <input
                       value={form[field.key]}
                       onChange={(event) => updateForm(field.key, event.target.value)}
+                      onFocus={field.key === 'pieceCount' ? selectInputValueOnFocus : undefined}
                       type="number"
                       min="0"
                       step="0.1"

@@ -31,6 +31,7 @@ import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
 import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FormError } from '@/components/ui/form-error';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
@@ -673,6 +674,7 @@ export function OrdersView({
                   <input
                     value={itemQty}
                     onChange={(event) => onPendingQtyChange(event.target.value)}
+                    onFocus={selectInputValueOnFocus}
                     type="number"
                     min="1"
                     step="1"
@@ -738,6 +740,7 @@ export function OrdersView({
                         <input
                           value={item.qty}
                           onChange={(event) => updateDraftItem(item.id, { qty: Number(event.target.value) })}
+                          onFocus={selectInputValueOnFocus}
                           type="number"
                           min="1"
                           className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"

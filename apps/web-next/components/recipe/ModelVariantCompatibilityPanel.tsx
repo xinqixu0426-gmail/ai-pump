@@ -5,6 +5,7 @@ import { CircleAlert, Copy, Layers3, Pencil, Plus, Save, Search, SlidersHorizont
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import {
   buildTemplateNameMap,
   type CoilSpecOption,
@@ -517,6 +518,7 @@ export function ModelVariantCompatibilityPanel({
                   <input
                     value={form.coilSheets}
                     onChange={(event) => updateForm({ coilSheets: event.target.value })}
+                    onFocus={selectInputValueOnFocus}
                     type="number"
                     min="0"
                     step="1"
@@ -551,7 +553,7 @@ export function ModelVariantCompatibilityPanel({
                 </label>
                 <label className="block">
                   <span className="text-xs font-medium text-muted">叶片数</span>
-                  <input value={form.impellerBladeCount} onChange={(event) => updateForm({ impellerBladeCount: event.target.value })} type="number" min="0" step="1" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                  <input value={form.impellerBladeCount} onChange={(event) => updateForm({ impellerBladeCount: event.target.value })} onFocus={selectInputValueOnFocus} type="number" min="0" step="1" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                 </label>
               </div>
             </section>

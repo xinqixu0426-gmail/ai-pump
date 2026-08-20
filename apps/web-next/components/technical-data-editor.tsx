@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 import {
   deleteRecipeTechnicalFile,
   downloadRecipeTechnicalFile,
@@ -297,7 +298,7 @@ export function TechnicalDataEditor({
               <input value={impellerDiameter} onChange={(event) => onImpellerChange({ impellerDiameter: event.target.value })} type="number" min="0" step="0.1" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
             </FieldShell>
             <FieldShell label="叶片数" unit="片">
-              <input value={impellerBladeCount} onChange={(event) => onImpellerChange({ impellerBladeCount: event.target.value })} type="number" min="0" step="1" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+              <input value={impellerBladeCount} onChange={(event) => onImpellerChange({ impellerBladeCount: event.target.value })} onFocus={selectInputValueOnFocus} type="number" min="0" step="1" className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
             </FieldShell>
           </div>
         </div>
@@ -326,6 +327,7 @@ export function TechnicalDataEditor({
                 <input
                   value={value[field.key] || ''}
                   onChange={(event) => updateFixed(field.key, event.target.value)}
+                  onFocus={field.integer ? selectInputValueOnFocus : undefined}
                   type="number"
                   min="0"
                   step={field.integer ? '1' : '0.1'}

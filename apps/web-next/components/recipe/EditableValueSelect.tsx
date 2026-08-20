@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { selectInputValueOnFocus } from '@/components/ui/field';
 
 type EditableValueSelectProps = {
   value: string;
@@ -15,6 +16,7 @@ type EditableValueSelectProps = {
   step?: string;
   disabled?: boolean;
   compact?: boolean;
+  selectOnFirstFocus?: boolean;
 };
 
 export function EditableValueSelect({
@@ -29,6 +31,7 @@ export function EditableValueSelect({
   step,
   disabled = false,
   compact = false,
+  selectOnFirstFocus = false,
 }: EditableValueSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -47,7 +50,8 @@ export function EditableValueSelect({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        onFocus={() => {
+        onFocus={(event) => {
+          if (selectOnFirstFocus) selectInputValueOnFocus(event);
           if (!disabled && options.length > 0) setOpen(true);
         }}
         onClick={() => {
@@ -111,7 +115,7 @@ export function EditableNumberSelect(props: {
   onChange: (value: string) => void;
   ariaLabel: string;
 }) {
-  return <EditableValueSelect {...props} listboxId="recipe-coil-sheet-listbox" inputType="number" inputMode="numeric" min="0" step="1" compact />;
+  return <EditableValueSelect {...props} listboxId="recipe-coil-sheet-listbox" inputType="number" inputMode="numeric" min="0" step="1" compact selectOnFirstFocus />;
 }
 
 export function EditableWireSelect({

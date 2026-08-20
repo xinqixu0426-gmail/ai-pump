@@ -397,10 +397,10 @@ export function SetupView() {
               <Input value={form.knowledgeEmbeddingModel} onChange={(event) => update('knowledgeEmbeddingModel', event.target.value)} />
             </Field>
             <Field label="向量维度">
-              <Input type="number" min="1" max="4096" value={form.knowledgeEmbeddingDimensions} onChange={(event) => update('knowledgeEmbeddingDimensions', Number(event.target.value))} />
+              <Input type="number" min="1" max="4096" value={form.knowledgeEmbeddingDimensions} onChange={(event) => update('knowledgeEmbeddingDimensions', Number(event.target.value))} selectOnFirstFocus />
             </Field>
             <Field label="批量大小">
-              <Input type="number" min="1" max="64" value={form.knowledgeVectorBatchSize} onChange={(event) => update('knowledgeVectorBatchSize', Number(event.target.value))} />
+              <Input type="number" min="1" max="64" value={form.knowledgeVectorBatchSize} onChange={(event) => update('knowledgeVectorBatchSize', Number(event.target.value))} selectOnFirstFocus />
             </Field>
             <Field label="计算精度">
               <Select value={form.knowledgeEmbeddingDtype} onChange={(event) => update('knowledgeEmbeddingDtype', event.target.value as FormState['knowledgeEmbeddingDtype'])}>
