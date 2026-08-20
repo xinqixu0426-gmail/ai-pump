@@ -6,9 +6,11 @@ import type { Recipe, SurfaceTreatmentMode } from '@/lib/recipes';
 import {
   configurationDifferences,
   configurationSummary,
+  findPackingOption,
   inferPackingRole,
   normalizePackingParts,
   packingOptionKey,
+  resolvePackingPart,
   updatePackingRole,
   type RecipeConfigurationOverrides,
   type RecipePackingOption,
@@ -44,19 +46,12 @@ export function OrderItemConfigurationEditor({
   const summary = configurationSummary(overrides);
   const packingParts = normalizePackingParts(overrides.packingPartsJson);
   const containerOptions = packingOptions.filter(option => option.packingRole === 'container');
-  const container = packingParts.find(part => inferPackingRole(part) === 'container');
-  const currentContainerKey = container
-    ? packingOptionKey({
-      model: container.model || '',
-      supplier: container.supplier || '',
-      packagingMaterial: container.packagingMaterial || '',
-      price: Number(container.snapshotPrice || 0),
-    })
-    : '';
+  const container = resolvePackingPart(overrides.packingPartsJson, 'container', overrides.boxType);
+  const currentContainerOption = findPackingOption(containerOptions, container);
+  const currentContainerKey = currentContainerOption ? packingOptionKey(currentContainerOption) : '';
 
   function defaultOption(role: RecipePackingRole): RecipePackingOption | undefined {
-    const basePart = normalizePackingParts(recipe?.packingPartsJson)
-      .find(part => inferPackingRole(part) === role);
+    const basePart = resolvePackingPart(recipe?.packingPartsJson, role, recipe?.boxType);
     if (basePart?.model) {
       return packingOptions.find(option => (
         option.packingRole === role
@@ -134,7 +129,7 @@ export function OrderItemConfigurationEditor({
         <label className="block text-xs text-muted">
           外包装
           <select
-            value={containerOptions.some(option => packingOptionKey(option) === currentContainerKey) ? currentContainerKey : ''}
+            value={currentContainerKey}
             onChange={event => setPackingRole(
               'container',
               containerOptions.find(option => packingOptionKey(option) === event.target.value),

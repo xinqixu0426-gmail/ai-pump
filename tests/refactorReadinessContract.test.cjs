@@ -1528,6 +1528,7 @@ test('Next UI 契约：直接建单基于完整配方支持客户配置并由服
     const ordersLib = readUtf8('apps/web-next/lib/orders.ts');
     const configurationEditor = readUtf8('apps/web-next/components/order-item-configuration-editor.tsx');
     const recipeConfigurations = readUtf8('apps/web-next/lib/recipe-configurations.ts');
+    const recipePacking = readUtf8('apps/web-next/lib/recipe-packing.cjs');
 
     assert.doesNotMatch(ordersLib, /getRecipeCurrentPartsCost/);
     assert.doesNotMatch(ordersLib, /createOrderItemWithUnitCost/);
@@ -1538,8 +1539,13 @@ test('Next UI 契约：直接建单基于完整配方支持客户配置并由服
     assert.match(configurationEditor, /线圈片数/);
     assert.match(configurationEditor, /电缆长度（米）/);
     assert.match(configurationEditor, /外包装/);
+    assert.match(configurationEditor, /findPackingOption\(containerOptions, container\)/);
+    assert.match(configurationEditor, /resolvePackingPart\(overrides\.packingPartsJson, 'container', overrides\.boxType\)/);
     assert.match(configurationEditor, /带浮球/);
     assert.match(recipeConfigurations, /\/api\/recipes\/\$\{recipeId\}\/cost-preview/);
+    assert.match(recipePacking, /function findPackingOption/);
+    assert.match(recipePacking, /function resolvePackingPart/);
+    assert.match(recipePacking, /Number\.isFinite\(snapshotPrice\)/);
     assert.match(ordersLib, /\/api\/orders\/purchase-plan/);
 });
 
@@ -1630,6 +1636,8 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /pearlCottonOptions/);
     assert.match(quotationsView, /packingRole/);
     assert.match(quotationsView, /buildPackingOptions\(parts, recipes\)/);
+    assert.match(quotationsView, /findPackingOption\(containerOptions, packing\)/);
+    assert.match(quotationsView, /resolvePackingPart\(/);
     assert.doesNotMatch(quotationsView, /function inferPackingRole/);
     assert.doesNotMatch(quotationsView, /coilOptions/);
     assert.doesNotMatch(quotationsView, /floatWireOptions/);

@@ -102,10 +102,12 @@ test('关键 API 集成契约：完整估算只在 route 兼容旧字段且选�
 
 test('报价动态试算契约：组合包材和表面处理按覆盖配置替换', () => {
     const source = readUtf8('api/services/dynamicCostPreview.cjs');
-    const semantics = readUtf8('api/services/packagingSemantics.cjs');
+    const semanticsAdapter = readUtf8('api/services/packagingSemantics.cjs');
+    const semantics = readUtf8('shared/packagingSemantics.cjs');
 
     assert.match(source, /function inferPackingRole/);
     assert.match(source, /inferPackagingSemantics/);
+    assert.match(semanticsAdapter, /shared\/packagingSemantics\.cjs/);
     assert.match(semantics, /container/);
     assert.match(semantics, /foam/);
     assert.match(semantics, /pearlCotton/);

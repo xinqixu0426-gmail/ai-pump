@@ -2,6 +2,15 @@ import type { ApiResponse } from './api';
 import { proxyRequest } from './api';
 import type { Part } from './parts';
 import type { Recipe, SurfaceTreatmentMode } from './recipes';
+import {
+  buildPackingOptionValues,
+  findPackingOption as findPackingOptionValue,
+  inferPackingMaterial as inferPackingMaterialValue,
+  inferPackingSemantics,
+  normalizePackingParts as normalizePackingPartsValue,
+  resolvePackingPart as resolvePackingPartValue,
+  updatePackingRoleValue,
+} from './recipe-packing.cjs';
 
 export type RecipeConfigurationOverrides = {
   hasFloat?: boolean;
@@ -61,56 +70,35 @@ export type RecipeConfigurationPreview = {
   warnings: RecipeConfigurationWarning[];
 };
 
-function parseJsonArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  try {
-    const parsed = JSON.parse(String(value || '[]'));
-    return Array.isArray(parsed) ? parsed as T[] : [];
-  } catch {
-    return [];
-  }
-}
-
 export function inferPackingMaterial(model: string): string {
-  if (model.includes('木箱')) return '木箱';
-  if (model.includes('彩印') || model.includes('彩箱')) return '彩印箱';
-  if (model.includes('牛皮') || model.includes('纸箱')) return '牛皮纸箱';
-  if (model.includes('泡沫')) return '泡沫';
-  if (model.includes('珍珠棉')) return '珍珠棉';
-  if (model.includes('商标') || model.includes('贴纸')) return '商标';
-  if (model.includes('说明书')) return '说明书';
-  if (model.includes('包装')) return '纸箱';
-  return '其他包材';
+  return inferPackingMaterialValue(model);
 }
 
 export function packingMaterialForPart(part: RecipePackingPart): string {
-  const identity = `${part.model || ''} ${part.supplier || ''}`;
-  return part.packagingMaterial || inferPackingMaterial(identity);
+  return inferPackingSemantics(part).packagingMaterial;
 }
 
 export function inferPackingRole(part: RecipePackingPart): RecipePackingRole {
-  if (part.packingRole) return part.packingRole;
-  const identity = `${part.model || ''} ${part.packagingMaterial || ''}`;
-  if (identity.includes('珍珠棉')) return 'pearlCotton';
-  if (identity.includes('泡沫')) return 'foam';
-  if (identity.includes('说明书') || identity.includes('贴纸') || identity.includes('商标')) return 'fixed';
-  if (identity.includes('木箱') || identity.includes('纸箱') || identity.includes('外包装')) return 'container';
-  return 'fixed';
+  return inferPackingSemantics(part).packingRole;
 }
 
 export function normalizePackingParts(value: unknown): RecipePackingPart[] {
-  return parseJsonArray<RecipePackingPart>(value)
-    .filter(part => part?.model)
-    .map(part => {
-      const packagingMaterial = packingMaterialForPart(part);
-      return {
-        ...part,
-        supplier: part.supplier || '',
-        qty: Number(part.qty || 1),
-        packagingMaterial,
-        packingRole: inferPackingRole({ ...part, packagingMaterial }),
-      };
-    });
+  return normalizePackingPartsValue(value) as RecipePackingPart[];
+}
+
+export function resolvePackingPart(
+  value: unknown,
+  role: RecipePackingRole,
+  boxType?: string,
+): RecipePackingPart | undefined {
+  return resolvePackingPartValue(value, role, boxType) as RecipePackingPart | undefined;
+}
+
+export function findPackingOption(
+  options: RecipePackingOption[],
+  packing?: RecipePackingPart | null,
+): RecipePackingOption | undefined {
+  return findPackingOptionValue(options, packing);
 }
 
 export function packingOptionKey(option: Pick<RecipePackingOption, 'model' | 'supplier' | 'packagingMaterial' | 'price'>): string {
@@ -128,65 +116,7 @@ export function packingPartFromOption(option: RecipePackingOption): RecipePackin
 }
 
 export function buildPackingOptions(parts: Part[], recipes: Recipe[]): RecipePackingOption[] {
-  const options = new Map<string, RecipePackingOption>();
-  const addOption = (packing: RecipePackingPart, price = 0) => {
-    const model = packing.model || '';
-    if (!model) return;
-    const packagingMaterial = packingMaterialForPart(packing);
-    const option: RecipePackingOption = {
-      model,
-      supplier: packing.supplier || '',
-      price: Number(price || 0),
-      packagingMaterial,
-      packingRole: inferPackingRole({ ...packing, packagingMaterial }),
-    };
-    options.set(packingOptionKey(option), option);
-  };
-
-  parts.forEach(part => {
-    const model = part.model || '';
-    const looksLikePacking = part.category === '包装'
-      || model.includes('木箱')
-      || model.includes('纸箱')
-      || model.includes('泡沫')
-      || model.includes('珍珠棉')
-      || model.includes('包装');
-    if (!looksLikePacking) return;
-    addOption({
-      model,
-      supplier: part.supplier || '',
-      packagingMaterial: inferPackingMaterial(`${model} ${part.notes || ''}`),
-      packingRole: part.subcategory === '外包装'
-        ? 'container'
-        : part.subcategory === '固定包材'
-          ? 'fixed'
-          : undefined,
-    }, Number(part.price || 0));
-  });
-
-  recipes.forEach(recipe => {
-    normalizePackingParts(recipe.packingPartsJson).forEach(packing => {
-      const catalogPrice = parts.find(part => (
-        part.model === packing.model
-        && (!packing.supplier || part.supplier === packing.supplier)
-      ))?.price;
-      addOption(packing, Number(packing.snapshotPrice ?? catalogPrice ?? 0));
-    });
-    if (recipe.boxType) {
-      addOption({
-        model: recipe.boxType,
-        supplier: '',
-        packagingMaterial: inferPackingMaterial(recipe.boxType),
-        packingRole: 'container',
-      });
-    }
-  });
-
-  return Array.from(options.values()).sort((a, b) => (
-    a.packingRole.localeCompare(b.packingRole)
-    || a.packagingMaterial.localeCompare(b.packagingMaterial, 'zh-Hans-CN')
-    || a.model.localeCompare(b.model, 'zh-Hans-CN')
-  ));
+  return buildPackingOptionValues(parts, recipes) as RecipePackingOption[];
 }
 
 export function buildRecipeDefaultConfiguration(recipe: Recipe): RecipeConfigurationOverrides {
@@ -231,21 +161,13 @@ export function updatePackingRole(
   role: RecipePackingRole,
   option?: RecipePackingOption,
 ): RecipeConfigurationOverrides {
-  const nextParts = normalizePackingParts(overrides.packingPartsJson)
-    .filter(part => inferPackingRole(part) !== role);
-  if (option) nextParts.push(packingPartFromOption(option));
-  const container = nextParts.find(part => inferPackingRole(part) === 'container');
-  return {
-    ...overrides,
-    boxType: container?.model || '',
-    packingPartsJson: JSON.stringify(nextParts),
-  };
+  return updatePackingRoleValue(overrides, role, option);
 }
 
 export function configurationSummary(configuration?: RecipeConfigurationOverrides | RecipeConfigurationSnapshot | null): string[] {
   if (!configuration) return [];
   const packing = normalizePackingParts(configuration.packingPartsJson);
-  const container = packing.find(part => inferPackingRole(part) === 'container');
+  const container = resolvePackingPart(configuration.packingPartsJson, 'container', configuration.boxType);
   const extras = packing
     .filter(part => ['foam', 'pearlCotton'].includes(inferPackingRole(part)))
     .map(part => part.packagingMaterial || part.model)
@@ -269,8 +191,8 @@ export function configurationDifferences(recipe: Recipe | undefined, configurati
   if (Number(base.coilSheets || 0) !== Number(configuration.coilSheets || 0)) {
     differences.push(`线圈 ${Number(base.coilSheets || 0)}→${Number(configuration.coilSheets || 0)}片`);
   }
-  const baseContainer = normalizePackingParts(base.packingPartsJson).find(part => inferPackingRole(part) === 'container')?.model || '';
-  const nextContainer = normalizePackingParts(configuration.packingPartsJson).find(part => inferPackingRole(part) === 'container')?.model || '';
+  const baseContainer = resolvePackingPart(base.packingPartsJson, 'container', base.boxType)?.model || '';
+  const nextContainer = resolvePackingPart(configuration.packingPartsJson, 'container', configuration.boxType)?.model || '';
   if (baseContainer !== nextContainer) differences.push(`包装 ${baseContainer || '无'}→${nextContainer || '无'}`);
   return differences;
 }

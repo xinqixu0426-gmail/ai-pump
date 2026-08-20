@@ -28,10 +28,12 @@ import type { Part } from '@/lib/parts';
 import type { Recipe, SurfaceTreatmentMode } from '@/lib/recipes';
 import {
   buildPackingOptions,
+  findPackingOption,
   inferPackingMaterial,
   inferPackingRole,
   normalizePackingParts,
   packingOptionKey,
+  resolvePackingPart,
   updatePackingRole,
   type RecipePackingOption,
 } from '@/lib/recipe-configurations';
@@ -527,7 +529,7 @@ export function QuotationsView() {
 
   function defaultPackingOption(item: QuotationItem, role: QuotationPackingRole): RecipePackingOption | undefined {
     const recipe = recipes.find((next) => next.id === Number(item.baseRecipeId || 0));
-    const basePart = normalizePackingParts(recipe?.packingPartsJson).find((part) => inferPackingRole(part) === role);
+    const basePart = resolvePackingPart(recipe?.packingPartsJson, role, recipe?.boxType);
     if (basePart?.model) {
       const catalogPrice = parts.find((part) => (
         part.model === basePart.model
@@ -1518,14 +1520,12 @@ export function QuotationsView() {
                           外包装
                           <select
                             value={(() => {
-                              const packing = normalizePackingParts(item.overrides?.packingPartsJson)
-                                .find((part) => inferPackingRole(part) === 'container');
-                              if (!packing?.model) return '';
-                              const option = containerOptions.find((candidate) => (
-                                candidate.model === packing.model
-                                && candidate.supplier === (packing.supplier || '')
-                                && candidate.packagingMaterial === (packing.packagingMaterial || inferPackingMaterial(packing.model))
-                              ));
+                              const packing = resolvePackingPart(
+                                item.overrides?.packingPartsJson,
+                                'container',
+                                item.overrides?.boxType,
+                              );
+                              const option = findPackingOption(containerOptions, packing);
                               return option ? packingOptionKey(option) : '';
                             })()}
                             onChange={(event) => {
