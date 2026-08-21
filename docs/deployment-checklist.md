@@ -97,7 +97,7 @@ mcp_servers:
     connect_timeout: 15
 ```
 
-不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 45 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 47 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
 
 ## 3. 重启服务
 

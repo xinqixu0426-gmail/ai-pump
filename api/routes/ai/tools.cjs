@@ -316,7 +316,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_quotations',
-            description: '读取正式报价列表，权威职责是按报价状态、客户名称等条件筛选当前报价。状态查询必须传 status，API 只返回命中项，禁止先查全部再由模型筛选。若目标是某一个具名客户的全部报价、历史报价或报价与订单历史，应使用 search_customer_history，以区分客户不存在与客户存在但没有报价。',
+            description: '读取正式报价列表及每条命中报价的完整正式字段，权威职责是按报价状态、客户名称等条件筛选当前报价。状态查询必须传 status，API 只返回命中项，禁止先查全部再由模型筛选。需要稳定读取一份指定报价时使用 get_quotation_detail；若目标是某一个具名客户的全部报价、历史报价或报价与订单历史，应使用 search_customer_history，以区分客户不存在与客户存在但没有报价。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -342,6 +342,20 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_quotation_detail',
+            description: '按报价ID读取一份正式报价的完整详情，包括客户、状态、全部报价明细、成本售价、备注、转换订单信息和时间字段。只读，不修改报价；ID可先由 search_quotations 或 search_customer_history 的正式结果取得。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    quotationId: { type: 'integer', minimum: 1, description: '正式报价ID' }
+                },
+                required: ['quotationId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'search_customers',
             description: '读取正式客户列表，可按客户名称筛选。查询客户列表时使用，不得退回知识库。',
             parameters: {
@@ -357,7 +371,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_templates',
-            description: '读取正式泵壳模板列表，可按泵壳型号或描述筛选。查询模板时使用，不得当作零件搜索。',
+            description: '读取正式泵壳模板列表及每条命中模板的完整正式字段，可按泵壳型号或描述筛选。结果包括 BOM、泵壳组件、转子参数、工资、表面处理和套件成本等档案；稳定读取一个指定模板时使用 get_template_detail。查询模板时使用，不得当作零件搜索。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -365,6 +379,24 @@ const AI_TOOLS = [
                     description: { type: 'string', description: '模板描述模糊筛选（可选）' },
                     limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回数量（可选）' }
                 }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_template_detail',
+            description: '按模板ID或泵壳型号读取一个正式泵壳模板的完整档案，包括 BOM、泵壳组件、转子参数、工资、表面处理、成本模式、套件成本和备注。只读，不修改模板；名称多匹配时返回候选，不猜选。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    templateId: { type: 'integer', minimum: 1, description: '正式模板ID，优先使用' },
+                    shellModel: { type: 'string', description: '泵壳型号，未提供ID时用于唯一匹配' }
+                },
+                anyOf: [
+                    { type: 'object', properties: {}, required: ['templateId'] },
+                    { type: 'object', properties: {}, required: ['shellModel'] }
+                ]
             }
         }
     },

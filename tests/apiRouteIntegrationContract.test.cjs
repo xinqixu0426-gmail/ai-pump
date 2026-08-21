@@ -1003,6 +1003,19 @@ test('关键 API 集成契约：报价列表只读，过期状态由独立维护
     assert.match(expiryService, /requiredAuditCount: quotationIds\.length/);
 });
 
+test('关键 API 集成契约：报价详情委托正式只读 Query service 并保留完整资源', () => {
+    const route = readUtf8('api/routes/quotations.cjs');
+    const queryService = readUtf8('api/services/quotationQueries.cjs');
+    const section = sliceBetween(route, "router.get('/:id'", "router.post('/'");
+
+    assert.match(section, /quotationQueries\.get\(req\.params\.id\)/);
+    assert.match(section, /QUOTATION_DETAIL_QUERY_FAILED/);
+    assertNoWrites(section);
+    assert.match(queryService, /return \{\s*\.\.\.quotation,\s*customerName:/s);
+    assert.match(queryService, /QUOTATION_NOT_FOUND/);
+    assertNoWrites(queryService);
+});
+
 test('关键 API 集成契约：零件列表筛选委托只读 Query service', () => {
     const route = readUtf8('api/routes/parts.cjs');
     const service = readUtf8('api/services/partQueries.cjs');

@@ -40,12 +40,12 @@ const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access
 const MCP_COIL_PROFILE_FIXTURE = Object.freeze({
     spec: '99887',
     sheets: 321,
-    diameterMm: 9987,
+    diameterMm: 99887,
     commonName: 'MCP绕组验收',
     material: '冷轧',
     slotType: '国标眼',
     schemeName: 'MCP完整档案方案',
-    schemeStatus: 'testing',
+    schemeStatus: 'official',
     unitPrice: 0.456,
     wireWeight: 1.234,
     copperBase: 87.65,
@@ -127,6 +127,118 @@ function seedMcpCoilProfileFixture(databasePath) {
             now,
             now
         );
+    } finally {
+        db.close();
+    }
+}
+
+function seedMcpReadResourceFixtures(databasePath) {
+    const db = new Database(databasePath);
+    try {
+        const now = new Date().toISOString();
+        db.transaction(() => {
+            db.prepare(`
+                INSERT INTO parts (
+                    model, category, subcategory, price, supplier, stock,
+                    remark, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                'MCP-BOM-SNAPSHOT',
+                'MCP验收',
+                '只读夹具',
+                99.8,
+                'MCP',
+                10,
+                'MCP 零件完整字段',
+                now,
+                now
+            );
+            const templateId = Number(db.prepare(`
+                INSERT INTO pump_shell_templates (
+                    shell_model, description, parts_json, rotor_params_json,
+                    assembly_wage, packing_wage, painting_wage,
+                    surface_treatment_mode, surface_treatment_cost,
+                    cost_mode, bundle_cost, bundle_note, shell_components_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                'MCP-READ-TEMPLATE',
+                'MCP 完整模板只读验收',
+                '[]',
+                JSON.stringify({ bearing: '6202', shaftDiameter: 12 }),
+                6,
+                3,
+                2,
+                'painting',
+                2,
+                'bundle',
+                99.8,
+                'MCP 整体价',
+                '[]',
+                now,
+                now
+            ).lastInsertRowid);
+            const insertRecipe = db.prepare(`
+                INSERT INTO recipes (
+                    name, spec, parts_json, saved_total_cost, saved_cost_details,
+                    template_id, coil_spec, coil_sheets, coil_material, coil_slot_type,
+                    assembly_wage, packing_wage, painting_wage,
+                    surface_treatment_mode, surface_treatment_cost,
+                    management_fee, technical_data_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)
+            `);
+            const recipePartsJson = JSON.stringify([{
+                name: '线圈转子',
+                model: 'MCP完整档案线圈',
+                category: '线圈',
+                qty: 1,
+                snapshotPrice: 99.8,
+            }]);
+            insertRecipe.run(
+                'MCP-READ-RECIPE-A', 'MCP-A', recipePartsJson, 99.8, templateId,
+                MCP_COIL_PROFILE_FIXTURE.spec, MCP_COIL_PROFILE_FIXTURE.sheets,
+                MCP_COIL_PROFILE_FIXTURE.material, MCP_COIL_PROFILE_FIXTURE.slotType,
+                6, 3, 2, 'painting', 2, 0, now, now
+            );
+            insertRecipe.run(
+                'MCP-READ-RECIPE-B', 'MCP-B', recipePartsJson, 101.8, templateId,
+                MCP_COIL_PROFILE_FIXTURE.spec, MCP_COIL_PROFILE_FIXTURE.sheets,
+                MCP_COIL_PROFILE_FIXTURE.material, MCP_COIL_PROFILE_FIXTURE.slotType,
+                6, 3, 2, 'painting', 2, 0, now, now
+            );
+            const customerId = Number(db.prepare(`
+                INSERT INTO customers (
+                    name, contact_info, default_margin, remark, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            `).run(
+                'MCP 只读验收客户',
+                'mcp@example.invalid',
+                0.1,
+                'MCP 客户完整字段',
+                now,
+                now
+            ).lastInsertRowid);
+            db.prepare(`
+                INSERT INTO quotations (
+                    customer_id, status, items_json, total_cost, total_price,
+                    remark, created_at, updated_at
+                ) VALUES (?, '报价中', ?, ?, ?, ?, ?, ?)
+            `).run(
+                customerId,
+                JSON.stringify([{
+                    recipeName: 'MCP-READ-RECIPE-A',
+                    qty: 2,
+                    unitCost: 99.8,
+                    unitPrice: 120,
+                    configurationSnapshot: { cableLength: 10 },
+                }]),
+                199.6,
+                240,
+                'MCP 报价完整字段',
+                now,
+                now
+            );
+        })();
     } finally {
         db.close();
     }
@@ -314,7 +426,10 @@ async function callVerifiedMcpTool(client, clientLabel, name, args, options = {}
         );
     }
     const structured = result.structuredContent;
-    assert(structured?.mcp?.capabilityId, `${clientLabel} / ${name} 缺少 capabilityId`);
+    assert(
+        structured?.mcp?.capabilityId,
+        `${clientLabel} / ${name} 缺少 capabilityId: ${JSON.stringify(result).slice(0, 500)}`
+    );
     assert(structured?.mcp?.verified === true, `${clientLabel} / ${name} 缺少正式 API 证据`);
 
     if (result.isError === true) {
@@ -388,11 +503,60 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
         };
         const notFound = { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND'] };
 
-        const templatesResult = await call('search_templates', { limit: 3 });
+        const templatesResult = await call('search_templates', {
+            shellModel: 'MCP-READ-TEMPLATE',
+            limit: 3,
+        });
         const template = mcpDataArray(templatesResult)[0] || null;
+        const templateDetailResult = await call(
+            'get_template_detail',
+            template ? { templateId: Number(template.id) } : { shellModel: 'MCP-NOT-FOUND' },
+            template ? {} : notFound
+        );
+        if (template) {
+            const templateDetail = templateDetailResult.structuredContent?.template;
+            assert(templateDetail?.id === template.id, 'get_template_detail 未返回选中的完整模板');
+            for (const field of [
+                'partsJson', 'shellComponentsJson', 'rotorParamsJson',
+                'assemblyWage', 'packingWage', 'paintingWage', 'bundleCost',
+            ]) {
+                assert(
+                    Object.hasOwn(templateDetail, field),
+                    `get_template_detail 缺少模板正式字段 ${field}`
+                );
+            }
+            assert(templateDetail.shellModel === 'MCP-READ-TEMPLATE', 'get_template_detail 未命中唯一模板夹具');
+            assert(templateDetail.assemblyWage === 6, 'get_template_detail 未保留模板装配工资');
+            assert(templateDetail.bundleCost === 99.8, 'get_template_detail 未保留模板套件成本');
+            assert(templateDetail.rotorParams?.bearing === '6202', 'get_template_detail 未保留模板转子参数');
+        }
         const customersResult = await call('search_customers', { limit: 3 });
         const customer = mcpDataArray(customersResult)[0] || null;
-        await call('search_quotations', { limit: 3 });
+        const quotationsResult = await call('search_quotations', {
+            customerName: 'MCP 只读验收客户',
+            limit: 3,
+        });
+        const quotation = mcpDataArray(quotationsResult)[0] || null;
+        const quotationDetailResult = await call(
+            'get_quotation_detail',
+            { quotationId: Number(quotation?.id || 999999999) },
+            quotation ? {} : notFound
+        );
+        if (quotation) {
+            const quotationDetail = quotationDetailResult.structuredContent?.quotation;
+            assert(quotationDetail?.id === quotation.id, 'get_quotation_detail 未返回选中的完整报价');
+            for (const field of [
+                'itemsJson', 'remark', 'convertedOrderId', 'convertedAt', 'updatedAt',
+            ]) {
+                assert(
+                    Object.hasOwn(quotationDetail, field),
+                    `get_quotation_detail 缺少报价正式字段 ${field}`
+                );
+            }
+            assert(quotationDetail.customerName === 'MCP 只读验收客户', 'get_quotation_detail 未命中唯一报价夹具');
+            assert(quotationDetail.remark === 'MCP 报价完整字段', 'get_quotation_detail 未保留报价备注');
+            assert(quotationDetail.items?.[0]?.configurationSnapshot?.cableLength === 10, 'get_quotation_detail 未保留完整报价明细');
+        }
         await call('get_copper_price');
         await call('get_coil_specs');
         await call('search_parts', { limit: 3 });
@@ -445,6 +609,9 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
         const recipeErrorOptions = recipeId === 999999999
             ? notFound
             : {};
+        const fullEstimateErrorOptions = recipeId === 999999999
+            ? { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND', 'FULL_ESTIMATE_RECIPE_NOT_FOUND'] }
+            : {};
         const recipeDetailResult = await call(
             'get_recipe_detail',
             { recipeId },
@@ -480,7 +647,7 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             ...(coil ? { stator: `${coil.spec}-${coil.sheets}` } : {}),
             hasFloat: false,
             cableLength: 0,
-        }, recipeErrorOptions);
+        }, fullEstimateErrorOptions);
         if (recipe) {
             const fullEstimate = mcpData(fullEstimateResult);
             assert(fullEstimate?.recipeCost?.recipeId === Number(recipe.id), '完整估算未绑定请求的正式配方');
@@ -509,7 +676,9 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
         const comparisonArgs = recipe && comparisonRecipe
             ? { recipe1: recipe.name, recipe2: comparisonRecipe.name }
             : { recipe1: 'MCP-NOT-FOUND-A', recipe2: 'MCP-NOT-FOUND-B' };
-        const comparisonErrorOptions = recipe && comparisonRecipe ? {} : notFound;
+        const comparisonErrorOptions = recipe && comparisonRecipe
+            ? {}
+            : { allowedErrorCodes: ['AI_RESOURCE_NOT_FOUND', 'RECIPE_SELECTOR_NOT_FOUND'] };
         const compared = await call('compare_recipes', comparisonArgs, comparisonErrorOptions);
         if (recipe && comparisonRecipe) {
             assert(
@@ -3436,6 +3605,7 @@ async function run() {
         await sourceDb.backup(path.join(temp, 'pump.db'));
         sourceDb.close();
         seedMcpCoilProfileFixture(path.join(temp, 'pump.db'));
+        seedMcpReadResourceFixtures(path.join(temp, 'pump.db'));
 
         const port = await getFreePort();
         const unavailableNextPort = await getFreePort();

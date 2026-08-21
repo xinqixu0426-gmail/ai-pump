@@ -17,8 +17,11 @@ const { composeAiSystemPrompt } = require('./aiPromptComposer.cjs');
 const { readAiProviderStream } = require('./aiProviderStream.cjs');
 const { fetchAiProvider } = require('./aiProvider.cjs');
 const {
+    MAX_AI_READ_TOOL_RESULT_BYTES,
+    buildAiSynthesisEvidence,
     buildAiToolPlan,
     buildAiToolResultMessage,
+    enforceAiToolResultBudget,
     parseAiToolArguments,
     prepareAiToolCalls,
     prioritizeBusinessEvidence,
@@ -148,19 +151,10 @@ function buildClarificationReply(intent) {
 }
 
 async function synthesizeVerifiedAnswer(input = {}) {
-    const evidence = input.toolResults.map(item => ({
-        capabilityName: item.name,
-        ...(item.name === 'get_order_knowledge_package' ? {
-            evidencePriority: 'human_confirmed_order_knowledge',
-            confirmedKnowledge: item.result?.data?.confirmedKnowledge
-                || item.result?.confirmedKnowledge
-                || null,
-            knowledgeCoverage: item.result?.data?.coverage
-                || item.result?.coverage
-                || null,
-        } : {}),
-        result: item.result,
-    }));
+    const evidence = buildAiSynthesisEvidence(input.toolResults);
+    if (Buffer.byteLength(JSON.stringify(evidence), 'utf8') > MAX_AI_READ_TOOL_RESULT_BYTES) {
+        return '查询结果过大，未删除任何业务字段。请增加正式筛选条件、明确 limit，或改用单条详情查询。';
+    }
     const messages = [
         { role: 'system', content: input.systemPrompt },
         { role: 'user', content: input.userText },
@@ -484,11 +478,19 @@ async function runAiAgentRuntimeV3(input = {}) {
                 currentMessages.push(buildAiToolResultMessage(toolCall, result));
                 if (!identifierCorrectionUsed) {
                     identifierCorrectionUsed = true;
+                    const correction = groundingIssue.issue.code === 'UNGROUNDED_QUOTATION_ID'
+                        ? `${groundingIssue.issue.error} 请先调用 search_quotations 按正式条件定位报价，不得生成报价ID。`
+                        : `${groundingIssue.issue.error} 请重新调用同一工具；保留用户给出的名称或合同号并改用 orderQuery，不得生成订单ID。`;
                     currentMessages.push({
                         role: 'system',
-                        content: `${groundingIssue.issue.error} 请重新调用同一工具；保留用户给出的名称或合同号并改用 orderQuery，不得生成订单ID。`,
+                        content: correction,
                     });
-                    emit('status', { status: 'thinking', message: '正在按正式名称重新定位订单...' });
+                    emit('status', {
+                        status: 'thinking',
+                        message: groundingIssue.issue.code === 'UNGROUNDED_QUOTATION_ID'
+                            ? '正在通过正式报价列表定位报价...'
+                            : '正在按正式名称重新定位订单...',
+                    });
                     continue;
                 }
                 toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
@@ -528,6 +530,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                 if (prepared.resolutionReceipt && result && typeof result === 'object') {
                     result = { ...result, resolutionReceipt: prepared.resolutionReceipt };
                 }
+                result = enforceAiToolResultBudget(name, result, toolResults);
                 toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
                 currentMessages.push(buildAiToolResultMessage(toolCall, result));
                 emit('tool_result', { name, result });
@@ -551,10 +554,15 @@ async function runAiAgentRuntimeV3(input = {}) {
                         message: `正在补充关联知识: ${companionName}...`,
                     });
                     emit('tool_call', { name: companionName, args: companionArgs });
-                    const companionResult = await executeToolCall(companionName, companionArgs, {
+                    let companionResult = await executeToolCall(companionName, companionArgs, {
                         allowWrite: false,
                         confirmationSubject,
                     });
+                    companionResult = enforceAiToolResultBudget(
+                        companionName,
+                        companionResult,
+                        toolResults
+                    );
                     toolResults.push({
                         name: companionName,
                         view_type: viewTypeForAiTool(companionName),

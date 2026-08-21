@@ -12,7 +12,7 @@ const ENTITY_DESCRIPTORS = Object.freeze({
         label: '订单',
         discoveryCapability: 'get_recent_orders',
         discoveryArgs: ['customerName', 'contractNo'],
-        candidateNameKeys: ['customer', 'contract'],
+        candidateNameKeys: ['customerName', 'contractNo'],
         candidateIdKeys: ['id'],
     }),
     recipe: Object.freeze({
@@ -63,6 +63,7 @@ const TOOL_TARGETS = Object.freeze({
     delete_recipe: { entityType: 'recipe', inputField: 'recipeName', outputField: 'recipeName' },
     update_recipe: { entityType: 'recipe', inputField: 'recipeName', outputField: 'recipeName' },
     preview_pump_shell_cost: { entityType: 'template', inputField: 'shellModel', outputIdField: 'templateId' },
+    get_template_detail: { entityType: 'template', inputField: 'shellModel', outputIdField: 'templateId' },
     calculate_coil_cost: {
         entityType: 'coil',
         inputField: 'spec',

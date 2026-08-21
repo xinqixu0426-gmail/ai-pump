@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+    enforceAiToolResultBudget,
     buildAiToolPlan,
     buildAiToolResultMessage,
+    enforceAiToolResultSize,
     parseAiToolArguments,
     prepareAiToolCalls,
     prioritizeBusinessEvidence,
@@ -120,6 +122,60 @@ test('AI tool protocol：工具调用与模型回执使用同一序列化格式'
     assert.match(message.content, /不展示内部思考、逐步推理、工具选择或处理过程/);
     assert.match(message.content, /一个简短标题和 2-5 个短要点/);
     assert.doesNotMatch(message.content, /120 个汉字/);
+});
+
+test('AI tool protocol：只读完整资源超限时明确失败且不裁剪业务字段', () => {
+    const executionEvidence = {
+        verified: true,
+        kind: 'formal_api_query',
+        calls: [{ method: 'GET', path: '/api/recipes' }],
+    };
+    const oversized = enforceAiToolResultSize('get_all_recipes', {
+        success: true,
+        data: [{ id: 1, partsJson: 'x'.repeat(1024) }],
+        executionEvidence,
+    }, 200);
+
+    assert.equal(oversized.success, false);
+    assert.equal(oversized.code, 'AI_QUERY_RESULT_TOO_LARGE');
+    assert.match(oversized.error, /未删除任何业务字段/);
+    assert.match(oversized.error, /筛选条件.*limit.*详情/);
+    assert.equal(oversized.executionEvidence, executionEvidence);
+    assert.equal(enforceAiToolResultSize('create_order', {
+        success: true,
+        data: 'x'.repeat(1024),
+    }, 200).success, true);
+});
+
+test('AI tool protocol：自动知识伴随结果也经过同一大小门', () => {
+    const oversized = enforceAiToolResultBudget('get_order_knowledge_package', {
+        success: true,
+        data: {
+            confirmedKnowledge: [{ content: 'x'.repeat(1024) }],
+            coverage: { summary: '订单知识' },
+        },
+        executionEvidence: { verified: true },
+    }, [], 400);
+
+    assert.equal(oversized.code, 'AI_QUERY_RESULT_TOO_LARGE');
+    assert.equal(oversized.executionEvidence.verified, true);
+});
+
+test('AI tool protocol：多个单项未超限的只读结果累计超限时整体拒绝新增结果', () => {
+    const existing = [{
+        name: 'search_parts',
+        result: { success: true, data: 'a'.repeat(180) },
+    }];
+    const candidate = { success: true, data: 'b'.repeat(180) };
+    assert.equal(Buffer.byteLength(JSON.stringify(candidate), 'utf8') < 500, true);
+
+    const checked = enforceAiToolResultBudget(
+        'search_templates',
+        candidate,
+        existing,
+        500
+    );
+    assert.equal(checked.code, 'AI_QUERY_RESULT_TOO_LARGE');
 });
 
 test('AI tool protocol：取得本轮证据后移除历史 assistant 事实干扰', () => {

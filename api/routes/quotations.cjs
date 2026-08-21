@@ -93,6 +93,22 @@ router.get('/', (req, res) => {
     }
 });
 
+router.get('/:id', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: quotationQueries.get(req.params.id),
+        });
+    } catch (err) {
+        res.status(err.statusCode || 500).json({
+            success: false,
+            code: err.code || 'QUOTATION_DETAIL_QUERY_FAILED',
+            error: err.message,
+            requestId: req.requestId || null,
+        });
+    }
+});
+
 router.post('/', (req, res) => {
     try {
         const result = executeQuotationCreate(

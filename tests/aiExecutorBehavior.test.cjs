@@ -1127,7 +1127,24 @@ test('AI executor 行为：线圈俗称匹配多个正式方案时不写库存',
 test('AI executor 行为：零件搜索不传筛选时通过标准 parts API 返回列表', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/parts') && call.method === 'GET') {
-            return jsonResponse({ success: true, data: [{ id: 1, model: '6202', category: '轴承', price: 1.5, supplier: 'S', stock: 8 }] });
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 1,
+                    Id: 1,
+                    model: '6202',
+                    category: '轴承',
+                    subcategory: '',
+                    price: 1.5,
+                    supplier: 'S',
+                    stock: 8,
+                    notes: '电机端轴承',
+                    createdAt: '2026-08-01T00:00:00.000Z',
+                    updatedAt: '2026-08-20T00:00:00.000Z',
+                    CreatedAt: '2026-08-01T00:00:00.000Z',
+                    UpdatedAt: '2026-08-20T00:00:00.000Z',
+                }],
+            });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
@@ -1158,7 +1175,18 @@ test('AI executor 行为：零件搜索不传筛选时通过标准 parts API 返
     assert.equal(result.stockStatusDefinition.low, '库存大于0且不超过5');
     assert.deepEqual(result.suppliers, [{ name: 'S', partCount: 1 }]);
     assert.deepEqual(result.categorySummary, [{ category: '轴承', partCount: 1 }]);
-    assert.deepEqual(result.parts, [{ id: 1, model: '6202', category: '轴承', subcategory: '', price: 1.5, supplier: 'S', stock: 8 }]);
+    assert.deepEqual(result.parts, [{
+        id: 1,
+        model: '6202',
+        category: '轴承',
+        subcategory: '',
+        price: 1.5,
+        supplier: 'S',
+        stock: 8,
+        notes: '电机端轴承',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-20T00:00:00.000Z',
+    }]);
     assert.equal(result.provenance.kind, 'live_business');
     assert.equal(result.provenance.label, '实时业务数据');
     assert.equal(calls.length, 1);
@@ -1244,8 +1272,8 @@ test('AI executor 行为：采购中订单只返回正式筛选结果且不伪�
     assert.equal(result.count, 1);
     assert.deepEqual(result.data, [{
         id: 9,
-        customer: '华东泵业',
-        contract: 'HT-009',
+        customerName: '华东泵业',
+        contractNo: 'HT-009',
         status: '采购中',
         createdAt: null,
     }]);
@@ -1267,6 +1295,9 @@ test('AI executor 行为：报价状态筛选委托正式 quotations API 且只�
                     status: '报价中',
                     totalCost: 700,
                     totalPrice: 1000,
+                    remark: '含税含运费',
+                    convertedOrderId: 21,
+                    updatedAt: '2026-08-09T00:00:00.000Z',
                     itemsJson: JSON.stringify([{ recipeName: 'V750', qty: 2 }]),
                     createdAt: '2026-08-08T00:00:00.000Z',
                 }],
@@ -1293,8 +1324,12 @@ test('AI executor 行为：报价状态筛选委托正式 quotations API 且只�
         status: '报价中',
         totalCost: 700,
         totalPrice: 1000,
+        remark: '含税含运费',
+        convertedOrderId: 21,
+        updatedAt: '2026-08-09T00:00:00.000Z',
+        itemsJson: JSON.stringify([{ recipeName: 'V750', qty: 2 }]),
         createdAt: '2026-08-08T00:00:00.000Z',
-        items: [{ model: 'V750', quantity: 2 }],
+        items: [{ recipeName: 'V750', qty: 2 }],
     }]);
     assert.match(result.selectionBoundary, /正式报价 API/);
     assert.equal(result.provenance.kind, 'live_business');
@@ -1306,13 +1341,31 @@ test('AI executor 行为：客户和模板列表只传正式筛选字段并返�
         if (call.url.endsWith('/api/customers?name=%E5%8D%8E%E4%B8%9C&limit=2')) {
             return jsonResponse({
                 success: true,
-                data: [{ id: 7, name: '华东泵业', contactInfo: '138', defaultMargin: 1.1 }],
+                data: [{
+                    id: 7,
+                    name: '华东泵业',
+                    contactInfo: '138',
+                    defaultMargin: 1.1,
+                    remark: '重点客户',
+                    createdAt: '2026-01-01T00:00:00.000Z',
+                    updatedAt: '2026-08-20T00:00:00.000Z',
+                }],
             });
         }
         if (call.url.endsWith('/api/templates?shellModel=SHELL-1')) {
             return jsonResponse({
                 success: true,
-                data: [{ id: 3, shellModel: 'SHELL-1', description: '常用泵壳' }],
+                data: [{
+                    id: 3,
+                    shellModel: 'SHELL-1',
+                    description: '常用泵壳',
+                    partsJson: '[{"model":"泵壳A","qty":1}]',
+                    shellComponentsJson: '[{"componentType":"barrel"}]',
+                    rotorParamsJson: '{"shaftDiameter":12}',
+                    assemblyWage: 5,
+                    packingWage: 2,
+                    bundleCost: 80,
+                }],
             });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -1330,10 +1383,189 @@ test('AI executor 行为：客户和模板列表只传正式筛选字段并返�
     assert.deepEqual(customers.queryReceipt.appliedFilters, { name: '华东', limit: 2 });
     assert.equal(customers.queryReceipt.authoritative, true);
     assert.deepEqual(customers.data.map(item => item.name), ['华东泵业']);
+    assert.equal(customers.data[0].remark, '重点客户');
+    assert.equal(customers.data[0].updatedAt, '2026-08-20T00:00:00.000Z');
     assert.equal(templates.success, true);
     assert.deepEqual(templates.queryReceipt.appliedFilters, { shellModel: 'SHELL-1' });
     assert.deepEqual(templates.data.map(item => item.shellModel), ['SHELL-1']);
+    assert.deepEqual(templates.data[0].parts, [{ model: '泵壳A', qty: 1 }]);
+    assert.deepEqual(templates.data[0].rotorParams, { shaftDiameter: 12 });
+    assert.equal(templates.data[0].assemblyWage, 5);
+    assert.equal(templates.data[0].bundleCost, 80);
     assert.deepEqual(calls.map(call => call.method), ['GET', 'GET']);
+});
+
+test('AI executor 行为：模板详情通过正式 API 返回完整档案且仅清理旧别名', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/templates?shellModel=SHELL-DETAIL')) {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 31, shellModel: 'SHELL-DETAIL', description: '详情模板' }],
+            });
+        }
+        if (call.url.endsWith('/api/templates/31')) {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 31,
+                    Id: 31,
+                    shellModel: 'SHELL-DETAIL',
+                    description: '详情模板',
+                    partsJson: '[{"model":"泵壳组件","qty":1,"snapshotPrice":12.5}]',
+                    shellComponentsJson: '[{"componentType":"stainlessStretchBarrel","model":"拉伸筒"}]',
+                    rotorParamsJson: '{"bearing":"6202","shaftDiameter":12}',
+                    assemblyWage: 6,
+                    packingWage: 3,
+                    paintingWage: 2,
+                    surfaceTreatmentMode: 'painting',
+                    surfaceTreatmentCost: 2,
+                    costMode: 'bundle',
+                    bundleCost: 99.8,
+                    bundleNote: '整体价',
+                    createdAt: '2026-08-01T00:00:00.000Z',
+                    updatedAt: '2026-08-20T00:00:00.000Z',
+                    CreatedAt: '2026-08-01T00:00:00.000Z',
+                    UpdatedAt: '2026-08-20T00:00:00.000Z',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: 'unexpected request' }, 500);
+    });
+
+    const result = await executeToolCall('get_template_detail', {
+        shellModel: 'SHELL-DETAIL',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.template.bundleCost, 99.8);
+    assert.equal(result.template.assemblyWage, 6);
+    assert.deepEqual(result.template.parts, [{ model: '泵壳组件', qty: 1, snapshotPrice: 12.5 }]);
+    assert.deepEqual(result.template.rotorParams, { bearing: '6202', shaftDiameter: 12 });
+    assert.equal(Object.hasOwn(result.template, 'Id'), false);
+    assert.equal(Object.hasOwn(result.template, 'CreatedAt'), false);
+    assert.equal(result.executionEvidence.verified, true);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/templates?shellModel=SHELL-DETAIL',
+        'GET /api/templates/31',
+    ]);
+});
+
+test('AI executor 行为：报价详情通过正式 API 保留备注、转换信息和完整明细', async () => {
+    const calls = installFetchStub(call => (
+        call.url.endsWith('/api/quotations/18')
+            ? jsonResponse({
+                success: true,
+                data: {
+                    id: 18,
+                    customerId: 7,
+                    customerName: '华东泵业',
+                    status: '已转订单',
+                    itemsJson: '[{"recipeId":3,"recipeName":"V750","qty":2,"unitCost":321.5,"unitPrice":410,"configurationSnapshot":{"cableLength":10}}]',
+                    totalCost: 643,
+                    totalPrice: 820,
+                    remark: '含税含运费，质保一年',
+                    convertedOrderId: 27,
+                    convertedAt: '2026-08-20T01:00:00.000Z',
+                    createdAt: '2026-08-19T00:00:00.000Z',
+                    updatedAt: '2026-08-20T01:00:00.000Z',
+                },
+            })
+            : jsonResponse({ success: false, error: 'unexpected request' }, 500)
+    ));
+
+    const result = await executeToolCall('get_quotation_detail', {
+        quotationId: 18,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.quotation.remark, '含税含运费，质保一年');
+    assert.equal(result.quotation.convertedOrderId, 27);
+    assert.deepEqual(result.quotation.items[0], {
+        recipeId: 3,
+        recipeName: 'V750',
+        qty: 2,
+        unitCost: 321.5,
+        unitPrice: 410,
+        configurationSnapshot: { cableLength: 10 },
+    });
+    assert.equal(result.executionEvidence.verified, true);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/quotations/18',
+    ]);
+});
+
+test('AI executor 行为：模板和报价详情的正式 404 统一为已验证资源未找到', async () => {
+    installFetchStub(call => {
+        if (call.url.endsWith('/api/templates/999')) {
+            return jsonResponse({ success: false, code: 'TEMPLATE_NOT_FOUND', error: '模板不存在' }, 404);
+        }
+        if (call.url.endsWith('/api/quotations/999')) {
+            return jsonResponse({ success: false, code: 'QUOTATION_NOT_FOUND', error: '报价不存在' }, 404);
+        }
+        return jsonResponse({ success: false, error: 'unexpected request' }, 500);
+    });
+
+    const template = await executeToolCall('get_template_detail', {
+        templateId: 999,
+    }, { allowWrite: false });
+    const quotation = await executeToolCall('get_quotation_detail', {
+        quotationId: 999,
+    }, { allowWrite: false });
+
+    for (const result of [template, quotation]) {
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'AI_RESOURCE_NOT_FOUND');
+        assert.equal(result.executionEvidence.verified, true);
+    }
+});
+
+test('AI executor 行为：订单详情保留正式订单状态与库存处置字段', async () => {
+    installFetchStub(call => (
+        call.url.endsWith('/api/orders/44')
+            ? jsonResponse({
+                success: true,
+                data: {
+                    id: 44,
+                    Id: 44,
+                    customerId: 7,
+                    customerName: '华东泵业',
+                    contractNo: 'HT-044',
+                    remark: '优先生产',
+                    status: '采购完成',
+                    itemsJson: '[{"recipeId":3,"qty":2,"unitCost":300,"unitPrice":400}]',
+                    purchaseListJson: '[{"model":"6202","needToBuy":0}]',
+                    todosJson: '[]',
+                    purchaseCompletedAt: '2026-08-20T02:00:00.000Z',
+                    purchaseReceiptId: 91,
+                    statusReason: '全部到货',
+                    statusChangedAt: '2026-08-20T02:00:00.000Z',
+                    inventoryDisposition: 'reserved',
+                    inventoryDispositionAt: '2026-08-20T02:10:00.000Z',
+                    inventoryDispositionNote: '已锁定库存',
+                    createdAt: '2026-08-01T00:00:00.000Z',
+                    updatedAt: '2026-08-20T02:10:00.000Z',
+                    CreatedAt: '2026-08-01T00:00:00.000Z',
+                    UpdatedAt: '2026-08-20T02:10:00.000Z',
+                },
+            })
+            : jsonResponse({ success: false, error: 'unexpected request' }, 500)
+    ));
+
+    const result = await executeToolCall('get_order_detail', {
+        orderId: 44,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.order.customerId, 7);
+    assert.equal(result.order.purchaseReceiptId, 91);
+    assert.equal(result.order.statusReason, '全部到货');
+    assert.equal(result.order.inventoryDisposition, 'reserved');
+    assert.equal(result.order.inventoryDispositionNote, '已锁定库存');
+    assert.deepEqual(result.order.items[0], { recipeId: 3, qty: 2, unitCost: 300, unitPrice: 400 });
+    assert.equal(result.order.totalCost, 600);
+    assert.equal(result.order.totalPrice, 800);
+    assert.equal(Object.hasOwn(result.order, 'Id'), false);
+    assert.equal(Object.hasOwn(result.order, 'CreatedAt'), false);
 });
 
 test('AI executor 行为：全量零件查询不在 executor 内隐式截断', async () => {
@@ -1368,6 +1600,8 @@ test('AI executor 行为：有测试报告的配方由正式配方 API 筛选并
                     id: 1,
                     name: 'TEST-PUMP-750A',
                     spec: '750W/220V 测试配方',
+                    savedTotalCost: 388.6,
+                    assemblyWage: 8,
                     technicalFileCount: 1,
                 }],
             })
@@ -1387,7 +1621,8 @@ test('AI executor 行为：有测试报告的配方由正式配方 API 筛选并
         id: 1,
         name: 'TEST-PUMP-750A',
         spec: '750W/220V 测试配方',
-        savedCost: 0,
+        savedTotalCost: 388.6,
+        assemblyWage: 8,
         technicalFileCount: 1,
     }]);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [

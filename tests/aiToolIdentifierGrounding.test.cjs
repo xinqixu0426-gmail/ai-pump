@@ -2,7 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     explicitOrderIds,
+    explicitQuotationIds,
     verifiedResolvedOrderIds,
+    verifiedResolvedQuotationIds,
     validateAiToolIdentifierGrounding,
 } = require('../api/services/aiToolIdentifierGrounding.cjs');
 
@@ -106,4 +108,54 @@ test('AI 订单标识落地：只读名称查询允许把简称扩展为标准�
         args: { orderQuery: '20260100' },
         messages,
     }), null);
+});
+
+test('AI 报价标识落地：只接受用户明确报价号或本轮正式列表中的ID', () => {
+    assert.deepEqual(
+        [...explicitQuotationIds([
+            { role: 'user', content: '看报价 #18 和 23号报价' },
+            { role: 'assistant', content: '错误猜测报价 99' },
+        ])].sort((a, b) => a - b),
+        [18, 23]
+    );
+    assert.equal(validateAiToolIdentifierGrounding({
+        toolName: 'get_quotation_detail',
+        args: { quotationId: 18 },
+        messages: [{ role: 'user', content: '查看报价ID 18的完整明细' }],
+    }), null);
+
+    const toolResults = [{
+        name: 'search_quotations',
+        result: verifiedResult({ data: [{ id: 27, customerName: '华东泵业' }] }),
+    }];
+    assert.deepEqual([...verifiedResolvedQuotationIds(toolResults)], [27]);
+    assert.equal(validateAiToolIdentifierGrounding({
+        toolName: 'get_quotation_detail',
+        args: { quotationId: 27 },
+        messages: [{ role: 'user', content: '查看华东泵业这份报价' }],
+        toolResults,
+    }), null);
+});
+
+test('AI 报价标识落地：阻止模型直接猜测存在的报价ID', () => {
+    const rejected = validateAiToolIdentifierGrounding({
+        toolName: 'get_quotation_detail',
+        args: { quotationId: 27 },
+        messages: [{ role: 'user', content: '查看华东泵业这份报价' }],
+    });
+    assert.equal(rejected.code, 'UNGROUNDED_QUOTATION_ID');
+    assert.match(rejected.error, /猜测ID/);
+});
+
+test('AI 报价标识落地：报价数量不被误认为明确报价ID', () => {
+    const ids = explicitQuotationIds([
+        { role: 'user', content: '给客户做报价 18 份，再看看报价18个是否够用' },
+    ]);
+    assert.deepEqual([...ids], []);
+    const rejected = validateAiToolIdentifierGrounding({
+        toolName: 'get_quotation_detail',
+        args: { quotationId: 18 },
+        messages: [{ role: 'user', content: '给客户做报价 18 份' }],
+    });
+    assert.equal(rejected.code, 'UNGROUNDED_QUOTATION_ID');
 });

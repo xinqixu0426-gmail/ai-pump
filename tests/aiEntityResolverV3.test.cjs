@@ -141,7 +141,7 @@ test('AI V3 实体解析：订单客户简称通过正式订单候选绑定订�
         toolName: 'get_order_detail',
         args: { orderQuery: '叶总' },
         executeToolCall: async (_name, args) => verified(args.customerName
-            ? [{ id: 2, customer: '台州叶总', contract: '20260100' }]
+            ? [{ id: 2, customerName: '台州叶总', contractNo: '20260100' }]
             : []),
     });
 
@@ -158,7 +158,7 @@ test('AI V3 实体解析：订单合同号同时调查客户字段与合同字�
         executeToolCall: async (_name, args) => {
             calls.push(args);
             return verified(args.contractNo
-                ? [{ id: 2, customer: '台州叶总', contract: '20260100' }]
+                ? [{ id: 2, customerName: '台州叶总', contractNo: '20260100' }]
                 : []);
         },
     });

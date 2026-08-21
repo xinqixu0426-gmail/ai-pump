@@ -199,7 +199,13 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
             const templates = await getJson(internalFetch, '/api/templates', '泵壳模板读取失败');
             const template = findByNameOrId(templates, args.templateId || args.shellModel, ['shellModel', 'description']);
-            if (!template) return { success: false, error: `未找到泵壳模板：${args.shellModel || args.templateId || ''}` };
+            if (!template) {
+                return {
+                    success: false,
+                    code: 'AI_RESOURCE_NOT_FOUND',
+                    error: `未找到泵壳模板：${args.shellModel || args.templateId || ''}`,
+                };
+            }
 
             const templateId = template.id ?? template.Id;
             const data = await postJson(internalFetch, '/api/recipes/bom-draft', {

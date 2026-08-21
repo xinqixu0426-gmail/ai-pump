@@ -1,5 +1,6 @@
 const { getJson, postJson, putJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
 const { recordWorkflowRun } = require('./workflowRunRecorder.cjs');
+const { canonicalApiResource } = require('./formalResource.cjs');
 const {
     executeOrderReadinessAction,
 } = require('../../../services/aiOrderReadinessExecution.cjs');
@@ -290,28 +291,23 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     error: '找不到订单ID: ' + resolved.orderId,
                 };
             }
-            let items = parseJsonArray(row.itemsJson);
-            let purchaseList = parseJsonArray(row.purchaseListJson);
-            let todos = parseJsonArray(row.todosJson);
+            const canonicalOrder = canonicalApiResource(row);
+            const items = parseJsonArray(canonicalOrder.itemsJson);
+            const purchaseList = parseJsonArray(canonicalOrder.purchaseListJson);
+            const todos = parseJsonArray(canonicalOrder.todosJson);
             // 计算汇总
             let totalCost = 0, totalPrice = 0;
             for (const it of items) { totalCost += (it.unitCost || 0) * (it.qty || 0); totalPrice += (it.unitPrice || 0) * (it.qty || 0); }
             return {
                 success: true,
                 order: {
-                    id: row.id ?? row.Id,
-                    customerName: row.customerName,
-                    contractNo: row.contractNo || '',
-                    remark: row.remark || '',
-                    status: row.status || '待确认',
+                    ...canonicalOrder,
                     items,
                     purchaseList,
                     todos,
                     totalCost: Math.round(totalCost * 100) / 100,
                     totalPrice: Math.round(totalPrice * 100) / 100,
                     totalProfit: Math.round((totalPrice - totalCost) * 100) / 100,
-                    createdAt: row.createdAt ?? row.CreatedAt,
-                    updatedAt: row.updatedAt ?? row.UpdatedAt
                 }
             };
         }

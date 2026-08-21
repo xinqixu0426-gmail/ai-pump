@@ -34,7 +34,7 @@ npm run verify:mcp-local
 
 该命令依次执行 MCP 协议/安全单测、官方 conformance 场景，并从本地
 `pump.db` 只读备份出临时数据库，启动隔离 API 后通过真实 HTTP 让 Hermes
-兼容的 2025 客户端和通用 2026 客户端分别发现并调用全部 45 个只读工具。
+兼容的 2025 客户端和通用 2026 客户端分别发现并调用全部 47 个只读工具。
 隔离验收同时覆盖未授权请求、畸形 JSON、请求体上限、已验证业务负结果、
 数据库完整性和外键检查；2026 客户端还使用独立测试身份完成一次
 `sync_factory_knowledge` 正式 Preview → form elicitation → Command → operation/audit
@@ -83,14 +83,14 @@ npm run verify:mcp-prod-read
 大小写不敏感的重复键，且 `currentCost.currentTotalCost` 与 `compare_recipes` 同一配方的
 `currentFullCost` 一致；无覆盖的 `preview_recipe_cost` 也必须返回同一口径，覆盖试算必须返回
 `currentTotalCost/costBasis=overridePreview`、等值 `unitCost` 废弃别名及迁移说明；
-`compare_recipes` 和 `explain_cost_change` 都必须是 `dataMode=live`。目录验收固定要求 45 个只读工具完整且
+`compare_recipes` 和 `explain_cost_change` 都必须是 `dataMode=live`。目录验收固定要求 47 个只读工具完整且
 `readOnlyHint=true`；若验收身份已获得生产写灰度，只允许额外出现该 `clientId` 在
 `MCP_WRITE_TOOL_ALLOWLISTS` 中的写工具，并要求 `readOnlyHint=false`，任何未知或越权工具都会使门禁失败。
 使用显式 `MCP_VERIFY_TOKEN` 时必须同步设置其真实 `MCP_VERIFY_CLIENT_ID`，否则不能核对逐工具授权。最坏 35 个请求，低于生产默认
 每分钟 60 次限制。综合结果写入 `logs/mcp-production-read-latest.json`，成本子报告仍同步到
 `logs/mcp-production-cost-latest.json`；两份报告仅记录客户端 round-trip，服务端耗时仍只以
 API 日志 `durationMs` 为准。空订单/报价/出图历史是允许的正式业务状态，不为覆盖详情而
-制造生产数据；全部 45 个只读工具和缺价失败路径继续由隔离套件覆盖。
+制造生产数据；全部 47 个只读工具和缺价失败路径继续由隔离套件覆盖。
 
 需要单独复核三个成本场景时仍可运行 `npm run verify:mcp-prod-cost`。
 

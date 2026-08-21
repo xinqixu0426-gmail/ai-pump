@@ -11,7 +11,7 @@ function createFixture() {
     const quotations = [
         { id: 1, customerId: 10, status: '已拒绝', totalPrice: 100 },
         { id: 2, customerId: 11, status: '报价中', totalPrice: 200 },
-        { id: 3, customerId: 10, status: '报价中', totalPrice: 300 },
+        { id: 3, customerId: 10, status: '报价中', totalPrice: 300, remark: '完整报价备注' },
         { id: 4, customerId: 12, status: '已接受', totalPrice: 400 },
     ];
     const customers = [
@@ -47,6 +47,30 @@ test('报价 Query 支持客户模糊筛选、组合条件和数量限制', () =
         fixture.queries.list({ status: '报价中', customerName: '华东', limit: 1 })
             .map(quotation => quotation.id),
         [3]
+    );
+});
+
+test('报价 Query 按 ID 返回完整正式报价并附加客户名称', () => {
+    const fixture = createFixture();
+
+    const result = fixture.queries.get(3);
+
+    assert.equal(result.id, 3);
+    assert.equal(result.customerId, 10);
+    assert.equal(result.customerName, '华东泵业');
+    assert.equal(result.remark, '完整报价备注');
+});
+
+test('报价详情 Query 区分非法 ID 和正式未找到', () => {
+    const fixture = createFixture();
+
+    assert.throws(
+        () => fixture.queries.get('bad'),
+        error => error.code === 'INVALID_QUOTATION_ID' && error.statusCode === 400
+    );
+    assert.throws(
+        () => fixture.queries.get(999),
+        error => error.code === 'QUOTATION_NOT_FOUND' && error.statusCode === 404
     );
 });
 

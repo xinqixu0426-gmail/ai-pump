@@ -15,6 +15,33 @@ const VIEW_TYPE_MAP = {
     execute_order_readiness_action: 'order_readiness_action',
 };
 
+const MAX_AI_READ_TOOL_RESULT_BYTES = 256 * 1024;
+
+function buildAiSynthesisEvidence(toolResults = []) {
+    return toolResults.map(item => ({
+        capabilityName: item.name,
+        ...(item.name === 'get_order_knowledge_package' ? {
+            evidencePriority: 'human_confirmed_order_knowledge',
+            confirmedKnowledge: item.result?.data?.confirmedKnowledge
+                || item.result?.confirmedKnowledge
+                || null,
+            knowledgeCoverage: item.result?.data?.coverage
+                || item.result?.coverage
+                || null,
+        } : {}),
+        result: item.result,
+    }));
+}
+
+function queryResultTooLarge(result) {
+    return {
+        success: false,
+        code: 'AI_QUERY_RESULT_TOO_LARGE',
+        error: '查询结果过大，未删除任何业务字段。请增加正式筛选条件、明确 limit，或改用单条详情查询。',
+        executionEvidence: result?.executionEvidence,
+    };
+}
+
 function parseAiToolArguments(value) {
     if (value && typeof value === 'object' && !Array.isArray(value)) return value;
     try {
@@ -147,6 +174,32 @@ function buildAiToolResultMessage(toolCall, result) {
     };
 }
 
+function enforceAiToolResultSize(toolName, result, maxBytes = MAX_AI_READ_TOOL_RESULT_BYTES) {
+    const capability = getAiCapability(toolName);
+    if (capability?.access !== 'read' || !result || typeof result !== 'object') return result;
+    const serialized = JSON.stringify(result);
+    if (Buffer.byteLength(serialized, 'utf8') <= maxBytes) return result;
+    return queryResultTooLarge(result);
+}
+
+function enforceAiToolResultBudget(
+    toolName,
+    result,
+    existingToolResults = [],
+    maxBytes = MAX_AI_READ_TOOL_RESULT_BYTES
+) {
+    const checked = enforceAiToolResultSize(toolName, result, maxBytes);
+    if (checked !== result) return checked;
+    const capability = getAiCapability(toolName);
+    if (capability?.access !== 'read' || !checked || typeof checked !== 'object') return checked;
+    const evidence = buildAiSynthesisEvidence([
+        ...existingToolResults,
+        { name: toolName, result: checked },
+    ]);
+    if (Buffer.byteLength(JSON.stringify(evidence), 'utf8') <= maxBytes) return checked;
+    return queryResultTooLarge(checked);
+}
+
 function viewTypeForAiTool(name) {
     return VIEW_TYPE_MAP[name] || 'action_result';
 }
@@ -164,8 +217,12 @@ function prioritizeBusinessEvidence(messages, historyMessageCount) {
 }
 
 module.exports = {
+    MAX_AI_READ_TOOL_RESULT_BYTES,
+    buildAiSynthesisEvidence,
     buildAiToolPlan,
     buildAiToolResultMessage,
+    enforceAiToolResultBudget,
+    enforceAiToolResultSize,
     parseAiToolArguments,
     prepareAiToolCalls,
     prioritizeBusinessEvidence,

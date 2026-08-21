@@ -4,12 +4,13 @@ const {
     normalizeOptionalLimit,
     normalizeQueryText,
 } = require('./queryValidation.cjs');
+const { parsePositiveId } = require('./validation.cjs');
 
 class QuotationQueryError extends Error {
-    constructor(message, code = 'INVALID_QUOTATION_QUERY') {
+    constructor(message, code = 'INVALID_QUOTATION_QUERY', statusCode = 400) {
         super(message);
         this.name = 'QuotationQueryError';
-        this.statusCode = 400;
+        this.statusCode = statusCode;
         this.code = code;
     }
 }
@@ -71,7 +72,27 @@ function createQuotationQueries({ listQuotations, listCustomers } = {}) {
         return limit ? quotations.slice(0, limit) : quotations;
     }
 
-    return { list };
+    function get(rawQuotationId) {
+        const quotationId = parsePositiveId(rawQuotationId);
+        if (!quotationId) {
+            throw new QuotationQueryError('报价ID必须是正整数', 'INVALID_QUOTATION_ID');
+        }
+        const quotation = listQuotations().find(item => (
+            Number(item.id ?? item.Id) === quotationId
+        ));
+        if (!quotation) {
+            throw new QuotationQueryError('报价不存在', 'QUOTATION_NOT_FOUND', 404);
+        }
+        const customer = listCustomers().find(item => (
+            Number(item.id ?? item.Id) === Number(quotation.customerId ?? quotation.CustomerId)
+        ));
+        return {
+            ...quotation,
+            customerName: String(customer?.name || '').trim(),
+        };
+    }
+
+    return { get, list };
 }
 
 module.exports = {

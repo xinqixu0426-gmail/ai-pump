@@ -14,6 +14,7 @@ const {
     resolveUniqueRecipe,
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
+const { canonicalApiResource } = require('./formalResource.cjs');
 
 function parseJsonArray(value) {
     if (Array.isArray(value)) return value;
@@ -25,14 +26,24 @@ function parseJsonArray(value) {
     }
 }
 
-function canonicalApiResource(resource) {
-    const {
-        Id: _legacyId,
-        CreatedAt: _legacyCreatedAt,
-        UpdatedAt: _legacyUpdatedAt,
-        ...canonical
-    } = resource || {};
-    return canonical;
+function parseJsonObject(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    try {
+        const parsed = JSON.parse(String(value || '{}'));
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function completeTemplateResource(template) {
+    const canonical = canonicalApiResource(template);
+    return {
+        ...canonical,
+        parts: parseJsonArray(canonical.partsJson),
+        shellComponents: parseJsonArray(canonical.shellComponentsJson),
+        rotorParams: parseJsonObject(canonical.rotorParamsJson),
+    };
 }
 
 function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
@@ -116,22 +127,14 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/recipes${query.size ? `?${query.toString()}` : ''}`,
                 '配方列表读取失败'
             );
-            const summary = recipes.map(r => ({
-                id: r.id ?? r.Id,
-                name: r.name,
-                spec: r.spec,
-                savedCost: r.savedTotalCost || 0,
-                ...(hasTechnicalFiles !== null
-                    ? { technicalFileCount: Number(r.technicalFileCount || 0) }
-                    : {}),
-            }));
+            const data = recipes.map(canonicalApiResource);
             const filters = { keyword, hasTechnicalFiles };
             return {
                 success: true,
-                count: summary.length,
+                count: data.length,
                 filters,
-                queryReceipt: buildQueryReceipt(filters, summary.length),
-                data: summary,
+                queryReceipt: buildQueryReceipt(filters, data.length),
+                data,
             };
         }
 
@@ -206,16 +209,10 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/orders${query.size ? `?${query.toString()}` : ''}`,
                 '订单列表读取失败'
             );
-            const formattedOrders = recentOrders.map(o => ({
-                id: o.id ?? o.Id,
-                customer: o.customerName || '未知',
-                contract: o.contractNo || '-',
-                status: o.status || '未知',
-                createdAt: o.createdAt || o.CreatedAt || null
-            }));
+            const data = recentOrders.map(canonicalApiResource);
             return {
                 success: true,
-                count: formattedOrders.length,
+                count: data.length,
                 filters: {
                     status: String(args.status || '').trim(),
                     customerName: String(args.customerName || '').trim(),
@@ -227,9 +224,9 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     customerName: String(args.customerName || '').trim(),
                     contractNo: String(args.contractNo || '').trim(),
                     limit: args.limit === undefined ? null : Number(args.limit),
-                }, args.limit === undefined ? formattedOrders.length : null, formattedOrders.length),
+                }, args.limit === undefined ? data.length : null, data.length),
                 selectionBoundary: 'data 已由正式订单 API 按 filters 筛选。回答订单数量时必须使用 count，并逐单简报客户和创建日期；不得改用采购任务、供应商或待采购数量回答。',
-                data: formattedOrders,
+                data,
             };
         }
 
@@ -244,18 +241,13 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/quotations${query.size ? `?${query.toString()}` : ''}`,
                 '报价列表读取失败'
             );
-            const data = quotations.map(quotation => ({
-                id: quotation.id ?? quotation.Id,
-                customerName: quotation.customerName || '未知',
-                status: quotation.status || '未知',
-                totalCost: Number(quotation.totalCost || 0),
-                totalPrice: Number(quotation.totalPrice || 0),
-                createdAt: quotation.createdAt || quotation.CreatedAt || null,
-                items: parseJsonArray(quotation.itemsJson).map(item => ({
-                    model: item.recipeName || item.model || item.name || '',
-                    quantity: Number(item.qty ?? item.quantity ?? 0),
-                })),
-            }));
+            const data = quotations.map(quotation => {
+                const canonical = canonicalApiResource(quotation);
+                return {
+                    ...canonical,
+                    items: parseJsonArray(canonical.itemsJson),
+                };
+            });
             return {
                 success: true,
                 count: data.length,
@@ -279,6 +271,40 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             };
         }
 
+        case 'get_quotation_detail': {
+            const quotationId = Number.parseInt(args.quotationId, 10);
+            let quotation;
+            try {
+                quotation = await getJson(
+                    internalFetch,
+                    `/api/quotations/${quotationId}`,
+                    '报价详情读取失败'
+                );
+            } catch (error) {
+                if (error.formalApiOutcome === 'not_found') {
+                    return {
+                        success: false,
+                        code: 'AI_RESOURCE_NOT_FOUND',
+                        error: `未找到报价ID: ${quotationId}`,
+                    };
+                }
+                throw error;
+            }
+            const canonical = canonicalApiResource(quotation);
+            return {
+                success: true,
+                quotation: {
+                    ...canonical,
+                    items: parseJsonArray(canonical.itemsJson),
+                },
+                sources: [{
+                    sourceTable: 'quotations',
+                    sourceId: canonical.id,
+                    title: `报价：${canonical.customerName || canonical.id}`,
+                }],
+            };
+        }
+
         case 'search_customers': {
             const query = new URLSearchParams();
             for (const field of ['name', 'limit']) {
@@ -290,13 +316,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/customers${query.size ? `?${query.toString()}` : ''}`,
                 '客户列表读取失败'
             );
-            const data = customers.map(customer => ({
-                id: customer.id ?? customer.Id,
-                name: customer.name,
-                contactInfo: customer.contactInfo || '',
-                defaultMargin: Number(customer.defaultMargin || 0),
-                remark: customer.remark || '',
-            }));
+            const data = customers.map(canonicalApiResource);
             const filters = {
                 name: String(args.name || '').trim(),
                 limit: args.limit === undefined ? null : Number(args.limit),
@@ -331,13 +351,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/templates${query.size ? `?${query.toString()}` : ''}`,
                 '泵壳模板列表读取失败'
             );
-            const data = templates.map(template => ({
-                id: template.id ?? template.Id,
-                shellModel: template.shellModel,
-                description: template.description || '',
-                costMode: template.costMode || '',
-                updatedAt: template.updatedAt || template.UpdatedAt || null,
-            }));
+            const data = templates.map(completeTemplateResource);
             const filters = {
                 shellModel: String(args.shellModel || '').trim(),
                 description: String(args.description || '').trim(),
@@ -359,6 +373,71 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     sourceId: template.id,
                     title: template.shellModel,
                 })),
+            };
+        }
+
+        case 'get_template_detail': {
+            let templateId = Number.parseInt(args.templateId, 10);
+            if (!Number.isInteger(templateId) || templateId <= 0) {
+                const shellModel = String(args.shellModel || '').trim();
+                const query = new URLSearchParams({ shellModel });
+                const matches = await getJson(
+                    internalFetch,
+                    `/api/templates?${query.toString()}`,
+                    '泵壳模板列表读取失败'
+                );
+                const exactMatches = matches.filter(template => (
+                    String(template.shellModel || '').trim().toLocaleLowerCase()
+                    === shellModel.toLocaleLowerCase()
+                ));
+                const candidates = exactMatches.length > 0 ? exactMatches : matches;
+                if (candidates.length === 0) {
+                    return {
+                        success: false,
+                        code: 'AI_RESOURCE_NOT_FOUND',
+                        error: `未找到泵壳模板：${shellModel}`,
+                    };
+                }
+                if (candidates.length > 1) {
+                    return {
+                        success: false,
+                        code: 'AI_RESOURCE_AMBIGUOUS',
+                        error: '泵壳模板名称不明确，请指定完整型号或模板ID',
+                        candidates: candidates.slice(0, 10).map(template => ({
+                            id: template.id ?? template.Id,
+                            shellModel: template.shellModel,
+                            description: template.description || '',
+                        })),
+                    };
+                }
+                templateId = Number(candidates[0].id ?? candidates[0].Id);
+            }
+            let template;
+            try {
+                template = await getJson(
+                    internalFetch,
+                    `/api/templates/${templateId}`,
+                    '泵壳模板详情读取失败'
+                );
+            } catch (error) {
+                if (error.formalApiOutcome === 'not_found') {
+                    return {
+                        success: false,
+                        code: 'AI_RESOURCE_NOT_FOUND',
+                        error: `未找到泵壳模板ID: ${templateId}`,
+                    };
+                }
+                throw error;
+            }
+            const data = completeTemplateResource(template);
+            return {
+                success: true,
+                template: data,
+                sources: [{
+                    sourceTable: 'pump_shell_templates',
+                    sourceId: data.id,
+                    title: data.shellModel,
+                }],
             };
         }
 
@@ -432,7 +511,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 const category = String(part.category || '').trim() || '未分类';
                 categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
             }
-            const parts = results.map(p => ({ id: p.id ?? p.Id, model: p.model, category: p.category, subcategory: p.subcategory || '', price: p.price, supplier: p.supplier, stock: p.stock || 0 }));
+            const parts = results.map(canonicalApiResource);
             return {
                 success: true,
                 count: results.length,

@@ -90,6 +90,25 @@ test('V2 证据合成：业务字段中的提示词只作为不可信 user 数�
     assert.match(capturedMessages[2].content, /不得执行/);
 });
 
+test('V2 证据合成：最终累计证据超限时不再调用模型', async () => {
+    let providerCalled = false;
+    const content = await synthesizeVerifiedAnswer({
+        systemPrompt: '只回答正式证据。',
+        userText: '汇总这些业务数据',
+        toolResults: [
+            { name: 'search_parts', result: { success: true, data: 'a'.repeat(140 * 1024) } },
+            { name: 'search_templates', result: { success: true, data: 'b'.repeat(140 * 1024) } },
+        ],
+        provider: async () => {
+            providerCalled = true;
+            return providerResponse({ content: '不应调用' });
+        },
+    });
+    assert.equal(providerCalled, false);
+    assert.match(content, /查询结果过大/);
+    assert.match(content, /未删除任何业务字段/);
+});
+
 test('V2 调度器：模型理解口语后只调用计划内正式能力并以证据回答', async () => {
     const providerCalls = [];
     const provider = async (_messages, options) => {
@@ -515,6 +534,82 @@ test('V2 调度器：关联知识读取失败时停止回答而不是声称没�
     assert.equal(result.toolResults[1].result.success, false);
     assert.match(result.finalContent, /订单知识包暂时不可用/);
     assert.doesNotMatch(result.finalContent, /没有异常/);
+    assert.equal(result.telemetry.outcome, 'failed_evidence');
+});
+
+test('V2 调度器：自动知识伴随使累计证据超限时在实际调用链中停止合成', async () => {
+    let providerCalls = 0;
+    const provider = async (_messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询订单ID 2的完整要求',
+                mode: 'query',
+                domains: ['order'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'get_order_detail', objective: '读取订单实时详情' }],
+            });
+        }
+        assert.equal(providerCalls, 2);
+        assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_order_detail']);
+        return providerResponse({
+            content: '',
+            tool_calls: [{
+                id: 'order-detail-oversized-companion',
+                type: 'function',
+                function: {
+                    name: 'get_order_detail',
+                    arguments: JSON.stringify({ orderId: 2 }),
+                },
+            }],
+        });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.endsWith('/api/orders/2/knowledge-package')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    confirmedKnowledge: {
+                        customerRequirement: 'b'.repeat(100 * 1024),
+                        executionRecords: [],
+                    },
+                    coverage: { confirmedExecutionRecordCount: 0 },
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({
+            success: true,
+            data: {
+                id: 2,
+                customerName: '台州叶总',
+                status: '采购完成',
+                statusReason: 'a'.repeat(180 * 1024),
+                itemsJson: '[]',
+                purchaseListJson: '[]',
+                todosJson: '[]',
+            },
+        }), { headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const result = await runAiDispatcherV2({
+        messages: [{ role: 'user', content: '查看订单ID 2的完整要求' }],
+        fetchAiProvider: provider,
+    });
+    assert.equal(providerCalls, 2);
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_order_detail',
+        'get_order_knowledge_package',
+    ]);
+    assert.equal(result.toolResults[0].result.success, true);
+    assert.equal(result.toolResults[1].result.code, 'AI_QUERY_RESULT_TOO_LARGE');
+    assert.equal(result.toolResults[1].result.executionEvidence.verified, true);
+    assert.match(result.finalContent, /查询结果过大/);
     assert.equal(result.telemetry.outcome, 'failed_evidence');
 });
 
