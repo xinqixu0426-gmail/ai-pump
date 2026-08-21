@@ -41,8 +41,9 @@ test('V2 能力目录：重叠查询能力必须声明互斥的权威职责', ()
     assert.match(directory.get('search_customer_history').description, /区分客户不存在/);
     assert.match(directory.get('search_quotations').description, /报价状态/);
     assert.match(directory.get('search_quotations').description, /应使用 search_customer_history/);
-    assert.match(directory.get('search_coils').description, /全部正式方案.*权威/);
-    assert.match(directory.get('calculate_coil_cost').description, /不负责列出.*全部正式方案/);
+    assert.match(directory.get('search_coils').description, /全部已登记.*权威/);
+    assert.match(directory.get('search_coils').description, /schemeStatus.*正式、测试和停用/);
+    assert.match(directory.get('calculate_coil_cost').description, /不负责列出.*全部已登记方案/);
     assert.match(directory.get('calculate_coil_cost').description, /必须使用 search_coils/);
     assert.match(directory.get('search_factory_knowledge').description, /禁止用知识快照代替当前价格/);
     assert.match(directory.get('search_parts').description, /电缆、电容、油封、机筒、轴承/);

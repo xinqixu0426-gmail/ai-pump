@@ -317,6 +317,16 @@ test('全部核心列表工具都映射正式只读能力而不是依赖模型�
     }
 });
 
+test('线圈列表能力登记完整线圈档案输出而不是库存窄视图', () => {
+    const formalCapability = getBusinessCapability('coils.list');
+    const aiCapability = getAiCapability('search_coils');
+
+    assert.equal(formalCapability.outputSchema, 'CoilProfile[]');
+    assert.equal(formalCapability.sourceOfTruth, 'coils+stator_variants');
+    assert.deepEqual(aiCapability.formalCapabilityIds, ['coils.list']);
+    assert.equal(aiCapability.resultProvenance.kind, 'live_business');
+});
+
 test('正式业务能力注册表：配方技术档案写入声明文件和知识边界', () => {
     const upload = getBusinessCapability('recipes.technical_files.upload');
     const remove = getBusinessCapability('recipes.technical_files.delete');

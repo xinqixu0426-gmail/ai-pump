@@ -2828,6 +2828,62 @@ const MIGRATIONS = Object.freeze([
             db.exec(CANONICAL_INDEXES_SQL);
         },
     },
+    {
+        version: 63,
+        name: 'coil_winding_profile_ai_evaluation',
+        signature: 'system-ai-check-validates-live-coil-winding-profile-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                INSERT INTO ai_evaluation_cases (
+                    case_key, title, category, question, evaluator_type, config_json,
+                    enabled, release_gate_enabled, sort_order, source_type,
+                    review_status, confidence_score, reviewed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'rules', ?, 1, 0, ?, 'system', 'approved', 100, ?, ?, ?)
+                ON CONFLICT(case_key) DO UPDATE SET
+                    title = excluded.title,
+                    category = excluded.category,
+                    question = excluded.question,
+                    evaluator_type = excluded.evaluator_type,
+                    config_json = excluded.config_json,
+                    enabled = excluded.enabled,
+                    release_gate_enabled = excluded.release_gate_enabled,
+                    sort_order = excluded.sort_order,
+                    review_status = excluded.review_status,
+                    confidence_score = excluded.confidence_score,
+                    reviewed_at = excluded.reviewed_at,
+                    updated_at = excluded.updated_at
+                WHERE ai_evaluation_cases.source_type = 'system'
+            `).run(
+                'coil-winding-profile',
+                '线圈绕组档案使用当前已保存值',
+                '线圈',
+                '查询12-120线圈档案中已设置的绕组数据，按匹配方案列出主线线径、主线绕组数据、副线线径和副线绕组数据。',
+                JSON.stringify({
+                    prerequisite: {
+                        type: 'coil_variants',
+                        spec: '12',
+                        sheets: 120,
+                    },
+                    unavailableTerms: ['未找到', '没有找到', '未查到', '暂无', '没有可列出'],
+                    expectedMode: 'live_business',
+                    requiredTools: ['search_coils'],
+                    requiredSourceTables: ['coils'],
+                    forbiddenTerms: ['没有绕组数据字段', '不存在绕组数据字段'],
+                    fact: {
+                        type: 'coil_winding_profile',
+                        spec: '12',
+                        sheets: 120,
+                        unavailableTerms: ['未填写绕组数据', '未设置绕组数据', '暂无绕组数据'],
+                    },
+                }),
+                25,
+                now,
+                now,
+                now
+            );
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

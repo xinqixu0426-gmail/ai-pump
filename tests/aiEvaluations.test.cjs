@@ -18,7 +18,14 @@ function createFixture() {
             id INTEGER PRIMARY KEY,
             spec TEXT,
             sheets INTEGER,
-            scheme_status TEXT
+            scheme_status TEXT,
+            material TEXT,
+            slot_type TEXT,
+            scheme_name TEXT,
+            main_wire_gauge TEXT,
+            main_wire_data TEXT,
+            aux_wire_gauge TEXT,
+            aux_wire_data TEXT
         );
         CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, deleted_at TEXT);
         CREATE TABLE quotations (id INTEGER PRIMARY KEY, customer_id INTEGER, deleted_at TEXT);
@@ -554,6 +561,235 @@ test('AI 评测：线圈方案不存在时接受明确零结果，存在时恢�
         fixture.db
     );
     assert.equal(available.status, 'passed');
+    fixture.db.close();
+});
+
+test('AI 评测：线圈绕组档案必须来自正式查询并逐项匹配已保存值', () => {
+    const fixture = createFixture();
+    fixture.db.prepare(`
+        INSERT INTO coils (
+            id, spec, sheets, scheme_status,
+            material, slot_type, scheme_name,
+            main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data
+        ) VALUES (7, '12', 120, 'official', '钢带', '小眼', '生产方案', '0.64', '44-44-44-44', '0.49', '78-78')
+    `).run();
+    fixture.db.prepare(`
+        INSERT INTO coils (
+            id, spec, sheets, scheme_status,
+            material, slot_type, scheme_name,
+            main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data
+        ) VALUES (8, '12', 120, 'official', '冷轧', '国标眼', '备用方案', '', '45-45-45-45', '0.50', '80-80')
+    `).run();
+    const caseItem = {
+        config: {
+            prerequisite: { type: 'coil_variants', spec: '12', sheets: 120 },
+            expectedMode: 'live_business',
+            requiredTools: ['search_coils'],
+            requiredSourceTables: ['coils'],
+            forbiddenTerms: ['没有绕组数据字段', '不存在绕组数据字段'],
+            fact: { type: 'coil_winding_profile', spec: '12', sheets: 120 },
+        },
+    };
+    const toolResults = [{
+        name: 'search_coils',
+        result: {
+            count: 2,
+            filters: { spec: '12', sheets: 120 },
+            data: [{
+                id: 7,
+                mainWireGauge: '0.64',
+                mainWireData: '44-44-44-44',
+                auxWireGauge: '0.49',
+                auxWireData: '78-78',
+                material: '钢带',
+                slotType: '小眼',
+            }, {
+                id: 8,
+                mainWireGauge: '',
+                mainWireData: '45-45-45-45',
+                auxWireGauge: '0.50',
+                auxWireData: '80-80',
+                material: '冷轧',
+                slotType: '国标眼',
+            }],
+            sources: [
+                { sourceTable: 'coils', sourceId: 7 },
+                { sourceTable: 'coils', sourceId: 8 },
+            ],
+            provenance: { kind: 'live_business' },
+            executionEvidence: {
+                verified: true,
+                kind: 'formal_api_query',
+                calls: [{ method: 'GET', path: '/api/coils?spec=12&sheets=120' }],
+            },
+        },
+    }];
+
+    const correct = evaluateRuleCase(
+        caseItem,
+        '12-120钢带/小眼：主线线径0.64，主线绕组44-44-44-44，副线线径0.49，副线绕组78-78。冷轧/国标眼：主线线径未填写绕组数据，主线绕组45-45-45-45，副线线径0.50，副线绕组80-80。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(correct.status, 'passed');
+    assert.equal(
+        correct.checks.find(check => check.key === 'fact:coil_winding_evidence').passed,
+        true
+    );
+
+    const missingFieldClaim = evaluateRuleCase(
+        caseItem,
+        '当前线圈档案中没有绕组数据字段。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(missingFieldClaim.status, 'failed');
+    assert.equal(
+        missingFieldClaim.checks.find(check => check.key === 'forbidden:没有绕组数据字段').passed,
+        false
+    );
+
+    const staleToolResult = structuredClone(toolResults);
+    staleToolResult[0].result.data[0].mainWireData = '旧值';
+    const stale = evaluateRuleCase(
+        caseItem,
+        '钢带/小眼：主线线径0.64，主线绕组44-44-44-44；副线线径0.49，副线绕组78-78。冷轧/国标眼：主线线径未填写绕组数据，主线绕组45-45-45-45，副线线径0.50，副线绕组80-80。',
+        staleToolResult,
+        fixture.db
+    );
+    assert.equal(stale.status, 'failed');
+    assert.equal(
+        stale.checks.find(check => check.key === 'fact:coil_winding_evidence').passed,
+        false
+    );
+
+    const swappedProfiles = evaluateRuleCase(
+        caseItem,
+        '钢带/小眼：主线未填写绕组数据，主线绕组45-45-45-45，副线0.50，副线绕组80-80。冷轧/国标眼：主线0.64，主线绕组44-44-44-44，副线0.49，副线绕组78-78。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(swappedProfiles.status, 'failed');
+    assert.equal(
+        swappedProfiles.checks.find(check => check.key === 'fact:coil_winding_7_main_wire_data').passed,
+        false
+    );
+
+    const misplacedEmptyNote = evaluateRuleCase(
+        caseItem,
+        '钢带/小眼：未填写绕组数据；主线0.64，主线绕组44-44-44-44，副线0.49，副线绕组78-78。冷轧/国标眼：主线绕组45-45-45-45，副线0.50，副线绕组80-80。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(misplacedEmptyNote.status, 'failed');
+    assert.equal(
+        misplacedEmptyNote.checks.find(check => check.key === 'fact:coil_winding_8_empty').passed,
+        false
+    );
+    fixture.db.close();
+
+    const emptyFixture = createFixture();
+    const unavailable = evaluateRuleCase(
+        {
+            config: {
+                prerequisite: { type: 'coil_variants', spec: '12', sheets: 120 },
+                unavailableTerms: ['未找到', '没有找到'],
+                expectedMode: 'live_business',
+                requiredTools: ['search_coils'],
+                requiredSourceTables: ['coils'],
+                fact: {
+                    type: 'coil_winding_profile',
+                    spec: '12',
+                    sheets: 120,
+                    unavailableTerms: ['未填写绕组数据'],
+                },
+            },
+        },
+        '当前未找到12-120正式线圈方案，实时查询返回0条。',
+        [{
+            name: 'search_coils',
+            result: {
+                count: 0,
+                data: [],
+                filters: { spec: '12', sheets: 120 },
+                provenance: { kind: 'live_business' },
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query',
+                    calls: [{ method: 'GET', path: '/api/coils?spec=12&sheets=120' }],
+                },
+            },
+        }],
+        emptyFixture.db
+    );
+    assert.equal(unavailable.status, 'passed');
+    emptyFixture.db.close();
+});
+
+test('AI 评测：相同材质或槽眼的多方案绕组值不能跨方案串用', () => {
+    const fixture = createFixture();
+    const insert = fixture.db.prepare(`
+        INSERT INTO coils (
+            id, spec, sheets, scheme_status, material, slot_type,
+            main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data
+        ) VALUES (?, '15', 100, 'official', ?, ?, ?, ?, ?, ?)
+    `);
+    insert.run(21, '钢带', '小眼', 'A-MG', 'A-MD', 'A-AG', 'A-AD');
+    insert.run(22, '钢带', '国标眼', 'B-MG', 'B-MD', 'B-AG', 'B-AD');
+    insert.run(23, '冷轧', '小眼', 'C-MG', 'C-MD', 'C-AG', 'C-AD');
+    const profiles = [
+        { id: 21, material: '钢带', slotType: '小眼', mainWireGauge: 'A-MG', mainWireData: 'A-MD', auxWireGauge: 'A-AG', auxWireData: 'A-AD' },
+        { id: 22, material: '钢带', slotType: '国标眼', mainWireGauge: 'B-MG', mainWireData: 'B-MD', auxWireGauge: 'B-AG', auxWireData: 'B-AD' },
+        { id: 23, material: '冷轧', slotType: '小眼', mainWireGauge: 'C-MG', mainWireData: 'C-MD', auxWireGauge: 'C-AG', auxWireData: 'C-AD' },
+    ];
+    const caseItem = {
+        config: {
+            prerequisite: { type: 'coil_variants', spec: '15', sheets: 100 },
+            expectedMode: 'live_business',
+            requiredTools: ['search_coils'],
+            requiredSourceTables: ['coils'],
+            fact: { type: 'coil_winding_profile', spec: '15', sheets: 100 },
+        },
+    };
+    const toolResults = [{
+        name: 'search_coils',
+        result: {
+            count: 3,
+            filters: { spec: '15', sheets: 100 },
+            data: profiles,
+            sources: profiles.map(item => ({ sourceTable: 'coils', sourceId: item.id })),
+            provenance: { kind: 'live_business' },
+            executionEvidence: {
+                verified: true,
+                kind: 'formal_api_query',
+                calls: [{ method: 'GET', path: '/api/coils?spec=15&sheets=100' }],
+            },
+        },
+    }];
+
+    const sameMaterialSwapped = evaluateRuleCase(
+        caseItem,
+        '钢带/小眼：B-MG、B-MD、B-AG、B-AD。钢带/国标眼：A-MG、A-MD、A-AG、A-AD。冷轧/小眼：C-MG、C-MD、C-AG、C-AD。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(sameMaterialSwapped.status, 'failed');
+    assert.equal(
+        sameMaterialSwapped.checks.find(check => check.key === 'fact:coil_winding_21_main_wire_data').passed,
+        false
+    );
+
+    const sameSlotSwapped = evaluateRuleCase(
+        caseItem,
+        '钢带/小眼：C-MG、C-MD、C-AG、C-AD。钢带/国标眼：B-MG、B-MD、B-AG、B-AD。冷轧/小眼：A-MG、A-MD、A-AG、A-AD。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(sameSlotSwapped.status, 'failed');
+    assert.equal(
+        sameSlotSwapped.checks.find(check => check.key === 'fact:coil_winding_23_main_wire_data').passed,
+        false
+    );
     fixture.db.close();
 });
 

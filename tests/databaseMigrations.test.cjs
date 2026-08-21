@@ -305,6 +305,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const systemReleaseCasesMigration = MIGRATIONS.find(migration => migration.version === 57);
         const manualSystemChecksMigration = MIGRATIONS.find(migration => migration.version === 59);
         const calibratedCuttingCheckMigration = MIGRATIONS.find(migration => migration.version === 60);
+        const coilWindingProfileMigration = MIGRATIONS.find(migration => migration.version === 63);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -318,6 +319,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(systemReleaseCasesMigration);
         assert.ok(manualSystemChecksMigration);
         assert.ok(calibratedCuttingCheckMigration);
+        assert.ok(coilWindingProfileMigration);
         db.prepare(`
             INSERT INTO ai_evaluation_cases (
                 case_key, title, category, question, evaluator_type, config_json,
@@ -356,6 +358,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         manualSystemChecksMigration.up(db);
         calibratedCuttingCheckMigration.up(db);
         calibratedCuttingCheckMigration.up(db);
+        coilWindingProfileMigration.up(db);
+        coilWindingProfileMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, release_gate_enabled, review_status, source_type
@@ -368,6 +372,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
             [
                 'part-current-price',
                 'coil-all-official-variants',
+                'coil-winding-profile',
                 'test-report-file-type',
                 'test-report-ignore-template-points',
                 'customer-quotation-display-order',
@@ -429,6 +434,18 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(cableRequiredTerms.includes('共同组成一条'));
         assert.ok(cableRequiredTerms.includes('单一整体业务项'));
         assert.ok(cableRequiredTerms.includes('作为一条成品电缆'));
+        const windingCase = db.prepare(`
+            SELECT enabled, release_gate_enabled, config_json
+            FROM ai_evaluation_cases
+            WHERE case_key = 'coil-winding-profile'
+        `).get();
+        const windingConfig = JSON.parse(windingCase.config_json);
+        assert.equal(windingCase.enabled, 1);
+        assert.equal(windingCase.release_gate_enabled, 0);
+        assert.equal(windingConfig.fact.type, 'coil_winding_profile');
+        assert.deepEqual(windingConfig.requiredTools, ['search_coils']);
+        assert.deepEqual(windingConfig.requiredSourceTables, ['coils']);
+        assert.ok(windingConfig.forbiddenTerms.includes('没有绕组数据字段'));
         const cuttingCase = db.prepare(`
             SELECT config_json FROM ai_evaluation_cases
             WHERE case_key = 'cutting-shell-purpose-evidence'

@@ -148,6 +148,48 @@ function normalizeTargetText(value) {
         .replace(/[\s“'`]+/g, '');
 }
 
+function escapeRegExp(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function profileAnswerMarker(answer, profile, profiles) {
+    const text = String(answer || '');
+    const material = String(profile?.material || '').trim();
+    const slotType = String(profile?.slot_type || '').trim();
+    if (!material || !slotType) return -1;
+    const identityTerms = [...new Set(profiles.flatMap(item => [
+        String(item?.material || '').trim(),
+        String(item?.slot_type || '').trim(),
+    ]).filter(Boolean))];
+    const blockedIdentity = identityTerms.map(escapeRegExp).join('|');
+    const bridge = `(?:(?!(?:${blockedIdentity}))[^。！？\\n]){0,24}`;
+    const pattern = new RegExp(
+        `(?:${escapeRegExp(material)}${bridge}${escapeRegExp(slotType)}`
+        + `|${escapeRegExp(slotType)}${bridge}${escapeRegExp(material)})`
+    );
+    return text.search(pattern);
+}
+
+function profileAnswerSegments(answer, profiles) {
+    const text = String(answer || '');
+    const markers = profiles.map(profile => ({
+        profile,
+        start: profileAnswerMarker(text, profile, profiles),
+    }));
+    return new Map(markers.map(({ profile, start }) => {
+        const startIsUnique = start >= 0
+            && markers.filter(item => item.start === start).length === 1;
+        const nextStart = markers
+            .map(item => item.start)
+            .filter(candidate => candidate > start)
+            .sort((left, right) => left - right)[0];
+        return [
+            Number(profile.id),
+            !startIsUnique ? '' : text.slice(start, nextStart ?? text.length),
+        ];
+    }));
+}
+
 function verifiedRecipeReportObservation(config, prerequisite, toolResults = []) {
     const requiredTools = new Set(
         (Array.isArray(config?.requiredTools) && config.requiredTools.length > 0
@@ -407,6 +449,114 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
         } else {
             const matched = numberPattern(row.price).test(answer);
             addCheck(checks, 'fact:part_price', `回答当前价格 ${Number(row.price)} 元`, matched, matched ? '与零件库当前价格一致' : `回答未包含当前价格 ${Number(row.price)} 元`);
+        }
+    }
+
+    if (config.fact?.type === 'coil_winding_profile') {
+        const spec = String(config.fact.spec || '').trim();
+        const sheets = Number.parseInt(config.fact.sheets, 10);
+        const profiles = db.prepare(`
+            SELECT id, material, slot_type, scheme_name,
+                   main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data
+            FROM coils
+            WHERE spec = ? AND sheets = ?
+              AND COALESCE(scheme_status, 'official') = 'official'
+            ORDER BY id
+        `).all(spec, sheets);
+        const observed = toolResults.some(tool => {
+            if (tool?.name !== 'search_coils') return false;
+            const result = tool.result && typeof tool.result === 'object' ? tool.result : {};
+            const filters = result.filters && typeof result.filters === 'object'
+                ? result.filters
+                : result.queryReceipt?.appliedFilters || {};
+            if (result.executionEvidence?.verified !== true) return false;
+            if (normalizeTargetText(filters.spec) !== normalizeTargetText(spec)) return false;
+            if (Number.parseInt(filters.sheets, 10) !== sheets) return false;
+            if (!Array.isArray(result.data)) return profiles.length === 0
+                && Number(result.count ?? result.queryReceipt?.totalCount) === 0;
+            return profiles.every(profile => result.data.some(item => (
+                Number(item.id) === Number(profile.id)
+                && String(item.material || '') === String(profile.material || '')
+                && String(item.slotType || '') === String(profile.slot_type || '')
+                && String(item.mainWireGauge || '') === String(profile.main_wire_gauge || '')
+                && String(item.mainWireData || '') === String(profile.main_wire_data || '')
+                && String(item.auxWireGauge || '') === String(profile.aux_wire_gauge || '')
+                && String(item.auxWireData || '') === String(profile.aux_wire_data || '')
+            )));
+        });
+        addCheck(
+            checks,
+            'fact:coil_winding_evidence',
+            `正式查询返回 ${spec}-${sheets} 已保存绕组档案`,
+            observed,
+            observed ? '工具结果与当前线圈档案一致' : '没有取得目标规格片数的已验证绕组档案'
+        );
+        if (profiles.length === 0) {
+            const missingTerms = [
+                ...(Array.isArray(config.unavailableTerms) ? config.unavailableTerms : []),
+                ...(Array.isArray(config.fact.unavailableTerms)
+                    ? config.fact.unavailableTerms
+                    : ['未填写绕组数据', '未设置绕组数据', '暂无绕组数据']),
+            ];
+            const missingMatched = containsUnavailableConclusion(answer, missingTerms)
+                || containsAny(answer, missingTerms);
+            addCheck(
+                checks,
+                'fact:coil_winding_unavailable',
+                `明确说明 ${spec}-${sheets} 当前方案未填写绕组值`,
+                missingMatched,
+                missingMatched ? '没有伪造绕组值' : '没有完整绕组值时必须说明该方案未填写或未设置'
+            );
+        } else {
+            const answerSegments = profileAnswerSegments(answer, profiles);
+            for (const profile of profiles) {
+                const identity = [profile.material, profile.slot_type]
+                    .map(value => String(value || '').trim())
+                    .filter(Boolean);
+                const answerSegment = answerSegments.get(Number(profile.id)) || '';
+                const identityMatched = identity.every(value => containsAny(answerSegment, [value]));
+                addCheck(
+                    checks,
+                    `fact:coil_winding_${profile.id}_identity`,
+                    `回答方案 ${identity.join('/') || profile.id}`,
+                    identityMatched,
+                    identityMatched ? '已标明方案材质和槽眼' : '回答未标明当前方案的材质和槽眼'
+                );
+                let hasEmptyField = false;
+                for (const [field, label] of [
+                    ['main_wire_gauge', '主线线径'],
+                    ['main_wire_data', '主线绕组数据'],
+                    ['aux_wire_gauge', '副线线径'],
+                    ['aux_wire_data', '副线绕组数据'],
+                ]) {
+                    const value = String(profile[field] || '').trim();
+                    if (!value) {
+                        hasEmptyField = true;
+                        continue;
+                    }
+                    const matched = containsAny(answerSegment, [value]);
+                    addCheck(
+                        checks,
+                        `fact:coil_winding_${profile.id}_${field}`,
+                        `回答${identity.join('/') || profile.id}的${label} ${value}`,
+                        matched,
+                        matched ? '与线圈档案当前值一致' : `回答未包含当前${label} ${value}`
+                    );
+                }
+                if (hasEmptyField) {
+                    const missingTerms = Array.isArray(config.fact.unavailableTerms)
+                        ? config.fact.unavailableTerms
+                        : ['未填写绕组数据', '未设置绕组数据', '暂无绕组数据'];
+                    const missingMatched = containsAny(answerSegment, missingTerms);
+                    addCheck(
+                        checks,
+                        `fact:coil_winding_${profile.id}_empty`,
+                        `说明 ${identity.join('/') || profile.id} 的空绕组字段未填写`,
+                        missingMatched,
+                        missingMatched ? '未把空字段误写成系统没有该字段' : '方案存在空绕组字段时必须说明未填写或未设置'
+                    );
+                }
+            }
         }
     }
 

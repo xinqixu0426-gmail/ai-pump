@@ -25,17 +25,14 @@ function parseJsonArray(value) {
     }
 }
 
-function canonicalRecipeResource(recipe) {
-    const entries = Object.entries(recipe || {});
-    const canonicalKeys = new Set(
-        entries
-            .map(([key]) => key)
-            .filter(key => /^[a-z]/.test(key))
-            .map(key => key.toLowerCase())
-    );
-    return Object.fromEntries(entries.filter(([key]) => (
-        /^[a-z]/.test(key) || !canonicalKeys.has(key.toLowerCase())
-    )));
+function canonicalApiResource(resource) {
+    const {
+        Id: _legacyId,
+        CreatedAt: _legacyCreatedAt,
+        UpdatedAt: _legacyUpdatedAt,
+        ...canonical
+    } = resource || {};
+    return canonical;
 }
 
 function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
@@ -95,19 +92,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 count: coils.length,
                 filters,
                 queryReceipt: buildQueryReceipt(filters, coils.length),
-                data: coils.map(coil => ({
-                    id: coil.id ?? coil.Id,
-                    spec: coil.spec,
-                    sheets: coil.sheets,
-                    material: coil.material,
-                    slotType: coil.slotType,
-                    schemeName: coil.schemeName || '',
-                    schemeStatus: coil.schemeStatus || '',
-                    stock: Number(coil.stock || 0),
-                    unitPrice: Number(coil.unitPrice || 0),
-                    cost: Number(coil.cost || 0),
-                    updatedAt: coil.updatedAt || coil.UpdatedAt || null,
-                })),
+                data: coils.map(canonicalApiResource),
                 sources: coils.map(coil => ({
                     sourceTable: 'coils',
                     sourceId: coil.id ?? coil.Id,
@@ -160,7 +145,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/recipes/${recipeId}`,
                 '配方明细读取失败'
             );
-            const canonicalRecipe = canonicalRecipeResource(recipe);
+            const canonicalRecipe = canonicalApiResource(recipe);
             const parts = parseJsonArray(canonicalRecipe.partsJson);
             let currentCost = null;
             if (args.includeCurrentCost) {

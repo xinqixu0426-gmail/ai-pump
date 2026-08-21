@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `62`：
+当前版本为 `63`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -82,6 +82,7 @@
 | 60 | `calibrate_ai_governance_cutting_accessory_check` | 切割泵壳检查接受“没有明确专用配件”的安全结论，不再要求复述被排除的螺丝名称 |
 | 61 | `orders_stable_customer_identity` | 为订单增加稳定客户 ID、按历史名称回填并建立客户关系索引 |
 | 62 | `order_inventory_disposition_on_close` | 保存订单关闭时“已人工领用出库”或“释放库存预留”的明确去向、时间和说明 |
+| 63 | `coil_winding_profile_ai_evaluation` | 增加数据感知的线圈绕组档案 AI 检查，要求使用实时线圈 Query 并核对主副线线径及绕组值；继续排除在自动发布门禁之外 |
 
 ## 数据治理
 
@@ -94,7 +95,7 @@
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
 - `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；`enabled` 控制页面手动检查，`release_gate_enabled` 额外控制无人值守发布门禁。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
-- 7 条 `source_type=system` 的内置 AI 检查用例属于代码版本化的人工检查基线。迁移 47 会在缺失时恢复并校准规则；迁移 57 曾为解除生产部署阻断而统一停用；迁移 59 恢复其页面手动检查能力，同时设置 `release_gate_enabled=0`，因此不会阻断 Mac Mini 发布。`source_type=feedback` 的已批准用户纠错案例仍可进入发布门禁。
+- 当前 8 条 `source_type=system` 的内置 AI 检查用例属于代码版本化的人工检查基线。迁移 47 恢复并校准最初 7 条规则，迁移 63 增加线圈绕组档案检查；迁移 57 曾为解除生产部署阻断而统一停用，迁移 59 恢复页面手动检查能力。内置用例均设置 `release_gate_enabled=0`，因此不会阻断 Mac Mini 发布；`source_type=feedback` 的已批准用户纠错案例仍可进入发布门禁。
 - `NODE_ENV=test` 时 `api/db.cjs` 只打开 `PUMP_TEST_DATABASE_PATH` 指定的按进程临时 SQLite；`npm test` 自动创建并清理这些数据库。发布验证不会迁移或写入生产 `pump.db`，生产迁移只随 API 服务启动执行。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。

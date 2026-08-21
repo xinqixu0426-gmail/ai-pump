@@ -2978,7 +2978,36 @@ test('AI executor 行为：线圈库存查询只返回正式 API 的实时匹配
             return jsonResponse({
                 success: true,
                 data: [
-                    { id: 6, spec: '150', sheets: 96, material: '钢带', slotType: '小眼', stock: 33, unitPrice: 18.5, cost: 29.6, updatedAt: '2026-08-07T00:00:00.000Z' },
+                    {
+                        id: 6,
+                        Id: 6,
+                        spec: '150',
+                        statorVariantId: 12,
+                        commonName: '15公分',
+                        diameterMm: 150,
+                        sheets: 96,
+                        material: '钢带',
+                        slotType: '小眼',
+                        schemeName: '生产方案',
+                        schemeStatus: 'official',
+                        stock: 33,
+                        unitPrice: 18.5,
+                        wireWeight: 0.82,
+                        copperBase: 80,
+                        coilFee: 9,
+                        rotorFee: 5,
+                        cost: 29.6,
+                        defaultWireGauge: '0.75',
+                        defaultCapacitor: '30',
+                        mainWireGauge: '0.62*2',
+                        mainWireData: '30-30-29-29',
+                        auxWireGauge: '0.64',
+                        auxWireData: '56-56',
+                        createdAt: '2026-08-06T00:00:00.000Z',
+                        updatedAt: '2026-08-07T00:00:00.000Z',
+                        CreatedAt: '2026-08-06T00:00:00.000Z',
+                        UpdatedAt: '2026-08-07T00:00:00.000Z',
+                    },
                 ],
             });
         }
@@ -2994,6 +3023,39 @@ test('AI executor 行为：线圈库存查询只返回正式 API 的实时匹配
     assert.equal(result.count, 1);
     assert.equal(result.data[0].stock, 33);
     assert.equal(result.data[0].cost, 29.6);
+    assert.deepEqual(result.data[0], {
+        id: 6,
+        spec: '150',
+        statorVariantId: 12,
+        commonName: '15公分',
+        diameterMm: 150,
+        sheets: 96,
+        material: '钢带',
+        slotType: '小眼',
+        schemeName: '生产方案',
+        schemeStatus: 'official',
+        stock: 33,
+        unitPrice: 18.5,
+        wireWeight: 0.82,
+        copperBase: 80,
+        coilFee: 9,
+        rotorFee: 5,
+        cost: 29.6,
+        defaultWireGauge: '0.75',
+        defaultCapacitor: '30',
+        mainWireGauge: '0.62*2',
+        mainWireData: '30-30-29-29',
+        auxWireGauge: '0.64',
+        auxWireData: '56-56',
+        createdAt: '2026-08-06T00:00:00.000Z',
+        updatedAt: '2026-08-07T00:00:00.000Z',
+    });
+    assert.equal(Object.hasOwn(result.data[0], 'Id'), false);
+    assert.equal(Object.hasOwn(result.data[0], 'CreatedAt'), false);
+    assert.equal(Object.hasOwn(result.data[0], 'UpdatedAt'), false);
+    assert.equal(result.executionEvidence.verified, true);
+    assert.equal(result.executionEvidence.kind, 'formal_api_query');
+    assert.equal(result.executionEvidence.calls[0].path, '/api/coils?spec=150&sheets=96');
     assert.equal(result.sources[0].sourceTable, 'coils');
     assert.equal(result.sources[0].sourceId, 6);
     assert.deepEqual(result.filters, {
@@ -3013,7 +3075,20 @@ test('AI executor 行为：线圈俗称-片数简写自动拆分后再查询', a
             return jsonResponse({
                 success: true,
                 data: [
-                    { id: 1, spec: '12', sheets: 120, material: '钢带', slotType: '小眼', stock: 0, unitPrice: 0.21, cost: 98.90181 },
+                    {
+                        id: 1,
+                        spec: '12',
+                        sheets: 120,
+                        material: '钢带',
+                        slotType: '小眼',
+                        stock: 0,
+                        unitPrice: 0.21,
+                        cost: 98.90181,
+                        mainWireGauge: '0.64',
+                        mainWireData: '44-44-44-44',
+                        auxWireGauge: '0.49',
+                        auxWireData: '78-78',
+                    },
                 ],
             });
         }
@@ -3027,6 +3102,13 @@ test('AI executor 行为：线圈俗称-片数简写自动拆分后再查询', a
     assert.equal(result.success, true);
     assert.equal(result.count, 1);
     assert.equal(result.data[0].cost, 98.90181);
+    assert.equal(result.data[0].mainWireGauge, '0.64');
+    assert.equal(result.data[0].mainWireData, '44-44-44-44');
+    assert.equal(result.data[0].auxWireGauge, '0.49');
+    assert.equal(result.data[0].auxWireData, '78-78');
+    assert.equal(result.executionEvidence.verified, true);
+    assert.equal(result.executionEvidence.kind, 'formal_api_query');
+    assert.equal(result.executionEvidence.calls[0].path, '/api/coils?spec=12&sheets=120');
     assert.deepEqual(result.filters, { spec: '12', sheets: 120, material: '', slotType: '' });
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/coils?spec=12&sheets=120',
@@ -3048,6 +3130,112 @@ test('AI executor 行为：线圈简称拆分不覆盖显式传入的片数', as
 
     assert.equal(result.success, true);
     assert.deepEqual(result.filters, { spec: '12-120', sheets: 96, material: '', slotType: '' });
+});
+
+test('AI executor 行为：多线圈方案分别保留空绕组字段和历史方案状态', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils?spec=12&sheets=220') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    {
+                        id: 6,
+                        spec: '12',
+                        sheets: 220,
+                        material: '钢带',
+                        slotType: '小眼',
+                        schemeStatus: 'official',
+                        mainWireGauge: '0.64*2',
+                        mainWireData: '30-30-15-9',
+                        auxWireGauge: '0.77',
+                        auxWireData: '41-40-28-20',
+                    },
+                    {
+                        id: 10,
+                        spec: '12',
+                        sheets: 220,
+                        material: '冷轧',
+                        slotType: '国标眼',
+                        schemeStatus: 'testing',
+                        mainWireGauge: '',
+                        mainWireData: '',
+                        auxWireGauge: '',
+                        auxWireData: '',
+                    },
+                    {
+                        id: 11,
+                        spec: '12',
+                        sheets: 220,
+                        material: '钢带',
+                        slotType: '国标眼',
+                        schemeStatus: 'disabled',
+                        mainWireGauge: '0.71',
+                        mainWireData: '31-32-33-34',
+                        auxWireGauge: '0.52',
+                        auxWireData: '61-62',
+                        wireWeight: null,
+                        copperBase: null,
+                        coilFee: null,
+                        rotorFee: null,
+                        cost: null,
+                    },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_coils', {
+        spec: '12',
+        sheets: 220,
+    }, { allowWrite: false });
+
+    assert.equal(result.count, 3);
+    assert.deepEqual(result.data.map(item => ({
+        material: item.material,
+        slotType: item.slotType,
+        schemeStatus: item.schemeStatus,
+        mainWireGauge: item.mainWireGauge,
+        mainWireData: item.mainWireData,
+        auxWireGauge: item.auxWireGauge,
+        auxWireData: item.auxWireData,
+        wireWeight: item.wireWeight,
+        cost: item.cost,
+    })), [
+        {
+            material: '钢带',
+            slotType: '小眼',
+            schemeStatus: 'official',
+            mainWireGauge: '0.64*2',
+            mainWireData: '30-30-15-9',
+            auxWireGauge: '0.77',
+            auxWireData: '41-40-28-20',
+            wireWeight: undefined,
+            cost: undefined,
+        },
+        {
+            material: '冷轧',
+            slotType: '国标眼',
+            schemeStatus: 'testing',
+            mainWireGauge: '',
+            mainWireData: '',
+            auxWireGauge: '',
+            auxWireData: '',
+            wireWeight: undefined,
+            cost: undefined,
+        },
+        {
+            material: '钢带',
+            slotType: '国标眼',
+            schemeStatus: 'disabled',
+            mainWireGauge: '0.71',
+            mainWireData: '31-32-33-34',
+            auxWireGauge: '0.52',
+            auxWireData: '61-62',
+            wireWeight: null,
+            cost: null,
+        },
+    ]);
 });
 
 test('AI executor 行为：配方明细只输出 camelCase，当前成本取自正式当日完整成本 API', async () => {

@@ -93,9 +93,9 @@ const DOMAIN_PROMPTS = Object.freeze({
 
     coil: `【线圈、定子与转子库存】
 - “12-140”这类“规格-片数”是线圈/定子成品简写。在入库、出库和库存增减语境中必须使用 adjust_coil_stock，禁止当作零件型号或使用 update_part。
-- 查询线圈/定子当前库存和正式方案使用 search_coils，知识库不能作为实时库存来源。
+- 查询线圈/定子当前库存和全部已登记方案使用 search_coils，知识库不能作为实时库存来源；结果通过 schemeStatus 区分正式、测试和停用。
 - 线圈库存单位为“套”。批量简写放在同一批调整并显示确认卡片。
-- 同一规格片数可能有不同材质和槽眼；未指定时列出所有正式材质+槽眼方案并澄清，不默认钢带小眼。
+- 同一规格片数可能有不同材质、槽眼和方案状态；未指定时列出全部匹配方案及 schemeStatus 并澄清，不默认钢带小眼。用户只问正式方案时只展示 schemeStatus=official 的结果。
 - 查询用途、经验和历史规则时才按完整简写和 entryType=coil 检索知识库；明确材质、槽眼组合的成本才拆分 spec/sheets 调用 calculate_coil_cost。
 - defaultWireGauge 是默认搭配电缆线径，不是漆包线线径；漆包线只读取主线和副线线径字段。`,
 

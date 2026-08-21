@@ -32,10 +32,34 @@ const results = [];
 let child = null;
 let cookie = '';
 let baseUrl = '';
+let mcpExpectedCoilProfile = null;
 const MCP_TEST_TOKEN = 'deep-generic-mcp-token-0123456789abcdef';
 const MCP_WRITE_TEST_TOKEN = 'deep-write-mcp-token-0123456789abcdef';
 const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
 const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access-password';
+const MCP_COIL_PROFILE_FIXTURE = Object.freeze({
+    spec: '99887',
+    sheets: 321,
+    diameterMm: 9987,
+    commonName: 'MCP绕组验收',
+    material: '冷轧',
+    slotType: '国标眼',
+    schemeName: 'MCP完整档案方案',
+    schemeStatus: 'testing',
+    unitPrice: 0.456,
+    wireWeight: 1.234,
+    copperBase: 87.65,
+    coilFee: 12.34,
+    rotorFee: 5.67,
+    cost: 166.51376,
+    stock: 7,
+    defaultWireGauge: 'MCP-2.5',
+    defaultCapacitor: 'MCP-45',
+    mainWireGauge: 'MCP-0.71*2',
+    mainWireData: 'MCP-31-32-33-34',
+    auxWireGauge: 'MCP-0.52',
+    auxWireData: 'MCP-61-62',
+});
 
 function readScope(args) {
     const scopeArg = args.find(arg => arg.startsWith('--scope='));
@@ -50,6 +74,62 @@ const DEEP_API_SCOPE = readScope(process.argv.slice(2));
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
+}
+
+function seedMcpCoilProfileFixture(databasePath) {
+    const db = new Database(databasePath);
+    try {
+        const now = new Date().toISOString();
+        const fixture = MCP_COIL_PROFILE_FIXTURE;
+        const variantId = Number(db.prepare(`
+            INSERT INTO stator_variants (
+                diameter_mm, common_name, material, slot_type, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+            fixture.diameterMm,
+            fixture.commonName,
+            fixture.material,
+            fixture.slotType,
+            now,
+            now
+        ).lastInsertRowid);
+        db.prepare(`
+            INSERT INTO coils (
+                stator_variant_id, spec, material, slot_type, sheets,
+                scheme_name, scheme_status, unit_price, wire_weight, copper_base,
+                coil_fee, rotor_fee, cost, stock, default_wire_gauge,
+                default_capacitor, main_wire_gauge, main_wire_data,
+                aux_wire_gauge, aux_wire_data, created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+        `).run(
+            variantId,
+            fixture.spec,
+            fixture.material,
+            fixture.slotType,
+            fixture.sheets,
+            fixture.schemeName,
+            fixture.schemeStatus,
+            fixture.unitPrice,
+            fixture.wireWeight,
+            fixture.copperBase,
+            fixture.coilFee,
+            fixture.rotorFee,
+            fixture.cost,
+            fixture.stock,
+            fixture.defaultWireGauge,
+            fixture.defaultCapacitor,
+            fixture.mainWireGauge,
+            fixture.mainWireData,
+            fixture.auxWireGauge,
+            fixture.auxWireData,
+            now,
+            now
+        );
+    } finally {
+        db.close();
+    }
 }
 
 function getFreePort() {
@@ -112,6 +192,31 @@ async function request(label, method, pathname, body, expectedStatuses = [200]) 
     }
     results.push({ label, status: response.status, ms: Date.now() - startedAt });
     return { response, payload };
+}
+
+async function waitForMcpCoilProfileStable() {
+    const pathname = `/api/coils?spec=${encodeURIComponent(MCP_COIL_PROFILE_FIXTURE.spec)}&sheets=${MCP_COIL_PROFILE_FIXTURE.sheets}`;
+    let previousFingerprint = '';
+    let stableReads = 0;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+        const profiles = (await request(
+            `等待 MCP 线圈正式档案稳定 ${attempt + 1}`,
+            'GET',
+            pathname
+        )).payload.data;
+        assert(profiles.length === 1, '正式 API 未唯一返回 MCP 线圈档案夹具');
+        const [profile] = profiles;
+        const fingerprint = JSON.stringify({
+            copperBase: profile.copperBase,
+            cost: profile.cost,
+            updatedAt: profile.updatedAt,
+        });
+        stableReads = fingerprint === previousFingerprint ? stableReads + 1 : 1;
+        previousFingerprint = fingerprint;
+        if (stableReads >= 3) return profile;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error('启动铜价同步后 MCP 线圈档案未能稳定');
 }
 
 async function syncKnowledge(label) {
@@ -291,8 +396,47 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
         await call('get_copper_price');
         await call('get_coil_specs');
         await call('search_parts', { limit: 3 });
-        const coilsResult = await call('search_coils');
-        const coil = mcpDataArray(coilsResult)[0] || null;
+        const coilsResult = await call('search_coils', {
+            spec: MCP_COIL_PROFILE_FIXTURE.spec,
+            sheets: MCP_COIL_PROFILE_FIXTURE.sheets,
+        });
+        const profileCoil = mcpDataArray(coilsResult)[0] || null;
+        assert(profileCoil, 'search_coils 未返回精确 MCP 线圈档案夹具');
+        assert(mcpExpectedCoilProfile, 'search_coils 缺少正式 API 对照档案');
+        for (const field of [
+            'id', 'statorVariantId', 'spec', 'sheets', 'diameterMm', 'commonName',
+            'material', 'slotType', 'schemeName', 'schemeStatus', 'unitPrice',
+            'wireWeight', 'copperBase', 'coilFee', 'rotorFee', 'cost', 'stock',
+            'defaultWireGauge',
+            'defaultCapacitor', 'mainWireGauge', 'mainWireData', 'auxWireGauge',
+            'auxWireData', 'createdAt', 'updatedAt',
+        ]) {
+            assert(
+                profileCoil[field] === mcpExpectedCoilProfile[field],
+                `search_coils 线圈档案字段 ${field} 与正式 API 当前值不一致`
+            );
+        }
+        for (const field of [
+            'mainWireGauge', 'mainWireData', 'auxWireGauge', 'auxWireData',
+        ]) {
+            assert(
+                profileCoil[field] === MCP_COIL_PROFILE_FIXTURE[field],
+                `search_coils 绕组字段 ${field} 未保留测试夹具已保存值`
+            );
+        }
+        assert(!Object.hasOwn(profileCoil, 'Id'), 'search_coils 泄漏兼容字段 Id');
+        assert(!Object.hasOwn(profileCoil, 'CreatedAt'), 'search_coils 泄漏兼容字段 CreatedAt');
+        assert(!Object.hasOwn(profileCoil, 'UpdatedAt'), 'search_coils 泄漏兼容字段 UpdatedAt');
+        assert(
+            coilsResult.structuredContent?.mcp?.sourceOfTruth === 'coilService',
+            'search_coils MCP 能力来源未声明 coilService'
+        );
+        assert(
+            coilsResult.structuredContent?.sources?.some(source => source.sourceTable === 'coils'),
+            'search_coils MCP 结果缺少 coils 可追溯来源'
+        );
+        const allCoilsResult = await call('search_coils');
+        const coil = mcpDataArray(allCoilsResult).find(item => item.schemeStatus === 'official') || null;
 
         const recipesResult = await call('get_all_recipes');
         const recipes = mcpDataArray(recipesResult);
@@ -3291,6 +3435,7 @@ async function run() {
         const sourceDb = new Database(sourceDatabasePath, { readonly: true });
         await sourceDb.backup(path.join(temp, 'pump.db'));
         sourceDb.close();
+        seedMcpCoilProfileFixture(path.join(temp, 'pump.db'));
 
         const port = await getFreePort();
         const unavailableNextPort = await getFreePort();
@@ -3361,14 +3506,15 @@ async function run() {
             { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
             [401]
         );
+        const login = await request('登录', 'POST', '/api/auth/login', {
+            password: DEEP_API_ACCESS_PASSWORD,
+        });
+        cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
+        assert(cookie.startsWith('token='), '登录未返回 token Cookie');
+        await request('登录状态', 'GET', '/api/auth/check');
+        mcpExpectedCoilProfile = await waitForMcpCoilProfileStable();
         await testMcpReadOnlyFlows();
         if (DEEP_API_SCOPE === 'all') {
-            const login = await request('登录', 'POST', '/api/auth/login', {
-                password: DEEP_API_ACCESS_PASSWORD,
-            });
-            cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
-            assert(cookie.startsWith('token='), '登录未返回 token Cookie');
-            await request('登录状态', 'GET', '/api/auth/check');
             const legacyConfirmation = await request(
                 'AI旧确认参数不能直接执行',
                 'POST',
@@ -3403,6 +3549,9 @@ async function run() {
             await request('退出登录', 'POST', '/api/auth/logout', {});
             cookie = '';
             await request('退出后状态', 'GET', '/api/auth/check', undefined, [401]);
+        } else {
+            await request('退出登录', 'POST', '/api/auth/logout', {});
+            cookie = '';
         }
 
         const cloneDb = new Database(path.join(temp, 'pump.db'), { readonly: true });

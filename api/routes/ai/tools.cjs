@@ -61,7 +61,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'calculate_coil_cost',
-            description: '计算一个指定线圈方案的成本，支持自定义线重和插值。权威职责是 Calculation/Preview，不负责列出数据库中的全部正式方案或实时库存；用户要求“全部正式方案、有哪些方案、库存”时必须使用 search_coils。材质或槽眼不明确且会影响计算时，不得默认选择，应让用户确认或先用 search_coils 读取候选。',
+            description: '计算一个指定线圈方案的成本，支持自定义线重和插值。权威职责是 Calculation/Preview，不负责列出数据库中的全部已登记方案或实时库存；用户要求“全部方案、全部正式方案、有哪些方案、库存”时必须使用 search_coils。材质或槽眼不明确且会影响计算时，不得默认选择，应让用户确认或先用 search_coils 读取候选。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -87,7 +87,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_coils',
-            description: '从正式线圈 API 列出已有线圈/定子成品方案及实时库存。它是“全部正式方案、有哪些方案、列出材质槽眼成本、库存”的权威 List/Query 能力，可按规格、片数、材质、槽眼筛选；不传条件时返回全部正式方案。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost。',
+            description: '从正式线圈 API 列出全部已登记线圈/定子成品方案、实时库存和完整档案。它是“全部方案、全部正式方案、有哪些方案、材质槽眼、成本库存、默认电容/搭配电缆线径、主副线漆包线线径和绕组数据”的权威 List/Query 能力，可按规格、片数、材质、槽眼筛选；结果以 schemeStatus 区分正式、测试和停用，用户只问正式方案时据此筛选。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost；不得用知识快照代替当前线圈档案。',
             parameters: {
                 type: 'object',
                 properties: {
