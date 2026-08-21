@@ -1,0 +1,18 @@
+{
+  "code-explorer.toml": {
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "medium"
+  },
+  "docs-reviewer.toml": {
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "medium"
+  },
+  "test-reviewer.toml": {
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "medium"
+  },
+  "architecture-reviewer.toml": {
+    "model": "gpt-5.6-terra",
+    "reasoningEffort": "medium"
+  }
+}

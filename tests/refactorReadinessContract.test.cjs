@@ -26,6 +26,33 @@ function relative(filePath) {
     return path.relative(repoRoot, filePath).replace(/\\/g, '/');
 }
 
+test('ADF 契约：模型路由清单必须与启用的 reviewer profiles 保持一致', () => {
+    const routingPath = '.agents/skills/adf-workflow/references/model-routing.json';
+    const routing = JSON.parse(readUtf8(routingPath));
+    const profilesDir = path.join(repoRoot, '.codex/agents');
+    const enabledProfiles = fs.readdirSync(profilesDir)
+        .filter((name) => name.endsWith('.toml'))
+        .sort();
+
+    assert.deepEqual(Object.keys(routing).sort(), enabledProfiles);
+    for (const profileName of enabledProfiles) {
+        const profile = readUtf8(`.codex/agents/${profileName}`);
+        const assignment = routing[profileName];
+        const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        assert.match(profile, new RegExp(`^model = "${escapeRegExp(assignment.model)}"$`, 'm'));
+        assert.match(
+            profile,
+            new RegExp(`^model_reasoning_effort = "${escapeRegExp(assignment.reasoningEffort)}"$`, 'm'),
+        );
+        assert.match(profile, /^sandbox_mode = "read-only"$/m);
+    }
+
+    assert.match(readUtf8('.agents/skills/adf-workflow/SKILL.md'), /references\/model-routing\.md/);
+    assert.match(readUtf8('AGENTS.md'), /references\/model-routing\.md/);
+    assert.doesNotMatch(readUtf8('AGENTS.md'), /\b(?:Luna|Terra|Sol)\b/);
+});
+
 test('文档契约：当前核心文档必须存在并被 README 引用', () => {
     const readme = readUtf8('docs/README.md');
     const requiredDocs = [

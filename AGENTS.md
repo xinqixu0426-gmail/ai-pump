@@ -7,6 +7,7 @@
 - 项目代码、SQLite schema、API 契约、测试和 `docs/` 权威文档保存业务事实。
 - 非简单任务统一使用仓库内 `.agents/skills/adf-workflow/`；L2/L3 在实现前形成被 Git ignore 的 Task Contract。
 - Main Codex 默认是唯一业务代码写入者；按风险使用只读 Explorer 和独立 Architecture/Test/Docs Reviewer，整改后重跑受影响 review。
+- Subagent 模型按 `.agents/skills/adf-workflow/references/model-routing.md` 分层，Main Codex 对 L3 风险判断和最终交付负责。
 - Bugfix 必须追踪完整调用链和同类模式，在最低正确公共层修复，并覆盖缺陷家族、失败路径和边界。
 - L2/L3 Bugfix 在 `guardian start` 前先完成只读同类盘点，并在 Task Contract
   记录 `Defect Family` 与 `Systemic Scope Decision`；用户举例不是默认范围边界。

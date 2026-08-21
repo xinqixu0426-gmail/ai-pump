@@ -26,6 +26,8 @@ than file count.
 For L2/L3 or meaningful ambiguity, read [task-contract.md](references/task-contract.md)
 and align the contract before implementation. For a bugfix, also read
 [systemic-diagnosis.md](references/systemic-diagnosis.md) before editing.
+Before delegating any subagent, read [model-routing.md](references/model-routing.md)
+and use the lowest-cost role that satisfies the task's risk and judgment needs.
 
 ## Execute
 
@@ -42,6 +44,8 @@ and align the contract before implementation. For a bugfix, also read
    and applicable automatic commit/feature push policy may upgrade it further.
 4. For L2/L3 non-bugfix work, delegate read-only exploration now if it was not
    needed for Ready. Let Main Codex implement only after required discovery.
+   Prefer a narrow context fork containing the Task Contract, exact paths,
+   acceptance criteria, and evidence question instead of the full conversation.
 5. Run risk-matched deterministic checks after substantial changes and repair
    failures before continuing.
 6. Read [review-policy.md](references/review-policy.md), run required independent
