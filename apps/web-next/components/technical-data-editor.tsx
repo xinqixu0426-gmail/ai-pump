@@ -13,6 +13,7 @@ import {
   uploadRecipeTechnicalFile,
   type RecipeTechnicalFile,
 } from '@/lib/recipes';
+import { bearingOptions } from '@/lib/rotor';
 import {
   createCustomTechnicalField,
   getRecipeTechnicalProgress,
@@ -34,8 +35,6 @@ const fixedFields: Array<{ key: FixedTechnicalDataKey; unit?: string; type?: str
   { key: 'testDate', type: 'date' },
   { key: 'testSummary', wide: true },
 ];
-
-const bearingOptions = ['', '6201', '6202', '6203', '6204', '6205'];
 
 const rotorDrawingFields: Array<{ key: FixedTechnicalDataKey; unit?: string; integer?: boolean }> = [
   { key: 'pieceCount', unit: '片', integer: true },

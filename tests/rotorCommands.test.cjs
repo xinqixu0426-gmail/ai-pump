@@ -143,6 +143,8 @@ function context(capabilityId, idempotencyKey) {
 
 test('转子参数：轴承别名、数值边界和总长计算集中在共享 service', () => {
     assert.equal(normalizeBearing('202-2RS'), '6202');
+    assert.equal(normalizeBearing('轴承202'), '6202');
+    assert.equal(normalizeBearing('6202轴承'), '6202');
     const result = buildFcParams({
         upper_bearing: '202-2RS',
         lower_bearing: '6204-ZZ',
@@ -159,6 +161,22 @@ test('转子参数：轴承别名、数值边界和总长计算集中在共享 s
     assert.equal(result.fcParams._core_length, 80);
     assert.equal(result.fcParams._total_length, 270);
     assert.equal(result.fcParams._drawing_text, '第一行\n第二行');
+});
+
+test('转子参数：6303 和 6304 映射轴承位直径与深度并兼容三位别名', () => {
+    assert.equal(normalizeBearing('轴承303-2RS'), '6303');
+    assert.equal(normalizeBearing('304-ZZ'), '6304');
+
+    const result = buildFcParams({
+        upper_bearing: '轴承303-2RS',
+        lower_bearing: '6304-ZZ',
+    });
+
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.fcParams.upper_bearing_dia, 17);
+    assert.equal(result.fcParams.upper_bearing_depth, 14);
+    assert.equal(result.fcParams.lower_bearing_dia, 20);
+    assert.equal(result.fcParams.lower_bearing_depth, 15);
 });
 
 test('转子暂存命令：业务写入、operation 与强审计原子提交且支持安全重放', () => {

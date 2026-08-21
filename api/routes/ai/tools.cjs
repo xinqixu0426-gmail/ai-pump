@@ -343,7 +343,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_quotation_detail',
-            description: '按报价ID读取一份正式报价的完整详情，包括客户、状态、全部报价明细、成本售价、备注、转换订单信息和时间字段。只读，不修改报价；ID可先由 search_quotations 或 search_customer_history 的正式结果取得。',
+            description: '按报价ID读取一份正式报价的完整详情，包括客户、状态、全部报价明细、成本售价、备注、转换订单信息和时间字段。只读，不修改报价；ID必须来自用户明确输入、当前报价页面或 search_quotations 的正式结果。',
             parameters: {
                 type: 'object',
                 properties: {

@@ -43,6 +43,8 @@ test('V2 能力目录：重叠查询能力必须声明互斥的权威职责', ()
     assert.match(directory.get('search_quotations').description, /应使用 search_customer_history/);
     assert.match(directory.get('get_quotation_detail').description, /完整详情/);
     assert.match(directory.get('get_quotation_detail').description, /备注、转换订单信息/);
+    assert.match(directory.get('get_quotation_detail').description, /search_quotations/);
+    assert.doesNotMatch(directory.get('get_quotation_detail').description, /search_customer_history/);
     assert.match(directory.get('search_templates').description, /完整正式字段/);
     assert.match(directory.get('get_template_detail').description, /BOM、泵壳组件、转子参数、工资/);
     assert.match(directory.get('search_coils').description, /全部已登记.*权威/);

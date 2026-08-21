@@ -4,6 +4,8 @@ const BEARING_DB = Object.freeze({
     '6203': Object.freeze({ dia: 17.0, depth: 12.0 }),
     '6204': Object.freeze({ dia: 20.0, depth: 14.0 }),
     '6205': Object.freeze({ dia: 25.0, depth: 15.0 }),
+    '6303': Object.freeze({ dia: 17.0, depth: 14.0 }),
+    '6304': Object.freeze({ dia: 20.0, depth: 15.0 }),
 });
 
 const FC_PARAM_LIMITS = Object.freeze({
@@ -44,7 +46,11 @@ function normalizeDrawingText(value) {
 
 function normalizeBearing(raw) {
     if (!raw) return raw;
-    let normalized = String(raw).trim();
+    let normalized = String(raw)
+        .trim()
+        .toUpperCase()
+        .replace(/^轴承\s*/, '')
+        .replace(/\s*轴承$/, '');
     normalized = normalized.replace(
         /[-\/]?(2RS|2RZ|2Z|ZZ|RS|RZ|DDU|LLU|LLB|CM|C3|P6|P5|NR)\b/gi,
         ''

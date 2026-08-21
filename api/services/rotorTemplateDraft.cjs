@@ -1,4 +1,5 @@
 const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
+const { normalizeBearing } = require('./rotorParameters.cjs');
 
 const emptyRotorPatchKeys = new Set([
     'upper_bearing',
@@ -14,16 +15,6 @@ const emptyRotorPatchKeys = new Set([
     'thread_length',
     'thread_dia',
 ]);
-
-function normalizeBearing(value) {
-    const normalized = String(value || '').trim().toUpperCase().replace(/^轴承/, '');
-    if (normalized === '201') return '6201';
-    if (normalized === '202') return '6202';
-    if (normalized === '203') return '6203';
-    if (normalized === '204') return '6204';
-    if (normalized === '205') return '6205';
-    return normalized;
-}
 
 function safeParseObject(value) {
     try {
@@ -71,11 +62,18 @@ function findShellMeta(template, parts) {
     return safeParseObject(shellPart?.notes ?? shellPart?.remark ?? '{}');
 }
 
+function normalizePatchValue(key, value) {
+    if (key === 'upper_bearing' || key === 'lower_bearing') {
+        return normalizeBearing(value);
+    }
+    return String(value);
+}
+
 function setPatchIfEmpty(patch, key, value, label, hints, unit = '') {
     if (!emptyRotorPatchKeys.has(key) || value === undefined || value === null || value === '') return;
     if (patch[key]) return;
-    patch[key] = String(value);
-    if (label) hints.push(`${label}${value}${unit}`);
+    patch[key] = normalizePatchValue(key, value);
+    if (label) hints.push(`${label}${patch[key]}${unit}`);
 }
 
 function applyTemplateParts(patch, hints, template) {
@@ -106,7 +104,7 @@ function applyTemplateRotorParams(patch, hints, template) {
     const rotorParams = safeParseObject(template?.rotor_params_json ?? template?.rotorParamsJson);
     Object.entries(rotorParams).forEach(([key, value]) => {
         if (!emptyRotorPatchKeys.has(key) || value === undefined || value === null || value === '') return;
-        patch[key] = String(value);
+        patch[key] = normalizePatchValue(key, value);
         hints.push(`模板${key}`);
     });
 }

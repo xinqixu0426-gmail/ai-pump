@@ -7,6 +7,9 @@ const {
     listOrderPumpModels,
     listRotorLinkTargets,
 } = require('../api/services/rotorQueries.cjs');
+const {
+    buildRotorTemplateDraft,
+} = require('../api/services/rotorTemplateDraft.cjs');
 
 function createFixture() {
     const db = new Database(':memory:');
@@ -60,7 +63,7 @@ function createFixture() {
         ) VALUES (
             1,
             'SS-750',
-            '[{"name":"花板轴承","model":"202"},{"name":"油缸轴承","model":"204"}]',
+            '[{"name":"花板轴承","model":"303"},{"name":"油缸轴承","model":"304-ZZ"}]',
             '{"piece_count":150}'
         );
         INSERT INTO pump_model_variants (
@@ -144,14 +147,43 @@ test('转子 Query：配方技术档案覆盖模板默认值且保持只读', ()
     assert.equal(draft.templateId, 1);
     assert.equal(draft.variantId, 10);
     assert.equal(draft.drawingName, 'V750配方');
-    assert.equal(draft.patch.upper_bearing, '6202');
-    assert.equal(draft.patch.lower_bearing, '6204');
+    assert.equal(draft.patch.upper_bearing, '6303');
+    assert.equal(draft.patch.lower_bearing, '6304');
     assert.equal(draft.patch.piece_count, '160');
     assert.equal(draft.patch.bearing_span, '176');
     assert.equal(draft.patch.thread_length, '22');
     assert.equal(draft.patch.impeller_depth, '9');
     assert.equal(db.totalChanges, before);
     db.close();
+});
+
+test('转子模板草稿：BOM、转子参数和泵壳默认值统一标准化 6303/6304', () => {
+    const fromParts = buildRotorTemplateDraft({
+        template: {
+            parts_json: '[{"name":"花板轴承","model":"轴承303-2RS"},{"name":"油缸轴承","model":"304-ZZ"}]',
+        },
+    });
+    assert.equal(fromParts.patch.upper_bearing, '6303');
+    assert.equal(fromParts.patch.lower_bearing, '6304');
+
+    const fromRotorParams = buildRotorTemplateDraft({
+        template: {
+            rotor_params_json: '{"upper_bearing":"轴承303-2RS","lower_bearing":"轴承202"}',
+        },
+    });
+    assert.equal(fromRotorParams.patch.upper_bearing, '6303');
+    assert.equal(fromRotorParams.patch.lower_bearing, '6202');
+
+    const fromMeta = buildRotorTemplateDraft({
+        template: { shell_model: 'META-6300' },
+        parts: [{
+            model: 'META-6300',
+            category: '泵壳',
+            remark: '{"defaultUpperBearing":"6203轴承","defaultLowerBearing":"轴承304-ZZ"}',
+        }],
+    });
+    assert.equal(fromMeta.patch.upper_bearing, '6203');
+    assert.equal(fromMeta.patch.lower_bearing, '6304');
 });
 
 test('转子 Query：模板变体必须真实存在且属于当前模板', () => {

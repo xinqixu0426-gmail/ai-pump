@@ -7,4 +7,7 @@ integration check, build, or justified manual check. Identify missing failure,
 boundary, analogous-caller, regression, API, integration, or end-to-end coverage.
 Prefer behavior assertions over implementation-detail assertions. Return only
 actionable findings and residual risks with file evidence.
+For a bugfix, map every Defect Family category and Scope Decision to reported-case,
+analogous-case, failure, boundary, and preserved-behavior evidence; do not assume
+the implemented diff is the complete regression surface.
 """

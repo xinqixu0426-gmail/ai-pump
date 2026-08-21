@@ -154,7 +154,8 @@ test('转子外部命令：出图 Preview 绑定参数且相同 key 不创建第
         });
         const preview = service.buildDrawPreview(
             {
-                upper_bearing: '202',
+                upper_bearing: '303',
+                lower_bearing: '6304',
                 piece_count: 160,
                 drawingName: 'V750',
             },
@@ -175,7 +176,10 @@ test('转子外部命令：出图 Preview 绑定参数且相同 key 不创建第
         assert.equal(first.status, 'accepted');
         assert.equal(replay.status, 'processing');
         assert.equal(replay.idempotentReplay, true);
-        assert.equal(first.params.upper_bearing_dia, 15);
+        assert.equal(first.params.upper_bearing_dia, 17);
+        assert.equal(first.params.upper_bearing_depth, 14);
+        assert.equal(first.params.lower_bearing_dia, 20);
+        assert.equal(first.params.lower_bearing_depth, 15);
         assert.equal(launches, 1);
         assert.equal(
             fixture.db.prepare('SELECT COUNT(*) AS count FROM rotor_drawings').get().count,

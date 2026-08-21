@@ -85,7 +85,7 @@ export type RotorLinkTarget = {
   secondary: string;
 };
 
-export const bearingOptions = ['', '6201', '6202', '6203', '6204', '6205'];
+export const bearingOptions = ['', '6201', '6202', '6203', '6204', '6205', '6303', '6304'];
 
 export const emptyRotorForm: RotorFormData = {
   upperBearing: '',

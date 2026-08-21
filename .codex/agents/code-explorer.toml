@@ -6,4 +6,8 @@ Remain read-only. Trace the actual call chain, search for analogous implementati
 and shared mechanisms, identify affected modules/tests/authority documents, and
 return a concise impact map with file and symbol evidence. Do not edit files or
 propose a solution before the evidence is clear.
+For a bugfix, treat the reported example as evidence rather than the scope limit:
+inventory the complete defect family, classify analogous cases and lookalikes,
+and recommend explicit include, preserve, or exclude decisions with reasons before
+the Task Contract is frozen.
 """

@@ -8,9 +8,15 @@
 - 非简单任务统一使用仓库内 `.agents/skills/adf-workflow/`；L2/L3 在实现前形成被 Git ignore 的 Task Contract。
 - Main Codex 默认是唯一业务代码写入者；按风险使用只读 Explorer 和独立 Architecture/Test/Docs Reviewer，整改后重跑受影响 review。
 - Bugfix 必须追踪完整调用链和同类模式，在最低正确公共层修复，并覆盖缺陷家族、失败路径和边界。
+- L2/L3 Bugfix 在 `guardian start` 前先完成只读同类盘点，并在 Task Contract
+  记录 `Defect Family` 与 `Systemic Scope Decision`；用户举例不是默认范围边界。
 - 文档描述当前事实：更新原权威章节，删除过时说明并合并重复内容；触达 Markdown 不等于完成整理。
 - 项目 tests、API 契约、deep API、build、真实 AI 或生产验收按风险提供证据；AI review 不能替代确定性验证。
 - 不覆盖用户已有修改，不做无关重构；contract、review、gate 和 lifecycle 未满足前不宣告完成。
+- 用户已提供或明确授权的现有凭据可用于当前任务内的可逆登录和验收，不因
+  “使用密码”重复询问或自动升级 L3；不得在回复、仓库、文档、合同、Guardian
+  evidence 或长期记忆中复述或持久化。凭据创建、修改、轮换、删除、撤销或提权
+  仍需风险边界确认，MFA/CAPTCHA/系统安全确认仍由用户完成。
 
 详细分类、Ready、Systemic Diagnosis、review loop 和 delivery SOP 只维护在 `adf-workflow` Skill，不在本文件复制第二套流程。
 

@@ -1733,6 +1733,7 @@ test('Next UI 契约：客户详情可以带客户上下文新建报价', () => 
 test('Next UI 契约：转子页支持配方技术档案带入并支持历史关联', () => {
     const rotorView = readUtf8('apps/web-next/components/rotor-view.tsx');
     const rotorLib = readUtf8('apps/web-next/lib/rotor.ts');
+    const technicalDataEditor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
     const rotorRoute = readUtf8('api/routes/rotor.cjs');
     const rotorDraftService = readUtf8('api/services/rotorTemplateDraft.cjs');
 
@@ -1752,6 +1753,9 @@ test('Next UI 契约：转子页支持配方技术档案带入并支持历史关
     assert.match(rotorLib, /\/api\/rotor\/link-targets/);
     assert.match(rotorLib, /\/api\/rotor\/history\/\$\{record\.id\}\/link/);
     assert.match(rotorLib, /expectedUpdatedAt: record\.updatedAt/);
+    assert.match(rotorLib, /'6303', '6304'/);
+    assert.match(technicalDataEditor, /import \{ bearingOptions \} from '@\/lib\/rotor'/);
+    assert.doesNotMatch(technicalDataEditor, /const bearingOptions =/);
     assert.match(rotorRoute, /router\.post\('\/recipe-draft'/);
     assert.match(rotorDraftService, /function buildRotorRecipeDraft/);
 });

@@ -31,13 +31,17 @@ and align the contract before implementation. For a bugfix, also read
 
 1. Inspect `AGENTS.md`, Git state, relevant code/config/tests/authorities, and
    Guardian doctor/session. Do not replace an active session silently.
-2. Establish Definition of Ready. Ask only about unresolved choices that would
-   materially change scope, behavior, cost, or risk.
+2. Establish Definition of Ready. For L2/L3 bugfixes, run the read-only Code
+   Explorer (or equivalent repository discovery) now, inventory the defect
+   family, and record explicit scope decisions before freezing the contract.
+   Ask only about unresolved choices that would materially change scope,
+   behavior, cost, or risk.
 3. Start Guardian only after Ready unless an external runner already created the
    session. Freeze the effective `requiredGate`: L0 defaults to focused, other
    risks to commit, a current request for push/PR/staging upgrades it to push,
    and applicable automatic commit/feature push policy may upgrade it further.
-4. For L2/L3, delegate read-only exploration, then let Main Codex implement.
+4. For L2/L3 non-bugfix work, delegate read-only exploration now if it was not
+   needed for Ready. Let Main Codex implement only after required discovery.
 5. Run risk-matched deterministic checks after substantial changes and repair
    failures before continuing.
 6. Read [review-policy.md](references/review-policy.md), run required independent

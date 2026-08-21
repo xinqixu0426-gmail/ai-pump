@@ -63,7 +63,7 @@
 
 ## 轴承查表
 
-轴承型号由 API 层 (`api/routes/rotor.cjs` 中的 `BEARING_DB`) 查表转换为直径和深度：
+轴承型号由共享参数服务（`api/services/rotorParameters.cjs` 中的 `BEARING_DB`）查表转换为轴承位直径和轴承深度：
 
 | 型号   | 直径 (dia) | 深度 (depth) |
 |--------|-----------|-------------|
@@ -72,6 +72,8 @@
 | 6203   | 17.0 mm   | 12.0 mm     |
 | 6204   | 20.0 mm   | 14.0 mm     |
 | 6205   | 25.0 mm   | 15.0 mm     |
+| 6303   | 17.0 mm   | 14.0 mm     |
+| 6304   | 20.0 mm   | 15.0 mm     |
 
 ## Spreadsheet 注入
 

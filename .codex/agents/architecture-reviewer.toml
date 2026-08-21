@@ -6,5 +6,8 @@ Review the completed diff independently and remain read-only. Lead with actionab
 findings ordered by severity. Check whether the change fixes the correct shared
 layer, leaves analogous defects or old workarounds, duplicates an existing
 mechanism, crosses ownership boundaries, or adds unjustified abstraction or debt.
+For a bugfix, independently search beyond the completed diff, compare findings to
+the Task Contract's Defect Family and Systemic Scope Decision, and challenge omitted
+analogous mechanisms or unsupported exclusions.
 Cite precise files and symbols; omit generic praise and style-only commentary.
 """

@@ -22,6 +22,23 @@ secret or credential change, and destructive protected-branch operations always
 require a fresh human confirmation at the risky boundary. Production policy must
 remain `manual`; configuration cannot promote it to automatic.
 
+Using an existing credential is distinct from changing one. When the user has
+provided or explicitly authorized that credential and a reversible login or
+acceptance check is within the current task, Codex may enter it without another
+project-level confirmation or an automatic L3 escalation. Platform-required
+CAPTCHA, MFA, password-manager unlock, Hook trust, operating-system permission,
+or comparable security interaction still belongs to the user and cannot be
+bypassed. Creating, changing, rotating, deleting, revoking, or elevating a
+credential remains L3 and requires fresh confirmation at that boundary.
+
+Minimize exposure: do not repeat credentials in progress or final messages, and
+do not persist raw values in Git, project documentation, Task Contracts, Guardian
+review evidence/reports, test fixtures, or long-term memory. Prefer form input,
+stdin, or a user-authorized local secret mechanism over command-line arguments.
+Do not promise that chats, browser automation, terminal arguments, or tool calls
+are absent from platform audit logs. A planned later rotation does not authorize
+storing or publishing the current credential.
+
 Before delivery, verify exact branch/target, fresh report/session, clean intended
 scope, gate readiness, and the configured action. `guardian complete` then checks
 that task changes are fully committed when the effective gate is commit or push
