@@ -483,7 +483,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_order_detail',
-            description: '读取某个订单的实时业务详情（配方列表、采购清单、待办、金额和状态），不包含人工确认的客户要求、执行档案、历史异常或来源文件。仅需这些详情时单次调用即可；若问题同时需要上述人工确认知识，直接改用 get_order_knowledge_package，不要重复调用两者。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。禁止根据名称、消息序号或历史回答猜测订单ID。',
+            description: '读取某个订单的实时业务详情（配方列表、采购清单、待办、金额和状态）。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。若当前问题还涉及人工确认的客户要求、执行档案、历史异常或来源文件，服务端会在本能力成功后按同一订单目标自动补充知识包；模型不要改调其他能力或重复调用。禁止根据名称、消息序号或历史回答猜测订单ID。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1102,7 +1102,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'check_order_readiness',
-            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，改用已包含本结果的 get_order_knowledge_package。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
+            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1120,7 +1120,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'plan_order_readiness_actions',
-            description: '根据订单实时生产准备检查结果生成按依赖排序的处理方案。区分AI可发起确认、人工补资料、采购跟进和等待状态；本工具会自行完成所需的准备检查，只生成方案，不执行写操作，无需先调用 check_order_readiness。若还需要人工确认的客户要求和执行事实，改用已包含本结果的 get_order_knowledge_package。用户问“这个订单的问题怎么处理”“给出处理方案”“下一步做什么”时使用。',
+            description: '根据订单实时生产准备检查结果生成按依赖排序的处理方案。区分AI可发起确认、人工补资料、采购跟进和等待状态；本工具会自行完成所需的准备检查，只生成方案，不执行写操作，无需先调用 check_order_readiness。若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单的问题怎么处理”“给出处理方案”“下一步做什么”时使用。',
             parameters: {
                 type: 'object',
                 properties: {

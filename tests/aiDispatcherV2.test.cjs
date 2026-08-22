@@ -260,6 +260,107 @@ test('V2 调度器：单订单详情自动伴随读取知识包并交给同一�
     assert.equal(providerCalls, 3);
 });
 
+test('AI V3 调度器：订单紧邻追问可规范化知识包调用并复用唯一正式订单', async () => {
+    let providerCalls = 0;
+    const provider = async (_messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询上一轮邱焕订单中的电缆长度和成本',
+                mode: 'query',
+                domains: ['order'],
+                needsBusinessData: true,
+                contextMode: 'previous_turn',
+                answerShape: 'direct',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'get_order_detail', objective: '读取订单实时详情' }],
+            });
+        }
+        if (providerCalls === 2) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['get_order_detail']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'follow-up-order-knowledge',
+                    type: 'function',
+                    function: {
+                        name: 'get_order_knowledge_package',
+                        arguments: '{}',
+                    },
+                }],
+            });
+        }
+        assert.deepEqual(options.tools, []);
+        return providerResponse({ content: '这笔订单使用 10 米电缆，电缆成本为 80 元。' });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.includes('/api/orders?customerName=')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{ id: 7, customerName: '邱焕', contractNo: '', status: '采购中' }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.includes('/api/orders?contractNo=')) {
+            return new Response(JSON.stringify({ success: true, data: [] }), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        if (value.endsWith('/api/orders/7')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    id: 7,
+                    customerName: '邱焕',
+                    items: [{ model: '12-120', cableLength: 10, cableCost: 80 }],
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.endsWith('/api/orders/7/knowledge-package')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    order: { id: 7, customerName: '邱焕' },
+                    confirmedKnowledge: {},
+                    coverage: {},
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ success: false, error: `unexpected ${value}` }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [
+            { role: 'user', content: '查看一下邱焕的订单' },
+            { role: 'assistant', content: '已找到邱焕的订单。' },
+            { role: 'user', content: '这笔订单中的电缆线是几米的，多少成本' },
+        ],
+        turnState: {
+            version: 3,
+            kind: 'agent_turn_state',
+            resolvedEntities: [{ entityType: 'customer', id: 1, name: '邱焕' }],
+            capabilities: ['get_recent_orders', 'get_order_knowledge_package'],
+        },
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(providerCalls, 3);
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_order_detail',
+        'get_order_knowledge_package',
+    ]);
+    assert.ok(result.toolResults.every(item => item.result.success !== false));
+    assert.equal(result.toolResults[0].result.resolutionReceipt.selected.id, 7);
+    assert.match(result.finalContent, /10 米/);
+    assert.doesNotMatch(result.finalContent, /未授权调用工具/);
+});
+
 test('V2 调度器：模型可扩展客户简称且正式订单ID可供后续就绪检查使用', async () => {
     let providerCalls = 0;
     const provider = async (messages, options) => {
@@ -795,6 +896,198 @@ test('V2 调度器：有效计划工具不会被模型附带的计划外调用�
     assert.equal(result.toolResults[0].result.success, true);
     assert.match(result.finalContent, /查询成功/);
     assert.equal(result.telemetry.outcome, 'completed');
+});
+
+test('AI V3 调度器：首次误选配方详情时不执行并纠正回本轮计划能力', async () => {
+    let calls = 0;
+    const requestedUrls = [];
+    const provider = async (messages, options) => {
+        calls += 1;
+        if (calls === 1) {
+            return planResponse({
+                goal: '查询订单机械密封的正式零件资料',
+                mode: 'query',
+                domains: ['catalog', 'recipe'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'search_parts', objective: '查询机械密封零件' }],
+            });
+        }
+        if (calls === 2) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_parts']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'wrong-recipe-detail',
+                    type: 'function',
+                    function: {
+                        name: 'get_recipe_detail',
+                        arguments: JSON.stringify({ recipeId: 1 }),
+                    },
+                }],
+            });
+        }
+        if (calls === 3) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_parts']);
+            assert.ok(messages.some(message => (
+                message.role === 'tool'
+                && /AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN/.test(message.content)
+            )));
+            assert.ok(messages.some(message => (
+                message.role === 'system'
+                && /唯一开放的工具 search_parts/.test(message.content)
+            )));
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'corrected-parts-search',
+                    type: 'function',
+                    function: {
+                        name: 'search_parts',
+                        arguments: JSON.stringify({ keyword: '机械密封' }),
+                    },
+                }],
+            });
+        }
+        assert.deepEqual(options.tools, []);
+        return providerResponse({ content: '正式零件资料显示机械密封型号为 TEST-机械密封-12。' });
+    };
+    global.fetch = async url => {
+        requestedUrls.push(String(url));
+        assert.match(String(url), /\/api\/parts/);
+        return new Response(JSON.stringify({
+            success: true,
+            data: [{ id: 8, model: 'TEST-机械密封-12', supplier: '测试供应商-密封' }],
+        }), { headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: '这个订单使用的是什么机械密封' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(calls, 4);
+    assert.deepEqual(result.toolResults.map(item => item.name), ['search_parts']);
+    assert.equal(requestedUrls.length, 1);
+    assert.ok(requestedUrls.every(url => !url.includes('/api/recipes/')));
+    assert.match(result.finalContent, /TEST-机械密封-12/);
+    assert.doesNotMatch(result.finalContent, /未授权调用工具/);
+});
+
+test('AI V3 调度器：连续两次误选计划外工具后有界失败且不执行', async () => {
+    let calls = 0;
+    let apiCalled = false;
+    const provider = async (_messages, options) => {
+        calls += 1;
+        if (calls === 1) {
+            return planResponse({
+                goal: '查询机械密封零件',
+                mode: 'query',
+                domains: ['catalog', 'recipe'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{ capabilityName: 'search_parts', objective: '查询机械密封零件' }],
+            });
+        }
+        assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_parts']);
+        return providerResponse({
+            content: '',
+            tool_calls: [{
+                id: `wrong-recipe-detail-${calls}`,
+                type: 'function',
+                function: {
+                    name: 'get_recipe_detail',
+                    arguments: JSON.stringify({ recipeId: 1 }),
+                },
+            }],
+        });
+    };
+    global.fetch = async () => {
+        apiCalled = true;
+        throw new Error('计划外工具不应执行');
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: '查询机械密封零件' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(calls, 3);
+    assert.equal(apiCalled, false);
+    assert.equal(result.toolResults.length, 1);
+    assert.equal(result.toolResults[0].name, 'get_recipe_detail');
+    assert.equal(
+        result.toolResults[0].result.code,
+        'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN'
+    );
+    assert.match(result.finalContent, /未授权调用工具 get_recipe_detail/);
+});
+
+test('AI V3 调度器：写计划误选工具时不得进入只读纠偏或再次开放写能力', async () => {
+    let calls = 0;
+    let apiCalled = false;
+    const provider = async (_messages, options) => {
+        calls += 1;
+        if (calls === 1) {
+            return planResponse({
+                goal: '将 TEST-机筒-1100 库存增加 100 件',
+                mode: 'command',
+                domains: ['catalog'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'confirmation',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [{
+                    capabilityName: 'adjust_part_stock',
+                    objective: '生成库存调整确认',
+                }],
+            });
+        }
+        assert.ok(options.tools.some(tool => (
+            tool.function.name === 'adjust_part_stock'
+        )));
+        return providerResponse({
+            content: '',
+            tool_calls: [{
+                id: 'wrong-write-plan-tool',
+                type: 'function',
+                function: {
+                    name: 'get_recipe_detail',
+                    arguments: JSON.stringify({ recipeId: 1 }),
+                },
+            }],
+        });
+    };
+    global.fetch = async () => {
+        apiCalled = true;
+        throw new Error('计划外工具不应执行');
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: 'TEST-机筒-1100库存+100' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(apiCalled, false);
+    assert.equal(result.toolResults.length, 1);
+    assert.equal(result.toolResults[0].name, 'get_recipe_detail');
+    assert.equal(
+        result.toolResults[0].result.code,
+        'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN'
+    );
 });
 
 test('V2 调度器：部分计划完成后会纠正并补调缺失的下一能力', async () => {

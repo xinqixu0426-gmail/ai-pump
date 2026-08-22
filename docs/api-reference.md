@@ -89,7 +89,7 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 历史配方中已标记 `dynamicRule=longScrewByBarrelLength` 但零件库缺少目标长度型号时，运行 `npm run maintenance:backfill-long-screws` 进行受控回填。该命令复用 `parts.batch_create` 的 Preview/Command、持久化幂等、operation 回执和强审计，不直接绕过零件建档契约。
 
-`POST /api/ai/chat` 最多接收最近 10 条有效 user/assistant 消息，但该窗口只是语言记忆，不是操作队列。遇到新的明确业务问题时，模型上下文收口到当前用户轮次；只有紧邻的指代追问、自然确认或缺参补充保留上一轮语义。上一轮服务端生成的 `turnState` 只保存限长正式实体引用，并随 assistant 消息元数据持久化；它不提供写授权。工具路由优先使用当前文本领域，零结果恢复只开放能力图登记的同域只读 discovery/query，不会扩张到写能力或所有关联领域。模型返回工具调用后，服务端再次核对该工具是否属于本轮实际下发的 allowlist、当前轮次是否具备写意图；越权调用返回拒绝结果，不调用 executor、不生成 confirmation token。Web/PWA 在流式回复完成前使用同步互斥锁阻止快速连续提交，避免同一会话出现并行轮次。
+`POST /api/ai/chat` 最多接收最近 10 条有效 user/assistant 消息，但该窗口只是语言记忆，不是操作队列。遇到新的明确业务问题时，模型上下文收口到当前用户轮次；只有紧邻的指代追问、自然确认或缺参补充保留上一轮语义。上一轮服务端生成的 `turnState` 只保存限长正式实体引用，并随 assistant 消息元数据持久化；它不提供写授权。工具路由优先使用当前文本领域，零结果恢复只开放能力图登记的同域只读 discovery/query，不会扩张到写能力或所有关联领域。模型返回工具调用后，服务端再次核对该工具是否属于本轮实际下发的 allowlist、当前轮次是否具备写意图；越权调用不调用 executor、不生成 confirmation token。只读业务取证首次误选 `get_recipe_detail` 等未在当前单步下发的工具时，拒绝回执只留在模型内部上下文，运行时强制其重试本轮唯一计划能力一次；连续漂移才向用户返回有界失败。紧邻订单追问若只有一个上一轮正式确认的订单，或旧轮次已完成订单知识包且只保留一个正式客户引用，运行时可在 schema 校验前把其名称作为 `orderQuery` 线索绑定到本轮计划内的订单目标 Query；该线索仍须经本轮正式订单 API 重新唯一解析，客户端回传的实体 ID 不会直接用于执行。模型若误选该 Query 在注册表声明的 `order_target` 知识伴随能力，则规范化回计划能力，正式 Query 成功后再由服务端自动补充知识包。这不会授权其他同域、跨域或写工具。Web/PWA 在流式回复完成前使用同步互斥锁阻止快速连续提交，避免同一会话出现并行轮次。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
@@ -581,7 +581,7 @@ AI V3 的唯一公开链路为 `aiIntentPlannerV3 → aiCapabilityCatalogV2 + ai
 
 V3 将“语言理解、正式发现、实体绑定、事实执行”分层。`aiEntityResolverV3` 依据能力图为客户、订单、配方、零件、线圈方案和泵壳模板生成原词与渐短探针，只通过现有正式 Query 获取候选并做统一规范化、编辑距离和前缀评分。只读精确或唯一高置信候选直接改写为候选中的规范 ID/名称，并附带安全的 `resolutionReceipt={version:3,kind:'entity_resolution',entityType,originalMention,probes,status,selected,candidates,sourceCapability,sourceEvidence}`；回执不包含原始业务对象。多个候选返回 `AI_RESOURCE_AMBIGUOUS` 和结构化 `resolutionContext`；写能力的模糊唯一候选也必须询问，只有精确命中或用户确认才继续。比如“邱欢”通过客户目录以“邱”唯一发现“邱焕”后继续原订单/报价目标；“V750”命中两个配方时列出二者，用户选择后仍执行原成本 Preview。该机制由目标元数据驱动，不维护姓名或配方特例。
 
-每轮结束时运行时根据正式 `resolutionReceipt` 生成 `turnState={version:3,kind:'agent_turn_state',resolvedEntities[],capabilities[]}`，服务端和 Web 均做限长清洗并随 assistant 消息持久化。下一轮只有规划器判定 `contextMode=previous_turn` 时可用其中的正式实体 ID；新业务问题不会继承。`turnState` 不是权限、确认或事实缓存，本轮仍必须调用正式能力读取实时数据。
+每轮结束时运行时根据正式 `resolutionReceipt` 和已验证的订单知识包结果生成 `turnState={version:3,kind:'agent_turn_state',resolvedEntities[],capabilities[]}`，服务端和 Web 均做限长清洗并随 assistant 消息持久化。下一轮只有规划器判定 `contextMode=previous_turn` 时，才能把其中的正式实体名称作为本轮 Query 线索；执行前必须重新取得本轮正式解析证据，不能直接使用 `turnState` 或客户端回传的实体 ID。新业务问题不会继承。`turnState` 不是权限、确认或事实缓存，本轮仍必须调用正式能力读取实时数据。
 
 能力注册表为每个 AI capability 声明 `entityScopes`，能力目录、意图计划校验和执行期 allowlist 共同执行该作用域边界。`single` 单对象问题不得调用仅面向 `collection/global` 的全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总，避免把其他订单的异常混入具名订单回答；需要跨订单汇总时，意图必须明确为 `collection` 或 `global`。
 

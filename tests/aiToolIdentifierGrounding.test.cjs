@@ -50,6 +50,21 @@ test('AI 订单标识落地：具名追问时阻止模型猜测ID并允许名称
     }), null);
 });
 
+test('AI 订单标识落地：客户端回传的上一轮状态不直接授权订单ID', () => {
+    const rejected = validateAiToolIdentifierGrounding({
+        toolName: 'get_order_detail',
+        args: { orderId: 7 },
+        messages: [{ role: 'user', content: '这笔订单的电缆是多少' }],
+        turnState: {
+            version: 3,
+            kind: 'agent_turn_state',
+            resolvedEntities: [{ entityType: 'order', id: 7, name: '邱焕' }],
+            capabilities: ['get_order_detail', 'get_order_knowledge_package'],
+        },
+    });
+    assert.equal(rejected.code, 'UNGROUNDED_ORDER_ID');
+});
+
 test('AI 订单标识落地：用户明确订单号时允许按ID读取', () => {
     assert.equal(validateAiToolIdentifierGrounding({
         toolName: 'get_order_detail',
