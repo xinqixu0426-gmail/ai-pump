@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `63`：
+当前版本为 `64`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -83,9 +83,11 @@
 | 61 | `orders_stable_customer_identity` | 为订单增加稳定客户 ID、按历史名称回填并建立客户关系索引 |
 | 62 | `order_inventory_disposition_on_close` | 保存订单关闭时“已人工领用出库”或“释放库存预留”的明确去向、时间和说明 |
 | 63 | `coil_winding_profile_ai_evaluation` | 增加数据感知的线圈绕组档案 AI 检查，要求使用实时线圈 Query 并核对主副线线径及绕组值；继续排除在自动发布门禁之外 |
+| 64 | `recipe_configuration_policy` | 为泵壳模板和配方增加客户可选配置范围；历史空值继续按开放模式读取，不改写既有报价和订单快照 |
 
 ## 数据治理
 
+- `pump_shell_templates.configuration_policy_json` 保存模板默认客户配置范围，`recipes.configuration_policy_json` 保存创建时复制、之后独立维护的配方规则；两列为空均表示历史开放模式。迁移不回填、不改写已有报价、订单或 BOM/成本快照。
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
 - `api_operations` 以 `actor_key + capability_id + idempotency_key` 唯一保存高风险命令请求哈希和成功回执，默认保留 90 天；幂等记录、业务变更、领域流水和强审计在同一 `BEGIN IMMEDIATE` 事务提交。相同键但请求哈希不同必须拒绝。
 - `audit_log.request_id/operation_id/capability_id` 把一次 HTTP 请求、业务命令和各资源审计串联起来。未接入统一命令执行器的历史写入口仍使用尽力审计，不能宣称具备强审计回执。

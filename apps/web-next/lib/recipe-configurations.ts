@@ -50,6 +50,7 @@ export type RecipeConfigurationWarning = {
 export type RecipePackingRole = 'container' | 'foam' | 'pearlCotton' | 'fixed';
 
 export type RecipePackingPart = {
+  partId?: number;
   model?: string;
   supplier?: string;
   qty?: number;
@@ -60,6 +61,7 @@ export type RecipePackingPart = {
 };
 
 export type RecipePackingOption = Required<Pick<RecipePackingPart, 'model' | 'supplier' | 'packagingMaterial' | 'packingRole'>> & {
+  partId?: number;
   price: number;
 };
 
@@ -68,6 +70,8 @@ export type RecipeConfigurationPreview = {
   parts: Array<Record<string, unknown>>;
   costSnapshot: Record<string, unknown>;
   warnings: RecipeConfigurationWarning[];
+  configurationPolicy?: Record<string, unknown> | null;
+  configurationPolicyMode?: 'explicit' | 'legacy_open';
 };
 
 export function inferPackingMaterial(model: string): string {
@@ -101,12 +105,13 @@ export function findPackingOption(
   return findPackingOptionValue(options, packing);
 }
 
-export function packingOptionKey(option: Pick<RecipePackingOption, 'model' | 'supplier' | 'packagingMaterial' | 'price'>): string {
-  return `${option.model}||${option.supplier}||${option.packagingMaterial}||${option.price}`;
+export function packingOptionKey(option: Pick<RecipePackingOption, 'partId' | 'model' | 'supplier' | 'packagingMaterial' | 'price'>): string {
+  return `${option.partId || ''}||${option.model}||${option.supplier}||${option.packagingMaterial}||${option.price}`;
 }
 
 export function packingPartFromOption(option: RecipePackingOption): RecipePackingPart {
   return {
+    ...(option.partId ? { partId: option.partId } : {}),
     model: option.model,
     supplier: option.supplier,
     qty: 1,

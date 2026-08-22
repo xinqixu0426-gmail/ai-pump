@@ -26,6 +26,9 @@ const {
     parsePositiveId,
     parsePositiveNumber,
 } = require('./validation.cjs');
+const {
+    stringifyRecipeConfigurationPolicy,
+} = require('./recipeConfigurationPolicy.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('recipes.create').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('recipes.update').capabilityId;
@@ -42,6 +45,7 @@ const RECIPE_FIELDS = [
     'management_fee', 'custom_barrel_length', 'long_screw_extra_length',
     'model_variant_id', 'impeller_model', 'impeller_thickness', 'impeller_diameter', 'impeller_blade_count',
     'technical_data_json',
+    'configuration_policy_json',
 ];
 
 const RECIPE_ALIASES = {
@@ -78,6 +82,7 @@ const RECIPE_ALIASES = {
     impellerDiameter: 'impeller_diameter',
     impellerBladeCount: 'impeller_blade_count',
     technicalDataJson: 'technical_data_json',
+    configurationPolicyJson: 'configuration_policy_json',
 };
 
 const TECHNICAL_DATA_KEYS = [
@@ -126,6 +131,7 @@ function recipeSelectionRows(parts, packaging = false) {
         .map((part, index) => {
             const semantics = packaging ? inferPackagingSemantics(part) : null;
             return {
+                ...(parsePositiveId(part.partId) ? { partId: parsePositiveId(part.partId) } : {}),
                 model: String(part.model || '').trim(),
                 supplier: String(part.supplier || '').trim(),
                 qty: parsePositiveNumber(part.qty, `parts[${index}].qty`, { defaultValue: 1 }),
@@ -254,6 +260,7 @@ function normalizeRecipePayload(dependencies, input = {}, existingRecord = null)
         ),
     }, {
         partsCatalog: dependencies.dbGetAllParts(),
+        requireStablePartIdentity: true,
     });
     assertRecipeBomPrices(canonicalCost.parts);
 
@@ -302,6 +309,10 @@ function normalizeRecipePayload(dependencies, input = {}, existingRecord = null)
             source.technical_data_json,
             'technicalDataJson'
         ),
+        configuration_policy_json: stringifyRecipeConfigurationPolicy(
+            source.configuration_policy_json,
+            'configurationPolicyJson'
+        ),
     };
 }
 
@@ -330,7 +341,9 @@ function getRecipeRecord(db, recipeId) {
 
 function buildRecipeSavePayloadDraft(dependencies, body = {}) {
     const form = body.form || {};
-    const costDraft = body.costDraft || {};
+    if (typeof dependencies.buildRecipeBomDraft !== 'function') {
+        throw new Error('配方保存服务缺少权威 BOM 草稿依赖');
+    }
     const recipeId = parsePositiveId(body.recipeId);
     const capabilityId = recipeId ? UPDATE_CAPABILITY_ID : CREATE_CAPABILITY_ID;
     const expectedUpdatedAt = normalizeExpectedUpdatedAt(
@@ -342,11 +355,49 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         assertExpectedUpdatedAt(existingRecord, expectedUpdatedAt, `配方 #${recipeId}`);
     }
 
+    const templateId = parsePositiveId(form.templateId);
+    const templatePolicy = !existingRecord && templateId
+        ? dependencies.db.prepare(
+            'SELECT configuration_policy_json FROM pump_shell_templates WHERE id = ?'
+        ).get(templateId)?.configuration_policy_json
+        : null;
+    const configurationPolicyJson = form.configurationPolicyJson !== undefined
+        ? form.configurationPolicyJson
+        : (existingRecord?.configuration_policy_json ?? templatePolicy);
+    const packingParts = recipeSelectionRows(body.packingParts, true);
+    const optionalParts = recipeSelectionRows(body.optionalParts);
+    const authoritativeBom = dependencies.buildRecipeBomDraft({
+        requireStablePartIdentity: true,
+        templateId,
+        modelVariantId: parsePositiveId(form.modelVariantId),
+        customBarrelLength: normalizeOptionalNumber(
+            form.customBarrelLength,
+            'form.customBarrelLength'
+        ),
+        longScrewExtraLength: parseNonNegativeNumber(
+            form.longScrewExtraLength,
+            'form.longScrewExtraLength'
+        ),
+        coilSpec: String(form.coilSpec || '').trim(),
+        coilSheets: parseNonNegativeNumber(form.coilSheets, 'form.coilSheets'),
+        coilMaterial: String(form.coilMaterial || '').trim() || '钢带',
+        coilSlotType: String(form.coilSlotType || '').trim() || '小眼',
+        coilWireWeight: normalizeOptionalNumber(form.coilWireWeight, 'form.coilWireWeight'),
+        hasFloat: Boolean(form.hasFloat),
+        floatWire: String(form.floatWire || '').trim(),
+        floatAccessoryType: form.floatAccessoryType || 'standard',
+        hasCable: Boolean(form.hasCable),
+        cableLength: parseNonNegativeNumber(form.cableLength, 'form.cableLength'),
+        cableWire: String(form.cableWire || '').trim(),
+        cableAccessoryType: form.cableAccessoryType || 'standard',
+        packingParts,
+        optionalParts,
+    });
     const initialPayload = {
         name: String(form.name || '').trim(),
         spec: String(form.spec || '').trim(),
-        partsJson: JSON.stringify(Array.isArray(costDraft.parts) ? costDraft.parts : []),
-        templateId: parsePositiveId(form.templateId),
+        partsJson: JSON.stringify(authoritativeBom.parts || []),
+        templateId,
         coilSpec: String(form.coilSpec || '').trim(),
         coilSheets: parseNonNegativeNumber(form.coilSheets, 'form.coilSheets'),
         coilMaterial: String(form.coilMaterial || '').trim() || '钢带',
@@ -359,8 +410,8 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         cableLength: parseNonNegativeNumber(form.cableLength, 'form.cableLength'),
         cableWire: String(form.cableWire || '').trim(),
         cableAccessoryType: form.cableAccessoryType || 'standard',
-        packingPartsJson: JSON.stringify(recipeSelectionRows(body.packingParts, true)),
-        extraPartsJson: JSON.stringify(recipeSelectionRows(body.optionalParts)),
+        packingPartsJson: JSON.stringify(packingParts),
+        extraPartsJson: JSON.stringify(optionalParts),
         customBarrelLength: normalizeOptionalNumber(
             form.customBarrelLength,
             'form.customBarrelLength'
@@ -393,6 +444,7 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
             ? 0
             : parseNonNegativeNumber(form.surfaceTreatmentCost, 'form.surfaceTreatmentCost'),
         managementFee: parseNonNegativeNumber(form.managementFee, 'form.managementFee'),
+        configurationPolicyJson,
     };
     const payload = payloadToCamelCase(
         normalizeRecipePayload(dependencies, initialPayload, existingRecord)

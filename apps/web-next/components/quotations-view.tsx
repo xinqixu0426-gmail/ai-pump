@@ -27,6 +27,12 @@ import type { Customer, Quotation } from '@/lib/customers';
 import type { Part } from '@/lib/parts';
 import type { Recipe, SurfaceTreatmentMode } from '@/lib/recipes';
 import {
+  configurationAllowedValues,
+  configurationValueAllowed,
+  recipePackingPartIds,
+  type RecipeConfigurationPolicyField,
+} from '@/lib/configuration-policy';
+import {
   buildPackingOptions,
   findPackingOption,
   inferPackingMaterial,
@@ -308,9 +314,6 @@ export function QuotationsView() {
   const prefillKey = `${shouldCreateFromQuery}:${prefillCustomerId}`;
   const viewQuotationId = searchParams.get('quotationId') || '';
   const packagingOptions = useMemo(() => buildPackingOptions(parts, recipes), [parts, recipes]);
-  const containerOptions = useMemo(() => packagingOptions.filter((option) => option.packingRole === 'container'), [packagingOptions]);
-  const foamOptions = useMemo(() => packagingOptions.filter((option) => option.packingRole === 'foam'), [packagingOptions]);
-  const pearlCottonOptions = useMemo(() => packagingOptions.filter((option) => option.packingRole === 'pearlCotton'), [packagingOptions]);
 
   const filteredQuotations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -536,6 +539,7 @@ export function QuotationsView() {
         && (!basePart.supplier || part.supplier === basePart.supplier)
       ))?.price;
       return {
+        ...(basePart.partId ? { partId: basePart.partId } : {}),
         model: basePart.model,
         supplier: basePart.supplier || '',
         packagingMaterial: basePart.packagingMaterial || inferPackingMaterial(basePart.model),
@@ -543,12 +547,34 @@ export function QuotationsView() {
         price: Number(basePart.snapshotPrice ?? catalogPrice ?? 0),
       };
     }
-    const roleOptions = role === 'container'
-      ? containerOptions
-      : role === 'foam'
-        ? foamOptions
-        : pearlCottonOptions;
-    return roleOptions[0];
+    return packingOptionsForItem(item, role)[0];
+  }
+
+  function packingOptionsForItem(item: QuotationItem, role: QuotationPackingRole): RecipePackingOption[] {
+    const recipe = recipes.find((next) => next.id === Number(item.baseRecipeId || 0));
+    const allowedPartIds = recipePackingPartIds(recipe);
+    const baseParts = normalizePackingParts(recipe?.packingPartsJson);
+    return packagingOptions.filter(option => (
+      option.packingRole === role
+      && (allowedPartIds === null
+        || Boolean(option.partId && allowedPartIds.includes(option.partId))
+        || baseParts.some(base => base.model === option.model && (base.supplier || '') === option.supplier))
+    ));
+  }
+
+  function numericPolicyValuesForItem(
+    item: QuotationItem,
+    field: RecipeConfigurationPolicyField,
+    baseline: number | null | undefined,
+  ): number[] | null {
+    const recipe = recipes.find((next) => next.id === Number(item.baseRecipeId || 0));
+    const values = configurationAllowedValues(recipe, field);
+    if (values === null) return null;
+    return Array.from(new Set([baseline, ...values]
+      .filter(value => value !== null && value !== undefined)
+      .map(Number)))
+      .filter(Number.isFinite)
+      .sort((left, right) => left - right);
   }
 
   function updatePackingConfiguration(item: QuotationItem, role: QuotationPackingRole, option?: RecipePackingOption) {
@@ -1500,23 +1526,41 @@ export function QuotationsView() {
                       <div className="mt-3 grid items-end gap-x-4 gap-y-3 sm:grid-cols-[7rem_minmax(16rem,28rem)] lg:grid-cols-[7rem_minmax(16rem,28rem)_minmax(18rem,1fr)]">
                         <label className="block text-xs text-muted">
                           电缆长度（米）
-                          <input
-                            value={item.overrides?.cableLength ?? ''}
-                            onChange={(event) => {
-                              const nextLength = event.target.value.replace(/\D/g, '').slice(0, 2);
-                              void updateDraftItemOverrides(item.id, {
-                                cableLength: nextLength,
-                                hasCable: Number(nextLength) > 0,
-                              });
-                            }}
-                            onFocus={selectInputValueOnFocus}
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={2}
-                            pattern="[0-9]{0,2}"
-                            title="输入 0 表示不带电缆"
-                            className="mt-1 h-9 w-24 rounded-md border border-line bg-white px-2 text-left text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                          />
+                          {numericPolicyValuesForItem(
+                            item,
+                            'cableLength',
+                            recipes.find(recipe => recipe.id === Number(item.baseRecipeId || 0))?.cableLength,
+                          ) ? (
+                            <select
+                              value={String(item.overrides?.cableLength ?? '')}
+                              onChange={(event) => {
+                                const nextLength = event.target.value;
+                                void updateDraftItemOverrides(item.id, { cableLength: nextLength, hasCable: Number(nextLength) > 0 });
+                              }}
+                              className="mt-1 h-9 w-24 rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                            >
+                              {numericPolicyValuesForItem(
+                                item,
+                                'cableLength',
+                                recipes.find(recipe => recipe.id === Number(item.baseRecipeId || 0))?.cableLength,
+                              )?.map(value => <option key={value} value={value}>{value}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              value={item.overrides?.cableLength ?? ''}
+                              onChange={(event) => {
+                                const nextLength = event.target.value.replace(/\D/g, '').slice(0, 2);
+                                void updateDraftItemOverrides(item.id, { cableLength: nextLength, hasCable: Number(nextLength) > 0 });
+                              }}
+                              onFocus={selectInputValueOnFocus}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={2}
+                              pattern="[0-9]{0,2}"
+                              title="输入 0 表示不带电缆"
+                              className="mt-1 h-9 w-24 rounded-md border border-line bg-white px-2 text-left text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                            />
+                          )}
                         </label>
                         <label className="block text-xs text-muted">
                           外包装
@@ -1527,17 +1571,17 @@ export function QuotationsView() {
                                 'container',
                                 item.overrides?.boxType,
                               );
-                              const option = findPackingOption(containerOptions, packing);
+                              const option = findPackingOption(packingOptionsForItem(item, 'container'), packing);
                               return option ? packingOptionKey(option) : '';
                             })()}
                             onChange={(event) => {
-                              const option = containerOptions.find((packing) => packingOptionKey(packing) === event.target.value);
+                              const option = packingOptionsForItem(item, 'container').find((packing) => packingOptionKey(packing) === event.target.value);
                               updatePackingConfiguration(item, 'container', option);
                             }}
                             className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                           >
                             <option value="">未配置外包装</option>
-                            {containerOptions.map((option) => {
+                            {packingOptionsForItem(item, 'container').map((option) => {
                               const key = packingOptionKey(option);
                               return (
                                 <option key={key} value={key}>
@@ -1551,6 +1595,12 @@ export function QuotationsView() {
                           <label className="flex items-center gap-2 text-sm text-ink">
                             <Checkbox
                               checked={Boolean(item.overrides?.hasFloat)}
+                              disabled={!configurationValueAllowed(
+                                recipes.find(recipe => recipe.id === Number(item.baseRecipeId || 0)),
+                                'hasFloat',
+                                !Boolean(item.overrides?.hasFloat),
+                                Boolean(recipes.find(recipe => recipe.id === Number(item.baseRecipeId || 0))?.hasFloat),
+                              )}
                               onChange={(event) => void updateDraftItemOverrides(item.id, { hasFloat: event.target.checked })}
                             />
                             带浮球

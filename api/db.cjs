@@ -123,6 +123,7 @@ function recipeRow(r) {
         impellerDiameter: r.impeller_diameter,
         impellerBladeCount: r.impeller_blade_count,
         technicalDataJson: r.technical_data_json || '{}',
+        configurationPolicyJson: r.configuration_policy_json || null,
         longScrewExtraLength: Number(r.long_screw_extra_length || 0),
         packingPartsJson: r.packing_parts_json,
         assemblyWage: r.assembly_wage, packingWage: r.packing_wage, paintingWage: r.painting_wage,
@@ -139,6 +140,7 @@ function templateRow(r) {
         id: r.id, Id: r.id, shellModel: r.shell_model, description: r.description || '',
         partsJson: r.parts_json || '[]', rotorParamsJson: r.rotor_params_json || '{}',
         shellComponentsJson: r.shell_components_json || '[]',
+        configurationPolicyJson: r.configuration_policy_json || null,
         assemblyWage: r.assembly_wage || 0, packingWage: r.packing_wage || 0,
         paintingWage: r.painting_wage != null ? r.painting_wage : null,
         surfaceTreatmentMode: r.surface_treatment_mode && !(r.surface_treatment_mode === 'none' && r.painting_wage != null)

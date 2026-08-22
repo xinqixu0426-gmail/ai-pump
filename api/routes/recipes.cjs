@@ -56,6 +56,7 @@ function recipeCommandDependencies() {
         safeUpdate,
         invalidatePartsCache,
         refreshFactoryRuleCandidates,
+        buildRecipeBomDraft: input => recipeQueries.getBomDraft(input),
     };
 }
 

@@ -14,6 +14,7 @@ const CANONICAL_TABLES_SQL = `
         bundle_cost REAL DEFAULT 0,
         bundle_note TEXT DEFAULT '',
         shell_components_json TEXT DEFAULT '[]',
+        configuration_policy_json TEXT,
         created_at TEXT,
         updated_at TEXT,
         CHECK(assembly_wage IS NULL OR assembly_wage >= 0),
@@ -80,6 +81,7 @@ const CANONICAL_TABLES_SQL = `
         impeller_diameter REAL,
         impeller_blade_count INTEGER,
         technical_data_json TEXT DEFAULT '{}',
+        configuration_policy_json TEXT,
         created_at TEXT,
         updated_at TEXT,
         deleted_at TEXT,
@@ -881,6 +883,7 @@ const LEGACY_COLUMN_UPGRADES = {
         ['impeller_diameter', 'REAL'],
         ['impeller_blade_count', 'INTEGER'],
         ['technical_data_json', "TEXT DEFAULT '{}'"],
+        ['configuration_policy_json', 'TEXT'],
         ['deleted_at', 'TEXT'],
     ],
     orders: [
@@ -918,6 +921,7 @@ const LEGACY_COLUMN_UPGRADES = {
         ['bundle_cost', 'REAL DEFAULT 0'],
         ['bundle_note', "TEXT DEFAULT ''"],
         ['shell_components_json', "TEXT DEFAULT '[]'"],
+        ['configuration_policy_json', 'TEXT'],
     ],
     pump_model_variants: [
         ['long_screw_extra_length', 'REAL DEFAULT 0'],

@@ -83,6 +83,7 @@ export function emptyTemplateForm(): TemplateFormState {
     costMode: 'bundle',
     bundleCost: '0',
     bundleNote: '',
+    configurationPolicyJson: null,
     partRows: defaultTemplateParts(),
     componentRows: [],
     rotorParams: emptyTemplateRotorParams(),
@@ -163,6 +164,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
     costMode: template.costMode === 'bundle' ? 'bundle' : 'components',
     bundleCost: String(template.bundleCost || 0),
     bundleNote: template.bundleNote || '',
+    configurationPolicyJson: template.configurationPolicyJson || null,
     partRows: partRows.length > 0 ? partRows : defaultTemplateParts(),
     componentRows,
     rotorParams,
@@ -267,5 +269,6 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
     costMode: form.costMode,
     bundleCost: form.costMode === 'bundle' ? Math.max(0, numberValue(form.bundleCost)) : 0,
     bundleNote: form.costMode === 'bundle' ? form.bundleNote.trim() : '',
+    configurationPolicyJson: form.configurationPolicyJson,
   };
 }

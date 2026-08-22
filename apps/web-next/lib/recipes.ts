@@ -124,6 +124,7 @@ export type Recipe = {
   surfaceTreatmentCost?: number;
   managementFee?: number;
   technicalDataJson?: string;
+  configurationPolicyJson?: string | null;
   technicalFileCount?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -144,6 +145,7 @@ export type PumpShellTemplate = {
   costMode?: string;
   bundleCost?: number;
   bundleNote?: string;
+  configurationPolicyJson?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -250,6 +252,7 @@ export type RecipeInventoryStatusResult = {
 };
 
 export type RecipeSelectionDraft = {
+  partId?: number;
   model: string;
   supplier?: string;
   qty?: number | string;
@@ -295,6 +298,7 @@ export type RecipeTemplateDraft = Pick<
   name?: string;
   spec?: string;
   partsJson?: string;
+  configurationPolicyJson?: string | null;
 };
 
 export type RecipeTemplateDraftResult = {
@@ -384,6 +388,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     surfaceTreatmentCost: Number(row.surfaceTreatmentCost) || 0,
     managementFee: Number(row.managementFee) || 0,
     technicalDataJson: row.technicalDataJson || '{}',
+    configurationPolicyJson: row.configurationPolicyJson || null,
     technicalFileCount: Number(row.technicalFileCount) || 0,
     createdAt: row.createdAt || row.CreatedAt,
     updatedAt: row.updatedAt || row.UpdatedAt,
@@ -406,6 +411,7 @@ export function rowToTemplate(row: TemplateRow): PumpShellTemplate {
     costMode: row.costMode || 'components',
     bundleCost: Number(row.bundleCost) || 0,
     bundleNote: row.bundleNote || '',
+    configurationPolicyJson: row.configurationPolicyJson || null,
     createdAt: row.createdAt || row.CreatedAt,
     updatedAt: row.updatedAt || row.UpdatedAt,
   };
@@ -550,6 +556,7 @@ export type TemplateInput = {
   costMode: 'components' | 'bundle';
   bundleCost: number;
   bundleNote: string;
+  configurationPolicyJson?: string | null;
 };
 
 export async function createTemplate(input: TemplateInput): Promise<PumpShellTemplate> {
@@ -781,6 +788,7 @@ export type RecipeSaveInput = {
   surfaceTreatmentMode: SurfaceTreatmentMode;
   surfaceTreatmentCost: number;
   managementFee: number;
+  configurationPolicyJson?: string | null;
   capabilityId?: string;
   preview?: boolean;
   requiresConfirmation?: boolean;
@@ -894,6 +902,7 @@ export type RecipeSavePayloadDraftInput = {
     surfaceTreatmentMode?: SurfaceTreatmentMode;
     surfaceTreatmentCost?: number | string;
     managementFee?: number | string;
+    configurationPolicyJson?: string | null;
   };
   costDraft: RecipeCostDraftResult;
   packingParts?: RecipeSelectionDraft[];

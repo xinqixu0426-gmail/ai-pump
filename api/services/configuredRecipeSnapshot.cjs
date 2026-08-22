@@ -10,6 +10,10 @@ const {
     parsePositiveNumber,
     stringifyJsonArray,
 } = require('./validation.cjs');
+const {
+    assertRecipeConfigurationAllowed,
+    recipeConfigurationPolicyFromRecord,
+} = require('./recipeConfigurationPolicy.cjs');
 
 const CONFIGURATION_KEYS = Object.freeze([
     'hasFloat',
@@ -85,6 +89,7 @@ function normalizePackingPartsOverride(value, field) {
         const model = String(part.model || '').trim();
         if (!model) throw configurationValidationError(`${field}[${index}].model 不能为空`);
         return {
+            ...(parsePositiveId(part.partId) ? { partId: parsePositiveId(part.partId) } : {}),
             model,
             supplier: String(part.supplier || '').trim(),
             qty: parsePositiveNumber(part.qty, `${field}[${index}].qty`, { defaultValue: 1 }),
@@ -205,6 +210,13 @@ function buildConfiguredRecipeSnapshot(dependencies, recipeIdValue, rawOverrides
 
     const fieldPrefix = options.overridesField || 'overrides';
     const configurationOverrides = normalizeRecipeConfigurationOverrides(rawOverrides, fieldPrefix);
+    const baselineConfiguration = configurationSnapshotFromRecipeData(recipe);
+    const configurationPolicy = recipeConfigurationPolicyFromRecord(recipe);
+    assertRecipeConfigurationAllowed({
+        baseline: baselineConfiguration,
+        overrides: configurationOverrides,
+        policy: configurationPolicy,
+    });
     const { partsCache, partsByModel } = loadPartsData();
     const preview = calculateRecipeCostPreview(recipe, configurationOverrides, {
         partsCache,
@@ -220,6 +232,8 @@ function buildConfiguredRecipeSnapshot(dependencies, recipeIdValue, rawOverrides
         recipe,
         recipeId,
         configurationOverrides,
+        configurationPolicy,
+        configurationPolicyMode: configurationPolicy ? 'explicit' : 'legacy_open',
         configurationSnapshot: configurationSnapshotFromRecipeData(
             buildRecipeData(recipe, configurationOverrides)
         ),

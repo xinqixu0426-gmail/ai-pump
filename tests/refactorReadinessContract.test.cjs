@@ -1686,12 +1686,13 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /hasCable/);
     assert.doesNotMatch(quotationsView, /updateDraftItemOverrides\(item\.id,\s*\{\s*customBarrelLength/);
     assert.match(quotationsView, /packagingOptions/);
-    assert.match(quotationsView, /containerOptions/);
-    assert.match(quotationsView, /foamOptions/);
-    assert.match(quotationsView, /pearlCottonOptions/);
+    assert.match(quotationsView, /packingOptionsForItem/);
+    assert.match(quotationsView, /recipePackingPartIds/);
+    assert.match(quotationsView, /configurationAllowedValues/);
+    assert.match(quotationsView, /configurationValueAllowed/);
     assert.match(quotationsView, /packingRole/);
     assert.match(quotationsView, /buildPackingOptions\(parts, recipes\)/);
-    assert.match(quotationsView, /findPackingOption\(containerOptions, packing\)/);
+    assert.match(quotationsView, /findPackingOption\(packingOptionsForItem\(item, 'container'\), packing\)/);
     assert.match(quotationsView, /resolvePackingPart\(/);
     assert.doesNotMatch(quotationsView, /function inferPackingRole/);
     assert.doesNotMatch(quotationsView, /coilOptions/);

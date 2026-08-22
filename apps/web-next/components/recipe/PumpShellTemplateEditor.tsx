@@ -12,6 +12,7 @@ import {
   type ShellComponentFormRow,
 } from '@/components/recipe/ShellCostEditor';
 import { Button } from '@/components/ui/button';
+import { ConfigurationPolicyEditor } from '@/components/recipe/ConfigurationPolicyEditor';
 import { selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 import { parsePumpShellMeta } from '@/lib/part-form-rules';
@@ -56,6 +57,7 @@ export type TemplateFormState = {
   costMode: 'components' | 'bundle';
   bundleCost: string;
   bundleNote: string;
+  configurationPolicyJson: string | null;
   partRows: TemplatePartFormRow[];
   componentRows: ShellComponentFormRow[];
   rotorParams: TemplateRotorParamsState;
@@ -342,6 +344,12 @@ export function PumpShellTemplateEditor({
                 : '已选择自由搭配：下一步填写组合名称，并逐项绑定泵壳组件。'}
             </div>
           </section>
+
+          <ConfigurationPolicyEditor
+            value={form.configurationPolicyJson}
+            parts={partCatalog}
+            onChange={(configurationPolicyJson) => updateForm({ configurationPolicyJson })}
+          />
 
           <section className="rounded-panel border border-line p-4">
             <div className="text-sm font-semibold text-ink">模板基础信息</div>

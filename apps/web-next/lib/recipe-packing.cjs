@@ -81,7 +81,7 @@ function findPackingOption(options, packing) {
 }
 
 function packingOptionKeyValue(option) {
-  return `${option.model}||${option.supplier}||${option.packagingMaterial}||${option.price}`
+  return `${option.partId || ''}||${option.model}||${option.supplier}||${option.packagingMaterial}||${option.price}`
 }
 
 function buildPackingOptionValues(parts, recipes) {
@@ -91,6 +91,7 @@ function buildPackingOptionValues(parts, recipes) {
     if (!model) return
     const semantics = inferPackingSemantics(packing)
     const option = {
+      ...(Number(packing.partId) > 0 ? { partId: Number(packing.partId) } : {}),
       model,
       supplier: text(packing.supplier),
       price: Number(price || 0),
@@ -110,6 +111,7 @@ function buildPackingOptionValues(parts, recipes) {
       || model.includes('包装')
     if (!looksLikePacking) return
     addOption({
+      partId: part.id,
       model,
       supplier: text(part.supplier),
       packagingMaterial: inferPackingSemantics(part).packagingMaterial,
@@ -151,6 +153,7 @@ function updatePackingRoleValue(overrides, role, option) {
     .filter(part => inferPackingSemantics(part).packingRole !== role)
   if (option) {
     nextParts.push({
+      ...(Number(option.partId) > 0 ? { partId: Number(option.partId) } : {}),
       model: option.model,
       supplier: text(option.supplier),
       qty: 1,

@@ -7,6 +7,7 @@ import { money } from '@/lib/format';
 
 export type RecipeSelectionRow = {
   id: string;
+  partId?: number;
   model: string;
   supplier: string;
   qty: string;

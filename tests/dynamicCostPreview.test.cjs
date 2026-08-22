@@ -104,6 +104,45 @@ test('报价覆盖线圈片数后复用线圈插值规则', () => {
     assert.equal(result.warnings[0].code, 'coil_inventory_scheme_required');
 });
 
+test('报价覆盖线圈片数后按目标线圈方案同步替换电容', () => {
+    const oldCapacitor = { id: 31, model: '20μF', name: '电容', category: '电容', supplier: '电容厂', price: 2 };
+    const nextCapacitor = { id: 32, model: '30μF', name: '电容', category: '电容', supplier: '电容厂', price: 3 };
+    const row = {
+        id: 21,
+        name: '线圈电容联动配方',
+        parts_json: JSON.stringify([
+            { name: '线圈转子', model: 'Y90-10', qty: 1, snapshotPrice: 26, costRole: 'coil' },
+            { partId: 31, name: '电容', model: '20μF', supplier: '电容厂', qty: 1, snapshotPrice: 2, costRole: 'capacitor' },
+        ]),
+        saved_total_cost: 28,
+        coil_spec: 'Y90',
+        coil_sheets: 10,
+        coil_material: '钢带',
+        has_float: 0,
+        has_cable: 0,
+    };
+    const coils = [
+        { id: 41, spec: 'Y90', material: '钢带', sheets: 10, unitPrice: 0.2, wireWeight: 0.2, copperBase: 70, coilFee: 2, rotorFee: 3, defaultCapacitor: '20μF' },
+        { id: 42, spec: 'Y90', material: '钢带', sheets: 20, unitPrice: 0.2, wireWeight: 0.4, copperBase: 70, coilFee: 4, rotorFee: 5, defaultCapacitor: '30μF' },
+    ];
+
+    const result = calculateRecipeCostPreview(row, { coilSheets: 20 }, {
+        partsCache: {},
+        partsByModel: { '20μF': [oldCapacitor], '30μF': [nextCapacitor] },
+        partsCatalog: [oldCapacitor, nextCapacitor],
+        calculateRecipeCost,
+        getSetting: () => undefined,
+        getCoils: () => coils,
+    });
+
+    assert.equal(result.unitCost, 44);
+    assert.equal(result.parts.some(part => part.model === '20μF'), false);
+    const capacitor = result.parts.find(part => part.costRole === 'capacitor');
+    assert.equal(capacitor.partId, 32);
+    assert.equal(capacitor.model, '30μF');
+    assert.deepEqual(capacitor.configurationDependencies, ['coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType']);
+});
+
 test('报价或订单覆盖到无法计价的线圈配置时明确拒绝', () => {
     const row = {
         id: 20,
@@ -202,7 +241,11 @@ test('报价包材覆盖按完整组合替换并保留固定包材', () => {
         ]),
     }, {
         partsCache: {},
-        partsByModel: {},
+        partsByModel: {
+            木箱A: [{ id: 10, model: '木箱A', supplier: '包装供应商', price: 13 }],
+            珍珠棉: [{ id: 11, model: '珍珠棉', supplier: '包装供应商', price: 1 }],
+            说明书: [{ id: 12, model: '说明书', supplier: '包装供应商', price: 0.5 }],
+        },
         calculateRecipeCost,
         getSetting: () => undefined,
         getCoils: () => [],
@@ -284,4 +327,35 @@ test('报价电缆覆盖同时生成实际长度 BOM 快照', () => {
     assert.equal(cableSnapshot.name, '成品电缆（全局防水接头）');
     assert.equal(cableSnapshot.cableAccessorySource, 'system_settings');
     assert.equal(result.costSnapshot.unitCost, 123);
+});
+
+test('浮球覆盖存在多供应商时拒绝最低价猜选', () => {
+    const row = {
+        id: 7,
+        name: '浮球供应商歧义配方',
+        parts_json: JSON.stringify([
+            { name: '固定配件', model: '固定配件', qty: 1, snapshotPrice: 100 },
+        ]),
+        saved_total_cost: 100,
+        coil_material: '钢带',
+        has_float: 0,
+        has_cable: 0,
+    };
+    const floats = [
+        { id: 71, model: '浮球-线径0.75', supplier: '供应商甲', price: 8 },
+        { id: 72, model: '浮球-线径0.75', supplier: '供应商乙', price: 6 },
+    ];
+
+    assert.throws(
+        () => calculateRecipeCostPreview(row, { hasFloat: true, floatWire: '0.75' }, {
+            partsCache: {},
+            partsByModel: { '浮球-线径0.75': floats },
+            partsCatalog: floats,
+            calculateRecipeCost,
+            getSetting: () => undefined,
+            getCoils: () => [],
+        }),
+        error => error.code === 'BOM_PART_IDENTITY_AMBIGUOUS'
+            && error.statusCode === 422
+    );
 });

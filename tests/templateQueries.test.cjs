@@ -66,6 +66,10 @@ function createFixture() {
         INSERT INTO recipes VALUES
             (10, 1, 'QDX10'),
             (11, 1, 'QDX15');
+        ALTER TABLE pump_shell_templates ADD COLUMN configuration_policy_json TEXT;
+        UPDATE pump_shell_templates
+        SET configuration_policy_json = '{"version":1,"fields":{"cableLength":[5,10]}}'
+        WHERE id = 1;
     `);
 
     const costCalls = [];
@@ -99,6 +103,7 @@ function createFixture() {
         paintingWage: row.painting_wage,
         surfaceTreatmentMode: row.surface_treatment_mode,
         surfaceTreatmentCost: row.surface_treatment_cost,
+        configurationPolicyJson: row.configuration_policy_json,
     });
     const queries = createTemplateQueries({
         db,
@@ -160,6 +165,7 @@ test('泵壳模板 Query 统一返回列表、详情与关联配方', () => {
             paintingWage: 3,
             surfaceTreatmentMode: 'painting',
             surfaceTreatmentCost: 5,
+            configurationPolicyJson: '{"version":1,"fields":{"cableLength":[5,10]}}',
         });
         assert.deepEqual(fixture.queries.getTemplateRecipes(1), [
             { id: 10, templateId: 1, name: 'QDX10' },
@@ -273,6 +279,7 @@ test('泵壳模板 Query 统一生成默认配方草稿和正式成本结果', (
             paintingWage: 3,
             surfaceTreatmentMode: 'painting',
             surfaceTreatmentCost: 5,
+            configurationPolicyJson: '{"version":1,"fields":{"cableLength":[5,10]}}',
         });
         assert.deepEqual(result.parts, [
             { name: '轴承', model: '6201', qty: 2 },
@@ -296,12 +303,14 @@ test('泵壳模板应用 Query 保留调用方字段并只覆盖模板负责字�
             assemblyWage: 9,
             surfaceTreatmentMode: 'powder_coating',
             surfaceTreatmentCost: 8,
+            configurationPolicyJson: undefined,
         });
         assert.deepEqual(result.recipeDraft, {
             name: '客户专用',
             assemblyWage: 9,
             surfaceTreatmentMode: 'powder_coating',
             surfaceTreatmentCost: 8,
+            configurationPolicyJson: '{"version":1,"fields":{"cableLength":[5,10]}}',
             templateId: 1,
             partsJson: '[{"name":"轴承","model":"6201","qty":2}]',
             packingWage: 2,

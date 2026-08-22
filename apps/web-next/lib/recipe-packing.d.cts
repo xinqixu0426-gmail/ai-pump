@@ -1,6 +1,7 @@
 export type PackingRole = 'container' | 'foam' | 'pearlCotton' | 'fixed'
 
 export interface PackingPart {
+  partId?: number
   model?: string
   name?: string
   supplier?: string

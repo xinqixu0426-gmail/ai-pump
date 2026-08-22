@@ -4,6 +4,12 @@ import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import type { OrderItem } from '@/lib/orders';
 import type { Recipe, SurfaceTreatmentMode } from '@/lib/recipes';
 import {
+  configurationAllowedValues,
+  configurationValueAllowed,
+  recipePackingPartIds,
+  recipeSurfaceTreatmentOptions,
+} from '@/lib/configuration-policy';
+import {
   configurationDifferences,
   configurationSummary,
   findPackingOption,
@@ -45,7 +51,17 @@ export function OrderItemConfigurationEditor({
   const differences = configurationDifferences(recipe, overrides);
   const summary = configurationSummary(overrides);
   const packingParts = normalizePackingParts(overrides.packingPartsJson);
-  const containerOptions = packingOptions.filter(option => option.packingRole === 'container');
+  const allowedPackingPartIds = recipePackingPartIds(recipe);
+  const basePackingParts = normalizePackingParts(recipe?.packingPartsJson);
+  const policyPackingOptions = allowedPackingPartIds === null
+    ? packingOptions
+    : packingOptions.filter(option => (
+      Boolean(option.partId && allowedPackingPartIds.includes(option.partId))
+      || basePackingParts.some(base => (
+        base.model === option.model && (base.supplier || '') === option.supplier
+      ))
+    ));
+  const containerOptions = policyPackingOptions.filter(option => option.packingRole === 'container');
   const container = resolvePackingPart(overrides.packingPartsJson, 'container', overrides.boxType);
   const currentContainerOption = findPackingOption(containerOptions, container);
   const currentContainerKey = currentContainerOption ? packingOptionKey(currentContainerOption) : '';
@@ -53,13 +69,32 @@ export function OrderItemConfigurationEditor({
   function defaultOption(role: RecipePackingRole): RecipePackingOption | undefined {
     const basePart = resolvePackingPart(recipe?.packingPartsJson, role, recipe?.boxType);
     if (basePart?.model) {
-      return packingOptions.find(option => (
+      return policyPackingOptions.find(option => (
         option.packingRole === role
         && option.model === basePart.model
         && option.supplier === (basePart.supplier || '')
       ));
     }
-    return packingOptions.find(option => option.packingRole === role);
+    return policyPackingOptions.find(option => option.packingRole === role);
+  }
+
+  const coilSheetValues = configurationAllowedValues(recipe, 'coilSheets');
+  const cableLengthValues = configurationAllowedValues(recipe, 'cableLength');
+  const barrelLengthValues = configurationAllowedValues(recipe, 'customBarrelLength');
+  const allowedSurfaceOptions = recipeSurfaceTreatmentOptions(recipe);
+  const displayedSurfaceOptions = allowedSurfaceOptions === null
+    ? surfaceTreatmentOptions.map(option => ({ ...option, cost: undefined as number | undefined }))
+    : allowedSurfaceOptions.map(option => ({
+      value: option.mode,
+      label: surfaceTreatmentOptions.find(item => item.value === option.mode)?.label || option.mode,
+      cost: option.cost,
+    }));
+
+  function numericPolicyValues(values: Array<string | number | boolean> | null, baseline: number | null | undefined) {
+    if (values === null) return null;
+    return Array.from(new Set([baseline, ...values].filter(value => value !== null && value !== undefined).map(Number)))
+      .filter(value => Number.isFinite(value))
+      .sort((left, right) => left - right);
   }
 
   function setPackingRole(role: RecipePackingRole, option?: RecipePackingOption) {
@@ -99,32 +134,25 @@ export function OrderItemConfigurationEditor({
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <label className="block text-xs text-muted">
           线圈片数
-          <input
-            type="number"
-            min="1"
-            step="1"
-            value={overrides.coilSheets ?? ''}
-            onFocus={selectInputValueOnFocus}
-            onChange={event => onChange({ coilSheets: event.target.value })}
-            className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400"
-          />
+          {numericPolicyValues(coilSheetValues, recipe?.coilSheets) ? (
+            <select value={String(overrides.coilSheets ?? recipe?.coilSheets ?? '')} onChange={event => onChange({ coilSheets: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400">
+              {numericPolicyValues(coilSheetValues, recipe?.coilSheets)?.map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          ) : (
+            <input type="number" min="1" step="1" value={overrides.coilSheets ?? ''} onFocus={selectInputValueOnFocus} onChange={event => onChange({ coilSheets: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400" />
+          )}
           <span className="mt-1 block text-[11px] text-slate-400">{overrides.coilSpec || '-'} · {overrides.coilMaterial || '钢带'} · {overrides.coilSlotType || '小眼'}</span>
         </label>
 
         <label className="block text-xs text-muted">
           电缆长度（米）
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={overrides.cableLength ?? ''}
-            onFocus={selectInputValueOnFocus}
-            onChange={event => {
-              const cableLength = event.target.value;
-              onChange({ cableLength, hasCable: Number(cableLength) > 0 });
-            }}
-            className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400"
-          />
+          {numericPolicyValues(cableLengthValues, recipe?.cableLength) ? (
+            <select value={String(overrides.cableLength ?? recipe?.cableLength ?? '')} onChange={event => { const cableLength = event.target.value; onChange({ cableLength, hasCable: Number(cableLength) > 0 }); }} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400">
+              {numericPolicyValues(cableLengthValues, recipe?.cableLength)?.map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          ) : (
+            <input type="number" min="0" step="1" value={overrides.cableLength ?? ''} onFocus={selectInputValueOnFocus} onChange={event => { const cableLength = event.target.value; onChange({ cableLength, hasCable: Number(cableLength) > 0 }); }} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400" />
+          )}
           <span className="mt-1 block text-[11px] text-slate-400">{overrides.cableWire || '-'} · {overrides.cableAccessoryType === 'xinjie' ? '新界式' : '普通铜套'}</span>
         </label>
 
@@ -149,22 +177,24 @@ export function OrderItemConfigurationEditor({
 
         <label className="block text-xs text-muted">
           机筒长度（mm）
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={overrides.customBarrelLength ?? ''}
-            onFocus={selectInputValueOnFocus}
-            onChange={event => onChange({ customBarrelLength: event.target.value })}
-            className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400"
-          />
+          {numericPolicyValues(barrelLengthValues, recipe?.customBarrelLength) ? (
+            <select value={String(overrides.customBarrelLength ?? recipe?.customBarrelLength ?? '')} onChange={event => onChange({ customBarrelLength: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400">
+              {numericPolicyValues(barrelLengthValues, recipe?.customBarrelLength)?.map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          ) : (
+            <input type="number" min="0" step="1" value={overrides.customBarrelLength ?? ''} onFocus={selectInputValueOnFocus} onChange={event => onChange({ customBarrelLength: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400" />
+          )}
         </label>
       </div>
 
       <div className="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-[1fr_13rem_8rem] sm:items-end">
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           <label className="flex items-center gap-2 text-sm text-ink">
-            <Checkbox checked={Boolean(overrides.hasFloat)} onChange={event => onChange({ hasFloat: event.target.checked })} />
+            <Checkbox
+              checked={Boolean(overrides.hasFloat)}
+              disabled={!configurationValueAllowed(recipe, 'hasFloat', !Boolean(overrides.hasFloat), Boolean(recipe?.hasFloat))}
+              onChange={event => onChange({ hasFloat: event.target.checked })}
+            />
             带浮球
           </label>
           <label className="flex items-center gap-2 text-sm text-ink">
@@ -189,11 +219,12 @@ export function OrderItemConfigurationEditor({
             value={overrides.surfaceTreatmentMode || 'none'}
             onChange={event => {
               const mode = event.target.value as SurfaceTreatmentMode;
-              onChange({ surfaceTreatmentMode: mode, ...(mode === 'none' ? { surfaceTreatmentCost: 0 } : {}) });
+              const policyOption = displayedSurfaceOptions.find(option => option.value === mode);
+              onChange({ surfaceTreatmentMode: mode, surfaceTreatmentCost: policyOption?.cost ?? (mode === 'none' ? 0 : overrides.surfaceTreatmentCost) });
             }}
             className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400"
           >
-            {surfaceTreatmentOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {displayedSurfaceOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
 
@@ -203,7 +234,7 @@ export function OrderItemConfigurationEditor({
             type="number"
             min="0"
             step="0.01"
-            disabled={(overrides.surfaceTreatmentMode || 'none') === 'none'}
+            disabled={allowedSurfaceOptions !== null || (overrides.surfaceTreatmentMode || 'none') === 'none'}
             value={overrides.surfaceTreatmentCost ?? 0}
             onChange={event => onChange({ surfaceTreatmentCost: event.target.value })}
             className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none focus:border-sky-400 disabled:bg-slate-100"

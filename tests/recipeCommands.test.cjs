@@ -90,6 +90,7 @@ function createFixture() {
             impeller_diameter REAL,
             impeller_blade_count INTEGER,
             technical_data_json TEXT DEFAULT '{}',
+            configuration_policy_json TEXT,
             created_at TEXT,
             updated_at TEXT,
             deleted_at TEXT
@@ -180,6 +181,27 @@ function createFixture() {
         recipeRow,
         safeInsert,
         safeUpdate,
+        buildRecipeBomDraft(input) {
+            const parts = [...(input.optionalParts || []), ...(input.packingParts || [])]
+                .map(selection => {
+                    const matched = selection.partId
+                        ? db.prepare('SELECT * FROM parts WHERE id = ?').get(selection.partId)
+                        : db.prepare('SELECT * FROM parts WHERE model = ? AND supplier = ?').get(
+                            selection.model,
+                            selection.supplier || ''
+                        );
+                    if (!matched) return selection;
+                    return {
+                        ...selection,
+                        partId: matched.id,
+                        model: matched.model,
+                        supplier: matched.supplier || '',
+                        qty: Number(selection.qty || 1),
+                        snapshotPrice: Number(matched.price || 0),
+                    };
+                });
+            return { parts };
+        },
         invalidatePartsCache() {},
         refreshFactoryRuleCandidates() {},
     };
@@ -207,13 +229,13 @@ function draftInput(overrides = {}) {
                 name: '测试零件',
                 supplier: '供应商A',
                 qty: 1,
-                snapshotPrice: 5,
+                snapshotPrice: 0.01,
             }],
             savedTotalCost: 999,
             savedCostDetails: '不可信调用方快照',
         },
         packingParts: [],
-        optionalParts: [],
+        optionalParts: [{ partId: 1, model: 'P-1', supplier: '供应商A', qty: 1 }],
         technicalData: {},
         ...overrides,
     };
@@ -242,6 +264,26 @@ test('配方保存草稿由 costEngine 重建权威成本且保持只读', () =>
         assert.match(draft.suggestedIdempotencyKey, /^recipe-create:/);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM recipes').get().count, 0);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方正式保存拒绝未明确供应商的多候选普通零件', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at)
+            VALUES ('P-1', '标准件', 4, '供应商B', 10, '', ?, ?)
+        `).run(FIXED_UPDATED_AT, FIXED_UPDATED_AT);
+        assert.throws(
+            () => buildRecipeSavePayloadDraft(fixture.dependencies, draftInput({
+                optionalParts: [{ model: 'P-1', supplier: '', qty: 1 }],
+            })),
+            error => error.code === 'BOM_PART_IDENTITY_AMBIGUOUS'
+                && error.statusCode === 422
+        );
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM recipes').get().count, 0);
     } finally {
         fixture.db.close();
     }

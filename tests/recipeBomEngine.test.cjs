@@ -14,7 +14,7 @@ const partsCatalog = [
     { model: '电缆-线径0.75', category: '电缆线', supplier: '线缆供应商', price: 1.88, notes: JSON.stringify({ cableAccessoryFees: { standard: 0.5, xinjie: 1 }, cableAccessoryNames: { standard: '普通铜套', xinjie: '新界式' } }) },
     { model: '牛皮纸箱A', category: '包装', supplier: '包装供应商', price: 2 },
     { model: '泡沫内衬', category: '包装', supplier: '包装供应商', price: 0.8 },
-];
+].map((part, index) => ({ id: index + 1, ...part }));
 
 const template = {
     Id: 1,
@@ -24,7 +24,7 @@ const template = {
         { model: '201', name: '轴承', supplier: '轴承供应商', qty: 2 },
     ]),
     shellComponentsJson: JSON.stringify([
-        { name: '不锈钢拉伸筒', model: '不锈钢机筒', qty: 17, unitCost: 0.4, pricingMode: 'lengthCm', included: true, componentType: 'stainlessStretchBarrel' },
+        { name: '不锈钢拉伸筒', model: '不锈钢机筒', supplier: '机筒供应商', qty: 17, unitCost: 0.4, pricingMode: 'lengthCm', included: true, componentType: 'stainlessStretchBarrel' },
     ]),
     costMode: 'components',
     bundleCost: 0,
@@ -437,4 +437,59 @@ test('后端 BOM draft 可精确获取 12 冷轧国标眼绕组并计入成本',
     assert.equal(coil.material, '冷轧');
     assert.equal(coil.slotType, '国标眼');
     assert.equal(coil.snapshotPrice, 121);
+});
+
+test('正式 BOM 重建保留选择项 partId 并使用该目录身份和价格', () => {
+    const partsCatalog = [
+        { id: 801, model: '纸箱-A', supplier: '供应商甲', category: '包装', price: 5 },
+        { id: 802, model: '纸箱-A', supplier: '供应商乙', category: '包装', price: 4 },
+        { id: 803, model: '附加件-A', supplier: '供应商丙', category: '标准件', price: 7 },
+    ];
+    const result = buildRecipeBomDraft({
+        requireStablePartIdentity: true,
+        optionalParts: [{ partId: 803, model: '附加件-A', supplier: '', qty: 1, snapshotPrice: 0.01 }],
+        packingParts: [{ partId: 801, model: '纸箱-A', supplier: '', qty: 1, snapshotPrice: 0.01, packingRole: 'container' }],
+    }, { partsCatalog, coils: [] });
+
+    const optional = result.parts.find(part => part.partId === 803);
+    const packing = result.parts.find(part => part.partId === 801);
+    assert.equal(optional.supplier, '供应商丙');
+    assert.equal(optional.snapshotPrice, 7);
+    assert.equal(packing.supplier, '供应商甲');
+    assert.equal(packing.snapshotPrice, 5);
+});
+
+test('正式 BOM 重建允许人工估价可选件和包装件不绑定目录身份', () => {
+    const result = buildRecipeBomDraft({
+        requireStablePartIdentity: true,
+        optionalParts: [{ partId: 999, model: '临时加工件', qty: 2, snapshotPrice: 12.5, costSource: 'manual' }],
+        packingParts: [{ partId: 998, model: '定制包装', qty: 1, snapshotPrice: 18, costSource: 'manual' }],
+    }, { partsCatalog: [], coils: [] });
+
+    const optional = result.parts.find(part => part.model === '临时加工件');
+    const packing = result.parts.find(part => part.model === '定制包装');
+    assert.equal(optional.partId, undefined);
+    assert.equal(optional.snapshotPrice, 12.5);
+    assert.equal(optional.costSource, 'manual');
+    assert.equal(packing.partId, undefined);
+    assert.equal(packing.snapshotPrice, 18);
+    assert.equal(packing.costSource, 'manual');
+});
+
+test('正式 BOM 重建拒绝多供应商电缆最低价猜选', () => {
+    const cables = [
+        { id: 811, model: '电缆-线径0.75', supplier: '供应商甲', category: '电缆', price: 2 },
+        { id: 812, model: '电缆-线径0.75', supplier: '供应商乙', category: '电缆', price: 1.5 },
+    ];
+    assert.throws(
+        () => buildRecipeBomDraft({
+            requireStablePartIdentity: true,
+            hasCable: true,
+            cableWire: '0.75',
+            cableLength: 5,
+            cableAccessoryType: 'standard',
+        }, { partsCatalog: cables, coils: [], getSetting: () => undefined }),
+        error => error.code === 'BOM_PART_IDENTITY_AMBIGUOUS'
+            && error.statusCode === 422
+    );
 });

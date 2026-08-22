@@ -2884,6 +2884,21 @@ const MIGRATIONS = Object.freeze([
             );
         },
     },
+    {
+        version: 64,
+        name: 'recipe_configuration_policy',
+        signature: 'template-and-recipe-configuration-policy-json-v1',
+        up(db) {
+            const templateColumns = columnNames(db, 'pump_shell_templates');
+            if (!templateColumns.has('configuration_policy_json')) {
+                db.exec(`ALTER TABLE pump_shell_templates ADD COLUMN configuration_policy_json TEXT;`);
+            }
+            const recipeColumns = columnNames(db, 'recipes');
+            if (!recipeColumns.has('configuration_policy_json')) {
+                db.exec(`ALTER TABLE recipes ADD COLUMN configuration_policy_json TEXT;`);
+            }
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

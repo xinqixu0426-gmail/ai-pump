@@ -10,6 +10,12 @@ const {
     getFloatAccessoryDelta,
     calculateCompleteCableCost,
 } = require('./costEngine.cjs');
+const { normalizeBomRoles } = require('./bomRoles.cjs');
+const {
+    bindStableBomPartIdentities,
+    partIdOf,
+    resolveCatalogPartIdentity,
+} = require('./bomPartIdentity.cjs');
 const {
     DEFAULT_COIL_MATERIAL,
     calculateCoilCost,
@@ -134,7 +140,7 @@ function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATE
 
 function resolveCapacitorModel(partsCatalog, explicitModel, coilSnapshot) {
     if (explicitModel) return explicitModel;
-    const capValue = capacitorValueFromModel(coilSnapshot?.defaultCapacitor);
+    const capValue = capacitorValueFromModel(coilSnapshot?.defaultCapacitor || coilSnapshot?.capacitor);
     if (capValue == null) return '';
     const caps = (partsCatalog || []).filter(part => part.category === '电容');
     const exact = caps.find(part => part.model === `${capValue}μF`);
@@ -159,6 +165,7 @@ function buildRecipeBomDraft(input, context) {
     const coils = context.coils || [];
     const shellMeta = context.shellMeta || null;
     const getSetting = context.getSetting || (() => undefined);
+    const requireStablePartIdentity = input.requireStablePartIdentity === true;
 
     const customBarrelLength = resolveBarrelLength(input.customBarrelLength, variant);
     const longScrewExtraLength = input.longScrewExtraLength ?? variant?.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
@@ -289,28 +296,41 @@ function buildRecipeBomDraft(input, context) {
 
     normalizeSelectionList(input.optionalParts || input.extraParts).forEach(part => {
         if (!part.model) return;
-        const manualPrice = part.costSource === 'manual' && part.snapshotPrice !== undefined
-            ? Number(part.snapshotPrice || 0)
-            : undefined;
+        const isManual = part.costSource === 'manual';
+        const manualPrice = isManual ? Number(part.snapshotPrice || 0) : undefined;
+        const matchedPart = !isManual && (requireStablePartIdentity || part.partId)
+            ? resolveCatalogPartIdentity(partsCatalog, part, { field: 'optionalParts' })
+            : null;
         bomParts.push({
-            model: part.model,
-            name: part.model,
-            supplier: part.supplier || '',
+            ...(matchedPart ? { partId: partIdOf(matchedPart) } : {}),
+            model: matchedPart?.model || part.model,
+            name: matchedPart?.model || part.model,
+            supplier: matchedPart?.supplier || part.supplier || '',
             qty: Number(part.qty || 1),
-            snapshotPrice: manualPrice ?? getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
-            ...(manualPrice !== undefined ? { costSource: 'manual', formula: `手输价 ${manualPrice}` } : {}),
+            snapshotPrice: matchedPart
+                ? Number(matchedPart.price || 0)
+                : manualPrice ?? getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
+            ...(isManual
+                ? { costSource: 'manual', formula: `手输价 ${manualPrice}` }
+                : {}),
         });
     });
 
     if (toBool(input.hasFloat)) {
         const model = wireModel('浮球', input.floatWire || '');
         const accessoryType = input.floatAccessoryType || 'standard';
-        const basePrice = getPriceByModelAndSupplier(partsCatalog, model, '');
+        const matchedFloat = requireStablePartIdentity
+            ? resolveCatalogPartIdentity(partsCatalog, { model }, { field: 'floatWire' })
+            : null;
+        const basePrice = matchedFloat
+            ? Number(matchedFloat.price || 0)
+            : getPriceByModelAndSupplier(partsCatalog, model, '');
         const delta = getFloatAccessoryDelta(accessoryType, getSetting);
         bomParts.push({
+            ...(matchedFloat ? { partId: partIdOf(matchedFloat) } : {}),
             model,
             name: accessoryType === 'xinjie' ? '浮球-新界式' : '浮球',
-            supplier: '',
+            supplier: matchedFloat?.supplier || '',
             qty: 1,
             snapshotPrice: basePrice + delta,
             floatAccessoryType: accessoryType,
@@ -321,9 +341,13 @@ function buildRecipeBomDraft(input, context) {
 
     if (toBool(input.hasCable)) {
         const model = configuredWireModel('电缆', input.cableWire, '');
+        const matchedCable = requireStablePartIdentity
+            ? resolveCatalogPartIdentity(partsCatalog, { model }, { field: 'cableWire' })
+            : null;
         bomParts.push({
             ...calculateCompleteCableCost({
                 model,
+                supplier: matchedCable?.supplier || '',
                 cableLength: input.cableLength,
                 cableAccessoryType: input.cableAccessoryType,
             }, {
@@ -331,6 +355,7 @@ function buildRecipeBomDraft(input, context) {
                 getSetting,
                 allowMissingPrice: true,
             }),
+            ...(matchedCable ? { partId: partIdOf(matchedCable) } : {}),
             cableAssembly: true,
         });
     }
@@ -338,8 +363,13 @@ function buildRecipeBomDraft(input, context) {
     normalizeSelectionList(input.packingParts || input.packingPartsJson).forEach(part => {
         if (!part.model) return;
         const isManual = part.costSource === 'manual';
-        const packagingMaterial = inferPackingMaterial(part.model, part.packagingMaterial, part.supplier);
-        const packingIdentity = `${part.model} ${part.supplier || ''}`;
+        const matchedPart = !isManual && (requireStablePartIdentity || part.partId)
+            ? resolveCatalogPartIdentity(partsCatalog, part, { field: 'packingParts' })
+            : null;
+        const model = matchedPart?.model || part.model;
+        const supplier = matchedPart?.supplier || part.supplier || '';
+        const packagingMaterial = inferPackingMaterial(model, part.packagingMaterial, supplier);
+        const packingIdentity = `${model} ${supplier}`;
         const packingRole = part.packingRole
             || (packingIdentity.includes('珍珠棉')
                 ? 'pearlCotton'
@@ -357,19 +387,29 @@ function buildRecipeBomDraft(input, context) {
                                     ? 'container'
                                     : 'fixed');
         bomParts.push({
-            model: part.model,
-            name: `${part.model}（${packagingMaterial}）`,
-            supplier: part.supplier || '',
+            ...(matchedPart ? { partId: partIdOf(matchedPart) } : {}),
+            model,
+            name: `${model}（${packagingMaterial}）`,
+            supplier,
             qty: Number(part.qty || 1),
-            snapshotPrice: isManual || part.snapshotPrice !== undefined ? Number(part.snapshotPrice || 0) : getPriceByModelAndSupplier(partsCatalog, part.model, part.supplier || ''),
+            snapshotPrice: matchedPart
+                ? Number(matchedPart.price || 0)
+                : isManual || part.snapshotPrice !== undefined
+                    ? Number(part.snapshotPrice || 0)
+                    : getPriceByModelAndSupplier(partsCatalog, model, supplier),
             packagingMaterial,
             packingRole,
             ...(isManual ? { costSource: 'manual', source: 'manual', formula: `手输价 ${Number(part.snapshotPrice || 0)}` } : {}),
         });
     });
 
+    const finalizedParts = bindStableBomPartIdentities(
+        normalizeBomRoles(bomParts),
+        partsCatalog,
+        requireStablePartIdentity ? {} : { allowUnresolved: true }
+    );
     return {
-        parts: bomParts,
+        parts: finalizedParts,
         shellPrice: roundMoney(shellPrice),
         templateParts,
         shellComponents,
@@ -386,4 +426,5 @@ module.exports = {
     getPriceByModelAndSupplier,
     inferPackingMaterial,
     lengthCmQty,
+    resolveCapacitorModel,
 };

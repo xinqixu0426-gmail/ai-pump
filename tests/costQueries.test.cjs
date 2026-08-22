@@ -56,6 +56,10 @@ function createFixture() {
             '', '[]', NULL, '[]',
             2, 3, NULL, 'none', 0, 1, 25, NULL
         );
+        ALTER TABLE recipes ADD COLUMN configuration_policy_json TEXT;
+        UPDATE recipes
+        SET configuration_policy_json = '{"version":1,"fields":{"cableLength":[5]}}'
+        WHERE id = 1;
     `);
 
     const recipeRow = row => row && ({
@@ -76,6 +80,7 @@ function createFixture() {
         surfaceTreatmentCost: row.surface_treatment_cost,
         managementFee: row.management_fee,
         savedTotalCost: row.saved_total_cost,
+        configurationPolicyJson: row.configuration_policy_json,
     });
     const listRecipes = () => db.prepare(
         'SELECT * FROM recipes WHERE deleted_at IS NULL ORDER BY id'
@@ -295,6 +300,13 @@ test('成本 Query 的配方覆盖预览保持只读和原响应字段', () => {
         assert.equal(result.data.unitCost, 20);
         assert.ok(Array.isArray(result.data.parts));
         assert.equal(typeof result.data.costSnapshot, 'object');
+        assert.equal(result.data.configurationPolicyMode, 'explicit');
+        assert.deepEqual(result.data.configurationPolicy.fields.cableLength, [5]);
+        assert.throws(
+            () => fixture.queries.previewRecipeCost(1, { cableLength: 10 }),
+            error => error.code === 'RECIPE_CONFIGURATION_NOT_ALLOWED'
+                && error.statusCode === 422
+        );
         assert.throws(
             () => fixture.queries.previewRecipeCost(999, {}),
             error => (

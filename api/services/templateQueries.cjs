@@ -209,6 +209,7 @@ function createTemplateQueries({
                     template.paintingWage
                 ),
                 surfaceTreatmentCost: template.surfaceTreatmentCost || 0,
+                configurationPolicyJson: template.configurationPolicyJson || null,
             },
             parts,
             rotorParams,
@@ -240,6 +241,9 @@ function createTemplateQueries({
             surfaceTreatmentCost: baseRecipe.surfaceTreatmentCost
                 ?? template.surfaceTreatmentCost
                 ?? 0,
+            configurationPolicyJson: baseRecipe.configurationPolicyJson
+                ?? template.configurationPolicyJson
+                ?? null,
         };
         return {
             template,

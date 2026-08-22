@@ -42,6 +42,10 @@ function fixture() {
             '[{"name":"泵体","model":"P-1","supplier":"供应商","qty":1,"snapshotPrice":10}]',
             10, 'Y90', 10, '钢带', '小眼', 0, 0, '', '[]'
         );
+        ALTER TABLE recipes ADD COLUMN configuration_policy_json TEXT;
+        UPDATE recipes
+        SET configuration_policy_json = '{"version":1,"fields":{"cableLength":[5]}}'
+        WHERE id = 2;
     `);
     return {
         db,
@@ -119,6 +123,23 @@ test('历史或明确数量报价继续生成总成本与总报价', () => {
         assert.equal(draft.totalPrice, 36);
         assert.equal(draft.quantitiesConfirmed, true);
         assert.deepEqual(draft.warnings, []);
+    } finally {
+        dependencies.db.close();
+    }
+});
+
+test('报价保存草稿拒绝配方范围外的客户配置', () => {
+    const dependencies = fixture();
+    try {
+        assert.throws(
+            () => buildQuotationSavePayloadDraft(dependencies, {
+                customerId: 1,
+                status: '报价中',
+                items: [{ ...item(1), overrides: { cableLength: 10 } }],
+            }),
+            error => error.code === 'RECIPE_CONFIGURATION_NOT_ALLOWED'
+                && error.statusCode === 422
+        );
     } finally {
         dependencies.db.close();
     }

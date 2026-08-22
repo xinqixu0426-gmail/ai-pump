@@ -5,6 +5,7 @@ import { Layers3, Package, Plus, RefreshCw } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { BomTableDialog } from '@/components/recipe/BomTableDialog';
 import { CostSummaryPanel } from '@/components/recipe/CostSummaryPanel';
+import { ConfigurationPolicyEditor } from '@/components/recipe/ConfigurationPolicyEditor';
 import {
   PumpShellTemplateEditor,
   type ShellCatalogOption,
@@ -944,8 +945,8 @@ export function RecipesView() {
     const candidates = parts
       .filter((part) => part.model === model && (!category || part.category === category))
       .filter((part) => String(part.supplier || '').trim());
-    if (candidates.length === 0) return '';
-    return candidates.reduce((lowest, part) => Number(part.price || 0) < Number(lowest.price || 0) ? part : lowest, candidates[0]).supplier || '';
+    const suppliers = Array.from(new Set(candidates.map(part => String(part.supplier || '').trim()).filter(Boolean)));
+    return suppliers.length === 1 ? suppliers[0] : '';
   }
 
   function defaultUnitPriceForModel(model: string, category?: string, supplier?: string): number {
@@ -957,11 +958,16 @@ export function RecipesView() {
       ? candidates.find((part) => String(part.supplier || '').trim() === String(supplier).trim())
       : null;
     if (exact) return Number(exact.price || 0);
-    if (candidates.length === 0) return 0;
-    return Number(candidates.reduce(
-      (lowest, part) => Number(part.price || 0) < Number(lowest.price || 0) ? part : lowest,
-      candidates[0]
-    ).price || 0);
+    return candidates.length === 1 ? Number(candidates[0].price || 0) : 0;
+  }
+
+  function stablePartId(model: string, supplier: string, category?: string): number | undefined {
+    const candidates = parts.filter(part => (
+      part.model === model
+      && (!category || part.category === category)
+      && (!supplier || String(part.supplier || '').trim() === supplier.trim())
+    ));
+    return candidates.length === 1 ? candidates[0].id : undefined;
   }
 
   function openCreateDrawer() {
@@ -992,6 +998,7 @@ export function RecipesView() {
         packingWage: '0',
         surfaceTreatmentMode: 'none',
         surfaceTreatmentCost: '0',
+        configurationPolicyJson: null,
       });
       resetBomPreview();
       return;
@@ -1014,6 +1021,7 @@ export function RecipesView() {
         packingWage: String(recipeDraft.packingWage || 0),
         surfaceTreatmentMode: recipeDraft.surfaceTreatmentMode || 'none',
         surfaceTreatmentCost: String(recipeDraft.surfaceTreatmentCost || 0),
+        configurationPolicyJson: recipeDraft.configurationPolicyJson || null,
       });
       clearBomPreviewError();
       setFormError(null);
@@ -1044,6 +1052,9 @@ export function RecipesView() {
       nextPatch.snapshotPrice = '';
       nextPatch.costSource = '';
     }
+    const nextModel = String(nextPatch.model ?? optionalParts.find(part => part.id === id)?.model ?? '');
+    const nextSupplier = String(nextPatch.supplier ?? optionalParts.find(part => part.id === id)?.supplier ?? '');
+    nextPatch.partId = stablePartId(nextModel, nextSupplier);
     updateOptionalDraftPart(id, nextPatch);
     clearBomPreviewError();
   }
@@ -1051,10 +1062,13 @@ export function RecipesView() {
   function updatePackingPart(id: string, patch: Partial<RecipeSelection>) {
     const nextPatch = { ...patch };
     if (patch.model !== undefined && patch.supplier === undefined) {
+      const nextSupplier = defaultSupplierForModel(String(patch.model || ''), '包装');
       const catalogPart = parts.find((candidate) => (
-        candidate.category === '包装' && candidate.model === String(patch.model || '')
+        candidate.category === '包装'
+        && candidate.model === String(patch.model || '')
+        && (!nextSupplier || candidate.supplier === nextSupplier)
       ));
-      nextPatch.supplier = catalogPart?.supplier || defaultSupplierForModel(String(patch.model || ''), '包装');
+      nextPatch.supplier = nextSupplier;
       nextPatch.packagingMaterial = packagingMaterialForCatalogPart(catalogPart);
       nextPatch.snapshotPrice = '';
       nextPatch.costSource = '';
@@ -1063,6 +1077,9 @@ export function RecipesView() {
       nextPatch.snapshotPrice = '';
       nextPatch.costSource = '';
     }
+    const nextModel = String(nextPatch.model ?? packingParts.find(part => part.id === id)?.model ?? '');
+    const nextSupplier = String(nextPatch.supplier ?? packingParts.find(part => part.id === id)?.supplier ?? '');
+    nextPatch.partId = stablePartId(nextModel, nextSupplier, '包装');
     updatePackingDraftPart(id, nextPatch);
     clearBomPreviewError();
   }
@@ -1460,6 +1477,7 @@ export function RecipesView() {
           surfaceTreatmentMode: form.surfaceTreatmentMode,
           surfaceTreatmentCost: form.surfaceTreatmentCost,
           managementFee: form.managementFee,
+          configurationPolicyJson: form.configurationPolicyJson,
         },
         costDraft,
         packingParts,
@@ -1793,6 +1811,12 @@ export function RecipesView() {
               onAddPackingPart={addPackingPart}
               onUpdatePackingPart={updatePackingPart}
               onRemovePackingPart={removePackingPart}
+            />
+
+            <ConfigurationPolicyEditor
+              value={form.configurationPolicyJson}
+              parts={parts}
+              onChange={(configurationPolicyJson) => updateForm({ configurationPolicyJson })}
             />
 
             <RecipeLaborCostSection

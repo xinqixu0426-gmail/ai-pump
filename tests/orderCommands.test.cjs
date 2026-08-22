@@ -96,6 +96,7 @@ function createFixture() {
             surface_treatment_mode TEXT,
             surface_treatment_cost REAL,
             management_fee REAL,
+            configuration_policy_json TEXT,
             deleted_at TEXT
         );
         CREATE TABLE orders (
@@ -329,6 +330,39 @@ test('直接建单按客户配置覆盖锁定最终成本、配置和 BOM 快照
         assert.equal(item.snapshotVersion, 2);
         assert.deepEqual(JSON.parse(item.partsJson).map(part => part.model), ['P-1']);
         assert.equal(JSON.parse(draft.purchaseListJson)[0].plannedQty, 3);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('直接建单由服务端拒绝超出配方策略的客户配置', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            UPDATE recipes
+            SET configuration_policy_json = ?
+            WHERE id = 2
+        `).run(JSON.stringify({
+            version: 1,
+            fields: {
+                hasFloat: [false, true],
+                coilSheets: [10, 12],
+            },
+        }));
+        assert.throws(
+            () => buildOrderSavePayloadDraft(fixture.dependencies, {
+                ...draftInput(),
+                items: [{
+                    recipeId: 2,
+                    qty: 1,
+                    profitMargin: 1.2,
+                    configurationOverrides: { coilSheets: 99 },
+                }],
+            }),
+            error => error.code === 'RECIPE_CONFIGURATION_NOT_ALLOWED'
+                && error.statusCode === 422
+        );
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
     } finally {
         fixture.db.close();

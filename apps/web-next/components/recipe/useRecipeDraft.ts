@@ -38,6 +38,7 @@ export type RecipeFormState = {
   surfaceTreatmentMode: SurfaceTreatmentMode;
   surfaceTreatmentCost: string;
   managementFee: string;
+  configurationPolicyJson: string | null;
   technicalData: RecipeTechnicalData;
 };
 
@@ -91,6 +92,7 @@ function createEmptyRecipeForm(): RecipeFormState {
     surfaceTreatmentMode: 'none',
     surfaceTreatmentCost: '0',
     managementFee: '0',
+    configurationPolicyJson: null,
     technicalData: {},
   };
 }
@@ -120,6 +122,7 @@ function parseSelections(value?: string, packaging = false): RecipeSelectionRow[
       .filter((part) => part?.model)
       .map((part) => ({
         id: nextDraftSelectionId(),
+        ...(Number(part.partId) > 0 ? { partId: Number(part.partId) } : {}),
         model: String(part.model || ''),
         supplier: String(part.supplier || ''),
         qty: String(part.qty || 1),
@@ -175,6 +178,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     surfaceTreatmentMode: recipe.surfaceTreatmentMode || 'none',
     surfaceTreatmentCost: String(recipe.surfaceTreatmentCost || 0),
     managementFee: String(recipe.managementFee || 0),
+    configurationPolicyJson: recipe.configurationPolicyJson || null,
     technicalData: parseTechnicalDataJson(recipe.technicalDataJson),
   };
 }

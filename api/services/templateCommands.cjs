@@ -14,6 +14,9 @@ const {
     stringifyJsonArray,
     stringifyJsonObject,
 } = require('./validation.cjs');
+const {
+    stringifyRecipeConfigurationPolicy,
+} = require('./recipeConfigurationPolicy.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('templates.create').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('templates.update').capabilityId;
@@ -46,6 +49,7 @@ const TEMPLATE_ALIASES = {
     costMode: 'cost_mode',
     bundleCost: 'bundle_cost',
     bundleNote: 'bundle_note',
+    configurationPolicyJson: 'configuration_policy_json',
 };
 
 function templateCommandError(code, message, statusCode = 409) {
@@ -68,6 +72,7 @@ function templateBodyToDb(body = {}) {
         'cost_mode',
         'bundle_cost',
         'bundle_note',
+        'configuration_policy_json',
     ]) {
         if (body[field] !== undefined) updates[field] = body[field];
     }
@@ -271,6 +276,10 @@ function normalizeCreateInput(input = {}) {
         bundle_note: costMode === 'bundle'
             ? String(body.bundle_note || '').trim()
             : '',
+        configuration_policy_json: stringifyRecipeConfigurationPolicy(
+            body.configuration_policy_json,
+            'configurationPolicyJson'
+        ),
     };
 }
 
@@ -336,6 +345,12 @@ function normalizeUpdateInput(input = {}) {
     }
     if (body.bundle_note !== undefined) {
         updates.bundle_note = String(body.bundle_note || '').trim();
+    }
+    if (body.configuration_policy_json !== undefined) {
+        updates.configuration_policy_json = stringifyRecipeConfigurationPolicy(
+            body.configuration_policy_json,
+            'configurationPolicyJson'
+        );
     }
     return updates;
 }

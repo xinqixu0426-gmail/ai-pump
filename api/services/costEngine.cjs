@@ -9,6 +9,8 @@ const {
     collapseLegacyCableParts,
 } = require('./cableAccessory.cjs');
 const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
+const { normalizeBomRoles } = require('./bomRoles.cjs');
+const { bindStableBomPartIdentities } = require('./bomPartIdentity.cjs');
 
 // 成本口径边界：
 // - buildRecipeCostDraft：保存配方前生成锁定快照，写入 savedTotalCost / savedCostDetails / partsJson。
@@ -623,10 +625,14 @@ function buildRecipeCostDraft(input, options = {}) {
     const longScrewExtraLength = input.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
     const enableLongScrewByBarrelLength = input.enableLongScrewByBarrelLength !== false;
     const partsCatalog = options.partsCatalog || input.partsCatalog || [];
-    const parts = collapseLegacyCableParts(normalizeRecipeParts(input.parts || []))
+    let parts = collapseLegacyCableParts(normalizeRecipeParts(input.parts || []))
         .map(part => enableLongScrewByBarrelLength ? applyLongScrewRule(part, barrelLength, longScrewExtraLength) : part)
         .map(part => applyStainlessShellBundleRule(part, barrelLength))
         .map(part => applyScrewPricing(part, partsCatalog));
+    parts = normalizeBomRoles(parts);
+    if (options.requireStablePartIdentity === true) {
+        parts = bindStableBomPartIdentities(parts, partsCatalog);
+    }
     return renderRecipeCostSnapshot(parts, input);
 }
 

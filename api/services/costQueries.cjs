@@ -5,7 +5,14 @@ const {
 } = require('./costEngine.cjs');
 const { calculateCoilCost } = require('./coilCost.cjs');
 const { calculateRecipeCostPreview } = require('./dynamicCostPreview.cjs');
-const { normalizeRecipeConfigurationOverrides } = require('./configuredRecipeSnapshot.cjs');
+const {
+    configurationSnapshotFromRecipeData,
+    normalizeRecipeConfigurationOverrides,
+} = require('./configuredRecipeSnapshot.cjs');
+const {
+    assertRecipeConfigurationAllowed,
+    recipeConfigurationPolicyFromRecord,
+} = require('./recipeConfigurationPolicy.cjs');
 const { buildCostDifference } = require('./costDifference.cjs');
 const {
     calculateDynamicConfigCost,
@@ -266,6 +273,12 @@ function createCostQueries({
         }
         const { partsCache, partsByModel } = loadPartsData();
         const normalizedOverrides = normalizeRecipeConfigurationOverrides(overrides);
+        const configurationPolicy = recipeConfigurationPolicyFromRecord(row);
+        assertRecipeConfigurationAllowed({
+            baseline: configurationSnapshotFromRecipeData(row),
+            overrides: normalizedOverrides,
+            policy: configurationPolicy,
+        });
         const result = calculateRecipeCostPreview(
             row,
             normalizedOverrides,
@@ -285,6 +298,8 @@ function createCostQueries({
                 parts: result.parts,
                 costSnapshot: result.costSnapshot,
                 warnings: result.warnings || [],
+                configurationPolicy,
+                configurationPolicyMode: configurationPolicy ? 'explicit' : 'legacy_open',
             },
         };
     }

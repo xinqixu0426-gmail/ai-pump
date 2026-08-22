@@ -1,7 +1,6 @@
 const {
     createPartPriceGetter,
     configuredWireModel,
-    findPartByModelAndSupplierFromCatalog,
     lengthPricedPartSubtotal,
     buildRecipeCostDraft,
     calculateCompleteCableCost,
@@ -12,6 +11,13 @@ const {
     resolveWireFromCoils,
 } = require('./coilCost.cjs');
 const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
+const { inferLegacyBomCostRole, normalizeBomRoles } = require('./bomRoles.cjs');
+const {
+    bindStableBomPartIdentities,
+    partIdOf,
+    resolveCatalogPartIdentity,
+} = require('./bomPartIdentity.cjs');
+const { resolveCapacitorModel } = require('./recipeBomEngine.cjs');
 
 // 报价覆盖试算口径：以配方保存快照为基线，只重算 overrides 涉及的动态项。
 // 这里的结果用于报价/试算，不应反向改写配方 savedTotalCost。
@@ -66,16 +72,7 @@ function normalizePackingJsonText(value, boxType) {
 }
 
 function managedPartType(part) {
-    const name = String(part?.name || '');
-    const model = String(part?.model || '');
-    if (part?.dynamicRule === 'stainlessShellBundleByBarrelLength') return 'stainlessShellBundle';
-    if (name.includes('cm)')) return 'barrelLength';
-    if (part?.dynamicRule === 'longScrewByBarrelLength' || name.includes('长螺丝') || model.includes('长螺丝')) return 'longScrew';
-    if (name === '线圈转子') return 'coil';
-    if (name.includes('浮球') || model.startsWith('浮球-')) return 'float';
-    if (name.includes('电缆') || model.startsWith('电缆-') || model === '电缆配件费') return 'cable';
-    if (part?.packingRole || part?.packagingMaterial || name.includes('木箱') || name.includes('纸箱') || model.includes('木箱') || model.includes('纸箱')) return 'packing';
-    return null;
+    return part?.costRole || inferLegacyBomCostRole(part);
 }
 
 function partSnapshotSubtotal(part, partsCache, partsByModel, calculateRecipeCost) {
@@ -87,10 +84,6 @@ function getFloatAccessoryDelta(getSetting, accessoryType = 'standard') {
     if (accessoryType !== 'xinjie') return 0;
     const delta = Number(getSetting('float_accessory_delta'));
     return Number.isFinite(delta) && delta >= 0 ? delta : 0;
-}
-
-function getFloatPrice(model, getPrice, getSetting, accessoryType = 'standard') {
-    return getPrice(model) + getFloatAccessoryDelta(getSetting, accessoryType);
 }
 
 function findBoxPrice(boxType, getPrice, partsCache) {
@@ -110,7 +103,7 @@ function calculatePackingPartsCost(packingPartsJson, getPrice, partsCatalog = []
     try { packingParts = JSON.parse(packingPartsJson || '[]'); } catch { packingParts = []; }
     return packingParts.reduce((sum, part) => {
         if (!part?.model) return sum;
-        const matched = findPartByModelAndSupplierFromCatalog(partsCatalog, part.model, part.supplier || '');
+        const matched = resolveCatalogPartIdentity(partsCatalog, part, { field: 'packingPartsJson' });
         const price = part.snapshotPrice !== undefined
             ? Number(part.snapshotPrice || 0)
             : Number(matched?.price ?? getPrice(part.model));
@@ -178,12 +171,13 @@ function buildPackingSnapshotParts(packingPartsJson, partsCatalog) {
     return packingParts
         .filter(part => part?.model)
         .map(part => {
-            const matched = findPartByModelAndSupplierFromCatalog(partsCatalog, part.model, part.supplier || '');
+            const matched = resolveCatalogPartIdentity(partsCatalog, part, { field: 'packingPartsJson' });
             const snapshotPrice = part.snapshotPrice !== undefined
                 ? Number(part.snapshotPrice || 0)
                 : Number(matched?.price || 0);
             return {
                 ...part,
+                partId: partIdOf(matched),
                 model: String(part.model),
                 name: String(part.name || part.model),
                 supplier: String(part.supplier || matched?.supplier || ''),
@@ -216,14 +210,16 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const pricedParts = refreshedPartsDraft.parts;
     const getPrice = createPartPriceGetter(partsByModel);
 
-    const managedTotals = { coil: 0, float: 0, cable: 0, packing: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0 };
+    const managedTotals = { coil: 0, capacitor: 0, float: 0, cable: 0, packing: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0 };
     let longScrewTotal = 0;
     let stainlessShellBundleTotal = 0;
     const lengthPricedParts = [];
     for (const part of parsedParts) {
         const type = managedPartType(part);
         if (type === 'barrelLength') lengthPricedParts.push(part);
-        if (type) managedTotals[type] += partSnapshotSubtotal(part, partsCache, partsByModel, calculateRecipeCost);
+        if (Object.prototype.hasOwnProperty.call(managedTotals, type)) {
+            managedTotals[type] += partSnapshotSubtotal(part, partsCache, partsByModel, calculateRecipeCost);
+        }
     }
     for (const part of pricedParts) {
         if (managedPartType(part) === 'longScrew') {
@@ -238,7 +234,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const hasSavedBase = savedBaseCost > 0;
     const partsResult = calculateRecipeCost(pricedParts, partsCache, partsByModel);
     let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
-    totalCost -= managedTotals.coil + managedTotals.float + managedTotals.cable + managedTotals.packing + managedTotals.barrelLength + managedTotals.longScrew + managedTotals.stainlessShellBundle;
+    totalCost -= managedTotals.coil + managedTotals.capacitor + managedTotals.float + managedTotals.cable + managedTotals.packing + managedTotals.barrelLength + managedTotals.longScrew + managedTotals.stainlessShellBundle;
 
     const dbWire = resolveWireFromCoils(getCoils(), recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type);
     const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
@@ -270,9 +266,14 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         error.code = 'COIL_CONFIGURATION_UNPRICED';
         throw error;
     }
-    const cableOverridePart = cableChanged && toBool(recipeData.has_cable)
+    const cableModel = configuredWireModel('电缆', recipeData.cable_wire, resolvedWire);
+    const cableCatalogPart = cableChanged && toBool(recipeData.has_cable)
+        ? resolveCatalogPartIdentity(partsCatalog, { model: cableModel }, { field: 'cableWire' })
+        : null;
+    const cableOverridePart = cableCatalogPart
         ? calculateCompleteCableCost({
-            model: configuredWireModel('电缆', recipeData.cable_wire, resolvedWire),
+            model: cableModel,
+            supplier: cableCatalogPart.supplier,
             cableLength: recipeData.cable_length,
             cableAccessoryType: recipeData.cable_accessory_type,
         }, {
@@ -282,12 +283,32 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         })
         : null;
 
-    totalCost += coilChanged ? Number(coilCalculation.data.totalCost || 0) : managedTotals.coil;
+    const nextCapacitorModel = coilChanged
+        ? resolveCapacitorModel(partsCatalog, '', coilCalculation?.data)
+        : '';
+    const nextCapacitorPart = nextCapacitorModel
+        ? resolveCatalogPartIdentity(partsCatalog, { model: nextCapacitorModel }, { field: 'coilSheets' })
+        : null;
+    const nextCapacitorCost = nextCapacitorPart
+        ? Number(nextCapacitorPart.price || 0)
+        : managedTotals.capacitor;
+    const floatOverridePart = floatChanged && toBool(recipeData.has_float)
+        ? resolveCatalogPartIdentity(partsCatalog, {
+            model: configuredWireModel('浮球', recipeData.float_wire, resolvedWire),
+        }, { field: 'floatWire' })
+        : null;
+    const floatOverridePrice = floatOverridePart
+        ? Number(floatOverridePart.price || 0)
+            + getFloatAccessoryDelta(getSetting, recipeData.float_accessory_type)
+        : 0;
+    totalCost += coilChanged
+        ? Number(coilCalculation.data.totalCost || 0) + nextCapacitorCost
+        : managedTotals.coil + managedTotals.capacitor;
 
     if (!floatChanged) {
         totalCost += managedTotals.float;
     } else if (toBool(recipeData.has_float)) {
-        totalCost += getFloatPrice(configuredWireModel('浮球', recipeData.float_wire, resolvedWire), getPrice, getSetting, recipeData.float_accessory_type);
+        totalCost += floatOverridePrice;
     }
 
     if (!cableChanged) {
@@ -315,7 +336,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         totalCost += Number(recipeData.management_fee || Number(getSetting('management_fee')) || 0);
     }
 
-    const snapshotParts = pricedParts.filter(part => !['coil', 'float', 'cable', 'packing'].includes(managedPartType(part)));
+    const snapshotParts = pricedParts.filter(part => !['coil', 'capacitor', 'float', 'cable', 'packing'].includes(managedPartType(part)));
     if (!coilChanged) {
         snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'coil'));
     } else if (recipeData.coil_spec && recipeData.coil_sheets) {
@@ -334,21 +355,40 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
                 formula: coilCalculation.data.formula,
                 coilCostSource: coilCalculation.data.source,
                 source: 'configuration_override',
+                costRole: 'coil',
+                configurationDependencies: ['coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType'],
             });
         }
+    }
+    if (!coilChanged) {
+        snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'capacitor'));
+    } else if (nextCapacitorPart) {
+        snapshotParts.push({
+            partId: partIdOf(nextCapacitorPart),
+            model: String(nextCapacitorPart.model || ''),
+            name: '电容',
+            supplier: String(nextCapacitorPart.supplier || ''),
+            qty: 1,
+            snapshotPrice: Number(nextCapacitorPart.price || 0),
+            source: 'configuration_override',
+            costRole: 'capacitor',
+            configurationDependencies: ['coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType'],
+        });
+    } else {
+        snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'capacitor'));
     }
 
     if (!floatChanged) {
         snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'float'));
     } else if (toBool(recipeData.has_float)) {
         const floatModel = configuredWireModel('浮球', recipeData.float_wire, resolvedWire);
-        const matchedFloat = findPartByModelAndSupplierFromCatalog(partsCatalog, floatModel, '');
         snapshotParts.push({
+            partId: partIdOf(floatOverridePart),
             model: floatModel,
             name: recipeData.float_accessory_type === 'xinjie' ? '浮球-新界式' : '浮球',
-            supplier: String(matchedFloat?.supplier || ''),
+            supplier: String(floatOverridePart?.supplier || ''),
             qty: 1,
-            snapshotPrice: getFloatPrice(floatModel, getPrice, getSetting, recipeData.float_accessory_type),
+            snapshotPrice: floatOverridePrice,
             floatAccessoryType: recipeData.float_accessory_type,
             source: 'configuration_override',
         });
@@ -359,6 +399,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     } else if (cableOverridePart) {
         snapshotParts.push({
             ...cableOverridePart,
+            partId: partIdOf(cableCatalogPart),
             source: 'configuration_override',
         });
     }
@@ -372,12 +413,17 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         ));
     }
 
+    const finalizedSnapshotParts = bindStableBomPartIdentities(
+        normalizeBomRoles(snapshotParts),
+        partsCatalog,
+        { allowLegacySnapshot: true }
+    );
     const effectiveManagementFee = Number(recipeData.management_fee || Number(getSetting('management_fee')) || 0);
     const costSnapshot = {
         version: 1,
         generatedAt: new Date().toISOString(),
         unitCost: Number(totalCost.toFixed(2)),
-        partsCost: Number(snapshotParts.reduce((sum, part) => sum + Number(part.snapshotPrice || 0) * Number(part.qty || 0), 0).toFixed(2)),
+        partsCost: Number(finalizedSnapshotParts.reduce((sum, part) => sum + Number(part.snapshotPrice || 0) * Number(part.qty || 0), 0).toFixed(2)),
         expenses: {
             assemblyWage: Number(recipeData.assembly_wage || 0),
             packingWage: Number(recipeData.packing_wage || 0),
@@ -390,7 +436,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     return {
         recipeName: recipeData.name,
         unitCost: Number(totalCost.toFixed(2)),
-        parts: snapshotParts,
+        parts: finalizedSnapshotParts,
         costSnapshot,
         warnings: coilChanged && !coilCalculation.data.coilId ? [{
             code: 'coil_inventory_scheme_required',
