@@ -230,6 +230,9 @@ test('报价转订单保留报价保存时的客户配置快照', () => {
             supplier: '供应商',
             qty: 1,
             snapshotPrice: 5,
+            costRole: 'fixed',
+            configurationDependencies: [],
+            partId: 4,
         }]);
     } finally {
         fixture.db.close();
@@ -256,6 +259,33 @@ test('报价转订单仅对没有当前快照字段的历史报价使用配方 f
         const draft = buildQuotationOrderDraft(fixture.dependencies, 3);
         assert.equal(draft.items[0].snapshotSource, 'legacy_recipe_fallback');
         assert.equal(draft.items[0].configurationWarnings.length, 0);
+        assert.equal(JSON.parse(draft.items[0].partsJson)[0].partId, 4);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('报价转订单对历史 BOM 补齐身份并拒绝多供应商歧义', () => {
+    const fixture = createFixture();
+    try {
+        const items = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM quotations WHERE id = 3').get().items_json
+        );
+        items[0].bomSnapshot[0] = {
+            ...items[0].bomSnapshot[0],
+            supplier: '',
+        };
+        fixture.db.prepare('UPDATE quotations SET items_json = ? WHERE id = 3')
+            .run(JSON.stringify(items));
+        fixture.dependencies.dbGetAllParts = () => [
+            { id: 4, model: 'P-1', supplier: '供应商A', stock: 0, price: 5 },
+            { id: 5, model: 'P-1', supplier: '供应商B', stock: 0, price: 4 },
+        ];
+
+        assert.throws(
+            () => buildQuotationOrderDraft(fixture.dependencies, 3),
+            error => error.code === 'BOM_PART_IDENTITY_AMBIGUOUS' && error.statusCode === 422
+        );
     } finally {
         fixture.db.close();
     }

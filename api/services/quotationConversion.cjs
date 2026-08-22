@@ -14,6 +14,7 @@ const {
     normalizeExpectedUpdatedAt,
 } = require('./resourceVersion.cjs');
 const { buildBalancedOrderPlans } = require('./orderPlanning.cjs');
+const { normalizeNewOrderBomSnapshot } = require('./orderBomSnapshot.cjs');
 const {
     parseJsonArray,
     parseNonNegativeNumber,
@@ -162,12 +163,16 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
                     422
                 );
             }
-            const bomSnapshot = Array.isArray(item.bomSnapshot) && item.bomSnapshot.length > 0
+            const sourceBomSnapshot = Array.isArray(item.bomSnapshot) && item.bomSnapshot.length > 0
                 ? item.bomSnapshot
                 : parseJsonArray(item.partsJson || recipe?.parts_json);
-            if (bomSnapshot.length === 0) {
+            if (sourceBomSnapshot.length === 0) {
                 throw new Error(`报价明细「${item.baseRecipeName || index + 1}」缺少 BOM 快照`);
             }
+            const bomSnapshot = normalizeNewOrderBomSnapshot(
+                dependencies,
+                sourceBomSnapshot
+            );
             return {
                 id: quotationItemId,
                 recipeId: recipe?.id || recipeId || undefined,
@@ -189,6 +194,9 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
         });
     } catch (error) {
         if (error instanceof CommandExecutionError) throw error;
+        if (String(error?.code || '').startsWith('BOM_PART_')) {
+            throw conversionError(error.code, error.message, error.statusCode || 422);
+        }
         throw conversionError(
             'quotation_conversion_precondition_failed',
             error?.message || '报价明细不满足转订单条件',

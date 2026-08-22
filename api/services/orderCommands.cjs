@@ -32,6 +32,7 @@ const {
     parsePositiveNumber,
 } = require('./validation.cjs');
 const { buildConfiguredRecipeSnapshot } = require('./configuredRecipeSnapshot.cjs');
+const { normalizeNewOrderBomSnapshot } = require('./orderBomSnapshot.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('orders.create').capabilityId;
 const STATUS_CAPABILITY_ID = requireBusinessCapability('orders.change_status').capabilityId;
@@ -83,7 +84,10 @@ function normalizeOrderItems(dependencies, items) {
                     }
                 )
                 : null;
-            const parts = configured?.bomSnapshot || parseJsonArray(recipe.parts_json);
+            const parts = normalizeNewOrderBomSnapshot(
+                dependencies,
+                configured?.bomSnapshot || parseJsonArray(recipe.parts_json)
+            );
             const unitCost = configured?.unitCost ?? Number(recipe.saved_total_cost);
             if (!Number.isFinite(unitCost) || unitCost <= 0 || parts.length === 0) {
                 throw orderCommandError(

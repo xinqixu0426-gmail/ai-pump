@@ -308,6 +308,82 @@ test('订单保存草稿返回正式建单能力元数据且保持只读', () =>
     }
 });
 
+test('历史配方不带客户配置直接建单时统一补齐稳定零件身份', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, draftInput());
+        const [item] = JSON.parse(draft.itemsJson);
+        const [part] = JSON.parse(item.partsJson);
+
+        assert.equal(part.partId, 1);
+        assert.equal(part.model, 'P-1');
+        assert.equal(part.supplier, '供应商A');
+        assert.equal(item.unitCost, 5);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('历史配方零件身份有歧义时阻止生成新的订单快照', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO parts (id, model, name, supplier, price, stock, updated_at)
+            VALUES (3, 'P-1', '测试零件', '供应商B', 4, 0, ?)
+        `).run(FIXED_UPDATED_AT);
+        fixture.db.prepare('UPDATE recipes SET parts_json = ? WHERE id = 1').run(JSON.stringify([{
+            model: 'P-1',
+            name: '测试零件',
+            qty: 1,
+            snapshotPrice: 5,
+        }]));
+        fixture.dependencies.loadPartsData = () => ({
+            partsCache: {},
+            partsByModel: {
+                'P-1': fixture.dependencies.dbGetAllParts().filter(part => part.model === 'P-1'),
+            },
+        });
+
+        assert.throws(
+            () => buildOrderSavePayloadDraft(fixture.dependencies, draftInput()),
+            error => error.code === 'BOM_PART_IDENTITY_AMBIGUOUS' && error.statusCode === 422
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('历史线圈 BOM 在新订单入口统一识别角色且不伪造零件身份', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO recipes (id, name, spec, parts_json, saved_total_cost)
+            VALUES (3, '历史线圈水泵', '线圈规格', ?, 99.8)
+        `).run(JSON.stringify([{
+            name: '线圈转子',
+            model: '历史完整档案线圈',
+            category: '线圈',
+            qty: 1,
+            snapshotPrice: 99.8,
+        }]));
+
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{ recipeId: 3, qty: 1 }],
+        });
+        const [part] = JSON.parse(JSON.parse(draft.itemsJson)[0].partsJson);
+
+        assert.equal(part.costRole, 'coil');
+        assert.deepEqual(part.configurationDependencies, [
+            'coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType',
+        ]);
+        assert.equal(part.partId, undefined);
+        assert.equal(part.snapshotPrice, 99.8);
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('直接建单按客户配置覆盖锁定最终成本、配置和 BOM 快照', () => {
     const fixture = createFixture();
     try {
