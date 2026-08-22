@@ -1,5 +1,4 @@
 const { hasVerifiedExecution } = require('./aiExecutionEvidence.cjs');
-const { resolvedEntityIds } = require('./aiTurnStateV3.cjs');
 
 const ORDER_QUERY_TOOLS = new Set([
     'get_order_detail',
@@ -129,7 +128,6 @@ function validateAiToolIdentifierGrounding(input = {}) {
         && input.resolutionReceipt?.entityType === 'order'
         && Number(input.resolutionReceipt?.selected?.id) === orderId
     ) return null;
-    if (resolvedEntityIds(input.turnState, 'order').has(orderId)) return null;
     if (explicitOrderIds(input.messages, input.pageContext).has(orderId)) return null;
     if (verifiedResolvedOrderIds(input.toolResults).has(orderId)) return null;
 

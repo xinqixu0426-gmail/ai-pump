@@ -1,3 +1,5 @@
+const { hasAiKnowledgeCompanionProjection } = require('../capabilities/registry.cjs');
+
 const MAX_RESOLVED_ENTITIES = 8;
 const MAX_CAPABILITIES = 12;
 
@@ -47,7 +49,7 @@ function aiTurnStatePrompt(input) {
     return [
         '上一轮已经通过正式 Query 解析出以下业务对象，仅在当前问题明确属于紧邻追问时使用：',
         ...state.resolvedEntities.map(entity => (
-            `- ${entity.entityType}: ${entity.name || '-'}${entity.id ? `（正式ID ${entity.id}）` : ''}`
+            `- ${entity.entityType}: ${entity.name || '-'}`
         )),
         '新业务问题不得继承这些对象；紧邻追问可以继续原目标，但仍需调用正式能力获取本轮实时事实。',
     ].join('\n');
@@ -69,20 +71,38 @@ function buildAiTurnStateV3(toolResults = [], previousState = null) {
     for (const tool of Array.isArray(toolResults) ? toolResults : []) {
         const receipt = tool?.result?.resolutionReceipt;
         if (
-            receipt?.version !== 3
-            || receipt?.kind !== 'entity_resolution'
-            || !receipt.entityType
-            || !receipt.selected
-        ) continue;
-        const entity = normalizeResolvedEntity({
-            entityType: receipt.entityType,
-            id: receipt.selected.id,
-            name: receipt.selected.name,
-            originalMention: receipt.originalMention,
-            confidence: receipt.selected.score,
-            resolutionStatus: receipt.status,
+            receipt?.version === 3
+            && receipt?.kind === 'entity_resolution'
+            && receipt.entityType
+            && receipt.selected
+        ) {
+            const entity = normalizeResolvedEntity({
+                entityType: receipt.entityType,
+                id: receipt.selected.id,
+                name: receipt.selected.name,
+                originalMention: receipt.originalMention,
+                confidence: receipt.selected.score,
+                resolutionStatus: receipt.status,
+            });
+            if (entity) entities.set(`${entity.entityType}\u0000${entity.id || entity.name}`, entity);
+        }
+
+        const knowledgeOrder = tool?.result?.success !== false
+            && tool?.result?.executionEvidence?.verified === true
+            && hasAiKnowledgeCompanionProjection(tool?.name, 'order_target')
+            ? tool?.result?.data?.order
+            : null;
+        const orderEntity = normalizeResolvedEntity({
+            entityType: 'order',
+            id: knowledgeOrder?.id,
+            name: knowledgeOrder?.contractNo || knowledgeOrder?.customerName,
+            originalMention: knowledgeOrder?.contractNo || knowledgeOrder?.customerName,
+            confidence: 1,
+            resolutionStatus: 'verified_tool_result',
         });
-        if (entity) entities.set(`${entity.entityType}\u0000${entity.id || entity.name}`, entity);
+        if (orderEntity) {
+            entities.set(`${orderEntity.entityType}\u0000${orderEntity.id || orderEntity.name}`, orderEntity);
+        }
     }
     return normalizeAiTurnStateV3({
         version: 3,

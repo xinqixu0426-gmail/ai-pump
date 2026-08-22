@@ -78,3 +78,31 @@ test('AI V3 轮次状态：无正式实体或能力时拒绝建立状态', () =>
     assert.equal(normalizeAiTurnStateV3({ version: 3, kind: 'agent_turn_state' }), null);
     assert.equal(normalizeAiTurnStateV3({ version: 2, kind: 'agent_turn_state' }), null);
 });
+
+test('AI V3 轮次状态：已验证订单知识包把正式订单加入后续实体引用', () => {
+    const state = buildAiTurnStateV3([{
+        name: 'get_order_knowledge_package',
+        result: {
+            success: true,
+            executionEvidence: { verified: true },
+            data: {
+                order: { id: 7, customerName: '邱焕', contractNo: '' },
+            },
+        },
+    }], {
+        version: 3,
+        kind: 'agent_turn_state',
+        resolvedEntities: [{ entityType: 'customer', id: 1, name: '邱焕' }],
+        capabilities: ['get_recent_orders'],
+    });
+
+    assert.deepEqual(state.resolvedEntities.map(entity => ({
+        entityType: entity.entityType,
+        id: entity.id,
+        name: entity.name,
+        resolutionStatus: entity.resolutionStatus,
+    })), [
+        { entityType: 'customer', id: 1, name: '邱焕', resolutionStatus: '' },
+        { entityType: 'order', id: 7, name: '邱焕', resolutionStatus: 'verified_tool_result' },
+    ]);
+});

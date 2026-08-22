@@ -1940,6 +1940,13 @@ function listAiCapabilities() {
     return Object.values(AI_CAPABILITY_REGISTRY);
 }
 
+function hasAiKnowledgeCompanionProjection(capabilityName, argumentProjection) {
+    return listAiCapabilities().some(capability => (
+        capability.knowledgeCompanion?.capabilityName === capabilityName
+        && capability.knowledgeCompanion.argumentProjection === argumentProjection
+    ));
+}
+
 function writeCapabilityNames() {
     return listAiCapabilities()
         .filter(capability => capability.access === 'write')
@@ -1977,6 +1984,7 @@ module.exports = {
     DOMAIN_CAPABILITY_NAMES,
     assertAiToolRegistryComplete,
     getAiCapability,
+    hasAiKnowledgeCompanionProjection,
     getBusinessCapability,
     listAiCapabilities,
     listBusinessCapabilities,

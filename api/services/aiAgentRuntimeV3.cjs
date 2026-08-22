@@ -39,7 +39,10 @@ const {
     normalizeAiPageContext,
 } = require('./aiPageContext.cjs');
 const { validateAiToolIdentifierGrounding } = require('./aiToolIdentifierGrounding.cjs');
-const { getKnowledgeCompanionCall } = require('./aiKnowledgeCompanionsV2.cjs');
+const {
+    getKnowledgeCompanionCall,
+    normalizeKnowledgeCompanionToolCalls,
+} = require('./aiKnowledgeCompanionsV2.cjs');
 const { resolveAiToolTargetV3 } = require('./aiEntityResolverV3.cjs');
 const { discoveryCapabilitiesForIntent } = require('./aiCapabilityGraphV3.cjs');
 const {
@@ -284,6 +287,7 @@ async function runAiAgentRuntimeV3(input = {}) {
     let evidencePrioritized = false;
     let toolCallCount = 0;
     const readCorrectionCapabilities = new Set();
+    let planMismatchCorrectionUsed = false;
     let identifierCorrectionUsed = false;
     let responseProtocolCorrectionUsed = false;
     let agentRecoveryMode = false;
@@ -363,9 +367,15 @@ async function runAiAgentRuntimeV3(input = {}) {
             continue;
         }
 
+        const normalizedToolCalls = intent.contextMode === 'previous_turn'
+            ? normalizeKnowledgeCompanionToolCalls(rawToolCalls, {
+                plannedCapabilityName: nextPlannedCapability,
+                turnState,
+            })
+            : rawToolCalls;
         const resolutionBinding = intent.contextMode === 'previous_turn'
-            ? bindResolutionToolCalls(rawToolCalls, resolutionContext)
-            : { toolCalls: rawToolCalls };
+            ? bindResolutionToolCalls(normalizedToolCalls, resolutionContext)
+            : { toolCalls: normalizedToolCalls };
         if (resolutionBinding.issue) {
             finalContent = buildResourceClarificationReply(resolutionContext);
             emit('status', { status: 'analyzing', message: '当前选择仍不能唯一对应正式候选' });
@@ -387,6 +397,58 @@ async function runAiAgentRuntimeV3(input = {}) {
                 plannedCapability: nextPlannedCapability || '',
                 rejectedTools: rejectedPreparedCalls.map(item => item.toolCall.function?.name || ''),
             });
+        }
+        const correctablePlanMismatch = input.agentVersion === 3
+            && intent.mode === 'query'
+            && intent.needsBusinessData
+            && nextPlannedCapability
+            && getAiCapability(nextPlannedCapability)?.access === 'read'
+            && roundTools.length === 1
+            && validatedPreparedCalls.length === 0
+            && rejectedPreparedCalls.length > 0
+            && rejectedPreparedCalls.every(item => (
+                item.validationCode === 'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN'
+            ));
+        if (
+            correctablePlanMismatch
+            && !planMismatchCorrectionUsed
+        ) {
+            if (toolCallCount + rejectedPreparedCalls.length > MAX_TOOL_CALLS) {
+                throw new Error(`V3 工具调用超过单轮上限 ${MAX_TOOL_CALLS}`);
+            }
+            toolCallCount += rejectedPreparedCalls.length;
+            planMismatchCorrectionUsed = true;
+            readCorrectionCapabilities.add(nextPlannedCapability);
+            const rejectedToolCalls = rejectedPreparedCalls.map(item => item.toolCall);
+            currentMessages.push({
+                role: 'assistant',
+                content,
+                ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+                tool_calls: rejectedToolCalls,
+            });
+            for (const rejected of rejectedPreparedCalls) {
+                currentMessages.push(buildAiToolResultMessage(rejected.toolCall, {
+                    success: false,
+                    code: rejected.validationCode,
+                    error: rejected.validationError,
+                    validation: {
+                        status: 'rejected',
+                        toolName: rejected.toolCall.function?.name || '',
+                    },
+                }));
+            }
+            currentMessages.push({
+                role: 'system',
+                content: `上一次工具选择不属于当前执行步骤，未执行也不会写入业务证据。请立即调用本轮唯一开放的工具 ${nextPlannedCapability}；不得改用其他工具。`,
+            });
+            dispatcherLogger.warn('模型偏离当前计划能力，执行一次受限纠正', {
+                plannedCapability: nextPlannedCapability,
+                rejectedTools: rejectedPreparedCalls.map(item => (
+                    item.toolCall.function?.name || ''
+                )),
+            });
+            emit('status', { status: 'thinking', message: '正在校正正式业务能力...' });
+            continue;
         }
         let preparedCalls = validatedPreparedCalls.length > 0
             ? validatedPreparedCalls.slice(0, 1)

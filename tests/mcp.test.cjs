@@ -146,7 +146,11 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
     )));
     assert.match(
         listed.find(tool => tool.name === 'get_order_detail').description,
-        /不要重复调用两者/
+        /服务端会.*自动补充知识包/
+    );
+    assert.match(
+        listed.find(tool => tool.name === 'get_order_detail').description,
+        /模型不要改调其他能力/
     );
     assert.match(
         listed.find(tool => tool.name === 'get_order_knowledge_package').description,
@@ -157,8 +161,16 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         /无需先调用 get_order_detail/
     );
     assert.match(
+        listed.find(tool => tool.name === 'check_order_readiness').description,
+        /服务端会.*自动补充知识包/
+    );
+    assert.match(
         listed.find(tool => tool.name === 'plan_order_readiness_actions').description,
         /无需先调用 check_order_readiness/
+    );
+    assert.match(
+        listed.find(tool => tool.name === 'plan_order_readiness_actions').description,
+        /服务端会.*自动补充知识包/
     );
 });
 
