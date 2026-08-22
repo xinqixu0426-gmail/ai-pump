@@ -73,6 +73,7 @@ function resolveCatalogPartIdentity(partsCatalog = [], part = {}, options = {}) 
 
 function shouldRequireCatalogIdentity(part = {}) {
     if (part.inventoryType === 'coil' || part.costRole === 'coil') return false;
+    if (part.costRole === 'rotorProcess') return false;
     if (part.costSource === 'manual') return false;
     if (part.costRole === 'longScrew') return false;
     return true;

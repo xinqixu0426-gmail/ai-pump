@@ -190,6 +190,42 @@ test('外包装估算只用于成本预估，不进入正式采购清单', () =>
     assert.deepEqual(purchaseList.map(item => item.model), ['201']);
 });
 
+test('不锈钢接轴加工工艺不进入采购清单', () => {
+    const purchaseList = buildPurchaseList([{
+        qty: 2,
+        partsJson: JSON.stringify([
+            { model: '201', name: '轴承', supplier: '轴承供应商', qty: 1 },
+            {
+                model: '不锈钢接轴加工',
+                name: '转子不锈钢接轴加工',
+                qty: 1,
+                snapshotPrice: 6,
+                inventoryType: 'none',
+                costRole: 'rotorProcess',
+                processCode: 'stainless_friction_weld',
+            },
+        ]),
+    }], partsCatalog);
+
+    assert.deepEqual(purchaseList.map(item => item.model), ['201']);
+});
+
+test('缺少 inventoryType 的历史接轴工艺快照仍不进入采购清单', () => {
+    const result = buildPurchaseList([{
+        qty: 2,
+        partsJson: JSON.stringify([{
+            name: '转子不锈钢接轴加工',
+            model: '不锈钢接轴加工',
+            qty: 1,
+            snapshotPrice: 6,
+            costRole: 'rotorProcess',
+            processCode: 'stainless_friction_weld',
+        }]),
+    }], []);
+
+    assert.deepEqual(result, []);
+});
+
 test('同型号不同供应商按独立物料采购', () => {
     const catalog = [
         { Id: 10, model: '轴承X', supplier: '供应商A', stock: 1, price: 1 },

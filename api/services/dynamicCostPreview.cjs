@@ -18,6 +18,10 @@ const {
     resolveCatalogPartIdentity,
 } = require('./bomPartIdentity.cjs');
 const { resolveCapacitorModel } = require('./recipeBomEngine.cjs');
+const {
+    buildStainlessShaftJointBomPart,
+    resolveStainlessShaftJointConfiguration,
+} = require('./rotorShaftJoint.cjs');
 
 // 报价覆盖试算口径：以配方保存快照为基线，只重算 overrides 涉及的动态项。
 // 这里的结果用于报价/试算，不应反向改写配方 savedTotalCost。
@@ -161,7 +165,19 @@ function buildRecipeData(row, overrides = {}) {
             'surface_treatment_cost',
             row.surface_treatment_cost != null ? row.surface_treatment_cost : (row.painting_wage != null ? row.painting_wage : 0)
         )),
-        management_fee: row.management_fee
+        management_fee: row.management_fee,
+        has_stainless_shaft_joint: getOverride(
+            overrides,
+            'hasStainlessShaftJoint',
+            'has_stainless_shaft_joint',
+            false
+        ),
+        stainless_shaft_joint_cost: getOverride(
+            overrides,
+            'stainlessShaftJointCost',
+            'stainless_shaft_joint_cost',
+            undefined
+        ),
     };
 }
 
@@ -200,6 +216,13 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     if (typeof calculateRecipeCost !== 'function') throw new Error('calculateRecipeCost dependency is required');
 
     const recipeData = buildRecipeData(row, overrides);
+    const shaftJointConfiguration = resolveStainlessShaftJointConfiguration({
+        hasStainlessShaftJoint: recipeData.has_stainless_shaft_joint,
+        stainlessShaftJointCost: recipeData.stainless_shaft_joint_cost,
+    }, getSetting);
+    recipeData.has_stainless_shaft_joint = shaftJointConfiguration.hasStainlessShaftJoint ? 1 : 0;
+    recipeData.stainless_shaft_joint_cost = shaftJointConfiguration.stainlessShaftJointCost;
+    recipeData.rotor_shaft_process = shaftJointConfiguration.rotorShaftProcess;
     const parsedParts = JSON.parse(recipeData.parts_json || '[]');
     const longScrewPart = parsedParts.find(part => managedPartType(part) === 'longScrew');
     const refreshedPartsDraft = buildRecipeCostDraft({
@@ -210,7 +233,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     const pricedParts = refreshedPartsDraft.parts;
     const getPrice = createPartPriceGetter(partsByModel);
 
-    const managedTotals = { coil: 0, capacitor: 0, float: 0, cable: 0, packing: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0 };
+    const managedTotals = { coil: 0, capacitor: 0, float: 0, cable: 0, packing: 0, barrelLength: 0, longScrew: 0, stainlessShellBundle: 0, rotorProcess: 0 };
     let longScrewTotal = 0;
     let stainlessShellBundleTotal = 0;
     const lengthPricedParts = [];
@@ -317,6 +340,8 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         totalCost += cableOverridePart.snapshotPrice;
     }
 
+    totalCost += shaftJointConfiguration.stainlessShaftJointCost;
+
     totalCost += boxChanged
         ? (calculatePackingPartsCost(recipeData.packing_parts_json, getPrice, partsCatalog) || findBoxPrice(recipeData.box_type, getPrice, partsCache))
         : managedTotals.packing;
@@ -336,7 +361,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         totalCost += Number(recipeData.management_fee || Number(getSetting('management_fee')) || 0);
     }
 
-    const snapshotParts = pricedParts.filter(part => !['coil', 'capacitor', 'float', 'cable', 'packing'].includes(managedPartType(part)));
+    const snapshotParts = pricedParts.filter(part => !['coil', 'capacitor', 'float', 'cable', 'packing', 'rotorProcess'].includes(managedPartType(part)));
     if (!coilChanged) {
         snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'coil'));
     } else if (recipeData.coil_spec && recipeData.coil_sheets) {
@@ -412,6 +437,8 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
             partsCatalog
         ));
     }
+    const shaftJointPart = buildStainlessShaftJointBomPart(shaftJointConfiguration);
+    if (shaftJointPart) snapshotParts.push(shaftJointPart);
 
     const finalizedSnapshotParts = bindStableBomPartIdentities(
         normalizeBomRoles(snapshotParts),
@@ -431,6 +458,12 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
             surfaceTreatmentCost: effectiveSurfaceCost,
             managementFee: effectiveManagementFee,
         },
+        processes: {
+            rotorShaft: {
+                process: shaftJointConfiguration.rotorShaftProcess,
+                cost: shaftJointConfiguration.stainlessShaftJointCost,
+            },
+        },
     };
 
     return {
@@ -442,6 +475,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
             code: 'coil_inventory_scheme_required',
             message: `线圈 ${recipeData.coil_spec}-${recipeData.coil_sheets} 已按${coilCalculation.data.source}计价，但没有精确匹配的正式库存方案；订单确认前需先建立正式线圈方案`,
         }] : [],
+        recipeData,
     };
 }
 

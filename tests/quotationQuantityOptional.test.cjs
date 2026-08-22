@@ -177,3 +177,32 @@ test('报价保存持久化插值线圈 warning 且客户端包材价格不进�
         dependencies.db.close();
     }
 });
+
+test('报价保存锁定不锈钢接轴费用、工艺要求和非库存 BOM 行', () => {
+    const dependencies = fixture();
+    try {
+        const draft = buildQuotationSavePayloadDraft(dependencies, {
+            customerId: 1,
+            status: '报价中',
+            items: [{
+                ...item(2),
+                overrides: {
+                    hasStainlessShaftJoint: true,
+                    stainlessShaftJointCost: 7.5,
+                },
+            }],
+        });
+        const [savedItem] = JSON.parse(draft.itemsJson);
+        const processPart = savedItem.bomSnapshot.find(part => part.costRole === 'rotorProcess');
+
+        assert.equal(savedItem.unitCost, 17.5);
+        assert.equal(savedItem.overrides.hasStainlessShaftJoint, true);
+        assert.equal(savedItem.overrides.stainlessShaftJointCost, 7.5);
+        assert.equal(savedItem.configurationSnapshot.rotorShaftProcess, 'stainless_friction_weld');
+        assert.equal(savedItem.costSnapshot.processes.rotorShaft.cost, 7.5);
+        assert.equal(processPart.inventoryType, 'none');
+        assert.equal(processPart.processCode, 'stainless_friction_weld');
+    } finally {
+        dependencies.db.close();
+    }
+});

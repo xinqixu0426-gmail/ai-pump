@@ -29,6 +29,8 @@ export type RecipeConfigurationOverrides = {
   packingPartsJson?: string;
   surfaceTreatmentMode?: SurfaceTreatmentMode;
   surfaceTreatmentCost?: number | string;
+  hasStainlessShaftJoint?: boolean;
+  stainlessShaftJointCost?: number | string;
 };
 
 export type RecipeConfigurationSnapshot = RecipeConfigurationOverrides & {
@@ -40,6 +42,9 @@ export type RecipeConfigurationSnapshot = RecipeConfigurationOverrides & {
   packingPartsJson: string;
   surfaceTreatmentMode: SurfaceTreatmentMode;
   surfaceTreatmentCost: number;
+  hasStainlessShaftJoint: boolean;
+  stainlessShaftJointCost: number;
+  rotorShaftProcess: 'standard' | 'stainless_friction_weld';
 };
 
 export type RecipeConfigurationWarning = {
@@ -72,6 +77,7 @@ export type RecipeConfigurationPreview = {
   warnings: RecipeConfigurationWarning[];
   configurationPolicy?: Record<string, unknown> | null;
   configurationPolicyMode?: 'explicit' | 'legacy_open';
+  configurationSnapshot?: RecipeConfigurationSnapshot;
 };
 
 export function inferPackingMaterial(model: string): string {
@@ -142,6 +148,8 @@ export function buildRecipeDefaultConfiguration(recipe: Recipe): RecipeConfigura
     packingPartsJson: recipe.packingPartsJson || '[]',
     surfaceTreatmentMode: recipe.surfaceTreatmentMode || 'none',
     surfaceTreatmentCost: recipe.surfaceTreatmentMode === 'none' ? 0 : Number(recipe.surfaceTreatmentCost || 0),
+    hasStainlessShaftJoint: false,
+    stainlessShaftJointCost: 0,
   };
 }
 
@@ -181,6 +189,9 @@ export function configurationSummary(configuration?: RecipeConfigurationOverride
     `线圈 ${configuration.coilSpec || '-'}-${configuration.coilSheets || '-'}片`,
     configuration.hasCable ? `电缆 ${configuration.cableLength || 0}米` : '不带电缆',
     configuration.hasFloat ? '带浮球' : '不带浮球',
+    configuration.hasStainlessShaftJoint
+      ? `不锈钢接轴 ¥${Number(configuration.stainlessShaftJointCost || 0).toFixed(2)}`
+      : '普通转轴',
     `包装 ${container?.model || configuration.boxType || '未配置'}${extras.length ? ` + ${extras.join(' + ')}` : ''}`,
   ];
 }
@@ -190,6 +201,9 @@ export function configurationDifferences(recipe: Recipe | undefined, configurati
   const base = buildRecipeDefaultConfiguration(recipe);
   const differences: string[] = [];
   if (Boolean(base.hasFloat) !== Boolean(configuration.hasFloat)) differences.push(configuration.hasFloat ? '增加浮球' : '取消浮球');
+  if (Boolean(configuration.hasStainlessShaftJoint)) {
+    differences.push(`不锈钢接轴 ¥${Number(configuration.stainlessShaftJointCost || 0).toFixed(2)}`);
+  }
   if (Number(base.cableLength || 0) !== Number(configuration.cableLength || 0)) {
     differences.push(`电缆 ${Number(base.cableLength || 0)}→${Number(configuration.cableLength || 0)}米`);
   }

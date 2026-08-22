@@ -11,6 +11,7 @@ const CONFIGURATION_DEPENDENCIES = Object.freeze({
     float: ['hasFloat', 'floatWire', 'floatAccessoryType'],
     cable: ['hasCable', 'cableLength', 'cableWire', 'cableAccessoryType'],
     packing: ['packingPartsJson'],
+    rotorProcess: ['hasStainlessShaftJoint', 'stainlessShaftJointCost'],
 });
 
 function inferLegacyBomCostRole(part = {}) {
@@ -24,6 +25,7 @@ function inferLegacyBomCostRole(part = {}) {
     if (name === '电容') return 'capacitor';
     if (name.includes('浮球') || model.startsWith('浮球-')) return 'float';
     if (name.includes('电缆') || model.startsWith('电缆-') || model === '电缆配件费') return 'cable';
+    if (part.processCode === 'stainless_friction_weld' || name.includes('不锈钢接轴')) return 'rotorProcess';
     const packaging = inferPackagingSemantics(part);
     if (part.packingRole || part.packagingMaterial || packaging.packingRole !== 'fixed'
         || name.includes('木箱') || name.includes('纸箱') || model.includes('木箱') || model.includes('纸箱')) {

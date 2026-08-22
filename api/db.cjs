@@ -75,6 +75,9 @@ if (!existingCableAccessories) {
 if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('float_accessory_delta')) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('float_accessory_delta', '0.6', new Date().toISOString());
 }
+if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('stainless_shaft_joint_default_cost')) {
+    db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('stainless_shaft_joint_default_cost', '6', new Date().toISOString());
+}
 if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('aluminum_wire_price_per_kg')) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('aluminum_wire_price_per_kg', '0', new Date().toISOString());
 }

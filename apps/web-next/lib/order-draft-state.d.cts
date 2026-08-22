@@ -1,6 +1,6 @@
 import type { OrderItem } from './orders'
 import type { Recipe } from './recipes'
-import type { RecipeConfigurationWarning } from './recipe-configurations'
+import type { RecipeConfigurationSnapshot, RecipeConfigurationWarning } from './recipe-configurations'
 
 export function buildPendingOrderItem(
   recipe: Recipe,
@@ -12,12 +12,12 @@ export function buildPendingOrderItem(
 export function applyOrderItemPreview(
   item: OrderItem,
   expectedId: string,
-  preview: { unitCost: number; warnings?: RecipeConfigurationWarning[] },
+  preview: { unitCost: number; warnings?: RecipeConfigurationWarning[]; configurationSnapshot?: RecipeConfigurationSnapshot },
 ): OrderItem
 export function applyOrderItemPreview(
   item: OrderItem | null,
   expectedId: string,
-  preview: { unitCost: number; warnings?: RecipeConfigurationWarning[] },
+  preview: { unitCost: number; warnings?: RecipeConfigurationWarning[]; configurationSnapshot?: RecipeConfigurationSnapshot },
 ): OrderItem | null
 
 export function rollbackOrderItemConfiguration(

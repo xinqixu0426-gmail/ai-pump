@@ -18,6 +18,11 @@ function applyOrderItemPreview(item, expectedId, preview) {
     ...item,
     unitCost,
     unitPrice: roundMoney(unitCost * profitMargin),
+    configurationOverrides: preview?.configurationSnapshot ? {
+      ...(item.configurationOverrides || {}),
+      hasStainlessShaftJoint: Boolean(preview.configurationSnapshot.hasStainlessShaftJoint),
+      stainlessShaftJointCost: Number(preview.configurationSnapshot.stainlessShaftJointCost || 0),
+    } : item.configurationOverrides,
     configurationWarnings: preview?.warnings || [],
   }
 }

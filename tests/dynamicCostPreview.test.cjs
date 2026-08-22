@@ -359,3 +359,40 @@ test('浮球覆盖存在多供应商时拒绝最低价猜选', () => {
             && error.statusCode === 422
     );
 });
+
+test('不锈钢接轴只增加一次非库存工艺成本且不改变线圈转子快照', () => {
+    const row = {
+        id: 8,
+        name: '接轴配置配方',
+        parts_json: JSON.stringify([
+            { name: '线圈转子', model: 'Y90-10', qty: 1, snapshotPrice: 26, coilId: 18, inventoryType: 'coil', costRole: 'coil' },
+            { name: '固定配件', model: '固定配件', qty: 1, snapshotPrice: 74, costSource: 'manual' },
+        ]),
+        saved_total_cost: 100,
+        coil_spec: 'Y90',
+        coil_sheets: 10,
+        coil_material: '钢带',
+        coil_slot_type: '小眼',
+        has_float: 0,
+        has_cable: 0,
+    };
+    const result = calculateRecipeCostPreview(row, {
+        hasStainlessShaftJoint: true,
+    }, {
+        partsCache: {},
+        partsByModel: {},
+        calculateRecipeCost,
+        getSetting: key => key === 'stainless_shaft_joint_default_cost' ? '6' : undefined,
+        getCoils: () => [],
+    });
+
+    assert.equal(result.unitCost, 106);
+    const coil = result.parts.find(part => part.costRole === 'coil');
+    const process = result.parts.find(part => part.costRole === 'rotorProcess');
+    assert.equal(coil.snapshotPrice, 26);
+    assert.equal(coil.coilId, 18);
+    assert.equal(process.snapshotPrice, 6);
+    assert.equal(process.inventoryType, 'none');
+    assert.equal(result.costSnapshot.processes.rotorShaft.process, 'stainless_friction_weld');
+    assert.equal(result.costSnapshot.partsCost, 106);
+});

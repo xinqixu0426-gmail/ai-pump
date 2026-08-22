@@ -511,6 +511,11 @@ export function QuotationsView() {
           setDraftItems((current) => current.map((item) => (
             item.id === id ? {
               ...recostQuotationItem(item, preview.unitCost),
+              overrides: preview.configurationSnapshot ? {
+                ...(item.overrides || {}),
+                hasStainlessShaftJoint: Boolean(preview.configurationSnapshot.hasStainlessShaftJoint),
+                stainlessShaftJointCost: Number(preview.configurationSnapshot.stainlessShaftJointCost || 0),
+              } : item.overrides,
               configurationWarnings: preview.warnings,
             } : item
           )));
@@ -1024,6 +1029,7 @@ export function QuotationsView() {
                         <th className="border-b border-line px-4 py-3">电缆</th>
                         <th className="w-32 border-b border-line px-4 py-3">包材</th>
                         <th className="border-b border-line px-4 py-3">表面处理</th>
+                        <th className="border-b border-line px-4 py-3">转子工艺</th>
                         <th className="border-b border-line px-4 py-3 text-right" title="单位成本">单价</th>
                         <th className="border-b border-line px-4 py-3 text-right" title="产品出厂单价">出厂价</th>
                       </tr>
@@ -1057,6 +1063,11 @@ export function QuotationsView() {
                             <td className="border-b border-line px-4 py-3 align-top text-muted">
                               {surfaceTreatmentLabel(overrides.surfaceTreatmentMode)}
                               {overrides.surfaceTreatmentMode && overrides.surfaceTreatmentMode !== 'none' ? ` · ${money(Number(overrides.surfaceTreatmentCost || 0))}` : ''}
+                            </td>
+                            <td className="border-b border-line px-4 py-3 align-top text-muted">
+                              {overrides.hasStainlessShaftJoint
+                                ? `不锈钢接轴 · ${money(Number(overrides.stainlessShaftJointCost || 0))}`
+                                : '普通转轴'}
                             </td>
                             <td className="border-b border-line px-4 py-3 text-right align-top font-medium tabular-nums text-ink">{money(Number(item.unitCost || 0))}</td>
                             <td className="border-b border-line px-4 py-3 text-right align-top font-semibold tabular-nums text-ink">{money(Number(item.unitPrice || 0))}</td>
@@ -1117,7 +1128,7 @@ export function QuotationsView() {
               </section>
 
               <div className="rounded-panel border border-line bg-slate-50 p-4 text-sm text-muted">
-                浮球：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasFloat))}；电缆：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasCable))}；备注：{viewQuotation.remark || '-'}
+                浮球：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasFloat))}；电缆：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasCable))}；不锈钢接轴：{yesNo(viewQuotationItems.some((item) => item.overrides?.hasStainlessShaftJoint))}；备注：{viewQuotation.remark || '-'}
               </div>
 
             </div>
@@ -1605,6 +1616,31 @@ export function QuotationsView() {
                             />
                             带浮球
                           </label>
+                          <label className="flex items-center gap-2 text-sm text-ink">
+                            <Checkbox
+                              checked={Boolean(item.overrides?.hasStainlessShaftJoint)}
+                              onChange={(event) => void updateDraftItemOverrides(item.id, {
+                                hasStainlessShaftJoint: event.target.checked,
+                                stainlessShaftJointCost: event.target.checked ? undefined : 0,
+                              })}
+                            />
+                            不锈钢接轴
+                          </label>
+                          {item.overrides?.hasStainlessShaftJoint ? (
+                            <label className="flex items-center gap-2 text-xs text-muted">
+                              加工费
+                              <input
+                                type="number"
+                                min="5"
+                                max="8"
+                                step="0.01"
+                                value={item.overrides.stainlessShaftJointCost || 6}
+                                onChange={(event) => void updateDraftItemOverrides(item.id, { stainlessShaftJointCost: event.target.value })}
+                                className="h-8 w-20 rounded-md border border-line bg-white px-2 text-right text-sm text-ink outline-none focus:border-sky-400"
+                              />
+                              元
+                            </label>
+                          ) : null}
                           <label className="flex items-center gap-2 text-sm text-ink">
                             <Checkbox
                               checked={normalizePackingParts(item.overrides?.packingPartsJson).some((part) => inferPackingRole(part) === 'foam')}

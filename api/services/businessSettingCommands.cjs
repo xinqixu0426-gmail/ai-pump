@@ -7,6 +7,10 @@ const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
 } = require('./resourceVersion.cjs');
+const {
+    STAINLESS_SHAFT_JOINT_SETTING_KEY,
+    validateStainlessShaftJointCost,
+} = require('./rotorShaftJoint.cjs');
 
 const UPDATE_CAPABILITY_ID = requireBusinessCapability(
     'settings.update_business_value'
@@ -17,12 +21,14 @@ const ALLOWED_SETTINGS = new Set([
     'float_accessory_delta',
     'aluminum_wire_price_per_kg',
     'usd_cny_rate',
+    STAINLESS_SHAFT_JOINT_SETTING_KEY,
 ]);
 const NUMERIC_SETTINGS = new Set([
     'management_fee',
     'float_accessory_delta',
     'aluminum_wire_price_per_kg',
     'usd_cny_rate',
+    STAINLESS_SHAFT_JOINT_SETTING_KEY,
 ]);
 
 function businessSettingCommandError(code, message, statusCode = 409) {
@@ -85,6 +91,9 @@ function normalizeBusinessSettingValue(key, value) {
         return normalizeCableAccessories(value);
     }
     if (NUMERIC_SETTINGS.has(key)) {
+        if (key === STAINLESS_SHAFT_JOINT_SETTING_KEY) {
+            return String(validateStainlessShaftJointCost(value, key));
+        }
         const numericValue = Number(value);
         if (!Number.isFinite(numericValue) || numericValue < 0) {
             throw businessSettingCommandError(

@@ -199,6 +199,31 @@ export function OrderItemConfigurationEditor({
           </label>
           <label className="flex items-center gap-2 text-sm text-ink">
             <Checkbox
+              checked={Boolean(overrides.hasStainlessShaftJoint)}
+              onChange={event => onChange({
+                hasStainlessShaftJoint: event.target.checked,
+                stainlessShaftJointCost: event.target.checked ? undefined : 0,
+              })}
+            />
+            不锈钢接轴
+          </label>
+          {overrides.hasStainlessShaftJoint ? (
+            <label className="flex items-center gap-2 text-xs text-muted">
+              加工费
+              <input
+                type="number"
+                min="5"
+                max="8"
+                step="0.01"
+                value={overrides.stainlessShaftJointCost || 6}
+                onChange={event => onChange({ stainlessShaftJointCost: event.target.value })}
+                className="h-8 w-20 rounded-md border border-line bg-white px-2 text-right text-sm text-ink outline-none focus:border-sky-400"
+              />
+              元
+            </label>
+          ) : null}
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <Checkbox
               checked={packingParts.some(part => inferPackingRole(part) === 'foam')}
               onChange={event => togglePackingRole('foam', event.target.checked)}
             />

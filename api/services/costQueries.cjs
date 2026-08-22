@@ -300,6 +300,7 @@ function createCostQueries({
                 warnings: result.warnings || [],
                 configurationPolicy,
                 configurationPolicyMode: configurationPolicy ? 'explicit' : 'legacy_open',
+                configurationSnapshot: configurationSnapshotFromRecipeData(result.recipeData),
             },
         };
     }

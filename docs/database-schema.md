@@ -88,6 +88,7 @@
 ## 数据治理
 
 - `pump_shell_templates.configuration_policy_json` 保存模板默认客户配置范围，`recipes.configuration_policy_json` 保存创建时复制、之后独立维护的配方规则；两列为空均表示历史开放模式。迁移不回填、不改写已有报价、订单或 BOM/成本快照。
+- `system_settings.stainless_shaft_joint_default_cost` 保存报价和订单启用不锈钢接轴时的默认加工费；启动时缺失则幂等初始化为 `6`，正式写入口只接受 5–8 元。该配置不新增表或迁移，不写入模板、配方或线圈基础成本；最终采用值冻结在报价/订单 JSON 快照中。
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
 - `api_operations` 以 `actor_key + capability_id + idempotency_key` 唯一保存高风险命令请求哈希和成功回执，默认保留 90 天；幂等记录、业务变更、领域流水和强审计在同一 `BEGIN IMMEDIATE` 事务提交。相同键但请求哈希不同必须拒绝。
 - `audit_log.request_id/operation_id/capability_id` 把一次 HTTP 请求、业务命令和各资源审计串联起来。未接入统一命令执行器的历史写入口仍使用尽力审计，不能宣称具备强审计回执。

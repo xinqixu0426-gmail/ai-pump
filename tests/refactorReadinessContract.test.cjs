@@ -1591,6 +1591,11 @@ test('Next UI 契约：直接建单基于完整配方支持客户配置并由服
     assert.match(configurationEditor, /findPackingOption\(containerOptions, container\)/);
     assert.match(configurationEditor, /resolvePackingPart\(overrides\.packingPartsJson, 'container', overrides\.boxType\)/);
     assert.match(configurationEditor, /带浮球/);
+    assert.match(configurationEditor, /不锈钢接轴/);
+    assert.match(configurationEditor, /min="5"/);
+    assert.match(configurationEditor, /max="8"/);
+    assert.match(configurationEditor, /stainlessShaftJointCost: event\.target\.checked \? undefined : 0/);
+    assert.match(orderDraftState, /preview\.configurationSnapshot\.hasStainlessShaftJoint/);
     assert.match(recipeConfigurations, /\/api\/recipes\/\$\{recipeId\}\/cost-preview/);
     assert.match(recipePacking, /function findPackingOption/);
     assert.match(recipePacking, /function resolvePackingPart/);
@@ -1684,6 +1689,10 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /configurationWarnings/);
     assert.match(quotationsView, /hasFloat/);
     assert.match(quotationsView, /hasCable/);
+    assert.match(quotationsView, /不锈钢接轴/);
+    assert.match(quotationsView, /stainlessShaftJointCost/);
+    assert.match(quotationsView, /stainlessShaftJointCost: event\.target\.checked \? undefined : 0/);
+    assert.match(quotationsView, /preview\.configurationSnapshot\.hasStainlessShaftJoint/);
     assert.doesNotMatch(quotationsView, /updateDraftItemOverrides\(item\.id,\s*\{\s*customBarrelLength/);
     assert.match(quotationsView, /packagingOptions/);
     assert.match(quotationsView, /packingOptionsForItem/);

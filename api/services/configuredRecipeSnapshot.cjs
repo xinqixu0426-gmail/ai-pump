@@ -1,6 +1,5 @@
 const { assertRecipeBomPrices } = require('./costEngine.cjs');
 const {
-    buildRecipeData,
     calculateRecipeCostPreview,
 } = require('./dynamicCostPreview.cjs');
 const {
@@ -14,6 +13,7 @@ const {
     assertRecipeConfigurationAllowed,
     recipeConfigurationPolicyFromRecord,
 } = require('./recipeConfigurationPolicy.cjs');
+const { validateStainlessShaftJointCost } = require('./rotorShaftJoint.cjs');
 
 const CONFIGURATION_KEYS = Object.freeze([
     'hasFloat',
@@ -32,6 +32,8 @@ const CONFIGURATION_KEYS = Object.freeze([
     'packingPartsJson',
     'surfaceTreatmentMode',
     'surfaceTreatmentCost',
+    'hasStainlessShaftJoint',
+    'stainlessShaftJointCost',
 ]);
 
 const SURFACE_TREATMENT_MODES = new Set([
@@ -157,6 +159,22 @@ function normalizeRecipeConfigurationOverrides(overrides, fieldPrefix = 'overrid
         { defaultValue: 0 }
     );
     if (normalized.surfaceTreatmentMode === 'none') normalized.surfaceTreatmentCost = 0;
+    if (hasOwn(overrides, 'hasStainlessShaftJoint')) {
+        normalized.hasStainlessShaftJoint = normalizeBooleanOverride(
+            overrides.hasStainlessShaftJoint,
+            `${fieldPrefix}.hasStainlessShaftJoint`
+        );
+    }
+    if (normalized.hasStainlessShaftJoint === true
+        && hasOwn(overrides, 'stainlessShaftJointCost')) {
+        normalized.stainlessShaftJointCost = validateStainlessShaftJointCost(
+            overrides.stainlessShaftJointCost,
+            `${fieldPrefix}.stainlessShaftJointCost`
+        );
+    } else if (normalized.hasStainlessShaftJoint !== true
+        && hasOwn(overrides, 'stainlessShaftJointCost')) {
+        normalized.stainlessShaftJointCost = 0;
+    }
     return normalized;
 }
 
@@ -180,6 +198,9 @@ function configurationSnapshotFromRecipeData(recipeData) {
         packingPartsJson: JSON.stringify(parseJsonArray(recipeData.packing_parts_json)),
         surfaceTreatmentMode: normalizeSurfaceTreatmentMode(recipeData.surface_treatment_mode),
         surfaceTreatmentCost: Number(recipeData.surface_treatment_cost || 0),
+        hasStainlessShaftJoint: Boolean(Number(recipeData.has_stainless_shaft_joint || 0)),
+        stainlessShaftJointCost: Number(recipeData.stainless_shaft_joint_cost || 0),
+        rotorShaftProcess: recipeData.rotor_shaft_process || 'standard',
     };
 }
 
@@ -228,15 +249,18 @@ function buildConfiguredRecipeSnapshot(dependencies, recipeIdValue, rawOverrides
     });
     assertRecipeBomPrices(preview.parts);
 
+    const configurationSnapshot = configurationSnapshotFromRecipeData(preview.recipeData);
     return {
         recipe,
         recipeId,
-        configurationOverrides,
+        configurationOverrides: {
+            ...configurationOverrides,
+            hasStainlessShaftJoint: configurationSnapshot.hasStainlessShaftJoint,
+            stainlessShaftJointCost: configurationSnapshot.stainlessShaftJointCost,
+        },
         configurationPolicy,
         configurationPolicyMode: configurationPolicy ? 'explicit' : 'legacy_open',
-        configurationSnapshot: configurationSnapshotFromRecipeData(
-            buildRecipeData(recipe, configurationOverrides)
-        ),
+        configurationSnapshot,
         unitCost: Number(preview.unitCost || 0),
         bomSnapshot: preview.parts,
         costSnapshot: preview.costSnapshot,

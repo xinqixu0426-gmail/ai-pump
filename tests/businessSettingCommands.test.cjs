@@ -156,6 +156,14 @@ test('业务设置拒绝过期版本和非法成本基础值', () => {
         error => error?.code === 'business_setting_number_invalid'
     );
     assert.equal(
+        normalizeBusinessSettingValue('stainless_shaft_joint_default_cost', 6.5),
+        '6.5'
+    );
+    assert.throws(
+        () => normalizeBusinessSettingValue('stainless_shaft_joint_default_cost', 9),
+        error => error?.code === 'STAINLESS_SHAFT_JOINT_COST_INVALID'
+    );
+    assert.equal(
         fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations')
             .get().count,
         0

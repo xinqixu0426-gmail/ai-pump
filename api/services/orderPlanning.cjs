@@ -3,6 +3,7 @@ const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { mergePurchasePlanItem, normalizePurchaseItem } = require('./orderWorkflow.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
+const { isRotorProcessPart } = require('./rotorShaftJoint.cjs');
 
 function makeId(value) {
     return `purchase-${crypto.createHash('sha256').update(String(value || '')).digest('hex').slice(0, 16)}`;
@@ -121,6 +122,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         if (itemQty <= 0) continue;
         for (const part of collapseLegacyCableParts(parsePartsJson(item.partsJson))) {
             if (isPackagingEstimatePart(part)) continue;
+            if (isRotorProcessPart(part)) continue;
             const model = String(part.model || '').trim();
             if (!model) continue;
             const completeCable = isCompleteCablePart(part);

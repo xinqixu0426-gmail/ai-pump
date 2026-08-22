@@ -161,13 +161,13 @@ AI 工具 `adjust_coil_stock` 的“规格俗称-片数”解析、正式方案�
 | `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt? }` | 能力 `recipes.technical_files.delete`。软删除附件关联，不删除可能被其他业务引用的统一文件对象；附件、operation 和强审计同一事务提交，相同请求安全重放，版本或审计冲突返回 409。变更自动触发现有知识派生同步；旧请求仍兼容并返回 warnings |
 | `GET` | `/api/recipes/:id/cost` | 无 | 经 `costQueries` 读取正式配方并委托 `costEngine` 重算当前配件参考；不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 经 `costQueries` 批量返回所有配方的当日完整成本；先按配方参数和当前泵壳模板完整重建 BOM，再由成本引擎按当前零件库价格、全局动态配置和当前线圈数据重算，并叠加配方人工、表面处理与管理费。响应顶层返回 `asOf/sourceOfTruth=costEngine/basis=currentTemplateAndRecipeParameters`；每项返回 `costComplete/warnings/missingParts`。存在未定价项目时 `currentTotalCost/partsCost/difference` 为 `null`，只保留明确标记为诊断用途的 `partialPartsCost/partialTotalCost`，禁止把缺失项按 ¥0 形成正式成本。成品电缆当前成本同样必须取得当前电缆目录价；历史快照不能掩盖当前目录缺价 |
-| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, coilSlotType?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, customBarrelLength?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost? } }` | 报价和直接建单共用的客户配置试算。先按配方 `configurationPolicyJson` 校验，再以保存成本为基线替换动态项；返回 `unitCost/parts/costSnapshot/warnings/configurationPolicy/configurationPolicyMode`。空规则返回 `legacy_open`；显式规则只限制已配置字段，当前基线值始终允许。包装白名单按 `partId`，表面处理按工艺和成本成对校验，不允许的值返回 `422 RECIPE_CONFIGURATION_NOT_ALLOWED/RECIPE_CONFIGURATION_PACKING_NOT_ALLOWED/RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED`。线圈变化同步替换依赖电容；普通目录零件身份歧义返回 422。线圈无法计价返回 `422 COIL_CONFIGURATION_UNPRICED`，无正式库存方案返回 warning |
+| `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilSpec?, coilSheets?, coilMaterial?, coilSlotType?, hasFloat?, floatWire?, floatAccessoryType?, hasCable?, cableLength?, cableWire?, cableAccessoryType?, customBarrelLength?, packingPartsJson?, boxType?, surfaceTreatmentMode?, surfaceTreatmentCost?, hasStainlessShaftJoint?, stainlessShaftJointCost? } }` | 报价和直接建单共用的客户配置试算。先按配方 `configurationPolicyJson` 校验，再以保存成本为基线替换动态项；返回 `unitCost/parts/costSnapshot/warnings/configurationPolicy/configurationPolicyMode/configurationSnapshot`。不锈钢接轴是报价/订单通用工艺，不改变模板、配方或线圈转子基础成本：默认关闭；启用后费用省略时读取全局 `stainless_shaft_joint_default_cost`（初始化为 6 元），明确费用只能在 5–8 元闭区间，否则返回 `422 STAINLESS_SHAFT_JOINT_COST_INVALID`。响应将最终费用和 `rotorShaftProcess=stainless_friction_weld` 锁入配置快照，并生成一条 `inventoryType=none/costRole=rotorProcess` 的独立工艺 BOM 行。空规则返回 `legacy_open`；显式规则只限制已配置字段，当前基线值始终允许。包装白名单按 `partId`，表面处理按工艺和成本成对校验，不允许的值返回 `422 RECIPE_CONFIGURATION_NOT_ALLOWED/RECIPE_CONFIGURATION_PACKING_NOT_ALLOWED/RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED`。线圈变化同步替换依赖电容；普通目录零件身份歧义返回 422。线圈无法计价返回 `422 COIL_CONFIGURATION_UNPRICED`，无正式库存方案返回 warning |
 
 配方列表、详情、库存状态、型号变体草稿和 BOM 草稿的数据库聚合统一在 `recipeQueries`。BOM 规则仍只由 `recipeBomEngine` 展开，正式保存成本仍只由 `costEngine` 重建；Query/Preview 不写配方、库存、operation、审计或知识索引。
 
 `configurationPolicyJson` 版本 1 结构为 `{ version: 1, fields?, packingPartIds?, surfaceTreatmentOptions? }`。`fields` 可包含 `hasFloat/floatWire/floatAccessoryType/hasCable/cableLength/cableWire/cableAccessoryType/coilSpec/coilSheets/coilMaterial/coilSlotType/customBarrelLength` 的允许值数组；`packingPartIds` 是稳定正整数零件 ID 数组；`surfaceTreatmentOptions` 是 `{ mode, cost }[]`。未知键、未知字段、重复工艺或无效类型返回稳定的 `RECIPE_CONFIGURATION_POLICY_*` 400 错误；单个列表最多 100 项。
 
-BOM 快照角色为 `fixed/shell/barrelLength/stainlessShellBundle/longScrew/capacitor/coil/float/cable/packing`。`configurationDependencies` 记录该行受哪些配置字段影响：机筒及长螺丝依赖 `customBarrelLength`，线圈和电容依赖线圈规格/片数/材质/槽眼，浮球、电缆和包装分别依赖各自配置字段。它们是服务端生成的快照元数据，调用方不得自行指定来改变正式成本。
+BOM 快照角色为 `fixed/shell/barrelLength/stainlessShellBundle/longScrew/capacitor/coil/float/cable/packing/rotorProcess`。`configurationDependencies` 记录该行受哪些配置字段影响：机筒及长螺丝依赖 `customBarrelLength`，线圈和电容依赖线圈规格/片数/材质/槽眼，浮球、电缆和包装分别依赖各自配置字段；`rotorProcess` 依赖 `hasStainlessShaftJoint/stainlessShaftJointCost`，属于生产工艺要求和成本行，不是零件或线圈库存物料，不进入采购计划。它们是服务端生成的快照元数据，调用方不得自行指定来改变正式成本。
 
 ## 9. 成本 Cost
 
@@ -235,6 +235,8 @@ BOM 快照角色为 `fixed/shell/barrelLength/stainlessShellBundle/longScrew/cap
 | `POST` | `/api/quotations/:id/convert` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt?, previewHash?, itemQuantities? }` | 只有“已接受”报价可转单；最终数量必须与订单草稿一致并进入持久幂等请求和预览哈希。执行前按相同数量重算草稿，报价版本、数量或采购平衡事实改变时要求重新预览。在同一事务内创建订单、更新报价、保存 operation 回执并写两条强审计。相同主体、能力、幂等键和请求返回原回执；异参复用、资源版本、预览、重复或越级冲突返回 409。历史报价已保存有效数量时，旧调用不传 `itemQuantities` 仍兼容 |
 
 报价保存命令不会信任请求中的 `totalCost/totalPrice/unitCost/bomSnapshot/costSnapshot`：`quotationDraft` 会再次从正式客户、配方和成本服务生成快照。报价阶段数量是可选业务事实；未确认时 `itemsJson.qty/totalPrice` 与报价顶层 `totalCost/totalPrice` 保存为 `null`，列表和统计不得按 0 或 1 计入总金额。预览哈希排除条目展示 ID 和生成时间等非业务字段，因此相同草稿的网络重试稳定；报价配置、成本或业务输入变化会导致旧预览被拒绝。成功响应在原报价字段之外增加标准 operation receipt，旧页面依赖的报价字段保持兼容。
+
+不锈钢接轴在报价保存时会把启用状态、最终费用和 `rotorShaftProcess=stainless_friction_weld` 一并冻结到配置与成本快照，并生成 `rotorProcess` 非库存工艺 BOM 行。报价转订单原样继承这些事实，不按转换时的全局默认重算；该工艺行不要求 `partId`，也不进入采购清单。
 
 报价超过一个月自动过期已从 GET 路由迁移到 `quotationExpiry` maintenance service。API 启动时先补跑一次，之后每天北京时间 00:05 执行；维护只把有效且仍为“报价中”、`createdAt` 不晚于一个月前的记录改为“已过时”。同一轮更新位于一个 SQLite 事务内，逐条使用 `safeUpdate` 写审计，并记录 `operationId/startedAt/completedAt/expiredCount/changes`。当前不新增公开维护端点。
 
@@ -329,6 +331,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 允许的设置 key：
 
 - `management_fee`
+- `stainless_shaft_joint_default_cost`（不锈钢接轴默认加工费，5–8 元，初始化为 6 元）
 - `cable_accessories`
 - `float_accessory_delta`
 - `aluminum_wire_price_per_kg`
@@ -338,7 +341,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 |---|---|---|---|
 | `GET` | `/api/settings` | 无 | 经 `settingsQueries` 只读返回业务白名单内的设置 key-value 对象；内部设置不会泄漏 |
 | `GET` | `/api/settings/:key` | 白名单 key | 经 `settingsQueries` 返回单个业务设置的 `key/value/updatedAt`，供写入时绑定当前资源版本；非法 key 返回 400，不存在返回 404 |
-| `PUT` | `/api/settings/:key` | `{ value, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `settings.update_business_value`。更新成本与业务白名单设置；数值类必须非负，`cable_accessories` 必须含 `standard/xinjie` 的 `name` 和 `fee`。设置、operation 和强审计同一事务提交；Web 新调用绑定资源版本，旧无版本/幂等键请求兼容执行并返回 warning |
+| `PUT` | `/api/settings/:key` | `{ value, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `settings.update_business_value`。更新成本与业务白名单设置；数值类必须非负，`stainless_shaft_joint_default_cost` 必须在 5–8 元闭区间，`cable_accessories` 必须含 `standard/xinjie` 的 `name` 和 `fee`。设置、operation 和强审计同一事务提交；Web 新调用绑定资源版本，旧无版本/幂等键请求兼容执行并返回 warning |
 | `GET` | `/api/settings/runtime` | 无 | 经 `settingsQueries` 和 `runtimeConfig` 读取系统初始化页公开运行配置、整体 `updatedAt`、密钥配置状态、待重启项和只读部署环境状态；永不返回 API Key 原文或密文 |
 | `PUT` | `/api/settings/runtime` | 推荐请求头 `Idempotency-Key`；camelCase 运行设置对象及 `expectedUpdatedAt?` | 能力 `settings.update_runtime`。整批校验白名单内的 AI 与知识检索设置；空密钥表示保留原值，API Key 使用 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密。密文设置、operation 与逐项强审计同一事务，提交成功后才更新当前进程环境；冷配置继续返回待重启字段 |
 | `POST` | `/api/settings/runtime/test-ai` | AI 提供商、模型、地址及可选新 API Key | 经 `settingsQueries` 编排当前或本次输入的候选配置，对实际启用的提供商逐个执行最小连接测试并返回提供商、模型和耗时；不保存配置 |

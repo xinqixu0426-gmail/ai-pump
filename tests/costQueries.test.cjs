@@ -302,6 +302,21 @@ test('成本 Query 的配方覆盖预览保持只读和原响应字段', () => {
         assert.equal(typeof result.data.costSnapshot, 'object');
         assert.equal(result.data.configurationPolicyMode, 'explicit');
         assert.deepEqual(result.data.configurationPolicy.fields.cableLength, [5]);
+        assert.equal(result.data.configurationSnapshot.hasStainlessShaftJoint, false);
+        assert.equal(result.data.configurationSnapshot.stainlessShaftJointCost, 0);
+        assert.equal(result.data.configurationSnapshot.rotorShaftProcess, 'standard');
+        const shaftJoint = fixture.queries.previewRecipeCost(1, {
+            hasStainlessShaftJoint: true,
+        });
+        assert.equal(shaftJoint.data.unitCost, 26);
+        assert.equal(shaftJoint.data.configurationSnapshot.hasStainlessShaftJoint, true);
+        assert.equal(shaftJoint.data.configurationSnapshot.stainlessShaftJointCost, 6);
+        assert.equal(shaftJoint.data.configurationSnapshot.rotorShaftProcess, 'stainless_friction_weld');
+        assert.equal(shaftJoint.data.parts.some(part => (
+            part.costRole === 'rotorProcess'
+            && part.inventoryType === 'none'
+            && part.snapshotPrice === 6
+        )), true);
         assert.throws(
             () => fixture.queries.previewRecipeCost(1, { cableLength: 10 }),
             error => error.code === 'RECIPE_CONFIGURATION_NOT_ALLOWED'

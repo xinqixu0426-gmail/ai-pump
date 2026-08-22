@@ -412,6 +412,53 @@ test('直接建单按客户配置覆盖锁定最终成本、配置和 BOM 快照
     }
 });
 
+test('直接建单锁定不锈钢接轴工艺且不生成采购缺料或线圈阻塞', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{
+                id: 'stainless-shaft-order-item',
+                recipeId: 2,
+                qty: 2,
+                profitMargin: 1.2,
+                configurationOverrides: {
+                    hasFloat: false,
+                    hasStainlessShaftJoint: true,
+                    stainlessShaftJointCost: 8,
+                },
+            }],
+        });
+        const [item] = JSON.parse(draft.itemsJson);
+        const bom = JSON.parse(item.partsJson);
+        const purchaseList = JSON.parse(draft.purchaseListJson);
+        const processPart = bom.find(part => part.costRole === 'rotorProcess');
+
+        assert.equal(item.unitCost, 13);
+        assert.equal(item.configurationSnapshot.hasStainlessShaftJoint, true);
+        assert.equal(item.configurationSnapshot.stainlessShaftJointCost, 8);
+        assert.equal(item.configurationSnapshot.rotorShaftProcess, 'stainless_friction_weld');
+        assert.equal(item.costSnapshot.processes.rotorShaft.cost, 8);
+        assert.equal(processPart.inventoryType, 'none');
+        assert.equal(purchaseList.some(part => part.costRole === 'rotorProcess'), false);
+
+        const readiness = buildOrderReadiness({
+            order: {
+                id: 99,
+                status: '待采购',
+                itemsJson: draft.itemsJson,
+                purchaseListJson: draft.purchaseListJson,
+            },
+            plan: { purchaseList },
+            recipes: [{ id: 2, name: '可配置水泵' }],
+            now: new Date('2026-08-02T00:02:00.000Z'),
+        });
+        assert.equal(readiness.blockers.some(blocker => blocker.code === 'coil_inventory_unresolved'), false);
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('直接建单由服务端拒绝超出配方策略的客户配置', () => {
     const fixture = createFixture();
     try {

@@ -265,6 +265,55 @@ test('报价转订单仅对没有当前快照字段的历史报价使用配方 f
     }
 });
 
+test('报价转订单原样继承不锈钢接轴的冻结配置、成本和工艺 BOM', () => {
+    const fixture = createFixture();
+    try {
+        const items = JSON.parse(
+            fixture.db.prepare('SELECT items_json FROM quotations WHERE id = 3').get().items_json
+        );
+        items[0].unitCost = 11;
+        items[0].overrides.hasStainlessShaftJoint = true;
+        items[0].overrides.stainlessShaftJointCost = 6;
+        items[0].configurationSnapshot.hasStainlessShaftJoint = true;
+        items[0].configurationSnapshot.stainlessShaftJointCost = 6;
+        items[0].configurationSnapshot.rotorShaftProcess = 'stainless_friction_weld';
+        items[0].costSnapshot.unitCost = 11;
+        items[0].costSnapshot.processes = {
+            rotorShaft: {
+                code: 'stainless_friction_weld',
+                enabled: true,
+                cost: 6,
+            },
+        };
+        items[0].bomSnapshot.push({
+            name: '转子不锈钢接轴加工',
+            model: '不锈钢接轴加工',
+            qty: 1,
+            snapshotPrice: 6,
+            inventoryType: 'none',
+            costRole: 'rotorProcess',
+            configurationDependencies: ['hasStainlessShaftJoint', 'stainlessShaftJointCost'],
+            processCode: 'stainless_friction_weld',
+        });
+        fixture.db.prepare('UPDATE quotations SET items_json = ? WHERE id = 3')
+            .run(JSON.stringify(items));
+
+        const draft = buildQuotationOrderDraft(fixture.dependencies, 3);
+        const bom = JSON.parse(draft.items[0].partsJson);
+        const processPart = bom.find(part => part.costRole === 'rotorProcess');
+
+        assert.equal(draft.items[0].unitCost, 11);
+        assert.equal(draft.items[0].configurationOverrides.hasStainlessShaftJoint, true);
+        assert.equal(draft.items[0].configurationSnapshot.rotorShaftProcess, 'stainless_friction_weld');
+        assert.equal(draft.items[0].costSnapshot.processes.rotorShaft.cost, 6);
+        assert.equal(processPart.inventoryType, 'none');
+        assert.equal(processPart.partId, undefined);
+        assert.equal(draft.purchaseList.some(part => part.costRole === 'rotorProcess'), false);
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('报价转订单对历史 BOM 补齐身份并拒绝多供应商歧义', () => {
     const fixture = createFixture();
     try {
