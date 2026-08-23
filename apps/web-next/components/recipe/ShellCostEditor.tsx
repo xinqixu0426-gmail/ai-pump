@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronDown, Package, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EditableValueSelect } from '@/components/recipe/EditableValueSelect';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Checkbox, selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
@@ -442,34 +443,44 @@ export function ShellCostEditor({
                           {barrelComponentNameOptions.map((name) => <option key={name} value={name}>{name}</option>)}
                         </select>
                       ) : (
-                        <input value={row.name} onChange={(event) => updateComponentRow(row.id, { name: event.target.value })} placeholder={row.componentType === 'subassembly' ? '例如：铝铸件小套件' : '例如：上帽'} list={row.componentType === 'subassembly' ? undefined : 'shell-component-name-options'} className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                        row.componentType === 'subassembly' ? (
+                          <input value={row.name} onChange={(event) => updateComponentRow(row.id, { name: event.target.value })} placeholder="例如：铝铸件小套件" className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
+                        ) : (
+                          <EditableValueSelect
+                            value={row.name}
+                            options={shellComponentNameOptions}
+                            onChange={(name) => updateComponentRow(row.id, { name })}
+                            ariaLabel="组件名称"
+                            listboxId={`shell-component-name-options-${row.id}`}
+                            placeholder="例如：上帽"
+                            rootClassName="relative"
+                          />
+                        )
                       )}
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">零件型号</span>
-                      <input
+                      <EditableValueSelect
                         value={row.model || ''}
-                        onChange={(event) => updateComponentRow(row.id, { model: event.target.value })}
-                        aria-label={`${row.name || '组件'}零件型号`}
-                        list="shell-component-model-options"
+                        options={modelOptions}
+                        onChange={(model) => updateComponentRow(row.id, { model })}
+                        ariaLabel={`${row.name || '组件'}零件型号`}
+                        listboxId={`shell-component-model-options-${row.id}`}
                         placeholder={row.componentType === 'subassembly' ? '输入或检索小套件型号' : '输入或检索零件型号'}
-                        autoComplete="off"
-                        className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                        rootClassName="relative"
                       />
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">供应商</span>
-                      <input
+                      <EditableValueSelect
                         value={row.supplier || ''}
-                        onChange={(event) => updateComponentRow(row.id, { supplier: event.target.value })}
-                        list={`shell-component-supplier-options-${row.id}`}
+                        options={suppliersForModel(String(row.model || ''))}
+                        onChange={(supplier) => updateComponentRow(row.id, { supplier })}
+                        ariaLabel={`${row.name || '组件'}供应商`}
+                        listboxId={`shell-component-supplier-options-${row.id}`}
                         placeholder="输入或检索供应商"
-                        autoComplete="off"
-                        className="h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                        rootClassName="relative"
                       />
-                      <datalist id={`shell-component-supplier-options-${row.id}`}>
-                        {suppliersForModel(String(row.model || '')).map((supplier) => <option key={supplier} value={supplier} />)}
-                      </datalist>
                     </label>
                     <label className="block min-w-0">
                       <span className="mb-1 block text-xs font-medium text-muted">{row.componentType === 'stainlessStretchBarrel' ? '基准长度(cm)' : '数量'}</span>
@@ -619,12 +630,6 @@ export function ShellCostEditor({
               ) : null}
             </div>
           ))}
-          <datalist id="shell-component-name-options">
-            {shellComponentNameOptions.map((name) => <option key={name} value={name} />)}
-          </datalist>
-          <datalist id="shell-component-model-options">
-            {modelOptions.map((model) => <option key={model} value={model} />)}
-          </datalist>
           {modelOptions.length === 0 ? (
             <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">零件库暂无“泵壳搭配”类别零件，请先到零件管理中建立组件型号。</div>
           ) : null}

@@ -13,6 +13,7 @@ import {
 } from '@/components/recipe/ShellCostEditor';
 import { Button } from '@/components/ui/button';
 import { ConfigurationPolicyEditor } from '@/components/recipe/ConfigurationPolicyEditor';
+import { EditableValueSelect } from '@/components/recipe/EditableValueSelect';
 import { selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 import { parsePumpShellMeta } from '@/lib/part-form-rules';
@@ -396,16 +397,15 @@ export function PumpShellTemplateEditor({
                   </>
                 ) : (
                   <>
-                    <input
+                    <EditableValueSelect
                       value={form.shellModel}
-                      onChange={(event) => selectShell(event.target.value)}
-                      list="shell-template-model-options"
+                      options={shellCatalogOptions.map((option) => option.model)}
+                      onChange={selectShell}
+                      ariaLabel="组合名称或泵壳型号"
+                      listboxId="shell-template-model-options"
                       placeholder="例如：V系列自由组合壳体"
-                      className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      rootClassName="relative mt-2"
                     />
-                    <datalist id="shell-template-model-options">
-                      {shellCatalogOptions.map((option) => <option key={option.model} value={option.model} />)}
-                    </datalist>
                     <span className="mt-2 block text-xs text-muted">可直接输入新的组合名称，也可展开选择零件库中的泵壳型号。</span>
                   </>
                 )}
@@ -463,16 +463,18 @@ export function PumpShellTemplateEditor({
                 const modelOptions = Array.from(new Set(
                   templatePartCatalogForName(partCatalog, row.name).map((part) => part.model).filter(Boolean)
                 )).sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'));
-                const modelListId = `template-part-model-options-${row.id}`;
                 return (
                 <div key={row.id} className="grid gap-2 lg:grid-cols-[minmax(130px,1fr)_minmax(180px,1.2fr)_minmax(120px,0.8fr)_96px_auto]">
                   <input value={row.name} onChange={(event) => updatePartRow(row.id, { name: event.target.value })} placeholder="名称" aria-label={`固定配件名称 ${row.name || ''}`} className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                  <span className="min-w-0">
-                    <input value={row.model} onChange={(event) => updatePartRow(row.id, { model: event.target.value })} placeholder={category ? `${category}型号` : '型号'} aria-label={`${row.name || '固定配件'}型号${category ? `（${category}）` : ''}`} list={modelListId} className="h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                    <datalist id={modelListId}>
-                      {modelOptions.map((model) => <option key={model} value={model} />)}
-                    </datalist>
-                  </span>
+                  <EditableValueSelect
+                    value={row.model}
+                    options={modelOptions}
+                    onChange={(model) => updatePartRow(row.id, { model })}
+                    placeholder={category ? `${category}型号` : '型号'}
+                    ariaLabel={`${row.name || '固定配件'}型号${category ? `（${category}）` : ''}`}
+                    listboxId={`template-part-model-options-${row.id}`}
+                    rootClassName="relative min-w-0"
+                  />
                   <input value={row.supplier || ''} onChange={(event) => updatePartRow(row.id, { supplier: event.target.value })} placeholder="供应商" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <input value={String(row.qty)} onChange={(event) => updatePartRow(row.id, { qty: numberValue(event.target.value) })} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <span className="flex gap-1">

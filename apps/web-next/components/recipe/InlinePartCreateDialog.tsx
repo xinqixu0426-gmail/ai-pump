@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EditableValueSelect } from '@/components/recipe/EditableValueSelect';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
@@ -323,10 +324,14 @@ export function InlinePartCreateDialog({
               </Field>
             ) : null}
             <Field label="供应商" required>
-              <Input value={draft.supplier} onChange={(event) => updateDraft({ supplier: event.target.value })} list="inline-part-supplier-options" placeholder="供应商名称" />
-              <datalist id="inline-part-supplier-options">
-                {sortedSupplierOptions.map((supplier) => <option key={supplier} value={supplier} />)}
-              </datalist>
+              <EditableValueSelect
+                value={draft.supplier}
+                options={sortedSupplierOptions}
+                onChange={(supplier) => updateDraft({ supplier })}
+                ariaLabel="供应商"
+                listboxId="inline-part-supplier-options"
+                placeholder="供应商名称"
+              />
             </Field>
             <Field label="目录单价" required>
               <Input value={draft.price} onChange={(event) => updateDraft({ price: event.target.value })} type="number" min="0" step="0.01" />

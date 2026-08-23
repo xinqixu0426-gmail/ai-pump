@@ -87,6 +87,7 @@ export function RecipeOptionalPackingSection({
             rows={optionalParts}
             disabled={saving}
             modelListId="recipe-part-model-options"
+            modelOptions={partModelOptions}
             emptyText="暂无选配件，可添加电容、密封件、螺丝、铭牌等额外物料"
             onAdd={onAddOptionalPart}
             onUpdate={onUpdateOptionalPart}
@@ -115,6 +116,10 @@ export function RecipeOptionalPackingSection({
             rows={packingParts}
             disabled={saving}
             modelListId="recipe-packing-model-options"
+            modelOptions={packingModelOptions.map((part) => ({
+              value: part.model,
+              label: `${part.model} · ${part.label}`,
+            }))}
             emptyText="暂无包装材料，可添加纸箱、泡沫、说明书、标签等包装项"
             onAdd={onAddPackingPart}
             onUpdate={onUpdatePackingPart}
@@ -128,15 +133,6 @@ export function RecipeOptionalPackingSection({
           />
         </div>
       </div>
-
-      <datalist id="recipe-part-model-options">
-        {partModelOptions.map((model) => <option key={model} value={model} />)}
-      </datalist>
-      <datalist id="recipe-packing-model-options">
-        {packingModelOptions.map((part) => (
-          <option key={part.key} value={part.model} label={part.label} />
-        ))}
-      </datalist>
     </RecipeSection>
   );
 }

@@ -2270,7 +2270,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(recipesView, /<PumpShellTemplateEditor/);
     assert.match(templateEditor, /零件库泵壳型号/);
     assert.match(templateEditor, /组合模板名称/);
-    assert.match(templateEditor, /list="shell-template-model-options"/);
+    assert.match(templateEditor, /listboxId="shell-template-model-options"/);
     assert.match(templateEditor, /可直接输入新的组合名称，也可展开选择零件库中的泵壳型号/);
     assert.match(templateEditor, /<ShellCostEditor/);
     assert.match(shellCostEditor, /componentType/);
@@ -2279,8 +2279,8 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(shellCostEditor, /barrelComponentNameOptions = \['铝机筒', STAINLESS_STRETCH_BARREL_NAME, '铁机筒'\]/);
     assert.match(shellCostEditor, /不锈钢拉伸筒/);
     assert.match(shellCostEditor, /aria-label="机筒类型"/);
-    assert.match(shellCostEditor, /modelOptions\.map/);
-    assert.match(shellCostEditor, /id="shell-component-model-options"/);
+    assert.match(shellCostEditor, /options=\{modelOptions\}/);
+    assert.match(shellCostEditor, /listboxId=\{`shell-component-model-options-/);
     assert.match(shellCostEditor, /输入或检索零件型号/);
     assert.match(shellCostEditor, /输入或检索供应商/);
     assert.match(shellCostEditor, /存入零件库/);
@@ -2569,4 +2569,29 @@ test('Next UI 契约：整值数字输入显式复用首次聚焦全选，精细
     assert.match(guide, /不得根据 `type="number"` 全局套用/);
     assert.match(guide, /保持焦点后的再次点击仍可精确定位/);
     assert.match(guide, /螺丝直径是整体替换的名义规格，而拉伸筒基准长度是精密尺寸/);
+});
+
+test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖原生 datalist', () => {
+    const editableValueSelect = readUtf8('apps/web-next/components/recipe/EditableValueSelect.tsx');
+    const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
+    const shellCostEditor = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
+    const recipeDataTable = readUtf8('apps/web-next/components/recipe/RecipeDataTable.tsx');
+    const optionalPackingSection = readUtf8('apps/web-next/components/recipe/RecipeOptionalPackingSection.tsx');
+    const inlinePartDialog = readUtf8('apps/web-next/components/recipe/InlinePartCreateDialog.tsx');
+
+    assert.match(editableValueSelect, /onKeyUp=\{\(event\) => \{[\s\S]*event\.key === 'Backspace' \|\| event\.key === 'Delete'/);
+    assert.match(editableValueSelect, /if \(event\.key === 'ArrowDown'\) setOpen\(true\)/);
+    assert.match(editableValueSelect, /Array<string \| \{ value: string; label: string \}>/);
+
+    for (const source of [templateEditor, shellCostEditor, recipeDataTable, inlinePartDialog]) {
+        assert.match(source, /EditableValueSelect/);
+    }
+    for (const source of [templateEditor, shellCostEditor, recipeDataTable, optionalPackingSection, inlinePartDialog]) {
+        assert.doesNotMatch(source, /<datalist|\blist=/);
+    }
+
+    assert.match(templateEditor, /template-part-model-options-/);
+    assert.match(recipeDataTable, /modelListId.*row\.id/);
+    assert.match(optionalPackingSection, /label: `\$\{part\.model\} · \$\{part\.label\}`/);
+    assert.match(shellCostEditor, /shell-component-model-options-/);
 });

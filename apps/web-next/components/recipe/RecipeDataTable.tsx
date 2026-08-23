@@ -2,6 +2,7 @@
 
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EditableValueSelect } from '@/components/recipe/EditableValueSelect';
 import { selectInputValueOnFocus } from '@/components/ui/field';
 import { money } from '@/lib/format';
 
@@ -21,6 +22,7 @@ type RecipeDataTableProps = {
   rows: RecipeSelectionRow[];
   disabled?: boolean;
   modelListId: string;
+  modelOptions: Array<string | { value: string; label: string }>;
   emptyText: string;
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<RecipeSelectionRow>) => void;
@@ -38,6 +40,7 @@ export function RecipeDataTable({
   rows,
   disabled,
   modelListId,
+  modelOptions,
   emptyText,
   onAdd,
   onUpdate,
@@ -91,12 +94,15 @@ export function RecipeDataTable({
           {rows.map((row) => (
             <tr key={row.id} className="border-t border-line align-top">
               <td className="px-2.5 py-2">
-                <input
+                <EditableValueSelect
                   value={row.model}
-                  onChange={(event) => onUpdate(row.id, { model: event.target.value })}
-                  list={modelListId}
+                  options={modelOptions}
+                  onChange={(model) => onUpdate(row.id, { model })}
+                  ariaLabel={isPacking ? '包装材料型号' : '选配件型号'}
+                  listboxId={`${modelListId}-${row.id}`}
                   placeholder={isPacking ? '包材型号' : '型号'}
-                  className="h-8 w-full min-w-0 rounded-md border border-line px-2 text-sm text-slate-900 outline-none transition-colors duration-150 focus:border-slate-400"
+                  rootClassName="relative"
+                  compact
                 />
                 <div className="mt-1 truncate text-[11px] text-slate-500" title={getCostLine(row)}>{getCostLine(row)}</div>
                 {getFormula?.(row) ? (

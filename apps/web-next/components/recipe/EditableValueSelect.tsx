@@ -6,10 +6,12 @@ import { selectInputValueOnFocus } from '@/components/ui/field';
 
 type EditableValueSelectProps = {
   value: string;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   onChange: (value: string) => void;
   ariaLabel: string;
   listboxId: string;
+  placeholder?: string;
+  rootClassName?: string;
   inputType?: 'text' | 'number';
   inputMode?: 'text' | 'decimal' | 'numeric';
   min?: string;
@@ -25,6 +27,8 @@ export function EditableValueSelect({
   onChange,
   ariaLabel,
   listboxId,
+  placeholder = '选择或输入',
+  rootClassName = 'relative mt-1',
   inputType = 'text',
   inputMode,
   min,
@@ -35,6 +39,9 @@ export function EditableValueSelect({
 }: EditableValueSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const normalizedOptions = options.map((option) => (
+    typeof option === 'string' ? { value: option, label: option } : option
+  ));
 
   useEffect(() => {
     if (!open) return;
@@ -46,7 +53,7 @@ export function EditableValueSelect({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative mt-1">
+    <div ref={rootRef} className={rootClassName}>
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -61,6 +68,9 @@ export function EditableValueSelect({
           if (event.key === 'Escape') setOpen(false);
           if (event.key === 'ArrowDown') setOpen(true);
         }}
+        onKeyUp={(event) => {
+          if (event.key === 'Backspace' || event.key === 'Delete') setOpen(false);
+        }}
         type={inputType}
         inputMode={inputMode}
         min={min}
@@ -72,7 +82,7 @@ export function EditableValueSelect({
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={listboxId}
-        placeholder="选择或输入"
+        placeholder={placeholder}
         className={`${compact ? 'h-8 px-2 pr-8' : 'h-9 px-3 pr-10'} w-full rounded-md border border-line text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60`}
       />
       <button
@@ -87,20 +97,20 @@ export function EditableValueSelect({
       </button>
       {open && !disabled && options.length > 0 ? (
         <div id={listboxId} role="listbox" aria-label={`${ariaLabel}候选`} className="absolute z-30 mt-1 max-h-64 w-full min-w-36 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
-          {options.map((option) => (
+          {normalizedOptions.map((option) => (
             <button
-              key={option}
+              key={`${option.value}\u0000${option.label}`}
               type="button"
               role="option"
-              aria-selected={value === option}
+              aria-selected={value === option.value}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
-                onChange(option);
+                onChange(option.value);
                 setOpen(false);
               }}
               className="flex h-8 w-full items-center px-3 text-left text-sm tabular-nums text-ink hover:bg-slate-50"
             >
-              {option}
+              {option.label}
             </button>
           ))}
         </div>
