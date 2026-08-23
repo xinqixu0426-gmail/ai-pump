@@ -60,6 +60,22 @@ function hasPurchaseProgress(item) {
     return normalized.orderedQty > 0 || normalized.receivedQty > 0 || normalized.stockedQty > 0;
 }
 
+function orderCoreEditEligibility(status, purchaseList = []) {
+    if (status === '待确认') return { allowed: true, reason: '' };
+    if (status === '待采购') {
+        const progressItem = (purchaseList || []).find(hasPurchaseProgress);
+        if (!progressItem) return { allowed: true, reason: '' };
+        return {
+            allowed: false,
+            reason: `物料“${progressItem.model || progressItem.name || '未命名物料'}”已经产生采购进度`,
+        };
+    }
+    return {
+        allowed: false,
+        reason: `订单状态“${status || '未知'}”不允许修改核心明细`,
+    };
+}
+
 function purchaseToInventoryQty(item, purchaseQty) {
     const factor = finiteNonNegative(item?.stockQtyPerUnit, 1) || 1;
     return finiteNonNegative(purchaseQty) * factor;
@@ -174,6 +190,8 @@ module.exports = {
     ORDER_STATUSES,
     TERMINAL_ORDER_STATUSES,
     QUOTATION_STATUSES,
+    hasPurchaseProgress,
+    orderCoreEditEligibility,
     normalizePurchaseItem,
     validatePurchaseProgress,
     deriveProcurementStatus,

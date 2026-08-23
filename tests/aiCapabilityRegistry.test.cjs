@@ -143,6 +143,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'parts.list',
         'coils.list',
         'orders.list',
+        'orders.revisions.list',
         'purchasing.overview',
         'recipes.list',
         'customers.list',

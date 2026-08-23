@@ -747,6 +747,72 @@ function repairOrderRequirementSummariesForeignKey(db) {
     `);
 }
 
+function createOrderRevisionsTable(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS order_revisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            revision_no INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            before_snapshot_json TEXT NOT NULL,
+            after_snapshot_json TEXT NOT NULL,
+            change_summary_json TEXT NOT NULL DEFAULT '[]',
+            operation_id TEXT NOT NULL,
+            actor TEXT NOT NULL DEFAULT 'system',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(order_id) REFERENCES orders(id),
+            UNIQUE(order_id, revision_no),
+            UNIQUE(operation_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_order_revisions_order
+            ON order_revisions(order_id, revision_no DESC);
+    `);
+}
+
+function createOrderRevisionImmutabilityTriggers(db) {
+    db.exec(`
+        CREATE TRIGGER IF NOT EXISTS order_revisions_no_update
+        BEFORE UPDATE ON order_revisions
+        BEGIN
+            SELECT RAISE(ABORT, 'order revisions are immutable');
+        END;
+        CREATE TRIGGER IF NOT EXISTS order_revisions_no_delete
+        BEFORE DELETE ON order_revisions
+        BEGIN
+            SELECT RAISE(ABORT, 'order revisions are immutable');
+        END;
+    `);
+}
+
+function repairOrderRevisionsForeignKey(db) {
+    if (!tableExists(db, 'order_revisions')) {
+        createOrderRevisionsTable(db);
+        return;
+    }
+    const foreignKeys = db.pragma('foreign_key_list(order_revisions)');
+    if (foreignKeys.some(item => item.from === 'order_id' && item.table === 'orders')) return;
+
+    db.exec(`
+        DROP INDEX IF EXISTS idx_order_revisions_order;
+        DROP TABLE IF EXISTS order_revisions_v65;
+        ALTER TABLE order_revisions RENAME TO order_revisions_v65;
+    `);
+    createOrderRevisionsTable(db);
+    db.exec(`
+        INSERT INTO order_revisions (
+            id, order_id, revision_no, reason,
+            before_snapshot_json, after_snapshot_json, change_summary_json,
+            operation_id, actor, created_at
+        )
+        SELECT
+            id, order_id, revision_no, reason,
+            before_snapshot_json, after_snapshot_json, change_summary_json,
+            operation_id, actor, created_at
+        FROM order_revisions_v65;
+        DROP TABLE order_revisions_v65;
+    `);
+}
+
 function createOrderExecutionRecordsTable(db) {
     db.exec(`
         CREATE TABLE IF NOT EXISTS order_execution_records (
@@ -2899,6 +2965,24 @@ const MIGRATIONS = Object.freeze([
             }
         },
     },
+    {
+        version: 65,
+        name: 'order_revision_history',
+        signature: 'order-edit-revision-snapshots-v1',
+        foreignKeysOff: true,
+        up(db) {
+            createOrderRevisionsTable(db);
+            repairOrderRevisionsForeignKey(db);
+        },
+    },
+    {
+        version: 66,
+        name: 'immutable_order_revisions',
+        signature: 'reject-order-revision-update-delete-v1',
+        up(db) {
+            createOrderRevisionImmutabilityTriggers(db);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
@@ -2982,6 +3066,7 @@ module.exports = {
     createOrderExecutionRecordsTable,
     migrationChecksum,
     repairOrderExecutionRecordsForeignKey,
+    repairOrderRevisionsForeignKey,
     repairOrderRequirementSummariesForeignKey,
     repairOrderPackagingEstimates,
     repairRecipePackagingSnapshots,

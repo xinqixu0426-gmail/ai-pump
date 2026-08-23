@@ -668,6 +668,7 @@ function setConfig(key, value, options = {}) {
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
 const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'quotation_attachment_summaries', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'factory_ai_rules', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
+const SAFE_INSERT_TABLES = new Set([...SAFE_TABLES, 'order_revisions']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
 function auditJson(value) {
@@ -692,7 +693,7 @@ function notifyKnowledgeSourceChange(table, id, operation) {
 }
 
 function safeInsert(table, values, options = {}) {
-    if (!SAFE_TABLES.has(table)) throw new Error(`safeInsert: 非法表名 "${table}"`);
+    if (!SAFE_INSERT_TABLES.has(table)) throw new Error(`safeInsert: 非法表名 "${table}"`);
     const cols = [];
     const vals = [];
     for (const [col, val] of Object.entries(values || {})) {

@@ -4,6 +4,7 @@ const {
     appendPendingOrderItem,
     applyOrderItemPreview,
     buildPendingOrderItem,
+    hasOrderPurchaseProgress,
     removeCalculatingItemId,
     removeOrderDraftItem,
     rollbackOrderItemConfiguration,
@@ -49,6 +50,26 @@ test('订单待加入产品：预览成功保留当前数量和加价并更新�
     assert.equal(next.unitCost, 140);
     assert.equal(next.unitPrice, 189);
     assert.deepEqual(next.configurationWarnings, [{ code: 'interpolated', message: '插值方案' }]);
+});
+
+test('订单手工销售价在配置成本重算后保持不变并反算利润率', () => {
+    const current = item({
+        pricingMode: 'manual',
+        unitCost: 100,
+        unitPrice: 125,
+        profitMargin: 1.25,
+    });
+    const next = applyOrderItemPreview(current, 'pending-a', { unitCost: 110 });
+    assert.equal(next.unitCost, 110);
+    assert.equal(next.unitPrice, 125);
+    assert.equal(next.profitMargin, 125 / 110);
+});
+
+test('订单编辑资格兼容历史 purchased 布尔进度并识别到货和入库边界', () => {
+    assert.equal(hasOrderPurchaseProgress({ needToBuy: 6, purchased: true }), true);
+    assert.equal(hasOrderPurchaseProgress({ plannedQty: 6, purchased: false }), false);
+    assert.equal(hasOrderPurchaseProgress({ plannedQty: 6, receivedQty: 1 }), true);
+    assert.equal(hasOrderPurchaseProgress({ plannedQty: 6, stockedQty: 1 }), true);
 });
 
 test('订单待加入产品：预览失败只回滚配置字段，不吞掉等待期间的数量和价格输入', () => {

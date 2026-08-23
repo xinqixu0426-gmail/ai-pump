@@ -1008,6 +1008,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'ai', 'internal']),
     }),
+    'orders.revisions.list': defineQueryCapability({
+        capabilityId: 'orders.revisions.list',
+        domain: 'order',
+        inputSchema: 'GET /api/orders/:id/revisions',
+        outputSchema: 'OrderRevision[]',
+        sourceOfTruth: 'order_revisions',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'quotations.list': defineQueryCapability({
         capabilityId: 'quotations.list',
         domain: 'quotation',
@@ -1229,9 +1238,9 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'orders.update_draft': defineBusinessCapability({
         capabilityId: 'orders.update_draft',
         domain: 'order',
-        inputSchema: 'PATCH /api/orders/:id',
+        inputSchema: 'PATCH /api/orders/:id with editReason',
         outputSchema: 'CommandReceipt<OrderUpdateResult>',
-        sourceOfTruth: 'recipeConfigurationPolicy+configuredRecipeSnapshot+costEngine+orderSaveDraft+orders',
+        sourceOfTruth: 'recipeConfigurationPolicy+configuredRecipeSnapshot+costEngine+orderSaveDraft+orders+order_revisions',
         riskLevel: 'high',
         supportsPreview: true,
         previewPath: '/api/orders/save-payload-draft',

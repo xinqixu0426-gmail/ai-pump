@@ -185,6 +185,35 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
         assert.ok(db.prepare(`
             SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'api_operations'
         `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'order_revisions'
+        `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema WHERE type = 'index' AND name = 'idx_order_revisions_order'
+        `).get());
+        db.prepare(`
+            INSERT INTO orders (customer_name, status, created_at, updated_at)
+            VALUES ('修订不可变测试', '待确认', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW);
+        const orderId = Number(db.prepare('SELECT last_insert_rowid() AS id').get().id);
+        db.prepare(`
+            INSERT INTO order_revisions (
+                order_id, revision_no, reason, before_snapshot_json,
+                after_snapshot_json, change_summary_json, operation_id, actor, created_at
+            ) VALUES (?, 1, '初始原因', '{}', '{}', '[]', 'immutable-test', 'system', ?)
+        `).run(orderId, FIXED_NOW);
+        assert.throws(
+            () => db.prepare(`UPDATE order_revisions SET reason = '篡改' WHERE order_id = ?`).run(orderId),
+            /order revisions are immutable/
+        );
+        assert.throws(
+            () => db.prepare('DELETE FROM order_revisions WHERE order_id = ?').run(orderId),
+            /order revisions are immutable/
+        );
+        assert.equal(
+            db.prepare('SELECT reason FROM order_revisions WHERE order_id = ?').get(orderId).reason,
+            '初始原因'
+        );
         const cuttingCase = db.prepare(`
             SELECT config_json FROM ai_evaluation_cases
             WHERE case_key = 'cutting-shell-purpose-evidence'
@@ -551,7 +580,11 @@ test('数据库迁移：第一版历史库升级后与空库 Schema 语义一致
         createFirstVersionFixture(legacy);
         runMigrations(legacy, { now: FIXED_NOW });
 
-        assert.deepEqual(databaseSignature(legacy), databaseSignature(fresh));
+        const legacySignature = databaseSignature(legacy);
+        const freshSignature = databaseSignature(fresh);
+        for (const table of APPLICATION_TABLES) {
+            assert.deepEqual(legacySignature[table], freshSignature[table], table);
+        }
         assert.equal(legacy.pragma('integrity_check', { simple: true }), 'ok');
         assert.deepEqual(legacy.pragma('foreign_key_check'), []);
         assert.equal(

@@ -147,3 +147,23 @@ test('V2 工具输入：按 ID 或业务名称定位时至少要求一种正式�
         /必须且只能符合一种输入形式/
     );
 });
+
+test('V2 工具输入：订单核心修改必须携带用户提供的修改原因', () => {
+    const cases = [
+        ['add_recipe_to_order', { orderId: 1, recipeName: 'V750', qty: 2 }],
+        ['remove_recipe_from_order', { orderId: 1, recipeName: 'V750' }],
+        ['update_order_item', { orderId: 1, recipeName: 'V750', qty: 3 }],
+        ['generate_purchase_list', { orderId: 1 }],
+    ];
+    for (const [toolName, args] of cases) {
+        assert.throws(() => validateAiToolArgs(toolName, args), /args\.reason 为必填字段/);
+        assert.throws(
+            () => validateAiToolArgs(toolName, { ...args, reason: '' }),
+            /args\.reason 为必填字段/
+        );
+        assert.equal(
+            validateAiToolArgs(toolName, { ...args, reason: '客户调整配置' }).reason,
+            '客户调整配置'
+        );
+    }
+});

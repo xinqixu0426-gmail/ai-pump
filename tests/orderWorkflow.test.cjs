@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     normalizePurchaseItem,
+    orderCoreEditEligibility,
     validatePurchaseProgress,
     deriveProcurementStatus,
     assertOrderTransition,
@@ -9,6 +10,19 @@ const {
     mergePurchasePlanItem,
     purchaseToInventoryQty,
 } = require('../api/services/orderWorkflow.cjs');
+
+test('订单核心编辑资格允许待确认和零采购进度待采购', () => {
+    assert.equal(orderCoreEditEligibility('待确认', []).allowed, true);
+    assert.equal(orderCoreEditEligibility('待采购', []).allowed, true);
+    assert.equal(orderCoreEditEligibility('待采购', [{ plannedQty: 2, orderedQty: 0 }]).allowed, true);
+});
+
+test('订单核心编辑资格拒绝已有采购进度和其他状态', () => {
+    assert.equal(orderCoreEditEligibility('待采购', [{ model: 'P-1', orderedQty: 1 }]).allowed, false);
+    for (const status of ['采购中', '采购完成', '已关闭', '已取消']) {
+        assert.equal(orderCoreEditEligibility(status, []).allowed, false);
+    }
+});
 
 test('旧采购布尔值兼容为完整已下单数量', () => {
     const item = normalizePurchaseItem({ needToBuy: 6, purchased: true });

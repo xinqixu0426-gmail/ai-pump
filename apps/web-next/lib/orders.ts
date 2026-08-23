@@ -1,6 +1,7 @@
 import type { ApiResponse } from './api';
 import { createIdempotencyKey, proxyRequest } from './api';
 import type { Recipe } from './recipes';
+import { hasOrderPurchaseProgress } from './order-draft-state.cjs';
 import {
   buildRecipeDefaultConfiguration,
   type RecipeConfigurationOverrides,
@@ -20,6 +21,7 @@ export type OrderItem = {
   unitCost: number;
   unitPrice: number;
   profitMargin: number;
+  pricingMode?: 'margin' | 'manual';
   partsJson: string;
   configurationOverrides?: RecipeConfigurationOverrides;
   configurationSnapshot?: RecipeConfigurationSnapshot | null;
@@ -95,6 +97,38 @@ export type Order = {
   updatedAt: string;
 };
 
+export type OrderRevisionChange = {
+  type: string;
+  field?: string;
+  itemId?: string;
+  itemName?: string;
+  description: string;
+  from?: unknown;
+  to?: unknown;
+};
+
+export type OrderRevision = {
+  id: number;
+  orderId: number;
+  revisionNo: number;
+  reason: string;
+  beforeSnapshot: Record<string, unknown>;
+  afterSnapshot: Record<string, unknown>;
+  changes: OrderRevisionChange[];
+  operationId: string;
+  actor: string;
+  createdAt: string | null;
+};
+
+export type OrderSavePayloadDraft = Record<string, unknown> & {
+  capabilityId: 'orders.create' | 'orders.update_draft';
+  preview: true;
+  previewHash: string;
+  suggestedIdempotencyKey: string;
+  changes: OrderRevisionChange[];
+  warnings: Array<{ code?: string; message: string }>;
+};
+
 type OrderRow = {
   id?: number;
   Id?: number;
@@ -150,12 +184,15 @@ export function calcOrderTotals(items: OrderItem[]) {
 }
 
 export function rowToOrder(row: OrderRow): Order {
-  const items = safeJsonParse<OrderItem[]>(row.itemsJson, []).map((item) => ({
+  const items: OrderItem[] = safeJsonParse<OrderItem[]>(row.itemsJson, []).map((item): OrderItem => ({
     ...item,
     qty: Number(item.qty) || 0,
     unitCost: Number(item.unitCost) || 0,
     unitPrice: Number(item.unitPrice) || 0,
     profitMargin: Number(item.profitMargin) || 1.1,
+    // 新订单会显式保存 pricingMode；历史订单没有该字段时按已确认售价处理，
+    // 避免编辑客户配置时意外用利润率覆盖原合同价。
+    pricingMode: item.pricingMode === 'margin' ? 'margin' : 'manual',
   }));
   const totals = calcOrderTotals(items);
   const id = row.id ?? row.Id ?? 0;
@@ -206,6 +243,7 @@ export function createOrderItemFromRecipe(recipe: Recipe, qty: number, profitMar
     unitCost: roundMoney(unitCost),
     unitPrice: roundMoney(unitCost * margin),
     profitMargin: margin,
+    pricingMode: 'margin',
     partsJson: recipe.partsJson || '[]',
     configurationOverrides: buildRecipeDefaultConfiguration(recipe),
   };
@@ -258,15 +296,22 @@ export async function createOrder(input: {
   return rowToOrder(result.data);
 }
 
-export async function saveOrder(order: Order): Promise<Order> {
+export async function prepareOrderUpdate(order: Order, editReason: string): Promise<OrderSavePayloadDraft> {
+  return buildOrderSavePayloadDraft({
+    ...order,
+    orderId: Number(order.id),
+    editReason,
+  });
+}
+
+export async function commitOrderUpdate(order: Order, payload: OrderSavePayloadDraft): Promise<Order> {
   const id = Number(order.id);
   if (!Number.isInteger(id) || id <= 0) throw new Error('非法订单 ID');
-  const payload = await buildOrderSavePayloadDraft(order);
 
   const result = await proxyRequest<ApiResponse<OrderRow>>(`/api/orders/${id}`, {
     method: 'PATCH',
     headers: {
-      'Idempotency-Key': createIdempotencyKey(`order-update:${id}`),
+      'Idempotency-Key': payload.suggestedIdempotencyKey || createIdempotencyKey(`order-update:${id}`),
     },
     body: JSON.stringify({
       ...payload,
@@ -277,6 +322,25 @@ export async function saveOrder(order: Order): Promise<Order> {
   return rowToOrder(result.data);
 }
 
+export async function saveOrder(order: Order, editReason: string): Promise<Order> {
+  const payload = await prepareOrderUpdate(order, editReason);
+  return commitOrderUpdate(order, payload);
+}
+
+export async function getOrderRevisions(orderIdValue: string | number): Promise<OrderRevision[]> {
+  const orderId = Number(orderIdValue);
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new Error('非法订单 ID');
+  const result = await proxyRequest<ApiResponse<OrderRevision[]>>(`/api/orders/${orderId}/revisions`);
+  if (!result.success) throw new Error(result.error || '订单修改记录加载失败');
+  return result.data || [];
+}
+
+export function canEditOrderCore(order: Order): boolean {
+  if (order.status === '待确认') return true;
+  if (order.status !== '待采购') return false;
+  return order.purchaseList.every((item) => !hasOrderPurchaseProgress(item));
+}
+
 function orderId(order: Order): number {
   const id = Number(order.id);
   if (!Number.isInteger(id) || id <= 0) throw new Error('非法订单 ID');
@@ -284,6 +348,7 @@ function orderId(order: Order): number {
 }
 
 export async function buildOrderSavePayloadDraft(input: {
+  orderId?: number;
   customerId?: number | null;
   customerName: string;
   contractNo?: string;
@@ -292,8 +357,9 @@ export async function buildOrderSavePayloadDraft(input: {
   items: OrderItem[];
   purchaseList?: PurchaseItem[];
   todos?: TodoItem[];
-}): Promise<Record<string, unknown>> {
-  const result = await proxyRequest<ApiResponse<Record<string, unknown>>>('/api/orders/save-payload-draft', {
+  editReason?: string;
+}): Promise<OrderSavePayloadDraft> {
+  const result = await proxyRequest<ApiResponse<OrderSavePayloadDraft>>('/api/orders/save-payload-draft', {
     method: 'POST',
     body: JSON.stringify(input),
   });

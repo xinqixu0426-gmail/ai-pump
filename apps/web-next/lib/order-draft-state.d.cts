@@ -32,5 +32,13 @@ export function rollbackOrderItemConfiguration(
 ): OrderItem | null
 
 export function appendPendingOrderItem(items: OrderItem[], pendingItem: OrderItem | null): OrderItem[]
+export function hasOrderPurchaseProgress(item?: {
+  plannedQty?: number
+  needToBuy?: number
+  purchased?: boolean
+  orderedQty?: number
+  receivedQty?: number
+  stockedQty?: number
+}): boolean
 export function removeOrderDraftItem(items: OrderItem[], itemId: string): OrderItem[]
 export function removeCalculatingItemId(ids: Set<string>, itemId: string): Set<string>

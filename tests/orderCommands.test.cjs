@@ -14,6 +14,7 @@ const {
 } = require('../api/services/orderCommands.cjs');
 const { createCostQueries } = require('../api/services/costQueries.cjs');
 const { buildOrderReadiness } = require('../api/services/orderReadiness.cjs');
+const { listOrderRevisions } = require('../api/services/orderRevisions.cjs');
 
 const FIXED_UPDATED_AT = '2026-08-02T00:00:00.000Z';
 const NEXT_UPDATED_AT = '2026-08-02T00:01:00.000Z';
@@ -122,6 +123,19 @@ function createFixture() {
             updated_at TEXT,
             deleted_at TEXT
         );
+        CREATE TABLE order_revisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            revision_no INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            before_snapshot_json TEXT NOT NULL,
+            after_snapshot_json TEXT NOT NULL,
+            change_summary_json TEXT NOT NULL,
+            operation_id TEXT NOT NULL UNIQUE,
+            actor TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(order_id, revision_no)
+        );
         INSERT INTO parts (
             id, model, name, supplier, price, stock, updated_at
         ) VALUES
@@ -168,10 +182,10 @@ function createFixture() {
     }
 
     function safeInsert(table, values, context) {
-        assert.equal(table, 'orders');
+        assert.ok(['orders', 'order_revisions'].includes(table));
         const columns = Object.keys(values).filter(column => values[column] !== undefined);
         const info = db.prepare(`
-            INSERT INTO orders (${columns.join(', ')})
+            INSERT INTO ${table} (${columns.join(', ')})
             VALUES (${columns.map(() => '?').join(', ')})
         `).run(...columns.map(column => values[column]));
         return {
@@ -592,6 +606,8 @@ test('配置订单正式更新复用共享快照依赖且确认哈希保持稳�
         const orderId = insertPendingOrder(fixture);
         const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
             ...draftInput(),
+            orderId,
+            editReason: '客户取消浮球配置',
             customerId: 3,
             items: [{
                 id: 'configured-update-item',
@@ -865,6 +881,8 @@ test('待确认订单编辑绑定草稿、版本、幂等和强审计', () => {
         const orderId = insertPendingOrder(fixture);
         const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
             ...draftInput(),
+            orderId,
+            editReason: '客户调整订单客户信息',
             customerId: 3,
             customerName: '修改后客户',
         });
@@ -888,9 +906,31 @@ test('待确认订单编辑绑定草稿、版本、幂等和强审计', () => {
 
         assert.equal(first.order.customerName, '修改后客户');
         assert.equal(first.status, 'completed');
-        assert.equal(first.auditIds.length, 1);
+        assert.equal(first.auditIds.length, 2);
+        assert.equal(first.revision.revisionNo, 1);
         assert.equal(replay.idempotentReplay, true);
-        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 1);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 2);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM order_revisions').get().count, 1);
+
+        const secondDraft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '客户再次调整合同号',
+            customerId: 3,
+            customerName: '修改后客户',
+            contractNo: 'HT-002',
+        });
+        const second = executeOrderUpdate(
+            fixture.dependencies,
+            orderId,
+            { ...secondDraft, expectedUpdatedAt: NEXT_UPDATED_AT },
+            commandContext(UPDATE_CAPABILITY_ID, 'update-second')
+        );
+        assert.equal(second.revision.revisionNo, 2);
+        assert.deepEqual(
+            listOrderRevisions(fixture.db, orderId).map(revision => revision.revisionNo),
+            [2, 1]
+        );
     } finally {
         fixture.db.close();
     }
@@ -900,7 +940,11 @@ test('待确认订单编辑拒绝旧版本且不留下 operation', () => {
     const fixture = createFixture();
     try {
         const orderId = insertPendingOrder(fixture);
-        const draft = buildOrderSavePayloadDraft(fixture.dependencies, draftInput());
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '版本冲突测试',
+        });
         assert.throws(
             () => executeOrderUpdate(
                 fixture.dependencies,
@@ -916,6 +960,355 @@ test('待确认订单编辑拒绝旧版本且不留下 operation', () => {
         );
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单编辑草稿要求修改原因且限制为500字', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        assert.throws(
+            () => buildOrderSavePayloadDraft(fixture.dependencies, {
+                ...draftInput(),
+                orderId,
+                editReason: '   ',
+            }),
+            error => error.code === 'order_edit_reason_required' && error.statusCode === 422
+        );
+        assert.throws(
+            () => buildOrderSavePayloadDraft(fixture.dependencies, {
+                ...draftInput(),
+                orderId,
+                editReason: '改'.repeat(501),
+            }),
+            error => error.code === 'order_edit_reason_too_long' && error.statusCode === 422
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('待采购且采购进度为零时允许编辑并替换旧订单参与库存平衡', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        fixture.db.prepare('UPDATE parts SET stock = 2 WHERE id = 1').run();
+        fixture.db.prepare(`
+            UPDATE orders
+            SET status = '待采购', purchase_list_json = ?
+            WHERE id = ?
+        `).run(JSON.stringify([{
+            model: 'P-1',
+            supplier: '供应商A',
+            plannedQty: 2,
+            orderedQty: 0,
+            receivedQty: 0,
+            stockedQty: 0,
+        }]), orderId);
+
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '客户将数量调整为1台',
+            items: [{ ...draftInput().items[0], qty: 1, unitPrice: 7 }],
+        });
+        const purchaseItem = JSON.parse(draft.purchaseListJson).find(item => item.model === 'P-1');
+        assert.equal(purchaseItem.plannedQty, 0);
+        assert.equal(draft.capabilityId, UPDATE_CAPABILITY_ID);
+        assert.match(draft.suggestedIdempotencyKey, /^order-update:/);
+
+        const result = executeOrderUpdate(
+            fixture.dependencies,
+            orderId,
+            { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+            commandContext(UPDATE_CAPABILITY_ID, 'waiting-edit')
+        );
+        assert.equal(result.order.status, '待采购');
+        assert.equal(JSON.parse(result.order.itemsJson)[0].qty, 1);
+        assert.equal(result.revision.revisionNo, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('采购进度在预览后产生时拒绝编辑且不写operation、审计或修订', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        fixture.db.prepare(`UPDATE orders SET status = '待采购' WHERE id = ?`).run(orderId);
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '客户调整数量',
+            items: [{ ...draftInput().items[0], qty: 3 }],
+        });
+        fixture.db.prepare('UPDATE orders SET purchase_list_json = ? WHERE id = ?').run(JSON.stringify([{
+            model: 'P-1',
+            supplier: '供应商A',
+            plannedQty: 2,
+            orderedQty: 1,
+            receivedQty: 0,
+            stockedQty: 0,
+        }]), orderId);
+
+        assert.throws(
+            () => executeOrderUpdate(
+                fixture.dependencies,
+                orderId,
+                { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+                commandContext(UPDATE_CAPABILITY_ID, 'progress-conflict')
+            ),
+            error => error.code === 'order_update_status_conflict' && error.statusCode === 409
+        );
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM order_revisions').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单编辑对仅到货或仅入库的采购进度都稳定拒绝且不写入', () => {
+    for (const progressField of ['receivedQty', 'stockedQty']) {
+        const fixture = createFixture();
+        try {
+            const orderId = insertPendingOrder(fixture);
+            fixture.db.prepare(`
+                UPDATE orders SET status = '待采购', purchase_list_json = ? WHERE id = ?
+            `).run(JSON.stringify([{
+                model: 'P-1',
+                supplier: '供应商A',
+                plannedQty: 2,
+                orderedQty: 0,
+                receivedQty: 0,
+                stockedQty: 0,
+                [progressField]: 1,
+            }]), orderId);
+
+            assert.throws(
+                () => executeOrderUpdate(
+                    fixture.dependencies,
+                    orderId,
+                    {
+                        ...draftInput(),
+                        editReason: `${progressField} 边界`,
+                        expectedUpdatedAt: FIXED_UPDATED_AT,
+                    },
+                    commandContext(UPDATE_CAPABILITY_ID, `progress-${progressField}`)
+                ),
+                error => error.code === 'order_update_status_conflict' && error.statusCode === 409
+            );
+            assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+            assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+            assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM order_revisions').get().count, 0);
+        } finally {
+            fixture.db.close();
+        }
+    }
+});
+
+test('订单编辑新增并删除产品后持久化新采购计划和修订摘要', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        const replacement = {
+            ...draftInput().items[0],
+            id: 'replacement-item',
+            qty: 3,
+        };
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '客户更换产品明细并调整数量',
+            items: [replacement],
+        });
+        const result = executeOrderUpdate(
+            fixture.dependencies,
+            orderId,
+            { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+            commandContext(UPDATE_CAPABILITY_ID, 'replace-item')
+        );
+        const savedItems = JSON.parse(result.order.itemsJson);
+        const savedPurchase = JSON.parse(result.order.purchaseListJson);
+        const [revision] = listOrderRevisions(fixture.db, orderId);
+
+        assert.deepEqual(savedItems.map(item => item.id), ['replacement-item']);
+        assert.equal(savedPurchase.find(item => item.model === 'P-1').plannedQty, 3);
+        assert.ok(revision.changes.some(change => change.type === 'item_removed'));
+        assert.ok(revision.changes.some(change => change.type === 'item_added'));
+        assert.equal(revision.beforeSnapshot.items.length, 1);
+        assert.equal(revision.afterSnapshot.items.length, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单编辑预览漂移、异参幂等复用和修订审计缺失均整体回滚', () => {
+    const previewFixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(previewFixture);
+        const draft = buildOrderSavePayloadDraft(previewFixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '预览漂移测试',
+            items: [{ ...draftInput().items[0], qty: 3 }],
+        });
+        previewFixture.db.prepare('UPDATE parts SET stock = 10 WHERE id = 1').run();
+        assert.throws(
+            () => executeOrderUpdate(
+                previewFixture.dependencies,
+                orderId,
+                { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+                commandContext(UPDATE_CAPABILITY_ID, 'preview-drift')
+            ),
+            error => error.code === 'preview_changed' && error.statusCode === 409
+        );
+        assert.equal(previewFixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+        assert.equal(previewFixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+        assert.equal(previewFixture.db.prepare('SELECT COUNT(*) AS count FROM order_revisions').get().count, 0);
+    } finally {
+        previewFixture.db.close();
+    }
+
+    const idempotencyFixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(idempotencyFixture);
+        const context = commandContext(UPDATE_CAPABILITY_ID, 'idempotency-conflict');
+        const firstDraft = buildOrderSavePayloadDraft(idempotencyFixture.dependencies, {
+            ...draftInput(), orderId, editReason: '第一次修改', contractNo: 'HT-A',
+        });
+        executeOrderUpdate(
+            idempotencyFixture.dependencies,
+            orderId,
+            { ...firstDraft, expectedUpdatedAt: FIXED_UPDATED_AT },
+            context
+        );
+        const secondDraft = buildOrderSavePayloadDraft(idempotencyFixture.dependencies, {
+            ...draftInput(), orderId, editReason: '第二次修改', contractNo: 'HT-B',
+        });
+        assert.throws(
+            () => executeOrderUpdate(
+                idempotencyFixture.dependencies,
+                orderId,
+                { ...secondDraft, expectedUpdatedAt: NEXT_UPDATED_AT },
+                context
+            ),
+            error => error.code === 'idempotency_key_conflict' && error.statusCode === 409
+        );
+        assert.equal(idempotencyFixture.db.prepare('SELECT COUNT(*) AS count FROM order_revisions').get().count, 1);
+    } finally {
+        idempotencyFixture.db.close();
+    }
+
+    const auditFixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(auditFixture);
+        const draft = buildOrderSavePayloadDraft(auditFixture.dependencies, {
+            ...draftInput(), orderId, editReason: '修订审计回滚测试', contractNo: 'HT-AUDIT',
+        });
+        const dependencies = {
+            ...auditFixture.dependencies,
+            safeInsert(table, values, context) {
+                if (table !== 'order_revisions') {
+                    return auditFixture.dependencies.safeInsert(table, values, context);
+                }
+                const columns = Object.keys(values);
+                const info = auditFixture.db.prepare(`
+                    INSERT INTO order_revisions (${columns.join(', ')})
+                    VALUES (${columns.map(() => '?').join(', ')})
+                `).run(...columns.map(column => values[column]));
+                return { ...info, auditId: null };
+            },
+        };
+        assert.throws(
+            () => executeOrderUpdate(
+                dependencies,
+                orderId,
+                { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+                commandContext(UPDATE_CAPABILITY_ID, 'revision-audit-failure')
+            ),
+            error => error.code === 'strong_audit_required' && error.statusCode === 500
+        );
+        const row = auditFixture.db.prepare('SELECT contract_no, updated_at FROM orders WHERE id = ?').get(orderId);
+        assert.equal(row.contract_no, 'HT-STATUS');
+        assert.equal(row.updated_at, FIXED_UPDATED_AT);
+        assert.equal(auditFixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+        assert.equal(auditFixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+        assert.equal(auditFixture.db.prepare('SELECT COUNT(*) AS count FROM order_revisions').get().count, 0);
+    } finally {
+        auditFixture.db.close();
+    }
+});
+
+test('订单仅修改数量和售价时保留已锁定成本快照并可查询修订历史', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        fixture.db.prepare(`
+            UPDATE orders
+            SET purchase_completed_at = ?, purchase_receipt_id = ?, status_reason = ?,
+                status_changed_at = ?, inventory_disposition_note = ?
+            WHERE id = ?
+        `).run('2026-08-20T01:00:00.000Z', 'receipt-history', '历史状态说明',
+            '2026-08-20T00:30:00.000Z', '历史处置说明', orderId);
+        fixture.db.prepare('UPDATE recipes SET saved_total_cost = 50 WHERE id = 1').run();
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            orderId,
+            editReason: '客户增加一台并调整成交价',
+            items: [{ ...draftInput().items[0], qty: 3, unitPrice: 7 }],
+        });
+        const [draftItem] = JSON.parse(draft.itemsJson);
+        assert.equal(draftItem.unitCost, 5);
+        assert.equal(draftItem.qty, 3);
+        assert.equal(draftItem.unitPrice, 7);
+
+        executeOrderUpdate(
+            fixture.dependencies,
+            orderId,
+            { ...draft, expectedUpdatedAt: FIXED_UPDATED_AT },
+            commandContext(UPDATE_CAPABILITY_ID, 'snapshot-preserved')
+        );
+        const [revision] = listOrderRevisions(fixture.db, orderId);
+        assert.equal(revision.revisionNo, 1);
+        assert.equal(revision.reason, '客户增加一台并调整成交价');
+        assert.equal(revision.beforeSnapshot.items[0].qty, 2);
+        assert.equal(revision.afterSnapshot.items[0].qty, 3);
+        assert.deepEqual(
+            revision.afterSnapshot.items[0].costSnapshot,
+            revision.beforeSnapshot.items[0].costSnapshot
+        );
+        const costBearingParts = value => JSON.parse(value).map(part => ({
+            model: part.model,
+            name: part.name,
+            supplier: part.supplier,
+            qty: part.qty,
+            inventoryQty: part.inventoryQty,
+            snapshotPrice: part.snapshotPrice,
+        }));
+        assert.deepEqual(
+            costBearingParts(revision.afterSnapshot.items[0].partsJson),
+            costBearingParts(revision.beforeSnapshot.items[0].partsJson)
+        );
+        assert.deepEqual(
+            revision.afterSnapshot.items[0].configurationSnapshot,
+            revision.beforeSnapshot.items[0].configurationSnapshot
+        );
+        for (const snapshot of [revision.beforeSnapshot, revision.afterSnapshot]) {
+            assert.equal(snapshot.purchaseCompletedAt, '2026-08-20T01:00:00.000Z');
+            assert.equal(snapshot.purchaseReceiptId, 'receipt-history');
+            assert.equal(snapshot.statusReason, '历史状态说明');
+            assert.equal(snapshot.statusChangedAt, '2026-08-20T00:30:00.000Z');
+            assert.equal(snapshot.inventoryDispositionNote, '历史处置说明');
+            assert.equal(snapshot.createdAt, FIXED_UPDATED_AT);
+        }
+        assert.ok(revision.changes.some(change => change.type === 'item_quantity'));
+        assert.ok(revision.changes.some(change => change.type === 'item_unit_price'));
+        assert.equal(revision.operationId, 'operation-snapshot-preserved');
+        assert.equal(revision.actor, '系统');
+        assert.ok(revision.createdAt);
     } finally {
         fixture.db.close();
     }

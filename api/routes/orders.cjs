@@ -93,6 +93,7 @@ const {
 const {
     createOrderQueries,
 } = require('../services/orderQueries.cjs');
+const { listOrderRevisions } = require('../services/orderRevisions.cjs');
 const router = Router();
 const orderRequirementCommandDependencies = { db, safeInsert, safeUpdate };
 const orderExecutionCommandDependencies = {
@@ -681,6 +682,22 @@ router.get('/:id', (req, res) => {
     }
 });
 
+router.get('/:id/revisions', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: listOrderRevisions(db, req.params.id),
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            code: error.code || 'order_revisions_query_failed',
+            error: error.message,
+            requestId: req.requestId || null,
+        });
+    }
+});
+
 router.post('/', (req, res) => {
     try {
         const result = executeOrderCreate(
@@ -719,6 +736,7 @@ router.patch('/:id', (req, res) => {
                 getSetting,
                 loadPartsData,
                 orderRow,
+                safeInsert,
                 safeUpdate,
             },
             id,

@@ -15,6 +15,7 @@ const {
     assertOrderTransition,
     deriveProcurementStatus,
     normalizePurchaseItem,
+    orderCoreEditEligibility,
 } = require('./orderWorkflow.cjs');
 const {
     assertPreviewHash,
@@ -33,6 +34,11 @@ const {
 } = require('./validation.cjs');
 const { buildConfiguredRecipeSnapshot } = require('./configuredRecipeSnapshot.cjs');
 const { normalizeNewOrderBomSnapshot } = require('./orderBomSnapshot.cjs');
+const {
+    buildOrderRevisionChanges,
+    normalizeRevisionReason,
+    orderBusinessSnapshot,
+} = require('./orderRevisions.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('orders.create').capabilityId;
 const STATUS_CAPABILITY_ID = requireBusinessCapability('orders.change_status').capabilityId;
@@ -48,10 +54,14 @@ function roundMoney(value) {
     return Math.round(value * 100) / 100;
 }
 
-function normalizeOrderItems(dependencies, items) {
+function normalizeOrderItems(dependencies, items, options = {}) {
     if (!Array.isArray(items)) return { items: [], warnings: [] };
     const { db } = dependencies;
     const warnings = [];
+    const existingItems = new Map((options.existingItems || []).map((item, index) => [
+        String(item.id || `${item.recipeId || 0}:${index}`),
+        item,
+    ]));
     const normalizedItems = items
         .filter(Boolean)
         .map((item, index) => {
@@ -73,7 +83,15 @@ function normalizeOrderItems(dependencies, items) {
             );
             const hasConfigurationOverrides = Object.prototype.hasOwnProperty.call(item, 'configurationOverrides')
                 || Object.prototype.hasOwnProperty.call(item, 'overrides');
-            const configured = hasConfigurationOverrides
+            const existingItem = existingItems.get(String(item.id || ''));
+            const samePersistedSnapshot = Boolean(
+                existingItem
+                && Number(existingItem.recipeId) === recipeId
+                && (!hasConfigurationOverrides || requestHash(
+                    existingItem.configurationOverrides || existingItem.overrides || {}
+                ) === requestHash(item.configurationOverrides ?? item.overrides ?? {}))
+            );
+            const configured = hasConfigurationOverrides && !samePersistedSnapshot
                 ? buildConfiguredRecipeSnapshot(
                     dependencies,
                     recipeId,
@@ -86,9 +104,13 @@ function normalizeOrderItems(dependencies, items) {
                 : null;
             const parts = normalizeNewOrderBomSnapshot(
                 dependencies,
-                configured?.bomSnapshot || parseJsonArray(recipe.parts_json)
+                samePersistedSnapshot
+                    ? parseJsonArray(existingItem.partsJson)
+                    : configured?.bomSnapshot || parseJsonArray(recipe.parts_json)
             );
-            const unitCost = configured?.unitCost ?? Number(recipe.saved_total_cost);
+            const unitCost = samePersistedSnapshot
+                ? Number(existingItem.unitCost)
+                : configured?.unitCost ?? Number(recipe.saved_total_cost);
             if (!Number.isFinite(unitCost) || unitCost <= 0 || parts.length === 0) {
                 throw orderCommandError(
                     'order_recipe_snapshot_incomplete',
@@ -104,8 +126,12 @@ function normalizeOrderItems(dependencies, items) {
             const unitPrice = item.unitPrice === undefined
                 ? roundMoney(unitCost * profitMargin)
                 : parseNonNegativeNumber(item.unitPrice, `items[${index}].unitPrice`);
-            if (configured?.warnings?.length) {
-                warnings.push(...configured.warnings.map(warning => ({
+            const pricingMode = item.pricingMode === 'manual' ? 'manual' : 'margin';
+            const itemWarnings = samePersistedSnapshot
+                ? (existingItem.configurationWarnings || [])
+                : (configured?.warnings || []);
+            if (itemWarnings.length) {
+                warnings.push(...itemWarnings.map(warning => ({
                     ...warning,
                     itemIndex: index,
                     recipeId,
@@ -125,8 +151,16 @@ function normalizeOrderItems(dependencies, items) {
                 unitCost: roundMoney(unitCost),
                 unitPrice: roundMoney(unitPrice),
                 profitMargin: roundMoney(unitPrice / unitCost),
+                pricingMode,
                 partsJson: JSON.stringify(parts),
-                ...(configured ? {
+                ...(samePersistedSnapshot ? {
+                    configurationOverrides: existingItem.configurationOverrides,
+                    configurationSnapshot: existingItem.configurationSnapshot,
+                    costSnapshot: existingItem.costSnapshot,
+                    configurationWarnings: itemWarnings,
+                    snapshotVersion: existingItem.snapshotVersion,
+                    snapshotSource: existingItem.snapshotSource,
+                } : configured ? {
                     configurationOverrides: configured.configurationOverrides,
                     configurationSnapshot: configured.configurationSnapshot,
                     costSnapshot: configured.costSnapshot,
@@ -141,6 +175,7 @@ function normalizeOrderItems(dependencies, items) {
 
 function normalizeOrderDraftInput(body = {}) {
     return {
+        orderId: body.orderId ?? body.order_id,
         customerId: body.customerId ?? body.customer_id,
         customerName: body.customerName ?? body.customer_name,
         contractNo: body.contractNo ?? body.contract_no,
@@ -150,6 +185,7 @@ function normalizeOrderDraftInput(body = {}) {
         purchaseList: body.purchaseList
             ?? parseJsonArray(body.purchaseListJson ?? body.purchase_list_json),
         todos: body.todos ?? parseJsonArray(body.todosJson ?? body.todos_json),
+        editReason: body.editReason ?? body.edit_reason,
     };
 }
 
@@ -181,19 +217,21 @@ function resolveOrderCustomer(db, input = {}) {
     };
 }
 
-function orderCreatePreviewHash(payload) {
+function orderSavePreviewHash(capabilityId, payload) {
     const { itemsJson, ...stablePayload } = payload;
     return requestHash({
-        capabilityId: CREATE_CAPABILITY_ID,
+        capabilityId,
         payload: stablePreviewValue({
             ...stablePayload,
             // itemsJson 内含服务端生成时间；先恢复结构再过滤瞬时字段，
             // 避免同一业务输入在确认执行时产生伪 preview_changed。
             items: parseJsonArray(itemsJson),
-            // 兼容草稿也用于编辑：直接建单始终从“待确认”开始。
-            status: '待确认',
         }),
     });
+}
+
+function orderCreatePreviewHash(payload) {
+    return orderSavePreviewHash(CREATE_CAPABILITY_ID, { ...payload, status: '待确认' });
 }
 
 function buildOrderSavePayloadDraft(dependencies, body = {}) {
@@ -203,11 +241,36 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
         dbGetAllParts,
     } = dependencies;
     const input = normalizeOrderDraftInput(body);
+    const rawOrderId = input.orderId;
+    const orderId = rawOrderId === undefined || rawOrderId === null || rawOrderId === ''
+        ? null
+        : parsePositiveId(rawOrderId);
+    if (rawOrderId !== undefined && rawOrderId !== null && rawOrderId !== '' && !orderId) {
+        throw orderCommandError('order_id_invalid', '非法订单ID', 400);
+    }
+    const currentRecord = orderId ? getOrderRecord(db, orderId) : null;
+    const currentSnapshot = currentRecord ? orderBusinessSnapshot(currentRecord) : null;
+    const editReason = currentRecord ? normalizeRevisionReason(input.editReason) : '';
+    if (currentRecord) {
+        const eligibility = orderCoreEditEligibility(
+            currentRecord.status,
+            parseJsonArray(currentRecord.purchase_list_json)
+        );
+        if (!eligibility.allowed) {
+            throw orderCommandError(
+                'order_update_status_conflict',
+                `${eligibility.reason}，请使用后续订单变更单处理`,
+                409
+            );
+        }
+    }
     const customer = resolveOrderCustomer(db, input);
     let items;
     let configurationWarnings = [];
     try {
-        const normalized = normalizeOrderItems(dependencies, input.items);
+        const normalized = normalizeOrderItems(dependencies, input.items, {
+            existingItems: currentSnapshot?.items || [],
+        });
         items = normalized.items;
         configurationWarnings = normalized.warnings;
     } catch (error) {
@@ -233,10 +296,12 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
 
     const providedPurchaseList = parseJsonArray(input.purchaseList);
     const providedTodos = parseJsonArray(input.todos);
-    const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all();
+    const activeOrders = db.prepare(ACTIVE_ORDERS_SQL).all()
+        .filter(record => Number(record.id) !== orderId);
+    const draftOrderId = orderId || -1;
     const draftOrder = {
-        id: -1,
-        created_at: new Date().toISOString(),
+        id: draftOrderId,
+        created_at: currentRecord?.created_at || new Date().toISOString(),
         items,
         purchase_list_json: '[]',
     };
@@ -244,8 +309,8 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
         [...activeOrders, draftOrder],
         dbGetAllParts(),
         { coilsCatalog: dbGetAllCoils() }
-    ).get(-1);
-    const status = input.status || '待确认';
+    ).get(draftOrderId);
+    const status = currentRecord?.status || input.status || '待确认';
     if (!ORDER_STATUSES.has(status)) {
         throw orderCommandError('order_status_invalid', '非法订单状态', 400);
     }
@@ -259,15 +324,22 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
         itemsJson: JSON.stringify(items),
         purchaseListJson: JSON.stringify(plan.purchaseList || []),
         todosJson: JSON.stringify(plan.todos || []),
+        ...(currentRecord ? { orderId, editReason } : {}),
     };
-    return {
-        ...payload,
-        capabilityId: CREATE_CAPABILITY_ID,
-        preview: true,
-        requiresConfirmation: true,
-        suggestedIdempotencyKey: `order-create:${crypto.randomUUID()}`,
-        previewHash: orderCreatePreviewHash(payload),
-        changes: [{
+    const capabilityId = currentRecord ? UPDATE_CAPABILITY_ID : CREATE_CAPABILITY_ID;
+    const afterSnapshot = currentRecord ? orderBusinessSnapshot({
+        ...currentRecord,
+        customer_id: payload.customerId,
+        customer_name: payload.customerName,
+        contract_no: payload.contractNo,
+        remark: payload.remark,
+        items_json: payload.itemsJson,
+        purchase_list_json: payload.purchaseListJson,
+        todos_json: payload.todosJson,
+    }) : null;
+    const changes = currentRecord
+        ? buildOrderRevisionChanges(currentSnapshot, afterSnapshot)
+        : [{
             resourceType: 'order',
             field: 'created',
             from: null,
@@ -277,7 +349,27 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
                 status: '待确认',
                 itemCount: items.length,
             },
-        }],
+        }];
+    const lowPriceWarnings = items
+        .filter(item => Number(item.unitPrice) < Number(item.unitCost))
+        .map((item, index) => ({
+            code: 'order_unit_price_below_cost',
+            message: `产品“${item.recipeName}”销售单价低于单位成本，请确认本次让价`,
+            itemIndex: index,
+            recipeId: item.recipeId,
+        }));
+    return {
+        ...payload,
+        capabilityId,
+        preview: true,
+        requiresConfirmation: true,
+        suggestedIdempotencyKey: currentRecord
+            ? `order-update:${orderId}:${crypto.randomUUID()}`
+            : `order-create:${crypto.randomUUID()}`,
+        previewHash: currentRecord
+            ? orderSavePreviewHash(UPDATE_CAPABILITY_ID, payload)
+            : orderCreatePreviewHash(payload),
+        changes,
         warnings: [
             ...(customer.resolvedByLegacyName ? [{
                 code: 'customer_name_compatibility_resolved',
@@ -288,6 +380,7 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
                 message: '客户端采购清单和待办已忽略，正式结果由服务端按订单 BOM 和实时库存重新生成',
             }] : []),
             ...configurationWarnings,
+            ...lowPriceWarnings,
         ],
     };
 }
@@ -387,6 +480,7 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
     const {
         db,
         orderRow,
+        safeInsert,
         safeUpdate,
     } = dependencies;
     const orderId = parsePositiveId(orderIdValue);
@@ -398,7 +492,7 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
     const expectedPreviewHash = normalizePreviewHash(input.previewHash);
     const draft = buildOrderSavePayloadDraft(
         dependencies,
-        input
+        { ...input, orderId }
     );
     const compatibilityWarnings = [];
     if (!expectedUpdatedAt) {
@@ -431,16 +525,21 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
                 itemsJson: draft.itemsJson,
                 purchaseListJson: draft.purchaseListJson,
                 todosJson: draft.todosJson,
+                editReason: draft.editReason,
             },
         },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
-        execute: ({ auditContext }) => {
+        execute: ({ auditContext, operationId }) => {
             const record = getOrderRecord(db, orderId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `订单 #${orderId}`);
-            if (record.status !== '待确认') {
+            const eligibility = orderCoreEditEligibility(
+                record.status,
+                parseJsonArray(record.purchase_list_json)
+            );
+            if (!eligibility.allowed) {
                 throw orderCommandError(
                     'order_update_status_conflict',
-                    '订单确认后不能修改核心明细，只能通过采购和状态动作继续处理',
+                    `${eligibility.reason}，请使用后续订单变更单处理`,
                     409
                 );
             }
@@ -458,27 +557,39 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
                 purchase_list_json: draft.purchaseListJson,
                 todos_json: draft.todosJson,
             }, auditContext);
+            const updatedRecord = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+            const revisionNo = Number(db.prepare(`
+                SELECT COALESCE(MAX(revision_no), 0) + 1 AS next_revision_no
+                FROM order_revisions
+                WHERE order_id = ?
+            `).get(orderId).next_revision_no);
+            const revisionWrite = safeInsert('order_revisions', {
+                order_id: orderId,
+                revision_no: revisionNo,
+                reason: draft.editReason,
+                before_snapshot_json: JSON.stringify(orderBusinessSnapshot(record)),
+                after_snapshot_json: JSON.stringify(orderBusinessSnapshot(updatedRecord)),
+                change_summary_json: JSON.stringify(draft.changes || []),
+                operation_id: operationId,
+                actor: commandContext.actorKey || 'system',
+                created_at: new Date().toISOString(),
+            }, auditContext);
             return {
                 data: {
-                    order: orderRow(
-                        db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)
-                    ),
+                    order: orderRow(updatedRecord),
+                    revision: {
+                        id: Number(revisionWrite.lastInsertRowid),
+                        revisionNo,
+                        reason: draft.editReason,
+                    },
                 },
                 resource: {
                     type: 'order',
                     ids: [orderId],
                 },
-                changes: [{
-                    resourceType: 'order',
-                    resourceId: orderId,
-                    field: 'draft',
-                    fromUpdatedAt: record.updated_at,
-                    toUpdatedAt: db.prepare(
-                        'SELECT updated_at FROM orders WHERE id = ?'
-                    ).get(orderId)?.updated_at,
-                }],
-                auditIds: write.auditId ? [write.auditId] : [],
-                requiredAuditCount: 1,
+                changes: draft.changes || [],
+                auditIds: [write.auditId, revisionWrite.auditId].filter(Boolean),
+                requiredAuditCount: 2,
             };
         },
     });
@@ -756,5 +867,6 @@ module.exports = {
     executeOrderUpdate,
     normalizeOrderItems,
     orderCreatePreviewHash,
+    orderSavePreviewHash,
     resolveOrderCustomer,
 };

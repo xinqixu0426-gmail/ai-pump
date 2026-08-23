@@ -29,7 +29,7 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
     },
     {
         name: 'generate_purchase_list',
-        args: { orderId: 101 },
+        args: { orderId: 101, reason: 'MCP 本地验收重新生成采购清单' },
         businessTests: ['tests/orderCommands.test.cjs', 'tests/orderPlanning.test.cjs'],
         isolation: 'in-memory order database',
     },
@@ -41,19 +41,19 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
     },
     {
         name: 'add_recipe_to_order',
-        args: { orderId: 101, recipeName: '本地验收配方', qty: 2 },
+        args: { orderId: 101, recipeName: '本地验收配方', qty: 2, reason: 'MCP 本地验收追加产品' },
         businessTests: ['tests/orderCommands.test.cjs'],
         isolation: 'in-memory order database',
     },
     {
         name: 'remove_recipe_from_order',
-        args: { orderId: 101, recipeName: '本地验收配方' },
+        args: { orderId: 101, recipeName: '本地验收配方', reason: 'MCP 本地验收移除产品' },
         businessTests: ['tests/orderCommands.test.cjs'],
         isolation: 'in-memory order database',
     },
     {
         name: 'update_order_item',
-        args: { orderId: 101, recipeName: '本地验收配方', qty: 3 },
+        args: { orderId: 101, recipeName: '本地验收配方', qty: 3, reason: 'MCP 本地验收调整数量' },
         businessTests: ['tests/orderCommands.test.cjs'],
         isolation: 'in-memory order database',
     },

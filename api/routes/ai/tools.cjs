@@ -454,9 +454,10 @@ const AI_TOOLS = [
                 properties: {
                     orderId: { type: 'number', description: '订单的ID号码' },
                     recipeName: { type: 'string', description: '要添加的配方名称或泵壳型号' },
-                    qty: { type: 'number', description: '数量' }
+                    qty: { type: 'number', description: '数量' },
+                    reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
-                required: ['orderId', 'recipeName', 'qty']
+                required: ['orderId', 'recipeName', 'qty', 'reason']
             }
         }
     },
@@ -531,9 +532,10 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单ID' },
-                    recipeName: { type: 'string', description: '要移除的配方名称' }
+                    recipeName: { type: 'string', description: '要移除的配方名称' },
+                    reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
-                required: ['orderId', 'recipeName']
+                required: ['orderId', 'recipeName', 'reason']
             }
         }
     },
@@ -549,9 +551,10 @@ const AI_TOOLS = [
                     recipeName: { type: 'string', description: '要修改的配方名称' },
                     qty: { type: 'number', description: '新数量（可选）' },
                     unitPrice: { type: 'number', description: '新出厂价（可选）' },
-                    profitMargin: { type: 'number', description: '新利润率倍数如1.15（可选）' }
+                    profitMargin: { type: 'number', description: '新利润率倍数如1.15（可选）' },
+                    reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
-                required: ['orderId', 'recipeName']
+                required: ['orderId', 'recipeName', 'reason']
             }
         }
     },
@@ -563,9 +566,10 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    orderId: { type: 'number', description: '订单ID' }
+                    orderId: { type: 'number', description: '订单ID' },
+                    reason: { type: 'string', minLength: 1, maxLength: 500, description: '重新生成采购清单的业务原因；必须来自用户，不得由 AI 自动编造' }
                 },
-                required: ['orderId']
+                required: ['orderId', 'reason']
             }
         }
     },

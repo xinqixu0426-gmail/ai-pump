@@ -658,7 +658,7 @@ test('关键 API 集成契约：直接建单和状态变更由订单 command ser
     assert.match(route, /\.\.\.result\.order/);
 });
 
-test('关键 API 集成契约：待确认订单编辑和删除由同一 command service 执行', () => {
+test('关键 API 集成契约：受控订单编辑、修订查询和删除由正式 service 执行', () => {
     const route = readUtf8('api/routes/orders.cjs');
     const service = readUtf8('api/services/orderCommands.cjs');
     const updateRoute = sliceBetween(
@@ -673,6 +673,7 @@ test('关键 API 集成契约：待确认订单编辑和删除由同一 command 
     );
 
     assert.match(updateRoute, /executeOrderUpdate/);
+    assert.match(updateRoute, /safeInsert/);
     assert.match(updateRoute, /commandContextFromRequest\(req, ORDER_UPDATE_CAPABILITY_ID\)/);
     assert.doesNotMatch(updateRoute, /safeUpdate\s*\(|db\.transaction/);
     assert.match(deleteRoute, /executeOrderDelete/);
@@ -681,6 +682,8 @@ test('关键 API 集成契约：待确认订单编辑和删除由同一 command 
     assert.match(service, /function executeOrderUpdate/);
     assert.match(service, /function executeOrderDelete/);
     assert.match(service, /order_update_status_conflict/);
+    assert.match(service, /orderCoreEditEligibility/);
+    assert.match(service, /order_revisions/);
     assert.match(service, /order_delete_status_conflict/);
 });
 
@@ -1283,7 +1286,7 @@ test('关键 API 集成契约：订单和报价保存草稿不得吞掉坏数字
 
     assert.match(orders, /buildOrderSavePayloadDraft/);
     assert.match(orderCommands, /buildConfiguredRecipeSnapshot/);
-    assert.match(orderCommands, /const unitCost = configured\?\.unitCost \?\? Number\(recipe\.saved_total_cost\)/);
+    assert.match(orderCommands, /const unitCost = samePersistedSnapshot[\s\S]*configured\?\.unitCost \?\? Number\(recipe\.saved_total_cost\)/);
     assert.doesNotMatch(orderCommands, /parseNonNegativeNumber\(\s*item\.unitCost/);
     assert.match(orderCommands, /parseNonNegativeNumber\(\s*item\.unitPrice,\s*`items\[\$\{index\}\]\.unitPrice`/);
     assert.match(orderCommands, /parsePositiveNumber\(\s*item\.qty,\s*`items\[\$\{index\}\]\.qty`/);

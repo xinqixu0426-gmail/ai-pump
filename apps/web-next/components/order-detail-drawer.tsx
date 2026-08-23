@@ -1,17 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, ClipboardList, PackageCheck, RefreshCw, Save, ShoppingCart, X } from 'lucide-react';
+import { ArrowUpRight, ClipboardList, History, PackageCheck, Pencil, RefreshCw, Save, ShoppingCart, X } from 'lucide-react';
 import {
   buildCompleteOrderPurchaseDraft,
   buildOrderPurchaseItemProgressDraft,
+  canEditOrderCore,
   completeOrderPurchase,
+  getOrderRevisions,
   orderPurchaseProgress,
   setOrderStatus,
   toggleOrderTodoItem,
   updateOrderPurchaseItem,
   type CompletePurchaseDraft,
   type Order,
+  type OrderRevision,
   type OrderInventoryDisposition,
   type OrderStatus,
   type PurchaseItemProgressDraft,
@@ -42,9 +45,10 @@ type OrderDetailDrawerProps = {
   initialTab?: TabKey;
   onClose: () => void;
   onSaved: () => void;
+  onEdit: (order: Order) => void;
 };
 
-type TabKey = 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos';
+type TabKey = 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' | 'revisions';
 
 const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   待确认: 'slate',
@@ -101,6 +105,7 @@ const tabOptions: Array<{ value: TabKey; label: string }> = [
   { value: 'items', label: '型号' },
   { value: 'purchase', label: '采购' },
   { value: 'todos', label: '待办' },
+  { value: 'revisions', label: '修改记录' },
 ];
 
 const verdictMeta: Record<OrderReadinessVerdict, { label: string; tone: StatusBadgeTone }> = {
@@ -310,7 +315,7 @@ function ReadinessPanel({
   );
 }
 
-export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, onSaved }: OrderDetailDrawerProps) {
+export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, onSaved, onEdit }: OrderDetailDrawerProps) {
   const [localOrder, setLocalOrder] = useState<Order | null>(order);
   const [tab, setTab] = useState<TabKey>('items');
   const [confirmingPurchase, setConfirmingPurchase] = useState(false);
@@ -324,6 +329,9 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   const [readinessPlan, setReadinessPlan] = useState<OrderReadinessPlan | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [readinessError, setReadinessError] = useState('');
+  const [revisions, setRevisions] = useState<OrderRevision[]>([]);
+  const [revisionsLoading, setRevisionsLoading] = useState(false);
+  const [revisionsError, setRevisionsError] = useState('');
   const [purchaseConfirmTarget, setPurchaseConfirmTarget] = useState<PurchaseProgressConfirmTarget | null>(null);
   const [closeDispositionTarget, setCloseDispositionTarget] = useState<{
     disposition: OrderInventoryDisposition;
@@ -360,6 +368,18 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     }
   }
 
+  async function loadRevisions(orderId: string) {
+    setRevisionsLoading(true);
+    setRevisionsError('');
+    try {
+      setRevisions(await getOrderRevisions(orderId));
+    } catch (err) {
+      setRevisionsError(err instanceof Error ? err.message : '订单修改记录加载失败');
+    } finally {
+      setRevisionsLoading(false);
+    }
+  }
+
   useEffect(() => {
     const nextOrderId = order?.id ?? null;
     const changedOrder = nextOrderId !== previousOrderIdRef.current;
@@ -387,9 +407,11 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     }
     if (order?.id) {
       void loadReadiness(order.id);
+      void loadRevisions(order.id);
     } else {
       readinessRequestRef.current += 1;
       setReadinessLoading(false);
+      setRevisions([]);
     }
     setMessage('');
     setError('');
@@ -609,14 +631,27 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                 </div>
                 {localOrder.remark && <div className="mt-1 text-sm text-muted">备注：{localOrder.remark}</div>}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                aria-label="关闭订单详情"
-              >
-                <X size={18} />
-              </Button>
+              <div className="flex items-center gap-2">
+                {canEditOrderCore(localOrder) ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => onEdit(localOrder)}
+                    icon={<Pencil size={14} />}
+                  >
+                    编辑订单
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  aria-label="关闭订单详情"
+                >
+                  <X size={18} />
+                </Button>
+              </div>
             </div>
           </header>
 
@@ -667,6 +702,48 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                 contractNo={localOrder.contractNo}
                 customerName={localOrder.customerName}
               />
+            )}
+
+            {tab === 'revisions' && (
+              <div className="space-y-3">
+                {revisionsError ? (
+                  <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {revisionsError}
+                  </div>
+                ) : null}
+                {revisionsLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="h-24 animate-pulse rounded-panel bg-slate-100" />
+                    ))}
+                  </div>
+                ) : revisions.length === 0 ? (
+                  <div className="rounded-panel border border-line p-8 text-center text-sm text-muted">暂无订单修改记录</div>
+                ) : revisions.map((revision) => (
+                  <section key={revision.id} className="rounded-panel border border-line bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <History size={15} className="text-muted" />
+                          <div className="font-semibold text-ink">第 {revision.revisionNo} 次修改</div>
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700">{revision.reason}</div>
+                      </div>
+                      <div className="text-right text-xs text-muted">
+                        <div>{revision.actor}</div>
+                        <div className="mt-1">{revision.createdAt ? new Date(revision.createdAt).toLocaleString('zh-CN') : '-'}</div>
+                      </div>
+                    </div>
+                    <ul className="mt-3 list-disc space-y-1 border-t border-line pt-3 pl-5 text-sm text-muted">
+                      {revision.changes.length > 0
+                        ? revision.changes.map((change, index) => (
+                          <li key={`${change.type}-${change.itemId || change.field || index}`}>{change.description}</li>
+                        ))
+                        : <li>重新生成订单采购计划和快照</li>}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             )}
 
             {tab === 'items' && (

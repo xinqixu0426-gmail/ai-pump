@@ -172,6 +172,7 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '数量', args.qty);
             addRow(rows, '出厂价', args.unitPrice, hasValue(args.unitPrice) ? ' 元' : '');
             addRow(rows, '利润率', args.profitMargin);
+            addRow(rows, '修改原因', args.reason);
             break;
         case 'create_recipe':
         case 'update_recipe':

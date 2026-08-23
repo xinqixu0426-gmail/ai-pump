@@ -14,6 +14,16 @@ function parseJsonArray(value) {
     }
 }
 
+function requireEditReason(value) {
+    const reason = String(value || '').trim();
+    if (!reason) {
+        const error = new Error('修改订单必须先向用户确认并填写修改原因');
+        error.code = 'order_edit_reason_required';
+        throw error;
+    }
+    return reason;
+}
+
 async function loadRecipes(internalFetch) {
     return getJson(internalFetch, '/api/recipes', '配方列表读取失败');
 }
@@ -47,6 +57,7 @@ async function buildOrderItemFromRecipe(internalFetch, recipe, qty = 1) {
 
 async function buildOrderSavePayload(internalFetch, orderLike) {
     return postJson(internalFetch, '/api/orders/save-payload-draft', {
+        orderId: orderLike.orderId,
         customerName: orderLike.customerName,
         contractNo: orderLike.contractNo || '',
         remark: orderLike.remark || '',
@@ -54,6 +65,7 @@ async function buildOrderSavePayload(internalFetch, orderLike) {
         items: orderLike.items || [],
         purchaseList: orderLike.purchaseList,
         todos: orderLike.todos,
+        editReason: orderLike.editReason,
     }, '生成订单保存草稿失败');
 }
 
@@ -108,6 +120,7 @@ async function resolveOrderTarget(internalFetch, args = {}) {
 
 async function saveExistingOrder(internalFetch, order, items, options = {}) {
     const payload = await buildOrderSavePayload(internalFetch, {
+        orderId: order.id ?? order.Id,
         customerName: order.customerName,
         contractNo: order.contractNo || '',
         remark: order.remark || '',
@@ -115,6 +128,7 @@ async function saveExistingOrder(internalFetch, order, items, options = {}) {
         items,
         purchaseList: options.purchaseList,
         todos: options.todos,
+        editReason: options.editReason,
     });
     return patchJson(internalFetch, `/api/orders/${order.id ?? order.Id}`, {
         ...payload,
@@ -242,6 +256,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'add_recipe_to_order': {
             const { orderId, recipeName, qty = 1 } = args;
+            const editReason = requireEditReason(args.reason);
 
             // 1. 获取配方
             const recipe = findRecipe(await loadRecipes(internalFetch), recipeName);
@@ -259,7 +274,9 @@ async function executeOrderTool(toolName, args, internalFetch) {
             itemsList.push(item);
 
             try {
-                await saveExistingOrder(internalFetch, targetOrder, itemsList);
+                await saveExistingOrder(internalFetch, targetOrder, itemsList, {
+                    editReason,
+                });
                 return {
                     success: true,
                     message: `成功向订单${orderId}追加配方：${recipe.name}(数量: ${qty})`,
@@ -434,6 +451,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'remove_recipe_from_order': {
             const { orderId, recipeName } = args;
+            const editReason = requireEditReason(args.reason);
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
@@ -441,7 +459,9 @@ async function executeOrderTool(toolName, args, internalFetch) {
             items = items.filter(it => !(it.recipeName || '').includes(recipeName));
             if (items.length === before) return { success: false, error: `订单${orderId}中未找到包含"${recipeName}"的配方` };
             try {
-                await saveExistingOrder(internalFetch, row, items);
+                await saveExistingOrder(internalFetch, row, items, {
+                    editReason,
+                });
                 return { success: true, message: `已从订单${orderId}中移除"${recipeName}"`, orderId, removed: before - items.length, remaining: items.length };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -450,6 +470,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'update_order_item': {
             const { orderId, recipeName, qty, unitPrice, profitMargin } = args;
+            const editReason = requireEditReason(args.reason);
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
@@ -465,7 +486,9 @@ async function executeOrderTool(toolName, args, internalFetch) {
             }
             if (changes.length === 0) return { success: false, error: '没有指定要修改的字段' };
             try {
-                await saveExistingOrder(internalFetch, row, items);
+                await saveExistingOrder(internalFetch, row, items, {
+                    editReason,
+                });
                 return { success: true, message: `订单${orderId}中"${item.recipeName}"已更新`, orderId, recipeName: item.recipeName, changes };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -474,6 +497,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
         case 'generate_purchase_list': {
             const { orderId } = args;
+            const editReason = requireEditReason(args.reason);
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
@@ -481,11 +505,13 @@ async function executeOrderTool(toolName, args, internalFetch) {
 
             try {
                 const payload = await buildOrderSavePayload(internalFetch, {
+                    orderId: row.id ?? row.Id,
                     customerName: row.customerName,
                     contractNo: row.contractNo || '',
                     remark: row.remark || '',
                     status: row.status || '待采购',
                     items,
+                    editReason,
                 });
                 await patchJson(internalFetch, `/api/orders/${row.id ?? row.Id}`, {
                     ...payload,

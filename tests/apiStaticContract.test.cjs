@@ -421,8 +421,10 @@ test('API 静态契约：报价保存 payload 必须由后端生成草稿', () =
 test('API 静态契约：订单保存 payload 必须由后端生成草稿', () => {
     const route = readUtf8(path.join(repoRoot, 'api/routes/orders.cjs'));
     const commandService = readUtf8(path.join(repoRoot, 'api/services/orderCommands.cjs'));
+    const revisionService = readUtf8(path.join(repoRoot, 'api/services/orderRevisions.cjs'));
     const nextClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/orders.ts'));
     const nextView = readUtf8(path.join(repoRoot, 'apps/web-next/components/orders-view.tsx'));
+    const detailDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
 
     assert.match(route, /router\.post\('\/save-payload-draft'/);
     assert.match(route, /buildOrderSavePayloadDraft/);
@@ -431,12 +433,21 @@ test('API 静态契约：订单保存 payload 必须由后端生成草稿', () =
     assert.match(commandService, /executeOrderCreate/);
     assert.match(commandService, /executeOrderStatus/);
     assert.match(commandService, /assertExpectedUpdatedAt/);
+    assert.match(commandService, /orderCoreEditEligibility/);
+    assert.match(commandService, /safeInsert\('order_revisions'/);
+    assert.match(revisionService, /function listOrderRevisions/);
+    assert.match(route, /router\.get\('\/:id\/revisions'/);
     assert.match(nextClient, /buildOrderSavePayloadDraft/);
     assert.match(nextClient, /\/api\/orders\/save-payload-draft/);
     assert.match(nextClient, /Idempotency-Key/);
     assert.match(nextClient, /expectedUpdatedAt:\s*order\.updatedAt/);
     assert.doesNotMatch(nextClient, /itemsJson: JSON\.stringify\(order\.items\)/);
     assert.doesNotMatch(nextView, /generatePurchasePlan\(draftItems\)/);
+    assert.match(nextView, /prepareOrderUpdate/);
+    assert.match(nextView, /本次修改原因/);
+    assert.match(detailDrawer, /编辑订单/);
+    assert.match(detailDrawer, /修改记录/);
+    assert.match(detailDrawer, /getOrderRevisions/);
 });
 
 test('API 静态契约：订单详情动作必须由后端执行', () => {

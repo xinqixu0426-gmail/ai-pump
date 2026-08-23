@@ -129,6 +129,34 @@ const CANONICAL_TABLES_SQL = `
         CHECK(status IN ('待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消'))
     );
 
+    CREATE TABLE IF NOT EXISTS order_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        revision_no INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        before_snapshot_json TEXT NOT NULL,
+        after_snapshot_json TEXT NOT NULL,
+        change_summary_json TEXT NOT NULL DEFAULT '[]',
+        operation_id TEXT NOT NULL,
+        actor TEXT NOT NULL DEFAULT 'system',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(order_id) REFERENCES orders(id),
+        UNIQUE(order_id, revision_no),
+        UNIQUE(operation_id)
+    );
+
+    CREATE TRIGGER IF NOT EXISTS order_revisions_no_update
+    BEFORE UPDATE ON order_revisions
+    BEGIN
+        SELECT RAISE(ABORT, 'order revisions are immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS order_revisions_no_delete
+    BEFORE DELETE ON order_revisions
+    BEGIN
+        SELECT RAISE(ABORT, 'order revisions are immutable');
+    END;
+
     CREATE TABLE IF NOT EXISTS order_requirement_summaries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id INTEGER NOT NULL UNIQUE,
@@ -826,6 +854,8 @@ const CANONICAL_INDEXES_SQL = `
         ON recipes(model_variant_id);
     CREATE INDEX IF NOT EXISTS idx_orders_active_status_created
         ON orders(deleted_at, status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_order_revisions_order
+        ON order_revisions(order_id, revision_no DESC);
     CREATE INDEX IF NOT EXISTS idx_quotations_active_status_updated
         ON quotations(deleted_at, status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_quotations_customer
@@ -985,6 +1015,7 @@ const APPLICATION_TABLES = Object.freeze([
     'management_action_events',
     'management_action_lifecycles',
     'order_execution_records',
+    'order_revisions',
     'order_requirement_summaries',
     'orders',
     'parts',

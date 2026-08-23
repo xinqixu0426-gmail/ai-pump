@@ -6,11 +6,14 @@ import { CircleAlert, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from
 import { getAllCustomers, type Customer } from '@/lib/customers';
 import {
   calcOrderTotals,
+  commitOrderUpdate,
   createOrder,
   createOrderItemFromRecipe,
   getAllOrders,
+  prepareOrderUpdate,
   type Order,
   type OrderItem,
+  type OrderSavePayloadDraft,
   type OrderStatus,
 } from '@/lib/orders';
 import { getAllRecipes, type Recipe } from '@/lib/recipes';
@@ -77,7 +80,7 @@ export function OrdersView({
   initialDetailTab = 'items',
 }: {
   initialOrderId?: number | null;
-  initialDetailTab?: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos';
+  initialDetailTab?: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' | 'revisions';
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -93,6 +96,12 @@ export function OrdersView({
   const [status, setStatus] = useState<OrderStatus | '全部'>('全部');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editReason, setEditReason] = useState('');
+  const [updateConfirmTarget, setUpdateConfirmTarget] = useState<{
+    order: Order;
+    draft: OrderSavePayloadDraft;
+  } | null>(null);
   const [customerId, setCustomerId] = useState('');
   const [contractNo, setContractNo] = useState('');
   const [remark, setRemark] = useState('');
@@ -118,8 +127,15 @@ export function OrdersView({
   } = useConfirmDiscard({
     open: drawerOpen,
     busy: saving,
-    onDiscard: () => setDrawerOpen(false),
+    onDiscard: closeFormDrawer,
   });
+
+  function closeFormDrawer() {
+    setDrawerOpen(false);
+    setEditingOrder(null);
+    setEditReason('');
+    setUpdateConfirmTarget(null);
+  }
 
   const load = useCallback(async (force = false) => {
     setError(null);
@@ -172,6 +188,9 @@ export function OrdersView({
   function openCreateDrawer() {
     resetFormDirty();
     setFormError(null);
+    setEditingOrder(null);
+    setEditReason('');
+    setUpdateConfirmTarget(null);
     setContractNo('');
     setRemark('');
     setRecipeId('');
@@ -186,7 +205,39 @@ export function OrdersView({
     void loadAuxiliary();
   }
 
-  function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' = 'items') {
+  function openEditDrawer(order: Order) {
+    resetFormDirty();
+    setFormError(null);
+    setSelectedOrder(null);
+    replacePageLocation('/orders');
+    setEditingOrder(order);
+    setEditReason('');
+    setUpdateConfirmTarget(null);
+    setCustomerId(order.customerId == null ? '' : String(order.customerId));
+    setContractNo(order.contractNo || '');
+    setRemark(order.remark || '');
+    setRecipeId('');
+    setItemQty('1');
+    pendingItemIdRef.current = null;
+    setPendingItem(null);
+    const nextItems = order.items.map(item => ({
+      ...item,
+      configurationOverrides: item.configurationOverrides
+        ? { ...item.configurationOverrides }
+        : undefined,
+      configurationWarnings: item.configurationWarnings
+        ? [...item.configurationWarnings]
+        : undefined,
+    }));
+    setDraftItems(nextItems);
+    draftItemIdsRef.current = new Set(nextItems.map(item => item.id));
+    setCalculatingItemIds(new Set());
+    configurationPreviewCoordinatorRef.current.clear();
+    setDrawerOpen(true);
+    void loadAuxiliary();
+  }
+
+  function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' | 'revisions' = 'items') {
     setSelectedOrder(order);
     replacePageLocation(`/orders?orderId=${order.id}&view=${detailTab}`);
   }
@@ -231,6 +282,7 @@ export function OrdersView({
       ...current,
       profitMargin: nextMargin,
       unitPrice: Math.round(current.unitCost * nextMargin * 100) / 100,
+      pricingMode: 'margin',
     } : current);
   }
 
@@ -279,6 +331,7 @@ export function OrdersView({
       ...current,
       profitMargin: nextMargin,
       unitPrice: Math.round(current.unitCost * nextMargin * 100) / 100,
+      pricingMode: 'margin',
     } : current);
   }
 
@@ -320,6 +373,7 @@ export function OrdersView({
         qty: nextQty,
         profitMargin: patch.unitPrice == null ? nextMargin : (item.unitCost > 0 ? unitPrice / item.unitCost : nextMargin),
         unitPrice: patch.unitPrice == null ? Math.round(item.unitCost * nextMargin * 100) / 100 : unitPrice,
+        pricingMode: patch.unitPrice == null ? 'margin' : 'manual',
       };
     }));
   }
@@ -420,12 +474,29 @@ export function OrdersView({
       setFormError('至少添加一个订单产品');
       return;
     }
+    if (editingOrder && !editReason.trim()) {
+      setFormError('请填写本次修改原因');
+      return;
+    }
 
     setSaving(true);
     setFormError(null);
     setError(null);
 
     try {
+      if (editingOrder) {
+        const nextOrder: Order = {
+          ...editingOrder,
+          customerId: Number(selectedCustomer.id),
+          customerName,
+          contractNo,
+          remark,
+          items: draftItems,
+        };
+        const draft = await prepareOrderUpdate(nextOrder, editReason);
+        setUpdateConfirmTarget({ order: nextOrder, draft });
+        return;
+      }
       const created = await createOrder({
         customerId: Number(selectedCustomer.id),
         customerName,
@@ -439,6 +510,24 @@ export function OrdersView({
       setSelectedOrder(created);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '订单创建失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmOrderUpdate() {
+    if (!updateConfirmTarget) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      const updated = await commitOrderUpdate(updateConfirmTarget.order, updateConfirmTarget.draft);
+      await load(true);
+      resetFormDirty();
+      closeFormDrawer();
+      setSelectedOrder(updated);
+    } catch (err) {
+      setUpdateConfirmTarget(null);
+      setFormError(err instanceof Error ? err.message : '订单修改失败');
     } finally {
       setSaving(false);
     }
@@ -585,14 +674,17 @@ export function OrdersView({
         initialTab={initialOrderId && selectedOrder && Number(selectedOrder.id) === initialOrderId ? initialDetailTab : 'items'}
         onClose={closeOrder}
         onSaved={() => void load(true)}
+        onEdit={openEditDrawer}
       />
 
       <SlideOver open={drawerOpen} onClose={requestDrawerClose} size="workspace" ariaLabelledBy="order-form-title">
         <form onSubmit={submitOrder} onChange={markFormDirty} className="flex min-h-full flex-col">
           <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
             <div>
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Order</div>
-              <h2 id="order-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">新建订单</h2>
+              <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">{editingOrder ? 'Order revision' : 'Order'}</div>
+              <h2 id="order-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">
+                {editingOrder ? `编辑订单 #${editingOrder.id}` : '新建订单'}
+              </h2>
             </div>
             <button
               type="button"
@@ -645,6 +737,22 @@ export function OrdersView({
                 placeholder="交付要求、合同备注等"
               />
             </label>
+
+            {editingOrder ? (
+              <label className="block rounded-panel border border-amber-200 bg-amber-50 p-4">
+                <span className="text-sm font-semibold text-amber-950">本次修改原因</span>
+                <span className="ml-1 text-xs text-rose-700">必填</span>
+                <textarea
+                  value={editReason}
+                  onChange={(event) => setEditReason(event.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  className="mt-2 w-full resize-none rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-amber-500"
+                  placeholder="例如：客户将数量调整为20台，并要求取消浮球"
+                />
+                <div className="mt-1 text-xs text-amber-800">保存后会记录修改前后快照和采购计划变化。</div>
+              </label>
+            ) : null}
 
             <div className="rounded-panel border border-line">
               <div className="border-b border-line p-4">
@@ -818,12 +926,45 @@ export function OrdersView({
                 取消
               </Button>
               <Button type="submit" variant="primary" disabled={saving || auxLoading || calculatingItemIds.size > 0} icon={<Save size={15} />}>
-                {saving ? '创建中' : '创建订单'}
+                {saving ? (editingOrder ? '生成预览中' : '创建中') : (editingOrder ? '预览并保存' : '创建订单')}
               </Button>
             </div>
           </div>
         </form>
       </SlideOver>
+
+      <ConfirmDialog
+        open={Boolean(updateConfirmTarget)}
+        title="确认保存订单修改？"
+        description={updateConfirmTarget ? (
+          <div className="space-y-3">
+            <div>修改原因：{editReason.trim()}</div>
+            <div>
+              <div className="font-medium text-ink">服务端确认的变化</div>
+              {updateConfirmTarget.draft.changes.length > 0 ? (
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {updateConfirmTarget.draft.changes.slice(0, 8).map((change, index) => (
+                    <li key={`${change.type}-${change.itemId || change.field || index}`}>{change.description}</li>
+                  ))}
+                </ul>
+              ) : <div className="mt-1 text-muted">采购计划将按当前正式数据重新生成。</div>}
+            </div>
+            {updateConfirmTarget.draft.warnings.length > 0 ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                {updateConfirmTarget.draft.warnings.map((warning, index) => (
+                  <div key={`${warning.code || 'warning'}-${index}`}>{warning.message}</div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        confirmLabel="确认保存"
+        cancelLabel="返回修改"
+        busy={saving}
+        onConfirm={() => void confirmOrderUpdate()}
+        onClose={() => setUpdateConfirmTarget(null)}
+        layer="top"
+      />
 
       <ConfirmDialog
         open={discardPromptOpen}
